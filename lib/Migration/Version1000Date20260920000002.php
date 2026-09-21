@@ -11,8 +11,6 @@ namespace OCA\Social\Migration;
 
 use Closure;
 use OCA\Social\Db\CoreRequestBuilder;
-use OCP\DB\ISchemaWrapper;
-use OCP\DB\Types;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
@@ -53,39 +51,11 @@ class Version1000Date20260920000002 extends SimpleMigrationStep {
 	) {
 	}
 
-	#[\Override]
-	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
-		/** @var ISchemaWrapper $schema */
-		$schema = $schemaClosure();
-
-		if (!$schema->hasTable(CoreRequestBuilder::TABLE_CACHE_ACTORS)) {
-			return null;
-		}
-
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_CACHE_ACTORS);
-		$changed = false;
-
-		if (!$table->hasColumn('host')) {
-			// as wide as the handle it is cut from; a hostname cannot be
-			// longer than 253 characters and this is not the place to find out
-			// that somebody's is
-			$table->addColumn('host', Types::STRING, [
-				'notnull' => false,
-				'length' => 255,
-				'default' => '',
-			]);
-			$changed = true;
-		}
-
-		// the whole point: `SELECT host, COUNT(*) … GROUP BY host` answered
-		// from the index rather than by reading every row
-		if (!$table->hasIndex('social_ca_host')) {
-			$table->addIndex(['host'], 'social_ca_host');
-			$changed = true;
-		}
-
-		return $changed ? $schema : null;
-	}
+	/**
+	 * The columns this step used to add are in `Version1000Date20221118000002`,
+	 * which describes the whole schema and runs before this. What is left here
+	 * is the half a schema cannot express: the rows.
+	 */
 
 	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {

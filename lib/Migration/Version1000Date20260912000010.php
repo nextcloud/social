@@ -12,7 +12,6 @@ namespace OCA\Social\Migration;
 use Closure;
 use OCP\DB\ISchemaWrapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\DB\Types;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
@@ -42,67 +41,11 @@ class Version1000Date20260912000010 extends SimpleMigrationStep {
 	) {
 	}
 
-	#[\Override]
-	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
-		/** @var ISchemaWrapper $schema */
-		$schema = $schemaClosure();
-
-		if ($schema->hasTable('social_client_auth')) {
-			return null;
-		}
-
-		$table = $schema->createTable('social_client_auth');
-		$table->addColumn('id', Types::BIGINT, [
-			'autoincrement' => true,
-			'notnull' => true,
-			'length' => 11,
-			'unsigned' => true,
-		]);
-		/** the `social_client.id` this authorization is against */
-		$table->addColumn('client_id', Types::INTEGER, [
-			'notnull' => true,
-		]);
-		/** the Nextcloud account that granted it */
-		$table->addColumn('user_id', Types::STRING, [
-			'notnull' => true,
-			'length' => 64,
-		]);
-		/** their Social handle, which is what `verify_credentials` resolves */
-		$table->addColumn('account', Types::STRING, [
-			'notnull' => false,
-			'length' => 127,
-		]);
-		/** what they granted, as the JSON list the client asked for */
-		$table->addColumn('scopes', Types::TEXT, [
-			'notnull' => false,
-		]);
-		/** hashed, and emptied the moment it is exchanged */
-		$table->addColumn('code', Types::STRING, [
-			'notnull' => false,
-			'length' => 127,
-		]);
-		/** hashed; empty until the code is exchanged for it */
-		$table->addColumn('token', Types::STRING, [
-			'notnull' => false,
-			'length' => 127,
-		]);
-		$table->addColumn('creation', Types::DATETIME, [
-			'notnull' => false,
-		]);
-		/** when the token was last used: what the TTL and the sweep read */
-		$table->addColumn('last_update', Types::DATETIME, [
-			'notnull' => false,
-		]);
-
-		$table->setPrimaryKey(['id']);
-		// one authorization per app per account: re-authorizing replaces it
-		$table->addUniqueIndex(['client_id', 'user_id'], 'social_ca_cu');
-		// the two lookups there are, and both are on every request that uses one
-		$table->addIndex(['token'], 'social_ca_tok');
-		$table->addIndex(['code'], 'social_ca_code');
-
-		return $schema;
-	}
+	/**
+	 * The columns this step used to add are in `Version1000Date20221118000002`,
+	 * which describes the whole schema and runs before this. What is left here
+	 * is the half a schema cannot express: the rows.
+	 */
 
 	/**
 	 * Carries the authorization already on each client row into a row of its

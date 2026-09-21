@@ -153,7 +153,7 @@ webfinger both land there.
   including `social_cache_doc.account`. PostgreSQL refuses a `NOT NULL` column
   on a table that already has rows unless there is one ("column contains null
   values") where MySQL quietly invents the empty string, so the default is what
-  makes such a column safe to add at all. `InitialSchemaTest` holds the four
+  makes such a column safe to add at all. `CoreSchemaTest` holds the four
   columns on that table to it.
 - ~~The queue drain's sort had no index behind it~~ — `getStandby()` selects on
   `status` and orders `priority DESC, tries ASC, last ASC, id ASC` to take 200

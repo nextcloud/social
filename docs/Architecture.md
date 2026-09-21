@@ -137,7 +137,7 @@ all 68 repository classes on a constructor signature that carries no stability
 promise and broke outright when Nextcloud 35 added a method to the public
 interface. Nothing in `lib/` now names a class outside `OCP\`.
 
-The tables are created by `lib/Migration/Version1000Date20221118000001.php`, all prefixed with `social_`:
+The tables are created by `lib/Migration/Version1000Date20221118000002.php` — the whole schema in one step — all prefixed with `social_`:
 
 | Table | Purpose |
 |-------|---------|

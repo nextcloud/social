@@ -13,7 +13,6 @@ use Closure;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCP\DB\ISchemaWrapper;
-use OCP\DB\Types;
 use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
@@ -59,35 +58,10 @@ class Version1000Date20260917000005 extends SimpleMigrationStep {
 	}
 
 	/**
-	 * @param IOutput $output
-	 * @param Closure(): ISchemaWrapper $schemaClosure
-	 * @param array<string, mixed> $options
+	 * The columns this step used to add are in `Version1000Date20221118000002`,
+	 * which describes the whole schema and runs before this. What is left here
+	 * is the half a schema cannot express: the rows.
 	 */
-	#[\Override]
-	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper {
-		/** @var ISchemaWrapper $schema */
-		$schema = $schemaClosure();
-
-		if (!$schema->hasTable(CoreRequestBuilder::TABLE_STREAM)) {
-			return $schema;
-		}
-
-		$table = $schema->getTable(CoreRequestBuilder::TABLE_STREAM);
-
-		if (!$table->hasColumn('news_kind')) {
-			$table->addColumn('news_kind', Types::STRING, [
-				'notnull' => false,
-				'length' => 7,
-				'default' => null,
-			]);
-		}
-
-		if (!$table->hasIndex('social_s_nk')) {
-			$table->addIndex(['news_kind', 'nid'], 'social_s_nk');
-		}
-
-		return $schema;
-	}
 
 	/**
 	 * Works out what every post already stored is.

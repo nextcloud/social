@@ -1,0 +1,5167 @@
+{
+    "social_access_block": {
+        "columns": {
+            "comment": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "expires": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "severity": {
+                "type": "string",
+                "options": {
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "length": 15,
+                    "notnull": true
+                }
+            },
+            "value": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "type",
+                    "value"
+                ],
+                "name": "social_acb_tv",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_account_note": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "note": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "object_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "object_id_prim"
+                ],
+                "name": "social_anote_ao",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_action": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "object_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "object_id_prim",
+                    "type"
+                ],
+                "name": "apopt",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "object_id_prim",
+                    "type"
+                ],
+                "name": "social_a_oit",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id_prim"
+        ]
+    },
+    "social_actor": {
+        "columns": {
+            "actor_type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "also_known_as": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "avatar_version": {
+                "type": "integer",
+                "options": {
+                    "length": 2,
+                    "notnull": false
+                }
+            },
+            "bot": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "deleted": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "discoverable": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "fields": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "indexable": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "locked": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "moved_to": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "name": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "preferred_username": {
+                "type": "string",
+                "options": {
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "private_key": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "public_key": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "summary": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "user_id": {
+                "type": "string",
+                "options": {
+                    "length": 63,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "user_id"
+                ],
+                "name": "social_a_uid",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id_prim"
+        ]
+    },
+    "social_actor_relation": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "notifications": {
+                "type": "boolean",
+                "options": {
+                    "default": true,
+                    "notnull": false
+                }
+            },
+            "object_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "length": 15,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "object_id_prim",
+                    "type"
+                ],
+                "name": "social_ar_aot",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "type"
+                ],
+                "name": "social_ar_at",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_announce_react": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "announcement_id": {
+                "type": "integer",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "name": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "announcement_id",
+                    "actor_id_prim",
+                    "name"
+                ],
+                "name": "social_arct_aan",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_announce_read": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "announcement_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "announcement_id"
+                ],
+                "name": "social_annread_aa",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_announcement": {
+        "columns": {
+            "all_day": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "content": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "ends_at": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "last_update": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "starts_at": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_cache_actor": {
+        "columns": {
+            "account": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "count_followers": {
+                "type": "integer",
+                "options": {
+                    "default": -1,
+                    "notnull": false
+                }
+            },
+            "count_following": {
+                "type": "integer",
+                "options": {
+                    "default": -1,
+                    "notnull": false
+                }
+            },
+            "count_posts": {
+                "type": "integer",
+                "options": {
+                    "default": -1,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "details": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "details_update": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "featured": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "followers": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "following": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "host": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "icon_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "inbox": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "local": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": true
+                }
+            },
+            "name": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "nid": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 14,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "outbox": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "preferred_username": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "public_key": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "shared_inbox": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "source": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "summary": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "sync_attempt": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "sync_failures": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "url": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "id_prim"
+                ],
+                "name": null,
+                "unique": true
+            },
+            {
+                "columns": [
+                    "host"
+                ],
+                "name": "social_ca_host",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "local",
+                    "details_update"
+                ],
+                "name": "social_ca_ldu",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "local",
+                    "sync_attempt"
+                ],
+                "name": "social_ca_lsa",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "nid"
+        ]
+    },
+    "social_cache_doc": {
+        "columns": {
+            "account": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": true
+                }
+            },
+            "blurhash": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 63,
+                    "notnull": true
+                }
+            },
+            "caching": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "description": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": true
+                }
+            },
+            "error": {
+                "type": "smallint",
+                "options": {
+                    "length": 1,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "laddered": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "local_copy": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "media_type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 63,
+                    "notnull": false
+                }
+            },
+            "meta": {
+                "type": "text",
+                "options": {
+                    "default": "[]",
+                    "notnull": true
+                }
+            },
+            "mime_type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 63,
+                    "notnull": false
+                }
+            },
+            "nid": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 14,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "parent_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "parent_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "public": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "resized_copy": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "size": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 15,
+                    "notnull": false,
+                    "unsigned": true
+                }
+            },
+            "transcoded": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": false
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "url": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "id_prim"
+                ],
+                "name": "social_cd_idp",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "parent_id_prim"
+                ],
+                "name": "social_cd_pidp",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "nid"
+        ]
+    },
+    "social_channel": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "description": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "is_default": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "name": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "owner_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "owner_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_chan_aid",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "owner_id_prim"
+                ],
+                "name": "social_chan_own",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_client": {
+        "columns": {
+            "app_client_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 63,
+                    "notnull": false
+                }
+            },
+            "app_client_secret": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "app_name": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "app_redirect_uris": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "app_scopes": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "app_website": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "auth_account": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "auth_code": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "auth_scopes": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "auth_user_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "integer",
+                "options": {
+                    "autoincrement": true,
+                    "length": 7,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "last_update": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "token": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "auth_code",
+                    "token",
+                    "app_client_id",
+                    "app_client_secret"
+                ],
+                "name": null,
+                "unique": true
+            },
+            {
+                "columns": [
+                    "token"
+                ],
+                "name": "social_cl_tok",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_client_auth": {
+        "columns": {
+            "account": {
+                "type": "string",
+                "options": {
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "client_id": {
+                "type": "integer",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "code": {
+                "type": "string",
+                "options": {
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "code_challenge": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 128,
+                    "notnull": false
+                }
+            },
+            "code_challenge_method": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 16,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "last_update": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "scopes": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "token": {
+                "type": "string",
+                "options": {
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "user_id": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "code"
+                ],
+                "name": "social_ca_code",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "client_id",
+                    "user_id"
+                ],
+                "name": "social_ca_cu",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "token"
+                ],
+                "name": "social_ca_tok",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_collection": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "description": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "title": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": true
+                }
+            },
+            "updated": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "visibility": {
+                "type": "string",
+                "options": {
+                    "default": "public",
+                    "length": 15,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_coll_a",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_collection_item": {
+        "columns": {
+            "collection_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "position": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": true
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "collection_id",
+                    "stream_id_prim"
+                ],
+                "name": "social_ci_cp",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "stream_id_prim"
+                ],
+                "name": "social_ci_s",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_convo_state": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "hidden_nid": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "muted": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "read_nid": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "root_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "root_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "root_id_prim"
+                ],
+                "name": "social_convo_ar",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_discover_cat": {
+        "columns": {
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "hashtags": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "name": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "position": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_domain_block": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "domain": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "domain"
+                ],
+                "name": "social_dblk_ad",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_emoji": {
+        "columns": {
+            "category": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "filename": {
+                "type": "string",
+                "options": {
+                    "length": 128,
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "media_type": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": true
+                }
+            },
+            "shortcode": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": true
+                }
+            },
+            "visible": {
+                "type": "boolean",
+                "options": {
+                    "default": true,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "shortcode"
+                ],
+                "name": "social_emo_sc",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_featured_tag": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "hashtag": {
+                "type": "string",
+                "options": {
+                    "length": 127,
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "hashtag"
+                ],
+                "name": "social_feat_ah",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_filter": {
+        "columns": {
+            "action": {
+                "type": "string",
+                "options": {
+                    "default": "warn",
+                    "length": 15,
+                    "notnull": true
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "contexts": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "expires_at": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "title": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_flt_actor",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_filter_kw": {
+        "columns": {
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "filter_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "keyword": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": true
+                }
+            },
+            "whole_word": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "filter_id"
+                ],
+                "name": "social_fltkw_filter",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_filter_st": {
+        "columns": {
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "filter_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "status_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "filter_id"
+                ],
+                "name": "social_fltst_filter",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "status_id"
+                ],
+                "name": "social_fltst_status",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_follow": {
+        "columns": {
+            "accepted": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": true
+                }
+            },
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "follow_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "follow_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "object_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "accepted"
+                ],
+                "name": "social_f_aa",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "accepted",
+                    "type",
+                    "follow_id_prim"
+                ],
+                "name": "social_f_aatf",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "follow_id_prim",
+                    "object_id_prim",
+                    "actor_id_prim"
+                ],
+                "name": "social_f_foa",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "object_id_prim",
+                    "actor_id_prim"
+                ],
+                "name": "social_f_oa_u",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "object_id_prim",
+                    "creation"
+                ],
+                "name": "social_f_ocr",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id_prim"
+        ]
+    },
+    "social_followed_tag": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "hashtag": {
+                "type": "string",
+                "options": {
+                    "length": 127,
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "hashtag"
+                ],
+                "name": "social_ft_ah",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_gif": {
+        "columns": {
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "filename": {
+                "type": "string",
+                "options": {
+                    "length": 128,
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "media_type": {
+                "type": "string",
+                "options": {
+                    "length": 63,
+                    "notnull": true
+                }
+            },
+            "slug": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": true
+                }
+            },
+            "title": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "slug"
+                ],
+                "name": "social_gif_slug",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_hashtag": {
+        "columns": {
+            "hashtag": {
+                "type": "string",
+                "options": {
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "trend": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "trend_10d": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "trend_12h": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "trend_1d": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "trend_1h": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "trend_3d": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "trend_10d"
+                ],
+                "name": "social_h_t10d",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "trend_12h"
+                ],
+                "name": "social_h_t12h",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "trend_1d"
+                ],
+                "name": "social_h_t1d",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "trend_1h"
+                ],
+                "name": "social_h_t1h",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "trend_3d"
+                ],
+                "name": "social_h_t3d",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "hashtag"
+        ]
+    },
+    "social_import_post": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "source_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "source_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "source_id_prim"
+                ],
+                "name": "social_imppost_src",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_instance": {
+        "columns": {
+            "account_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "contact": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "description": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "email": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "image": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "languages": {
+                "type": "text",
+                "options": {
+                    "default": "[]",
+                    "notnull": false
+                }
+            },
+            "local": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": false,
+                    "unsigned": true
+                }
+            },
+            "short_description": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "stats": {
+                "type": "text",
+                "options": {
+                    "default": "[]",
+                    "notnull": false
+                }
+            },
+            "title": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "uri": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "urls": {
+                "type": "text",
+                "options": {
+                    "default": "[]",
+                    "notnull": false
+                }
+            },
+            "usage": {
+                "type": "text",
+                "options": {
+                    "default": "[]",
+                    "notnull": false
+                }
+            },
+            "version": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "local",
+                    "uri",
+                    "account_prim"
+                ],
+                "name": null,
+                "unique": false
+            }
+        ],
+        "primary": [
+            "uri"
+        ]
+    },
+    "social_list": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "exclusive": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "group_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 64,
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "replies_policy": {
+                "type": "string",
+                "options": {
+                    "default": "list",
+                    "length": 15,
+                    "notnull": true
+                }
+            },
+            "title": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_list_a",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "group_id"
+                ],
+                "name": "social_list_g",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_list_member": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "list_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_lm_a",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "list_id",
+                    "actor_id_prim"
+                ],
+                "name": "social_lm_la",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_media_block": {
+        "columns": {
+            "blocked": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false,
+                    "unsigned": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "hash": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "moderator": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "reason": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "hash"
+                ],
+                "name": "social_mediablock_h",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_media_tag": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "stream_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "tagger_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "stream_id"
+                ],
+                "name": "social_mtag_as",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "stream_id",
+                    "actor_id_prim"
+                ],
+                "name": "social_mtag_sa",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_moderation": {
+        "columns": {
+            "actor_id": {
+                "type": "string",
+                "options": {
+                    "length": 1000,
+                    "notnull": true
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "comment": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "force_sensitive": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "level": {
+                "type": "string",
+                "options": {
+                    "length": 15,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "level"
+                ],
+                "name": "smlv",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "actor_id_prim"
+        ]
+    },
+    "social_mute_expiry": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "expires_at": {
+                "type": "datetime",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "object_id_prim"
+                ],
+                "name": "social_mexp_ao",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_place": {
+        "columns": {
+            "country": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 2,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "lat": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "lon": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "name": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "name_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "country"
+                ],
+                "name": "social_place_c",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "name_prim",
+                    "country"
+                ],
+                "name": "social_place_nc",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_portfolio": {
+        "columns": {
+            "active": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "collection_id": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 11,
+                    "notnull": false,
+                    "unsigned": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "intro": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "layout": {
+                "type": "string",
+                "options": {
+                    "default": "grid",
+                    "length": 15,
+                    "notnull": false
+                }
+            },
+            "show_avatar": {
+                "type": "boolean",
+                "options": {
+                    "default": true,
+                    "notnull": false
+                }
+            },
+            "show_captions": {
+                "type": "boolean",
+                "options": {
+                    "default": true,
+                    "notnull": false
+                }
+            },
+            "show_dates": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "show_places": {
+                "type": "boolean",
+                "options": {
+                    "default": true,
+                    "notnull": false
+                }
+            },
+            "source": {
+                "type": "string",
+                "options": {
+                    "default": "recent",
+                    "length": 15,
+                    "notnull": false
+                }
+            },
+            "title": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 128,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_pfol_a",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_post_hold": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "digest": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "params": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "reason": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "id"
+                ],
+                "name": "social_hold_actor",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "digest"
+                ],
+                "name": "social_hold_digest",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_quote_grant": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "authorization": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "quoting_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "quoting_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "request_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "target_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "target_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "target_id_prim",
+                    "quoting_id_prim"
+                ],
+                "name": "social_qgrant_tq",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_reaction": {
+        "columns": {
+            "actor_id": {
+                "type": "string",
+                "options": {
+                    "length": 1000,
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 128,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "emoji": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 63,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "string",
+                "options": {
+                    "length": 1000,
+                    "notnull": false
+                }
+            },
+            "id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 128,
+                    "notnull": false
+                }
+            },
+            "object_id": {
+                "type": "string",
+                "options": {
+                    "length": 1000,
+                    "notnull": false
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 128,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "object_id_prim",
+                    "emoji"
+                ],
+                "name": "social_react_aoe",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "object_id_prim"
+                ],
+                "name": "social_react_o",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id_prim"
+        ]
+    },
+    "social_relay": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "error": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "follow_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "inbox": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "last_update": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "status": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 15,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_relay_aid",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_report": {
+        "columns": {
+            "account_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "action_taken_at": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "action_taken_by": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "assigned_to": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "category": {
+                "type": "string",
+                "options": {
+                    "default": "other",
+                    "length": 31,
+                    "notnull": true
+                }
+            },
+            "comment": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "forwarded": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "local": {
+                "type": "smallint",
+                "options": {
+                    "default": 1,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "resolved": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "status_ids": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "resolved"
+                ],
+                "name": "social_rep_res",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_req_queue": {
+        "columns": {
+            "activity": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "author": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "author_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "instance": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "last": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "priority": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": false
+                }
+            },
+            "status": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": false
+                }
+            },
+            "token": {
+                "type": "string",
+                "options": {
+                    "length": 63,
+                    "notnull": false
+                }
+            },
+            "tries": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 2,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "token"
+                ],
+                "name": null,
+                "unique": false
+            },
+            {
+                "columns": [
+                    "object_id_prim"
+                ],
+                "name": "social_rq_object",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "status",
+                    "id"
+                ],
+                "name": "social_rq_si",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "status",
+                    "priority",
+                    "tries",
+                    "last"
+                ],
+                "name": "social_rq_sptl",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "tries"
+                ],
+                "name": "social_rq_tries",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_scheduled": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "params": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "scheduled_at": {
+                "type": "datetime",
+                "options": {
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "scheduled_at"
+                ],
+                "name": "social_sched_as",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "scheduled_at"
+                ],
+                "name": "social_sched_due",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_story": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "caption": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "document_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "document_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "duration": {
+                "type": "integer",
+                "options": {
+                    "default": 5,
+                    "notnull": true
+                }
+            },
+            "expires_at": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "local": {
+                "type": "boolean",
+                "options": {
+                    "default": true,
+                    "notnull": false
+                }
+            },
+            "source_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "source_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "expires_at"
+                ],
+                "name": "social_story_ae",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "expires_at"
+                ],
+                "name": "social_story_e",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "source_id_prim"
+                ],
+                "name": "social_story_src",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_story_react": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "content": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "source_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "source_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "story_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 15,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "story_id",
+                    "actor_id_prim"
+                ],
+                "name": "social_stra_sa",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "story_id",
+                    "id"
+                ],
+                "name": "social_stra_si",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "source_id_prim"
+                ],
+                "name": "social_stra_src",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_story_view": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "story_id": {
+                "type": "bigint",
+                "options": {
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "story_id",
+                    "actor_id_prim"
+                ],
+                "name": "social_sv_sa",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_stream": {
+        "columns": {
+            "activity_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "archived": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "attachments": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "attributed_to": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "attributed_to_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "bcc": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "cache": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "cc": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "content": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "details": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "filter_duplicate": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "hashtags": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "in_reply_to": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "in_reply_to_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "instances": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "language": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 15,
+                    "notnull": false
+                }
+            },
+            "local": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "media_kind": {
+                "type": "string",
+                "options": {
+                    "default": null,
+                    "length": 7,
+                    "notnull": false
+                }
+            },
+            "news_kind": {
+                "type": "string",
+                "options": {
+                    "default": null,
+                    "length": 7,
+                    "notnull": false
+                }
+            },
+            "nid": {
+                "type": "bigint",
+                "options": {
+                    "length": 20,
+                    "unsigned": true
+                }
+            },
+            "object_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "object_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "place_id": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 11,
+                    "notnull": false,
+                    "unsigned": true
+                }
+            },
+            "published": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "published_time": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "quote": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "quote_authorization": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "quote_policy": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 15,
+                    "notnull": false
+                }
+            },
+            "sensitive": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "source": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "subtype": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "summary": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "tags": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "to": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "to_array": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "updated": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "visibility": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "id_prim"
+                ],
+                "name": null,
+                "unique": true
+            },
+            {
+                "columns": [
+                    "attributed_to_prim"
+                ],
+                "name": "attributed_to_prim",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "in_reply_to_prim"
+                ],
+                "name": "in_reply_to_prim",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "object_id_prim"
+                ],
+                "name": "object_id_prim",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "creation"
+                ],
+                "name": "social_s_crea",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "language"
+                ],
+                "name": "social_s_lang",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "media_kind",
+                    "nid"
+                ],
+                "name": "social_s_mk",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "news_kind",
+                    "nid"
+                ],
+                "name": "social_s_nk",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "place_id"
+                ],
+                "name": "social_s_place",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "published_time"
+                ],
+                "name": "social_s_pub",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "nid"
+        ]
+    },
+    "social_stream_act": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "bookmarked": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "boosted": {
+                "type": "boolean",
+                "options": {
+                    "default": false
+                }
+            },
+            "disliked": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "integer",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "liked": {
+                "type": "boolean",
+                "options": {
+                    "default": false
+                }
+            },
+            "replied": {
+                "type": "boolean",
+                "options": {
+                    "default": false
+                }
+            },
+            "stream_id": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "values": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "stream_id_prim",
+                    "actor_id_prim"
+                ],
+                "name": "sa",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "bookmarked"
+                ],
+                "name": "social_sa_ab",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "liked"
+                ],
+                "name": "social_sa_al",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_stream_card": {
+        "columns": {
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "description": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "image": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "provider_name": {
+                "type": "string",
+                "options": {
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "title": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "url": {
+                "type": "text",
+                "options": {
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [],
+        "primary": [
+            "stream_id_prim"
+        ]
+    },
+    "social_stream_dest": {
+        "columns": {
+            "actor_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "nid": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 11,
+                    "notnull": false
+                }
+            },
+            "stream_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "subtype": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 7,
+                    "notnull": false
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 15,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "stream_id",
+                    "actor_id",
+                    "type"
+                ],
+                "name": "sat",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "actor_id",
+                    "type"
+                ],
+                "name": "social_sd_at",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "actor_id",
+                    "type",
+                    "nid"
+                ],
+                "name": "social_sd_atn",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_stream_queue": {
+        "columns": {
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "last": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "status": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": false
+                }
+            },
+            "stream_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "token": {
+                "type": "string",
+                "options": {
+                    "length": 63,
+                    "notnull": false
+                }
+            },
+            "tries": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 2,
+                    "notnull": false
+                }
+            },
+            "type": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "token"
+                ],
+                "name": null,
+                "unique": false
+            },
+            {
+                "columns": [
+                    "status",
+                    "id"
+                ],
+                "name": "social_sq_si",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_stream_rev": {
+        "columns": {
+            "content": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "published": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 31,
+                    "notnull": false
+                }
+            },
+            "sensitive": {
+                "type": "smallint",
+                "options": {
+                    "default": 0,
+                    "length": 1,
+                    "notnull": true
+                }
+            },
+            "spoiler_text": {
+                "type": "text",
+                "options": {
+                    "default": "",
+                    "notnull": false
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "stream_id_prim",
+                    "id"
+                ],
+                "name": "social_sr_si",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_stream_tag": {
+        "columns": {
+            "hashtag": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 127,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "stream_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "stream_id",
+                    "hashtag"
+                ],
+                "name": "sh",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "hashtag"
+                ],
+                "name": "social_st_ht",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_stream_view": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "stream_id_prim",
+                    "actor_id_prim"
+                ],
+                "name": "social_sview_pair",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_strike": {
+        "columns": {
+            "action": {
+                "type": "string",
+                "options": {
+                    "length": 15,
+                    "notnull": true
+                }
+            },
+            "actor_id": {
+                "type": "string",
+                "options": {
+                    "length": 1000,
+                    "notnull": true
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": true
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "moderator": {
+                "type": "string",
+                "options": {
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "report_id": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": true
+                }
+            },
+            "text": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_str_aid",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_team": {
+        "columns": {
+            "actor_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "group_id": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim"
+                ],
+                "name": "social_team_a",
+                "unique": true
+            },
+            {
+                "columns": [
+                    "group_id"
+                ],
+                "name": "social_team_g",
+                "unique": false
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_team_post": {
+        "columns": {
+            "author_id": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "author_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "stream_id_prim"
+                ],
+                "name": "social_teamp_s",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_trend_review": {
+        "columns": {
+            "approved": {
+                "type": "boolean",
+                "options": {
+                    "default": false,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "kind": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 15,
+                    "notnull": false
+                }
+            },
+            "moderator": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 64,
+                    "notnull": false
+                }
+            },
+            "ref": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "ref_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "kind",
+                    "ref_prim"
+                ],
+                "name": "social_trrev_kr",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_video_rendition": {
+        "columns": {
+            "bandwidth": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "creation": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "doc_nid": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 11,
+                    "notnull": false,
+                    "unsigned": true
+                }
+            },
+            "height": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "local_copy": {
+                "type": "string",
+                "options": {
+                    "default": "",
+                    "length": 255,
+                    "notnull": false
+                }
+            },
+            "playlist": {
+                "type": "text",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "size": {
+                "type": "bigint",
+                "options": {
+                    "default": 0,
+                    "length": 20,
+                    "notnull": false,
+                    "unsigned": true
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "doc_nid",
+                    "height"
+                ],
+                "name": "social_rend_dh",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    },
+    "social_watch": {
+        "columns": {
+            "actor_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            },
+            "duration": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "id": {
+                "type": "bigint",
+                "options": {
+                    "autoincrement": true,
+                    "length": 11,
+                    "notnull": true,
+                    "unsigned": true
+                }
+            },
+            "last_update": {
+                "type": "datetime",
+                "options": {
+                    "notnull": false
+                }
+            },
+            "position": {
+                "type": "integer",
+                "options": {
+                    "default": 0,
+                    "notnull": false
+                }
+            },
+            "stream_id_prim": {
+                "type": "string",
+                "options": {
+                    "length": 32,
+                    "notnull": false
+                }
+            }
+        },
+        "indexes": [
+            {
+                "columns": [
+                    "actor_id_prim",
+                    "last_update"
+                ],
+                "name": "social_watch_al",
+                "unique": false
+            },
+            {
+                "columns": [
+                    "stream_id_prim",
+                    "actor_id_prim"
+                ],
+                "name": "social_watch_sa",
+                "unique": true
+            }
+        ],
+        "primary": [
+            "id"
+        ]
+    }
+}
