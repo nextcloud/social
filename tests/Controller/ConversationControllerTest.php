@@ -316,4 +316,31 @@ class ConversationControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
 		$this->assertSame('internal server error', $response->getData()['error']);
 	}
+
+	// the badge
+
+	public function testTheUnreadCountIsAPlainNumber(): void {
+		$this->conversationService->method('countUnread')->willReturn(4);
+
+		$response = $this->controller()->unreadCount();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['count' => 4], $response->getData());
+	}
+
+	/**
+	 * Nothing else in the web interface marks a conversation read, because
+	 * nothing else shows one as a thing of its own -- so without this the
+	 * badge would never come down.
+	 */
+	public function testReadingThePageMarksThemAllRead(): void {
+		$this->conversationService->expects($this->once())
+			->method('markAllRead')
+			->willReturn(3);
+
+		$response = $this->controller()->readAll();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['count' => 3], $response->getData());
+	}
 }

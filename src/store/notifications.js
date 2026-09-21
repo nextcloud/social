@@ -25,6 +25,14 @@ export const useNotificationsStore = defineStore('notifications', {
 	state: () => ({
 		unread: 0,
 		/**
+		 * How many conversations have something unread in them.
+		 *
+		 * A conversation and not a message: five messages in one exchange are
+		 * one thing to go and read, and a badge saying five would send
+		 * somebody looking for four conversations that are not there.
+		 */
+		unreadDirect: 0,
+		/**
 		 * The row id the reader had read up to, the last time the server was
 		 * asked; '0' while unknown or when nothing has ever been read. What
 		 * the notifications page draws its "New" line from.
@@ -43,11 +51,56 @@ export const useNotificationsStore = defineStore('notifications', {
 		unreadNotifications(state) {
 			return state.unread
 		},
+
+		/**
+		 * @param {object} state the store state
+		 * @return {number} what the Direct messages badge shows
+		 */
+		unreadDirectMessages(state) {
+			return state.unreadDirect
+		},
 	},
 
 	actions: {
 		setUnreadNotifications(count) {
 			this.unread = count
+		},
+
+		setUnreadDirectMessages(count) {
+			this.unreadDirect = count
+		},
+
+		/**
+		 * Reads how many conversations are unread. Silent on failure, for the
+		 * reason the notification count is: a badge is not worth a toast.
+		 */
+		async fetchUnreadDirectMessages() {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/conversations/unread_count'))
+				this.setUnreadDirectMessages(Number(data?.count) || 0)
+			} catch (error) {
+				logger.error('Failed to read the unread direct message count', { error })
+			}
+		},
+
+		/**
+		 * Says the reader has seen the Direct messages page, and clears the
+		 * badge without waiting for the server to agree -- they have seen
+		 * them, so the badge is already wrong.
+		 */
+		async markDirectMessagesRead() {
+			if (this.unreadDirect === 0) {
+				return
+			}
+
+			this.setUnreadDirectMessages(0)
+			try {
+				await axios.post(generateUrl('apps/social/api/v1/conversations/read_all'))
+			} catch (error) {
+				logger.error('Failed to mark the direct messages read', { error })
+				// put back whatever the server actually thinks
+				this.fetchUnreadDirectMessages()
+			}
 		},
 
 		/** Reads the count. Failure is silent: a badge is not worth a toast. */

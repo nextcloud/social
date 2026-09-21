@@ -979,7 +979,11 @@ export default {
 		 * is also the `visibilitychange` handler.
 		 */
 		armSeenTimer() {
-			if (this.type !== 'notifications' || this.showParents) {
+			// the two lists that carry a badge: Activities, and Direct
+			// messages -- which is one page with the messages on it rather
+			// than exchanges to open one at a time, so having looked at it is
+			// having read them
+			if (!['notifications', 'direct'].includes(this.type) || this.showParents) {
 				return
 			}
 			if (this.entries.length === 0 || document.visibilityState === 'hidden') {
@@ -1038,6 +1042,13 @@ export default {
 		 */
 		markSeen() {
 			this.seenTimer = -1
+
+			if (this.type === 'direct') {
+				this.notificationsStore.markDirectMessagesRead()
+
+				return
+			}
+
 			const newest = this.entries.reduce(
 				(highest, entry) => newerId(newestIdOf(entry), highest),
 				'0',

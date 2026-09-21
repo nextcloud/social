@@ -103,6 +103,65 @@ class ConversationController extends Controller {
 	}
 
 	/**
+	 * Marks every conversation read, up to its newest message.
+	 *
+	 * The Direct messages page is one list with the messages themselves on it,
+	 * not a list of exchanges to open one at a time -- so having looked at the
+	 * page is having read them, which is the rule the Activities page already
+	 * follows. Without this the badge this app draws would never come down:
+	 * nothing else in the web interface calls `markRead`, because nothing else
+	 * shows a conversation as a thing of its own.
+	 *
+	 * This app's own route. Mastodon has no equivalent because its clients
+	 * mark each conversation as the reader opens it.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/conversations/read_all')]
+	public function readAll(): DataResponse {
+		try {
+			$this->initViewer();
+
+			return new DataResponse(
+				['count' => $this->conversationService->markAllRead($this->viewer)],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * How many conversations have something unread in them.
+	 *
+	 * The sidebar badge asks for this. A conversation rather than a message:
+	 * five messages in one exchange are one thing to go and read, and a badge
+	 * saying five would send somebody looking for four conversations that are
+	 * not there.
+	 *
+	 * Mastodon has no route for this -- its clients count the `unread` flags
+	 * on a page of `/api/v1/conversations` -- so it is this app's own, and
+	 * cheap enough to poll: the alternative was fetching a page of
+	 * conversations, with their participants and their newest message each,
+	 * to draw one number.
+	 */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/conversations/unread_count')]
+	public function unreadCount(): DataResponse {
+		try {
+			$this->initViewer();
+
+			return new DataResponse(
+				['count' => $this->conversationService->countUnread($this->viewer)],
+				Http::STATUS_OK
+			);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
 	 * Marks the conversation read, and answers with it — which is what
 	 * Mastodon returns, so a client redraws the row from the answer rather
 	 * than guessing what it now looks like.
