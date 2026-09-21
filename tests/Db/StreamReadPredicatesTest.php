@@ -23,21 +23,32 @@ use PHPUnit\Framework\TestCase;
  * read theirs, and the rows they select are exercised by the integration suite.
  */
 class StreamReadPredicatesTest extends TestCase {
-	private const SOURCE = __DIR__ . '/../../lib/Db/StreamRequest.php';
-	private const TAGS_SOURCE = __DIR__ . '/../../lib/Db/StreamTagsRequest.php';
+	/**
+	 * Where a stream read may be written. `StreamRequest` is one class across
+	 * two files — the timelines are a trait — so a method is looked for in
+	 * both rather than in whichever one it happened to be in when the test was
+	 * written.
+	 */
+	private const SOURCE = [
+		__DIR__ . '/../../lib/Db/StreamRequest.php',
+		__DIR__ . '/../../lib/Db/StreamTimelines.php',
+	];
+	private const TAGS_SOURCE = [__DIR__ . '/../../lib/Db/StreamTagsRequest.php'];
 
 	/** The body of one method, from its signature to the next one at the same indentation. */
-	private function methodBody(string $source, string $name): string {
-		$file = (string)file_get_contents($source);
-		$this->assertMatchesRegularExpression(
-			'/function ' . preg_quote($name, '/') . '\(/',
-			$file,
-			$name . '() is gone; this test is about what it selects'
-		);
+	private function methodBody(array $sources, string $name): string {
+		foreach ($sources as $source) {
+			$file = (string)file_get_contents($source);
+			if (preg_match('/function ' . preg_quote($name, '/') . '\(/', $file) !== 1) {
+				continue;
+			}
 
-		$body = preg_split('/function ' . preg_quote($name, '/') . '\(/', $file, 2)[1] ?? '';
+			$body = preg_split('/function ' . preg_quote($name, '/') . '\(/', $file, 2)[1] ?? '';
 
-		return preg_split('/\n\t\}\n/', $body, 2)[0] ?? '';
+			return preg_split('/\n\t\}\n/', $body, 2)[0] ?? '';
+		}
+
+		$this->fail($name . '() is gone; this test is about what it selects');
 	}
 
 	/**
@@ -110,7 +121,7 @@ class StreamReadPredicatesTest extends TestCase {
 	 * wins?` reached neither the tag timeline nor a followed-tag home page.
 	 */
 	public function testEveryKindOfStatusIsStoredWithItsNoteFields(): void {
-		foreach ([self::SOURCE, self::TAGS_SOURCE] as $source) {
+		foreach ([...self::SOURCE, ...self::TAGS_SOURCE] as $source) {
 			$this->assertDoesNotMatchRegularExpression(
 				'/getType\(\)\s*[!=]==\s*Note::TYPE/',
 				(string)file_get_contents($source),
