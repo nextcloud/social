@@ -34,12 +34,16 @@
 				<NcSelect
 					v-model="form.groupLists"
 					inputId="social-group-lists"
+					:labelOutside="true"
 					:options="groupOptions"
 					:multiple="true"
 					:keepOpen="true"
 					label="name"
-					:placeholder="t('social', 'No groups')"
-					:noOptionsText="t('social', 'This server has no groups')" />
+					:placeholder="t('social', 'No groups')">
+					<template #no-options>
+						{{ t('social', 'This server has no groups') }}
+					</template>
+				</NcSelect>
 				<p class="sections__hint">
 					{{ t('social', 'Everybody in one of these groups gets a list for it, holding the members who have a Social account. Nobody is followed by it and nothing leaves this server: a list is a view, not a relationship. Empty — the default — means no group becomes a list, because a group list tells everybody in the group who else is in it.') }}
 				</p>
