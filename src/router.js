@@ -19,11 +19,16 @@ const ProfileTagged = () => import(/* webpackChunkName: "profile" */'./views/Pro
 const Portfolio = () => import(/* webpackChunkName: "portfolio" */'./views/Portfolio.vue')
 const CollectionPage = () => import(/* webpackChunkName: "profile" */'./views/CollectionPage.vue')
 const PlacePage = () => import(/* webpackChunkName: "profile" */'./views/PlacePage.vue')
-const FollowRequests = () => import(/* webpackChunkName: "profile" */'./views/FollowRequests.vue')
-const BlockedAccounts = () => import(/* webpackChunkName: "profile" */'./views/BlockedAccounts.vue')
+const FollowRequests = () => import(/* webpackChunkName: "settings" */'./views/FollowRequests.vue')
+const BlockedAccounts = () => import(/* webpackChunkName: "settings" */'./views/BlockedAccounts.vue')
 const Discover = () => import('./views/Discover.vue')
-const Settings = () => import(/* webpackChunkName: "profile" */'./views/Settings.vue')
-const Statistics = () => import(/* webpackChunkName: "profile" */'./views/Statistics.vue')
+// Not in the `profile` chunk. Settings and Statistics are pages somebody goes
+// to on purpose, once in a while; a profile is what every avatar in every
+// timeline links to. Sharing a chunk meant opening a profile downloaded the
+// statistics engine -- Statistics.vue is the third-largest component in the
+// app -- and the settings page with it, before drawing a single post.
+const Settings = () => import(/* webpackChunkName: "settings" */'./views/Settings.vue')
+const Statistics = () => import(/* webpackChunkName: "statistics" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
 
 /**

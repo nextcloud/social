@@ -195,4 +195,63 @@ describe('notifications store', () => {
 			expect(marker).toBe('0')
 		})
 	})
+
+	describe('the direct messages badge', () => {
+		it('counts conversations, from the route that counts them', async () => {
+			axios.get.mockResolvedValue({ data: { count: 3 } })
+			const store = useNotificationsStore()
+
+			await store.fetchUnreadDirectMessages()
+
+			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/unread_count')
+			expect(store.unreadDirectMessages).toBe(3)
+		})
+
+		it('says nothing when the count cannot be read', async () => {
+			axios.get.mockRejectedValue(new Error('network'))
+			const store = useNotificationsStore()
+
+			await store.fetchUnreadDirectMessages()
+
+			expect(store.unreadDirectMessages).toBe(0)
+		})
+
+		/**
+		 * The reader has seen them, so the badge is already wrong: it comes
+		 * down without waiting for the server to agree.
+		 */
+		it('clears the badge before the server answers', async () => {
+			const store = useNotificationsStore()
+			store.setUnreadDirectMessages(2)
+			let resolve
+			axios.post.mockReturnValue(new Promise((r) => {
+				resolve = r
+			}))
+
+			const pending = store.markDirectMessagesRead()
+			expect(store.unreadDirectMessages).toBe(0)
+
+			resolve({ data: { count: 2 } })
+			await pending
+		})
+
+		it('asks for nothing when there was nothing unread', async () => {
+			const store = useNotificationsStore()
+
+			await store.markDirectMessagesRead()
+
+			expect(axios.post).not.toHaveBeenCalled()
+		})
+
+		it('puts the badge back when the server refuses', async () => {
+			const store = useNotificationsStore()
+			store.setUnreadDirectMessages(2)
+			axios.post.mockRejectedValue(new Error('nope'))
+			axios.get.mockResolvedValue({ data: { count: 2 } })
+
+			await store.markDirectMessagesRead()
+
+			expect(store.unreadDirectMessages).toBe(2)
+		})
+	})
 })

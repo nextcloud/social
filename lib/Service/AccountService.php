@@ -719,7 +719,8 @@ class AccountService {
 			// id nothing can resolve. They get the app's default until somebody
 			// uploads one, which is honest rather than a broken image.
 			if (!str_starts_with($actor->getUserId(), 'team/')
-				&& !str_starts_with($actor->getUserId(), 'channel/')) {
+				&& !str_starts_with($actor->getUserId(), 'channel/')
+				&& $this->mayPublish($actor, IAccountManager::PROPERTY_AVATAR)) {
 				try {
 					$iconId = $this->documentService->cacheLocalAvatarByUsername($actor);
 					$actor->setIconId($iconId);
@@ -926,6 +927,42 @@ class AccountService {
 		if ($displayName !== '') {
 			$actor->setName($displayName);
 		}
+	}
+
+	/**
+	 * Whether one Nextcloud profile property may go on a Fediverse actor.
+	 *
+	 * The same rule the display name has followed for a while, pulled out so
+	 * the picture follows it too: a Fediverse actor is public by definition --
+	 * creating one is the act of publishing a profile -- so anything short of
+	 * an explicitly private or instance-local setting is fair to federate.
+	 * Requiring `SCOPE_PUBLISHED` would mean that on a default install, where
+	 * the scope is `SCOPE_FEDERATED`, nothing ever reached the actor at all.
+	 *
+	 * The picture was published whatever the account said, which is what
+	 * somebody who sets it to "local" is asking this app not to do -- and the
+	 * one thing about the setting a reader can see from another server.
+	 *
+	 * Unknown properties and unreadable accounts answer true: the caller then
+	 * behaves as it did before this existed, which is the safe direction for a
+	 * profile that is already public.
+	 */
+	private function mayPublish(Person $actor, string $property): bool {
+		$user = $this->userManager->get($actor->getUserId());
+		if ($user === null) {
+			return true;
+		}
+
+		try {
+			$scope = $this->accountManager->getAccount($user)->getProperty($property)->getScope();
+		} catch (Exception $e) {
+			return true;
+		}
+
+		return in_array($scope, [
+			IAccountManager::SCOPE_PUBLISHED,
+			IAccountManager::SCOPE_FEDERATED,
+		], true);
 	}
 
 	/**

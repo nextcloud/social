@@ -498,6 +498,11 @@ export default {
 			return this.notificationsStore.unreadNotifications
 		},
 
+		/** @return {number} conversations with something unread in them */
+		unreadDirectMessages() {
+			return this.notificationsStore.unreadDirectMessages
+		},
+
 		appErrors() {
 			return this.errorsStore.appErrors
 		},
@@ -608,6 +613,7 @@ export default {
 						icon: IconCommentAccount,
 						title: t('social', 'Direct messages'),
 						to: { name: 'timeline', params: { type: 'direct' } },
+						counter: this.unreadDirectMessages,
 					},
 					{
 						key: 'social-discover',
@@ -744,6 +750,7 @@ export default {
 			this.fetchLists()
 			this.fetchFollowedTags()
 			this.notificationsStore.fetchUnreadNotifications()
+			this.notificationsStore.fetchUnreadDirectMessages()
 		})
 		// this one defers itself: the composer asks for it too, and it must
 		// wait whichever of the two asks first
@@ -768,10 +775,14 @@ export default {
 		// says when something arrived, and without it a slow poll is enough
 		this.stopListening = listen('social_timeline', () => {
 			this.notificationsStore.fetchUnreadNotifications()
+			this.notificationsStore.fetchUnreadDirectMessages()
 		})
 		if (!this.stopListening) {
 			this.pollTimer = setInterval(
-				() => this.notificationsStore.fetchUnreadNotifications(),
+				() => {
+					this.notificationsStore.fetchUnreadNotifications()
+					this.notificationsStore.fetchUnreadDirectMessages()
+				},
 				UNREAD_POLL_MS,
 			)
 		}

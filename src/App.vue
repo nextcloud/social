@@ -18,6 +18,22 @@
 		     bar asks for one; see ReactionPicker for why it is not on the card -->
 		<ReactionPicker />
 		<NcAppContent>
+			<!--
+				A visitor reading a public page has no sidebar and therefore no
+				way back into their own Nextcloud -- somebody who follows a link
+				to a post, likes what they see and has an account here had to
+				know to go to the front page and find the app themselves. The
+				address they are on is carried through the login, so they come
+				back to the page they were reading rather than to a dashboard.
+			-->
+			<div v-if="serverData.public" class="social__visitor">
+				<p class="social__visitor-text">
+					{{ t('social', 'You are reading this as a visitor.') }}
+				</p>
+				<NcButton variant="primary" :href="loginUrl">
+					{{ t('social', 'Log in to {host}', { host: instanceHost }) }}
+				</NcButton>
+			</div>
 			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
 				<SetupChecks
 					:checks="serverData.checks.checks"
@@ -179,6 +195,29 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
+
+		/**
+		 * The server the visitor is already looking at, named so that the
+		 * button says which Nextcloud it will sign them in to -- somebody who
+		 * arrived from a link on another server has no other way to tell.
+		 *
+		 * @return {string} the host
+		 */
+		instanceHost() {
+			return window.location.host
+		},
+
+		/**
+		 * Nextcloud's own login, carrying the page being read so that it is
+		 * where the visitor lands afterwards rather than a dashboard.
+		 *
+		 * @return {string}
+		 */
+		loginUrl() {
+			return generateUrl('/login?redirect_url={url}', {
+				url: window.location.pathname + window.location.search,
+			})
+		},
 	},
 
 	watch: {
@@ -379,6 +418,25 @@ export default {
 </script>
 
 <style scoped lang="scss">
+/* A line across the top of a public page, not a banner: the page is somebody
+   else's post, and this is a way back into one's own account rather than an
+   advertisement for signing up. */
+.social__visitor {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: center;
+	gap: calc(var(--default-grid-baseline) * 3);
+	padding: calc(var(--default-grid-baseline) * 2);
+	margin-block-end: calc(var(--default-grid-baseline) * 2);
+	border-block-end: 1px solid var(--color-border);
+	background-color: var(--color-background-hover);
+}
+
+.social__visitor-text {
+	color: var(--color-text-maxcontrast);
+}
+
 #app-content-vue .social__wrapper {
 	padding: calc(var(--default-grid-baseline) * 4);
 	max-width: 800px;

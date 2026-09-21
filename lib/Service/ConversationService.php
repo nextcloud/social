@@ -72,6 +72,9 @@ class ConversationService {
 	public const LIMIT = 20;
 	public const MAX_LIMIT = 40;
 
+	/** The most the unread badge counts to; past it the answer is "lots". */
+	public const UNREAD_CAP = 99;
+
 	/**
 	 * How many participants one conversation reports. A direct message can be
 	 * addressed to a crowd, and `accounts` is a header line in every client
@@ -133,6 +136,69 @@ class ConversationService {
 			'next' => $next,
 			'prev' => max($nids),
 		];
+	}
+
+	/**
+	 * How many conversations have something in them the account has not read.
+	 *
+	 * What the sidebar badge shows. It walks the same window, the same
+	 * grouping and the same `isUnread()` rule the list itself uses, rather
+	 * than counting messages with a query of its own -- a badge saying two
+	 * beside a list showing one is worse than no badge, and the only way to be
+	 * sure the two agree is for them to decide it in the same place.
+	 *
+	 * Capped, because the number is drawn in a circle a few millimetres wide:
+	 * past the cap the reader is told "lots", which is all a badge can say.
+	 * Dismissed conversations are left out, as they are from the list.
+	 *
+	 * @param int $cap the most it will count to
+	 */
+	public function countUnread(Person $viewer, int $cap = self::UNREAD_CAP): int {
+		$messages = $this->directMessages($viewer, 0, 0, 0);
+		if ($messages === []) {
+			return 0;
+		}
+
+		$count = 0;
+		foreach ($this->entities($viewer, $this->group($messages)) as $conversation) {
+			if ($conversation->isUnread()) {
+				$count++;
+				if ($count >= $cap) {
+					break;
+				}
+			}
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Marks every unread conversation read, and says how many that was.
+	 *
+	 * Walks the same window the list draws from, so "every conversation" means
+	 * the same set in both places. Only the unread ones are written: moving a
+	 * marker that is already where it belongs is a write for nothing, and this
+	 * runs every time somebody looks at the page.
+	 */
+	public function markAllRead(Person $viewer): int {
+		$messages = $this->directMessages($viewer, 0, 0, 0);
+		if ($messages === []) {
+			return 0;
+		}
+
+		$marked = 0;
+		foreach ($this->entities($viewer, $this->group($messages)) as $conversation) {
+			if (!$conversation->isUnread()) {
+				continue;
+			}
+
+			$this->conversationsRequest->markRead(
+				$viewer->getId(), $conversation->getRootId(), $conversation->getLastStatusNid()
+			);
+			$marked++;
+		}
+
+		return $marked;
 	}
 
 	/**

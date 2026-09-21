@@ -438,4 +438,119 @@ class ConversationServiceTest extends TestCase {
 			$this->assertSame([], $this->writes);
 		}
 	}
+
+	// the badge
+
+	/**
+	 * The badge counts conversations, not messages: five messages in one
+	 * exchange are one thing to go and read, and a badge saying five would
+	 * send somebody looking for four conversations that are not there.
+	 */
+	public function testTheCountIsOfConversationsAndNotOfMessages(): void {
+		$this->given(
+			$this->note('https://a/1', 10),
+			$this->note('https://a/2', 11, 'https://a/1'),
+			$this->note('https://a/3', 12, 'https://a/1'),
+			$this->note('https://b/1', 13),
+		);
+
+		$this->assertSame(2, $this->service()->countUnread($this->viewer()));
+	}
+
+	/** Writing a message is having read the conversation, as it is in Mastodon. */
+	public function testAConversationTheAccountItselfSpokeLastInIsNotUnread(): void {
+		$this->given(
+			$this->note('https://a/1', 10),
+			$this->note('https://a/2', 11, 'https://a/1', self::VIEWER, [self::BOB]),
+		);
+
+		$this->assertSame(0, $this->service()->countUnread($this->viewer()));
+	}
+
+	public function testAConversationReadUpToItsNewestMessageIsNotUnread(): void {
+		$this->given($this->note('https://a/1', 10));
+		$this->markers['https://a/1'] = ['readNid' => 10, 'hiddenNid' => 0];
+
+		$this->assertSame(0, $this->service()->countUnread($this->viewer()));
+	}
+
+	public function testTheCountStopsAtItsCap(): void {
+		$notes = [];
+		for ($i = 1; $i <= 6; $i++) {
+			$notes[] = $this->note('https://c' . $i . '/1', 100 + $i);
+		}
+		$this->given(...$notes);
+
+		$this->assertSame(3, $this->service()->countUnread($this->viewer(), 3));
+	}
+
+	public function testNoMessagesAtAllIsNoBadge(): void {
+		$this->given();
+
+		$this->assertSame(0, $this->service()->countUnread($this->viewer()));
+	}
+
+	/**
+	 * The badge and the list have to agree, so both decide it in the same
+	 * place: whatever `getPage()` marks unread is what is counted.
+	 */
+	public function testTheCountAgreesWithWhatTheListShows(): void {
+		$this->given(
+			$this->note('https://a/1', 10),
+			$this->note('https://b/1', 11),
+			$this->note('https://c/1', 12, '', self::VIEWER, [self::BOB]),
+		);
+		$this->markers['https://b/1'] = ['readNid' => 11, 'hiddenNid' => 0];
+
+		$shown = 0;
+		foreach ($this->page() as $conversation) {
+			if ($conversation->isUnread()) {
+				$shown++;
+			}
+		}
+
+		$this->assertSame($shown, $this->service()->countUnread($this->viewer()));
+	}
+
+	// clearing it
+
+	public function testReadingThePageMarksTheUnreadConversationsRead(): void {
+		$this->given(
+			$this->note('https://a/1', 10),
+			$this->note('https://b/1', 11),
+		);
+
+		$this->assertSame(2, $this->service()->markAllRead($this->viewer()));
+
+		// which conversation is written first is the order the timeline
+		// answered in, and not part of what this promises
+		$written = $this->writes;
+		sort($written);
+		$this->assertSame(
+			[
+				['markRead', self::VIEWER, 'https://a/1', 10],
+				['markRead', self::VIEWER, 'https://b/1', 11],
+			],
+			$written
+		);
+	}
+
+	/**
+	 * This runs every time somebody looks at the page, and moving a marker
+	 * that is already where it belongs is a write for nothing.
+	 */
+	public function testAConversationAlreadyReadIsNotWrittenAgain(): void {
+		$this->given($this->note('https://a/1', 10));
+		$this->markers['https://a/1'] = ['readNid' => 10, 'hiddenNid' => 0];
+
+		$this->assertSame(0, $this->service()->markAllRead($this->viewer()));
+		$this->assertSame([], $this->writes);
+	}
+
+	public function testMarkingAnEmptyInboxReadWritesNothing(): void {
+		$this->given();
+
+		$this->assertSame(0, $this->service()->markAllRead($this->viewer()));
+		$this->assertSame([], $this->writes);
+	}
 }

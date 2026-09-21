@@ -85,3 +85,57 @@ export function tagStyle(tag) {
 		'--tag-colour-dark': `hsl(${hue}, ${SATURATION}%, ${LIGHTNESS_DARK}%)`,
 	}
 }
+
+/**
+ * How saturated a chart band is.
+ *
+ * Lower than a tag chip: a tag is one word that has to be picked out of a
+ * sentence, and these are six bands side by side that have to be told apart
+ * without shouting over the numbers beside them.
+ */
+const SERIES_SATURATION = 55
+
+/** A band's lightness on a light background, and on a dark one. */
+const SERIES_LIGHTNESS_LIGHT = 58
+const SERIES_LIGHTNESS_DARK = 62
+
+/**
+ * Where the first band's hue starts. Blue, because the eye reads the first
+ * band as the biggest share and blue is what the rest of Nextcloud uses for
+ * "this one".
+ */
+const SERIES_FIRST_HUE = 215
+
+/**
+ * How far apart consecutive bands are, in degrees.
+ *
+ * Not the golden angle: these are read in order against a legend, and 137°
+ * puts band two on the far side of the wheel from band one and band three
+ * back beside it, which reads as no order at all. Sixty degrees walks the
+ * wheel once in six steps, which is how many bands there are.
+ */
+const SERIES_STEP = 60
+
+/**
+ * The colours one chart band is drawn with.
+ *
+ * A hue rather than a hex, for the reason `tagStyle` uses one: a fixed palette
+ * is a set of colours chosen against one background, and this app has two.
+ * Six hardcoded hexes looked deliberate on the light theme and muddy on the
+ * dark one, where every other colour in the app had moved and these had not.
+ *
+ * Both values come back and the stylesheet picks, so the choice stays where
+ * the theme is known — a component cannot ask which theme it is in without
+ * guessing.
+ *
+ * @param {number} index which band, from 0
+ * @return {{'--series-colour': string, '--series-colour-dark': string}} the style object
+ */
+export function seriesStyle(index) {
+	const hue = (SERIES_FIRST_HUE + (Number(index) || 0) * SERIES_STEP) % 360
+
+	return {
+		'--series-colour': `hsl(${hue}, ${SERIES_SATURATION}%, ${SERIES_LIGHTNESS_LIGHT}%)`,
+		'--series-colour-dark': `hsl(${hue}, ${SERIES_SATURATION}%, ${SERIES_LIGHTNESS_DARK}%)`,
+	}
+}

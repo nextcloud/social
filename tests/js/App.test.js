@@ -481,4 +481,42 @@ describe('App', () => {
 			expect(wrapper.find('.router-view-stub').exists()).toBe(false)
 		})
 	})
+
+	describe('a visitor reading a public page', () => {
+		/**
+		 * Open since 2019 (#784). Somebody who follows a link to a public post
+		 * has no sidebar and therefore no way back into their own Nextcloud --
+		 * they had to know to go to the front page and find the app there.
+		 */
+		it('is offered a way in, naming the server they are on', async () => {
+			setServerData({ public: true })
+			const wrapper = mountApp()
+			await flushPromises()
+
+			const bar = wrapper.find('.social__visitor')
+			expect(bar.exists()).toBe(true)
+			expect(bar.text()).toContain('You are reading this as a visitor.')
+			expect(bar.text()).toContain('Log in to')
+		})
+
+		/** They come back to the page they were reading, not to a dashboard. */
+		it('carries the page being read through the login', async () => {
+			setServerData({ public: true })
+			const wrapper = mountApp()
+			await flushPromises()
+
+			const href = wrapper.find('.social__visitor a').attributes('href')
+				?? wrapper.find('.social__visitor').html()
+			expect(href).toContain('/login')
+			expect(href).toContain('redirect_url')
+		})
+
+		it('says none of this to somebody who is signed in', async () => {
+			setServerData({ public: false })
+			const wrapper = mountApp()
+			await flushPromises()
+
+			expect(wrapper.find('.social__visitor').exists()).toBe(false)
+		})
+	})
 })

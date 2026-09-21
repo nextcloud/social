@@ -465,13 +465,13 @@
 						:key="platform.key"
 						class="stats__composition-band"
 						:class="{ 'stats__composition-band--rest': platform.rest }"
-						:style="{ width: platform.width, background: platform.colour }"
+						:style="{ width: platform.width, ...platform.colour }"
 						:title="platform.title" />
 				</div>
 
 				<ul class="stats__platform-list">
 					<li v-for="platform in platforms" :key="platform.key">
-						<span class="stats__platform-swatch" :style="{ background: platform.colour }" aria-hidden="true" />
+						<span class="stats__platform-swatch" :style="platform.colour" aria-hidden="true" />
 						<span class="stats__platform-name">{{ platform.name }}</span>
 						<span class="stats__platform-share">{{ platform.shareLabel }}</span>
 						<span class="stats__platform-detail">{{ platform.detail }}</span>
@@ -608,6 +608,7 @@ import IconShape from 'vue-material-design-icons/ShapeOutline.vue'
 import IconTarget from 'vue-material-design-icons/Target.vue'
 import IconTrophy from 'vue-material-design-icons/Trophy.vue'
 import { getCanonicalLocale, n, t } from '@nextcloud/l10n'
+import { seriesStyle } from '../utils/tagColour.js'
 import logger from '../services/logger.js'
 
 /**
@@ -691,15 +692,6 @@ export default {
 				return []
 			}
 
-			const palette = [
-				'#6ea8fe',
-				'#7fd1ae',
-				'#f4b183',
-				'#c9a0dc',
-				'#7ec8e3',
-				'#e7909a',
-			]
-
 			return platforms.map((platform, index) => {
 				const rest = !platform.name
 				const name = rest ? t('social', 'everything else') : platform.name
@@ -708,7 +700,12 @@ export default {
 					key: name + index,
 					name,
 					rest,
-					colour: rest ? 'var(--color-border-dark)' : palette[index % palette.length],
+					// the remainder band is the app's own "there is more here"
+					// grey; the named ones are hues the stylesheet resolves
+					// per theme -- see seriesStyle()
+					colour: rest
+						? { '--series-colour': 'var(--color-border-dark)', '--series-colour-dark': 'var(--color-border-dark)' }
+						: seriesStyle(index),
 					width: Math.max(0.5, platform.share) + '%',
 					shareLabel: this.decimal(platform.share) + '%',
 					detail: t('social', '{servers} servers · {accounts} accounts', {
@@ -1481,8 +1478,11 @@ export default {
 	}
 }
 
-/* six bands of one hue is a gradient; this is a legend, so the colours are a
-   fixed palette and the bar is read against the list beside it */
+/* Six bands of one hue is a gradient; this is a legend, so the hues are spread
+   and the bar is read against the list beside it. The hue comes from
+   `seriesStyle()` as a pair of custom properties, and the choice between them
+   is made here, where the theme is known -- a fixed palette is a set of
+   colours chosen against one background, and this app has two. */
 .stats__composition {
 	display: flex;
 	height: 14px;
@@ -1494,6 +1494,7 @@ export default {
 
 .stats__composition-band {
 	height: 100%;
+	background: var(--series-colour);
 	transition: flex-basis .2s ease;
 }
 
@@ -1514,6 +1515,26 @@ export default {
 	block-size: 10px;
 	border-radius: 3px;
 	align-self: center;
+	background: var(--series-colour);
+}
+
+/* The dark value, chosen here rather than in the component: a hue picked
+   against a light background does not carry to a dark one, and only the
+   stylesheet knows which it is in. */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		.stats__composition-band,
+		.stats__platform-swatch {
+			background: var(--series-colour-dark);
+		}
+	}
+}
+
+:root[data-theme="dark"] {
+	.stats__composition-band,
+	.stats__platform-swatch {
+		background: var(--series-colour-dark);
+	}
 }
 
 .stats__platform-name {
