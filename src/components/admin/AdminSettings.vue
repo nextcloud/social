@@ -318,6 +318,8 @@ export default {
 </script>
 
 <style lang="scss">
+@use '../../styles/layout.scss' as layout;
+
 /**
  * The sections arrive one after another rather than all at once.
  *
@@ -500,7 +502,7 @@ export default {
 	}
 }
 
-@media (min-width: 1100px) {
+@include layout.from(layout.$wide) {
 	.social-admin {
 		&__body {
 			grid-template-columns: 232px minmax(0, 800px);

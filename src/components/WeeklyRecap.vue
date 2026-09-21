@@ -167,6 +167,8 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+@use '../styles/layout.scss' as layout;
+
 .weekly-recap {
 	display: flex;
 	align-items: center;
@@ -193,7 +195,7 @@ export default {
 	color: var(--color-text-maxcontrast);
 }
 
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.weekly-recap {
 		flex-wrap: wrap;
 	}

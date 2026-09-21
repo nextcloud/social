@@ -351,6 +351,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 /**
  * The sections arrive one after another rather than all at once.
  *
@@ -478,7 +480,7 @@ $gutter: calc(var(--default-grid-baseline) * 4);
 	}
 }
 
-@media (min-width: 1100px) {
+@include layout.from(layout.$wide) {
 	.settings {
 		&__body {
 			grid-template-columns: 224px minmax(0, 760px);

@@ -1255,6 +1255,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 /**
  * The mark that travels between the rows.
  *
@@ -1474,7 +1476,7 @@ export default {
 }
 
 /* a phone has less to spare, and the dialog is the whole screen */
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.modal-composer {
 		padding: 8px 12px 12px;
 	}

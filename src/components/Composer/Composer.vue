@@ -2644,6 +2644,8 @@ function nodeToPlainText(node) {
 </script>
 
 <style scoped lang="scss">
+@use '../../styles/layout.scss' as layout;
+
 .video-row {
 	display: flex;
 	flex-direction: column;
@@ -3019,7 +3021,7 @@ $composer-duration: 220ms;
  * spacer goes, the visibility menu shows its icon only, and Post keeps the
  * end of whatever row it lands on.
  */
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.options {
 		flex-wrap: wrap;
 		row-gap: 4px;

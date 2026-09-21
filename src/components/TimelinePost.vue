@@ -1842,6 +1842,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 /* the like confirmation: a short overshoot, not a bounce */
 @keyframes post-pop {
 	0% { transform: scale(1); }
@@ -1873,7 +1875,7 @@ export default {
 	75% { transform: translateX(4px); }
 }
 
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.post-content {
 		// the screen's width is the post's: less of it goes to the frame
 		padding: 14px 16px 12px;

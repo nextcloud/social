@@ -531,6 +531,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 .lists-settings {
 	&__create {
 		display: flex;
@@ -667,7 +669,7 @@ export default {
 	}
 }
 
-@media (max-width: 600px) {
+@include layout.below(layout.$phone) {
 	.lists-settings__members {
 		padding-inline-start: 0;
 	}
