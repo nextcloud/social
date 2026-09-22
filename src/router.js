@@ -31,6 +31,7 @@ const Discover = () => import('./views/Discover.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */'./views/Settings.vue')
 const Statistics = () => import(/* webpackChunkName: "statistics" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
+const VideoReels = () => import(/* webpackChunkName: "reels" */'./views/VideoReels.vue')
 
 /**
  * The path the app is actually served from, which is what the history base has
@@ -290,6 +291,17 @@ const router = createRouter({
 			// wanted actually is rather than on a 404.
 			path: '/migration',
 			redirect: { name: 'settings' },
+		},
+		{
+			// the same videos as `/timeline/videos`, watched rather than
+			// chosen from. Its own route so that it can be left with Back,
+			// and so that a link to it is a link somebody can be sent.
+			path: '/reels',
+			components: {
+				default: VideoReels,
+			},
+			props: (route) => ({ scope: route.query.scope ?? 'home' }),
+			name: 'reels',
 		},
 		{
 			path: '/statistics',

@@ -105,6 +105,12 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   stories only to instances it has identified as Pixelfed.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
+- **Watch** turns the Videos grid into a stack: one video at a time, full height,
+  playing as it comes past and stopping as it goes — the shape somebody arriving from
+  TikTok already knows. The same timeline at the same scope, so the way across changes
+  how the videos are watched and not which ones they are. Muted until you ask, one
+  playing at a time and the rest paused rather than left buffering, and reachable with
+  the arrow keys and the space bar.
 - **News** — a third one beside them, over what people are reading rather than what
   they showed: posts linking to an article, and articles themselves, which is what a
   blog on Plume, WriteFreely, Ghost or WordPress federates. Drawn as a list, led by
