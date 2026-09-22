@@ -149,6 +149,25 @@ const router = createRouter({
 			return { el: to.hash, behavior: 'smooth' }
 		}
 
+		// `{ top: 0 }` is the window's, and the window never scrolls here for
+		// the same reason as above — so on a forward navigation the content
+		// column kept whatever offset the last page was read at.
+		//
+		// Nothing looked wrong going from one long page to another, because
+		// the offset was still inside the new page. Leaving a long page for a
+		// short one showed a screenful of nothing: the two pages share one
+		// grid cell, the outgoing one is still in it until its leave
+		// transition ends *and its replacement's chunk has arrived*, so the
+		// cell stays as tall as the page being left and the incoming page sits
+		// thousands of pixels above the viewport. It corrected itself the
+		// moment the old page unmounted and the browser clamped the offset —
+		// which on a first visit to a lazily loaded page is however long the
+		// download takes, and long enough to read as a broken layout.
+		const column = scroller()
+		if (column !== null) {
+			column.scrollTop = 0
+		}
+
 		return { top: 0 }
 	},
 	routes: [

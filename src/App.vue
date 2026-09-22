@@ -440,7 +440,22 @@ export default {
 #app-content-vue .social__wrapper {
 	padding: calc(var(--default-grid-baseline) * 4);
 	max-width: 800px;
-	margin: auto;
+	/*
+	 * Inline only. `margin: auto` centres the page in the block axis too, and
+	 * auto margins take precedence over every alignment property — so a page
+	 * shorter than its grid row sits in the middle of it whatever
+	 * `align-content` says.
+	 *
+	 * Normally the row is the page's own height and there is nothing to
+	 * centre in. During a page change there is: the two pages share one grid
+	 * cell, so while the outgoing one is still there the row is as tall as
+	 * *it* is, and the incoming page was dropped halfway down it. Leaving
+	 * Settings — eight thousand pixels of it — for a short page therefore drew
+	 * the new page four thousand pixels below the viewport and showed a blank
+	 * column until the old page unmounted, which on a first visit is however
+	 * long the new page's chunk takes to arrive.
+	 */
+	margin-inline: auto;
 }
 
 /* Direct messages need the full app-content width for the conversation list

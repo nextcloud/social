@@ -373,8 +373,16 @@ export default {
 .reels {
 	position: relative;
 	/* the app's own content area, not the window: the navigation stays where
-	   it is and the stack fills what is left of the page */
-	block-size: 100%;
+	   it is and the stack fills what is left of the page.
+	   Measured off the viewport rather than given `100%`, because nothing in
+	   the chain above this has a height for a percentage to be of — so the
+	   stack was as tall as one slide's contents and sat in the top half of a
+	   white page. Both of the server's own offsets are taken off, or the
+	   stack overhangs its column by the eight pixels of the one that was
+	   missed and the column scrolls behind the slides. */
+	block-size: calc(
+		100vh - var(--header-height, 50px) - var(--body-container-margin, 8px)
+	);
 	inline-size: 100%;
 	background: #000;
 
@@ -429,8 +437,10 @@ export default {
 
 	&__sound {
 		position: absolute;
-		inset-block-start: 12px;
-		inset-inline-start: 12px;
+		/* bottom right, clear of both the app's own sidebar toggle in the top
+		   left and the way out in the top right */
+		inset-block-end: 16px;
+		inset-inline-end: 16px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -450,7 +460,8 @@ export default {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		padding: 16px;
+		/* room on the end for the sound button, which sits over this */
+		padding: 16px 72px 16px 16px;
 		color: #fff;
 		/* the words sit on whatever the video happens to be showing, so they
 		   carry their own ground rather than hoping it is dark there */
