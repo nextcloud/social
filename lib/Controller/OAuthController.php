@@ -14,6 +14,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
@@ -35,6 +36,7 @@ use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\IUser;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -245,7 +247,7 @@ class OAuthController extends Controller {
 			$user = $this->userSession->getUser();
 
 			// check actor exists
-			$this->accountService->getActorFromUserId($user->getUID());
+			$actor = $this->accountService->getActorFromUserId($user->getUID());
 
 			if ($response_type !== 'code') {
 				throw new ClientNotFoundException('invalid response type');
@@ -268,6 +270,15 @@ class OAuthController extends Controller {
 			// what the person is being asked to agree to: the app, what it may
 			// do, and where the code is about to be sent
 			$this->initialState->provideInitialState('appName', $client->getAppName());
+			$this->initialState->provideInitialState('appWebsite', $client->getAppWebsite());
+			// which account is about to be handed over: on a server where
+			// somebody holds more than one, the name of the application alone
+			// does not answer the question being asked
+			$this->initialState->provideInitialState('account', [
+				'uid' => $user->getUID(),
+				'displayName' => $this->accountDisplayName($actor, $user),
+				'handle' => '@' . $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress(),
+			]);
 			$this->initialState->provideInitialState('scopes', $client->getScopesFromString($scope));
 			$this->initialState->provideInitialState('redirectUri', $redirect_uri);
 			$this->initialState->provideInitialState('denyUrl', $this->denyUrl($redirect_uri, $state));
@@ -313,6 +324,24 @@ class OAuthController extends Controller {
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
+	}
+
+	/**
+	 * The name to show for the account being handed over.
+	 *
+	 * `Person::getDisplayName()` falls back to the handle when the profile
+	 * carries no name of its own, which on the consent page reads as the
+	 * username twice over -- once as the name and once as the handle under it.
+	 * The Nextcloud account's name is what the rest of the server would show
+	 * next to that same avatar, so it stands in.
+	 */
+	private function accountDisplayName(Person $actor, IUser $user): string {
+		$name = $actor->getDisplayName();
+		if ($name === $actor->getPreferredUsername()) {
+			return $user->getDisplayName();
+		}
+
+		return $name;
 	}
 
 	/**

@@ -17,14 +17,98 @@ describe('OAuth2Authorize', () => {
 
 	beforeEach(() => {
 		setState('appName', 'Tusky')
+		setState('appWebsite', '')
+		setState('account', null)
+		setState('scopes', [])
 		wrapper = mount(OAuth2Authorize)
 	})
 
 	it('names the third party application asking for access', () => {
 		expect(wrapper.find('h1').text()).toBe('Authorization required')
-		const text = wrapper.find('p').text()
+		const text = wrapper.find('.oauth__lead').text()
 		expect(text).toContain('Tusky would like permission to access your account. It is a third party application.')
-		expect(wrapper.find('p b').text()).toBe('If you do not trust it, then you should not authorize it.')
+		expect(wrapper.text()).toContain('If you do not trust it, then you should not authorize it.')
+	})
+
+	/**
+	 * An application registers no logo, so the mark above the heading is the
+	 * letter its name starts with.
+	 */
+	it('marks the request with the letter the application starts with', () => {
+		expect(wrapper.find('.oauth__seal--app').text()).toBe('T')
+	})
+
+	it('links the website the application registered, by host', () => {
+		setState('appWebsite', 'https://tusky.app/download?ref=nc')
+		const link = mount(OAuth2Authorize).find('.oauth__website')
+
+		expect(link.text()).toContain('tusky.app')
+		expect(link.attributes('href')).toBe('https://tusky.app/download?ref=nc')
+		expect(link.attributes('rel')).toContain('noopener')
+	})
+
+	/** A `javascript:` website is a link nobody should be offered. */
+	it('shows no website link for a scheme a browser should not follow', () => {
+		setState('appWebsite', 'javascript:alert(1)')
+
+		expect(mount(OAuth2Authorize).find('.oauth__website').exists()).toBe(false)
+	})
+
+	it('shows no website link when the application registered none', () => {
+		expect(wrapper.find('.oauth__website').exists()).toBe(false)
+	})
+
+	/**
+	 * Which account is being handed over is half of what is being asked, and
+	 * the application's name alone does not answer it.
+	 */
+	it('names the account the code would be granted for', () => {
+		setState('account', { uid: 'aiko', displayName: 'Aiko Tanaka', handle: '@aiko@example.com' })
+		const account = mount(OAuth2Authorize).find('.account')
+
+		expect(account.text()).toContain('Aiko Tanaka')
+		expect(account.text()).toContain('@aiko@example.com')
+	})
+
+	it('leaves the account row out when the server sent no account', () => {
+		expect(wrapper.find('.account').exists()).toBe(false)
+	})
+
+	it('explains every scope it knows, and shows the rest as asked for', () => {
+		setState('scopes', ['read:statuses', 'write:media', 'read:invented'])
+		const items = mount(OAuth2Authorize).findAll('.scopes__item')
+
+		expect(items).toHaveLength(3)
+		expect(items[0].text()).toContain('Read your posts and your timelines')
+		expect(items[0].text()).toContain('read:statuses')
+		expect(items[1].text()).toContain('Upload files as you')
+		expect(items[2].text()).toContain('read:invented')
+	})
+
+	/**
+	 * A scope that only reads and a scope that acts as you are not the same
+	 * grant, and a list where every line looks alike hides that.
+	 */
+	it('marks the scopes that let the application act, not only read', () => {
+		setState('scopes', ['read:statuses', 'write:statuses', 'follow', 'read'])
+		const items = mount(OAuth2Authorize).findAll('.scopes__icon')
+
+		expect(items.map((icon) => icon.classes('scopes__icon--write')))
+			.toEqual([false, true, true, false])
+	})
+
+	it('names where the code is about to be sent', () => {
+		setState('redirectUri', 'https://ivory.app/oauth/callback')
+
+		expect(mount(OAuth2Authorize).find('.target').text())
+			.toContain('The authorization code will be sent to ivory.app.')
+	})
+
+	it('says so when the code is shown rather than sent', () => {
+		setState('redirectUri', 'urn:ietf:wg:oauth:2.0:oob')
+
+		expect(mount(OAuth2Authorize).find('.target').text())
+			.toContain('The authorization code will be shown to you')
 	})
 
 	it('posts the decision back to the authorize endpoint that rendered the page', () => {
@@ -46,7 +130,7 @@ describe('OAuth2Authorize', () => {
 	})
 
 	it('lets the user deny by leaving for the app home page', () => {
-		const deny = wrapper.find('form a')
+		const deny = wrapper.find('form .button-row a')
 		expect(deny.text()).toBe('Deny')
 		expect(deny.attributes('href')).toBe('/index.php/apps/social/')
 	})
