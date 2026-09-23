@@ -12,11 +12,14 @@
 		<aside class="direct-messages__list-panel" :aria-label="t('social', 'Direct message conversations')">
 			<header class="direct-messages__list-heading">
 				<h2>{{ t('social', 'Messages') }}</h2>
-				<NcButton variant="tertiary" class="direct-messages__new-button" @click="newMessageOpen = !newMessageOpen">
+				<NcButton
+					variant="tertiary"
+					class="direct-messages__new-button"
+					:aria-label="t('social', 'New message')"
+					@click="newMessageOpen = !newMessageOpen">
 					<template #icon>
 						<MessagePlusOutline :size="20" />
 					</template>
-					{{ t('social', 'New message') }}
 				</NcButton>
 			</header>
 			<div class="direct-messages__list-tools">
@@ -594,7 +597,7 @@ export default {
 	display: grid;
 	grid-template-columns: clamp(17.5rem, 23vw, 20rem) minmax(0, 1fr);
 	width: 100%;
-	height: calc(100dvh - var(--header-height, 50px));
+	height: calc(100dvh - var(--header-height, 50px) - 0.5rem);
 	min-height: 36rem;
 	background: var(--color-main-background);
 }
@@ -624,6 +627,7 @@ export default {
 
 .direct-messages__list-heading {
 	justify-content: space-between;
+	padding-inline-start: 3.5rem;
 }
 
 .direct-messages__list-heading h2,
@@ -978,10 +982,10 @@ export default {
 	}
 }
 
-@media (max-width: 760px) {
+@media (max-width: 980px) {
 	.direct-messages {
 		grid-template-columns: minmax(0, 1fr);
-		min-height: calc(100dvh - var(--header-height, 50px));
+		min-height: calc(100dvh - var(--header-height, 50px) - 0.5rem);
 	}
 
 	.direct-messages__list-panel {
