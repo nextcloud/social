@@ -1389,13 +1389,13 @@ describe('Composer', () => {
 			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('#content')
 		})
 
-		it('keeps the picker inside the modal when a container is passed', async () => {
-			// the "New post" dialog: anything teleported out lands behind
-			// the dimmed mask and outside the focus trap
-			const { wrapper } = mountComposer({ emojiPickerContainer: '.modal-composer' })
+		it('keeps the picker inside the unclipped modal overlay when requested', async () => {
+			// the dialog content scrolls and clips its children; the overlay
+			// wrapper is still above the dimmed page but allows the picker to float
+			const { wrapper } = mountComposer({ emojiPickerContainer: '.modal-wrapper' })
 			await openEmojiPicker(wrapper)
 
-			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('.modal-composer')
+			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('.modal-wrapper')
 		})
 
 		it('inserts a picked emoji into an empty message', async () => {

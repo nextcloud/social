@@ -877,4 +877,14 @@ img.custom-emoji {
 	vertical-align: text-bottom;
 	object-fit: contain;
 }
+
+/*
+ * The modal composer sits halfway down the viewport. The emoji picker has a
+ * 420px default height and floats above its toolbar, which can put its top
+ * edge outside a short viewport. Keep the picker within the available upper
+ * half; the emoji list itself scrolls, so every category remains reachable.
+ */
+.modal-wrapper .v-popper__popper .nc-emoji-picker-container .emoji-mart {
+	height: min(420px, calc(50vh + 16px));
+}
 </style>

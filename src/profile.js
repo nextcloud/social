@@ -7,6 +7,7 @@ import { defineCustomElement, h } from 'vue'
 import pinia from './store/index.js'
 import ProfilePageIntegration from './views/ProfilePageIntegration.vue'
 import { generateFilePath } from '@nextcloud/router'
+import { registerProfileSection } from './services/profileSections.js'
 
 const requestToken = window.OC?.requestToken
 if (requestToken) {
@@ -40,9 +41,11 @@ if (!customElements.get(profileSectionTagName)) {
 	customElements.define(profileSectionTagName, SocialProfileSectionElement)
 }
 
-// `OCA.Profile.ProfileSections` is the registry of every supported Nextcloud;
-// the `OCA.Core` callback contract it replaced was gone before the app's floor.
-window.OCA?.Profile?.ProfileSections?.registerSection({
+// `ProfileSections` is created by the Profile app's module entry, which runs
+// after this classic Social entry. Register on its first assignment so the
+// Profile page's initial read sees Social before it mounts.
+const profileNamespace = window.OCA?.Profile ?? (window.OCA.Profile = {})
+registerProfileSection(profileNamespace, {
 	id: 'social-profile-section',
 	order: 0,
 	tagName: profileSectionTagName,

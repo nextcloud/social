@@ -27,5 +27,15 @@ let picker = null
  *
  */
 export function emojiPickerModule() {
-	return (picker ??= import('@nextcloud/vue/components/NcEmojiPicker'))
+	if (picker === null) {
+		picker = import('@nextcloud/vue/components/NcEmojiPicker').catch((error) => {
+			// A failed chunk request can be transient (offline, proxy timeout,
+			// stale cache). Do not memoize the rejection: the composer keeps its
+			// button available so the reader can try again.
+			picker = null
+			throw error
+		})
+	}
+
+	return picker
 }

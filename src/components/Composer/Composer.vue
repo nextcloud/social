@@ -716,9 +716,10 @@ export default {
 		 * post" dialog instead has to stay inside the modal mask: anything
 		 * teleported out (to `#content`, to `body`) lands behind the dimmed
 		 * mask and outside the focus trap, so the picker shows behind the
-		 * popup and takes no clicks. Callers in a modal pass the dialog's
-		 * own wrapper (e.g. `.modal-composer`), which is inside the mask
-		 * but outside the clipping toolbar row.
+		 * popup and takes no clicks. Callers in a modal pass the overlay wrapper
+		 * (not `.modal-composer`): the dialog's content panel has `overflow: auto`,
+		 * which clips a 420px picker when it opens above the toolbar. The overlay
+		 * wrapper stays inside the mask and focus layer without clipping it.
 		 */
 		emojiPickerContainer: {
 			type: String,
@@ -1392,9 +1393,18 @@ export default {
 			// swapping it out first left an empty space for as long as the
 			// chunk took, which on a busy connection is seconds
 			this.emojiPickerLoading = true
-			await emojiPickerModule().catch(() => {})
-			this.emojiPickerLoading = false
-			this.emojiPickerLoaded = true
+			try {
+				await emojiPickerModule()
+				this.emojiPickerLoaded = true
+			} catch (error) {
+				// Keep the lightweight button mounted. The import service clears a
+				// rejected promise, so another press retries the chunk request.
+				logger.error('Could not load the emoji picker', { error })
+				return
+			} finally {
+				this.emojiPickerLoading = false
+			}
+
 			// and the click the reader already made is passed on to the picker,
 			// which is now mounted, rather than being spent on fetching it. A
 			// frame after the tick: the popover binds its trigger on mount and

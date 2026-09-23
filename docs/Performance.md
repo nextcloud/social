@@ -233,7 +233,10 @@ Three changes account for it:
   composer imported it statically, so the browser fetched it alongside the
   composer on the home timeline whether or not anybody wanted an emoji. It is a
   `defineAsyncComponent` now, and the button that opens it stays on screen with
-  a spinner until the chunk is there, so one press still opens the picker.
+  a spinner until the chunk is there, so one press still opens the picker. A
+  failed chunk request leaves that button available, clears the rejected import
+  promise, and lets the next press retry instead of leaving a permanently
+  rejected picker on the page.
 - **Vue's production flags** (`__VUE_PROD_DEVTOOLS__` and friends, set in
   `webpack.common.js`). Without them the devtools bridge is compiled in:
   `@vue/devtools-api` pulls `@vue/devtools-kit`, which nothing in a released
