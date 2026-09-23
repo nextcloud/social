@@ -226,9 +226,13 @@ The sidebar is the map:
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.
-- **Direct messages** — private conversations, one chat per person. Search for
-  somebody to start a chat; an existing conversation opens instead of creating
-  another one. Messages are sent privately to that person, so there is no
+- **Direct messages** — private conversations, one chat per person. **New
+  message** first offers people from your existing chats and the accounts you
+  follow. Search by name or `@handle` to find somebody else; a search failure
+  is shown separately from a genuine empty result. Selecting somebody with an
+  existing conversation opens that chat instead of creating another one.
+  The new chat uses the same person header and message field as an existing
+  conversation. Messages are sent privately to that person, so there is no
   public, follower-only or other audience to choose and no repeated mention to
   type. The inbox shows a conversation preview and unread state; opening a chat
   marks it read. The chat uses a single message area with incoming and outgoing

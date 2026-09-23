@@ -16,7 +16,7 @@
 					variant="tertiary"
 					class="direct-messages__new-button"
 					:aria-label="t('social', 'New message')"
-					@click="newMessageOpen = !newMessageOpen">
+					@click="newMessageOpen = true">
 					<template #icon>
 						<MessagePlusOutline :size="20" />
 					</template>
@@ -46,10 +46,9 @@
 				{{ t('social', 'Could not load conversations') }}
 			</p>
 			<div v-else-if="conversations.length === 0" class="direct-messages__inbox-empty">
-				<MessageOutline :size="26" aria-hidden="true" />
-				<strong>{{ t('social', 'No direct conversations yet') }}</strong>
-				<p>{{ t('social', 'Your private conversations will appear here.') }}</p>
-				<NcButton variant="tertiary" @click="newMessageOpen = true">
+				<MessageOutline :size="24" aria-hidden="true" />
+				<strong>{{ t('social', 'No conversations yet') }}</strong>
+				<NcButton class="direct-messages__mobile-start" variant="tertiary" @click="newMessageOpen = true">
 					{{ t('social', 'Start a conversation') }}
 				</NcButton>
 			</div>
@@ -91,24 +90,46 @@
 				<NcButton class="direct-messages__back" variant="tertiary" @click="newMessageOpen = false">
 					{{ t('social', 'Back to conversations') }}
 				</NcButton>
-				<h2>{{ t('social', 'New message') }}</h2>
+				<ActorAvatar
+					v-if="newRecipient"
+					:actor="newRecipient"
+					:size="40"
+					:link="false" />
+				<div class="direct-messages__thread-person">
+					<h2>{{ newRecipient ? newRecipient.display_name || newRecipient.username || newRecipient.acct : t('social', 'New message') }}</h2>
+					<p>{{ newRecipient ? t('social', 'Private conversation') : t('social', 'Choose a person to start a private chat') }}</p>
+				</div>
+				<NcButton
+					v-if="newRecipient"
+					variant="tertiary"
+					class="direct-messages__change-person"
+					@click="newRecipient = null">
+					{{ t('social', 'Change person') }}
+				</NcButton>
 			</header>
 			<div v-if="!newRecipient" class="direct-messages__recipient-picker">
+				<div class="direct-messages__recipient-intro">
+					<h3>{{ t('social', 'Who would you like to message?') }}</h3>
+				</div>
 				<NcTextField
 					v-model="recipientQuery"
 					class="direct-messages__recipient-search"
-					:label="t('social', 'To')"
+					:label="t('social', 'Search for a person by name or @username')"
 					:placeholder="t('social', 'Search for a person by name or @username')"
 					autocomplete="off"
 					type="search" />
-				<p v-if="searchingAccounts" class="direct-messages__state" role="status">
-					{{ t('social', 'Searching…') }}
+				<div class="direct-messages__people-heading">
+					<h3>{{ recipientQuery.trim().length >= 2 ? t('social', 'Search results') : t('social', 'People you know') }}</h3>
+					<span v-if="searchingAccounts || loadingSuggestions" role="status">{{ t('social', 'Searching…') }}</span>
+				</div>
+				<p v-if="searchError" class="direct-messages__state direct-messages__recipient-feedback" role="alert">
+					{{ t('social', 'Could not search for people. Please try again.') }}
 				</p>
-				<ul v-else-if="accountResults.length" class="direct-messages__recipient-results">
-					<li v-for="account in accountResults" :key="account.id || account.acct">
+				<ul v-if="visibleRecipients.length" class="direct-messages__recipient-results">
+					<li v-for="account in visibleRecipients" :key="account.id || account.acct">
 						<NcListItem
 							class="direct-messages__recipient-option"
-							:name="account.display_name || account.username"
+							:name="account.display_name || account.username || account.acct"
 							:linkAriaLabel="t('social', 'Start a conversation with {name}', { name: account.display_name || account.acct })"
 							@click="startConversation(account, $event)">
 							<template #icon>
@@ -120,19 +141,19 @@
 						</NcListItem>
 					</li>
 				</ul>
-				<p v-else-if="recipientQuery.trim().length >= 2" class="direct-messages__state">
+				<p v-else-if="recipientQuery.trim().length >= 2 && !searchingAccounts && !searchError" class="direct-messages__state direct-messages__recipient-feedback">
 					{{ t('social', 'No people found') }}
+				</p>
+				<p v-else-if="!loadingSuggestions && !visibleRecipients.length" class="direct-messages__state direct-messages__recipient-feedback">
+					{{ t('social', 'Search for someone to start a conversation') }}
 				</p>
 			</div>
 			<div v-else class="direct-messages__new-chat">
-				<div class="direct-messages__chosen-recipient">
-					<ActorAvatar :actor="newRecipient" :size="40" :link="false" />
-					<span><strong>{{ newRecipient.display_name || newRecipient.username }}</strong><small>@{{ newRecipient.acct }}</small></span>
-					<NcButton variant="tertiary" @click="newRecipient = null">
-						{{ t('social', 'Change person') }}
-					</NcButton>
+				<div class="direct-messages__new-chat-intro">
+					<MessageOutline :size="36" aria-hidden="true" />
+					<h3>{{ t('social', 'Start a conversation with {name}', { name: newRecipient.display_name || newRecipient.username || newRecipient.acct }) }}</h3>
+					<p>{{ t('social', 'Private conversation') }}</p>
 				</div>
-				<div class="direct-messages__new-chat-spacer" />
 				<form class="direct-messages__message-form" @submit.prevent="sendMessage">
 					<NcTextArea
 						v-model="messageText"
@@ -226,10 +247,10 @@
 		<section v-else class="direct-messages__thread-panel direct-messages__thread-panel--empty">
 			<div class="direct-messages__welcome">
 				<div class="direct-messages__welcome-mark" aria-hidden="true">
-					<MessageOutline :size="30" />
+					<MessageOutline :size="32" />
 				</div>
-				<h2>{{ t('social', 'Your messages, together') }}</h2>
-				<p>{{ t('social', 'Choose a conversation to pick up where you left off, or start a new one.') }}</p>
+				<h2>{{ t('social', 'Start a private chat') }}</h2>
+				<p>{{ t('social', 'Choose a conversation or find someone to message.') }}</p>
 				<NcButton variant="primary" @click="newMessageOpen = true">
 					{{ t('social', 'New message') }}
 				</NcButton>
@@ -288,13 +309,17 @@ export default {
 			newMessageOpen: false,
 			recipientQuery: '',
 			accountResults: [],
+			suggestedAccounts: [],
+			loadingSuggestions: false,
 			searchingAccounts: false,
+			searchError: false,
 			newRecipient: null,
 			messageText: '',
 			sendingMessage: false,
 			sendError: false,
 			accountSearchTimer: null,
 			accountSearchRequest: 0,
+			suggestionsRequest: 0,
 			threadRequest: 0,
 		}
 	},
@@ -313,6 +338,25 @@ export default {
 
 		activeConversation() {
 			return this.conversations.find((conversation) => String(conversation.id) === this.selectedConversationId) ?? null
+		},
+
+		visibleRecipients() {
+			const query = this.recipientQuery.trim().replace(/^@/, '').toLocaleLowerCase()
+			const seen = new Set()
+			return [
+				...(query.length >= 2 ? this.accountResults : []),
+				...this.conversations.flatMap((conversation) => conversation.accounts ?? []),
+				...this.suggestedAccounts,
+			].filter((account) => {
+				const key = String(account?.id || account?.acct || '').toLocaleLowerCase()
+				const name = String(account?.display_name || account?.username || '').toLocaleLowerCase()
+				if (!account?.acct || !key || seen.has(key) || this.isOwnAccount(account)
+					|| (query && !name.includes(query) && !String(account.acct).toLocaleLowerCase().includes(query))) {
+					return false
+				}
+				seen.add(key)
+				return true
+			}).slice(0, 12)
 		},
 
 		messages() {
@@ -338,10 +382,25 @@ export default {
 	},
 
 	watch: {
+		newMessageOpen(open) {
+			if (open) {
+				this.newRecipient = null
+				this.recipientQuery = ''
+				this.searchError = false
+				this.loadSuggestedAccounts()
+			} else {
+				clearTimeout(this.accountSearchTimer)
+				this.accountSearchRequest++
+				this.suggestionsRequest++
+				this.searchingAccounts = false
+			}
+		},
+
 		recipientQuery(query) {
 			clearTimeout(this.accountSearchTimer)
 			this.accountSearchRequest++
 			this.accountResults = []
+			this.searchError = false
 			if (query.trim().length < 2) {
 				this.searchingAccounts = false
 				return
@@ -379,6 +438,32 @@ export default {
 	},
 
 	methods: {
+		isOwnAccount(account) {
+			return account.acct === this.currentUserId
+				|| (account.username === this.currentUserId && !String(account.acct ?? '').includes('@'))
+		},
+
+		async loadSuggestedAccounts() {
+			const request = ++this.suggestionsRequest
+			this.loadingSuggestions = true
+			try {
+				const { data: me } = await axios.get(generateUrl('apps/social/api/v1/accounts/verify_credentials'))
+				if (!me?.id || !this.newMessageOpen || request !== this.suggestionsRequest) {
+					return
+				}
+				const { data } = await axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(String(me.id))}/following`), { params: { limit: 20 } })
+				if (this.newMessageOpen && request === this.suggestionsRequest) {
+					this.suggestedAccounts = Array.isArray(data) ? data : []
+				}
+			} catch (error) {
+				logger.error('Failed to load suggested direct message recipients', { error })
+			} finally {
+				if (request === this.suggestionsRequest) {
+					this.loadingSuggestions = false
+				}
+			}
+		},
+
 		async loadConversations() {
 			this.loadingList = true
 			this.listError = false
@@ -412,11 +497,12 @@ export default {
 				if (request !== this.accountSearchRequest) {
 					return
 				}
-				const accounts = [...(data?.accounts ?? []), ...(data?.exact ? [data.exact] : [])]
+				const result = data?.result ?? {}
+				const accounts = [...(Array.isArray(result.accounts) ? result.accounts : []), ...(result.exact && !Array.isArray(result.exact) ? [result.exact] : [])]
 				const seen = new Set()
 				this.accountResults = accounts.filter((account) => {
 					const key = String(account.id || account.acct).toLocaleLowerCase()
-					if (!account.acct || seen.has(key) || account.acct === this.currentUserId || account.username === this.currentUserId) {
+					if (!account.acct || seen.has(key) || this.isOwnAccount(account)) {
 						return false
 					}
 					seen.add(key)
@@ -424,6 +510,7 @@ export default {
 				}).slice(0, 8)
 			} catch (error) {
 				if (request === this.accountSearchRequest) {
+					this.searchError = true
 					logger.error('Failed to search for direct message recipients', { error })
 				}
 			} finally {
@@ -732,19 +819,20 @@ export default {
 .direct-messages__inbox-empty {
 	display: flex;
 	flex-direction: column;
-	align-items: flex-start;
+	align-items: center;
 	gap: 0.65rem;
-	padding: 2rem 1.25rem;
+	padding: 2.5rem 1rem;
 	color: var(--color-text-maxcontrast);
+	text-align: center;
 }
 
 .direct-messages__inbox-empty strong {
-	color: var(--color-main-text);
+	font-size: 0.9rem;
+	font-weight: 500;
 }
 
-.direct-messages__inbox-empty p {
-	margin: 0;
-	line-height: 1.5;
+.direct-messages__mobile-start {
+	display: none;
 }
 
 .direct-messages__thread-heading {
@@ -753,6 +841,12 @@ export default {
 
 .direct-messages__thread-person {
 	min-width: 0;
+}
+
+.direct-messages__thread-person h2 {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .direct-messages__thread-person p {
@@ -858,17 +952,61 @@ export default {
 .direct-messages__recipient-picker {
 	flex: 1;
 	min-height: 0;
-	padding: 1.5rem clamp(1.25rem, 5vw, 4rem);
+	padding: clamp(1.5rem, 4vw, 3rem) clamp(1.25rem, 5vw, 4rem);
 	overflow-y: auto;
 }
 
+.direct-messages__recipient-intro {
+	max-width: 42rem;
+	margin: 0 auto 1.5rem;
+}
+
+.direct-messages__recipient-intro h3 {
+	margin: 0 0 0.25rem;
+	color: var(--color-main-text);
+	font-size: 1.25rem;
+	font-weight: 650;
+}
+
 .direct-messages__recipient-search {
-	max-width: 38rem;
+	display: block;
+	max-width: 42rem;
+	margin: 0 auto;
+}
+
+.direct-messages__recipient-search :deep(.input-field__input) {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 3rem;
+	border-radius: var(--border-radius-large);
+	background: var(--color-background-hover);
+}
+
+.direct-messages__people-heading {
+	display: flex;
+	max-width: 42rem;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin: 2rem auto 0.5rem;
+	padding-inline: 0.5rem;
+	color: var(--color-text-maxcontrast);
+}
+
+.direct-messages__people-heading h3 {
+	margin: 0;
+	color: var(--color-main-text);
+	font-size: 0.9rem;
+	font-weight: 650;
+}
+
+.direct-messages__people-heading span {
+	font-size: 0.8rem;
 }
 
 .direct-messages__recipient-results {
-	max-width: 38rem;
-	margin: 1rem 0 0;
+	max-width: 42rem;
+	margin: 0 auto;
 	padding: 0;
 	list-style: none;
 }
@@ -878,8 +1016,16 @@ export default {
 }
 
 .direct-messages :deep(.direct-messages__recipient-option .list-item__anchor) {
-	min-height: 4rem;
-	padding: 0.7rem;
+	min-height: 4.5rem;
+	padding: 0.6rem 0.75rem;
+	border-radius: var(--border-radius-large);
+}
+
+.direct-messages__recipient-feedback {
+	max-width: 42rem;
+	margin: 0 auto;
+	padding: 1.25rem 0.5rem;
+	text-align: start;
 }
 
 .direct-messages__new-chat {
@@ -889,26 +1035,30 @@ export default {
 	flex-direction: column;
 }
 
-.direct-messages__chosen-recipient {
+.direct-messages__change-person {
+	margin-inline-start: auto;
+}
+
+.direct-messages__new-chat-intro {
 	display: flex;
+	flex: 1;
+	flex-direction: column;
 	align-items: center;
-	gap: 0.75rem;
-	padding: 0.8rem 1.25rem;
-	border-bottom: 1px solid var(--color-border);
-}
-
-.direct-messages__chosen-recipient span {
-	display: grid;
-	flex: 1;
-	min-width: 0;
-}
-
-.direct-messages__chosen-recipient small {
+	justify-content: center;
+	gap: 0.45rem;
+	padding: 2rem;
 	color: var(--color-text-maxcontrast);
+	text-align: center;
 }
 
-.direct-messages__new-chat-spacer {
-	flex: 1;
+.direct-messages__new-chat-intro h3 {
+	margin: 0.75rem 0 0;
+	color: var(--color-main-text);
+	font-size: 1.2rem;
+}
+
+.direct-messages__new-chat-intro p {
+	margin: 0;
 }
 
 .direct-messages__message-form {
@@ -953,7 +1103,7 @@ export default {
 .direct-messages__welcome {
 	max-width: 28rem;
 	margin: auto;
-	padding: 2rem;
+	padding: 2rem 1.5rem;
 	text-align: center;
 }
 
@@ -998,6 +1148,10 @@ export default {
 	}
 
 	.direct-messages__back {
+		display: inline-flex;
+	}
+
+	.direct-messages__mobile-start {
 		display: inline-flex;
 	}
 

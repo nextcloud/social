@@ -120,7 +120,7 @@ describe('DirectMessages', () => {
 		const wrapper = mountMessages()
 		await flushPromises()
 
-		expect(wrapper.find('.direct-messages__welcome').text()).toContain('Your messages, together')
+		expect(wrapper.find('.direct-messages__welcome').text()).toContain('Start a private chat')
 		await wrapper.find('.direct-messages__welcome button').trigger('click')
 		expect(wrapper.find('.direct-messages__new-message-panel').exists()).toBe(true)
 	})
@@ -145,12 +145,57 @@ describe('DirectMessages', () => {
 	it('searches for one recipient and starts an existing chat instead of duplicating it', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
-		get.mockResolvedValueOnce({ data: { accounts: [bob] } })
+		get.mockResolvedValueOnce({ data: { result: { accounts: [bob], exact: null } } })
 		await wrapper.vm.searchAccounts('bob')
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/global/accounts/search', { params: { search: 'bob' } })
+		expect(wrapper.vm.accountResults).toEqual([bob])
 		await wrapper.vm.startConversation(bob)
 		expect(wrapper.emitted('select')).toEqual([['10']])
+	})
+
+	it('shows followed people before typing and renders the wrapped search response', async () => {
+		get.mockImplementation(async (url) => {
+			if (url.endsWith('/conversations')) {
+				return { data: [] }
+			}
+			if (url.endsWith('/verify_credentials')) {
+				return { data: { id: '42' } }
+			}
+			if (url.endsWith('/42/following')) {
+				return { data: [bob] }
+			}
+			return { data: { result: { accounts: [{ ...bob, acct: 'bob@remote.example' }], exact: null } } }
+		})
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.find('.direct-messages__list-heading button').trigger('click')
+		await flushPromises()
+
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/42/following', { params: { limit: 20 } })
+		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
+		await wrapper.find('.direct-messages__recipient-search input').setValue('bob')
+		await wrapper.vm.searchAccounts('bob')
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
+		expect(wrapper.find('.direct-messages__people-heading').text()).toContain('Search results')
+		await wrapper.find('.direct-messages__recipient-search input').setValue('@bob')
+		await wrapper.vm.searchAccounts('@bob')
+		await flushPromises()
+		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
+	})
+
+	it('shows a search failure instead of claiming nobody exists', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.find('.direct-messages__list-heading button').trigger('click')
+		await wrapper.find('.direct-messages__recipient-search input').setValue('alice')
+		get.mockRejectedValueOnce(new Error('offline'))
+		await wrapper.vm.searchAccounts('alice')
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__recipient-feedback[role="alert"]').text()).toContain('Could not search for people')
 	})
 
 	it('sends a private message with the selected recipient attached automatically', async () => {
@@ -182,8 +227,8 @@ describe('DirectMessages', () => {
 		const wrapper = mountMessages()
 		await flushPromises()
 
-		expect(wrapper.find('.direct-messages__inbox-empty').text()).toContain('No direct conversations yet')
-		expect(wrapper.find('.direct-messages__thread-panel--empty').text()).toContain('Choose a conversation to pick up where you left off')
+		expect(wrapper.find('.direct-messages__inbox-empty').text()).toContain('No conversations yet')
+		expect(wrapper.find('.direct-messages__thread-panel--empty').text()).toContain('Choose a conversation or find someone to message')
 	})
 
 	it('keeps failed read markers from hiding a loaded thread', async () => {
