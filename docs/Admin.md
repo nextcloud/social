@@ -652,8 +652,18 @@ occ social:queue:retry              # give failing deliveries the full run of re
 occ social:fediverse list                  # the access list; bare, it prints the mode
 occ social:fediverse add <instance>        # block it (or allow it, in allow-list mode)
 occ social:fediverse remove <instance>
+occ social:fediverse import <csv_file>     # add reviewed CSV domains to a block list
 occ social:fediverse silence <instance>    # out of the public timelines, still followable
 ```
+
+`import` reads the first CSV column, accepts a `#domain`/`domain` header or a
+plain one-domain-per-line file, validates the complete file before changing
+anything, and adds the domains to the existing `all_but` block list. It refuses
+allow-list mode, does not fetch or enable a list on its own, and applies the
+normal audit and queued domain-purge behavior to every new entry. An
+administrator can download and review a [The Bad Space CSV export](https://tweaking.thebad.space/exports)
+before importing it; the export source and moderation policy remain the
+administrator's choice.
 
 **Housekeeping**
 

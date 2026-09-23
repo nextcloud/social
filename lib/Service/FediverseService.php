@@ -280,23 +280,53 @@ class FediverseService {
 	 * @param string $address
 	 */
 	public function addAddress(string $address) {
-		// isListed() already answers true for a subdomain of a listed domain;
-		// the list itself stays a set of exact entries so an admin can remove
-		// what they added
-		if ($this->isExactlyListed($address)) {
-			return;
+		$this->addAddresses([$address]);
+	}
+
+	/**
+	 * Adds a batch of addresses with one settings write. The set is validated
+	 * by its caller before it reaches this method; this method retains the same
+	 * audit and purge behavior as individual additions.
+	 *
+	 * @param string[] $addresses
+	 * @return int number of new exact addresses
+	 */
+	public function addAddresses(array $addresses): int {
+		$list = $this->getListedAddresses();
+		$known = [];
+		foreach ($list as $listed) {
+			$known[$this->normalizeAddress((string)$listed)] = true;
 		}
 
-		$list = $this->getListedAddresses();
-		array_push($list, $address);
+		$added = [];
+		foreach ($addresses as $address) {
+			$address = $this->normalizeAddress($address);
+			if ($address === '' || isset($known[$address])) {
+				continue;
+			}
 
-		$this->configService->setAppValue(ConfigService::SOCIAL_ACCESS_LIST, json_encode($list));
-		// here rather than at each caller: the settings page, the Mastodon
-		// admin API and `occ social:fediverse` all end up on this line, and an
-		// audit entry that depended on which of them was used would be worse
-		// than none
-		$this->auditService->accessListChanged($address, true, $this->isBlockList());
-		$this->purgeBlocked($address);
+			$known[$address] = true;
+			$list[] = $address;
+			$added[] = $address;
+		}
+
+		if ($added === []) {
+			return 0;
+		}
+
+		$this->configService->setAppValue(
+			ConfigService::SOCIAL_ACCESS_LIST,
+			(string)json_encode(array_values($list))
+		);
+
+		foreach ($added as $address) {
+			// Keep individual audit records and purge jobs: importing a list must
+			// have the same moderation and cleanup effect as adding each domain.
+			$this->auditService->accessListChanged($address, true, $this->isBlockList());
+			$this->purgeBlocked($address);
+		}
+
+		return count($added);
 	}
 
 	/**

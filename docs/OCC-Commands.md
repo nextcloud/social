@@ -832,8 +832,8 @@ php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `action` | No | `''` | One of `list`, `add`, `remove`, `test`, `reset`, `silence`, `unsilence`, `silenced`, or empty |
-| `address` | No | `''` | Address / host the action applies to |
+| `action` | No | `''` | One of `list`, `add`, `remove`, `import`, `test`, `reset`, `silence`, `unsilence`, `silenced`, or empty |
+| `address` | No | `''` | Host for single-address actions, or a readable CSV path for `import` |
 
 | Option | Value | Description |
 |--------|-------|-------------|
@@ -850,14 +850,20 @@ command first prints the current access type and then runs the action:
 | `list` | Print `- Known address:` followed by the access list |
 | `add <address>` | Add the address to the list |
 | `remove <address>` | Remove the address from the list |
+| `import <csv_file>` | Read domains from the CSV's first column and add them to the existing `all_but` block list |
 | `test <address>` | Print `Authorized` or `Unauthorized` for that address |
 | `reset` | Empty the list |
 | `silence <address>` | Silence the instance: keep it out of the public, global and hashtag timelines |
 | `unsilence <address>` | Lift the silence |
 | `silenced` | Print the silenced instances under `- Silenced:` |
 
-An unknown action throws
-`specify action: add, remove, list, reset, silence, unsilence, silenced`.
+`import` accepts a first-column `#domain`/`domain` header or a plain
+one-domain-per-line file. It validates the entire file before mutation, skips
+duplicates, caps an import at 10,000 unique domains, and refuses allow-list
+mode. Each new domain receives the same audit entry and queued purge as an
+individual block. It does not fetch remote sources; review an export before
+running it. An unknown action throws
+`specify action: add, remove, import, list, reset, silence, unsilence, silenced`.
 `silence` and `unsilence` without an address throw `specify an address to
 silence` / `... to unsilence`.
 

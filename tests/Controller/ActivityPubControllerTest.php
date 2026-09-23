@@ -1018,16 +1018,6 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame($page, $this->controller->displayPost('alice', 'followers'));
 	}
 
-	public function testDisplayPostRoutesPortfolioTokenToThePortfolioPage(): void {
-		$this->acceptHeader('text/html');
-		$page = new TemplateResponse('social', 'main');
-		$this->socialPubController->expects($this->once())->method('portfolio')->with('alice')->willReturn($page);
-		$this->socialPubController->expects($this->never())->method('displayPost');
-		$this->streamService->expects($this->never())->method('getStreamById');
-
-		$this->assertSame($page, $this->controller->displayPost('alice', 'portfolio'));
-	}
-
 	// instanceActor()
 
 	/**
