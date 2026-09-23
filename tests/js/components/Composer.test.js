@@ -1386,7 +1386,7 @@ describe('Composer', () => {
 			const { wrapper } = mountComposer()
 			await openEmojiPicker(wrapper)
 
-			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('body')
+			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('#content')
 		})
 
 		it('inserts a picked emoji into an empty message', async () => {

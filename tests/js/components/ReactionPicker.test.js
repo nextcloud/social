@@ -139,6 +139,6 @@ describe('ReactionPicker', () => {
 		eventBus.emit(REACTION_PICK, { react: vi.fn() })
 		await wrapper.vm.$nextTick()
 
-		expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('body')
+		expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('#content')
 	})
 })

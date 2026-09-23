@@ -369,7 +369,7 @@
 						v-if="emojiPickerLoaded"
 						:search="search"
 						:closeOnSelect="false"
-						container="body"
+						container="#content"
 						@select="insert">
 						<NcButton
 							ref="emojiButton"
