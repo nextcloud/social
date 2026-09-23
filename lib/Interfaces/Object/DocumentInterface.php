@@ -62,6 +62,20 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 			$this->keepWhatOnlyTheRowKnows($item, $known);
 			$this->cacheDocumentsRequest->update($item);
 		} catch (CacheDocumentDoesNotExistException $e) {
+			// An attachment without a wire id receives a fresh generated id on
+			// every import. Find its existing row by URL and parent before any
+			// download, otherwise a retry creates orphaned bytes and points the
+			// post at a media id that does not exist.
+			if ($item->getUrl() !== '' && $item->getParentId() !== '') {
+				try {
+					$known = $this->cacheDocumentsRequest->getByUrlAndParent($item->getUrl(), $item->getParentId());
+					$item->setId($known->getId());
+					$this->keepWhatOnlyTheRowKnows($item, $known);
+					return;
+				} catch (CacheDocumentDoesNotExistException) {
+				}
+			}
+
 			// a streamed document is a pointer at somebody else's file and
 			// stays one -- see Document::COPY_STREAMED. Fetching it is the one
 			// thing that must not happen here.

@@ -282,6 +282,8 @@ export default {
 <style>
 .profile__header:has(> .social-profile__header-banner) {
 	position: relative;
+	top: 0;
+	bottom: auto;
 	isolation: isolate;
 	overflow: hidden;
 }

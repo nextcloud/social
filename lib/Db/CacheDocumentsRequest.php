@@ -393,15 +393,29 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * @return bool
 	 */
 	public function isDuplicate(Document $item): bool {
+		try {
+			$this->getByUrlAndParent($item->getUrl(), $item->getParentId());
+			return true;
+		} catch (CacheDocumentDoesNotExistException) {
+			return false;
+		}
+	}
+
+	/** Find the cached row belonging to this post, not another use of the URL. */
+	public function getByUrlAndParent(string $url, string $parentId): Document {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$qb->limitToUrl($item->getUrl());
-		$qb->limitToParentId($item->getParentId());
+		$qb->limitToUrl($url);
+		$qb->limitToParentId($parentId);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
-		return ($data !== false);
+		if ($data === false) {
+			throw new CacheDocumentDoesNotExistException();
+		}
+
+		return $this->parseCacheDocumentsSelectSql($data);
 	}
 
 	/**

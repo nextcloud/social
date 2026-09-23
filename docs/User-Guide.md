@@ -495,10 +495,21 @@ hand, it is picked up as one.
   emptying the table and saving removes it from your profile everywhere.
 - **Your Nextcloud profile page.** The native `/u/username` page shows your
   custom Social banner across the profile header, behind your profile picture,
-  and your posts below. Without a native profile header, the banner appears at
+  and your posts below. The banner starts at the top of the native profile
+  content and meets the profile details without an extra coloured strip.
+  Without a native profile header, the banner appears at
   the top of the Social section. Its **Posts**, **My Feed**, **Local** and
   **Global** tabs read Social's feeds; **My Feed** is available only on your
   own profile. This page is for reading. To publish, open the Social app.
+- **Missing pictures on older remote posts.** If a federated post shows its text
+  but none of its pictures, an administrator can run
+  `occ social:media:recover --dry-run` to list posts whose stored ActivityPub
+  original still names attachments. Run `occ social:media:recover` to fetch
+  those attachments and restore the post's media and Photos index. The command
+  only examines remote posts with an empty attachment list; posts with no
+  attachment in their original are left alone. `--limit=N` bounds how many
+  posts are examined in one run. A failed download is reported and can be
+  retried by running the command again.
 - **Verified links.** A field whose value is a full web address — written out,
   starting with `http://` or `https://` — can carry a **verified tick**, and
   the editor shows where each of yours stands: verified and when it was

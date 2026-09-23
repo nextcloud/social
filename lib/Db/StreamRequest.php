@@ -417,6 +417,50 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Remote posts whose original ActivityPub object may still contain media
+	 * even though the attachment column was written empty. The JSON is checked
+	 * by the repair command; this bounded query only finds candidates.
+	 *
+	 * @return array<array{nid: string, id: string, source: string, subtype: string}>
+	 */
+	public function getMissingRemoteAttachments(int $limit, int|string $after = '0'): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->select('nid', 'id', 'source', 'subtype')
+			->from(self::TABLE_STREAM)
+			->where($expr->eq('local', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+			->andWhere($expr->eq('attachments', $qb->createNamedParameter('[]')))
+			->andWhere($expr->gt('nid', $qb->createNamedParameter($after)))
+			->orderBy('nid', 'asc')
+			->setMaxResults($limit);
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$rows[] = [
+				'nid' => (string)$data['nid'],
+				'id' => (string)$data['id'],
+				'source' => (string)$data['source'],
+				'subtype' => (string)$data['subtype'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/** Keep a concurrent import's attachments and update the Photos/Video index together. */
+	public function setRecoveredRemoteAttachments(string $id, string $attachments, string $subtype): bool {
+		$qb = $this->getStreamUpdateSql();
+		$qb->set('attachments', $qb->createNamedParameter($attachments))
+			->set('media_kind', $qb->createNamedParameter(Stream::mediaKindOf($attachments, $subtype)))
+			->where($qb->expr()->eq('attachments', $qb->createNamedParameter('[]')));
+		$qb->limitToIdPrim($qb->prim($id));
+
+		return $qb->executeStatement() > 0;
+	}
+
 	public function updateAttachments(Document $document): void {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToIdPrim($qb->prim($document->getParentId()));

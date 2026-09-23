@@ -623,6 +623,26 @@ size, quota, blocklist, and image-decode checks. Exit code 0 means the copy was
 stored. If it is still refused, the command reports failure and the new
 rejection remains recorded for diagnosis.
 
+### `social:media:recover`
+
+Restore missing pictures on remote posts whose saved ActivityPub original still
+contains attachments. It does not rewrite post text, audience or date.
+
+```
+php occ social:media:recover [--dry-run] [--limit LIMIT]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--dry-run` | none | List affected posts without downloading or changing anything |
+| `--limit` | required | Examine at most this many candidate posts; `0` (default) examines all |
+
+Only remote posts with an empty stored attachment list are candidates. For
+each original attachment, the normal federated media importer validates the
+URL and caches the file, then the command updates the post's attachment list
+and Photos/Videos index. Posts without usable media remain unchanged and are
+reported; run the command again after fixing a remote or local cache error.
+
 ### `social:media:posters`
 
 Make the poster frames of videos that have none, so a client shows a still

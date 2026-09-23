@@ -61,6 +61,29 @@ class DocumentInterfaceTest extends ActivityPubTestCase {
 
 	private function nothingCached(): void {
 		$this->cacheDocumentsRequest->method('getById')->willThrowException(new CacheDocumentDoesNotExistException());
+		$this->cacheDocumentsRequest->method('getByUrlAndParent')->willThrowException(new CacheDocumentDoesNotExistException());
+	}
+
+	public function testGeneratedAttachmentIdReusesTheCachedRowForTheSamePost(): void {
+		$this->cacheDocumentsRequest->method('getById')->willThrowException(new CacheDocumentDoesNotExistException());
+		$note = $this->note(self::REMOTE_URL . '/notes/1', self::REMOTE_URL . '/users/bob');
+		$incoming = new Document($note);
+		$incoming->setId(self::LOCAL_URL . '/documents/g/new-id');
+		$incoming->setUrl(self::REMOTE_URL . '/media/1.png');
+		$known = new Document();
+		$known->setId(self::LOCAL_URL . '/documents/g/cached-id');
+		$known->setNid(42);
+		$known->setLocalCopy('cached-image');
+		$this->cacheDocumentsRequest->expects($this->once())->method('getByUrlAndParent')
+			->with($incoming->getUrl(), $note->getId())->willReturn($known);
+		$this->cacheDocumentsRequest->expects($this->never())->method('save');
+		$this->cacheDocumentService->expects($this->never())->method('saveRemoteFileToCache');
+
+		$this->handler->save($incoming);
+
+		$this->assertSame($known->getId(), $incoming->getId());
+		$this->assertSame(42, $incoming->getNid());
+		$this->assertSame('cached-image', $incoming->getLocalCopy());
 	}
 
 	public function testKnownDocumentIsUpdatedInPlace(): void {

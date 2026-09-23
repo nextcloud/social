@@ -118,6 +118,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 		<command>OCA\Social\Command\Gif</command>
 		<command>OCA\Social\Command\Fediverse</command>
 		<command>OCA\Social\Command\MediaPosters</command>
+		<command>OCA\Social\Command\MediaRecover</command>
 		<command>OCA\Social\Command\MediaTranscode</command>
 		<command>OCA\Social\Command\MediaLadder</command>
 		<command>OCA\Social\Command\Worker</command>
