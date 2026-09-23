@@ -150,6 +150,7 @@ describe('Timeline', () => {
 		expect(timelineStore.changeTimelineType).not.toHaveBeenCalled()
 		expect(wrapper.findComponent(DirectMessagesStub).exists()).toBe(true)
 		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(false)
+		expect(wrapper.find('.social__wrapper').classes()).toContain('social__wrapper--direct')
 	})
 
 	// what the instance is telling everybody belongs above the posts and above

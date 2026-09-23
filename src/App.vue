@@ -443,6 +443,16 @@ export default {
 	margin: auto;
 }
 
+/* Direct messages need the full app-content width for the conversation list
+   and the active chat to sit side by side. Other Social pages keep the reading
+   column above. */
+#app-content-vue .social__wrapper--direct {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+}
+
 .setup {
 	margin: 0 auto !important;
 	padding: calc(var(--default-grid-baseline) * 4);

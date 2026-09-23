@@ -4,6 +4,11 @@
  */
 
 /*!
+ * SPDX-FileCopyrightText: Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+/*!
 * vue-router v5.3.1
 * (c) 2026 Eduardo San Martin Morote
 * @license MIT

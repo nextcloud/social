@@ -18,8 +18,7 @@ const context = {
 const stubs = {
 	ActorAvatar: { props: ['actor', 'size', 'link'], template: '<span class="avatar-stub">{{ actor.display_name }}</span>' },
 	NcButton: { template: '<button v-bind="$attrs"><slot /></button>' },
-	TimelineEntry: { props: ['item', 'type'], template: '<article class="message-stub" :data-id="item.id">{{ item.content }}</article>' },
-	Composer: { props: ['defaultVisibility', 'inReplyTo'], template: '<div class="composer-stub" :data-visibility="defaultVisibility" :data-reply="inReplyTo?.id" />' },
+	TimelineEntry: { props: ['item', 'type', 'hideAuthor', 'hideAvatar'], template: '<article class="message-stub" :data-id="item.id" :data-hide-author="hideAuthor" :data-hide-avatar="hideAvatar">{{ item.content }}</article>' },
 }
 
 function mountMessages(selectedConversationId = '') {
@@ -65,13 +64,15 @@ describe('DirectMessages', () => {
 		expect(wrapper.emitted('select')).toEqual([['10']])
 	})
 
-	it('opens a roomy new-message composer in the thread panel', async () => {
+	it('opens a recipient search with no social visibility controls', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
 		await wrapper.find('.direct-messages__list-heading button').trigger('click')
 
 		expect(wrapper.find('.direct-messages__new-message-panel').exists()).toBe(true)
-		expect(wrapper.find('.direct-messages__new-message-composer.composer-stub').attributes('data-visibility')).toBe('direct')
+		expect(wrapper.find('.direct-messages__recipient-search input').exists()).toBe(true)
+		expect(wrapper.find('.direct-messages__new-message-panel').text()).not.toContain('Public')
+		expect(wrapper.find('.direct-messages__new-message-panel .composer-stub').exists()).toBe(false)
 		expect(wrapper.find('.direct-messages__list-panel .composer-stub').exists()).toBe(false)
 	})
 
@@ -110,7 +111,7 @@ describe('DirectMessages', () => {
 		expect(wrapper.find('.direct-messages__new-message-panel').exists()).toBe(true)
 	})
 
-	it('shows the whole thread, marks it read, and replies directly to its latest message', async () => {
+	it('shows the whole thread and marks it read', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
 		await wrapper.setProps({ selectedConversationId: '10' })
@@ -118,10 +119,45 @@ describe('DirectMessages', () => {
 
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/11/context')
 		expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-id'))).toEqual(['9', '11', '12'])
+		expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-hide-author'))).toEqual(['false', 'true', 'true'])
 		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
 		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
-		expect(wrapper.find('.composer-stub').attributes('data-visibility')).toBe('direct')
-		expect(wrapper.find('.composer-stub').attributes('data-reply')).toBe('11')
+		expect(wrapper.find('.direct-messages__message-form textarea').exists()).toBe(true)
+	})
+
+	it('searches for one recipient and starts an existing chat instead of duplicating it', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		get.mockResolvedValueOnce({ data: { accounts: [bob] } })
+		await wrapper.vm.searchAccounts('bob')
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/global/accounts/search', { params: { search: 'bob' } })
+		await wrapper.vm.startConversation(bob)
+		expect(wrapper.emitted('select')).toEqual([['10']])
+	})
+
+	it('sends a private message with the selected recipient attached automatically', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		wrapper.vm.newRecipient = bob
+		wrapper.vm.messageText = 'Hello there'
+		await wrapper.vm.sendMessage()
+
+		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses', {
+			status: '@bob@remote.example Hello there',
+			visibility: 'direct',
+		})
+		expect(wrapper.vm.messageText).toBe('')
+	})
+
+	it('keeps one inbox row per person even when the API returns duplicate threads', async () => {
+		get.mockResolvedValueOnce({ data: [
+			structuredClone(conversation),
+			{ ...structuredClone(conversation), id: '11', unread: false },
+		] })
+		const wrapper = mountMessages()
+		await flushPromises()
+		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(1)
 	})
 
 	it('shows an empty state when there are no conversations', async () => {
@@ -129,7 +165,7 @@ describe('DirectMessages', () => {
 		const wrapper = mountMessages()
 		await flushPromises()
 
-		expect(wrapper.find('.direct-messages__state').text()).toBe('No direct conversations yet')
+		expect(wrapper.find('.direct-messages__inbox-empty').text()).toContain('No direct conversations yet')
 		expect(wrapper.find('.direct-messages__thread-panel--empty').text()).toContain('Choose a conversation to pick up where you left off')
 	})
 

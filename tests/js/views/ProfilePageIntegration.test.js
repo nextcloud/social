@@ -19,19 +19,25 @@ const statuses = [
 	{ id: '1', content: '<p>first</p>', account: bob },
 	{ id: '2', content: '<p>second</p>', account: bob },
 ]
+const homeStatuses = [
+	{ id: '2', content: '<p>second from the home feed</p>', account: { ...bob, acct: 'alice' } },
+	{ id: 'home-1', content: '<p>From someone followed</p>', account: { ...bob, acct: 'followed@example.org' } },
+]
 
 let get
 
 function mountSection(userId) {
 	return mount(ProfilePageIntegration, {
 		props: { userId },
-		global: { stubs: { ProfileStatusCard: ProfileStatusCardStub } },
+		global: { stubs: { ProfileStatusCard: ProfileStatusCardStub, Composer: { template: '<div class="composer-stub" />' } } },
 	})
 }
 
 describe('ProfilePageIntegration', () => {
 	beforeEach(() => {
-		get = vi.spyOn(axios, 'get').mockImplementation(async (url) => ({ data: url.endsWith('/statuses') ? statuses : bob }))
+		get = vi.spyOn(axios, 'get').mockImplementation(async (url) => ({
+			data: url.endsWith('/timelines/home') ? homeStatuses : url.endsWith('/statuses') ? statuses : bob,
+		}))
 	})
 
 	afterEach(() => {
@@ -52,6 +58,16 @@ describe('ProfilePageIntegration', () => {
 		await flushPromises()
 		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status'))).toEqual(statuses)
 		expect(wrapper.find('.social-profile__counts').exists()).toBe(false)
+	})
+
+	it('adds the authenticated reader home feed to their own native profile', async () => {
+		const wrapper = mountSection('alice')
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/timelines/home', { params: { limit: 20 } })
+		expect(wrapper.find('.social-profile__home-heading').text()).toContain('My Feed')
+		expect(wrapper.find('.composer-stub').exists()).toBe(true)
+		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status').id)).toEqual(['1', '2', 'home-1'])
+		expect(wrapper.findAllComponents(ProfileStatusCardStub).filter((entry) => entry.props('status').id === '2')).toHaveLength(1)
 	})
 
 	it('does not contact the server without a user id', () => {

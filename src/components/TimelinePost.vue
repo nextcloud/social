@@ -11,7 +11,7 @@
 		:aria-label="postLabel"
 		@click="onPostClick">
 		<div class="post-header">
-			<div class="post-author-wrapper" :title="item.account.acct">
+			<div v-if="!hideAuthor" class="post-author-wrapper" :title="item.account.acct">
 				<router-link
 					v-if="item.account"
 					:to="{ name: 'profile',
@@ -73,7 +73,6 @@
 				<span class="post-place__name">{{ placeLabel }}</span>
 			</router-link>
 		</div>
-
 		<!-- who is in the picture, when the poster named anybody. Names rather
 		     than boxes drawn over the image: what is stored is a fact about the
 		     post, and a rectangle is a thing no client of this network draws -->
@@ -262,7 +261,7 @@
 		     live in the padding; now that the counts are always drawn there is
 		     no reason for the card to carry the height of both. -->
 		<div
-			v-if="$route && $route.params.type !== 'notifications'"
+			v-if="$route && $route.params.type !== 'notifications' && type !== 'direct'"
 			class="post-footer">
 			<ReactionBar
 				ref="reactionBar"
@@ -391,6 +390,9 @@
 					</div>
 				</div>
 			</div>
+		</div>
+		<div v-if="embeddedActions" class="post-footer post-footer--profile-actions">
+			<slot name="profileActions" />
 		</div>
 		<MuteDialog
 			v-if="showMuteDialog"
@@ -560,6 +562,16 @@ export default {
 		postHref: {
 			type: String,
 			default: '',
+		},
+
+		hideAuthor: {
+			type: Boolean,
+			default: false,
+		},
+
+		embeddedActions: {
+			type: Boolean,
+			default: false,
 		},
 	},
 
@@ -1884,6 +1896,12 @@ export default {
 		align-items: center;
 		gap: 6px;
 		margin-top: 2px;
+	}
+
+	.post-footer--profile-actions {
+		display: block;
+		padding-top: 8px;
+		border-top: 1px solid var(--color-border);
 	}
 
 	.post-actions-reveal {

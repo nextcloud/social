@@ -1412,12 +1412,11 @@ the direct timeline route, so opening or refreshing a link restores the thread.
 Selecting a row loads the latest status context from
 `GET /api/v1/statuses/{nid}/context`; ancestors and descendants are combined
 with that latest status and de-duplicated by status id before rendering through
-`TimelineEntry`. The reply composer targets the latest status and defaults to
-direct visibility. A successful thread load attempts
+`TimelineEntry`. A successful thread load attempts
 `POST /api/v1/conversations/{id}/read`; failure to persist the read marker is
 logged without hiding the already loaded messages.
 
-The New message composer also defaults to direct visibility. It occupies the wide thread panel rather than the narrow conversation list, giving the recipient picker and message editor room to work. Replies keep their own composer below the scrollable thread. The panel grows to 70% of the viewport (capped at 48rem); on narrow screens, the list and thread become separate views with a back control. Its send action uses the regular composer and post API, so mention resolution, media handling, and delivery continue through the existing post path. The current view loads one page of conversations; older pages are not yet appended. Conversation dismissal and pagination controls are not part of this UI.
+Starting a conversation searches `GET /api/v1/global/accounts/search` and selects exactly one account. If that person already has a conversation in the loaded inbox, that thread is opened; duplicate API rows for the same account are collapsed to the newest row. Otherwise the right pane becomes a normal chat: it shows the selected person and a compact message field, with no audience selector, post toolbar or multi-recipient composer. `sendMessage()` always posts with `visibility: direct` to `POST /api/v1/statuses`, prepending the selected account's `@acct` mention internally because Social's ActivityPub delivery derives direct recipients from mentions. The person using the chat does not need to type that mention. Replies include the last status id as `in_reply_to_id`; successful sends clear the field, refresh the inbox and open the conversation returned for that peer. Failed sends retain the draft and display an error. The panel uses Nextcloud theme variables and the full app-content width; at narrow widths the list and chat become separate views with a back control. The current view loads one page of conversations; older pages are not yet appended. Conversation dismissal and pagination controls are not part of this UI.
 
 `ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
 (a file, or the address of one), the bio and the metadata fields. The banner
@@ -2069,23 +2068,34 @@ else's is a page you read. The sub-routes go with it: a list of followers is not
 a place to post from either. Direct messages are still written from the Direct
 messages timeline, which sets the visibility the same way.
 
-`DirectMessages.vue` lays that timeline out as an inbox: the left column owns
-search, all/unread filters, timestamps and the conversation list; the right
-column owns the selected thread, reply composer, or first-use empty state. The
-unread filter is applied to the conversations already returned by the API, as
-is search over participants and latest-message previews. Opening a thread
+`DirectMessages.vue` uses the full Social app-content width for a two-pane
+chat layout: the left column owns search, all/unread filters, timestamps and
+the conversation list; the right column owns the selected conversation, its
+scrollable message lane and a simple private-message field. Starting a chat
+searches for one person, reuses that person's existing conversation where
+possible and hides the generic post audience selector. Each send sets direct
+visibility and adds the protocol-required recipient mention internally, so
+the person does not have to repeat it. Duplicate rows for the same peer are
+collapsed in the inbox. Incoming and outgoing posts render
+as separate compact bubbles, aligned to opposite sides, while consecutive
+messages from the same account are grouped without repeating the sender label.
+The unread filter is applied to the conversations already returned by the API,
+as is search over participants and latest-message previews. Opening a thread
 fetches its context and marks it read; sending a reply stays direct and targets
-the latest message. The workspace fills the available page height on desktop,
-and at mobile width becomes a single pane whose Back button returns to the
-list.
+the latest message. At mobile width the view becomes a single pane whose Back
+button returns to the list.
 
 The Social section embedded in Nextcloud's `/u/{uid}` profile deliberately
 leaves post/follower/following totals to the native Profile app, which already
-renders those numbers. Each status card adds its own Likes and Comments
-disclosures: likes load the existing `favourited_by` and `reblogged_by` data
-only when opened; comments load the status context on demand and display direct
-replies only. The Open post link uses the status's public URL, so it works in
-the custom element without relying on Social's main Vue Router instance.
+renders those numbers. Each status card adds its Likes and Comments controls
+inside the native card footer: likes load the existing `favourited_by` and
+`reblogged_by` data only when opened; comments load the status context on demand
+and display direct replies only. The Open post link uses the status's public
+URL, so it works in the custom element without relying on Social's main Vue
+Router instance. The profile owner also sees a separate **My Feed** section,
+loaded from the authenticated home-timeline endpoint with cursor pagination;
+it is never requested on another person's profile, so followed/private posts
+cannot leak into a public page.
 
 **The tab also decides how it is drawn**, and there is nothing beside it to say otherwise: Posts is what somebody wrote, so it is a list of posts; Photos and Videos are what they showed, so they are grids. There used to be a grid/list switch here, remembered across profiles, and it could disagree with the tab — `ProfileMediaGrid` kept only the posts carrying a picture, so Posts showed sixteen of them as a list and three as a grid, with nothing to say where the other thirteen had gone. One question, one answer. The empty state comes from `TimelineList` in both views for the same reason: the grid carried one of its own that said "No photos yet" whatever the tab was, so an account with no videos was told it had no photos.
 

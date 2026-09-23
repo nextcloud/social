@@ -17,7 +17,7 @@ const status = {
 }
 
 const stubs = {
-	TimelineEntry: { props: ['item', 'type', 'postHref'], template: '<article class="timeline-entry-stub" />' },
+	TimelineEntry: { props: ['item', 'type', 'postHref', 'embeddedActions'], template: '<article class="timeline-entry-stub"><slot name="profileActions" /></article>' },
 	PostReactedBy: { template: '<div class="reacted-by-stub" />' },
 	MessageContent: { props: ['item'], template: '<div class="message-content-stub" :data-content="item.content" />' },
 	NcButton: { template: '<button v-bind="$attrs"><slot /></button>' },
@@ -29,10 +29,11 @@ describe('ProfileStatusCard', () => {
 	it('provides a real post link, counts, and lazy like details', async () => {
 		const wrapper = mount(ProfileStatusCard, { props: { status }, global: { stubs } })
 		expect(wrapper.find('.timeline-entry-stub').exists()).toBe(true)
+		expect(wrapper.find('.timeline-entry-stub').text()).toContain('Likes (3)')
 		expect(wrapper.find('.profile-status-card__open').attributes('href')).toBe(status.url)
 		expect(wrapper.text()).toContain('Likes (3)')
 		expect(wrapper.text()).toContain('Comments (2)')
-		await wrapper.find('.profile-status-card__actions button').trigger('click')
+		await wrapper.find('.profile-status-card__toolbar button').trigger('click')
 		expect(wrapper.find('.reacted-by-stub').exists()).toBe(true)
 	})
 
@@ -42,7 +43,7 @@ describe('ProfileStatusCard', () => {
 			{ id: '44', in_reply_to_id: '43', content: '<p>Nested reply</p>' },
 		] } })
 		const wrapper = mount(ProfileStatusCard, { props: { status }, global: { stubs } })
-		await wrapper.findAll('.profile-status-card__actions button')[1].trigger('click')
+		await wrapper.findAll('.profile-status-card__toolbar button')[1].trigger('click')
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/42/context')
 		expect(wrapper.findAll('.profile-status-card__comment')).toHaveLength(1)
