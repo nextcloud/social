@@ -29,6 +29,10 @@ const SocialProfileSectionElement = defineCustomElement({
 		return h(ProfilePageIntegration, { userId: this.user })
 	},
 }, {
+	// The Profile page owns the surrounding layout and uses Nextcloud's global
+	// theme styles. Keep this integration in the light DOM so Social's existing
+	// timeline styles and native Nextcloud controls can style its entries too.
+	shadowRoot: false,
 	// the custom element runs an app of its own, and the posts it renders read
 	// the store like every other timeline entry does — a boost used to reach
 	// for a store that was never installed here

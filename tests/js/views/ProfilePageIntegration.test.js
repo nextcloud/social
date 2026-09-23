@@ -59,10 +59,11 @@ describe('ProfilePageIntegration', () => {
 		expect(wrapper.findAllComponents(TimelineEntryStub)).toHaveLength(0)
 
 		await flushPromises()
-		expect(wrapper.find('.profile-page__counts').text()).toContain('2 posts')
-		expect(wrapper.find('.profile-page__counts').text()).toContain('4 following')
-		expect(wrapper.find('.profile-page__counts').text()).toContain('6 followers')
+		expect(wrapper.find('.social-profile__counts').text()).toContain('2 posts')
+		expect(wrapper.find('.social-profile__counts').text()).toContain('4 following')
+		expect(wrapper.find('.social-profile__counts').text()).toContain('6 followers')
 		expect(wrapper.findAllComponents(TimelineEntryStub).map((entry) => entry.props('item'))).toEqual(statuses)
+		expect(wrapper.findAllComponents(TimelineEntryStub).every((entry) => entry.props('type') === 'account')).toBe(true)
 	})
 
 	it('does not contact the server without a user id', () => {

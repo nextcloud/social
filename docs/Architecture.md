@@ -1380,8 +1380,13 @@ registry's first assignment and registers synchronously during that assignment,
 then restores the ordinary data property. The profile custom element also owns
 a separate Vue app, so it installs Social's normal Nextcloud globals (`t`, `n`,
 `OC` and `OCA`) before rendering; without them, the section mounted but its
-first translated label threw during render. Tests cover delayed and immediate
-registry creation and the custom element's global setup.
+first translated label threw during render. It renders in the light DOM so the
+Profile page's theme and Social's shared timeline component styles apply; a
+shadow root isolated those styles and left posts as unformatted list items.
+Profile posts use the same `account` entry type as Social's own profile view,
+and account counts use compact theme-aware metric chips. Tests cover delayed
+and immediate registry creation, the custom element's app setup, and profile
+timeline data passed to Social's shared entry component.
 
 ### Components
 
