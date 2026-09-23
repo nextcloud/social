@@ -1119,7 +1119,11 @@ image placeholder. The local attachment response now carries `cache_error`:
 from the origin, and `4` could not be decoded. The placeholder exposes that
 reason to assistive technology and on hover. Social does not load the origin
 directly in a reader's browser, because that would bypass the instance's media
-type and size checks.
+type and size checks. Permanent failures are intentionally skipped by the
+regular cache cron; `occ social:media:retry <remote_url>` clears the marker for
+one uncached remote row and tries it again through the same checks. The
+administrator can use that after changing a limit or when the origin recovers,
+without causing every rejected attachment to be fetched on every cron run.
 
 **The video is referenced, not mirrored.** Every other attachment is copied into
 this instance's storage on the way in; a two-hour talk is not, and the row that

@@ -600,6 +600,29 @@ Rotation is the only step that is opt-in, and it is the only way to rotate a key
 pair: nothing else calls `AccountService::blindKeyRotation()`, and the cron never
 does.
 
+### `social:media:retry`
+
+Retry one remote attachment which was previously rejected by the media cache.
+This is useful after an administrator raises a size limit or the remote origin
+recovers from a temporary access problem.
+
+```
+php occ social:media:retry <remote_url>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `remote_url` | Yes | Exact HTTP(S) URL shown in the attachment's `remote_url` field |
+
+The argument must be the exact HTTP(S) `remote_url` exposed by Social. The
+command finds the cache row by that media URL and only resets a row with a
+stored media error and no local copy; it does not touch healthy cached files or
+retry every failed attachment at once. It clears the old error and caching
+timestamp, then fetches that one document immediately through the usual MIME,
+size, quota, blocklist, and image-decode checks. Exit code 0 means the copy was
+stored. If it is still refused, the command reports failure and the new
+rejection remains recorded for diagnosis.
+
 ### `social:media:posters`
 
 Make the poster frames of videos that have none, so a client shows a still

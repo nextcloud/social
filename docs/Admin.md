@@ -368,6 +368,12 @@ a list of them beside the page on a wide screen:
   Retention removes). Added up by the background job once a day, because
   counting it is one file lookup per stored file; the page says when it was
   measured. `occ social:media:usage` measures it on demand.
+- **A rejected remote attachment** — after changing this instance's media
+  limits or fixing a temporary origin problem, retry just that file with
+  `occ social:media:retry <remote_url>`. Use the exact `remote_url` reported
+  by the attachment; Social clears the stored refusal for that one uncached
+  row and tries it immediately. The normal media checks still apply, so a
+  retry can be refused again.
 - **Federation health** — what the outbound queue is doing, including how long
   the longest-failing delivery has been failing: the counts say how much and
   where, and that says whether it started an hour ago or a week ago, which is

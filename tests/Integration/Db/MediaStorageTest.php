@@ -167,4 +167,35 @@ class MediaStorageTest extends TestCase {
 
 		$this->assertSame('a red rectangle', $attachment->asDocument()['name']);
 	}
+
+	public function testRetryResetOnlyMakesFailedUncachedMediaEligibleAgain(): void {
+		$remoteFailed = new Document();
+		$remoteFailed->setId('https://remote.example/media/retry-eligible')
+			->setUrl('https://cdn.remote.example/retry-eligible.jpg')
+			->setError(DocumentService::ERROR_SIZE);
+		$this->cacheDocumentsRequest->save($remoteFailed);
+		$this->documents[] = $remoteFailed->getId();
+
+		$alreadyCached = new Document();
+		$alreadyCached->setId('https://remote.example/media/retry-cached')
+			->setUrl('https://cdn.remote.example/retry-eligible.jpg')
+			->setError(DocumentService::ERROR_SIZE)
+			->setLocalCopy('cached-copy');
+		$this->cacheDocumentsRequest->save($alreadyCached);
+		$this->documents[] = $alreadyCached->getId();
+
+		$selected = $this->cacheDocumentsRequest->getFailedUncachedByUrl('https://cdn.remote.example/retry-eligible.jpg');
+		$this->assertSame($remoteFailed->getId(), $selected->getId());
+		$this->assertTrue($this->cacheDocumentsRequest->resetRemoteErrorForRetry($remoteFailed->getId()));
+		$this->assertFalse($this->cacheDocumentsRequest->resetRemoteErrorForRetry($alreadyCached->getId()));
+
+		$retried = $this->cacheDocumentsRequest->getById($remoteFailed->getId());
+		$this->assertSame(0, $retried->getError());
+		$this->assertSame(0, $retried->getCaching());
+		$this->assertSame('', $retried->getLocalCopy());
+
+		$untouched = $this->cacheDocumentsRequest->getById($alreadyCached->getId());
+		$this->assertSame(DocumentService::ERROR_SIZE, $untouched->getError());
+		$this->assertSame('cached-copy', $untouched->getLocalCopy());
+	}
 }

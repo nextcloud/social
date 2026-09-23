@@ -312,6 +312,31 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
+	 * One attachment at this URL which has a permanent media error and no
+	 * local copy. Duplicate posts can reference the same URL; filtering here
+	 * avoids choosing an already-cached sibling before the failed row.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 */
+	public function getFailedUncachedByUrl(string $url): Document {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$qb->limitToUrl($url)
+			->andWhere($qb->expr()->gt('cd.error', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+		$qb->limitToDBFieldEmpty('local_copy');
+		$qb->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			throw new CacheDocumentDoesNotExistException();
+		}
+
+		return $this->parseCacheDocumentsSelectSql($data);
+	}
+
+	/**
 	 * @param array $mediaIds
 	 * @param string $account - limit to account
 	 *
@@ -726,6 +751,22 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$qb->limitToIdString($id);
 
 		$qb->executeStatement();
+	}
+
+	/**
+	 * Makes one previously refused remote attachment eligible for an explicit
+	 * administrator retry. Only an errored row without stored bytes is changed;
+	 * a healthy cache entry and any local upload are left alone.
+	 */
+	public function resetRemoteErrorForRetry(string $id): bool {
+		$qb = $this->getCacheDocumentsUpdateSql();
+		$qb->set('error', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
+			->set('caching', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
+			->limitToIdString($id)
+			->andWhere($qb->expr()->gt('error', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('local_copy', $qb->createNamedParameter('')));
+
+		return $qb->executeStatement() > 0;
 	}
 
 	/**
