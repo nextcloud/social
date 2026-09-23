@@ -1914,6 +1914,21 @@ nested anchors is invalid and the browser resolves it by dropping content — an
 on the composer's reply and quote lines, where following one would abandon a
 draft.
 
+**The sidebar's “My profile” shortcut leaves the Social router.** The Social
+posts section is registered on Nextcloud's user profile page by
+`ProfileSectionListener`; its custom element fetches the selected user's Social
+account summary and statuses and renders them in that page. Above the posts, the
+section shows localized post, following, and follower totals from the same
+account response used by Social's profile header. The matching sidebar shortcut
+therefore uses Nextcloud's generated `/u/{uid}` URL rather than the app's own
+`profile` route. `generateUrl()` preserves the installation web root and
+`encodeURIComponent()` keeps unusual user IDs inside one path segment. Because
+this destination belongs to another Nextcloud page, its navigation row is a
+normal browser link: it works with modified clicks and is not marked active by
+Social's router. The Navigation test covers the generated destination and
+external navigation behavior; the profile integration test checks the three
+counts and fetched posts.
+
 **Account previews.** `AccountHoverCard.vue` is the card that opens when the
 pointer rests on an avatar or a mention, fetched once per handle and cached in
 the account store. It answers "who is this?" without opening the profile, so it

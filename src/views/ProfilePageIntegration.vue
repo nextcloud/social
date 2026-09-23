@@ -5,6 +5,9 @@
 <template>
 	<div>
 		<h2>Social</h2>
+		<ul v-if="profileCounts.length" class="profile-page__counts" :aria-label="t('social', 'Social profile counts')">
+			<li v-for="count in profileCounts" :key="count.key">{{ count.label }}</li>
+		</ul>
 		<transition-group name="list" tag="ul">
 			<TimelineEntry
 				v-for="entry in timeline"
@@ -18,7 +21,9 @@
 import TimelineEntry from './../components/TimelineEntry.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
+import { translatePlural } from '@nextcloud/l10n'
 import logger from './../services/logger.js'
+import { formatCount } from './../utils/number.js'
 
 export default {
 	name: 'ProfilePageIntegration',
@@ -41,9 +46,28 @@ export default {
 	},
 
 	computed: {
-		getCount() {
-			const account = this.accountInfo
-			return (field) => account?.details?.count ? account.details.count[field] : ''
+		profileCounts() {
+			if (!this.accountInfo) {
+				return []
+			}
+
+			const statuses = Number(this.accountInfo.statuses_count) || 0
+			const following = Number(this.accountInfo.following_count) || 0
+			const followers = Number(this.accountInfo.followers_count) || 0
+			return [
+				{
+					key: 'posts',
+					label: translatePlural('social', '{count} post', '{count} posts', statuses, { count: formatCount(statuses) }),
+				},
+				{
+					key: 'following',
+					label: translatePlural('social', '{count} following', '{count} following', following, { count: formatCount(following) }),
+				},
+				{
+					key: 'followers',
+					label: translatePlural('social', '{count} follower', '{count} followers', followers, { count: formatCount(followers) }),
+				},
+			]
 		},
 	},
 
@@ -71,3 +95,14 @@ export default {
 	},
 }
 </script>
+
+<style scoped>
+.profile-page__counts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	list-style: none;
+	margin: 0 0 1rem;
+	padding: 0;
+}
+</style>

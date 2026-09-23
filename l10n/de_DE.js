@@ -205,6 +205,12 @@ OC.L10N.register(
     "Failed to report the post" : "Der Beitrag konnte nicht gemeldet werden.",
     "This server cannot translate posts yet" : "Dieser Server kann Beiträge noch nicht übersetzen.",
     "Could not translate this post" : "Dieser Beitrag konnte nicht übersetzt werden.",
+    "Social profile counts" : "Social-Profilzahlen",
+    "{count} post" : "{count} Beitrag",
+    "{count} posts" : "{count} Beiträge",
+    "{count} following" : "{count} gefolgt",
+    "{count} follower" : "{count} Follower",
+    "{count} followers" : "{count} Follower",
 
 },
 "nplurals=2; plural=(n != 1);");

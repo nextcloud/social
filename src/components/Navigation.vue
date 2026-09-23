@@ -638,7 +638,10 @@ export default {
 						key: 'social-profile',
 						icon: IconAccountCircle,
 						title: t('social', 'My profile'),
-						to: { name: 'profile', params: { account: this.currentUser?.uid } },
+						// The profile section is part of Nextcloud's user page; send
+						// this shortcut there too, instead of reopening Social's
+						// separate profile screen.
+						to: generateUrl(`/u/${encodeURIComponent(this.currentUser?.uid ?? '')}`),
 					},
 					{
 						key: 'social-follow-requests',
@@ -1162,6 +1165,9 @@ export default {
 		 *                  be opened in a new tab or copied
 		 */
 		hrefFor(to) {
+			if (typeof to === 'string') {
+				return to
+			}
 			return this.$router.resolve(to).href
 		},
 
@@ -1174,6 +1180,12 @@ export default {
 		 * @param {MouseEvent} event the click
 		 */
 		navigate(to, event) {
+			// Let the browser follow an absolute Nextcloud page URL. This keeps
+			// normal link behavior (including modified clicks) for cross-app pages.
+			if (typeof to === 'string') {
+				return
+			}
+
 			if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0)) {
 				return
 			}
@@ -1224,6 +1236,9 @@ export default {
 		isActive(item) {
 			const route = this.$route
 			const to = item.to
+			if (typeof to === 'string') {
+				return false
+			}
 			const name = String(route.name ?? '')
 			if (name !== to.name && !name.startsWith(to.name + '.')) {
 				return false

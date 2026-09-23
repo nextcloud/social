@@ -14,7 +14,15 @@ vi.hoisted(() => {
 
 const TimelineEntryStub = { name: 'TimelineEntry', props: ['item', 'type'], template: '<li class="timeline-entry-stub" />' }
 
-const bob = { id: 'https://cloud.example.org/users/bob', acct: 'bob', username: 'bob', display_name: 'Bob' }
+const bob = {
+	id: 'https://cloud.example.org/users/bob',
+	acct: 'bob',
+	username: 'bob',
+	display_name: 'Bob',
+	statuses_count: 2,
+	following_count: 4,
+	followers_count: 6,
+}
 const statuses = [
 	{ id: '1', content: '<p>first</p>', account: bob },
 	{ id: '2', content: '<p>second</p>', account: bob },
@@ -51,6 +59,9 @@ describe('ProfilePageIntegration', () => {
 		expect(wrapper.findAllComponents(TimelineEntryStub)).toHaveLength(0)
 
 		await flushPromises()
+		expect(wrapper.find('.profile-page__counts').text()).toContain('2 posts')
+		expect(wrapper.find('.profile-page__counts').text()).toContain('4 following')
+		expect(wrapper.find('.profile-page__counts').text()).toContain('6 followers')
 		expect(wrapper.findAllComponents(TimelineEntryStub).map((entry) => entry.props('item'))).toEqual(statuses)
 	})
 
