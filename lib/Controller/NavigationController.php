@@ -37,6 +37,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IConfig;
@@ -92,6 +93,7 @@ class NavigationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[PublicPage]
 	// The client-side router owns `/follow_requests`, `/blocked`, `/discover`,
 	// `/migration`, `/statistics`, `/settings` and `/search`; the server has to
 	// answer them too, or reloading or bookmarking one of those pages is a 404.
@@ -112,6 +114,22 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/collections/{id}', postfix: 'collection', requirements: ['id' => '\\d+'])]
 	#[FrontpageRoute(verb: 'GET', url: '/places/{id}', postfix: 'place', requirements: ['id' => '\\d+'])]
 	public function navigate(string $path = ''): TemplateResponse {
+		// A visitor may read public posts from this instance without an account.
+		// Do this before any account-specific setup or state is requested: the
+		// normal root page is the private home feed, which must never be exposed
+		// as a guest page.
+		if ($this->userId === null) {
+			$this->initialState->provideInitialState('serverData', [
+				'public' => true,
+				'firstrun' => false,
+				'needsAccount' => false,
+				'setup' => false,
+				'isAdmin' => false,
+			]);
+
+			return new PublicTemplateResponse(Application::APP_ID, 'main');
+		}
+
 		$this->logger->debug('[NavigationController] navigate() called', [
 			'path' => $path,
 			'userId' => $this->userId,
