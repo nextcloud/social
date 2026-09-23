@@ -238,6 +238,7 @@
 			<Composer
 				startExpanded
 				:initialPaths="composerPaths"
+				emoji-picker-container=".modal-composer"
 				@posted="showComposer = false" />
 		</div>
 	</NcModal>

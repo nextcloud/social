@@ -369,7 +369,7 @@
 						v-if="emojiPickerLoaded"
 						:search="search"
 						:closeOnSelect="false"
-						container="#content"
+						:container="emojiPickerContainer"
 						@select="insert">
 						<NcButton
 							ref="emojiButton"
@@ -706,6 +706,23 @@ export default {
 		initialPaths: {
 			type: Array,
 			default: () => [],
+		},
+
+		/**
+		 * Where floating-vue teleports the emoji picker popper. The inline
+		 * composer keeps it in the themed app root (`#content`): inside the
+		 * toolbar row (`.options`, `max-height` + `overflow: hidden`) an
+		 * un-teleported popper would be cut off. The composer in the "New
+		 * post" dialog instead has to stay inside the modal mask: anything
+		 * teleported out (to `#content`, to `body`) lands behind the dimmed
+		 * mask and outside the focus trap, so the picker shows behind the
+		 * popup and takes no clicks. Callers in a modal pass the dialog's
+		 * own wrapper (e.g. `.modal-composer`), which is inside the mask
+		 * but outside the clipping toolbar row.
+		 */
+		emojiPickerContainer: {
+			type: String,
+			default: '#content',
 		},
 	},
 

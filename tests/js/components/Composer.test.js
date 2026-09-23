@@ -1382,11 +1382,20 @@ describe('Composer', () => {
 			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).exists()).toBe(true)
 		})
 
-		it('places the picker above the sidebar composer modal', async () => {
+		it('teleports the picker to the app root by default', async () => {
 			const { wrapper } = mountComposer()
 			await openEmojiPicker(wrapper)
 
 			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('#content')
+		})
+
+		it('keeps the picker inside the modal when a container is passed', async () => {
+			// the "New post" dialog: anything teleported out lands behind
+			// the dimmed mask and outside the focus trap
+			const { wrapper } = mountComposer({ emojiPickerContainer: '.modal-composer' })
+			await openEmojiPicker(wrapper)
+
+			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('.modal-composer')
 		})
 
 		it('inserts a picked emoji into an empty message', async () => {
