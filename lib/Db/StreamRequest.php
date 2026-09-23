@@ -685,6 +685,36 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * The next ordered page for the incremental stream-index repair job.
+	 *
+	 * Keep this projection small: the repair reads only ids here and lets this
+	 * request hydrate one stream at a time, rather than holding whole posts for
+	 * the duration of a cron batch.
+	 *
+	 * @return list<array{nid: string, id_prim: string}>
+	 */
+	public function getIndexChunk(int|string $afterNid, int $limit): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('nid', 'id_prim')
+			->from(self::TABLE_STREAM)
+			->where($qb->expr()->gt('nid', $qb->createNamedParameter((string)$afterNid)))
+			->orderBy('nid', 'asc')
+			->setMaxResults($limit);
+
+		$cursor = $qb->executeQuery();
+		$rows = [];
+		while ($row = $cursor->fetch()) {
+			$rows[] = [
+				'nid' => (string)$row['nid'],
+				'id_prim' => (string)$row['id_prim'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/**
 	 * @param string $id
 	 * @param int $since
 	 * @param int $limit

@@ -343,6 +343,7 @@ copy in app storage; the original stays where it was, untouched.
 
 - **ConfigService** — App/user configuration and the derived URLs (cloud URL, social URL, social address, max download size, self-signed toggle), plus ActivityPub id generation. It also owns the two config-derived parts of every outbound request: `requestOptions()` (the timeout and connect timeout, whether the peer's certificate has to check out, whether local addresses may be reached) and `activityPubHeaders()` (the `Accept` a federation GET carries and the `Content-Type` a POST does). `withRequestTimeout()` bounds everything a call makes, overriding what the caller asked for
 - **CheckService** — Installation checks (is `/.well-known/webfinger` reachable) and repair of invalid follow and note rows
+- **IndexService** — Repairs missing `social_stream_dest` and `social_stream_tag` rows 500 streams per `Cron\Index` pass. It pages by ascending NID, records the cursor only after both side indexes succeed, and leaves existing rows in place so interrupted work resumes safely. A failing row is logged and holds the cursor before it, so later rows wait until the failure is corrected; the explicit `social:check:install --index` remains the administrator's full rebuild.
 - **ClientService** — OAuth 2.0 client registration, authorization and token issuing
 - **DetailsService** — Computes a `StreamDetails` object describing which local viewers a stream reaches
 - **MiscService** — Logging helper and the running Nextcloud major version

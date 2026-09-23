@@ -623,6 +623,16 @@ occ social:queue:status             # what the outbound queue is doing
 occ social:details <id>             # who can see one post and where it lands
 ```
 
+Social also repairs the recipient and hashtag side indexes automatically in
+bounded five-minute cron passes. Each pass visits at most 500 streams, stores
+its last fully indexed NID, and resumes from there; a failed row is retried on a
+later pass rather than skipped. A repeatedly failing row holds the cursor at
+that NID and logs the error, so later rows wait until the underlying failure is
+resolved. Keep Nextcloud background jobs working as `Cron\Index` relies on
+them. The manual `occ social:check:install --index --force` remains a full
+rebuild for administrators; it clears and repopulates both indexes and should
+not be scheduled as a cron command.
+
 **Delivery is behind**
 
 ```bash
