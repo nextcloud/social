@@ -320,8 +320,8 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function getFailedUncachedByUrl(string $url): Document {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$qb->limitToUrl($url)
-			->andWhere($qb->expr()->gt('cd.error', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+		$qb->limitToUrl($url);
+		$qb->andWhere($qb->expr()->gt('cd.error', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
 		$qb->limitToDBFieldEmpty('local_copy');
 		$qb->setMaxResults(1);
 
