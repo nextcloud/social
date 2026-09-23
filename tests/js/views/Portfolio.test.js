@@ -84,17 +84,6 @@ describe('Portfolio', () => {
 		expect(wrapper.findAll('.portfolio__work')).toHaveLength(2)
 	})
 
-	it('keeps paragraph breaks in captions as visible line breaks', async () => {
-		get.mockResolvedValue({
-			data: page({ posts: [work('1', { content: '<p>First paragraph.</p><p>Second paragraph.</p>' })] }),
-		})
-
-		const wrapper = mountPage()
-		await flushPromises()
-
-		expect(wrapper.find('.portfolio__caption').text()).toBe('First paragraph.\nSecond paragraph.')
-	})
-
 	/** A page its owner has not published is the same answer as one that is not there. */
 	it('says there is none when the server refuses', async () => {
 		get.mockRejectedValue({ response: { status: 404 } })

@@ -325,7 +325,6 @@ export default {
 
 .portfolio__caption {
 	margin-block: 8px 0;
-	white-space: pre-line;
 }
 
 .portfolio__meta {

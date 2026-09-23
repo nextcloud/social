@@ -1020,14 +1020,6 @@ class ActivityPubController extends Controller {
 	 */
 	private function fixToken(string $username, string $token): Response {
 		$t = strtolower($token);
-		if ($t === 'portfolio') {
-			// This route lives in SocialPubController, but both controllers
-			// register front-page attributes from different classes. Intercept
-			// the reserved segment here so directory iteration order cannot
-			// mistake the portfolio for a post token.
-			return $this->socialPubController->portfolio($username);
-		}
-
 		if ($t === 'outbox') {
 			return $this->outbox($username);
 		}
