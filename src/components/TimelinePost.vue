@@ -31,7 +31,17 @@
 					</span>
 				</router-link>
 			</div>
+			<a
+				v-if="postHref"
+				:href="postHref"
+				:data-timestamp="timestamp"
+				class="post-timestamp live-relative-timestamp"
+				:title="formattedDate"
+				:aria-label="t('social', 'Open this post, written {time}', { time: formattedDate })">
+				{{ relativeTimestamp }}
+			</a>
 			<button
+				v-else
 				:data-timestamp="timestamp"
 				type="button"
 				class="post-timestamp live-relative-timestamp"
@@ -545,6 +555,11 @@ export default {
 		type: {
 			type: String,
 			required: true,
+		},
+
+		postHref: {
+			type: String,
+			default: '',
 		},
 	},
 
@@ -1183,6 +1198,15 @@ export default {
 		 * @param {MouseEvent} event the press
 		 */
 		onPostClick(event) {
+			if (this.postHref && !event.defaultPrevented && event.button === 0
+				&& !event.target?.closest?.('a, button, input, textarea, select, label, video, audio, [role="button"], .post-actions, .v-popper')
+				&& (window.getSelection?.()?.toString() ?? '') === '') {
+				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+					return
+				}
+				window.location.assign(this.postHref)
+				return
+			}
 			if (this.postRoute === null || event.defaultPrevented || event.button !== 0) {
 				return
 			}

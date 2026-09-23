@@ -12,17 +12,9 @@ vi.hoisted(() => {
 	document.head.dataset.userDisplayname = 'Alice'
 })
 
-const TimelineEntryStub = { name: 'TimelineEntry', props: ['item', 'type'], template: '<li class="timeline-entry-stub" />' }
+const ProfileStatusCardStub = { name: 'ProfileStatusCard', props: ['status'], template: '<li class="profile-status-card-stub" />' }
 
-const bob = {
-	id: 'https://cloud.example.org/users/bob',
-	acct: 'bob',
-	username: 'bob',
-	display_name: 'Bob',
-	statuses_count: 2,
-	following_count: 4,
-	followers_count: 6,
-}
+const bob = { id: 'https://cloud.example.org/users/bob', acct: 'bob', username: 'bob', display_name: 'Bob' }
 const statuses = [
 	{ id: '1', content: '<p>first</p>', account: bob },
 	{ id: '2', content: '<p>second</p>', account: bob },
@@ -33,7 +25,7 @@ let get
 function mountSection(userId) {
 	return mount(ProfilePageIntegration, {
 		props: { userId },
-		global: { stubs: { TimelineEntry: TimelineEntryStub } },
+		global: { stubs: { ProfileStatusCard: ProfileStatusCardStub } },
 	})
 }
 
@@ -46,24 +38,20 @@ describe('ProfilePageIntegration', () => {
 		vi.restoreAllMocks()
 	})
 
-	it('requests the account and its posts for the profile owner, URL-encoding the id', () => {
+	it('requests the profile posts by URL-encoded account id', () => {
 		mountSection('bob@remote.example')
-		expect(get).toHaveBeenCalledTimes(2)
-		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/global/account/info?account=bob%40remote.example')
+		expect(get).toHaveBeenCalledTimes(1)
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/bob%40remote.example/statuses')
 	})
 
 	it('renders the section heading and one entry per post', async () => {
 		const wrapper = mountSection('bob')
 		expect(wrapper.find('h2').text()).toBe('Social')
-		expect(wrapper.findAllComponents(TimelineEntryStub)).toHaveLength(0)
+		expect(wrapper.findAllComponents(ProfileStatusCardStub)).toHaveLength(0)
 
 		await flushPromises()
-		expect(wrapper.find('.social-profile__counts').text()).toContain('2 posts')
-		expect(wrapper.find('.social-profile__counts').text()).toContain('4 following')
-		expect(wrapper.find('.social-profile__counts').text()).toContain('6 followers')
-		expect(wrapper.findAllComponents(TimelineEntryStub).map((entry) => entry.props('item'))).toEqual(statuses)
-		expect(wrapper.findAllComponents(TimelineEntryStub).every((entry) => entry.props('type') === 'account')).toBe(true)
+		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status'))).toEqual(statuses)
+		expect(wrapper.find('.social-profile__counts').exists()).toBe(false)
 	})
 
 	it('does not contact the server without a user id', () => {
@@ -77,6 +65,6 @@ describe('ProfilePageIntegration', () => {
 		const wrapper = mountSection('bob')
 		await flushPromises()
 		expect(wrapper.find('h2').text()).toBe('Social')
-		expect(wrapper.findAllComponents(TimelineEntryStub)).toHaveLength(0)
+		expect(wrapper.findAllComponents(ProfileStatusCardStub)).toHaveLength(0)
 	})
 })

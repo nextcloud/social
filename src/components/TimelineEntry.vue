@@ -91,7 +91,8 @@
 				<TimelinePost
 					class="entry__content"
 					:item="entryContent"
-					:type="type" />
+					:type="type"
+					:postHref="postHref" />
 			</div>
 		</template>
 	</component>
@@ -157,6 +158,11 @@ export default {
 	},
 
 	props: {
+		postHref: {
+			type: String,
+			default: '',
+		},
+
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
 		item: {
 			type: Object,

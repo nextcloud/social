@@ -2070,14 +2070,22 @@ a place to post from either. Direct messages are still written from the Direct
 messages timeline, which sets the visibility the same way.
 
 `DirectMessages.vue` lays that timeline out as an inbox: the left column owns
-search, unread indicators and the list; the right column owns the selected
-thread, reply composer, or first-use empty state. Search filters the loaded
-conversation participants and latest-message previews without changing the
-API request or route selection. Opening a thread still fetches its context and
-marks it read; sending a reply stays direct and targets the latest message.
-Starting a message uses the wide thread workspace so the recipient and post
-composer do not have to share the narrow conversation-list column. At mobile
-width the view becomes a single pane, and its Back button returns to the list.
+search, all/unread filters, timestamps and the conversation list; the right
+column owns the selected thread, reply composer, or first-use empty state. The
+unread filter is applied to the conversations already returned by the API, as
+is search over participants and latest-message previews. Opening a thread
+fetches its context and marks it read; sending a reply stays direct and targets
+the latest message. The workspace fills the available page height on desktop,
+and at mobile width becomes a single pane whose Back button returns to the
+list.
+
+The Social section embedded in Nextcloud's `/u/{uid}` profile deliberately
+leaves post/follower/following totals to the native Profile app, which already
+renders those numbers. Each status card adds its own Likes and Comments
+disclosures: likes load the existing `favourited_by` and `reblogged_by` data
+only when opened; comments load the status context on demand and display direct
+replies only. The Open post link uses the status's public URL, so it works in
+the custom element without relying on Social's main Vue Router instance.
 
 **The tab also decides how it is drawn**, and there is nothing beside it to say otherwise: Posts is what somebody wrote, so it is a list of posts; Photos and Videos are what they showed, so they are grids. There used to be a grid/list switch here, remembered across profiles, and it could disagree with the tab — `ProfileMediaGrid` kept only the posts carrying a picture, so Posts showed sixteen of them as a list and three as a grid, with nothing to say where the other thirteen had gone. One question, one answer. The empty state comes from `TimelineList` in both views for the same reason: the grid carried one of its own that said "No photos yet" whatever the tab was, so an account with no videos was told it had no photos.
 

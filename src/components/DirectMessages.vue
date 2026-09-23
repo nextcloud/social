@@ -12,7 +12,9 @@
 		<aside class="direct-messages__list-panel" :aria-label="t('social', 'Direct message conversations')">
 			<header class="direct-messages__list-heading">
 				<div>
-					<p class="direct-messages__eyebrow">{{ t('social', 'SOCIAL') }}</p>
+					<p class="direct-messages__eyebrow">
+						{{ t('social', 'YOUR INBOX') }}
+					</p>
 					<h2>{{ t('social', 'Messages') }}</h2>
 				</div>
 				<NcButton variant="primary" class="direct-messages__new-button" @click="newMessageOpen = !newMessageOpen">
@@ -23,6 +25,14 @@
 				<span class="hidden-visually">{{ t('social', 'Search conversations') }}</span>
 				<input v-model="searchQuery" type="search" :placeholder="t('social', 'Search conversations')">
 			</label>
+			<nav class="direct-messages__filters" :aria-label="t('social', 'Filter conversations')">
+				<button type="button" :class="{ 'direct-messages__filter--active': filterMode === 'all' }" @click="filterMode = 'all'">
+					{{ t('social', 'All') }}
+				</button>
+				<button type="button" :class="{ 'direct-messages__filter--active': filterMode === 'unread' }" @click="filterMode = 'unread'">
+					{{ t('social', 'Unread ({count})', { count: unreadCount }) }}
+				</button>
+			</nav>
 
 			<p v-if="loadingList" class="direct-messages__state" role="status">
 				{{ t('social', 'Loading conversations…') }}
@@ -55,10 +65,13 @@
 							:size="40"
 							:link="false" />
 						<span class="direct-messages__conversation-copy">
-							<span class="direct-messages__conversation-title">{{ conversationName(conversation) }}</span>
+							<span class="direct-messages__conversation-title-row">
+								<span class="direct-messages__conversation-title">{{ conversationName(conversation) }}</span>
+								<time v-if="conversation.last_status?.created_at" class="direct-messages__conversation-time" :datetime="conversation.last_status.created_at">{{ formatTime(conversation.last_status.created_at) }}</time>
+							</span>
 							<span class="direct-messages__preview">{{ preview(conversation.last_status) || t('social', 'No messages yet') }}</span>
 						</span>
-						<span v-if="conversation.unread" class="direct-messages__unread-dot" :aria-label="t('social', 'Unread')"></span>
+						<span v-if="conversation.unread" class="direct-messages__unread-dot" :aria-label="t('social', 'Unread')" />
 					</button>
 				</li>
 			</ul>
@@ -70,7 +83,9 @@
 					{{ t('social', 'Back to conversations') }}
 				</NcButton>
 				<div>
-					<p class="direct-messages__eyebrow">{{ t('social', 'PRIVATE MESSAGE') }}</p>
+					<p class="direct-messages__eyebrow">
+						{{ t('social', 'PRIVATE MESSAGE') }}
+					</p>
 					<h2>{{ t('social', 'New message') }}</h2>
 				</div>
 			</header>
@@ -104,11 +119,13 @@
 				ref="threadContainer"
 				class="direct-messages__thread"
 				aria-live="polite">
-				<TimelineEntry
+				<div
 					v-for="message in messages"
 					:key="message.id"
-					:item="message"
-					type="direct" />
+					class="direct-messages__message"
+					:class="{ 'direct-messages__message--outgoing': isOutgoing(message) }">
+					<TimelineEntry :item="message" type="direct" />
+				</div>
 				<p v-if="messages.length === 0" class="direct-messages__state">
 					{{ t('social', 'No messages in this conversation') }}
 				</p>
@@ -124,10 +141,14 @@
 
 		<section v-else class="direct-messages__thread-panel direct-messages__thread-panel--empty">
 			<div class="direct-messages__welcome">
-				<div class="direct-messages__welcome-mark" aria-hidden="true">✉</div>
+				<div class="direct-messages__welcome-mark" aria-hidden="true">
+					✉
+				</div>
 				<h2>{{ t('social', 'Your messages, together') }}</h2>
 				<p>{{ t('social', 'Choose a conversation to pick up where you left off, or start a new one.') }}</p>
-				<NcButton variant="primary" @click="newMessageOpen = true">{{ t('social', 'New message') }}</NcButton>
+				<NcButton variant="primary" @click="newMessageOpen = true">
+					{{ t('social', 'New message') }}
+				</NcButton>
 			</div>
 		</section>
 	</section>
@@ -165,6 +186,8 @@ export default {
 		return {
 			conversations: [],
 			searchQuery: '',
+			filterMode: 'all',
+			currentUserId: window.OC?.getCurrentUser?.()?.uid ?? '',
 			loadingList: true,
 			listError: false,
 			loadingThread: false,
@@ -178,11 +201,13 @@ export default {
 	computed: {
 		filteredConversations() {
 			const query = this.searchQuery.trim().toLocaleLowerCase()
-			if (!query) {
-				return this.conversations
-			}
-			return this.conversations.filter((conversation) => this.conversationName(conversation).toLocaleLowerCase().includes(query)
-				|| this.preview(conversation.last_status).toLocaleLowerCase().includes(query))
+			return this.conversations.filter((conversation) => (this.filterMode !== 'unread' || conversation.unread)
+				&& (!query || this.conversationName(conversation).toLocaleLowerCase().includes(query)
+					|| this.preview(conversation.last_status).toLocaleLowerCase().includes(query)))
+		},
+
+		unreadCount() {
+			return this.conversations.filter((conversation) => conversation.unread).length
 		},
 
 		activeConversation() {
@@ -310,6 +335,26 @@ export default {
 			return htmlToPlainText(status?.content ?? '').replace(/\s+/g, ' ').trim()
 		},
 
+		formatTime(value) {
+			const date = new Date(value)
+			if (Number.isNaN(date.getTime())) {
+				return ''
+			}
+			const now = new Date()
+			return date.toDateString() === now.toDateString()
+				? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+				: date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+		},
+
+		isOutgoing(message) {
+			const account = message?.account
+			if (!this.currentUserId || !account) {
+				return false
+			}
+			return account.acct === this.currentUserId
+				|| (account.username === this.currentUserId && !String(account.acct ?? '').includes('@'))
+		},
+
 		async refreshSelectedConversation() {
 			await this.loadConversations()
 			if (this.selectedConversationId !== '') {
@@ -328,8 +373,8 @@ export default {
 <style scoped>
 .direct-messages {
 	display: grid;
-	grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr);
-	min-height: min(72vh, 52rem);
+	grid-template-columns: minmax(19rem, 25rem) minmax(0, 1fr);
+	min-height: clamp(34rem, calc(100dvh - 6rem), 68rem);
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
@@ -344,7 +389,7 @@ export default {
 }
 
 .direct-messages__list-panel {
-	border-right: 1px solid var(--color-border);
+	border-inline-end: 1px solid var(--color-border);
 	background: var(--color-background-dark);
 }
 
@@ -401,7 +446,33 @@ export default {
 	outline-offset: 1px;
 }
 
+.direct-messages__filters {
+	display: flex;
+	gap: 0.4rem;
+	padding: 0 0.9rem 0.75rem;
+	background: var(--color-main-background);
+}
+
+.direct-messages__filters button {
+	min-height: 2rem;
+	padding: 0.2rem 0.75rem;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	background: transparent;
+	color: var(--color-main-text);
+	font: inherit;
+	cursor: pointer;
+}
+
+.direct-messages__filters button:hover,
+.direct-messages__filters .direct-messages__filter--active {
+	border-color: var(--color-primary-element);
+	background: var(--color-primary-element-light, var(--color-background-hover));
+}
+
 .direct-messages__list {
+	flex: 1;
+	min-height: 0;
 	list-style: none;
 	margin: 0;
 	padding: 0;
@@ -420,7 +491,7 @@ export default {
 	border-bottom: 1px solid var(--color-border);
 	background: transparent;
 	color: var(--color-main-text);
-	text-align: left;
+	text-align: start;
 	cursor: pointer;
 }
 
@@ -442,6 +513,20 @@ export default {
 	flex: 1;
 	min-width: 0;
 	gap: 0.35rem;
+}
+
+.direct-messages__conversation-title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.direct-messages__conversation-time {
+	flex: 0 0 auto;
+	color: var(--color-text-maxcontrast);
+	font-size: 0.75rem;
 }
 
 .direct-messages__conversation-title,
@@ -501,9 +586,22 @@ export default {
 	background: var(--color-background-dark);
 }
 
+.direct-messages__message {
+	width: min(100%, 54rem);
+	align-self: flex-start;
+}
+
+.direct-messages__message--outgoing {
+	align-self: flex-end;
+}
+
 .direct-messages__thread :deep(.timeline-entry) {
 	max-width: 100%;
 	border-radius: var(--border-radius-large);
+}
+
+.direct-messages__message--outgoing :deep(.timeline-entry) {
+	border-inline-start: 3px solid var(--color-primary-element);
 }
 
 .direct-messages__composer {
@@ -558,11 +656,11 @@ export default {
 @media (max-width: 700px) {
 	.direct-messages {
 		grid-template-columns: minmax(0, 1fr);
-		min-height: min(75vh, 46rem);
+		min-height: clamp(32rem, calc(100dvh - 5rem), 58rem);
 	}
 
 	.direct-messages__list-panel {
-		border-right: 0;
+		border-inline-end: 0;
 	}
 
 	.direct-messages--selected .direct-messages__list-panel,

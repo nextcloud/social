@@ -7,33 +7,25 @@
 		<h2 class="social-profile__title">
 			{{ t('social', 'Social') }}
 		</h2>
-		<ul v-if="profileCounts.length" class="social-profile__counts" :aria-label="t('social', 'Social profile counts')">
-			<li v-for="count in profileCounts" :key="count.key" class="social-profile__count">
-				<span class="social-profile__count-label">{{ count.label }}</span>
-			</li>
-		</ul>
 		<transition-group name="list" tag="ul" class="social-profile__timeline">
-			<TimelineEntry
+			<ProfileStatusCard
 				v-for="entry in timeline"
 				:key="entry.id"
-				:item="entry"
-				type="account" />
+				:status="entry" />
 		</transition-group>
 	</section>
 </template>
 
 <script>
-import TimelineEntry from './../components/TimelineEntry.vue'
-import axios from '@nextcloud/axios'
+import ProfileStatusCard from './../components/ProfileStatusCard.vue'
 import { generateUrl } from '@nextcloud/router'
-import { translatePlural } from '@nextcloud/l10n'
+import axios from '@nextcloud/axios'
 import logger from './../services/logger.js'
-import { formatCount } from './../utils/number.js'
 
 export default {
 	name: 'ProfilePageIntegration',
 	components: {
-		TimelineEntry,
+		ProfileStatusCard,
 	},
 
 	props: {
@@ -45,35 +37,11 @@ export default {
 
 	data() {
 		return {
-			accountInfo: null,
 			timeline: [],
 		}
 	},
 
 	computed: {
-		profileCounts() {
-			if (!this.accountInfo) {
-				return []
-			}
-
-			const statuses = Number(this.accountInfo.statuses_count) || 0
-			const following = Number(this.accountInfo.following_count) || 0
-			const followers = Number(this.accountInfo.followers_count) || 0
-			return [
-				{
-					key: 'posts',
-					label: translatePlural('social', '{count} post', '{count} posts', statuses, { count: formatCount(statuses) }),
-				},
-				{
-					key: 'following',
-					label: translatePlural('social', '{count} following', '{count} following', following, { count: formatCount(following) }),
-				},
-				{
-					key: 'followers',
-					label: translatePlural('social', '{count} follower', '{count} followers', followers, { count: formatCount(followers) }),
-				},
-			]
-		},
 	},
 
 	// Start fetching account information before mounting the component
@@ -83,13 +51,6 @@ export default {
 		if (!uid) {
 			return
 		}
-
-		axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${encodeURIComponent(uid)}`)).then(({ data }) => {
-			this.accountInfo = data
-			logger.debug('Loaded profile account info', { accountInfo: this.accountInfo })
-		}).catch((error) => {
-			logger.error('Failed to load profile account info', { error, uid })
-		})
 
 		axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(uid)}/statuses`)).then(({ data }) => {
 			this.timeline = data
@@ -108,27 +69,6 @@ export default {
 
 .social-profile__title {
 	margin-block: 0 0.75rem;
-}
-
-.social-profile__counts {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.5rem;
-	list-style: none;
-	margin: 0 0 1.25rem;
-	padding: 0;
-}
-
-.social-profile__count {
-	background: var(--color-background-dark, var(--color-background-hover));
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large, 12px);
-	display: inline-flex;
-	padding: 0.4rem 0.65rem;
-}
-
-.social-profile__count-label {
-	color: var(--color-text-maxcontrast);
 }
 
 .social-profile__timeline {

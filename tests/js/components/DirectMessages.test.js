@@ -87,6 +87,19 @@ describe('DirectMessages', () => {
 		expect(wrapper.find('.direct-messages__conversation').exists()).toBe(true)
 	})
 
+	it('filters unread conversations and updates the unread badge as they are read', async () => {
+		get.mockResolvedValueOnce({ data: [
+			structuredClone(conversation),
+			{ id: '20', unread: false, accounts: [{ ...bob, id: 'friend', display_name: 'Charlie' }], last_status: { id: '21', content: '<p>Older</p>', created_at: '2026-09-22T09:00:00Z' } },
+		] })
+		const wrapper = mountMessages()
+		await flushPromises()
+		expect(wrapper.find('.direct-messages__filters').text()).toContain('Unread (1)')
+		await wrapper.findAll('.direct-messages__filters button')[1].trigger('click')
+		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(1)
+		expect(wrapper.find('.direct-messages__conversation').text()).toContain('Bob')
+	})
+
 	it('offers a clear empty inbox and a direct way to start a message', async () => {
 		get.mockResolvedValue({ data: [] })
 		const wrapper = mountMessages()

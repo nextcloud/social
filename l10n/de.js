@@ -146,6 +146,18 @@ OC.L10N.register(
     "PRIVATE MESSAGE" : "PRIVATE NACHRICHT",
     "Private conversation" : "Private Unterhaltung",
     "Your messages, together" : "Deine Nachrichten an einem Ort",
-    "Choose a conversation to pick up where you left off, or start a new one." : "Wähle eine Unterhaltung aus, um weiterzuschreiben, oder beginne eine neue."
+    "Choose a conversation to pick up where you left off, or start a new one." : "Wähle eine Unterhaltung aus, um weiterzuschreiben, oder beginne eine neue.",
+    "YOUR INBOX" : "DEIN POSTEINGANG",
+    "Filter conversations" : "Unterhaltungen filtern",
+    "All" : "Alle",
+    "Unread ({count})" : "Ungelesen ({count})",
+    "Post actions" : "Beitragsaktionen",
+    "Likes ({count})" : "Gefällt mir ({count})",
+    "Comments ({count})" : "Kommentare ({count})",
+    "Open post" : "Beitrag öffnen",
+    "Comments" : "Kommentare",
+    "Loading comments…" : "Kommentare werden geladen…",
+    "Could not load comments" : "Kommentare konnten nicht geladen werden",
+    "No comments yet" : "Noch keine Kommentare"
 },
 "nplurals=2; plural=(n != 1);");
