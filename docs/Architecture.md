@@ -1752,13 +1752,19 @@ Follow button that started the remote-follow flow for an account they could have
 followed with one click. An ActivityPub request is untouched by any of it.
 
 For an anonymous reader, both the profile shell and the resolved single-post
-shell are `PublicTemplateResponse`s. This detail matters after the post has
-been resolved: an ordinary `TemplateResponse` is private by default, so
-Nextcloud redirects the visitor to `/login` during the document request and
-throws away the already-rendered public status. The public single-post shell
-also receives the safe `serverData` state and serialized status before Vue
-starts; the guest timeline does not need a session to fetch the surrounding
-public context. Authenticated readers still get the normal `navigate()` shell.
+shell are `PublicTemplateResponse`s. A profile whose well-formed `user@host`
+handle is not cached here still receives that shell; the browser resolves the
+account through `GET /api/v1/global/account/info`, whose anonymous rate limit
+bounds remote lookups. The HTML request itself remains cache-only and never
+WebFingers an arbitrary name. The profile view uses the local account endpoint
+for a bare local username and the global resolver for a federated handle. This
+detail matters after the post has been resolved: an ordinary `TemplateResponse`
+is private by default, so Nextcloud redirects the visitor to `/login` during
+the document request and throws away the already-rendered public status. The
+public single-post shell also receives the safe `serverData` state and
+serialized status before Vue starts; the guest timeline does not need a session
+to fetch the surrounding public context. Authenticated readers still get the
+normal `navigate()` shell.
 
 The app writes its own links to a post as `/@acct/<nid>` — the numeric id its
 client API uses — while the address a post is published under ends in a

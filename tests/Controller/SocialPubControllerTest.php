@@ -224,6 +224,18 @@ class SocialPubControllerTest extends TestCase {
 		$this->controller(null)->actor('bob@remote.tld');
 	}
 
+	public function testAnUnknownRemoteProfileLoadsThePublicAppForTheClientLookup(): void {
+		$this->unknownActor();
+
+		$response = $this->controller(null)->actor('nextcloud@mastodon.xyz');
+
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('main', $response->getTemplateName());
+		$this->assertSame('nextcloud@mastodon.xyz - Social', $response->getParams()['application']);
+		$this->assertSame(['public' => true], $this->states['serverData']);
+	}
+
 	#[DataProvider('publicPages')]
 	public function testPublicPagesReportUnexpectedLookupFailures(string $page): void {
 		$this->cacheActorService->method('getFromAccount')->with('alice')->willThrowException(new \RuntimeException('db down'));

@@ -96,6 +96,14 @@ class SocialPubController extends Controller {
 			// a 500 rather than the 404 it meant
 			$actor = $this->cacheActorService->getFromAccount($username, false);
 		} catch (CacheActorDoesNotExistException|ActorDoesNotExistException $e) {
+			// A remote profile need not already be in this instance's actor
+			// cache. Let the public app shell resolve a well-formed federated
+			// handle through the rate-limited account-info API; do not WebFinger
+			// it as part of this anonymous HTML request.
+			if ($this->userId === null && $this->isFederatedHandle($username)) {
+				return $this->publicPage($username);
+			}
+
 			// both, because which one comes back depends on how far the lookup
 			// got: a name this server has no local actor for throws
 			// ActorDoesNotExistException from inside getFromLocalAccount(),
@@ -115,6 +123,10 @@ class SocialPubController extends Controller {
 		}
 
 		$displayName = $actor->getName() !== '' ? $actor->getName() : $actor->getPreferredUsername();
+		return $this->publicPage($displayName);
+	}
+
+	private function publicPage(string $displayName): Response {
 		$this->initialState->provideInitialState('serverData', [
 			'public' => true,
 		]);
@@ -124,6 +136,12 @@ class SocialPubController extends Controller {
 		$page->setHeaderTitle($this->l10n->t('Social'));
 
 		return $page;
+	}
+
+	private function isFederatedHandle(string $username): bool {
+		$handle = ltrim($username, '@');
+
+		return preg_match('/^[A-Za-z0-9_.-]+@[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?$/D', $handle) === 1;
 	}
 
 	/**

@@ -125,7 +125,8 @@ export default {
 
 			let fetchMethod
 			if (this.serverData.public) {
-				fetchMethod = 'fetchPublicAccountInfo'
+				const requestedHandle = this.$route.params.account || this.serverData.account || ''
+				fetchMethod = requestedHandle.includes('@') ? 'fetchAccountInfo' : 'fetchPublicAccountInfo'
 			} else {
 				fetchMethod = 'fetchAccountInfo'
 			}
