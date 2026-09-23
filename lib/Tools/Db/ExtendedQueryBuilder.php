@@ -492,7 +492,7 @@ class ExtendedQueryBuilder implements IExtendedQueryBuilder {
 			return;
 		}
 
-		$this->limitToDBField('nid', \OCA\Social\Tools\Nid::normalize($id), false);
+		$this->limitToDBField('nid', \OCA\Social\Tools\Nid::normalize($id));
 	}
 
 	/**

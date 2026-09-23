@@ -35,7 +35,7 @@ class ExtendedQueryBuilderTest extends TestCase {
 		$builder->expects($this->never())->method('limitToDBFieldInt');
 		$builder->expects($this->once())
 			->method('limitToDBField')
-			->with('nid', '17901664697144251759', false);
+			->with('nid', '17901664697144251759');
 
 		$builder->limitToNid('017901664697144251759');
 	}
