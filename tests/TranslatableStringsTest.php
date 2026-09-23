@@ -173,7 +173,11 @@ class TranslatableStringsTest extends TestCase {
 	 * Nextcloud serves.
 	 */
 	public function testSidebarAndPostActionsHaveGermanCatalogEntries(): void {
-		$files = ['src/components/Navigation.vue', 'src/components/TimelinePost.vue'];
+		$files = [
+			'src/components/Navigation.vue',
+			'src/components/TimelinePost.vue',
+			'src/components/DirectMessages.vue',
+		];
 		$messages = [];
 		foreach (self::singulars() as $message => $paths) {
 			if (array_intersect($files, $paths) !== []) {
@@ -198,7 +202,7 @@ class TranslatableStringsTest extends TestCase {
 			}
 		}
 
-		$this->assertSame([], $missing, 'navigation and post action labels must be translated in both German catalogs');
+		$this->assertSame([], $missing, 'navigation, post action, and conversation labels must be translated in both German catalogs');
 	}
 
 	/**

@@ -1366,9 +1366,33 @@ Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAu
 The sidebar and post action labels are source literals passed to `t('social', …)`;
 the German catalog ships each entry in both `l10n/de_DE.json` and
 `l10n/de_DE.js`, which are the two catalog forms this app includes. The
-`TranslatableStringsTest` checks every singular label in `Navigation.vue` and
-`TimelinePost.vue` against both files, so adding a menu item without its
-translation is caught before the interface silently falls back to English.
+`TranslatableStringsTest` checks every singular label in `Navigation.vue`,
+`TimelinePost.vue` and `DirectMessages.vue` against both files, so adding a
+menu item without its translation is caught before the interface silently
+falls back to English.
+
+### Direct messages
+
+`DirectMessages.vue` presents the direct timeline as a conversation list beside
+the selected thread. The list calls the Mastodon-compatible
+`GET /api/v1/conversations` route (40 newest conversations per request), shows
+the latest status as a plain-text preview, and marks unread conversations.
+The selected conversation is stored in the `conversation` query parameter on
+the direct timeline route, so opening or refreshing a link restores the thread.
+Selecting a row loads the latest status context from
+`GET /api/v1/statuses/{nid}/context`; ancestors and descendants are combined
+with that latest status and de-duplicated by status id before rendering through
+`TimelineEntry`. The reply composer targets the latest status and defaults to
+direct visibility. A successful thread load attempts
+`POST /api/v1/conversations/{id}/read`; failure to persist the read marker is
+logged without hiding the already loaded messages.
+
+The New message composer also defaults to direct visibility. Its send action
+uses the regular composer and post API, so mention resolution, media handling,
+and delivery continue through the existing post path. The current view loads
+one page of conversations; older pages are not yet appended. Conversation
+dismissal and pagination controls are not part of this UI. On narrow screens,
+the list and thread become separate views with a back control.
 
 `ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
 (a file, or the address of one), the bio and the metadata fields. The banner
