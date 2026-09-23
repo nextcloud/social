@@ -234,6 +234,17 @@ class ActivityService {
 	public function request(ACore $activity): string {
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
+		if ($instancePaths === [] && $this->isPublicActivity($activity) && $this->isLocalAuthor($author)) {
+			$this->logger->notice('public activity resolved no remote inboxes; activity was not delivered', [
+				'activityId' => $activity->getId(),
+				'objectId' => $activity->getObjectId(),
+				'actorId' => $author,
+				'addressingPaths' => array_map(
+					static fn (InstancePath $path): int => $path->getType(),
+					$activity->getInstancePaths()
+				),
+			]);
+		}
 		$token = $this->requestQueueService->generateRequestQueue($instancePaths, $activity, $author);
 
 		if ($token === '') {

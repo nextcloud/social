@@ -49,7 +49,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\NullLogger;
+use Psr\Log\LoggerInterface;
 use ReflectionClass;
 
 class ActivityServiceTest extends TestCase {
@@ -68,6 +68,7 @@ class ActivityServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private ActorsRequest|MockObject $actorsRequest;
 	private RelayRequest|MockObject $relayRequest;
+	private LoggerInterface|MockObject $logger;
 	private NoteInterface|MockObject $noteInterface;
 	private AnnounceInterface|MockObject $announceInterface;
 	private ActivityService $service;
@@ -91,6 +92,7 @@ class ActivityServiceTest extends TestCase {
 
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->relayRequest = $this->createMock(RelayRequest::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 		$this->service = new ActivityService(
 			$this->createMock(StreamRequest::class),
 			$this->followsRequest,
@@ -102,7 +104,7 @@ class ActivityServiceTest extends TestCase {
 			$this->actorsRequest,
 			$this->relayRequest,
 			$this->createMock(\OCP\ICacheFactory::class),
-			new NullLogger()
+			$this->logger
 		);
 	}
 
@@ -458,6 +460,7 @@ class ActivityServiceTest extends TestCase {
 		$paths = [];
 		$this->capturePaths($paths);
 		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
 		$note->setTo(ACore::CONTEXT_PUBLIC);
 		$note->addCc(self::ALICE_ID . '/followers');
 
@@ -494,6 +497,7 @@ class ActivityServiceTest extends TestCase {
 		$paths = [];
 		$this->capturePaths($paths);
 		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
 		$note->setTo(ACore::CONTEXT_PUBLIC);
 
 		$this->service->updateActivity($this->alice(), $note);
@@ -716,6 +720,33 @@ class ActivityServiceTest extends TestCase {
 		$like->setActorId(self::ALICE_ID);
 
 		$this->assertSame('<request token not needed>', $this->service->request($like));
+	}
+
+	public function testPublicLocalActivityWithNoResolvedRecipientsIsLogged(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
+		$this->followsRequest->method('getFollowerInboxes')->willReturn([]);
+		$this->relayRequest->method('acceptedInboxes')->willReturn([]);
+		$paths = [];
+		$this->capturePaths($paths);
+		$this->logger->expects($this->once())
+			->method('notice')
+			->with(
+				'public activity resolved no remote inboxes; activity was not delivered',
+				$this->callback(static fn (array $context): bool
+					=> $context['actorId'] === self::ALICE_ID
+						&& $context['addressingPaths'] === [InstancePath::TYPE_FOLLOWERS])
+			);
+
+		$note = $this->note();
+		$note->setActorId(self::ALICE_ID);
+		$note->setTo(ACore::CONTEXT_PUBLIC);
+		$note->setInstancePaths([
+			new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW),
+		]);
+
+		$this->service->request($note);
+
+		$this->assertSame([], $paths);
 	}
 
 	public function testRequestDeliversPriorityTargetInlineAndHandsTheRestToAsync(): void {

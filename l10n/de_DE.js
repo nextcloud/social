@@ -143,6 +143,7 @@ OC.L10N.register(
     "This image type is not allowed by this instance." : "Dieser Bildtyp ist auf dieser Instanz nicht zulässig.",
     "This instance could not access the original image." : "Diese Instanz konnte nicht auf das Originalbild zugreifen.",
     "This instance could not read the image." : "Diese Instanz konnte das Bild nicht lesen.",
-    "This instance could not cache the image." : "Diese Instanz konnte das Bild nicht zwischenspeichern."
+    "This instance could not cache the image." : "Diese Instanz konnte das Bild nicht zwischenspeichern.",
+    "No server deliveries are on record. Public posts go to your followers, mentioned accounts, and subscribed relays; Social does not broadcast them to every known server. Delivery records are kept for {days} days, so an older post may no longer have records." : "Für diesen Beitrag sind keine Zustellungen an Server verzeichnet. Öffentliche Beiträge gehen an deine Follower, erwähnte Konten und abonnierte Relays; Social sendet sie nicht an jeden bekannten Server. Zustellungsdaten werden {days} Tage lang aufbewahrt, daher sind sie bei älteren Beiträgen möglicherweise nicht mehr verfügbar."
 },
 "nplurals=2; plural=(n != 1);");

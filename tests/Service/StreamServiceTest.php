@@ -40,6 +40,7 @@ use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 class StreamServiceTest extends TestCase {
@@ -55,6 +56,7 @@ class StreamServiceTest extends TestCase {
 	private CurlService|MockObject $curlService;
 	private LinkPreviewService|MockObject $linkPreviewService;
 	private EmojiService|MockObject $emojiService;
+	private LoggerInterface|MockObject $logger;
 
 	/** @var array[] the Emoji tags the instance has for whatever it is handed */
 	private array $emojiTags = [];
@@ -90,6 +92,7 @@ class StreamServiceTest extends TestCase {
 		);
 
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 
 		$this->service = new StreamService(
 			$this->urlGenerator,
@@ -101,7 +104,7 @@ class StreamServiceTest extends TestCase {
 			$this->linkPreviewService,
 			$this->emojiService,
 			$this->createMock(\OCP\EventDispatcher\IEventDispatcher::class),
-			new NullLogger(),
+			$this->logger,
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
 			$this->createMock(MediaTagsRequest::class),
@@ -439,6 +442,14 @@ class StreamServiceTest extends TestCase {
 	public function testAddRecipientIgnoresUnresolvableAccount(): void {
 		$this->cacheActorService->method('getFromAccount')
 			->willThrowException(new CacheActorDoesNotExistException());
+		$this->logger->expects($this->once())
+			->method('notice')
+			->with(
+				'cannot resolve a mentioned account for outbound delivery',
+				$this->callback(static fn (array $context): bool
+					=> $context['account'] === 'nobody@remote.example'
+						&& $context['exception'] instanceof CacheActorDoesNotExistException)
+			);
 
 		$note = new Note();
 		$this->service->addRecipient($note, Stream::TYPE_DIRECT, 'nobody@remote.example');

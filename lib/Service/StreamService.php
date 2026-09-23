@@ -271,6 +271,10 @@ class StreamService {
 		try {
 			$actor = $this->cacheActorService->getFromAccount($account, true);
 		} catch (Exception $e) {
+			$this->logger->notice('cannot resolve a mentioned account for outbound delivery', [
+				'account' => $account,
+				'exception' => $e,
+			]);
 			return;
 		}
 

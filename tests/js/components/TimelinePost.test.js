@@ -1298,7 +1298,8 @@ describe('TimelinePost', () => {
 			await flushPromises()
 
 			const dialog = wrapper.findAll('.nc-dialog').find((el) => el.text().includes('Delivery status'))
-			expect(dialog.text()).toContain('Deliveries are kept for 7 days')
+			expect(dialog.text()).toContain('Delivery records are kept for 7 days')
+			expect(dialog.text()).toContain('does not broadcast them to every known server')
 			expect(dialog.find('.delivery-list').exists()).toBe(false)
 		})
 
