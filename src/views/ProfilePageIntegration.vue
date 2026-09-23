@@ -4,8 +4,13 @@
 -->
 <template>
 	<section class="social-profile">
+		<Teleport v-if="nativeProfileHeader && bannerUrl" to=".profile__header">
+			<div class="social-profile__header-banner" aria-hidden="true">
+				<img :src="bannerUrl" alt="">
+			</div>
+		</Teleport>
 		<img
-			v-if="bannerUrl"
+			v-else-if="bannerUrl"
 			class="social-profile__banner"
 			:src="bannerUrl"
 			:alt="t('social', 'Social profile banner')">
@@ -100,6 +105,7 @@ export default {
 	data() {
 		return {
 			accountInfo: null,
+			nativeProfileHeader: Boolean(document.querySelector('.profile__header')),
 			activeFeed: 'profile',
 			feedTimeline: [],
 			feedLoading: false,
@@ -272,6 +278,44 @@ export default {
 	},
 }
 </script>
+
+<style>
+.profile__header:has(> .social-profile__header-banner) {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+}
+
+.profile__header:has(> .social-profile__header-banner) > .profile__header__container {
+	position: relative;
+	z-index: 1;
+}
+
+.profile__header:has(> .social-profile__header-banner) .profile__header__container__displayname {
+	color: #fff;
+	text-shadow: 0 1px 4px rgb(0 0 0 / 70%);
+}
+
+.social-profile__header-banner {
+	position: absolute;
+	z-index: 0;
+	inset: 0;
+	pointer-events: none;
+}
+
+.social-profile__header-banner img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.social-profile__header-banner::after {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, rgb(0 0 0 / 62%), rgb(0 0 0 / 18%));
+	content: '';
+}
+</style>
 
 <style scoped>
 .social-profile {

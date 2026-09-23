@@ -491,8 +491,10 @@ hand, it is picked up as one.
   fifth field is dropped by the server without saying so, so the editor stops
   at four, and a row with only one half filled in is dropped the same way;
   emptying the table and saving removes it from your profile everywhere.
-- **Your Nextcloud profile page.** The native `/u/username` page also shows
-  your Social banner and posts. Its **Posts**, **My Feed**, **Local** and
+- **Your Nextcloud profile page.** The native `/u/username` page shows your
+  custom Social banner across the profile header, behind your profile picture,
+  and your posts below. Without a native profile header, the banner appears at
+  the top of the Social section. Its **Posts**, **My Feed**, **Local** and
   **Global** tabs read Social's feeds; **My Feed** is available only on your
   own profile. This page is for reading. To publish, open the Social app.
 - **Verified links.** A field whose value is a full web address — written out,

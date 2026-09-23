@@ -225,7 +225,6 @@ OC.L10N.register(
     "{count} following" : "{count} gefolgt",
     "{count} follower" : "{count} Follower",
     "{count} followers" : "{count} Follower",
-,
     "Social profile" : "Social-Profil",
     "New direct message" : "Neue Direktnachricht",
     "To" : "An",

@@ -65,6 +65,22 @@ describe('ProfilePageIntegration', () => {
 		expect(wrapper.find('.composer-stub').exists()).toBe(false)
 	})
 
+	it('places the banner in the native profile header behind the avatar', async () => {
+		const header = document.createElement('div')
+		header.className = 'profile__header'
+		header.innerHTML = '<div class="profile__header__container"><span class="profile__header__container__avatar"></span></div>'
+		document.body.appendChild(header)
+		try {
+			const wrapper = mountSection('bob')
+			await flushPromises()
+			expect(header.querySelector('.social-profile__header-banner img')?.getAttribute('src')).toBe('banner.png')
+			expect(wrapper.find('.social-profile__banner').exists()).toBe(false)
+			wrapper.unmount()
+		} finally {
+			header.remove()
+		}
+	})
+
 	it('shows My Feed only on the signed-in user profile and opens it on request', async () => {
 		const wrapper = mountSection('alice')
 		await flushPromises()
