@@ -761,7 +761,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	public function resetRemoteErrorForRetry(string $id): bool {
 		$qb = $this->getCacheDocumentsUpdateSql();
 		$qb->set('error', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
-			->set('caching', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
+			->set('caching', $qb->createNamedParameter(new DateTime('@0'), IQueryBuilder::PARAM_DATE))
 			->limitToIdString($id)
 			->andWhere($qb->expr()->gt('error', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)))
 			->andWhere($qb->expr()->eq('local_copy', $qb->createNamedParameter('')));
