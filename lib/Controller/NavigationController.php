@@ -140,8 +140,7 @@ class NavigationController extends Controller {
 			'firstrun' => false,
 			'needsAccount' => false,
 			'setup' => false,
-			'isAdmin' => $this->userId !== null && Server::get(IGroupManager::class)
-				->isAdmin($this->userId),
+			'isAdmin' => Server::get(IGroupManager::class)->isAdmin($this->userId),
 			'cliUrl' => $this->getCliUrl(),
 			// what to do with a post somebody marked sensitive: this reader's
 			// own choice, or what the instance does for somebody who has not
@@ -149,12 +148,12 @@ class NavigationController extends Controller {
 			// decides what the very first screenful looks like, and a timeline
 			// that uncovered itself a moment after it drew would be worse than
 			// either policy.
-			'nsfwPolicy' => $this->sensitiveMediaService->policyFor((string)$this->userId),
+			'nsfwPolicy' => $this->sensitiveMediaService->policyFor($this->userId),
 			// and what this reader *chose*, which is a different thing: the
 			// settings page has to be able to show "follow the instance" as
 			// the state it is rather than as whichever policy that currently
 			// resolves to
-			'nsfwChoice' => $this->sensitiveMediaService->choiceOf((string)$this->userId),
+			'nsfwChoice' => $this->sensitiveMediaService->choiceOf($this->userId),
 			// which sections this instance offers. In the page rather than
 			// behind a request for the same reason the policy above is: the
 			// sidebar is drawn before anything is fetched, and entries that
