@@ -254,12 +254,14 @@ class CacheDocumentService {
 		$mime = mime_content_type($tmpPath);
 
 		$this->filterMimeTypes($mime);
-		$this->filterSize($mime, (int)filesize($tmpPath));
-		$this->filterQuota($document, $mime, (int)filesize($tmpPath));
+		$size = (int)filesize($tmpPath);
+		$this->filterSize($mime, $size);
+		$this->filterQuota($document, $mime, $size);
 		$this->filterBlockedMedia($tmpPath);
 
 		if (!str_starts_with($mime, 'image/')) {
 			$this->saveMediaFromTemp($document, $tmpPath, $mime);
+			$this->recordDomainQuota($document, $size);
 
 			return;
 		}
@@ -292,6 +294,7 @@ class CacheDocumentService {
 		$this->resizeImage($document, $content);
 		$resized = $this->generateFileFromContent($content);
 		$document->setResizedCopy($resized);
+		$this->recordDomainQuota($document, $size);
 	}
 
 	/**
@@ -343,8 +346,6 @@ class CacheDocumentService {
 	private function filterDomainQuota(Document $document, int $size): void {
 		$host = $this->remoteMediaQuotaService->hostOf($document->getId());
 		if ($this->remoteMediaQuotaService->fits($host, $size)) {
-			$this->remoteMediaQuotaService->record($host, $size);
-
 			return;
 		}
 
@@ -355,6 +356,23 @@ class CacheDocumentService {
 		throw new CacheContentSizeException(
 			$host . ' has used the ' . $this->remoteMediaQuotaService->quota()
 			. 'MB of media storage this instance allows one server'
+		);
+	}
+
+	/**
+	 * Charge a remote server only after its file has passed validation and
+	 * both cached copies (where applicable) have been written. A rejected or
+	 * unreadable attachment must not consume quota: otherwise repeated invalid
+	 * media could make the quota refuse later valid images without using disk.
+	 */
+	private function recordDomainQuota(Document $document, int $size): void {
+		if ($document->isLocal()) {
+			return;
+		}
+
+		$this->remoteMediaQuotaService->record(
+			$this->remoteMediaQuotaService->hostOf($document->getId()),
+			$size,
 		);
 	}
 
