@@ -493,12 +493,11 @@ export default {
 		async searchAccounts(query) {
 			const request = ++this.accountSearchRequest
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), { params: { search: query } })
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/search'), { params: { q: query, limit: 8, resolve: query.startsWith('@') } })
 				if (request !== this.accountSearchRequest) {
 					return
 				}
-				const result = data?.result ?? {}
-				const accounts = [...(Array.isArray(result.accounts) ? result.accounts : []), ...(result.exact && !Array.isArray(result.exact) ? [result.exact] : [])]
+				const accounts = Array.isArray(data) ? data : []
 				const seen = new Set()
 				this.accountResults = accounts.filter((account) => {
 					const key = String(account.id || account.acct).toLocaleLowerCase()

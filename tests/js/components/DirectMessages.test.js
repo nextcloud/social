@@ -145,16 +145,16 @@ describe('DirectMessages', () => {
 	it('searches for one recipient and starts an existing chat instead of duplicating it', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
-		get.mockResolvedValueOnce({ data: { result: { accounts: [bob], exact: null } } })
+		get.mockResolvedValueOnce({ data: [bob] })
 		await wrapper.vm.searchAccounts('bob')
 		await flushPromises()
-		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/global/accounts/search', { params: { search: 'bob' } })
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'bob', limit: 8, resolve: false } })
 		expect(wrapper.vm.accountResults).toEqual([bob])
 		await wrapper.vm.startConversation(bob)
 		expect(wrapper.emitted('select')).toEqual([['10']])
 	})
 
-	it('shows followed people before typing and renders the wrapped search response', async () => {
+	it('shows followed people before typing and searches Mastodon account results', async () => {
 		get.mockImplementation(async (url) => {
 			if (url.endsWith('/conversations')) {
 				return { data: [] }
@@ -165,7 +165,7 @@ describe('DirectMessages', () => {
 			if (url.endsWith('/42/following')) {
 				return { data: [bob] }
 			}
-			return { data: { result: { accounts: [{ ...bob, acct: 'bob@remote.example' }], exact: null } } }
+			return { data: [{ ...bob, acct: 'bob@remote.example' }] }
 		})
 		const wrapper = mountMessages()
 		await flushPromises()
@@ -183,6 +183,7 @@ describe('DirectMessages', () => {
 		await wrapper.find('.direct-messages__recipient-search input').setValue('@bob')
 		await wrapper.vm.searchAccounts('@bob')
 		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: '@bob', limit: 8, resolve: true } })
 		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
 	})
 
