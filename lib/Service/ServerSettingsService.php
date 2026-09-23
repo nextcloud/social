@@ -10,6 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use InvalidArgumentException;
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 
 /**
  * The instance-wide settings an administrator can change from the settings
@@ -49,6 +52,7 @@ class ServerSettingsService {
 	/** The keys this page owns, in the order the page shows them. */
 	public const KEYS = [
 		ConfigService::CONTACT_EMAIL,
+		ConfigService::SOCIAL_CONTACT_ACCOUNT,
 		ConfigService::SOCIAL_EXTENDED_DESCRIPTION,
 		ConfigService::SOCIAL_MAX_SIZE,
 		ConfigService::SOCIAL_MAX_VIDEO_SIZE,
@@ -72,6 +76,7 @@ class ServerSettingsService {
 
 	public function __construct(
 		private ConfigService $configService,
+		private ActorsRequest $actorsRequest,
 	) {
 	}
 
@@ -80,6 +85,7 @@ class ServerSettingsService {
 	 *
 	 * @return array{
 	 *     contact_email: string,
+	 *     contact_account: string,
 	 *     extended_description: string,
 	 *     max_size: int,
 	 *     max_video_size: int,
@@ -98,8 +104,23 @@ class ServerSettingsService {
 	 * }
 	 */
 	public function current(): array {
+		$contactAccount = '';
+		$contactUserId = (string)$this->configService->getAppValue(ConfigService::SOCIAL_CONTACT_ACCOUNT);
+		if ($contactUserId !== '') {
+			try {
+				$actor = $this->actorsRequest->getFromUserId($contactUserId);
+				if ($actor->isLocal()) {
+					$contactAccount = $actor->getPreferredUsername();
+				}
+			} catch (ActorDoesNotExistException|SocialAppConfigException $e) {
+				// An account removed since the setting was saved is no longer a
+				// contact. The administrator can choose another one in the form.
+			}
+		}
+
 		return [
 			ConfigService::CONTACT_EMAIL => (string)$this->configService->getAppValue(ConfigService::CONTACT_EMAIL),
+			ConfigService::SOCIAL_CONTACT_ACCOUNT => $contactAccount,
 			ConfigService::SOCIAL_EXTENDED_DESCRIPTION
 				=> (string)$this->configService->getAppValue(ConfigService::SOCIAL_EXTENDED_DESCRIPTION),
 			ConfigService::SOCIAL_MAX_SIZE => $this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE),
@@ -165,6 +186,7 @@ class ServerSettingsService {
 		bool $secureMode,
 		bool $publishBlocks,
 		bool $allowSelfSigned,
+		string $contactAccount = '',
 	): array {
 		$contactEmail = trim($contactEmail);
 		if ($contactEmail !== '' && filter_var($contactEmail, FILTER_VALIDATE_EMAIL) === false) {
@@ -172,6 +194,21 @@ class ServerSettingsService {
 		}
 		if (strlen($contactEmail) > 255) {
 			throw new InvalidArgumentException('contact_email is too long');
+		}
+
+		$contactAccount = trim(ltrim(trim($contactAccount), '@'));
+		$contactUserId = '';
+		if ($contactAccount !== '') {
+			try {
+				$actor = $this->actorsRequest->getFromUsername($contactAccount);
+			} catch (ActorDoesNotExistException|SocialAppConfigException $e) {
+				throw new InvalidArgumentException('contact_account must be a local Social account', 0, $e);
+			}
+			if (!$actor->isLocal() || $actor->getUserId() === '') {
+				throw new InvalidArgumentException('contact_account must be a local Social account');
+			}
+			$contactAccount = $actor->getPreferredUsername();
+			$contactUserId = $actor->getUserId();
 		}
 
 		$extendedDescription = trim($extendedDescription);
@@ -257,6 +294,7 @@ class ServerSettingsService {
 		}
 
 		$this->configService->setAppValue(ConfigService::CONTACT_EMAIL, $contactEmail);
+		$this->configService->setAppValue(ConfigService::SOCIAL_CONTACT_ACCOUNT, $contactUserId);
 		$this->configService->setAppValue(ConfigService::SOCIAL_EXTENDED_DESCRIPTION, $extendedDescription);
 		$this->configService->setAppValue(ConfigService::SOCIAL_MAX_SIZE, (string)$maxSize);
 		$this->configService->setAppValue(ConfigService::SOCIAL_MAX_VIDEO_SIZE, (string)$maxVideoSize);

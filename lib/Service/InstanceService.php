@@ -90,13 +90,14 @@ class InstanceService {
 		private CacheDocumentService $cacheDocumentService,
 		private InstanceStatsRequest $instanceStatsRequest,
 		private TranslationService $translationService,
+		private AccountService $accountService,
 	) {
 	}
 
 	public function createLocal(): Instance {
 		$instance = new Instance();
 		$instance->setLocal(true);
-		$this->fillLocal($instance);
+		$this->fillLocal($instance, ACore::FORMAT_LOCAL);
 		$this->instancesRequest->save($instance);
 
 		return $instance;
@@ -118,7 +119,7 @@ class InstanceService {
 		// Everything a client is told is derived here, from the configuration
 		// as it stands now, so the stored row is only a marker that the
 		// instance exists.
-		$this->fillLocal($instance);
+		$this->fillLocal($instance, $format);
 
 		return $instance;
 	}
@@ -130,7 +131,7 @@ class InstanceService {
 	 * whether the client will talk to this server at all: an empty `uri`, or a
 	 * missing `configuration`, reads as "cannot connect to server".
 	 */
-	private function fillLocal(Instance $instance): void {
+	private function fillLocal(Instance $instance, int $format): void {
 		$cloudHost = $this->configService->getCloudHost();
 		$socialAddress = $this->configService->getSocialAddress();
 		$uri = ($socialAddress !== '') ? $socialAddress : $cloudHost;
@@ -160,6 +161,23 @@ class InstanceService {
 			// client reads it to decide whether to draw the button
 			->setTranslationEnabled($this->translationService->isAvailable())
 			->setRules($this->rules());
+
+		$contactUserId = $this->appConfig->getValueString(
+			Application::APP_ID,
+			ConfigService::SOCIAL_CONTACT_ACCOUNT,
+			''
+		);
+		if ($contactUserId !== '') {
+			try {
+				$account = $this->accountService->getActorFromUserId($contactUserId);
+				$contact = $this->accountService->getCachedLocalActor($account->getPreferredUsername());
+				$contact->setExportFormat($format);
+				$instance->setContactAccount($contact);
+			} catch (Exception $e) {
+				// The owner can remove or delete the account after choosing it.
+				// A stale contact setting must not make /api/v1/instance fail.
+			}
+		}
 	}
 
 	/**
