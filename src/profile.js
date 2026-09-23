@@ -7,7 +7,7 @@ import { defineCustomElement, h } from 'vue'
 import pinia from './store/index.js'
 import ProfilePageIntegration from './views/ProfilePageIntegration.vue'
 import { generateFilePath } from '@nextcloud/router'
-import { registerProfileSection } from './services/profileSections.js'
+import { configureSocialProfileApp, registerProfileSection } from './services/profileSections.js'
 
 const requestToken = window.OC?.requestToken
 if (requestToken) {
@@ -33,6 +33,9 @@ const SocialProfileSectionElement = defineCustomElement({
 	// the store like every other timeline entry does — a boost used to reach
 	// for a store that was never installed here
 	configureApp(app) {
+		// Custom elements have their own Vue app, outside the app created by
+		// `main.js`. Install the same Nextcloud globals that its templates use.
+		configureSocialProfileApp(app, { OC: window.OC, OCA: window.OCA })
 		app.use(pinia)
 	},
 })

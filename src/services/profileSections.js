@@ -3,6 +3,23 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
+
+/**
+ * Install the Nextcloud globals used by Social templates in the profile app.
+ * A custom element owns a separate Vue app, so it cannot inherit the globals
+ * installed by the main Social entry.
+ *
+ * @param {object} app Vue app created by `defineCustomElement`
+ * @param {object} globals Nextcloud's `OC` and `OCA` globals
+ */
+export function configureSocialProfileApp(app, globals) {
+	app.config.globalProperties.t = t
+	app.config.globalProperties.n = n
+	app.config.globalProperties.OC = globals.OC
+	app.config.globalProperties.OCA = globals.OCA
+}
+
 /**
  * Register a Social section with the Nextcloud Profile app.
  *

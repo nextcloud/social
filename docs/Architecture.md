@@ -1377,7 +1377,11 @@ section because the registry did not exist yet; deferring to a timer or
 `DOMContentLoaded` runs too late, after the Profile page has already taken its
 initial section snapshot. `services/profileSections.js` intercepts the
 registry's first assignment and registers synchronously during that assignment,
-then restores the ordinary data property. Its tests cover both script orders.
+then restores the ordinary data property. The profile custom element also owns
+a separate Vue app, so it installs Social's normal Nextcloud globals (`t`, `n`,
+`OC` and `OCA`) before rendering; without them, the section mounted but its
+first translated label threw during render. Tests cover delayed and immediate
+registry creation and the custom element's global setup.
 
 ### Components
 
