@@ -1721,6 +1721,12 @@ portfolio API resolves posts as the anonymous internet, so followers-only posts
 cannot leak onto a public page. The route is covered alongside the public actor,
 followers, and following pages. Captions are plain text and `white-space:
 pre-line` preserves paragraph breaks without interpreting user HTML.
+The post route in `ActivityPubController` also matches any one-segment token
+under `/@{username}/…`; because controllers contribute attribute routes in
+filesystem order, it explicitly forwards the reserved `portfolio` token to
+`SocialPubController::portfolio()` before attempting post resolution. This
+keeps the public portfolio working on both cold anonymous loads and logged-in
+navigation regardless of route registration order.
 
 On the client, `TimelineSinglePost` asks for the post itself when nothing has
 loaded it — `timelineStore.fetchStatus()`, which is `GET /api/v1/statuses/{id}`.
