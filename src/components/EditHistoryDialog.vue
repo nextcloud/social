@@ -10,6 +10,14 @@
 		@update:open="$emit('close')">
 		<NcLoadingIcon v-if="loading" :size="32" class="history__loading" />
 
+		<p v-else-if="loadError" class="history__none">
+			{{ t('social', 'Could not load this post’s edit history.') }}
+		</p>
+
+		<p v-else-if="versions.length === 0 && editedAt" class="history__none">
+			{{ t('social', 'This post is marked as edited, but its revision history is unavailable.') }}
+		</p>
+
 		<p v-else-if="versions.length === 0" class="history__none">
 			{{ t('social', 'This post has not been edited.') }}
 		</p>
@@ -78,6 +86,12 @@ export default {
 			type: [Number, String],
 			required: true,
 		},
+
+		/** present when the status says an edit happened, even if revisions are absent */
+		editedAt: {
+			type: String,
+			default: '',
+		},
 	},
 
 	emits: ['close'],
@@ -86,6 +100,7 @@ export default {
 		return {
 			versions: [],
 			loading: true,
+			loadError: false,
 		}
 	},
 
@@ -120,7 +135,7 @@ export default {
 				this.versions = Array.isArray(data) ? data : []
 			} catch (error) {
 				logger.error('could not load the edit history', { error })
-				this.versions = []
+				this.loadError = true
 			} finally {
 				this.loading = false
 			}

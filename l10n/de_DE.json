@@ -142,6 +142,8 @@
     "This instance could not access the original image." : "Diese Instanz konnte nicht auf das Originalbild zugreifen.",
     "This instance could not read the image." : "Diese Instanz konnte das Bild nicht lesen.",
     "This instance could not cache the image." : "Diese Instanz konnte das Bild nicht zwischenspeichern.",
-    "No server deliveries are on record. Public posts go to your followers, mentioned accounts, and subscribed relays; Social does not broadcast them to every known server. Delivery records are kept for {days} days, so an older post may no longer have records." : "Für diesen Beitrag sind keine Zustellungen an Server verzeichnet. Öffentliche Beiträge gehen an deine Follower, erwähnte Konten und abonnierte Relays; Social sendet sie nicht an jeden bekannten Server. Zustellungsdaten werden {days} Tage lang aufbewahrt, daher sind sie bei älteren Beiträgen möglicherweise nicht mehr verfügbar."
+    "No server deliveries are on record. Public posts go to your followers, mentioned accounts, and subscribed relays; Social does not broadcast them to every known server. Delivery records are kept for {days} days, so an older post may no longer have records." : "Für diesen Beitrag sind keine Zustellungen an Server verzeichnet. Öffentliche Beiträge gehen an deine Follower, erwähnte Konten und abonnierte Relays; Social sendet sie nicht an jeden bekannten Server. Zustellungsdaten werden {days} Tage lang aufbewahrt, daher sind sie bei älteren Beiträgen möglicherweise nicht mehr verfügbar.",
+    "Could not load this post’s edit history." : "Der Bearbeitungsverlauf dieses Beitrags konnte nicht geladen werden.",
+    "This post is marked as edited, but its revision history is unavailable." : "Dieser Beitrag ist als bearbeitet markiert, aber sein Versionsverlauf ist nicht verfügbar."
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

@@ -19,9 +19,9 @@ const NcDialogStub = {
 	template: '<div class="dialog-stub"><slot /></div>',
 }
 
-function mountDialog() {
+function mountDialog(props = {}) {
 	return mount(EditHistoryDialog, {
-		props: { nid: 101 },
+		props: { nid: 101, ...props },
 		global: { stubs: { NcDialog: NcDialogStub } },
 	})
 }
@@ -133,12 +133,20 @@ describe('the edit history', () => {
 	})
 
 	/** A history that would not load is not worth an error over the post. */
-	it('shows the same when the server refuses', async () => {
+	it('explains that the history could not be loaded when the server refuses', async () => {
 		get.mockRejectedValue(new Error('nope'))
 
 		const wrapper = mountDialog()
 		await flushPromises()
 
-		expect(wrapper.text()).toContain('This post has not been edited.')
+		expect(wrapper.text()).toContain('Could not load this post’s edit history.')
+	})
+
+	it('does not say a visibly edited post was never edited when no revisions exist', async () => {
+		const wrapper = mountDialog({ editedAt: '2026-09-01T10:00:00Z' })
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('This post is marked as edited, but its revision history is unavailable.')
+		expect(wrapper.text()).not.toContain('This post has not been edited.')
 	})
 })

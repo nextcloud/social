@@ -385,6 +385,13 @@ describe('Composer', () => {
 			expect(wrapper.find('.char-ring').attributes('style')).toContain('--char-progress: 0.014')
 		})
 
+		it('keeps a break before the first block after bare text', async () => {
+			const { wrapper } = mountComposer()
+			await setContent(wrapper, 'one<div>two</div>')
+
+			expect(wrapper.vm.statusText).toBe('one\ntwo')
+		})
+
 		it('counts an escaped entity as the character it stands for', async () => {
 			const { wrapper } = mountComposer()
 			await setContent(wrapper, 'a &amp; b')
