@@ -9,7 +9,6 @@
 		</h2>
 		<ul v-if="profileCounts.length" class="social-profile__counts" :aria-label="t('social', 'Social profile counts')">
 			<li v-for="count in profileCounts" :key="count.key" class="social-profile__count">
-				<span class="social-profile__count-value">{{ count.value }}</span>
 				<span class="social-profile__count-label">{{ count.label }}</span>
 			</li>
 		</ul>
@@ -63,17 +62,14 @@ export default {
 			return [
 				{
 					key: 'posts',
-					value: formatCount(statuses),
 					label: translatePlural('social', '{count} post', '{count} posts', statuses, { count: formatCount(statuses) }),
 				},
 				{
 					key: 'following',
-					value: formatCount(following),
 					label: translatePlural('social', '{count} following', '{count} following', following, { count: formatCount(following) }),
 				},
 				{
 					key: 'followers',
-					value: formatCount(followers),
 					label: translatePlural('social', '{count} follower', '{count} followers', followers, { count: formatCount(followers) }),
 				},
 			]
@@ -124,17 +120,11 @@ export default {
 }
 
 .social-profile__count {
-	align-items: baseline;
 	background: var(--color-background-dark, var(--color-background-hover));
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large, 12px);
 	display: inline-flex;
-	gap: 0.4rem;
 	padding: 0.4rem 0.65rem;
-}
-
-.social-profile__count-value {
-	font-weight: 700;
 }
 
 .social-profile__count-label {
