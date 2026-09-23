@@ -556,6 +556,7 @@ class LocalController extends Controller {
 	}
 
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/account/{username}/info')]
 	public function accountInfo(string $username): DataResponse {
@@ -581,6 +582,7 @@ class LocalController extends Controller {
 	 * throttles a single WebFinger lookup for the same reason.
 	 */
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	#[PublicPage]
 	#[AnonRateLimit(limit: 10, period: 300)]
 	#[UserRateLimit(limit: 120, period: 60)]
