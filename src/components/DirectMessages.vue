@@ -10,12 +10,19 @@
 			'direct-messages--composing': newMessageOpen,
 		}">
 		<aside class="direct-messages__list-panel" :aria-label="t('social', 'Direct message conversations')">
-			<div class="direct-messages__list-heading">
-				<h2>{{ t('social', 'Conversations') }}</h2>
-				<NcButton variant="primary" @click="newMessageOpen = !newMessageOpen">
+			<header class="direct-messages__list-heading">
+				<div>
+					<p class="direct-messages__eyebrow">{{ t('social', 'SOCIAL') }}</p>
+					<h2>{{ t('social', 'Messages') }}</h2>
+				</div>
+				<NcButton variant="primary" class="direct-messages__new-button" @click="newMessageOpen = !newMessageOpen">
 					{{ t('social', 'New message') }}
 				</NcButton>
-			</div>
+			</header>
+			<label class="direct-messages__search">
+				<span class="hidden-visually">{{ t('social', 'Search conversations') }}</span>
+				<input v-model="searchQuery" type="search" :placeholder="t('social', 'Search conversations')">
+			</label>
 
 			<p v-if="loadingList" class="direct-messages__state" role="status">
 				{{ t('social', 'Loading conversations…') }}
@@ -26,9 +33,12 @@
 			<p v-else-if="conversations.length === 0" class="direct-messages__state">
 				{{ t('social', 'No direct conversations yet') }}
 			</p>
+			<p v-else-if="filteredConversations.length === 0" class="direct-messages__state">
+				{{ t('social', 'No conversations match your search') }}
+			</p>
 
 			<ul v-else class="direct-messages__list">
-				<li v-for="conversation in conversations" :key="conversation.id">
+				<li v-for="conversation in filteredConversations" :key="conversation.id">
 					<button
 						class="direct-messages__conversation"
 						:class="{
@@ -45,14 +55,10 @@
 							:size="40"
 							:link="false" />
 						<span class="direct-messages__conversation-copy">
-							<span class="direct-messages__conversation-title">
-								{{ conversationName(conversation) }}
-								<span v-if="conversation.unread" class="direct-messages__unread">
-									{{ t('social', 'Unread') }}
-								</span>
-							</span>
-							<span class="direct-messages__preview">{{ preview(conversation.last_status) }}</span>
+							<span class="direct-messages__conversation-title">{{ conversationName(conversation) }}</span>
+							<span class="direct-messages__preview">{{ preview(conversation.last_status) || t('social', 'No messages yet') }}</span>
 						</span>
+						<span v-if="conversation.unread" class="direct-messages__unread-dot" :aria-label="t('social', 'Unread')"></span>
 					</button>
 				</li>
 			</ul>
@@ -63,7 +69,10 @@
 				<NcButton class="direct-messages__back" variant="tertiary" @click="newMessageOpen = false">
 					{{ t('social', 'Back to conversations') }}
 				</NcButton>
-				<h2>{{ t('social', 'New message') }}</h2>
+				<div>
+					<p class="direct-messages__eyebrow">{{ t('social', 'PRIVATE MESSAGE') }}</p>
+					<h2>{{ t('social', 'New message') }}</h2>
+				</div>
 			</header>
 			<Composer class="direct-messages__new-message-composer" defaultVisibility="direct" @posted="onNewMessagePosted" />
 		</section>
@@ -73,7 +82,15 @@
 				<NcButton class="direct-messages__back" variant="tertiary" @click="$emit('select', '')">
 					{{ t('social', 'Back to conversations') }}
 				</NcButton>
-				<h2>{{ conversationName(activeConversation) }}</h2>
+				<ActorAvatar
+					v-if="activeConversation.accounts?.[0]"
+					:actor="activeConversation.accounts[0]"
+					:size="40"
+					:link="false" />
+				<div class="direct-messages__thread-person">
+					<h2>{{ conversationName(activeConversation) }}</h2>
+					<p>{{ t('social', 'Private conversation') }}</p>
+				</div>
 			</header>
 
 			<p v-if="loadingThread" class="direct-messages__state" role="status">
@@ -106,7 +123,12 @@
 		</section>
 
 		<section v-else class="direct-messages__thread-panel direct-messages__thread-panel--empty">
-			<p>{{ t('social', 'Choose a conversation to read') }}</p>
+			<div class="direct-messages__welcome">
+				<div class="direct-messages__welcome-mark" aria-hidden="true">✉</div>
+				<h2>{{ t('social', 'Your messages, together') }}</h2>
+				<p>{{ t('social', 'Choose a conversation to pick up where you left off, or start a new one.') }}</p>
+				<NcButton variant="primary" @click="newMessageOpen = true">{{ t('social', 'New message') }}</NcButton>
+			</div>
 		</section>
 	</section>
 </template>
@@ -142,6 +164,7 @@ export default {
 	data() {
 		return {
 			conversations: [],
+			searchQuery: '',
 			loadingList: true,
 			listError: false,
 			loadingThread: false,
@@ -153,6 +176,15 @@ export default {
 	},
 
 	computed: {
+		filteredConversations() {
+			const query = this.searchQuery.trim().toLocaleLowerCase()
+			if (!query) {
+				return this.conversations
+			}
+			return this.conversations.filter((conversation) => this.conversationName(conversation).toLocaleLowerCase().includes(query)
+				|| this.preview(conversation.last_status).toLocaleLowerCase().includes(query))
+		},
+
 		activeConversation() {
 			return this.conversations.find((conversation) => String(conversation.id) === this.selectedConversationId) ?? null
 		},
@@ -296,8 +328,9 @@ export default {
 <style scoped>
 .direct-messages {
 	display: grid;
-	grid-template-columns: minmax(17rem, 0.7fr) minmax(0, 1.8fr);
-	min-height: min(70vh, 48rem);
+	grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr);
+	min-height: min(72vh, 52rem);
+	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
@@ -312,22 +345,60 @@ export default {
 
 .direct-messages__list-panel {
 	border-right: 1px solid var(--color-border);
+	background: var(--color-background-dark);
 }
 
 .direct-messages__list-heading,
 .direct-messages__thread-heading {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-	padding: 0.75rem 1rem;
+	gap: 0.8rem;
+	min-height: 5rem;
+	padding: 0.9rem 1.15rem;
 	border-bottom: 1px solid var(--color-border);
+}
+
+.direct-messages__list-heading {
+	justify-content: space-between;
+	background: var(--color-main-background);
 }
 
 .direct-messages__list-heading h2,
 .direct-messages__thread-heading h2 {
 	margin: 0;
-	font-size: 1rem;
+	font-size: 1.15rem;
+	font-weight: 650;
+}
+
+.direct-messages__eyebrow {
+	margin: 0 0 0.15rem;
+	color: var(--color-text-maxcontrast);
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.09em;
+}
+
+.direct-messages__search {
+	display: block;
+	padding: 0.75rem 0.9rem;
+	background: var(--color-main-background);
+}
+
+.direct-messages__search input {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 2.6rem;
+	padding: 0 0.75rem;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	font: inherit;
+}
+
+.direct-messages__search input:focus-visible {
+	outline: 2px solid var(--color-primary-element);
+	outline-offset: 1px;
 }
 
 .direct-messages__list {
@@ -335,6 +406,7 @@ export default {
 	margin: 0;
 	padding: 0;
 	overflow-y: auto;
+	background: var(--color-main-background);
 }
 
 .direct-messages__conversation {
@@ -342,7 +414,8 @@ export default {
 	width: 100%;
 	align-items: center;
 	gap: 0.75rem;
-	padding: 0.8rem 1rem;
+	min-height: 5.2rem;
+	padding: 0.75rem 0.9rem;
 	border: 0;
 	border-bottom: 1px solid var(--color-border);
 	background: transparent;
@@ -356,14 +429,19 @@ export default {
 	background: var(--color-background-hover);
 }
 
+.direct-messages__conversation--selected {
+	box-shadow: inset 3px 0 var(--color-primary-element);
+}
+
 .direct-messages__conversation--unread .direct-messages__conversation-title {
 	font-weight: 700;
 }
 
 .direct-messages__conversation-copy {
 	display: grid;
+	flex: 1;
 	min-width: 0;
-	gap: 0.25rem;
+	gap: 0.35rem;
 }
 
 .direct-messages__conversation-title,
@@ -378,34 +456,54 @@ export default {
 	font-size: 0.9rem;
 }
 
-.direct-messages__unread {
-	margin-left: 0.4rem;
-	color: var(--color-primary-element);
-	font-size: 0.8rem;
+.direct-messages__unread-dot {
+	flex: 0 0 auto;
+	width: 0.55rem;
+	height: 0.55rem;
+	border-radius: 50%;
+	background: var(--color-primary-element);
 }
 
 .direct-messages__state {
-	margin: auto;
-	padding: 1rem;
+	margin: auto 0;
+	padding: 1.5rem 1rem;
+	color: var(--color-text-maxcontrast);
 	text-align: center;
 }
 
 .direct-messages__thread-panel--empty {
 	color: var(--color-text-maxcontrast);
+	background: radial-gradient(ellipse at center, var(--color-background-hover), var(--color-main-background) 68%);
+}
+
+.direct-messages__thread-heading {
+	background: var(--color-main-background);
+}
+
+.direct-messages__thread-person {
+	min-width: 0;
+}
+
+.direct-messages__thread-person p {
+	margin: 0.15rem 0 0;
+	color: var(--color-text-maxcontrast);
+	font-size: 0.85rem;
 }
 
 .direct-messages__thread {
 	display: flex;
 	flex: 1;
 	flex-direction: column;
-	gap: 0.5rem;
+	gap: 0.7rem;
 	min-height: 0;
-	padding: 1rem;
+	padding: 1.2rem clamp(1rem, 4vw, 3rem);
 	overflow-y: auto;
+	background: var(--color-background-dark);
 }
 
 .direct-messages__thread :deep(.timeline-entry) {
 	max-width: 100%;
+	border-radius: var(--border-radius-large);
 }
 
 .direct-messages__composer {
@@ -426,10 +524,41 @@ export default {
 	display: none;
 }
 
+.direct-messages__welcome {
+	max-width: 27rem;
+	margin: auto;
+	padding: 2rem;
+	text-align: center;
+}
+
+.direct-messages__welcome-mark {
+	display: grid;
+	width: 4rem;
+	height: 4rem;
+	margin: 0 auto 1.25rem;
+	place-items: center;
+	border: 1px solid var(--color-border);
+	border-radius: 50%;
+	background: var(--color-main-background);
+	color: var(--color-primary-element);
+	font-size: 1.8rem;
+}
+
+.direct-messages__welcome h2 {
+	margin: 0 0 0.5rem;
+	color: var(--color-main-text);
+	font-size: 1.35rem;
+}
+
+.direct-messages__welcome p {
+	margin: 0 0 1.25rem;
+	line-height: 1.55;
+}
+
 @media (max-width: 700px) {
 	.direct-messages {
 		grid-template-columns: minmax(0, 1fr);
-		min-height: 28rem;
+		min-height: min(75vh, 46rem);
 	}
 
 	.direct-messages__list-panel {
@@ -443,6 +572,14 @@ export default {
 
 	.direct-messages__back {
 		display: inline-flex;
+	}
+
+	.direct-messages__thread-heading {
+		padding-inline: 0.75rem;
+	}
+
+	.direct-messages__new-button {
+		max-width: 8rem;
 	}
 }
 </style>

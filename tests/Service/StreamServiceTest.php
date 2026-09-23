@@ -970,6 +970,15 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame(ACore::FORMAT_LOCAL, $parent->getExportFormat());
 	}
 
+	public function testGetContextByNidNormalizesTheStringFromAClientRoute(): void {
+		$post = $this->note('https://social.example/@alice/1789250751711653456', self::ACTOR_ID);
+		$this->streamRequest->expects($this->once())->method('getStreamByNid')
+			->with(1789250751711653456)->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([]);
+
+		$this->service->getContextByNid('1789250751711653456');
+	}
+
 	public function testGetContextByNidStopsAtAncestorsTheViewerCannotSee(): void {
 		$post = $this->note('https://social.example/@alice/3', self::ACTOR_ID, 'https://social.example/@alice/2');
 		$this->streamRequest->method('getStreamByNid')->willReturn($post);

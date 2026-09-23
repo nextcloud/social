@@ -1742,6 +1742,15 @@ reader on a page with a blue header, a "Get your own free account" banner and a
 Follow button that started the remote-follow flow for an account they could have
 followed with one click. An ActivityPub request is untouched by any of it.
 
+For an anonymous reader, both the profile shell and the resolved single-post
+shell are `PublicTemplateResponse`s. This detail matters after the post has
+been resolved: an ordinary `TemplateResponse` is private by default, so
+Nextcloud redirects the visitor to `/login` during the document request and
+throws away the already-rendered public status. The public single-post shell
+also receives the safe `serverData` state and serialized status before Vue
+starts; the guest timeline does not need a session to fetch the surrounding
+public context. Authenticated readers still get the normal `navigate()` shell.
+
 The app writes its own links to a post as `/@acct/<nid>` — the numeric id its
 client API uses — while the address a post is published under ends in a
 different token, and the post used to be looked up by that address alone. So a
@@ -1790,6 +1799,14 @@ loaded it — `timelineStore.fetchStatus()`, which is `GET /api/v1/statuses/{id}
 page reached from anywhere outside a timeline had nothing to draw. A tile on
 Discover is exactly that: those posts belong to the Discover view and never
 reach the timeline store.
+
+The route parameter for `/context` is a string even when its contents are a
+numeric status id. `StreamService::getContextByNid()` normalizes that decimal
+string with `Nid::fromStorage()` before it reaches the query builder, whose
+integer predicate rejects numeric strings under strict typing. Without that
+boundary conversion, the public post shell could render its initial status, but
+the follow-up context request returned 500 and the page displayed a timeline
+load error.
 
 **The pictures on Discover** were not drawn at all, and had not been since the
 tab was added. `ProfileMediaGrid` builds each tile's route with the grid's
@@ -2051,6 +2068,16 @@ own profile is a page you post from, the way the home timeline is; somebody
 else's is a page you read. The sub-routes go with it: a list of followers is not
 a place to post from either. Direct messages are still written from the Direct
 messages timeline, which sets the visibility the same way.
+
+`DirectMessages.vue` lays that timeline out as an inbox: the left column owns
+search, unread indicators and the list; the right column owns the selected
+thread, reply composer, or first-use empty state. Search filters the loaded
+conversation participants and latest-message previews without changing the
+API request or route selection. Opening a thread still fetches its context and
+marks it read; sending a reply stays direct and targets the latest message.
+Starting a message uses the wide thread workspace so the recipient and post
+composer do not have to share the narrow conversation-list column. At mobile
+width the view becomes a single pane, and its Back button returns to the list.
 
 **The tab also decides how it is drawn**, and there is nothing beside it to say otherwise: Posts is what somebody wrote, so it is a list of posts; Photos and Videos are what they showed, so they are grids. There used to be a grid/list switch here, remembered across profiles, and it could disagree with the tab — `ProfileMediaGrid` kept only the posts carrying a picture, so Posts showed sixteen of them as a list and three as a grid, with nothing to say where the other thirteen had gone. One question, one answer. The empty state comes from `TimelineList` in both views for the same reason: the grid carried one of its own that said "No photos yet" whatever the tab was, so an account with no videos was told it had no photos.
 

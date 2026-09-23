@@ -54,7 +54,7 @@ describe('DirectMessages', () => {
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations', { params: { limit: 40 } })
 		expect(wrapper.find('.direct-messages__list').text()).toContain('Bob')
 		expect(wrapper.find('.direct-messages__preview').text()).toBe('Latest reply')
-		expect(wrapper.find('.direct-messages__unread').text()).toBe('Unread')
+		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(true)
 	})
 
 	it('emits the selected conversation id for the route to remember', async () => {
@@ -75,6 +75,28 @@ describe('DirectMessages', () => {
 		expect(wrapper.find('.direct-messages__list-panel .composer-stub').exists()).toBe(false)
 	})
 
+	it('filters the inbox by the other participant and latest message', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.find('.direct-messages__search input').setValue('nobody')
+
+		expect(wrapper.find('.direct-messages__conversation').exists()).toBe(false)
+		expect(wrapper.find('.direct-messages__state').text()).toBe('No conversations match your search')
+
+		await wrapper.find('.direct-messages__search input').setValue('latest')
+		expect(wrapper.find('.direct-messages__conversation').exists()).toBe(true)
+	})
+
+	it('offers a clear empty inbox and a direct way to start a message', async () => {
+		get.mockResolvedValue({ data: [] })
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__welcome').text()).toContain('Your messages, together')
+		await wrapper.find('.direct-messages__welcome button').trigger('click')
+		expect(wrapper.find('.direct-messages__new-message-panel').exists()).toBe(true)
+	})
+
 	it('shows the whole thread, marks it read, and replies directly to its latest message', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
@@ -84,7 +106,7 @@ describe('DirectMessages', () => {
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/11/context')
 		expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-id'))).toEqual(['9', '11', '12'])
 		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
-		expect(wrapper.find('.direct-messages__unread').exists()).toBe(false)
+		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
 		expect(wrapper.find('.composer-stub').attributes('data-visibility')).toBe('direct')
 		expect(wrapper.find('.composer-stub').attributes('data-reply')).toBe('11')
 	})
@@ -95,7 +117,7 @@ describe('DirectMessages', () => {
 		await flushPromises()
 
 		expect(wrapper.find('.direct-messages__state').text()).toBe('No direct conversations yet')
-		expect(wrapper.find('.direct-messages__thread-panel--empty').text()).toContain('Choose a conversation to read')
+		expect(wrapper.find('.direct-messages__thread-panel--empty').text()).toContain('Choose a conversation to pick up where you left off')
 	})
 
 	it('keeps failed read markers from hiding a loaded thread', async () => {
@@ -107,6 +129,6 @@ describe('DirectMessages', () => {
 
 		expect(wrapper.findAll('.message-stub')).toHaveLength(3)
 		expect(wrapper.find('.direct-messages__state[role="alert"]').exists()).toBe(false)
-		expect(wrapper.find('.direct-messages__unread').exists()).toBe(true)
+		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(true)
 	})
 })

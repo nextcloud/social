@@ -39,6 +39,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IURLGenerator;
@@ -561,6 +562,10 @@ class StreamService {
 	 * @return array
 	 */
 	public function getContextByNid(int|string $nid): array {
+		// Router path parameters arrive as decimal strings. Normalize the id at
+		// the service boundary before it reaches the query builder, whose
+		// integer predicate cannot accept even an in-range numeric string.
+		$nid = Nid::fromStorage($nid);
 		$curr = $post = $this->streamRequest->getStreamByNid($nid);
 
 		$ancestors = [];

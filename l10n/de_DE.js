@@ -227,6 +227,15 @@ OC.L10N.register(
     "{count} followers" : "{count} Follower",
 ,
     "Social profile" : "Social-Profil",
-    "New direct message" : "Neue Direktnachricht"
+    "New direct message" : "Neue Direktnachricht",
+    "SOCIAL" : "SOCIAL",
+    "Messages" : "Nachrichten",
+    "Search conversations" : "Unterhaltungen durchsuchen",
+    "No conversations match your search" : "Keine Unterhaltung passt zu deiner Suche",
+    "No messages yet" : "Noch keine Nachrichten",
+    "PRIVATE MESSAGE" : "PRIVATE NACHRICHT",
+    "Private conversation" : "Private Unterhaltung",
+    "Your messages, together" : "Deine Nachrichten an einem Ort",
+    "Choose a conversation to pick up where you left off, or start a new one." : "Wähle eine Unterhaltung aus, um weiterzuschreiben, oder beginne eine neue."
 },
 "nplurals=2; plural=(n != 1);");

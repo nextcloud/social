@@ -250,7 +250,7 @@ class SocialPubControllerTest extends TestCase {
 		$response = $this->controller(null)->displayPost('alice', 'abc');
 
 		$this->assertInstanceOf(TemplateResponse::class, $response);
-		$this->assertNotInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
 		$this->assertSame('main', $response->getTemplateName());
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($post, $this->states['item']);

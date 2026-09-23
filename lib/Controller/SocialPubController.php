@@ -249,7 +249,12 @@ class SocialPubController extends Controller {
 			'setup' => false,
 		]);
 
-		return new TemplateResponse(Application::APP_ID, 'main', []);
+		// A TemplateResponse is private by default: Nextcloud redirects a
+		// visitor to /login while the page is loading, even though the public
+		// post was already resolved above. Serve the same app shell as the
+		// anonymous timeline route so a cold link and an in-app navigation have
+		// the same public access rules.
+		return new PublicTemplateResponse(Application::APP_ID, 'main');
 	}
 
 	/**
