@@ -167,6 +167,41 @@ class TranslatableStringsTest extends TestCase {
 	}
 
 	/**
+	 * The sidebar and post action menu are high-traffic surfaces whose English
+	 * fallbacks were visible in the German screenshots for issue #2282. A new
+	 * label in either component must be present in both catalog formats that
+	 * Nextcloud serves.
+	 */
+	public function testSidebarAndPostActionsHaveGermanCatalogEntries(): void {
+		$files = ['src/components/Navigation.vue', 'src/components/TimelinePost.vue'];
+		$messages = [];
+		foreach (self::singulars() as $message => $paths) {
+			if (array_intersect($files, $paths) !== []) {
+				$messages[] = $message;
+			}
+		}
+
+		$catalogPath = dirname(__DIR__) . '/l10n/de_DE.json';
+		$catalog = json_decode((string)file_get_contents($catalogPath), true, 512, JSON_THROW_ON_ERROR)['translations'];
+		$jsCatalog = (string)file_get_contents(dirname(__DIR__) . '/l10n/de_DE.js');
+		$missing = [];
+		foreach ($messages as $message) {
+			if (!array_key_exists($message, $catalog)) {
+				$missing[] = $message;
+				continue;
+			}
+
+			$key = json_encode($message, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+			$value = json_encode($catalog[$message], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+			if (!str_contains($jsCatalog, $key . ' : ' . $value)) {
+				$missing[] = $message . ' (JavaScript catalog)';
+			}
+		}
+
+		$this->assertSame([], $missing, 'navigation and post action labels must be translated in both German catalogs');
+	}
+
+	/**
 	 * The extractor has to be told what not to read, or it offers the built
 	 * bundle's copy of every string a second time and every dependency's
 	 * strings besides.
