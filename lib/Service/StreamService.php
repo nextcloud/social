@@ -583,10 +583,22 @@ class StreamService {
 			}
 		}
 
-		return [
+		$context = [
 			'ancestors' => array_reverse($ancestors),
 			'descendants' => $this->streamRequest->getDescendants($post->getId())
 		];
+		$this->attachCardsToPosts(array_merge($context['ancestors'], $context['descendants']));
+
+		return $context;
+	}
+
+	/**
+	 * Attach saved website preview cards to a batch of locally rendered statuses.
+	 *
+	 * @param Stream[] $posts
+	 */
+	public function attachCardsToPosts(array $posts): void {
+		$this->linkPreviewService->attachCards($posts);
 	}
 
 	/**

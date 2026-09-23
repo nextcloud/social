@@ -961,6 +961,7 @@ class StreamServiceTest extends TestCase {
 				[$root->getId(), true, ACore::FORMAT_ACTIVITYPUB, $root],
 			]);
 		$this->streamRequest->method('getDescendants')->with($post->getId())->willReturn([$reply]);
+		$this->linkPreviewService->expects($this->once())->method('attachCards')->with([$root, $parent, $reply]);
 
 		$context = $this->service->getContextByNid(3);
 

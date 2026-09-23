@@ -53,6 +53,9 @@
 			<p v-else-if="listError" class="direct-messages__state" role="alert">
 				{{ t('social', 'Could not load conversations') }}
 			</p>
+			<p v-if="removeError" class="direct-messages__state" role="alert">
+				{{ t('social', 'Could not remove conversation') }}
+			</p>
 			<div v-else-if="conversations.length === 0" class="direct-messages__inbox-empty">
 				<MessageOutline :size="24" aria-hidden="true" />
 				<strong>{{ t('social', 'No conversations yet') }}</strong>
@@ -68,25 +71,38 @@
 				<li v-for="conversation in filteredConversations" :key="conversation.id">
 					<NcListItem
 						class="direct-messages__conversation"
+						:forceDisplayActions="true"
 						:name="conversationName(conversation)"
 						:details="formatTime(conversation.last_status?.created_at)"
 						:active="String(conversation.id) === selectedConversationId"
 						:bold="conversation.unread"
+						:actionsAriaLabel="t('social', 'Conversation actions')"
 						:linkAriaLabel="t('social', 'Conversation with {name}', { name: conversationName(conversation) })"
 						@click="selectConversation(String(conversation.id), $event)">
 						<template #icon>
 							<ActorAvatar
-								v-if="conversation.accounts?.[0]"
-								:actor="conversation.accounts[0]"
+								v-if="conversationPeer(conversation)"
+								:actor="conversationPeer(conversation)"
 								:size="40"
 								:link="false"
 								class="direct-messages__conversation-avatar" />
 						</template>
 						<template #subname>
-							<span class="direct-messages__preview">{{ preview(conversation.last_status) || t('social', 'No messages yet') }}</span>
+							<span class="direct-messages__preview">{{ preview(conversation.last_status, conversation) || t('social', 'No messages yet') }}</span>
 						</template>
 						<template #indicator>
 							<span v-if="conversation.unread" class="direct-messages__unread-dot" :aria-label="t('social', 'Unread')" />
+						</template>
+						<template #actions>
+							<NcActionButton
+								:closeAfterClick="true"
+								:disabled="removingConversationId === String(conversation.id)"
+								@click.stop="removeConversation(conversation)">
+								<template #icon>
+									<DeleteOutline :size="20" />
+								</template>
+								{{ t('social', 'Remove conversation') }}
+							</NcActionButton>
 						</template>
 					</NcListItem>
 				</li>
@@ -186,8 +202,8 @@
 					{{ t('social', 'Back to conversations') }}
 				</NcButton>
 				<ActorAvatar
-					v-if="activeConversation.accounts?.[0]"
-					:actor="activeConversation.accounts[0]"
+					v-if="conversationPeer(activeConversation)"
+					:actor="conversationPeer(activeConversation)"
 					:size="40"
 					:link="false" />
 				<div class="direct-messages__thread-person">
@@ -271,6 +287,7 @@
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcListItem from '@nextcloud/vue/components/NcListItem'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
@@ -278,6 +295,7 @@ import axios from '@nextcloud/axios'
 import ActorAvatar from './ActorAvatar.vue'
 import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
 import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
+import DeleteOutline from 'vue-material-design-icons/DeleteOutline.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import { htmlToPlainText } from '../utils/plainText.js'
 import logger from '../services/logger.js'
@@ -288,6 +306,8 @@ export default {
 		ActorAvatar,
 		MessageOutline,
 		MessagePlusOutline,
+		DeleteOutline,
+		NcActionButton,
 		NcButton,
 		NcListItem,
 		NcTextArea,
@@ -329,6 +349,8 @@ export default {
 			accountSearchRequest: 0,
 			suggestionsRequest: 0,
 			threadRequest: 0,
+			removingConversationId: '',
+			removeError: false,
 		}
 	},
 
@@ -337,7 +359,7 @@ export default {
 			const query = this.searchQuery.trim().toLocaleLowerCase()
 			return this.conversations.filter((conversation) => (this.filterMode !== 'unread' || conversation.unread)
 				&& (!query || this.conversationName(conversation).toLocaleLowerCase().includes(query)
-					|| this.preview(conversation.last_status).toLocaleLowerCase().includes(query)))
+					|| this.preview(conversation.last_status, conversation).toLocaleLowerCase().includes(query)))
 		},
 
 		unreadCount() {
@@ -616,10 +638,12 @@ export default {
 		},
 
 		conversationName(conversation) {
-			const names = (conversation.accounts ?? [])
-				.map((account) => account.display_name || account.acct || account.username)
-				.filter(Boolean)
-			return names.join(', ') || t('social', 'Unknown account')
+			const peer = this.conversationPeer(conversation)
+			return peer?.display_name || peer?.acct || peer?.username || t('social', 'Unknown account')
+		},
+
+		conversationPeer(conversation) {
+			return (conversation?.accounts ?? []).find((account) => account.acct !== this.currentUserId && account.username !== this.currentUserId) ?? conversation?.accounts?.[0] ?? null
 		},
 
 		selectConversation(id, event) {
@@ -630,8 +654,8 @@ export default {
 			this.$emit('select', id)
 		},
 
-		preview(status) {
-			return htmlToPlainText(this.withoutProtocolRecipient(status)).replace(/\s+/g, ' ').trim()
+		preview(status, conversation = null) {
+			return htmlToPlainText(this.withoutProtocolRecipient(status, this.conversationPeer(conversation))).replace(/\s+/g, ' ').trim()
 		},
 
 		/**
@@ -639,11 +663,11 @@ export default {
 		 * It is routing metadata in this view; the chat header already identifies
 		 * the peer, so repeating that mention in every bubble is noise.
 		 *
-		 * @param {object} message
+		 * @param {object} message Direct message status.
 		 * @return {object} the original message unless a leading protocol mention was removed
 		 */
 		messageForDisplay(message) {
-			const content = this.withoutProtocolRecipient(message)
+			const content = this.withoutProtocolRecipient(message, this.conversationPeer(this.activeConversation))
 			return content === message.content ? message : { ...message, content }
 		},
 
@@ -651,10 +675,11 @@ export default {
 		 * Remove only the first ActivityPub h-card at the start of a direct
 		 * message. Other mentions in the message body keep their meaning.
 		 *
-		 * @param {object} message
+		 * @param {object} message Direct message status.
+		 * @param {object|null} recipient Conversation partner whose routing mention is hidden.
 		 * @return {string}
 		 */
-		withoutProtocolRecipient(message) {
+		withoutProtocolRecipient(message, recipient = null) {
 			const content = message?.content ?? ''
 			if (message?.visibility !== 'direct' || !content || typeof document === 'undefined') {
 				return content
@@ -667,7 +692,23 @@ export default {
 			while (first?.nodeType === Node.TEXT_NODE && !first.textContent.trim()) {
 				first = first.nextSibling
 			}
-			if (first?.nodeType !== Node.ELEMENT_NODE || !first.matches('.h-card')) {
+			if (first?.nodeType === Node.TEXT_NODE) {
+				const leadingMention = first.textContent.match(/^(\s*)@([\w.-]+(?:@[\w.-]+)?)(?=\s|$)/u)
+				if (!leadingMention || !this.isProtocolRecipient(leadingMention[2], recipient)) {
+					return content
+				}
+				first.textContent = first.textContent.slice(leadingMention[0].length).replace(/^\s+/, '')
+				if (!first.textContent.trim()) {
+					first.remove()
+				}
+				return wrapper.innerHTML
+			}
+			if (first?.nodeType !== Node.ELEMENT_NODE || !first.matches('.h-card, .mention, a.mention, span.mention')) {
+				return content
+			}
+			const linkedAccount = first.querySelector('a[href]')?.getAttribute('href') ?? first.getAttribute('href') ?? ''
+			const visibleMention = first.textContent.replace(/^@/, '').trim()
+			if (!this.isProtocolRecipient(visibleMention, recipient, linkedAccount) && !first.matches('.h-card')) {
 				return content
 			}
 
@@ -681,6 +722,33 @@ export default {
 			}
 
 			return wrapper.innerHTML
+		},
+
+		isProtocolRecipient(mention, recipient, href = '') {
+			if (!recipient) {
+				return true
+			}
+			const values = [recipient.acct, recipient.username, recipient.preferred_username].filter(Boolean).map((value) => String(value).replace(/^@/, '').toLocaleLowerCase())
+			const normalizedMention = String(mention).replace(/^@/, '').toLocaleLowerCase()
+			return values.includes(normalizedMention) || (href && values.some((value) => href.toLocaleLowerCase().includes(value)))
+		},
+
+		async removeConversation(conversation) {
+			const id = String(conversation.id)
+			this.removingConversationId = id
+			this.removeError = false
+			try {
+				await axios.delete(generateUrl(`/apps/social/api/v1/conversations/${encodeURIComponent(id)}`))
+				this.conversations = this.conversations.filter((item) => String(item.id) !== id)
+				if (this.selectedConversationId === id) {
+					this.$emit('select', '')
+				}
+			} catch (error) {
+				logger.error('Could not remove direct message conversation', { error, id })
+				this.removeError = true
+			} finally {
+				this.removingConversationId = ''
+			}
 		},
 
 		formatTime(value) {

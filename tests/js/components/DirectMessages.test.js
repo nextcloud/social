@@ -18,9 +18,10 @@ const context = {
 const stubs = {
 	ActorAvatar: { props: ['actor', 'size', 'link'], template: '<span class="avatar-stub">{{ actor.display_name }}</span>' },
 	NcButton: { template: '<button v-bind="$attrs"><slot /></button>' },
+	NcActionButton: { template: '<button v-bind="$attrs"><slot name="icon" /><slot /></button>' },
 	NcListItem: {
 		props: ['name', 'details', 'active', 'bold', 'linkAriaLabel'],
-		template: '<button v-bind="$attrs" class="native-list-item-stub"><slot name="icon" /><span>{{ name }}</span><slot name="subname" /><slot name="indicator" /></button>',
+		template: '<button v-bind="$attrs" class="native-list-item-stub"><slot name="icon" /><span>{{ name }}</span><slot name="subname" /><slot name="indicator" /><span class="native-actions"><slot name="actions" /></span></button>',
 	},
 	NcTextField: {
 		props: ['modelValue', 'label', 'placeholder', 'type'],
@@ -45,6 +46,7 @@ function mountMessages(selectedConversationId = '') {
 describe('DirectMessages', () => {
 	let get
 	let post
+	let remove
 
 	beforeEach(() => {
 		get = vi.spyOn(axios, 'get').mockImplementation(async (url) => {
@@ -54,6 +56,7 @@ describe('DirectMessages', () => {
 			return { data: context }
 		})
 		post = vi.spyOn(axios, 'post').mockResolvedValue({ data: conversation })
+		remove = vi.spyOn(axios, 'delete').mockResolvedValue({ data: {} })
 	})
 
 	afterEach(() => {
@@ -200,7 +203,7 @@ describe('DirectMessages', () => {
 	})
 
 	it('hides only the leading protocol recipient mention in direct message bubbles and previews', async () => {
-		const wrapper = mountMessages()
+		const wrapper = mountMessages('10')
 		await flushPromises()
 		const message = {
 			visibility: 'direct',
@@ -212,6 +215,24 @@ describe('DirectMessages', () => {
 		expect(message.content).toContain('bob')
 		expect(wrapper.vm.preview(message)).toBe('hello @carol')
 		expect(wrapper.vm.messageForDisplay({ ...message, visibility: 'public' }).content).toContain('@bob')
+	})
+
+	it('removes recipient routing mentions returned as ordinary links or plain text', async () => {
+		const wrapper = mountMessages('10')
+		await flushPromises()
+		expect(wrapper.vm.messageForDisplay({ visibility: 'direct', content: '<p><a class="mention" href="https://remote.example/@bob">@bob@remote.example</a> hello</p>' }).content).toBe('<p>hello</p>')
+		expect(wrapper.vm.messageForDisplay({ visibility: 'direct', content: '<p>@bob@remote.example hello</p>' }).content).toBe('<p>hello</p>')
+		expect(wrapper.vm.messageForDisplay({ visibility: 'direct', content: '<p><a class="mention" href="https://elsewhere.example/@carol">@carol</a> hello</p>' }).content).toContain('@carol')
+	})
+
+	it('dismisses a conversation from the inbox using the native row action', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.find('.native-actions button').trigger('click')
+
+		expect(remove).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10')
+		expect(wrapper.find('.direct-messages__conversation').exists()).toBe(false)
+		expect(wrapper.find('.direct-messages__inbox-empty').exists()).toBe(true)
 	})
 
 	it('shows a search failure instead of claiming nobody exists', async () => {
