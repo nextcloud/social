@@ -226,8 +226,13 @@ The sidebar is the map:
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.
-- **Direct messages** — the posts addressed to you and nobody else, with the
-  composer already set to direct.
+- **Direct messages** — private conversations, one chat per person. Search for
+  somebody to start a chat; an existing conversation opens instead of creating
+  another one. Messages are sent privately to that person, so there is no
+  public, follower-only or other audience to choose and no repeated mention to
+  type. The inbox shows a conversation preview and unread state; opening a chat
+  marks it read. On a phone, the conversation list and chat open as separate
+  screens.
 - **Explore** — one collapsible entry holding everything there is to look at
   besides your own feed: the hashtags you follow, your **lists**, and the tags
   this server is busy with right now, in that order. Each list is a timeline of
@@ -486,6 +491,10 @@ hand, it is picked up as one.
   fifth field is dropped by the server without saying so, so the editor stops
   at four, and a row with only one half filled in is dropped the same way;
   emptying the table and saving removes it from your profile everywhere.
+- **Your Nextcloud profile page.** The native `/u/username` page also shows
+  your Social banner and posts. Its **Posts**, **My Feed**, **Local** and
+  **Global** tabs read Social's feeds; **My Feed** is available only on your
+  own profile. This page is for reading. To publish, open the Social app.
 - **Verified links.** A field whose value is a full web address — written out,
   starting with `http://` or `https://` — can carry a **verified tick**, and
   the editor shows where each of yours stands: verified and when it was
@@ -644,4 +653,3 @@ API is served under the app's own path rather than at the domain root (see
 web client is the client. There is no post translation — `ActionService`'s
 `translate` hands the post back unchanged — and no streaming API, so the page
 polls.
-

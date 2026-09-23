@@ -24,6 +24,7 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
 import AccountHoverCard from './AccountHoverCard.vue'
+import { localProfileUrl } from '../utils/accountProfileLink.js'
 
 export default {
 	name: 'ActorAvatar',
@@ -99,6 +100,9 @@ export default {
 			if (!this.link || !this.actor?.acct) {
 				return 'span'
 			}
+			if (!this.actor.acct.includes('@') && this.actor.username) {
+				return 'a'
+			}
 			if (this.$router !== undefined) {
 				return 'router-link'
 			}
@@ -113,6 +117,9 @@ export default {
 			}
 
 			const label = t('social', 'Open the profile of {account}', { account: this.actor.acct })
+			if (this.linkTag === 'a' && !this.actor.acct.includes('@') && this.actor.username) {
+				return { href: localProfileUrl(this.actor), 'aria-label': label }
+			}
 			if (this.linkTag === 'router-link') {
 				return {
 					to: { name: 'profile', params: { account: this.actor.acct } },

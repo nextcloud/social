@@ -265,6 +265,16 @@ OC.L10N.register(
     "No posts in your feed yet" : "Dein Feed enthält noch keine Beiträge",
     "Load more" : "Mehr laden",
     "Try again" : "Erneut versuchen",
-    "Loading…" : "Wird geladen…"
+    "Loading…" : "Wird geladen…",
+    "Social profile banner" : "Social-Profilbanner",
+    "Which Social feed to show" : "Anzuzeigenden Social-Feed auswählen",
+    "Posts" : "Beiträge",
+    "Public posts from this Nextcloud server." : "Öffentliche Beiträge von diesem Nextcloud-Server.",
+    "Public posts from across the Fediverse." : "Öffentliche Beiträge aus dem gesamten Fediverse.",
+    "Loading posts…" : "Beiträge werden geladen…",
+    "Could not load this feed" : "Dieser Feed konnte nicht geladen werden",
+    "No public posts on this profile yet." : "Dieses Profil hat noch keine öffentlichen Beiträge.",
+    "No posts in this feed yet" : "Dieser Feed enthält noch keine Beiträge",
+    "Start a conversation with {name}" : "Unterhaltung mit {name} beginnen",
 },
 "nplurals=2; plural=(n != 1);");

@@ -2059,31 +2059,9 @@ refetch instead of leaving the previous photos on screen.
 
 Behind it: `only_media` is Mastodon's own parameter on `/api/v1/accounts/{id}/statuses` and had never been passed on; `media_type` is a **Social extension** that narrows it to one kind, because Mastodon has nothing finer and two tabs need the difference. `ProbeOptions::setMediaType()` takes only the three kinds an attachment can be — `image`, `video`, `audio`, which are the first half of its MIME type and so the only values the column can hold — and reads anything else as no preference, since the value arrives from a query string. `media_type` implies `only_media`: a post with no attachments cannot be one carrying a video. The predicate is `SocialLimitsQueryBuilder::limitToMediaType()`, a `LIKE` on `"type":"video"` in the stored attachments — the column holds them as the client sees them, there is no column to compare and no JSON support to rely on across the three databases this app supports, and a description containing the same text is stored with its quotes escaped so it cannot collide. Unindexed, like the silenced-instance filter and for the same reason: it runs on a list something else has already narrowed to one account. Pinned posts are left out of a filtered tab, being about the account rather than about a kind of attachment.
 
-**The composer is on your own profile and nowhere else.** Every profile used to
-carry one, pre-filled with a mention of whoever it belonged to and set to a
-direct message — so a page for reading an account looked like a page for writing
-to them, and a stranger's profile asked "what would you like to share?". Your
-own profile is a page you post from, the way the home timeline is; somebody
-else's is a page you read. The sub-routes go with it: a list of followers is not
-a place to post from either. Direct messages are still written from the Direct
-messages timeline, which sets the visibility the same way.
+**The profile page is for reading.** The Social section embedded in Nextcloud's `/u/{uid}` profile never mounts a post composer; new posts are written from the Social app. It shows the account's posts for any visitor, and adds **My Feed** only when the signed-in account owns the profile. **Local** and **Global** show the viewer's public Social timelines. The account banner is fetched from Social's account endpoint and shown only when it is a custom header rather than the avatar fallback. Public local post links use the native `/u/{uid}` page with a status anchor; remote and non-public posts keep their Social or ActivityPub destination. The native Profile app remains responsible for its follower and post totals.
 
-`DirectMessages.vue` uses the full Social app-content width for a two-pane
-chat layout: the left column owns search, all/unread filters, timestamps and
-the conversation list; the right column owns the selected conversation, its
-scrollable message lane and a simple private-message field. Starting a chat
-searches for one person, reuses that person's existing conversation where
-possible and hides the generic post audience selector. Each send sets direct
-visibility and adds the protocol-required recipient mention internally, so
-the person does not have to repeat it. Duplicate rows for the same peer are
-collapsed in the inbox. Incoming and outgoing posts render
-as separate compact bubbles, aligned to opposite sides, while consecutive
-messages from the same account are grouped without repeating the sender label.
-The unread filter is applied to the conversations already returned by the API,
-as is search over participants and latest-message previews. Opening a thread
-fetches its context and marks it read; sending a reply stays direct and targets
-the latest message. At mobile width the view becomes a single pane whose Back
-button returns to the list.
+**Direct messages are one private chat per person.** `DirectMessages.vue` uses Nextcloud Vue controls and the full Social app-content width for a two-pane layout: the left column owns search, all/unread filters and one conversation row per person; the right column owns the selected conversation, its scrollable message lane and a private-message field. Starting a chat searches for one person and reuses that person's existing conversation where possible. The composer has no audience selector. Each send sets direct visibility and adds the protocol-required recipient mention internally, so the person does not have to repeat it. Duplicate API threads for the same peer are collapsed in the inbox. Incoming and outgoing posts render as separate bubbles aligned to opposite sides, while consecutive messages from the same account are grouped without repeating the sender label. Opening a thread fetches its context and marks it read; sending a reply targets the latest message and stays private. At mobile width the view becomes a single pane whose Back button returns to the list.
 
 The Social section embedded in Nextcloud's `/u/{uid}` profile deliberately
 leaves post/follower/following totals to the native Profile app, which already

@@ -183,7 +183,7 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost()
 
 			expect(wrapper.find('.post-author').text()).toBe('Alice')
-			expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({ name: 'profile', params: { account: 'alice' } })
+			expect(wrapper.find('.post-author-wrapper a').attributes('href')).toBe('/index.php/u/alice')
 			expect(wrapper.attributes('data-social-status')).toBe('101')
 		})
 

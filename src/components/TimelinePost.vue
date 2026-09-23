@@ -12,11 +12,11 @@
 		@click="onPostClick">
 		<div class="post-header">
 			<div v-if="!hideAuthor" class="post-author-wrapper" :title="item.account.acct">
-				<router-link
+				<component
+					:is="isLocalAccount(item.account) ? 'a' : 'router-link'"
 					v-if="item.account"
-					:to="{ name: 'profile',
-						params: { account: item.account.acct },
-					}">
+					:href="isLocalAccount(item.account) ? localProfileUrl(item.account) : undefined"
+					:to="isLocalAccount(item.account) ? undefined : { name: 'profile', params: { account: item.account.acct } }">
 					<span class="post-author">
 						<DisplayName :text="item.account.display_name" :emojis="item.account.emojis" />
 					</span>
@@ -29,7 +29,7 @@
 					<span v-if="!hasDisplayName" class="post-author-id">
 						@{{ item.account.username }}
 					</span>
-				</router-link>
+				</component>
 			</div>
 			<a
 				v-if="postHref"
@@ -79,13 +79,15 @@
 		<p v-if="taggedPeople.length" class="post-tagged">
 			<IconAccountBoxMultiple :size="14" />
 			<span class="post-tagged__with">{{ t('social', 'With') }}</span>
-			<router-link
+			<component
+				:is="isLocalAccount(person) ? 'a' : 'router-link'"
 				v-for="(person, index) in taggedPeople"
 				:key="person.acct"
 				class="post-tagged__person"
-				:to="{ name: 'profile', params: { account: person.acct } }">
+				:href="isLocalAccount(person) ? localProfileUrl(person) : undefined"
+				:to="isLocalAccount(person) ? undefined : { name: 'profile', params: { account: person.acct } }">
 				{{ person.display_name || person.username }}<span v-if="index < taggedPeople.length - 1">,</span>
-			</router-link>
+			</component>
 			<!-- the whole remedy for being in somebody else's photograph:
 			     leaving it, which needs nobody's permission -->
 			<NcButton
@@ -483,6 +485,7 @@ import { accountStyle } from '../services/accountColour.js'
 import logger from '../services/logger.js'
 import { onTick } from '../services/clock.js'
 import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
+import { localProfileUrl } from '../utils/accountProfileLink.js'
 import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
@@ -1073,6 +1076,11 @@ export default {
 	},
 
 	methods: {
+		localProfileUrl,
+		isLocalAccount(account) {
+			return Boolean(account?.acct && !account.acct.includes('@') && account.username)
+		},
+
 		/**
 		 * @param {Array} people who the post names now, as the server says
 		 */

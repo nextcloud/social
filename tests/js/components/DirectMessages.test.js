@@ -18,6 +18,20 @@ const context = {
 const stubs = {
 	ActorAvatar: { props: ['actor', 'size', 'link'], template: '<span class="avatar-stub">{{ actor.display_name }}</span>' },
 	NcButton: { template: '<button v-bind="$attrs"><slot /></button>' },
+	NcListItem: {
+		props: ['name', 'details', 'active', 'bold', 'linkAriaLabel'],
+		template: '<button v-bind="$attrs" class="native-list-item-stub"><slot name="icon" /><span>{{ name }}</span><slot name="subname" /><slot name="indicator" /></button>',
+	},
+	NcTextField: {
+		props: ['modelValue', 'label', 'placeholder', 'type'],
+		emits: ['update:modelValue'],
+		template: '<label><span>{{ label }}</span><input :value="modelValue" :placeholder="placeholder" :type="type" @input="$emit(\'update:modelValue\', $event.target.value)"></label>',
+	},
+	NcTextArea: {
+		props: ['modelValue', 'label', 'placeholder'],
+		emits: ['update:modelValue'],
+		template: '<label><span>{{ label }}</span><textarea :value="modelValue" :placeholder="placeholder" @input="$emit(\'update:modelValue\', $event.target.value)" /></label>',
+	},
 	TimelineEntry: { props: ['item', 'type', 'hideAuthor', 'hideAvatar'], template: '<article class="message-stub" :data-id="item.id" :data-hide-author="hideAuthor" :data-hide-avatar="hideAvatar">{{ item.content }}</article>' },
 }
 

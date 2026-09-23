@@ -13,8 +13,13 @@ vi.hoisted(() => {
 })
 
 const ProfileStatusCardStub = { name: 'ProfileStatusCard', props: ['status'], template: '<li class="profile-status-card-stub" />' }
+const TimelineSwitcherStub = {
+	props: ['options', 'value', 'label'],
+	emits: ['update:value'],
+	template: '<nav class="feed-switcher"><button v-for="option in options" :key="option.value" @click="$emit(\'update:value\', option.value)">{{ option.label }}</button></nav>',
+}
 
-const bob = { id: 'https://cloud.example.org/users/bob', acct: 'bob', username: 'bob', display_name: 'Bob' }
+const bob = { id: 'https://cloud.example.org/users/bob', acct: 'bob', username: 'bob', display_name: 'Bob', avatar: 'avatar.png', header: 'banner.png' }
 const statuses = [
 	{ id: '1', content: '<p>first</p>', account: bob },
 	{ id: '2', content: '<p>second</p>', account: bob },
@@ -29,7 +34,7 @@ let get
 function mountSection(userId) {
 	return mount(ProfilePageIntegration, {
 		props: { userId },
-		global: { stubs: { ProfileStatusCard: ProfileStatusCardStub, Composer: { template: '<div class="composer-stub" />' } } },
+		global: { stubs: { ProfileStatusCard: ProfileStatusCardStub, TimelineSwitcher: TimelineSwitcherStub, NcButton: true } },
 	})
 }
 
@@ -44,30 +49,43 @@ describe('ProfilePageIntegration', () => {
 		vi.restoreAllMocks()
 	})
 
-	it('requests the profile posts by URL-encoded account id', () => {
+	it('loads profile details and posts by URL-encoded account id', async () => {
 		mountSection('bob@remote.example')
-		expect(get).toHaveBeenCalledTimes(1)
-		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/bob%40remote.example/statuses')
-	})
-
-	it('renders the section heading and one entry per post', async () => {
-		const wrapper = mountSection('bob')
-		expect(wrapper.find('h2').text()).toBe('Social')
-		expect(wrapper.findAllComponents(ProfileStatusCardStub)).toHaveLength(0)
-
 		await flushPromises()
-		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status'))).toEqual(statuses)
-		expect(wrapper.find('.social-profile__counts').exists()).toBe(false)
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/bob%40remote.example')
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/bob%40remote.example/statuses', { params: { limit: 20 } })
 	})
 
-	it('adds the authenticated reader home feed to their own native profile', async () => {
+	it('renders the Social profile banner and one entry per post', async () => {
+		const wrapper = mountSection('bob')
+		await flushPromises()
+		expect(wrapper.find('h2').text()).toBe('Social')
+		expect(wrapper.find('.social-profile__banner').attributes('src')).toBe('banner.png')
+		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status'))).toEqual(statuses)
+		expect(wrapper.find('.composer-stub').exists()).toBe(false)
+	})
+
+	it('shows My Feed only on the signed-in user profile and opens it on request', async () => {
 		const wrapper = mountSection('alice')
 		await flushPromises()
+		const feedButton = wrapper.findAll('.feed-switcher button').find((button) => button.text() === 'My Feed')
+		expect(feedButton).toBeTruthy()
+		await feedButton.trigger('click')
+		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/timelines/home', { params: { limit: 20 } })
-		expect(wrapper.find('.social-profile__home-heading').text()).toContain('My Feed')
-		expect(wrapper.find('.composer-stub').exists()).toBe(true)
-		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status').id)).toEqual(['1', '2', 'home-1'])
-		expect(wrapper.findAllComponents(ProfileStatusCardStub).filter((entry) => entry.props('status').id === '2')).toHaveLength(1)
+		expect(wrapper.find('.composer-stub').exists()).toBe(false)
+		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status').id)).toEqual(['2', 'home-1'])
+	})
+
+	it('loads local and global public timelines from their Social API scopes', async () => {
+		const wrapper = mountSection('bob')
+		await flushPromises()
+		await wrapper.findAll('.feed-switcher button').find((button) => button.text() === 'Local').trigger('click')
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/timelines/public', { params: { limit: 20, local: true } })
+		await wrapper.findAll('.feed-switcher button').find((button) => button.text() === 'Global').trigger('click')
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/timelines/public', { params: { limit: 20, local: false } })
 	})
 
 	it('does not contact the server without a user id', () => {
@@ -76,7 +94,7 @@ describe('ProfilePageIntegration', () => {
 		expect(wrapper.find('h2').text()).toBe('Social')
 	})
 
-	it('keeps the section usable when the posts cannot be loaded', async () => {
+	it('keeps the section usable when posts cannot be loaded', async () => {
 		get.mockRejectedValue(new Error('404'))
 		const wrapper = mountSection('bob')
 		await flushPromises()

@@ -21,10 +21,12 @@
 					{{ t('social', 'New message') }}
 				</NcButton>
 			</header>
-			<label class="direct-messages__search">
-				<span class="hidden-visually">{{ t('social', 'Search conversations') }}</span>
-				<input v-model="searchQuery" type="search" :placeholder="t('social', 'Search conversations')">
-			</label>
+			<NcTextField
+				v-model="searchQuery"
+				class="direct-messages__search"
+				:label="t('social', 'Search conversations')"
+				:placeholder="t('social', 'Search conversations')"
+				type="search" />
 			<nav class="direct-messages__filters" :aria-label="t('social', 'Filter conversations')">
 				<button type="button" :class="{ 'direct-messages__filter--active': filterMode === 'all' }" @click="filterMode = 'all'">
 					{{ t('social', 'All') }}
@@ -54,30 +56,29 @@
 
 			<ul v-else class="direct-messages__list">
 				<li v-for="conversation in filteredConversations" :key="conversation.id">
-					<button
+					<NcListItem
 						class="direct-messages__conversation"
-						:class="{
-							'direct-messages__conversation--selected': String(conversation.id) === selectedConversationId,
-							'direct-messages__conversation--unread': conversation.unread,
-						}"
-						type="button"
-						:aria-current="String(conversation.id) === selectedConversationId ? 'true' : undefined"
-						:aria-label="t('social', 'Conversation with {name}', { name: conversationName(conversation) })"
-						@click="selectConversation(String(conversation.id))">
-						<ActorAvatar
-							v-if="conversation.accounts?.[0]"
-							:actor="conversation.accounts[0]"
-							:size="40"
-							:link="false" />
-						<span class="direct-messages__conversation-copy">
-							<span class="direct-messages__conversation-title-row">
-								<span class="direct-messages__conversation-title">{{ conversationName(conversation) }}</span>
-								<time v-if="conversation.last_status?.created_at" class="direct-messages__conversation-time" :datetime="conversation.last_status.created_at">{{ formatTime(conversation.last_status.created_at) }}</time>
-							</span>
+						:name="conversationName(conversation)"
+						:details="formatTime(conversation.last_status?.created_at)"
+						:active="String(conversation.id) === selectedConversationId"
+						:bold="conversation.unread"
+						:linkAriaLabel="t('social', 'Conversation with {name}', { name: conversationName(conversation) })"
+						@click="selectConversation(String(conversation.id), $event)">
+						<template #icon>
+							<ActorAvatar
+								v-if="conversation.accounts?.[0]"
+								:actor="conversation.accounts[0]"
+								:size="40"
+								:link="false"
+								class="direct-messages__conversation-avatar" />
+						</template>
+						<template #subname>
 							<span class="direct-messages__preview">{{ preview(conversation.last_status) || t('social', 'No messages yet') }}</span>
-						</span>
-						<span v-if="conversation.unread" class="direct-messages__unread-dot" :aria-label="t('social', 'Unread')" />
-					</button>
+						</template>
+						<template #indicator>
+							<span v-if="conversation.unread" class="direct-messages__unread-dot" :aria-label="t('social', 'Unread')" />
+						</template>
+					</NcListItem>
 				</li>
 			</ul>
 		</aside>
@@ -95,23 +96,30 @@
 				</div>
 			</header>
 			<div v-if="!newRecipient" class="direct-messages__recipient-picker">
-				<label class="direct-messages__recipient-search">
-					<span>{{ t('social', 'To') }}</span>
-					<input
-						v-model="recipientQuery"
-						type="search"
-						autocomplete="off"
-						:placeholder="t('social', 'Search for a person by name or @username')">
-				</label>
+				<NcTextField
+					v-model="recipientQuery"
+					class="direct-messages__recipient-search"
+					:label="t('social', 'To')"
+					:placeholder="t('social', 'Search for a person by name or @username')"
+					autocomplete="off"
+					type="search" />
 				<p v-if="searchingAccounts" class="direct-messages__state" role="status">
 					{{ t('social', 'Searching…') }}
 				</p>
 				<ul v-else-if="accountResults.length" class="direct-messages__recipient-results">
 					<li v-for="account in accountResults" :key="account.id || account.acct">
-						<button type="button" class="direct-messages__recipient-option" @click="startConversation(account)">
-							<ActorAvatar :actor="account" :size="40" :link="false" />
-							<span><strong>{{ account.display_name || account.username }}</strong><small>@{{ account.acct }}</small></span>
-						</button>
+						<NcListItem
+							class="direct-messages__recipient-option"
+							:name="account.display_name || account.username"
+							:linkAriaLabel="t('social', 'Start a conversation with {name}', { name: account.display_name || account.acct })"
+							@click="startConversation(account, $event)">
+							<template #icon>
+								<ActorAvatar :actor="account" :size="40" :link="false" />
+							</template>
+							<template #subname>
+								@{{ account.acct }}
+							</template>
+						</NcListItem>
 					</li>
 				</ul>
 				<p v-else-if="recipientQuery.trim().length >= 2" class="direct-messages__state">
@@ -128,12 +136,13 @@
 				</div>
 				<div class="direct-messages__new-chat-spacer" />
 				<form class="direct-messages__message-form" @submit.prevent="sendMessage">
-					<textarea
+					<NcTextArea
 						v-model="messageText"
-						rows="2"
+						class="direct-messages__message-input"
+						:label="t('social', 'Write a message…')"
 						:disabled="sendingMessage"
 						:placeholder="t('social', 'Write a message…')"
-						:aria-label="t('social', 'Write a message…')" />
+						resize="vertical" />
 					<NcButton variant="primary" type="submit" :disabled="sendingMessage || !messageText.trim()">
 						{{ t('social', 'Send') }}
 					</NcButton>
@@ -192,12 +201,13 @@
 			</div>
 
 			<form class="direct-messages__message-form" @submit.prevent="sendMessage">
-				<textarea
+				<NcTextArea
 					v-model="messageText"
-					rows="2"
+					class="direct-messages__message-input"
+					:label="t('social', 'Write a message…')"
 					:disabled="sendingMessage"
 					:placeholder="t('social', 'Write a message…')"
-					:aria-label="t('social', 'Write a message…')" />
+					resize="vertical" />
 				<NcButton variant="primary" type="submit" :disabled="sendingMessage || !messageText.trim()">
 					{{ t('social', 'Send') }}
 				</NcButton>
@@ -226,6 +236,9 @@
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcListItem from '@nextcloud/vue/components/NcListItem'
+import NcTextArea from '@nextcloud/vue/components/NcTextArea'
+import NcTextField from '@nextcloud/vue/components/NcTextField'
 import axios from '@nextcloud/axios'
 import ActorAvatar from './ActorAvatar.vue'
 import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
@@ -239,6 +252,9 @@ export default {
 		ActorAvatar,
 		MessageOutline,
 		NcButton,
+		NcListItem,
+		NcTextArea,
+		NcTextField,
 		TimelineEntry,
 	},
 
@@ -409,7 +425,8 @@ export default {
 			}
 		},
 
-		startConversation(account) {
+		startConversation(account, event) {
+			event?.preventDefault?.()
 			const existing = this.conversations.find((conversation) => (conversation.accounts ?? []).some((candidate) => (candidate.id && account.id && String(candidate.id) === String(account.id)) || candidate.acct === account.acct))
 			if (existing) {
 				this.selectConversation(String(existing.id))
@@ -503,7 +520,8 @@ export default {
 			return names.join(', ') || t('social', 'Unknown account')
 		},
 
-		selectConversation(id) {
+		selectConversation(id, event) {
+			event?.preventDefault?.()
 			this.newMessageOpen = false
 			this.messageText = ''
 			this.sendError = false
@@ -607,7 +625,7 @@ export default {
 	background: var(--color-main-background);
 }
 
-.direct-messages__search input {
+.direct-messages__search :deep(.input-field__input) {
 	box-sizing: border-box;
 	width: 100%;
 	min-height: 2.6rem;
@@ -619,7 +637,7 @@ export default {
 	font: inherit;
 }
 
-.direct-messages__search input:focus-visible {
+.direct-messages__search :deep(.input-field__input:focus-visible) {
 	outline: 2px solid var(--color-primary-element);
 	outline-offset: 1px;
 }
@@ -659,27 +677,16 @@ export default {
 }
 
 .direct-messages__conversation {
-	display: flex;
-	width: 100%;
-	align-items: center;
-	gap: 0.75rem;
+	padding: 0;
+}
+
+.direct-messages :deep(.direct-messages__conversation.list-item__wrapper) {
+	padding: 0;
+}
+
+.direct-messages :deep(.direct-messages__conversation .list-item__anchor) {
 	min-height: 5.2rem;
-	padding: 0.75rem 0.9rem;
-	border: 0;
-	border-bottom: 1px solid var(--color-border);
-	background: transparent;
-	color: var(--color-main-text);
-	text-align: start;
-	cursor: pointer;
-}
-
-.direct-messages__conversation:hover,
-.direct-messages__conversation--selected {
-	background: var(--color-background-hover);
-}
-
-.direct-messages__conversation--selected {
-	box-shadow: inset 3px 0 var(--color-primary-element);
+	padding: 0.65rem 0.9rem;
 }
 
 .direct-messages__conversation--unread .direct-messages__conversation-title {
@@ -877,8 +884,8 @@ export default {
 	font-size: 0.9rem;
 }
 
-.direct-messages__recipient-search input,
-.direct-messages__message-form textarea {
+.direct-messages__recipient-search :deep(.input-field__input),
+.direct-messages__message-input :deep(.textarea__input) {
 	box-sizing: border-box;
 	width: 100%;
 	border: 1px solid var(--color-border);
@@ -888,7 +895,7 @@ export default {
 	font: inherit;
 }
 
-.direct-messages__recipient-search input {
+.direct-messages__recipient-search :deep(.input-field__input) {
 	min-height: 2.75rem;
 	padding: 0 0.85rem;
 }
@@ -914,11 +921,16 @@ export default {
 }
 
 .direct-messages__recipient-option {
-	cursor: pointer;
+	padding: 0;
 }
 
-.direct-messages__recipient-option:hover {
-	background: var(--color-background-hover);
+.direct-messages :deep(.direct-messages__recipient-option.list-item__wrapper) {
+	padding: 0;
+}
+
+.direct-messages :deep(.direct-messages__recipient-option .list-item__anchor) {
+	min-height: 3.8rem;
+	padding: 0.7rem;
 }
 
 .direct-messages__recipient-option span,
@@ -960,7 +972,12 @@ export default {
 	background: var(--color-main-background);
 }
 
-.direct-messages__message-form textarea {
+.direct-messages__message-input {
+	flex: 1;
+	min-width: 0;
+}
+
+.direct-messages__message-form :deep(.textarea__input) {
 	min-height: 2.8rem;
 	max-height: 10rem;
 	resize: vertical;
