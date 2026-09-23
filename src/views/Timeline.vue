@@ -11,7 +11,7 @@
 		     above the composer: it is read before anything is written, and it
 		     is only here at all while something in it is unread. Not on a
 		     single post's page, which the reader navigated to for that post -->
-		<Announcements v-if="type !== 'single-post'" />
+		<Announcements v-if="type !== 'single-post' && type !== 'direct'" />
 
 		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct'" />
 

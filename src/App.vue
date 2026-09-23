@@ -451,6 +451,7 @@ export default {
 	width: 100%;
 	max-width: none;
 	margin: 0;
+	padding: 0;
 }
 
 .setup {

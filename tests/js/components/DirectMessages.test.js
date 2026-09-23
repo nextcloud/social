@@ -8,11 +8,11 @@ import axios from '@nextcloud/axios'
 import DirectMessages from '../../../src/components/DirectMessages.vue'
 
 const bob = { id: 'https://remote.example/users/bob', acct: 'bob@remote.example', display_name: 'Bob' }
-const latest = { id: '11', content: '<p>Latest reply</p>', account: bob }
+const latest = { id: '11', content: '<p>Latest reply</p>', created_at: '2026-09-23T12:00:00Z', account: bob }
 const conversation = { id: '10', unread: true, accounts: [bob], last_status: latest }
 const context = {
-	ancestors: [{ id: '9', content: '<p>Earlier message</p>', account: bob }],
-	descendants: [{ id: '12', content: '<p>Next message</p>', account: bob }],
+	ancestors: [{ id: '9', content: '<p>Earlier message</p>', created_at: '2026-09-22T11:00:00Z', account: bob }],
+	descendants: [{ id: '12', content: '<p>Next message</p>', created_at: '2026-09-23T12:10:00Z', account: { acct: 'alice', username: 'alice' } }],
 }
 
 const stubs = {
@@ -133,7 +133,10 @@ describe('DirectMessages', () => {
 
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/11/context')
 		expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-id'))).toEqual(['9', '11', '12'])
-		expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-hide-author'))).toEqual(['false', 'true', 'true'])
+		expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-hide-author'))).toEqual(['true', 'true', 'true'])
+		expect(wrapper.findAll('.direct-messages__day')).toHaveLength(2)
+		expect(wrapper.findAll('.direct-messages__message-time')).toHaveLength(3)
+		expect(wrapper.findAll('.direct-messages__message--outgoing')).toHaveLength(1)
 		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
 		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
 		expect(wrapper.find('.direct-messages__message-form textarea').exists()).toBe(true)

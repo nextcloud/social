@@ -231,8 +231,10 @@ The sidebar is the map:
   another one. Messages are sent privately to that person, so there is no
   public, follower-only or other audience to choose and no repeated mention to
   type. The inbox shows a conversation preview and unread state; opening a chat
-  marks it read. On a phone, the conversation list and chat open as separate
-  screens.
+  marks it read. The chat uses a single message area with incoming and outgoing
+  bubbles, date breaks and message times. Its search, conversation list and
+  message field stay in the same view without extra cards around them. On a
+  phone, the conversation list and chat open as separate screens.
 - **Explore** — one collapsible entry holding everything there is to look at
   besides your own feed: the hashtags you follow, your **lists**, and the tags
   this server is busy with right now, in that order. Each list is a timeline of
