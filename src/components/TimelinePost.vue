@@ -1778,12 +1778,35 @@ export default {
 			font-weight: 500;
 		}
 
-		:deep(img) {
+		:deep(img:not(.emoji):not(.custom-emoji)) {
 			max-width: 100%;
 			height: auto;
 			border-radius: 8px;
 			margin: 12px 0;
 			display: block;
+		}
+
+		// Emoji are inline words, including in remote ActivityPub statuses.
+		// The generic image rule above is for content images and must never turn
+		// each emoji into a block with its own line and large vertical margins.
+		:deep(img.emoji) {
+			display: inline-block;
+			width: 1em;
+			height: 1em;
+			max-width: none;
+			margin: 0 .08em;
+			border-radius: 0;
+			vertical-align: -.15em;
+		}
+
+		:deep(img.custom-emoji) {
+			display: inline-block;
+			width: auto;
+			height: 1.25em;
+			max-width: none;
+			margin: 0 .08em;
+			border-radius: 0;
+			vertical-align: -.2em;
 		}
 	}
 

@@ -2207,6 +2207,15 @@ than from what was asked, so a refused follow does not leave the button lying.
 It renders nothing on the public page, where there is no viewer to follow
 anything. `HashtagFollowedList.vue` is the disclosure beneath it.
 
+`MessageContent.js` turns both Unicode and custom emoji into inline image
+elements while walking sanitized post text. `TimelinePost.vue` gives actual
+content images a block layout; its image rule excludes `.emoji` and
+`.custom-emoji`, which stay inline with the surrounding text. `QuotedPost.vue`
+applies the same inline sizing so a quoted remote status preserves the same
+word flow. Direct-message bubbles clone a direct status for display and strip
+only its leading ActivityPub recipient h-card; the stored status remains
+unchanged, and mentions later in the message still render normally.
+
 ---
 
 ## Integration Points
