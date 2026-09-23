@@ -313,11 +313,18 @@ class ActivityServiceTest extends TestCase {
 		$queued = null;
 		$this->requestQueueService->expects($this->once())
 			->method('generateRequestQueue')
-			->with($this->identicalTo($note->getInstancePaths()), $this->callback(function (ACore $item) use (&$queued): bool {
-				$queued = $item;
+			->with(
+				$this->callback(static fn (array $paths): bool
+					=> count($paths) === 1
+						&& $paths[0]->getUri() === self::BOB_INBOX
+						&& $paths[0]->getPriority() === InstancePath::PRIORITY_TOP),
+				$this->callback(function (ACore $item) use (&$queued): bool {
+					$queued = $item;
 
-				return true;
-			}), self::ALICE_ID)
+					return true;
+				}),
+				self::ALICE_ID
+			)
 			->willReturn(self::TOKEN);
 		$this->requestQueueService->method('getPriorityRequest')->willThrowException(new NoHighPriorityRequestException());
 		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
@@ -747,6 +754,35 @@ class ActivityServiceTest extends TestCase {
 		$this->service->request($note);
 
 		$this->assertSame([], $paths);
+	}
+
+	public function testDeletePromotesOneRemoteRetractionWithoutChangingSavedPaths(): void {
+		$paths = [
+			new InstancePath(self::BOB_INBOX, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW),
+			new InstancePath('https://other.example/inbox', InstancePath::TYPE_GLOBAL, InstancePath::PRIORITY_LOW),
+		];
+		$delete = new Delete();
+		$delete->setId('https://social.example/@alice/1#delete');
+		$delete->setActorId(self::ALICE_ID);
+		$delete->addInstancePaths($paths);
+
+		$this->requestQueueService->expects($this->once())
+			->method('generateRequestQueue')
+			->with(
+				$this->callback(static fn (array $outbound): bool
+					=> count($outbound) === 2
+						&& $outbound[0]->getUri() === self::BOB_INBOX
+						&& $outbound[0]->getPriority() === InstancePath::PRIORITY_TOP
+						&& $outbound[1]->getPriority() === InstancePath::PRIORITY_LOW),
+				$this->identicalTo($delete),
+				self::ALICE_ID
+			)
+			->willReturn('');
+
+		$this->service->request($delete);
+
+		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[0]->getPriority());
+		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[1]->getPriority());
 	}
 
 	public function testRequestDeliversPriorityTargetInlineAndHandsTheRestToAsync(): void {

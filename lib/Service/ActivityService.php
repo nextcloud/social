@@ -234,6 +234,15 @@ class ActivityService {
 	public function request(ACore $activity): string {
 		$author = $this->getAuthorFromItem($activity);
 		$instancePaths = $this->generateInstancePaths($activity);
+		if ($activity instanceof Delete && isset($instancePaths[0])) {
+			// Start one retraction before handing the rest of a fan-out to the
+			// detached queue worker. A Delete should not depend entirely on that
+			// self-request succeeding before any remote copy is told to disappear.
+			// Clone because most Delete paths are the post's saved InstancePath
+			// objects, whose priorities must remain unchanged on the stored item.
+			$instancePaths[0] = (clone $instancePaths[0])->setPriority(InstancePath::PRIORITY_TOP);
+		}
+
 		if ($instancePaths === [] && $this->isPublicActivity($activity) && $this->isLocalAuthor($author)) {
 			$this->logger->notice('public activity resolved no remote inboxes; activity was not delivered', [
 				'activityId' => $activity->getId(),
