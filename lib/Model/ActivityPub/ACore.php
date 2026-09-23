@@ -998,7 +998,11 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		if (Nid::compare($this->getNid(), '0') > 0) {
 			$result['id'] = (string)$this->getNid();
 		}
-		$result['nid'] = $this->getNid();
+		// Stream NIDs routinely exceed JavaScript's exact-integer range even on
+		// 64-bit PHP. Keep them as decimal strings at the JSON boundary so a
+		// client can safely send the same identifier back to an API route.
+		$nid = $this->getNid();
+		$result['nid'] = (Nid::compare($nid, '0') > 0) ? (string)$nid : 0;
 
 		return $result;
 	}

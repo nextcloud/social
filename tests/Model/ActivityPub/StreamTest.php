@@ -105,6 +105,14 @@ class StreamTest extends TestCase {
 		$this->assertSame('CW: cats', $stream->exportAsLocal()['spoiler_text']);
 	}
 
+	public function testLocalStatusKeepsItsNidAsAStringForJavaScriptClients(): void {
+		$nid = '1790166469240117859';
+		$status = (new Stream())->setNid($nid)->exportAsLocal();
+
+		$this->assertSame($nid, $status['id']);
+		$this->assertSame($nid, $status['nid']);
+	}
+
 	public function testTheContentWarningIsStoredAsTheSummary(): void {
 		$stream = new Stream();
 
