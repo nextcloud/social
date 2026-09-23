@@ -83,7 +83,7 @@ class MediaUsageService {
 			}
 
 			foreach ($rows as $row) {
-				$after = max($after, $row['nid']);
+				$after = \OCA\Social\Tools\Nid::compare($after, $row['nid']) > 0 ? $after : $row['nid'];
 				$usage['rows']++;
 
 				$side = str_starts_with($row['id'], $cloudUrl) && $this->looksLocal($row['id'])
@@ -173,7 +173,7 @@ class MediaUsageService {
 
 		$size = $this->cacheDocumentService->cachedFileSize($copy);
 		if ($size !== null && $size > 0) {
-			$this->cacheDocumentsRequest->setSize((int)$row['nid'], $size);
+			$this->cacheDocumentsRequest->setSize(\OCA\Social\Tools\Nid::fromStorage($row['nid']), $size);
 		}
 	}
 

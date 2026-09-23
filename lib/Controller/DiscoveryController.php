@@ -540,8 +540,8 @@ class DiscoveryController extends Controller {
 	public function linkTimeline(
 		string $url = '',
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
 	): DataResponse {
 		try {
 			$this->initViewer(['read'], false);

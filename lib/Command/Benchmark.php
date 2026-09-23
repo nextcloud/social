@@ -22,6 +22,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Tools\Nid;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IRequest;
@@ -394,7 +395,9 @@ class Benchmark extends SocialCommand {
 				// It is the column every timeline pages and orders on, so a
 				// seeded row whose nid did not sort with the real ones would
 				// measure a different query than the one being served.
-				'nid' => $published * StreamRequest::NID_LIMIT + random_int(1, StreamRequest::NID_LIMIT),
+				'nid' => Nid::fromPublishedTime(
+					$published, random_int(1, StreamRequest::NID_LIMIT - 1), StreamRequest::NID_LIMIT
+				),
 				'id' => $id,
 				'id_prim' => $prim,
 				'type' => Note::TYPE,

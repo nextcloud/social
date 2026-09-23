@@ -26,7 +26,7 @@ class VideoRendition implements JsonSerializable {
 	public const URI_PLACEHOLDER = '{uri}';
 
 	private int $id = 0;
-	private int $docNid = 0;
+	private int|string $docNid = 0;
 	private int $height = 0;
 	private int $bandwidth = 0;
 	private int $size = 0;
@@ -43,11 +43,11 @@ class VideoRendition implements JsonSerializable {
 		return $this;
 	}
 
-	public function getDocNid(): int {
+	public function getDocNid(): int|string {
 		return $this->docNid;
 	}
 
-	public function setDocNid(int $docNid): self {
+	public function setDocNid(int|string $docNid): self {
 		$this->docNid = $docNid;
 
 		return $this;

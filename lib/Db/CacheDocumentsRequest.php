@@ -250,7 +250,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 *
 	 * @throws CacheDocumentDoesNotExistException
 	 */
-	public function getByNid(int $nid): Document {
+	public function getByNid(int|string $nid): Document {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$qb->limitToDBFieldInt('nid', $nid);
 
@@ -492,11 +492,11 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * walk is already stat-ing every one of them, so it fills them in as it
 	 * goes and the quota becomes accurate after one pass rather than never.
 	 */
-	public function setSize(int $nid, int $size): void {
+	public function setSize(int|string $nid, int $size): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_DOCUMENTS)
 			->set('size', $qb->createNamedParameter($size, IQueryBuilder::PARAM_INT))
-			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid)));
 
 		$qb->executeStatement();
 	}
@@ -549,11 +549,11 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * being updated, so a paging query would walk past the ones it just fixed.
 	 *
 	 * @param int $limit how many to return
-	 * @param int $after only documents past this nid
+	 * @param int|string $after only documents past this nid
 	 *
 	 * @return Document[]
 	 */
-	public function getVideosWithoutPoster(int $limit, int $after = 0): array {
+	public function getVideosWithoutPoster(int $limit, int|string $after = '0'): array {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$alias = $qb->getDefaultSelectAlias();
 		$expr = $qb->expr();
@@ -565,7 +565,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		// the origin's own thumbnail or nothing
 		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)));
 		$qb->limitToDBFieldEmpty('resized_copy');
-		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after)));
 		$qb->orderBy($alias . '.nid', 'asc');
 		$qb->setMaxResults($limit);
 
@@ -590,7 +590,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 *
 	 * @return Document[]
 	 */
-	public function getVideosToTranscode(int $limit = 5, int $after = 0): array {
+	public function getVideosToTranscode(int $limit = 5, int|string $after = '0'): array {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$alias = $qb->getDefaultSelectAlias();
 		$expr = $qb->expr();
@@ -606,7 +606,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			$expr->eq($alias . '.transcoded', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)),
 			$expr->isNull($alias . '.transcoded')
 		));
-		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after)));
 		$qb->orderBy($alias . '.nid', 'asc');
 		$qb->setMaxResults($limit);
 
@@ -639,7 +639,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 *
 	 * @return Document[]
 	 */
-	public function getVideosToLadder(int $limit = 5, int $after = 0): array {
+	public function getVideosToLadder(int $limit = 5, int|string $after = '0'): array {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$alias = $qb->getDefaultSelectAlias();
 		$expr = $qb->expr();
@@ -651,7 +651,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			$expr->eq($alias . '.laddered', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)),
 			$expr->isNull($alias . '.laddered')
 		));
-		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)));
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after)));
 		$qb->orderBy($alias . '.nid', 'asc');
 		$qb->setMaxResults($limit);
 
@@ -666,20 +666,20 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/** Remembers that a video has been up the ladder, or will not be. */
-	public function setLaddered(int $nid, int $state): void {
+	public function setLaddered(int|string $nid, int $state): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_DOCUMENTS)
 			->set('laddered', $qb->createNamedParameter($state, IQueryBuilder::PARAM_INT))
-			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid)));
 
 		$qb->executeStatement();
 	}
 
-	public function setTranscoded(int $nid, int $state): void {
+	public function setTranscoded(int|string $nid, int $state): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_DOCUMENTS)
 			->set('transcoded', $qb->createNamedParameter($state, IQueryBuilder::PARAM_INT))
-			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid)));
 
 		$qb->executeStatement();
 	}
@@ -692,7 +692,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * built from the old bytes is void. Apart they would be a window in which
 	 * a document said `video/quicktime` about an MP4.
 	 */
-	public function replaceVideo(int $nid, string $localCopy, string $mediaType): void {
+	public function replaceVideo(int|string $nid, string $localCopy, string $mediaType): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CACHE_DOCUMENTS)
 			->set('local_copy', $qb->createNamedParameter($localCopy))
@@ -703,7 +703,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			// video that no longer exists: back to nought, and the ladder job
 			// rebuilds it and throws the old rungs away as it goes
 			->set('laddered', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
-			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid)));
 
 		$qb->executeStatement();
 	}
@@ -766,9 +766,9 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * in, which is what makes the per-account quota accurate after one pass
 	 * rather than never. Two columns off a row already being read.
 	 *
-	 * @return list<array{nid: int, id: string, url: string, account: string, local_copy: string, resized_copy: string, media_type: string, size: int, actor_local: ?bool}>
+	 * @return list<array{nid: string, id: string, url: string, account: string, local_copy: string, resized_copy: string, media_type: string, size: int, actor_local: ?bool}>
 	 */
-	public function getUsagePage(int $limit, int $after = 0): array {
+	public function getUsagePage(int $limit, int|string $after = '0'): array {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 		$qb->select('cd.nid', 'cd.id', 'cd.url', 'cd.account', 'cd.local_copy', 'cd.resized_copy')
@@ -776,7 +776,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->selectAlias('ca.local', 'actor_local')
 			->from(self::TABLE_CACHE_DOCUMENTS, 'cd')
 			->leftJoin('cd', self::TABLE_CACHE_ACTORS, 'ca', $expr->eq('ca.id_prim', 'cd.parent_id_prim'))
-			->where($expr->gt('cd.nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)))
+			->where($expr->gt('cd.nid', $qb->createNamedParameter($after)))
 			->orderBy('cd.nid', 'asc')
 			->setMaxResults($limit);
 
@@ -784,7 +784,7 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$rows[] = [
-				'nid' => (int)$data['nid'],
+				'nid' => (string)$data['nid'],
 				'id' => (string)($data['id'] ?? ''),
 				'url' => (string)($data['url'] ?? ''),
 				'account' => (string)($data['account'] ?? ''),

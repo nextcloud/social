@@ -178,7 +178,7 @@ class ReportForwardService {
 			}
 
 			try {
-				$stream = $this->streamRequest->getStreamByNid((int)$statusId);
+				$stream = $this->streamRequest->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($statusId));
 			} catch (\Exception $e) {
 				// a post this instance no longer holds; the account is still
 				// named, which is the part the report is about

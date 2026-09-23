@@ -17,6 +17,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Security\HtmlSanitizer;
 use OCA\Social\Tools\IQueryRow;
+use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
 use OCA\Social\Tools\Traits\TStringTools;
@@ -853,7 +854,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		// tightened since rows were first written, and a row stored under the
 		// older ones is exactly what this would otherwise hand straight to a
 		// client.
-		$this->setNid($this->getInt('nid', $data));
+		$this->setNid($this->get('nid', $data, '0'));
 		$this->setId($this->validate(self::AS_ID, 'id', $data, ''));
 		$this->setType($this->validate(self::AS_TYPE, 'type', $data, ''));
 		$this->setSubType($this->validate(self::AS_TYPE, 'subtype', $data, ''));
@@ -875,7 +876,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @param array $data
 	 */
 	public function importFromLocal(array $data) {
-		$this->setNid($this->getInt('id', $data));
+		$this->setNid($this->get('id', $data, '0'));
 	}
 
 	/**
@@ -994,7 +995,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			'id' => $this->getId(),
 		];
 
-		if ($this->getNid() > 0) {
+		if (Nid::compare($this->getNid(), '0') > 0) {
 			$result['id'] = (string)$this->getNid();
 		}
 		$result['nid'] = $this->getNid();
@@ -1010,7 +1011,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			'id' => $this->getId()
 		];
 
-		if ($this->getNid() > 0) {
+		if (Nid::compare($this->getNid(), '0') > 0) {
 			$result['id'] = (string)$this->getNid();
 		}
 

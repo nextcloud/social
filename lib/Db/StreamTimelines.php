@@ -158,7 +158,7 @@ trait StreamTimelines {
 	 * rows to no better end.
 	 *
 	 * @param Stream[] $posts what the first window came back with
-	 * @param int[] $window the ids that window was chosen from
+	 * @param string[] $window the ids that window was chosen from
 	 *
 	 * @return Stream[]
 	 */
@@ -263,7 +263,7 @@ trait StreamTimelines {
 	/**
 	 * The page of the home timeline that the viewer's follows put there.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	protected function homeTimelineNids(ProbeOptions $options): array {
 		$fast = $this->homeTimelineNidsFromRecipients($options);
@@ -286,7 +286,7 @@ trait StreamTimelines {
 	 * for a viewer the fast path cannot serve. See
 	 * `homeTimelineNidsFromRecipients()` for what is wrong with it.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	private function homeTimelineNidsByJoin(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
@@ -326,7 +326,7 @@ trait StreamTimelines {
 	 * followed, or an instance whose backfill has not finished — and the
 	 * caller falls back to the old query, which is slower and always correct.
 	 *
-	 * @return int[]|null
+	 * @return string[]|null
 	 */
 	protected function homeTimelineNidsFromRecipients(ProbeOptions $options): ?array {
 		if ($this->viewer === null || !$this->recipientNidsAreFilled()) {
@@ -382,17 +382,17 @@ trait StreamTimelines {
 			->andWhere($expr->eq('sd.type', $qb->createNamedParameter('recipient')))
 			// a row written before the column existed carries 0 and would sort
 			// to the bottom for ever; it is excluded rather than shown last
-			->andWhere($expr->gt('sd.nid', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
+			->andWhere($expr->gt('sd.nid', $qb->createNamedParameter('0')));
 
 		if ($options->getSince() > 0) {
-			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getSince(), IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getSince())));
 		}
 		if ($options->getMaxId() > 0) {
-			$qb->andWhere($expr->lt('sd.nid', $qb->createNamedParameter($options->getMaxId(), IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->lt('sd.nid', $qb->createNamedParameter($options->getMaxId())));
 		}
 		if ($options->getMinId() > 0) {
 			$options->setInverted(true);
-			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getMinId(), IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getMinId())));
 		}
 
 		$qb->orderBy('sd.nid', $options->isInverted() ? 'asc' : 'desc');
@@ -404,7 +404,7 @@ trait StreamTimelines {
 		$nids = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$nids[] = (int)$data['nid'];
+			$nids[] = (string)$data['nid'];
 		}
 		$cursor->closeCursor();
 
@@ -440,7 +440,7 @@ trait StreamTimelines {
 	 * accounts stay hidden, and a silenced account is out of the public square
 	 * this half reads from, exactly as it is out of the hashtag timeline.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	protected function followedTagNids(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
@@ -476,10 +476,10 @@ trait StreamTimelines {
 	 * twice: a post by somebody the viewer follows that also carries a tag
 	 * they follow is in both halves and is one post.
 	 *
-	 * @param int[] $first
-	 * @param int[] $second
+	 * @param string[] $first
+	 * @param string[] $second
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	private function mergeNidPages(array $first, array $second, ProbeOptions $options): array {
 		if ($second === []) {
@@ -488,9 +488,9 @@ trait StreamTimelines {
 
 		$nids = array_values(array_unique(array_merge($first, $second)));
 		if ($options->isInverted()) {
-			sort($nids);
+			usort($nids, static fn (string $a, string $b): int => \OCA\Social\Tools\Nid::compare($a, $b));
 		} else {
-			rsort($nids);
+			usort($nids, static fn (string $a, string $b): int => \OCA\Social\Tools\Nid::compare($b, $a));
 		}
 
 		return array_slice($nids, 0, $options->getLimit());
@@ -499,14 +499,14 @@ trait StreamTimelines {
 	/**
 	 * The rows of a page that has already been decided, in its order.
 	 *
-	 * @param int[] $nids
+	 * @param string[] $nids
 	 *
 	 * @return Stream[]
 	 */
 	protected function streamsByNids(array $nids, ProbeOptions $options, bool $homeFilters = false): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->andWhere(
-			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
 		);
 		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 
@@ -586,7 +586,7 @@ trait StreamTimelines {
 	 * index on the recipient rows makes at most one row per post, so the page
 	 * needs no `DISTINCT`.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	protected function directTimelineNids(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql(false);
@@ -640,7 +640,7 @@ trait StreamTimelines {
 	 * reader behind it can match one post more than once and has to be
 	 * `DISTINCT`. The anonymous page matches only the public row and does not.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	protected function accountTimelineNids(ProbeOptions $options): array {
 		$actorId = $options->getAccountId();
@@ -718,7 +718,7 @@ trait StreamTimelines {
 
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->andWhere(
-			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
 		);
 		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -754,10 +754,10 @@ trait StreamTimelines {
 	 * The page of posts carrying a hashtag that the viewer may read.
 	 *
 	 * The tag join and the viewer's recipient join can each match a post more
-	 * than once, so the page is `DISTINCT` -- over one integer column, which
+	 * than once, so the page is `DISTINCT` -- over one decimal identifier, which
 	 * is what this is for: it used to be over the whole post.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	protected function hashtagTimelineNids(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql(true);
@@ -810,7 +810,7 @@ trait StreamTimelines {
 
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->andWhere(
-			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
 		);
 		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -930,9 +930,9 @@ trait StreamTimelines {
 	 *
 	 * @param string[] $collections the prims to look in
 	 */
-	public function newestNidFor(array $collections, string $type = 'recipient'): int {
+	public function newestNidFor(array $collections, string $type = 'recipient'): string {
 		if ($collections === []) {
-			return 0;
+			return '0';
 		}
 
 		$qb = $this->getQueryBuilder();
@@ -951,10 +951,10 @@ trait StreamTimelines {
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
-		return ($data === false) ? 0 : (int)$data['nid'];
+		return ($data === false) ? '0' : (string)$data['nid'];
 	}
 
-	public function countNotificationsSince(Person $actor, int $sinceNid, int $cap = 99): int {
+	public function countNotificationsSince(Person $actor, int|string $sinceNid, int $cap = 99): int {
 		$qb = $this->getStreamSelectSql();
 		$qb->setViewer($actor);
 
@@ -963,8 +963,8 @@ trait StreamTimelines {
 		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
 		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
 
-		if ($sinceNid > 0) {
-			$qb->andWhere($qb->expr()->gt('s.nid', $qb->createNamedParameter($sinceNid, IQueryBuilder::PARAM_INT)));
+		if (\OCA\Social\Tools\Nid::compare($sinceNid, '0') > 0) {
+			$qb->andWhere($qb->expr()->gt('s.nid', $qb->createNamedParameter($sinceNid)));
 		}
 
 		$qb->setMaxResults($cap + 1);
@@ -1081,7 +1081,7 @@ trait StreamTimelines {
 
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->andWhere(
-			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
 		);
 		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');

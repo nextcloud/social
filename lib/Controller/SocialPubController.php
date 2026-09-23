@@ -278,7 +278,7 @@ class SocialPubController extends Controller {
 		}
 
 		try {
-			return $this->streamService->getStreamByNid((int)$token);
+			return $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($token));
 		} catch (Exception $e) {
 			return null;
 		}

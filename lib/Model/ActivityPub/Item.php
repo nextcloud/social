@@ -11,6 +11,7 @@ namespace OCA\Social\Model\ActivityPub;
 
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\InstancePath;
+use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class Item {
@@ -20,7 +21,7 @@ class Item {
 	private string $urlCloud = '';
 	private string $address = '';
 	private string $id = '';
-	private int $nid = 0;
+	private int|string $nid = 0;
 	private string $type = '';
 	private string $subType = '';
 	private string $url = '';
@@ -56,12 +57,12 @@ class Item {
 		return $this;
 	}
 
-	public function getNid(): int {
+	public function getNid(): int|string {
 		return $this->nid;
 	}
 
-	public function setNid(int $nid): self {
-		$this->nid = $nid;
+	public function setNid(int|string $nid): self {
+		$this->nid = Nid::fromStorage($nid);
 
 		return $this;
 	}

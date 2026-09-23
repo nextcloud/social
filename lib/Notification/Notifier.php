@@ -233,23 +233,24 @@ class Notifier implements INotifier {
 	 * still says who asked and links to them.
 	 */
 	private function offerToAnswer(INotification $notification, array $params, IL10N $l10n): void {
-		$nid = (int)($params['nid'] ?? 0);
-		if ($nid < 1) {
+		$nid = $params['nid'] ?? '0';
+		if ((!is_string($nid) && !is_int($nid)) || !ctype_digit((string)$nid) || \OCA\Social\Tools\Nid::compare($nid, '0') < 1) {
 			return;
 		}
+		$nid = \OCA\Social\Tools\Nid::normalize($nid);
 
 		$accept = $notification->createAction();
 		$accept->setLabel('accept')
 			->setParsedLabel($l10n->t('Accept'))
 			->setPrimary(true)
-			->setLink($this->url->linkToRouteAbsolute('social.Api.followRequestAuthorize', ['id' => (string)$nid]), 'POST');
+			->setLink($this->url->linkToRouteAbsolute('social.Api.followRequestAuthorize', ['id' => $nid]), 'POST');
 		$notification->addAction($accept);
 
 		$decline = $notification->createAction();
 		$decline->setLabel('decline')
 			->setParsedLabel($l10n->t('Decline'))
 			->setPrimary(false)
-			->setLink($this->url->linkToRouteAbsolute('social.Api.followRequestReject', ['id' => (string)$nid]), 'POST');
+			->setLink($this->url->linkToRouteAbsolute('social.Api.followRequestReject', ['id' => $nid]), 'POST');
 		$notification->addAction($decline);
 	}
 

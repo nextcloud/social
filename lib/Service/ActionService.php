@@ -95,7 +95,7 @@ class ActionService {
 	 * should return null
 	 * will return Stream only with translate action
 	 *
-	 * @param int $nid
+	 * @param int|string $nid
 	 * @param string $action
 	 *
 	 * @return Stream|null
@@ -154,7 +154,7 @@ class ActionService {
 		);
 	}
 
-	public function action(Person $actor, int $nid, string $action): ?Stream {
+	public function action(Person $actor, int|string $nid, string $action): ?Stream {
 		if (!in_array($action, self::$availableStatusAction)) {
 			throw new InvalidActionException();
 		}

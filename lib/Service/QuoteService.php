@@ -59,7 +59,7 @@ class QuoteService {
 	 *
 	 * @throws InvalidResourceException the post is not this account's own
 	 */
-	public function setPolicy(int $nid, Person $actor, string $policy): Stream {
+	public function setPolicy(int|string $nid, Person $actor, string $policy): Stream {
 		$post = $this->ownPost($nid, $actor);
 		$post->setQuotePolicy($policy);
 
@@ -83,7 +83,7 @@ class QuoteService {
 	 *
 	 * @return Stream[]
 	 */
-	public function quotesOf(Stream $post, int $limit = 20, int $maxId = 0): array {
+	public function quotesOf(Stream $post, int $limit = 20, int|string $maxId = '0'): array {
 		return $this->streamRequest->getQuotesOf($post->getId(), $limit, $maxId);
 	}
 
@@ -101,7 +101,7 @@ class QuoteService {
 	 * @return bool whether there was a quote to take back
 	 * @throws InvalidResourceException the quoted post is not this account's own
 	 */
-	public function revoke(int $nid, Person $actor, int $quotingNid): bool {
+	public function revoke(int|string $nid, Person $actor, int|string $quotingNid): bool {
 		$post = $this->ownPost($nid, $actor);
 
 		try {
@@ -203,7 +203,7 @@ class QuoteService {
 	 *
 	 * @throws InvalidResourceException
 	 */
-	private function ownPost(int $nid, Person $actor): Stream {
+	private function ownPost(int|string $nid, Person $actor): Stream {
 		try {
 			$post = $this->streamRequest->getStreamByNid($nid);
 		} catch (Throwable $e) {

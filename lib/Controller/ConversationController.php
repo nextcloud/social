@@ -85,9 +85,9 @@ class ConversationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/conversations')]
 	public function index(
 		int $limit = ConversationService::LIMIT,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 	): DataResponse {
 		try {
 			$this->initViewer();
@@ -284,7 +284,7 @@ class ConversationController extends Controller {
 	 * A page with the `Link` header masto.js reads its cursor from — without
 	 * it Elk and Phanpy show the first page and stop.
 	 */
-	private function paged(array $items, int $next, int $prev): DataResponse {
+	private function paged(array $items, int|string $next, int|string $prev): DataResponse {
 		$response = new DataResponse($items, Http::STATUS_OK);
 
 		$links = [];

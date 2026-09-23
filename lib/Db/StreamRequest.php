@@ -31,6 +31,7 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Model\Cache;
+use OCA\Social\Tools\Nid;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
@@ -228,7 +229,7 @@ class StreamRequest extends StreamRequestBuilder {
 				}
 
 				// force saveStream() to draw a fresh one
-				$stream->setNid(0);
+				$stream->setNid('0');
 			}
 		}
 	}
@@ -380,16 +381,16 @@ class StreamRequest extends StreamRequestBuilder {
 	 * joins, for every post with a picture on the instance, would be a great
 	 * deal of work to reach one column.
 	 *
-	 * @return array<array{nid: int, id: string, attachments: string}>
+	 * @return array<array{nid: string, id: string, attachments: string}>
 	 */
-	public function getStoredAttachmentCopies(int $limit, int $after = 0): array {
+	public function getStoredAttachmentCopies(int $limit, int|string $after = '0'): array {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 		$qb->select('nid', 'id', 'attachments')
 			->from(self::TABLE_STREAM)
 			->andWhere($expr->neq('attachments', $qb->createNamedParameter('')))
 			->andWhere($expr->neq('attachments', $qb->createNamedParameter('[]')))
-			->andWhere($expr->gt('nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)))
+			->andWhere($expr->gt('nid', $qb->createNamedParameter($after)))
 			->orderBy('nid', 'asc')
 			->setMaxResults($limit);
 
@@ -397,7 +398,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$rows[] = [
-				'nid' => (int)$data['nid'],
+				'nid' => (string)$data['nid'],
 				'id' => (string)$data['id'],
 				'attachments' => (string)$data['attachments'],
 			];
@@ -623,7 +624,7 @@ class StreamRequest extends StreamRequestBuilder {
 		return $date;
 	}
 
-	public function getStreamByNid(int $nid): Stream {
+	public function getStreamByNid(int|string $nid): Stream {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$qb->limitToNid($nid);
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -649,7 +650,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 */
-	public function getQuotesOf(string $objectId, int $limit = 20, int $maxId = 0): array {
+	public function getQuotesOf(string $objectId, int $limit = 20, int|string $maxId = '0'): array {
 		if ($objectId === '') {
 			return [];
 		}
@@ -661,7 +662,7 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->leftJoinStreamAction('sa');
 
 		if ($maxId > 0) {
-			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($maxId)));
 		}
 
 		$qb->orderBy('s.nid', 'desc');
@@ -869,11 +870,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return bool whether a row changed
 	 */
-	public function setArchived(int $nid, string $actorId, bool $archived): bool {
+	public function setArchived(int|string $nid, string $actorId, bool $archived): bool {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('archived', $qb->createNamedParameter($archived, IQueryBuilder::PARAM_BOOL));
 		$qb->where(
-			$qb->expr()->eq('nid', $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT)),
+			$qb->expr()->eq('nid', $qb->createNamedParameter($nid)),
 			$qb->expr()->eq('attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))),
 			$qb->expr()->eq('local', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL))
 		);
@@ -889,12 +890,12 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 */
-	public function getArchivedByActor(string $actorId, int $limit = 50, int $maxId = 0): array {
+	public function getArchivedByActor(string $actorId, int $limit = 50, int|string $maxId = '0'): array {
 		$qb = $this->getStreamSelectSql(Stream::FORMAT_LOCAL, true);
 		$qb->andWhere($qb->expr()->eq('s.attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))));
 		$qb->andWhere($qb->expr()->eq('s.archived', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL)));
 		if ($maxId > 0) {
-			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($maxId)));
 		}
 		$qb->orderBy('s.nid', 'desc');
 		$qb->setMaxResults($limit);
@@ -1342,7 +1343,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[]
 	 */
-	public function getPublicByPlace(int $placeId, int $limit = 20, int $maxId = 0): array {
+	public function getPublicByPlace(int $placeId, int $limit = 20, int|string $maxId = '0'): array {
 		if ($placeId < 1 || $limit < 1) {
 			return [];
 		}
@@ -1355,7 +1356,7 @@ class StreamRequest extends StreamRequestBuilder {
 		// a reply is a fragment of somebody else's thread, not a picture of the place
 		$qb->limitToDBFieldEmpty('in_reply_to');
 		if ($maxId > 0) {
-			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($maxId)));
 		}
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
@@ -1378,7 +1379,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * @return Stream[] newest first, or oldest first when paging forward with `minId`
 	 */
-	public function directBetween(Person $viewer, string $otherId, int $limit = 20, int $maxId = 0, int $minId = 0): array {
+	public function directBetween(Person $viewer, string $otherId, int $limit = 20, int|string $maxId = '0', int|string $minId = 0): array {
 		if ($otherId === '' || $limit < 1) {
 			return [];
 		}
@@ -1662,7 +1663,7 @@ class StreamRequest extends StreamRequestBuilder {
 			// own making that nothing else names: a document's row going away
 			// without them is disk that no later run would ever free, because
 			// the only thing that knew about them was the row
-			foreach ($this->renditionsRequest->deleteForDocument((int)$row['nid']) as $rung) {
+			foreach ($this->renditionsRequest->deleteForDocument((string)$row['nid']) as $rung) {
 				$this->cacheDocumentService->removeFromCache($rung);
 			}
 		}
@@ -1774,10 +1775,10 @@ class StreamRequest extends StreamRequestBuilder {
 				->getId();
 		}
 
-		if ($stream->getNid() === 0) {
-			$stream->setNid(
-				$stream->getPublishedTime() * self::NID_LIMIT + random_int(1, self::NID_LIMIT)
-			);
+		if (Nid::compare($stream->getNid(), '0') === 0) {
+			$stream->setNid(Nid::fromPublishedTime(
+				$stream->getPublishedTime(), random_int(1, self::NID_LIMIT - 1), self::NID_LIMIT
+			));
 		}
 
 		$qb = $this->getStreamInsertSql();

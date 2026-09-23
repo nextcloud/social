@@ -164,11 +164,11 @@ class ScheduledStatusService {
 	public function getAll(
 		Person $actor,
 		int $limit = 20,
-		int $maxId = 0,
-		int $minId = 0,
-		int $sinceId = 0,
+		int|string $maxId = '0',
+		int|string $minId = 0,
+		int|string $sinceId = '0',
 	): array {
-		$scheduled = $this->scheduledRequest->getByActor($actor->getId(), $limit, $maxId, $minId, $sinceId);
+		$scheduled = $this->scheduledRequest->getByActor($actor->getId(), $limit, \OCA\Social\Tools\Nid::fromStorage($maxId), \OCA\Social\Tools\Nid::fromStorage($minId), \OCA\Social\Tools\Nid::fromStorage($sinceId));
 		foreach ($scheduled as $one) {
 			$this->hydrateMedia($one, $actor);
 		}

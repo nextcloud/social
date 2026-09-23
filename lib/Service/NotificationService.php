@@ -423,7 +423,7 @@ class NotificationService {
 	 *                               viewer's — which is the answer a
 	 *                               notification of somebody else's gets too
 	 */
-	public function get(Person $viewer, int $id): Stream {
+	public function get(Person $viewer, int|string $id): Stream {
 		return $this->find($viewer, $id);
 	}
 
@@ -449,9 +449,9 @@ class NotificationService {
 	public function timeline(
 		Person $viewer,
 		int $limit,
-		int $maxId = 0,
-		int $minId = 0,
-		int $sinceId = 0,
+		int|string $maxId = '0',
+		int|string $minId = 0,
+		int|string $sinceId = '0',
 		array $types = [],
 		array $excludeTypes = [],
 		string $accountId = '',
@@ -495,7 +495,7 @@ class NotificationService {
 	 *
 	 * @throws ItemNotFoundException
 	 */
-	public function dismiss(Person $viewer, int $id): void {
+	public function dismiss(Person $viewer, int|string $id): void {
 		$notification = $this->find($viewer, $id);
 
 		$this->streamRequest->deleteById($notification->getId(), SocialAppNotification::TYPE);
@@ -792,10 +792,12 @@ class NotificationService {
 	 *
 	 * @throws ItemNotFoundException
 	 */
-	private function find(Person $viewer, int $id): Stream {
-		if ($id > 0) {
-			foreach ($this->page($viewer, 1, $id + 1, $id - 1) as $notification) {
-				if ($notification->getNid() === $id
+	private function find(Person $viewer, int|string $id): Stream {
+		if (\OCA\Social\Tools\Nid::compare($id, '0') > 0) {
+			foreach ($this->page(
+				$viewer, 1, \OCA\Social\Tools\Nid::increment($id), \OCA\Social\Tools\Nid::decrement($id)
+			) as $notification) {
+				if (\OCA\Social\Tools\Nid::compare($notification->getNid(), $id) === 0
 					&& Stream::notificationTypeOfSubType($notification->getSubType()) !== '') {
 					return $notification;
 				}
@@ -810,7 +812,7 @@ class NotificationService {
 	 *
 	 * @return Stream[]
 	 */
-	private function page(Person $viewer, int $limit, int $maxId = 0, int $minId = 0): array {
+	private function page(Person $viewer, int $limit, int|string $maxId = '0', int|string $minId = 0): array {
 		$options = new ProbeOptions();
 		$options->setFormat(ACore::FORMAT_LOCAL);
 		$options->setProbe(ProbeOptions::NOTIFICATIONS)

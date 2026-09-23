@@ -1116,9 +1116,9 @@ class AdminApiController extends AdminApiControllerBase {
 	 * A page with the `Link` header masto.js reads its cursor from — without
 	 * it a client shows the first page and stops.
 	 *
-	 * @param int[] $ids the cursor ids of the page, in its order; empty when
-	 *                   the page has no cursor at all, which is what the
-	 *                   `silenced` and `suspended` account lists are
+	 * @param array<int|string> $ids the cursor ids of the page, in its order; empty when
+	 *                               the page has no cursor at all, which is what the
+	 *                               `silenced` and `suspended` account lists are
 	 */
 	private function paged(array $items, int $limit, array $ids): DataResponse {
 		$response = new DataResponse($items, Http::STATUS_OK);

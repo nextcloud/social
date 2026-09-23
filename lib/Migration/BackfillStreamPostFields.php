@@ -71,7 +71,7 @@ class BackfillStreamPostFields implements IRepairStep {
 		}
 
 		$backfilled = 0;
-		$after = 0;
+		$after = '0';
 		while (true) {
 			$rows = $this->chunkAfter($after);
 			if ($rows === []) {
@@ -79,7 +79,7 @@ class BackfillStreamPostFields implements IRepairStep {
 			}
 
 			foreach ($rows as $row) {
-				$after = (int)$row['nid'];
+				$after = (string)$row['nid'];
 				if ($this->backfill($row)) {
 					$backfilled++;
 				}
@@ -149,7 +149,7 @@ class BackfillStreamPostFields implements IRepairStep {
 			$qb->set($column, $qb->createNamedParameter($value));
 		}
 		$qb->set('updated', $qb->createNamedParameter($updated, IQueryBuilder::PARAM_DATE));
-		$qb->where($qb->expr()->eq('nid', $qb->createNamedParameter($row['nid'], IQueryBuilder::PARAM_INT)));
+		$qb->where($qb->expr()->eq('nid', $qb->createNamedParameter((string)$row['nid'])));
 		$qb->executeStatement();
 
 		return true;
@@ -174,11 +174,11 @@ class BackfillStreamPostFields implements IRepairStep {
 	/**
 	 * @return array<array<string, mixed>>
 	 */
-	private function chunkAfter(int $after): array {
+	private function chunkAfter(int|string $after): array {
 		$qb = $this->connection->getQueryBuilder();
 		$qb->select('nid', 'source')
 			->from(CoreRequestBuilder::TABLE_STREAM)
-			->where($qb->expr()->gt('nid', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)))
+			->where($qb->expr()->gt('nid', $qb->createNamedParameter($after)))
 			->orderBy('nid', 'asc')
 			->setMaxResults(self::CHUNK);
 		foreach (self::COLUMNS as $column) {

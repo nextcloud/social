@@ -103,7 +103,7 @@ class TrendService {
 	 *
 	 * @return Stream[]
 	 */
-	public function linkTimeline(string $url, int $limit, int $maxId = 0, int $minId = 0): array {
+	public function linkTimeline(string $url, int $limit, int|string $maxId = '0', int|string $minId = 0): array {
 		$url = trim($url);
 		if ($url === '') {
 			return [];

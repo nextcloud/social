@@ -266,7 +266,7 @@ trait ApiMedia {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/media/{nid}')]
-	public function mediaGet(string $nid, string $preview = ''): Response {
+	public function mediaGet(int|string $nid, string $preview = ''): Response {
 		try {
 			$this->initViewer(true);
 
@@ -282,7 +282,7 @@ trait ApiMedia {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/media/{nid}')]
-	public function mediaUpdate(string $nid): Response {
+	public function mediaUpdate(int|string $nid): Response {
 		try {
 			$this->initViewer(true);
 
@@ -310,7 +310,7 @@ trait ApiMedia {
 	/**
 	 * @throws NotFoundException when the id is unknown or belongs to someone else
 	 */
-	private function ownDocument(string $nid): Document {
+	private function ownDocument(int|string $nid): Document {
 		$documents = $this->documentService->getMediaFromArray(
 			[$nid], $this->viewer->getPreferredUsername()
 		);
@@ -324,7 +324,7 @@ trait ApiMedia {
 	/**
 	 * @throws NotFoundException
 	 */
-	private function ownAttachment(string $nid): MediaAttachment {
+	private function ownAttachment(int|string $nid): MediaAttachment {
 		return $this->ownDocument($nid)->convertToMediaAttachment($this->urlGenerator);
 	}
 
@@ -405,7 +405,7 @@ trait ApiMedia {
 	#[AnonRateLimit(limit: 120, period: 60)]
 	#[UserRateLimit(limit: 600, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/media/stream/{nid}')]
-	public function mediaStream(int $nid): Response {
+	public function mediaStream(int|string $nid): Response {
 		try {
 			$opened = $this->documentService->openStreamed(
 				$nid, $this->request->getHeader('Range')
@@ -461,7 +461,7 @@ trait ApiMedia {
 	#[AnonRateLimit(limit: 600, period: 60)]
 	#[UserRateLimit(limit: 600, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/watched')]
-	public function statusWatched(int $nid, int $position = 0, int $duration = 0): DataResponse {
+	public function statusWatched(int|string $nid, int $position = 0, int $duration = 0): DataResponse {
 		try {
 			$this->initViewer(true);
 			$post = $this->streamService->getStreamByNid($nid);
@@ -479,7 +479,7 @@ trait ApiMedia {
 	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}/watched')]
-	public function statusUnwatched(int $nid): DataResponse {
+	public function statusUnwatched(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 			$post = $this->streamService->getStreamByNid($nid);
@@ -532,7 +532,7 @@ trait ApiMedia {
 	#[AnonRateLimit(limit: 60, period: 60)]
 	#[UserRateLimit(limit: 300, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/media/playlist/{nid}')]
-	public function mediaPlaylist(int $nid): Response {
+	public function mediaPlaylist(int|string $nid): Response {
 		try {
 			$opened = $this->documentService->openPlaylist(
 				$nid,
@@ -707,7 +707,7 @@ trait ApiMedia {
 	#[AnonRateLimit(limit: 600, period: 60)]
 	#[UserRateLimit(limit: 3000, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/media/playlist/{nid}/file')]
-	public function mediaPlaylistFile(int $nid, string $u = ''): Response {
+	public function mediaPlaylistFile(int|string $nid, string $u = ''): Response {
 		try {
 			$opened = $this->documentService->openPlaylistFile(
 				$nid, $u, $this->request->getHeader('Range')

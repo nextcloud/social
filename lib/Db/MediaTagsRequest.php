@@ -83,9 +83,9 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	 * statuses, and forty queries to put names under them is the kind of thing
 	 * that is invisible in development and is the whole page in production.
 	 *
-	 * @param int[] $streamIds
+	 * @param string[] $streamIds
 	 *
-	 * @return array<int, string[]> keyed by the post id, actor ids in order
+	 * @return array<string, string[]> keyed by the post id, actor ids in order
 	 */
 	public function forStreams(array $streamIds): array {
 		if ($streamIds === []) {
@@ -95,13 +95,13 @@ class MediaTagsRequest extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->select('stream_id', 'actor_id')
 			->from(self::TABLE_MEDIA_TAGS)
-			->where($qb->expr()->in('stream_id', $qb->createNamedParameter($streamIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->where($qb->expr()->in('stream_id', $qb->createNamedParameter($streamIds, IQueryBuilder::PARAM_STR_ARRAY)))
 			->orderBy('id', 'asc');
 
 		$tags = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$tags[(int)$data['stream_id']][] = (string)$data['actor_id'];
+			$tags[(string)$data['stream_id']][] = (string)$data['actor_id'];
 		}
 		$cursor->closeCursor();
 
@@ -109,7 +109,7 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	}
 
 	/** Whether one account is named in one post. */
-	public function isTagged(int $streamId, string $actorId): bool {
+	public function isTagged(int|string $streamId, string $actorId): bool {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->func()->count('*'), 'total')
 			->from(self::TABLE_MEDIA_TAGS)
@@ -144,7 +144,7 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	 *
 	 * @return int[]
 	 */
-	public function streamsFor(string $actorId, int $limit = 40, int $maxId = 0): array {
+	public function streamsFor(string $actorId, int $limit = 40, int|string $maxId = '0'): array {
 		$qb = $this->getQueryBuilder();
 		$qb->select('stream_id')
 			->from(self::TABLE_MEDIA_TAGS)

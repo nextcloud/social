@@ -70,7 +70,7 @@ class PollService {
 	 */
 	public const SWEEP_FLOOR = 86400;
 
-	public function getPoll(int $nid, ?Person $viewer = null): Question {
+	public function getPoll(int|string $nid, ?Person $viewer = null): Question {
 		$stream = $this->streamRequest->getStreamByNid($nid);
 		if (!$stream instanceof Question) {
 			throw new StreamNotFoundException('not a poll');
@@ -96,7 +96,7 @@ class PollService {
 	 * @throws StreamNotFoundException
 	 * @throws InvalidActionException
 	 */
-	public function vote(Person $viewer, int $nid, array $choices): Question {
+	public function vote(Person $viewer, int|string $nid, array $choices): Question {
 		$poll = $this->getPoll($nid, $viewer);
 
 		if ($poll->isExpired()) {

@@ -95,7 +95,7 @@ class HistoryController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/history')]
-	public function history(int $nid): DataResponse {
+	public function history(int|string $nid): DataResponse {
 		try {
 			$this->initViewer();
 

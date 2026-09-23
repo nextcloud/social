@@ -87,7 +87,7 @@ class PlaceController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/places/{id}/statuses', requirements: ['id' => '\\d+'])]
-	public function statuses(int $id, int $limit = 20, int $max_id = 0): DataResponse {
+	public function statuses(int $id, int $limit = 20, int|string $max_id = 0): DataResponse {
 		try {
 			$this->optionalViewer(['read']);
 

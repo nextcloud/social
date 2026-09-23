@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client\Options;
 
 use JsonSerializable;
+use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IRequest;
 
@@ -49,9 +50,9 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private bool $onlyVideo = false;
 	private bool $onlyNews = false;
 	private string $mediaType = '';
-	private int $minId = 0;
-	private int $maxId = 0;
-	private int $since = 0;
+	private int|string $minId = 0;
+	private int|string $maxId = 0;
+	private int|string $since = 0;
 	/** Upper bound on how many items one request may ask for. */
 	public const MAX_LIMIT = 50;
 
@@ -196,55 +197,55 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	}
 
 	/**
-	 * @return int
+	 * @return int|string
 	 */
-	public function getMinId(): int {
+	public function getMinId(): int|string {
 		return $this->minId;
 	}
 
 	/**
-	 * @param int $minId
+	 * @param int|string $minId
 	 *
 	 * @return ProbeOptions
 	 */
-	public function setMinId(int $minId): self {
-		$this->minId = $minId;
+	public function setMinId(int|string $minId): self {
+		$this->minId = Nid::fromStorage($minId);
 
 		return $this;
 	}
 
 	/**
-	 * @return int
+	 * @return int|string
 	 */
-	public function getMaxId(): int {
+	public function getMaxId(): int|string {
 		return $this->maxId;
 	}
 
 	/**
-	 * @param int $maxId
+	 * @param int|string $maxId
 	 *
 	 * @return ProbeOptions
 	 */
-	public function setMaxId(int $maxId): self {
-		$this->maxId = $maxId;
+	public function setMaxId(int|string $maxId): self {
+		$this->maxId = Nid::fromStorage($maxId);
 
 		return $this;
 	}
 
 	/**
-	 * @return int
+	 * @return int|string
 	 */
-	public function getSince(): int {
+	public function getSince(): int|string {
 		return $this->since;
 	}
 
 	/**
-	 * @param int $since
+	 * @param int|string $since
 	 *
 	 * @return ProbeOptions
 	 */
-	public function setSince(int $since): self {
-		$this->since = $since;
+	public function setSince(int|string $since): self {
+		$this->since = Nid::fromStorage($since);
 
 		return $this;
 	}
@@ -400,9 +401,9 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		$this->setOnlyVideo($this->getBool('only_video', $arr, $this->isOnlyVideo()));
 		$this->setOnlyNews($this->getBool('only_news', $arr, $this->isOnlyNews()));
 		$this->setMediaType($this->get('media_type', $arr, $this->getMediaType()));
-		$this->setMinId($this->getInt('min_id', $arr, $this->getMinId()));
-		$this->setMaxId($this->getInt('max_id', $arr, $this->getMaxId()));
-		$this->setSince($this->getInt('since', $arr, $this->getSince()));
+		$this->setMinId($this->get('min_id', $arr, '0'));
+		$this->setMaxId($this->get('max_id', $arr, '0'));
+		$this->setSince($this->get('since', $arr, '0'));
 		$this->setLimit($this->getInt('limit', $arr, $this->getLimit()));
 		$this->setArgument($this->get('argument', $arr, $this->getArgument()));
 

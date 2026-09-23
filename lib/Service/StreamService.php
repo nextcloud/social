@@ -556,11 +556,11 @@ class StreamService {
 	}
 
 	/**
-	 * @param int $nid
+	 * @param int|string $nid
 	 *
 	 * @return array
 	 */
-	public function getContextByNid(int $nid): array {
+	public function getContextByNid(int|string $nid): array {
 		$curr = $post = $this->streamRequest->getStreamByNid($nid);
 
 		$ancestors = [];
@@ -591,7 +591,7 @@ class StreamService {
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
-	public function getStreamByNid(int $nid): Stream {
+	public function getStreamByNid(int|string $nid): Stream {
 		return $this->streamRequest->getStreamByNid($nid);
 	}
 
@@ -656,7 +656,7 @@ class StreamService {
 		$nids = [];
 		foreach ($posts as $post) {
 			if ($post->getNid() > 0) {
-				$nids[] = $post->getNid();
+				$nids[] = (string)$post->getNid();
 			}
 		}
 

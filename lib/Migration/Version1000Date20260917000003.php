@@ -92,13 +92,13 @@ class Version1000Date20260917000003 extends SimpleMigrationStep {
 
 		$output->info('working out what ' . $total . ' post(s) carry');
 
-		$after = 0;
+		$after = '0';
 		$done = 0;
 		while (true) {
 			$page = $this->connection->executeQuery(
 				'SELECT `nid`, `attachments`, `subtype` FROM `' . $stream . '`'
 				. ' WHERE `nid` > ? AND `media_kind` IS NULL ORDER BY `nid` ASC LIMIT ' . self::BATCH,
-				[(string)$after]
+				[$after]
 			)->fetchAll();
 
 			if ($page === []) {
@@ -107,11 +107,11 @@ class Version1000Date20260917000003 extends SimpleMigrationStep {
 
 			$byKind = [];
 			foreach ($page as $row) {
-				$after = max($after, (int)$row['nid']);
+				$after = \OCA\Social\Tools\Nid::compare($after, (string)$row['nid']) > 0 ? $after : (string)$row['nid'];
 				$kind = Stream::mediaKindOf(
 					(string)($row['attachments'] ?? ''), (string)($row['subtype'] ?? '')
 				);
-				$byKind[$kind][] = (int)$row['nid'];
+				$byKind[$kind][] = (string)$row['nid'];
 			}
 
 			// one statement per kind per page rather than one per row

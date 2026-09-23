@@ -185,9 +185,9 @@ class NotificationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v2/notifications')]
 	public function indexV2(
 		int $limit = 40,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 		array $types = [],
 		array $exclude_types = [],
 		array $grouped_types = [],
@@ -404,7 +404,7 @@ class NotificationController extends Controller {
 			$this->initViewer(['read:notifications']);
 
 			foreach ($this->heldRequests() as $request) {
-				if ($request->getAccount()->getNid() === $id) {
+				if ($request->getAccount()->getNid() === (string)$id) {
 					return new DataResponse($request, Http::STATUS_OK);
 				}
 			}
@@ -455,9 +455,9 @@ class NotificationController extends Controller {
 	 */
 	private function visible(
 		int $limit,
-		int $maxId = 0,
-		int $minId = 0,
-		int $sinceId = 0,
+		int|string $maxId = '0',
+		int|string $minId = 0,
+		int|string $sinceId = '0',
 		array $types = [],
 		array $excludeTypes = [],
 		string $accountId = '',
@@ -524,10 +524,10 @@ class NotificationController extends Controller {
 			$this->initViewer(['write:notifications']);
 
 			foreach ($ids as $id) {
-				$nid = (int)$id;
-				if ($nid < 1) {
+				if ((!is_string($id) && !is_int($id)) || !ctype_digit((string)$id) || \OCA\Social\Tools\Nid::compare($id, '0') < 1) {
 					continue;
 				}
+				$nid = \OCA\Social\Tools\Nid::fromStorage($id);
 
 				$accounts = $this->cacheActorService->getFromNids([$nid]);
 				if ($accounts === []) {

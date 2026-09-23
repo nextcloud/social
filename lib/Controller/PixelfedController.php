@@ -404,7 +404,7 @@ class PixelfedController extends ClientApiController {
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/accounts/{account_id}/tagged')]
 	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/accounts/{account_id}/tagged', postfix: 'pf')]
-	public function accountTagged(string $account_id, int $limit = 20, int $max_id = 0): DataResponse {
+	public function accountTagged(string $account_id, int $limit = 20, int|string $max_id = 0): DataResponse {
 		try {
 			$this->initViewer(['read:statuses']);
 			$subject = $this->cacheActorService->resolve($account_id);
@@ -704,7 +704,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/archive/remove/{id}', requirements: ['id' => '\\d+'])]
-	public function archiveRemove(int $id): DataResponse {
+	public function archiveRemove(string $id): DataResponse {
 		try {
 			$this->initViewer(['write:statuses']);
 			$this->archiveService->restore($this->viewer(), $id);
@@ -718,7 +718,7 @@ class PixelfedController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/archive/list')]
-	public function archiveList(int $limit = ArchiveService::PAGE, int $max_id = 0): DataResponse {
+	public function archiveList(int $limit = ArchiveService::PAGE, int|string $max_id = 0): DataResponse {
 		try {
 			$this->initViewer(['read:statuses']);
 			$posts = $this->archiveService->forActor($this->viewer(), $limit, $max_id);
@@ -811,12 +811,12 @@ class PixelfedController extends ClientApiController {
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1.1/direct/thread')]
 	#[FrontpageRoute(verb: 'GET', url: '/api/pixelfed/v1/direct/thread', postfix: 'pf')]
-	public function directThread(string $pid = '', int $max_id = 0, int $min_id = 0): DataResponse {
+	public function directThread(string $pid = '', int|string $max_id = 0, int|string $min_id = 0): DataResponse {
 		try {
 			$this->initViewer(['read:statuses']);
 
 			return new DataResponse(
-				$this->pixelfedService->thread($this->viewer(), $pid, max(0, $max_id), max(0, $min_id)),
+				$this->pixelfedService->thread($this->viewer(), $pid, $max_id, $min_id),
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {

@@ -1129,3 +1129,8 @@ Every handler catches `Throwable`, not `Exception`. A `TypeError` — an empty o
 | 500 | Anything unrecognised. The body is always `{"error": "internal server error"}` and the real message is logged with its stack trace — these routes are all `#[PublicPage]`, and echoing `getMessage()` published whatever the failure happened to name. |
 
 Successful Mastodon-compatible responses are **not** wrapped: `ApiController` returns the object or array directly with HTTP 200. HTTP status codes in use across the app are 200, 303 (the actor-header and OAuth authorization redirects — `RedirectResponse`'s default), 400, 401, 403, 404, 422, 429, 500, 502 and 503 (a refused inbox delivery whose signature could not be checked); no endpoint returns 201 or 204.
+
+
+## Numeric status identifiers
+
+Status `nid` values are exposed as decimal strings wherever the API carries IDs or pagination cursors. This preserves their exact value on 32-bit PHP, where generated IDs can be larger than `PHP_INT_MAX`; clients should keep IDs as strings and must not parse them through a fixed-width signed integer. Their numeric order is the timeline order, so `min_id`, `max_id`, and `since_id` continue to work as before.

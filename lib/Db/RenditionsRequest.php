@@ -35,7 +35,7 @@ class RenditionsRequest extends CoreRequestBuilder {
 	public function save(VideoRendition $rendition): void {
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_RENDITIONS)
-			->setValue('doc_nid', $qb->createNamedParameter($rendition->getDocNid(), IQueryBuilder::PARAM_INT))
+			->setValue('doc_nid', $qb->createNamedParameter($rendition->getDocNid()))
 			->setValue('height', $qb->createNamedParameter($rendition->getHeight(), IQueryBuilder::PARAM_INT))
 			->setValue('bandwidth', $qb->createNamedParameter($rendition->getBandwidth(), IQueryBuilder::PARAM_INT))
 			->setValue('size', $qb->createNamedParameter($rendition->getSize(), IQueryBuilder::PARAM_INT))
@@ -60,7 +60,7 @@ class RenditionsRequest extends CoreRequestBuilder {
 			->set('local_copy', $qb->createNamedParameter($rendition->getLocalCopy()))
 			->set('playlist', $qb->createNamedParameter($rendition->getPlaylist()))
 			->set('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
-			->where($qb->expr()->eq('doc_nid', $qb->createNamedParameter($rendition->getDocNid(), IQueryBuilder::PARAM_INT)))
+			->where($qb->expr()->eq('doc_nid', $qb->createNamedParameter($rendition->getDocNid())))
 			->andWhere($qb->expr()->eq('height', $qb->createNamedParameter($rendition->getHeight(), IQueryBuilder::PARAM_INT)));
 
 		$qb->executeStatement();
@@ -71,11 +71,11 @@ class RenditionsRequest extends CoreRequestBuilder {
 	 *
 	 * @return VideoRendition[]
 	 */
-	public function forDocument(int $docNid): array {
+	public function forDocument(int|string $docNid): array {
 		$qb = $this->getQueryBuilder();
 		$qb->select('id', 'doc_nid', 'height', 'bandwidth', 'size', 'local_copy', 'playlist')
 			->from(self::TABLE_RENDITIONS)
-			->where($qb->expr()->eq('doc_nid', $qb->createNamedParameter($docNid, IQueryBuilder::PARAM_INT)))
+			->where($qb->expr()->eq('doc_nid', $qb->createNamedParameter($docNid)))
 			->orderBy('height', 'asc');
 
 		$renditions = [];
@@ -89,7 +89,7 @@ class RenditionsRequest extends CoreRequestBuilder {
 	}
 
 	/** One rung by height, or null when that is not a rung of this video. */
-	public function forHeight(int $docNid, int $height): ?VideoRendition {
+	public function forHeight(int|string $docNid, int $height): ?VideoRendition {
 		foreach ($this->forDocument($docNid) as $rendition) {
 			if ($rendition->getHeight() === $height) {
 				return $rendition;
@@ -109,7 +109,7 @@ class RenditionsRequest extends CoreRequestBuilder {
 	 *
 	 * @return string[] the store paths the deleted rows named
 	 */
-	public function deleteForDocument(int $docNid): array {
+	public function deleteForDocument(int|string $docNid): array {
 		$orphans = array_map(
 			static fn (VideoRendition $rendition): string => $rendition->getLocalCopy(),
 			$this->forDocument($docNid)
@@ -117,7 +117,7 @@ class RenditionsRequest extends CoreRequestBuilder {
 
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_RENDITIONS)
-			->where($qb->expr()->eq('doc_nid', $qb->createNamedParameter($docNid, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('doc_nid', $qb->createNamedParameter($docNid)));
 		$qb->executeStatement();
 
 		return array_values(array_filter($orphans, static fn (string $path): bool => $path !== ''));
@@ -141,7 +141,7 @@ class RenditionsRequest extends CoreRequestBuilder {
 	private function parse(array $data): VideoRendition {
 		$rendition = new VideoRendition();
 		$rendition->setId((int)$data['id'])
-			->setDocNid((int)$data['doc_nid'])
+			->setDocNid((string)$data['doc_nid'])
 			->setHeight((int)$data['height'])
 			->setBandwidth((int)$data['bandwidth'])
 			->setSize((int)$data['size'])

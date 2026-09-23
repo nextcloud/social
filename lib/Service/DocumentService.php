@@ -383,7 +383,7 @@ class DocumentService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function openStreamed(int $nid, string $range = ''): array {
+	public function openStreamed(int|string $nid, string $range = ''): array {
 		if ($nid < 1) {
 			throw new NotFoundException('invalid document');
 		}
@@ -424,7 +424,7 @@ class DocumentService {
 	 * @return array{document: Document, playlist: string}
 	 * @throws NotFoundException
 	 */
-	public function openPlaylist(int $nid, callable $proxyUrl): array {
+	public function openPlaylist(int|string $nid, callable $proxyUrl): array {
 		$document = $this->openStreamed($nid)['document'];
 		if (!self::isPlaylist($document->getMediaType())) {
 			throw new NotFoundException('document is not a playlist');
@@ -450,7 +450,7 @@ class DocumentService {
 	 * @return array{type: string, stream: resource, status: int, headers: array}
 	 * @throws NotFoundException
 	 */
-	public function openPlaylistFile(int $nid, string $url, string $range = ''): array {
+	public function openPlaylistFile(int|string $nid, string $url, string $range = ''): array {
 		$document = $this->openStreamed($nid)['document'];
 		if (!self::isPlaylist($document->getMediaType())) {
 			throw new NotFoundException('document is not a playlist');
@@ -586,7 +586,7 @@ class DocumentService {
 	 *
 	 * @return VideoRendition[]
 	 */
-	public function renditionsOf(int $nid): array {
+	public function renditionsOf(int|string $nid): array {
 		return ($nid < 1) ? [] : $this->renditionsRequest->forDocument($nid);
 	}
 

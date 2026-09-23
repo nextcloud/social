@@ -1,5 +1,11 @@
 # Nextcloud Social — Architecture Overview
 
+## Identifier width and PHP 32-bit support
+
+Stream `nid` values are decimal identifiers stored in the database's `BIGINT` columns. They are generated from the published timestamp followed by a fixed-width random suffix, so database ordering remains chronological. A `nid` can exceed `PHP_INT_MAX` on a 32-bit PHP build even though its timestamp component is representable. The application therefore keeps stream identifiers as normalized decimal strings from HTTP route and cursor input through models, pagination, database parameters, and output serialization. Numeric comparisons use `Tools\Nid`, which compares decimal length and digits without converting the full value to a PHP integer. Do not cast a stream `nid`, or bind it as `PARAM_INT`; bind it as a decimal string. Ordinary counters, timestamps, media sizes, and auto-increment row IDs remain integers.
+
+Regression coverage includes identifiers above the 32-bit signed integer range and verifies normalization, ordering, and generator shape. Database integration runs against the supported database engines on the normal 64-bit CI runtime; Nextcloud documents 32-bit PHP as supported but recommends 64-bit PHP.
+
 ## Contents
 
 - [Introduction](#introduction)

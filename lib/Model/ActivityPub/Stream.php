@@ -1916,16 +1916,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * @return array{int, int}
+	 * @return array{string, string}
 	 */
 	private function lookupParent(string $parentId): array {
 		try {
 			$parent = Server::get(StreamRequest::class)->getStreamById($parentId);
 			$author = $parent->hasActor() ? $parent->getActor()->getNid() : 0;
 
-			return [$parent->getNid(), $author];
+			return [(string)$parent->getNid(), (string)$author];
 		} catch (\Throwable $e) {
-			return [0, 0];
+			return ['0', '0'];
 		}
 	}
 

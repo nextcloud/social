@@ -24,7 +24,6 @@ use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\WebFingerReachable;
 use OCA\Social\Tools\Traits\TArrayTools;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\SetupCheck\ISetupCheck;
 use OCP\SetupCheck\SetupResult;
@@ -251,7 +250,7 @@ class CheckInstall extends SocialCommand {
 
 		$errors = [];
 		$failed = 0;
-		$lastNid = 0;
+		$lastNid = '0';
 
 		while (true) {
 			$chunk = $this->streamChunk($lastNid, self::INDEX_CHUNK);
@@ -260,7 +259,7 @@ class CheckInstall extends SocialCommand {
 			}
 
 			foreach ($chunk as $row) {
-				$lastNid = (int)$row['nid'];
+				$lastNid = (string)$row['nid'];
 
 				try {
 					$stream = $this->streamRequest->getStream((string)$row['id_prim']);
@@ -315,11 +314,11 @@ class CheckInstall extends SocialCommand {
 	 *
 	 * @return list<array<string, mixed>>
 	 */
-	private function streamChunk(int $afterNid, int $limit): array {
+	private function streamChunk(int|string $afterNid, int $limit): array {
 		$qb = $this->connection->getQueryBuilder();
 		$qb->select('nid', 'id_prim')
 			->from(CoreRequestBuilder::TABLE_STREAM)
-			->where($qb->expr()->gt('nid', $qb->createNamedParameter($afterNid, IQueryBuilder::PARAM_INT)))
+			->where($qb->expr()->gt('nid', $qb->createNamedParameter($afterNid)))
 			->orderBy('nid', 'asc')
 			->setMaxResults($limit);
 

@@ -213,11 +213,11 @@ class PostService {
 	 * @throws \Exception
 	 */
 	public function editPost(
-		int $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null,
+		int|string $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null,
 		?string $language = null,
 	): Stream {
 		$this->moderationService->assertNotSuspended($actor->getId());
-		$stream = $this->streamService->getStreamByNid($nid);
+		$stream = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 
 		if ($stream->getAttributedTo() !== $actor->getId()) {
 			throw new \Exception('Not authorized to edit this post');
@@ -262,7 +262,7 @@ class PostService {
 		$this->streamService->updateStream($stream, true);
 		$this->revisionService->recordEdit($original, $stream);
 
-		$updated = $this->streamService->getStreamByNid($nid);
+		$updated = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 		// The reloaded post carries the instance paths it was created with —
 		// for a direct message, the inboxes of the people it names. The
 		// followers path expands to the shared inbox of every instance with a
@@ -379,7 +379,7 @@ class PostService {
 
 		try {
 			$quoted = ctype_digit($quotedId)
-				? $this->streamService->getStreamByNid((int)$quotedId)
+				? $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($quotedId))
 				: $this->streamService->getStreamById($quotedId);
 		} catch (\Exception $e) {
 			throw new InvalidActionException('the post to quote is unknown here');

@@ -36,20 +36,20 @@ use OCA\Social\Model\ActivityPub\Stream;
  * newest message could not be read back.
  */
 class Conversation implements JsonSerializable {
-	private int $id = 0;
+	private int|string $id = 0;
 	private string $rootId = '';
 	private bool $unread = false;
 	/** @var Person[] */
 	private array $accounts = [];
 	private ?Stream $lastStatus = null;
 
-	public function setId(int $id): self {
-		$this->id = $id;
+	public function setId(int|string $id): self {
+		$this->id = \OCA\Social\Tools\Nid::fromStorage($id);
 
 		return $this;
 	}
 
-	public function getId(): int {
+	public function getId(): int|string {
 		return $this->id;
 	}
 
@@ -105,7 +105,7 @@ class Conversation implements JsonSerializable {
 	 * the thread's own id. Conversations are ordered by their newest message,
 	 * so that is the only value a cursor can be compared against.
 	 */
-	public function getLastStatusNid(): int {
+	public function getLastStatusNid(): int|string {
 		return ($this->lastStatus === null) ? 0 : $this->lastStatus->getNid();
 	}
 

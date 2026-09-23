@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Conversation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Tools\Nid;
 use Throwable;
 
 /**
@@ -103,9 +104,9 @@ class ConversationService {
 	 * the direct timeline, and a page of no conversations at that point is the
 	 * end of the list rather than a gap to page past.
 	 *
-	 * @return array{conversations: Conversation[], next: int, prev: int}
+	 * @return array{conversations: Conversation[], next: int|string, prev: int|string}
 	 */
-	public function getPage(Person $viewer, int $limit, int $maxId = 0, int $minId = 0, int $sinceId = 0): array {
+	public function getPage(Person $viewer, int $limit, int|string $maxId = '0', int|string $minId = 0, int|string $sinceId = '0'): array {
 		$limit = max(1, min(self::MAX_LIMIT, $limit));
 		$messages = $this->directMessages($viewer, $maxId, $minId, $sinceId);
 		if ($messages === []) {
@@ -128,13 +129,13 @@ class ConversationService {
 		} else {
 			// a window that came back full may have older messages behind it,
 			// including ones belonging to conversations nothing here has seen
-			$next = (count($messages) < self::WINDOW) ? 0 : min($nids);
+			$next = (count($messages) < self::WINDOW) ? 0 : $this->oldestOf($nids);
 		}
 
 		return [
 			'conversations' => $conversations,
 			'next' => $next,
-			'prev' => max($nids),
+			'prev' => $this->newestNidOf($nids),
 		];
 	}
 
@@ -209,11 +210,13 @@ class ConversationService {
 	 *                               viewer's — which is the same answer as no
 	 *                               conversation at all
 	 */
-	public function markRead(Person $viewer, int $id): Conversation {
+	public function markRead(Person $viewer, int|string $id): Conversation {
 		[$root, $thread] = $this->threadOf($viewer, $id);
 
 		$newest = $this->newestOf($thread);
-		$this->conversationsRequest->markRead($viewer->getId(), $root['id'], $newest);
+		$this->conversationsRequest->markRead(
+			$viewer->getId(), $root['id'], Nid::fromStorage($newest)
+		);
 
 		return $this->single($viewer, $root, $newest, false);
 	}
@@ -229,10 +232,12 @@ class ConversationService {
 	 *
 	 * @throws ItemNotFoundException
 	 */
-	public function remove(Person $viewer, int $id): void {
+	public function remove(Person $viewer, int|string $id): void {
 		[$root, $thread] = $this->threadOf($viewer, $id);
 
-		$this->conversationsRequest->markHidden($viewer->getId(), $root['id'], $this->newestOf($thread));
+		$this->conversationsRequest->markHidden(
+			$viewer->getId(), $root['id'], Nid::fromStorage($this->newestOf($thread))
+		);
 	}
 
 	/**
@@ -240,7 +245,7 @@ class ConversationService {
 	 *
 	 * @return Stream[] newest first
 	 */
-	private function directMessages(Person $viewer, int $maxId, int $minId, int $sinceId): array {
+	private function directMessages(Person $viewer, int|string $maxId, int|string $minId, int|string $sinceId): array {
 		$options = new ProbeOptions();
 		$options->setFormat(ACore::FORMAT_LOCAL);
 		$options->setProbe(ProbeOptions::DIRECT)
@@ -305,9 +310,9 @@ class ConversationService {
 	 * is what a thread that starts here, or a parent this instance never
 	 * stored, both look like.
 	 *
-	 * @param array<string, array{nid: int, inReplyTo: string}> $links
+	 * @param array<string, array{nid: string, inReplyTo: string}> $links
 	 *
-	 * @return array<string, array{nid: int, inReplyTo: string}>
+	 * @return array<string, array{nid: string, inReplyTo: string}>
 	 */
 	private function withAncestors(array $links): array {
 		for ($depth = 0; $depth < ConversationsRequest::MAX_THREAD_DEPTH; $depth++) {
@@ -340,7 +345,7 @@ class ConversationService {
 	 * The topmost post of the thread `$id` is in, out of what is known about
 	 * it: the first post with no parent, or whose parent is not stored here.
 	 *
-	 * @param array<string, array{nid: int, inReplyTo: string}> $links
+	 * @param array<string, array{nid: string, inReplyTo: string}> $links
 	 */
 	private function rootOf(string $id, array $links): string {
 		$seen = [];
@@ -374,12 +379,12 @@ class ConversationService {
 			$last = $messages[0];
 			$marker = $markers[$rootId] ?? ['readNid' => 0, 'hiddenNid' => 0];
 
-			if ($last->getNid() <= $marker['hiddenNid']) {
+			if (Nid::compare($last->getNid(), $marker['hiddenNid']) <= 0) {
 				continue;
 			}
 
 			$rootNid = $this->nidOf($rootId, $messages);
-			if ($rootNid < 1) {
+			if (Nid::compare($rootNid, '0') < 1) {
 				// the root is not a post this instance can name, so the
 				// conversation has no id a client could send back
 				continue;
@@ -404,12 +409,12 @@ class ConversationService {
 	 * itself, which is Mastodon's rule too: writing a message is having read
 	 * the conversation.
 	 */
-	private function isUnread(Person $viewer, Stream $last, int $readNid): bool {
+	private function isUnread(Person $viewer, Stream $last, int|string $readNid): bool {
 		if ($last->getAttributedTo() === $viewer->getId()) {
 			return false;
 		}
 
-		return ($last->getNid() > $readNid);
+		return Nid::compare($last->getNid(), $readNid) > 0;
 	}
 
 	/**
@@ -467,16 +472,16 @@ class ConversationService {
 	 *
 	 * @param Stream[] $messages
 	 */
-	private function nidOf(string $rootId, array $messages): int {
+	private function nidOf(string $rootId, array $messages): string {
 		foreach ($messages as $message) {
 			if ($message->getId() === $rootId) {
-				return $message->getNid();
+				return (string)$message->getNid();
 			}
 		}
 
 		$links = $this->conversationsRequest->getThreadLinks([$rootId]);
 
-		return $links[$rootId]['nid'] ?? 0;
+		return (string)($links[$rootId]['nid'] ?? '0');
 	}
 
 	/**
@@ -488,12 +493,12 @@ class ConversationService {
 	 * kept from an older page whose root was not stored yet — is answered
 	 * about the thread that reply is in, not refused.
 	 *
-	 * @return array{0: array{id: string, idPrim: string, nid: int, inReplyTo: string}, 1: array<string, array{id: string, idPrim: string, nid: int, inReplyTo: string}>}
+	 * @return array{0: array{id: string, idPrim: string, nid: int|string, inReplyTo: string}, 1: array<string, array{id: string, idPrim: string, nid: int|string, inReplyTo: string}>}
 	 *
 	 * @throws ItemNotFoundException
 	 */
-	private function threadOf(Person $viewer, int $id): array {
-		if ($id < 1) {
+	private function threadOf(Person $viewer, int|string $id): array {
+		if (Nid::compare($id, '0') < 1) {
 			throw new ItemNotFoundException('Record not found');
 		}
 
@@ -527,25 +532,27 @@ class ConversationService {
 	/**
 	 * The newest message of a thread, as its nid.
 	 *
-	 * @param array<string, array{id: string, idPrim: string, nid: int, inReplyTo: string}> $thread
+	 * @param array<string, array{id: string, idPrim: string, nid: int|string, inReplyTo: string}> $thread
 	 */
-	private function newestOf(array $thread): int {
-		$nids = [0];
+	private function newestOf(array $thread): string {
+		$newest = '0';
 		foreach ($thread as $link) {
-			$nids[] = $link['nid'];
+			if (Nid::compare($link['nid'], $newest) > 0) {
+				$newest = (string)$link['nid'];
+			}
 		}
 
-		return max($nids);
+		return $newest;
 	}
 
 	/**
 	 * One conversation, read back after it was written to.
 	 *
-	 * @param array{id: string, idPrim: string, nid: int, inReplyTo: string} $root
+	 * @param array{id: string, idPrim: string, nid: int|string, inReplyTo: string} $root
 	 *
 	 * @throws ItemNotFoundException
 	 */
-	private function single(Person $viewer, array $root, int $lastNid, bool $unread): Conversation {
+	private function single(Person $viewer, array $root, int|string $lastNid, bool $unread): Conversation {
 		$conversation = new Conversation();
 		$conversation->setId($root['nid'])
 			->setRootId($root['id'])
@@ -564,4 +571,18 @@ class ConversationService {
 
 		return $conversation;
 	}
+	/** The newest decimal identifier in a page of messages. */
+	private function newestNidOf(array $nids): int|string {
+		usort($nids, static fn (string $left, string $right): int => Nid::compare($left, $right));
+
+		return $nids === [] ? 0 : Nid::fromStorage($nids[count($nids) - 1]);
+	}
+
+	/** The oldest decimal identifier, compared without native integer coercion. */
+	private function oldestOf(array $nids): int|string {
+		usort($nids, static fn (string $left, string $right): int => Nid::compare($left, $right));
+
+		return $nids === [] ? 0 : Nid::fromStorage($nids[0]);
+	}
+
 }

@@ -48,14 +48,14 @@ class ArchiveService {
 	 *                               also the answer for somebody else's and
 	 *                               for one this server did not write
 	 */
-	public function archive(Person $actor, int $nid): void {
+	public function archive(Person $actor, int|string $nid): void {
 		if (!$this->streamRequest->setArchived($nid, $actor->getId(), true)) {
 			throw new ItemNotFoundException('no post of yours with that id');
 		}
 	}
 
 	/** @throws ItemNotFoundException */
-	public function restore(Person $actor, int $nid): void {
+	public function restore(Person $actor, int|string $nid): void {
 		if (!$this->streamRequest->setArchived($nid, $actor->getId(), false)) {
 			throw new ItemNotFoundException('no post of yours with that id');
 		}
@@ -66,7 +66,7 @@ class ArchiveService {
 	 *
 	 * @return Stream[]
 	 */
-	public function forActor(Person $actor, int $limit = self::PAGE, int $maxId = 0): array {
+	public function forActor(Person $actor, int $limit = self::PAGE, int|string $maxId = '0'): array {
 		return $this->streamRequest->getArchivedByActor(
 			$actor->getId(), max(1, min($limit, self::PAGE)), $maxId
 		);

@@ -111,13 +111,13 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 
 		$output->info('filling in the recipient rows\' sort key for ' . $total . ' post(s)');
 
-		$after = 0;
+		$after = '0';
 		$done = 0;
 		while (true) {
 			$page = $this->connection->executeQuery(
 				'SELECT `nid`, `id_prim` FROM `' . $stream . '` WHERE `nid` > ? ORDER BY `nid` ASC LIMIT '
 				. self::BATCH,
-				[(string)$after]
+				[$after]
 			)->fetchAll();
 
 			if ($page === []) {
@@ -130,11 +130,11 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 			$cases = '';
 			$values = [];
 			foreach ($page as $row) {
-				$after = max($after, (int)$row['nid']);
+				$after = \OCA\Social\Tools\Nid::compare($after, (string)$row['nid']) > 0 ? $after : (string)$row['nid'];
 				$prims[] = (string)$row['id_prim'];
 				$cases .= ' WHEN ? THEN ?';
 				$values[] = (string)$row['id_prim'];
-				$values[] = (string)(int)$row['nid'];
+				$values[] = (string)$row['nid'];
 			}
 
 			$in = implode(', ', array_fill(0, count($prims), '?'));

@@ -654,7 +654,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/polls/{nid}')]
-	public function pollGet(int $nid): DataResponse {
+	public function pollGet(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 
@@ -677,7 +677,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/polls/{nid}/votes')]
-	public function pollVote(int $nid): DataResponse {
+	public function pollVote(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 
@@ -1259,12 +1259,12 @@ class ApiController extends Controller {
 		}
 
 		$nid = $this->cacheFactory->createDistributed(self::IDEMPOTENCY_CACHE)->get($key);
-		if (!is_numeric($nid) || (int)$nid < 1) {
+		if ((!is_string($nid) && !is_int($nid)) || !ctype_digit((string)$nid) || \OCA\Social\Tools\Nid::compare($nid, '0') < 1) {
 			return null;
 		}
 
 		try {
-			$item = $this->streamService->getStreamByNid((int)$nid);
+			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 		} catch (Exception $e) {
 			// deleted since, or never really written: let the post go through
 			return null;
@@ -1275,7 +1275,7 @@ class ApiController extends Controller {
 		return $item;
 	}
 
-	private function rememberIdempotencyKey(string $key, int $nid): void {
+	private function rememberIdempotencyKey(string $key, int|string $nid): void {
 		if ($key === '' || $nid < 1) {
 			return;
 		}
@@ -1286,14 +1286,14 @@ class ApiController extends Controller {
 
 	/**
 	 *
-	 * @param int $nid
+	 * @param int|string $nid
 	 *
 	 * @return DataResponse
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/statuses/{nid}')]
-	public function statusUpdate(int $nid): DataResponse {
+	public function statusUpdate(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 
@@ -1324,9 +1324,9 @@ class ApiController extends Controller {
 	 * @param string $timeline
 	 * @param bool $local
 	 * @param int $limit
-	 * @param int $max_id
-	 * @param int $min_id
-	 * @param int $since_id
+	 * @param int|string $max_id
+	 * @param int|string $min_id
+	 * @param int|string $since_id
 	 *
 	 * @return Response
 	 */
@@ -1339,9 +1339,9 @@ class ApiController extends Controller {
 		string $timeline,
 		bool $local = false,
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 		bool $only_media = false,
 		bool $only_video = false,
 		bool $only_news = false,
@@ -1390,7 +1390,7 @@ class ApiController extends Controller {
 			// index-only probe — see `notModified()`. Only the head of the home
 			// timeline is worth tagging: a page reached with `max_id` is
 			// historical and a client asks for it once.
-			if ($timeline === ProbeOptions::HOME && $max_id === 0 && $min_id === 0) {
+			if ($timeline === ProbeOptions::HOME && $max_id === '0' && $min_id === '0') {
 				// the newest id says whether anything arrived; the revision
 				// says whether the reader has changed what they are shown —
 				// a follow, a block, a mute, a filter, a followed hashtag —
@@ -1443,18 +1443,18 @@ class ApiController extends Controller {
 
 	/**
 	 *
-	 * @param int $nid
+	 * @param int|string $nid
 	 *
 	 * @return DataResponse
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}')]
-	public function statusGet(int $nid): DataResponse {
+	public function statusGet(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(false);
 
-			$item = $this->streamService->attachCard($this->streamService->getStreamByNid($nid));
+			$item = $this->streamService->attachCard($this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid)));
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 			// opening a post's own page is the one thing this app counts as
 			// having read it: not an impression in a timeline, which is a post
@@ -1479,12 +1479,12 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/card')]
-	public function statusCard(int $nid): DataResponse {
+	public function statusCard(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(false);
 
 			$card = $this->streamService
-				->attachCard($this->streamService->getStreamByNid($nid))
+				->attachCard($this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid)))
 				->getCard();
 
 			return new DataResponse($card ?? (object)[], Http::STATUS_OK);
@@ -1495,14 +1495,14 @@ class ApiController extends Controller {
 
 	/**
 	 *
-	 * @param int $nid
+	 * @param int|string $nid
 	 *
 	 * @return DataResponse
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/context')]
-	public function statusContext(int $nid): DataResponse {
+	public function statusContext(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(false);
 			$context = $this->streamService->getContextByNid($nid);
@@ -1535,12 +1535,12 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/statuses/{nid}')]
-	public function statusDelete(int $nid): DataResponse {
+	public function statusDelete(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
-			$item = $this->streamService->getStreamByNid($nid);
+			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			if ($item->getAttributedTo() !== $actor->getId()) {
 				// the same answer an unknown id gets: whether somebody else's
 				// post exists is not this route's to tell
@@ -1572,12 +1572,12 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/source')]
-	public function statusSource(int $nid): DataResponse {
+	public function statusSource(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
-			$item = $this->streamService->getStreamByNid($nid);
+			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			if ($item->getAttributedTo() !== $actor->getId()) {
 				throw new StreamNotFoundException('Stream not found');
 			}
@@ -1612,12 +1612,12 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/delivery')]
-	public function statusDelivery(int $nid): DataResponse {
+	public function statusDelivery(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 			$actor = $this->accountService->getActorFromUserId($this->currentSession());
 
-			$item = $this->streamService->getStreamByNid($nid);
+			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			if ($item->getAttributedTo() !== $actor->getId()) {
 				throw new StreamNotFoundException('Stream not found');
 			}
@@ -1658,7 +1658,7 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/react')]
-	public function statusReact(int $nid, string $emoji = ''): DataResponse {
+	public function statusReact(int|string $nid, string $emoji = ''): DataResponse {
 		return $this->react($nid, $emoji, true);
 	}
 
@@ -1666,15 +1666,15 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/unreact')]
-	public function statusUnreact(int $nid, string $emoji = ''): DataResponse {
+	public function statusUnreact(int|string $nid, string $emoji = ''): DataResponse {
 		return $this->react($nid, $emoji, false);
 	}
 
-	private function react(int $nid, string $emoji, bool $add): DataResponse {
+	private function react(int|string $nid, string $emoji, bool $add): DataResponse {
 		try {
 			$this->initViewer(true);
 			$actor = $this->accountService->getActor($this->viewer->getPreferredUsername());
-			$post = $this->streamService->getStreamByNid($nid);
+			$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 
 			if ($add) {
 				$this->reactionService->create($actor, $post->getId(), $emoji);
@@ -1684,7 +1684,7 @@ class ApiController extends Controller {
 
 			// read back rather than patched in memory, so the count the client
 			// redraws is the one the next reader will be served
-			$item = $this->streamService->getStreamByNid($nid);
+			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			$item->setReactions($this->reactionSummaryService->summaryOf($item->getId(), $actor->getId()));
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
@@ -1706,10 +1706,10 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/reactions')]
-	public function statusReactions(int $nid): DataResponse {
+	public function statusReactions(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(false);
-			$post = $this->streamService->getStreamByNid($nid);
+			$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 
 			return new DataResponse(
 				$this->reactionSummaryService->summaryOf($post->getId(), $this->viewer?->getId() ?? ''),
@@ -1742,10 +1742,10 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/translate')]
-	public function statusTranslate(int $nid, string $lang = ''): DataResponse {
+	public function statusTranslate(int|string $nid, string $lang = ''): DataResponse {
 		try {
 			$this->initViewer(true);
-			$post = $this->streamService->getStreamByNid($nid);
+			$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 
 			// the language asked for, else the one this reader reads Nextcloud
 			// in: a client that offers "translate" without a language picker
@@ -1767,7 +1767,7 @@ class ApiController extends Controller {
 
 	/**
 	 *
-	 * @param int $nid
+	 * @param int|string $nid
 	 * @param string $action
 	 *
 	 * @return DataResponse
@@ -1775,14 +1775,14 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/{act}')]
-	public function statusAction(int $nid, string $act): DataResponse {
+	public function statusAction(int|string $nid, string $act): DataResponse {
 		try {
 			$this->initViewer(true);
 			$actor = $this->accountService->getActor($this->viewer->getPreferredUsername());
 			$item = $this->actionService->action($actor, $nid, $act);
 
 			if ($item === null) {
-				$item = $this->streamService->getStreamByNid($nid);
+				$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			}
 
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
@@ -1805,9 +1805,9 @@ class ApiController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/scheduled_statuses')]
 	public function scheduledStatuses(
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -1882,7 +1882,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/favourited_by')]
-	public function statusFavouritedBy(int $nid, int $limit = 40): DataResponse {
+	public function statusFavouritedBy(int|string $nid, int $limit = 40): DataResponse {
 		return $this->reactedBy($nid, Like::TYPE, $limit);
 	}
 
@@ -1900,10 +1900,10 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/quotes')]
-	public function statusQuotes(int $nid, int $limit = 20, int $max_id = 0): DataResponse {
+	public function statusQuotes(int|string $nid, int $limit = 20, int|string $max_id = 0): DataResponse {
 		try {
 			$this->initViewer(false);
-			$post = $this->streamService->getStreamByNid($nid);
+			$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 
 			$quotes = $this->quoteService->quotesOf($post, $limit, $max_id);
 			foreach ($quotes as $quote) {
@@ -1932,7 +1932,7 @@ class ApiController extends Controller {
 	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/statuses/{nid}/interaction_policy')]
-	public function statusInteractionPolicy(int $nid): DataResponse {
+	public function statusInteractionPolicy(int|string $nid): DataResponse {
 		try {
 			$this->initViewer(true);
 
@@ -1965,7 +1965,7 @@ class ApiController extends Controller {
 	#[AnonRateLimit(limit: 60, period: 3600)]
 	#[UserRateLimit(limit: 60, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/quotes/{quoting}/revoke')]
-	public function statusQuoteRevoke(int $nid, int $quoting): DataResponse {
+	public function statusQuoteRevoke(int|string $nid, int|string $quoting): DataResponse {
 		try {
 			$this->initViewer(true);
 			$actor = $this->accountService->getActorFromUserId($this->currentSession());
@@ -2119,7 +2119,7 @@ class ApiController extends Controller {
 		$statuses = [];
 		foreach (array_keys($nids) as $nid) {
 			try {
-				$status = $this->streamService->getStreamByNid((int)$nid);
+				$status = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 				$status->setExportFormat(ACore::FORMAT_LOCAL);
 				$statuses[] = $status;
 			} catch (Throwable $e) {
@@ -2141,15 +2141,15 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}/reblogged_by')]
-	public function statusRebloggedBy(int $nid, int $limit = 40): DataResponse {
+	public function statusRebloggedBy(int|string $nid, int $limit = 40): DataResponse {
 		return $this->reactedBy($nid, Announce::TYPE, $limit);
 	}
 
-	private function reactedBy(int $nid, string $type, int $limit): DataResponse {
+	private function reactedBy(int|string $nid, string $type, int $limit): DataResponse {
 		try {
 			$this->initViewer(false);
 			$limit = min(max($limit, 1), 80);
-			$post = $this->streamService->getStreamByNid($nid);
+			$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 
 			return new DataResponse(
 				$this->actionService->reactedBy($post, $type, $limit), Http::STATUS_OK
@@ -2840,9 +2840,9 @@ class ApiController extends Controller {
 	 *
 	 * @param string $account
 	 * @param int $limit
-	 * @param int $max_id
-	 * @param int $min_id
-	 * @param int $since
+	 * @param int|string $max_id
+	 * @param int|string $min_id
+	 * @param int|string $since
 	 *
 	 * @return DataResponse
 	 */
@@ -2854,9 +2854,9 @@ class ApiController extends Controller {
 	public function accountStatuses(
 		string $account,
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 		bool $pinned = false,
 		bool $only_media = false,
 		string $media_type = '',
@@ -2922,9 +2922,9 @@ class ApiController extends Controller {
 	public function accountFollowing(
 		string $account,
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since = 0,
 	): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -2976,9 +2976,9 @@ class ApiController extends Controller {
 	public function accountFollowers(
 		string $account,
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since = 0,
 	): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -3018,9 +3018,9 @@ class ApiController extends Controller {
 	/**
 	 *
 	 * @param int $limit
-	 * @param int $max_id
-	 * @param int $min_id
-	 * @param int $since_id
+	 * @param int|string $max_id
+	 * @param int|string $min_id
+	 * @param int|string $since_id
 	 *
 	 * @return DataResponse
 	 */
@@ -3029,9 +3029,9 @@ class ApiController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/favourites/')]
 	public function favourites(
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -3059,9 +3059,9 @@ class ApiController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/bookmarks')]
 	public function bookmarks(
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -3189,9 +3189,9 @@ class ApiController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/notifications')]
 	public function notifications(
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 		array $types = [],
 		array $exclude_types = [],
 		string $accountId = '',
@@ -3255,9 +3255,9 @@ class ApiController extends Controller {
 	public function tag(
 		string $hashtag,
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 		bool $local = false,
 		bool $only_media = false,
 		bool $only_video = false,
@@ -4004,19 +4004,19 @@ class ApiController extends Controller {
 	 * numeric id the API pages by; an already-serialised entity carries it as
 	 * its string `id`.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	private function pageIds(array $items): array {
 		$ids = [];
 		foreach ($items as $item) {
-			$nid = 0;
+			$nid = '0';
 			if (is_object($item) && method_exists($item, 'getNid')) {
-				$nid = (int)$item->getNid();
+				$nid = (string)$item->getNid();
 			} elseif (is_array($item)) {
-				$nid = (int)($item['id'] ?? 0);
+				$nid = (string)($item['id'] ?? '0');
 			}
 
-			if ($nid > 0) {
+			if (\OCA\Social\Tools\Nid::compare($nid, '0') > 0) {
 				$ids[] = $nid;
 			}
 		}

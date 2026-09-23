@@ -110,7 +110,7 @@ class ScheduledStatusesRequest extends ScheduledStatusesRequestBuilder {
 		string $actorId,
 		int $limit = 20,
 		int $maxId = 0,
-		int $minId = 0,
+		int|string $minId = 0,
 		int $sinceId = 0,
 	): array {
 		$qb = $this->getScheduledSelectSql();
