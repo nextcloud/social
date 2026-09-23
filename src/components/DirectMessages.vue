@@ -30,10 +30,18 @@
 					:placeholder="t('social', 'Search conversations')"
 					type="search" />
 				<nav class="direct-messages__filters" :aria-label="t('social', 'Filter conversations')">
-					<button type="button" :class="{ 'direct-messages__filter--active': filterMode === 'all' }" @click="filterMode = 'all'">
+					<button
+						type="button"
+						:aria-pressed="filterMode === 'all'"
+						:class="{ 'direct-messages__filter--active': filterMode === 'all' }"
+						@click="filterMode = 'all'">
 						{{ t('social', 'All') }}
 					</button>
-					<button type="button" :class="{ 'direct-messages__filter--active': filterMode === 'unread' }" @click="filterMode = 'unread'">
+					<button
+						type="button"
+						:aria-pressed="filterMode === 'unread'"
+						:class="{ 'direct-messages__filter--active': filterMode === 'unread' }"
+						@click="filterMode = 'unread'">
 						{{ t('social', 'Unread ({count})', { count: unreadCount }) }}
 					</button>
 				</nav>
@@ -212,7 +220,7 @@
 					</time>
 					<div class="direct-messages__message">
 						<TimelineEntry
-							:item="message"
+							:item="messageForDisplay(message)"
 							type="direct"
 							element="article"
 							:hideAvatar="true"
@@ -623,7 +631,56 @@ export default {
 		},
 
 		preview(status) {
-			return htmlToPlainText(status?.content ?? '').replace(/\s+/g, ' ').trim()
+			return htmlToPlainText(this.withoutProtocolRecipient(status)).replace(/\s+/g, ' ').trim()
+		},
+
+		/**
+		 * Direct posts carry a leading account mention for ActivityPub delivery.
+		 * It is routing metadata in this view; the chat header already identifies
+		 * the peer, so repeating that mention in every bubble is noise.
+		 *
+		 * @param {object} message
+		 * @return {object} the original message unless a leading protocol mention was removed
+		 */
+		messageForDisplay(message) {
+			const content = this.withoutProtocolRecipient(message)
+			return content === message.content ? message : { ...message, content }
+		},
+
+		/**
+		 * Remove only the first ActivityPub h-card at the start of a direct
+		 * message. Other mentions in the message body keep their meaning.
+		 *
+		 * @param {object} message
+		 * @return {string}
+		 */
+		withoutProtocolRecipient(message) {
+			const content = message?.content ?? ''
+			if (message?.visibility !== 'direct' || !content || typeof document === 'undefined') {
+				return content
+			}
+
+			const wrapper = document.createElement('div')
+			wrapper.innerHTML = content
+			const paragraph = wrapper.firstElementChild?.tagName === 'P' ? wrapper.firstElementChild : wrapper
+			let first = paragraph.firstChild
+			while (first?.nodeType === Node.TEXT_NODE && !first.textContent.trim()) {
+				first = first.nextSibling
+			}
+			if (first?.nodeType !== Node.ELEMENT_NODE || !first.matches('.h-card')) {
+				return content
+			}
+
+			const next = first.nextSibling
+			first.remove()
+			if (next?.nodeType === Node.TEXT_NODE) {
+				next.textContent = next.textContent.replace(/^\s+/, '')
+			}
+			if (paragraph !== wrapper && !paragraph.textContent.trim() && !paragraph.children.length) {
+				paragraph.remove()
+			}
+
+			return wrapper.innerHTML
 		},
 
 		formatTime(value) {
@@ -738,39 +795,51 @@ export default {
 .direct-messages__search :deep(.input-field__input) {
 	box-sizing: border-box;
 	width: 100%;
-	min-height: 2.6rem;
+	min-height: 2.3rem;
+	padding-block: 0.4rem;
 	border-radius: var(--border-radius-large);
 	background: var(--color-background-hover);
 }
 
+.direct-messages__search :deep(input) {
+	min-height: 2.3rem;
+	padding-block: 0.4rem;
+}
+
 .direct-messages__filters {
 	display: flex;
-	gap: 1.25rem;
-	margin-block-start: 0.55rem;
-	border-bottom: 1px solid var(--color-border);
+	width: fit-content;
+	gap: 0.2rem;
+	margin-block-start: 0.5rem;
+	padding: 0.2rem;
+	border-radius: 999px;
+	background: var(--color-background-hover);
 }
 
 .direct-messages__filters button {
-	min-height: 2.5rem;
-	padding: 0.35rem 0.1rem;
+	min-height: 1.9rem;
+	padding: 0.25rem 0.7rem;
 	border: 0;
-	border-bottom: 2px solid transparent;
+	border-radius: 999px;
 	background: transparent;
 	color: var(--color-text-maxcontrast);
 	font: inherit;
-	font-size: 0.88rem;
+	font-size: 0.82rem;
+	font-weight: 600;
+	line-height: 1.2;
 	cursor: pointer;
 }
 
 .direct-messages__filters button:hover,
 .direct-messages__filters .direct-messages__filter--active {
-	border-bottom-color: var(--color-primary-element);
+	background: var(--color-main-background);
 	color: var(--color-main-text);
+	box-shadow: 0 1px 3px var(--color-box-shadow);
 }
 
 .direct-messages__filters button:focus-visible {
 	outline: 2px solid var(--color-primary-element);
-	outline-offset: -2px;
+	outline-offset: 1px;
 }
 
 .direct-messages__list {
@@ -1077,9 +1146,9 @@ export default {
 .direct-messages__message-form :deep(.textarea__input) {
 	box-sizing: border-box;
 	width: 100%;
-	min-height: 2.8rem;
-	max-height: 10rem;
-	padding: 0.7rem 0.9rem;
+	min-height: 2.3rem;
+	max-height: 7rem;
+	padding: 0.45rem 0.75rem;
 	border-radius: var(--border-radius-large);
 	background: var(--color-background-hover);
 	resize: vertical;

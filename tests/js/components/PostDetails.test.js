@@ -15,6 +15,7 @@ import PostDetails from '../../../src/components/PostDetails.vue'
 function post(overrides = {}) {
 	return {
 		id: '42',
+		nid: 42,
 		created_at: '2026-09-13T10:30:00.000Z',
 		visibility: 'public',
 		language: null,
@@ -28,6 +29,11 @@ function post(overrides = {}) {
 
 const details = (overrides) => mount(PostDetails, { props: { status: post(overrides) } })
 const items = (wrapper) => wrapper.findAll('.post-details__item').map((item) => item.text())
+
+const HistoryDialogStub = {
+	props: ['nid', 'editedAt'],
+	template: '<span class="history-dialog-stub" :data-nid="nid" :data-edited-at="editedAt" />',
+}
 
 describe('PostDetails', () => {
 	it('says when, in full, where the card said "14 hours ago"', () => {
@@ -65,6 +71,18 @@ describe('PostDetails', () => {
 	it('says when it was last edited, and nothing when it never was', () => {
 		expect(items(details({ edited_at: '2026-09-13T12:00:00.000Z' })).join(' ')).toMatch(/Edited/)
 		expect(items(details()).join(' ')).not.toMatch(/Edited/)
+	})
+
+	it('passes the post id and its real edit timestamp to the history dialog', async () => {
+		const wrapper = mount(PostDetails, {
+			props: { status: post({ edited_at: '2026-09-13T12:00:00.000Z' }) },
+			global: { stubs: { EditHistoryDialog: HistoryDialogStub } },
+		})
+
+		await wrapper.get('.post-details__edited').trigger('click')
+
+		expect(wrapper.get('.history-dialog-stub').attributes('data-nid')).toBe('42')
+		expect(wrapper.get('.history-dialog-stub').attributes('data-edited-at')).toBe('2026-09-13T12:00:00.000Z')
 	})
 
 	it('links a remote post to where it actually lives', () => {

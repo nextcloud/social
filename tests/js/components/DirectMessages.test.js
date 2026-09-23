@@ -115,6 +115,18 @@ describe('DirectMessages', () => {
 		expect(wrapper.find('.direct-messages__conversation').text()).toContain('Bob')
 	})
 
+	it('uses accessible selected state for the all and unread filters', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		const [all, unread] = wrapper.findAll('.direct-messages__filters button')
+
+		expect(all.attributes('aria-pressed')).toBe('true')
+		expect(unread.attributes('aria-pressed')).toBe('false')
+		await unread.trigger('click')
+		expect(all.attributes('aria-pressed')).toBe('false')
+		expect(unread.attributes('aria-pressed')).toBe('true')
+	})
+
 	it('offers a clear empty inbox and a direct way to start a message', async () => {
 		get.mockResolvedValue({ data: [] })
 		const wrapper = mountMessages()
@@ -185,6 +197,21 @@ describe('DirectMessages', () => {
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: '@bob', limit: 8, resolve: true } })
 		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
+	})
+
+	it('hides only the leading protocol recipient mention in direct message bubbles and previews', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		const message = {
+			visibility: 'direct',
+			content: '<p><span class="h-card"><a href="https://remote.example/@bob">@<span>bob</span></a></span> hello <span class="h-card"><a>@carol</a></span></p>',
+		}
+
+		const rendered = wrapper.vm.messageForDisplay(message)
+		expect(rendered.content).toBe('<p>hello <span class="h-card"><a>@carol</a></span></p>')
+		expect(message.content).toContain('bob')
+		expect(wrapper.vm.preview(message)).toBe('hello @carol')
+		expect(wrapper.vm.messageForDisplay({ ...message, visibility: 'public' }).content).toContain('@bob')
 	})
 
 	it('shows a search failure instead of claiming nobody exists', async () => {

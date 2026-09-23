@@ -481,8 +481,18 @@ class ExtendedQueryBuilder implements IExtendedQueryBuilder {
 		return $this;
 	}
 
-	public function limitToNid(int $id): void {
-		$this->limitToDBFieldInt('nid', $id);
+	/**
+	 * Limit to a stream nid without narrowing BIGINTs to PHP's int range.
+	 *
+	 * @param int|string $id
+	 */
+	public function limitToNid(int|string $id): void {
+		if (is_int($id)) {
+			$this->limitToDBFieldInt('nid', $id);
+			return;
+		}
+
+		$this->limitToDBField('nid', \OCA\Social\Tools\Nid::normalize($id), false);
 	}
 
 	/**
