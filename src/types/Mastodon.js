@@ -68,6 +68,7 @@
    @property {string} url - Ex: "22345792"
    @property {string} preview_url - Ex: "https://files.mastodon.social/media_attachments/files/022/345/792/small/57859aede991da25.jpeg"
    @property {string} [remote_url] -
+   @property {number|null} [cache_error] - Social's finite remote-cache rejection code (1=size, 2=type, 3=access, 4=decode)
    @property {object} meta -
    @property {string} description - Ex: "test media description"
    @property {string} blurhash - Ex: "UFBWY:8_0Jxv4mx]t8t64.%M-:IUWGWAt6M}"

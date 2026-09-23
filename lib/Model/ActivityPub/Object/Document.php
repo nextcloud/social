@@ -608,7 +608,8 @@ class Document extends ACore implements JsonSerializable {
 			}
 		}
 
-		$media->setRemoteUrl($this->getUrl());
+		$media->setRemoteUrl($this->getUrl())
+			->setCacheError($this->getError());
 
 		// Filled in rather than built only when absent. A document may already
 		// carry *part* of a meta -- a video is given its duration when it is

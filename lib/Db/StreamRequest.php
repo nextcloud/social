@@ -264,6 +264,14 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->set('summary', $qb->createNamedParameter($stream->getSummary()));
 		$qb->set('sensitive', $qb->createNamedParameter($stream->isSensitive() ? 1 : 0));
 		$qb->set('source', $qb->createNamedParameter($stream->getSource()));
+		// Only a local edit rebuilds the outbound paths. An incoming Update does
+		// not carry our local transport metadata, so leave that column alone for
+		// ordinary rewrites instead of erasing it with an empty array.
+		if ($generateDest) {
+			$qb->set('instances', $qb->createNamedParameter(
+				json_encode($stream->getInstancePaths(), JSON_UNESCAPED_SLASHES)
+			));
+		}
 		// the five fields an Update rewrites, in their own columns since
 		// Version1000Date20260912000007. They are still inside the wire object
 		// this same statement stores, and still read from there for a row

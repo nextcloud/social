@@ -16,6 +16,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\FederationDeliveryException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -1575,6 +1576,21 @@ class ApiControllerTest extends TestCase {
 		$this->postService->method('editPost')->willThrowException(new StreamNotFoundException('gone'));
 
 		$this->assertNotFound($this->controller()->statusUpdate(5), 'gone');
+	}
+
+	public function testStatusUpdateReportsAStoredEditWhoseFederationFailed(): void {
+		$this->loggedInAs();
+		$this->request->method('getParams')->willReturn(['status' => 'edited']);
+		$this->postService->method('editPost')->willThrowException(new FederationDeliveryException(
+			'The post was saved locally, but its edit could not be sent to other instances.'
+		));
+
+		$response = $this->controller()->statusUpdate(5);
+
+		$this->assertSame(Http::STATUS_SERVICE_UNAVAILABLE, $response->getStatus());
+		$this->assertSame([
+			'error' => 'The post was saved locally, but its edit could not be sent to other instances.',
+		], $response->getData());
 	}
 
 	// relationships / accounts

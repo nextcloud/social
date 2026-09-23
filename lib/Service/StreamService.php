@@ -591,8 +591,8 @@ class StreamService {
 		return $this->streamRequest->getStreamByNid($nid);
 	}
 
-	public function updateStream(Stream $stream): void {
-		$this->streamRequest->update($stream);
+	public function updateStream(Stream $stream, bool $generateDest = false): void {
+		$this->streamRequest->update($stream, $generateDest);
 	}
 
 	/**

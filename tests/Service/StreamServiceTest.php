@@ -806,9 +806,16 @@ class StreamServiceTest extends TestCase {
 
 	public function testUpdateStreamDelegates(): void {
 		$note = $this->note('https://social.example/@alice/1');
-		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($note));
+		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($note), false);
 
 		$this->service->updateStream($note);
+	}
+
+	public function testUpdateStreamCanRegenerateDestinationsForAnEditedAudience(): void {
+		$note = $this->note('https://social.example/@alice/1');
+		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($note), true);
+
+		$this->service->updateStream($note, true);
 	}
 
 	public function testGetTimelinePassesProbeOptions(): void {

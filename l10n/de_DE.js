@@ -135,6 +135,11 @@ OC.L10N.register(
     "Search" : "Suche",
     "Search …" : "Suche …",
     "Uploading…" : "Lade hoch…",
-    "Downloading…" : "Lade herunter…"
+    "Downloading…" : "Lade herunter…",
+    "The image exceeds this instance’s media size limit." : "Das Bild überschreitet die Mediengrößenbegrenzung dieser Instanz.",
+    "This image type is not allowed by this instance." : "Dieser Bildtyp ist auf dieser Instanz nicht zulässig.",
+    "This instance could not access the original image." : "Diese Instanz konnte nicht auf das Originalbild zugreifen.",
+    "This instance could not read the image." : "Diese Instanz konnte das Bild nicht lesen.",
+    "This instance could not cache the image." : "Diese Instanz konnte das Bild nicht zwischenspeichern."
 },
 "nplurals=2; plural=(n != 1);");

@@ -13,6 +13,7 @@ use DateTime;
 use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\FederationDeliveryException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -792,7 +793,7 @@ class PostServiceTest extends TestCase {
 			->willReturnOnConsecutiveCalls($stored, $reloaded);
 		$this->streamRequest->expects($this->once())
 			->method('update')
-			->with($this->identicalTo($stored));
+			->with($this->identicalTo($stored), true);
 		$this->activityService->expects($this->once())
 			->method('updateActivity')
 			->with(
@@ -1006,13 +1007,16 @@ class PostServiceTest extends TestCase {
 		$this->service->editPost(404, $this->actor(), 'new');
 	}
 
-	public function testEditPostKeepsLocalChangeWhenFederationFails(): void {
+	public function testEditPostReportsWhenTheLocalChangeCouldNotBeFederated(): void {
 		$reloaded = $this->storedNote();
 		$this->streamRequest->method('getStreamByNid')->willReturnOnConsecutiveCalls($this->storedNote(), $reloaded);
 		$this->streamRequest->expects($this->once())->method('update');
 		$this->activityService->method('updateActivity')->willThrowException(new \RuntimeException('remote down'));
 
-		$this->assertSame($reloaded, $this->service->editPost(7, $this->actor(), 'new'));
+		$this->expectException(FederationDeliveryException::class);
+		$this->expectExceptionMessage('The post was saved locally, but its edit could not be sent to other instances.');
+
+		$this->service->editPost(7, $this->actor(), 'new');
 	}
 
 	// language

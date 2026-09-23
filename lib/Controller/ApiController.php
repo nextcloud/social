@@ -21,6 +21,7 @@ use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\FederationDeliveryException;
 use OCA\Social\Exceptions\FollowLimitException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\HashtagDoesNotExistException;
@@ -3772,6 +3773,9 @@ class ApiController extends Controller {
 		// translation it has no provider for with exactly this, and a client
 		// reads it as "later", not as "never"
 		[TranslationUnavailableException::class, Http::STATUS_SERVICE_UNAVAILABLE],
+		// the edit is committed locally but its Update could not be queued; the
+		// client should show the saved text and may try the delivery again later
+		[FederationDeliveryException::class, Http::STATUS_SERVICE_UNAVAILABLE],
 		// somebody else's server let us down
 		[RequestContentException::class, Http::STATUS_NOT_FOUND],
 		[RequestNetworkException::class, Http::STATUS_BAD_GATEWAY],

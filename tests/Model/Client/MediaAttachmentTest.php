@@ -86,13 +86,20 @@ class MediaAttachmentTest extends TestCase {
 		$this->assertSame('image', $local['type']);
 		$this->assertSame('https://files.mastodon.social/media/cat.jpg', $local['url']);
 		$this->assertSame('https://remote.example/media/cat.jpg', $local['remote_url']);
+		$this->assertNull($local['cache_error']);
 		$this->assertSame('UBL_:rOp', $local['blurhash']);
 		$this->assertArrayHasKey('description', $local);
 		$this->assertNull($local['description']);
 		$this->assertSame(
-			['id', 'type', 'media_type', 'url', 'preview_url', 'hls_url', 'remote_url', 'meta', 'description', 'blurhash'],
+			['id', 'type', 'media_type', 'url', 'preview_url', 'hls_url', 'remote_url', 'cache_error', 'meta', 'description', 'blurhash'],
 			array_keys($local)
 		);
+	}
+
+	public function testAsLocalExplainsARejectedRemoteCacheWithoutItsRemoteErrorText(): void {
+		$media = (new MediaAttachment())->setCacheError(1);
+
+		$this->assertSame(1, $media->asLocal()['cache_error']);
 	}
 
 	/**

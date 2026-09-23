@@ -381,6 +381,19 @@ Every local note carries a `replies` collection at `<post id>/replies`, served p
 7. `Cron\Queue` (12-minute interval) retries whatever the query says is due, with the backoff above, after returning rows a dead worker left `running` to standby
 8. Every delivery is an HTTP POST to the queue row's inbox URI. `SignatureService::signRequest()` is given that URL and the body about to be sent and answers with the signed headers; `CurlService::retrieveJson()` sends both
 
+**An edit can add recipients.** `PostService::editPost()` reparses the new text,
+adds only newly named actors to the audience, mention tags and inbox paths, and
+then persists the changed post. `StreamRequest::update()` writes those paths
+back to `social_stream.instances` and, for a local edit, regenerates
+`social_stream_dest` in the same transaction. The `Update` is built from the
+reloaded post, so a newly mentioned instance is not lost between editing and
+queueing. The followers path is added only when the post's visibility reaches
+followers; this keeps an edit to a direct message from widening its audience.
+If queue creation fails after the local transaction commits, the Mastodon API
+answers `503` with an explicit message that the post was saved locally; clients
+must not ask the author to submit the edit again merely because remote delivery
+failed.
+
 A delivery is retried when the peer's answer says it might accept the activity later — 408, 429 and any 5xx — and the row is dropped only on an answer that says it never will, or once `MAX_TRIES` is reached. A host that has just answered with a transient status is added to the run's failing set, so the rest of the run does not ask it once per queued activity.
 
 **Activities the app emits:** Create, Update, Delete, Follow, Accept, Reject, Like, Announce, Block, Undo.
@@ -1091,6 +1104,14 @@ row's key onto the incoming document first. That is a bug older than video —
 every re-delivered Mastodon picture hit it — but a streamed row depends on it
 twice over, since the key is what the media proxy is addressed by.
 
+When a remote image is refused permanently, the post still arrives with an
+image placeholder. The local attachment response now carries `cache_error`:
+`1` is over the size limit, `2` is an unsupported type, `3` could not be read
+from the origin, and `4` could not be decoded. The placeholder exposes that
+reason to assistive technology and on hover. Social does not load the origin
+directly in a reader's browser, because that would bypass the instance's media
+type and size checks.
+
 **The video is referenced, not mirrored.** Every other attachment is copied into
 this instance's storage on the way in; a two-hour talk is not, and the row that
 represents it carries `Document::COPY_STREAMED` in `local_copy` instead of a
@@ -1504,7 +1525,7 @@ description in an `alt` attribute and nowhere else.
 
 **Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 
-`Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
+`Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`; it is loaded on first use and portals to `body` so that the composer toolbar's overflow and the sidebar modal's stacking context cannot clip or cover it. Portfolio captions are reduced to plain text by `htmlToPlainText()` and use `white-space: pre-line` so paragraph boundaries remain visible without rendering untrusted HTML.
 
 **The Settings page, and what is on it.** `src/views/Settings.vue` is a list of
 sections, each with an id — `#account`, `#lists`, `#scheduled`, `#migration`,
@@ -1690,6 +1711,14 @@ visitor gets `templates/notfound.php`, a small guest page shaped like the
 server's own; a reader with a session gets the app with a 404 status, and its
 views say "User not found" and "This post is not available" once they have
 asked.
+
+The portfolio URL is a separate browser route under `/@{username}/portfolio`.
+It uses the same public page shell for anonymous readers and the client router
+loads the portfolio through the public `portfolio/{handle}` API. The published
+portfolio API resolves posts as the anonymous internet, so followers-only posts
+cannot leak onto a public page. The route is covered alongside the public actor,
+followers, and following pages. Captions are plain text and `white-space:
+pre-line` preserves paragraph breaks without interpreting user HTML.
 
 On the client, `TimelineSinglePost` asks for the post itself when nothing has
 loaded it — `timelineStore.fetchStatus()`, which is `GET /api/v1/statuses/{id}`.
