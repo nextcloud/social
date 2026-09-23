@@ -246,14 +246,6 @@ export default {
 
 	beforeMount() {
 		this.settingsStore.setServerData(loadState('social', 'serverData'))
-		// The root route means "my feed" for signed-in readers. Guests have
-		// no private home feed, so start them on this instance's public posts.
-		if (this.serverData.public
-			&& this.$route.name === 'timeline'
-			&& !this.$route.params.type
-			&& typeof this.$router?.replace === 'function') {
-			this.$router.replace({ name: 'timeline', params: { type: 'timeline' } })
-		}
 
 		if (!this.serverData.public) {
 			// The page was rendered for this reader and carries their account

@@ -13,7 +13,7 @@
 		     single post's page, which the reader navigated to for that post -->
 		<Announcements v-if="type !== 'single-post'" />
 
-		<Composer v-if="type !== 'notifications' && type !== 'single-post' && type !== 'direct'" />
+		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct'" />
 
 		<!-- the three timelines that are the same place seen from three
 		     distances: switching between them is something a reader does while
@@ -327,13 +327,17 @@ export default {
 					: { name: 'timeline', params: { type: scope } }
 			}
 
-			return [
+			const scopes = [
 				// "My Feed" rather than "Home": next to Local and Global, what
 				// distinguishes it is whose posts it holds, not where it sits
 				{ value: 'home', label: t('social', 'My Feed'), icon: IconHome, to: routeFor('home') },
 				{ value: 'timeline', label: t('social', 'Local'), icon: IconAccountMultiple, to: routeFor('timeline') },
 				{ value: 'federated', label: t('social', 'Global'), icon: IconEarth, to: routeFor('federated') },
 			]
+
+			return this.settingsStore.getServerData.public
+				? scopes.filter(({ value }) => value !== 'home')
+				: scopes
 		},
 
 		/**

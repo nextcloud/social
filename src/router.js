@@ -5,6 +5,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import { generateUrl } from '@nextcloud/router'
+import { loadState } from '@nextcloud/initial-state'
 
 import eventBus from './services/eventBus.js'
 import { scroller } from './utils/scroller.js'
@@ -152,7 +153,12 @@ const router = createRouter({
 	routes: [
 		{
 			path: '/',
-			redirect: { name: 'timeline' },
+			// `/` is a private home feed for signed-in readers and the local
+			// public feed for visitors. This runs before Timeline mounts, so a
+			// guest never briefly asks for private posts or account-only data.
+			redirect: () => loadState('social', 'serverData', {}).public
+				? { name: 'timeline', params: { type: 'timeline' } }
+				: { name: 'timeline' },
 		},
 		{
 			path: '/timeline/:type?',

@@ -3,17 +3,18 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<section class="direct-messages" :class="{ 'direct-messages--selected': selectedConversationId !== '' }">
+	<section
+		class="direct-messages"
+		:class="{
+			'direct-messages--selected': selectedConversationId !== '' || newMessageOpen,
+			'direct-messages--composing': newMessageOpen,
+		}">
 		<aside class="direct-messages__list-panel" :aria-label="t('social', 'Direct message conversations')">
 			<div class="direct-messages__list-heading">
 				<h2>{{ t('social', 'Conversations') }}</h2>
 				<NcButton variant="primary" @click="newMessageOpen = !newMessageOpen">
 					{{ t('social', 'New message') }}
 				</NcButton>
-			</div>
-
-			<div v-if="newMessageOpen" class="direct-messages__new-message">
-				<Composer defaultVisibility="direct" />
 			</div>
 
 			<p v-if="loadingList" class="direct-messages__state" role="status">
@@ -57,7 +58,17 @@
 			</ul>
 		</aside>
 
-		<section v-if="activeConversation" class="direct-messages__thread-panel" :aria-label="threadLabel">
+		<section v-if="newMessageOpen" class="direct-messages__thread-panel direct-messages__new-message-panel" :aria-label="t('social', 'New direct message')">
+			<header class="direct-messages__thread-heading">
+				<NcButton class="direct-messages__back" variant="tertiary" @click="newMessageOpen = false">
+					{{ t('social', 'Back to conversations') }}
+				</NcButton>
+				<h2>{{ t('social', 'New message') }}</h2>
+			</header>
+			<Composer class="direct-messages__new-message-composer" defaultVisibility="direct" @posted="onNewMessagePosted" />
+		</section>
+
+		<section v-else-if="activeConversation" class="direct-messages__thread-panel" :aria-label="threadLabel">
 			<header class="direct-messages__thread-heading">
 				<NcButton class="direct-messages__back" variant="tertiary" @click="$emit('select', '')">
 					{{ t('social', 'Back to conversations') }}
@@ -273,6 +284,11 @@ export default {
 				await this.loadThread(this.selectedConversationId)
 			}
 		},
+
+		async onNewMessagePosted() {
+			this.newMessageOpen = false
+			await this.loadConversations()
+		},
 	},
 }
 </script>
@@ -280,8 +296,8 @@ export default {
 <style scoped>
 .direct-messages {
 	display: grid;
-	grid-template-columns: minmax(17rem, 0.8fr) minmax(0, 1.4fr);
-	min-height: 34rem;
+	grid-template-columns: minmax(17rem, 0.7fr) minmax(0, 1.8fr);
+	min-height: min(70vh, 48rem);
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	overflow: hidden;
@@ -394,6 +410,16 @@ export default {
 
 .direct-messages__composer {
 	border-top: 1px solid var(--color-border);
+	min-height: 12rem;
+	max-height: 45vh;
+	overflow-y: auto;
+}
+
+.direct-messages__new-message-composer {
+	flex: 1;
+	min-height: 0;
+	padding: 1rem;
+	overflow-y: auto;
 }
 
 .direct-messages__back {

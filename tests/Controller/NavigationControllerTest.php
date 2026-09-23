@@ -207,6 +207,15 @@ class NavigationControllerTest extends TestCase {
 		$this->assertFalse($this->serverData()['isAdmin']);
 	}
 
+	public function testReloadingThePublicTimelineRouteIsAvailableToAnAnonymousVisitor(): void {
+		\OC::$server->register(IInitialStateService::class, $this->createMock(IInitialStateService::class));
+
+		$response = $this->controller(null)->timeline('timeline');
+
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertTrue($this->serverData()['public']);
+	}
+
 	public function testNavigateAsksBeforeCreatingAnAccount(): void {
 		$this->systemValues([]);
 		$this->configuredCloud();

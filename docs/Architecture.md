@@ -517,9 +517,9 @@ line up under it.
 
 **The account at the bottom.** The way out of every app in Nextcloud is the thing at the foot of the sidebar with your face on it, so the Social sidebar ends the same way: the **More** menu hangs off the reader's own account — their portrait, and the name they publish under — rather than off the word "More" next to a cog. `NcAppNavigationSettings` renders that cog from a hard-coded path and offers no slot to replace it, so the picture is handed to the stylesheet as `--social-face` and set as the icon box's background with the glyph hidden inside it. The picture comes from the server's own avatar endpoint rather than from the account's `avatar` field, because that endpoint answers for every account — generated initials when nobody has uploaded anything — so the button is never a blank circle, and it is the same face the rest of Nextcloud shows.
 
-The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice; what took its place is **My profile**, first in the menu behind that face. Moving the button without putting the link back would have left the reader's own profile reachable from nowhere.
+The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice. **My profile** opens Nextcloud's native `/u/{uid}` page, where the Social posts section uses Nextcloud's profile layout. **Social profile** sits immediately below it when the reader has a Social actor; it opens the app's own `@{acct}` profile, whose edit dialog manages the ActivityPub display name, bio, metadata links and banner. Keeping both links makes the native profile experience and the Social-specific editing controls independently reachable.
 
-The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice; what took its place is **My profile**, first in the menu behind that face. Moving the button without putting the link back would have left the reader's own profile reachable from nowhere.
+The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice. **My profile** opens Nextcloud's native `/u/{uid}` page, where the Social posts section uses Nextcloud's profile layout. **Social profile** sits immediately below it when the reader has a Social actor; it opens the app's own `@{acct}` profile, whose edit dialog manages the ActivityPub display name, bio, metadata links and banner. Keeping both links makes the native profile experience and the Social-specific editing controls independently reachable.
 
 **Migration.** A page of the app's own, in the menu behind the account, for taking your data out and putting it back. Nextcloud can already export a whole account with `SocialMigrator` in it, but only if the admin installed the user migration app and only from `occ` or that app's page; taking a copy of what you wrote should not depend on either. `MigrationArchiveService` therefore drives **the same migrator** into a zip a person can download, and reads one back — so what travels, and what deliberately does not (the private key, above all: see the class comment on `SocialMigrator`), is decided in one place for both. `ZipExportDestination` and `ZipImportSource` are the two adapters that make a zip look like the framework's `IExportDestination` and `IImportSource`; they implement what the migrator actually calls and refuse the rest — `copyFolder()` throws rather than quietly producing an archive that claims to hold files it does not. A file added as a stream is copied to a temporary file and handed to `ZipArchive::addFile()` rather than read into a string: what arrives that way is as often a video as an outbox, and `stream_get_contents()` of a two-gigabyte upload is two gigabytes of memory. The file names are the migrator's, so an archive from this page and one from `occ user:export` are interchangeable; the extra `social/export.json` names the app version, the account and the migrator version, and an archive that holds the data but no manifest is read as version 1, which is what the server's own exporter wrote.
 
@@ -1417,12 +1417,7 @@ direct visibility. A successful thread load attempts
 `POST /api/v1/conversations/{id}/read`; failure to persist the read marker is
 logged without hiding the already loaded messages.
 
-The New message composer also defaults to direct visibility. Its send action
-uses the regular composer and post API, so mention resolution, media handling,
-and delivery continue through the existing post path. The current view loads
-one page of conversations; older pages are not yet appended. Conversation
-dismissal and pagination controls are not part of this UI. On narrow screens,
-the list and thread become separate views with a back control.
+The New message composer also defaults to direct visibility. It occupies the wide thread panel rather than the narrow conversation list, giving the recipient picker and message editor room to work. Replies keep their own composer below the scrollable thread. The panel grows to 70% of the viewport (capped at 48rem); on narrow screens, the list and thread become separate views with a back control. Its send action uses the regular composer and post API, so mention resolution, media handling, and delivery continue through the existing post path. The current view loads one page of conversations; older pages are not yet appended. Conversation dismissal and pagination controls are not part of this UI.
 
 `ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
 (a file, or the address of one), the bio and the metadata fields. The banner
@@ -1973,9 +1968,7 @@ posts section is registered on Nextcloud's user profile page by
 `ProfileSectionListener`; its custom element fetches the selected user's Social
 account summary and statuses and renders them in that page. Above the posts, the
 section shows localized post, following, and follower totals from the same
-account response used by Social's profile header. The matching sidebar shortcut
-therefore uses Nextcloud's generated `/u/{uid}` URL rather than the app's own
-`profile` route. `generateUrl()` preserves the installation web root and
+account response used by Social's profile header. The **My profile** shortcut therefore uses Nextcloud's generated `/u/{uid}` URL. The adjacent **Social profile** shortcut remains inside Social's router at `@{acct}`, preserving the app's own profile editor for ActivityPub fields, links, biography and banner. `generateUrl()` preserves the installation web root and
 `encodeURIComponent()` keeps unusual user IDs inside one path segment. Because
 this destination belongs to another Nextcloud page, its navigation row is a
 normal browser link: it works with modified clicks and is not marked active by

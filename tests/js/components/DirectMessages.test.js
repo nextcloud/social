@@ -65,6 +65,16 @@ describe('DirectMessages', () => {
 		expect(wrapper.emitted('select')).toEqual([['10']])
 	})
 
+	it('opens a roomy new-message composer in the thread panel', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.find('.direct-messages__list-heading button').trigger('click')
+
+		expect(wrapper.find('.direct-messages__new-message-panel').exists()).toBe(true)
+		expect(wrapper.find('.direct-messages__new-message-composer.composer-stub').attributes('data-visibility')).toBe('direct')
+		expect(wrapper.find('.direct-messages__list-panel .composer-stub').exists()).toBe(false)
+	})
+
 	it('shows the whole thread, marks it read, and replies directly to its latest message', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()

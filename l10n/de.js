@@ -135,6 +135,8 @@ OC.L10N.register(
     "Search" : "Suche",
     "Search …" : "Suche …",
     "Uploading…" : "Lade hoch…",
-    "Downloading…" : "Lade herunter…"
+    "Downloading…" : "Lade herunter…",
+    "Social profile" : "Social-Profil",
+    "New direct message" : "Neue Direktnachricht"
 },
 "nplurals=2; plural=(n != 1);");

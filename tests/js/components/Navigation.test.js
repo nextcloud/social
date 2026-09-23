@@ -11,6 +11,7 @@ import appRouter from '../../../src/router.js'
 import axios from '@nextcloud/axios'
 import eventBus, { LISTS_CHANGED } from '../../../src/services/eventBus.js'
 import { useErrorsStore } from '../../../src/store/errors.js'
+import { useAccountStore } from '../../../src/store/account.js'
 import { useNotificationsStore } from '../../../src/store/notifications.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
@@ -772,6 +773,7 @@ describe('Navigation', () => {
 			'Direct messages',
 			'Discover',
 			'My profile',
+			// Social profile appears only when an ActivityPub account exists.
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -809,6 +811,28 @@ describe('Navigation', () => {
 			'Direct messages',
 			'Discover',
 		])
+	})
+
+	it('keeps the editable Social profile beside the native Nextcloud profile', () => {
+		const accountStore = useAccountStore()
+		accountStore.addAccount({
+			actorId: 'https://cloud.example/apps/social/@alice',
+			data: {
+				acct: 'alice@cloud.example',
+				url: 'https://cloud.example/apps/social/@alice',
+			},
+		})
+		accountStore.setCurrentAccount('alice@cloud.example')
+
+		const wrapper = mountNavigation()
+		const socialProfile = item(wrapper, 'Social profile')
+
+		expect(item(wrapper, 'My profile').attributes('data-href')).toBe('/index.php/u/alice')
+		expect(socialProfile.attributes('data-href')).toBe('/resolved/profile')
+		expect(wrapper.vm.menu.more.find(({ title }) => title === 'Social profile').to).toEqual({
+			name: 'profile',
+			params: { account: 'alice@cloud.example' },
+		})
 	})
 
 	// the account at the bottom

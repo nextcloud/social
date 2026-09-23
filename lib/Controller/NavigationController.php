@@ -382,6 +382,7 @@ class NavigationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/timeline/{path}', requirements: ['path' => '.+'], defaults: ['path' => ''])]
 	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();

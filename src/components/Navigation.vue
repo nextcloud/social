@@ -289,6 +289,7 @@ import IconNewspaperVariantOutline from 'vue-material-design-icons/NewspaperVari
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
+import IconAccountEdit from 'vue-material-design-icons/AccountEditOutline.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
@@ -356,6 +357,7 @@ export default {
 		Composer,
 		IconHome,
 		IconAccountCircle,
+		IconAccountEdit,
 		IconBell,
 		IconCommentAccount,
 		IconHeart,
@@ -644,6 +646,17 @@ export default {
 						// separate profile screen.
 						to: generateUrl(`/u/${encodeURIComponent(this.currentUser?.uid ?? '')}`),
 					},
+					...(this.currentAccount?.acct
+						? [{
+								key: 'social-account-profile',
+								icon: IconAccountEdit,
+								title: t('social', 'Social profile'),
+								// The Nextcloud profile page shows posts in the native user
+								// profile; Social's own profile remains the place to edit its
+								// federated bio, fields, links and banner.
+								to: { name: 'profile', params: { account: this.currentAccount.acct } },
+							}]
+						: []),
 					{
 						key: 'social-follow-requests',
 						icon: IconAccountClock,
