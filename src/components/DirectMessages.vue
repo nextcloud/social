@@ -597,7 +597,7 @@ export default {
 	display: grid;
 	grid-template-columns: clamp(17.5rem, 23vw, 20rem) minmax(0, 1fr);
 	width: 100%;
-	height: calc(100dvh - var(--header-height, 50px) - 0.5rem);
+	height: calc(100dvh - var(--header-height, 50px) - 0.6rem);
 	min-height: 36rem;
 	background: var(--color-main-background);
 }
@@ -985,7 +985,7 @@ export default {
 @media (max-width: 980px) {
 	.direct-messages {
 		grid-template-columns: minmax(0, 1fr);
-		min-height: calc(100dvh - var(--header-height, 50px) - 0.5rem);
+		min-height: calc(100dvh - var(--header-height, 50px) - 0.6rem);
 	}
 
 	.direct-messages__list-panel {
