@@ -2,8 +2,7 @@
 	"src/App.vue": {
 		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 1,
 		"TS2339 Property 'checks' does not exist on type 'ServerData'.": 8,
-		"TS2339 Property 'needsAccount' does not exist on type 'ServerData'.": 2,
-		"TS2339 Property 't' does not exist on type '…'.": 7
+		"TS2339 Property 'needsAccount' does not exist on type 'ServerData'.": 2
 	},
 	"src/adminSettings.js": {
 		"TS2588 Cannot assign to '__webpack_nonce__' because it is a constant.": 1,
@@ -46,7 +45,6 @@
 		"TS2339 Property 'refusalTimer' does not exist on type '…'.": 3,
 		"TS2339 Property 'replaceChildren' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'scrollIntoView' does not exist on type 'unknown'.": 2,
-		"TS2339 Property 't' does not exist on type '…'.": 57,
 		"TS2339 Property 'tribute' does not exist on type '…'.": 4,
 		"TS2339 Property 'tributeTarget' does not exist on type '…'.": 4,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<any>'.": 1,
@@ -84,8 +82,7 @@
 		"TS2339 Property 'matches' does not exist on type 'ChildNode'.": 1,
 		"TS2339 Property 'querySelector' does not exist on type 'ChildNode'.": 1,
 		"TS2339 Property 'scrollHeight' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'scrollTop' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 't' does not exist on type '…'.": 55
+		"TS2339 Property 'scrollTop' does not exist on type 'unknown'.": 1
 	},
 	"src/components/DisplayName.js": {
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<CustomEmoji[]>'.": 1
@@ -99,8 +96,6 @@
 	"src/components/FirstRun.vue": {
 		"TS2339 Property 'click' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'files' does not exist on type 'EventTarget'.": 1,
-		"TS2339 Property 'n' does not exist on type '…'.": 1,
-		"TS2339 Property 't' does not exist on type '…'.": 29,
 		"TS2339 Property 'value' does not exist on type 'EventTarget'.": 1
 	},
 	"src/components/FollowButton.vue": {
@@ -162,8 +157,6 @@
 	},
 	"src/components/Poll.vue": {
 		"TS2322 Type 'any[]' is not assignable to type 'number'.": 1,
-		"TS2339 Property 'n' does not exist on type '…'.": 1,
-		"TS2339 Property 't' does not exist on type '…'.": 3,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<Poll>'.": 1
 	},
 	"src/components/PostAttachment.vue": {
@@ -197,7 +190,6 @@
 		"TS2740 Type 'Record<string, any>' is missing the following properties from type 'Status': id, created_at, sensitive, spoiler_text, and 17 more.": 1
 	},
 	"src/components/QuotedPost.vue": {
-		"TS2339 Property 't' does not exist on type '…'.": 2,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<{ state: string; quoted_status: any; }>'.": 1
 	},
 	"src/components/ReactionBar.vue": {
@@ -262,13 +254,11 @@
 		"TS2339 Property 'askForPicker' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'closest' does not exist on type 'EventTarget'.": 2,
 		"TS2339 Property 'focus' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'n' does not exist on type '…'.": 1,
 		"TS2339 Property 'nid' does not exist on type 'Status'.": 3,
 		"TS2339 Property 'nsfwPolicy' does not exist on type 'ServerData'.": 1,
 		"TS2339 Property 'place' does not exist on type 'Status'.": 4,
 		"TS2339 Property 'quote_approval' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'stopTicking' does not exist on type '…'.": 2,
-		"TS2339 Property 't' does not exist on type '…'.": 44,
 		"TS2339 Property 'tagged_people' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'type' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'video' does not exist on type 'Status'.": 2,
@@ -303,8 +293,7 @@
 	},
 	"src/components/admin/AccessSection.vue": {
 		"TS2322 Type 'unknown' is not assignable to type 'PropertyKey'.": 1,
-		"TS2345 Argument of type 'unknown' is not assignable to parameter of type 'string'.": 1,
-		"TS2769 No overload matches this call.": 1
+		"TS2345 Argument of type 'unknown' is not assignable to parameter of type 'string'.": 1
 	},
 	"src/components/admin/AdminSettings.vue": {
 		"TS2339 Property 'background' does not exist on type '…'.": 1,
@@ -379,34 +368,18 @@
 	},
 	"src/views/AccountSetup.vue": {
 		"TS2339 Property 'linkedHandle' does not exist on type 'Function'.": 1,
-		"TS2339 Property 'suggestedHandle' does not exist on type 'Function'.": 1,
-		"TS2339 Property 't' does not exist on type '…'.": 12
-	},
-	"src/views/BlockedAccounts.vue": {
-		"TS2339 Property 't' does not exist on type '…'.": 27
+		"TS2339 Property 'suggestedHandle' does not exist on type 'Function'.": 1
 	},
 	"src/views/CollectionPage.vue": {
 		"TS2322 Type '…' is not assignable to type '…'.": 2
 	},
-	"src/views/Dashboard.vue": {
-		"TS2339 Property 't' does not exist on type '…'.": 1
-	},
-	"src/views/FollowRequests.vue": {
-		"TS2339 Property 't' does not exist on type '…'.": 9
-	},
 	"src/views/OAuth2Authorize.vue": {
-		"TS2339 Property 'OC' does not exist on type '…'.": 1,
-		"TS2339 Property 'select' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 't' does not exist on type '…'.": 11
+		"TS2339 Property 'select' does not exist on type 'unknown'.": 1
 	},
 	"src/views/OStatus.vue": {
 		"TS2339 Property 'oc_current_user' does not exist on type 'Window & typeof globalThis'.": 2,
-		"TS2339 Property 't' does not exist on type '…'.": 11,
 		"TS2353 Object literal may only specify known properties, and 'currentAccount' does not exist in type '{ accountToFollow: any; }'.": 1,
 		"TS2740 Type '{ username: any; acct: any; }' is missing the following properties from type 'Account': id, display_name, locked, bot, and 15 more.": 1
-	},
-	"src/views/Profile.vue": {
-		"TS2339 Property 't' does not exist on type '…'.": 2
 	},
 	"src/views/ProfileFollowers.vue": {
 		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 1,
@@ -434,9 +407,7 @@
 	},
 	"src/views/Timeline.vue": {
 		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 3,
-		"TS2339 Property 'n' does not exist on type '…'.": 1,
 		"TS2339 Property 'refresh' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 't' does not exist on type '…'.": 4,
 		"TS2345 Argument of type 'string | string[]' is not assignable to parameter of type 'string'.": 4
 	},
 	"src/views/TimelineSinglePost.vue": {
