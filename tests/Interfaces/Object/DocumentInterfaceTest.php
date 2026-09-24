@@ -86,6 +86,61 @@ class DocumentInterfaceTest extends ActivityPubTestCase {
 		$this->assertSame('cached-image', $incoming->getLocalCopy());
 	}
 
+	/**
+	 * And what the second delivery says about it is written down.
+	 *
+	 * The row is found by URL and parent because the attachment carries no
+	 * wire id of its own, and the merge that followed lived only in the object
+	 * this request happened to hold: a description added later, a blurhash, a
+	 * corrected media type all reached the reader of *that* request and never
+	 * the row, which kept what it first heard for good.
+	 */
+	public function testWhatTheSecondDeliverySaysAboutAnAttachmentIsKept(): void {
+		$this->cacheDocumentsRequest->method('getById')->willThrowException(new CacheDocumentDoesNotExistException());
+		$note = $this->note(self::REMOTE_URL . '/notes/1', self::REMOTE_URL . '/users/bob');
+		$incoming = new Document($note);
+		$incoming->setId(self::LOCAL_URL . '/documents/g/new-id');
+		$incoming->setUrl(self::REMOTE_URL . '/media/1.png');
+		$incoming->setDescription('the cat, at last, in focus');
+		$known = new Document();
+		$known->setId(self::LOCAL_URL . '/documents/g/cached-id');
+		$known->setNid(42);
+		$known->setLocalCopy('cached-image');
+		$this->cacheDocumentsRequest->method('getByUrlAndParent')->willReturn($known);
+
+		$this->cacheDocumentsRequest->expects($this->once())->method('update')
+			->with($this->identicalTo($incoming));
+		$this->cacheDocumentsRequest->expects($this->never())->method('save');
+
+		$this->handler->save($incoming);
+
+		$this->assertSame('the cat, at last, in focus', $incoming->getDescription());
+		$this->assertSame('cached-image', $incoming->getLocalCopy());
+	}
+
+	/**
+	 * A new attachment is looked for once, not twice.
+	 *
+	 * `isDuplicate()` is `getByUrlAndParent()` in a try/catch, so asking it
+	 * after that lookup has already missed is the same query with the same
+	 * answer — one more of them per attachment of every post that arrives.
+	 */
+	public function testANewAttachmentIsLookedForOnce(): void {
+		$this->cacheDocumentsRequest->method('getById')->willThrowException(new CacheDocumentDoesNotExistException());
+		$note = $this->note(self::REMOTE_URL . '/notes/1', self::REMOTE_URL . '/users/bob');
+		$incoming = new Document($note);
+		$incoming->setId(self::LOCAL_URL . '/documents/g/new-id');
+		$incoming->setUrl(self::REMOTE_URL . '/media/1.png');
+
+		$this->cacheDocumentsRequest->expects($this->once())->method('getByUrlAndParent')
+			->willThrowException(new CacheDocumentDoesNotExistException());
+		$this->cacheDocumentsRequest->expects($this->never())->method('isDuplicate');
+		$this->cacheDocumentsRequest->expects($this->once())->method('save')
+			->with($this->identicalTo($incoming));
+
+		$this->handler->save($incoming);
+	}
+
 	public function testKnownDocumentIsUpdatedInPlace(): void {
 		$document = $this->document();
 		$this->cacheDocumentsRequest->method('getById')->with(self::DOCUMENT)->willReturn($document);
