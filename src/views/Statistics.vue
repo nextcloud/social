@@ -9,6 +9,41 @@
 			{{ t('social', 'What you have posted here, and what came back. Counted from this server when you opened the page, so it is never a stale number.') }}
 		</p>
 
+		<!-- the window these numbers were counted over, and what to do with
+		     them once they are on screen -->
+		<div class="stats__toolbar">
+			<div class="stats__windows" role="group" :aria-label="t('social', 'Counted over')">
+				<button
+					v-for="choice in windowChoices"
+					:key="choice.days"
+					type="button"
+					class="stats__window-choice"
+					:class="{ 'stats__window-choice--on': choice.days === days }"
+					:aria-pressed="choice.days === days"
+					@click="pick(choice.days)">
+					{{ choice.label }}
+				</button>
+			</div>
+			<div class="stats__actions">
+				<NcButton
+					variant="tertiary"
+					:disabled="loading"
+					:title="t('social', 'Count these again now')"
+					:aria-label="t('social', 'Count these again now')"
+					@click="load(true)">
+					<template #icon>
+						<IconRefresh :size="20" />
+					</template>
+				</NcButton>
+				<NcButton variant="tertiary" :href="exportUrl" :download="exportName">
+					<template #icon>
+						<IconDownload :size="20" />
+					</template>
+					{{ t('social', 'Download') }}
+				</NcButton>
+			</div>
+		</div>
+
 		<NcLoadingIcon v-if="loading" class="stats__loading" :size="44" />
 
 		<div v-else-if="error" class="stats__error" role="alert">
@@ -582,6 +617,145 @@
 				</p>
 			</section>
 
+			<!-- what the account did, rather than what came back -->
+			<section v-if="activity.length" class="stats__card">
+				<h3>
+					<IconPencil :size="20" />
+					{{ t('social', 'What you did') }}
+				</h3>
+				<p class="stats__note">
+					{{ t('social', 'Everything above counts what came back to you. This counts what you did: a quiet month here is a month you did not post, not a month nobody answered.') }}
+				</p>
+				<ul class="stats__stack">
+					<li v-for="month in activity" :key="month.key">
+						<span class="stats__stack-bars" :title="month.title">
+							<span
+								v-for="part in month.parts"
+								:key="part.key"
+								class="stats__stack-part"
+								:class="'stats__stack-part--' + part.key"
+								:style="{ height: part.height + '%' }" />
+						</span>
+						<span class="stats__stack-label">{{ month.label }}</span>
+					</li>
+				</ul>
+				<ul class="stats__legend">
+					<li v-for="part in activityLegend" :key="part.key">
+						<span class="stats__swatch" :class="'stats__stack-part--' + part.key" />
+						{{ part.label }}
+					</li>
+				</ul>
+			</section>
+
+			<!-- how steadily -->
+			<section v-if="stats.consistency && stats.consistency.span_days > 0" class="stats__card">
+				<h3>
+					<IconCalendar :size="20" />
+					{{ t('social', 'How steadily you post') }}
+				</h3>
+				<ul class="stats__figures">
+					<li>
+						<strong>{{ number(stats.consistency.active_days) }}</strong>
+						<span>{{ t('social', 'days you posted on') }}</span>
+						<em>{{ t('social', '{n}% of the days counted', { n: decimal(stats.consistency.share) }) }}</em>
+					</li>
+					<li>
+						<strong>{{ number(stats.consistency.streak) }}</strong>
+						<span>{{ t('social', 'longest run of days') }}</span>
+					</li>
+					<li>
+						<strong>{{ number(stats.consistency.longest_gap) }}</strong>
+						<span>{{ t('social', 'longest quiet spell') }}</span>
+						<em>{{ n('social', '%n day', '%n days', stats.consistency.longest_gap) }}</em>
+					</li>
+				</ul>
+			</section>
+
+			<!-- who you talk with -->
+			<section v-if="partners.length" class="stats__card">
+				<h3>
+					<IconForum :size="20" />
+					{{ t('social', 'Who you talk with') }}
+				</h3>
+				<p class="stats__note">
+					{{ t('social', 'From the replies rather than from who you follow. The two are rarely the same list.') }}
+				</p>
+				<div class="stats__columns">
+					<div v-for="side in partners" :key="side.key">
+						<h4>{{ side.label }}</h4>
+						<dl class="stats__rows">
+							<div v-for="person in side.people" :key="person.id" class="stats__row">
+								<dt>
+									{{ '@' + person.account }}
+									<span v-if="!person.followed" class="stats__badge">{{ t('social', 'not followed') }}</span>
+								</dt>
+								<dd>
+									<span class="stats__meter" :style="{ '--share': person.share }" />
+									<span class="stats__row-value">{{ number(person.replies) }}</span>
+								</dd>
+							</div>
+						</dl>
+					</div>
+				</div>
+				<p v-if="stats.partners.inbound.length" class="stats__note">
+					{{ t('social', '{n}% of the people who replied to you are people you do not follow.', { n: decimal(stats.partners.not_followed_share) }) }}
+				</p>
+			</section>
+
+			<!-- pictures and whether they describe themselves -->
+			<section v-if="stats.media && stats.media.images > 0" class="stats__card">
+				<h3>
+					<IconImage :size="20" />
+					{{ t('social', 'Your pictures') }}
+				</h3>
+				<ul class="stats__figures">
+					<li>
+						<strong>{{ number(stats.media.images) }}</strong>
+						<span>{{ n('social', 'picture posted', 'pictures posted', stats.media.images) }}</span>
+					</li>
+					<li>
+						<strong>{{ decimal(stats.media.described_share) }}%</strong>
+						<span>{{ t('social', 'carry a description') }}</span>
+						<em>{{ t('social', '{done} of {all}', { done: number(stats.media.described), all: number(stats.media.images) }) }}</em>
+					</li>
+				</ul>
+				<p v-if="stats.media.described_share < 100" class="stats__note">
+					{{ t('social', 'A picture without a description is a picture nobody using a screen reader can read. This is the one number on the page you can move on your own.') }}
+				</p>
+			</section>
+
+			<!-- what you write in, where you link to -->
+			<section v-if="stats.languages.length || stats.domains.length" class="stats__card">
+				<h3>
+					<IconLink :size="20" />
+					{{ t('social', 'What you write, and what you point at') }}
+				</h3>
+				<div class="stats__columns">
+					<div v-if="stats.languages.length">
+						<h4>{{ t('social', 'Languages you post in') }}</h4>
+						<ul class="stats__list">
+							<li v-for="language in stats.languages" :key="language.name">
+								<span>
+									{{ languageName(language.name) }}
+									<span class="stats__tag-count">{{ number(language.count) }}</span>
+								</span>
+							</li>
+						</ul>
+					</div>
+					<div v-if="stats.domains.length">
+						<h4>{{ t('social', 'Where your links go') }}</h4>
+						<ul class="stats__list">
+							<li v-for="domain in stats.domains" :key="domain.name">
+								<a :href="'https://' + domain.name" target="_blank" rel="noreferrer noopener">
+									{{ domain.name }}
+									<span class="stats__tag-count">{{ number(domain.count) }}</span>
+								</a>
+							</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+
 			<p class="stats__window">
 				{{ window }}
 			</p>
@@ -598,6 +772,11 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import IconClock from 'vue-material-design-icons/ClockOutline.vue'
+import IconDownload from 'vue-material-design-icons/Download.vue'
+import IconForum from 'vue-material-design-icons/ForumOutline.vue'
+import IconImage from 'vue-material-design-icons/ImageOutline.vue'
+import IconLink from 'vue-material-design-icons/LinkVariant.vue'
+import IconPencil from 'vue-material-design-icons/PencilOutline.vue'
 import IconCalendar from 'vue-material-design-icons/CalendarBlank.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPound from 'vue-material-design-icons/Pound.vue'
@@ -630,7 +809,12 @@ export default {
 		IconAccountGroup,
 		IconCalendar,
 		IconClock,
+		IconDownload,
+		IconForum,
 		IconHeart,
+		IconImage,
+		IconLink,
+		IconPencil,
 		IconPound,
 		IconRefresh,
 		IconReply,
@@ -649,6 +833,8 @@ export default {
 			error: '',
 			/** what the per-post list is ordered by */
 			sort: 'date',
+			/** the window the reader has asked for, in days; 0 is everything */
+			days: 0,
 			/** @type {object|null} */
 			stats: null,
 		}
@@ -663,6 +849,118 @@ export default {
 		 *
 		 * @return {string} the sentence before the link to the source
 		 */
+		/**
+		 * The windows on offer, named rather than numbered.
+		 *
+		 * The server decides which ones exist — each is a walk and a cache
+		 * entry of its own — so the list is read from the answer rather than
+		 * written down twice.
+		 *
+		 * @return {object[]} each with the days it covers and its label
+		 */
+		windowChoices() {
+			const choices = this.stats?.window?.choices ?? [0, 30, 90, 365]
+
+			return choices.map((days) => ({
+				days,
+				label: days === 0
+					? t('social', 'All time')
+					: n('social', 'Last %n day', 'Last %n days', days),
+			}))
+		},
+
+		/** @return {string} where the download comes from, with the window on it */
+		exportUrl() {
+			return generateUrl('apps/social/api/v1/statistics/export?days={days}', { days: this.days })
+		},
+
+		/** @return {string} what the downloaded file is called */
+		exportName() {
+			const acct = this.stats?.account?.acct ?? 'social'
+
+			return `${acct}-statistics.csv`
+		},
+
+		/**
+		 * What the account did, month by month, as one stacked bar each.
+		 *
+		 * Stacked rather than three lines because the question it answers is
+		 * "what was I doing that month", and the parts of an answer belong in
+		 * one column. Scaled to the busiest month, like every other chart here.
+		 *
+		 * @return {object[]} one entry per month
+		 */
+		activity() {
+			const activity = this.stats?.activity
+			if (!activity) {
+				return []
+			}
+
+			const months = Object.keys(activity.originals ?? {})
+			const total = (month) => this.activityKinds
+				.reduce((sum, kind) => sum + (activity[kind.key]?.[month] ?? 0), 0)
+			const tallest = Math.max(1, ...months.map(total))
+
+			return months.map((month) => ({
+				key: month,
+				label: new Date(month + '-01T00:00:00Z').toLocaleDateString(undefined, { month: 'narrow' }),
+				title: [new Date(month + '-01T00:00:00Z').toLocaleDateString(undefined, { year: 'numeric', month: 'long' })]
+					.concat(this.activityKinds.map((kind) => `${kind.label}: ${activity[kind.key]?.[month] ?? 0}`))
+					.join(' · '),
+				parts: this.activityKinds.map((kind) => ({
+					key: kind.key,
+					height: Math.round((activity[kind.key]?.[month] ?? 0) / tallest * 100),
+				})),
+			}))
+		},
+
+		/** @return {object[]} the three kinds of thing an account does, named once */
+		activityKinds() {
+			return [
+				{ key: 'originals', label: t('social', 'Posts of your own') },
+				{ key: 'replies', label: t('social', 'Replies you wrote') },
+				{ key: 'boosts', label: t('social', 'Boosts you gave') },
+			]
+		},
+
+		/** @return {object[]} the same three, for the key under the chart */
+		activityLegend() {
+			return this.activityKinds
+		},
+
+		/**
+		 * The people on either end of a conversation, as two lists.
+		 *
+		 * Each side is scaled to its own busiest partner: the two directions
+		 * are different questions and a shared scale would flatten whichever
+		 * of them the account does less of.
+		 *
+		 * @return {object[]} the two sides, each with its people
+		 */
+		partners() {
+			const partners = this.stats?.partners
+			if (!partners) {
+				return []
+			}
+
+			const sides = [
+				{ key: 'inbound', label: t('social', 'Who answers you') },
+				{ key: 'outbound', label: t('social', 'Who you answer') },
+			]
+
+			return sides
+				.map((side) => {
+					const people = partners[side.key] ?? []
+					const most = Math.max(1, ...people.map((person) => person.replies))
+
+					return {
+						...side,
+						people: people.map((person) => ({ ...person, share: person.replies / most })),
+					}
+				})
+				.filter((side) => side.people.length > 0)
+		},
+
 		networkNote() {
 			const measured = this.stats?.network?.measured
 			const on = measured ? new Date(measured) : null
@@ -1250,18 +1548,55 @@ export default {
 		t,
 		n,
 
-		/** @return {Promise<void>} */
-		async load() {
+		/**
+		 * Ask for a different window.
+		 *
+		 * @param {number} days how far back, or 0 for everything
+		 * @return {Promise<void>}
+		 */
+		async pick(days) {
+			if (days === this.days) {
+				return
+			}
+			this.days = days
+			await this.load()
+		},
+
+		/**
+		 * @param {boolean} fresh count them again rather than reading the cache
+		 * @return {Promise<void>}
+		 */
+		async load(fresh = false) {
 			this.loading = true
 			this.error = ''
 			try {
-				const response = await axios.get(generateUrl('apps/social/api/v1/statistics'))
+				const response = await axios.get(generateUrl('apps/social/api/v1/statistics'), {
+					params: { days: this.days, fresh },
+				})
 				this.stats = response.data
 			} catch (error) {
 				logger.error('could not load the statistics', { error })
 				this.error = t('social', 'Could not work out your statistics.')
 			} finally {
 				this.loading = false
+			}
+		},
+
+		/**
+		 * A language tag as the reader's own word for that language.
+		 *
+		 * `Intl.DisplayNames` is in every browser this app supports; where a
+		 * tag is not one it knows, the tag itself is a better answer than a
+		 * blank.
+		 *
+		 * @param {string} tag a BCP 47 language tag
+		 * @return {string} its name, or the tag
+		 */
+		languageName(tag) {
+			try {
+				return new Intl.DisplayNames([getCanonicalLocale()], { type: 'language' }).of(tag) || tag
+			} catch {
+				return tag
 			}
 		},
 
@@ -2121,6 +2456,146 @@ export default {
 	}
 }
 
+.stats__toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: center;
+	justify-content: space-between;
+	margin-block-end: 18px;
+}
+
+.stats__windows {
+	display: flex;
+	overflow: hidden;
+	border: 2px solid var(--color-border-dark);
+	border-radius: var(--border-radius-element, 24px);
+}
+
+.stats__window-choice {
+	padding: 6px 14px;
+	border: none;
+	border-radius: 0;
+	margin: 0;
+	background: transparent;
+	color: var(--color-main-text);
+	font-size: .9em;
+	white-space: nowrap;
+
+	&:hover {
+		background: var(--color-background-hover);
+	}
+
+	&--on {
+		background: var(--color-primary-element);
+		color: var(--color-primary-element-text);
+
+		&:hover {
+			background: var(--color-primary-element-hover);
+		}
+	}
+}
+
+.stats__actions {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.stats__columns {
+	display: grid;
+	gap: 12px 24px;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+
+	h4 {
+		margin-block: 4px;
+	}
+}
+
+.stats__badge {
+	padding: 1px 6px;
+	border-radius: var(--border-radius-pill, 100px);
+	margin-inline-start: 6px;
+	background: var(--color-background-dark);
+	color: var(--color-text-maxcontrast);
+	font-size: .8em;
+	font-weight: normal;
+}
+
+// the stacked months: one column per month, each column a pile of the three
+// things an account does
+.stats__stack {
+	display: flex;
+	gap: 3px;
+	align-items: flex-end;
+	height: 90px;
+
+	li {
+		display: flex;
+		flex: 1 1 0;
+		flex-direction: column;
+		justify-content: flex-end;
+		height: 100%;
+		min-width: 0;
+	}
+}
+
+.stats__stack-bars {
+	display: flex;
+	flex-direction: column-reverse;
+	justify-content: flex-start;
+	height: 100%;
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.stats__stack-part {
+	display: block;
+	width: 100%;
+	min-height: 0;
+
+	&--originals {
+		background: var(--color-primary-element);
+	}
+
+	&--replies {
+		background: var(--color-primary-element-light);
+	}
+
+	&--boosts {
+		background: var(--color-border-dark);
+	}
+}
+
+.stats__stack-label {
+	padding-block-start: 4px;
+	color: var(--color-text-maxcontrast);
+	font-size: .75em;
+	text-align: center;
+}
+
+.stats__legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 16px;
+	padding-block-start: 10px;
+	color: var(--color-text-maxcontrast);
+	font-size: .85em;
+
+	li {
+		display: flex;
+		gap: 6px;
+		align-items: center;
+	}
+}
+
+.stats__swatch {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+}
+
 .stats__bars {
 	display: flex;
 	gap: 3px;
@@ -2216,6 +2691,29 @@ export default {
 
 	strong {
 		font-size: 20px;
+	}
+}
+
+// the same pill as a hashtag, for the things that are not hashtags: a
+// language or a link target is a name and a count, not somewhere to go
+.stats__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+
+	a,
+	> li > span {
+		display: inline-flex;
+		gap: 6px;
+		align-items: baseline;
+		padding: 3px 10px;
+		border-radius: var(--border-radius-pill, 100px);
+		background: var(--color-background-dark);
+	}
+
+	a:hover {
+		background: var(--color-background-hover);
 	}
 }
 
