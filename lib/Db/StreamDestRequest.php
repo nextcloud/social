@@ -62,7 +62,7 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	 * instead, so nothing fails in the first place.
 	 */
 	public function create(
-		string $streamId, string $actorId, string $type, string $subType = '', int $nid = 0,
+		string $streamId, string $actorId, string $type, string $subType = '', int|string $nid = 0,
 	): void {
 		$qb = $this->getQueryBuilder();
 

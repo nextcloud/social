@@ -600,6 +600,49 @@ Rotation is the only step that is opt-in, and it is the only way to rotate a key
 pair: nothing else calls `AccountService::blindKeyRotation()`, and the cron never
 does.
 
+### `social:media:retry`
+
+Retry one remote attachment which was previously rejected by the media cache.
+This is useful after an administrator raises a size limit or the remote origin
+recovers from a temporary access problem.
+
+```
+php occ social:media:retry <remote_url>
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `remote_url` | Yes | Exact HTTP(S) URL shown in the attachment's `remote_url` field |
+
+The argument must be the exact HTTP(S) `remote_url` exposed by Social. The
+command finds the cache row by that media URL and only resets a row with a
+stored media error and no local copy; it does not touch healthy cached files or
+retry every failed attachment at once. It clears the old error and caching
+timestamp, then fetches that one document immediately through the usual MIME,
+size, quota, blocklist, and image-decode checks. Exit code 0 means the copy was
+stored. If it is still refused, the command reports failure and the new
+rejection remains recorded for diagnosis.
+
+### `social:media:recover`
+
+Restore missing pictures on remote posts whose saved ActivityPub original still
+contains attachments. It does not rewrite post text, audience or date.
+
+```
+php occ social:media:recover [--dry-run] [--limit LIMIT]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--dry-run` | none | List affected posts without downloading or changing anything |
+| `--limit` | required | Examine at most this many candidate posts; `0` (default) examines all |
+
+Only remote posts with an empty stored attachment list are candidates. For
+each original attachment, the normal federated media importer validates the
+URL and caches the file, then the command updates the post's attachment list
+and Photos/Videos index. Posts without usable media remain unchanged and are
+reported; run the command again after fixing a remote or local cache error.
+
 ### `social:media:posters`
 
 Make the poster frames of videos that have none, so a client shows a still
@@ -809,8 +852,8 @@ php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `action` | No | `''` | One of `list`, `add`, `remove`, `test`, `reset`, `silence`, `unsilence`, `silenced`, or empty |
-| `address` | No | `''` | Address / host the action applies to |
+| `action` | No | `''` | One of `list`, `add`, `remove`, `import`, `test`, `reset`, `silence`, `unsilence`, `silenced`, or empty |
+| `address` | No | `''` | Host for single-address actions, or a readable CSV path for `import` |
 
 | Option | Value | Description |
 |--------|-------|-------------|
@@ -827,14 +870,20 @@ command first prints the current access type and then runs the action:
 | `list` | Print `- Known address:` followed by the access list |
 | `add <address>` | Add the address to the list |
 | `remove <address>` | Remove the address from the list |
+| `import <csv_file>` | Read domains from the CSV's first column and add them to the existing `all_but` block list |
 | `test <address>` | Print `Authorized` or `Unauthorized` for that address |
 | `reset` | Empty the list |
 | `silence <address>` | Silence the instance: keep it out of the public, global and hashtag timelines |
 | `unsilence <address>` | Lift the silence |
 | `silenced` | Print the silenced instances under `- Silenced:` |
 
-An unknown action throws
-`specify action: add, remove, list, reset, silence, unsilence, silenced`.
+`import` accepts a first-column `#domain`/`domain` header or a plain
+one-domain-per-line file. It validates the entire file before mutation, skips
+duplicates, caps an import at 10,000 unique domains, and refuses allow-list
+mode. Each new domain receives the same audit entry and queued purge as an
+individual block. It does not fetch remote sources; review an export before
+running it. An unknown action throws
+`specify action: add, remove, import, list, reset, silence, unsilence, silenced`.
 `silence` and `unsilence` without an address throw `specify an address to
 silence` / `... to unsilence`.
 

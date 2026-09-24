@@ -76,7 +76,7 @@ class VideoLadderWorker {
 			}
 
 			foreach ($documents as $document) {
-				$after = max($after, $document->getNid());
+				$after = \OCA\Social\Tools\Nid::compare($after, $document->getNid()) > 0 ? $after : $document->getNid();
 
 				$state = $this->attempt($document);
 				if ($state === self::NOT_NEEDED) {
@@ -185,7 +185,7 @@ class VideoLadderWorker {
 	}
 
 	/** Throws a video's ladder away, files and all. */
-	public function tearDown(int $docNid): void {
+	public function tearDown(int|string $docNid): void {
 		$this->forget($this->renditionsRequest->deleteForDocument($docNid));
 		$this->cacheDocumentsRequest->setLaddered($docNid, self::NOT_LOOKED);
 	}

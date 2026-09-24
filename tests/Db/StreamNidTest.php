@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Db;
 
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Tools\Nid;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
@@ -48,30 +49,30 @@ class StreamNidTest extends TestCase {
 	public function testNidsStayOrderedByPublicationTimeAcrossTheWidening(): void {
 		// cursor pagination orders on nid, so ids issued under the old 1e6 width
 		// must still sort before ids issued under the new one.
-		$old = static fn (int $t, int $r): int => $t * 1000000 + $r;
-		$new = fn (int $t, int $r): int => $t * $this->constant('NID_LIMIT') + $r;
+		$old = static fn (int $t, int $r): string => Nid::fromPublishedTime($t, $r, 1000000);
+		$new = fn (int $t, int $r): string => Nid::fromPublishedTime($t, $r, $this->constant('NID_LIMIT'));
 
 		$earlier = $old(1_700_000_000, 999_999);
 		$later = $new(1_700_000_001, 1);
 
-		$this->assertLessThan($later, $earlier);
-		$this->assertLessThan($new(1_700_000_002, 1), $new(1_700_000_001, 999_999_999));
+		$this->assertSame(-1, Nid::compare($earlier, $later));
+		$this->assertSame(-1, Nid::compare($new(1_700_000_001, 999_999_999), $new(1_700_000_002, 1)));
 	}
 
 	public function testTheTopOfTheIdSpaceStillFitsABigint(): void {
 		// published_time * NID_LIMIT must not overflow the BIGINT column, with
 		// room left for dates well beyond now.
-		$year2100 = 4_102_444_800;
-		$highest = $year2100 * $this->constant('NID_LIMIT') + $this->constant('NID_LIMIT');
+		$highest = Nid::fromPublishedTime(2_000_000_000, $this->constant('NID_LIMIT') - 1, $this->constant('NID_LIMIT'));
 
-		$this->assertLessThan(9223372036854775807, $highest);
+		$this->assertSame(-1, Nid::compare($highest, '9223372036854775807'));
+		$this->assertSame(1, Nid::compare($highest, '2147483647'));
 	}
 
 	public function testTheDrawIsNotPredictable(): void {
 		$source = (string)file_get_contents(self::SOURCE);
 
 		$this->assertStringContainsString(
-			'random_int(1, self::NID_LIMIT)',
+			'random_int(1, self::NID_LIMIT - 1)',
 			$source,
 			'the nid is drawn with rand(), which is seeded per process and predictable'
 		);
@@ -91,7 +92,7 @@ class StreamNidTest extends TestCase {
 			'a single attempt cannot recover from a collision'
 		);
 		$this->assertStringContainsString(
-			'$stream->setNid(0);',
+			"\$stream->setNid('0');",
 			$source,
 			'save() does not draw a fresh nid after a constraint violation, so the post is lost'
 		);

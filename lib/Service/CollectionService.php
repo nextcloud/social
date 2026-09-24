@@ -163,7 +163,7 @@ class CollectionService {
 	 * @throws InvalidResourceException when the post is not the owner's, or the
 	 *                                  collection is full
 	 */
-	public function addPost(Person $owner, int $id, int $nid): Collection {
+	public function addPost(Person $owner, int $id, int|string $nid): Collection {
 		$collection = $this->own($owner, $id);
 		$post = $this->ownPost($owner, $nid);
 
@@ -183,7 +183,7 @@ class CollectionService {
 	}
 
 	/** @throws ItemNotFoundException */
-	public function removePost(Person $owner, int $id, int $nid): Collection {
+	public function removePost(Person $owner, int $id, int|string $nid): Collection {
 		$collection = $this->own($owner, $id);
 
 		try {
@@ -238,7 +238,7 @@ class CollectionService {
 	 * @throws ItemNotFoundException when there is no such post
 	 * @throws InvalidResourceException when it belongs to somebody else
 	 */
-	private function ownPost(Person $owner, int $nid): Stream {
+	private function ownPost(Person $owner, int|string $nid): Stream {
 		try {
 			$post = $this->streamRequest->getStreamByNid($nid);
 		} catch (\Exception $e) {

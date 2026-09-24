@@ -156,7 +156,7 @@ class AdminApiService {
 	 * @param bool|null $local true for local accounts, false for remote, null
 	 *                         for both — Mastodon's `origin`
 	 *
-	 * @return array{accounts: AdminAccount[], cursors: int[]}
+	 * @return array{accounts: AdminAccount[], cursors: array<int, int|string>}
 	 */
 	public function accountPage(
 		?bool $local = null,
@@ -166,7 +166,7 @@ class AdminApiService {
 		string $status = '',
 		int $limit = self::LIMIT,
 		int $maxId = 0,
-		int $minId = 0,
+		int|string $minId = 0,
 	): array {
 		$limit = max(1, min(self::MAX_LIMIT, $limit));
 
@@ -206,7 +206,7 @@ class AdminApiService {
 
 		return [
 			'accounts' => $accounts,
-			'cursors' => array_map(static fn (array $row): int => (int)$row['nid'], $rows),
+			'cursors' => array_map(static fn (array $row): int|string => \OCA\Social\Tools\Nid::fromStorage((string)$row['nid']), $rows),
 		];
 	}
 
@@ -407,7 +407,7 @@ class AdminApiService {
 		string $target = '',
 		int $limit = self::LIMIT,
 		int $maxId = 0,
-		int $minId = 0,
+		int|string $minId = 0,
 	): array {
 		$rows = $this->reportRows(
 			$resolved,
@@ -972,7 +972,7 @@ class AdminApiService {
 		bool $undecided,
 		int $limit,
 		int $maxId,
-		int $minId,
+		int|string $minId,
 	): array {
 		$qb = $this->dbConnection->getQueryBuilder();
 		$qb->select('ca.id', 'ca.nid', 'ca.local', 'ca.account', 'ca.preferred_username')
@@ -1021,13 +1021,13 @@ class AdminApiService {
 
 		if ($maxId > 0) {
 			$qb->andWhere($qb->expr()->lt(
-				'ca.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)
+				'ca.nid', $qb->createNamedParameter($maxId)
 			));
 		}
 
 		if ($minId > 0) {
 			$qb->andWhere($qb->expr()->gt(
-				'ca.nid', $qb->createNamedParameter($minId, IQueryBuilder::PARAM_INT)
+				'ca.nid', $qb->createNamedParameter($minId)
 			));
 		}
 
@@ -1056,7 +1056,7 @@ class AdminApiService {
 		string $target,
 		int $limit,
 		int $maxId,
-		int $minId,
+		int|string $minId,
 		int $id = 0,
 	): array {
 		$qb = $this->dbConnection->getQueryBuilder();

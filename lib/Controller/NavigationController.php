@@ -37,6 +37,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\FileDisplayResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\IConfig;
@@ -92,6 +93,7 @@ class NavigationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[PublicPage]
 	// The client-side router owns `/follow_requests`, `/blocked`, `/discover`,
 	// `/migration`, `/statistics`, `/settings` and `/search`; the server has to
 	// answer them too, or reloading or bookmarking one of those pages is a 404.
@@ -112,6 +114,22 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/collections/{id}', postfix: 'collection', requirements: ['id' => '\\d+'])]
 	#[FrontpageRoute(verb: 'GET', url: '/places/{id}', postfix: 'place', requirements: ['id' => '\\d+'])]
 	public function navigate(string $path = ''): TemplateResponse {
+		// A visitor may read public posts from this instance without an account.
+		// Do this before any account-specific setup or state is requested: the
+		// normal root page is the private home feed, which must never be exposed
+		// as a guest page.
+		if ($this->userId === null) {
+			$this->initialState->provideInitialState('serverData', [
+				'public' => true,
+				'firstrun' => false,
+				'needsAccount' => false,
+				'setup' => false,
+				'isAdmin' => false,
+			]);
+
+			return new PublicTemplateResponse(Application::APP_ID, 'main');
+		}
+
 		$this->logger->debug('[NavigationController] navigate() called', [
 			'path' => $path,
 			'userId' => $this->userId,
@@ -122,8 +140,7 @@ class NavigationController extends Controller {
 			'firstrun' => false,
 			'needsAccount' => false,
 			'setup' => false,
-			'isAdmin' => $this->userId !== null && Server::get(IGroupManager::class)
-				->isAdmin($this->userId),
+			'isAdmin' => Server::get(IGroupManager::class)->isAdmin($this->userId),
 			'cliUrl' => $this->getCliUrl(),
 			// what to do with a post somebody marked sensitive: this reader's
 			// own choice, or what the instance does for somebody who has not
@@ -131,12 +148,12 @@ class NavigationController extends Controller {
 			// decides what the very first screenful looks like, and a timeline
 			// that uncovered itself a moment after it drew would be worse than
 			// either policy.
-			'nsfwPolicy' => $this->sensitiveMediaService->policyFor((string)$this->userId),
+			'nsfwPolicy' => $this->sensitiveMediaService->policyFor($this->userId),
 			// and what this reader *chose*, which is a different thing: the
 			// settings page has to be able to show "follow the instance" as
 			// the state it is rather than as whichever policy that currently
 			// resolves to
-			'nsfwChoice' => $this->sensitiveMediaService->choiceOf((string)$this->userId),
+			'nsfwChoice' => $this->sensitiveMediaService->choiceOf($this->userId),
 			// which sections this instance offers. In the page rather than
 			// behind a request for the same reason the policy above is: the
 			// sidebar is drawn before anything is fetched, and entries that
@@ -365,6 +382,7 @@ class NavigationController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/timeline/{path}', requirements: ['path' => '.+'], defaults: ['path' => ''])]
 	public function timeline(string $path = ''): TemplateResponse {
 		return $this->navigate();

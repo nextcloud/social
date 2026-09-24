@@ -15,6 +15,13 @@
 				placeholder="admin@instance.example"
 				:helperText="t('social', 'Shown to anybody asking this server what it is. Clients read it on their first request.')" />
 
+			<NcTextField
+				v-model="form.contactAccount"
+				class="server__field"
+				:label="t('social', 'Contact account')"
+				:placeholder="t('social', 'Local Social username')"
+				:helperText="t('social', 'Shown to Mastodon-compatible clients as the account responsible for this instance. Leave empty to omit it.')" />
+
 			<NcTextArea
 				v-model="form.extendedDescription"
 				class="server__field"
@@ -211,6 +218,7 @@ export default {
 		return {
 			form: {
 				contactEmail: this.settings.contact_email ?? '',
+				contactAccount: this.settings.contact_account ?? '',
 				extendedDescription: this.settings.extended_description ?? '',
 				maxSize: String(this.settings.max_size ?? 10),
 				maxVideoSize: String(this.settings.max_video_size ?? 2048),
@@ -283,6 +291,7 @@ export default {
 			try {
 				await axios.post(serverUrl(), {
 					contactEmail: this.form.contactEmail.trim(),
+					contactAccount: this.form.contactAccount.trim().replace(/^@/, ''),
 					extendedDescription: this.form.extendedDescription,
 					maxSize: parseInt(this.form.maxSize, 10),
 					maxVideoSize: parseInt(this.form.maxVideoSize, 10),

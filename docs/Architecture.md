@@ -1,5 +1,11 @@
 # Nextcloud Social — Architecture Overview
 
+## Identifier width and PHP 32-bit support
+
+Stream `nid` values are decimal identifiers stored in the database's `BIGINT` columns. They are generated from the published timestamp followed by a fixed-width random suffix, so database ordering remains chronological. A `nid` can exceed `PHP_INT_MAX` on a 32-bit PHP build even though its timestamp component is representable, and even a 64-bit PHP integer exceeds JavaScript's exact-integer range. The application therefore keeps stream identifiers as normalized decimal strings from HTTP route and cursor input through models, pagination, database parameters, and JSON output. In particular, local status `id` and `nid` fields must be strings so browser clients can round-trip the exact identifier; `Tools\Nid` handles comparisons without converting the full value to a PHP integer. Do not cast a stream `nid`, or bind it as `PARAM_INT`; bind it as a decimal string. Ordinary counters, timestamps, media sizes, and auto-increment row IDs remain integers.
+
+Regression coverage includes identifiers above the 32-bit signed integer range and verifies normalization, ordering, and generator shape. Database integration runs against the supported database engines on the normal 64-bit CI runtime; Nextcloud documents 32-bit PHP as supported but recommends 64-bit PHP.
+
 ## Contents
 
 - [Introduction](#introduction)
@@ -22,7 +28,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.43  
+**App version:** 0.26.44
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -283,7 +289,7 @@ The business logic lives in `lib/Service/`.
 - **RequestQueueService** — Manages `social_req_queue`: creates entries, hands out the priority entry, and re-offers standby entries once they are due. The `floor(tries^4 / 3)` second backoff and the `MAX_TRIES` (16) give-up are applied by the query (`CoreRequestBuilder::limitToQueueDue()`), and exhausted rows are marked `STATUS_ABANDONED` (8) before the 200-row window is read — filtered in PHP afterwards, the rows of one dead instance permanently occupied that window and starved every other delivery. A delivered row is kept as `STATUS_SUCCESS` and an exhausted one as abandoned for `RETENTION_SECONDS` (seven days), then purged by `purgeFinished()` on every cron pass and by `occ social:stream:prune`; they used to be deleted the moment they finished, which made the queue a to-do list that could never say where a post had got to. Every row carries `object_id_prim`, the md5 of the id of the object inside the activity, read off the JSON in `objectIdPrimOf()` so that forwarded third-party bytes are keyed the same way; `DeliveryService` reads the rows of one object back for the author (`GET /api/v1/statuses/{nid}/delivery`). A row whose delivery fails in a way `ActivityService` does not handle itself — a corrupt signing key, the database going away — is logged and handed back to standby by the caller (`Cron\Queue` and `QueueController`), because it was marked `running` before the attempt: left that way it was never retried, never counted against `MAX_TRIES`, and took the rest of the 200-row batch with it
 - **StreamQueueService** — Manages `social_stream_queue`, the inbound side. Two queue types are implemented. `Cache`: for each Note a received stream references (a reply parent, a boosted post), it fetches that Note, caches its author, stores it, and embeds it in the referencing stream's cache — anything that is not a Note, or whose id does not match the URL it was fetched from, is rejected. `LinkPreview`: reads the page a post links to, once, and stores the card. Any other type is dropped. This side has the same 200-row batch cap and the same in-query backoff, give-up (`MAX_TRIES`, 10 here) and delete-on-success as the outbound queue; it used to keep one permanent row per activity ever cached and was never pruned
 - **CurlService** — Outbound HTTP for ActivityPub fetches, WebFinger and host-meta lookups, and the async self-call that drains a delivery token. The transport is the server's own client (`OCP\Http\Client\IClientService`), and a caller hands it a method, a URL and at most four options — `headers`, `body`, `timeout`, `json_headers` — which is what the client itself takes; nothing in between describes an HTTP request a second time. So the CA bundle, the proxy configuration and the local-address checks come from the server, and what stays here is federation-specific: the protocol fallback (an instance reachable over `http` only, via `doRequestOverUrls()`), the signed fetch and its one unsigned retry, the download size ceiling, and the mapping onto the app's request exceptions. A URL somebody else wrote — an ActivityPub id, a cached-media link, a previewed page — is requested exactly as it is written rather than taken apart and reassembled, which is also what makes the path a signature covers the path the request is sent to
-- **FediverseService** — Instance-level access control; see [Security](#security)
+- **FediverseService** — Instance-level access control; its CSV import batches one validated list write, then records an audit event and queues the normal purge per new domain. Import is explicitly operator-triggered and only applies in block-list mode; see [Admin.md](Admin.md#moderation-and-federation)
 - **InstanceService** — Builds and returns the local instance's NodeInfo-style metadata
 
 ### Media
@@ -337,6 +343,7 @@ copy in app storage; the original stays where it was, untouched.
 
 - **ConfigService** — App/user configuration and the derived URLs (cloud URL, social URL, social address, max download size, self-signed toggle), plus ActivityPub id generation. It also owns the two config-derived parts of every outbound request: `requestOptions()` (the timeout and connect timeout, whether the peer's certificate has to check out, whether local addresses may be reached) and `activityPubHeaders()` (the `Accept` a federation GET carries and the `Content-Type` a POST does). `withRequestTimeout()` bounds everything a call makes, overriding what the caller asked for
 - **CheckService** — Installation checks (is `/.well-known/webfinger` reachable) and repair of invalid follow and note rows
+- **IndexService** — Repairs missing `social_stream_dest` and `social_stream_tag` rows 500 streams per `Cron\Index` pass. It pages by ascending NID, records the cursor only after both side indexes succeed, and leaves existing rows in place so interrupted work resumes safely. A failing row is logged and holds the cursor before it, so later rows wait until the failure is corrected; the explicit `social:check:install --index` remains the administrator's full rebuild.
 - **ClientService** — OAuth 2.0 client registration, authorization and token issuing
 - **DetailsService** — Computes a `StreamDetails` object describing which local viewers a stream reaches
 - **MiscService** — Logging helper and the running Nextcloud major version
@@ -380,6 +387,29 @@ Every local note carries a `replies` collection at `<post id>/replies`, served p
 6. At most one row is delivered inline: `RequestQueueService::getPriorityRequest()` hands back the first row only when its priority is `TOP`, or `HIGH`/`MEDIUM` under narrow conditions, and otherwise throws `NoHighPriorityRequestException` so nothing is sent synchronously. If rows remain on standby, `CurlService::asyncWithToken()` fires a request at the app's own `/async/request/{token}` route to drain them
 7. `Cron\Queue` (12-minute interval) retries whatever the query says is due, with the backoff above, after returning rows a dead worker left `running` to standby
 8. Every delivery is an HTTP POST to the queue row's inbox URI. `SignatureService::signRequest()` is given that URL and the body about to be sent and answers with the signed headers; `CurlService::retrieveJson()` sends both
+
+**An edit can add recipients.** `PostService::editPost()` reparses the new text,
+adds only newly named actors to the audience, mention tags and inbox paths, and
+then persists the changed post. `StreamRequest::update()` writes those paths
+back to `social_stream.instances` and, for a local edit, regenerates
+`social_stream_dest` in the same transaction. The `Update` is built from the
+reloaded post, so a newly mentioned instance is not lost between editing and
+queueing. The followers path is added only when the post's visibility reaches
+followers; this keeps an edit to a direct message from widening its audience.
+If queue creation fails after the local transaction commits, the Mastodon API
+answers `503` with an explicit message that the post was saved locally; clients
+must not ask the author to submit the edit again merely because remote delivery
+failed.
+
+**Reading edit history.** `PostDetails` opens `EditHistoryDialog` with the
+status's numeric `nid` and actual `edited_at` value. The history route resolves
+that NID through `StreamRequest::getStreamByNid()` before reading revisions,
+so visibility rules remain the same as for the post. NIDs can exceed both
+32-bit integers and `PHP_INT_MAX`; `ExtendedQueryBuilder::limitToNid()` keeps
+those decimal values as strings when binding the BIGINT predicate. The dialog
+accepts either the Mastodon array response or Nextcloud's `result` wrapper,
+reports malformed or failed responses as errors, lets readers retry, and
+ignores a slow response when the dialog has switched to another post.
 
 A delivery is retried when the peer's answer says it might accept the activity later — 408, 429 and any 5xx — and the row is dropped only on an answer that says it never will, or once `MAX_TRIES` is reached. A host that has just answered with a transient status is added to the run's failing set, so the rest of the run does not ask it once per queued activity.
 
@@ -455,7 +485,9 @@ for it, since registration stores whatever scope string arrives.
 
 **Setup checks.** Four `OCP\SetupCheck\ISetupCheck` classes in `lib/SetupChecks/`, registered in `Application::register()` and shown in **Administration → Overview**: `WebFingerReachable` (the `CheckService::checkWellKnown()` probe, asked about the oldest live local account rather than about the viewer, who may never have opened Social), `CloudAddressMatches` (the stored `cloud_url` against what the server now reports), `CronRanRecently` (`Cron\Queue`'s last run, read off the job list) and `OutboundQueueNotStuck` (abandoned rows, and standby rows last tried more than a day ago — past anything the retry schedule would wait on purpose). `occ social:check:install` runs the same objects rather than a second copy of the logic, so the console and the settings page cannot drift apart; `--offline` leaves out the one that goes out on the network. Each links to [Admin.md](Admin.md), through `SetupChecks\Docs` so a moved guide is one edit.
 
-**The Server card.** `ServerSettingsService` is the one place that reads and writes the eight instance-wide settings the page can reach — `contact_email`, `extended_description`, `max_size`, `max_video_size`, `inbox_throttle`, `secure_mode`, `publish_blocks`, `allow_self_signed` — and the one place that says what each may be. Every one of them existed as an app config key that only `occ config:app:set` could write, which is where they stayed. `ServerSettingsController` is deliberately *not* delegated: it carries no `AuthorizedAdminSetting`, so a group holding the Social section is refused, and `AdminSettings` does not render the card for one.
+**The Server card.** `ServerSettingsService` is the one place that reads and validates the instance-wide settings the page can reach. That includes the contact email and local contact account as well as media limits, inbox throttling, federation policy, and video processing. An account entered as the contact is resolved against the local Social actors table and stored by its Nextcloud user id; a remote account or a local team actor without a Nextcloud user is refused. `InstanceService` resolves the saved owner to its cached account on every `/api/v1/instance` and `/api/v2/instance` read, so clients see current account details, and a deleted account is omitted rather than breaking instance discovery. `ServerSettingsController` is deliberately *not* delegated: it carries no `AuthorizedAdminSetting`, so a group holding the Social section is refused, and `AdminSettings` does not render the card for one.
+
+**When public posts have no remote recipient.** A Public address is a visibility declaration, not a server-wide broadcast request. Outbound delivery resolves the author's followers, explicit mentions, and accepted relays; if none resolve to a remote inbox, the queue correctly creates no delivery rows. `ActivityService::request()` now records a notice with the actor, object, activity, and requested path types for that zero-inbox outcome. The author's Delivery status panel explains which audiences receive public posts and why a public status is not sent to every known peer. Deletes retain the post's original saved recipient paths and add the follower and booster/replier destinations, so a retraction follows the same paths that carried the original status. The first resolved remote path on a Delete is promoted for an inline attempt before the remaining fan-out is handed to the detached queue worker; this preserves asynchronous delivery for large audiences while avoiding dependence on self-queue dispatch for every remote copy.
 
 **The audit trail.** `AuditService` dispatches `OCP\Log\Audit\CriticalActionPerformedEvent` for the decisions that are worth keeping longer than `social.log` keeps them: suspend, silence, lift, takedown, and an instance going on or off the access list. It is called from `ModerationService` and from `FediverseService::addAddress()`/`removeAddress()` rather than from the controllers, so the settings page, the Mastodon admin API and `occ social:fediverse` all record the same thing. A lift and a takedown also write a `social_strikes` row now (`Strike::LIFT`, `Strike::TAKEDOWN`) naming the acting moderator; both used to be an info line and nothing else. `Strike::COUNTED` is what the browser's strike column counts, and a lift is not in it.
 
@@ -495,9 +527,9 @@ line up under it.
 
 **The account at the bottom.** The way out of every app in Nextcloud is the thing at the foot of the sidebar with your face on it, so the Social sidebar ends the same way: the **More** menu hangs off the reader's own account — their portrait, and the name they publish under — rather than off the word "More" next to a cog. `NcAppNavigationSettings` renders that cog from a hard-coded path and offers no slot to replace it, so the picture is handed to the stylesheet as `--social-face` and set as the icon box's background with the glyph hidden inside it. The picture comes from the server's own avatar endpoint rather than from the account's `avatar` field, because that endpoint answers for every account — generated initials when nobody has uploaded anything — so the button is never a blank circle, and it is the same face the rest of Nextcloud shows.
 
-The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice; what took its place is **My profile**, first in the menu behind that face. Moving the button without putting the link back would have left the reader's own profile reachable from nowhere.
+The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice. **My profile** opens Nextcloud's native `/u/{uid}` page, where the Social posts section uses Nextcloud's profile layout. **Social profile** sits immediately below it when the reader has a Social actor; it opens the app's own `@{acct}` profile, whose edit dialog manages the ActivityPub display name, bio, metadata links and banner. Keeping both links makes the native profile experience and the Social-specific editing controls independently reachable.
 
-The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice; what took its place is **My profile**, first in the menu behind that face. Moving the button without putting the link back would have left the reader's own profile reachable from nowhere.
+The account used to be a row of its own above the footer. It is not one any more, because it would be the same face twice. **My profile** opens Nextcloud's native `/u/{uid}` page, where the Social posts section uses Nextcloud's profile layout. **Social profile** sits immediately below it when the reader has a Social actor; it opens the app's own `@{acct}` profile, whose edit dialog manages the ActivityPub display name, bio, metadata links and banner. Keeping both links makes the native profile experience and the Social-specific editing controls independently reachable.
 
 **Migration.** A page of the app's own, in the menu behind the account, for taking your data out and putting it back. Nextcloud can already export a whole account with `SocialMigrator` in it, but only if the admin installed the user migration app and only from `occ` or that app's page; taking a copy of what you wrote should not depend on either. `MigrationArchiveService` therefore drives **the same migrator** into a zip a person can download, and reads one back — so what travels, and what deliberately does not (the private key, above all: see the class comment on `SocialMigrator`), is decided in one place for both. `ZipExportDestination` and `ZipImportSource` are the two adapters that make a zip look like the framework's `IExportDestination` and `IImportSource`; they implement what the migrator actually calls and refuse the rest — `copyFolder()` throws rather than quietly producing an archive that claims to hold files it does not. A file added as a stream is copied to a temporary file and handed to `ZipArchive::addFile()` rather than read into a string: what arrives that way is as often a video as an outbox, and `stream_get_contents()` of a two-gigabyte upload is two gigabytes of memory. The file names are the migrator's, so an archive from this page and one from `occ user:export` are interchangeable; the extra `social/export.json` names the app version, the account and the migrator version, and an archive that holds the data but no manifest is read as version 1, which is what the server's own exporter wrote.
 
@@ -1091,6 +1123,18 @@ row's key onto the incoming document first. That is a bug older than video —
 every re-delivered Mastodon picture hit it — but a streamed row depends on it
 twice over, since the key is what the media proxy is addressed by.
 
+When a remote image is refused permanently, the post still arrives with an
+image placeholder. The local attachment response now carries `cache_error`:
+`1` is over the size limit, `2` is an unsupported type, `3` could not be read
+from the origin, and `4` could not be decoded. The placeholder exposes that
+reason to assistive technology and on hover. Social does not load the origin
+directly in a reader's browser, because that would bypass the instance's media
+type and size checks. Permanent failures are intentionally skipped by the
+regular cache cron; `occ social:media:retry <remote_url>` clears the marker for
+one uncached remote row and tries it again through the same checks. The
+administrator can use that after changing a limit or when the origin recovers,
+without causing every rejected attachment to be fetched on every cron run.
+
 **The video is referenced, not mirrored.** Every other attachment is copied into
 this instance's storage on the way in; a two-hour talk is not, and the row that
 represents it carries `Document::COPY_STREAMED` in `local_copy` instead of a
@@ -1335,10 +1379,54 @@ Each store is installed per Pinia instance rather than per module registration, 
 
 Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAuth2Authorize.vue` (mounted by the OAuth entry on `#social-oauth2`), `ProfilePageIntegration.vue` (registered by the profile entry as the `social-profile-section` custom element), and `OStatus.vue` (unreachable, per the table above).
 
+The Nextcloud Profile page's classic script queue runs Social's `profile.js`
+before the Profile app's module entry. The latter creates
+`OCA.Profile.ProfileSections` and immediately reads the registry while mounting
+the page. Registering from Social with optional chaining silently skipped the
+section because the registry did not exist yet; deferring to a timer or
+`DOMContentLoaded` runs too late, after the Profile page has already taken its
+initial section snapshot. `services/profileSections.js` intercepts the
+registry's first assignment and registers synchronously during that assignment,
+then restores the ordinary data property. The profile custom element also owns
+a separate Vue app, so it installs Social's normal Nextcloud globals (`t`, `n`,
+`OC` and `OCA`) before rendering; without them, the section mounted but its
+first translated label threw during render. It renders in the light DOM so the
+Profile page's theme and Social's shared timeline component styles apply; a
+shadow root isolated those styles and left posts as unformatted list items.
+Profile posts use the same `account` entry type as Social's own profile view,
+and account counts use compact theme-aware metric chips. Tests cover delayed
+and immediate registry creation, the custom element's app setup, and profile
+timeline data passed to Social's shared entry component.
+
 ### Components
 
 `src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`, `LanguageSelect`), `ScheduledPosts` (the posts waiting to go out, in Settings), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components). AltBadge`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
 `src/components/` holds the timeline and profile UI: `TimelineList`, `TimelineEntry`, `TimelinePost`, `TimelineAvatar`, `ActorAvatar`, `ProfileInfo`, `FollowButton`, `UserEntry`, `Navigation`, `Search`, `FirstRun` (the four-step introduction a new account sees once, in place of the beta banner: the address, the colleagues and starter packs from the same routes Discover reads, the follows import Settings offers, and a hand-off to the composer), `FirstPostCelebration`, `MediaAttachment`, `PostAttachment`, `Emoji`, `EmptyContent`, `QuotedPost`, `HashtagFollowButton`, `HashtagFollowedList`, the `Gallery` group (`GalleryCarousel`, `GalleryMedia`, `GalleryRatio.js`), the `Composer/` group (`Composer`, `PreviewGrid`, `PreviewGridItem`, `SubmitStatusButton`), the `Visibility/` group (`VisibilitySelect`, `VisibilityIcon`), the settings sections (`AccountSettings`, `ListsSettings`, `MigrationSettings`, `ShortcutList`) and the two account dialogs (`MuteDialog`, `ListMembershipDialog`), and `MessageContent.js`, a render-function component that parses a post body and rebuilds it as Vue nodes (turning mentions and hashtags into `router-link`s and emoji into `Emoji` components).
+
+The sidebar and post action labels are source literals passed to `t('social', …)`;
+the German catalog ships each entry in both `l10n/de_DE.json` and
+`l10n/de_DE.js`, which are the two catalog forms this app includes. The
+`TranslatableStringsTest` checks every singular label in `Navigation.vue`,
+`TimelinePost.vue` and `DirectMessages.vue` against both files, so adding a
+menu item without its translation is caught before the interface silently
+falls back to English.
+
+### Direct messages
+
+`DirectMessages.vue` presents the direct timeline as a conversation list beside
+the selected thread. The list calls the Mastodon-compatible
+`GET /api/v1/conversations` route (40 newest conversations per request), shows
+the latest status as a plain-text preview, and marks unread conversations.
+The selected conversation is stored in the `conversation` query parameter on
+the direct timeline route, so opening or refreshing a link restores the thread.
+Selecting a row loads the latest status context from
+`GET /api/v1/statuses/{nid}/context`; ancestors and descendants are combined
+with that latest status and de-duplicated by status id before rendering through
+`TimelineEntry`. A successful thread load attempts
+`POST /api/v1/conversations/{id}/read`; failure to persist the read marker is
+logged without hiding the already loaded messages.
+
+Starting a conversation searches `GET /api/v1/global/accounts/search` and selects exactly one account. If that person already has a conversation in the loaded inbox, that thread is opened; duplicate API rows for the same account are collapsed to the newest row. Otherwise the right pane becomes a normal chat: it shows the selected person and a compact message field, with no audience selector, post toolbar or multi-recipient composer. `sendMessage()` always posts with `visibility: direct` to `POST /api/v1/statuses`, prepending the selected account's `@acct` mention internally because Social's ActivityPub delivery derives direct recipients from mentions. The person using the chat does not need to type that mention. Replies include the last status id as `in_reply_to_id`; successful sends clear the field, refresh the inbox and open the conversation returned for that peer. Failed sends retain the draft and display an error. The direct route removes the reading-column padding and announcement strip. The panes share one flat app-content surface with only a divider; empty states do not add nested cards. Incoming and outgoing messages retain `TimelineEntry` for content and attachments, while their post headers are hidden and the chat layout supplies date breaks and message times. The peer appears in the thread header, so each bubble does not repeat the author. Nextcloud theme variables drive the surfaces and colors; at narrow widths the list and chat become separate views with a back control. The current view loads one page of conversations; older pages are not yet appended. Conversation dismissal and pagination controls are not part of this UI.
 
 `ProfileInfo.vue` keeps every control for the profile in one dialog: the banner
 (a file, or the address of one), the bio and the metadata fields. The banner
@@ -1504,7 +1592,7 @@ description in an `alt` attribute and nowhere else.
 
 **Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 
-`Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The emoji picker is a separate `NcEmojiPicker`.
+`Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The composer's HTML-to-text conversion inserts one newline at each block boundary, including before a block that follows an unwrapped text node; browser contenteditables commonly encode the first Enter in that mixed form, so missing the leading separator concatenates the first two lines in a new post. The shared `htmlToPlainText()` applies the same rule when editing/redrafting and when presenting portfolio captions. The emoji picker is a separate `NcEmojiPicker`; it is loaded on first use and portals to `#content`, outside the composer toolbar and reaction modal's clipping/stacking containers while retaining Nextcloud theme variables inherited from the app root. The reaction picker shares that portal so the popover does not participate in its centered flex panel's sizing or sit beneath its backdrop. Portfolio captions are reduced to plain text by `htmlToPlainText()` and use `white-space: pre-line` so paragraph boundaries remain visible without rendering untrusted HTML.
 
 **The Settings page, and what is on it.** `src/views/Settings.vue` is a list of
 sections, each with an id — `#account`, `#lists`, `#scheduled`, `#migration`,
@@ -1663,6 +1751,24 @@ reader on a page with a blue header, a "Get your own free account" banner and a
 Follow button that started the remote-follow flow for an account they could have
 followed with one click. An ActivityPub request is untouched by any of it.
 
+For an anonymous reader, both the profile shell and the resolved single-post
+shell are `PublicTemplateResponse`s. A profile whose well-formed `user@host`
+handle is not cached here still receives that shell; the browser resolves the
+account through `GET /api/v1/global/account/info`, whose anonymous rate limit
+bounds remote lookups. The HTML request itself remains cache-only and never
+WebFingers an arbitrary name. The profile view uses the local account endpoint
+for a bare local username and the global resolver for a federated handle. Both
+account-info routes are read-only public GETs and carry `NoCSRFRequired`, so a
+signed-out browser can load the profile without a session token; the remote
+resolver remains protected by its anonymous rate limit. This
+detail matters after the post has been resolved: an ordinary `TemplateResponse`
+is private by default, so Nextcloud redirects the visitor to `/login` during
+the document request and throws away the already-rendered public status. The
+public single-post shell also receives the safe `serverData` state and
+serialized status before Vue starts; the guest timeline does not need a session
+to fetch the surrounding public context. Authenticated readers still get the
+normal `navigate()` shell.
+
 The app writes its own links to a post as `/@acct/<nid>` — the numeric id its
 client API uses — while the address a post is published under ends in a
 different token, and the post used to be looked up by that address alone. So a
@@ -1691,12 +1797,34 @@ server's own; a reader with a session gets the app with a 404 status, and its
 views say "User not found" and "This post is not available" once they have
 asked.
 
+The portfolio URL is a separate browser route under `/@{username}/portfolio`.
+It uses the same public page shell for anonymous readers and the client router
+loads the portfolio through the public `portfolio/{handle}` API. The published
+portfolio API resolves posts as the anonymous internet, so followers-only posts
+cannot leak onto a public page. The route is covered alongside the public actor,
+followers, and following pages. Captions are plain text and `white-space:
+pre-line` preserves paragraph breaks without interpreting user HTML.
+The post route in `ActivityPubController` also matches any one-segment token
+under `/@{username}/…`; because controllers contribute attribute routes in
+filesystem order, it explicitly forwards the reserved `portfolio` token to
+`SocialPubController::portfolio()` before attempting post resolution. This
+keeps the public portfolio working on both cold anonymous loads and logged-in
+navigation regardless of route registration order.
+
 On the client, `TimelineSinglePost` asks for the post itself when nothing has
 loaded it — `timelineStore.fetchStatus()`, which is `GET /api/v1/statuses/{id}`.
 `/context` answers with what is *around* a post and never with the post, so a
 page reached from anywhere outside a timeline had nothing to draw. A tile on
 Discover is exactly that: those posts belong to the Discover view and never
 reach the timeline store.
+
+The route parameter for `/context` is a string even when its contents are a
+numeric status id. `StreamService::getContextByNid()` normalizes that decimal
+string with `Nid::fromStorage()` before it reaches the query builder, whose
+integer predicate rejects numeric strings under strict typing. Without that
+boundary conversion, the public post shell could render its initial status, but
+the follow-up context request returned 500 and the page displayed a timeline
+load error.
 
 **The pictures on Discover** were not drawn at all, and had not been since the
 tab was added. `ProfileMediaGrid` builds each tile's route with the grid's
@@ -1870,6 +1998,19 @@ nested anchors is invalid and the browser resolves it by dropping content — an
 on the composer's reply and quote lines, where following one would abandon a
 draft.
 
+**The sidebar's “My profile” shortcut leaves the Social router.** The Social
+posts section is registered on Nextcloud's user profile page by
+`ProfileSectionListener`; its custom element fetches the selected user's Social
+account summary and statuses and renders them in that page. Above the posts, the
+section shows localized post, following, and follower totals from the same
+account response used by Social's profile header. The **My profile** shortcut therefore uses Nextcloud's generated `/u/{uid}` URL. The adjacent **Social profile** shortcut remains inside Social's router at `@{acct}`, preserving the app's own profile editor for ActivityPub fields, links, biography and banner. `generateUrl()` preserves the installation web root and
+`encodeURIComponent()` keeps unusual user IDs inside one path segment. Because
+this destination belongs to another Nextcloud page, its navigation row is a
+normal browser link: it works with modified clicks and is not marked active by
+Social's router. The Navigation test covers the generated destination and
+external navigation behavior; the profile integration test checks the three
+counts and fetched posts.
+
 **Account previews.** `AccountHoverCard.vue` is the card that opens when the
 pointer rests on an avatar or a mention, fetched once per handle and cached in
 the account store. It answers "who is this?" without opening the profile, so it
@@ -1937,14 +2078,23 @@ refetch instead of leaving the previous photos on screen.
 
 Behind it: `only_media` is Mastodon's own parameter on `/api/v1/accounts/{id}/statuses` and had never been passed on; `media_type` is a **Social extension** that narrows it to one kind, because Mastodon has nothing finer and two tabs need the difference. `ProbeOptions::setMediaType()` takes only the three kinds an attachment can be — `image`, `video`, `audio`, which are the first half of its MIME type and so the only values the column can hold — and reads anything else as no preference, since the value arrives from a query string. `media_type` implies `only_media`: a post with no attachments cannot be one carrying a video. The predicate is `SocialLimitsQueryBuilder::limitToMediaType()`, a `LIKE` on `"type":"video"` in the stored attachments — the column holds them as the client sees them, there is no column to compare and no JSON support to rely on across the three databases this app supports, and a description containing the same text is stored with its quotes escaped so it cannot collide. Unindexed, like the silenced-instance filter and for the same reason: it runs on a list something else has already narrowed to one account. Pinned posts are left out of a filtered tab, being about the account rather than about a kind of attachment.
 
-**The composer is on your own profile and nowhere else.** Every profile used to
-carry one, pre-filled with a mention of whoever it belonged to and set to a
-direct message — so a page for reading an account looked like a page for writing
-to them, and a stranger's profile asked "what would you like to share?". Your
-own profile is a page you post from, the way the home timeline is; somebody
-else's is a page you read. The sub-routes go with it: a list of followers is not
-a place to post from either. Direct messages are still written from the Direct
-messages timeline, which sets the visibility the same way.
+**The profile page is for reading.** The Social section embedded in Nextcloud's `/u/{uid}` profile never mounts a post composer; new posts are written from the Social app. It shows the account's posts for any visitor, and adds **My Feed** only when the signed-in account owns the profile. **Local** and **Global** show the viewer's public Social timelines. The account banner is fetched from Social's account endpoint and shown only when it is a custom header rather than the avatar fallback. When Nextcloud's native profile header exists, the component teleports the decorative banner into that header, behind its avatar and name; the image stays at the top of the Social section as a fallback when the header is absent. The native header has a `top: -40px` offset; the teleport makes it positioned and activates that offset, so the Social banner explicitly resets `top` and `bottom` to align with the content and avoid a 40px coloured strip beneath it. Public local post links use the native `/u/{uid}` page with a status anchor; remote and non-public posts keep their Social or ActivityPub destination. The native Profile app remains responsible for its follower and post totals.
+
+**Federated media recovery.** A remote `Note` can have `source.attachment` while its stored `attachments` column is `[]`, for example when an earlier import could not persist a CDN image. The normal renderer only reads the latter, so the post text remains visible while every image disappears. `social:media:recover` walks remote rows with an empty attachment list by `nid` in pages of 50, decodes the original ActivityPub object, and feeds its attachments through the same `Stream::importAttachments()` and `DocumentInterface` path used by an incoming post. It writes only the recovered attachment list and its derived `media_kind`; a conditional update leaves a concurrent import intact. Documents without an ActivityPub id receive a generated id on each import, so `DocumentInterface::save()` first looks for the same URL under the same parent post and reuses that row's id, nid and stored copy. This avoids both duplicate downloads and a newly generated `/media/{uuid}` URL that has no cache row behind it. The command has a read-only `--dry-run` and an examination `--limit`. Existing posts with media, local posts, and originals without an attachment list are never changed. A media failure does not rewrite the post's text, recipients, or publication metadata, and another run can retry a post that remained empty.
+
+**Direct messages are one private chat per person.** `DirectMessages.vue` uses Nextcloud Vue controls and the full Social app-content width for a two-pane layout: the left column owns conversation search, compact all/unread filters and one conversation row per person; the right column owns the selected conversation, its scrollable message lane and a private-message field. The new-chat pane starts with deduplicated people from existing conversations and the signed-in account's following list, then searches cached and resolvable accounts by name or handle through `/api/v1/accounts/search`. This endpoint returns a plain array of Mastodon-compatible account objects. The older `/api/v1/global/accounts/search` instead returns ActivityPub actor objects inside `result`; their missing `acct` field caused every result to be filtered out by the chat picker. The search delay and request counters keep stale responses from overwriting a later query; an explicit error state distinguishes failed searches from no matches. Selecting somebody reuses that person's existing conversation where possible; the new-chat header and composer then use the same visual structure as a thread rather than a separate contact card. The composer has no audience selector. Each send sets direct visibility and adds the protocol-required recipient mention internally; the chat removes the leading recipient routing mention from message bubbles and inbox previews whether the server returns it as an h-card, a mention link, or plain text; later mentions remain in the message. Context-loaded messages receive saved link-preview cards through the same batched attachment service used by timelines, so previews render inside the chat without fetching arbitrary URLs in the browser. The native conversation action dismisses the thread from this viewer's inbox; it preserves the statuses and a later message makes the conversation reappear. Duplicate API threads for the same peer are collapsed in the inbox. Incoming and outgoing posts render as separate bubbles aligned to opposite sides, while consecutive messages from the same account are grouped without repeating the sender label. Opening a thread fetches its context and marks it read; sending a reply targets the latest message and stays private. At mobile width the view becomes a single pane whose Back button returns to the list.
+
+The Social section embedded in Nextcloud's `/u/{uid}` profile deliberately
+leaves post/follower/following totals to the native Profile app, which already
+renders those numbers. Each status card adds its Likes and Comments controls
+inside the native card footer: likes load the existing `favourited_by` and
+`reblogged_by` data only when opened; comments load the status context on demand
+and display direct replies only. The Open post link uses the status's public
+URL, so it works in the custom element without relying on Social's main Vue
+Router instance. The profile owner also sees a separate **My Feed** section,
+loaded from the authenticated home-timeline endpoint with cursor pagination;
+it is never requested on another person's profile, so followed/private posts
+cannot leak into a public page.
 
 **The tab also decides how it is drawn**, and there is nothing beside it to say otherwise: Posts is what somebody wrote, so it is a list of posts; Photos and Videos are what they showed, so they are grids. There used to be a grid/list switch here, remembered across profiles, and it could disagree with the tab — `ProfileMediaGrid` kept only the posts carrying a picture, so Posts showed sixteen of them as a list and three as a grid, with nothing to say where the other thirteen had gone. One question, one answer. The empty state comes from `TimelineList` in both views for the same reason: the grid carried one of its own that said "No photos yet" whatever the tab was, so an account with no videos was told it had no photos.
 
@@ -2065,6 +2215,15 @@ route's tag changes, and takes its state from what the server answers rather
 than from what was asked, so a refused follow does not leave the button lying.
 It renders nothing on the public page, where there is no viewer to follow
 anything. `HashtagFollowedList.vue` is the disclosure beneath it.
+
+`MessageContent.js` turns both Unicode and custom emoji into inline image
+elements while walking sanitized post text. `TimelinePost.vue` gives actual
+content images a block layout; its image rule excludes `.emoji` and
+`.custom-emoji`, which stay inline with the surrounding text. `QuotedPost.vue`
+applies the same inline sizing so a quoted remote status preserves the same
+word flow. Direct-message bubbles clone a direct status for display and strip
+only its leading ActivityPub recipient h-card; the stored status remains
+unchanged, and mentions later in the message still render normally.
 
 ---
 

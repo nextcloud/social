@@ -54,7 +54,7 @@ class PinService {
 	 * @throws StreamNotFoundException when the post is unknown
 	 * @throws InvalidActionException when the post cannot be pinned
 	 */
-	public function pin(Person $actor, int $nid): Stream {
+	public function pin(Person $actor, int|string $nid): Stream {
 		$post = $this->ownPost($actor, $nid);
 
 		// the featured collection is read by anyone, local or remote, so what
@@ -90,7 +90,7 @@ class PinService {
 	 * @throws StreamNotFoundException when the post is unknown
 	 * @throws InvalidActionException when the post is not the actor's own
 	 */
-	public function unpin(Person $actor, int $nid): Stream {
+	public function unpin(Person $actor, int|string $nid): Stream {
 		$post = $this->ownPost($actor, $nid);
 		$this->actionsRequest->deleteAction($actor->getId(), $post->getId(), self::TYPE);
 		$this->federate($actor, $post, new Remove());
@@ -214,7 +214,7 @@ class PinService {
 	 * @throws StreamNotFoundException
 	 * @throws InvalidActionException
 	 */
-	private function ownPost(Person $actor, int $nid): Stream {
+	private function ownPost(Person $actor, int|string $nid): Stream {
 		$post = $this->streamRequest->getStreamByNid($nid);
 
 		if (!$post->isLocal() || $post->getAttributedTo() !== $actor->getId()) {

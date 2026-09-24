@@ -44,6 +44,7 @@ class ServerSettingsController extends Controller {
 	 * Writes every setting on the card, or none of them.
 	 *
 	 * @param string $contactEmail empty, or an address
+	 * @param string $contactAccount the preferred username of a local Social account, or empty to clear
 	 * @param int $maxSize megabytes an attachment may have
 	 * @param int $maxVideoSize megabytes a video may have
 	 * @param int $imageMaxEdge longest edge a stored picture may have; 0 keeps every upload as it arrived
@@ -77,6 +78,7 @@ class ServerSettingsController extends Controller {
 		bool $secureMode = false,
 		bool $publishBlocks = false,
 		bool $allowSelfSigned = false,
+		string $contactAccount = '',
 	): DataResponse {
 		try {
 			return new DataResponse($this->serverSettingsService->save(
@@ -96,6 +98,7 @@ class ServerSettingsController extends Controller {
 				$secureMode,
 				$publishBlocks,
 				$allowSelfSigned,
+				$contactAccount,
 			));
 		} catch (InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);

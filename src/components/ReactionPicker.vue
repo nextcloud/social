@@ -22,7 +22,10 @@
 			     real, labelled button rather than a hidden anchor — if that
 			     press ever fails to land, what is left is something to press
 			     rather than an empty box. -->
-			<NcEmojiPicker :closeOnSelect="true" container=".reaction-picker__panel" @select="pick">
+			<!-- Keep the popper out of this flex panel: rendering it as a panel
+			     child lets flex sizing squeeze the fixed-size picker into the
+			     row, and the panel's stacking context can put it under the backdrop. -->
+			<NcEmojiPicker :closeOnSelect="true" container="#content" @select="pick">
 				<button ref="anchor" type="button" class="reaction-picker__anchor">
 					{{ t('social', 'Choose an emoji') }}
 				</button>

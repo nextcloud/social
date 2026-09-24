@@ -84,14 +84,21 @@
 		<template v-else>
 			<div v-if="entryContent" class="wrapper">
 				<TimelineAvatar
-					v-if="!isNotification"
+					v-if="!isNotification && !hideAvatar"
 					class="entry__avatar"
 					:item="entryContent"
 					:size="avatarSize" />
 				<TimelinePost
 					class="entry__content"
 					:item="entryContent"
-					:type="type" />
+					:type="type"
+					:postHref="postHref"
+					:hideAuthor="hideAuthor"
+					:embeddedActions="embeddedActions">
+					<template #profileActions>
+						<slot name="profileActions" />
+					</template>
+				</TimelinePost>
 			</div>
 		</template>
 	</component>
@@ -157,6 +164,26 @@ export default {
 	},
 
 	props: {
+		hideAvatar: {
+			type: Boolean,
+			default: false,
+		},
+
+		hideAuthor: {
+			type: Boolean,
+			default: false,
+		},
+
+		embeddedActions: {
+			type: Boolean,
+			default: false,
+		},
+
+		postHref: {
+			type: String,
+			default: '',
+		},
+
 		/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|import('../types/Mastodon.js').Notification>} */
 		item: {
 			type: Object,

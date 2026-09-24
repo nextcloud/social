@@ -172,12 +172,12 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	}
 
 	/** How far the account has read the thread, as the nid of a message. */
-	public function markRead(string $actorId, string $rootId, int $nid): void {
+	public function markRead(string $actorId, string $rootId, int|string $nid): void {
 		$this->raiseMarker('read_nid', $actorId, $rootId, $nid);
 	}
 
 	/** How far the account has dismissed the thread. */
-	public function markHidden(string $actorId, string $rootId, int $nid): void {
+	public function markHidden(string $actorId, string $rootId, int|string $nid): void {
 		$this->raiseMarker('hidden_nid', $actorId, $rootId, $nid);
 	}
 
@@ -295,7 +295,7 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	 * was already applied, cannot move a marker back over a message the user
 	 * has seen.
 	 */
-	private function raiseMarker(string $column, string $actorId, string $rootId, int $nid): void {
+	private function raiseMarker(string $column, string $actorId, string $rootId, int|string $nid): void {
 		if ($this->getMarkers($actorId, [$rootId]) !== []) {
 			$this->updateMarker($column, $actorId, $rootId, $nid);
 
@@ -314,13 +314,13 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 		}
 	}
 
-	private function updateMarker(string $column, string $actorId, string $rootId, int $nid): void {
+	private function updateMarker(string $column, string $actorId, string $rootId, int|string $nid): void {
 		$qb = $this->getConversationStateUpdateSql();
-		$qb->set($column, $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT));
+		$qb->set($column, $qb->createNamedParameter($nid));
 		$qb->where(
 			$qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))),
 			$qb->expr()->eq('root_id_prim', $qb->createNamedParameter($qb->prim($rootId))),
-			$qb->expr()->lt($column, $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT))
+			$qb->expr()->lt($column, $qb->createNamedParameter($nid))
 		);
 
 		$qb->executeStatement();
@@ -329,13 +329,13 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	/**
 	 * @throws DBException
 	 */
-	private function insertMarker(string $column, string $actorId, string $rootId, int $nid): void {
+	private function insertMarker(string $column, string $actorId, string $rootId, int|string $nid): void {
 		$qb = $this->getConversationStateInsertSql();
 		$qb->setValue('actor_id', $qb->createNamedParameter($actorId))
 			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
 			->setValue('root_id', $qb->createNamedParameter($rootId))
 			->setValue('root_id_prim', $qb->createNamedParameter($qb->prim($rootId)))
-			->setValue($column, $qb->createNamedParameter($nid, IQueryBuilder::PARAM_INT))
+			->setValue($column, $qb->createNamedParameter($nid))
 			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
 
 		$qb->executeStatement();

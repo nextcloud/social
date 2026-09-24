@@ -10,6 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use InvalidArgumentException;
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ServerSettingsService;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -25,6 +28,7 @@ use PHPUnit\Framework\TestCase;
  */
 class ServerSettingsServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
+	private ActorsRequest|MockObject $actorsRequest;
 	private ServerSettingsService $service;
 
 	/** What the app values hold, so a write can be read back. */
@@ -33,6 +37,7 @@ class ServerSettingsServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->stored = [];
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->configService->method('getAppValue')
 			->willReturnCallback(fn (string $key): string => $this->stored[$key] ?? '');
 		$this->configService->method('getAppValueInt')
@@ -44,13 +49,14 @@ class ServerSettingsServiceTest extends TestCase {
 				$this->stored[$key] = $value;
 			});
 
-		$this->service = new ServerSettingsService($this->configService);
+		$this->service = new ServerSettingsService($this->configService, $this->actorsRequest);
 	}
 
 	/** A call that should be taken, so a test can change one field of it. */
 	private function save(array $overrides = []): array {
 		$values = array_merge([
 			'contactEmail' => 'admin@instance.example',
+			'contactAccount' => '',
 			'extendedDescription' => 'a friendly place',
 			'maxSize' => 20,
 			'maxVideoSize' => 4096,
@@ -76,6 +82,7 @@ class ServerSettingsServiceTest extends TestCase {
 
 		$this->assertSame([
 			'contact_email' => 'admin@instance.example',
+			'contact_account' => '',
 			'extended_description' => 'a friendly place',
 			'max_size' => 20,
 			'max_video_size' => 4096,
@@ -108,6 +115,34 @@ class ServerSettingsServiceTest extends TestCase {
 
 	public function testAnEmptyContactAddressIsAllowed(): void {
 		$this->assertSame('', $this->save(['contactEmail' => ''])['contact_email']);
+	}
+
+	public function testAValidatedLocalSocialAccountCanBeTheInstanceContact(): void {
+		$actor = (new Person())->setPreferredUsername('admin')->setUserId('admin')->setLocal(true);
+		$this->actorsRequest->expects($this->once())->method('getFromUsername')
+			->with('admin')->willReturn($actor);
+		$this->actorsRequest->expects($this->once())->method('getFromUserId')
+			->with('admin')->willReturn($actor);
+
+		$this->assertSame('admin', $this->save(['contactAccount' => '@admin'])['contact_account']);
+		$this->assertSame('admin', $this->stored[ConfigService::SOCIAL_CONTACT_ACCOUNT]);
+	}
+
+	public function testARemoteAccountCannotBeTheLocalInstanceContact(): void {
+		$actor = (new Person())->setPreferredUsername('remote')->setLocal(false);
+		$this->actorsRequest->method('getFromUsername')->willReturn($actor);
+
+		$this->expectException(InvalidArgumentException::class);
+		$this->expectExceptionMessage('contact_account');
+		$this->save(['contactAccount' => 'remote']);
+	}
+
+	public function testAnUnknownAccountCannotBeTheInstanceContact(): void {
+		$this->actorsRequest->method('getFromUsername')->willThrowException(new ActorDoesNotExistException());
+
+		$this->expectException(InvalidArgumentException::class);
+		$this->expectExceptionMessage('contact_account');
+		$this->save(['contactAccount' => 'missing']);
 	}
 
 	public function testSurroundingSpaceIsNotPartOfTheAddress(): void {

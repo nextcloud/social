@@ -9,7 +9,13 @@
 				<ActorAvatar :actor="item" :size="32" />
 			</div>
 			<div class="user-details">
-				<router-link v-if="!serverData.public" :to="{ name: 'profile', params: { account: item.acct }}">
+				<a v-if="isLocal && !serverData.public" :href="localProfileUrl(item)">
+					<span class="post-author">
+						<DisplayName :text="item.display_name" :emojis="item.emojis" />
+					</span>
+					<span class="user-description">{{ item.acct }}</span>
+				</a>
+				<router-link v-else-if="!serverData.public" :to="{ name: 'profile', params: { account: item.acct }}">
 					<span class="post-author">
 						<DisplayName :text="item.display_name" :emojis="item.emojis" />
 					</span>
@@ -21,9 +27,9 @@
 				     and a link to it 404s -->
 				<a
 					v-else
-					:href="item.url"
-					target="_blank"
-					rel="noreferrer">
+					:href="isLocal ? localProfileUrl(item) : item.url"
+					:target="isLocal ? undefined : '_blank'"
+					:rel="isLocal ? undefined : 'noreferrer'">
 					<span class="post-author">
 						{{ item.display_name }}
 					</span>
@@ -49,6 +55,7 @@ import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
+import { localProfileUrl } from '../utils/accountProfileLink.js'
 
 export default {
 	name: 'UserEntry',
@@ -86,6 +93,10 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore),
+		isLocal() {
+			return Boolean(this.item?.acct && !this.item.acct.includes('@') && this.item.username)
+		},
+
 		/**
 		 * The account's bio, reduced to markup that is safe to inject.
 		 *
@@ -107,7 +118,6 @@ export default {
 		relationship() {
 			return this.accountStore.getRelationshipWith(this.item?.id)
 		},
-
 	},
 
 	mounted() {
@@ -116,6 +126,10 @@ export default {
 			// moment and sends the ids as one request
 			this.accountStore.fetchRelationship(this.item.id)
 		}
+	},
+
+	methods: {
+		localProfileUrl,
 	},
 }
 </script>

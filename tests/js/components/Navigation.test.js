@@ -11,6 +11,7 @@ import appRouter from '../../../src/router.js'
 import axios from '@nextcloud/axios'
 import eventBus, { LISTS_CHANGED } from '../../../src/services/eventBus.js'
 import { useErrorsStore } from '../../../src/store/errors.js'
+import { useAccountStore } from '../../../src/store/account.js'
 import { useNotificationsStore } from '../../../src/store/notifications.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
@@ -772,6 +773,7 @@ describe('Navigation', () => {
 			'Direct messages',
 			'Discover',
 			'My profile',
+			// Social profile appears only when an ActivityPub account exists.
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -811,6 +813,28 @@ describe('Navigation', () => {
 		])
 	})
 
+	it('keeps the editable Social profile beside the native Nextcloud profile', () => {
+		const accountStore = useAccountStore()
+		accountStore.addAccount({
+			actorId: 'https://cloud.example/apps/social/@alice',
+			data: {
+				acct: 'alice@cloud.example',
+				url: 'https://cloud.example/apps/social/@alice',
+			},
+		})
+		accountStore.setCurrentAccount('alice@cloud.example')
+
+		const wrapper = mountNavigation()
+		const socialProfile = item(wrapper, 'Social profile')
+
+		expect(item(wrapper, 'My profile').attributes('data-href')).toBe('/index.php/u/alice')
+		expect(socialProfile.attributes('data-href')).toBe('/resolved/profile')
+		expect(wrapper.vm.menu.more.find(({ title }) => title === 'Social profile').to).toEqual({
+			name: 'profile',
+			params: { account: 'alice@cloud.example' },
+		})
+	})
+
 	// the account at the bottom
 
 	/**
@@ -838,11 +862,11 @@ describe('Navigation', () => {
 		const wrapper = mountNavigation()
 		const profile = item(wrapper, 'My profile')
 
-		expect(profile.attributes('data-href')).toBe(router.resolve({ name: 'profile', params: { account: 'alice' } }).href)
+		expect(profile.attributes('data-href')).toBe('/index.php/u/alice')
 
 		await profile.trigger('click')
 
-		expect(router.push).toHaveBeenCalledWith({ name: 'profile', params: { account: 'alice' } })
+		expect(router.push).not.toHaveBeenCalled()
 	})
 
 	/**
@@ -865,7 +889,6 @@ describe('Navigation', () => {
 		['Statistics', { name: 'statistics' }],
 		['Follow requests', { name: 'follow-requests' }],
 		['Bookmarks', { name: 'timeline', params: { type: 'bookmarks' } }],
-		['My profile', { name: 'profile', params: { account: 'alice' } }],
 		['Settings', { name: 'settings' }],
 	])('points the %s entry at its route', async (name, to) => {
 		// an href so it is a real link, and a click that stays in the app: with
@@ -967,9 +990,6 @@ describe('Navigation', () => {
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],
-		['/@alice', 'My profile'],
-		['/@alice/followers', 'My profile'],
-		['/@alice/following', 'My profile'],
 	])('marks only one entry active on %s', (path, active) => {
 		const wrapper = mountNavigation({}, appRouter.resolve(path))
 		expect(activeNames(wrapper)).toEqual([active])
@@ -978,6 +998,9 @@ describe('Navigation', () => {
 	it.each([
 		['/timeline/tags/nextcloud'],
 		['/@alice/112000000000000001'],
+		['/@alice'],
+		['/@alice/followers'],
+		['/@alice/following'],
 	])('marks no entry active on %s, which no entry stands for', (path) => {
 		expect(activeNames(mountNavigation({}, appRouter.resolve(path)))).toEqual([])
 	})
@@ -1255,7 +1278,7 @@ describe('Navigation entries are links', () => {
 		['Follow requests', '/index.php/apps/social/follow_requests'],
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
-		['My profile', '/index.php/apps/social/@alice'],
+		['My profile', '/index.php/u/alice'],
 		['Blocking', '/index.php/apps/social/blocked'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)

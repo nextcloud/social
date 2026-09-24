@@ -10,6 +10,15 @@
 		@update:open="$emit('close')">
 		<NcLoadingIcon v-if="loading" :size="32" class="history__loading" />
 
+		<div v-else-if="loadError" class="history__none" role="alert">
+			<p>{{ t('social', 'Could not load this post’s edit history.') }}</p>
+			<NcButton variant="secondary" @click="load">{{ t('social', 'Try again') }}</NcButton>
+		</div>
+
+		<p v-else-if="versions.length === 0 && editedAt" class="history__none">
+			{{ t('social', 'This post is marked as edited, but its revision history is unavailable.') }}
+		</p>
+
 		<p v-else-if="versions.length === 0" class="history__none">
 			{{ t('social', 'This post has not been edited.') }}
 		</p>
@@ -45,6 +54,7 @@ import { generateUrl } from '@nextcloud/router'
 import { t } from '@nextcloud/l10n'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import logger from '../services/logger.js'
 import { fullDateTime } from '../utils/relativeTime.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
@@ -68,6 +78,7 @@ export default {
 	name: 'EditHistoryDialog',
 
 	components: {
+		NcButton,
 		NcDialog,
 		NcLoadingIcon,
 	},
@@ -78,6 +89,12 @@ export default {
 			type: [Number, String],
 			required: true,
 		},
+
+		/** present when the status says an edit happened, even if revisions are absent */
+		editedAt: {
+			type: String,
+			default: '',
+		},
 	},
 
 	emits: ['close'],
@@ -86,7 +103,15 @@ export default {
 		return {
 			versions: [],
 			loading: true,
+			loadError: false,
+			loadRequest: 0,
 		}
+	},
+
+	watch: {
+		nid() {
+			this.load()
+		},
 	},
 
 	mounted() {
@@ -114,15 +139,29 @@ export default {
 
 		/** @return {Promise<void>} */
 		async load() {
+			const request = ++this.loadRequest
+			this.loading = true
+			this.loadError = false
+			this.versions = []
 			try {
 				const url = generateUrl('apps/social/api/v1/statuses/{nid}/history', { nid: this.nid })
 				const { data } = await axios.get(url)
-				this.versions = Array.isArray(data) ? data : []
+				const versions = data?.result ?? data
+				if (!Array.isArray(versions)) {
+					throw new TypeError('The edit history response is not a list')
+				}
+				if (request === this.loadRequest) {
+					this.versions = versions
+				}
 			} catch (error) {
-				logger.error('could not load the edit history', { error })
-				this.versions = []
+				if (request === this.loadRequest) {
+					logger.error('could not load the edit history', { error })
+					this.loadError = true
+				}
 			} finally {
-				this.loading = false
+				if (request === this.loadRequest) {
+					this.loading = false
+				}
 			}
 		},
 	},

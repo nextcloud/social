@@ -278,6 +278,16 @@ describe('router navigation', () => {
 		expect(startViewTransition).not.toHaveBeenCalled()
 		expect(router.currentRoute.value.params.type).toBe('direct')
 	})
+
+	it('starts anonymous readers on the public local timeline', async () => {
+		globalThis.setInitialState('social', 'serverData', { public: true })
+		const router = await freshRouter()
+		await router.push('/')
+
+		expect(router.currentRoute.value.path).toBe('/timeline/timeline')
+		expect(router.currentRoute.value.params.type).toBe('timeline')
+		document.getElementById('initial-state-social-serverData')?.remove()
+	})
 })
 
 describe('router base detection', () => {

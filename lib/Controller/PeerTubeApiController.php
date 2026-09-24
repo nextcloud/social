@@ -355,7 +355,7 @@ class PeerTubeApiController extends ClientApiController {
 	/** One video by the id this API gives it, or null. */
 	private function videoOf(string $id): ?Stream {
 		try {
-			$post = $this->streamService->getStreamByNid((int)$id);
+			$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($id));
 		} catch (Throwable $e) {
 			return null;
 		}

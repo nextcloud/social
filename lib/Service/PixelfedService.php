@@ -216,7 +216,7 @@ class PixelfedService {
 		$statusIds = [];
 		switch ($objectType) {
 			case 'post':
-				$post = $this->streamService->getStreamByNid((int)$objectId);
+				$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($objectId));
 				$target = $this->cacheActorService->getFromId($post->getAttributedTo());
 				$statusIds = [(string)$post->getNid()];
 				break;
@@ -420,7 +420,7 @@ class PixelfedService {
 	 *
 	 * @return array<string, mixed>
 	 */
-	public function thread(Person $viewer, string $pid, int $maxId = 0, int $minId = 0): array {
+	public function thread(Person $viewer, string $pid, int|string $maxId = '0', int|string $minId = 0): array {
 		$other = $this->resolveAccount($pid);
 		$other->setExportFormat(ACore::FORMAT_LOCAL);
 		$account = $other->exportAsLocal();
@@ -499,7 +499,7 @@ class PixelfedService {
 	 */
 	public function deleteMessage(Person $viewer, int $id): void {
 		try {
-			$post = $this->streamService->getStreamByNid($id);
+			$post = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($id));
 		} catch (\Throwable $e) {
 			throw new ItemNotFoundException('unknown message');
 		}

@@ -42,6 +42,11 @@ const TimelineListStub = {
 	props: ['type', 'showParents', 'reverseOrder', 'display'],
 	template: '<ul class="timeline-list-stub" />',
 }
+const DirectMessagesStub = {
+	name: 'DirectMessages',
+	props: ['selectedConversationId'],
+	template: '<section class="direct-messages-stub" />',
+}
 const FirstRunStub = {
 	name: 'FirstRun',
 	emits: ['done'],
@@ -76,7 +81,7 @@ function mountTimeline(route = {}) {
 			// Announcements what the instance is telling everybody; each is its
 			// own request with its own tests, and left real they would answer
 			// after these tests have finished
-			stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, StoryBar: StoryBarStub },
+			stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, StoryBar: StoryBarStub },
 		},
 	})
 }
@@ -134,10 +139,18 @@ describe('Timeline', () => {
 		expect(wrapper.find('h2').exists()).toBe(false)
 	})
 
-	it.each(['direct', 'timeline', 'federated', 'favourites'])('switches the store to the %s timeline from the route', (type) => {
+	it.each(['timeline', 'federated', 'favourites'])('switches the store to the %s timeline from the route', (type) => {
 		const wrapper = mountTimeline({ params: { type } })
 		expect(timelineStore.changeTimelineType).toHaveBeenCalledWith({ type, params: {} })
 		expect(wrapper.findComponent(TimelineListStub).props('type')).toBe(type)
+	})
+
+	it('shows the conversation interface for direct messages without fetching the old flat timeline', () => {
+		const wrapper = mountTimeline({ params: { type: 'direct' } })
+		expect(timelineStore.changeTimelineType).not.toHaveBeenCalled()
+		expect(wrapper.findComponent(DirectMessagesStub).exists()).toBe(true)
+		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(false)
+		expect(wrapper.find('.social__wrapper').classes()).toContain('social__wrapper--direct')
 	})
 
 	// what the instance is telling everybody belongs above the posts and above
@@ -222,8 +235,10 @@ describe('Timeline', () => {
 		expect(composer.props('defaultVisibility')).toBeUndefined()
 	})
 
-	it('presets the composer to direct messages on the direct timeline', () => {
-		expect(mountTimeline({ params: { type: 'direct' } }).findComponent(ComposerStub).props('defaultVisibility')).toBe('direct')
+	it('uses the conversation interface instead of the ordinary timeline composer for direct messages', () => {
+		const wrapper = mountTimeline({ params: { type: 'direct' } })
+		expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
+		expect(wrapper.findComponent(DirectMessagesStub).exists()).toBe(true)
 	})
 
 	it('hides the composer on the notifications timeline and titles it', () => {

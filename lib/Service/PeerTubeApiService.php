@@ -373,7 +373,7 @@ class PeerTubeApiService {
 	 *
 	 * @return array<string, mixed>
 	 */
-	public function comment(Stream $reply, int $videoNid): array {
+	public function comment(Stream $reply, int|string $videoNid): array {
 		return [
 			'id' => $reply->getNid(),
 			'url' => $reply->getId(),

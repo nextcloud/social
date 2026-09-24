@@ -25,6 +25,7 @@ function mountServer(overrides = {}) {
 		props: {
 			settings: {
 				contact_email: ' admin@instance.example ',
+				contact_account: 'admin',
 				extended_description: 'a friendly place',
 				max_size: 20,
 				max_video_size: 4096,
@@ -50,6 +51,7 @@ describe('the server card', () => {
 		// the browser sanitises an email field's value; the trim on the way out
 		// is what makes the payload the same either way
 		expect(wrapper.find('input[type="email"]').element.value).toBe('admin@instance.example')
+		expect(wrapper.vm.form.contactAccount).toBe('admin')
 		expect(wrapper.find('textarea').element.value).toBe('a friendly place')
 		expect(wrapper.vm.form.secureMode).toBe(true)
 	})
@@ -69,6 +71,7 @@ describe('the server card', () => {
 
 		expect(axios.post).toHaveBeenCalledWith(SERVER, {
 			contactEmail: 'admin@instance.example',
+			contactAccount: 'admin',
 			extendedDescription: 'a friendly place',
 			maxSize: 20,
 			maxVideoSize: 4096,

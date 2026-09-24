@@ -56,7 +56,7 @@ class PlaceService {
 	 *
 	 * @return Stream[]
 	 */
-	public function posts(int $placeId, int $limit = 20, int $maxId = 0): array {
+	public function posts(int $placeId, int $limit = 20, int|string $maxId = '0'): array {
 		// a 404 for a place nobody named, before any post is read
 		$this->placesRequest->getById($placeId);
 

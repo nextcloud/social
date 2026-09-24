@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="social__wrapper">
+	<div class="social__wrapper" :class="{ 'social__wrapper--direct': type === 'direct' }">
 		<!-- the first thing a new account sees; gone for good once closed -->
 		<FirstRun v-if="showInfo" @done="hideInfo" />
 
@@ -11,9 +11,9 @@
 		     above the composer: it is read before anything is written, and it
 		     is only here at all while something in it is unread. Not on a
 		     single post's page, which the reader navigated to for that post -->
-		<Announcements v-if="type !== 'single-post'" />
+		<Announcements v-if="type !== 'single-post' && type !== 'direct'" />
 
-		<Composer v-if="type !== 'notifications' && type !== 'single-post'" :defaultVisibility="type === 'direct' ? 'direct' : undefined" />
+		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct'" />
 
 		<!-- the three timelines that are the same place seen from three
 		     distances: switching between them is something a reader does while
@@ -78,7 +78,15 @@
 		<WeeklyRecap v-if="isHome" />
 		<OnThisDay v-if="isHome" />
 
-		<TimelineList :type="type" :listTitle="listTitle" :display="display" />
+		<DirectMessages
+			v-if="type === 'direct'"
+			:selectedConversationId="String($route.query.conversation ?? '')"
+			@select="selectConversation" />
+		<TimelineList
+			v-else
+			:type="type"
+			:listTitle="listTitle"
+			:display="display" />
 
 		<!-- the first post somebody ever publishes here, marked once -->
 		<FirstPostCelebration v-if="celebratingFirstPost" @done="endCelebration" />
@@ -99,6 +107,7 @@ import IconMessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline
 import IconPoll from 'vue-material-design-icons/Poll.vue'
 import IconRepeat from 'vue-material-design-icons/Repeat.vue'
 import TimelineList from './../components/TimelineList.vue'
+import DirectMessages from './../components/DirectMessages.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import Announcements from './../components/Announcements.vue'
@@ -137,6 +146,7 @@ export default {
 		StoryBar,
 		WeeklyRecap,
 		TimelineList,
+		DirectMessages,
 		TimelineSwitcher,
 	},
 
@@ -317,13 +327,17 @@ export default {
 					: { name: 'timeline', params: { type: scope } }
 			}
 
-			return [
+			const scopes = [
 				// "My Feed" rather than "Home": next to Local and Global, what
 				// distinguishes it is whose posts it holds, not where it sits
 				{ value: 'home', label: t('social', 'My Feed'), icon: IconHome, to: routeFor('home') },
 				{ value: 'timeline', label: t('social', 'Local'), icon: IconAccountMultiple, to: routeFor('timeline') },
 				{ value: 'federated', label: t('social', 'Global'), icon: IconEarth, to: routeFor('federated') },
 			]
+
+			return this.settingsStore.getServerData.public
+				? scopes.filter(({ value }) => value !== 'home')
+				: scopes
 		},
 
 		/**
@@ -458,13 +472,17 @@ export default {
 		// from Home to Global reuses this view: without this the store would
 		// keep serving the previous timeline
 		timelineKey() {
-			this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
+			if (this.type !== 'direct') {
+				this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
+			}
 			this.fetchListTitle()
 		},
 	},
 
 	beforeMount() {
-		this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
+		if (this.type !== 'direct') {
+			this.timelineStore.changeTimelineType({ type: this.type, params: this.params })
+		}
 		this.fetchListTitle()
 	},
 
@@ -482,6 +500,25 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Keep the selected exchange in the address so it can be reopened.
+		 *
+		 * @param {string} id conversation id, or empty to close the selected thread
+		 */
+		selectConversation(id) {
+			const query = { ...this.$route.query }
+			if (id) {
+				query.conversation = id
+			} else {
+				delete query.conversation
+			}
+			this.$router.replace({
+				name: this.$route.name,
+				params: this.$route.params,
+				query,
+			})
+		},
+
 		/** Asks for the list's title; nothing to ask when this is not a list. */
 		async fetchListTitle() {
 			if (this.type !== 'list') {

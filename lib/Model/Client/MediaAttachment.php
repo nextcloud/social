@@ -51,6 +51,7 @@ class MediaAttachment implements JsonSerializable {
 	 */
 	private string $hlsUrl = '';
 	private ?string $remoteUrl = null;
+	private int $cacheError = 0;
 	private string $textUrl = '';
 	private ?AttachmentMeta $meta = null;
 	private string $description = '';
@@ -125,6 +126,16 @@ class MediaAttachment implements JsonSerializable {
 		return $this->remoteUrl;
 	}
 
+	public function setCacheError(int $cacheError): self {
+		$this->cacheError = $cacheError;
+
+		return $this;
+	}
+
+	public function getCacheError(): int {
+		return $this->cacheError;
+	}
+
 	public function setTextUrl(string $textUrl): self {
 		$this->textUrl = $textUrl;
 
@@ -188,6 +199,7 @@ class MediaAttachment implements JsonSerializable {
 		$this->setPreviewUrl($this->get('preview_url', $data));
 		$this->setHlsUrl($this->get('hls_url', $data, ''));
 		$this->setRemoteUrl($this->get('remote_url', $data));
+		$this->setCacheError($this->getInt('cache_error', $data, 0));
 		$this->setDescription($this->get('description', $data));
 		$this->setBlurHash($this->get('blurhash', $data));
 
@@ -239,6 +251,11 @@ class MediaAttachment implements JsonSerializable {
 			// connection. Always present, null where there is no ladder.
 			'hls_url' => ($this->hlsUrl === '') ? null : $this->hlsUrl,
 			'remote_url' => ($remote === null || $remote === '') ? null : $remote,
+			// A rejected remote copy is different from a missing preview. Keep
+			// the finite error code so this app can tell a reader why it was
+			// refused without exposing the remote response or bypassing cache
+			// limits by loading the source directly in their browser.
+			'cache_error' => $this->cacheError > 0 ? $this->cacheError : null,
 			// `meta` is an object on the wire, never a list: an empty
 			// AttachmentMeta json-encodes as `[]`, which a client decoding a
 			// dictionary rejects

@@ -39,6 +39,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\IURLGenerator;
@@ -271,6 +272,10 @@ class StreamService {
 		try {
 			$actor = $this->cacheActorService->getFromAccount($account, true);
 		} catch (Exception $e) {
+			$this->logger->notice('cannot resolve a mentioned account for outbound delivery', [
+				'account' => $account,
+				'exception' => $e,
+			]);
 			return;
 		}
 
@@ -552,11 +557,15 @@ class StreamService {
 	}
 
 	/**
-	 * @param int $nid
+	 * @param int|string $nid
 	 *
 	 * @return array
 	 */
-	public function getContextByNid(int $nid): array {
+	public function getContextByNid(int|string $nid): array {
+		// Router path parameters arrive as decimal strings. Normalize the id at
+		// the service boundary before it reaches the query builder, whose
+		// integer predicate cannot accept even an in-range numeric string.
+		$nid = Nid::fromStorage($nid);
 		$curr = $post = $this->streamRequest->getStreamByNid($nid);
 
 		$ancestors = [];
@@ -574,10 +583,22 @@ class StreamService {
 			}
 		}
 
-		return [
+		$context = [
 			'ancestors' => array_reverse($ancestors),
 			'descendants' => $this->streamRequest->getDescendants($post->getId())
 		];
+		$this->attachCardsToPosts(array_merge($context['ancestors'], $context['descendants']));
+
+		return $context;
+	}
+
+	/**
+	 * Attach saved website preview cards to a batch of locally rendered statuses.
+	 *
+	 * @param Stream[] $posts
+	 */
+	public function attachCardsToPosts(array $posts): void {
+		$this->linkPreviewService->attachCards($posts);
 	}
 
 	/**
@@ -587,12 +608,12 @@ class StreamService {
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
-	public function getStreamByNid(int $nid): Stream {
+	public function getStreamByNid(int|string $nid): Stream {
 		return $this->streamRequest->getStreamByNid($nid);
 	}
 
-	public function updateStream(Stream $stream): void {
-		$this->streamRequest->update($stream);
+	public function updateStream(Stream $stream, bool $generateDest = false): void {
+		$this->streamRequest->update($stream, $generateDest);
 	}
 
 	/**
@@ -652,7 +673,7 @@ class StreamService {
 		$nids = [];
 		foreach ($posts as $post) {
 			if ($post->getNid() > 0) {
-				$nids[] = $post->getNid();
+				$nids[] = (string)$post->getNid();
 			}
 		}
 

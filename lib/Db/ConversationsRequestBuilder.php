@@ -107,25 +107,25 @@ class ConversationsRequestBuilder extends CoreRequestBuilder {
 	}
 
 	/**
-	 * @return array{id: string, idPrim: string, nid: int, inReplyTo: string}
+	 * @return array{id: string, idPrim: string, nid: int|string, inReplyTo: string}
 	 */
 	protected function parseThreadLinkSelectSql(array $data): array {
 		return [
 			'id' => $this->get('id', $data),
 			'idPrim' => $this->get('id_prim', $data),
-			'nid' => $this->getInt('nid', $data),
+			'nid' => \OCA\Social\Tools\Nid::fromStorage($this->get('nid', $data, '0')),
 			'inReplyTo' => $this->get('in_reply_to', $data),
 		];
 	}
 
 	/**
-	 * @return array{rootId: string, readNid: int, hiddenNid: int}
+	 * @return array{rootId: string, readNid: int|string, hiddenNid: int|string}
 	 */
 	protected function parseConversationStateSelectSql(array $data): array {
 		return [
 			'rootId' => $this->get('root_id', $data),
-			'readNid' => $this->getInt('read_nid', $data),
-			'hiddenNid' => $this->getInt('hidden_nid', $data),
+			'readNid' => \OCA\Social\Tools\Nid::fromStorage($this->get('read_nid', $data, '0')),
+			'hiddenNid' => \OCA\Social\Tools\Nid::fromStorage($this->get('hidden_nid', $data, '0')),
 		];
 	}
 }

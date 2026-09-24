@@ -110,7 +110,7 @@ class StoryService {
 	 * @throws InvalidResourceException when the upload is unknown or there are
 	 *                                  already too many live
 	 */
-	public function add(Person $owner, int $mediaNid, string $caption, int $duration): Story {
+	public function add(Person $owner, int|string $mediaNid, string $caption, int $duration): Story {
 		$documents = $this->documentService->getMediaFromArray(
 			[(string)$mediaNid], $owner->getPreferredUsername()
 		);

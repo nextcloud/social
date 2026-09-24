@@ -110,8 +110,11 @@ describe('where a post got to', () => {
 				.toBe('Of 5 deliveries: delivered to 2 servers, waiting for 1 server, given up on 2 servers.')
 		})
 
-		it('says nothing at all when there were no deliveries', async () => {
-			expect((await mountDialog(record())).find('.delivery-hint').text()).toBe('')
+		it('explains the audience and retention when there are no recorded deliveries', async () => {
+			const hint = (await mountDialog(record())).find('.delivery-hint--muted').text()
+			expect(hint).toContain('Public posts go to your followers, mentioned accounts, and subscribed relays')
+			expect(hint).toContain('does not broadcast them to every known server')
+			expect(hint).toContain('kept for 7 days')
 		})
 	})
 
@@ -159,12 +162,13 @@ describe('where a post got to', () => {
 	})
 
 	describe('when there is nothing on record', () => {
-		/** The two reasons for an empty list, both of which mean nothing is wrong. */
-		it('explains that a post may be too old, or may never have left', async () => {
+		/** A zero-row result is not a claim of failed queue delivery or public broadcast. */
+		it('explains the recipient model and retention period', async () => {
 			const hint = (await mountDialog(record())).find('.delivery-hint--muted').text()
 
+			expect(hint).toContain('followers, mentioned accounts, and subscribed relays')
+			expect(hint).toContain('does not broadcast them to every known server')
 			expect(hint).toContain('kept for 7 days')
-			expect(hint).toContain('never left this server')
 		})
 
 		it('says how long the queue on this server actually keeps them', async () => {

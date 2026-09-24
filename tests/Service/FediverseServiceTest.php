@@ -243,6 +243,24 @@ class FediverseServiceTest extends TestCase {
 		$this->service->addAddress('a.example');
 	}
 
+	public function testAddAddressesPersistsOnceAndAuditsOnlyNewNormalizedEntries(): void {
+		$this->withAccess('all_but', ['a.example']);
+		$this->configService->expects($this->once())
+			->method('setAppValue')
+			->with(ConfigService::SOCIAL_ACCESS_LIST, '["a.example","b.example","c.example"]');
+		$audited = [];
+		$this->auditService->expects($this->exactly(2))
+			->method('accessListChanged')
+			->willReturnCallback(function (string $address, bool $added, bool $blockList) use (&$audited): void {
+				$this->assertTrue($added);
+				$this->assertTrue($blockList);
+				$audited[] = $address;
+			});
+
+		$this->assertSame(2, $this->service->addAddresses(['B.Example.', 'c.example', 'b.example', 'a.example']));
+		$this->assertSame(['b.example', 'c.example'], $audited);
+	}
+
 	public function testRemoveAddressPersistsTheRemainingList(): void {
 		$this->withAccess('all_but', ['a.example', 'b.example']);
 		$this->configService->expects($this->once())

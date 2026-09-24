@@ -72,7 +72,7 @@ class AdminAccount implements JsonSerializable {
 
 		$admin = new self();
 		$admin->setActorId($actor->getId())
-			->setId($actor->getNid() > 0 ? (string)$actor->getNid() : $actor->getId())
+			->setId((string)($actor->getNid() > 0 ? $actor->getNid() : $actor->getId()))
 			->setUsername($actor->getPreferredUsername())
 			->setLocal($actor->isLocal())
 			->setDomain($actor->isLocal() ? null : self::hostOf($actor->getAccount(), $actor->getId()))

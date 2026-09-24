@@ -25,11 +25,13 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IConfig;
 use OCP\IGroupManager;
+use OCP\IInitialStateService;
 use OCP\IL10N;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -187,6 +189,31 @@ class NavigationControllerTest extends TestCase {
 			],
 			'cloudAddress' => 'https://cloud.example/index.php',
 		], $this->serverData());
+	}
+
+	public function testNavigateServesThePublicTimelineToAnAnonymousVisitor(): void {
+		\OC::$server->register(IInitialStateService::class, $this->createMock(IInitialStateService::class));
+		$this->accountService->expects($this->never())->method('getActorFromUserId');
+		$this->accountService->expects($this->never())->method('generateHandleFromUserId');
+		$this->configService->expects($this->never())->method('getCloudUrl');
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$response = $this->controller(null)->navigate();
+
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertSame('main', $response->getTemplateName());
+		$this->assertTrue($this->serverData()['public']);
+		$this->assertFalse($this->serverData()['needsAccount']);
+		$this->assertFalse($this->serverData()['isAdmin']);
+	}
+
+	public function testReloadingThePublicTimelineRouteIsAvailableToAnAnonymousVisitor(): void {
+		\OC::$server->register(IInitialStateService::class, $this->createMock(IInitialStateService::class));
+
+		$response = $this->controller(null)->timeline('timeline');
+
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertTrue($this->serverData()['public']);
 	}
 
 	public function testNavigateAsksBeforeCreatingAnAccount(): void {

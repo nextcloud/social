@@ -75,7 +75,7 @@ class MediaTagService {
 	 * @throws ItemNotFoundException the post is unknown or not the author's
 	 * @throws InvalidResourceException there is no picture, or too many names
 	 */
-	public function tag(Person $author, int $nid, array $accounts): array {
+	public function tag(Person $author, int|string $nid, array $accounts): array {
 		$post = $this->ownPost($author, $nid);
 
 		if ($post->getAttachments() === []) {
@@ -117,7 +117,7 @@ class MediaTagService {
 			$people[$person->getId()] = $person;
 		}
 
-		$was = $this->mediaTagsRequest->forStreams([$nid])[$nid] ?? [];
+		$was = $this->mediaTagsRequest->forStreams([\OCA\Social\Tools\Nid::normalize($nid)])[\OCA\Social\Tools\Nid::normalize($nid)] ?? [];
 		$now = array_keys($people);
 
 		foreach (array_diff($was, $now) as $gone) {
@@ -144,7 +144,7 @@ class MediaTagService {
 	 *
 	 * @throws ItemNotFoundException
 	 */
-	public function untag(Person $viewer, int $nid, string $accountId = ''): bool {
+	public function untag(Person $viewer, int|string $nid, string $accountId = ''): bool {
 		$accountId = ($accountId === '') ? $viewer->getId() : $accountId;
 
 		try {
@@ -178,7 +178,7 @@ class MediaTagService {
 	 *
 	 * @return Stream[]
 	 */
-	public function photosOf(Person $viewer, string $accountId, int $limit = 20, int $maxId = 0): array {
+	public function photosOf(Person $viewer, string $accountId, int $limit = 20, int|string $maxId = '0'): array {
 		$nids = $this->mediaTagsRequest->streamsFor($accountId, $limit, $maxId);
 
 		$posts = [];
@@ -198,7 +198,7 @@ class MediaTagService {
 	}
 
 	/** Every tag on a post, for a deletion. */
-	public function forgetStream(int $nid): void {
+	public function forgetStream(int|string $nid): void {
 		$this->mediaTagsRequest->deleteByStream($nid);
 	}
 
@@ -212,8 +212,8 @@ class MediaTagService {
 	 *
 	 * @return Person[]
 	 */
-	private function peopleIn(int $nid): array {
-		$ids = $this->mediaTagsRequest->forStreams([$nid])[$nid] ?? [];
+	private function peopleIn(int|string $nid): array {
+		$ids = $this->mediaTagsRequest->forStreams([\OCA\Social\Tools\Nid::normalize($nid)])[\OCA\Social\Tools\Nid::normalize($nid)] ?? [];
 
 		$people = [];
 		foreach ($ids as $id) {
@@ -236,7 +236,7 @@ class MediaTagService {
 	 *
 	 * @param Person[] $people
 	 */
-	private function republish(Person $author, int $nid, array $people): void {
+	private function republish(Person $author, int|string $nid, array $people): void {
 		try {
 			$post = $this->streamService->getStreamByNid($nid);
 			if (!$post->isLocal()) {
@@ -266,7 +266,7 @@ class MediaTagService {
 	/**
 	 * @throws ItemNotFoundException the post is unknown, or somebody else's
 	 */
-	private function ownPost(Person $author, int $nid): Stream {
+	private function ownPost(Person $author, int|string $nid): Stream {
 		try {
 			$post = $this->streamService->getStreamByNid($nid);
 		} catch (Throwable $e) {

@@ -148,6 +148,7 @@ class SocialPubControllerTest extends TestCase {
 		yield 'actor' => ['actor'];
 		yield 'followers' => ['followers'];
 		yield 'following' => ['following'];
+		yield 'portfolio' => ['portfolio'];
 	}
 
 	#[DataProvider('publicPages')]
@@ -223,6 +224,18 @@ class SocialPubControllerTest extends TestCase {
 		$this->controller(null)->actor('bob@remote.tld');
 	}
 
+	public function testAnUnknownRemoteProfileLoadsThePublicAppForTheClientLookup(): void {
+		$this->unknownActor();
+
+		$response = $this->controller(null)->actor('nextcloud@mastodon.xyz');
+
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('main', $response->getTemplateName());
+		$this->assertSame('nextcloud@mastodon.xyz - Social', $response->getParams()['application']);
+		$this->assertSame(['public' => true], $this->states['serverData']);
+	}
+
 	#[DataProvider('publicPages')]
 	public function testPublicPagesReportUnexpectedLookupFailures(string $page): void {
 		$this->cacheActorService->method('getFromAccount')->with('alice')->willThrowException(new \RuntimeException('db down'));
@@ -249,7 +262,7 @@ class SocialPubControllerTest extends TestCase {
 		$response = $this->controller(null)->displayPost('alice', 'abc');
 
 		$this->assertInstanceOf(TemplateResponse::class, $response);
-		$this->assertNotInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
 		$this->assertSame('main', $response->getTemplateName());
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($post, $this->states['item']);

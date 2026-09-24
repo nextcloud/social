@@ -443,6 +443,17 @@ export default {
 	margin: auto;
 }
 
+/* Direct messages need the full app-content width for the conversation list
+   and the active chat to sit side by side. Other Social pages keep the reading
+   column above. */
+#app-content-vue .social__wrapper--direct {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	padding: 0;
+}
+
 .setup {
 	margin: 0 auto !important;
 	padding: calc(var(--default-grid-baseline) * 4);
@@ -876,5 +887,15 @@ img.custom-emoji {
 	width: auto;
 	vertical-align: text-bottom;
 	object-fit: contain;
+}
+
+/*
+ * The modal composer sits halfway down the viewport. The emoji picker has a
+ * 420px default height and floats above its toolbar, which can put its top
+ * edge outside a short viewport. Keep the picker within the available upper
+ * half; the emoji list itself scrolls, so every category remains reachable.
+ */
+.modal-wrapper .v-popper__popper .nc-emoji-picker-container .emoji-mart {
+	height: min(420px, calc(50vh + 16px));
 }
 </style>

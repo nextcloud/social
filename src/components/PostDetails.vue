@@ -26,7 +26,8 @@
 
 		<EditHistoryDialog
 			v-if="showHistory"
-			:nid="status.nid"
+			:nid="status.nid || status.id"
+			:editedAt="status.edited_at || ''"
 			@close="showHistory = false" />
 		<a
 			v-if="originalUrl"

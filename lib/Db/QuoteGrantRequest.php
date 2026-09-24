@@ -69,7 +69,7 @@ class QuoteGrantRequest extends CoreRequestBuilder {
 	}
 
 	/** @return QuoteGrant[] every quote of one post, newest first */
-	public function getByTarget(string $targetId, int $limit = 40, int $maxId = 0): array {
+	public function getByTarget(string $targetId, int $limit = 40, int|string $maxId = '0'): array {
 		$qb = $this->getQueryBuilder();
 		$this->select($qb)
 			->where($qb->expr()->eq('target_id_prim', $qb->createNamedParameter(md5($targetId))))

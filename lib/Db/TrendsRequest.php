@@ -41,7 +41,7 @@ class TrendsRequest extends TrendsRequestBuilder {
 	 * absent from it — the same rule `HashtagService::getTrending()` applies
 	 * to a hashtag nobody used.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	public function trendingStatusNids(
 		int $since,
@@ -93,7 +93,7 @@ class TrendsRequest extends TrendsRequestBuilder {
 		$nids = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$nids[] = (int)$data['nid'];
+			$nids[] = (string)$data['nid'];
 		}
 		$cursor->closeCursor();
 
@@ -113,9 +113,9 @@ class TrendsRequest extends TrendsRequestBuilder {
 	 * discovery surface must not show somebody something they would not have
 	 * been shown anywhere else.
 	 *
-	 * @param int[] $excluding nids already on the page, so a top-up does not repeat one
+	 * @param string[] $excluding nids already on the page, so a top-up does not repeat one
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	public function recentMediaNids(int $limit, string $mediaType = '', array $excluding = []): array {
 		if ($limit < 1) {
@@ -138,7 +138,7 @@ class TrendsRequest extends TrendsRequestBuilder {
 		if ($excluding !== []) {
 			$qb->andWhere($expr->notIn(
 				's.nid',
-				$qb->createNamedParameter($excluding, IQueryBuilder::PARAM_INT_ARRAY)
+				$qb->createNamedParameter($excluding, IQueryBuilder::PARAM_STR_ARRAY)
 			));
 		}
 
@@ -148,7 +148,7 @@ class TrendsRequest extends TrendsRequestBuilder {
 		$nids = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$nids[] = (int)$data['nid'];
+			$nids[] = (string)$data['nid'];
 		}
 		$cursor->closeCursor();
 
@@ -162,7 +162,7 @@ class TrendsRequest extends TrendsRequestBuilder {
 	 * call into it: that method belongs to the lists, and this class does not
 	 * own it.
 	 *
-	 * @param int[] $nids
+	 * @param string[] $nids
 	 *
 	 * @return Stream[]
 	 */
@@ -173,7 +173,7 @@ class TrendsRequest extends TrendsRequestBuilder {
 
 		$qb = $this->getStreamSelectSql(Stream::FORMAT_LOCAL);
 		$qb->andWhere(
-			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
 		);
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction('sa');
@@ -247,9 +247,9 @@ class TrendsRequest extends TrendsRequestBuilder {
 	 * prefix: two pages of the same site are two links, and a prefix match
 	 * would fold a whole domain into whichever of its pages happened to trend.
 	 *
-	 * @return int[] nids, newest first
+	 * @return string[] nids, newest first
 	 */
-	public function statusNidsForUrl(string $url, int $limit, int $maxId = 0, int $minId = 0): array {
+	public function statusNidsForUrl(string $url, int $limit, int|string $maxId = '0', int|string $minId = 0): array {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 
@@ -267,17 +267,17 @@ class TrendsRequest extends TrendsRequestBuilder {
 			->setMaxResults(max(1, min(40, $limit)));
 
 		if ($maxId > 0) {
-			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->lt('s.nid', $qb->createNamedParameter($maxId)));
 		}
 
 		if ($minId > 0) {
-			$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter($minId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->gt('s.nid', $qb->createNamedParameter($minId)));
 		}
 
 		$nids = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$nids[] = (int)$data['nid'];
+			$nids[] = (string)$data['nid'];
 		}
 		$cursor->closeCursor();
 

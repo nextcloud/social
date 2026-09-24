@@ -101,7 +101,7 @@ class MediaPosters extends SocialCommand {
 
 			foreach ($documents as $document) {
 				$seen++;
-				$after = max($after, $document->getNid());
+				$after = \OCA\Social\Tools\Nid::compare($after, $document->getNid()) > 0 ? $after : $document->getNid();
 
 				if ($dryRun) {
 					$output->writeln('would make a poster for ' . $document->getId());
@@ -170,7 +170,7 @@ class MediaPosters extends SocialCommand {
 			}
 
 			foreach ($rows as $row) {
-				$after = max($after, $row['nid']);
+				$after = \OCA\Social\Tools\Nid::compare($after, $row['nid']) > 0 ? $after : $row['nid'];
 
 				$stored = json_decode($row['attachments'], true);
 				if (!is_array($stored)) {
@@ -213,7 +213,7 @@ class MediaPosters extends SocialCommand {
 		}
 
 		try {
-			$document = $this->cacheDocumentsRequest->getByNid((int)$attachment['id']);
+			$document = $this->cacheDocumentsRequest->getByNid((string)$attachment['id']);
 		} catch (CacheDocumentDoesNotExistException $e) {
 			return $attachment;
 		}

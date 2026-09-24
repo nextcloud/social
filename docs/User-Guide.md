@@ -226,8 +226,19 @@ The sidebar is the map:
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.
-- **Direct messages** — the posts addressed to you and nobody else, with the
-  composer already set to direct.
+- **Direct messages** — private conversations, one chat per person. **New
+  message** first offers people from your existing chats and the accounts you
+  follow. Search by name or `@handle` to find somebody else; a search failure
+  is shown separately from a genuine empty result. Selecting somebody with an
+  existing conversation opens that chat instead of creating another one.
+  The new chat uses the same person header and message field as an existing
+  conversation. Messages are sent privately to that person, so there is no
+  public, follower-only or other audience to choose and no repeated mention to
+  type. The inbox shows a conversation preview and unread state; opening a chat
+  marks it read. The chat uses a single message area with incoming and outgoing
+  bubbles, date breaks and message times. Its search, conversation list and
+  message field stay in the same view without extra cards around them. On a
+  phone, the conversation list and chat open as separate screens.
 - **Explore** — one collapsible entry holding everything there is to look at
   besides your own feed: the hashtags you follow, your **lists**, and the tags
   this server is busy with right now, in that order. Each list is a timeline of
@@ -486,6 +497,23 @@ hand, it is picked up as one.
   fifth field is dropped by the server without saying so, so the editor stops
   at four, and a row with only one half filled in is dropped the same way;
   emptying the table and saving removes it from your profile everywhere.
+- **Your Nextcloud profile page.** The native `/u/username` page shows your
+  custom Social banner across the profile header, behind your profile picture,
+  and your posts below. The banner starts at the top of the native profile
+  content and meets the profile details without an extra coloured strip.
+  Without a native profile header, the banner appears at
+  the top of the Social section. Its **Posts**, **My Feed**, **Local** and
+  **Global** tabs read Social's feeds; **My Feed** is available only on your
+  own profile. This page is for reading. To publish, open the Social app.
+- **Missing pictures on older remote posts.** If a federated post shows its text
+  but none of its pictures, an administrator can run
+  `occ social:media:recover --dry-run` to list posts whose stored ActivityPub
+  original still names attachments. Run `occ social:media:recover` to fetch
+  those attachments and restore the post's media and Photos index. The command
+  only examines remote posts with an empty attachment list; posts with no
+  attachment in their original are left alone. `--limit=N` bounds how many
+  posts are examined in one run. A failed download is reported and can be
+  retried by running the command again.
 - **Verified links.** A field whose value is a full web address — written out,
   starting with `http://` or `https://` — can carry a **verified tick**, and
   the editor shows where each of yours stands: verified and when it was
@@ -644,4 +672,3 @@ API is served under the app's own path rather than at the domain root (see
 web client is the client. There is no post translation — `ActionService`'s
 `translate` hands the post back unchanged — and no streaming API, so the page
 polls.
-

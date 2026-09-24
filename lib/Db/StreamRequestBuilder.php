@@ -157,13 +157,13 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	/**
 	 * @param SocialQueryBuilder $qb a query projecting s.nid
 	 *
-	 * @return int[] the ids of the page, in the order the query put them
+	 * @return string[] the ids of the page, in the order the query put them
 	 */
 	protected function getNidsFromRequest(SocialQueryBuilder $qb): array {
 		$nids = [];
 		$cursor = $qb->executeQuery();
 		while ($row = $cursor->fetch()) {
-			$nids[] = (int)$row['nid'];
+			$nids[] = (string)$row['nid'];
 		}
 		$cursor->closeCursor();
 

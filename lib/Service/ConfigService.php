@@ -372,6 +372,7 @@ class ConfigService {
 	 * about page; empty until an administrator fills it in.
 	 */
 	public const CONTACT_EMAIL = 'contact_email';
+	public const SOCIAL_CONTACT_ACCOUNT = 'contact_account';
 
 	public array $defaults = [
 		self::CLOUD_URL => '',
@@ -418,6 +419,7 @@ class ConfigService {
 		self::SOCIAL_REVIEW_VIDEOS => '0',
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
+		self::SOCIAL_CONTACT_ACCOUNT => '',
 		self::SOCIAL_POLLS_SWEPT => '0'
 	];
 

@@ -351,7 +351,7 @@ class ListsRequest extends ListsRequestBuilder {
 	 *
 	 * @return array<array{id: int, actorId: string}>
 	 */
-	public function getMembers(MastodonList $list, int $limit, int $maxId = 0, int $minId = 0): array {
+	public function getMembers(MastodonList $list, int $limit, int|string $maxId = '0', int|string $minId = 0): array {
 		$qb = $this->getListMembersSelectSql();
 		$expr = $qb->expr();
 		$qb->andWhere(
@@ -359,10 +359,10 @@ class ListsRequest extends ListsRequestBuilder {
 		);
 
 		if ($maxId > 0) {
-			$qb->andWhere($expr->lt('lm.id', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->lt('lm.id', $qb->createNamedParameter($maxId)));
 		}
 		if ($minId > 0) {
-			$qb->andWhere($expr->gt('lm.id', $qb->createNamedParameter($minId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($expr->gt('lm.id', $qb->createNamedParameter($minId)));
 		}
 
 		$qb->orderBy('lm.id', 'desc');
@@ -411,7 +411,7 @@ class ListsRequest extends ListsRequestBuilder {
 	 * timeline decides its own — see StreamRequest::getTimelineHome(), which
 	 * explains why the page and the rows are two queries.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	protected function listTimelineNids(MastodonList $list, ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql();
@@ -455,14 +455,14 @@ class ListsRequest extends ListsRequestBuilder {
 	 * into it: that method is private to the stream timelines, and this class
 	 * does not own StreamRequest.
 	 *
-	 * @param int[] $nids
+	 * @param string[] $nids
 	 *
 	 * @return Stream[]
 	 */
 	protected function streamsByNids(array $nids, ProbeOptions $options): array {
 		$qb = $this->getStreamSelectSql($options->getFormat());
 		$qb->andWhere(
-			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_INT_ARRAY))
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
 		);
 		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 

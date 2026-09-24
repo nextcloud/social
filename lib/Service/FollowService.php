@@ -570,7 +570,7 @@ class FollowService {
 	 * five queries answer any number of accounts, because every one of them was
 	 * already a lookup on (viewer, account) and `IN` takes a list.
 	 *
-	 * @param array<int, string> $actorNids actor id keyed by nid
+	 * @param array<int|string, string> $actorNids actor id keyed by nid
 	 *
 	 * @return Relationship[]
 	 */
@@ -648,7 +648,7 @@ class FollowService {
 	}
 
 	/**
-	 * @param int $nid
+	 * @param int|string $nid
 	 * @param string $viewerId
 	 * @param string $actorId
 	 *
@@ -671,7 +671,7 @@ class FollowService {
 	 * places for the answer to differ, and the route that draws a follow button
 	 * and the route that draws a list of them have to agree.
 	 */
-	private function generateRelationship(int $nid, string $viewerId, string $actorId): Relationship {
+	private function generateRelationship(int|string $nid, string $viewerId, string $actorId): Relationship {
 		return $this->generateRelationships($viewerId, [$nid => $actorId])[0] ?? new Relationship($nid);
 	}
 }

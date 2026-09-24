@@ -87,7 +87,7 @@ class VideoTranscodingWorker {
 			}
 
 			foreach ($documents as $document) {
-				$after = max($after, $document->getNid());
+				$after = \OCA\Social\Tools\Nid::compare($after, $document->getNid()) > 0 ? $after : $document->getNid();
 
 				if (!$this->videoTranscodeService->shouldConvert($document->getMediaType())) {
 					$this->cacheDocumentsRequest->setTranscoded($document->getNid(), self::NOT_NEEDED);

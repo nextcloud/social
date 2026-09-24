@@ -368,6 +368,12 @@ a list of them beside the page on a wide screen:
   Retention removes). Added up by the background job once a day, because
   counting it is one file lookup per stored file; the page says when it was
   measured. `occ social:media:usage` measures it on demand.
+- **A rejected remote attachment** — after changing this instance's media
+  limits or fixing a temporary origin problem, retry just that file with
+  `occ social:media:retry <remote_url>`. Use the exact `remote_url` reported
+  by the attachment; Social clears the stored refusal for that one uncached
+  row and tries it immediately. The normal media checks still apply, so a
+  retry can be refused again.
 - **Federation health** — what the outbound queue is doing, including how long
   the longest-failing delivery has been failing: the counts say how much and
   where, and that says whether it started an hour ago or a week ago, which is
@@ -553,6 +559,7 @@ can still be set with `occ`; the page validates the ranges given here.
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `contact_email` | *(empty)* | Who to write to about this instance. Mastodon's `instance.email`: every client reads it on its first request and shows it on the server's about page. Empty until somebody fills it in, which until now most instances never did, because nothing said it existed. |
+| `contact_account` | *(empty)* | The local Social account responsible for this instance. Choose a local account by username in the Server card; remote accounts and team accounts without a Nextcloud user are refused. Social stores the owning Nextcloud user id and resolves the current account when it builds `/api/v1/instance` and `/api/v2/instance`, so profile changes are reflected without rewriting the setting. Clearing the field omits the contact account. |
 | `extended_description` | *(empty)* | The long form of what this instance is, for `/api/v1/instance/extended_description`. Up to 10000 characters. |
 | `max_size` | `10` | The largest picture or file an upload may be, in MB. 1–10240. |
 | `max_video_size` | `2048` | The largest video, in MB. 1–102400. A peer will refuse a great deal less than the ceiling. |
@@ -572,7 +579,7 @@ can still be set with `occ`; the page validates the ranges given here.
 | `rate_limit_anon` | `300` | The same budget for a caller with **no account**, counted per address. |
 | `rate_limit_window` | `300` | How long that window is, in seconds. |
 | `follow_limit` | `100` | How many follows **one account** may send in an hour. A compromised account, or one running a script, can fan out follows to thousands of servers from this instance's address in a few minutes — every one a signed request this instance is answerable for. An hour rather than a day because what this catches is a burst, and high enough that importing a follow list from another server still goes through. Counted from the rows, so it holds on an instance with no memcache. `0` is no limit. |
-| `domain_media_quota` | `0` | How many megabytes of media **one other server** may keep here. Every picture on a post somebody here follows is fetched and cached, and nothing bounded that by where it came from: one server posting large images at a high rate fills the disk of every instance that follows anybody on it. Counted from the figure the daily storage walk takes, plus what has been cached from that host since — so it is up to a day coarse and errs towards refusing early. Off by default, because an instance that has been federating for a year and acquires a quota on upgrade would start refusing the pictures of the servers it talks to most. Who is holding what is under **Administration → Social → Storage**. |
+| `domain_media_quota` | `0` | How many megabytes of media **one other server** may keep here. Every picture on a post somebody here follows is fetched and cached, and nothing bounded that by where it came from: one server posting large images at a high rate fills the disk of every instance that follows anybody on it. Counted from the figure the daily storage walk takes, plus successfully cached bytes from that host since — rejected or unreadable downloads do not spend quota. The figure is up to a day coarse and errs towards refusing early. Off by default, because an instance that has been federating for a year and acquires a quota on upgrade would start refusing the pictures of the servers it talks to most. Who is holding what is under **Administration → Social → Storage**. |
 | `secure_mode` | `0` | Refuse ActivityPub fetches that are not signed. Mastodon's secure mode. Turning it on makes this instance invisible to every peer that does not sign what it asks for, and to every anonymous reader; it is a decision about who to federate with, not a hardening step to apply by default. |
 | `publish_blocks` | `0` | Publish the deny list on `/api/v1/instance/domain_blocks`, the way Mastodon does, so somebody choosing a server can see who it will not talk to. Whether *this* server wants that read by anybody is a disclosure decision. |
 | `allow_self_signed` | `0` | Accept peers whose certificates do not check out. **Development only**: on a server anybody else uses, this hands every federated request to whoever can answer for the address. |
@@ -622,6 +629,16 @@ occ social:queue:status             # what the outbound queue is doing
 occ social:details <id>             # who can see one post and where it lands
 ```
 
+Social also repairs the recipient and hashtag side indexes automatically in
+bounded five-minute cron passes. Each pass visits at most 500 streams, stores
+its last fully indexed NID, and resumes from there; a failed row is retried on a
+later pass rather than skipped. A repeatedly failing row holds the cursor at
+that NID and logs the error, so later rows wait until the underlying failure is
+resolved. Keep Nextcloud background jobs working as `Cron\Index` relies on
+them. The manual `occ social:check:install --index --force` remains a full
+rebuild for administrators; it clears and repopulates both indexes and should
+not be scheduled as a cron command.
+
 **Delivery is behind**
 
 ```bash
@@ -635,8 +652,18 @@ occ social:queue:retry              # give failing deliveries the full run of re
 occ social:fediverse list                  # the access list; bare, it prints the mode
 occ social:fediverse add <instance>        # block it (or allow it, in allow-list mode)
 occ social:fediverse remove <instance>
+occ social:fediverse import <csv_file>     # add reviewed CSV domains to a block list
 occ social:fediverse silence <instance>    # out of the public timelines, still followable
 ```
+
+`import` reads the first CSV column, accepts a `#domain`/`domain` header or a
+plain one-domain-per-line file, validates the complete file before changing
+anything, and adds the domains to the existing `all_but` block list. It refuses
+allow-list mode, does not fetch or enable a list on its own, and applies the
+normal audit and queued domain-purge behavior to every new entry. An
+administrator can download and review a [The Bad Space CSV export](https://tweaking.thebad.space/exports)
+before importing it; the export source and moderation policy remain the
+administrator's choice.
 
 **Housekeeping**
 

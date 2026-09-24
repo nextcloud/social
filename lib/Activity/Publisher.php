@@ -41,7 +41,7 @@ class Publisher {
 	 * @param string $actorId the actor's ActivityPub id, for when it is not
 	 * @param string $link where the entry leads
 	 * @param string $excerpt the post concerned, as plain text; '' when there is none
-	 * @param int $objectId the notification row's nid, so the entry is its own
+	 * @param int|string $objectId the notification row's nid, so the entry is its own
 	 */
 	public function publish(
 		string $userId,
@@ -50,7 +50,7 @@ class Publisher {
 		string $actorId,
 		string $link,
 		string $excerpt,
-		int $objectId,
+		int|string $objectId,
 	): void {
 		try {
 			$event = $this->activityManager->generateEvent();
@@ -58,7 +58,7 @@ class Publisher {
 				->setType(self::TYPE)
 				->setAffectedUser($userId)
 				->setTimestamp(time())
-				->setObject(self::OBJECT, $objectId)
+				->setObject(self::OBJECT, (int)$objectId)
 				->setLink($link)
 				->setSubject($subject, [
 					'account' => ($actor === null) ? $actorId : self::labelOf($actor),

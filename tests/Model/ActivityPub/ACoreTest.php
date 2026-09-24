@@ -599,7 +599,7 @@ class ACoreTest extends TestCase {
 		$this->assertSame(['id' => 'https://a.example/l/1', 'nid' => 0], $item->jsonSerialize());
 
 		$item->setNid(12);
-		$this->assertSame(['id' => '12', 'nid' => 12], $item->jsonSerialize());
+		$this->assertSame(['id' => '12', 'nid' => '12'], $item->jsonSerialize());
 
 		$item->setExportFormat(ACore::FORMAT_NOTIFICATION);
 		$this->assertSame(['id' => '12'], $item->jsonSerialize());

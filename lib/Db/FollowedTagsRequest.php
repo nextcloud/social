@@ -130,7 +130,7 @@ class FollowedTagsRequest extends FollowedTagsRequestBuilder {
 	 *
 	 * @return array<array{id: int, hashtag: string, creation: int}>
 	 */
-	public function getByActor(string $actorId, int $limit, int $maxId = 0, int $minId = 0): array {
+	public function getByActor(string $actorId, int $limit, int|string $maxId = '0', int|string $minId = 0): array {
 		$qb = $this->getFollowedTagsSelectSql();
 		$expr = $qb->expr();
 		$qb->andWhere($expr->eq('ft.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));

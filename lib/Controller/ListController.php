@@ -244,8 +244,8 @@ class ListController extends Controller {
 	public function accounts(
 		int $id,
 		int $limit = self::MEMBERS_LIMIT,
-		int $max_id = 0,
-		int $min_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
 	): DataResponse {
 		try {
 			$this->initViewer();
@@ -385,9 +385,9 @@ class ListController extends Controller {
 	public function timeline(
 		int $id,
 		int $limit = 20,
-		int $max_id = 0,
-		int $min_id = 0,
-		int $since_id = 0,
+		int|string $max_id = 0,
+		int|string $min_id = 0,
+		int|string $since_id = 0,
 		bool $only_media = false,
 		bool $only_video = false,
 		bool $only_news = false,
@@ -673,13 +673,13 @@ class ListController extends Controller {
 	/**
 	 * The paging ids of a page of statuses.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	private function pageIds(array $items): array {
 		$ids = [];
 		foreach ($items as $item) {
-			$nid = (is_object($item) && method_exists($item, 'getNid')) ? (int)$item->getNid() : 0;
-			if ($nid > 0) {
+			$nid = (is_object($item) && method_exists($item, 'getNid')) ? (string)$item->getNid() : '0';
+			if (\OCA\Social\Tools\Nid::compare($nid, '0') > 0) {
 				$ids[] = $nid;
 			}
 		}

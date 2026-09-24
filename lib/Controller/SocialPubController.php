@@ -96,6 +96,14 @@ class SocialPubController extends Controller {
 			// a 500 rather than the 404 it meant
 			$actor = $this->cacheActorService->getFromAccount($username, false);
 		} catch (CacheActorDoesNotExistException|ActorDoesNotExistException $e) {
+			// A remote profile need not already be in this instance's actor
+			// cache. Let the public app shell resolve a well-formed federated
+			// handle through the rate-limited account-info API; do not WebFinger
+			// it as part of this anonymous HTML request.
+			if ($this->userId === null && $this->isFederatedHandle($username)) {
+				return $this->publicPage($username);
+			}
+
 			// both, because which one comes back depends on how far the lookup
 			// got: a name this server has no local actor for throws
 			// ActorDoesNotExistException from inside getFromLocalAccount(),
@@ -115,6 +123,10 @@ class SocialPubController extends Controller {
 		}
 
 		$displayName = $actor->getName() !== '' ? $actor->getName() : $actor->getPreferredUsername();
+		return $this->publicPage($displayName);
+	}
+
+	private function publicPage(string $displayName): Response {
 		$this->initialState->provideInitialState('serverData', [
 			'public' => true,
 		]);
@@ -124,6 +136,12 @@ class SocialPubController extends Controller {
 		$page->setHeaderTitle($this->l10n->t('Social'));
 
 		return $page;
+	}
+
+	private function isFederatedHandle(string $username): bool {
+		$handle = ltrim($username, '@');
+
+		return preg_match('/^[A-Za-z0-9_.-]+@[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?$/D', $handle) === 1;
 	}
 
 	/**
@@ -249,7 +267,12 @@ class SocialPubController extends Controller {
 			'setup' => false,
 		]);
 
-		return new TemplateResponse(Application::APP_ID, 'main', []);
+		// A TemplateResponse is private by default: Nextcloud redirects a
+		// visitor to /login while the page is loading, even though the public
+		// post was already resolved above. Serve the same app shell as the
+		// anonymous timeline route so a cold link and an in-app navigation have
+		// the same public access rules.
+		return new PublicTemplateResponse(Application::APP_ID, 'main');
 	}
 
 	/**
@@ -278,7 +301,7 @@ class SocialPubController extends Controller {
 		}
 
 		try {
-			return $this->streamService->getStreamByNid((int)$token);
+			return $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($token));
 		} catch (Exception $e) {
 			return null;
 		}

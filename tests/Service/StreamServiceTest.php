@@ -40,6 +40,7 @@ use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 class StreamServiceTest extends TestCase {
@@ -55,6 +56,7 @@ class StreamServiceTest extends TestCase {
 	private CurlService|MockObject $curlService;
 	private LinkPreviewService|MockObject $linkPreviewService;
 	private EmojiService|MockObject $emojiService;
+	private LoggerInterface|MockObject $logger;
 
 	/** @var array[] the Emoji tags the instance has for whatever it is handed */
 	private array $emojiTags = [];
@@ -90,6 +92,7 @@ class StreamServiceTest extends TestCase {
 		);
 
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 
 		$this->service = new StreamService(
 			$this->urlGenerator,
@@ -101,7 +104,7 @@ class StreamServiceTest extends TestCase {
 			$this->linkPreviewService,
 			$this->emojiService,
 			$this->createMock(\OCP\EventDispatcher\IEventDispatcher::class),
-			new NullLogger(),
+			$this->logger,
 			$this->createMock(PlaceService::class),
 			$this->createMock(ReactionSummaryService::class),
 			$this->createMock(MediaTagsRequest::class),
@@ -439,6 +442,14 @@ class StreamServiceTest extends TestCase {
 	public function testAddRecipientIgnoresUnresolvableAccount(): void {
 		$this->cacheActorService->method('getFromAccount')
 			->willThrowException(new CacheActorDoesNotExistException());
+		$this->logger->expects($this->once())
+			->method('notice')
+			->with(
+				'cannot resolve a mentioned account for outbound delivery',
+				$this->callback(static fn (array $context): bool
+					=> $context['account'] === 'nobody@remote.example'
+						&& $context['exception'] instanceof CacheActorDoesNotExistException)
+			);
 
 		$note = new Note();
 		$this->service->addRecipient($note, Stream::TYPE_DIRECT, 'nobody@remote.example');
@@ -806,9 +817,16 @@ class StreamServiceTest extends TestCase {
 
 	public function testUpdateStreamDelegates(): void {
 		$note = $this->note('https://social.example/@alice/1');
-		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($note));
+		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($note), false);
 
 		$this->service->updateStream($note);
+	}
+
+	public function testUpdateStreamCanRegenerateDestinationsForAnEditedAudience(): void {
+		$note = $this->note('https://social.example/@alice/1');
+		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($note), true);
+
+		$this->service->updateStream($note, true);
 	}
 
 	public function testGetTimelinePassesProbeOptions(): void {
@@ -943,6 +961,7 @@ class StreamServiceTest extends TestCase {
 				[$root->getId(), true, ACore::FORMAT_ACTIVITYPUB, $root],
 			]);
 		$this->streamRequest->method('getDescendants')->with($post->getId())->willReturn([$reply]);
+		$this->linkPreviewService->expects($this->once())->method('attachCards')->with([$root, $parent, $reply]);
 
 		$context = $this->service->getContextByNid(3);
 
@@ -950,6 +969,15 @@ class StreamServiceTest extends TestCase {
 		$this->assertSame([$reply], $context['descendants']);
 		$this->assertSame(ACore::FORMAT_LOCAL, $root->getExportFormat());
 		$this->assertSame(ACore::FORMAT_LOCAL, $parent->getExportFormat());
+	}
+
+	public function testGetContextByNidNormalizesTheStringFromAClientRoute(): void {
+		$post = $this->note('https://social.example/@alice/1789250751711653456', self::ACTOR_ID);
+		$this->streamRequest->expects($this->once())->method('getStreamByNid')
+			->with(1789250751711653456)->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([]);
+
+		$this->service->getContextByNid('1789250751711653456');
 	}
 
 	public function testGetContextByNidStopsAtAncestorsTheViewerCannotSee(): void {

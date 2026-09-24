@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Events\PostPublishedEvent;
+use OCA\Social\Exceptions\FederationDeliveryException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -212,11 +213,11 @@ class PostService {
 	 * @throws \Exception
 	 */
 	public function editPost(
-		int $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null,
+		int|string $nid, Person $actor, string $content, ?string $spoilerText = null, ?bool $sensitive = null,
 		?string $language = null,
 	): Stream {
 		$this->moderationService->assertNotSuspended($actor->getId());
-		$stream = $this->streamService->getStreamByNid($nid);
+		$stream = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 
 		if ($stream->getAttributedTo() !== $actor->getId()) {
 			throw new \Exception('Not authorized to edit this post');
@@ -253,10 +254,15 @@ class PostService {
 		$stream->setUpdated(gmdate('Y-m-d\TH:i:s\Z'));
 		$this->snapshotSource($stream);
 
-		$this->streamService->updateStream($stream);
+		// An edit can name a person who was not in the original audience.
+		// Persist that new recipient in `social_stream_dest` with the updated
+		// content in one transaction; otherwise the Update carries the new
+		// Mention and inbox path, but no local delivery/timeline destination is
+		// recorded for the newly named account.
+		$this->streamService->updateStream($stream, true);
 		$this->revisionService->recordEdit($original, $stream);
 
-		$updated = $this->streamService->getStreamByNid($nid);
+		$updated = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 		// The reloaded post carries the instance paths it was created with —
 		// for a direct message, the inboxes of the people it names. The
 		// followers path expands to the shared inbox of every instance with a
@@ -270,13 +276,22 @@ class PostService {
 			);
 		}
 
+		// Local subscribers must learn about the edit even when the remote
+		// request cannot be queued. The saved revision and source are already
+		// durable at this point, so tell the API client that retrying the edit
+		// itself is unnecessary and expose the federation failure as 503.
+		$this->notificationService->onStatusEdited($updated);
+
 		try {
 			$this->activityService->updateActivity($actor, $updated);
-		} catch (\Exception $e) {
+		} catch (\Throwable $e) {
 			$this->logger->warning('Failed to federate post update', ['exception' => $e]);
+			throw new FederationDeliveryException(
+				'The post was saved locally, but its edit could not be sent to other instances.',
+				0,
+				$e
+			);
 		}
-
-		$this->notificationService->onStatusEdited($updated);
 		return $updated;
 	}
 
@@ -364,7 +379,7 @@ class PostService {
 
 		try {
 			$quoted = ctype_digit($quotedId)
-				? $this->streamService->getStreamByNid((int)$quotedId)
+				? $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($quotedId))
 				: $this->streamService->getStreamById($quotedId);
 		} catch (\Exception $e) {
 			throw new InvalidActionException('the post to quote is unknown here');
