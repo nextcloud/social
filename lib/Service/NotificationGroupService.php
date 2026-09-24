@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\Nid;
 
 /**
  * Mastodon 4.3's grouped notifications: "eight people favourited your post"
@@ -109,11 +110,12 @@ class NotificationGroupService {
 
 			$groups[$key]['notifications_count']++;
 			// ids here are snowflakes and are compared as numbers, not as
-			// strings: '9' is not larger than '10'
-			if ((int)$id < (int)$groups[$key]['page_min_id']) {
+			// strings ('9' is not larger than '10'), and not as PHP ints either,
+			// which a wide one does not fit
+			if (Nid::compare($id, (string)$groups[$key]['page_min_id']) < 0) {
 				$groups[$key]['page_min_id'] = $id;
 			}
-			if ((int)$id > (int)$groups[$key]['page_max_id']) {
+			if (Nid::compare($id, (string)$groups[$key]['page_max_id']) > 0) {
 				$groups[$key]['page_max_id'] = $id;
 			}
 

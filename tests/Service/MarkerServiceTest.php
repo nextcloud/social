@@ -41,22 +41,22 @@ class MarkerServiceTest extends TestCase {
 
 	public function testAnUnreadTimelineHasNoMarkerAndReadsAsZero(): void {
 		$this->assertSame([], $this->service->get(self::USER));
-		$this->assertSame(0, $this->service->lastReadId(self::USER, 'notifications'));
+		$this->assertSame('0', $this->service->lastReadId(self::USER, 'notifications'));
 	}
 
 	public function testAMarkerRoundTrips(): void {
 		$this->service->set(self::USER, 'notifications', '42');
 
 		$this->assertSame('42', $this->service->get(self::USER)['notifications']['last_read_id']);
-		$this->assertSame(42, $this->service->lastReadId(self::USER, 'notifications'));
+		$this->assertSame('42', $this->service->lastReadId(self::USER, 'notifications'));
 	}
 
 	public function testTimelinesAreKeptApart(): void {
 		$this->service->set(self::USER, 'notifications', '42');
 		$this->service->set(self::USER, 'home', '7');
 
-		$this->assertSame(42, $this->service->lastReadId(self::USER, 'notifications'));
-		$this->assertSame(7, $this->service->lastReadId(self::USER, 'home'));
+		$this->assertSame('42', $this->service->lastReadId(self::USER, 'notifications'));
+		$this->assertSame('7', $this->service->lastReadId(self::USER, 'home'));
 	}
 
 	public function testOnlyTheTimelinesAskedForComeBack(): void {
@@ -71,7 +71,7 @@ class MarkerServiceTest extends TestCase {
 		$returned = $this->service->set(self::USER, 'notifications', '10');
 
 		// a second client further behind must not un-read what the first saw
-		$this->assertSame(42, $this->service->lastReadId(self::USER, 'notifications'));
+		$this->assertSame('42', $this->service->lastReadId(self::USER, 'notifications'));
 		$this->assertSame('42', $returned['last_read_id']);
 	}
 
@@ -82,11 +82,27 @@ class MarkerServiceTest extends TestCase {
 		$this->assertSame(2, $this->service->set(self::USER, 'notifications', '1')['version']);
 	}
 
+	/**
+	 * A position is a nid, which is wider than a PHP int on a 32-bit server.
+	 * Cast, two wide positions compare equal at PHP_INT_MAX, so the marker
+	 * refused to move forward between them and the badge never cleared.
+	 */
+	public function testAWidePositionIsKeptAndComparedExactly(): void {
+		$this->service->set(self::USER, 'notifications', '92233720368547758070');
+		$this->assertSame('92233720368547758070', $this->service->lastReadId(self::USER, 'notifications'));
+
+		$this->service->set(self::USER, 'notifications', '92233720368547758071');
+		$this->assertSame('92233720368547758071', $this->service->lastReadId(self::USER, 'notifications'));
+
+		$this->service->set(self::USER, 'notifications', '92233720368547758070');
+		$this->assertSame('92233720368547758071', $this->service->lastReadId(self::USER, 'notifications'));
+	}
+
 	public function testStoredNonsenseReadsAsUnreadRatherThanBlowingUp(): void {
 		$this->stored = 'not json at all';
 		$this->assertSame([], $this->service->getAll(self::USER));
 
 		$this->stored = '{"notifications":{"last_read_id":"abc"}}';
-		$this->assertSame(0, $this->service->lastReadId(self::USER, 'notifications'));
+		$this->assertSame('0', $this->service->lastReadId(self::USER, 'notifications'));
 	}
 }

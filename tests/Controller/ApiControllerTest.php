@@ -628,10 +628,10 @@ class ApiControllerTest extends TestCase {
 
 	public function testTheUnreadCountIsWhatArrivedSinceTheMarker(): void {
 		$this->loggedInAs();
-		$this->markerService->method('lastReadId')->with('alice', 'notifications')->willReturn(42);
+		$this->markerService->method('lastReadId')->with('alice', 'notifications')->willReturn('42');
 		$this->streamRequest->expects($this->once())
 			->method('countNotificationsSince')
-			->with($this->anything(), 42)
+			->with($this->anything(), $this->identicalTo('42'))
 			->willReturn(7);
 
 		$response = $this->controller()->notificationsUnreadCount();
