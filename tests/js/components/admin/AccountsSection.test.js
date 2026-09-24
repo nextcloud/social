@@ -108,6 +108,63 @@ describe('the account browser', () => {
 		expect(wrapper.vm.accounts).toHaveLength(2)
 	})
 
+	// The cursor belongs to the search that produced it. Typing in the form
+	// without pressing Search must not send the next page of that search off
+	// to a different one, and must not append the answer to rows it has
+	// nothing to do with.
+	it('continues the search the rows came from, not the one the form now says', async () => {
+		const wrapper = await mountAccounts([account()], [7, 9])
+
+		wrapper.vm.query = 'someone else'
+		wrapper.vm.origin = { id: 'local', label: 'This instance' }
+		wrapper.vm.status = { id: 'suspended', label: 'Suspended' }
+		await wrapper.vm.search(true)
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenLastCalledWith(ACCOUNTS, {
+			params: { query: '', origin: '', status: '', maxId: '9' },
+		})
+	})
+
+	it('pages the new search once it has actually been run', async () => {
+		const wrapper = await mountAccounts([account()], [7, 9])
+
+		wrapper.vm.query = 'someone else'
+		await wrapper.find('form').trigger('submit')
+		await flushPromises()
+		await wrapper.vm.search(true)
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenLastCalledWith(ACCOUNTS, {
+			params: { query: 'someone else', origin: '', status: '', maxId: '9' },
+		})
+	})
+
+	// Two replacement searches can settle in whatever order the server felt
+	// like; the older one must not draw itself over the newer.
+	it('keeps the newest search on screen when an older one settles after it', async () => {
+		const wrapper = await mountAccounts([account({ handle: 'first@noisy.example' })], [1])
+
+		let releaseOld
+		axios.get.mockImplementationOnce(() => new Promise((resolve) => {
+			releaseOld = () => resolve({ data: { accounts: [account({ handle: 'old@noisy.example' })], cursors: [2] } })
+		}))
+		wrapper.vm.query = 'old'
+		await wrapper.find('form').trigger('submit')
+
+		axios.get.mockResolvedValueOnce({ data: { accounts: [account({ handle: 'new@noisy.example' })], cursors: [3] } })
+		wrapper.vm.query = 'new'
+		await wrapper.find('form').trigger('submit')
+		await flushPromises()
+
+		releaseOld()
+		await flushPromises()
+
+		expect(wrapper.vm.accounts.map((entry) => entry.handle)).toEqual(['new@noisy.example'])
+		expect(wrapper.vm.cursor).toBe(3)
+		expect(wrapper.vm.loading).toBe(false)
+	})
+
 	it('opens one account history under its row, and closes it again', async () => {
 		const wrapper = await mountAccounts([account({ strikes: 2 })])
 		axios.get.mockResolvedValue({

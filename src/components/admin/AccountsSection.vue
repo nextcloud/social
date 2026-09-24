@@ -179,6 +179,12 @@ export default {
 			accounts: [],
 			history: {},
 			cursor: 0,
+			/**
+			 * The filters the rows on screen came from — which is not what the
+			 * form says, once somebody has typed in it without searching yet.
+			 */
+			active: null,
+			generation: 0,
 			hasMore: false,
 			loading: true,
 			pending: null,
@@ -219,38 +225,73 @@ export default {
 		stateOf,
 
 		/**
-		 * Runs the search the form describes.
+		 * What the three controls currently say.
+		 *
+		 * @return {object} the filters a fresh search would send
+		 */
+		formFilters() {
+			return {
+				query: this.query.trim(),
+				origin: this.origin?.id ?? '',
+				status: this.status?.id ?? '',
+			}
+		},
+
+		/**
+		 * Runs the search the form describes, or continues the one on screen.
+		 *
+		 * `more` asks for the page after the rows already here, so it has to
+		 * ask the same question they answered: the cursor belongs to that
+		 * search, and the form may have been typed in since without anybody
+		 * pressing Search. Reading the controls again put one search's cursor
+		 * on another one's filters and appended the answer to rows it has
+		 * nothing to do with.
+		 *
+		 * The counter is for the other direction: two replacement searches can
+		 * settle in the order the server felt like, and only the newest one
+		 * may write.
 		 *
 		 * @param {boolean} [more] whether to continue the current page rather
 		 *   than start again
 		 * @return {Promise<void>}
 		 */
 		async search(more = false) {
-			const params = {
-				query: this.query.trim(),
-				origin: this.origin?.id ?? '',
-				status: this.status?.id ?? '',
+			if (this.loading && more) {
+				return
 			}
-			if (more && this.cursor > 0) {
-				params.maxId = String(this.cursor)
-			}
+
+			const filters = more && this.active !== null ? this.active : this.formFilters()
+			const continuing = more && this.active !== null && this.cursor > 0
+			const params = continuing ? { ...filters, maxId: String(this.cursor) } : { ...filters }
+			const asked = ++this.generation
 
 			this.loading = true
 			try {
 				const { data } = await axios.get(moderationUrl('/accounts'), { params })
+				if (asked !== this.generation) {
+					return
+				}
+
 				const cursors = data.cursors || []
 				this.cursor = cursors.length > 0 ? cursors[cursors.length - 1] : 0
 				const accounts = data.accounts || []
-				this.accounts = more ? this.accounts.concat(accounts) : accounts
-				if (!more) {
+				this.accounts = continuing ? this.accounts.concat(accounts) : accounts
+				if (!continuing) {
+					this.active = filters
 					this.history = {}
 				}
 				// a full page may have more behind it; a short one is the end
 				this.hasMore = accounts.length >= PAGE
 			} catch {
+				if (asked !== this.generation) {
+					return
+				}
+
 				showError(t('social', 'Could not read the accounts'))
 			} finally {
-				this.loading = false
+				if (asked === this.generation) {
+					this.loading = false
+				}
 			}
 		},
 
