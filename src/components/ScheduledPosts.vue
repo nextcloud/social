@@ -36,6 +36,12 @@
 		<p v-else class="scheduled-posts__hint">
 			{{ t('social', 'Nothing is waiting to be posted. The clock in the composer schedules a post for later.') }}
 		</p>
+
+		<p v-if="hasMore" class="scheduled-posts__more">
+			<NcButton :disabled="loading" @click="load(true)">
+				{{ loading ? t('social', 'Loading …') : t('social', 'Show more') }}
+			</NcButton>
+		</p>
 	</div>
 </template>
 
@@ -53,9 +59,9 @@ import { showError } from '../services/toast.js'
 import { fullDateTime } from '../utils/relativeTime.js'
 
 /**
- * How many to ask for. The route defaults to 20 and pages with ids; an
- * account may not schedule more than 25 a day, so one page of 50 is the
- * whole list for anybody who is not filling it deliberately.
+ * How many to ask for at a time. An account may hold up to 300 waiting posts
+ * — 25 a day, spread over as many days as it likes — so a page is a page and
+ * not the whole list, and there is a button under it.
  */
 const PAGE_SIZE = 50
 
@@ -85,6 +91,8 @@ export default {
 			posts: [],
 			/** @type {string[]} the ids whose cancellation is in flight */
 			cancelling: [],
+			/** whether the last page came back full, so there may be more behind it */
+			hasMore: false,
 		}
 	},
 
@@ -128,24 +136,68 @@ export default {
 			return Array.isArray(post.media_attachments) ? post.media_attachments.length : 0
 		},
 
-		async load() {
+		/**
+		 * A page of the waiting posts, soonest first.
+		 *
+		 * The cursor is `min_id` rather than `max_id`: this list is drawn in
+		 * the order the posts will go out, so the page after the one on screen
+		 * is the one scheduled *later*, and `max_id` asks for the other
+		 * direction. Ids are compared against the row they name — see
+		 * `ScheduledStatusesRequest::beyond()` — because an id is creation
+		 * order and `scheduled_at` is publication order, and a post can be
+		 * moved from one to the other at any time.
+		 *
+		 * @param {boolean} more whether this is the reader asking for the page
+		 *                       after the one they have
+		 */
+		async load(more = false) {
 			if (this.loading) {
 				return
+			}
+
+			const params = { limit: PAGE_SIZE }
+			if (more) {
+				const last = this.posts.at(-1)
+				if (!last) {
+					return
+				}
+
+				params.min_id = String(last.id)
 			}
 
 			this.loading = true
 			try {
 				const { data } = await axios.get(
 					generateUrl('apps/social/api/v1/scheduled_statuses'),
-					{ params: { limit: PAGE_SIZE } },
+					{ params },
 				)
-				this.posts = Array.isArray(data) ? data : []
+				const page = Array.isArray(data) ? data : []
+				// a full page may have more behind it; a short one is the end
+				this.hasMore = page.length >= PAGE_SIZE
+				this.posts = more ? this.merge(this.posts, page) : page
 			} catch (error) {
-				logger.error('Failed to load the scheduled posts', { error })
+				logger.error('Failed to load the scheduled posts', { error, more })
 				showError(translate('social', 'Could not load your scheduled posts'))
 			} finally {
 				this.loading = false
 			}
+		},
+
+		/**
+		 * One entry per id, in the order they arrived.
+		 *
+		 * Defensive: a post moved to another time between two requests can sit
+		 * on both sides of the cursor, and the same entry twice in this list
+		 * is two Cancel buttons for one post.
+		 *
+		 * @param {object[]} held what is already on screen
+		 * @param {object[]} page what just arrived
+		 * @return {object[]} the two, without repeats
+		 */
+		merge(held, page) {
+			const seen = new Set(held.map((post) => String(post.id)))
+
+			return [...held, ...page.filter((post) => !seen.has(String(post.id)))]
 		},
 
 		/** @param {object} post the ScheduledStatus to take back */
@@ -168,6 +220,12 @@ export default {
 <style scoped lang="scss">
 .scheduled-posts__hint {
 	color: var(--color-text-maxcontrast);
+}
+
+.scheduled-posts__more {
+	display: flex;
+	justify-content: center;
+	margin-block-start: 0.75rem;
 }
 
 .scheduled-posts__list {

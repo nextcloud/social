@@ -95,6 +95,81 @@ describe('ScheduledPosts', () => {
 		expect(wrapper.find('.scheduled-posts__item').exists()).toBe(false)
 	})
 
+	/**
+	 * A full page of waiting posts, so the list believes there is more behind it.
+	 *
+	 * @param {number} from the first id
+	 * @return {object[]} fifty entries
+	 */
+	function page(from = 1) {
+		return Array.from({ length: 50 }, (entry, index) => ({
+			...scheduled,
+			id: String(from + index),
+		}))
+	}
+
+	// An account may hold 300 waiting posts — 25 a day over as many days as it
+	// likes — and everything past the first fifty used to be invisible here,
+	// and so impossible to cancel.
+	it('offers the rest once the first page came back full', async () => {
+		const wrapper = mountList(page())
+		await flushPromises()
+
+		expect(wrapper.find('.scheduled-posts__more button').exists()).toBe(true)
+	})
+
+	it('offers nothing more when the page it got was a short one', async () => {
+		const wrapper = mountList()
+		await flushPromises()
+
+		expect(wrapper.find('.scheduled-posts__more').exists()).toBe(false)
+	})
+
+	// `min_id`, not `max_id`: the list is drawn in the order the posts go out,
+	// so the page after this one is the one scheduled later.
+	it('asks for what is scheduled after the last one it holds', async () => {
+		const wrapper = mountList(page())
+		await flushPromises()
+
+		axios.get.mockResolvedValue({ data: [{ ...scheduled, id: '51' }] })
+		await wrapper.find('.scheduled-posts__more button').trigger('click')
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenLastCalledWith(LIST, { params: { limit: 50, min_id: '50' } })
+		expect(wrapper.findAll('.scheduled-posts__item')).toHaveLength(51)
+		expect(wrapper.find('.scheduled-posts__more').exists()).toBe(false)
+	})
+
+	it('cancels a post that came in on a later page', async () => {
+		const wrapper = mountList(page())
+		await flushPromises()
+
+		axios.get.mockResolvedValue({ data: [{ ...scheduled, id: '51' }] })
+		await wrapper.find('.scheduled-posts__more button').trigger('click')
+		await flushPromises()
+
+		axios.delete.mockResolvedValue({ data: {} })
+		await wrapper.findAll('.scheduled-posts__cancel')[50].trigger('click')
+		await flushPromises()
+
+		expect(axios.delete).toHaveBeenCalledWith(LIST + '/51')
+		expect(wrapper.findAll('.scheduled-posts__item')).toHaveLength(50)
+	})
+
+	// A post moved to another time between the two requests can sit on both
+	// sides of the cursor, and the same entry twice is two Cancel buttons for
+	// one post.
+	it('does not list the same post twice across a page boundary', async () => {
+		const wrapper = mountList(page())
+		await flushPromises()
+
+		axios.get.mockResolvedValue({ data: [{ ...scheduled, id: '50' }, { ...scheduled, id: '51' }] })
+		await wrapper.find('.scheduled-posts__more button').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.findAll('.scheduled-posts__item')).toHaveLength(51)
+	})
+
 	it('takes a post back and stops showing it', async () => {
 		axios.delete.mockResolvedValue({ data: {} })
 		const wrapper = mountList()
