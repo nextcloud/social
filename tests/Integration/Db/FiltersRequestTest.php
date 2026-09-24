@@ -140,4 +140,76 @@ class FiltersRequestTest extends TestCase {
 		$this->assertCount(1, $statuses[$first->getId()]);
 		$this->assertCount(1, $statuses[$second->getId()]);
 	}
+
+	/**
+	 * A change that fails halfway leaves nothing of itself behind.
+	 *
+	 * `PUT /api/v2/filters/{id}` writes the filter row and then the keywords
+	 * one at a time, and a keyword naming another filter is refused — so the
+	 * title had already been changed by the time the request answered 404, and
+	 * a client retrying what it was told had failed retried against state that
+	 * had partly moved. This is the sequence that route runs, with the refusal
+	 * where the route hits it.
+	 */
+	public function testAFailedChangeLeavesTheFilterAsItWas(): void {
+		$filter = $this->stored();
+		$keyword = $filter->getKeywords()[0];
+
+		try {
+			$this->request->transactional(function () use ($filter, $keyword): void {
+				$this->request->update($filter->setTitle('renamed'));
+				$this->request->updateKeyword($keyword->setKeyword('cherry'));
+
+				throw new ItemNotFoundException('filter keyword not found');
+			});
+			$this->fail('the refusal did not reach the caller');
+		} catch (ItemNotFoundException) {
+		}
+
+		$read = $this->request->getById($filter->getId(), self::ALICE);
+
+		$this->assertSame('spoilers', $read->getTitle(), 'the title was written by a request that failed');
+		$this->assertSame('banana', $read->getKeywords()[0]->getKeyword());
+	}
+
+	/** And one that does not fail commits all of it, not some of it. */
+	public function testAChangeThatSucceedsCommitsEveryPartOfIt(): void {
+		$filter = $this->stored();
+		$keyword = $filter->getKeywords()[0];
+
+		$this->request->transactional(function () use ($filter, $keyword): void {
+			$this->request->update($filter->setTitle('renamed'));
+			$this->request->updateKeyword($keyword->setKeyword('cherry'));
+		});
+
+		$read = $this->request->getById($filter->getId(), self::ALICE);
+
+		$this->assertSame('renamed', $read->getTitle());
+		$this->assertSame('cherry', $read->getKeywords()[0]->getKeyword());
+	}
+
+	/**
+	 * A filter written inside a caller's transaction is written once.
+	 *
+	 * `save()` opens its own, and the controller wraps the call: without the
+	 * re-entrancy check that is a transaction inside a transaction, which the
+	 * connection does not take.
+	 */
+	public function testSavingInsideACallersTransactionStillWorks(): void {
+		$filter = (new Filter())
+			->setActorId(self::ALICE)
+			->setTitle('nested')
+			->setContexts([Filter::CONTEXT_HOME])
+			->setAction(Filter::ACTION_WARN)
+			->addKeyword((new FilterKeyword())->setKeyword('durian'));
+
+		$this->request->transactional(function () use ($filter): void {
+			$this->request->save($filter);
+		});
+
+		$read = $this->request->getById($filter->getId(), self::ALICE);
+
+		$this->assertSame('nested', $read->getTitle());
+		$this->assertCount(1, $read->getKeywords());
+	}
 }
