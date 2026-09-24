@@ -231,8 +231,11 @@ The sidebar is the map:
   badge cleared on your phone is cleared here too.
 - **Direct messages** — private conversations, one chat per person. **New
   message** first offers people from your existing chats and the accounts you
-  follow. Search by name or `@handle` to find somebody else; a search failure
-  is shown separately from a genuine empty result. Selecting somebody with an
+  follow. Search by name, `@handle` or profile link to find somebody else:
+  the people you know — accounts you follow and people from your chats — are
+  listed first under **People you know**, and every other account the search
+  finds follows under **Other accounts**. A search failure is shown separately
+  from a genuine empty result. Selecting somebody with an
   existing conversation opens that chat instead of creating another one.
   The new chat uses the same person header and message field as an existing
   conversation. Messages are sent privately to that person, so there is no

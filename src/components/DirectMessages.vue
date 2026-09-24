@@ -159,33 +159,42 @@
 					:placeholder="t('social', 'Search for a person by name or @username')"
 					autocomplete="off"
 					type="search" />
-				<div class="direct-messages__people-heading">
-					<h3>{{ recipientQuery.trim().length >= 2 ? t('social', 'Search results') : t('social', 'People you know') }}</h3>
-					<span v-if="searchingAccounts || loadingSuggestions" role="status">{{ t('social', 'Searching…') }}</span>
-				</div>
 				<p v-if="searchError" class="direct-messages__state direct-messages__recipient-feedback" role="alert">
 					{{ t('social', 'Could not search for people. Please try again.') }}
 				</p>
-				<ul v-if="visibleRecipients.length" class="direct-messages__recipient-results">
-					<li v-for="account in visibleRecipients" :key="account.id || account.acct">
-						<NcListItem
-							class="direct-messages__recipient-option"
-							:name="account.display_name || account.username || account.acct"
-							:linkAriaLabel="t('social', 'Start a conversation with {name}', { name: account.display_name || account.acct })"
-							@click="startConversation(account, $event)">
-							<template #icon>
-								<ActorAvatar :actor="account" :size="40" :link="false" />
-							</template>
-							<template #subname>
-								@{{ account.acct }}
-							</template>
-						</NcListItem>
-					</li>
-				</ul>
-				<p v-else-if="recipientQuery.trim().length >= 2 && !searchingAccounts && !searchError" class="direct-messages__state direct-messages__recipient-feedback">
+				<template v-for="group in recipientGroups" :key="group.key">
+					<div class="direct-messages__people-heading">
+						<h3 :id="`direct-messages-recipients-${group.key}`">
+							{{ group.title }}
+						</h3>
+					</div>
+					<ul
+						class="direct-messages__recipient-results"
+						:class="`direct-messages__recipient-results--${group.key}`"
+						:aria-labelledby="`direct-messages-recipients-${group.key}`">
+						<li v-for="account in group.accounts" :key="account.id || account.acct">
+							<NcListItem
+								class="direct-messages__recipient-option"
+								:name="account.display_name || account.username || account.acct"
+								:linkAriaLabel="t('social', 'Start a conversation with {name}', { name: account.display_name || account.acct })"
+								@click="startConversation(account, $event)">
+								<template #icon>
+									<ActorAvatar :actor="account" :size="40" :link="false" />
+								</template>
+								<template #subname>
+									@{{ account.acct }}
+								</template>
+							</NcListItem>
+						</li>
+					</ul>
+				</template>
+				<p v-if="searchingAccounts || loadingSuggestions" class="direct-messages__state direct-messages__recipient-feedback" role="status">
+					{{ t('social', 'Searching…') }}
+				</p>
+				<p v-else-if="hasRecipientQuery && !recipientGroups.length && !searchError" class="direct-messages__state direct-messages__recipient-feedback">
 					{{ t('social', 'No people found') }}
 				</p>
-				<p v-else-if="!loadingSuggestions && !visibleRecipients.length" class="direct-messages__state direct-messages__recipient-feedback">
+				<p v-else-if="!hasRecipientQuery && !recipientGroups.length" class="direct-messages__state direct-messages__recipient-feedback">
 					{{ t('social', 'Search for someone to start a conversation') }}
 				</p>
 			</div>
@@ -410,6 +419,7 @@ export default {
 			newMessageOpen: false,
 			recipientQuery: '',
 			accountResults: [],
+			followedResults: [],
 			suggestedAccounts: [],
 			loadingSuggestions: false,
 			searchingAccounts: false,
@@ -443,23 +453,54 @@ export default {
 			return this.conversations.find((conversation) => String(conversation.id) === this.selectedConversationId) ?? null
 		},
 
-		visibleRecipients() {
+		hasRecipientQuery() {
+			return this.recipientQuery.trim().replace(/^@/, '').length >= 2
+		},
+
+		/**
+		 * Who the recipient box offers, in two groups: the people the reader
+		 * knows — accounts they follow and the people they already talk to —
+		 * and after them, under their own heading, every other account the
+		 * search found. A stranger from the directory used to be listed among
+		 * the reader's own contacts with nothing to tell them apart.
+		 *
+		 * @return {{key: string, title: string, accounts: object[]}[]} the groups that have anybody in them
+		 */
+		recipientGroups() {
 			const query = this.recipientQuery.trim().replace(/^@/, '').toLocaleLowerCase()
+			const searching = this.hasRecipientQuery
 			const seen = new Set()
-			return [
-				...(query.length >= 2 ? this.accountResults : []),
-				...this.conversations.flatMap((conversation) => conversation.accounts ?? []),
-				...this.suggestedAccounts,
-			].filter((account) => {
-				const key = String(account?.id || account?.acct || '').toLocaleLowerCase()
-				const name = String(account?.display_name || account?.username || '').toLocaleLowerCase()
-				if (!account?.acct || !key || seen.has(key) || this.isOwnAccount(account)
-					|| (query && !name.includes(query) && !String(account.acct).toLocaleLowerCase().includes(query))) {
+			const keys = (account) => [account?.id, account?.acct]
+				.filter(Boolean)
+				.map((value) => String(value).toLocaleLowerCase())
+			const take = (account) => {
+				const accountKeys = keys(account)
+				if (!account?.acct || this.isOwnAccount(account) || accountKeys.some((key) => seen.has(key))) {
 					return false
 				}
-				seen.add(key)
+				accountKeys.forEach((key) => seen.add(key))
 				return true
-			}).slice(0, 12)
+			}
+			// the server already matched what it returns, however it was typed
+			// — a pasted profile link is in neither the name nor the handle —
+			// so only the accounts known locally are matched here
+			const matches = (account) => !query
+				|| String(account?.display_name || account?.username || '').toLocaleLowerCase().includes(query)
+				|| String(account?.acct ?? '').toLocaleLowerCase().includes(query)
+
+			const known = [
+				...(searching ? this.followedResults : []),
+				...[
+					...this.conversations.flatMap((conversation) => conversation.accounts ?? []),
+					...this.suggestedAccounts,
+				].filter(matches),
+			].filter(take).slice(0, 12)
+			const others = (searching ? this.accountResults : []).filter(take).slice(0, 8)
+
+			return [
+				{ key: 'known', title: t('social', 'People you know'), accounts: known },
+				{ key: 'others', title: t('social', 'Other accounts'), accounts: others },
+			].filter((group) => group.accounts.length > 0)
 		},
 
 		messages() {
@@ -503,8 +544,9 @@ export default {
 			clearTimeout(this.accountSearchTimer)
 			this.accountSearchRequest++
 			this.accountResults = []
+			this.followedResults = []
 			this.searchError = false
-			if (query.trim().length < 2) {
+			if (!this.hasRecipientQuery) {
 				this.searchingAccounts = false
 				return
 			}
@@ -642,23 +684,28 @@ export default {
 			return [...unique.values()]
 		},
 
+		/**
+		 * One search, asked twice at once: narrowed to the accounts the reader
+		 * follows, and not narrowed. The narrowed one is not a filter over the
+		 * other — the server searches the follows themselves — so somebody the
+		 * reader follows is found even when a page of strangers matches first.
+		 *
+		 * @param {string} query what was typed
+		 */
 		async searchAccounts(query) {
 			const request = ++this.accountSearchRequest
+			const url = generateUrl('apps/social/api/v1/accounts/search')
+			const resolve = isHandle(query)
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/search'), { params: { q: query, limit: 8, resolve: isHandle(query) } })
+				const [followed, all] = await Promise.all([
+					axios.get(url, { params: { q: query, limit: 8, resolve, following: true } }),
+					axios.get(url, { params: { q: query, limit: 8, resolve } }),
+				])
 				if (request !== this.accountSearchRequest) {
 					return
 				}
-				const accounts = Array.isArray(data) ? data : []
-				const seen = new Set()
-				this.accountResults = accounts.filter((account) => {
-					const key = String(account.id || account.acct).toLocaleLowerCase()
-					if (!account.acct || seen.has(key) || this.isOwnAccount(account)) {
-						return false
-					}
-					seen.add(key)
-					return true
-				}).slice(0, 8)
+				this.followedResults = Array.isArray(followed.data) ? followed.data : []
+				this.accountResults = Array.isArray(all.data) ? all.data : []
 			} catch (error) {
 				if (request === this.accountSearchRequest) {
 					this.searchError = true
@@ -687,6 +734,7 @@ export default {
 			this.messageText = ''
 			this.sendError = false
 			this.accountResults = []
+			this.followedResults = []
 			this.recipientQuery = ''
 		},
 
@@ -1345,10 +1393,6 @@ export default {
 	color: var(--color-main-text);
 	font-size: 0.9rem;
 	font-weight: 650;
-}
-
-.direct-messages__people-heading span {
-	font-size: 0.8rem;
 }
 
 .direct-messages__recipient-results {

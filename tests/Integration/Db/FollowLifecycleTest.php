@@ -245,4 +245,33 @@ class FollowLifecycleTest extends TestCase {
 		$this->assertSame(0, $this->request->countFollowing(self::ALICE), 'alice→bob is gone');
 		$this->assertSame(1, $this->request->countFollowers(self::ALICE), 'bob→alice survives');
 	}
+
+	public function testAccountSearchCanBeNarrowedToFollowedAccounts(): void {
+		// a direct message's recipient box asks for the people the reader
+		// follows first; narrowing only the first page of an ordinary search
+		// found nobody when the followed account ranked below the limit
+		foreach ([self::BOB => 'fltestbob@remote.example', self::NEW_BOB => 'fltestbobby@new.example'] as $id => $account) {
+			$actor = new Person();
+			$actor->setId($id);
+			$actor->setAccount($account);
+			$actor->setPreferredUsername('fltestbob');
+			$actor->setInbox($id . '/inbox');
+			$this->cacheActorsRequest->save($actor);
+		}
+		$this->follow(self::ALICE . '#follow/15', self::ALICE, self::BOB, false);
+		$this->follow(self::ALICE . '#follow/16', self::ALICE, self::NEW_BOB, true);
+
+		$ids = static fn (array $found): array => array_map(static fn (Person $actor): string => $actor->getId(), $found);
+
+		$this->assertEqualsCanonicalizing(
+			[self::BOB, self::NEW_BOB],
+			$ids($this->cacheActorsRequest->searchAccounts('fltestbob'))
+		);
+		$this->assertSame(
+			[self::NEW_BOB],
+			$ids($this->cacheActorsRequest->searchAccounts('fltestbob', 1, self::ALICE)),
+			'only an accepted follow counts, and the limit counts followed accounts'
+		);
+		$this->assertSame([], $this->cacheActorsRequest->searchAccounts('fltestbob', null, self::NEW_BOB));
+	}
 }

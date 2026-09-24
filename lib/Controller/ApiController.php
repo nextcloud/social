@@ -2212,29 +2212,31 @@ class ApiController extends Controller {
 				return new DataResponse([], Http::STATUS_OK);
 			}
 
-			$found = $this->searchService->searchAccounts($q, $limit);
+			// `following=true` is a client completing a reply rather than
+			// searching: it wants the people already in the conversation's
+			// reach, not everybody this instance has ever cached. The search
+			// itself is narrowed rather than its answer: filtering the first
+			// `limit` matches found nobody whenever the followed account was
+			// not among them.
+			$found = $this->searchService->searchAccounts($q, $limit, $following ? $this->viewer->getId() : '');
 			if ($resolve && (str_starts_with($q, '@') || str_starts_with($q, 'http'))) {
-				$found = array_merge($this->searchService->searchUri($q), $found);
+				$resolved = $this->searchService->searchUri($q);
+				if ($following) {
+					$resolved = array_filter(
+						$resolved,
+						fn (Person $account): bool
+							=> $this->followService->getRelationshipWith($account)->isFollowing()
+					);
+				}
+				$found = array_merge($resolved, $found);
 			}
 
 			$accounts = [];
 			foreach ($found as $account) {
 				$accounts[$account->getId()] = $account->setExportFormat(ACore::FORMAT_LOCAL);
 			}
-			$accounts = array_slice(array_values($accounts), 0, $limit);
 
-			// `following=true` is a client completing a reply rather than
-			// searching: it wants the people already in the conversation's
-			// reach, not everybody this instance has ever cached
-			if ($following) {
-				$accounts = array_values(array_filter(
-					$accounts,
-					fn (Person $account): bool
-						=> $this->followService->getRelationshipWith($account)->isFollowing()
-				));
-			}
-
-			return new DataResponse(array_slice($accounts, 0, $limit), Http::STATUS_OK);
+			return new DataResponse(array_slice(array_values($accounts), 0, $limit), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

@@ -2472,6 +2472,32 @@ class ApiControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The search is narrowed, not its first page: filtering the first `limit`
+	 * matches found nobody whenever the followed account ranked below them.
+	 */
+	public function testAccountsSearchNarrowsTheSearchItselfToFollowedAccounts(): void {
+		$this->loggedInAs();
+		$bob = $this->createMock(Person::class);
+		$bob->method('getId')->willReturn('https://remote.example/users/bob');
+		$bob->method('setExportFormat')->willReturnSelf();
+		$this->searchService->expects($this->once())
+			->method('searchAccounts')
+			->with('bob', 8, 'https://cloud.example/apps/social/@alice')
+			->willReturn([$bob]);
+		$this->followService->expects($this->never())->method('getRelationshipWith');
+
+		$this->assertSame([$bob], $this->controller()->accountsSearch('bob', 8, false, true)->getData());
+	}
+
+	public function testAnOrdinaryAccountsSearchIsNotNarrowed(): void {
+		$this->loggedInAs();
+		$this->searchService->expects($this->once())
+			->method('searchAccounts')->with('bob', 8, '')->willReturn([]);
+
+		$this->assertSame([], $this->controller()->accountsSearch('bob', 8)->getData());
+	}
+
 	// instance/peers, instance/activity, preferences, familiar_followers
 
 	public function testPeersAnswersTheInstancesThisOneHasHeardOf(): void {
