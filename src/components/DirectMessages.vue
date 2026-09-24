@@ -323,6 +323,30 @@ import logger from '../services/logger.js'
 const PAGE_SIZE = 40
 
 /**
+ * A handle at the very start of a message, as the composer writes one.
+ *
+ * `\w` is ASCII whatever else is set, so `@müller@remote.example` — and every
+ * handle on an internationalised domain — was not recognised and the routing
+ * mention stayed on screen. What a handle may hold is "not whitespace and not
+ * another @", which is the same rule the recipient box uses.
+ */
+const LEADING_HANDLE = /^(\s*)@([^\s@]+(?:@[^\s@]+)?)(?=\s|$)/u
+
+/**
+ * The host a link names, or '' where it names none.
+ *
+ * @param {string} url the link
+ * @return {string} its host, lowercased
+ */
+function hostOf(url) {
+	try {
+		return new URL(String(url)).host.toLocaleLowerCase()
+	} catch {
+		return ''
+	}
+}
+
+/**
  * The `max_id` the server put in its `Link: …; rel="next"` header.
  *
  * It has to come from there rather than from the last row on screen: the
@@ -675,7 +699,12 @@ export default {
 
 		startConversation(account, event) {
 			event?.preventDefault?.()
-			const existing = this.conversations.find((conversation) => (conversation.accounts ?? []).some((candidate) => (candidate.id && account.id && String(candidate.id) === String(account.id)) || candidate.acct === account.acct))
+			// a handle is not case-sensitive, and the filtering beside this
+			// lowercases one — so `Bob@remote.example` opened a second chat
+			// beside the one with `bob@remote.example`
+			const wanted = String(account.acct ?? '').toLocaleLowerCase()
+			const existing = this.conversations.find((conversation) => (conversation.accounts ?? []).some((candidate) => (candidate.id && account.id && String(candidate.id) === String(account.id))
+				|| (wanted !== '' && String(candidate.acct ?? '').toLocaleLowerCase() === wanted)))
 			if (existing) {
 				this.selectConversation(String(existing.id))
 				return
@@ -698,7 +727,7 @@ export default {
 			try {
 				const replyTo = this.activeConversation?.last_status?.id
 				await axios.post(generateUrl('apps/social/api/v1/statuses'), {
-					status: `@${recipient.acct} ${text}`,
+					status: `${this.routingMentions(recipient)} ${text}`,
 					visibility: 'direct',
 					...(replyTo ? { in_reply_to_id: replyTo } : {}),
 				})
@@ -779,7 +808,13 @@ export default {
 		},
 
 		preview(status, conversation = null) {
-			return htmlToPlainText(this.withoutProtocolRecipient(status, this.conversationPeer(conversation))).replace(/\s+/g, ' ').trim()
+			// the open conversation when the caller named none: a mention is
+			// only hidden where there is a peer to compare it against, and a
+			// preview asked for without one would otherwise keep the routing
+			// handle it is there to leave out
+			const peer = this.conversationPeer(conversation ?? this.activeConversation)
+
+			return htmlToPlainText(this.withoutProtocolRecipient(status, peer)).replace(/\s+/g, ' ').trim()
 		},
 
 		/**
@@ -817,7 +852,7 @@ export default {
 				first = first.nextSibling
 			}
 			if (first?.nodeType === Node.TEXT_NODE) {
-				const leadingMention = first.textContent.match(/^(\s*)@([\w.-]+(?:@[\w.-]+)?)(?=\s|$)/u)
+				const leadingMention = first.textContent.match(LEADING_HANDLE)
 				if (!leadingMention || !this.isProtocolRecipient(leadingMention[2], recipient)) {
 					return content
 				}
@@ -832,7 +867,10 @@ export default {
 			}
 			const linkedAccount = first.querySelector('a[href]')?.getAttribute('href') ?? first.getAttribute('href') ?? ''
 			const visibleMention = first.textContent.replace(/^@/, '').trim()
-			if (!this.isProtocolRecipient(visibleMention, recipient, linkedAccount) && !first.matches('.h-card')) {
+			// and only when it names the peer. The `.h-card` exemption here
+			// stripped the first mention of *anybody*, so a message opening
+			// "@carol look at this" lost the name it was about.
+			if (!this.isProtocolRecipient(visibleMention, recipient, linkedAccount)) {
 				return content
 			}
 
@@ -848,13 +886,82 @@ export default {
 			return wrapper.innerHTML
 		},
 
+		/**
+		 * Whether a mention is the routing one — the peer's own handle, which
+		 * the composer puts in front of every direct message.
+		 *
+		 * @param {string} mention what the mention says
+		 * @param {object|null} recipient the other party, when it is known
+		 * @param {string} href where the mention links, when it is a link
+		 * @return {boolean} whether it may be hidden
+		 */
 		isProtocolRecipient(mention, recipient, href = '') {
+			// Nothing is hidden when there is nobody to compare against. This
+			// said "yes" instead, so in a conversation whose peer had not
+			// loaded the first mention of the message disappeared whoever it
+			// named.
 			if (!recipient) {
+				return false
+			}
+
+			const handles = [recipient.acct, recipient.username, recipient.preferred_username]
+				.filter(Boolean)
+				.map((value) => String(value).replace(/^@/, '').toLocaleLowerCase())
+			const asked = String(mention).replace(/^@/, '').toLocaleLowerCase()
+			if (handles.includes(asked)) {
 				return true
 			}
-			const values = [recipient.acct, recipient.username, recipient.preferred_username].filter(Boolean).map((value) => String(value).replace(/^@/, '').toLocaleLowerCase())
-			const normalizedMention = String(mention).replace(/^@/, '').toLocaleLowerCase()
-			return values.includes(normalizedMention) || (href && values.some((value) => href.toLocaleLowerCase().includes(value)))
+
+			// A mention shortened to its local part — which is how a renderer
+			// writes one — counts only where the link beside it points at the
+			// peer's own server. `includes()` was matching `bob` anywhere in
+			// the href, so a message to bobby lost its mention of bob.
+			const sameServer = hostOf(href) !== ''
+				&& hostOf(href) === hostOf(recipient.url ?? recipient.id ?? '')
+			const locals = handles.map((handle) => handle.split('@')[0]).filter(Boolean)
+			if (sameServer && locals.includes(asked)) {
+				return true
+			}
+
+			const segment = (String(href).toLocaleLowerCase().split(/[/?#]/).filter(Boolean).at(-1) ?? '')
+				.replace(/^@/, '')
+
+			return segment !== ''
+				&& (handles.includes(segment) || (sameServer && locals.includes(segment)))
+		},
+
+		/**
+		 * The mentions a reply has to carry to reach everybody it is a reply to.
+		 *
+		 * A conversation of three people was answered with one mention — the
+		 * first account that was not the reader — so the third person dropped
+		 * out of the exchange at the first reply, without anybody being told.
+		 *
+		 * @param {object} recipient the account the composer was opened for
+		 * @return {string} the mentions, in the order the conversation lists them
+		 */
+		routingMentions(recipient) {
+			const accounts = this.activeConversation?.accounts ?? []
+			const handles = accounts
+				.map((account) => String(account.acct ?? ''))
+				.filter((acct) => acct !== '' && acct !== this.currentUserId)
+
+			if (handles.length === 0) {
+				return `@${recipient.acct}`
+			}
+
+			const seen = new Set()
+			const unique = handles.filter((acct) => {
+				const key = acct.toLocaleLowerCase()
+				if (seen.has(key)) {
+					return false
+				}
+				seen.add(key)
+
+				return true
+			})
+
+			return unique.map((acct) => `@${acct}`).join(' ')
 		},
 
 		async removeConversation(conversation) {
