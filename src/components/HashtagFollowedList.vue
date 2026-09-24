@@ -23,13 +23,23 @@
 				<p v-if="loading" class="followed-hashtags__hint">
 					{{ t('social', 'Loading …') }}
 				</p>
-				<ul v-else-if="tags.length > 0" class="followed-hashtags__list">
-					<li v-for="tag in tags" :key="tag.name">
-						<router-link :to="{ name: 'tags', params: { tag: tag.name } }">
-							{{ '#' + tag.name }}
-						</router-link>
-					</li>
-				</ul>
+				<template v-else-if="tags.length > 0">
+					<ul class="followed-hashtags__list">
+						<li v-for="tag in tags" :key="tag.name">
+							<router-link :to="{ name: 'tags', params: { tag: tag.name } }">
+								{{ '#' + tag.name }}
+							</router-link>
+						</li>
+					</ul>
+					<NcButton
+						v-if="cursor"
+						variant="tertiary"
+						class="followed-hashtags__more"
+						:disabled="loadingMore"
+						@click="loadMore">
+						{{ loadingMore ? t('social', 'Loading …') : t('social', 'Show more') }}
+					</NcButton>
+				</template>
 				<p v-else class="followed-hashtags__hint">
 					{{ t('social', 'You are not following any hashtag yet.') }}
 				</p>
@@ -47,8 +57,13 @@ import Pound from 'vue-material-design-icons/Pound.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import logger from '../services/logger.js'
 import { useServerData } from '../composables/useServerData.js'
+import { nextCursor } from '../utils/linkHeader.js'
 
-/** what the server caps a page of this list at anyway */
+/**
+ * What the server caps a page of this list at anyway. A reader who follows
+ * more pages on with Show more, on the cursor the `Link` header names — the
+ * follow's own row, since a tag unfollowed and followed again moves.
+ */
 const PAGE_SIZE = 50
 
 export default {
@@ -68,8 +83,11 @@ export default {
 		return {
 			open: false,
 			loading: false,
+			loadingMore: false,
 			/** @type {object[]} Tag entities */
 			tags: [],
+			/** where the next page starts, '' once the server said there is none */
+			cursor: '',
 		}
 	},
 
@@ -96,16 +114,45 @@ export default {
 
 			this.loading = true
 			try {
-				const { data } = await axios.get(
+				const { data, headers } = await axios.get(
 					generateUrl('apps/social/api/v1/followed_tags'),
 					{ params: { limit: PAGE_SIZE } },
 				)
 				this.tags = Array.isArray(data) ? data : []
+				this.cursor = nextCursor(headers)
 			} catch (error) {
 				logger.error('Failed to load the followed hashtags', { error })
 				showError(translate('social', 'Could not load the hashtags you follow'))
 			} finally {
 				this.loading = false
+			}
+		},
+
+		async loadMore() {
+			const cursor = this.cursor
+			if (this.loading || this.loadingMore || !cursor) {
+				return
+			}
+
+			this.loadingMore = true
+			try {
+				const { data, headers } = await axios.get(
+					generateUrl('apps/social/api/v1/followed_tags'),
+					{ params: { limit: PAGE_SIZE, max_id: cursor } },
+				)
+				// the list was read again from the top meanwhile
+				if (this.cursor !== cursor) {
+					return
+				}
+				const seen = new Set(this.tags.map((tag) => tag.name))
+				const more = (Array.isArray(data) ? data : []).filter((tag) => !seen.has(tag.name))
+				this.tags = [...this.tags, ...more]
+				this.cursor = nextCursor(headers)
+			} catch (error) {
+				logger.error('Failed to load more of the followed hashtags', { error })
+				showError(translate('social', 'Could not load the hashtags you follow'))
+			} finally {
+				this.loadingMore = false
 			}
 		},
 	},
@@ -130,6 +177,10 @@ export default {
 		background: var(--color-background-hover);
 		color: var(--color-main-text);
 	}
+}
+
+.followed-hashtags__more {
+	margin-bottom: var(--default-grid-baseline);
 }
 
 .followed-hashtags__hint {

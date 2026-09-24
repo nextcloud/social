@@ -112,4 +112,52 @@ describe('HashtagFollowedList', () => {
 		expect(wrapper.find('.followed-hashtags').exists()).toBe(false)
 		expect(axios.get).not.toHaveBeenCalled()
 	})
+
+	describe('more than one page', () => {
+		const firstPage = Array.from({ length: 50 }, (_, i) => tagEntity(`t${i}`))
+		const next = (maxId) => ({ link: `<${API}/followed_tags?limit=50&max_id=${maxId}>; rel="next", <${API}/followed_tags?min_id=99>; rel="prev"` })
+		const more = (wrapper) => wrapper.find('.followed-hashtags__more')
+
+		it('reaches the second page on the cursor of the Link header, and appends it', async () => {
+			const wrapper = mountList()
+			axios.get.mockResolvedValueOnce({ data: firstPage, headers: next('51') })
+			await open(wrapper)
+			expect(wrapper.findAllComponents(RouterLinkStub)).toHaveLength(50)
+
+			axios.get.mockResolvedValueOnce({ data: [tagEntity('t49'), tagEntity('late')], headers: {} })
+			await more(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenLastCalledWith(API + '/followed_tags', { params: { limit: 50, max_id: '51' } })
+			const names = wrapper.findAllComponents(RouterLinkStub).map((link) => link.text())
+			expect(names).toHaveLength(51)
+			expect(names.at(-1)).toBe('#late')
+			expect(more(wrapper).exists()).toBe(false)
+		})
+
+		it('offers nothing more after a page the server calls the last', async () => {
+			const wrapper = mountList()
+			axios.get.mockResolvedValueOnce({ data: [tagEntity('nextcloud')], headers: {} })
+			await open(wrapper)
+
+			expect(more(wrapper).exists()).toBe(false)
+			expect(axios.get).toHaveBeenCalledTimes(1)
+		})
+
+		it('starts again from the top on a refresh', async () => {
+			const wrapper = mountList()
+			axios.get.mockResolvedValueOnce({ data: firstPage, headers: next('51') })
+			await open(wrapper)
+			axios.get.mockResolvedValueOnce({ data: [tagEntity('late')], headers: {} })
+			await more(wrapper).trigger('click')
+			await flushPromises()
+
+			axios.get.mockResolvedValueOnce({ data: firstPage, headers: next('51') })
+			wrapper.vm.refresh()
+			await flushPromises()
+
+			expect(wrapper.findAllComponents(RouterLinkStub)).toHaveLength(50)
+			expect(more(wrapper).exists()).toBe(true)
+		})
+	})
 })
