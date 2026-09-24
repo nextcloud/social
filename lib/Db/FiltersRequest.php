@@ -27,9 +27,49 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  */
 class FiltersRequest extends FiltersRequestBuilder {
 	/**
+	 * Runs writes that are one change as one change.
+	 *
+	 * A filter and its keywords are written one row at a time, and a keyword
+	 * that names another filter is refused halfway through — so the title had
+	 * already been changed by the time the request answered 404, and a client
+	 * retrying what it was told had failed was retrying against state that had
+	 * partly moved.
+	 *
+	 * Re-entrant, so a caller that wraps a sequence of these and a method that
+	 * wraps its own writes do not open a transaction inside a transaction.
+	 *
+	 * @param callable():mixed $work the writes
+	 *
+	 * @return mixed whatever $work returned
+	 * @throws \Throwable whatever $work threw, after the writes are undone
+	 */
+	public function transactional(callable $work): mixed {
+		if ($this->dbConnection->inTransaction()) {
+			return $work();
+		}
+
+		$this->dbConnection->beginTransaction();
+		try {
+			$result = $work();
+			$this->dbConnection->commit();
+
+			return $result;
+		} catch (\Throwable $t) {
+			$this->dbConnection->rollBack();
+
+			throw $t;
+		}
+	}
+
+	/**
 	 * @return int the id the filter was stored under
 	 */
 	public function save(Filter $filter): int {
+		return $this->transactional(fn (): int => $this->insert($filter));
+	}
+
+	/** The filter row and a row per keyword — see save(). */
+	private function insert(Filter $filter): int {
 		$qb = $this->getFiltersInsertSql();
 		$qb->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($filter->getActorId())))
 			->setValue('title', $qb->createNamedParameter($filter->getTitle()))
@@ -140,6 +180,13 @@ class FiltersRequest extends FiltersRequestBuilder {
 
 	/** Deleting a filter deletes the keywords that only existed for it. */
 	public function delete(int $id, string $actorId): void {
+		$this->transactional(function () use ($id, $actorId): void {
+			$this->remove($id, $actorId);
+		});
+	}
+
+	/** The filter row, its keywords and its statuses — see delete(). */
+	private function remove(int $id, string $actorId): void {
 		$qb = $this->getFiltersDeleteSql();
 		$qb->where(
 			$qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)),
@@ -161,6 +208,13 @@ class FiltersRequest extends FiltersRequestBuilder {
 	 * the account-deletion path, like every other deleteRelatedId().
 	 */
 	public function deleteRelatedId(string $actorId): void {
+		$this->transactional(function () use ($actorId): void {
+			$this->removeAllOf($actorId);
+		});
+	}
+
+	/** Everything this actor filtered by — see deleteRelatedId(). */
+	private function removeAllOf(string $actorId): void {
 		foreach ($this->selectIdsByActor($actorId) as $id) {
 			$this->deleteKeywordsOfFilter($id);
 			$this->deleteStatusesOfFilter($id);

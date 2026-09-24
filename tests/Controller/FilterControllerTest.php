@@ -49,6 +49,8 @@ class FilterControllerTest extends TestCase {
 	private AccountService|MockObject $accountService;
 	private ClientService|MockObject $clientService;
 	private FiltersRequest|MockObject $filtersRequest;
+	/** how many times the controller has asked for one change to be one change */
+	private int $transactions = 0;
 	private TimelineRevisionService|MockObject $timelineRevisionService;
 	private IUserSession|MockObject $userSession;
 
@@ -104,6 +106,24 @@ class FilterControllerTest extends TestCase {
 	private function stubStore(): void {
 		$this->filtersRequest = $this->createMock(FiltersRequest::class);
 		$this->timelineRevisionService = $this->createMock(TimelineRevisionService::class);
+
+		// The stub stands in for the database, so it stands in for the
+		// transaction too: everything it holds is put back where a refusal
+		// reaches the caller. That is what the real one does, and what makes
+		// the tests below about a half-applied change mean anything here.
+		$this->transactions = 0;
+		$this->filtersRequest->method('transactional')
+			->willReturnCallback(function (callable $work): mixed {
+				$this->transactions++;
+				$before = $this->copyAll($this->filters);
+				try {
+					return $work();
+				} catch (\Throwable $t) {
+					$this->filters = $before;
+
+					throw $t;
+				}
+			});
 
 		$this->filtersRequest->method('save')
 			->willReturnCallback(function (Filter $filter): int {
@@ -254,6 +274,14 @@ class FilterControllerTest extends TestCase {
 					);
 				}
 			});
+	}
+
+	/**
+	 * @param Filter[] $filters what the stub holds
+	 * @return Filter[] the same, as separate objects
+	 */
+	private function copyAll(array $filters): array {
+		return array_map(fn (Filter $filter): Filter => $this->copy($filter), $filters);
 	}
 
 	private function copy(Filter $filter): Filter {
@@ -573,6 +601,85 @@ class FilterControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 		$this->assertSame('banana', $this->filters[$other->getId()]->getKeywords()[0]->getKeyword());
+	}
+
+	/**
+	 * A change that is refused halfway leaves nothing of itself behind.
+	 *
+	 * The filter row was written before the keywords were applied, so a
+	 * request that answered 404 had already changed the title — and a client
+	 * retrying what it was told had failed retried against state that had
+	 * partly moved.
+	 */
+	public function testARefusedChangeDoesNotLeaveTheTitleBehind(): void {
+		$mine = $this->stored(self::ALICE, 'mine');
+		$other = $this->stored(self::ALICE, 'other');
+
+		$response = $this->controller()->update(
+			$mine->getId(), 'renamed', null, null,
+			[['id' => (string)$other->getKeywords()[0]->getId(), 'keyword' => 'moved']]
+		);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame('mine', $this->filters[$mine->getId()]->getTitle(), 'a request that failed changed the title');
+	}
+
+	/**
+	 * And the same inside the keyword list: the first is valid, the fourth is
+	 * not, and none of them is written.
+	 */
+	public function testOneBadKeywordUndoesTheGoodOnesBesideIt(): void {
+		$mine = $this->stored(self::ALICE, 'mine');
+		$other = $this->stored(self::ALICE, 'other');
+		$existing = $mine->getKeywords()[0]->getId();
+
+		$response = $this->controller()->update(
+			$mine->getId(), null, null, null,
+			[
+				['id' => (string)$existing, 'keyword' => 'apple'],
+				['keyword' => 'pear'],
+				['id' => (string)$other->getKeywords()[0]->getId(), 'keyword' => 'moved'],
+			]
+		);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame(
+			['banana'],
+			array_column($this->filters[$mine->getId()]->jsonSerialize()['keywords'], 'keyword'),
+			'the keywords written before the refusal stayed written'
+		);
+	}
+
+	/** A change that succeeds still commits every part of itself. */
+	public function testAChangeThatSucceedsIsStillWrittenWhole(): void {
+		$filter = $this->stored(self::ALICE, 'mine');
+
+		$data = $this->controller()->update(
+			$filter->getId(), 'renamed', null, null, [['keyword' => 'pear']]
+		)->getData();
+
+		$this->assertSame('renamed', $data['title']);
+		$this->assertSame(['banana', 'pear'], array_column($data['keywords'], 'keyword'));
+	}
+
+	/**
+	 * Each route that writes more than one row asks for one transaction.
+	 *
+	 * The v2 delete is not here: it is a single call, and what that call
+	 * writes — the filter, its keywords and its statuses — is made one change
+	 * inside `FiltersRequest` itself, which the integration test asserts
+	 * against a real database.
+	 */
+	public function testEachWritingRouteMakesItsWritesOneChange(): void {
+		$filter = $this->stored(self::ALICE, 'mine');
+		$keyword = $filter->getKeywords()[0]->getId();
+		$this->transactions = 0;
+
+		$this->controller()->update($filter->getId(), 'renamed');
+		$this->controller()->updateV1($keyword, 'cherry');
+		$this->controller()->deleteV1($keyword);
+
+		$this->assertSame(3, $this->transactions);
 	}
 
 	public function testDeletingAFilterAnswersAnEmptyObject(): void {

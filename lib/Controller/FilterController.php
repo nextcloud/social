@@ -193,7 +193,7 @@ class FilterController extends Controller {
 					->setKeyword($this->keyword($phrase))
 					->setWholeWord($this->flag($whole_word))
 			);
-			$this->filtersRequest->save($filter);
+			$this->filtersRequest->transactional(fn (): int => $this->filtersRequest->save($filter));
 
 			$keywords = $filter->getKeywords();
 
@@ -242,8 +242,12 @@ class FilterController extends Controller {
 				$filter->setExpiresAt($this->expiry($expires_in));
 			}
 
-			$this->filtersRequest->update($filter);
-			$this->filtersRequest->updateKeyword($keyword);
+			// the filter row and its keyword are one change: a phrase writes
+			// both, and half of it is a filter whose title and keyword disagree
+			$this->filtersRequest->transactional(function () use ($filter, $keyword): void {
+				$this->filtersRequest->update($filter);
+				$this->filtersRequest->updateKeyword($keyword);
+			});
 
 			return new DataResponse(self::asV1($filter, $keyword), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -265,10 +269,12 @@ class FilterController extends Controller {
 			$this->initViewer(['write:filters', 'write']);
 			[$filter, $keyword] = $this->keywordOfViewer($id);
 
-			$this->filtersRequest->deleteKeyword($keyword->getId(), $this->viewer->getId());
-			if (count($filter->getKeywords()) <= 1) {
-				$this->filtersRequest->delete($filter->getId(), $this->viewer->getId());
-			}
+			$this->filtersRequest->transactional(function () use ($filter, $keyword): void {
+				$this->filtersRequest->deleteKeyword($keyword->getId(), $this->viewer->getId());
+				if (count($filter->getKeywords()) <= 1) {
+					$this->filtersRequest->delete($filter->getId(), $this->viewer->getId());
+				}
+			});
 
 			return new DataResponse([], Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -368,7 +374,7 @@ class FilterController extends Controller {
 				);
 			}
 
-			$this->filtersRequest->save($filter);
+			$this->filtersRequest->transactional(fn (): int => $this->filtersRequest->save($filter));
 
 			return new DataResponse($filter->jsonSerialize(), Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -421,11 +427,19 @@ class FilterController extends Controller {
 				$filter->setExpiresAt($this->expiry($expiresIn));
 			}
 
-			$this->filtersRequest->update($filter);
+			// One change, however many rows it is. `applyKeywordAttributes()`
+			// refuses a keyword that belongs to another filter, and can refuse
+			// the fourth after writing the first three: without this the
+			// request answered 404 with the title already changed, and a
+			// client retrying what it was told had failed retried against
+			// state that had partly moved.
+			$this->filtersRequest->transactional(function () use ($filter, $keywords_attributes): void {
+				$this->filtersRequest->update($filter);
 
-			if ($keywords_attributes !== null) {
-				$this->applyKeywordAttributes($filter, $keywords_attributes);
-			}
+				if ($keywords_attributes !== null) {
+					$this->applyKeywordAttributes($filter, $keywords_attributes);
+				}
+			});
 
 			return new DataResponse($this->filter($id)->jsonSerialize(), Http::STATUS_OK);
 		} catch (Throwable $e) {
