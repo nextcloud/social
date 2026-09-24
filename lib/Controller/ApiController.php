@@ -2508,7 +2508,10 @@ class ApiController extends Controller {
 				// ask its server for it. Only on the reader's say-so: this
 				// fetches an address they chose.
 				if ($resolve && $statuses === []) {
-					$resolved = $this->searchService->resolveStatus($q);
+					// as the reader: the content search above is viewer-scoped,
+					// so a post they may not see finds nothing there and falls
+					// through to here — which used to hand it over in full
+					$resolved = $this->searchService->resolveStatus($q, true);
 					if ($resolved !== null) {
 						$resolved->setExportFormat(ACore::FORMAT_LOCAL);
 						$statuses = [$resolved];

@@ -269,6 +269,13 @@ class CollectionsRequest extends CollectionsRequestBuilder {
 		$qb->andWhere(
 			$qb->expr()->in('s.id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY))
 		);
+		// A collection says which posts its owner grouped, not who may read
+		// them: a followers-only post put in a public album was served to
+		// anybody who opened it, and the two routes that read this are
+		// unauthenticated. The same predicate every other read of a post
+		// applies — with no viewer it answers with the public ones, which is
+		// what a visitor should see.
+		$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction('sa');
 		$qb->leftJoinObjectStatus();
@@ -279,7 +286,7 @@ class CollectionsRequest extends CollectionsRequestBuilder {
 		}
 
 		// back into the owner's order, and silently past any post that has since
-		// been deleted or that this viewer may not see
+		// been deleted or that the predicate above kept out
 		$ordered = [];
 		foreach ($prims as $prim) {
 			if (array_key_exists($prim, $byPrim)) {
