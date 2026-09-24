@@ -55,7 +55,6 @@ describe('VideoReels', () => {
 	beforeEach(() => {
 		observers = []
 		vi.stubGlobal('IntersectionObserver', class {
-
 			constructor(callback) {
 				this.callback = callback
 				this.observed = []
@@ -67,7 +66,6 @@ describe('VideoReels', () => {
 			}
 
 			disconnect() {}
-
 		})
 		// jsdom has no media element; every reel calls these
 		HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve())
@@ -207,7 +205,8 @@ describe('VideoReels', () => {
 	/** A cursor rounded through a Number skips rows or loops on one. */
 	it('pages on the id as a string', async () => {
 		const { wrapper, store } = await mountReels([
-			video('114500000000000001'), video('114500000000000002'),
+			video('114500000000000001'),
+			video('114500000000000002'),
 		])
 		store.fetchTimeline.mockClear()
 
