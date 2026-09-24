@@ -35,6 +35,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Nid;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -384,7 +385,7 @@ class DocumentService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function openStreamed(int|string $nid, string $range = ''): array {
-		if ($nid < 1) {
+		if (!ctype_digit((string)$nid) || Nid::compare($nid, '0') < 1) {
 			throw new NotFoundException('invalid document');
 		}
 

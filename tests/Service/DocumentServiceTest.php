@@ -709,4 +709,33 @@ class DocumentServiceTest extends TestCase {
 		$this->assertSame('https://cloud.example.com/apps/social/media/stored-uuid.jpeg', $image->getUrl());
 		$this->assertSame($image->getUrl(), $alice->getHeader());
 	}
+
+	/**
+	 * The streaming routes hand the nid over as the string it was in the url.
+	 * It has to reach the lookup as one: typed through to an `int` parameter
+	 * under strict types it was a TypeError, and every video a 500.
+	 */
+	public function testAStreamedDocumentIsLookedUpByTheNidTheRouteWasGiven(): void {
+		$this->cacheDocumentsRequest->expects($this->once())->method('getByNid')
+			->with($this->identicalTo('42'))
+			->willReturn($this->document());
+
+		$this->expectException(NotFoundException::class);
+		$this->expectExceptionMessage('document is not streamed');
+
+		$this->service->openStreamed('42');
+	}
+
+	public function testANidThatIsNotANumberIsNotLookedUp(): void {
+		$this->cacheDocumentsRequest->expects($this->never())->method('getByNid');
+
+		foreach (['abc', '12abc', '', '0'] as $nid) {
+			try {
+				$this->service->openStreamed($nid);
+				$this->fail('opened ' . var_export($nid, true));
+			} catch (NotFoundException $e) {
+				$this->assertSame('invalid document', $e->getMessage());
+			}
+		}
+	}
 }

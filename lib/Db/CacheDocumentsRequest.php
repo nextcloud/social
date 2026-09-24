@@ -252,7 +252,9 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 */
 	public function getByNid(int|string $nid): Document {
 		$qb = $this->getCacheDocumentsSelectSql();
-		$qb->limitToDBFieldInt('nid', $nid);
+		// an autoincrement rather than a snowflake, but a route hands it over
+		// as the string it was in the url, which limitToDBFieldInt() refuses
+		$qb->limitToNid($nid);
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
