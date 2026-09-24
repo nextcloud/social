@@ -13,6 +13,7 @@ use DateTime;
 use DateTimeZone;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\Client\ScheduledStatus;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -100,9 +101,26 @@ class ScheduledStatusesRequest extends ScheduledStatusesRequestBuilder {
 	 * A page of the account's waiting posts, soonest first — which is the
 	 * order a client draws them in, and the order this is stored in.
 	 *
-	 * The cursor is the row id and not `scheduled_at`: two posts may be
-	 * scheduled for the same second, and a cursor that cannot tell them apart
-	 * either repeats one or skips one.
+	 * The cursor a caller sends is a row id, because that is what the API
+	 * promises. What it *means* here is the position of that row in the order
+	 * above, which is not the same thing: an id is creation order, and
+	 * `scheduled_at` is publication order that `reschedule()` can move at any
+	 * time. Comparing ids while ordering by time is a cursor that does not
+	 * describe the sequence being paged — with rows at 10:00, 08:00, 09:00
+	 * (ids 1, 2, 3), `limit=2` gives [2, 3], and continuing from `max_id=3`
+	 * keeps ids below 3, sorts them by time, and hands back id 2 a second
+	 * time.
+	 *
+	 * So the id is resolved to the pair it stands for, `(scheduled_at, id)`,
+	 * and the comparison is made on the pair. That keeps the promise — the
+	 * caller still sends an id — and makes the cursor mean a place in the
+	 * order it is paging.
+	 *
+	 * `min_id` and `since_id` ask for what comes *after* that place and read
+	 * forwards. `max_id` asks for what comes *before* it, which is the page
+	 * ending at the cursor rather than the earliest page there is: that one is
+	 * read backwards, `limit` rows, and turned round again, exactly as
+	 * Mastodon pages a descending list.
 	 *
 	 * @return ScheduledStatus[]
 	 */
@@ -116,21 +134,81 @@ class ScheduledStatusesRequest extends ScheduledStatusesRequestBuilder {
 		$qb = $this->getScheduledSelectSql();
 		$qb->andWhere($qb->expr()->eq('ss.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
 
+		// one direction at a time, and the two that mean the same thing are
+		// the same cursor: Mastodon's `since_id` and `min_id` both ask for
+		// what follows
+		$after = ((int)$minId > 0) ? (int)$minId : $sinceId;
+		$backwards = ($maxId > 0 && $after < 1);
+
 		if ($maxId > 0) {
-			$qb->andWhere($qb->expr()->lt('ss.id', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+			$qb->andWhere($this->beyond($qb, $actorId, $maxId, false));
 		}
-		if ($minId > 0) {
-			$qb->andWhere($qb->expr()->gt('ss.id', $qb->createNamedParameter($minId, IQueryBuilder::PARAM_INT)));
-		}
-		if ($sinceId > 0) {
-			$qb->andWhere($qb->expr()->gt('ss.id', $qb->createNamedParameter($sinceId, IQueryBuilder::PARAM_INT)));
+		if ($after > 0) {
+			$qb->andWhere($this->beyond($qb, $actorId, $after, true));
 		}
 
-		$qb->orderBy('ss.scheduled_at', 'asc');
-		$qb->addOrderBy('ss.id', 'asc');
+		$qb->orderBy('ss.scheduled_at', $backwards ? 'desc' : 'asc');
+		$qb->addOrderBy('ss.id', $backwards ? 'desc' : 'asc');
 		$qb->setMaxResults($limit);
 
-		return $this->getScheduledFromRequest($qb);
+		$page = $this->getScheduledFromRequest($qb);
+
+		// read backwards to find the rows next to the cursor; handed back in
+		// the order the list is drawn in
+		return $backwards ? array_reverse($page) : $page;
+	}
+
+	/**
+	 * Everything ordered after (or before) the row a cursor names.
+	 *
+	 * `(scheduled_at, id)` compared as a pair, spelled out rather than as a
+	 * row constructor: `(a, b) > (c, d)` is standard SQL that MySQL and
+	 * PostgreSQL both understand and SQLite does not index, and this app
+	 * supports all three.
+	 *
+	 * A cursor that names no row of this account — one published or cancelled
+	 * between two pages, which for a *scheduled* post is an ordinary thing to
+	 * happen — has no pair to stand for. It falls back to comparing ids, which
+	 * is what this did for every cursor before and is at worst the old
+	 * behaviour for a case that used to be the only behaviour.
+	 */
+	private function beyond(
+		SocialQueryBuilder $qb,
+		string $actorId,
+		int $cursor,
+		bool $after,
+	): ICompositeExpression|string {
+		$id = $qb->createNamedParameter($cursor, IQueryBuilder::PARAM_INT);
+		$at = $this->scheduledAtOf($cursor, $actorId);
+
+		if ($at === null) {
+			return $after ? $qb->expr()->gt('ss.id', $id) : $qb->expr()->lt('ss.id', $id);
+		}
+
+		$time = $qb->createNamedParameter($at, IQueryBuilder::PARAM_DATE);
+
+		return $qb->expr()->orX(
+			$after ? $qb->expr()->gt('ss.scheduled_at', $time) : $qb->expr()->lt('ss.scheduled_at', $time),
+			$qb->expr()->andX(
+				$qb->expr()->eq('ss.scheduled_at', $time),
+				$after ? $qb->expr()->gt('ss.id', $id) : $qb->expr()->lt('ss.id', $id)
+			)
+		);
+	}
+
+	/** When the row a cursor names is due, or null where it names none. */
+	private function scheduledAtOf(int $id, string $actorId): ?DateTime {
+		$qb = $this->getQueryBuilder();
+		$qb->select('scheduled_at')
+			->from(self::TABLE_SCHEDULED)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
+
+		$cursor = $qb->executeQuery();
+		$at = $cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return ($at === false || $at === null || $at === '') ? null : new DateTime((string)$at);
 	}
 
 	/** How many posts the account has waiting, against Mastodon's total cap. */
