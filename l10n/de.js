@@ -109,6 +109,7 @@ OC.L10N.register(
     "New post" : "Neuer Post",
     "Errors" : "Fehler",
     "Settings" : "Einstellungen",
+    "Migration" : "Kontoumzug",
     "Reset local cache" : "Lokalen Cache zurücksetzen",
     "Help &amp; documentation" : "Hilfe &amp; Dokumentation",
     "Dismiss" : "Verwerfen",

@@ -99,13 +99,12 @@ describe('Settings', () => {
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Migration', 'Keyboard shortcuts', 'Delete your Social account'])
+			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Keyboard shortcuts', 'Delete your Social account'])
 	})
 
 	/**
-	 * Each section is linked to from somewhere, and the scheduled posts wore
-	 * the migration tools' id: `#migration` scrolled to the wrong section and
-	 * the tools it names had no anchor at all.
+	 * Each section is linked to from somewhere, and a section wearing another
+	 * one's id is a link that scrolls to the wrong place.
 	 */
 	it('gives each section the id that names it', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
@@ -116,7 +115,6 @@ describe('Settings', () => {
 			.attributes('id')
 
 		expect(idOf('Scheduled posts')).toBe('scheduled')
-		expect(idOf('Migration')).toBe('migration')
 		expect(idOf('Keyboard shortcuts')).toBe('shortcuts')
 	})
 
@@ -158,17 +156,41 @@ describe('Settings', () => {
 	})
 
 	/**
-	 * Migration used to be a page of its own with an entry in the account
-	 * menu. That menu is for places to read something; this is a thing you do
-	 * to the account, which is what Settings is for.
+	 * Migration is a page of its own, reached from the account menu.
+	 *
+	 * It was a section here, on the grounds that the account menu is for
+	 * places to read something and this is a thing you do to the account.
+	 * The other way round in the end: exporting an archive, importing one and
+	 * bringing a following list over from another network are each a job
+	 * somebody sits down to do, with a file manager open and another server in
+	 * the next tab — not a switch flipped while reading down a page of
+	 * switches, and not something to scroll past eleven of them to find.
 	 */
-	it('holds the migration tools', async () => {
+	it('leaves the migration tools to their own page', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 		await flushPromises()
 
-		expect(wrapper.findComponent(MigrationSettings).exists()).toBe(true)
-		// the section supplies the heading, so the panel no longer repeats it
-		expect(wrapper.findComponent(MigrationSettings).find('h2').exists()).toBe(false)
+		expect(wrapper.findComponent(MigrationSettings).exists()).toBe(false)
+		expect(wrapper.findAll('.settings__toc-link').map((link) => link.text()))
+			.not.toContain('Migration')
+	})
+
+	/**
+	 * `#migration` is what has been linked to and bookmarked for as long as it
+	 * was a section here. Sent on rather than ignored: landing on a settings
+	 * page with nothing highlighted is the one answer that says nothing.
+	 */
+	it('sends an old link to the migration section on to the page', async () => {
+		const replace = vi.fn()
+		mount(Settings, {
+			global: {
+				stubs: asyncStubs,
+				mocks: { $route: { hash: '#migration' }, $router: { replace } },
+			},
+		})
+		await flushPromises()
+
+		expect(replace).toHaveBeenCalledWith({ name: 'migration' })
 	})
 
 	/**
