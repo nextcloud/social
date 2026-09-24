@@ -90,8 +90,18 @@ class SearchService {
 	 * it walks up a thread.
 	 *
 	 * A post this instance already holds is returned without asking anybody.
+	 *
+	 * `$asViewer` decides whether that last sentence is subject to who is
+	 * asking, and it has to, because the two callers are asking different
+	 * questions. A reader pasting an address wants a post *they* may read, so
+	 * the search route passes `true`: without it, an address typed into the
+	 * search box answered with a followers-only or direct post the reader was
+	 * never sent — the content search above it is viewer-scoped and finds
+	 * nothing, which is exactly what makes this run. `RelayService` is asking
+	 * whether the *instance* already holds an object at all, on nobody's
+	 * behalf, and passes `false`.
 	 */
-	public function resolveStatus(string $uri): ?Stream {
+	public function resolveStatus(string $uri, bool $asViewer = false): ?Stream {
 		// `getTypeFromSearch()` is no use here: it answers SEARCH_ALL for plain
 		// text, and SEARCH_ALL has the URI bit set, so every search term would
 		// look like an address worth fetching
@@ -100,7 +110,7 @@ class SearchService {
 		}
 
 		try {
-			return $this->streamRequest->getStreamById($uri);
+			return $this->streamRequest->getStreamById($uri, $asViewer);
 		} catch (Exception $e) {
 		}
 
@@ -141,7 +151,7 @@ class SearchService {
 
 			AP::instance()->getInterfaceForItem($object)->save($object);
 
-			return $this->streamRequest->getStreamById($object->getId());
+			return $this->streamRequest->getStreamById($object->getId(), $asViewer);
 		} catch (Exception $e) {
 			$this->logger->info('could not resolve a post by its address', [
 				'uri' => $uri,
