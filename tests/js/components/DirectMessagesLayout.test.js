@@ -91,6 +91,19 @@ describe('DirectMessages layout', () => {
 		expect(padded.map((rule) => rule.media)).toEqual(['@media (min-width: 1025px)'])
 	})
 
+	// below 1024px the page starts under the navigation toggle; a height that
+	// ignored that ran the Send button off the bottom at every width there
+	it('takes the space the page leaves for the navigation toggle off its height', () => {
+		const root = css.find((rule) => rule.selector === '.direct-messages' && rule.media === '')
+		const timeline = rules(compiledStyle('src/views/Timeline.vue'))
+		const clearance = timeline.filter((rule) => /--social-toggle-clearance:/.test(rule.body))
+		const margin = timeline.find((rule) => rule.selector.startsWith('.social__wrapper > :first-child'))
+
+		expect(root.body).toMatch(/height:\s*calc\([^;]*- var\(--social-toggle-clearance, 0px\)\)/)
+		expect(clearance.map((rule) => rule.media)).toEqual(['@media (max-width: 1024px)'])
+		expect(margin.body).toMatch(/margin-top:\s*var\(--social-toggle-clearance\)/)
+	})
+
 	it('shows the list and the thread side by side down to 801px', () => {
 		const single = css.filter((rule) => rule.selector === '.direct-messages'
 			&& /grid-template-columns:\s*minmax\(0,\s*1fr\)/.test(rule.body))

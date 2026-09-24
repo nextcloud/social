@@ -1062,13 +1062,16 @@ export default {
 /*
  * No `min-height`: the panes scroll inside the height below, and a floor under
  * it only ever made the box taller than the viewport, which pushed the message
- * field off a short screen and scrolled the whole page instead.
+ * field off a short screen and scrolled the whole page instead. Below
+ * `$folded` the page starts under the navigation toggle (Timeline.vue), and
+ * that distance comes off the height too, or the Send button is below the
+ * bottom edge.
  */
 .direct-messages {
 	display: grid;
 	grid-template-columns: clamp(17.5rem, 23vw, 20rem) minmax(0, 1fr);
 	width: 100%;
-	height: calc(100dvh - var(--header-height, 50px) - 0.6rem);
+	height: calc(100dvh - var(--header-height, 50px) - 0.6rem - var(--social-toggle-clearance, 0px));
 	background: var(--color-main-background);
 }
 
