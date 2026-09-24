@@ -177,4 +177,32 @@ describe('TrendingLinks', () => {
 		expect(wrapper.find('img.links__image').exists()).toBe(false)
 		expect(wrapper.find('.links__image--blank').exists()).toBe(true)
 	})
+
+	/**
+	 * The answer was guarded against a window the reader had left and the
+	 * failure was not, so a slow window that failed put its message over a
+	 * ranking that had already arrived.
+	 */
+	it('does not put an old window\'s failure over the ranking on screen', async () => {
+		const wrapper = mountLinks()
+		await flushPromises()
+
+		let failDay
+		axios.get.mockImplementationOnce(() => new Promise((resolve, reject) => {
+			failDay = () => reject(new Error('busy'))
+		}))
+		wrapper.vm.load()
+		await flushPromises()
+
+		axios.get.mockResolvedValueOnce({ data: [link({ title: 'The newer one' })] })
+		wrapper.vm.period = '7d'
+		await wrapper.vm.load()
+		await flushPromises()
+
+		failDay()
+		await flushPromises()
+
+		expect(wrapper.vm.error).toBeNull()
+		expect(titles(wrapper)).toEqual(['The newer one'])
+	})
 })

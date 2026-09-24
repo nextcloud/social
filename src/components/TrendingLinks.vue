@@ -203,7 +203,12 @@ export default {
 				this.error = null
 			} catch (error) {
 				logger.error('Could not load the trending links', { error, period })
-				this.error = t('social', 'Could not load this. The server may be busy.')
+				// the same guard the answer above gets: a window that failed
+				// after the reader moved to another one would put its error
+				// over a ranking that had already arrived and is correct
+				if (period === this.period) {
+					this.error = t('social', 'Could not load this. The server may be busy.')
+				}
 			} finally {
 				if (period === this.period) {
 					this.loading = false

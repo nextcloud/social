@@ -312,4 +312,65 @@ describe('FediverseSearch', () => {
 		expect(wrapper.find('img.person__avatar').exists()).toBe(false)
 		expect(wrapper.find('.person__avatar--blank').text()).toBe('J')
 	})
+
+	/**
+	 * The question is the words *and* the directory they are asked of, and the
+	 * failure path was not guarded at all — so an abandoned search could empty
+	 * the results of the one on screen.
+	 */
+	describe('answers that arrive after the reader has moved on', () => {
+		it('does not let an older directory answer for the one chosen now', async () => {
+			const wrapper = mountSearch()
+
+			let answerEverywhere
+			axios.get.mockImplementationOnce(() => new Promise((resolve) => {
+				answerEverywhere = () => resolve({
+					data: { accounts: [{ id: '1', acct: 'from@everywhere', known: false, url: 'https://e/1' }], sources: [] },
+				})
+			}))
+			wrapper.vm.query = 'alice'
+			wrapper.vm.search(true)
+			await flushPromises()
+
+			// same words, another directory
+			axios.get.mockResolvedValueOnce({
+				data: { accounts: [{ id: '2', acct: 'from@chosen', known: false, url: 'https://c/2' }], sources: [] },
+			})
+			wrapper.vm.chosen = 'chosen.example'
+			await wrapper.vm.search(true)
+			await flushPromises()
+
+			expect(wrapper.vm.accounts.map((one) => one.acct)).toEqual(['from@chosen'])
+
+			answerEverywhere()
+			await flushPromises()
+
+			expect(wrapper.vm.accounts.map((one) => one.acct)).toEqual(['from@chosen'])
+		})
+
+		it('does not let an old failure empty the results on screen', async () => {
+			const wrapper = mountSearch()
+
+			let failFirst
+			axios.get.mockImplementationOnce(() => new Promise((resolve, reject) => {
+				failFirst = () => reject(new Error('busy'))
+			}))
+			wrapper.vm.query = 'alice'
+			wrapper.vm.search(true)
+			await flushPromises()
+
+			axios.get.mockResolvedValueOnce({
+				data: { accounts: [{ id: '3', acct: 'still@here', known: false, url: 'https://s/3' }], sources: [] },
+			})
+			wrapper.vm.query = 'alicia'
+			await wrapper.vm.search(true)
+			await flushPromises()
+
+			failFirst()
+			await flushPromises()
+
+			expect(wrapper.vm.accounts.map((one) => one.acct)).toEqual(['still@here'])
+			expect(wrapper.vm.loading).toBe(false)
+		})
+	})
 })

@@ -32,11 +32,19 @@ vi.mock('@nextcloud/l10n', () => ({
  * @param {object} overrides anything to change about the state
  * @return {object} a `this` for calling the component's methods against
  */
+/**
+ * A stand-in for the component's own `data()`, which is never called here.
+ * Every property the methods touch has to be listed: one that is missing is
+ * `undefined` rather than an error, and a counter compared against
+ * `undefined + 1` is `NaN === NaN` — false — which silently turns off the
+ * staleness guards instead of failing.
+ */
 function view(overrides = {}) {
 	return {
 		active: 'accounts',
 		loading: false,
 		error: null,
+		asked: 0,
 		posts: [],
 		tags: [],
 		accounts: [],
@@ -259,6 +267,61 @@ describe('Discover', () => {
 			await self.followPack.call(self, 'friends')
 
 			expect(self.followingPack).toBe('')
+		})
+	})
+
+	/**
+	 * `loading` and `error` are one pair shared by every tab, so a request the
+	 * reader has moved on from could put its spinner or its message over the
+	 * tab they moved to.
+	 */
+	describe('answers that arrive after the reader has moved on', () => {
+		// a whole turn of the event loop: a rejection handled inside an async
+		// method needs more than one microtask to reach its catch, and a single
+		// `Promise.resolve()` asserts before the state it is about to write
+		const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+		it('does not report an old tab\'s failure against the tab on screen', async () => {
+			const self = view()
+
+			let failAccounts
+			get.mockImplementationOnce(() => new Promise((resolve, reject) => {
+				failAccounts = () => reject(new Error('busy'))
+			}))
+			self.load.call(self, 'accounts')
+			await settle()
+
+			get.mockResolvedValueOnce([{ id: '1', acct: 'a@b.c' }])
+			await self.load.call(self, 'packs')
+			await settle()
+
+			failAccounts()
+			await settle()
+
+			expect(self.error).toBeNull()
+			expect(self.loading).toBe(false)
+		})
+
+		it('does not let a pack the reader has left take the open one off screen', async () => {
+			const self = view({ packs: [{ id: 'one', name: 'One' }, { id: 'two', name: 'Two' }] })
+
+			let failOne
+			get.mockImplementationOnce(() => new Promise((resolve, reject) => {
+				failOne = () => reject(new Error('busy'))
+			}))
+			self.loadPack.call(self, 'one')
+			await settle()
+
+			get.mockResolvedValueOnce({ data: { id: 'two', name: 'Two', accounts: [] } })
+			await self.loadPack.call(self, 'two')
+			await settle()
+
+			failOne()
+			await settle()
+
+			expect(self.openPack).not.toBeNull()
+			expect(self.openPack.id).toBe('two')
+			expect(self.error).toBeNull()
 		})
 	})
 })
