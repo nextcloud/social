@@ -35,6 +35,12 @@ use PHPUnit\Framework\TestCase;
  * the real DBAL's business, and the integration suite's.
  */
 class SquashedSchemaTest extends TestCase {
+	/**
+	 * The last moment the squash describes: 21 September 2026, when it was
+	 * written. A step dated after this was never subsumed by it.
+	 */
+	private const SQUASHED_THROUGH = '20260921000000';
+
 	/** @return array<string, object> the one dependency any step is constructed with */
 	private function stand(): array {
 		return [IAppConfig::class => $this->createStub(IAppConfig::class)];
@@ -89,17 +95,29 @@ class SquashedSchemaTest extends TestCase {
 	}
 
 	/**
-	 * The migrations that are left are the ones that move data.
+	 * Of the steps the squash subsumed, the ones left beside it move data.
 	 *
 	 * A schema can be squashed because it is a description of an end state. A
 	 * backfill cannot: it reads rows and rewrites them, and whether it has run
 	 * is not visible in the shape of the table it ran against. So a step that
-	 * only shapes tables belongs in the squash, and one that touches rows
-	 * cannot.
+	 * only shapes tables belonged in the squash, and one that touches rows
+	 * could not.
+	 *
+	 * **Only of the steps it subsumed.** The squash is already recorded as run
+	 * on every instance that has ever upgraded — it carries the version of the
+	 * initial step it replaced — so Nextcloud never runs it again there. A
+	 * table added to it would exist on fresh installs and on nobody else's
+	 * server. Anything written after it therefore needs a file of its own,
+	 * schema-only or not, and this rule stops at the cut-off rather than
+	 * forbidding every new table for ever.
 	 */
 	public function testOnlyTheStepsThatMoveDataAreLeftBesideIt(): void {
 		foreach (MigrationReplay::steps([Version1000Date20221118000002::class]) as $class) {
 			$name = substr($class, strrpos($class, '\\') + 1);
+			if ($this->writtenAfterTheSquash($name)) {
+				continue;
+			}
+
 			$source = (string)file_get_contents(dirname(__DIR__, 2) . '/lib/Migration/' . $name . '.php');
 
 			$this->assertMatchesRegularExpression(
@@ -108,5 +126,17 @@ class SquashedSchemaTest extends TestCase {
 				$name . ' only shapes tables, so it belongs in the squash rather than beside it'
 			);
 		}
+	}
+
+	/**
+	 * Whether a step is newer than the squash, and so is not one it subsumed.
+	 *
+	 * The squash's own name is a sort key rather than a date; this is the day
+	 * it was actually written, which is the line between what it replaced and
+	 * what came after.
+	 */
+	private function writtenAfterTheSquash(string $name): bool {
+		return preg_match('/Date(\d{14})$/', $name, $matches) === 1
+			&& $matches[1] > self::SQUASHED_THROUGH;
 	}
 }
