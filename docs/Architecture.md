@@ -567,7 +567,7 @@ A reply is forwarded only when all of this holds: it arrived with a **valid link
 
 An activity whose type this app does not implement is logged at `notice` with its type, activity id, object id, actor and origin, and answered `200 OK` so the sender does not redeliver it forever. It used to be discarded without a word, which made "posts from that instance never arrive" impossible to diagnose from this side.
 
-`Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied.
+`Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied. Nextcloud Social sends the same shape. The note row is removed under a guard on its type, which is `Question` for a poll and `Note` for everything else a post is stored as.
 
 An incoming `Block` targeting a local user is remembered as a `blocked_by` relation and severs the follow relationship in both directions; `Undo{Block}` lifts it. A `Follow` from an actor the target has blocked is answered with a `Reject`.
 
