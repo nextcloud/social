@@ -20,17 +20,43 @@
 				<p v-if="attachmentsOf(post) > 0" class="scheduled-posts__meta">
 					{{ n('social', '%n attachment', '%n attachments', attachmentsOf(post)) }}
 				</p>
-				<NcButton
-					variant="tertiary"
-					class="scheduled-posts__cancel"
-					:aria-label="t('social', 'Cancel this scheduled post')"
-					:title="t('social', 'Cancel this scheduled post')"
-					:disabled="cancelling.includes(post.id)"
-					@click="cancel(post)">
-					<template #icon>
-						<Close :size="20" />
-					</template>
-				</NcButton>
+				<div class="scheduled-posts__actions">
+					<NcButton
+						variant="tertiary"
+						class="scheduled-posts__reschedule"
+						:aria-label="t('social', 'Change the time of this scheduled post')"
+						:title="t('social', 'Change time')"
+						:aria-expanded="editing === post.id ? 'true' : 'false'"
+						:disabled="rescheduling || cancelling.includes(post.id)"
+						@click="toggleEditor(post)">
+						<template #icon>
+							<ClockEditOutline :size="20" />
+						</template>
+					</NcButton>
+					<NcButton
+						variant="tertiary"
+						class="scheduled-posts__cancel"
+						:aria-label="t('social', 'Cancel this scheduled post')"
+						:title="t('social', 'Cancel this scheduled post')"
+						:disabled="cancelling.includes(post.id)"
+						@click="cancel(post)">
+						<template #icon>
+							<Close :size="20" />
+						</template>
+					</NcButton>
+				</div>
+				<SchedulePicker
+					v-if="editing === post.id"
+					v-model="newTime"
+					class="scheduled-posts__editor">
+					<NcButton
+						variant="primary"
+						class="scheduled-posts__save"
+						:disabled="!canReschedule(post)"
+						@click="reschedule(post)">
+						{{ rescheduling ? t('social', 'Saving …') : t('social', 'Save') }}
+					</NcButton>
+				</SchedulePicker>
 			</li>
 		</ul>
 		<p v-else class="scheduled-posts__hint">
@@ -51,12 +77,16 @@ import { generateUrl } from '@nextcloud/router'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
+import ClockEditOutline from 'vue-material-design-icons/ClockEditOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
+import SchedulePicker from './Composer/SchedulePicker.vue'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
-import { showError } from '../services/toast.js'
+import { showError, showSuccess } from '../services/toast.js'
 import { fullDateTime } from '../utils/relativeTime.js'
+import { isTooSoon } from '../utils/schedule.js'
+import { isNewerId } from '../utils/snowflake.js'
 
 /**
  * How many to ask for at a time. An account may hold up to 300 waiting posts
@@ -70,17 +100,19 @@ const PAGE_SIZE = 50
  *
  * A section of Settings rather than a page of its own: the list is short —
  * an account may not hold more than 300 — and what is done with an entry is
- * one thing, cancelling it. Moving one to another time is left to the API
- * (`PUT /api/v1/scheduled_statuses/{id}`); the composer proposes a time
- * before the post exists, and a post written for the wrong time is written
- * again in the box, which still holds its draft.
+ * one of two things: moving it to another time, or cancelling it. What it
+ * says is not changed here; the API only ever moves a waiting post
+ * (`PUT /api/v1/scheduled_statuses/{id}`). The time is picked with the
+ * composer's own picker, so both are held to the same rules.
  */
 export default {
 	name: 'ScheduledPosts',
 	components: {
+		ClockEditOutline,
 		ClockOutline,
 		Close,
 		NcButton,
+		SchedulePicker,
 		VisibilityIcon,
 	},
 
@@ -95,6 +127,12 @@ export default {
 			hasMore: false,
 			/** the post-scheduled handler, kept so only this one is removed */
 			onScheduled: null,
+			/** @type {?string} the id whose time is being changed */
+			editing: null,
+			/** @type {?Date} the time picked for it */
+			newTime: null,
+			/** whether a new time is on its way to the server */
+			rescheduling: false,
 		}
 	},
 
@@ -202,6 +240,102 @@ export default {
 			return [...held, ...page.filter((post) => !seen.has(String(post.id)))]
 		},
 
+		/**
+		 * Opens the picker under an entry, starting from the time it has, or
+		 * closes it again.
+		 *
+		 * @param {object} post a ScheduledStatus
+		 */
+		toggleEditor(post) {
+			if (this.editing === post.id) {
+				this.editing = null
+				this.newTime = null
+
+				return
+			}
+
+			this.editing = post.id
+			this.newTime = new Date(post.scheduled_at)
+		},
+
+		/**
+		 * Whether Save would send anything worth sending: a time the server
+		 * accepts, and not the one the post already has.
+		 *
+		 * @param {object} post a ScheduledStatus
+		 * @return {boolean}
+		 */
+		canReschedule(post) {
+			return !this.rescheduling
+				&& !isTooSoon(this.newTime)
+				&& this.newTime.getTime() !== new Date(post.scheduled_at).getTime()
+		},
+
+		/**
+		 * Moves a post to the time picked, and it to its place in the list.
+		 *
+		 * The server has the last word — the daily cap is only known there —
+		 * so the entry is changed from its answer, and a refusal leaves it
+		 * as it was and the picker open to try another time.
+		 *
+		 * @param {object} post a ScheduledStatus
+		 */
+		async reschedule(post) {
+			if (!this.canReschedule(post)) {
+				return
+			}
+
+			this.rescheduling = true
+			try {
+				const { data } = await axios.put(
+					generateUrl('apps/social/api/v1/scheduled_statuses/' + post.id),
+					{ scheduled_at: this.newTime.toISOString() },
+				)
+				const moved = data && typeof data === 'object' && data.id !== undefined
+					? data
+					: { ...post, scheduled_at: this.newTime.toISOString() }
+				this.posts = this.place(this.posts.map((one) => (one.id === post.id ? moved : one)), moved)
+				this.editing = null
+				this.newTime = null
+				showSuccess(translate('social', 'Moved to {date}', { date: fullDateTime(moved.scheduled_at) }))
+			} catch (error) {
+				logger.error('Failed to reschedule a post', { error })
+				showError(error?.response?.data?.error || translate('social', 'Could not change the time of the scheduled post'))
+			} finally {
+				this.rescheduling = false
+			}
+		},
+
+		/**
+		 * The list in publication order again, after one entry moved.
+		 *
+		 * Ties go by id, as the server orders them. An entry moved past the
+		 * end of a list that has more behind it is taken off: its place is on
+		 * a page not loaded yet, and left last here it would be the cursor for
+		 * that page, which would then skip everything between its old time
+		 * and its new one.
+		 *
+		 * @param {object[]} posts the list, with the moved entry in it
+		 * @param {object} moved the entry that moved
+		 * @return {object[]}
+		 */
+		place(posts, moved) {
+			const sorted = [...posts].sort((a, b) => {
+				const diff = new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+				if (diff !== 0) {
+					return diff
+				}
+
+				return isNewerId(a.id, b.id) ? 1 : -1
+			})
+
+			if (this.hasMore && sorted.length > 1 && sorted.at(-1).id === moved.id) {
+				return sorted.slice(0, -1)
+			}
+
+			return sorted
+		},
+
 		/** @param {object} post the ScheduledStatus to take back */
 		async cancel(post) {
 			this.cancelling = [...this.cancelling, post.id]
@@ -241,7 +375,7 @@ export default {
 
 .scheduled-posts__item {
 	position: relative;
-	padding: 10px 52px 10px 12px;
+	padding: 10px 96px 10px 12px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius-large);
 	background: var(--color-background-hover);
@@ -273,9 +407,20 @@ export default {
 	color: var(--color-text-maxcontrast);
 }
 
-.scheduled-posts__cancel {
+.scheduled-posts__actions {
 	position: absolute;
 	inset-inline-end: 8px;
 	inset-block-start: 8px;
+	display: flex;
+	gap: 4px;
+}
+
+.scheduled-posts__editor {
+	// the actions column is beside the text, not beside the picker
+	margin-inline-end: -84px;
+}
+
+.scheduled-posts__save {
+	margin-inline-start: auto;
 }
 </style>

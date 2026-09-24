@@ -138,8 +138,11 @@ network hiccup.
 - **Send it later.** The clock button turns **Post** into **Schedule**: pick a
   time at least five minutes from now and the post waits on the server until
   then. What is waiting is listed under **Settings → Scheduled posts**, where
-  one can be cancelled; to move a post to another time, cancel it and write it
-  again.
+  one can be cancelled or moved: the clock beside an entry opens the same
+  picker at the time it has, and **Save** sends the new one. The five-minute
+  rule applies again, and so does the limit of 25 posts a day; a time the
+  server refuses leaves the post where it was, and the reason is shown.
+  What a waiting post says cannot be changed there.
 - **Replying and quoting.** **Reply** under a post opens the composer
   addressed to its author; **Quote** in a post's menu embeds it in yours. Only
   public and unlisted posts held by this server can be quoted, and the quoted

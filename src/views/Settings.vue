@@ -200,7 +200,7 @@ export default {
 					icon: 'IconScheduled',
 					component: 'ScheduledPosts',
 					title: t('social', 'Scheduled posts'),
-					lede: t('social', 'What you have written to be published later. Cancel one here; to change its time, write it again.'),
+					lede: t('social', 'What you have written to be published later. Move one to another time or cancel it here.'),
 				},
 				{
 					id: 'portfolio',
