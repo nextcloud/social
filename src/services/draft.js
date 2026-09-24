@@ -18,7 +18,30 @@
  * worth keeping.
  */
 
-const KEY = 'social.composer.draft'
+import { forgetUnscoped, userKey } from '../utils/browserStore.js'
+
+const NAME = 'social.composer.draft'
+
+/**
+ * The key a draft was kept under before drafts were scoped to an account.
+ * `localStorage` outlives a logout, so one account's unsent words were offered
+ * to the next account to sign in on the same computer. It is removed rather
+ * than adopted: there is no way to tell whose it was.
+ */
+const UNSCOPED_KEY = NAME
+
+/**
+ * What the draft is kept under, for whoever is signed in.
+ *
+ * Read at each call rather than once: the module is evaluated when the page
+ * loads, and the same page is not necessarily the same session by the time
+ * somebody is typing in it.
+ *
+ * @return {string} the key
+ */
+function key() {
+	return userKey(NAME)
+}
 
 /** a draft older than this is stale enough to be somebody else's day */
 const MAX_AGE_MS = 7 * 24 * 3600 * 1000
@@ -49,7 +72,7 @@ export function saveDraft({ text, spoilerText = '', visibility = '', postAs = ''
 	}
 
 	try {
-		window.localStorage.setItem(KEY, JSON.stringify({
+		window.localStorage.setItem(key(), JSON.stringify({
 			text,
 			spoilerText,
 			visibility,
@@ -74,7 +97,14 @@ export function saveDraft({ text, spoilerText = '', visibility = '', postAs = ''
 export function loadDraft() {
 	let raw
 	try {
-		raw = window.localStorage.getItem(KEY)
+		// signed out there is nothing to separate, and the two keys are the
+		// same one — forgetting it there would delete what is about to be read
+		const scoped = key()
+		if (scoped !== UNSCOPED_KEY) {
+			forgetUnscoped(UNSCOPED_KEY)
+		}
+
+		raw = window.localStorage.getItem(scoped)
 	} catch {
 		return null
 	}
@@ -117,7 +147,7 @@ export function loadDraft() {
  */
 export function clearDraft() {
 	try {
-		window.localStorage.removeItem(KEY)
+		window.localStorage.removeItem(key())
 		return true
 	} catch {
 		return false

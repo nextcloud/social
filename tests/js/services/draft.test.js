@@ -3,13 +3,28 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getCurrentUser } from '@nextcloud/auth'
 import { clearDraft, loadDraft, saveDraft } from '../../../src/services/draft.js'
 
+vi.mock('@nextcloud/auth', () => ({ getCurrentUser: vi.fn(() => null) }))
+
+/** The key used when nobody is signed in, which is also the key this app used
+ * to use for everybody. */
 const KEY = 'social.composer.draft'
+
+/**
+ * Signs somebody in for the rest of the test.
+ *
+ * @param {string} uid who
+ */
+function signedInAs(uid) {
+	getCurrentUser.mockReturnValue({ uid, displayName: uid, isAdmin: false })
+}
 
 describe('the composer draft', () => {
 	beforeEach(() => {
 		localStorage.clear()
+		getCurrentUser.mockReturnValue(null)
 	})
 
 	afterEach(() => {
@@ -106,5 +121,60 @@ describe('the composer draft', () => {
 		})
 
 		expect(loadDraft()).toBeNull()
+	})
+
+	// `localStorage` belongs to the origin, not to the session: it survives a
+	// logout, and every account signing in to this Nextcloud in this browser
+	// profile reads the same keys. An unsent draft is somebody's words.
+	describe('and whose it is', () => {
+		it('does not give one account the draft another one left behind', () => {
+			signedInAs('alice')
+			saveDraft({ text: 'the thing I have not said yet' })
+
+			signedInAs('bob')
+
+			expect(loadDraft()).toBeNull()
+		})
+
+		it('gives it back to the account that wrote it', () => {
+			signedInAs('alice')
+			saveDraft({ text: 'the thing I have not said yet' })
+
+			signedInAs('bob')
+			loadDraft()
+			signedInAs('alice')
+
+			expect(loadDraft()).toMatchObject({ text: 'the thing I have not said yet' })
+		})
+
+		it('does not clear one account\'s draft when another one posts', () => {
+			signedInAs('alice')
+			saveDraft({ text: 'alice is still writing' })
+
+			signedInAs('bob')
+			saveDraft({ text: 'bob is still writing' })
+			clearDraft()
+
+			signedInAs('alice')
+			expect(loadDraft()).toMatchObject({ text: 'alice is still writing' })
+		})
+
+		// Removed rather than adopted: there is no way to tell whose it was,
+		// and the account reading it is not necessarily the one that wrote it.
+		it('throws away a draft written before drafts were scoped', () => {
+			localStorage.setItem(KEY, JSON.stringify({ text: 'from before', savedAt: Date.now() }))
+			signedInAs('alice')
+
+			expect(loadDraft()).toBeNull()
+			expect(localStorage.getItem(KEY)).toBeNull()
+		})
+
+		// Signed out the two keys are one key, and forgetting the old one
+		// would delete what is about to be read.
+		it('still reads its own draft when nobody is signed in', () => {
+			saveDraft({ text: 'no session here' })
+
+			expect(loadDraft()).toMatchObject({ text: 'no session here' })
+		})
 	})
 })
