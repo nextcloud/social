@@ -55,7 +55,18 @@ class IndexChunkTest extends TestCase {
 		}
 	}
 
+	/**
+	 * Walks from this test's own rows rather than from the start of the table.
+	 *
+	 * The index is every post on the instance, so an empty database was being
+	 * assumed: on any instance with posts already on it the first chunk was
+	 * somebody else's rows and the counts meant nothing. Starting the walk
+	 * just below the first row written here asserts the same three properties
+	 * — ordered, exclusive of the cursor, no repeats — against rows the test
+	 * put there.
+	 */
 	public function testIndexChunksAreOrderedExclusiveAndDoNotRepeatRows(): void {
+		$written = [];
 		foreach (self::SUFFIXES as $index => $suffix) {
 			$note = new Note();
 			$note->setId($this->id($suffix))
@@ -65,16 +76,21 @@ class IndexChunkTest extends TestCase {
 				->setTo(Stream::CONTEXT_PUBLIC)
 				->setToArray([Stream::CONTEXT_PUBLIC]);
 			$this->streamRequest->save($note);
+			$written[] = $note->getNid();
 		}
 
-		$first = $this->streamRequest->getIndexChunk('0', 2);
+		sort($written);
+		$from = (string)($written[0] - 1);
+
+		$first = $this->streamRequest->getIndexChunk($from, 2);
 		$this->assertCount(2, $first);
 		$this->assertLessThan($first[1]['nid'], $first[0]['nid']);
 		$this->assertSame(32, strlen($first[0]['id_prim']));
+		$this->assertSame([$written[0], $written[1]], array_map('intval', array_column($first, 'nid')));
 
 		$second = $this->streamRequest->getIndexChunk($first[1]['nid'], 2);
-		$this->assertCount(1, $second);
+		$this->assertNotSame([], $second);
 		$this->assertGreaterThan($first[1]['nid'], $second[0]['nid']);
-		$this->assertSame([], $this->streamRequest->getIndexChunk($second[0]['nid'], 2));
+		$this->assertSame($written[2], (int)$second[0]['nid'], 'the cursor row came back a second time');
 	}
 }
