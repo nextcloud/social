@@ -653,6 +653,7 @@ occ social:fediverse list                  # the access list; bare, it prints th
 occ social:fediverse add <instance>        # block it (or allow it, in allow-list mode)
 occ social:fediverse remove <instance>
 occ social:fediverse import <csv_file>     # add reviewed CSV domains to a block list
+occ social:fediverse import <csv_file> --dry-run   # print what it would add, change nothing
 occ social:fediverse silence <instance>    # out of the public timelines, still followable
 ```
 
@@ -660,7 +661,16 @@ occ social:fediverse silence <instance>    # out of the public timelines, still 
 plain one-domain-per-line file, validates the complete file before changing
 anything, and adds the domains to the existing `all_but` block list. It refuses
 allow-list mode, does not fetch or enable a list on its own, and applies the
-normal audit and queued domain-purge behavior to every new entry. An
+normal audit and queued domain-purge behavior to every new entry.
+
+Every entry added queues a domain purge, which deletes what this instance holds
+of that server, so the import asks before it writes — `--no-interaction` skips
+the question, and `--dry-run` prints the domains and changes nothing. A row
+naming a single label (`com`, `localhost`) is refused, because an entry covers
+every subdomain of itself and one such row would block a whole top-level
+domain; so is a row naming this instance. That is not a public-suffix check:
+`co.uk` still passes, which is what `--dry-run` is for. Files over 8 MB are
+refused unread. An
 administrator can download and review a [The Bad Space CSV export](https://tweaking.thebad.space/exports)
 before importing it; the export source and moderation policy remain the
 administrator's choice.

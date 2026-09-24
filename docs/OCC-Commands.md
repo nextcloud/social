@@ -847,7 +847,7 @@ cron evicts it with its avatar; `occ config:app:set social cache_actor_days
 Inspect and change the Fediverse access list.
 
 ```
-php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
+php occ social:fediverse [-t|--type TYPE] [--dry-run] [-f|--force] [<action>] [<address>]
 ```
 
 | Argument | Required | Default | Description |
@@ -858,6 +858,8 @@ php occ social:fediverse [-t|--type TYPE] [<action>] [<address>]
 | Option | Value | Description |
 |--------|-------|-------------|
 | `-t`, `--type` | required | Set the access type. Only `all_but` (deny-list, the default) and `none_but` (allow-list) are accepted; anything else throws `invalid type` (`FediverseService::setAccessType()`). |
+| `--dry-run` | none | For `import`: read and validate the CSV, print the domains it would add, and change nothing. |
+| `-f`, `--force` | none | For `import`: skip the confirmation prompt. Required with `--no-interaction`; without it a non-interactive run prints `Refusing to run non-interactively without --force` and returns 1. |
 
 Passing `--type` **sets the type and exits** — the `action` argument is not executed
 in the same invocation (`Fediverse::typeAccess()` returns true and the command
@@ -870,7 +872,7 @@ command first prints the current access type and then runs the action:
 | `list` | Print `- Known address:` followed by the access list |
 | `add <address>` | Add the address to the list |
 | `remove <address>` | Remove the address from the list |
-| `import <csv_file>` | Read domains from the CSV's first column and add them to the existing `all_but` block list |
+| `import <csv_file>` | Read domains from the CSV's first column and add them to the existing `all_but` block list, after asking |
 | `test <address>` | Print `Authorized` or `Unauthorized` for that address |
 | `reset` | Empty the list |
 | `silence <address>` | Silence the instance: keep it out of the public, global and hashtag timelines |
@@ -879,9 +881,14 @@ command first prints the current access type and then runs the action:
 
 `import` accepts a first-column `#domain`/`domain` header or a plain
 one-domain-per-line file. It validates the entire file before mutation, skips
-duplicates, caps an import at 10,000 unique domains, and refuses allow-list
-mode. Each new domain receives the same audit entry and queued purge as an
-individual block. It does not fetch remote sources; review an export before
+duplicates, caps an import at 10,000 unique domains and the file at 8 MB, and
+refuses allow-list mode. Each new domain receives the same audit entry and
+queued purge as an individual block — which is why it asks before writing, and
+why `--dry-run` exists. A row naming a single label (`com`, `localhost`) is
+refused: an entry covers every subdomain of itself, so one such row would block
+a whole top-level domain. So is a row naming this instance. Neither is a
+public-suffix check — `co.uk` still passes — so read a file with `--dry-run`
+before applying it. It does not fetch remote sources; review an export before
 running it. An unknown action throws
 `specify action: add, remove, import, list, reset, silence, unsilence, silenced`.
 `silence` and `unsilence` without an address throw `specify an address to
