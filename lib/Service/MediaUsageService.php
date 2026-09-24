@@ -94,7 +94,8 @@ class MediaUsageService {
 				$kind = ($row['actor_local'] !== null || $this->looksLikeAvatar($row['id']))
 					? 'avatars' : 'attachments';
 
-				$host = ($side === 'remote') ? $this->hostOf((string)$row['id']) : '';
+				$host = ($side === 'remote')
+					? RemoteMediaQuotaService::chargedHost((string)$row['url'], (string)$row['id']) : '';
 				foreach ([$row['local_copy'], $row['resized_copy']] as $copy) {
 					$this->addCopy($usage, $side, $kind, $copy, $host);
 				}
@@ -216,13 +217,6 @@ class MediaUsageService {
 		if ($host !== '') {
 			$usage['domains'][$host] = ($usage['domains'][$host] ?? 0) + $size;
 		}
-	}
-
-	/** The host an address names, lower-cased, as the quota keys them. */
-	private function hostOf(string $id): string {
-		$host = parse_url($id, PHP_URL_HOST);
-
-		return is_string($host) ? strtolower($host) : '';
 	}
 
 	private function looksLocal(string $id): bool {

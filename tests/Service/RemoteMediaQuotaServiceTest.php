@@ -177,8 +177,27 @@ class RemoteMediaQuotaServiceTest extends TestCase {
 	public function testTheHostIsReadOffTheAddressAndLowerCased(): void {
 		$this->assertSame(
 			'remote.example',
-			$this->service->hostOf('https://Remote.Example/media/1.jpg')
+			RemoteMediaQuotaService::chargedHost('https://Remote.Example/media/1.jpg', '')
 		);
-		$this->assertSame('', $this->service->hostOf('not a url'));
+		$this->assertSame('', RemoteMediaQuotaService::chargedHost('not a url', 'neither'));
+	}
+
+	/**
+	 * An attachment without an id of its own is given one under this
+	 * instance's address; charged by that id, every such picture from every
+	 * server landed on this instance's own name, as one domain.
+	 */
+	public function testADocumentIsChargedToTheHostItsBytesCameFrom(): void {
+		$this->assertSame('social.b.example', RemoteMediaQuotaService::chargedHost(
+			'https://social.b.example/apps/social/media/0bef598f-ef65-4857-a108-b3766689b78c.jpeg',
+			'https://social.a.example/documents/g/1d2c3b4a-0000-4000-8000-000000000000'
+		));
+	}
+
+	public function testADocumentWithNoUrlIsChargedToTheHostOfItsId(): void {
+		$this->assertSame(
+			'remote.example',
+			RemoteMediaQuotaService::chargedHost('', 'https://remote.example/media/1')
+		);
 	}
 }

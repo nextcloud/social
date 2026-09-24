@@ -676,9 +676,6 @@ class OutboundFederationWireTest extends TestCase {
 	private function unlimitedDomainQuota(): \OCA\Social\Service\RemoteMediaQuotaService {
 		$quota = $this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class);
 		$quota->method('fits')->willReturn(true);
-		$quota->method('hostOf')->willReturnCallback(
-			static fn (string $url): string => (string)parse_url($url, PHP_URL_HOST)
-		);
 
 		return $quota;
 	}
