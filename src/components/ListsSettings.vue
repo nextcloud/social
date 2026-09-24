@@ -199,6 +199,7 @@ import ActorAvatar from './ActorAvatar.vue'
 import eventBus, { LISTS_CHANGED } from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { latestLoad } from '../utils/latestLoad.js'
 
 /** How long a pause in typing is before the search is asked. */
 const SEARCH_DELAY_MS = 250
@@ -268,6 +269,8 @@ export default {
 			results: [],
 			/** whether a search has been answered for the term in the box */
 			searched: false,
+			/** only the newest search may answer, whether it succeeds or fails */
+			searches: latestLoad(),
 		}
 	},
 
@@ -510,18 +513,24 @@ export default {
 
 		/** @param {string} term the trimmed search */
 		async runSearch(term) {
+			const isNewest = this.searches.begin()
+			// the box may have moved on while this was in flight, or a newer
+			// search for the same words may have been asked since
+			const answers = () => isNewest() && this.search.trim() === term
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), {
 					params: { search: term },
 				})
-				// the box may have moved on while this was in flight
-				if (this.search.trim() !== term) {
+				if (!answers()) {
 					return
 				}
 				this.results = (data?.result?.accounts ?? []).slice(0, 8)
 				this.searched = true
 			} catch (error) {
 				logger.error('The account search failed', { error })
+				if (!answers()) {
+					return
+				}
 				this.results = []
 				this.searched = true
 			}

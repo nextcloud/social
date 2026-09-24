@@ -207,6 +207,76 @@ describe('ListsSettings', () => {
 		expect(axios.post).toHaveBeenCalledWith(`${API}/lists/1/accounts`, { account_ids: [bob.id] })
 	})
 
+	describe('when searches overlap (#2335)', () => {
+		/**
+		 * @param {object} wrapper the mounted settings
+		 * @return {Promise<Function>} asks the search route, answering each call only when told
+		 */
+		async function openSearch(wrapper) {
+			await rowFor(wrapper, 'Book club').findAll('button').find((b) => b.text() === 'Members').trigger('click')
+			await flushPromises()
+			const calls = []
+			axios.get.mockImplementation(() => new Promise((resolve, reject) => calls.push({ resolve, reject })))
+
+			return (term) => {
+				wrapper.vm.search = term
+				wrapper.vm.runSearch(term)
+
+				return calls.at(-1)
+			}
+		}
+		const found = (name) => ({ data: { result: { accounts: [{ id: `https://remote.example/users/${name}`, account: `${name}@remote.example`, name }] } } })
+
+		it('keeps the newer answer when an older search fails last', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			const ask = await openSearch(wrapper)
+
+			const older = ask('al')
+			const newer = ask('bob')
+			newer.resolve(found('bob'))
+			await flushPromises()
+			older.reject(new Error('timed out'))
+			await flushPromises()
+
+			expect(wrapper.findAll('.lists-settings__result').map((hit) => hit.text())).toEqual([expect.stringContaining('bob')])
+			expect(wrapper.text()).not.toContain('Nobody by that name.')
+		})
+
+		it('lets only the newest of two asks for the same words own the answer', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			const ask = await openSearch(wrapper)
+
+			const first = ask('bob')
+			const retry = ask('bob')
+			retry.resolve(found('bob'))
+			await flushPromises()
+			first.reject(new Error('timed out'))
+			await flushPromises()
+
+			expect(wrapper.findAll('.lists-settings__result')).toHaveLength(1)
+
+			const again = ask('bob')
+			const last = ask('bob')
+			last.resolve(found('robert'))
+			await flushPromises()
+			again.resolve(found('bob'))
+			await flushPromises()
+
+			expect(wrapper.find('.lists-settings__result').text()).toContain('robert')
+		})
+
+		it('still says so when the newest search itself fails', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			const ask = await openSearch(wrapper)
+
+			ask('bob').reject(new Error('timed out'))
+			await flushPromises()
+
+			expect(wrapper.findAll('.lists-settings__result')).toHaveLength(0)
+			expect(wrapper.text()).toContain('Nobody by that name.')
+		})
+	})
+
 	it('takes somebody out of a list with the ids on the address', async () => {
 		const wrapper = await mountLists([list('1', 'Book club')])
 		axios.get.mockResolvedValue({ data: [bob] })
