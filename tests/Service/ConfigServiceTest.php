@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCP\Config\Exceptions\TypeConflictException;
 use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
 use OCP\IConfig;
@@ -496,5 +497,50 @@ class ConfigServiceTest extends TestCase {
 		$this->withAppValues([ConfigService::SOCIAL_SELF_SIGNED => '1']);
 
 		$this->assertFalse($this->service->requestOptions()['verify']);
+	}
+
+	/**
+	 * Nextcloud 32 gave stored settings a type, and the avatar app's `version`
+	 * is a number. Read as text it threw — out of `createActor()`, so making
+	 * an account answered 500 and every request needing an actor answered 401
+	 * after it.
+	 */
+	public function testANumberAnotherAppStoredIsReadAsANumber(): void {
+		$this->userConfig->method('getValueInt')
+			->with('alice', 'avatar', 'version')
+			->willReturn(7);
+		$this->userConfig->expects($this->never())->method('getValueString');
+
+		$this->assertSame(7, $this->service->getUserValueInt('version', 'alice', 'avatar'));
+	}
+
+	/**
+	 * And the same value is text on an older server, where asking for the
+	 * number throws instead. Both are live: this app supports three Nextcloud
+	 * versions at a time and the owning app decides when it changes.
+	 */
+	public function testAValueStoredAsTextIsStillRead(): void {
+		$this->userConfig->method('getValueInt')
+			->willThrowException(new TypeConflictException());
+		$this->userConfig->method('getValueString')
+			->with('alice', 'avatar', 'version')
+			->willReturn('7');
+
+		$this->assertSame(7, $this->service->getUserValueInt('version', 'alice', 'avatar'));
+	}
+
+	/** A value that is neither is worth no exception out of a page load. */
+	public function testAValueThatCanBeReadAsNeitherIsZero(): void {
+		$this->userConfig->method('getValueInt')->willThrowException(new TypeConflictException());
+		$this->userConfig->method('getValueString')->willThrowException(new TypeConflictException());
+
+		$this->assertSame(0, $this->service->getUserValueInt('version', 'alice', 'avatar'));
+	}
+
+	/** A bearer request has no session, so there is nobody to read one for. */
+	public function testNobodyHasNoSettings(): void {
+		$this->userConfig->expects($this->never())->method('getValueInt');
+
+		$this->assertSame(0, $this->service->getUserValueInt('version', '', 'avatar'));
 	}
 }

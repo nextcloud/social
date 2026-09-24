@@ -13,6 +13,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TPathTools;
+use OCP\Config\Exceptions\TypeConflictException;
 use OCP\Config\IUserConfig;
 use OCP\IAppConfig;
 use OCP\IConfig;
@@ -568,6 +569,44 @@ class ConfigService {
 		}
 
 		return $this->userConfig->getValueString($userId, $app, $key, (string)$defaultValue);
+	}
+
+	/**
+	 * A user setting another app owns, as the number it holds.
+	 *
+	 * Nextcloud 32 gave stored settings a type, and reading one back as
+	 * anything else throws. Which type a value has is the owning app's
+	 * business and changes between versions — the avatar app's `version` is a
+	 * number on a current server and was text on an older one — so this asks
+	 * for the number, and falls back to reading the text and converting it.
+	 *
+	 * Without it, reading that one value threw out of `createActor()`, so
+	 * making an account answered 500, and every request that needed an actor —
+	 * which is all of them — answered 401 after it.
+	 *
+	 * @param string $key the setting
+	 * @param string $userId whose
+	 * @param string $app which app owns it
+	 *
+	 * @return int the value, or 0 where there is none
+	 */
+	public function getUserValueInt(string $key, string $userId, string $app): int {
+		if ($userId === '') {
+			return 0;
+		}
+
+		try {
+			return $this->userConfig->getValueInt($userId, $app, $key);
+		} catch (TypeConflictException) {
+			// stored as text on this version
+		}
+
+		try {
+			return (int)$this->userConfig->getValueString($userId, $app, $key);
+		} catch (TypeConflictException) {
+			// stored as something this cannot be read as at all
+			return 0;
+		}
 	}
 
 	/**
