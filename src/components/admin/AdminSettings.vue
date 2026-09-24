@@ -88,6 +88,7 @@
 								v-else-if="card.id === 'access'"
 								:accessType="state.accessType"
 								:addresses="state.accessList" />
+							<BlocklistSection v-else-if="card.id === 'blocklist'" @changed="onListChanged" />
 							<RelaysSection v-else-if="card.id === 'relays'" />
 							<ServerSection v-else-if="card.id === 'server'" :settings="state.server" />
 						</div>
@@ -103,6 +104,7 @@ import { loadState } from '@nextcloud/initial-state'
 import { translate as t } from '@nextcloud/l10n'
 import { currentSection, scrollToSection, watchSections } from '../../services/sectionRail.js'
 import AccessSection from './AccessSection.vue'
+import BlocklistSection from './BlocklistSection.vue'
 import ActivitySection from './ActivitySection.vue'
 import AccountsSection from './AccountsSection.vue'
 import AnnouncementsSection from './AnnouncementsSection.vue'
@@ -167,6 +169,7 @@ export default {
 
 	components: {
 		AccessSection,
+		BlocklistSection,
 		ActivitySection,
 		AccountsSection,
 		AnnouncementsSection,
@@ -253,6 +256,7 @@ export default {
 						{ id: 'federation', title: t('social', 'Federation health') },
 						{ id: 'background', title: t('social', 'Background work') },
 						{ id: 'access', title: t('social', 'Fediverse access') },
+						...(administrator ? [{ id: 'blocklist', title: t('social', 'Block lists') }] : []),
 						...(administrator ? [{ id: 'relays', title: t('social', 'Relays') }] : []),
 					],
 				},
@@ -285,6 +289,20 @@ export default {
 
 	methods: {
 		t,
+
+		/**
+		 * The access list after a block list was applied.
+		 *
+		 * The two cards read the same list, so the one above has to be told
+		 * rather than left showing what it read when the page opened.
+		 *
+		 * @param {string[]|undefined} list the addresses now on it
+		 */
+		onListChanged(list) {
+			if (Array.isArray(list)) {
+				this.state = { ...this.state, accessList: list }
+			}
+		},
 
 		/**
 		 * Follows a rail link without leaving the page.

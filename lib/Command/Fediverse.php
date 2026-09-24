@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
+use InvalidArgumentException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Service\BlocklistImportService;
 use OCA\Social\Service\FediverseService;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
@@ -42,7 +44,10 @@ class Fediverse extends SocialCommand {
 	private ?InputInterface $input = null;
 	private ?OutputInterface $output = null;
 
-	public function __construct(FediverseService $fediverseService) {
+	public function __construct(
+		FediverseService $fediverseService,
+		private BlocklistImportService $importService,
+	) {
 		parent::__construct();
 		$this->fediverseService = $fediverseService;
 	}
@@ -209,10 +214,21 @@ class Fediverse extends SocialCommand {
 	}
 
 	/**
-	 * Import the domain column from a CSV export into an administrator's
-	 * existing block list. No external list is fetched or enabled implicitly.
+	 * Import a published block list into an administrator's existing one.
+	 *
+	 * The reading and the applying are `BlocklistImportService`, which the
+	 * admin page and the subscriptions use as well: a list imported by hand
+	 * and the same list subscribed to must not turn out to have been read
+	 * differently.
+	 *
+	 * Fail-closed, unlike a subscription: this is a file the administrator
+	 * chose, so a row that names no instance is something to look at rather
+	 * than something to skip past.
 	 */
 	private function importAddresses(string $filePath, bool $dryRun): int {
+		// before the file is read at all: an allow list is the list of servers
+		// this one talks to, and importing somebody's block list into it would
+		// be the opposite of what it says
 		if ($this->fediverseService->getAccessType() !== 'all_but') {
 			$this->output->writeln('<error>CSV imports require blocklist mode (all_but); the access mode was not changed.</error>');
 
@@ -226,103 +242,83 @@ class Fediverse extends SocialCommand {
 		}
 
 		$size = filesize($filePath);
-		if ($size === false || $size > self::MAX_IMPORT_BYTES) {
+		if ($size === false || $size > BlocklistImportService::MAX_BYTES) {
 			$this->output->writeln(
-				'<error>The CSV is larger than ' . (self::MAX_IMPORT_BYTES / 1024 / 1024)
+				'<error>The CSV is larger than ' . intdiv(BlocklistImportService::MAX_BYTES, 1024 * 1024)
 				. ' MB. Nothing was read.</error>'
 			);
 
 			return 1;
 		}
 
-		try {
-			$file = new \SplFileObject($filePath, 'r');
-		} catch (\RuntimeException $e) {
-			$this->output->writeln('<error>Could not open the CSV file: ' . $e->getMessage() . '</error>');
+		$body = file_get_contents($filePath);
+		if ($body === false) {
+			$this->output->writeln('<error>Could not open the CSV file.</error>');
 
 			return 1;
 		}
 
-		$domains = [];
-		$firstRecord = true;
-		$recordNumber = 0;
-		while (!$file->eof()) {
-			$row = $file->fgetcsv(',', '"', '');
-			if ($row === false || (count($row) === 1 && trim((string)$row[0]) === '')) {
-				continue;
-			}
+		try {
+			$read = $this->importService->parse($body, BlocklistImportService::FORMAT_CSV);
+		} catch (InvalidArgumentException $e) {
+			$this->output->writeln('<error>' . $e->getMessage() . '. No domains were imported.</error>');
 
-			$recordNumber++;
-			$domain = trim($row[0] ?? '');
-			if ($firstRecord) {
-				$domain = preg_replace('/^\xEF\xBB\xBF/', '', $domain) ?? $domain;
-				$firstRecord = false;
-				if (in_array(strtolower($domain), ['#domain', 'domain', 'host', 'hostname'], true)) {
-					continue;
-				}
-			}
-
-			if ($domain === '' || str_starts_with($domain, '#')) {
-				continue;
-			}
-
-			$domain = rtrim(strtolower($domain), '.');
-			if (!$this->isImportableDomain($domain)) {
-				$this->output->writeln(
-					'<error>Invalid domain in CSV record ' . $recordNumber
-					. ' (' . $domain . '). No domains were imported.</error>'
-				);
-
-				return 1;
-			}
-
-			if ($this->fediverseService->isLocal($domain)) {
-				$this->output->writeln(
-					'<error>CSV record ' . $recordNumber . ' is this instance (' . $domain
-					. '). No domains were imported.</error>'
-				);
-
-				return 1;
-			}
-
-			$domains[$domain] = true;
-			if (count($domains) > self::MAX_IMPORT_DOMAINS) {
-				$this->output->writeln(
-					'<error>The CSV contains more than ' . self::MAX_IMPORT_DOMAINS
-					. ' unique domains. No domains were imported.</error>'
-				);
-
-				return 1;
-			}
+			return 1;
 		}
 
-		if ($domains === []) {
+		if ($read['rejected'] !== []) {
+			$this->output->writeln(
+				'<error>These rows name no instance this list can hold — a top-level'
+				. ' domain, a name with no dot in it, or this instance itself: '
+				. implode(', ', $read['rejected']) . '. No domains were imported.</error>'
+			);
+
+			return 1;
+		}
+
+		if ($read['entries'] === []) {
 			$this->output->writeln('<error>The CSV did not contain any domains.</error>');
 
 			return 1;
 		}
 
 		if ($dryRun) {
+			try {
+				$would = $this->importService->apply($read['entries'], true);
+			} catch (InvalidArgumentException $e) {
+				$this->output->writeln('<error>' . $e->getMessage() . '</error>');
+
+				return 1;
+			}
+
 			$this->output->writeln(
-				'<info>' . count($domains) . ' domains would be imported. Nothing was changed.</info>'
+				'<info>' . $would['blocked'] . ' domains would be blocked and '
+				. $would['silenced'] . ' silenced. Nothing was changed.</info>'
 			);
-			foreach (array_keys($domains) as $domain) {
-				$this->output->writeln('  ' . $domain);
+			foreach ($read['entries'] as $domain => $severity) {
+				$this->output->writeln('  ' . $domain . ' (' . $severity . ')');
 			}
 
 			return 0;
 		}
 
-		if (!$this->confirmImport(count($domains))) {
+		if (!$this->confirmImport(count($read['entries']))) {
 			$this->output->writeln('<comment>Nothing was imported.</comment>');
 
 			return 1;
 		}
 
-		$imported = $this->fediverseService->addAddresses(array_keys($domains));
-		$alreadyListed = count($domains) - $imported;
+		try {
+			$applied = $this->importService->apply($read['entries']);
+		} catch (InvalidArgumentException $e) {
+			$this->output->writeln('<error>' . $e->getMessage() . '</error>');
+
+			return 1;
+		}
+
 		$this->output->writeln(
-			'<info>Imported ' . $imported . ' domains; ' . $alreadyListed
+			'<info>Blocked ' . $applied['blocked'] . ' domains and silenced '
+			. $applied['silenced'] . '; ' . ($applied['alreadyBlocked'] + $applied['alreadySilenced'])
 			. ' were already listed. Review the source policy before each import.</info>'
 		);
 
@@ -375,29 +371,6 @@ class Fediverse extends SocialCommand {
 				false
 			)
 		);
-	}
-
-	/**
-	 * Whether a row names a host this list can sensibly hold.
-	 *
-	 * At least two labels, because an entry covers itself *and everything
-	 * under it* — `isListed()` matches a suffix — so a single-label row in a
-	 * published list refuses a whole top-level domain. `com` in a reviewed CSV
-	 * would have blocked every `.com` server this instance has ever met and
-	 * queued a purge for each; `localhost` and `intranet` got in the same way.
-	 *
-	 * Two labels is not the same as a public-suffix check: `co.uk` still
-	 * passes, and no list of suffixes ships with this app. `--dry-run` is
-	 * there so an admin reads what a file holds before it is applied.
-	 */
-	private function isImportableDomain(string $domain): bool {
-		if ($domain === '' || strlen($domain) > 253 || !str_contains($domain, '.')) {
-			return false;
-		}
-
-		$label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
-
-		return preg_match('/^(?:' . $label . ')(?:\.(?:' . $label . '))+$/D', $domain) === 1;
 	}
 
 	/**

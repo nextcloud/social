@@ -108,6 +108,16 @@ class ConfigService {
 	public const SOCIAL_SILENCED_LIST = 'silenced_list';
 
 	/**
+	 * The published block lists this instance subscribes to, as JSON.
+	 *
+	 * One object per source: its id, where it is fetched from, which format it
+	 * is in, whether it is on, and what the last run did. Empty until an admin
+	 * turns one on — a server's moderation is its own, and adopting somebody
+	 * else's is a decision that has to be made rather than inherited.
+	 */
+	public const SOCIAL_BLOCKLIST_SOURCES = 'blocklist_sources';
+
+	/**
 	 * Whether an ActivityPub GET must be signed to be answered.
 	 *
 	 * Mastodon's secure mode. Off by default, and deliberately: turning it on
@@ -395,6 +405,7 @@ class ConfigService {
 		self::SOCIAL_RETENTION_DAYS => '0',
 		self::SOCIAL_CACHE_ACTOR_DAYS => '180',
 		self::SOCIAL_SILENCED_LIST => '[]',
+		self::SOCIAL_BLOCKLIST_SOURCES => '[]',
 		self::SOCIAL_SECURE_MODE => '0',
 		self::SOCIAL_PUBLISH_BLOCKS => '0',
 		self::SOCIAL_REVIEW_FIRST_POST => '0',

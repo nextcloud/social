@@ -19,6 +19,8 @@ use OCA\Social\Model\Report;
 use OCA\Social\Model\Strike;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
+use OCA\Social\Service\BlocklistImportService;
+use OCA\Social\Service\BlocklistSubscriptionService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
@@ -47,6 +49,8 @@ class ModerationControllerTest extends TestCase {
 	private HashtagService|MockObject $hashtagService;
 	private EmojiService|MockObject $emojiService;
 	private \OCP\IUserSession|MockObject $userSession;
+	private BlocklistImportService|MockObject $blocklistImportService;
+	private BlocklistSubscriptionService|MockObject $blocklistSubscriptionService;
 	private AccountService|MockObject $accountService;
 	private ModerationController $controller;
 
@@ -77,6 +81,8 @@ class ModerationControllerTest extends TestCase {
 		$this->hashtagService = $this->createMock(HashtagService::class);
 		$this->emojiService = $this->createMock(EmojiService::class);
 
+		$this->blocklistImportService = $this->createMock(BlocklistImportService::class);
+		$this->blocklistSubscriptionService = $this->createMock(BlocklistSubscriptionService::class);
 		$this->controller = new ModerationController(
 			$this->createMock(IRequest::class),
 			$this->reportService,
@@ -91,7 +97,9 @@ class ModerationControllerTest extends TestCase {
 			$this->trendReviewService,
 			$this->hashtagService,
 			$this->emojiService,
-			$this->userSession
+			$this->userSession,
+			$this->blocklistImportService,
+			$this->blocklistSubscriptionService
 		);
 
 		$this->adminApiService->method('accountPage')->willReturnCallback(

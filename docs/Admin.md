@@ -663,6 +663,43 @@ anything, and adds the domains to the existing `all_but` block list. It refuses
 allow-list mode, does not fetch or enable a list on its own, and applies the
 normal audit and queued domain-purge behavior to every new entry.
 
+The same import is on the admin page under **Block lists**, with a file picker
+and a preview: it reads the file, says how many servers it would block and how
+many it would silence, and changes nothing until the button under that number
+is pressed. The page and the command run the same code, so a list imported one
+way cannot turn out to have been read differently the other.
+
+**Following a published list.** The same section offers two sources, both off
+until an administrator turns one on:
+
+| Source | What it is |
+|--------|------------|
+| `mastodon.social` | that server's own moderated-servers list, through Mastodon's `/api/v1/instance/domain_blocks` |
+| `thebad.space` | a shared list rather than one server's, as a CSV export by how many of its participating servers agree. The default is `/80`: what eighty per cent of them block |
+
+A Mastodon server answers `/api/v1/instance/domain_blocks` only where its
+administrators turned publishing on, and most have not — which is why one such
+server is offered rather than a row of them. Point either source at another
+server's endpoint to follow that one instead; a server that does not publish
+answers "that server did not hand over a list" rather than failing.
+
+A followed source is re-read once a day by `OCA\Social\Cron\BlocklistSync`.
+**Check now** reads one immediately; for a source that is off it reports what
+following it *would* do, which is how to read a list before adopting it.
+
+Turning a source off stops it being re-read. It does not undo what it already
+applied: a block purges what this instance held of that server, and that does
+not come back.
+
+**Severity is honoured.** A row marked `suspend` blocks the server; a row
+marked `silence` silences it — out of the public, global and hashtag timelines,
+still followable — and a row marked `noop` does nothing. Reading the column and
+blocking everything would delete what this instance holds of servers the source
+merely limits: of mastodon.social's 276 entries, 30 are silences, and of The
+Bad Space's 200 at the 80% threshold, 2 are. A list with no severity column is
+a list of blocks, which is what a bare one-domain-per-line file has always
+meant here.
+
 Every entry added queues a domain purge, which deletes what this instance holds
 of that server, so the import asks before it writes — `--no-interaction` skips
 the question, and `--dry-run` prints the domains and changes nothing. A row
