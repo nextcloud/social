@@ -13,16 +13,19 @@ use OCA\Social\Command\Fediverse;
 use OCA\Social\Service\FediverseService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
 
 class FediverseTest extends TestCase {
 	private FediverseService|MockObject $fediverseService;
+	private Fediverse $command;
 	private CommandTester $tester;
 	private string $csvPath;
 
 	protected function setUp(): void {
 		$this->fediverseService = $this->createMock(FediverseService::class);
-		$this->tester = new CommandTester(new Fediverse($this->fediverseService));
+		$this->command = new Fediverse($this->fediverseService);
+		$this->tester = new CommandTester($this->command);
 		$csvPath = tempnam(sys_get_temp_dir(), 'social-fediverse-');
 		if ($csvPath === false) {
 			$this->fail('Could not create the temporary CSV fixture.');
@@ -46,7 +49,7 @@ class FediverseTest extends TestCase {
 			->with(['first.example', 'second.example'])
 			->willReturn(2);
 
-		$this->assertSame(0, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath]));
+		$this->assertSame(0, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
 		$this->assertStringContainsString('Imported 2 domains; 0 were already listed.', $this->tester->getDisplay());
 	}
 
@@ -55,7 +58,7 @@ class FediverseTest extends TestCase {
 		$this->fediverseService->method('getAccessType')->willReturn('all_but');
 		$this->fediverseService->expects($this->never())->method('addAddresses');
 
-		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath]));
+		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
 		$this->assertStringContainsString('No domains were imported.', $this->tester->getDisplay());
 	}
 
@@ -64,7 +67,7 @@ class FediverseTest extends TestCase {
 		$this->fediverseService->method('getAccessType')->willReturn('none_but');
 		$this->fediverseService->expects($this->never())->method('addAddresses');
 
-		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath]));
+		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
 		$this->assertStringContainsString('access mode was not changed', $this->tester->getDisplay());
 	}
 
@@ -73,7 +76,128 @@ class FediverseTest extends TestCase {
 		$this->fediverseService->method('getAccessType')->willReturn('all_but');
 		$this->fediverseService->expects($this->never())->method('addAddresses');
 
-		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath]));
+		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
 		$this->assertStringContainsString('did not contain any domains', $this->tester->getDisplay());
+	}
+
+	/**
+	 * A single-label row blocks a whole top-level domain.
+	 *
+	 * An entry covers itself and everything under it — `isListed()` matches a
+	 * suffix — so `com` in a reviewed third-party list refuses every `.com`
+	 * server this instance has ever met, and queues a purge for each.
+	 */
+	public function testASingleLabelRowIsRefusedBeforeAnythingIsWritten(): void {
+		file_put_contents($this->csvPath, "#domain\nfirst.example\ncom\n");
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
+		$this->assertStringContainsString('No domains were imported.', $this->tester->getDisplay());
+	}
+
+	public function testABareHostnameWithNoDotIsRefusedToo(): void {
+		file_put_contents($this->csvPath, "#domain\nlocalhost\n");
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
+	}
+
+	/** Blocking your own instance is not a policy, it is an accident. */
+	public function testThisInstancesOwnHostIsRefused(): void {
+		file_put_contents($this->csvPath, "#domain\nfirst.example\ncloud.example.org\n");
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->method('isLocal')
+			->willReturnCallback(fn (string $domain): bool => $domain === 'cloud.example.org');
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
+		$this->assertStringContainsString('this instance', $this->tester->getDisplay());
+	}
+
+	/**
+	 * The unique cap is reached by parsing the whole file, so a file of any
+	 * size at all was read row by row before it could be refused.
+	 */
+	public function testAnOversizedFileIsNotReadAtAll(): void {
+		file_put_contents($this->csvPath, "#domain\n" . str_repeat("padding.example\n", 600_000));
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
+		$this->assertStringContainsString('larger than', $this->tester->getDisplay());
+	}
+
+	/**
+	 * Every domain added queues a `DomainPurge`, which deletes what this
+	 * instance holds of that server. Reading the list first is the point.
+	 */
+	public function testADryRunPrintsWhatItWouldAddAndChangesNothing(): void {
+		file_put_contents($this->csvPath, "#domain\nfirst.example\nsecond.example\n");
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$this->assertSame(0, $this->tester->execute([
+			'action' => 'import', 'address' => $this->csvPath, '--dry-run' => true,
+		]));
+
+		$display = $this->tester->getDisplay();
+		$this->assertStringContainsString('2 domains would be imported', $display);
+		$this->assertStringContainsString('first.example', $display);
+		$this->assertStringContainsString('Nothing was changed', $display);
+	}
+
+	/** And answering no at the prompt writes nothing either. */
+	public function testAnsweringNoImportsNothing(): void {
+		file_put_contents($this->csvPath, "#domain\nfirst.example\n");
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$application = new Application();
+		$application->add($this->command);
+		$tester = new CommandTester($this->command);
+		$tester->setInputs(['no']);
+
+		$this->assertSame(1, $tester->execute(
+			['action' => 'import', 'address' => $this->csvPath],
+			['interactive' => true]
+		));
+		$this->assertStringContainsString('Nothing was imported.', $tester->getDisplay());
+	}
+
+	/**
+	 * A script that has not said --force is told so, rather than being handed
+	 * a "nothing happened" it cannot tell from success.
+	 */
+	public function testANonInteractiveRunWithoutForceRefuses(): void {
+		file_put_contents($this->csvPath, "#domain\nfirst.example\n");
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$application = new Application();
+		$application->add($this->command);
+		$tester = new CommandTester($this->command);
+
+		$this->assertSame(1, $tester->execute(
+			['action' => 'import', 'address' => $this->csvPath],
+			['interactive' => false]
+		));
+		$this->assertStringContainsString('without --force', $tester->getDisplay());
+	}
+
+	public function testANonInteractiveRunWithForceImports(): void {
+		file_put_contents($this->csvPath, "#domain\nfirst.example\n");
+		$this->fediverseService->method('getAccessType')->willReturn('all_but');
+		$this->fediverseService->expects($this->once())->method('addAddresses')->willReturn(1);
+
+		$application = new Application();
+		$application->add($this->command);
+		$tester = new CommandTester($this->command);
+
+		$this->assertSame(0, $tester->execute(
+			['action' => 'import', 'address' => $this->csvPath, '--force' => true],
+			['interactive' => false]
+		));
 	}
 }
