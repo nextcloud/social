@@ -270,7 +270,7 @@ class PixelfedServiceTest extends TestCase {
 
 		$this->assertSame(self::CAROL, $this->service->resolveAccount('@carol@remote.example')->getId());
 	}
-	private function directPost(int $nid, string $author, string $html, int $published): Note {
+	private function directPost(int|string $nid, string $author, string $html, int $published): Note {
 		$post = new Note();
 		$post->setNid($nid);
 		$post->setAttributedTo($author);
@@ -279,6 +279,33 @@ class PixelfedServiceTest extends TestCase {
 		$post->setVisibility(Stream::TYPE_DIRECT);
 
 		return $post;
+	}
+
+	/**
+	 * A nid is compared as the number it is, whichever type it arrives as.
+	 *
+	 * Asserted rather than assumed: a bug report held that `<=>` on two nids
+	 * read as strings compares them character by character. It does not — PHP
+	 * compares two integer-like strings numerically, exactly and at any
+	 * length — and this is here so that a change to how these are held does
+	 * not quietly reorder a conversation.
+	 */
+	public function testAThreadIsOrderedByTheNumberANidIsAndNotByItsText(): void {
+		$bob = $this->person(self::BOB, 7);
+		$bob->setLocal(true);
+		$this->cacheActorService->method('resolve')->willReturn($bob);
+		$this->streamRequest->method('directBetween')->willReturn([
+			$this->directPost('9000000000000000000', self::BOB, '<p>later</p>', 1_700_000_100),
+			$this->directPost('10000000000000000000', self::ALICE, '<p>latest</p>', 1_700_000_200),
+			$this->directPost('900000000000000000', self::BOB, '<p>earliest</p>', 1_700_000_000),
+		]);
+
+		$thread = $this->service->thread($this->person(self::ALICE), '7');
+
+		$this->assertSame(
+			['900000000000000000', '9000000000000000000', '10000000000000000000'],
+			array_column($thread['messages'], 'id')
+		);
 	}
 
 	/** The other party on top, the messages oldest first, each saying whose it is. */

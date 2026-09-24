@@ -21,10 +21,12 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -98,7 +100,11 @@ class HistoryControllerTest extends TestCase {
 				$this->streamViewer = $viewer;
 			});
 		$this->streamService->method('getStreamByNid')
-			->willReturnCallback(function (int $nid): Note {
+			->willReturnCallback(function (int|string $nid): Note {
+				// what the real one does with a `{nid}` that is not a decimal
+				// number: Nid::normalize() refuses it
+				Nid::normalize($nid);
+
 				if (!isset($this->statuses[$nid])) {
 					throw new StreamNotFoundException('Stream not found');
 				}
@@ -224,6 +230,31 @@ class HistoryControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 		$this->assertSame(['error' => 'Record not found'], $response->getData());
+	}
+
+	/**
+	 * A `{nid}` that is not a number names no post, which is the same answer
+	 * as naming one that is not there. `Nid::normalize()` throws on it, and
+	 * unmapped that came out as a 500 — this server saying it had broken over
+	 * a request that was simply wrong.
+	 *
+	 * @param string $nid what the client put in the path
+	 */
+	#[DataProvider('idsThatAreNotNids')]
+	public function testAnIdThatIsNotANumberIsNotFound(string $nid): void {
+		$response = $this->controller()->history($nid);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame(['error' => 'Record not found'], $response->getData());
+	}
+
+	public static function idsThatAreNotNids(): array {
+		return [
+			'letters' => ['abc'],
+			'empty' => [''],
+			'negative' => ['-1'],
+			'a decimal point' => ['1.5'],
+		];
 	}
 
 	/** The viewer is given to the stream layer, which is what filters on it. */
