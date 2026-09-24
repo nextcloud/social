@@ -261,14 +261,60 @@ describe('DirectMessages', () => {
 		expect(wrapper.vm.messageText).toBe('')
 	})
 
-	it('keeps one inbox row per person even when the API returns duplicate threads', async () => {
+	// A conversation is a thread, and two people can have several: the server
+	// defines one by its thread root and hands that root's id back. Rows used
+	// to be keyed by the other participant instead, so a second exchange with
+	// somebody was dropped on the floor — unreachable, unread and all.
+	it('keeps a second conversation with the same person as its own row', async () => {
 		get.mockResolvedValueOnce({ data: [
 			structuredClone(conversation),
-			{ ...structuredClone(conversation), id: '11', unread: false },
+			{ ...structuredClone(conversation), id: '11' },
 		] })
 		const wrapper = mountMessages()
 		await flushPromises()
+
+		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(2)
+	})
+
+	it('keeps an unread second thread with the same person reachable', async () => {
+		get.mockResolvedValueOnce({ data: [
+			{ ...structuredClone(conversation), unread: false },
+			{ ...structuredClone(conversation), id: '11', unread: true },
+		] })
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		await wrapper.findAll('.direct-messages__conversation')[1].trigger('click')
+		expect(wrapper.emitted('select').at(-1)).toEqual(['11'])
+	})
+
+	// Group threads collided the same way, on whichever member happened to be
+	// listed first.
+	it('keeps group conversations sharing their first participant apart', async () => {
+		const carol = { id: 'https://remote.example/users/carol', acct: 'carol@remote.example', display_name: 'Carol' }
+		get.mockResolvedValueOnce({ data: [
+			{ ...structuredClone(conversation), id: '20', accounts: [bob, carol] },
+			{ ...structuredClone(conversation), id: '21', accounts: [bob] },
+		] })
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(2)
+	})
+
+	// The reason the collapsing existed: paging is by message, so a thread
+	// with messages either side of the cursor is built twice. That is the same
+	// id twice, and merging it is still right.
+	it('merges the same conversation returned by two overlapping pages', async () => {
+		get.mockResolvedValueOnce({ data: [
+			structuredClone(conversation),
+			{ ...structuredClone(conversation), unread: false },
+		] })
+		const wrapper = mountMessages()
+		await flushPromises()
+
 		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(1)
+		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(true)
 	})
 
 	it('shows an empty state when there are no conversations', async () => {
@@ -278,6 +324,78 @@ describe('DirectMessages', () => {
 
 		expect(wrapper.find('.direct-messages__inbox-empty').text()).toContain('No conversations yet')
 		expect(wrapper.find('.direct-messages__thread-panel--empty').text()).toContain('Choose a conversation or find someone to message')
+	})
+
+	// The four inbox states are one chain, and a failed removal is not one of
+	// them: it is something that happened to a conversation, so it belongs
+	// above the chain rather than inside it. Put inside, it broke the chain in
+	// two and each half decided on its own.
+	it('keeps the inbox on screen when removing a conversation fails', async () => {
+		remove.mockRejectedValueOnce(new Error('offline'))
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.find('.native-actions button').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__state[role="alert"]').text()).toContain('Could not remove conversation')
+		expect(wrapper.find('.direct-messages__conversation').exists()).toBe(true)
+	})
+
+	it('does not offer to start a first conversation while the inbox is still loading', async () => {
+		get.mockImplementation(() => new Promise(() => {}))
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__state[role="status"]').text()).toContain('Loading conversations…')
+		expect(wrapper.find('.direct-messages__inbox-empty').exists()).toBe(false)
+	})
+
+	// Forty conversations and no way to reach the forty-first. The cursor has
+	// to come from the `Link` header: it is a message nid, and a conversation
+	// id is its thread root, which does not move when a message arrives.
+	it('loads older conversations using the cursor the server sent', async () => {
+		get.mockResolvedValueOnce({
+			data: [structuredClone(conversation)],
+			headers: { link: '</index.php/apps/social/api/v1/conversations?limit=40&max_id=99>; rel="next"' },
+		})
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		const older = wrapper.find('.direct-messages__more button')
+		expect(older.text()).toContain('Load older conversations')
+
+		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), id: '7' }] })
+		await older.trigger('click')
+		await flushPromises()
+
+		// not "last": the recipient suggestions load on their own schedule
+		expect(get).toHaveBeenCalledWith(
+			'/index.php/apps/social/api/v1/conversations',
+			{ params: { limit: 40, max_id: '99' } },
+		)
+		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(2)
+		expect(wrapper.find('.direct-messages__more').exists()).toBe(false)
+	})
+
+	it('offers nothing older when the server sent no next cursor', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__more').exists()).toBe(false)
+	})
+
+	// Pasting a profile link is how one person sends another a profile, and
+	// the account search looks at the account column, not at URLs — so without
+	// asking for it to be resolved the box finds nobody at all.
+	it('resolves a pasted profile link', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.vm.searchAccounts('https://remote.example/@bob')
+
+		expect(get).toHaveBeenLastCalledWith(
+			'/index.php/apps/social/api/v1/accounts/search',
+			{ params: { q: 'https://remote.example/@bob', limit: 8, resolve: true } },
+		)
 	})
 
 	it('keeps failed read markers from hiding a loaded thread', async () => {
