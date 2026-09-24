@@ -310,12 +310,14 @@ php occ social:timeline [--local] [--min_id MIN] [--max_id MAX] [--since SINCE] 
 | Option | Value | Default | Description |
 |--------|-------|---------|-------------|
 | `--local` | none | off | Restrict to local content |
-| `--min_id` | required | `0` | Pagination bound |
-| `--max_id` | required | `0` | Pagination bound |
-| `--since` | required | `0` | Unix timestamp bound |
+| `--min_id` | required | `0` | Pagination bound: a status id (`nid`); rows newer than it |
+| `--max_id` | required | `0` | Pagination bound: a status id (`nid`); rows older than it |
+| `--since` | required | `0` | Pagination bound: a status id (`nid`); rows newer than it |
 | `--limit` | required | `5` | Number of items |
 | `--account` | required | `''` | A **local** account, resolved with `CacheActorService::getFromLocalAccount()`; used as the account filter |
 | `--crop` | required | `0` | Truncate the printed content to N characters (`0` = no cropping) |
+
+The three bounds are taken as the decimal strings they are typed as, so a status id wider than a PHP integer is not rounded; one that is not a decimal integer fails with `--<option> must be a status id`.
 
 Supported `timeline` values (the `switch` in `StreamRequest::getTimeline()`):
 
