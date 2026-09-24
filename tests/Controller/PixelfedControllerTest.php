@@ -385,4 +385,22 @@ class PixelfedControllerTest extends TestCase {
 		$this->assertCount(1, $response->getData());
 		$this->assertArrayNotHasKey('Link', $response->getHeaders());
 	}
+
+	/**
+	 * A post id wider than a PHP int reaches the service as the string it
+	 * was sent as: typed `int`, the framework would have clamped it to
+	 * PHP_INT_MAX and named somebody in a different post.
+	 */
+	public function testThePhotoTagRoutesKeepAWidePostIdExact(): void {
+		$wide = '92233720368547758070';
+		$this->mediaTagService->expects($this->once())->method('tag')
+			->with($this->isInstanceOf(Person::class), $this->identicalTo($wide), ['bob@cloud.example'])
+			->willReturn([]);
+		$this->mediaTagService->expects($this->once())->method('untag')
+			->with($this->isInstanceOf(Person::class), $this->identicalTo($wide))
+			->willReturn(true);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->composeTag($wide, ['bob@cloud.example'])->getStatus());
+		$this->assertSame(Http::STATUS_OK, $this->controller()->composeUntagMe($wide)->getStatus());
+	}
 }

@@ -355,7 +355,7 @@ class PixelfedController extends ClientApiController {
 	#[UserRateLimit(limit: 60, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag')]
 	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag', postfix: 'pf')]
-	public function composeTag(int $status_id = 0, array $accounts = []): DataResponse {
+	public function composeTag(int|string $status_id = 0, array $accounts = []): DataResponse {
 		try {
 			$this->initViewer(['write:statuses']);
 
@@ -380,7 +380,7 @@ class PixelfedController extends ClientApiController {
 	#[UserRateLimit(limit: 60, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag/untagme')]
 	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag/untagme', postfix: 'pf')]
-	public function composeUntagMe(int $status_id = 0): DataResponse {
+	public function composeUntagMe(int|string $status_id = 0): DataResponse {
 		try {
 			$this->initViewer(['write:statuses']);
 

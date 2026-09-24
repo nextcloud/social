@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use OCA\Social\Tools\Nid;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -19,6 +20,9 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  *
  * Two reads, and an index for each: the people in one post (or in a page of
  * them, which is the same query over a list), and the posts one person is in.
+ *
+ * `stream_id` is the post's nid, so it is bound as its decimal string, never
+ * as a PHP int: see `Nid`.
  *
  * @package OCA\Social\Db
  */
@@ -46,10 +50,10 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	 *
 	 * @return bool whether this was new
 	 */
-	public function tag(int $streamId, string $streamPrim, string $actorId, string $taggerId): bool {
+	public function tag(int|string $streamId, string $streamPrim, string $actorId, string $taggerId): bool {
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_MEDIA_TAGS)
-			->setValue('stream_id', $qb->createNamedParameter($streamId, IQueryBuilder::PARAM_INT))
+			->setValue('stream_id', $qb->createNamedParameter(Nid::normalize($streamId), IQueryBuilder::PARAM_STR))
 			->setValue('stream_id_prim', $qb->createNamedParameter($streamPrim))
 			->setValue('actor_id', $qb->createNamedParameter($actorId))
 			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
@@ -70,10 +74,10 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	}
 
 	/** Takes one name off one post. */
-	public function untag(int $streamId, string $actorId): bool {
+	public function untag(int|string $streamId, string $actorId): bool {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_MEDIA_TAGS)
-			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter($streamId, IQueryBuilder::PARAM_INT)))
+			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter(Nid::normalize($streamId), IQueryBuilder::PARAM_STR)))
 			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
 
 		return $qb->executeStatement() > 0;
@@ -116,7 +120,7 @@ class MediaTagsRequest extends CoreRequestBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->func()->count('*'), 'total')
 			->from(self::TABLE_MEDIA_TAGS)
-			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter($streamId, IQueryBuilder::PARAM_INT)))
+			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter(Nid::normalize($streamId), IQueryBuilder::PARAM_STR)))
 			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
 
 		$cursor = $qb->executeQuery();
@@ -126,11 +130,11 @@ class MediaTagsRequest extends CoreRequestBuilder {
 		return (int)($data['total'] ?? 0) > 0;
 	}
 
-	public function countForStream(int $streamId): int {
+	public function countForStream(int|string $streamId): int {
 		$qb = $this->getQueryBuilder();
 		$qb->selectAlias($qb->func()->count('*'), 'total')
 			->from(self::TABLE_MEDIA_TAGS)
-			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter($streamId, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter(Nid::normalize($streamId), IQueryBuilder::PARAM_STR)));
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -145,7 +149,7 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	 * Ids only: which of them the reader may actually see is a question about
 	 * posts, and it is answered by the query that reads them.
 	 *
-	 * @return int[]
+	 * @return string[]
 	 */
 	public function streamsFor(string $actorId, int $limit = 40, int|string $maxId = '0'): array {
 		$qb = $this->getQueryBuilder();
@@ -155,14 +159,15 @@ class MediaTagsRequest extends CoreRequestBuilder {
 			->orderBy('stream_id', 'desc')
 			->setMaxResults(max(1, min($limit, self::MAX_PAGE)));
 
-		if ($maxId > 0) {
-			$qb->andWhere($qb->expr()->lt('stream_id', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		// a cursor that is not a nid bounds nothing
+		if (ctype_digit((string)$maxId) && Nid::compare($maxId, '0') > 0) {
+			$qb->andWhere($qb->expr()->lt('stream_id', $qb->createNamedParameter(Nid::normalize($maxId), IQueryBuilder::PARAM_STR)));
 		}
 
 		$ids = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$ids[] = (int)$data['stream_id'];
+			$ids[] = Nid::normalize((string)$data['stream_id']);
 		}
 		$cursor->closeCursor();
 
@@ -170,10 +175,10 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	}
 
 	/** Every name on one post, for a deletion. */
-	public function deleteByStream(int $streamId): void {
+	public function deleteByStream(int|string $streamId): void {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_MEDIA_TAGS)
-			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter($streamId, IQueryBuilder::PARAM_INT)));
+			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter(Nid::normalize($streamId), IQueryBuilder::PARAM_STR)));
 
 		$qb->executeStatement();
 	}
