@@ -20,7 +20,7 @@ on:
       - stable*
 
 concurrency:
-  group: psalm-${{ github.head_ref || github.run_id }}
+  group: psalm-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
