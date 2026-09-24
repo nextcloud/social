@@ -35,6 +35,33 @@ class MediaRecover extends SocialCommand {
 			->addOption('limit', '', InputOption::VALUE_REQUIRED, 'maximum posts to examine (0 means all)', '0');
 	}
 
+	/**
+	 * The attachments a stored post's source names.
+	 *
+	 * ActivityPub writes one attachment either as a list of one or as the
+	 * object on its own, and both are on the wire. Only the list was read, so
+	 * a post whose sender sent the single form was passed over in silence --
+	 * not counted, not reported, and left without its picture by the command
+	 * whose whole job is to give it back.
+	 *
+	 * @param string $source the post as its sender sent it
+	 *
+	 * @return array<mixed> the attachments, always as a list
+	 */
+	private function attachmentsOf(string $source): array {
+		$decoded = json_decode($source, true);
+		if (!is_array($decoded)) {
+			return [];
+		}
+
+		$items = $decoded['attachment'] ?? [];
+		if (!is_array($items) || $items === []) {
+			return [];
+		}
+
+		return array_is_list($items) ? $items : [$items];
+	}
+
 	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
 		$dryRun = (bool)$input->getOption('dry-run');
@@ -42,6 +69,7 @@ class MediaRecover extends SocialCommand {
 		$examined = 0;
 		$affected = 0;
 		$recovered = 0;
+		$skipped = 0;
 		$failed = 0;
 		$after = '0';
 
@@ -57,9 +85,8 @@ class MediaRecover extends SocialCommand {
 			foreach ($page as $row) {
 				$after = $row['nid'];
 				$examined++;
-				$source = json_decode($row['source'], true);
-				$items = is_array($source) ? ($source['attachment'] ?? []) : [];
-				if (!is_array($items) || !array_is_list($items) || $items === []) {
+				$items = $this->attachmentsOf($row['source']);
+				if ($items === []) {
 					continue;
 				}
 				$affected++;
@@ -85,6 +112,15 @@ class MediaRecover extends SocialCommand {
 					if ($this->streamRequest->setRecoveredRemoteAttachments($row['id'], $encoded, $row['subtype'])) {
 						$recovered++;
 						$output->writeln('<info>Recovered ' . count($attachments) . ' attachment(s): ' . $row['id'] . '</info>');
+					} else {
+						// the write only touches a post whose attachments are
+						// still empty, so nothing changed means somebody else
+						// filled them while this was running -- an import, a
+						// redelivery. Not a failure, but not nothing either:
+						// unsaid, the summary read "1 affected, 0 recovered, 0
+						// failed" and there was no way to tell that from a bug.
+						$skipped++;
+						$output->writeln('<comment>Already filled, left alone: ' . $row['id'] . '</comment>');
 					}
 				} catch (Throwable $e) {
 					$failed++;
@@ -93,7 +129,10 @@ class MediaRecover extends SocialCommand {
 			}
 		}
 
-		$output->writeln($affected . ' affected post(s), ' . $recovered . ' recovered, ' . $failed . ' failed');
+		$output->writeln(
+			$affected . ' affected post(s), ' . $recovered . ' recovered, '
+			. $skipped . ' already filled, ' . $failed . ' failed'
+		);
 
 		return $failed === 0 ? 0 : 1;
 	}
