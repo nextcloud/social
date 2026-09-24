@@ -97,11 +97,18 @@ class SocialPubController extends Controller {
 			$actor = $this->cacheActorService->getFromAccount($username, false);
 		} catch (CacheActorDoesNotExistException|ActorDoesNotExistException $e) {
 			// A remote profile need not already be in this instance's actor
-			// cache. Let the public app shell resolve a well-formed federated
-			// handle through the rate-limited account-info API; do not WebFinger
-			// it as part of this anonymous HTML request.
-			if ($this->userId === null && $this->isFederatedHandle($username)) {
-				return $this->publicPage($username);
+			// cache. Let the client resolve a well-formed federated handle
+			// through the rate-limited account-info API; nothing is
+			// WebFingered as part of this HTML request, whoever is asking.
+			//
+			// Whoever is asking: a guest got the page and somebody signed in
+			// got a 404 for the same handle, which is the wrong way round
+			// twice over — a reader with an account is the one who can follow
+			// what they find there.
+			if ($this->isFederatedHandle($username)) {
+				return ($this->userId === null)
+					? $this->publicPage($username)
+					: $this->navigationController->navigate();
 			}
 
 			// both, because which one comes back depends on how far the lookup
@@ -138,10 +145,19 @@ class SocialPubController extends Controller {
 		return $page;
 	}
 
+	/**
+	 * Whether this names an account on another server well enough to try.
+	 *
+	 * The host needs a dot and may not carry a port. A fediverse handle never
+	 * has one — WebFinger is asked of the host — and accepting them turned
+	 * this route into a way for anybody at all to have the server render a
+	 * page for `someone@10.0.0.5:8080`, one host and port at a time. A host
+	 * with no dot at all (`localhost`, an intranet name) went the same way.
+	 */
 	private function isFederatedHandle(string $username): bool {
 		$handle = ltrim($username, '@');
 
-		return preg_match('/^[A-Za-z0-9_.-]+@[A-Za-z0-9][A-Za-z0-9.-]*(?::[0-9]{1,5})?$/D', $handle) === 1;
+		return preg_match('/^[A-Za-z0-9_.-]+@[A-Za-z0-9][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+$/D', $handle) === 1;
 	}
 
 	/**

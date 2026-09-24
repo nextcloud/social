@@ -236,6 +236,49 @@ class SocialPubControllerTest extends TestCase {
 		$this->assertSame(['public' => true], $this->states['serverData']);
 	}
 
+	/**
+	 * And so does a reader with an account.
+	 *
+	 * A guest opening a handle this instance has never cached got the page and
+	 * somebody signed in got a 404 for the same one, which is the wrong way
+	 * round twice over: the reader with an account is the one who can follow
+	 * what they find there. The client resolves the handle either way.
+	 */
+	public function testAnUnknownRemoteProfileLoadsTheAppForALoggedInReaderToo(): void {
+		$this->unknownActor();
+
+		$response = $this->controller('alice')->actor('nextcloud@mastodon.xyz');
+
+		$this->assertSame($this->app, $response);
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
+	/**
+	 * A fediverse handle has a host with a dot in it and no port: WebFinger is
+	 * asked of the host. Accepting a port made this route a way for anybody at
+	 * all to have the server render a page for `someone@10.0.0.5:8080`, one
+	 * host and port at a time.
+	 *
+	 * @param string $handle what was asked for
+	 */
+	#[DataProvider('handlesThatAreNotFederated')]
+	public function testAHandleThatNamesNoFediverseHostIsANotFoundPage(string $handle): void {
+		$this->unknownActor();
+
+		$response = $this->controller(null)->actor($handle);
+
+		$this->assertNotFoundGuestPage($response, 'Account not found');
+	}
+
+	public static function handlesThatAreNotFederated(): array {
+		return [
+			'a port' => ['someone@remote.tld:8080'],
+			'an address and a port' => ['someone@10.0.0.5:8080'],
+			'no dot' => ['someone@localhost'],
+			'an intranet name' => ['someone@intranet'],
+		];
+	}
+
 	#[DataProvider('publicPages')]
 	public function testPublicPagesReportUnexpectedLookupFailures(string $page): void {
 		$this->cacheActorService->method('getFromAccount')->with('alice')->willThrowException(new \RuntimeException('db down'));

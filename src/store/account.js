@@ -305,7 +305,10 @@ export const useAccountStore = defineStore('account', {
 		},
 		async fetchAccountInfo(account) {
 			try {
-				const response = await axios.get(generateUrl(`apps/social/api/v1/global/account/info?account=${account}`))
+				const response = await axios.get(
+					generateUrl('apps/social/api/v1/global/account/info'),
+					{ params: { account } },
+				)
 				this.addAccount({ actorId: response.data.url, data: response.data })
 				return response.data
 			} catch (error) {
@@ -373,7 +376,7 @@ export const useAccountStore = defineStore('account', {
 		},
 		async fetchPublicAccountInfo(uid) {
 			try {
-				const response = await axios.get(generateUrl(`apps/social/api/v1/account/${uid}/info`))
+				const response = await axios.get(generateUrl(`apps/social/api/v1/account/${encodeURIComponent(uid)}/info`))
 				this.addAccount({ actorId: response.data.url, data: response.data })
 				return response.data
 			} catch (error) {

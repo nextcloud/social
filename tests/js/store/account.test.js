@@ -233,9 +233,23 @@ describe('account store actions', () => {
 
 			const result = await store.fetchAccountInfo(bob.acct)
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/global/account/info?account=bob@remote.tld`)
+			expect(axios.get).toHaveBeenCalledWith(`${API}/global/account/info`, { params: { account: 'bob@remote.tld' } })
 			expect(result).toEqual(bob)
 			expect(store.getAccount(bob.acct)).toEqual(bob)
+		})
+
+		// A handle is somebody else's text. Interpolated into the query string
+		// it took the request apart: everything after a '&' or a '#' in it
+		// became another parameter, or nothing at all.
+		it('lets the request builder escape what was typed', async () => {
+			axios.get.mockResolvedValue({ data: bob })
+
+			await store.fetchAccountInfo('we&you#me@remote.tld')
+
+			expect(axios.get).toHaveBeenCalledWith(
+				`${API}/global/account/info`,
+				{ params: { account: 'we&you#me@remote.tld' } },
+			)
 		})
 
 		it('records an app error instead of throwing when the lookup fails', async () => {
@@ -261,6 +275,14 @@ describe('account store actions', () => {
 			expect(axios.get).toHaveBeenCalledWith(`${API}/account/alice/info`)
 			expect(result).toEqual(alice)
 			expect(store.getAccount(ALICE)).toEqual(alice)
+		})
+
+		it('escapes a uid before putting it in the path', async () => {
+			axios.get.mockResolvedValue({ data: alice })
+
+			await store.fetchPublicAccountInfo('a/b c')
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/account/a%2Fb%20c/info`)
 		})
 
 		it('records an app error naming the uid when the lookup fails', async () => {
@@ -305,7 +327,7 @@ describe('account store actions', () => {
 		await flushPromises()
 
 		expect(store.currentAccountHandle).toBe(ALICE)
-		expect(axios.get).toHaveBeenCalledWith(`${API}/global/account/info?account=${ALICE}`)
+		expect(axios.get).toHaveBeenCalledWith(`${API}/global/account/info`, { params: { account: ALICE } })
 		expect(store.currentAccount).toEqual(alice)
 	})
 
