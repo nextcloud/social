@@ -177,9 +177,9 @@ a style question rather than debt: the components are consistent with each other
 
 **The JSDoc typedefs are checked.** `jsconfig.json` runs `checkJs` over the
 types, services, stores and utilities, and `npm run typecheck` is a script.
-Single-file components are outside it, because `tsc` cannot resolve a `.vue`
-import without `vue-tsc` and every entry point imports one — that is the next
-step here, and it needs a dependency rather than a decision.
+The single-file components are checked by `vue-tsc` in the same script, against
+a baseline of the errors they already had (`tests/js/typecheck-baseline.json`):
+new ones fail, and the baseline shrinks as files are fixed.
 
 **Four ESLint rules are switched off**, in two pairs, and `eslint.config.mjs`
 says why next to each. Sorting imports and named imports (247 reports) detaches
@@ -435,7 +435,7 @@ sixty when twenty survive the check.
 
 1. Collapse the two cache-actor joins, with a database to check against.
 2. Finish the l10n round trip — a Transifex round trip, not a code change.
-3. `vue-tsc`, so the single-file components are type-checked too.
+3. The `vue-tsc` baseline, down to zero.
 4. PHPUnit 12, which means `createMock` -> `createStub` across the suite.
 5. Web Push and a streaming API, so mobile clients stop polling.
 

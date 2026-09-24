@@ -1357,8 +1357,10 @@ The reader's own account travels the same way. `NavigationController::provideVie
 
 The Mastodon and ActivityPub entities the app exchanges are described as JSDoc
 typedefs in `src/types/`, and `npm run typecheck` holds the stores, services and
-utilities to them (`jsconfig.json`). Single-file components are outside that
-check: `tsc` cannot resolve a `.vue` import without `vue-tsc`.
+utilities to them (`jsconfig.json`). The same script runs `vue-tsc` over the
+whole of `src/`, single-file components included (`jsconfig.vue.json`), and
+fails on any error not in the committed baseline, `tests/js/typecheck-baseline.json`
+(`tools/typecheck.mjs`).
 
 Each store is installed per Pinia instance rather than per module registration, which is the difference that matters for tests — two Pinias give two sets of state, where the Vuex modules shared one object literal between them.
 
