@@ -13,17 +13,24 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\InstancePath;
+use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\StatisticsService;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 class StatisticsServiceTest extends TestCase {
 	private const ALICE = 'https://cloud.example/apps/social/@alice';
+	private const BOB = 'https://remote.example/users/bob';
+	private const CAROL = 'https://remote.example/users/carol';
 
 	private StreamRequest|MockObject $streamRequest;
 	private FollowsRequest|MockObject $followsRequest;
@@ -36,11 +43,17 @@ class StatisticsServiceTest extends TestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		// a cache that keeps nothing, so each test counts rather than reading
+		// what the one before it left behind
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('createDistributed')->willReturn($this->createMock(ICache::class));
+
 		$this->service = new StatisticsService(
 			$this->streamRequest,
 			$this->followsRequest,
 			$this->createMock(AccountService::class),
 			$this->cacheActorsRequest,
+			$cacheFactory,
 		);
 	}
 
@@ -71,6 +84,30 @@ class StatisticsServiceTest extends TestCase {
 		$post->setHashtags($values['hashtags'] ?? []);
 		if ($values['media'] ?? false) {
 			$post->setAttachments([new MediaAttachment()]);
+		}
+		if (isset($values['images'])) {
+			$attachments = [];
+			foreach ($values['images'] as $description) {
+				$image = new MediaAttachment();
+				$image->setType('image')->setDescription((string)$description);
+				$attachments[] = $image;
+			}
+			$post->setAttachments($attachments);
+		}
+		if (isset($values['language'])) {
+			$post->setLanguage((string)$values['language']);
+		}
+		if (isset($values['link'])) {
+			$card = new StreamCard();
+			$card->setUrl((string)$values['link']);
+			$post->setCard($card);
+		}
+		if (isset($values['delivered'])) {
+			foreach ($values['delivered'] as $inbox) {
+				$post->addInstancePath(
+					new InstancePath((string)$inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM)
+				);
+			}
 		}
 
 		return $post;
@@ -491,5 +528,189 @@ class StatisticsServiceTest extends TestCase {
 
 		$this->assertSame(ProbeOptions::ACCOUNT, $seen?->getProbe());
 		$this->assertSame(self::ALICE, $seen?->getAccountId());
+	}
+
+	/**
+	 * A picture nobody can see is a picture with no description.
+	 *
+	 * Counted per picture rather than per post: one post with four pictures
+	 * and a single alt text is not three-quarters done.
+	 */
+	public function testAltTextIsCountedPerPictureRatherThanPerPost(): void {
+		$this->answering([
+			$this->post(1, ['images' => ['a cat', '', '', '']]),
+			$this->post(2, ['images' => ['a dog']]),
+		]);
+
+		$page = $this->service->forAccount($this->alice());
+
+		$this->assertSame(5, $page['media']['images']);
+		$this->assertSame(2, $page['media']['described']);
+		$this->assertSame(40.0, $page['media']['described_share']);
+	}
+
+	public function testAnAccountWithNoPicturesIsNotJudgedOnThem(): void {
+		$this->answering([$this->post(1)]);
+
+		$page = $this->service->forAccount($this->alice());
+
+		$this->assertSame(0, $page['media']['images']);
+		$this->assertSame(0.0, $page['media']['described_share']);
+	}
+
+	public function testWhatTheAccountWritesInAndLinksTo(): void {
+		$this->answering([
+			$this->post(1, ['language' => 'de', 'link' => 'https://heise.de/news/1']),
+			$this->post(2, ['language' => 'DE', 'link' => 'https://heise.de/news/2']),
+			$this->post(3, ['language' => 'en', 'link' => 'https://example.org/x']),
+		]);
+
+		$page = $this->service->forAccount($this->alice());
+
+		$this->assertSame([['name' => 'de', 'count' => 2], ['name' => 'en', 'count' => 1]], $page['languages']);
+		$this->assertSame('heise.de', $page['domains'][0]['name']);
+		$this->assertSame(2, $page['domains'][0]['count']);
+	}
+
+	/**
+	 * Measured, beside the estimate rather than instead of it: a post written
+	 * before the instance paths were stored has none and would read as zero.
+	 */
+	public function testTheServersThePostsWereActuallySentTo(): void {
+		$this->answering([
+			$this->post(1, ['delivered' => ['https://a.example/inbox', 'https://b.example/inbox']]),
+			$this->post(2, ['delivered' => ['https://b.example/inbox']]),
+		]);
+
+		$page = $this->service->forAccount($this->alice());
+
+		$this->assertSame(2, $page['reach']['instances']);
+	}
+
+	/**
+	 * Every other figure is about what came back. This is the one about what
+	 * the account did — which is what moves all the others.
+	 */
+	public function testWhatTheAccountDidMonthByMonth(): void {
+		$this->answering([
+			$this->post(1, ['published' => '2026-08-03T10:00:00Z']),
+			$this->post(2, ['published' => '2026-08-04T10:00:00Z', 'in_reply_to' => 'https://x/1']),
+		]);
+
+		$page = $this->service->forAccount($this->alice());
+
+		$this->assertSame(1, $page['activity']['originals']['2026-08']);
+		$this->assertSame(1, $page['activity']['replies']['2026-08']);
+	}
+
+	public function testHowRegularlyItPosts(): void {
+		$this->answering([
+			$this->post(1, ['published' => '2026-08-01T10:00:00Z']),
+			$this->post(2, ['published' => '2026-08-02T10:00:00Z']),
+			$this->post(3, ['published' => '2026-08-03T10:00:00Z']),
+			$this->post(4, ['published' => '2026-08-10T10:00:00Z']),
+		]);
+
+		$page = $this->service->forAccount($this->alice());
+
+		$this->assertSame(4, $page['consistency']['active_days']);
+		$this->assertSame(10, $page['consistency']['span_days']);
+		$this->assertSame(3, $page['consistency']['streak']);
+		// the six days between the third and the fourth
+		$this->assertSame(6, $page['consistency']['longest_gap']);
+	}
+
+	/** Two posts on one day is one active day, not two. */
+	public function testTwoPostsInADayAreOneDay(): void {
+		$this->answering([
+			$this->post(1, ['published' => '2026-08-01T09:00:00Z']),
+			$this->post(2, ['published' => '2026-08-01T21:00:00Z']),
+		]);
+
+		$this->assertSame(1, $this->service->forAccount($this->alice())['consistency']['active_days']);
+	}
+
+	/**
+	 * The window is a choice the reader makes, and the answer says which one
+	 * it used — the numbers used to mean "your most recent two thousand
+	 * posts" and only admitted it in a footnote.
+	 */
+	public function testTheWindowIsReportedWithTheNumbersItProduced(): void {
+		$this->answering([$this->post(1)]);
+
+		$page = $this->service->forAccount($this->alice(), 90);
+
+		$this->assertSame(90, $page['window']['days']);
+		$this->assertSame([0, 30, 90, 365], $page['window']['choices']);
+	}
+
+	/** A window nobody offers is read as everything, not as nothing. */
+	public function testAWindowThatIsNotOnOfferIsEverything(): void {
+		$this->answering([$this->post(1)]);
+
+		$this->assertSame(0, $this->service->forAccount($this->alice(), 7)['window']['days']);
+	}
+
+	/**
+	 * The two directions are asked for separately and reported separately: the
+	 * people who answer an account and the people it answers are different
+	 * lists, and a page that merged them would say neither.
+	 */
+	public function testItNamesWhoTheAccountTalksWithInBothDirections(): void {
+		$this->answering([$this->post(1)]);
+		$this->followsRequest->method('countFollowers')->willReturn(5);
+		$this->streamRequest->method('countConversationPartners')
+			->willReturnCallback(static function (string $id, int $direction): array {
+				return ($direction === StreamRequest::PARTNERS_INBOUND)
+					? [['id' => self::BOB, 'account' => 'bob@remote.example', 'replies' => 7]]
+					: [['id' => self::CAROL, 'account' => 'carol@remote.example', 'replies' => 3]];
+			});
+		$this->followsRequest->method('getBetweenMany')->willReturn(['following' => [], 'followedBy' => []]);
+
+		$partners = $this->service->forAccount($this->alice())['partners'];
+
+		$this->assertSame('bob@remote.example', $partners['inbound'][0]['account']);
+		$this->assertSame(7, $partners['inbound'][0]['replies']);
+		$this->assertSame('carol@remote.example', $partners['outbound'][0]['account']);
+	}
+
+	/**
+	 * The interesting half: of the people who replied, how many the account
+	 * never asked to hear from.
+	 */
+	public function testItSaysHowManyOfTheRepliersTheAccountDoesNotFollow(): void {
+		$this->answering([$this->post(1)]);
+		$this->followsRequest->method('countFollowers')->willReturn(5);
+		$this->streamRequest->method('countConversationPartners')
+			->willReturnCallback(static function (string $id, int $direction): array {
+				return ($direction === StreamRequest::PARTNERS_INBOUND) ? [
+					['id' => self::BOB, 'account' => 'bob@remote.example', 'replies' => 7],
+					['id' => self::CAROL, 'account' => 'carol@remote.example', 'replies' => 2],
+				] : [];
+			});
+		$this->followsRequest->method('getBetweenMany')->willReturn([
+			'following' => [self::BOB => new Follow()],
+			'followedBy' => [],
+		]);
+
+		$partners = $this->service->forAccount($this->alice())['partners'];
+
+		$this->assertTrue($partners['inbound'][0]['followed']);
+		$this->assertFalse($partners['inbound'][1]['followed']);
+		// one of the two
+		$this->assertSame(50.0, $partners['not_followed_share']);
+	}
+
+	/** Nobody has replied yet, so nothing is claimed about who they were. */
+	public function testAnAccountNobodyHasAnsweredHasNoPartners(): void {
+		$this->answering([$this->post(1)]);
+		$this->followsRequest->method('countFollowers')->willReturn(5);
+		$this->followsRequest->expects($this->never())->method('getBetweenMany');
+
+		$partners = $this->service->forAccount($this->alice())['partners'];
+
+		$this->assertSame([], $partners['inbound']);
+		$this->assertSame([], $partners['outbound']);
+		$this->assertSame(0.0, $partners['not_followed_share']);
 	}
 }

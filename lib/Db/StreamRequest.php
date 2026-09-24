@@ -46,6 +46,11 @@ use Psr\Log\LoggerInterface;
 class StreamRequest extends StreamRequestBuilder {
 	use StreamTimelines;
 
+	/** replies other people wrote to this account's posts */
+	public const PARTNERS_INBOUND = 1;
+	/** replies this account wrote to other people's posts */
+	public const PARTNERS_OUTBOUND = 2;
+
 	/**
 	 * The accounts every post of which a moderator has marked sensitive, read
 	 * once per request. Null until something is saved.
@@ -1361,6 +1366,115 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		return $counts;
+	}
+
+	/**
+	 * Who an account actually talks with, and how often.
+	 *
+	 * Both directions are the same self-join on the stream, read from either
+	 * end: `PARTNERS_INBOUND` counts the replies other people wrote to this
+	 * account's posts, `PARTNERS_OUTBOUND` the replies this account wrote to
+	 * theirs. The window applies to the reply in both cases — it is the reply
+	 * that happened in the window, whatever the age of the post it answers.
+	 *
+	 * The account itself is excluded: a thread somebody continues on their own
+	 * is not a conversation with anybody, and left in it would outrank every
+	 * real partner.
+	 *
+	 * @param string $actorId the account whose conversations
+	 * @param int $direction self::PARTNERS_INBOUND or self::PARTNERS_OUTBOUND
+	 * @param int $since only replies from this moment on, or 0 for all of them
+	 *
+	 * @return list<array{id: string, account: string, replies: int}> most talkative first
+	 */
+	public function countConversationPartners(
+		string $actorId,
+		int $direction,
+		int $since = 0,
+		int $limit = 10,
+	): array {
+		if ($actorId === '') {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$prim = $qb->prim($actorId);
+
+		// 'r' is always the reply, 'p' always the post it answers; which of the
+		// two belongs to this account is the whole difference between the
+		// directions
+		$partner = ($direction === self::PARTNERS_INBOUND) ? 'r' : 'p';
+		$mine = ($direction === self::PARTNERS_INBOUND) ? 'p' : 'r';
+
+		$qb->select($partner . '.attributed_to')
+			->selectAlias($qb->func()->count('*'), 'total')
+			->from(self::TABLE_STREAM, 'r')
+			->innerJoin('r', self::TABLE_STREAM, 'p', $expr->eq('p.id_prim', 'r.in_reply_to_prim'))
+			->where($expr->eq(
+				$mine . '.attributed_to_prim', $qb->createNamedParameter($prim)
+			))
+			->andWhere($expr->neq(
+				$partner . '.attributed_to_prim', $qb->createNamedParameter($prim)
+			))
+			->andWhere($expr->nonEmptyString($partner . '.attributed_to'))
+			->groupBy($partner . '.attributed_to')
+			->orderBy('total', 'desc')
+			->setMaxResults($limit);
+
+		if ($since > 0) {
+			$date = new DateTime();
+			$date->setTimestamp($since);
+			$qb->andWhere($expr->gte(
+				'r.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+			));
+		}
+
+		$qb->setDefaultSelectAlias('r');
+		$qb->limitToStatusTypes();
+
+		$partners = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$id = (string)$data['attributed_to'];
+			$partners[] = [
+				'id' => $id,
+				'account' => $this->handleFromActorId($id),
+				'replies' => (int)$data['total'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $partners;
+	}
+
+	/**
+	 * The handle an actor URI belongs to, for a name to put on a number.
+	 *
+	 * The cache is the only place a remote actor's handle is written down, and
+	 * an actor this account has held a conversation with is in it by
+	 * definition. If it is not, the URI's own last segment and host say who it
+	 * was well enough for a list of names.
+	 */
+	private function handleFromActorId(string $id): string {
+		$qb = $this->getQueryBuilder();
+		$qb->select('account')
+			->from(self::TABLE_CACHE_ACTORS)
+			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter($qb->prim($id))))
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$account = (string)($cursor->fetchOne() ?: '');
+		$cursor->closeCursor();
+
+		if ($account !== '') {
+			return $account;
+		}
+
+		$host = (string)parse_url($id, PHP_URL_HOST);
+		$name = basename((string)parse_url($id, PHP_URL_PATH));
+
+		return ($name === '' || $host === '') ? $id : $name . '@' . $host;
 	}
 
 	/**

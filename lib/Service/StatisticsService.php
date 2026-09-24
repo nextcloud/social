@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -17,6 +18,8 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
+use OCP\ICache;
+use OCP\ICacheFactory;
 
 /**
  * What an account has done here, and what came back.
@@ -94,18 +97,85 @@ class StatisticsService {
 	 */
 	private const HASHTAG_MIN_USES = 2;
 
+	/**
+	 * How long a computed page is kept.
+	 *
+	 * The walk below reads up to two thousand posts and then looks up the
+	 * audience of everyone who boosted any of them, which is why the route
+	 * carries a ceiling of thirty an hour: the page was expensive enough that
+	 * reloading it twice cost a fifteenth of somebody's allowance. Fifteen
+	 * minutes is long enough that reading the page, scrolling it and coming
+	 * back is free, and short enough that a post from this morning shows up
+	 * on it.
+	 */
+	private const CACHE_SECONDS = 900;
+
+	private ICache $cache;
+
 	public function __construct(
 		private StreamRequest $streamRequest,
 		private FollowsRequest $followsRequest,
 		private AccountService $accountService,
 		private CacheActorsRequest $cacheActorsRequest,
+		ICacheFactory $cacheFactory,
 	) {
+		$this->cache = $cacheFactory->createDistributed(Application::APP_ID . '/statistics');
+	}
+
+	/**
+	 * The page, from the cache where it is there and freshly counted where it
+	 * is not.
+	 *
+	 * @param Person $actor whose page
+	 * @param int $days the window, one of WINDOWS
+	 * @param bool $fresh whether to count again rather than read the cache
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function cachedForAccount(Person $actor, int $days = 0, bool $fresh = false): array {
+		$key = md5($actor->getId()) . '.' . $days;
+
+		if (!$fresh) {
+			$cached = $this->cache->get($key);
+			if (is_string($cached) && $cached !== '') {
+				$page = json_decode($cached, true);
+				if (is_array($page)) {
+					$page['window']['cached'] = true;
+
+					return $page;
+				}
+			}
+		}
+
+		$page = $this->forAccount($actor, $days);
+		$page['window']['cached'] = false;
+		$this->cache->set($key, (string)json_encode($page), self::CACHE_SECONDS);
+
+		return $page;
 	}
 
 	/**
 	 * @return array<string, mixed> the whole page, in one answer
 	 */
-	public function forAccount(Person $actor): array {
+	/**
+	 * The windows a reader may ask for, in days. 0 is everything there is.
+	 *
+	 * A number rather than a free parameter: each one is a walk of up to
+	 * `MAX_POSTS` posts and a cache entry of its own, and four choices is
+	 * enough to answer "is this month unusual" without turning the page into
+	 * a query builder.
+	 */
+	public const WINDOWS = [0, 30, 90, 365];
+
+	/**
+	 * @param Person $actor whose page
+	 * @param int $days how far back to count, or 0 for as far as the cap allows
+	 *
+	 * @return array<string, mixed> the whole page, in one answer
+	 */
+	public function forAccount(Person $actor, int $days = 0): array {
+		$days = in_array($days, self::WINDOWS, true) ? $days : 0;
+		$since = ($days > 0) ? time() - ($days * self::DAY) : 0;
 		$posts = [
 			'total' => 0,
 			'originals' => 0,
@@ -139,8 +209,24 @@ class StatisticsService {
 		$kinds = [];
 		$first = 0;
 		$last = 0;
+		/** pictures, and how many of them describe themselves */
+		$media = ['images' => 0, 'described' => 0];
+		/** what the account writes in */
+		$languages = [];
+		/** where it links to */
+		$domains = [];
+		/** what the account *did*, month by month, rather than what came back */
+		$activity = [
+			'originals' => $this->emptyMonths(),
+			'replies' => $this->emptyMonths(),
+			'boosts' => $this->emptyMonths(),
+		];
+		/** the days it posted on at all, for the streak and the longest gap */
+		$activeDays = [];
+		/** the instances each post was actually delivered to */
+		$deliveredTo = [];
 
-		foreach ($this->posts($actor) as $post) {
+		foreach ($this->posts($actor, $since) as $post) {
 			$posts['total']++;
 
 			$published = $post->getPublishedTime();
@@ -158,19 +244,75 @@ class StatisticsService {
 			if ($post->getType() === 'Announce' || $post->getSubType() === 'Announce') {
 				// a boost is something the account did, not something it wrote,
 				// so it is counted and then left out of everything below: its
-				// likes belong to whoever wrote it
+				// likes belong to whoever wrote it. It is still *activity*,
+				// which is the one place a boost belongs on this page.
 				$posts['boosts']++;
+				if ($month !== '' && array_key_exists($month, $activity['boosts'])) {
+					$activity['boosts'][$month]++;
+				}
+				if ($published > 0) {
+					$activeDays[gmdate('Y-m-d', $published)] = true;
+				}
+
 				continue;
 			}
 
-			if ($post->getInReplyTo() !== '') {
+			$isReply = ($post->getInReplyTo() !== '');
+			if ($isReply) {
 				$posts['replies']++;
 			} else {
 				$posts['originals']++;
 			}
 
-			if ($post->getAttachments() !== []) {
+			if ($month !== '') {
+				$bucket = $isReply ? 'replies' : 'originals';
+				if (array_key_exists($month, $activity[$bucket])) {
+					$activity[$bucket][$month]++;
+				}
+			}
+			if ($published > 0) {
+				$activeDays[gmdate('Y-m-d', $published)] = true;
+			}
+
+			$attachments = $post->getAttachments();
+			if ($attachments !== []) {
 				$posts['with_media']++;
+			}
+
+			// A picture nobody can see is a picture with no description. The
+			// only number on this page somebody can act on the same afternoon,
+			// so it is counted per *picture* rather than per post: one post
+			// with four pictures and one alt text is not three-quarters done.
+			foreach ($attachments as $attachment) {
+				if (!in_array($attachment->getType(), ['image', 'gifv'], true)) {
+					continue;
+				}
+
+				$media['images']++;
+				if (trim($attachment->getDescription()) !== '') {
+					$media['described']++;
+				}
+			}
+
+			$language = strtolower(trim($post->getLanguage()));
+			if ($language !== '') {
+				$languages[$language] = ($languages[$language] ?? 0) + 1;
+			}
+
+			$card = $post->getCard();
+			$host = ($card === null) ? '' : strtolower((string)parse_url($card->getUrl(), PHP_URL_HOST));
+			if ($host !== '') {
+				$domains[$host] = ($domains[$host] ?? 0) + 1;
+			}
+
+			// where this post was actually sent, as opposed to the estimate
+			// below it: the instance paths are written when the post is
+			// created and read back with it
+			foreach ($post->getInstancePaths() as $path) {
+				$to = strtolower((string)parse_url($path->getUri(), PHP_URL_HOST));
+				if ($to !== '') {
+					$deliveredTo[$to] = true;
+				}
 			}
 			if ($post->isSensitive()) {
 				$posts['sensitive']++;
@@ -314,8 +456,27 @@ class StatisticsService {
 				'known_boosters' => $reach['known'],
 				'unknown_boosters' => $reach['unknown'],
 				'listed' => self::TIMELINE_POSTS,
+				// measured rather than modelled: the servers this account's
+				// posts were actually addressed to. Beside the estimate rather
+				// than instead of it, because a post written before the
+				// instance paths were stored has none and would read as zero
+				'instances' => count($deliveredTo),
 			],
+			// what the account did, rather than what came back
+			'activity' => $activity,
+			'consistency' => $this->consistency($activeDays, $first, $last),
+			'media' => $media + [
+				'described_share' => ($media['images'] < 1) ? 0.0
+					: round((float)$media['described'] / (float)$media['images'] * 100.0, 1),
+			],
+			// who the account actually talks with, from the replies rather
+			// than from the follow graph
+			'partners' => $this->partners($actor, $since),
+			'languages' => $this->named($languages, self::TOP_HASHTAGS),
+			'domains' => $this->named($domains, self::TOP_HASHTAGS),
 			'window' => [
+				'days' => $days,
+				'choices' => self::WINDOWS,
 				'counted' => $posts['total'],
 				'followers_counted' => $audience['counted'],
 				'capped' => $posts['total'] >= self::MAX_POSTS,
@@ -323,6 +484,66 @@ class StatisticsService {
 				'first_at' => $this->asDate($first),
 				'last_at' => $this->asDate($last),
 			],
+		];
+	}
+
+	/**
+	 * How many conversation partners a page names in each direction.
+	 *
+	 * Long enough to see a pattern, short enough that the two follow lookups
+	 * behind it stay one query each.
+	 */
+	private const TOP_PARTNERS = 10;
+
+	/**
+	 * Who the account talks with, and whether it follows them.
+	 *
+	 * The follow graph says who an account *asked* to hear from; the replies
+	 * say who it actually talks to, and the two are rarely the same list. The
+	 * `not_followed` share is the interesting half: a high one means the
+	 * conversations are coming from outside the timeline the account built for
+	 * itself.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function partners(Person $actor, int $since): array {
+		$directions = [
+			'inbound' => StreamRequest::PARTNERS_INBOUND,
+			'outbound' => StreamRequest::PARTNERS_OUTBOUND,
+		];
+
+		$partners = [];
+		foreach ($directions as $name => $direction) {
+			$partners[$name] = $this->streamRequest->countConversationPartners(
+				$actor->getId(), $direction, $since, self::TOP_PARTNERS
+			);
+		}
+
+		$ids = array_values(array_unique(array_merge(
+			array_column($partners['inbound'], 'id'),
+			array_column($partners['outbound'], 'id')
+		)));
+		$following = ($ids === []) ? []
+			: $this->followsRequest->getBetweenMany($actor->getId(), $ids)['following'];
+
+		$counted = 0;
+		$strangers = 0;
+		foreach ($partners as $name => $list) {
+			foreach ($list as $i => $partner) {
+				$followed = array_key_exists($partner['id'], $following);
+				$partners[$name][$i]['followed'] = $followed;
+				if ($name === 'inbound') {
+					$counted++;
+					$strangers += $followed ? 0 : 1;
+				}
+			}
+		}
+
+		return $partners + [
+			// of the people who replied, how many the account does not follow
+			'not_followed_share' => ($counted < 1) ? 0.0
+				: round((float)$strangers / (float)$counted * 100.0, 1),
+			'listed' => self::TOP_PARTNERS,
 		];
 	}
 
@@ -335,7 +556,7 @@ class StatisticsService {
 	 *
 	 * @return iterable<Stream>
 	 */
-	private function posts(Person $actor): iterable {
+	private function posts(Person $actor, int $since = 0): iterable {
 		$this->streamRequest->setViewer($actor);
 		$maxId = 0;
 		$seen = 0;
@@ -356,6 +577,13 @@ class StatisticsService {
 			}
 
 			foreach ($page as $post) {
+				// the timeline is newest first, so the first post older than
+				// the window ends the walk rather than being skipped past
+				$published = $post->getPublishedTime();
+				if ($since > 0 && $published > 0 && $published < $since) {
+					return;
+				}
+
 				$seen++;
 				yield $post;
 			}
@@ -411,6 +639,58 @@ class StatisticsService {
 	 * @param list<array<string, mixed>> $recent
 	 * @return array{posts: list<array<string, mixed>>, known: int, unknown: int}
 	 */
+	/**
+	 * How regularly the account posts, out of the days it posted on.
+	 *
+	 * Every other figure on this page is about what came back. This is the
+	 * one about what the account did, which is what moves all the others: an
+	 * account that posts twice a week for a year and one that posted four
+	 * hundred times in a fortnight can have the same totals and nothing else
+	 * in common.
+	 *
+	 * @param array<string, bool> $days the days something was posted, as Y-m-d
+	 * @param int $first when the earliest post counted was published
+	 * @param int $last when the latest was
+	 *
+	 * @return array{active_days: int, span_days: int, share: float, longest_gap: int, streak: int}
+	 */
+	private function consistency(array $days, int $first, int $last): array {
+		$dates = array_keys($days);
+		sort($dates);
+
+		$span = ($first > 0 && $last >= $first) ? (int)floor(($last - $first) / self::DAY) + 1 : count($dates);
+		$gap = 0;
+		$streak = 0;
+		$run = 0;
+		$previous = null;
+
+		foreach ($dates as $date) {
+			$stamp = strtotime($date . ' UTC');
+			if ($stamp === false) {
+				continue;
+			}
+
+			if ($previous !== null) {
+				$between = (int)floor(($stamp - $previous) / self::DAY);
+				$gap = max($gap, $between - 1);
+				$run = ($between === 1) ? $run + 1 : 1;
+			} else {
+				$run = 1;
+			}
+
+			$streak = max($streak, $run);
+			$previous = $stamp;
+		}
+
+		return [
+			'active_days' => count($dates),
+			'span_days' => max($span, count($dates)),
+			'share' => ($span < 1) ? 0.0 : round((float)count($dates) / (float)$span * 100.0, 1),
+			'longest_gap' => $gap,
+			'streak' => $streak,
+		];
+	}
+
 	private function withReach(array $recent, int $followers): array {
 		$boosted = [];
 		foreach ($recent as $row) {
