@@ -672,7 +672,10 @@ describe('Statistics', () => {
 
 		const choices = wrapper.findAll('.stats__window-choice')
 		expect(choices.map((choice) => choice.text())).toEqual([
-			'All time', 'Last 30 days', 'Last 90 days', 'Last 365 days',
+			'All time',
+			'Last 30 days',
+			'Last 90 days',
+			'Last 365 days',
 		])
 
 		await choices[2].trigger('click')
