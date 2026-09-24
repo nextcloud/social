@@ -593,22 +593,39 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * The accounts waiting for the viewer's approval to follow them.
+	 * The accounts waiting for the viewer's approval to follow them, newest
+	 * first, a page at a time.
 	 *
+	 * Paged the way Mastodon pages it — `limit` (40, at most 80), `max_id` and
+	 * `min_id`, and a `Link` header — and, as in Mastodon, the cursor is the
+	 * follow request's and not the account's: see
+	 * FollowsRequest::getPendingByObjectId() for what it holds. `paged()` does
+	 * not fit, since it pages on the entities' own ids.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/follow_requests')]
-	public function followRequests(): DataResponse {
+	public function followRequests(int $limit = 40, string $max_id = '', string $min_id = ''): DataResponse {
 		try {
 			$this->initViewer(true);
 
-			$accounts = $this->followService->getPendingRequests();
-			foreach ($accounts as $account) {
+			$limit = ($limit < 1) ? 40 : min($limit, 80);
+			$page = $this->followService->getPendingRequestPage($limit, $max_id, $min_id);
+			foreach ($page['accounts'] as $account) {
 				$account->setExportFormat(ACore::FORMAT_LOCAL);
 			}
 
-			return new DataResponse($accounts, Http::STATUS_OK);
+			$response = new DataResponse($page['accounts'], Http::STATUS_OK);
+			if ($page['rows'] > 0) {
+				$links = [];
+				if ($page['rows'] >= $limit) {
+					$links[] = '<' . $this->pageUrl(['max_id' => $page['last']]) . '>; rel="next"';
+				}
+				$links[] = '<' . $this->pageUrl(['min_id' => $page['first']]) . '>; rel="prev"';
+				$response->addHeader('Link', implode(', ', $links));
+			}
+
+			return $response;
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

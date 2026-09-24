@@ -119,20 +119,52 @@ class FollowService {
 	}
 
 	/**
-	 * The accounts whose follows towards the viewer wait for approval.
+	 * The accounts whose follows towards the viewer wait for approval, newest
+	 * first.
+	 *
+	 * @param int $limit 0 for all of them
 	 *
 	 * @return Person[]
 	 */
-	public function getPendingRequests(): array {
-		$pending = [];
-		foreach ($this->followsRequest->getPendingByObjectId($this->viewer->getId()) as $follow) {
+	public function getPendingRequests(int $limit = 0): array {
+		return $this->getPendingRequestPage($limit)['accounts'];
+	}
+
+	/**
+	 * A page of the viewer's pending follow requests, and where it sits.
+	 *
+	 * The cursors and the row count are the follow rows', not the accounts':
+	 * a request whose account can no longer be resolved is left off the page,
+	 * and the page after it still has to start behind it, and still has to
+	 * be offered when the page read as many rows as it was allowed to.
+	 * `first` and `last` are the cursors of the newest and the oldest row
+	 * read, '' on an empty page.
+	 *
+	 * @param string $maxId a cursor to read older requests from
+	 * @param string $minId a cursor to read newer requests from
+	 *
+	 * @return array{accounts: Person[], rows: int, first: string, last: string}
+	 */
+	public function getPendingRequestPage(int $limit, string $maxId = '', string $minId = ''): array {
+		$follows = $this->followsRequest->getPendingByObjectId($this->viewer->getId(), $limit, $maxId, $minId);
+
+		$accounts = [];
+		foreach ($follows as $follow) {
 			try {
-				$pending[] = $this->cacheActorService->getFromId($follow->getActorId());
+				$accounts[] = $this->cacheActorService->getFromId($follow->getActorId());
 			} catch (Exception $e) {
 			}
 		}
 
-		return $pending;
+		$first = reset($follows);
+		$last = end($follows);
+
+		return [
+			'accounts' => $accounts,
+			'rows' => count($follows),
+			'first' => $first === false ? '' : FollowsRequest::pendingCursor($first),
+			'last' => $last === false ? '' : FollowsRequest::pendingCursor($last),
+		];
 	}
 
 	/**

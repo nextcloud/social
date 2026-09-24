@@ -160,6 +160,27 @@ class SocialFollowRequestsWidgetTest extends TestCase {
 		$this->assertSame('No follow requests', $items->getEmptyContentMessage());
 	}
 
+	/**
+	 * The query is what is bounded, not the list after it: slicing a full
+	 * read built every pending request's account to show a handful.
+	 */
+	public function testTheTileAsksForNoMoreThanItCanShow(): void {
+		$this->signedInAs();
+		$this->socialAccount(true);
+		$asked = [];
+		$this->followService->method('getPendingRequests')
+			->willReturnCallback(function (int $limit = 0) use (&$asked): array {
+				$asked[] = $limit;
+
+				return [];
+			});
+
+		$this->widget->getItemsV2('alice', null, 500);
+		$this->widget->getItemsV2('alice', null, 5);
+
+		$this->assertSame([20, 5], $asked);
+	}
+
 	public function testFailureLeavesTheTileEmptyWithAMessage(): void {
 		$this->signedInAs();
 		$this->accountService->method('getActorFromUserId')

@@ -316,6 +316,7 @@ import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
 import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
 import DeleteOutline from 'vue-material-design-icons/DeleteOutline.vue'
 import TimelineEntry from './TimelineEntry.vue'
+import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 import logger from '../services/logger.js'
 
@@ -344,33 +345,6 @@ function hostOf(url) {
 	} catch {
 		return ''
 	}
-}
-
-/**
- * The `max_id` the server put in its `Link: …; rel="next"` header.
- *
- * It has to come from there rather than from the last row on screen: the
- * cursor is a message nid and a conversation id is its thread root, which does
- * not move when a message arrives — paging on it would skip conversations.
- *
- * @param {object} headers the response headers
- * @return {string} the cursor, or '' when the server said this is the last page
- */
-function nextCursor(headers) {
-	const link = headers?.link ?? headers?.Link ?? ''
-	for (const part of String(link).split(',')) {
-		if (!/;\s*rel\s*=\s*"?next"?/.test(part)) {
-			continue
-		}
-
-		const url = part.match(/<([^>]*)>/)?.[1]
-		const cursor = url?.match(/[?&]max_id=([^&]*)/)?.[1]
-		if (cursor) {
-			return decodeURIComponent(cursor)
-		}
-	}
-
-	return ''
 }
 
 /**

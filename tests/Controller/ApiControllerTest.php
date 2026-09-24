@@ -1783,12 +1783,19 @@ class ApiControllerTest extends TestCase {
 
 	// follow requests
 
+	/** @return array{accounts: Person[], rows: int, first: string, last: string} */
+	private function pendingPage(array $accounts, int $rows, string $first = '', string $last = ''): array {
+		return ['accounts' => $accounts, 'rows' => $rows, 'first' => $first, 'last' => $last];
+	}
+
 	public function testFollowRequestsListThePendingAccountsForLocalExport(): void {
 		$this->loggedInAs();
+		$this->requestUri('/api/v1/follow_requests');
 		$pending = $this->createMock(Person::class);
 		$pending->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
 		$this->followService->expects($this->once())
-			->method('getPendingRequests')->willReturn([$pending]);
+			->method('getPendingRequestPage')->with(40, '', '')
+			->willReturn($this->pendingPage([$pending], 1, '5-' . str_repeat('a', 32), '5-' . str_repeat('a', 32)));
 
 		$response = $this->controller()->followRequests();
 
@@ -1796,8 +1803,70 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([$pending], $response->getData());
 	}
 
+	/** Mastodon's own bounds: 40 unless asked, never more than 80. */
+	public function testAFollowRequestsPageIsBounded(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/follow_requests');
+		$asked = [];
+		$this->followService->method('getPendingRequestPage')
+			->willReturnCallback(function (int $limit) use (&$asked): array {
+				$asked[] = $limit;
+
+				return $this->pendingPage([], 0);
+			});
+
+		$this->controller()->followRequests(500);
+		$this->controller()->followRequests(0);
+		$this->controller()->followRequests(10);
+
+		$this->assertSame([80, 40, 10], $asked);
+	}
+
+	/**
+	 * The cursors are the follow rows' — a client pages on the header and
+	 * sends back what it found there, as it does against Mastodon.
+	 */
+	public function testAFullFollowRequestsPageLinksToTheNextAndThePrevious(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/follow_requests?limit=2');
+		$newest = '1767268801-' . str_repeat('b', 32);
+		$oldest = '1767268800-' . str_repeat('a', 32);
+		$this->followService->expects($this->once())
+			->method('getPendingRequestPage')->with(2, 'older', '')
+			->willReturn($this->pendingPage([$this->createMock(Person::class)], 2, $newest, $oldest));
+
+		$response = $this->controller()->followRequests(2, 'older');
+
+		$this->assertSame(
+			'<https://cloud.example/api/v1/follow_requests?limit=2&max_id=' . $oldest . '>; rel="next", '
+			. '<https://cloud.example/api/v1/follow_requests?limit=2&min_id=' . $newest . '>; rel="prev"',
+			$response->getHeaders()['Link']
+		);
+	}
+
+	public function testTheLastFollowRequestsPageOffersNoNextPage(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/follow_requests?limit=2');
+		$only = '1767268800-' . str_repeat('a', 32);
+		$this->followService->method('getPendingRequestPage')
+			->willReturn($this->pendingPage([$this->createMock(Person::class)], 1, $only, $only));
+
+		$link = $this->controller()->followRequests(2)->getHeaders()['Link'];
+
+		$this->assertStringNotContainsString('rel="next"', $link);
+		$this->assertStringContainsString('min_id=' . $only, $link);
+	}
+
+	public function testAnEmptyFollowRequestsPageCarriesNoLinks(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/follow_requests');
+		$this->followService->method('getPendingRequestPage')->willReturn($this->pendingPage([], 0));
+
+		$this->assertArrayNotHasKey('Link', $this->controller()->followRequests()->getHeaders());
+	}
+
 	public function testFollowRequestsRequireAViewer(): void {
-		$this->followService->expects($this->never())->method('getPendingRequests');
+		$this->followService->expects($this->never())->method('getPendingRequestPage');
 
 		$this->assertUnauthorized($this->controller()->followRequests());
 	}

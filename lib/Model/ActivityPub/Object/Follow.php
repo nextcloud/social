@@ -26,6 +26,8 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 	private string $followId = '';
 	private string $followIdPrim = '';
 	private bool $accepted = false;
+	private string $idPrim = '';
+	private int $creation = 0;
 
 	public function __construct($parent = null) {
 		parent::__construct($parent);
@@ -87,6 +89,28 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		return $this;
 	}
 
+	/** The row's primary key, the md5 of its id. */
+	public function getIdPrim(): string {
+		return $this->idPrim;
+	}
+
+	public function setIdPrim(string $idPrim): Follow {
+		$this->idPrim = $idPrim;
+
+		return $this;
+	}
+
+	/** When the row was written, as a timestamp; 0 where it carries no date. */
+	public function getCreation(): int {
+		return $this->creation;
+	}
+
+	public function setCreation(int $creation): Follow {
+		$this->creation = $creation;
+
+		return $this;
+	}
+
 	/**
 	 * @param array $data
 	 */
@@ -105,6 +129,9 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		$this->setAccepted(($this->getInt('accepted', $data, 0) === 1) ? true : false);
 		$this->setFollowId($this->get('follow_id', $data, ''));
 		$this->setFollowIdPrim($this->get('follow_id_prim', $data, ''));
+		$this->setIdPrim($this->get('id_prim', $data, ''));
+		$creation = $this->get('creation', $data, '');
+		$this->setCreation($creation === '' ? 0 : (int)strtotime($creation));
 	}
 
 	/**

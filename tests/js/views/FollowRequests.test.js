@@ -23,8 +23,8 @@ const API = '/index.php/apps/social/api/v1'
 const bob = { id: '22', acct: 'bob@remote.tld', username: 'bob', display_name: 'Bob', avatar: 'https://remote.tld/bob.png' }
 const carol = { id: '33', acct: 'carol@remote.tld', username: 'carol', display_name: 'Carol', avatar: 'https://remote.tld/carol.png' }
 
-async function mountView(requests = [bob, carol]) {
-	axios.get.mockResolvedValueOnce({ data: requests })
+async function mountView(requests = [bob, carol], headers = {}) {
+	axios.get.mockResolvedValueOnce({ data: requests, headers })
 	const wrapper = mount(FollowRequests, {
 		global: {
 			stubs: {
@@ -49,7 +49,7 @@ describe('FollowRequests', () => {
 	it('lists the accounts waiting for approval', async () => {
 		const wrapper = await mountView()
 
-		expect(axios.get).toHaveBeenCalledWith(API + '/follow_requests')
+		expect(axios.get).toHaveBeenCalledWith(API + '/follow_requests', { params: { limit: 40 } })
 		const entries = wrapper.findAll('.follow-request')
 		expect(entries).toHaveLength(2)
 		expect(entries[0].text()).toContain('Bob')
@@ -107,6 +107,55 @@ describe('FollowRequests', () => {
 
 		expect(showError).toHaveBeenCalled()
 		expect(wrapper.findAll('.follow-request')).toHaveLength(2)
+	})
+
+	describe('more than one page', () => {
+		const CURSOR = '1767268800-' + 'a'.repeat(32)
+		const NEXT = { link: `<https://cloud.example/apps/social/api/v1/follow_requests?limit=40&max_id=${CURSOR}>; rel="next", <https://cloud.example/apps/social/api/v1/follow_requests?limit=40&min_id=1767268801-${'b'.repeat(32)}>; rel="prev"` }
+		const dave = { id: '44', acct: 'dave@remote.tld', username: 'dave', display_name: 'Dave', avatar: '' }
+
+		it('offers no further page when the server names none', async () => {
+			const wrapper = await mountView([bob, carol], {
+				link: `<https://cloud.example/apps/social/api/v1/follow_requests?min_id=${CURSOR}>; rel="prev"`,
+			})
+
+			expect(wrapper.find('.follow-requests__more').exists()).toBe(false)
+		})
+
+		it('reaches the requests beyond the first page, from the cursor the server sent', async () => {
+			const wrapper = await mountView([bob, carol], NEXT)
+			axios.get.mockResolvedValueOnce({ data: [dave], headers: {} })
+
+			await wrapper.find('.follow-requests__more button').trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenLastCalledWith(
+				API + '/follow_requests',
+				{ params: { limit: 40, max_id: CURSOR } },
+			)
+			expect(wrapper.findAll('.follow-request').map((row) => row.text()))
+				.toEqual([expect.stringContaining('Bob'), expect.stringContaining('Carol'), expect.stringContaining('Dave')])
+			expect(wrapper.find('.follow-requests__more').exists()).toBe(false)
+		})
+
+		it('keeps the cursor it was given when a request on the page is answered first', async () => {
+			// the cursor belongs to the row the page ended on, which may be the
+			// very one answered: it still names the place the next page starts
+			const wrapper = await mountView([bob, carol], NEXT)
+			axios.post.mockResolvedValueOnce({ data: {} })
+			await wrapper.findAll('.follow-request__actions button')[3].trigger('click')
+			await flushPromises()
+			axios.get.mockResolvedValueOnce({ data: [dave], headers: {} })
+
+			await wrapper.find('.follow-requests__more button').trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenLastCalledWith(
+				API + '/follow_requests',
+				{ params: { limit: 40, max_id: CURSOR } },
+			)
+			expect(wrapper.findAll('.follow-request')).toHaveLength(2)
+		})
 	})
 
 	describe('answering a request', () => {

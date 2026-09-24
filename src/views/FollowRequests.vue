@@ -63,6 +63,11 @@
 		<div v-if="loading" class="loading-indicator">
 			{{ t('social', 'Loading…') }}
 		</div>
+		<p v-else-if="cursor !== ''" class="follow-requests__more">
+			<NcButton :disabled="loadingMore" @click="fetchRequests(true)">
+				{{ loadingMore ? t('social', 'Loading…') : t('social', 'Load more') }}
+			</NcButton>
+		</p>
 	</div>
 </template>
 
@@ -77,6 +82,10 @@ import AccountClock from 'vue-material-design-icons/AccountClock.vue'
 import Check from 'vue-material-design-icons/Check.vue'
 import Close from 'vue-material-design-icons/Close.vue'
 import logger from '../services/logger.js'
+import { nextCursor } from '../utils/linkHeader.js'
+
+/** How many requests one page asks for, Mastodon's default. */
+const PAGE_SIZE = 40
 
 export default {
 	name: 'FollowRequests',
@@ -95,6 +104,9 @@ export default {
 			requests: [],
 			busy: [],
 			loading: true,
+			loadingMore: false,
+			/** the `max_id` of the next page, '' once the server says there is none */
+			cursor: '',
 		}
 	},
 
@@ -103,16 +115,50 @@ export default {
 	},
 
 	methods: {
-		async fetchRequests() {
-			this.loading = true
+		/**
+		 * The pending requests, a page at a time.
+		 *
+		 * The next page is continued from the cursor in the server's `Link`
+		 * header, not from the last row here: the cursor is the follow
+		 * request's, not the account's, and the rows answered since the page
+		 * arrived have left the list without moving it.
+		 *
+		 * @param {boolean} more whether this is the reader asking for the page
+		 *                       after the one they have
+		 */
+		async fetchRequests(more = false) {
+			if (more && (this.loadingMore || this.cursor === '')) {
+				return
+			}
+
+			if (more) {
+				this.loadingMore = true
+			} else {
+				this.loading = true
+			}
+
+			const params = { limit: PAGE_SIZE }
+			if (more) {
+				params.max_id = this.cursor
+			}
+
 			try {
-				const response = await axios.get(generateUrl('apps/social/api/v1/follow_requests'))
-				this.requests = response.data
+				const { data, headers } = await axios.get(
+					generateUrl('apps/social/api/v1/follow_requests'),
+					{ params },
+				)
+				const page = Array.isArray(data) ? data : []
+				const known = new Set(this.requests.map((request) => request.id))
+				this.requests = more
+					? [...this.requests, ...page.filter((request) => !known.has(request.id))]
+					: page
+				this.cursor = nextCursor(headers)
 			} catch (error) {
-				logger.error('Failed to fetch follow requests', { error })
+				logger.error('Failed to fetch follow requests', { error, more })
 				showError(t('social', 'Failed to load follow requests'))
 			} finally {
 				this.loading = false
+				this.loadingMore = false
 			}
 		},
 
@@ -190,6 +236,12 @@ export default {
 .loading-indicator {
 	text-align: center;
 	padding: 20px;
+}
+
+.follow-requests__more {
+	display: flex;
+	justify-content: center;
+	padding: 20px 0;
 }
 
 /**
