@@ -427,6 +427,10 @@ export default {
 			stopListening: null,
 			pollTimer: null,
 			searchTimer: null,
+			/** the LISTS_CHANGED handler, kept so only this one is removed */
+			onListsChanged: null,
+			/** re-measures the rail whenever it changes shape */
+			railObserver: null,
 		}
 	},
 

@@ -733,7 +733,14 @@ export default {
 		const { hostname } = useServerData()
 		const { currentUser } = useCurrentUser()
 
-		return { hostname, currentUser }
+		return {
+			hostname,
+			currentUser,
+			// set in mounted(); here rather than in data() so that the
+			// library's own object is not wrapped in a reactive proxy
+			tribute: null,
+			tributeTarget: null,
+		}
 	},
 
 	data() {
@@ -921,6 +928,16 @@ export default {
 					}
 				},
 			},
+
+			/** when the refused-drop notice goes away */
+			refusalTimer: null,
+			// the eventBus and document handlers mounted() adds, kept so that
+			// unmounted() removes only these and not other components' listeners
+			onComposerReply: null,
+			onComposerQuote: null,
+			onComposerRedraft: null,
+			onComposerFocus: null,
+			onOutsideInteraction: null,
 		}
 	},
 

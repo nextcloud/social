@@ -118,6 +118,23 @@ export default {
 
 	emits: ['previous', 'next'],
 
+	// Returned from setup() rather than data() so that none of it is made
+	// reactive: it changes on every pointermove and nothing renders from it.
+	setup() {
+		return {
+			/**
+			 * The pointers currently down, by id.
+			 *
+			 * @type {Map<number, {x: number, y: number}>}
+			 */
+			pointers: new Map(),
+			/** where the gesture started, for deciding a swipe from a press */
+			gesture: null,
+			/** the distance and scale a two-finger pinch started from */
+			pinch: null,
+		}
+	},
+
 	data() {
 		return {
 			scale: MIN_SCALE,
@@ -151,19 +168,6 @@ export default {
 		src() {
 			this.reset()
 		},
-	},
-
-	created() {
-		/**
-		 * The pointers currently down, by id. Not reactive: it changes on every
-		 * pointermove and nothing renders from it.
-		 *
-		 * @type {Map<number, {x: number, y: number}>}
-		 */
-		this.pointers = new Map()
-
-		/** where the gesture started, for deciding a swipe from a press */
-		this.gesture = null
 	},
 
 	methods: {

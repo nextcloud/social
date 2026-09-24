@@ -118,6 +118,8 @@ export default {
 			 * so while they are on their way would be counting the loading.
 			 */
 			repliesSettled: false,
+			/** the composer-reply handler, kept so only this one is removed */
+			onComposerReply: null,
 		}
 	},
 

@@ -628,6 +628,8 @@ export default {
 			localPoll: this.item?.poll ?? null,
 			/** re-read from the shared clock, so "5 minutes ago" stays true */
 			now: Date.now(),
+			/** unsubscribe from the shared clock */
+			stopTicking: null,
 		}
 	},
 

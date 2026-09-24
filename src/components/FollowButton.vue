@@ -139,6 +139,9 @@ export default {
 			celebrating: false,
 			/** whether the server refused, so the button can say so */
 			refused: false,
+			/** when the confirmation and the refusal stop showing */
+			celebrationTimer: null,
+			refusalTimer: null,
 		}
 	},
 

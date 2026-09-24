@@ -44,6 +44,8 @@ export default {
 			direction: '',
 			/** the value being sent away, null when there is none */
 			leaving: null,
+			/** when the roll comes to rest */
+			timer: null,
 		}
 	},
 

@@ -254,6 +254,9 @@ export default {
 			MAX_INDENT,
 			/** re-read from the shared clock, so the wording stays true */
 			now: Date.now(),
+			/** unsubscribe from the phone-width watch and the shared clock */
+			stopPhoneWatch: null,
+			stopTicking: null,
 		}
 	},
 

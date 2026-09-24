@@ -266,6 +266,13 @@ export default {
 			fetched: null,
 			/** whether the focus the trigger is about to take came from a press */
 			focusFromPointer: false,
+			/** the pending open and close, while the pointer rests or leaves */
+			openTimer: null,
+			closeTimer: null,
+			/** clears focusFromPointer once the focus it was about has happened */
+			focusResetTimer: null,
+			/** the document keydown handler that closes an open card on Escape */
+			escapeListener: null,
 		}
 	},
 

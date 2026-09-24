@@ -9,10 +9,6 @@
 		"TS2588 Cannot assign to '__webpack_public_path__' because it is a constant.": 1
 	},
 	"src/components/AccountHoverCard.vue": {
-		"TS2339 Property 'closeTimer' does not exist on type '…'.": 6,
-		"TS2339 Property 'escapeListener' does not exist on type '…'.": 6,
-		"TS2339 Property 'focusResetTimer' does not exist on type '…'.": 6,
-		"TS2339 Property 'openTimer' does not exist on type '…'.": 6,
 		"TS2339 Property 'verified' does not exist on type '{ name: string; text: string; href: string; }'.": 1,
 		"TS2339 Property 'verifiedAt' does not exist on type '{ name: string; text: string; href: string; }'.": 1,
 		"TS2345 Argument of type 'unknown' is not assignable to parameter of type 'string'.": 1,
@@ -37,24 +33,13 @@
 		"TS2339 Property 'innerHTML' does not exist on type 'unknown'.": 2,
 		"TS2339 Property 'innerText' does not exist on type 'unknown'.": 3,
 		"TS2339 Property 'lastChild' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'onComposerFocus' does not exist on type '…'.": 3,
-		"TS2339 Property 'onComposerQuote' does not exist on type '…'.": 3,
-		"TS2339 Property 'onComposerRedraft' does not exist on type '…'.": 3,
-		"TS2339 Property 'onComposerReply' does not exist on type '…'.": 3,
-		"TS2339 Property 'onOutsideInteraction' does not exist on type '…'.": 5,
-		"TS2339 Property 'refusalTimer' does not exist on type '…'.": 3,
 		"TS2339 Property 'replaceChildren' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'scrollIntoView' does not exist on type 'unknown'.": 2,
-		"TS2339 Property 'tribute' does not exist on type '…'.": 4,
-		"TS2339 Property 'tributeTarget' does not exist on type '…'.": 4,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<any>'.": 1,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<string[]>'.": 1
 	},
 	"src/components/Composer/FilterPicker.vue": {
 		"TS2322 Type 'string' is not assignable to type 'Booleanish | \"mixed\"'.": 1
-	},
-	"src/components/Composer/GifPicker.vue": {
-		"TS2339 Property 'debounce' does not exist on type '…'.": 3
 	},
 	"src/components/Composer/PlacePicker.vue": {
 		"TS2339 Property '$el' does not exist on type 'unknown'.": 1
@@ -100,8 +85,6 @@
 	},
 	"src/components/FollowButton.vue": {
 		"TS2322 Type '…' is not assignable to type '…'.": 1,
-		"TS2339 Property 'celebrationTimer' does not exist on type '…'.": 3,
-		"TS2339 Property 'refusalTimer' does not exist on type '…'.": 3,
 		"TS2353 Object literal may only specify known properties, and 'currentAccount' does not exist in type '{ accountToFollow: any; }'.": 1,
 		"TS2353 Object literal may only specify known properties, and 'currentAccount' does not exist in type '{ accountToUnfollow: any; }'.": 1
 	},
@@ -143,8 +126,6 @@
 	},
 	"src/components/Navigation.vue": {
 		"TS2339 Property '$el' does not exist on type 'unknown'.": 2,
-		"TS2339 Property 'onListsChanged' does not exist on type '…'.": 3,
-		"TS2339 Property 'railObserver' does not exist on type '…'.": 4,
 		"TS2339 Property 'sections' does not exist on type 'ServerData'.": 1,
 		"TS2554 Expected 2 arguments, but got 1.": 1
 	},
@@ -200,11 +181,7 @@
 		"TS2339 Property 'focus' does not exist on type 'unknown'.": 1
 	},
 	"src/components/RollingCount.vue": {
-		"TS2339 Property 'timer' does not exist on type '…'.": 3,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<number>'.": 1
-	},
-	"src/components/ScheduledPosts.vue": {
-		"TS2339 Property 'onScheduled' does not exist on type '…'.": 3
 	},
 	"src/components/SetupChecks.vue": {
 		"TS2339 Property 'base' does not exist on type 'unknown'.": 3,
@@ -234,8 +211,6 @@
 		"TS2322 Type 'Status | Notification' is not assignable to type 'Notification'.": 1,
 		"TS2322 Type 'Status | Notification' is not assignable to type 'Status'.": 2,
 		"TS2339 Property 'reblog' does not exist on type 'Status | Notification'.": 1,
-		"TS2339 Property 'stopPhoneWatch' does not exist on type '…'.": 2,
-		"TS2339 Property 'stopTicking' does not exist on type '…'.": 2,
 		"TS2339 Property 'type' does not exist on type 'Status | Notification'.": 1,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<Status | Notification>'.": 1,
 		"TS2551 Property 'accounts' does not exist on type 'Notification'. Did you mean 'account'?": 2
@@ -258,7 +233,6 @@
 		"TS2339 Property 'nsfwPolicy' does not exist on type 'ServerData'.": 1,
 		"TS2339 Property 'place' does not exist on type 'Status'.": 4,
 		"TS2339 Property 'quote_approval' does not exist on type 'Status'.": 1,
-		"TS2339 Property 'stopTicking' does not exist on type '…'.": 2,
 		"TS2339 Property 'tagged_people' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'type' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'video' does not exist on type 'Status'.": 2,
@@ -268,7 +242,6 @@
 	"src/components/TimelineSwitcher.vue": {
 		"TS2339 Property 'icon' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'label' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'observer' does not exist on type '…'.": 4,
 		"TS2339 Property 'offset' does not exist on type '{ left: number; width: number; }'.": 1,
 		"TS2339 Property 'to' does not exist on type 'unknown'.": 2,
 		"TS2339 Property 'value' does not exist on type 'unknown'.": 7,
@@ -286,9 +259,6 @@
 	"src/components/ZoomableImage.vue": {
 		"TS2339 Property 'clientHeight' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'clientWidth' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'gesture' does not exist on type '…'.": 10,
-		"TS2339 Property 'pinch' does not exist on type '…'.": 6,
-		"TS2339 Property 'pointers' does not exist on type '…'.": 11,
 		"TS2339 Property 'setPointerCapture' does not exist on type 'EventTarget'.": 1
 	},
 	"src/components/admin/AccessSection.vue": {
@@ -413,7 +383,6 @@
 	"src/views/TimelineSinglePost.vue": {
 		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 2,
 		"TS2339 Property '$el' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'onComposerReply' does not exist on type '…'.": 3,
 		"TS2339 Property 'parentElement' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'querySelector' does not exist on type 'unknown'.": 1,
 		"TS2345 Argument of type 'string | string[]' is not assignable to parameter of type 'string'.": 2
@@ -422,7 +391,6 @@
 		"TS2339 Property 'clientHeight' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'dataset' does not exist on type 'Element'.": 1,
 		"TS2339 Property 'focus' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'observer' does not exist on type '…'.": 3,
 		"TS2339 Property 'scrollTop' does not exist on type 'unknown'.": 1
 	}
 }

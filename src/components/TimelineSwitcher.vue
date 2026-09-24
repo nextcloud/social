@@ -104,6 +104,8 @@ export default {
 			 * @type {?{left: number, width: number}}
 			 */
 			measured: null,
+			/** re-measures when the track or an option changes size */
+			observer: null,
 		}
 	},
 

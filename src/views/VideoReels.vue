@@ -152,6 +152,8 @@ export default {
 			/** the <video> of each slide, by index */
 			videos: [],
 			slides: [],
+			/** tells onVisible which slide is on screen */
+			observer: null,
 		}
 	},
 

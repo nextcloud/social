@@ -16,7 +16,7 @@ import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusBut
 import VisibilitySelect from '../../../src/components/Visibility/VisibilitySelect.vue'
 import eventBus from '../../../src/services/eventBus.js'
 import { createPinia, setActivePinia } from 'pinia'
-import { nextTick } from 'vue'
+import { isProxy, nextTick } from 'vue'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
@@ -294,6 +294,17 @@ describe('Composer', () => {
 
 	afterAll(() => {
 		delete HTMLElement.prototype.innerText
+	})
+
+	// tributejs keeps its own state on the instance and the element; wrapped
+	// in a reactive proxy, attach() and detach() would see the proxy rather
+	// than the object they set up
+	it('keeps the mention library\'s instance and its element unwrapped', () => {
+		const { wrapper } = mountComposer()
+
+		expect(wrapper.vm.tribute).not.toBeNull()
+		expect(isProxy(wrapper.vm.tribute)).toBe(false)
+		expect(wrapper.vm.tributeTarget).toBe(input(wrapper).element)
 	})
 
 	beforeEach(() => {
