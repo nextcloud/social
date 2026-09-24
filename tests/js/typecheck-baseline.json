@@ -1,8 +1,6 @@
 {
 	"src/App.vue": {
-		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 1,
-		"TS2339 Property 'checks' does not exist on type 'ServerData'.": 8,
-		"TS2339 Property 'needsAccount' does not exist on type 'ServerData'.": 2
+		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 1
 	},
 	"src/adminSettings.js": {
 		"TS2588 Cannot assign to '__webpack_nonce__' because it is a constant.": 1,
@@ -126,7 +124,6 @@
 	},
 	"src/components/Navigation.vue": {
 		"TS2339 Property '$el' does not exist on type 'unknown'.": 2,
-		"TS2339 Property 'sections' does not exist on type 'ServerData'.": 1,
 		"TS2554 Expected 2 arguments, but got 1.": 1
 	},
 	"src/components/PeerTagRows.vue": {
@@ -188,9 +185,6 @@
 		"TS2339 Property 'reason' does not exist on type 'unknown'.": 3,
 		"TS2339 Property 'status' does not exist on type 'unknown'.": 1
 	},
-	"src/components/StoryBar.vue": {
-		"TS2339 Property 'sections' does not exist on type 'ServerData'.": 1
-	},
 	"src/components/StoryComposerDialog.vue": {
 		"TS2322 Type '…' is not assignable to type '…'.": 1,
 		"TS2339 Property 'click' does not exist on type 'unknown'.": 2,
@@ -230,13 +224,11 @@
 		"TS2339 Property 'closest' does not exist on type 'EventTarget'.": 2,
 		"TS2339 Property 'focus' does not exist on type 'unknown'.": 1,
 		"TS2339 Property 'nid' does not exist on type 'Status'.": 3,
-		"TS2339 Property 'nsfwPolicy' does not exist on type 'ServerData'.": 1,
 		"TS2339 Property 'place' does not exist on type 'Status'.": 4,
 		"TS2339 Property 'quote_approval' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'tagged_people' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'type' does not exist on type 'Status'.": 1,
 		"TS2339 Property 'video' does not exist on type 'Status'.": 2,
-		"TS2339 Property 'view_count' does not exist on type 'Status'.": 4,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<Status>'.": 1
 	},
 	"src/components/TimelineSwitcher.vue": {
@@ -284,19 +276,6 @@
 	},
 	"src/components/admin/ReportsSection.vue": {
 		"TS2339 Property 'open' does not exist on type 'EventTarget'.": 1
-	},
-	"src/components/admin/ReportsTable.vue": {
-		"TS2339 Property 'account' does not exist on type 'unknown'.": 3,
-		"TS2339 Property 'account_id' does not exist on type 'unknown'.": 5,
-		"TS2339 Property 'category' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'comment' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'creation' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'id' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'level' does not exist on type 'unknown'.": 3,
-		"TS2339 Property 'local' does not exist on type 'unknown'.": 1,
-		"TS2339 Property 'reporter' does not exist on type 'unknown'.": 2,
-		"TS2339 Property 'resolved' does not exist on type 'unknown'.": 2,
-		"TS2339 Property 'status_ids' does not exist on type 'unknown'.": 1
 	},
 	"src/components/admin/ReviewSection.vue": {
 		"TS2339 Property 'account_id' does not exist on type 'unknown'.": 1,
