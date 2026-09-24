@@ -239,6 +239,7 @@ OC.L10N.register(
     "Conversation actions" : "Unterhaltungsaktionen",
     "Remove conversation" : "Unterhaltung entfernen",
     "Could not remove conversation" : "Unterhaltung konnte nicht entfernt werden",
+    "Load older conversations" : "Ältere Unterhaltungen laden",
     "Start a private chat" : "Privaten Chat beginnen",
     "Choose a conversation or find someone to message." : "Wähle eine Unterhaltung oder suche eine Person, der du schreiben möchtest.",
     "Searching…" : "Suche…",
