@@ -555,9 +555,26 @@ class LocalController extends Controller {
 		}
 	}
 
+	/**
+	 * One local account, as a profile page shows it.
+	 *
+	 * A local read, so the limits are the ones a reader browsing profiles
+	 * stays under rather than `globalAccountInfo`'s — that one costs six
+	 * outbound fetches and can afford to be strict. Bounded all the same: a
+	 * name that is here and a name that is not answer differently, so with no
+	 * limit at all this route reads out the instance's user list to anybody
+	 * who asks it fast enough.
+	 *
+	 * A name nobody holds is a 404 and is not written to the log. It was a 500
+	 * with a warning line, which is an internal failure rather than a question
+	 * with the answer "no" — and a line per miss makes an enumeration sweep
+	 * into a way of filling the disk.
+	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/account/{username}/info')]
 	public function accountInfo(string $username): DataResponse {
 		try {
@@ -568,6 +585,8 @@ class LocalController extends Controller {
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($actor, Http::STATUS_OK);
+		} catch (CacheActorDoesNotExistException|AccountDoesNotExistException $e) {
+			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
 		} catch (Exception $e) {
 			return $this->fail($e);
 		}
@@ -714,9 +733,19 @@ class LocalController extends Controller {
 		return $this->accountService->getCachedLocalActor($username);
 	}
 
+	/**
+	 * One cached actor's avatar.
+	 *
+	 * The ceiling is the one `/media/{uuid}` carries and for the same reason:
+	 * stored bytes handed to anybody holding the address. Generous, because a
+	 * timeline draws forty to sixty of these at once and a reader scrolling is
+	 * not an attack.
+	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
+	#[AnonRateLimit(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 3000, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/global/actor/avatar')]
 	public function globalActorAvatar(string $id): Response {
 		try {
