@@ -1056,13 +1056,19 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
+/*
+ * No `min-height`: the panes scroll inside the height below, and a floor under
+ * it only ever made the box taller than the viewport, which pushed the message
+ * field off a short screen and scrolled the whole page instead.
+ */
 .direct-messages {
 	display: grid;
 	grid-template-columns: clamp(17.5rem, 23vw, 20rem) minmax(0, 1fr);
 	width: 100%;
 	height: calc(100dvh - var(--header-height, 50px) - 0.6rem);
-	min-height: 36rem;
 	background: var(--color-main-background);
 }
 
@@ -1091,7 +1097,19 @@ export default {
 
 .direct-messages__list-heading {
 	justify-content: space-between;
-	padding-inline-start: 3.5rem;
+}
+
+/*
+ * Room for Nextcloud's app-navigation toggle. Where the navigation is pinned
+ * the toggle sits over the top-left corner of the content — that corner is
+ * this heading, open or closed — and without the room it covers the first
+ * letters of "Messages". Below `$folded` the page already starts beneath the
+ * toggle (Timeline.vue), so the room there would be empty.
+ */
+@media (min-width: layout.$folded + 1px) {
+	.direct-messages__list-heading {
+		padding-inline-start: 3.5rem;
+	}
 }
 
 .direct-messages__list-heading h2,
@@ -1531,10 +1549,14 @@ export default {
 	}
 }
 
-@media (max-width: 980px) {
+/*
+ * One pane at a time from here down. Above it the list keeps its 17.5rem and
+ * the thread has at least 32rem, which is wider than the thread already is
+ * beside a pinned navigation at 1024px.
+ */
+@include layout.below(layout.$crowded) {
 	.direct-messages {
 		grid-template-columns: minmax(0, 1fr);
-		min-height: calc(100dvh - var(--header-height, 50px) - 0.6rem);
 	}
 
 	.direct-messages__list-panel {
