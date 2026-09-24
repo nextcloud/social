@@ -96,7 +96,7 @@ function answer(overrides = {}) {
 		best: [
 			{ id: '7', url: 'https://cloud.example.org/@alice/7', published_at: '2026-09-01T10:00:00.000Z', excerpt: 'A good one', likes: 9, boosts: 4, replies: 2 },
 		],
-		window: { counted: 43, capped: false, max: 2000, first_at: '2026-08-03T21:30:34.000Z', last_at: '2026-09-12T23:20:02.000Z' },
+		window: { days: 0, choices: [0, 30, 90, 365], cached: false, counted: 43, capped: false, max: 2000, first_at: '2026-08-03T21:30:34.000Z', last_at: '2026-09-12T23:20:02.000Z' },
 		periods: {
 			days: 30,
 			current: {
@@ -137,7 +137,27 @@ function answer(overrides = {}) {
 			{ id: '7', url: 'https://cloud.example.org/@alice/7', published_at: '2026-09-08T15:42:00.000Z', excerpt: 'The loud one', likes: 15, boosts: 7, replies: 3, score: 25, media: false, visibility: 'public', reach: 900 },
 			{ id: '6', url: 'https://cloud.example.org/@alice/6', published_at: '2026-09-06T14:12:00.000Z', excerpt: 'The quiet one', likes: 1, boosts: 0, replies: 0, score: 1, media: false, visibility: 'public', reach: 300 },
 		],
-		reach: { followers: 26, known_boosters: 5, unknown_boosters: 0, listed: 100 },
+		reach: { followers: 26, known_boosters: 5, unknown_boosters: 0, listed: 100, instances: 14 },
+		activity: {
+			originals: { '2026-08': 30, '2026-09': 4 },
+			replies: { '2026-08': 8, '2026-09': 1 },
+			boosts: { '2026-08': 1, '2026-09': 0 },
+		},
+		consistency: { active_days: 12, span_days: 41, share: 29.3, longest_gap: 9, streak: 4 },
+		media: { images: 4, described: 3, described_share: 75 },
+		languages: [{ name: 'en', count: 30 }, { name: 'de', count: 13 }],
+		domains: [{ name: 'nextcloud.com', count: 7 }, { name: 'joinfediverse.wiki', count: 2 }],
+		partners: {
+			inbound: [
+				{ id: 'https://remote.example/users/bob', account: 'bob@remote.example', replies: 7, followed: true },
+				{ id: 'https://remote.example/users/carol', account: 'carol@remote.example', replies: 2, followed: false },
+			],
+			outbound: [
+				{ id: 'https://remote.example/users/dave', account: 'dave@remote.example', replies: 5, followed: true },
+			],
+			not_followed_share: 50,
+			listed: 10,
+		},
 		...overrides,
 	}
 }
@@ -640,5 +660,136 @@ describe('Statistics', () => {
 
 			expect(wrapper.find('.stats__platforms').exists()).toBe(false)
 		})
+	})
+
+	it('asks for the window the reader picked, and only when it changes', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(axios.get.mock.calls[0][1].params).toEqual({ days: 0, fresh: false })
+
+		const choices = wrapper.findAll('.stats__window-choice')
+		expect(choices.map((choice) => choice.text())).toEqual([
+			'All time',
+			'Last 30 days',
+			'Last 90 days',
+			'Last 365 days',
+		])
+
+		await choices[2].trigger('click')
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenCalledTimes(2)
+		expect(axios.get.mock.calls[1][1].params).toEqual({ days: 90, fresh: false })
+		expect(choices[2].attributes('aria-pressed')).toBe('true')
+
+		// the same window again is not a second walk of the same posts
+		await choices[2].trigger('click')
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenCalledTimes(2)
+	})
+
+	it('counts them again rather than reading the cache when asked to', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		await wrapper.find('.stats__actions button').trigger('click')
+		await flushPromises()
+
+		expect(axios.get.mock.calls[1][1].params).toEqual({ days: 0, fresh: true })
+	})
+
+	it('offers the numbers as a file, for the window on screen', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+		await wrapper.findAll('.stats__window-choice')[1].trigger('click')
+		await flushPromises()
+
+		const download = wrapper.find('.stats__actions a')
+		expect(download.attributes('href')).toContain('/apps/social/api/v1/statistics/export?days=30')
+		expect(download.attributes('download')).toBe('alice-statistics.csv')
+	})
+
+	it('names who talks with the account, and who among them is a stranger', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const page = text(wrapper)
+		expect(page).toContain('Who answers you')
+		expect(page).toContain('@bob@remote.example')
+		expect(page).toContain('Who you answer')
+		expect(page).toContain('@dave@remote.example')
+		// carol replied twice and is not followed; bob is
+		expect(page).toContain('not followed')
+		expect(page).toContain('50% of the people who replied to you are people you do not follow.')
+	})
+
+	it('says what the account did, not only what came back', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(text(wrapper)).toContain('What you did')
+		// two months, three parts each
+		expect(wrapper.findAll('.stats__stack > li')).toHaveLength(2)
+		expect(wrapper.findAll('.stats__stack-part')).toHaveLength(6)
+		// the busiest month fills the column
+		const tallest = wrapper.find('.stats__stack-part--originals')
+		expect(tallest.attributes('style')).toContain('height: 77%')
+	})
+
+	it('shows how much of the pictures describe themselves', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const page = text(wrapper)
+		expect(page).toContain('carry a description')
+		expect(page).toContain('75%')
+		expect(page).toContain('3 of 4')
+	})
+
+	it('names the languages rather than repeating their tags', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const page = text(wrapper)
+		expect(page).toContain('English')
+		expect(page).toContain('German')
+		expect(page).toContain('nextcloud.com')
+	})
+
+	it('leaves the new cards out when the answer has nothing for them', async () => {
+		axios.get.mockResolvedValue({
+			data: answer({
+				partners: { inbound: [], outbound: [], not_followed_share: 0, listed: 10 },
+				media: { images: 0, described: 0, described_share: 0 },
+				languages: [],
+				domains: [],
+				consistency: { active_days: 0, span_days: 0, share: 0, longest_gap: 0, streak: 0 },
+			}),
+		})
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const page = text(wrapper)
+		expect(page).not.toContain('Who answers you')
+		expect(page).not.toContain('carry a description')
+		expect(page).not.toContain('How steadily you post')
+		expect(wrapper.find('.stats__list').exists()).toBe(false)
 	})
 })

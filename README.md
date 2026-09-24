@@ -360,7 +360,22 @@ own unified search. No external search engine to run.
   server's own rows the moment you open the page, so nothing can be stale, and the page
   says what it cannot know — reach is your followers plus the followers of whoever
   boosted you, overlapping audiences counted twice, and it names how many boosters'
-  audiences this server has never been told about.
+  audiences this server has never been told about. Beside the estimate it also reports
+  the number of servers your posts were actually delivered to, which is measured.
+- **Choose the window** — all time, or the last 30, 90 or 365 days — and the page says
+  which one it counted. The result is held for fifteen minutes so a reload is free, with
+  a button to count it again, and another to **take the numbers with you** as a CSV or a
+  JSON file: nothing here is stored on the server, so the only copy of a month's figures
+  is the one you keep.
+- **What you did**, beside what came back: posts of your own, replies and boosts, month
+  by month. A quiet month in the other chart means either you were quiet or nobody
+  answered, and this is how you tell which. With it, **how steadily you post** — the
+  days you posted on, your longest run and your longest silence.
+- **Who you talk with**, from the replies rather than from who you follow: the people
+  who answer you and the people you answer, and how many of the first are people you do
+  not follow. **Your pictures and whether they describe themselves**, which is the one
+  number on the page you can move on your own. And what you write in and where your
+  links go.
 
 ## 🔔 Notifications
 
