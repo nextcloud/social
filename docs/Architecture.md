@@ -1125,6 +1125,13 @@ row's key onto the incoming document first. That is a bug older than video —
 every re-delivered Mastodon picture hit it — but a streamed row depends on it
 twice over, since the key is what the media proxy is addressed by.
 
+A picture the inbox could not fetch is stored with an empty `local_copy`, and
+the post's own copy of its attachments (the `attachments` column, the client
+format keyed by the document's nid) says so. When the caching cron or
+`occ social:media:retry` fetches it later, `StreamRequest::updateAttachments()`
+rebuilds that one entry from the document and leaves the post's other entries
+as they were stored.
+
 When a remote image is refused permanently, the post still arrives with an
 image placeholder. The local attachment response now carries `cache_error`:
 `1` is over the size limit, `2` is an unsupported type, `3` could not be read
