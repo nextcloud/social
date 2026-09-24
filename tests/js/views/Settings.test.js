@@ -3,13 +3,15 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { flushPromises, mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Settings from '../../../src/views/Settings.vue'
 import MigrationSettings from '../../../src/components/MigrationSettings.vue'
 import ScheduledPosts from '../../../src/components/ScheduledPosts.vue'
 import ShortcutList from '../../../src/components/ShortcutList.vue'
 import ShortcutHelp from '../../../src/components/ShortcutHelp.vue'
 import { SHORTCUTS } from '../../../src/services/shortcuts.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 // the scheduled list asks the server for its entries as soon as it is drawn
 vi.mock('@nextcloud/axios', () => ({
@@ -35,9 +37,15 @@ const asyncStubs = {
 	RecapSettings: { name: 'RecapSettings', template: '<section class="recap-settings-stub" />' },
 	// reads the portfolio and the collections on mount, same story again
 	PortfolioSettings: { name: 'PortfolioSettings', template: '<section class="portfolio-settings-stub" />' },
+	// reads the interests on mount
+	InterestsSettings: { name: 'InterestsSettings', template: '<section class="interests-settings-stub" />' },
 }
 
 describe('Settings', () => {
+	beforeEach(() => {
+		setActivePinia(createPinia())
+	})
+
 	it('shows every shortcut the app listens for', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 		await flushPromises()
@@ -279,5 +287,25 @@ describe('Settings', () => {
 
 		expect(wrapper.find('#delete').classes()).toContain('settings__section--danger')
 		expect(wrapper.findAll('.settings__toc-link--danger')).toHaveLength(1)
+	})
+	/**
+	 * The interests section shapes a feed the administrator can switch off,
+	 * and a section about a feed that does not exist is a promise nobody
+	 * keeps. It comes right after the featured hashtags: both are about the
+	 * reader's hashtags.
+	 */
+	it('offers the interests only when the feature is on', async () => {
+		const off = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+		expect(off.find('#interests').exists()).toBe(false)
+
+		useSettingsStore().setServerData({ interests: { enabled: true, learning: true, paused: false } })
+		const on = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		const ids = on.findAll('.settings__section').map((section) => section.attributes('id'))
+		expect(ids.indexOf('interests')).toBe(ids.indexOf('featured-tags') + 1)
+		expect(on.find('#interests .interests-settings-stub').exists()).toBe(true)
+		expect(on.findAll('.settings__toc-link').map((link) => link.text())).toContain('My interests')
 	})
 })

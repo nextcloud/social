@@ -76,6 +76,8 @@ import PostDetails from '../components/PostDetails.vue'
 import PostReactedBy from '../components/PostReactedBy.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
+import { isTracking } from '../services/interests.js'
+import { signalNow } from '../services/interestTracker.js'
 // its own chunk: it brings a player and a follow button, and almost every post
 // opened is not a video
 const VideoHeader = defineAsyncComponent(() => import(/* webpackChunkName: "watch" */'../components/VideoHeader.vue'))
@@ -329,10 +331,23 @@ export default {
 				await this.timelineStore.fetchStatus(this.$route.params.id)
 			}
 
+			this.reportOpened()
+
 			// the account is loaded for the post's author card; nothing here
 			// reads the answer, which is why it is not kept
 			const fetchMethod = this.serverData.public ? 'fetchPublicAccountInfo' : 'fetchAccountInfo'
 			await this.accountStore[fetchMethod](this.account)
+		},
+
+		/** Tells My interests the reader opened this post, when it is learning. */
+		reportOpened() {
+			const post = this.timelineStore.getSinglePost
+			if (!post || this.serverData.public || !isTracking(this.serverData.interests)) {
+				return
+			}
+
+			const me = this.accountStore.currentAccount?.acct
+			signalNow(post, 'open', 'detail', (status) => me !== undefined && status.account?.acct === me)
 		},
 
 		/**

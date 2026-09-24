@@ -80,3 +80,16 @@ export async function showWarning(text, options) {
 export async function showInfo(text, options) {
 	return (await dialogs()).showInfo(text, options)
 }
+
+/**
+ * A toast with an Undo button, which stays for the ten seconds
+ * `@nextcloud/dialogs` gives an undo.
+ *
+ * @param {string} text what was just done
+ * @param {(event: MouseEvent) => void} onUndo called when Undo is pressed
+ * @param {object} [options] as `@nextcloud/dialogs` takes them
+ * @return {Promise<object>} the toast
+ */
+export async function showUndo(text, onUndo, options) {
+	return (await dialogs()).showUndo(text, onUndo, options)
+}

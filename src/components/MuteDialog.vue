@@ -38,6 +38,9 @@ import NcDialog from '@nextcloud/vue/components/NcDialog'
 import { translate as t } from '@nextcloud/l10n'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useSettingsStore } from '../store/settings.js'
+import { isTracking } from '../services/interests.js'
+import { contextFor, signalNow } from '../services/interestTracker.js'
 
 /**
  * How long each choice lasts, in seconds; 0 is Mastodon's "until I say
@@ -78,6 +81,24 @@ export default {
 		account: {
 			type: Object,
 			required: true,
+		},
+
+		/**
+		 * The post the mute was asked for from, when it was: muting somebody
+		 * over a post says something about its hashtags, which My interests
+		 * is told. Null from a profile, which is about the person.
+		 *
+		 * @type {import('vue').PropType<import('../types/Mastodon.js').Status|null>}
+		 */
+		status: {
+			type: Object,
+			default: null,
+		},
+
+		/** the timeline that post was shown in, for the signal's context */
+		timelineType: {
+			type: String,
+			default: '',
 		},
 	},
 
@@ -132,6 +153,18 @@ export default {
 	methods: {
 		t,
 
+		/** Tells My interests, when the mute came from a post and learning is on. */
+		reportToInterests() {
+			if (this.status === null || !isTracking(useSettingsStore().getServerData.interests)) {
+				return
+			}
+
+			// a profile or a list is not one of the places signals come
+			// from; the post was still read somewhere, and home is where
+			// most reading happens
+			signalNow(this.status, 'mute', contextFor(this.timelineType) ?? 'home')
+		},
+
 		async mute() {
 			if (this.muting) {
 				return
@@ -145,6 +178,7 @@ export default {
 				})
 				// the store said what went wrong; the dialog stays for another try
 				if (relationship?.id) {
+					this.reportToInterests()
 					this.$emit('muted', relationship)
 					this.$emit('update:open', false)
 				}

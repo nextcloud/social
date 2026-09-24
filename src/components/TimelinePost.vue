@@ -292,6 +292,7 @@
 						:translating="translating"
 						:translated="translation !== null"
 						:archiving="archiving"
+						:interests="serverData.interests"
 						@update:open="menuOpen = $event"
 						@quote="quote"
 						@edit="editPost"
@@ -305,6 +306,7 @@
 						@bookmark="toggleBookmark"
 						@collect="showCollectionDialog = true"
 						@pin="togglePin"
+						@lessLikeThis="lessLikeThis"
 						@mute="showMuteDialog = true"
 						@block="showBlockDialog = true"
 						@report="showReportDialog = true" />
@@ -399,7 +401,9 @@
 		<MuteDialog
 			v-if="showMuteDialog"
 			v-model:open="showMuteDialog"
-			:account="item.account" />
+			:account="item.account"
+			:status="item"
+			:timelineType="type" />
 		<CollectionPickerDialog
 			v-if="showCollectionDialog"
 			v-model:open="showCollectionDialog"
@@ -487,6 +491,7 @@ import { onTick } from '../services/clock.js'
 import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
 import { localProfileUrl } from '../utils/accountProfileLink.js'
 import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
+import { lessLikeThisFromPost } from '../services/interestFeedback.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
 import QuotedPost from './QuotedPost.vue'
@@ -1114,6 +1119,11 @@ export default {
 			} finally {
 				this.untagging = false
 			}
+		},
+
+		/** @return {Promise<void>} "Less like this", from the menu */
+		lessLikeThis() {
+			return lessLikeThisFromPost(this.item, this.type)
 		},
 
 		/**

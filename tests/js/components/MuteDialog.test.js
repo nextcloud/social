@@ -10,6 +10,7 @@ import axios from '@nextcloud/axios'
 
 import MuteDialog, { MUTE_DURATIONS } from '../../../src/components/MuteDialog.vue'
 import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { post: vi.fn() },
@@ -139,5 +140,40 @@ describe('MuteDialog', () => {
 
 		expect(wrapper.find('.mute-dialog__notifications input').element.checked).toBe(true)
 		expect(durationRadios(wrapper)[0].element.checked).toBe(true)
+	})
+})
+
+describe('muting from a post', () => {
+	const post = { id: '1789344497747043682', account: bob, tags: [{ name: 'film' }] }
+
+	beforeEach(() => {
+		vi.clearAllMocks()
+		axios.post.mockResolvedValue({ data: { id: bob.id, muting: true } })
+	})
+
+	function mountFromPost(interests) {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		useSettingsStore().setServerData({ public: false, interests })
+
+		return mount(MuteDialog, {
+			props: { open: true, account: bob, status: post, timelineType: 'federated' },
+			global: { plugins: [pinia], stubs: { NcDialog: NcDialogStub } },
+		})
+	}
+
+	it('tells My interests, under the timeline the post was in', async () => {
+		await confirm(mountFromPost({ enabled: true, learning: true, paused: false }))
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/interests/signals`, {
+			events: [{ status_id: post.id, kind: 'mute', context: 'federated' }],
+		})
+	})
+
+	it('tells it nothing while learning is paused', async () => {
+		await confirm(mountFromPost({ enabled: true, learning: true, paused: true }))
+
+		expect(axios.post).toHaveBeenCalledTimes(1)
+		expect(axios.post).toHaveBeenCalledWith(`${API}/accounts/22/mute`, expect.anything())
 	})
 })

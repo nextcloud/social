@@ -13,6 +13,9 @@
 		     single post's page, which the reader navigated to for that post -->
 		<Announcements v-if="type !== 'single-post' && type !== 'direct'" />
 
+		<!-- said once, on the pages where the reading it describes happens -->
+		<InterestsNotice v-if="showInterestsNotice" />
+
 		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct'" />
 
 		<!-- the three timelines that are the same place seen from three
@@ -23,6 +26,8 @@
 			:options="scopes"
 			:value="scope"
 			:label="t('social', 'Which posts to show')" />
+
+		<InterestsLearningBanner v-if="type === 'interests' && hasInterestsTab" />
 
 		<div
 			class="timeline-heading-row"
@@ -123,6 +128,7 @@ import IconMessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline
 import IconPlayCircleOutline from 'vue-material-design-icons/PlayCircleOutline.vue'
 import IconPoll from 'vue-material-design-icons/Poll.vue'
 import IconRepeat from 'vue-material-design-icons/Repeat.vue'
+import IconTagHeart from 'vue-material-design-icons/TagHeart.vue'
 import TimelineList from './../components/TimelineList.vue'
 import DirectMessages from './../components/DirectMessages.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
@@ -130,6 +136,8 @@ import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import Announcements from './../components/Announcements.vue'
 import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
+import InterestsLearningBanner from './../components/InterestsLearningBanner.vue'
+import InterestsNotice from './../components/InterestsNotice.vue'
 import OnThisDay from './../components/OnThisDay.vue'
 import StoryBar from './../components/StoryBar.vue'
 import WeeklyRecap from './../components/WeeklyRecap.vue'
@@ -140,6 +148,8 @@ import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import eventBus, { NOTIFICATIONS_READ } from './../services/eventBus.js'
 import { rememberFilter, rememberedFilter } from './../services/notifications.js'
+import { hasInterestsFeed, isTracking } from './../services/interests.js'
+import { contextFor } from './../services/interestTracker.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useNotificationsStore } from '../store/notifications.js'
@@ -160,6 +170,8 @@ export default {
 		FirstRun,
 		HashtagFollowButton,
 		HashtagFollowedList,
+		InterestsLearningBanner,
+		InterestsNotice,
 		OnThisDay,
 		StoryBar,
 		WeeklyRecap,
@@ -242,6 +254,8 @@ export default {
 					return t('social', 'Local timeline')
 				case 'federated':
 					return t('social', 'Global timeline')
+				case 'interests':
+					return t('social', 'My interests')
 				case 'favourites':
 					return t('social', 'Liked posts')
 				case 'bookmarks':
@@ -257,7 +271,7 @@ export default {
 		 * @return {boolean} whether the three scopes are what this page shows
 		 */
 		isFeed() {
-			return ['home', 'timeline', 'federated', 'photos', 'videos', 'news'].includes(this.type)
+			return ['home', 'timeline', 'federated', 'interests', 'photos', 'videos', 'news'].includes(this.type)
 		},
 
 		/**
@@ -353,9 +367,48 @@ export default {
 				{ value: 'federated', label: t('social', 'Global'), icon: IconEarth, to: routeFor('federated') },
 			]
 
+			// the reader's own again, chosen by subject rather than by whom they
+			// follow, so it sits beside My Feed rather than after the distances.
+			// Not a scope of Photos or News: it is a ranking of its own, and a
+			// narrowing of it would be a second one
+			if (this.hasInterestsTab && !this.isScopedPage) {
+				scopes.splice(1, 0, {
+					value: 'interests',
+					label: t('social', 'My interests'),
+					icon: IconTagHeart,
+					to: { name: 'timeline', params: { type: 'interests' } },
+				})
+			}
+
 			return this.settingsStore.getServerData.public
 				? scopes.filter(({ value }) => value !== 'home')
 				: scopes
+		},
+
+		/**
+		 * Whether the reader has My interests: the administrators have it on
+		 * and the reader has not opted out. Paused still has the feed.
+		 *
+		 * @return {boolean}
+		 */
+		hasInterestsTab() {
+			return !this.settingsStore.getServerData.public && hasInterestsFeed(this.settingsStore.getServerData.interests)
+		},
+
+		/**
+		 * Whether to say, once, that reading is being learned from: only while
+		 * it is, only until the reader has answered, and only on a page whose
+		 * reading counts.
+		 *
+		 * @return {boolean}
+		 */
+		showInterestsNotice() {
+			const interests = this.settingsStore.getServerData.interests
+
+			return !this.settingsStore.getServerData.public
+				&& isTracking(interests)
+				&& interests.noticeAcknowledged !== true
+				&& contextFor(this.type) !== null
 		},
 
 		/**

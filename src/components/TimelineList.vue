@@ -122,8 +122,11 @@ import { groupNotifications, newestIdOf } from '../services/notifications.js'
 import { isNewerId, newerId, newestId, oldestId } from '../utils/snowflake.js'
 import { scrollOffset, scroller } from '../utils/scroller.js'
 import { mapStores } from 'pinia'
+import { useAccountStore } from '../store/account.js'
 import { useNotificationsStore } from '../store/notifications.js'
 import { useTimelineStore } from '../store/timeline.js'
+import { isTracking } from '../services/interests.js'
+import { contextFor, createInterestTracker } from '../services/interestTracker.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
 
@@ -156,6 +159,26 @@ const ANNOUNCE_BELOW = 240
  * happen by accident, and the tab has to be in front for it to pass at all.
  */
 const SEEN_AFTER = 2000
+
+/**
+ * Whether a link leaves this app: not a hashtag, not a mention, not a page of
+ * this instance.
+ *
+ * @param {HTMLAnchorElement} link the link
+ * @return {boolean}
+ */
+function isLinkOut(link) {
+	const text = (link.textContent ?? '').trim()
+	if (text.startsWith('#') || text.startsWith('@')) {
+		return false
+	}
+
+	try {
+		return new URL(link.href, window.location.href).host !== window.location.host
+	} catch {
+		return false
+	}
+}
 
 export default {
 	name: 'TimelineList',
@@ -391,6 +414,16 @@ export default {
 					},
 				},
 
+				interests: {
+					illustration: 'quiet-timeline',
+					title: t('social', 'Nothing here for you yet'),
+					description: t('social', 'My interests learns which hashtags you care about from how you read: the posts you spend time on, like, boost, reply to or open. Keep reading your other timelines, or tell it about a few hashtags yourself.'),
+					action: {
+						label: t('social', 'Manage interests'),
+						to: { name: 'settings', hash: '#interests' },
+					},
+				},
+
 				'single-post': {
 					illustration: 'no-replies',
 					title: this.showParents ? '' : t('social', 'No replies yet'),
@@ -400,7 +433,39 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useNotificationsStore, useTimelineStore),
+		...mapStores(useAccountStore, useNotificationsStore, useTimelineStore),
+
+		/**
+		 * Whether this list is in the order things were posted.
+		 *
+		 * My interests is ranked instead, so nothing that reasons about "newer
+		 * than" applies to it: there is no top to catch up on, no line where
+		 * the reader left off, and the cursor is where the page ended rather
+		 * than the oldest post on it.
+		 *
+		 * @return {boolean}
+		 */
+		chronological() {
+			return this.type !== 'interests'
+		},
+
+		/**
+		 * What My interests hears this list's reading as, or null when it
+		 * hears nothing: the feature is off, the reader opted out or paused,
+		 * nobody is signed in, or this is not a timeline that teaches it.
+		 *
+		 * @return {string|null}
+		 */
+		interestContext() {
+			if (this.serverData.public || !isTracking(this.serverData.interests) || this.display === 'grid') {
+				return null
+			}
+
+			// the thread's two lists are given whatever type the route
+			// carries, which on a post's page is none
+			return contextFor(this.$route?.name === 'single-post' ? 'single-post' : this.type)
+		},
+
 		/**
 		 * What has just changed, in one sentence. Only the thing worth saying:
 		 * a reader does not need to hear about every page that loads while
@@ -618,7 +683,7 @@ export default {
 		 * @return {number}
 		 */
 		caughtUpAt() {
-			if (this.isThread || this.type === 'notifications' || this.lastSeen === '') {
+			if (this.isThread || this.type === 'notifications' || !this.chronological || this.lastSeen === '') {
 				return 0
 			}
 
@@ -736,6 +801,14 @@ export default {
 				this.readPlace()
 				this.resetAndLoad()
 			}
+			// a different list is a different page view: what was read on
+			// the last one is said, and the new one starts counting afresh
+			this.startTracking()
+		},
+
+		// turning learning off, or on, from the notice above the list
+		interestContext() {
+			this.startTracking()
 		},
 
 		// the pill is only on screen for as long as there is something to say,
@@ -761,6 +834,16 @@ export default {
 
 			this.armSeenTimer()
 		},
+
+		// the entries are in the DOM once the render has been flushed, which
+		// is when the tracker can find them
+		entries: {
+			handler() {
+				this.syncTracked()
+			},
+
+			flush: 'post',
+		},
 	},
 
 	mounted() {
@@ -770,6 +853,9 @@ export default {
 		if (this.timeline.length > 0) {
 			this.heldOver = [...this.timeline]
 		}
+
+		// the ancestors above a post are read as much as the replies below it
+		this.startTracking()
 
 		// The ancestors list in the single-post view renders the same
 		// /context response its sibling fetches: it used to page, poll and
@@ -810,6 +896,7 @@ export default {
 	},
 
 	unmounted() {
+		this.stopTracking()
 		this.rememberPlace()
 		offTimelinePush(this.onPushed)
 		document.removeEventListener('visibilitychange', this.pollOnReturn)
@@ -852,7 +939,7 @@ export default {
 		/** Remembers the newest post on this timeline as where the reader got to. */
 		rememberPlace() {
 			const newest = this.entries[0]
-			if (this.isThread || this.type === 'notifications' || !newest?.id) {
+			if (this.isThread || this.type === 'notifications' || !this.chronological || !newest?.id) {
 				return
 			}
 
@@ -926,6 +1013,107 @@ export default {
 				this.composerObserver = null
 			}
 			this.composerHeight = 0
+		},
+
+		/**
+		 * Starts measuring what is read in this list for My interests, or
+		 * stops, when it should not be: the one tracker the list had is
+		 * always finished first, so its reading is sent under the context it
+		 * was read in.
+		 */
+		startTracking() {
+			this.stopTracking()
+
+			const context = this.interestContext
+			if (context === null || !this.$el) {
+				return
+			}
+
+			this.tracker = createInterestTracker({
+				context,
+				isOwn: (status) => {
+					const me = this.accountStore.currentAccount?.acct
+					return me !== undefined && status.account?.acct === me
+				},
+			})
+			// delegated, so a page of new posts needs nothing added. Capture,
+			// because `play` does not bubble and a picture's own click handler
+			// may stop the event before it would get here
+			this.$el.addEventListener('click', this.onTrackedClick, true)
+			this.$el.addEventListener('play', this.onTrackedPlay, true)
+			this.$nextTick(() => this.syncTracked())
+		},
+
+		/** Finishes the tracker, sending what it still holds. */
+		stopTracking() {
+			if (!this.tracker) {
+				return
+			}
+
+			this.tracker.destroy()
+			this.tracker = null
+			this.$el?.removeEventListener('click', this.onTrackedClick, true)
+			this.$el?.removeEventListener('play', this.onTrackedPlay, true)
+		},
+
+		/** Hands the tracker the entries on the page, each with its post. */
+		syncTracked() {
+			// what is held over from the list being left is not this list
+			if (!this.tracker || !this.$el || this.holding) {
+				return
+			}
+
+			const pairs = [...this.$el.querySelectorAll('[data-status-id]')]
+				.map((element) => [element, this.timelineStore.getStatus(element.dataset.statusId)])
+				.filter(([, status]) => status !== undefined)
+			this.tracker.sync(pairs)
+		},
+
+		/**
+		 * @param {Event} event anything that happened inside the list
+		 * @return {object|undefined} the post it happened to
+		 */
+		trackedStatusOf(event) {
+			const entry = event.target?.closest?.('[data-status-id]')
+			if (!entry || !this.$el.contains(entry)) {
+				return undefined
+			}
+
+			return this.timelineStore.getStatus(entry.dataset.statusId)
+		},
+
+		/**
+		 * A picture opened, or a link followed, from a post.
+		 *
+		 * Only a link out of the post counts: a hashtag or a mention goes
+		 * somewhere inside this app, and says nothing about the post's
+		 * subject that its hashtags do not already.
+		 *
+		 * @param {MouseEvent} event the click
+		 */
+		onTrackedClick(event) {
+			const status = this.trackedStatusOf(event)
+			if (status === undefined) {
+				return
+			}
+
+			if (event.target.closest('.post-attachments')) {
+				this.tracker?.record(status, 'media')
+				return
+			}
+
+			const link = event.target.closest('a[href]')
+			if (link && link.closest('.post-message, .post-card') && isLinkOut(link)) {
+				this.tracker?.record(status, 'link')
+			}
+		},
+
+		/** @param {Event} event a video or audio starting */
+		onTrackedPlay(event) {
+			const status = this.trackedStatusOf(event)
+			if (status !== undefined) {
+				this.tracker?.record(status, 'media')
+			}
 		},
 
 		setupIntersectionObserver() {
@@ -1104,8 +1292,13 @@ export default {
 				// As strings, end to end: a cursor rounded through a Number
 				// either re-fetches the post it points at, so the end of the
 				// list is never reached, or skips the rows between the two.
+				//
+				// A ranked list pages from where the last page ended: its
+				// oldest post may be anywhere in it.
 				const ids = this.timeline.map((entry) => entry.id)
-				const cursor = this.reverseOrder ? newestId(ids) : oldestId(ids)
+				const cursor = !this.chronological
+					? ids[ids.length - 1]
+					: (this.reverseOrder ? newestId(ids) : oldestId(ids))
 				if (cursor !== undefined) {
 					params[this.reverseOrder ? 'min_id' : 'max_id'] = cursor
 				}
@@ -1242,7 +1435,9 @@ export default {
 		 * @param {number} depth how many pages have already been followed
 		 */
 		async fetchNewStatuses(depth = 0) {
-			if (this.showParents) {
+			// a ranked feed has no top for new posts to arrive at; pulling the
+			// list again is how it is refreshed
+			if (this.showParents || !this.chronological) {
 				return
 			}
 

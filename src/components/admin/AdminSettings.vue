@@ -77,6 +77,7 @@
 								v-else-if="card.id === 'sections'"
 								:settings="state.sections"
 								:groups="state.groups ?? []" />
+							<InterestsSection v-else-if="card.id === 'interests'" :settings="state.interests" />
 							<RetentionSection v-else-if="card.id === 'retention'" :days="state.retentionDays" />
 							<StorageSection
 								v-else-if="card.id === 'storage'"
@@ -112,6 +113,7 @@ import DiscoverSection from './DiscoverSection.vue'
 import EmojiSection from './EmojiSection.vue'
 import BackgroundSection from './BackgroundSection.vue'
 import FederationSection from './FederationSection.vue'
+import InterestsSection from './InterestsSection.vue'
 import MediaBlocksSection from './MediaBlocksSection.vue'
 import RelaysSection from './RelaysSection.vue'
 import ReportsSection from './ReportsSection.vue'
@@ -177,6 +179,7 @@ export default {
 		EmojiSection,
 		BackgroundSection,
 		FederationSection,
+		InterestsSection,
 		MediaBlocksSection,
 		RelaysSection,
 		ReportsSection,
@@ -241,6 +244,9 @@ export default {
 						{ id: 'emoji', title: t('social', 'Custom emoji') },
 						{ id: 'announcements', title: t('social', 'Announcements') },
 						...(this.state.sections ? [{ id: 'sections', title: t('social', 'Sections') }] : []),
+						// an administrator's decision, like the sections: a delegate is
+						// sent no settings for it
+						...(this.state.interests ? [{ id: 'interests', title: t('social', 'My interests') }] : []),
 					],
 				},
 				{
