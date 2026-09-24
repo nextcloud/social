@@ -66,13 +66,24 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 			// every import. Find its existing row by URL and parent before any
 			// download, otherwise a retry creates orphaned bytes and points the
 			// post at a media id that does not exist.
-			if ($item->getUrl() !== '' && $item->getParentId() !== '') {
+			$addressed = ($item->getUrl() !== '' && $item->getParentId() !== '');
+			if ($addressed) {
 				try {
 					$known = $this->cacheDocumentsRequest->getByUrlAndParent($item->getUrl(), $item->getParentId());
 					$item->setId($known->getId());
 					$this->keepWhatOnlyTheRowKnows($item, $known);
+					// and written, as the id path above writes it. The sender
+					// may have added a description, a blurhash or a corrected
+					// type since the row was made; without this the merge lived
+					// in the object this request happened to hold and the row
+					// kept what it first heard, for good.
+					$this->cacheDocumentsRequest->update($item);
+
 					return;
 				} catch (CacheDocumentDoesNotExistException) {
+					// that lookup is the whole of isDuplicate(), and it missed:
+					// this document is new, and asking again below would be the
+					// same query with the same answer
 				}
 			}
 
@@ -84,8 +95,10 @@ class DocumentInterface extends AbstractActivityPubInterface implements IActivit
 			}
 
 			// parentId / url can only be empty on new document, meaning owner cannot be empty here
-			if (($item->getUrl() === '' && $item->getParentId() === '' && $item->getAccount() !== '')
-				|| !$this->cacheDocumentsRequest->isDuplicate($item)) {
+			$isNew = $addressed
+				|| ($item->getUrl() === '' && $item->getParentId() === '' && $item->getAccount() !== '')
+				|| !$this->cacheDocumentsRequest->isDuplicate($item);
+			if ($isNew) {
 				$this->cacheDocumentsRequest->save($item);
 			}
 		}
