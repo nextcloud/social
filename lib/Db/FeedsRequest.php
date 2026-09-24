@@ -1,0 +1,256 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Db;
+
+use DateTime;
+use OCP\DB\QueryBuilder\IQueryBuilder;
+
+/**
+ * The feeds somebody follows, and the entries read out of them.
+ *
+ * Owned by a Nextcloud user rather than by an actor: reading a blog needs no
+ * fediverse identity, and somebody who has not finished the setup screen can
+ * still follow one.
+ */
+class FeedsRequest extends CoreRequestBuilder {
+	/** @return array<array<string, mixed>> one row per feed, newest first */
+	public function feedsOf(string $userId): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('f.id', 'f.url', 'f.site_url', 'f.title', 'f.error', 'f.fetched_at')
+			->from(self::TABLE_FEEDS, 'f')
+			->where($qb->expr()->eq('f.user_id', $qb->createNamedParameter($userId)))
+			->orderBy('f.id', 'desc');
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$rows[] = $row;
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/** How many entries each of those feeds holds, by feed id. */
+	public function countsFor(array $feedIds): array {
+		if ($feedIds === []) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$qb->select('i.feed_id')
+			->selectAlias($qb->func()->count('i.id'), 'entries')
+			->from(self::TABLE_FEED_ITEMS, 'i')
+			->where($qb->expr()->in('i.feed_id', $qb->createNamedParameter($feedIds, IQueryBuilder::PARAM_INT_ARRAY)))
+			->groupBy('i.feed_id');
+
+		$counts = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$counts[(int)$row['feed_id']] = (int)$row['entries'];
+		}
+		$cursor->closeCursor();
+
+		return $counts;
+	}
+
+	/** One feed of one reader, or null: the ownership check every write makes. */
+	public function feedOf(string $userId, int $id): ?array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id', 'url', 'site_url', 'title', 'etag', 'modified_at')
+			->from(self::TABLE_FEEDS)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($row === false) ? null : $row;
+	}
+
+	/** The id this reader already follows that address under, or 0. */
+	public function idOf(string $userId, string $url): int {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id')
+			->from(self::TABLE_FEEDS)
+			->where($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)))
+			->andWhere($qb->expr()->eq('url_prim', $qb->createNamedParameter(md5($url))));
+
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($row === false) ? 0 : (int)$row['id'];
+	}
+
+	public function create(string $userId, string $url, string $title, string $siteUrl): int {
+		$qb = $this->getQueryBuilder();
+		$qb->insert(self::TABLE_FEEDS)
+			->setValue('user_id', $qb->createNamedParameter($userId))
+			->setValue('url', $qb->createNamedParameter($url))
+			->setValue('url_prim', $qb->createNamedParameter(md5($url)))
+			->setValue('site_url', $qb->createNamedParameter($siteUrl))
+			->setValue('title', $qb->createNamedParameter(mb_substr($title, 0, 255)))
+			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+		$qb->executeStatement();
+
+		return $qb->getLastInsertId();
+	}
+
+	/** What the last read produced, so a feed that has gone can say so. */
+	public function recordRead(int $id, string $title, string $siteUrl, string $etag, string $modified, string $error): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_FEEDS)
+			->set('error', $qb->createNamedParameter(mb_substr($error, 0, 255)))
+			->set('etag', $qb->createNamedParameter(mb_substr($etag, 0, 255)))
+			->set('modified_at', $qb->createNamedParameter(mb_substr($modified, 0, 64)))
+			->set('fetched_at', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+
+		if ($title !== '') {
+			$qb->set('title', $qb->createNamedParameter(mb_substr($title, 0, 255)));
+		}
+		if ($siteUrl !== '') {
+			$qb->set('site_url', $qb->createNamedParameter($siteUrl));
+		}
+
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Adds an entry, unless this feed already holds it.
+	 *
+	 * The unique index on (feed, guid) is what makes that true rather than
+	 * this check: two runs of the cron can overlap, and the read below would
+	 * be stale by the time the insert happened. The check is here so the
+	 * common case does not rely on a caught exception.
+	 *
+	 * @return bool whether the entry was new
+	 */
+	public function addItem(int $feedId, array $item): bool {
+		$guid = md5((string)$item['guid']);
+		$qb = $this->getQueryBuilder();
+		$qb->select('id')
+			->from(self::TABLE_FEED_ITEMS)
+			->where($qb->expr()->eq('feed_id', $qb->createNamedParameter($feedId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('guid_prim', $qb->createNamedParameter($guid)));
+		$cursor = $qb->executeQuery();
+		$seen = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($seen !== false) {
+			return false;
+		}
+
+		$published = ((string)$item['published'] !== '')
+			? new DateTime((string)$item['published'])
+			: new DateTime('now');
+
+		$insert = $this->getQueryBuilder();
+		$insert->insert(self::TABLE_FEED_ITEMS)
+			->setValue('feed_id', $insert->createNamedParameter($feedId, IQueryBuilder::PARAM_INT))
+			->setValue('guid_prim', $insert->createNamedParameter($guid))
+			->setValue('link', $insert->createNamedParameter((string)$item['link']))
+			->setValue('title', $insert->createNamedParameter(mb_substr((string)$item['title'], 0, 512)))
+			->setValue('summary', $insert->createNamedParameter((string)$item['summary']))
+			->setValue('thumbnail', $insert->createNamedParameter((string)$item['thumbnail']))
+			->setValue('published', $insert->createNamedParameter($published, IQueryBuilder::PARAM_DATE));
+
+		try {
+			$insert->executeStatement();
+		} catch (\Throwable) {
+			// the unique index refused it: somebody else wrote it first, which
+			// is the answer this was asking for
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * A page of what the reader's feeds have published, newest first.
+	 *
+	 * Paged on the row id rather than the date: two feeds polled in the same
+	 * minute give a dozen entries the same timestamp to the second, and a
+	 * cursor on that either loops on them or steps over the rest.
+	 */
+	public function timelineOf(string $userId, int $limit, int $maxId): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('i.id', 'i.link', 'i.title', 'i.summary', 'i.thumbnail', 'i.published')
+			->selectAlias('f.title', 'feed_title')
+			->from(self::TABLE_FEED_ITEMS, 'i')
+			->innerJoin('i', self::TABLE_FEEDS, 'f', $qb->expr()->eq('i.feed_id', 'f.id'))
+			->where($qb->expr()->eq('f.user_id', $qb->createNamedParameter($userId)))
+			->orderBy('i.id', 'desc')
+			->setMaxResults($limit);
+
+		if ($maxId > 0) {
+			$qb->andWhere($qb->expr()->lt('i.id', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$rows[] = $row;
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/** Unfollowing takes the entries with it: they were only ever that feed's. */
+	public function delete(string $userId, int $id): bool {
+		if ($this->feedOf($userId, $id) === null) {
+			return false;
+		}
+
+		$items = $this->getQueryBuilder();
+		$items->delete(self::TABLE_FEED_ITEMS)
+			->where($items->expr()->eq('feed_id', $items->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		$items->executeStatement();
+
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_FEEDS)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('user_id', $qb->createNamedParameter($userId)));
+		$qb->executeStatement();
+
+		return true;
+	}
+
+	/** The feeds due a re-read, oldest first. What the cron walks. */
+	public function due(int $limit, int $olderThan): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id', 'url', 'etag', 'modified_at')
+			->from(self::TABLE_FEEDS)
+			->orderBy('fetched_at', 'asc')
+			->setMaxResults($limit);
+
+		$qb->andWhere(
+			$qb->expr()->orX(
+				$qb->expr()->isNull('fetched_at'),
+				$qb->expr()->lt(
+					'fetched_at',
+					$qb->createNamedParameter(new DateTime('@' . $olderThan), IQueryBuilder::PARAM_DATE)
+				)
+			)
+		);
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$rows[] = $row;
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+}
