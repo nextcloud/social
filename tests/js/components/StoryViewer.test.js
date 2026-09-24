@@ -216,4 +216,91 @@ describe('StoryViewer', () => {
 
 		expect(wrapper.vm.answers.map((one) => one.content)).toEqual(['about the second'])
 	})
+
+	/**
+	 * jsdom implements neither `play()` nor `pause()`, so a video element here
+	 * plays and pauses only as far as these spies say it does. What is being
+	 * asserted is that the component reaches for them at all — which it did not.
+	 *
+	 * @param {object} wrapper the mounted viewer
+	 * @return {object} the two spies and the element
+	 */
+	function videoControls(wrapper) {
+		const element = wrapper.find('.story-viewer__video').element
+		const play = vi.fn(() => Promise.resolve())
+		const pause = vi.fn(() => {
+			Object.defineProperty(element, 'paused', { value: true, configurable: true })
+		})
+		Object.defineProperty(element, 'play', { value: play, configurable: true })
+		Object.defineProperty(element, 'pause', { value: pause, configurable: true })
+		Object.defineProperty(element, 'paused', { value: false, configurable: true })
+		Object.defineProperty(element, 'ended', { value: false, configurable: true })
+
+		return { play, pause, element }
+	}
+
+	const clip = (id, account) => story(id, account, { media: { type: 'video', url: 'https://cloud.example.org/' + id + '.mp4' } })
+
+	// "Holding the stage pauses" is what the component says it does. It held
+	// the clock a picture runs on and left a video running underneath.
+	it('stops a video story when the stage is held', async () => {
+		const wrapper = mountViewer([{ account: bob, own: false, seen: false, stories: [clip('2', bob)] }])
+		await flushPromises()
+		const { pause } = videoControls(wrapper)
+
+		await wrapper.find('.story-viewer__stage').trigger('pointerdown')
+
+		expect(pause).toHaveBeenCalled()
+	})
+
+	it('lets it run again when the stage is let go', async () => {
+		const wrapper = mountViewer([{ account: bob, own: false, seen: false, stories: [clip('2', bob)] }])
+		await flushPromises()
+		const { play, pause } = videoControls(wrapper)
+
+		await wrapper.find('.story-viewer__stage').trigger('pointerdown')
+		await wrapper.find('.story-viewer__stage').trigger('pointerup')
+
+		expect(pause).toHaveBeenCalled()
+		expect(play).toHaveBeenCalled()
+	})
+
+	// The one that loses somebody's words: a short clip reaching `ended` while
+	// they are typing takes the story they are answering off the screen.
+	it('stops a video story while a reply is being written', async () => {
+		const wrapper = mountViewer([{ account: bob, own: false, seen: false, stories: [clip('2', bob)] }])
+		await flushPromises()
+		const { pause } = videoControls(wrapper)
+
+		await wrapper.find('.story-viewer__reply-field').trigger('focus')
+
+		expect(pause).toHaveBeenCalled()
+	})
+
+	// Only what this component stopped: one the reader stopped with the
+	// player's own controls stays stopped, and one that has run out is not
+	// started again by a blur.
+	it('does not restart a video the reader stopped, or one that has run out', async () => {
+		const wrapper = mountViewer([{ account: bob, own: false, seen: false, stories: [clip('2', bob)] }])
+		await flushPromises()
+		const { play, element } = videoControls(wrapper)
+
+		Object.defineProperty(element, 'ended', { value: true, configurable: true })
+		Object.defineProperty(element, 'paused', { value: true, configurable: true })
+		wrapper.vm.resume()
+
+		expect(play).not.toHaveBeenCalled()
+	})
+
+	// The clock a picture runs on is unchanged.
+	it('still holds a picture story where it is', async () => {
+		const wrapper = mountViewer([{ account: bob, own: false, seen: false, stories: [story('2', bob), story('3', bob)] }])
+		await flushPromises()
+
+		await wrapper.find('.story-viewer__stage').trigger('pointerdown')
+		vi.advanceTimersByTime(9000)
+		await flushPromises()
+
+		expect(wrapper.vm.storyIndex).toBe(0)
+	})
 })
