@@ -375,7 +375,9 @@ a list of them beside the page on a wide screen:
   `occ social:media:retry <remote_url>`. Use the exact `remote_url` reported
   by the attachment; Social clears the stored refusal for that one uncached
   row and tries it immediately. The normal media checks still apply, so a
-  retry can be refused again.
+  retry can be refused again. A picture that simply took too long to arrive
+  while its post was being received is not refused: the background job fetches
+  it again, and it and the retry command allow a download two minutes.
 - **Federation health** — what the outbound queue is doing, including how long
   the longest-failing delivery has been failing: the counts say how much and
   where, and that says whether it started an hour ago or a week ago, which is

@@ -35,7 +35,7 @@ class RetryMediaTest extends TestCase {
 	public function testOnlyTheExactFailedRemoteUrlCanBeRetried(): void {
 		$this->cacheDocumentsRequest->expects($this->never())->method('resetRemoteErrorForRetry');
 		$this->cacheDocumentsRequest->expects($this->never())->method('getFailedUncachedByUrl');
-		$this->documentService->expects($this->never())->method('cacheRemoteDocument');
+		$this->documentService->expects($this->never())->method('cacheRemoteDocumentInBackground');
 
 		$this->assertSame(1, $this->tester->execute(['remote_url' => 'file:///etc/passwd']));
 		$this->assertStringContainsString('HTTP or HTTPS', $this->tester->getDisplay());
@@ -52,7 +52,7 @@ class RetryMediaTest extends TestCase {
 			->method('resetRemoteErrorForRetry')
 			->with(self::ID)
 			->willReturn(false);
-		$this->documentService->expects($this->never())->method('cacheRemoteDocument');
+		$this->documentService->expects($this->never())->method('cacheRemoteDocumentInBackground');
 
 		$this->assertSame(1, $this->tester->execute(['remote_url' => self::URL]));
 		$this->assertStringContainsString('No failed, uncached remote attachment', $this->tester->getDisplay());
@@ -73,7 +73,7 @@ class RetryMediaTest extends TestCase {
 		$document->setId(self::ID);
 		$document->setLocalCopy('cached-file');
 		$this->documentService->expects($this->once())
-			->method('cacheRemoteDocument')
+			->method('cacheRemoteDocumentInBackground')
 			->with(self::ID)
 			->willReturn($document);
 
@@ -90,7 +90,7 @@ class RetryMediaTest extends TestCase {
 			->willReturn($document);
 		$this->cacheDocumentsRequest->method('resetRemoteErrorForRetry')->willReturn(true);
 		$this->documentService->expects($this->once())
-			->method('cacheRemoteDocument')
+			->method('cacheRemoteDocumentInBackground')
 			->with(self::ID)
 			->willThrowException(new CacheDocumentDoesNotExistException());
 

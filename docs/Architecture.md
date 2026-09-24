@@ -1130,7 +1130,13 @@ the post's own copy of its attachments (the `attachments` column, the client
 format keyed by the document's nid) says so. When the caching cron or
 `occ social:media:retry` fetches it later, `StreamRequest::updateAttachments()`
 rebuilds that one entry from the document and leaves the post's other entries
-as they were stored.
+as they were stored. The inbox holds the download to the federation timeout,
+ten seconds for the whole transfer (the server's HTTP client is curl, and its
+timeout ends a download that is still arriving), so a large original from a
+slow origin is left to the caching run. The caching run and the retry command
+allow the download `DocumentService::BACKGROUND_FETCH_TIMEOUT` (120 seconds),
+which stays below the five minutes after which another run would start the
+same download again; reaching the origin keeps the ten-second limit.
 
 When a remote image is refused permanently, the post still arrives with an
 image placeholder. The local attachment response now carries `cache_error`:

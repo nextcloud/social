@@ -60,7 +60,7 @@ class RetryMedia extends SocialCommand {
 		}
 
 		try {
-			$document = $this->documentService->cacheRemoteDocument($document->getId());
+			$document = $this->documentService->cacheRemoteDocumentInBackground($document->getId());
 		} catch (CacheDocumentDoesNotExistException) {
 			$output->writeln(
 				'<error>The retry did not cache the attachment. It remains subject to this instance\'s media limits.</error>'

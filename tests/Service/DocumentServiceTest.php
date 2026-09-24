@@ -52,6 +52,9 @@ class DocumentServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private MiscService|MockObject $miscService;
 	private DocumentService $service;
+	/** @var array<array{0: int, 1: int}> the (timeout, connect timeout) of every bounded scope entered */
+	private array $timeoutScopes = [];
+	private bool $inTimeoutScope = false;
 
 	protected function setUp(): void {
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
@@ -61,6 +64,17 @@ class DocumentServiceTest extends TestCase {
 		$this->cacheService = $this->createMock(CacheDocumentService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->miscService = $this->createMock(MiscService::class);
+		$this->configService->method('withRequestTimeout')->willReturnCallback(
+			function (int $timeout, callable $action, int $connectTimeout = 0): mixed {
+				$this->timeoutScopes[] = [$timeout, $connectTimeout];
+				$this->inTimeoutScope = true;
+				try {
+					return $action();
+				} finally {
+					$this->inTimeoutScope = false;
+				}
+			}
+		);
 
 		$this->service = new DocumentService(
 			$this->urlGenerator,
@@ -574,6 +588,35 @@ class DocumentServiceTest extends TestCase {
 		});
 
 		$this->assertSame(1, $this->service->manageCacheDocuments());
+	}
+
+	/**
+	 * The caching run is where a picture the inbox could not finish in the
+	 * federation timeout gets finished, so its download is not held to that
+	 * timeout: curl ends a transfer that is still arriving when it runs out.
+	 */
+	public function testTheCachingRunDownloadsUnderTheLongerBackgroundTimeout(): void {
+		$doc = $this->document();
+		$this->cacheDocumentsRequest->method('getNotCachedDocuments')->willReturn([$doc]);
+		$this->cacheDocumentsRequest->method('getById')->willReturn($doc);
+		$downloadedInScope = null;
+		$this->cacheService->expects($this->once())->method('saveRemoteFileToCache')->willReturnCallback(
+			function (Document $document, string &$mime) use (&$downloadedInScope): void {
+				$downloadedInScope = $this->inTimeoutScope;
+				$document->setLocalCopy('local-1');
+				$mime = 'image/png';
+			}
+		);
+
+		$this->assertSame(1, $this->service->manageCacheDocuments());
+		$this->assertTrue($downloadedInScope);
+		$this->assertSame(
+			[[DocumentService::BACKGROUND_FETCH_TIMEOUT, ConfigService::DEFAULT_REQUEST_TIMEOUT]],
+			$this->timeoutScopes
+		);
+		$this->assertGreaterThan(ConfigService::DEFAULT_REQUEST_TIMEOUT, DocumentService::BACKGROUND_FETCH_TIMEOUT);
+		// a download still running must not be started again by the next pass
+		$this->assertLessThan(CacheDocumentsRequest::CACHING_TIMEOUT * 60, DocumentService::BACKGROUND_FETCH_TIMEOUT);
 	}
 
 	/**
