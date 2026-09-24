@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use Exception;
+use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InsufficientScopeException;
@@ -220,7 +221,13 @@ class HistoryController extends Controller {
 		// a status that is not there and a status the caller may not read are
 		// one answer, as they are on Mastodon: telling them apart would say
 		// whether a followers-only post exists
-		if ($e instanceof StreamNotFoundException || $e instanceof ItemNotFoundException) {
+		// `InvalidArgumentException` is `Nid::normalize()` on something that is
+		// not a decimal number. A client asking after `/statuses/abc/history`
+		// has named no post, which is the same answer as naming one that is
+		// not there — and a 500 said this server had broken instead
+		if ($e instanceof StreamNotFoundException
+			|| $e instanceof ItemNotFoundException
+			|| $e instanceof InvalidArgumentException) {
 			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
 		}
 
