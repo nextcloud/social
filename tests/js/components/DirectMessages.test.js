@@ -368,7 +368,8 @@ describe('DirectMessages', () => {
 		await older.trigger('click')
 		await flushPromises()
 
-		expect(get).toHaveBeenLastCalledWith(
+		// not "last": the recipient suggestions load on their own schedule
+		expect(get).toHaveBeenCalledWith(
 			'/index.php/apps/social/api/v1/conversations',
 			{ params: { limit: 40, max_id: '99' } },
 		)
