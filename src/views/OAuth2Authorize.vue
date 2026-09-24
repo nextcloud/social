@@ -11,48 +11,111 @@
 			being promised the code would be shown -- which reads as the button
 			having done nothing at all.
 		-->
-		<div v-if="code" class="guest-box">
-			<h1>{{ t('social', 'Authorized') }}</h1>
-			<p>
+		<div v-if="code" class="guest-box oauth__box">
+			<header class="oauth__header">
+				<span class="oauth__seal oauth__seal--success">
+					<Check :size="32" />
+				</span>
+				<h1>{{ t('social', 'Authorized') }}</h1>
+			</header>
+			<p class="oauth__lead">
 				{{ t('social', 'Paste this code into {appDisplayName} to finish signing in. It can be used once, and only by the application that asked for it.', { appDisplayName: appName }) }}
 			</p>
 			<!--
-				An input rather than a <code> block: it is selectable, it
-				survives a long code without wrapping it into something
-				ambiguous, and a phone can pick it up with a tap.
+				A field rather than a <code> block: it is selectable, and a
+				phone can pick it up with a tap. A textarea rather than an
+				input, because the code is longer than the box is wide and an
+				input answers that by cutting it off at an ellipsis -- so the
+				one thing the page exists to show could not be read off screen.
 			-->
-			<input
+			<textarea
 				ref="code"
 				class="code"
-				type="text"
+				rows="2"
 				readonly
 				:value="code"
 				:aria-label="t('social', 'Authorization code')"
-				@focus="selectCode">
+				@focus="selectCode" />
 			<div class="button-row">
-				<NcButton variant="primary" @click="copyCode">
+				<NcButton variant="primary" wide @click="copyCode">
+					<template #icon>
+						<Check v-if="copied" :size="20" />
+						<ContentCopy v-else :size="20" />
+					</template>
 					{{ copied ? t('social', 'Copied') : t('social', 'Copy code') }}
 				</NcButton>
 			</div>
 		</div>
 
-		<form v-else class="guest-box" method="post">
-			<h1>{{ t('social', 'Authorization required') }}</h1>
-			<p>
-				{{ t('social', '{appDisplayName} would like permission to access your account. It is a third party application.', {appDisplayName: appName}) }}
-				<b>{{ t('social', 'If you do not trust it, then you should not authorize it.') }}</b>
+		<form v-else class="guest-box oauth__box" method="post">
+			<header class="oauth__header">
+				<!--
+					An application registers no logo, so the mark is the letter
+					its name starts with -- enough to tell two requests apart at
+					a glance, and honest about being no logo at all.
+				-->
+				<span class="oauth__seal oauth__seal--app" aria-hidden="true">
+					{{ appInitial }}
+				</span>
+				<h1>{{ t('social', 'Authorization required') }}</h1>
+				<a
+					v-if="websiteLabel"
+					class="oauth__website"
+					:href="appWebsite"
+					target="_blank"
+					rel="noopener noreferrer">
+					{{ websiteLabel }}
+					<OpenInNew :size="14" />
+				</a>
+			</header>
+
+			<p class="oauth__lead">
+				{{ t('social', '{appDisplayName} would like permission to access your account. It is a third party application.', { appDisplayName: appName }) }}
 			</p>
+
+			<!-- which account is being handed over, not only which application asks -->
+			<div v-if="account" class="account">
+				<NcAvatar
+					:user="account.uid"
+					:displayName="account.displayName"
+					:size="36"
+					:disableMenu="true"
+					:disableTooltip="true"
+					:hideStatus="true" />
+				<span class="account__text">
+					<span class="account__name">{{ account.displayName }}</span>
+					<span class="account__handle">{{ account.handle }}</span>
+				</span>
+			</div>
+
+			<NcNoteCard type="warning">
+				{{ t('social', 'If you do not trust it, then you should not authorize it.') }}
+			</NcNoteCard>
 
 			<h2>{{ t('social', 'This application will be able to:') }}</h2>
 			<ul class="scopes">
-				<li v-for="scope in scopes" :key="scope">
-					<span class="scopes__label">{{ scopeLabel(scope) }}</span>
-					<span class="scopes__name">{{ scope }}</span>
+				<li v-for="scope in scopes" :key="scope" class="scopes__item">
+					<!--
+						Two icons rather than one: a scope that only reads and a
+						scope that acts as you are not the same grant, and a
+						list where every line looks alike hides that.
+					-->
+					<span
+						class="scopes__icon"
+						:class="{ 'scopes__icon--write': changes(scope) }">
+						<Pencil v-if="changes(scope)" :size="16" />
+						<Eye v-else :size="16" />
+					</span>
+					<span class="scopes__text">
+						<span class="scopes__label">{{ scopeLabel(scope) }}</span>
+						<span class="scopes__name">{{ scope }}</span>
+					</span>
 				</li>
 			</ul>
 
 			<p class="target">
-				{{ targetDescription }}
+				<ArrowRightThin :size="20" />
+				<span>{{ targetDescription }}</span>
 			</p>
 
 			<input
@@ -60,11 +123,15 @@
 				name="requesttoken"
 				:value="OC.requestToken">
 			<div class="button-row">
+				<!--
+					Refusing is the safe answer, so it is not painted as the
+					dangerous one; the grant is the button that carries weight.
+				-->
+				<NcButton :href="denyUrl">
+					{{ t('social', 'Deny') }}
+				</NcButton>
 				<NcButton variant="primary" type="submit">
 					{{ t('social', 'Authorize') }}
-				</NcButton>
-				<NcButton variant="error" :href="denyUrl">
-					{{ t('social', 'Deny') }}
 				</NcButton>
 			</div>
 		</form>
@@ -72,7 +139,16 @@
 </template>
 
 <script>
+import ArrowRightThin from 'vue-material-design-icons/ArrowRightThin.vue'
+import Check from 'vue-material-design-icons/Check.vue'
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
+import Eye from 'vue-material-design-icons/Eye.vue'
+import OpenInNew from 'vue-material-design-icons/OpenInNew.vue'
+import Pencil from 'vue-material-design-icons/Pencil.vue'
+
+import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { loadState } from '@nextcloud/initial-state'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
@@ -82,7 +158,15 @@ const OUT_OF_BAND = 'urn:ietf:wg:oauth:2.0:oob'
 export default {
 	name: 'OAuth2Authorize',
 	components: {
+		ArrowRightThin,
+		Check,
+		ContentCopy,
+		Eye,
+		NcAvatar,
 		NcButton,
+		NcNoteCard,
+		OpenInNew,
+		Pencil,
 	},
 
 	data() {
@@ -92,6 +176,8 @@ export default {
 			code: loadState('social', 'code', ''),
 			copied: false,
 			appName: loadState('social', 'appName'),
+			appWebsite: loadState('social', 'appWebsite', ''),
+			account: loadState('social', 'account', null),
 			scopes: loadState('social', 'scopes', []),
 			redirectUri: loadState('social', 'redirectUri', ''),
 			// where refusing sends the browser: back to the client with
@@ -145,6 +231,36 @@ export default {
 		},
 
 		/**
+		 * @return {string} the letter the application's name starts with, for
+		 *                  the mark above the heading
+		 */
+		appInitial() {
+			return [...(this.appName ?? '')][0]?.toUpperCase() ?? '?'
+		},
+
+		/**
+		 * @return {string} the application's website as a host, or '' when it
+		 *                  registered none or registered something that is not
+		 *                  a URL a browser would follow
+		 */
+		websiteLabel() {
+			if (!this.appWebsite) {
+				return ''
+			}
+
+			try {
+				const url = new URL(this.appWebsite)
+				if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+					return ''
+				}
+
+				return url.host
+			} catch {
+				return ''
+			}
+		},
+
+		/**
 		 * Where the authorization code is about to be sent — the one part of
 		 * the request that decides who ends up holding it.
 		 *
@@ -179,6 +295,19 @@ export default {
 	methods: {
 		scopeLabel(scope) {
 			return this.scopeLabels[scope] ?? scope
+		},
+
+		/**
+		 * @param {string} scope one of the scopes being asked for
+		 * @return {boolean} whether it lets the application act rather than
+		 *                   only read
+		 */
+		changes(scope) {
+			return scope === 'write'
+				|| scope === 'follow'
+				|| scope === 'push'
+				|| scope.startsWith('write:')
+				|| scope.startsWith('admin')
 		},
 
 		/** Focusing the field selects the whole code, so one tap picks it up. */
@@ -216,66 +345,208 @@ export default {
 	inline-size: 100%;
 }
 
-.guest-box {
+.oauth__box {
 	color: var(--color-main-text);
 	background-color: var(--color-main-background);
-	padding: 1rem;
-	border-radius: var(--border-radius-large);
+	padding: 24px;
+	border-radius: var(--border-radius-container, var(--border-radius-large));
 	box-shadow: 0 0 10px var(--color-box-shadow);
-	display: inline-block;
-	max-width: 600px;
+	inline-size: 100%;
+	max-width: 480px;
+	// the guest layout centres everything it contains; a list of permissions
+	// read as a stack of centred receipt lines, so the body is set back to
+	// reading order and only the heading stays centred
+	text-align: start;
 
 	h1 {
 		font-weight: bold;
 		text-align: center;
 		font-size: 20px;
-		margin-bottom: 12px;
 		line-height: 140%;
+		margin: 0;
 	}
 
 	h2 {
 		font-weight: bold;
-		font-size: 16px;
-		margin-top: 1rem;
+		font-size: 15px;
+		margin-block: 20px 8px;
+	}
+}
+
+.oauth__header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	margin-block-end: 12px;
+}
+
+.oauth__seal {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	inline-size: 56px;
+	block-size: 56px;
+	border-radius: 50%;
+
+	&--app {
+		font-size: 24px;
+		font-weight: bold;
+		line-height: 1;
+		color: var(--color-primary-element);
+		background-color: var(--color-primary-element-light);
 	}
 
-	.scopes {
-		margin: 0.5rem 0 0 0;
-		padding: 0;
-		list-style: none;
+	&--success {
+		color: var(--color-success-text, var(--color-success));
+		background-color: var(--color-success-hover, var(--color-background-hover));
+	}
+}
 
-		li {
-			display: flex;
-			flex-direction: column;
-			padding: 4px 0;
-			border-bottom: 1px solid var(--color-border);
-		}
+.oauth__website {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: var(--color-text-maxcontrast);
+	font-size: 90%;
+	text-decoration: none;
+	overflow-wrap: anywhere;
 
-		&__name {
-			color: var(--color-text-maxcontrast);
-			font-size: 90%;
-		}
+	&:hover,
+	&:focus-visible {
+		color: var(--color-main-text);
+		text-decoration: underline;
+	}
+}
+
+.oauth__lead {
+	text-align: center;
+	line-height: 150%;
+}
+
+.account {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-block-start: 16px;
+	padding: 8px 12px;
+	border-radius: var(--border-radius-large);
+	background-color: var(--color-background-hover);
+
+	&__text {
+		display: flex;
+		flex-direction: column;
+		min-inline-size: 0;
 	}
 
-	.target {
-		margin-top: 1rem;
+	&__name {
+		font-weight: bold;
+	}
+
+	&__handle {
 		color: var(--color-text-maxcontrast);
+		font-size: 90%;
 		overflow-wrap: anywhere;
 	}
+}
 
-	.button-row {
+.scopes {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+
+	&__item {
 		display: flex;
-		gap: 1rem;
-		flex-direction: row;
-		margin-top: 1rem;
-		justify-content: end;
+		align-items: flex-start;
+		gap: 10px;
 	}
 
-	.code {
-		inline-size: 100%;
-		margin-top: 1rem;
-		font-family: monospace;
-		text-align: center;
+	&__icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		inline-size: 24px;
+		block-size: 24px;
+		border-radius: 50%;
+		color: var(--color-primary-element);
+		background-color: var(--color-primary-element-light);
+
+		&--write {
+			color: var(--color-warning-text, var(--color-main-text));
+			background-color: var(--color-warning-hover, var(--color-background-dark));
+		}
 	}
+
+	&__text {
+		display: flex;
+		flex-direction: column;
+		min-inline-size: 0;
+	}
+
+	&__label {
+		line-height: 24px;
+	}
+
+	&__name {
+		color: var(--color-text-maxcontrast);
+		font-family: var(--font-face-monospace, monospace);
+		font-size: 85%;
+		overflow-wrap: anywhere;
+	}
+}
+
+.target {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-block-start: 20px;
+	padding: 10px 12px;
+	border-radius: var(--border-radius-large);
+	background-color: var(--color-background-hover);
+	color: var(--color-text-maxcontrast);
+	font-size: 90%;
+	overflow-wrap: anywhere;
+
+	:deep(.material-design-icon) {
+		flex: 0 0 auto;
+	}
+}
+
+.button-row {
+	display: flex;
+	gap: 8px;
+	flex-direction: row;
+	flex-wrap: wrap;
+	margin-block-start: 20px;
+	justify-content: end;
+
+	// one full-width column rather than two buttons crowding one edge
+	@media (max-width: 480px) {
+		flex-direction: column-reverse;
+
+		// NcButton sizes itself to its label, so stretching the row is not
+		// enough to make the two buttons the same width
+		:deep(.button-vue) {
+			inline-size: 100%;
+		}
+	}
+}
+
+.code {
+	display: block;
+	inline-size: 100%;
+	margin-block-start: 16px;
+	font-family: var(--font-face-monospace, monospace);
+	font-size: 14px;
+	line-height: 1.5;
+	text-align: center;
+	// a code with no spaces in it has nowhere to break on its own
+	word-break: break-all;
+	resize: none;
 }
 </style>
