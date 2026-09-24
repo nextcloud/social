@@ -47,14 +47,23 @@
 				</nav>
 			</div>
 
+			<!--
+				Above the chain rather than inside it. A removal that failed is
+				something that happened to one conversation, not a state the
+				inbox is in — and a `v-if` here broke the chain in two, so the
+				empty state rendered under "Loading…", the error and the empty
+				state rendered together, and a failed removal took the whole
+				list off the screen.
+			-->
+			<p v-if="removeError" class="direct-messages__state" role="alert">
+				{{ t('social', 'Could not remove conversation') }}
+			</p>
+
 			<p v-if="loadingList" class="direct-messages__state" role="status">
 				{{ t('social', 'Loading conversations…') }}
 			</p>
 			<p v-else-if="listError" class="direct-messages__state" role="alert">
 				{{ t('social', 'Could not load conversations') }}
-			</p>
-			<p v-if="removeError" class="direct-messages__state" role="alert">
-				{{ t('social', 'Could not remove conversation') }}
 			</p>
 			<div v-else-if="conversations.length === 0" class="direct-messages__inbox-empty">
 				<MessageOutline :size="24" aria-hidden="true" />
@@ -105,6 +114,14 @@
 							</NcActionButton>
 						</template>
 					</NcListItem>
+				</li>
+				<li v-if="cursor" class="direct-messages__more">
+					<NcButton
+						variant="tertiary"
+						:disabled="loadingMore"
+						@click="loadConversations(true)">
+						{{ loadingMore ? t('social', 'Loading…') : t('social', 'Load older conversations') }}
+					</NcButton>
 				</li>
 			</ul>
 		</aside>
@@ -300,6 +317,59 @@ import TimelineEntry from './TimelineEntry.vue'
 import { htmlToPlainText } from '../utils/plainText.js'
 import logger from '../services/logger.js'
 
+/** How many conversations one request asks for. */
+const PAGE_SIZE = 40
+
+/**
+ * The `max_id` the server put in its `Link: …; rel="next"` header.
+ *
+ * It has to come from there rather than from the last row on screen: the
+ * cursor is a message nid and a conversation id is its thread root, which does
+ * not move when a message arrives — paging on it would skip conversations.
+ *
+ * @param {object} headers the response headers
+ * @return {string} the cursor, or '' when the server said this is the last page
+ */
+function nextCursor(headers) {
+	const link = headers?.link ?? headers?.Link ?? ''
+	for (const part of String(link).split(',')) {
+		if (!/;\s*rel\s*=\s*"?next"?/.test(part)) {
+			continue
+		}
+
+		const url = part.match(/<([^>]*)>/)?.[1]
+		const cursor = url?.match(/[?&]max_id=([^&]*)/)?.[1]
+		if (cursor) {
+			return decodeURIComponent(cursor)
+		}
+	}
+
+	return ''
+}
+
+/**
+ * Whether what somebody typed addresses an account elsewhere, and so is worth
+ * asking the other server about.
+ *
+ * A pasted profile link was the one that did not work: `resolve` was sent only
+ * for a leading '@', and the account search behind it looks at the account
+ * column, not at URLs — so pasting `https://remote.example/@bob`, which is how
+ * one person sends another a profile, found nobody at all.
+ *
+ * Handles are here for the sake of saying what the rule is; they already
+ * resolve, because the account search fetches an unknown `user@host` whether
+ * or not it was asked to.
+ *
+ * @param {string} query what was typed
+ * @return {boolean} whether to ask the other server
+ */
+function isHandle(query) {
+	const typed = query.trim()
+
+	return typed.startsWith('@') || typed.startsWith('http')
+		|| /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(typed)
+}
+
 export default {
 	name: 'DirectMessages',
 	components: {
@@ -326,6 +396,9 @@ export default {
 	data() {
 		return {
 			conversations: [],
+			/** the `max_id` of the next page, '' once the server says there is none */
+			cursor: '',
+			loadingMore: false,
 			searchQuery: '',
 			filterMode: 'all',
 			currentUserId: window.OC?.getCurrentUser?.()?.uid ?? '',
@@ -494,36 +567,85 @@ export default {
 			}
 		},
 
-		async loadConversations() {
-			this.loadingList = true
-			this.listError = false
+		/**
+		 * The inbox, a page at a time.
+		 *
+		 * It used to ask for forty and stop there, with no way to reach the
+		 * forty-first: an account that has been using this for a while simply
+		 * could not open its older conversations. The server has been paging
+		 * and sending the cursor in its `Link` header all along.
+		 *
+		 * @param {boolean} more whether this is the reader asking for the page
+		 *                       after the one they have
+		 */
+		async loadConversations(more = false) {
+			if (more && (this.loadingMore || this.cursor === '')) {
+				return
+			}
+
+			if (more) {
+				this.loadingMore = true
+			} else {
+				this.loadingList = true
+				this.listError = false
+			}
+
+			const params = { limit: PAGE_SIZE }
+			if (more) {
+				params.max_id = this.cursor
+			}
+
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/conversations'), { params: { limit: 40 } })
-				this.conversations = this.uniqueConversations(Array.isArray(data) ? data : [])
+				const { data, headers } = await axios.get(
+					generateUrl('apps/social/api/v1/conversations'),
+					{ params },
+				)
+				const page = Array.isArray(data) ? data : []
+				this.cursor = nextCursor(headers)
+				this.conversations = this.uniqueConversations(more ? [...this.conversations, ...page] : page)
 			} catch (error) {
-				this.listError = true
-				logger.error('Failed to load direct message conversations', { error })
+				if (!more) {
+					this.listError = true
+				}
+				logger.error('Failed to load direct message conversations', { error, more })
 			} finally {
 				this.loadingList = false
+				this.loadingMore = false
 			}
 		},
 
+		/**
+		 * The same conversation twice is one row; two conversations with the
+		 * same person are two.
+		 *
+		 * The key used to be the peer, so a second thread with somebody was
+		 * dropped on the floor — unreachable from the inbox, however many
+		 * messages were in it. The server defines a conversation by its thread
+		 * root and hands that root's id back as the conversation's, which is
+		 * the thing that is actually unique.
+		 *
+		 * @param {object[]} conversations what the server sent
+		 * @return {object[]} the same, without any true duplicate
+		 */
 		uniqueConversations(conversations) {
 			const unique = new Map()
-			for (const conversation of conversations) {
-				const peer = (conversation.accounts ?? []).find((account) => account.acct !== this.currentUserId && account.username !== this.currentUserId)
-				const key = peer?.id || peer?.acct || `conversation:${conversation.id}`
-				if (!unique.has(String(key))) {
-					unique.set(String(key), conversation)
+			for (const [index, conversation] of conversations.entries()) {
+				// one without an id cannot be opened, but hiding it is worse
+				const key = conversation.id === undefined || conversation.id === null
+					? `index:${index}`
+					: String(conversation.id)
+				if (!unique.has(key)) {
+					unique.set(key, conversation)
 				}
 			}
+
 			return [...unique.values()]
 		},
 
 		async searchAccounts(query) {
 			const request = ++this.accountSearchRequest
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/search'), { params: { q: query, limit: 8, resolve: query.startsWith('@') } })
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/search'), { params: { q: query, limit: 8, resolve: isHandle(query) } })
 				if (request !== this.accountSearchRequest) {
 					return
 				}
@@ -927,6 +1049,12 @@ export default {
 	min-height: 4.75rem;
 	padding: 0.6rem 1rem;
 	border-radius: 0;
+}
+
+.direct-messages__more {
+	display: flex;
+	justify-content: center;
+	padding: 0.5rem 1rem 1rem;
 }
 
 .direct-messages__preview {
