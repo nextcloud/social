@@ -199,7 +199,8 @@
 					<NcTextArea
 						v-model="messageText"
 						class="direct-messages__message-input"
-						:label="t('social', 'Write a message…')"
+						labelOutside
+						:aria-label="t('social', 'Write a message…')"
 						:disabled="sendingMessage"
 						:placeholder="t('social', 'Write a message…')"
 						resize="vertical" />
@@ -272,7 +273,8 @@
 				<NcTextArea
 					v-model="messageText"
 					class="direct-messages__message-input"
-					:label="t('social', 'Write a message…')"
+					labelOutside
+					:aria-label="t('social', 'Write a message…')"
 					:disabled="sendingMessage"
 					:placeholder="t('social', 'Write a message…')"
 					resize="vertical" />
@@ -1339,6 +1341,14 @@ export default {
 	min-width: 0;
 }
 
+/*
+ * The composer is a chat box, so it is shorter than a form field and the
+ * placeholder is the whole of its label. `labelOutside` is what makes that
+ * legal: without it `NcTextArea` draws a floating <label> absolutely
+ * positioned 11px from the top of the input, and the padding below — which is
+ * half what the component reserves — leaves it sitting on top of the text
+ * somebody is typing.
+ */
 .direct-messages__message-form :deep(.textarea__input) {
 	box-sizing: border-box;
 	width: 100%;
