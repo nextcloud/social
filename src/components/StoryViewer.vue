@@ -65,6 +65,7 @@
 			<div class="story-viewer__media">
 				<video
 					v-if="story.media && story.media.type === 'video'"
+					ref="video"
 					:key="story.id"
 					class="story-viewer__video"
 					:src="story.media.url"
@@ -331,6 +332,15 @@ export default {
 			// a video runs for as long as it runs; a picture for the seconds
 			// its poster chose
 			if (this.story.media?.type === 'video') {
+				// the element is replaced per story and autoplays, so a story
+				// stepped to while the stage is held would start playing under
+				// a reader who is holding it still
+				this.$nextTick(() => {
+					if (this.paused) {
+						this.videoElement()?.pause()
+					}
+				})
+
 				return
 			}
 
@@ -363,12 +373,42 @@ export default {
 			}
 		},
 
+		/**
+		 * Holds the story where it is.
+		 *
+		 * The flag alone only held the clock a picture runs on. A video ran on
+		 * its own, so holding the stage did nothing to one, and — worse —
+		 * `ended` fired while somebody was still typing a reply and took the
+		 * story they were answering off the screen.
+		 */
 		pause() {
 			this.paused = true
+			this.videoElement()?.pause()
 		},
 
+		/**
+		 * Lets it run again, from where it was.
+		 *
+		 * Only what this component paused: a video the reader stopped with the
+		 * player's own controls stays stopped, and one that has played to its
+		 * end is not started again by a blur.
+		 */
 		resume() {
 			this.paused = false
+
+			const video = this.videoElement()
+			if (video && video.paused && !video.ended) {
+				// a browser may refuse to play without a gesture; the story is
+				// still on screen either way
+				video.play()?.catch?.(() => {})
+			}
+		},
+
+		/** @return {HTMLVideoElement|null} the story's video, when it has one */
+		videoElement() {
+			const video = this.$refs.video
+
+			return video instanceof HTMLVideoElement ? video : null
 		},
 
 		/**
