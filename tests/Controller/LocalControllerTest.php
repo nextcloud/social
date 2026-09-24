@@ -492,10 +492,22 @@ class LocalControllerTest extends TestCase {
 		$this->assertSame($actor, $response->getData());
 	}
 
-	public function testAccountInfoOfUnknownUserFails(): void {
+	/**
+	 * A name nobody holds is a 404, not a 500.
+	 *
+	 * "No such account" is the answer to the question, not a failure of this
+	 * server — and the warning line a 500 wrote made a sweep through candidate
+	 * usernames a way of filling somebody's disk.
+	 */
+	public function testAccountInfoOfUnknownUserAnswersNotFound(): void {
 		$this->accountService->method('getCachedLocalActor')->willThrowException(new CacheActorDoesNotExistException());
 
-		$this->assertFailure($this->controller(null)->accountInfo('ghost'), CacheActorDoesNotExistException::class);
+		$this->assertFailure(
+			$this->controller(null)->accountInfo('ghost'),
+			CacheActorDoesNotExistException::class,
+			null,
+			Http::STATUS_NOT_FOUND
+		);
 	}
 
 	/**
@@ -866,25 +878,88 @@ class LocalControllerTest extends TestCase {
 		);
 	}
 
-	public function testPublicRoutesThatReachOutToRemoteServersAreRateLimited(): void {
-		// #[PublicPage], and it fetches from whatever host the handle names:
-		// globalAccountInfo signs half a dozen outbound requests per call. An
-		// anonymous throttle is all that stands between one HTTP request and
-		// that work being repeated at will, the way OStatusController::getLink
-		// is already throttled. (streamAccount, which pulled a remote outbox,
-		// was retired with the rest of the superseded Custom Local API.)
-		$reflection = new \ReflectionClass(LocalController::class);
+	/**
+	 * Every route of this controller that answers without a session carries a
+	 * ceiling.
+	 *
+	 * Discovered rather than listed: the list said `globalAccountInfo` and
+	 * nothing else, so `accountInfo` — added later, `#[PublicPage]`, and a
+	 * username oracle without one — passed it. `globalActorAvatar` passed it
+	 * too, while serving stored bytes to anybody holding the address.
+	 *
+	 * What each of them costs differs, so the numbers differ; that any of them
+	 * has one does not.
+	 */
+	public function testEveryPublicRouteIsRateLimited(): void {
+		$bare = [];
 
-		foreach (['globalAccountInfo'] as $route) {
-			$attributes = array_map(
-				fn (\ReflectionAttribute $attribute): string => $attribute->getName(),
-				$reflection->getMethod($route)->getAttributes()
-			);
-
-			$this->assertContains(PublicPage::class, $attributes, $route . ' is expected to stay public');
-			$this->assertContains(AnonRateLimit::class, $attributes, $route . ' is public but not throttled for anonymous callers');
-			$this->assertContains(UserRateLimit::class, $attributes, $route . ' is not throttled for sessions');
+		foreach ($this->publicRoutes() as $route) {
+			$attributes = $this->attributesOf($route);
+			if (!in_array(AnonRateLimit::class, $attributes, true)
+				|| !in_array(UserRateLimit::class, $attributes, true)) {
+				$bare[] = $route;
+			}
 		}
+
+		$this->assertSame([], $bare, 'these routes answer anybody, as often as they care to ask');
+	}
+
+	/**
+	 * A local read is not throttled like a remote one.
+	 *
+	 * `globalAccountInfo` is strict because a handle this instance has never
+	 * seen costs a host-meta, a WebFinger and four signed actor fetches.
+	 * `accountInfo` reads one row and is asked for once per profile somebody
+	 * opens, so copying that ceiling onto it would have stopped the reader
+	 * rather than the enumerator.
+	 */
+	public function testTheLocalProfileReadIsNotThrottledLikeTheRemoteOne(): void {
+		$this->assertGreaterThan(
+			$this->anonRequestsPerMinute('globalAccountInfo'),
+			$this->anonRequestsPerMinute('accountInfo'),
+			'reading a local profile costs less than resolving a remote handle and may be asked for more often'
+		);
+	}
+
+	/**
+	 * The methods of this controller declared `#[PublicPage]`.
+	 *
+	 * @return string[] method names
+	 */
+	private function publicRoutes(): array {
+		$routes = [];
+
+		foreach ((new \ReflectionClass(LocalController::class))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+			if ($method->getAttributes(PublicPage::class) !== []) {
+				$routes[] = $method->getName();
+			}
+		}
+
+		return $routes;
+	}
+
+	/**
+	 * @param string $route the method
+	 * @return string[] the names of the attributes declared on it
+	 */
+	private function attributesOf(string $route): array {
+		return array_map(
+			fn (\ReflectionAttribute $attribute): string => $attribute->getName(),
+			(new \ReflectionClass(LocalController::class))->getMethod($route)->getAttributes()
+		);
+	}
+
+	/** How many anonymous requests a minute a route allows. */
+	private function anonRequestsPerMinute(string $route): float {
+		$attributes = (new \ReflectionClass(LocalController::class))
+			->getMethod($route)->getAttributes(AnonRateLimit::class);
+		$this->assertNotEmpty($attributes, $route . ' carries no AnonRateLimit');
+
+		$arguments = $attributes[0]->getArguments();
+		$limit = (int)($arguments['limit'] ?? $arguments[0] ?? 0);
+		$period = (int)($arguments['period'] ?? $arguments[1] ?? 0);
+
+		return $period > 0 ? $limit * 60 / $period : 0.0;
 	}
 
 	public function testPublicAccountInfoRoutesDoNotRequireCsrf(): void {
