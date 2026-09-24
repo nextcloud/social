@@ -165,6 +165,28 @@ abstract class ClientApiController extends Controller {
 		);
 	}
 
+	/**
+	 * This request's own URL with the cursor replaced, so every other filter
+	 * the client sent survives into the next page of a `Link` header.
+	 *
+	 * @param array<string, string> $cursor
+	 */
+	protected function pageUrl(array $cursor): string {
+		$uri = $this->request->getRequestUri();
+		$path = $uri;
+		$query = [];
+
+		$pos = strpos($uri, '?');
+		if ($pos !== false) {
+			$path = substr($uri, 0, $pos);
+			parse_str(substr($uri, $pos + 1), $query);
+		}
+
+		unset($query['max_id'], $query['min_id'], $query['since_id'], $query['_route']);
+
+		return $path . '?' . http_build_query(array_merge($query, $cursor));
+	}
+
 	protected function error(Throwable $e): DataResponse {
 		if ($e instanceof InsufficientScopeException) {
 			return new DataResponse(

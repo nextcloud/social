@@ -34,6 +34,9 @@ class MediaTagsRequest extends CoreRequestBuilder {
 	 */
 	public const MAX_PER_POST = 20;
 
+	/** The most tag rows one page of `streamsFor()` reads. */
+	public const MAX_PAGE = 40;
+
 	/**
 	 * Names one account in one post.
 	 *
@@ -150,7 +153,7 @@ class MediaTagsRequest extends CoreRequestBuilder {
 			->from(self::TABLE_MEDIA_TAGS)
 			->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
 			->orderBy('stream_id', 'desc')
-			->setMaxResults(max(1, min($limit, 40)));
+			->setMaxResults(max(1, min($limit, self::MAX_PAGE)));
 
 		if ($maxId > 0) {
 			$qb->andWhere($qb->expr()->lt('stream_id', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));

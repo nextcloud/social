@@ -66,6 +66,7 @@ class PixelfedControllerTest extends TestCase {
 	private StoryInteractionService|MockObject $storyInteractionService;
 	private MediaTagService|MockObject $mediaTagService;
 	private ArchiveService|MockObject|null $archiveService = null;
+	private CacheActorService|MockObject|null $cacheActorService = null;
 
 	private bool $hasSession = true;
 	private bool $csrf = true;
@@ -126,6 +127,13 @@ class PixelfedControllerTest extends TestCase {
 
 				return [['name' => 'coast']];
 			});
+
+		// Response::getHeaders() asks the container for the request
+		\OC::$server->register(IRequest::class, $this->request);
+	}
+
+	protected function tearDown(): void {
+		\OC::$server->reset();
 	}
 
 	private function person(string $id): Person {
@@ -145,6 +153,7 @@ class PixelfedControllerTest extends TestCase {
 
 	private function controller(): PixelfedController {
 		$this->archiveService ??= $this->createMock(ArchiveService::class);
+		$this->cacheActorService ??= $this->createMock(CacheActorService::class);
 
 		return new PixelfedController(
 			$this->request,
@@ -164,7 +173,7 @@ class PixelfedControllerTest extends TestCase {
 			$this->mediaTagService,
 			$this->createMock(PortfolioService::class),
 			$this->createMock(TeamService::class),
-			$this->createMock(CacheActorService::class),
+			$this->cacheActorService,
 			$this->archiveService,
 			$this->createMock(DiscoverCategoriesRequest::class)
 		);
@@ -339,5 +348,41 @@ class PixelfedControllerTest extends TestCase {
 
 		$this->assertSame('7', $this->controller()->directThread('7', 0, 40)->getData()['id']);
 		$this->assertSame([200], $this->controller()->directThreadDelete(12)->getData());
+	}
+
+	/**
+	 * A page of tagged photos can be short without being the last — the posts
+	 * the reader may not see are left out of it — so the cursor comes from the
+	 * service, which knows how many tag rows it read, and not from the page.
+	 */
+	public function testTaggedPhotosSayWhereTheNextPageStarts(): void {
+		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->cacheActorService->method('resolve')->willReturn($this->person(self::OTHER));
+		$this->request->method('getRequestUri')
+			->willReturn('/apps/social/api/v1.1/accounts/bob/tagged?limit=20&max_id=90');
+		$this->mediaTagService->expects($this->once())->method('photosOf')
+			->with($this->anything(), self::OTHER, 20, '90')
+			->willReturn(['posts' => [], 'next' => '60']);
+
+		$response = $this->controller()->accountTagged('bob', 20, '90');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $response->getData());
+		$this->assertSame(
+			'</apps/social/api/v1.1/accounts/bob/tagged?limit=20&max_id=60>; rel="next"',
+			$response->getHeaders()['Link']
+		);
+	}
+
+	public function testTheLastPageOfTaggedPhotosHasNoNextLink(): void {
+		$this->cacheActorService = $this->createMock(CacheActorService::class);
+		$this->cacheActorService->method('resolve')->willReturn($this->person(self::OTHER));
+		$this->mediaTagService->method('photosOf')
+			->willReturn(['posts' => [$this->note()], 'next' => null]);
+
+		$response = $this->controller()->accountTagged('bob');
+
+		$this->assertCount(1, $response->getData());
+		$this->assertArrayNotHasKey('Link', $response->getHeaders());
 	}
 }
