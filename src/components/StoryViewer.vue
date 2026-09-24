@@ -522,11 +522,19 @@ export default {
 				return
 			}
 
+			// which story these answers belong to: a reader advancing while a
+			// slow request is in flight would otherwise be shown what was said
+			// about the story before this one
+			const sid = this.story.id
 			try {
 				const { data } = await axios.get(
 					generateUrl('apps/social/api/v1.2/stories/reactions'),
-					{ params: { sid: this.story.id } },
+					{ params: { sid } },
 				)
+				if (sid !== this.story?.id) {
+					return
+				}
+
 				this.answers = data.reactions ?? []
 			} catch (error) {
 				// a story without its answers is still a story

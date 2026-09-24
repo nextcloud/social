@@ -181,4 +181,39 @@ describe('StoryViewer', () => {
 		await flushPromises()
 		expect(get).not.toHaveBeenCalled()
 	})
+
+	/**
+	 * A slow request for one story's replies must not put them under the next
+	 * one: the poster would be reading answers to a story they have left.
+	 */
+	it('does not show one story\'s answers under the next', async () => {
+		let answerFirst
+		get.mockImplementationOnce(() => new Promise((resolve) => {
+			answerFirst = () => resolve({
+				data: { reactions: [{ id: 'r1', type: 'reply', content: 'about the first', account: bob }] },
+			})
+		}))
+
+		const wrapper = mountViewer([{
+			account: alice,
+			own: true,
+			seen: true,
+			stories: [story('1', alice, { seen: true }), story('2', alice, { seen: true })],
+		}])
+		await flushPromises()
+
+		// on to the second story, whose own answers arrive first
+		get.mockResolvedValueOnce({
+			data: { reactions: [{ id: 'r2', type: 'reply', content: 'about the second', account: bob }] },
+		})
+		wrapper.vm.next()
+		await flushPromises()
+
+		expect(wrapper.vm.answers.map((one) => one.content)).toEqual(['about the second'])
+
+		answerFirst()
+		await flushPromises()
+
+		expect(wrapper.vm.answers.map((one) => one.content)).toEqual(['about the second'])
+	})
 })

@@ -521,4 +521,64 @@ describe('TrendingHashtags', () => {
 			expect(names(wrapper)).toEqual(['#nextcloud'])
 		})
 	})
+
+	/**
+	 * An answer belongs to the question that was asked. Both views guarded the
+	 * answer and left the failure unguarded, so a window or a search the reader
+	 * had already left could still write over what is on screen.
+	 */
+	describe('answers that arrive after the reader has moved on', () => {
+		it('does not put an old window\'s failure over the ranking on screen', async () => {
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			let failDay
+			axios.get.mockImplementationOnce(() => new Promise((resolve, reject) => {
+				failDay = () => reject(new Error('busy'))
+			}))
+			wrapper.vm.load()
+			await flushPromises()
+
+			// the reader moves on, and that window answers
+			axios.get.mockResolvedValueOnce({ data: [tag('nextcloud', 9)] })
+			wrapper.vm.period = '7d'
+			await wrapper.vm.load()
+			await flushPromises()
+
+			failDay()
+			await flushPromises()
+
+			expect(wrapper.vm.error).toBeNull()
+			expect(names(wrapper)).toEqual(['#nextcloud'])
+		})
+
+		it('does not let an old search clear the peers the current one found', async () => {
+			const wrapper = mountTrends()
+			await flushPromises()
+
+			let failFirst
+			axios.get.mockImplementationOnce(() => new Promise((resolve, reject) => {
+				failFirst = () => reject(new Error('busy'))
+			}))
+			// `ask` answers the words the component is holding, so they are set
+			// alongside it the way typing sets them
+			wrapper.vm.query = 'alpha'
+			wrapper.vm.ask('alpha')
+			await flushPromises()
+
+			axios.get.mockResolvedValueOnce({ data: { tags: [tag('beta', 3)], sources: [] } })
+			wrapper.vm.query = 'beta'
+			await wrapper.vm.ask('beta')
+			await flushPromises()
+
+			const found = wrapper.vm.peers
+			expect(found).toHaveLength(1)
+
+			failFirst()
+			await flushPromises()
+
+			expect(wrapper.vm.peers).toEqual(found)
+			expect(wrapper.vm.finding).toBe(false)
+		})
+	})
 })

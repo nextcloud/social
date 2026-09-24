@@ -196,6 +196,13 @@ export default {
 			reports: [],
 			/** whether a fan-out is in flight */
 			finding: false,
+			/**
+			 * Which question the peers are being asked. The text alone is not
+			 * enough to tell two requests apart — the reader may type back to
+			 * what they had — and the failure path has to know as surely as
+			 * the answer path does.
+			 */
+			asking: 0,
 			timer: null,
 		}
 	},
@@ -333,6 +340,8 @@ export default {
 		 */
 		async ask(query = '') {
 			this.finding = true
+			this.asking += 1
+			const generation = this.asking
 			try {
 				const { data } = await axios.get(
 					generateUrl('apps/social/api/v1/directories/hashtags'),
@@ -349,10 +358,17 @@ export default {
 				this.reports = Array.isArray(data?.sources) ? data.sources : []
 			} catch (error) {
 				logger.debug('Could not ask other servers about hashtags', { error })
-				this.peers = []
-				this.reports = []
+				// only where this is still the question being asked: a request
+				// that failed after the reader typed on would otherwise clear
+				// the results of the one that succeeded
+				if (generation === this.asking) {
+					this.peers = []
+					this.reports = []
+				}
 			} finally {
-				this.finding = false
+				if (generation === this.asking) {
+					this.finding = false
+				}
 			}
 		},
 
@@ -378,7 +394,12 @@ export default {
 				this.error = null
 			} catch (error) {
 				logger.error('Could not load the trending hashtags', { error, period })
-				this.error = t('social', 'Could not load this. The server may be busy.')
+				// the same guard the answer above gets: a window that failed
+				// after the reader moved to another one would put its error
+				// over a ranking that had already arrived and is correct
+				if (period === this.period) {
+					this.error = t('social', 'Could not load this. The server may be busy.')
+				}
 			} finally {
 				if (period === this.period) {
 					this.loading = false

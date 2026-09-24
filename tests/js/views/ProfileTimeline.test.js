@@ -275,4 +275,31 @@ describe('ProfileTimeline', () => {
 			expect(pinnedIds(wrapper)).toEqual([])
 		})
 	})
+
+	/**
+	 * A reader moving from one profile to another leaves the first request in
+	 * flight, and its answer is a list of somebody else's pinned posts.
+	 */
+	it('does not show one profile\'s pinned posts under another', async () => {
+		let answerAlice
+		axios.get.mockImplementationOnce(() => new Promise((resolve) => {
+			answerAlice = () => resolve({ data: [{ id: 'alice-pin', created_at: '2026-01-02T00:00:00Z' }] })
+		}))
+		const route = { params: { account: 'alice' }, query: {} }
+		const wrapper = mountView(route)
+		await flushPromises()
+
+		// on to another profile, whose own pinned posts arrive first
+		axios.get.mockResolvedValueOnce({ data: [{ id: 'bob-pin', created_at: '2026-01-03T00:00:00Z' }] })
+		route.params.account = 'bob'
+		await wrapper.vm.load()
+		await flushPromises()
+
+		expect(pinnedIds(wrapper)).toEqual(['bob-pin'])
+
+		answerAlice()
+		await flushPromises()
+
+		expect(pinnedIds(wrapper)).toEqual(['bob-pin'])
+	})
 })

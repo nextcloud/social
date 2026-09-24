@@ -154,6 +154,13 @@ export default {
 			/** what each source said about itself, as the server reported it */
 			reports: [],
 			loading: false,
+			/**
+			 * Which search is still wanted. A counter rather than the words,
+			 * because the words are not enough to tell two questions apart —
+			 * the same text asked of another directory is a different one, and
+			 * so is the same text asked again after a failure.
+			 */
+			searching: 0,
 			/** whether anything has been asked yet, so the empty state waits its turn */
 			asked: false,
 			timer: null,
@@ -318,15 +325,21 @@ export default {
 				clearTimeout(this.timer)
 			}
 
+			// the question is the words *and* the directory they are asked of:
+			// choosing another source with the same text starts a new search,
+			// and comparing only the text let the older one answer for it
+			const source = this.chosen
 			this.loading = true
+			this.searching += 1
+			const generation = this.searching
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/directories/search'), {
-					params: { q: query, source: this.chosen },
+					params: { q: query, source },
 				})
 
-				// the reader has typed on since this was asked, and these are
-				// answers to a question that is no longer on screen
-				if (query !== this.query.trim()) {
+				// the reader has typed on, or moved to another directory, and
+				// these are answers to a question that is no longer on screen
+				if (generation !== this.searching) {
 					return
 				}
 
@@ -335,11 +348,17 @@ export default {
 				this.asked = true
 			} catch (error) {
 				logger.error('Could not search the fediverse directories', { error })
-				this.accounts = []
-				this.reports = []
-				this.asked = true
+				// a failure belonging to an abandoned question must not empty
+				// the results of the one the reader is looking at
+				if (generation === this.searching) {
+					this.accounts = []
+					this.reports = []
+					this.asked = true
+				}
 			} finally {
-				this.loading = false
+				if (generation === this.searching) {
+					this.loading = false
+				}
 			}
 		},
 

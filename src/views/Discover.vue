@@ -296,6 +296,13 @@ export default {
 			active: 'accounts',
 			loading: false,
 			error: null,
+			/**
+			 * Which tab's answer is still wanted. `loading` and `error` are one
+			 * pair shared by every tab, so a request left in flight by a reader
+			 * moving on would otherwise put its spinner or its message over the
+			 * tab they moved to.
+			 */
+			asked: 0,
 			posts: [],
 			videos: [],
 			accounts: [],
@@ -372,6 +379,8 @@ export default {
 
 			this.loading = true
 			this.error = null
+			this.asked += 1
+			const generation = this.asked
 			try {
 				if (tab === 'posts') {
 					// `media` is this app's own parameter: without it the route
@@ -399,9 +408,15 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Could not load the discover page', { error, tab })
-				this.error = t('social', 'Could not load this. The server may be busy.')
+				if (generation === this.asked) {
+					this.error = t('social', 'Could not load this. The server may be busy.')
+				}
 			} finally {
-				this.loading = false
+				// the newer request owns the spinner; turning it off here would
+				// say the tab on screen had finished loading when it has not
+				if (generation === this.asked) {
+					this.loading = false
+				}
 			}
 		},
 
@@ -418,18 +433,30 @@ export default {
 		async loadPack(slug) {
 			this.packLoading = true
 			this.error = null
+			this.asked += 1
+			const generation = this.asked
 			// shown at once so the name and description are on screen while the
 			// accounts are still being fetched
 			this.openPack = this.packs.find((pack) => pack.id === slug) ?? null
 			try {
 				const { data } = await axios.get(generateUrl(`apps/social/api/v1/starter_packs/${slug}`))
+				if (generation !== this.asked) {
+					return
+				}
+
 				this.openPack = data
 			} catch (error) {
 				logger.error('Could not open the starter pack', { error, slug })
-				this.error = t('social', 'Could not open this pack. The server may be busy.')
-				this.openPack = null
+				// a pack the reader has already closed, or left for another
+				// one, must not take the open one off the screen
+				if (generation === this.asked) {
+					this.error = t('social', 'Could not open this pack. The server may be busy.')
+					this.openPack = null
+				}
 			} finally {
-				this.packLoading = false
+				if (generation === this.asked) {
+					this.packLoading = false
+				}
 			}
 		},
 

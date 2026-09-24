@@ -50,6 +50,13 @@ export default {
 	data() {
 		return {
 			pinnedIds: [],
+			/**
+			 * Which profile's pinned posts are being waited for. A reader
+			 * moving from one profile to another leaves the first request in
+			 * flight, and the answer to it is a list of somebody else's posts;
+			 * the same counter `TimelineList` keeps, for the same reason.
+			 */
+			generation: 0,
 		}
 	},
 
@@ -152,15 +159,28 @@ export default {
 			if (!account) {
 				return
 			}
+
+			this.generation += 1
+			const generation = this.generation
 			try {
 				const { data } = await axios.get(
 					generateUrl(`apps/social/api/v1/accounts/${account}/statuses`),
 					{ params: { pinned: true } },
 				)
 				const statuses = Array.isArray(data) ? data : []
+				// the posts themselves are worth keeping whoever is on screen
+				// now — they are indexed by their own id and nothing reads
+				// them until something asks for one
 				for (const status of statuses) {
 					this.timelineStore.addToStatuses(status)
 				}
+
+				// the *list* is about one profile, and this is the answer for
+				// a profile the reader may have left
+				if (generation !== this.generation) {
+					return
+				}
+
 				this.pinnedIds = statuses.map((status) => status.id)
 			} catch (error) {
 				logger.error('Failed to load the pinned posts', { error })
