@@ -82,4 +82,72 @@ describe('the refused pictures section', () => {
 		const { showError } = await import('../../../../src/services/toast.js')
 		expect(showError).toHaveBeenCalledWith('that is not a sha256 hash')
 	})
+
+	describe('more than one page', () => {
+		const row = (letter, id) => ({
+			id,
+			hash: letter.repeat(64),
+			reason: 'reason ' + letter,
+			moderator: 'alice',
+			blocked: 0,
+			creation: '2026-09-15 10:00:00',
+		})
+
+		it('keeps a short list as it was: no count, no button', async () => {
+			axios.get.mockResolvedValue({ data: { blocks: [row('a', 2), row('b', 1)], next: null, total: 2 } })
+			const wrapper = mount(MediaBlocksSection)
+			await flushPromises()
+
+			expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+			expect(wrapper.text()).not.toContain('Show more')
+			expect(wrapper.text()).not.toContain('Showing the newest')
+		})
+
+		/** The first page is not the whole list, and the section says so. */
+		it('says how many there are when the page is not all of them', async () => {
+			axios.get.mockResolvedValue({ data: { blocks: [row('c', 3), row('b', 2)], next: 2, total: 3 } })
+			const wrapper = mount(MediaBlocksSection)
+			await flushPromises()
+
+			expect(wrapper.text()).toContain('Showing the newest 2 of 3 refused files.')
+			expect(wrapper.text()).toContain('Show more')
+		})
+
+		it('reaches the older rows and adds them below, newest first', async () => {
+			axios.get
+				.mockResolvedValueOnce({ data: { blocks: [row('c', 3), row('b', 2)], next: 2, total: 3 } })
+				.mockResolvedValueOnce({ data: { blocks: [row('a', 1)], next: null, total: 3 } })
+			const wrapper = mount(MediaBlocksSection)
+			await flushPromises()
+
+			await wrapper.vm.loadMore()
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenLastCalledWith(BLOCKS, { params: { maxId: 2 } })
+			expect(wrapper.vm.blocks.map((block) => block.id)).toEqual([3, 2, 1])
+			expect(wrapper.text()).not.toContain('Show more')
+		})
+
+		/**
+		 * A block on a later page is enforced like any other, and has to be
+		 * one a moderator can lift — without being thrown back to page one.
+		 */
+		it('allows a file on an older page again and keeps the rest on screen', async () => {
+			axios.get
+				.mockResolvedValueOnce({ data: { blocks: [row('c', 3), row('b', 2)], next: 2, total: 3 } })
+				.mockResolvedValueOnce({ data: { blocks: [row('a', 1)], next: null, total: 3 } })
+			axios.delete.mockResolvedValue({ data: { blocks: [row('c', 3), row('b', 2)], next: null, total: 2 } })
+			const wrapper = mount(MediaBlocksSection)
+			await flushPromises()
+			await wrapper.vm.loadMore()
+			await flushPromises()
+
+			await wrapper.vm.remove(wrapper.vm.blocks[2])
+			await flushPromises()
+
+			expect(axios.delete).toHaveBeenCalledWith(BLOCKS, { data: { hash: 'a'.repeat(64) } })
+			expect(wrapper.vm.blocks.map((block) => block.id)).toEqual([3, 2])
+			expect(wrapper.vm.total).toBe(2)
+		})
+	})
 })

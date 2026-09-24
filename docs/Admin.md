@@ -338,7 +338,9 @@ a list of them beside the page on a wide screen:
 - **Refused pictures** — files this instance will not store, named by their
   sha256. The one thing the account-level tools do not do is stop a *file*
   coming back; a refused one is turned away wherever it arrives, an upload here
-  or an attachment fetched from another server.
+  or an attachment fetched from another server. The list shows the newest 100;
+  when there are more it says how many, and **Show more** adds the next 100
+  below. **Allow again** works on any row, on whichever page.
 - **What this server is about** — a few named subjects, each a handful of
   hashtags, shown at the top of Explore above the trending lists. Trending on
   a small server is four hashtags and a wedding; this is the part of that page

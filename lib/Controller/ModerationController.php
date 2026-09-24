@@ -56,6 +56,9 @@ class ModerationController extends Controller {
 	/** What one page of the account browser holds. */
 	private const ACCOUNTS_PER_PAGE = 40;
 
+	/** What one page of the refused files holds. */
+	private const MEDIA_BLOCKS_PER_PAGE = 100;
+
 	/** What one page of the review queue holds. */
 	private const REVIEW_PER_PAGE = 50;
 
@@ -463,10 +466,35 @@ class ModerationController extends Controller {
 		return new DataResponse(['categories' => $this->discoverCategoriesRequest->getAll()]);
 	}
 
+	/**
+	 * A page of the refused files, newest first.
+	 *
+	 * `next` is the `maxId` of the page after this one and null on the last,
+	 * found by reading one row more than the page holds; `total` is how many
+	 * there are in all. A refused file is enforced whether or not anybody can
+	 * see it, so every one of them has to be reachable from here, and a page
+	 * that is not the whole list has to say so.
+	 */
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
 	#[FrontpageRoute(verb: 'GET', url: '/moderation/media/blocks')]
-	public function mediaBlocks(): DataResponse {
-		return new DataResponse(['blocks' => $this->mediaBlocksRequest->getAll()]);
+	public function mediaBlocks(int $maxId = 0): DataResponse {
+		return new DataResponse($this->mediaBlockPage($maxId));
+	}
+
+	/**
+	 * @return array{blocks: array<int, array<string, mixed>>, next: ?int, total: int}
+	 */
+	private function mediaBlockPage(int $maxId = 0): array {
+		$rows = $this->mediaBlocksRequest->getPage(self::MEDIA_BLOCKS_PER_PAGE + 1, $maxId);
+		$more = count($rows) > self::MEDIA_BLOCKS_PER_PAGE;
+		$rows = array_slice($rows, 0, self::MEDIA_BLOCKS_PER_PAGE);
+		$last = end($rows);
+
+		return [
+			'blocks' => $rows,
+			'next' => ($more && $last !== false) ? $last['id'] : null,
+			'total' => $this->mediaBlocksRequest->count(),
+		];
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
@@ -483,7 +511,7 @@ class ModerationController extends Controller {
 
 		$this->mediaBlocksRequest->block($hash, trim($reason), $this->moderatorName());
 
-		return new DataResponse(['blocks' => $this->mediaBlocksRequest->getAll()]);
+		return new DataResponse($this->mediaBlockPage());
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
@@ -491,7 +519,7 @@ class ModerationController extends Controller {
 	public function mediaBlockRemove(string $hash): DataResponse {
 		$this->mediaBlocksRequest->unblock(strtolower(trim($hash)));
 
-		return new DataResponse(['blocks' => $this->mediaBlocksRequest->getAll()]);
+		return new DataResponse($this->mediaBlockPage());
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
