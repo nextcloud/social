@@ -73,6 +73,7 @@ import IconImageFrame from 'vue-material-design-icons/ImageFrame.vue'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import logger from '../services/logger.js'
+import { latestLoad } from '../utils/latestLoad.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 
 /**
@@ -102,6 +103,7 @@ export default {
 			portfolio: {},
 			loading: true,
 			missing: false,
+			loads: latestLoad(),
 		}
 	},
 
@@ -156,20 +158,27 @@ export default {
 
 		/** @return {Promise<void>} */
 		async load() {
+			const isNewest = this.loads.begin()
 			this.loading = true
 			this.missing = false
 			try {
 				const account = this.$route.params.account
 				const url = generateUrl('apps/social/api/v1.1/portfolio/{account}', { account })
 				const { data } = await axios.get(url)
-				this.portfolio = data
+				if (isNewest()) {
+					this.portfolio = data
+				}
 			} catch (error) {
 				// an account with no published page and one that does not exist
 				// are the same answer, which is what the server says too
 				logger.debug('there is no portfolio to show', { error })
-				this.missing = true
+				if (isNewest()) {
+					this.missing = true
+				}
 			} finally {
-				this.loading = false
+				if (isNewest()) {
+					this.loading = false
+				}
 			}
 		},
 

@@ -44,7 +44,7 @@
 			</NcEmptyContent>
 
 			<div v-if="hasMore" class="place__more">
-				<NcButton :disabled="loadingMore" @click="loadMore">
+				<NcButton :disabled="loadingMore" @click="loadMore()">
 					{{ t('social', 'Show more') }}
 				</NcButton>
 			</div>
@@ -64,6 +64,7 @@ import IconRefresh from 'vue-material-design-icons/Refresh.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
+import { latestLoad } from '../utils/latestLoad.js'
 
 /** how many posts one page asks for */
 const PAGE = 20
@@ -106,6 +107,7 @@ export default {
 			/** @type {Array<object>} */
 			posts: [],
 			hasMore: false,
+			loads: latestLoad(),
 		}
 	},
 
@@ -122,25 +124,39 @@ export default {
 
 		/** @return {Promise<void>} */
 		async load() {
+			const id = this.id
+			const isNewest = this.loads.begin()
 			this.loading = true
+			this.loadingMore = false
 			this.error = ''
 			this.posts = []
 			try {
-				const { data } = await axios.get(generateUrl(`apps/social/api/v1/places/${this.id}`))
+				const { data } = await axios.get(generateUrl(`apps/social/api/v1/places/${id}`))
+				if (!isNewest()) {
+					return
+				}
 				this.place = data
-				await this.loadMore()
+				await this.loadMore(id, isNewest)
 			} catch (error) {
 				logger.error('could not load the place', { error })
-				this.error = (error?.response?.status === 404)
-					? t('social', 'There is no such place.')
-					: t('social', 'The place could not be loaded.')
+				if (isNewest()) {
+					this.error = (error?.response?.status === 404)
+						? t('social', 'There is no such place.')
+						: t('social', 'The place could not be loaded.')
+				}
 			} finally {
-				this.loading = false
+				if (isNewest()) {
+					this.loading = false
+				}
 			}
 		},
 
-		/** @return {Promise<void>} */
-		async loadMore() {
+		/**
+		 * @param {string|number} id the place the page belongs to
+		 * @param {function(): boolean} isNewest whether that is still the place on screen
+		 * @return {Promise<void>}
+		 */
+		async loadMore(id = this.id, isNewest = this.loads.current()) {
 			this.loadingMore = true
 			try {
 				const last = this.posts[this.posts.length - 1]
@@ -148,15 +164,22 @@ export default {
 				if (last) {
 					params.max_id = last.id
 				}
-				const { data } = await axios.get(generateUrl(`apps/social/api/v1/places/${this.id}/statuses`), { params })
+				const { data } = await axios.get(generateUrl(`apps/social/api/v1/places/${id}/statuses`), { params })
+				if (!isNewest()) {
+					return
+				}
 				const page = Array.isArray(data) ? data : []
 				this.posts = [...this.posts, ...page]
 				this.hasMore = page.length >= PAGE
 			} catch (error) {
 				logger.error('could not load the posts of the place', { error })
-				showError(t('social', 'The posts from this place could not be loaded'))
+				if (isNewest()) {
+					showError(t('social', 'The posts from this place could not be loaded'))
+				}
 			} finally {
-				this.loadingMore = false
+				if (isNewest()) {
+					this.loadingMore = false
+				}
 			}
 		},
 	},

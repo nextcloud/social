@@ -53,6 +53,7 @@ import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import logger from '../services/logger.js'
 import { profileKinds } from '../composables/useProfileKinds.js'
+import { latestLoad } from '../utils/latestLoad.js'
 
 /**
  * The photographs somebody else took that this account is named in.
@@ -81,6 +82,7 @@ export default {
 			posts: [],
 			loading: true,
 			error: '',
+			loads: latestLoad(),
 		}
 	},
 
@@ -109,18 +111,25 @@ export default {
 
 		/** @return {Promise<void>} */
 		async load() {
+			const isNewest = this.loads.begin()
 			this.loading = true
 			this.error = ''
 			try {
 				const account = this.$route.params.account
 				const url = generateUrl('apps/social/api/v1.1/accounts/{account}/tagged', { account })
 				const { data } = await axios.get(url)
-				this.posts = Array.isArray(data) ? data : []
+				if (isNewest()) {
+					this.posts = Array.isArray(data) ? data : []
+				}
 			} catch (error) {
 				logger.error('could not load the photos somebody is tagged in', { error })
-				this.error = t('social', 'Could not load these photos')
+				if (isNewest()) {
+					this.error = t('social', 'Could not load these photos')
+				}
 			} finally {
-				this.loading = false
+				if (isNewest()) {
+					this.loading = false
+				}
 			}
 		},
 	},
