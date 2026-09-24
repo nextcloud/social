@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Command;
 
 use OCA\Social\Command\Fediverse;
+use OCA\Social\Service\BlocklistImportService;
 use OCA\Social\Service\FediverseService;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -24,7 +25,10 @@ class FediverseTest extends TestCase {
 
 	protected function setUp(): void {
 		$this->fediverseService = $this->createMock(FediverseService::class);
-		$this->command = new Fediverse($this->fediverseService);
+		$this->command = new Fediverse(
+			$this->fediverseService,
+			new BlocklistImportService($this->fediverseService),
+		);
 		$this->tester = new CommandTester($this->command);
 		$csvPath = tempnam(sys_get_temp_dir(), 'social-fediverse-');
 		if ($csvPath === false) {
@@ -39,18 +43,28 @@ class FediverseTest extends TestCase {
 		}
 	}
 
-	public function testImportsTheBadSpaceDomainColumnAndDeduplicatesIt(): void {
+	/**
+	 * A published list says what it wants done about each server, and a
+	 * silence is not a block: it keeps the server out of the public timelines
+	 * and leaves what this one holds of it alone. Reading the column and
+	 * ignoring it deleted that instead — thirty of mastodon.social's two
+	 * hundred and seventy-six entries are silences.
+	 */
+	public function testTheSeverityColumnDecidesWhatHappensToEachRow(): void {
 		file_put_contents($this->csvPath, "#domain,#severity,#public_comment\n"
 			. "first.example,suspend,\"reason, with comma\"\n"
 			. "FIRST.EXAMPLE.,suspend,duplicate\nsecond.example,silence,\"another, reason\"\n");
 		$this->fediverseService->method('getAccessType')->willReturn('all_but');
 		$this->fediverseService->expects($this->once())
 			->method('addAddresses')
-			->with(['first.example', 'second.example'])
-			->willReturn(2);
+			->with(['first.example'])
+			->willReturn(1);
+		$this->fediverseService->expects($this->once())
+			->method('silenceAddress')
+			->with('second.example');
 
 		$this->assertSame(0, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
-		$this->assertStringContainsString('Imported 2 domains; 0 were already listed.', $this->tester->getDisplay());
+		$this->assertStringContainsString('Blocked 1 domains and silenced 1', $this->tester->getDisplay());
 	}
 
 	public function testAInvalidDomainAbortsBeforeAnyChange(): void {
@@ -113,7 +127,8 @@ class FediverseTest extends TestCase {
 		$this->fediverseService->expects($this->never())->method('addAddresses');
 
 		$this->assertSame(1, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
-		$this->assertStringContainsString('this instance', $this->tester->getDisplay());
+		$this->assertStringContainsString('cloud.example.org', $this->tester->getDisplay());
+		$this->assertStringContainsString('No domains were imported.', $this->tester->getDisplay());
 	}
 
 	/**
@@ -143,7 +158,7 @@ class FediverseTest extends TestCase {
 		]));
 
 		$display = $this->tester->getDisplay();
-		$this->assertStringContainsString('2 domains would be imported', $display);
+		$this->assertStringContainsString('2 domains would be blocked', $display);
 		$this->assertStringContainsString('first.example', $display);
 		$this->assertStringContainsString('Nothing was changed', $display);
 	}

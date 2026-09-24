@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use Exception;
+use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\DiscoverCategoriesRequest;
 use OCA\Social\Db\MediaBlocksRequest;
@@ -20,6 +21,8 @@ use OCA\Social\Model\Report;
 use OCA\Social\Model\Strike;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AdminApiService;
+use OCA\Social\Service\BlocklistImportService;
+use OCA\Social\Service\BlocklistSubscriptionService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
@@ -71,6 +74,8 @@ class ModerationController extends Controller {
 		private HashtagService $hashtagService,
 		private EmojiService $emojiService,
 		private IUserSession $userSession,
+		private BlocklistImportService $blocklistImportService,
+		private BlocklistSubscriptionService $blocklistSubscriptionService,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -508,6 +513,119 @@ class ModerationController extends Controller {
 		$this->fediverseService->removeAddress(strtolower(trim($address)));
 
 		return new DataResponse(['list' => $this->fediverseService->getListedAddresses()]);
+	}
+
+	/**
+	 * Reads an uploaded block list, and says what applying it would do.
+	 *
+	 * Two steps on purpose. Every domain a block list adds deletes what this
+	 * instance holds of that server, so the number in front of an
+	 * administrator before they agree to it is the whole point of the page —
+	 * a file from somebody else naming two hundred servers is not a thing to
+	 * apply and then read.
+	 *
+	 * Fail-closed, as `occ social:fediverse import` is: a row that names no
+	 * instance is something to look at rather than something to skip past,
+	 * because this is a file the administrator chose.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/fediverse/blocklist/preview')]
+	public function blocklistPreview(string $csv = ''): DataResponse {
+		try {
+			$read = $this->blocklistImportService->parse($csv, BlocklistImportService::FORMAT_CSV);
+			$would = $this->blocklistImportService->apply($read['entries'], true);
+		} catch (InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		return new DataResponse($would + [
+			'entries' => $this->asRows($read['entries']),
+			'rejected' => $read['rejected'],
+			'skipped' => $read['skipped'],
+		]);
+	}
+
+	/** Applies an uploaded block list, having shown what it would do. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/fediverse/blocklist/import')]
+	public function blocklistImport(string $csv = ''): DataResponse {
+		try {
+			$read = $this->blocklistImportService->parse($csv, BlocklistImportService::FORMAT_CSV);
+			if ($read['rejected'] !== []) {
+				return new DataResponse(
+					['error' => 'the list names something that is not an instance', 'rejected' => $read['rejected']],
+					Http::STATUS_UNPROCESSABLE_ENTITY
+				);
+			}
+
+			$applied = $this->blocklistImportService->apply($read['entries']);
+		} catch (InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		return new DataResponse($applied + [
+			'list' => $this->fediverseService->getListedAddresses(),
+			'silenced' => $applied['silenced'],
+		]);
+	}
+
+	/** The published lists this instance follows, and what each last did. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'GET', url: '/moderation/fediverse/blocklist/sources')]
+	public function blocklistSources(): DataResponse {
+		return new DataResponse(['sources' => $this->blocklistSubscriptionService->sources()]);
+	}
+
+	/** Follows a published list, or stops following it. */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/fediverse/blocklist/sources')]
+	public function blocklistSource(string $id, bool $enabled, ?string $url = null): DataResponse {
+		try {
+			$sources = $this->blocklistSubscriptionService->configure($id, $enabled, $url);
+		} catch (InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		return new DataResponse(['sources' => $sources]);
+	}
+
+	/**
+	 * Reads one followed list now, rather than waiting for the daily job.
+	 *
+	 * `dryRun` is what the administrator presses before turning a source on:
+	 * it fetches the list and reports what following it would do, without
+	 * following it.
+	 */
+	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
+	#[FrontpageRoute(verb: 'POST', url: '/moderation/fediverse/blocklist/fetch')]
+	public function blocklistFetch(string $id, bool $dryRun = false): DataResponse {
+		try {
+			$result = $this->blocklistSubscriptionService->fetch($id, $dryRun);
+		} catch (InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		}
+
+		return new DataResponse([
+			'result' => $result,
+			'sources' => $this->blocklistSubscriptionService->sources(),
+			'list' => $this->fediverseService->getListedAddresses(),
+		]);
+	}
+
+	/**
+	 * A parsed list as the page draws it.
+	 *
+	 * @param array<string, string> $entries domain => severity
+	 *
+	 * @return array<array{domain: string, severity: string}>
+	 */
+	private function asRows(array $entries): array {
+		$rows = [];
+		foreach ($entries as $domain => $severity) {
+			$rows[] = ['domain' => $domain, 'severity' => $severity];
+		}
+
+		return $rows;
 	}
 
 	#[AuthorizedAdminSetting(settings: AdminSettings::class)]
