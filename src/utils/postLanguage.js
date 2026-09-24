@@ -5,6 +5,7 @@
 
 import { getLanguage } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
+import { userKey } from './browserStore.js'
 
 /**
  * The language a post is written in, as the composer offers it.
@@ -17,7 +18,7 @@ import logger from '../services/logger.js'
  * one post in English is the whole reason the control exists.
  */
 
-const KEY = 'social.lastLanguage'
+const NAME = 'social.lastLanguage'
 
 /**
  * Two-letter ISO 639-1 codes: the languages Nextcloud itself is translated
@@ -60,7 +61,7 @@ export function defaultLanguage() {
 export function rememberedLanguage() {
 	let remembered
 	try {
-		remembered = window.localStorage.getItem(KEY) ?? ''
+		remembered = window.localStorage.getItem(userKey(NAME)) ?? ''
 	} catch {
 		return ''
 	}
@@ -77,7 +78,7 @@ export function rememberLanguage(code) {
 	}
 
 	try {
-		window.localStorage.setItem(KEY, code)
+		window.localStorage.setItem(userKey(NAME), code)
 	} catch (error) {
 		logger.debug('Could not remember the language', { error })
 	}

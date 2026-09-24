@@ -495,6 +495,7 @@ import { defaultLanguage, isLanguageCode, rememberedLanguage } from '../../utils
 import { fullDateTime } from '../../utils/relativeTime.js'
 import { useCurrentUser } from '../../composables/useCurrentUser.js'
 import { useServerData } from '../../composables/useServerData.js'
+import { userKey } from '../../utils/browserStore.js'
 
 /*
  * The two limits -- characters per post, attachments per post -- used to be
@@ -2575,7 +2576,7 @@ export default {
 function rememberedVisibility() {
 	let remembered
 	try {
-		remembered = window.localStorage.getItem('social.lastPostType') ?? ''
+		remembered = window.localStorage.getItem(userKey('social.lastPostType')) ?? ''
 	} catch {
 		return ''
 	}

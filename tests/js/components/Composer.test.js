@@ -21,6 +21,11 @@ import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
+// What this app keeps in localStorage is kept under the name of whoever is
+// signed in -- `localStorage` belongs to the origin and outlives a logout, so
+// an unscoped key hands one account's unsent draft to the next account to sign
+// in on the same computer. The mocked user below is why the keys here end
+// '::alice'.
 // @nextcloud/auth reads the user from <head>, which the harness does not set
 vi.mock('@nextcloud/auth', async (importOriginal) => ({
 	...(await importOriginal()),
@@ -424,19 +429,19 @@ describe('Composer', () => {
 
 	describe('default visibility', () => {
 		it('uses the visibility passed by the parent first', () => {
-			localStorage.setItem('social.lastPostType', 'direct')
+			localStorage.setItem('social.lastPostType::alice', 'direct')
 			const { wrapper } = mountComposer({ defaultVisibility: 'unlisted' })
 			expect(currentVisibility(wrapper)).toBe('unlisted')
 		})
 
 		it('falls back to the visibility of the last post', () => {
-			localStorage.setItem('social.lastPostType', 'direct')
+			localStorage.setItem('social.lastPostType::alice', 'direct')
 			const { wrapper } = mountComposer()
 			expect(currentVisibility(wrapper)).toBe('direct')
 		})
 
 		it("takes the account's own default over the last post", () => {
-			localStorage.setItem('social.lastPostType', 'direct')
+			localStorage.setItem('social.lastPostType::alice', 'direct')
 			const { wrapper } = mountComposer({}, { accountPrivacy: 'unlisted' })
 			expect(currentVisibility(wrapper)).toBe('unlisted')
 		})
@@ -453,7 +458,7 @@ describe('Composer', () => {
 		})
 
 		it('ignores an account default this app has never heard of', () => {
-			localStorage.setItem('social.lastPostType', 'direct')
+			localStorage.setItem('social.lastPostType::alice', 'direct')
 			const { wrapper } = mountComposer({}, { accountPrivacy: 'local-only' })
 			expect(currentVisibility(wrapper)).toBe('direct')
 		})
@@ -647,7 +652,7 @@ describe('Composer', () => {
 	describe('closing it', () => {
 		const closeButton = (wrapper) => wrapper.find('.new-post-author__close')
 		const collapsed = (wrapper) => wrapper.find('.new-post').classes().includes('new-post--collapsed')
-		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft') ?? 'null')
+		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft::alice') ?? 'null')
 
 		it('offers no way out while there is nothing to come out of', () => {
 			const { wrapper } = mountComposer()
@@ -802,7 +807,7 @@ describe('Composer', () => {
 	})
 
 	describe('the draft', () => {
-		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft') ?? 'null')
+		const stored = () => JSON.parse(localStorage.getItem('social.composer.draft::alice') ?? 'null')
 
 		it('is kept as the post is written', async () => {
 			const { wrapper } = mountComposer()
@@ -844,7 +849,7 @@ describe('Composer', () => {
 			// a draft written by another version: VisibilitySelect finds no
 			// entry for it and the template reads `.text` off that, so the
 			// whole composer failed to render
-			localStorage.setItem('social.composer.draft', JSON.stringify({
+			localStorage.setItem('social.composer.draft::alice', JSON.stringify({
 				text: 'from elsewhere',
 				spoilerText: '',
 				visibility: 'local-only',
@@ -859,7 +864,7 @@ describe('Composer', () => {
 		})
 
 		it('ignores a remembered visibility it has never heard of', () => {
-			localStorage.setItem('social.lastPostType', 'local-only')
+			localStorage.setItem('social.lastPostType::alice', 'local-only')
 
 			expect(currentVisibility(mountComposer().wrapper)).toBe('followers')
 		})
@@ -2309,7 +2314,7 @@ describe('Composer', () => {
 
 		it('starts in the language the last post went out in', () => {
 			setLanguage('de')
-			localStorage.setItem('social.lastLanguage', 'fr')
+			localStorage.setItem('social.lastLanguage::alice', 'fr')
 			const { wrapper } = mountComposer()
 
 			expect(wrapper.findComponent(LanguageSelect).props('language')).toBe('fr')

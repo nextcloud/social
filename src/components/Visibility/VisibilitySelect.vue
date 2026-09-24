@@ -28,6 +28,7 @@ import { translate } from '@nextcloud/l10n'
 import visibilitiesInfo from './VisibilitiesInfos.js'
 import VisibilityIcon from './VisibilityIcon.vue'
 import logger from '../../services/logger.js'
+import { userKey } from '../../utils/browserStore.js'
 
 export default {
 	name: 'VisibilitySelect',
@@ -73,7 +74,7 @@ export default {
 			try {
 				// throws outright in a private window and where site data is
 				// blocked, which is no reason for the choice not to take effect
-				localStorage.setItem('social.lastPostType', visibility.id)
+				localStorage.setItem(userKey('social.lastPostType'), visibility.id)
 			} catch (error) {
 				logger.debug('Could not remember the visibility', { error })
 			}
