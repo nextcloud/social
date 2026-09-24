@@ -27,6 +27,9 @@ const KEPT = 10
 /** Without notify_push the component polls on this interval. */
 const POLL_MS = 60 * 1000
 
+/** The longest the component waits between two failing asks; see MAX_BACKOFF_MS. */
+const MAX_BACKOFF_MS = 16 * POLL_MS
+
 const NcDashboardWidgetStub = {
 	name: 'NcDashboardWidget',
 	props: ['items', 'showMoreUrl', 'loading'],
@@ -52,7 +55,7 @@ function mountWidget() {
 
 describe('Dashboard', () => {
 	beforeEach(() => {
-		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 		get = vi.spyOn(axios, 'get')
 		// no notify_push unless a test says otherwise, so the component polls
 		vi.mocked(listen).mockReturnValue(false)
@@ -146,7 +149,7 @@ describe('Dashboard', () => {
 		expect(get).toHaveBeenCalledTimes(1)
 		vi.advanceTimersByTime(1)
 		expect(get).toHaveBeenCalledTimes(2)
-		vi.advanceTimersByTime(POLL_MS * 2)
+		await vi.advanceTimersByTimeAsync(POLL_MS * 2)
 		expect(get).toHaveBeenCalledTimes(4)
 	})
 
@@ -211,7 +214,7 @@ describe('Dashboard', () => {
 		expect(get).toHaveBeenCalledTimes(1)
 	})
 
-	it('reports a server error, shows the error state and stops polling', async () => {
+	it('reports a server error once and shows the error state', async () => {
 		get.mockRejectedValue({ response: { status: 500 } })
 		const wrapper = mountWidget()
 		await flushPromises()
@@ -222,19 +225,115 @@ describe('Dashboard', () => {
 		expect(widget.props('items')).toEqual([])
 		expect(wrapper.find('.empty-content').exists()).toBe(true)
 
-		vi.advanceTimersByTime(POLL_MS * 3)
-		expect(get).toHaveBeenCalledTimes(1)
+		// the asks after it keep failing, and a toast each time would be noise
+		await vi.advanceTimersByTimeAsync(POLL_MS * 6)
+		expect(get).toHaveBeenCalledTimes(3)
+		expect(showError).toHaveBeenCalledTimes(1)
 	})
 
-	it('stops polling on a non-HTTP failure without bothering the user', async () => {
+	it('does not leave the widget loading after a network failure, and does not bother the user', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {})
 		get.mockRejectedValue(new Error('network down'))
 		const wrapper = mountWidget()
 		await flushPromises()
 
 		expect(showError).not.toHaveBeenCalled()
-		expect(wrapper.findComponent(NcDashboardWidgetStub).props('loading')).toBe(true)
-		vi.advanceTimersByTime(POLL_MS * 3)
+		expect(wrapper.findComponent(NcDashboardWidgetStub).props('loading')).toBe(false)
+		expect(wrapper.find('.empty-content').exists()).toBe(true)
+	})
+
+	/** One bad minute used to stop the polling until the dashboard was reloaded (#2338). */
+	it('recovers on a later ask after a failure, without being remounted', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		get.mockRejectedValueOnce({ response: { status: 502 } })
+		const wrapper = mountWidget()
+		await flushPromises()
+		expect(wrapper.find('.empty-content').exists()).toBe(true)
+
+		get.mockResolvedValue({ data: notifications })
+		await vi.advanceTimersByTimeAsync(POLL_MS * 2)
+
+		expect(get).toHaveBeenCalledTimes(2)
+		const widget = wrapper.findComponent(NcDashboardWidgetStub)
+		expect(widget.props('items').map((i) => i.id)).toEqual(['n3', 'n2', 'n1'])
+	})
+
+	it('waits longer after each failure in a row, up to a ceiling', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		get.mockRejectedValue(new Error('network down'))
+		mountWidget()
+		await flushPromises()
+		expect(get).toHaveBeenCalledTimes(1)
+
+		// two, four, eight, sixteen minutes, then sixteen again
+		for (const wait of [2, 4, 8, 16, 16]) {
+			await vi.advanceTimersByTimeAsync(wait * POLL_MS - 1)
+			const before = get.mock.calls.length
+			await vi.advanceTimersByTimeAsync(1)
+			expect(get).toHaveBeenCalledTimes(before + 1)
+		}
+
+		// never a tight loop: an hour of failures is a handful of asks
+		const before = get.mock.calls.length
+		await vi.advanceTimersByTimeAsync(60 * POLL_MS)
+		expect(get.mock.calls.length - before).toBeLessThanOrEqual(60 * POLL_MS / MAX_BACKOFF_MS)
+	})
+
+	it('goes back to asking once a minute after a success', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		get.mockRejectedValueOnce(new Error('network down'))
+		get.mockRejectedValueOnce(new Error('network down'))
+		get.mockResolvedValue({ data: notifications })
+		mountWidget()
+		await flushPromises()
+
+		// two minutes, then four, then the ask that succeeds
+		await vi.advanceTimersByTimeAsync(2 * POLL_MS)
+		await vi.advanceTimersByTimeAsync(4 * POLL_MS)
+		expect(get).toHaveBeenCalledTimes(3)
+
+		await vi.advanceTimersByTimeAsync(POLL_MS)
+		expect(get).toHaveBeenCalledTimes(4)
+		await vi.advanceTimersByTimeAsync(POLL_MS)
+		expect(get).toHaveBeenCalledTimes(5)
+	})
+
+	it('toasts again for a failure that follows a recovery', async () => {
+		get.mockRejectedValueOnce({ response: { status: 503 } })
+		get.mockResolvedValueOnce({ data: notifications })
+		get.mockRejectedValueOnce({ response: { status: 503 } })
+		mountWidget()
+		await flushPromises()
+		expect(showError).toHaveBeenCalledTimes(1)
+
+		await vi.advanceTimersByTimeAsync(2 * POLL_MS)
+		await vi.advanceTimersByTimeAsync(POLL_MS)
+		expect(get).toHaveBeenCalledTimes(3)
+		expect(showError).toHaveBeenCalledTimes(2)
+	})
+
+	it('clears a pending retry when the widget goes away', async () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {})
+		get.mockRejectedValue(new Error('network down'))
+		const wrapper = mountWidget()
+		await flushPromises()
+
+		wrapper.unmount()
+		await vi.advanceTimersByTimeAsync(MAX_BACKOFF_MS * 3)
+		expect(get).toHaveBeenCalledTimes(1)
+	})
+
+	it('does not start polling from an answer that arrives after the widget went away', async () => {
+		let answer
+		get.mockReturnValueOnce(new Promise((resolve) => {
+			answer = resolve
+		}))
+		const wrapper = mountWidget()
+		wrapper.unmount()
+
+		answer({ data: notifications })
+		await flushPromises()
+		await vi.advanceTimersByTimeAsync(POLL_MS * 3)
 		expect(get).toHaveBeenCalledTimes(1)
 	})
 })

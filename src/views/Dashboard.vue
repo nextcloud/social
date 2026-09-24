@@ -40,6 +40,14 @@ import logger from '../services/logger.js'
 /** Without notify_push the widget has to ask; once a minute is enough for a tile. */
 const POLL_MS = 60 * 1000
 
+/**
+ * The longest wait between two asks while they keep failing. Each failure
+ * doubles the wait up to this, so a server that is down for a restart is
+ * asked again soon and one that is down for the night is not asked every
+ * minute of it.
+ */
+const MAX_BACKOFF_MS = 16 * POLL_MS
+
 /** A tile shows a handful of rows, so there is no point in keeping more. */
 const MAX_ITEMS = 10
 
@@ -63,7 +71,12 @@ export default {
 			notifications: [],
 			showMoreUrl: generateUrl('/apps/social/timeline/notifications'),
 			showMoreText: t('social', 'Social notifications'),
-			loop: null,
+			/** the timeout of the next ask, while polling */
+			timer: null,
+			/** whether the widget asks on a timer, for want of notify_push */
+			polling: false,
+			/** how many asks in a row have failed */
+			failures: 0,
 			stopListening: null,
 			state: 'loading',
 			appUrl: generateUrl('/apps/social'),
@@ -114,10 +127,10 @@ export default {
 	mounted() {
 		// with notify_push the server says when something arrived; without it
 		// a slow poll keeps the tile current without hammering the instance
+		// the next ask is timed from the end of the one before, which is still
+		// in flight here, so it is the answer to that one that schedules it
 		this.stopListening = listen('social_timeline', () => this.fetchNotifications())
-		if (!this.stopListening) {
-			this.loop = setInterval(() => this.fetchNotifications(), POLL_MS)
-		}
+		this.polling = !this.stopListening
 	},
 
 	beforeUnmount() {
@@ -129,10 +142,23 @@ export default {
 
 	methods: {
 		stopPolling() {
-			if (this.loop !== null) {
-				clearInterval(this.loop)
-				this.loop = null
+			this.polling = false
+			if (this.timer !== null) {
+				clearTimeout(this.timer)
+				this.timer = null
 			}
+		},
+
+		/** Asks again after a minute, or later the more asks in a row have failed. */
+		scheduleNext() {
+			if (!this.polling || this.timer !== null) {
+				return
+			}
+			const delay = Math.min(POLL_MS * 2 ** this.failures, MAX_BACKOFF_MS)
+			this.timer = setTimeout(() => {
+				this.timer = null
+				this.fetchNotifications()
+			}, delay)
 		},
 
 		async fetchNotifications() {
@@ -140,6 +166,7 @@ export default {
 
 			try {
 				const response = await axios.get(url)
+				this.failures = 0
 				if (response.data) {
 					this.processNotifications(response.data)
 					this.state = 'ok'
@@ -147,14 +174,21 @@ export default {
 					this.state = 'error'
 				}
 			} catch (error) {
-				this.stopPolling()
+				// a failed ask is not the end of the widget: the next one may
+				// well succeed, and says so by putting the state back. Only the
+				// first failure of a run is worth a toast.
+				const first = this.failures === 0
+				this.failures += 1
+				this.state = 'error'
 				if (error.response?.status && error.response.status >= 400) {
-					showError(t('social', 'Failed to get Social notifications'))
-					this.state = 'error'
+					if (first) {
+						showError(t('social', 'Failed to get Social notifications'))
+					}
 				} else {
-					// there was an error in notif processing
-					logger.error('Failed to process the Social notifications', { error })
+					logger.error('Failed to get the Social notifications', { error })
 				}
+			} finally {
+				this.scheduleNext()
 			}
 		},
 
