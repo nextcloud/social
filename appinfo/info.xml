@@ -45,7 +45,7 @@ What it does:
 - 💬 Quote posts, carrying the original author's permission on the wire
 - 😀 Custom emoji of this instance's own, added with occ social:emoji and rendered on servers that have never seen them
 - 🎞️ A GIF picker in the composer, backed by the instance's own library rather than a third party
-- 📈 Your own statistics: the last 30 days beside the 30 before them — reach, interactions, likes and boosts, each with the percentage it moved by — then every post of the window one by one, what works, when to post and where your followers are. Choose the window, see what you did rather than only what came back, how steadily you post, who you actually talk with, and whether your pictures describe themselves; take the lot as a CSV. A statistics page for the instance too, and profile highlights showing what somebody posts about
+- 📈 Your own statistics: the last 30 days beside the 30 before them — reach, interactions, likes and boosts, each with the percentage it moved by — then every post of the window one by one, what works, when to post and where your followers are. A statistics page for the instance too, and profile highlights showing what somebody posts about
 - 🕰️ On this day, and a weekly recap of what you missed
 - 📣 Announcements: what the administrators of this instance are telling everybody, at the top of the timeline until it is read, dismissed once for every device, with an emoji to say something back
 - 📡 Relays: subscribe to one and a new server's federated timeline stops being empty — a relay rebroadcasts the public posts of every server on it and carries this server's public posts out to all of them. Public posts only, and a relayed post arrives as the post it is rather than as a boost by the relay
@@ -59,7 +59,7 @@ What it does:
 - 🛡️ For moderators: what may trend (a hashtag, a link or a post kept out of Explore), the instance's custom emoji and its rules, all from the administration page rather than from occ
 
 You can pin your own posts to the top of your profile, bookmark any post, and see which hashtags the instance is using most. This is a partial implementation of ActivityPub and of the Mastodon client API. Blocking, muting and reporting (with a moderation panel in the administration settings) are supported, as are locked accounts with approvable follow requests. Polls are fully supported: create your own, and view and vote on federated ones. Profiles carry an avatar, a banner image and up to four profile metadata fields, edited in the profile editor; a field naming a web page is marked as verified once that page links back with rel="me". Posts that link somewhere get a link preview card. Image (JPEG, PNG, GIF, WebP, AVIF, and HEIC from an iPhone where the server can read it), video (MP4, WebM, QuickTime) and audio attachments are supported, up to ten per post, each with alt text and a focal point. Quote posts carry the original author's permission on the wire, and the author decides who may quote each post and can take one back afterwards. Third-party Mastodon clients cannot reach the API yet, because it is served under the app's own path rather than at the domain root; there is no streaming API and no push subscriptions. A post can be translated where this Nextcloud has a translation provider.]]></description>
-	<version>0.26.45</version>
+	<version>0.26.46</version>
 	<licence>agpl</licence>
 	<author mail="benedikt.schaechner@web.de" homepage="https://benedikt.xn--schchner-2za.de">Benedikt Schächner</author>
 	<namespace>Social</namespace>
