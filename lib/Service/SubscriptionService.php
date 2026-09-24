@@ -1,0 +1,270 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Service;
+
+use InvalidArgumentException;
+use OCA\Social\Db\FeedsRequest;
+use OCP\Http\Client\IClientService;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * Following something that is not on the fediverse.
+ *
+ * A blog, a YouTube channel, a newsroom: things that publish a feed and will
+ * never speak ActivityPub. What comes out is shown with a link to where it is.
+ * **Nothing here is a post.** It is not attributed to anybody on this server,
+ * it cannot be boosted or replied to, and it never federates — which is why it
+ * lives in tables of its own rather than in `social_stream`.
+ */
+class SubscriptionService {
+	/** How long one feed read may take. */
+	private const TIMEOUT = 30;
+
+	/** The biggest feed worth reading. */
+	private const MAX_BYTES = 4 * 1024 * 1024;
+
+	/** How many feeds one cron pass refreshes. */
+	public const PER_RUN = 20;
+
+	/** How often a feed is re-read. */
+	public const INTERVAL = 3600;
+
+	/** How many feeds one account may follow. */
+	public const MAX_FEEDS = 200;
+
+	public function __construct(
+		private FeedsRequest $feedsRequest,
+		private FeedDiscoveryService $discoveryService,
+		private FeedParserService $parserService,
+		private IClientService $clientService,
+		private LoggerInterface $logger,
+	) {
+	}
+
+	/**
+	 * What this reader follows, with how much each has published.
+	 *
+	 * @return array<array<string, mixed>>
+	 */
+	public function feeds(string $userId): array {
+		$rows = $this->feedsRequest->feedsOf($userId);
+		$counts = $this->feedsRequest->countsFor(array_map(static fn (array $r): int => (int)$r['id'], $rows));
+
+		$feeds = [];
+		foreach ($rows as $row) {
+			$id = (int)$row['id'];
+			$feeds[] = [
+				'id' => $id,
+				'title' => ($row['title'] ?? '') !== '' ? $row['title'] : $row['url'],
+				'site_url' => (string)($row['site_url'] ?? ''),
+				'items' => $counts[$id] ?? 0,
+				'error' => (string)($row['error'] ?? ''),
+			];
+		}
+
+		return $feeds;
+	}
+
+	/**
+	 * Follows whatever somebody pasted.
+	 *
+	 * The address is resolved first — a page is read for the feed it declares,
+	 * a YouTube channel for the one it has — so what is stored is the feed
+	 * rather than what was typed. Following the same thing twice is one
+	 * subscription: the second attempt reads it again rather than making a
+	 * copy.
+	 *
+	 * @throws InvalidArgumentException nothing there, or too many already
+	 */
+	public function follow(string $userId, string $input): array {
+		if (count($this->feedsRequest->feedsOf($userId)) >= self::MAX_FEEDS) {
+			throw new InvalidArgumentException('that is as many feeds as one account may follow');
+		}
+
+		$url = $this->discoveryService->discover($input);
+
+		$id = $this->feedsRequest->idOf($userId, $url);
+		if ($id === 0) {
+			$id = $this->feedsRequest->create($userId, $url, '', '');
+		}
+
+		$this->refresh(['id' => $id, 'url' => $url, 'etag' => '', 'modified_at' => '']);
+
+		return ['id' => $id, 'url' => $url];
+	}
+
+	public function unfollow(string $userId, int $id): bool {
+		return $this->feedsRequest->delete($userId, $id);
+	}
+
+	/**
+	 * A page of what the reader's feeds have published.
+	 *
+	 * @return array<array<string, mixed>>
+	 */
+	public function timeline(string $userId, int $limit, int $maxId): array {
+		$items = [];
+		foreach ($this->feedsRequest->timelineOf($userId, max(1, min($limit, 100)), $maxId) as $row) {
+			$items[] = [
+				'id' => (int)$row['id'],
+				'link' => (string)($row['link'] ?? ''),
+				'title' => (string)($row['title'] ?? ''),
+				'summary' => (string)($row['summary'] ?? ''),
+				'thumbnail' => (string)($row['thumbnail'] ?? ''),
+				'feed_title' => (string)($row['feed_title'] ?? ''),
+				'published' => $this->asDate($row['published'] ?? null),
+			];
+		}
+
+		return $items;
+	}
+
+	/**
+	 * Re-reads one feed and stores whatever is new.
+	 *
+	 * A conditional request, so a feed that has not changed since the last
+	 * read costs a 304 rather than the file. Whatever goes wrong is written to
+	 * the row rather than thrown: a feed that has gone should say so on the
+	 * page, not stop the others being read.
+	 *
+	 * @param array<string, mixed> $feed id, url, and the last read's validators
+	 *
+	 * @return int how many entries were new
+	 */
+	public function refresh(array $feed): int {
+		$id = (int)$feed['id'];
+		$url = (string)$feed['url'];
+
+		$headers = ['Accept' => 'application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.5'];
+		if ((string)($feed['etag'] ?? '') !== '') {
+			$headers['If-None-Match'] = (string)$feed['etag'];
+		}
+		if ((string)($feed['modified_at'] ?? '') !== '') {
+			$headers['If-Modified-Since'] = (string)$feed['modified_at'];
+		}
+
+		try {
+			$response = $this->clientService->newClient()->get($url, [
+				'timeout' => self::TIMEOUT,
+				'headers' => $headers,
+			]);
+		} catch (Throwable $e) {
+			$this->logger->debug('a followed feed could not be read', ['feed' => $url, 'exception' => $e]);
+			$this->feedsRequest->recordRead($id, '', '', '', '', 'could not be read');
+
+			return 0;
+		}
+
+		if ($response->getStatusCode() === 304) {
+			$this->feedsRequest->recordRead($id, '', '', (string)$feed['etag'], (string)$feed['modified_at'], '');
+
+			return 0;
+		}
+
+		$body = substr((string)$response->getBody(), 0, self::MAX_BYTES);
+
+		try {
+			$read = $this->parserService->parse($body);
+		} catch (InvalidArgumentException $e) {
+			$this->feedsRequest->recordRead($id, '', '', '', '', $e->getMessage());
+
+			return 0;
+		}
+
+		$added = 0;
+		foreach ($read['items'] as $item) {
+			if ($this->feedsRequest->addItem($id, $item)) {
+				$added++;
+			}
+		}
+
+		$this->feedsRequest->recordRead(
+			$id,
+			$read['title'],
+			$read['site_url'],
+			$response->getHeader('ETag'),
+			$response->getHeader('Last-Modified'),
+			''
+		);
+
+		return $added;
+	}
+
+	/**
+	 * Re-reads the feeds that are due. What the cron does.
+	 *
+	 * @return int how many entries arrived
+	 */
+	public function refreshDue(): int {
+		$added = 0;
+		foreach ($this->feedsRequest->due(self::PER_RUN, time() - self::INTERVAL) as $feed) {
+			$added += $this->refresh($feed);
+		}
+
+		return $added;
+	}
+
+	/**
+	 * Follows every channel in a YouTube takeout.
+	 *
+	 * `subscriptions.csv` names one channel a line with its id in the first
+	 * column, which is the one form a feed address can be built from without
+	 * asking YouTube anything.
+	 *
+	 * @return int how many were newly followed
+	 */
+	public function importTakeout(string $userId, string $csv): int {
+		$handle = fopen('php://temp', 'r+');
+		if ($handle === false) {
+			throw new InvalidArgumentException('that file could not be read');
+		}
+
+		fwrite($handle, $csv);
+		rewind($handle);
+
+		$followed = 0;
+		while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
+			if ($row === [null]) {
+				continue;
+			}
+
+			$channel = trim($row[0] ?? '');
+			if (preg_match('/^UC[A-Za-z0-9_-]{20,}$/', $channel) !== 1) {
+				// the header line, and anything else that is not a channel id
+				continue;
+			}
+
+			try {
+				$this->follow($userId, 'https://www.youtube.com/channel/' . $channel);
+				$followed++;
+			} catch (Throwable $e) {
+				$this->logger->debug('a takeout channel could not be followed', [
+					'channel' => $channel, 'exception' => $e,
+				]);
+			}
+		}
+
+		fclose($handle);
+
+		return $followed;
+	}
+
+	/** A stored date as the client reads it, or '' where there is none. */
+	private function asDate(mixed $value): string {
+		if (!is_string($value) || $value === '') {
+			return '';
+		}
+
+		$stamp = strtotime($value);
+
+		return ($stamp === false) ? '' : gmdate('Y-m-d\TH:i:s\Z', $stamp);
+	}
+}
