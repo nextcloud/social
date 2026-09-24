@@ -4,6 +4,27 @@
 -->
 <template>
 	<div class="migration">
+		<!--
+			First, because it is what somebody arriving is looking for and the
+			rest of this page is written for people who already know what an
+			export is.
+		-->
+		<section class="migration__card migration__card--lead">
+			<h4>
+				<IconAccountArrowRight :size="20" />
+				{{ t('social', 'Moving in') }}
+			</h4>
+			<p>
+				{{ t('social', 'Coming from X, Instagram, TikTok or YouTube? The step-by-step way in: your posts, the accounts you followed where they can be found again, and a card to post where you used to be.') }}
+			</p>
+			<NcButton variant="primary" :to="{ name: 'switch' }">
+				<template #icon>
+					<IconAccountArrowRight :size="20" />
+				</template>
+				{{ t('social', 'Move in from another network') }}
+			</NcButton>
+		</section>
+
 		<!-- out -->
 		<section class="migration__card">
 			<h4>
@@ -210,15 +231,19 @@
 				</li>
 				<li>
 					<strong>{{ t('social', 'Instagram') }}</strong>
-					{{ t('social', '— Settings → Accounts Centre → Your information and permissions → Download your information, and choose JSON. The HTML download holds the pages and not the posts. It has no follow list to import; the posts and reels in it can be brought over with the button above.') }}
+					{{ t('social', '— Settings → Accounts Centre → Your information and permissions → Download your information, and choose JSON. The HTML download holds the pages and not the posts. The posts and reels in it come over with the button above, and the accounts it says you follow can be looked up on Threads — which does federate — in Moving in.') }}
 				</li>
 				<li>
 					<strong>{{ t('social', 'GoToSocial and Akkoma') }}</strong>
 					{{ t('social', '— Settings → Export, which writes the same Mastodon-shaped CSV.') }}
 				</li>
 				<li>
-					<strong>{{ t('social', 'Bluesky, Threads and X') }}</strong>
-					{{ t('social', '— these do not speak ActivityPub in a way that carries a follow list, so there is nothing here to import. Bluesky accounts can be followed through a bridge if the other side has opted in.') }}
+					<strong>{{ t('social', 'Threads') }}</strong>
+					{{ t('social', '— Threads accounts that have turned fediverse sharing on can be followed from here directly, and a Threads name is the same as the Instagram one. There is no follow list to export, so Moving in looks them up from the Instagram archive instead.') }}
+				</li>
+				<li>
+					<strong>{{ t('social', 'Bluesky and X') }}</strong>
+					{{ t('social', '— neither carries a follow list this can read: X exports the accounts it follows as numbers rather than names, and nothing on either side federates a follow. X posts can still be imported with the button above. Bluesky accounts can be followed through a bridge if the other side has opted in.') }}
 				</li>
 			</ul>
 
@@ -715,6 +740,11 @@ export default {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+}
+
+/* the way in, told apart from the four cards of machinery below it */
+.migration__card--lead {
+	border-inline-start: 4px solid var(--color-primary-element);
 }
 
 .migration__card {

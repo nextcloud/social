@@ -14,6 +14,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\PostImportService;
+use OCA\Social\Service\SwitchService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -53,6 +54,7 @@ class MigrationController extends Controller {
 		private MigrationService $migrationService,
 		private PostImportService $postImportService,
 		private AccountService $accountService,
+		private SwitchService $switchService,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct('social', $request);
@@ -170,6 +172,75 @@ class MigrationController extends Controller {
 	 * limits, and a client that got the kind wrong would otherwise follow the
 	 * people it meant to block.
 	 */
+	/**
+	 * The accounts an Instagram archive says you followed, as handles to try.
+	 *
+	 * Instagram exports no fediverse names — it has none — but Threads
+	 * federates and a Threads handle is the Instagram one at `threads.net`, so
+	 * the list is worth a lookup each. Nothing is followed here and nothing is
+	 * stored: this answers who might be there.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 10, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/people')]
+	public function switchPeople(): DataResponse {
+		return $this->fromUpload(
+			fn (string $userId, string $body): array
+				=> ['handles' => $this->switchService->candidates($body)],
+			'reading the follow list failed'
+		);
+	}
+
+	/**
+	 * Which of those accounts exist, one batch at a time.
+	 *
+	 * Each name is a webfinger against another server, so the batch is bounded
+	 * by `SwitchService::PROBE_BATCH` and the answer says how many were
+	 * *checked* — the client's cursor moves on that rather than on how many
+	 * were found, or a list where nobody is there would be asked about for
+	 * ever.
+	 *
+	 * @param string[] $handles the names to look up
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 120, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/people/find')]
+	public function switchFind(array $handles = []): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			return new DataResponse($this->switchService->probe($handles), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			$this->logger->warning('looking up names failed', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'those names could not be looked up'], Http::STATUS_BAD_REQUEST);
+		}
+	}
+
+	/**
+	 * The handle and address to leave behind on the network being left.
+	 *
+	 * Built from the actor rather than from the Nextcloud user id, which is
+	 * not the same thing for any account whose fediverse name differs from it.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/announcement')]
+	public function switchAnnouncement(): DataResponse {
+		if ($this->userId === null) {
+			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		}
+
+		try {
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+
+			return new DataResponse($this->switchService->announcement($actor), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return new DataResponse(['error' => 'no account to announce'], Http::STATUS_NOT_FOUND);
+		}
+	}
+
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 4, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/blocks')]
