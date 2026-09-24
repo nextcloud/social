@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Tools\Nid;
 
 /**
  * One keyword filter of one account, as Mastodon's v2 `Filter` entity.
@@ -206,11 +207,12 @@ class Filter implements JsonSerializable {
 	 * and the id a client sends back — see the `social_filter_st` migration
 	 * for why the URI is not what is stored.
 	 */
-	public function covers(int $statusId): bool {
-		if ($statusId < 1) {
+	public function covers(int|string $statusId): bool {
+		if (!ctype_digit((string)$statusId) || Nid::compare($statusId, '0') < 1) {
 			return false;
 		}
 
+		$statusId = Nid::normalize($statusId);
 		foreach ($this->statuses as $status) {
 			if ($status->getStatusId() === $statusId) {
 				return true;

@@ -143,7 +143,7 @@ class FiltersRequestBuilder extends CoreRequestBuilder {
 		return (new FilterStatus())
 			->setId($this->getInt('id', $data))
 			->setFilterId($this->getInt('filter_id', $data))
-			->setStatusId($this->getInt('status_id', $data));
+			->setStatusId($this->get('status_id', $data, '0'));
 	}
 
 	/**
