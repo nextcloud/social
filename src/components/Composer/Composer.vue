@@ -369,7 +369,7 @@
 						v-if="emojiPickerLoaded"
 						:search="search"
 						:closeOnSelect="false"
-						:container="emojiPickerContainer"
+						container="#content-vue"
 						@select="insert">
 						<NcButton
 							ref="emojiButton"
@@ -706,24 +706,6 @@ export default {
 		initialPaths: {
 			type: Array,
 			default: () => [],
-		},
-
-		/**
-		 * Where floating-vue teleports the emoji picker popper. The inline
-		 * composer keeps it in the themed app root (`#content`): inside the
-		 * toolbar row (`.options`, `max-height` + `overflow: hidden`) an
-		 * un-teleported popper would be cut off. The composer in the "New
-		 * post" dialog instead has to stay inside the modal mask: anything
-		 * teleported out (to `#content`, to `body`) lands behind the dimmed
-		 * mask and outside the focus trap, so the picker shows behind the
-		 * popup and takes no clicks. Callers in a modal pass the overlay wrapper
-		 * (not `.modal-composer`): the dialog's content panel has `overflow: auto`,
-		 * which clips a 420px picker when it opens above the toolbar. The overlay
-		 * wrapper stays inside the mask and focus layer without clipping it.
-		 */
-		emojiPickerContainer: {
-			type: String,
-			default: '#content',
 		},
 	},
 
@@ -1393,18 +1375,9 @@ export default {
 			// swapping it out first left an empty space for as long as the
 			// chunk took, which on a busy connection is seconds
 			this.emojiPickerLoading = true
-			try {
-				await emojiPickerModule()
-				this.emojiPickerLoaded = true
-			} catch (error) {
-				// Keep the lightweight button mounted. The import service clears a
-				// rejected promise, so another press retries the chunk request.
-				logger.error('Could not load the emoji picker', { error })
-				return
-			} finally {
-				this.emojiPickerLoading = false
-			}
-
+			await emojiPickerModule().catch(() => {})
+			this.emojiPickerLoading = false
+			this.emojiPickerLoaded = true
 			// and the click the reader already made is passed on to the picker,
 			// which is now mounted, rather than being spent on fetching it. A
 			// frame after the tick: the popover binds its trigger on mount and
@@ -2605,13 +2578,8 @@ function nodeToPlainText(node) {
 			continue
 		}
 
-		const isBlock = ['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)
-		if (isBlock && text !== '' && !text.endsWith('\n')) {
-			text += '\n'
-		}
-
 		text += nodeToPlainText(element)
-		if (isBlock && !text.endsWith('\n')) {
+		if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)) {
 			text += '\n'
 		}
 	}

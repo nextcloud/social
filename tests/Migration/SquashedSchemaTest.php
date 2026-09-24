@@ -89,17 +89,38 @@ class SquashedSchemaTest extends TestCase {
 	}
 
 	/**
-	 * The migrations that are left are the ones that move data.
+	 * The last step that existed when the squash was written.
+	 *
+	 * Everything up to here was replayed into the squash, so a schema-only one
+	 * among them would be describing a table twice. Everything after it is new
+	 * work and is judged by the rule below instead.
+	 */
+	private const AT_THE_SQUASH = 'Version1000Date20260920000002';
+
+	/**
+	 * Of the migrations that predate the squash, the ones that are left are the
+	 * ones that move data.
 	 *
 	 * A schema can be squashed because it is a description of an end state. A
 	 * backfill cannot: it reads rows and rewrites them, and whether it has run
-	 * is not visible in the shape of the table it ran against. So a step that
-	 * only shapes tables belongs in the squash, and one that touches rows
-	 * cannot.
+	 * is not visible in the shape of the table it ran against. So a step from
+	 * back then that only shapes tables belongs in the squash, and one that
+	 * touches rows cannot.
+	 *
+	 * **A new table added from now on is a step of its own and must not go into
+	 * the squash.** The squash carries the version of the initial migration it
+	 * subsumes, which every existing instance has already recorded as run — so
+	 * it never runs again there, and a table added to it would exist on fresh
+	 * installs and on nobody else's server. That is why this rule stops at the
+	 * step the squash was written against.
 	 */
 	public function testOnlyTheStepsThatMoveDataAreLeftBesideIt(): void {
 		foreach (MigrationReplay::steps([Version1000Date20221118000002::class]) as $class) {
 			$name = substr($class, strrpos($class, '\\') + 1);
+			if (strcmp($name, self::AT_THE_SQUASH) > 0) {
+				continue;
+			}
+
 			$source = (string)file_get_contents(dirname(__DIR__, 2) . '/lib/Migration/' . $name . '.php');
 
 			$this->assertMatchesRegularExpression(

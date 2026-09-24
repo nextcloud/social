@@ -246,9 +246,6 @@ describe('MessageContent', () => {
 			const emoji = wrapper.find('img.emoji')
 			expect(emoji.exists()).toBe(true)
 			expect(emoji.attributes('alt')).toBe('😀')
-			expect(emoji.element.parentElement.tagName).toBe('P')
-			expect(emoji.element.nextSibling.textContent).toBe(' there')
-			expect(wrapper.find('p br').exists()).toBe(false)
 		})
 	})
 

@@ -198,17 +198,6 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('.attachment__failed').attributes('aria-label')).toBe('No preview available')
 	})
 
-	it('explains when the server refused to cache an image', () => {
-		const wrapper = mount(MediaAttachment, {
-			props: { attachment: { ...attachment, preview_url: null, cache_error: 1 } },
-		})
-
-		expect(wrapper.find('.attachment__failed').attributes('aria-label'))
-			.toBe('The image exceeds this instance’s media size limit. A cat on a sofa')
-		expect(wrapper.find('.attachment__failed').attributes('title'))
-			.toBe('The image exceeds this instance’s media size limit. A cat on a sofa')
-	})
-
 	it('names an undescribed-preview attachment by its description', () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, preview_url: '', description: 'a cat' } } })
 

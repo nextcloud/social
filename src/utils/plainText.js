@@ -55,13 +55,8 @@ function nodeToPlainText(node) {
 			continue
 		}
 
-		const isBlock = ['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)
-		if (isBlock && text !== '' && !text.endsWith('\n')) {
-			text += '\n'
-		}
-
 		text += nodeToPlainText(element)
-		if (isBlock && !text.endsWith('\n')) {
+		if (['DIV', 'P', 'LI', 'BLOCKQUOTE', 'PRE'].includes(element.tagName)) {
 			text += '\n'
 		}
 	}

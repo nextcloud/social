@@ -385,13 +385,6 @@ describe('Composer', () => {
 			expect(wrapper.find('.char-ring').attributes('style')).toContain('--char-progress: 0.014')
 		})
 
-		it('keeps a break before the first block after bare text', async () => {
-			const { wrapper } = mountComposer()
-			await setContent(wrapper, 'one<div>two</div>')
-
-			expect(wrapper.vm.statusText).toBe('one\ntwo')
-		})
-
 		it('counts an escaped entity as the character it stands for', async () => {
 			const { wrapper } = mountComposer()
 			await setContent(wrapper, 'a &amp; b')
@@ -1380,22 +1373,6 @@ describe('Composer', () => {
 			await openEmojiPicker(wrapper)
 
 			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).exists()).toBe(true)
-		})
-
-		it('teleports the picker to the app root by default', async () => {
-			const { wrapper } = mountComposer()
-			await openEmojiPicker(wrapper)
-
-			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('#content')
-		})
-
-		it('keeps the picker inside the unclipped modal overlay when requested', async () => {
-			// the dialog content scrolls and clips its children; the overlay
-			// wrapper is still above the dimmed page but allows the picker to float
-			const { wrapper } = mountComposer({ emojiPickerContainer: '.modal-wrapper' })
-			await openEmojiPicker(wrapper)
-
-			expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('.modal-wrapper')
 		})
 
 		it('inserts a picked emoji into an empty message', async () => {

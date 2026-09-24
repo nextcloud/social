@@ -706,6 +706,257 @@ class PostImportServiceTest extends TestCase {
 		$this->assertSame(1, $tally['already']);
 	}
 
+	// X
+
+	/**
+	 * X's archive, in the layout it actually has: JSON with a line of
+	 * JavaScript in front of it, so that the `Your archive.html` beside it can
+	 * load the file as a script.
+	 *
+	 * @param array<int, array<string, mixed>> $tweets
+	 * @param array<string, string> $extra path => contents
+	 */
+	private function twitterArchive(array $tweets, array $extra = [], string $username = 'alice'): string {
+		$files = [
+			'data/tweets.js' => 'window.YTD.tweets.part0 = '
+				. json_encode(array_map(static fn (array $one): array => ['tweet' => $one], $tweets)),
+			'data/account.js' => 'window.YTD.account.part0 = '
+				. json_encode([['account' => ['username' => $username, 'accountId' => '1']]]),
+		];
+
+		return $this->archive(array_merge($files, $extra));
+	}
+
+	/**
+	 * One post of an X archive.
+	 *
+	 * @param array<string, mixed> $values
+	 * @return array<string, mixed>
+	 */
+	private function tweet(string $id, string $text, array $values = []): array {
+		return array_merge([
+			'id_str' => $id,
+			'full_text' => $text,
+			'created_at' => 'Wed Oct 10 20:19:24 +0000 2018',
+			'entities' => [],
+		], $values);
+	}
+
+	public function testAnXArchiveIsReadAndItsPostsAreDatedWhenTheyWereWritten(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('1', 'the pier at low tide'),
+			$this->tweet('2', 'and again the next morning', [
+				'created_at' => 'Thu Oct 11 08:00:00 +0000 2018',
+			]),
+		]);
+
+		$tally = $this->service->import($this->alice(), $path);
+
+		$this->assertSame(2, $tally['imported']);
+		$this->assertSame(strtotime('Wed Oct 10 20:19:24 +0000 2018'), $this->written[0]->getPublishedTime());
+		$this->assertSame('<p>the pier at low tide</p>', $this->written[0]->getContent());
+	}
+
+	/** The archives from before the file was renamed are still on people's disks. */
+	public function testTheOlderSingularFileNameIsReadToo(): void {
+		$path = $this->archive([
+			'data/tweet.js' => 'window.YTD.tweet.part0 = '
+				. json_encode([['tweet' => $this->tweet('1', 'from before the rename')]]),
+		]);
+
+		$this->assertSame(1, $this->service->import($this->alice(), $path)['imported']);
+	}
+
+	/** A retweet is somebody else's post, the same skip a boost gets. */
+	public function testARetweetIsNotBroughtOver(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('1', 'RT @someone: their post, not mine'),
+			$this->tweet('2', 'mine'),
+		]);
+
+		$tally = $this->service->import($this->alice(), $path);
+
+		$this->assertSame(1, $tally['imported']);
+		$this->assertSame('<p>mine</p>', $this->written[0]->getContent());
+	}
+
+	/**
+	 * A reply to somebody else answers a post on a server that federates
+	 * nothing: imported on its own it is a sentence with its first half
+	 * missing.
+	 */
+	public function testAReplyToSomebodyElseIsLeftBehind(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('1', '@bob yes exactly', ['in_reply_to_screen_name' => 'bob']),
+		]);
+
+		$this->assertSame(0, $this->service->import($this->alice(), $path)['imported']);
+	}
+
+	/** A reply to oneself is a thread, and the thread is the post. */
+	public function testAThreadTheAccountWroteToItselfIsKept(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('1', 'a thought'),
+			$this->tweet('2', 'and the rest of it', [
+				'in_reply_to_screen_name' => 'Alice',
+				'in_reply_to_status_id_str' => '1',
+			]),
+		]);
+
+		$tally = $this->service->import($this->alice(), $path);
+
+		$this->assertSame(2, $tally['imported']);
+		$this->assertSame(
+			$this->written[0]->getId(), $this->written[1]->getInReplyTo(),
+			'the second post should hang off the first'
+		);
+	}
+
+	/**
+	 * Without `account.js` there is no way to tell a thread from a reply to a
+	 * stranger, and guessing wrong in that direction imports fragments.
+	 */
+	public function testWithoutTheAccountFileNoReplyIsAssumedToBeAThread(): void {
+		$path = $this->archive([
+			'data/tweets.js' => 'window.YTD.tweets.part0 = ' . json_encode([
+				['tweet' => $this->tweet('1', 'mine')],
+				['tweet' => $this->tweet('2', 'a reply', [
+					'in_reply_to_screen_name' => 'alice', 'in_reply_to_status_id_str' => '1',
+				])],
+			]),
+		]);
+
+		$this->assertSame(1, $this->service->import($this->alice(), $path)['imported']);
+	}
+
+	/**
+	 * Every link in a post is a `t.co` address that only X resolves, so a post
+	 * imported as written would carry links that stop working the day that
+	 * host does.
+	 */
+	public function testTheLinkShortenerIsUndone(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('1', 'worth reading https://t.co/abc123', [
+				'entities' => [
+					'urls' => [[
+						'url' => 'https://t.co/abc123',
+						'expanded_url' => 'https://example.org/the-article',
+					]],
+				],
+			]),
+		]);
+
+		$this->service->import($this->alice(), $path);
+
+		$this->assertStringContainsString('https://example.org/the-article', $this->written[0]->getContent());
+		$this->assertStringNotContainsString('t.co', $this->written[0]->getContent());
+	}
+
+	/**
+	 * A post with a picture ends in a `t.co` link back to itself, which stands
+	 * for nothing once the picture is on the post.
+	 */
+	public function testTheLinkAPostCarriesToItsOwnPictureIsDropped(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('1', 'the pier https://t.co/pic1', [
+				'entities' => ['media' => [['url' => 'https://t.co/pic1']]],
+				'extended_entities' => [
+					'media' => [[
+						'media_url_https' => 'https://pbs.twimg.com/media/pier.jpg',
+						'url' => 'https://t.co/pic1',
+						'type' => 'photo',
+					]],
+				],
+			]),
+		], ['data/tweets_media/1-pier.jpg' => 'not really a jpeg']);
+
+		$tally = $this->service->import($this->alice(), $path);
+
+		$this->assertSame(1, $tally['imported']);
+		$this->assertSame(1, $tally['media'], 'the picture should come out of the archive');
+		$this->assertSame('<p>the pier</p>', $this->written[0]->getContent());
+	}
+
+	/** A video is the largest variant X wrote, which is the one in the archive. */
+	public function testAVideoIsTakenAtTheHighestBitrateTheArchiveHolds(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('7', 'the tide coming in', [
+				'extended_entities' => [
+					'media' => [[
+						'type' => 'video',
+						'media_url_https' => 'https://pbs.twimg.com/tweet_video_thumb/x.jpg',
+						'video_info' => [
+							'variants' => [
+								['content_type' => 'video/mp4', 'bitrate' => 256000, 'url' => 'https://video.twimg.com/a/small.mp4'],
+								['content_type' => 'application/x-mpegURL', 'url' => 'https://video.twimg.com/a/playlist.m3u8'],
+								['content_type' => 'video/mp4', 'bitrate' => 2176000, 'url' => 'https://video.twimg.com/a/big.mp4?tag=12'],
+							],
+						],
+					]],
+				],
+			]),
+		], ['data/tweets_media/7-big.mp4' => 'not really an mp4']);
+
+		$this->assertSame(1, $this->service->import($this->alice(), $path)['media']);
+	}
+
+	/** X escapes exactly three characters, so a post about `a < b` arrives escaped. */
+	public function testXsEscapingIsUndone(): void {
+		$path = $this->twitterArchive([$this->tweet('1', 'a &lt; b &amp;&amp; b &gt; c')]);
+
+		$this->service->import($this->alice(), $path);
+
+		$this->assertSame('<p>a < b && b > c</p>', $this->written[0]->getContent());
+	}
+
+	/**
+	 * The list X keeps is trusted over the words, so a tag written in a script
+	 * the expression does not cover still comes over.
+	 */
+	public function testHashtagsComeFromTheListXKeeps(): void {
+		$path = $this->twitterArchive([
+			$this->tweet('1', 'at the coast #のんびり', [
+				'entities' => ['hashtags' => [['text' => 'のんびり']]],
+			]),
+		]);
+
+		$this->service->import($this->alice(), $path);
+
+		$this->assertSame(['のんびり'], $this->written[0]->getHashtags());
+	}
+
+	/** `und` is X saying it could not tell, which is not a language. */
+	public function testAnUndeterminedLanguageIsNotClaimed(): void {
+		$path = $this->twitterArchive([$this->tweet('1', '🙂', ['lang' => 'und'])]);
+
+		$this->service->import($this->alice(), $path);
+
+		$this->assertSame('', $this->written[0]->getLanguage());
+	}
+
+	public function testASecondRunOfTheSameXArchiveWritesNothing(): void {
+		$path = $this->twitterArchive([$this->tweet('1', 'once')]);
+
+		$this->service->import($this->alice(), $path);
+		$source = array_key_first($this->remembered);
+		$this->assertSame('twitter:1', $source);
+
+		$tally = $this->serviceKnowing([$source => md5('x')])->import($this->alice(), $path);
+
+		$this->assertSame(0, $tally['imported']);
+		$this->assertSame(1, $tally['already']);
+	}
+
+	/** An X post says nothing about who could see it, so the account decides. */
+	public function testAnXPostGetsTheAccountsOwnDefaultAudience(): void {
+		$this->accountService->method('getDefaultPrivacy')->willReturn(Stream::TYPE_UNLISTED);
+		$path = $this->twitterArchive([$this->tweet('1', 'quietly')]);
+
+		$this->service->import($this->alice(), $path);
+
+		$this->assertSame(Stream::TYPE_UNLISTED, $this->written[0]->getVisibility());
+	}
+
 	// Instagram
 
 	/**

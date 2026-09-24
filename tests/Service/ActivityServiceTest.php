@@ -49,7 +49,7 @@ use OCA\Social\Tools\Exceptions\RequestServerException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use ReflectionClass;
 
 class ActivityServiceTest extends TestCase {
@@ -68,7 +68,6 @@ class ActivityServiceTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private ActorsRequest|MockObject $actorsRequest;
 	private RelayRequest|MockObject $relayRequest;
-	private LoggerInterface|MockObject $logger;
 	private NoteInterface|MockObject $noteInterface;
 	private AnnounceInterface|MockObject $announceInterface;
 	private ActivityService $service;
@@ -92,7 +91,6 @@ class ActivityServiceTest extends TestCase {
 
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->relayRequest = $this->createMock(RelayRequest::class);
-		$this->logger = $this->createMock(LoggerInterface::class);
 		$this->service = new ActivityService(
 			$this->createMock(StreamRequest::class),
 			$this->followsRequest,
@@ -104,7 +102,7 @@ class ActivityServiceTest extends TestCase {
 			$this->actorsRequest,
 			$this->relayRequest,
 			$this->createMock(\OCP\ICacheFactory::class),
-			$this->logger
+			new NullLogger()
 		);
 	}
 
@@ -313,18 +311,11 @@ class ActivityServiceTest extends TestCase {
 		$queued = null;
 		$this->requestQueueService->expects($this->once())
 			->method('generateRequestQueue')
-			->with(
-				$this->callback(static fn (array $paths): bool
-					=> count($paths) === 1
-						&& $paths[0]->getUri() === self::BOB_INBOX
-						&& $paths[0]->getPriority() === InstancePath::PRIORITY_TOP),
-				$this->callback(function (ACore $item) use (&$queued): bool {
-					$queued = $item;
+			->with($this->identicalTo($note->getInstancePaths()), $this->callback(function (ACore $item) use (&$queued): bool {
+				$queued = $item;
 
-					return true;
-				}),
-				self::ALICE_ID
-			)
+				return true;
+			}), self::ALICE_ID)
 			->willReturn(self::TOKEN);
 		$this->requestQueueService->method('getPriorityRequest')->willThrowException(new NoHighPriorityRequestException());
 		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
@@ -467,7 +458,6 @@ class ActivityServiceTest extends TestCase {
 		$paths = [];
 		$this->capturePaths($paths);
 		$note = $this->note();
-		$note->setActorId(self::ALICE_ID);
 		$note->setTo(ACore::CONTEXT_PUBLIC);
 		$note->addCc(self::ALICE_ID . '/followers');
 
@@ -504,7 +494,6 @@ class ActivityServiceTest extends TestCase {
 		$paths = [];
 		$this->capturePaths($paths);
 		$note = $this->note();
-		$note->setActorId(self::ALICE_ID);
 		$note->setTo(ACore::CONTEXT_PUBLIC);
 
 		$this->service->updateActivity($this->alice(), $note);
@@ -727,62 +716,6 @@ class ActivityServiceTest extends TestCase {
 		$like->setActorId(self::ALICE_ID);
 
 		$this->assertSame('<request token not needed>', $this->service->request($like));
-	}
-
-	public function testPublicLocalActivityWithNoResolvedRecipientsIsLogged(): void {
-		$this->configService->method('getSocialUrl')->willReturn('https://social.example/');
-		$this->followsRequest->method('getFollowerInboxes')->willReturn([]);
-		$this->relayRequest->method('acceptedInboxes')->willReturn([]);
-		$paths = [];
-		$this->capturePaths($paths);
-		$this->logger->expects($this->once())
-			->method('notice')
-			->with(
-				'public activity resolved no remote inboxes; activity was not delivered',
-				$this->callback(static fn (array $context): bool
-					=> $context['actorId'] === self::ALICE_ID
-						&& $context['addressingPaths'] === [InstancePath::TYPE_FOLLOWERS])
-			);
-
-		$note = $this->note();
-		$note->setActorId(self::ALICE_ID);
-		$note->setTo(ACore::CONTEXT_PUBLIC);
-		$note->setInstancePaths([
-			new InstancePath(self::ALICE_ID, InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW),
-		]);
-
-		$this->service->request($note);
-
-		$this->assertSame([], $paths);
-	}
-
-	public function testDeletePromotesOneRemoteRetractionWithoutChangingSavedPaths(): void {
-		$paths = [
-			new InstancePath(self::BOB_INBOX, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_LOW),
-			new InstancePath('https://other.example/inbox', InstancePath::TYPE_GLOBAL, InstancePath::PRIORITY_LOW),
-		];
-		$delete = new Delete();
-		$delete->setId('https://social.example/@alice/1#delete');
-		$delete->setActorId(self::ALICE_ID);
-		$delete->addInstancePaths($paths);
-
-		$this->requestQueueService->expects($this->once())
-			->method('generateRequestQueue')
-			->with(
-				$this->callback(static fn (array $outbound): bool
-					=> count($outbound) === 2
-						&& $outbound[0]->getUri() === self::BOB_INBOX
-						&& $outbound[0]->getPriority() === InstancePath::PRIORITY_TOP
-						&& $outbound[1]->getPriority() === InstancePath::PRIORITY_LOW),
-				$this->identicalTo($delete),
-				self::ALICE_ID
-			)
-			->willReturn('');
-
-		$this->service->request($delete);
-
-		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[0]->getPriority());
-		$this->assertSame(InstancePath::PRIORITY_LOW, $paths[1]->getPriority());
 	}
 
 	public function testRequestDeliversPriorityTargetInlineAndHandsTheRestToAsync(): void {

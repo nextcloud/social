@@ -440,18 +440,22 @@ export default {
 #app-content-vue .social__wrapper {
 	padding: calc(var(--default-grid-baseline) * 4);
 	max-width: 800px;
-	margin: auto;
-}
-
-/* Direct messages need the full app-content width for the conversation list
-   and the active chat to sit side by side. Other Social pages keep the reading
-   column above. */
-#app-content-vue .social__wrapper--direct {
-	box-sizing: border-box;
-	width: 100%;
-	max-width: none;
-	margin: 0;
-	padding: 0;
+	/*
+	 * Inline only. `margin: auto` centres the page in the block axis too, and
+	 * auto margins take precedence over every alignment property — so a page
+	 * shorter than its grid row sits in the middle of it whatever
+	 * `align-content` says.
+	 *
+	 * Normally the row is the page's own height and there is nothing to
+	 * centre in. During a page change there is: the two pages share one grid
+	 * cell, so while the outgoing one is still there the row is as tall as
+	 * *it* is, and the incoming page was dropped halfway down it. Leaving
+	 * Settings — eight thousand pixels of it — for a short page therefore drew
+	 * the new page four thousand pixels below the viewport and showed a blank
+	 * column until the old page unmounted, which on a first visit is however
+	 * long the new page's chunk takes to arrive.
+	 */
+	margin-inline: auto;
 }
 
 .setup {
@@ -887,15 +891,5 @@ img.custom-emoji {
 	width: auto;
 	vertical-align: text-bottom;
 	object-fit: contain;
-}
-
-/*
- * The modal composer sits halfway down the viewport. The emoji picker has a
- * 420px default height and floats above its toolbar, which can put its top
- * edge outside a short viewport. Keep the picker within the available upper
- * half; the emoji list itself scrolls, so every category remains reachable.
- */
-.modal-wrapper .v-popper__popper .nc-emoji-picker-container .emoji-mart {
-	height: min(420px, calc(50vh + 16px));
 }
 </style>

@@ -179,24 +179,6 @@ export default {
 			max-width: 100%;
 			height: auto;
 		}
-
-		:deep(img.emoji) {
-			display: inline-block;
-			width: 1em;
-			height: 1em;
-			max-width: none;
-			margin: 0 .08em;
-			vertical-align: -.15em;
-		}
-
-		:deep(img.custom-emoji) {
-			display: inline-block;
-			width: auto;
-			height: 1.25em;
-			max-width: none;
-			margin: 0 .08em;
-			vertical-align: -.2em;
-		}
 	}
 
 	&__deeper,

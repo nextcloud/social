@@ -55,6 +55,13 @@ describe('Migration', () => {
 
 	// export
 
+	/**
+	 * By its words rather than by being the first button on the page: the way
+	 * in from another network is the first card now, and a locator that counts
+	 * cards silently starts testing whichever one moved into that slot.
+	 */
+	const exportButton = (wrapper) => wrapper.findAll('button').find((one) => one.text() === 'Export')
+
 	it('asks the server for the archive and saves it under the name it was given', async () => {
 		const blob = new Blob(['zip bytes'])
 		axios.get.mockResolvedValue({
@@ -73,7 +80,7 @@ describe('Migration', () => {
 		URL.revokeObjectURL = vi.fn()
 
 		const wrapper = mountPage()
-		await wrapper.find('.migration__card button').trigger('click')
+		await exportButton(wrapper).trigger('click')
 		await flushPromises()
 
 		expect(axios.get).toHaveBeenCalledWith(`${API}/migration/export`, { responseType: 'blob' })
@@ -87,7 +94,7 @@ describe('Migration', () => {
 		axios.get.mockRejectedValue(new Error('no room on the disk'))
 
 		const wrapper = mountPage()
-		await wrapper.find('.migration__card button').trigger('click')
+		await exportButton(wrapper).trigger('click')
 		await flushPromises()
 
 		expect(showError).toHaveBeenCalledWith('Could not export your data')

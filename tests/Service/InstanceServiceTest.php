@@ -14,10 +14,8 @@ use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
-use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Instance;
-use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
@@ -35,7 +33,6 @@ class InstanceServiceTest extends TestCase {
 	private InstancesRequest|MockObject $instancesRequest;
 	private InstanceStatsRequest|MockObject $statsRequest;
 	private TranslationService|MockObject $translationService;
-	private AccountService|MockObject $accountService;
 	private ConfigService|MockObject $configService;
 	private IAppConfig|MockObject $appConfig;
 	private IConfig|MockObject $config;
@@ -53,7 +50,6 @@ class InstanceServiceTest extends TestCase {
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
 		$this->statsRequest = $this->createMock(InstanceStatsRequest::class);
 		$this->translationService = $this->createMock(TranslationService::class);
-		$this->accountService = $this->createMock(AccountService::class);
 
 		$urlGenerator = $this->createMock(IURLGenerator::class);
 		$urlGenerator->method('imagePath')->willReturn('/apps/social/img/social.svg');
@@ -71,7 +67,6 @@ class InstanceServiceTest extends TestCase {
 			$this->cacheDocumentService,
 			$this->statsRequest,
 			$this->translationService,
-			$this->accountService,
 		);
 	}
 
@@ -153,22 +148,6 @@ class InstanceServiceTest extends TestCase {
 
 		$this->assertSame($stored, $instance);
 		$this->assertSame('What We Are Called Now', $instance->getTitle());
-	}
-
-	public function testGetLocalReturnsTheConfiguredCachedContactAccount(): void {
-		$stored = (new Instance())->setLocal(true);
-		$this->instancesRequest->method('getLocal')->willReturn($stored);
-		$this->theming(['social.contact_account' => 'alice']);
-		$owner = (new Person())->setUserId('alice')->setPreferredUsername('alice')->setLocal(true);
-		$cached = (new Person())->setPreferredUsername('alice')->setLocal(true);
-		$this->accountService->expects($this->once())->method('getActorFromUserId')
-			->with('alice')->willReturn($owner);
-		$this->accountService->expects($this->once())->method('getCachedLocalActor')
-			->with('alice')->willReturn($cached);
-
-		$instance = $this->service->getLocal(ACore::FORMAT_LOCAL);
-
-		$this->assertSame($cached, $instance->getContactAccount());
 	}
 
 	public function testGetLocalCreatesTheInstanceWhenMissing(): void {

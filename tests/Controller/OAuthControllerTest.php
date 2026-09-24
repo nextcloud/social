@@ -96,12 +96,19 @@ class OAuthControllerTest extends TestCase {
 		\OC::$server->reset();
 	}
 
-	private function loggedIn(string $uid = 'alice'): void {
+	private function loggedIn(
+		string $uid = 'alice',
+		string $accountName = 'Alice Ackermann',
+		?string $profileName = null,
+	): void {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
+		$user->method('getDisplayName')->willReturn($accountName);
 		$this->userSession->method('getUser')->willReturn($user);
 		$actor = $this->createMock(Person::class);
 		$actor->method('getPreferredUsername')->willReturn($uid);
+		// what Person::getDisplayName() does when the profile carries no name
+		$actor->method('getDisplayName')->willReturn($profileName ?? $uid);
 		$this->accountService->method('getActorFromUserId')->with($uid)->willReturn($actor);
 	}
 
@@ -292,6 +299,53 @@ class OAuthControllerTest extends TestCase {
 				'codeChallengeMethod' => '',
 			],
 		], $response->getParams());
+	}
+
+	/** The consent page names the application's website, which it may not have. */
+	public function testTheConsentPageCarriesTheApplicationsWebsite(): void {
+		$this->loggedIn();
+		$this->knownClient()->setAppWebsite('https://tusky.app');
+		$states = $this->recordInitialState();
+
+		$this->controller->authorize('client-1', self::OOB, 'code', 'read');
+
+		$this->assertSame('https://tusky.app', $states['appWebsite']);
+	}
+
+	/**
+	 * Which account is being handed over is half of what is being asked, and
+	 * on a server where somebody holds more than one, the name of the
+	 * application alone does not answer it.
+	 */
+	public function testTheConsentPageNamesTheAccountBeingHandedOver(): void {
+		$this->loggedIn('aiko', 'Aiko Tanaka', 'Aiko');
+		$this->knownClient();
+		$this->configService->method('getSocialAddress')->willReturn('example.com');
+		$states = $this->recordInitialState();
+
+		$this->controller->authorize('client-1', self::OOB, 'code', 'read');
+
+		$this->assertSame([
+			'uid' => 'aiko',
+			'displayName' => 'Aiko',
+			'handle' => '@aiko@example.com',
+		], $states['account']);
+	}
+
+	/**
+	 * `Person::getDisplayName()` falls back to the handle when the profile
+	 * carries no name of its own, which on the consent page reads as the
+	 * username twice over -- once as the name and once as the handle under it.
+	 */
+	public function testAProfileWithNoNameOfItsOwnIsShownUnderTheNextcloudName(): void {
+		$this->loggedIn('aiko', 'Aiko Tanaka');
+		$this->knownClient();
+		$this->configService->method('getSocialAddress')->willReturn('example.com');
+		$states = $this->recordInitialState();
+
+		$this->controller->authorize('client-1', self::OOB, 'code', 'read');
+
+		$this->assertSame('Aiko Tanaka', $states['account']['displayName']);
 	}
 
 	/**

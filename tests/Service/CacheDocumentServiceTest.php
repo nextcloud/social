@@ -45,7 +45,6 @@ class CacheDocumentServiceTest extends TestCase {
 	private VideoThumbnailService|MockObject $videoThumbnailService;
 	private ITempManager|MockObject $tempManager;
 	private MediaBlocksRequest|MockObject $mediaBlocksRequest;
-	private \OCA\Social\Service\RemoteMediaQuotaService|MockObject $domainQuota;
 	/** @var string[] */
 	private array $tempFiles = [];
 	/** What the conversion does to a picture, and how often it was asked. */
@@ -112,13 +111,13 @@ class CacheDocumentServiceTest extends TestCase {
 
 	/** No per-domain media quota, which is what an instance has by default. */
 	private function unlimitedDomainQuota(): \OCA\Social\Service\RemoteMediaQuotaService {
-		$this->domainQuota = $this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class);
-		$this->domainQuota->method('fits')->willReturn(true);
-		$this->domainQuota->method('hostOf')->willReturnCallback(
+		$quota = $this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class);
+		$quota->method('fits')->willReturn(true);
+		$quota->method('hostOf')->willReturnCallback(
 			static fn (string $url): string => (string)parse_url($url, PHP_URL_HOST)
 		);
 
-		return $this->domainQuota;
+		return $quota;
 	}
 
 	/** A small real PNG, so mime detection and the resizer see a genuine image. */
@@ -386,17 +385,12 @@ class CacheDocumentServiceTest extends TestCase {
 
 	public function testSaveFromTempToCacheReadsTheFileAndSetsTheMediaType(): void {
 		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
-		$png = $this->pngBytes(12, 12);
-		file_put_contents($tmp, $png);
+		file_put_contents($tmp, $this->pngBytes(12, 12));
 		try {
 			$written = [];
 			$this->captureWrites($written);
 			$this->blurService->method('generateBlurHash')->willReturn('hash');
 			$document = new Document();
-			$document->setId('https://remote.example/media/photo');
-			$this->domainQuota->expects($this->once())
-				->method('record')
-				->with('remote.example', strlen($png));
 
 			$this->quietly(fn () => $this->service->saveFromTempToCache($document, $tmp));
 
@@ -407,23 +401,6 @@ class CacheDocumentServiceTest extends TestCase {
 			$this->assertCount(2, $written);
 		} finally {
 			unlink($tmp);
-		}
-	}
-
-	#[WithoutErrorHandler]
-	public function testInvalidRemoteImageDoesNotConsumeItsDomainQuota(): void {
-		$this->domainQuota->expects($this->never())->method('record');
-		$document = new Document();
-		$document->setId('https://remote.example/media/photo');
-		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
-		$this->tempFiles[] = $tmp;
-		file_put_contents($tmp, $this->pngHeaderThenGarbage());
-
-		try {
-			$this->expectException(CacheContentDecodeException::class);
-			$this->quietly(fn () => $this->service->saveFromTempToCache($document, $tmp));
-		} finally {
-			@unlink($tmp);
 		}
 	}
 

@@ -7,7 +7,6 @@ import { defineCustomElement, h } from 'vue'
 import pinia from './store/index.js'
 import ProfilePageIntegration from './views/ProfilePageIntegration.vue'
 import { generateFilePath } from '@nextcloud/router'
-import { configureSocialProfileApp, registerProfileSection } from './services/profileSections.js'
 
 const requestToken = window.OC?.requestToken
 if (requestToken) {
@@ -29,17 +28,10 @@ const SocialProfileSectionElement = defineCustomElement({
 		return h(ProfilePageIntegration, { userId: this.user })
 	},
 }, {
-	// The Profile page owns the surrounding layout and uses Nextcloud's global
-	// theme styles. Keep this integration in the light DOM so Social's existing
-	// timeline styles and native Nextcloud controls can style its entries too.
-	shadowRoot: false,
 	// the custom element runs an app of its own, and the posts it renders read
 	// the store like every other timeline entry does — a boost used to reach
 	// for a store that was never installed here
 	configureApp(app) {
-		// Custom elements have their own Vue app, outside the app created by
-		// `main.js`. Install the same Nextcloud globals that its templates use.
-		configureSocialProfileApp(app, { OC: window.OC, OCA: window.OCA })
 		app.use(pinia)
 	},
 })
@@ -48,11 +40,9 @@ if (!customElements.get(profileSectionTagName)) {
 	customElements.define(profileSectionTagName, SocialProfileSectionElement)
 }
 
-// `ProfileSections` is created by the Profile app's module entry, which runs
-// after this classic Social entry. Register on its first assignment so the
-// Profile page's initial read sees Social before it mounts.
-const profileNamespace = window.OCA?.Profile ?? (window.OCA.Profile = {})
-registerProfileSection(profileNamespace, {
+// `OCA.Profile.ProfileSections` is the registry of every supported Nextcloud;
+// the `OCA.Core` callback contract it replaced was gone before the app's floor.
+window.OCA?.Profile?.ProfileSections?.registerSection({
 	id: 'social-profile-section',
 	order: 0,
 	tagName: profileSectionTagName,

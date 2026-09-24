@@ -19,15 +19,10 @@ const NcDialogStub = {
 	template: '<div class="dialog-stub"><slot /></div>',
 }
 
-const NcButtonStub = {
-	props: ['variant'],
-	template: '<button v-bind="$attrs"><slot /></button>',
-}
-
-function mountDialog(props = {}) {
+function mountDialog() {
 	return mount(EditHistoryDialog, {
-		props: { nid: 101, ...props },
-		global: { stubs: { NcDialog: NcDialogStub, NcButton: NcButtonStub } },
+		props: { nid: 101 },
+		global: { stubs: { NcDialog: NcDialogStub } },
 	})
 }
 
@@ -51,15 +46,6 @@ describe('the edit history', () => {
 		await flushPromises()
 
 		expect(get).toHaveBeenCalledWith(expect.stringContaining('/api/v1/statuses/101/history'))
-	})
-
-	it('accepts the Nextcloud wrapped API response as well as the raw Mastodon array', async () => {
-		get.mockResolvedValue({ data: { result: [version('<p>wrapped version</p>')] } })
-
-		const wrapper = mountDialog()
-		await flushPromises()
-
-		expect(wrapper.find('.history__version').text()).toContain('wrapped version')
 	})
 
 	it('draws one entry per version, oldest first', async () => {
@@ -147,61 +133,12 @@ describe('the edit history', () => {
 	})
 
 	/** A history that would not load is not worth an error over the post. */
-	it('explains that the history could not be loaded when the server refuses', async () => {
+	it('shows the same when the server refuses', async () => {
 		get.mockRejectedValue(new Error('nope'))
 
 		const wrapper = mountDialog()
 		await flushPromises()
 
-		expect(wrapper.text()).toContain('Could not load this post’s edit history.')
-		expect(wrapper.get('[role="alert"] button').text()).toBe('Try again')
-	})
-
-	it('lets the reader retry a failed request and clears the error after success', async () => {
-		get.mockRejectedValueOnce(new Error('temporary failure'))
-		const wrapper = mountDialog()
-		await flushPromises()
-		get.mockResolvedValueOnce({ data: [version('<p>recovered version</p>')] })
-
-		await wrapper.get('[role="alert"] button').trigger('click')
-		await flushPromises()
-
-		expect(get).toHaveBeenCalledTimes(2)
-		expect(wrapper.text()).toContain('recovered version')
-		expect(wrapper.text()).not.toContain('Could not load this post’s edit history.')
-	})
-
-	it('reloads when the displayed post changes and ignores the earlier response', async () => {
-		let resolveFirst
-		get.mockImplementationOnce(() => new Promise((resolve) => {
-			resolveFirst = resolve
-		}))
-		const wrapper = mountDialog()
-		get.mockResolvedValueOnce({ data: [version('<p>second post</p>')] })
-		await wrapper.setProps({ nid: '202' })
-		await flushPromises()
-		resolveFirst({ data: [version('<p>first post</p>')] })
-		await flushPromises()
-
-		expect(get).toHaveBeenNthCalledWith(2, expect.stringContaining('/api/v1/statuses/202/history'))
-		expect(wrapper.find('.history__content').text()).toBe('second post')
-	})
-
-	it('shows malformed API data as a load error instead of claiming no edits exist', async () => {
-		get.mockResolvedValue({ data: { unexpected: true } })
-
-		const wrapper = mountDialog()
-		await flushPromises()
-
-		expect(wrapper.text()).toContain('Could not load this post’s edit history.')
-		expect(wrapper.text()).not.toContain('This post has not been edited.')
-	})
-
-	it('does not say a visibly edited post was never edited when no revisions exist', async () => {
-		const wrapper = mountDialog({ editedAt: '2026-09-01T10:00:00Z' })
-		await flushPromises()
-
-		expect(wrapper.text()).toContain('This post is marked as edited, but its revision history is unavailable.')
-		expect(wrapper.text()).not.toContain('This post has not been edited.')
+		expect(wrapper.text()).toContain('This post has not been edited.')
 	})
 })

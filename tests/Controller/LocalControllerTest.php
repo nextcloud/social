@@ -43,7 +43,6 @@ use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
-use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
@@ -884,20 +883,6 @@ class LocalControllerTest extends TestCase {
 			$this->assertContains(PublicPage::class, $attributes, $route . ' is expected to stay public');
 			$this->assertContains(AnonRateLimit::class, $attributes, $route . ' is public but not throttled for anonymous callers');
 			$this->assertContains(UserRateLimit::class, $attributes, $route . ' is not throttled for sessions');
-		}
-	}
-
-	public function testPublicAccountInfoRoutesDoNotRequireCsrf(): void {
-		$reflection = new \ReflectionClass(LocalController::class);
-
-		foreach (['accountInfo', 'globalAccountInfo'] as $route) {
-			$attributes = array_map(
-				fn (\ReflectionAttribute $attribute): string => $attribute->getName(),
-				$reflection->getMethod($route)->getAttributes()
-			);
-
-			$this->assertContains(NoCSRFRequired::class, $attributes, $route . ' must be callable by public profile visitors');
-			$this->assertContains(PublicPage::class, $attributes, $route . ' is expected to stay public');
 		}
 	}
 }

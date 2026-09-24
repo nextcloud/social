@@ -86,6 +86,19 @@
 					</NcButton>
 				</form>
 			</div>
+
+			<!--
+				Third, and deliberately not a third column: it is the answer to
+				a different question. The two above ask where the account is;
+				this one is for somebody who has decided and wants their old
+				posts and their old follows to come with them.
+			-->
+			<p class="account-setup__switch">
+				{{ t('social', 'Coming from X, Instagram, TikTok or YouTube?') }}
+				<router-link :to="{ name: 'switch' }">
+					{{ t('social', 'Bring your posts and find the people you followed.') }}
+				</router-link>
+			</p>
 		</section>
 	</div>
 </template>
@@ -198,6 +211,14 @@ export default {
 	&__lead {
 		margin: 0 0 24px;
 		line-height: 1.6;
+	}
+
+	&__switch {
+		margin: 20px 0 0;
+		padding-top: 16px;
+		border-top: 1px solid var(--color-border);
+		color: var(--color-text-maxcontrast);
+		line-height: 1.5;
 	}
 
 	&__choices {

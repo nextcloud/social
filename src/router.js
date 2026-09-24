@@ -5,7 +5,6 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import { generateUrl } from '@nextcloud/router'
-import { loadState } from '@nextcloud/initial-state'
 
 import eventBus from './services/eventBus.js'
 import { scroller } from './utils/scroller.js'
@@ -31,6 +30,11 @@ const Discover = () => import('./views/Discover.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */'./views/Settings.vue')
 const Statistics = () => import(/* webpackChunkName: "statistics" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
+// Its own chunk: it is opened once, on the first day, by somebody arriving
+// from another network — and it carries the canvas that draws the card
+const SwitchWizard = () => import(/* webpackChunkName: "switch" */'./views/SwitchWizard.vue')
+const VideoReels = () => import(/* webpackChunkName: "reels" */'./views/VideoReels.vue')
+const Subscriptions = () => import(/* webpackChunkName: "settings" */'./views/Subscriptions.vue')
 
 /**
  * The path the app is actually served from, which is what the history base has
@@ -148,17 +152,31 @@ const router = createRouter({
 			return { el: to.hash, behavior: 'smooth' }
 		}
 
+		// `{ top: 0 }` is the window's, and the window never scrolls here for
+		// the same reason as above — so on a forward navigation the content
+		// column kept whatever offset the last page was read at.
+		//
+		// Nothing looked wrong going from one long page to another, because
+		// the offset was still inside the new page. Leaving a long page for a
+		// short one showed a screenful of nothing: the two pages share one
+		// grid cell, the outgoing one is still in it until its leave
+		// transition ends *and its replacement's chunk has arrived*, so the
+		// cell stays as tall as the page being left and the incoming page sits
+		// thousands of pixels above the viewport. It corrected itself the
+		// moment the old page unmounted and the browser clamped the offset —
+		// which on a first visit to a lazily loaded page is however long the
+		// download takes, and long enough to read as a broken layout.
+		const column = scroller()
+		if (column !== null) {
+			column.scrollTop = 0
+		}
+
 		return { top: 0 }
 	},
 	routes: [
 		{
 			path: '/',
-			// `/` is a private home feed for signed-in readers and the local
-			// public feed for visitors. This runs before Timeline mounts, so a
-			// guest never briefly asks for private posts or account-only data.
-			redirect: () => loadState('social', 'serverData', {}).public
-				? { name: 'timeline', params: { type: 'timeline' } }
-				: { name: 'timeline' },
+			redirect: { name: 'timeline' },
 		},
 		{
 			path: '/timeline/:type?',
@@ -290,6 +308,31 @@ const router = createRouter({
 			// wanted actually is rather than on a 404.
 			path: '/migration',
 			redirect: { name: 'settings' },
+		},
+		{
+			path: '/subscriptions',
+			components: {
+				default: Subscriptions,
+			},
+			name: 'subscriptions',
+		},
+		{
+			// the same videos as `/timeline/videos`, watched rather than
+			// chosen from. Its own route so that it can be left with Back,
+			// and so that a link to it is a link somebody can be sent.
+			path: '/reels',
+			components: {
+				default: VideoReels,
+			},
+			props: (route) => ({ scope: route.query.scope ?? 'home' }),
+			name: 'reels',
+		},
+		{
+			path: '/switch',
+			components: {
+				default: SwitchWizard,
+			},
+			name: 'switch',
 		},
 		{
 			path: '/statistics',

@@ -85,8 +85,7 @@
 				v-if="showsPlaceholder"
 				class="attachment__failed"
 				role="img"
-				:aria-label="placeholderLabel"
-				:title="placeholderLabel">
+				:aria-label="placeholderLabel">
 				<ImageOff :size="32" />
 			</span>
 		</template>
@@ -305,17 +304,6 @@ export default {
 		/** @return {string} what the placeholder stands for */
 		placeholderLabel() {
 			const description = this.attachment?.description
-			const cacheError = Number(this.attachment?.cache_error ?? 0)
-			if (cacheError > 0) {
-				const reason = {
-					1: translate('social', 'The image exceeds this instance’s media size limit.'),
-					2: translate('social', 'This image type is not allowed by this instance.'),
-					3: translate('social', 'This instance could not access the original image.'),
-					4: translate('social', 'This instance could not read the image.'),
-				}[cacheError] ?? translate('social', 'This instance could not cache the image.')
-
-				return description ? `${reason} ${description}` : reason
-			}
 			if (this.previewFailed) {
 				return description
 					? translate('social', 'Attachment could not be loaded: {description}', { description })

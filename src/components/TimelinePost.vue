@@ -11,12 +11,12 @@
 		:aria-label="postLabel"
 		@click="onPostClick">
 		<div class="post-header">
-			<div v-if="!hideAuthor" class="post-author-wrapper" :title="item.account.acct">
-				<component
-					:is="isLocalAccount(item.account) ? 'a' : 'router-link'"
+			<div class="post-author-wrapper" :title="item.account.acct">
+				<router-link
 					v-if="item.account"
-					:href="isLocalAccount(item.account) ? localProfileUrl(item.account) : undefined"
-					:to="isLocalAccount(item.account) ? undefined : { name: 'profile', params: { account: item.account.acct } }">
+					:to="{ name: 'profile',
+						params: { account: item.account.acct },
+					}">
 					<span class="post-author">
 						<DisplayName :text="item.account.display_name" :emojis="item.account.emojis" />
 					</span>
@@ -29,19 +29,9 @@
 					<span v-if="!hasDisplayName" class="post-author-id">
 						@{{ item.account.username }}
 					</span>
-				</component>
+				</router-link>
 			</div>
-			<a
-				v-if="postHref"
-				:href="postHref"
-				:data-timestamp="timestamp"
-				class="post-timestamp live-relative-timestamp"
-				:title="formattedDate"
-				:aria-label="t('social', 'Open this post, written {time}', { time: formattedDate })">
-				{{ relativeTimestamp }}
-			</a>
 			<button
-				v-else
 				:data-timestamp="timestamp"
 				type="button"
 				class="post-timestamp live-relative-timestamp"
@@ -73,21 +63,20 @@
 				<span class="post-place__name">{{ placeLabel }}</span>
 			</router-link>
 		</div>
+
 		<!-- who is in the picture, when the poster named anybody. Names rather
 		     than boxes drawn over the image: what is stored is a fact about the
 		     post, and a rectangle is a thing no client of this network draws -->
 		<p v-if="taggedPeople.length" class="post-tagged">
 			<IconAccountBoxMultiple :size="14" />
 			<span class="post-tagged__with">{{ t('social', 'With') }}</span>
-			<component
-				:is="isLocalAccount(person) ? 'a' : 'router-link'"
+			<router-link
 				v-for="(person, index) in taggedPeople"
 				:key="person.acct"
 				class="post-tagged__person"
-				:href="isLocalAccount(person) ? localProfileUrl(person) : undefined"
-				:to="isLocalAccount(person) ? undefined : { name: 'profile', params: { account: person.acct } }">
+				:to="{ name: 'profile', params: { account: person.acct } }">
 				{{ person.display_name || person.username }}<span v-if="index < taggedPeople.length - 1">,</span>
-			</component>
+			</router-link>
 			<!-- the whole remedy for being in somebody else's photograph:
 			     leaving it, which needs nobody's permission -->
 			<NcButton
@@ -263,7 +252,7 @@
 		     live in the padding; now that the counts are always drawn there is
 		     no reason for the card to carry the height of both. -->
 		<div
-			v-if="$route && $route.params.type !== 'notifications' && type !== 'direct'"
+			v-if="$route && $route.params.type !== 'notifications'"
 			class="post-footer">
 			<ReactionBar
 				ref="reactionBar"
@@ -393,9 +382,6 @@
 				</div>
 			</div>
 		</div>
-		<div v-if="embeddedActions" class="post-footer post-footer--profile-actions">
-			<slot name="profileActions" />
-		</div>
 		<MuteDialog
 			v-if="showMuteDialog"
 			v-model:open="showMuteDialog"
@@ -485,7 +471,6 @@ import { accountStyle } from '../services/accountColour.js'
 import logger from '../services/logger.js'
 import { onTick } from '../services/clock.js'
 import { filterCoverLabel, matchedFilters } from '../utils/filters.js'
-import { localProfileUrl } from '../utils/accountProfileLink.js'
 import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
 import MessageContent from './MessageContent.js'
 import Poll from './Poll.vue'
@@ -560,21 +545,6 @@ export default {
 		type: {
 			type: String,
 			required: true,
-		},
-
-		postHref: {
-			type: String,
-			default: '',
-		},
-
-		hideAuthor: {
-			type: Boolean,
-			default: false,
-		},
-
-		embeddedActions: {
-			type: Boolean,
-			default: false,
 		},
 	},
 
@@ -1076,11 +1046,6 @@ export default {
 	},
 
 	methods: {
-		localProfileUrl,
-		isLocalAccount(account) {
-			return Boolean(account?.acct && !account.acct.includes('@') && account.username)
-		},
-
 		/**
 		 * @param {Array} people who the post names now, as the server says
 		 */
@@ -1218,15 +1183,6 @@ export default {
 		 * @param {MouseEvent} event the press
 		 */
 		onPostClick(event) {
-			if (this.postHref && !event.defaultPrevented && event.button === 0
-				&& !event.target?.closest?.('a, button, input, textarea, select, label, video, audio, [role="button"], .post-actions, .v-popper')
-				&& (window.getSelection?.()?.toString() ?? '') === '') {
-				if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-					return
-				}
-				window.location.assign(this.postHref)
-				return
-			}
 			if (this.postRoute === null || event.defaultPrevented || event.button !== 0) {
 				return
 			}
@@ -1778,35 +1734,12 @@ export default {
 			font-weight: 500;
 		}
 
-		:deep(img:not(.emoji):not(.custom-emoji)) {
+		:deep(img) {
 			max-width: 100%;
 			height: auto;
 			border-radius: 8px;
 			margin: 12px 0;
 			display: block;
-		}
-
-		// Emoji are inline words, including in remote ActivityPub statuses.
-		// The generic image rule above is for content images and must never turn
-		// each emoji into a block with its own line and large vertical margins.
-		:deep(img.emoji) {
-			display: inline-block;
-			width: 1em;
-			height: 1em;
-			max-width: none;
-			margin: 0 .08em;
-			border-radius: 0;
-			vertical-align: -.15em;
-		}
-
-		:deep(img.custom-emoji) {
-			display: inline-block;
-			width: auto;
-			height: 1.25em;
-			max-width: none;
-			margin: 0 .08em;
-			border-radius: 0;
-			vertical-align: -.2em;
 		}
 	}
 
@@ -1927,12 +1860,6 @@ export default {
 		align-items: center;
 		gap: 6px;
 		margin-top: 2px;
-	}
-
-	.post-footer--profile-actions {
-		display: block;
-		padding-top: 8px;
-		border-top: 1px solid var(--color-border);
 	}
 
 	.post-actions-reveal {

@@ -133,12 +133,4 @@ describe('ReactionPicker', () => {
 		expect(backdrop.attributes('aria-modal')).toBe('true')
 		expect(backdrop.attributes('aria-label')).toBe('Choose a reaction')
 	})
-
-	it('portals the reaction popover outside its flex panel', async () => {
-		const wrapper = mountPicker()
-		eventBus.emit(REACTION_PICK, { react: vi.fn() })
-		await wrapper.vm.$nextTick()
-
-		expect(wrapper.findComponent({ name: 'NcEmojiPicker' }).attributes('container')).toBe('#content')
-	})
 })

@@ -98,17 +98,17 @@ describe('UserEntry', () => {
 		const wrapper = mountEntry(local)
 		expect(wrapper.find('.post-author').text()).toBe('Carol')
 		expect(wrapper.find('.user-description').text()).toBe('carol')
-		expect(wrapper.find('.user-details a').attributes('href')).toBe('/index.php/u/carol')
+		expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({ name: 'profile', params: { account: 'carol' } })
 		expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
 	})
 
 	it('links the avatar at the profile as well as the name', () => {
 		// the face is the most obvious thing on the row to click
-		const links = mountEntry(local).findAll('a')
+		const links = mountEntry(local).findAllComponents(RouterLinkStub)
 
 		expect(links.length).toBeGreaterThanOrEqual(2)
 		for (const link of links) {
-			expect(link.attributes('href')).toBe('/index.php/u/carol')
+			expect(link.props('to')).toEqual({ name: 'profile', params: { account: 'carol' } })
 		}
 	})
 

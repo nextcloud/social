@@ -238,7 +238,6 @@
 			<Composer
 				startExpanded
 				:initialPaths="composerPaths"
-				emojiPickerContainer=".modal-wrapper"
 				@posted="showComposer = false" />
 		</div>
 	</NcModal>
@@ -286,10 +285,10 @@ import IconCompass from 'vue-material-design-icons/Compass.vue'
 import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import IconNewspaperVariantOutline from 'vue-material-design-icons/NewspaperVariantOutline.vue'
+import IconRssBox from 'vue-material-design-icons/RssBox.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
-import IconAccountEdit from 'vue-material-design-icons/AccountEditOutline.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
@@ -357,7 +356,6 @@ export default {
 		Composer,
 		IconHome,
 		IconAccountCircle,
-		IconAccountEdit,
 		IconBell,
 		IconCommentAccount,
 		IconHeart,
@@ -601,6 +599,15 @@ export default {
 						// with nothing lit says they are nowhere
 						covers: ['news', 'link'],
 					},
+					// not a kind filter: what is behind it is not posts at all
+					// but feeds, which is why it sits after the three and
+					// before everything that happened
+					{
+						key: 'social-subscriptions',
+						icon: IconRssBox,
+						title: t('social', 'Subscriptions'),
+						to: { name: 'subscriptions' },
+					},
 					{
 						key: 'social-notifications',
 						icon: IconBell,
@@ -641,22 +648,8 @@ export default {
 						key: 'social-profile',
 						icon: IconAccountCircle,
 						title: t('social', 'My profile'),
-						// The profile section is part of Nextcloud's user page; send
-						// this shortcut there too, instead of reopening Social's
-						// separate profile screen.
-						to: generateUrl(`/u/${encodeURIComponent(this.currentUser?.uid ?? '')}`),
+						to: { name: 'profile', params: { account: this.currentUser?.uid } },
 					},
-					...(this.currentAccount?.acct
-						? [{
-								key: 'social-account-profile',
-								icon: IconAccountEdit,
-								title: t('social', 'Social profile'),
-								// The Nextcloud profile page shows posts in the native user
-								// profile; Social's own profile remains the place to edit its
-								// federated bio, fields, links and banner.
-								to: { name: 'profile', params: { account: this.currentAccount.acct } },
-							}]
-						: []),
 					{
 						key: 'social-follow-requests',
 						icon: IconAccountClock,
@@ -1179,9 +1172,6 @@ export default {
 		 *                  be opened in a new tab or copied
 		 */
 		hrefFor(to) {
-			if (typeof to === 'string') {
-				return to
-			}
 			return this.$router.resolve(to).href
 		},
 
@@ -1194,12 +1184,6 @@ export default {
 		 * @param {MouseEvent} event the click
 		 */
 		navigate(to, event) {
-			// Let the browser follow an absolute Nextcloud page URL. This keeps
-			// normal link behavior (including modified clicks) for cross-app pages.
-			if (typeof to === 'string') {
-				return
-			}
-
 			if (event && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button > 0)) {
 				return
 			}
@@ -1250,9 +1234,6 @@ export default {
 		isActive(item) {
 			const route = this.$route
 			const to = item.to
-			if (typeof to === 'string') {
-				return false
-			}
 			const name = String(route.name ?? '')
 			if (name !== to.name && !name.startsWith(to.name + '.')) {
 				return false

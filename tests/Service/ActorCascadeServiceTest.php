@@ -19,6 +19,8 @@ use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\DomainBlocksRequest;
 use OCA\Social\Db\FeaturedTagsRequest;
+use OCA\Social\Db\FeedItemsRequest;
+use OCA\Social\Db\FeedsRequest;
 use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ImportedPostsRequest;
@@ -88,6 +90,7 @@ class ActorCascadeServiceTest extends TestCase {
 			'collections' => [CollectionsRequest::class, 'deleteRelatedId'],
 			'portfolio' => [PortfoliosRequest::class, 'deleteByActor'],
 			'stories' => [StoriesRequest::class, 'deleteRelatedId'],
+			'subscribed feeds' => [FeedsRequest::class, 'deleteRelatedId'],
 			'media tags' => [MediaTagsRequest::class, 'deleteByActor'],
 			'imported posts' => [ImportedPostsRequest::class, 'deleteByActor'],
 			'posts held for a moderator' => [PostHoldsRequest::class, 'deleteByActor'],
@@ -102,6 +105,11 @@ class ActorCascadeServiceTest extends TestCase {
 		foreach (self::tables() as [$class, $method]) {
 			$this->mocks[$class] ??= $this->createMock($class);
 		}
+
+		// not in the table above: the feed entries are cleared by the ids of
+		// the feeds rather than by the account, so there is no `with(BOB)` to
+		// assert. `testTheEntriesOfASubscribedFeedGoWithIt()` covers them.
+		$this->mocks[FeedItemsRequest::class] ??= $this->createMock(FeedItemsRequest::class);
 	}
 
 	/**
@@ -127,6 +135,8 @@ class ActorCascadeServiceTest extends TestCase {
 			$this->request(DomainBlocksRequest::class),
 			$this->request(AccountNotesRequest::class),
 			$this->request(ReportsRequest::class),
+			$this->request(FeedsRequest::class),
+			$this->request(FeedItemsRequest::class),
 			$this->request(FiltersRequest::class),
 			$this->request(ListsRequest::class),
 			$this->request(ConversationsRequest::class),
@@ -244,6 +254,31 @@ class ActorCascadeServiceTest extends TestCase {
 		$this->service()->purge(self::BOB);
 
 		$this->assertSame(['local.jpg', 'resized.jpg'], $removed);
+	}
+
+	/**
+	 * A feed entry knows which feed it belongs to and nothing else, so the ids
+	 * have to be read, and the entries removed, before the feed rows go — or
+	 * every entry is left behind with no way left to find it.
+	 */
+	public function testTheEntriesOfASubscribedFeedGoWithIt(): void {
+		$this->request(FeedsRequest::class)->method('idsOf')->with(self::BOB)->willReturn([4, 9]);
+
+		$order = [];
+		$this->request(FeedItemsRequest::class)->expects($this->once())
+			->method('deleteByFeeds')->with([4, 9])
+			->willReturnCallback(static function () use (&$order): void {
+				$order[] = 'entries';
+			});
+		$this->request(FeedsRequest::class)->expects($this->once())
+			->method('deleteRelatedId')->with(self::BOB)
+			->willReturnCallback(static function () use (&$order): void {
+				$order[] = 'feeds';
+			});
+
+		$this->service()->purge(self::BOB);
+
+		$this->assertSame(['entries', 'feeds'], $order);
 	}
 
 	/** A file that cannot be removed is not a reason to keep the row. */

@@ -41,14 +41,7 @@ const alice = {
 	username: 'alice',
 	display_name: 'Alice',
 }
-const nextcloud = {
-	id: 'https://mastodon.xyz/users/nextcloud',
-	url: 'https://mastodon.xyz/users/nextcloud',
-	acct: 'nextcloud@mastodon.xyz',
-	username: 'nextcloud',
-	display_name: 'Nextcloud',
-}
-const known = { 'bob@remote.example': bob, 'carol@cloud.example.org': carol, 'alice@cloud.example.org': alice, 'nextcloud@mastodon.xyz': nextcloud }
+const known = { 'bob@remote.example': bob, 'carol@cloud.example.org': carol, 'alice@cloud.example.org': alice }
 
 let pinia
 let accountStore
@@ -201,17 +194,6 @@ describe('Profile', () => {
 			expect(accountStore.fetchAccountRelationshipInfo).not.toHaveBeenCalled()
 			expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 			expect(wrapper.findComponent(ProfileInfoStub).props('uid')).toBe('carol')
-			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
-		})
-
-		it('resolves an uncached remote profile through the public federated lookup', async () => {
-			const wrapper = mountProfile({ name: 'profile', params: { account: 'nextcloud@mastodon.xyz' } })
-
-			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('nextcloud@mastodon.xyz')
-			expect(accountStore.fetchPublicAccountInfo).not.toHaveBeenCalled()
-			await flushPromises()
-			expect(accountStore.fetchAccountRelationshipInfo).not.toHaveBeenCalled()
-			expect(wrapper.findComponent(ProfileInfoStub).exists()).toBe(true)
 			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
 		})
 	})

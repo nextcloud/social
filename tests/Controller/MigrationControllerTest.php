@@ -16,6 +16,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\PostImportService;
+use OCA\Social\Service\SwitchService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\IRequest;
@@ -35,6 +36,7 @@ class MigrationControllerTest extends TestCase {
 	private MigrationArchiveService|MockObject $archiveService;
 	private MigrationService|MockObject $migrationService;
 	private PostImportService|MockObject $postImportService;
+	private SwitchService|MockObject $switchService;
 	private AccountService|MockObject $accountService;
 
 	protected function setUp(): void {
@@ -47,6 +49,7 @@ class MigrationControllerTest extends TestCase {
 		\OC::$server->register(IRequest::class, $this->createMock(IRequest::class));
 
 		$this->postImportService = $this->createMock(PostImportService::class);
+		$this->switchService = $this->createMock(SwitchService::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->accountService->method('getActorFromUserId')->willReturn(new Person());
 	}
@@ -74,6 +77,7 @@ class MigrationControllerTest extends TestCase {
 			$this->archiveService,
 			$this->migrationService,
 			$this->postImportService,
+			$this->switchService,
 			$this->accountService,
 			new NullLogger(),
 		);
