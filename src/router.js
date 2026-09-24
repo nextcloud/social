@@ -28,6 +28,7 @@ const Discover = () => import('./views/Discover.vue')
 // timeline links to. Sharing a chunk meant opening a profile downloaded the
 // statistics engine -- Statistics.vue is the third-largest component in the
 // app -- and the settings page with it, before drawing a single post.
+const Migration = () => import(/* webpackChunkName: "migration" */'./views/Migration.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */'./views/Settings.vue')
 const Statistics = () => import(/* webpackChunkName: "statistics" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
@@ -298,18 +299,22 @@ const router = createRouter({
 			redirect: { name: 'blocked-accounts' },
 		},
 		{
+			// A page of its own again. Exporting an archive, importing one and
+			// bringing a following list over from another network are each a
+			// job somebody sits down to do, not a setting changed in passing,
+			// and they were the twelfth section of a page of switches.
+			path: '/migration',
+			components: {
+				default: Migration,
+			},
+			name: 'migration',
+		},
+		{
 			path: '/settings',
 			components: {
 				default: Settings,
 			},
 			name: 'settings',
-		},
-		{
-			// Migration is a section of Settings now. The path stays so that a
-			// bookmark, or a link somebody was sent, lands where the thing they
-			// wanted actually is rather than on a 404.
-			path: '/migration',
-			redirect: { name: 'settings' },
 		},
 		{
 			// the same videos as `/timeline/videos`, watched rather than

@@ -778,6 +778,7 @@ describe('Navigation', () => {
 			'Bookmarks',
 			'Statistics',
 			'Blocking',
+			'Migration',
 			'Settings',
 		])
 	})
@@ -796,6 +797,7 @@ describe('Navigation', () => {
 			'Bookmarks',
 			'Statistics',
 			'Blocking',
+			'Migration',
 			'Settings',
 		])
 
@@ -1285,6 +1287,7 @@ describe('Navigation entries are links', () => {
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
 		['Blocking', '/index.php/apps/social/blocked'],
+		['Migration', '/index.php/apps/social/migration'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)
 	})

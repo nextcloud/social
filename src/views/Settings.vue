@@ -78,7 +78,6 @@ import ArchivedPosts from '../components/ArchivedPosts.vue'
 import AuthorizedApps from '../components/AuthorizedApps.vue'
 import DeleteAccount from '../components/DeleteAccount.vue'
 import HeldPosts from '../components/HeldPosts.vue'
-import MigrationSettings from '../components/MigrationSettings.vue'
 import PortfolioSettings from '../components/PortfolioSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
@@ -88,7 +87,6 @@ import IconArchive from 'vue-material-design-icons/ArchiveOutline.vue'
 import IconDelete from 'vue-material-design-icons/DeleteOutline.vue'
 import IconKeyboard from 'vue-material-design-icons/KeyboardOutline.vue'
 import IconLists from 'vue-material-design-icons/FormatListBulleted.vue'
-import IconMigration from 'vue-material-design-icons/SwapHorizontal.vue'
 import IconPortfolio from 'vue-material-design-icons/ImageMultipleOutline.vue'
 import IconRecap from 'vue-material-design-icons/CalendarMonthOutline.vue'
 import IconReview from 'vue-material-design-icons/ShieldAlertOutline.vue'
@@ -139,14 +137,12 @@ export default {
 		IconDelete,
 		IconKeyboard,
 		IconLists,
-		IconMigration,
 		IconPortfolio,
 		IconRecap,
 		IconReview,
 		IconScheduled,
 		IconTags,
 		ListsSettings,
-		MigrationSettings,
 		PortfolioSettings,
 		RecapSettings,
 		ScheduledPosts,
@@ -242,13 +238,6 @@ export default {
 					lede: t('social', 'The apps you have signed in to with this account — a phone client, a cross-poster, anything that asked. Each one holds a key to your account until you take it back, so this is the page to open after losing a phone.'),
 				},
 				{
-					id: 'migration',
-					icon: 'IconMigration',
-					component: 'MigrationSettings',
-					title: t('social', 'Migration'),
-					lede: t('social', 'Your account is yours. Take a copy of it whenever you like, move it to another server, or bring one here from somewhere else — including the posts you wrote there, with their pictures.'),
-				},
-				{
 					id: 'shortcuts',
 					icon: 'IconKeyboard',
 					component: 'ShortcutList',
@@ -294,6 +283,17 @@ export default {
 		scrollToSection() {
 			const id = (this.$route?.hash ?? '').replace(/^#/, '')
 			if (id === '' || this.scrolledTo === id) {
+				return
+			}
+
+			// Migration is a page of its own now, and `#migration` is what has
+			// been linked to and bookmarked for as long as it was a section
+			// here. Sent on rather than ignored: landing on a settings page
+			// with nothing highlighted is the one answer that says nothing.
+			if (id === 'migration') {
+				this.scrolledTo = id
+				this.$router.replace({ name: 'migration' })
+
 				return
 			}
 			const section = document.getElementById(id)

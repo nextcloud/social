@@ -205,11 +205,24 @@
 							<IconCancel :size="20" />
 						</template>
 					</NcAppNavigationItem>
+					<!-- Moving an account in or out of this server: a job
+					     somebody sits down to do with a file manager open, so a
+					     page of its own rather than a section of Settings. -->
+					<NcAppNavigationItem
+						:style="{ '--entry-index': menu.more.length + 1 }"
+						:name="t('social', 'Migration')"
+						:href="hrefFor({ name: 'migration' })"
+						:active="isActive({ to: { name: 'migration' } })"
+						@click="navigate({ name: 'migration' }, $event)">
+						<template #icon>
+							<IconSwapHorizontal :size="20" />
+						</template>
+					</NcAppNavigationItem>
 					<!-- last, and on its own: everything above this menu is a
 					     place to read something, and this is the one place to
 					     change something -->
 					<NcAppNavigationItem
-						:style="{ '--entry-index': menu.more.length + 1 }"
+						:style="{ '--entry-index': menu.more.length + 2 }"
 						:name="t('social', 'Settings')"
 						:href="hrefFor({ name: 'settings' })"
 						:active="isActive({ to: { name: 'settings' } })"
@@ -304,6 +317,7 @@ import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
+import IconSwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
 import IconCog from 'vue-material-design-icons/Cog.vue'
 import IconAlertCircle from 'vue-material-design-icons/AlertCircle.vue'
 
@@ -366,6 +380,7 @@ export default {
 		IconAccountGroup,
 		IconFormatListBulleted,
 		IconCancel,
+		IconSwapHorizontal,
 		IconCog,
 		IconAlertCircle,
 	},
