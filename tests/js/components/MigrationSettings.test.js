@@ -73,7 +73,7 @@ describe('Migration', () => {
 		URL.revokeObjectURL = vi.fn()
 
 		const wrapper = mountPage()
-		await wrapper.find('.migration__card button').trigger('click')
+		await wrapper.find('.migration__card:not(.migration__card--lead) button').trigger('click')
 		await flushPromises()
 
 		expect(axios.get).toHaveBeenCalledWith(`${API}/migration/export`, { responseType: 'blob' })
@@ -87,7 +87,7 @@ describe('Migration', () => {
 		axios.get.mockRejectedValue(new Error('no room on the disk'))
 
 		const wrapper = mountPage()
-		await wrapper.find('.migration__card button').trigger('click')
+		await wrapper.find('.migration__card:not(.migration__card--lead) button').trigger('click')
 		await flushPromises()
 
 		expect(showError).toHaveBeenCalledWith('Could not export your data')

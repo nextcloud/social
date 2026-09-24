@@ -29,6 +29,7 @@ const Discover = () => import('./views/Discover.vue')
 // statistics engine -- Statistics.vue is the third-largest component in the
 // app -- and the settings page with it, before drawing a single post.
 const Migration = () => import(/* webpackChunkName: "migration" */'./views/Migration.vue')
+const SwitchWizard = () => import(/* webpackChunkName: "switch" */'./views/SwitchWizard.vue')
 const Settings = () => import(/* webpackChunkName: "settings" */'./views/Settings.vue')
 const Statistics = () => import(/* webpackChunkName: "statistics" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
@@ -326,6 +327,18 @@ const router = createRouter({
 			},
 			props: (route) => ({ scope: route.query.scope ?? 'home' }),
 			name: 'reels',
+		},
+		{
+			// The way in from another network. A page rather than a section of
+			// Migration: it is a sequence somebody walks once, with their old
+			// account's export in a file manager beside them, and the rest of
+			// that page is machinery for people who already know what an
+			// export is.
+			path: '/switch',
+			components: {
+				default: SwitchWizard,
+			},
+			name: 'switch',
 		},
 		{
 			path: '/statistics',
