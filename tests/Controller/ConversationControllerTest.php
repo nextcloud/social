@@ -39,6 +39,8 @@ use Psr\Log\NullLogger;
 class ConversationControllerTest extends TestCase {
 	private const VIEWER = 'https://cloud.example/users/alice';
 	private const BOB = 'https://remote.example/users/bob';
+	/** A thread root's nid wider than a PHP int. */
+	private const WIDE = '92233720368547758070';
 
 	/** @var IRequest&MockObject */
 	private $request;
@@ -53,8 +55,8 @@ class ConversationControllerTest extends TestCase {
 	private array $page = ['conversations' => [], 'next' => 0, 'prev' => 0];
 	/** @var array<int, array> [method, id] of every call that changes something */
 	private array $writes = [];
-	/** @var int[] the conversation ids the viewer has */
-	private array $own = [10];
+	/** @var array<int|string> the conversation ids the viewer has */
+	private array $own = [10, self::WIDE];
 	private string $uri = '/index.php/apps/social/api/v1/conversations';
 	private bool $csrf = true;
 
@@ -83,14 +85,14 @@ class ConversationControllerTest extends TestCase {
 			fn (): array => $this->page
 		);
 		$this->conversationService->method('markRead')
-			->willReturnCallback(function (Person $viewer, int $id): Conversation {
+			->willReturnCallback(function (Person $viewer, int|string $id): Conversation {
 				$this->mine($id);
 				$this->writes[] = ['markRead', $id];
 
 				return $this->conversation($id, 11, false);
 			});
 		$this->conversationService->method('remove')
-			->willReturnCallback(function (Person $viewer, int $id): void {
+			->willReturnCallback(function (Person $viewer, int|string $id): void {
 				$this->mine($id);
 				$this->writes[] = ['remove', $id];
 			});
@@ -104,7 +106,7 @@ class ConversationControllerTest extends TestCase {
 	}
 
 	/** @throws ItemNotFoundException a conversation that is not the viewer's */
-	private function mine(int $id): void {
+	private function mine(int|string $id): void {
 		if (!in_array($id, $this->own, true)) {
 			throw new ItemNotFoundException('Record not found');
 		}
@@ -117,7 +119,7 @@ class ConversationControllerTest extends TestCase {
 		return $person;
 	}
 
-	private function conversation(int $id, int $lastNid, bool $unread = true): Conversation {
+	private function conversation(int|string $id, int $lastNid, bool $unread = true): Conversation {
 		$note = new Note();
 		$note->setId('https://a/' . $lastNid)->setNid($lastNid);
 
@@ -223,6 +225,21 @@ class ConversationControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame([], $response->getData());
 		$this->assertSame([['remove', 10]], $this->writes);
+	}
+
+	/**
+	 * A conversation is named by its thread root's nid. Typed `int`, the
+	 * framework clamped one wider than a PHP int to PHP_INT_MAX, and the
+	 * route marked or dismissed a different conversation, or none.
+	 */
+	public function testAWideConversationIdReachesTheServiceExactly(): void {
+		$read = $this->controller()->read(self::WIDE);
+		$deleted = $this->controller()->delete(self::WIDE);
+
+		$this->assertSame(Http::STATUS_OK, $read->getStatus());
+		$this->assertSame(self::WIDE, $read->getData()->jsonSerialize()['id']);
+		$this->assertSame(Http::STATUS_OK, $deleted->getStatus());
+		$this->assertSame([['markRead', self::WIDE], ['remove', self::WIDE]], $this->writes);
 	}
 
 	public function testAConversationThatIsNotTheViewersIsNotThere(): void {

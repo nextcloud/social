@@ -418,6 +418,29 @@ class ConversationServiceTest extends TestCase {
 		$this->assertSame([], $this->writes, 'and nothing is written');
 	}
 
+	/**
+	 * The routes hand the id over as the string it was in the url, so one
+	 * that is not a nid is as unknown as one that names nothing, rather than
+	 * an exception out of `Nid`.
+	 */
+	public function testAnIdThatIsNotANidIsNotFound(): void {
+		$this->note('https://a/1', 10);
+		$this->threads['https://a/1'] = ['https://a/1' => 10];
+
+		foreach (['abc', '10abc', '', '-10'] as $id) {
+			foreach (['markRead', 'remove'] as $method) {
+				try {
+					$this->service()->$method($this->viewer(), $id);
+					$this->fail($method . ' answered ' . var_export($id, true));
+				} catch (ItemNotFoundException $e) {
+					$this->assertSame('Record not found', $e->getMessage());
+				}
+			}
+		}
+
+		$this->assertSame([], $this->writes);
+	}
+
 	public function testRemovingDismissesTheConversationRatherThanDeletingAnything(): void {
 		$this->note('https://a/1', 10);
 		$this->threads['https://a/1'] = ['https://a/1' => 10, 'https://a/2' => 12];

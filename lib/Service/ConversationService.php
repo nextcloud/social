@@ -498,7 +498,7 @@ class ConversationService {
 	 * @throws ItemNotFoundException
 	 */
 	private function threadOf(Person $viewer, int|string $id): array {
-		if (Nid::compare($id, '0') < 1) {
+		if (!ctype_digit((string)$id) || Nid::compare($id, '0') < 1) {
 			throw new ItemNotFoundException('Record not found');
 		}
 
