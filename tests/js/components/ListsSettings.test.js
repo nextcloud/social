@@ -293,6 +293,89 @@ describe('ListsSettings', () => {
 		expect(wrapper.find('.lists-settings__member').exists()).toBe(false)
 	})
 
+	describe('a list longer than one page', () => {
+		const member = (n) => ({ id: `https://remote.example/users/u${n}`, acct: `u${n}@remote.example`, username: `u${n}`, display_name: `U${n}` })
+		const page = (from, count) => Array.from({ length: count }, (_, i) => member(from + i))
+		const next = (maxId) => ({ link: `</index.php/apps/social/api/v1/lists/1/accounts?limit=500&max_id=${maxId}>; rel="next"` })
+
+		async function openMembers(wrapper, title = 'Book club') {
+			await rowFor(wrapper, title).findAll('button').find((b) => b.text() === 'Members').trigger('click')
+			await flushPromises()
+		}
+		const showMore = (wrapper) => wrapper.find('.lists-settings__more button')
+
+		// whether there is more is the Link header's to say, not the page's
+		// length, so a first page of five with a next link stands for 500
+
+		it('offers the next page when the server says there is one, and asks for it by the Link cursor', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('7001') })
+			await openMembers(wrapper)
+
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(5)
+			expect(showMore(wrapper).exists()).toBe(true)
+
+			axios.get.mockResolvedValueOnce({ data: page(5, 3), headers: {} })
+			await showMore(wrapper).trigger('click')
+			await flushPromises()
+
+			// the cursor is the membership row the header names, not an account id
+			expect(axios.get).toHaveBeenLastCalledWith(`${API}/lists/1/accounts`, { params: { limit: 500, max_id: '7001' } })
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(8)
+			expect(showMore(wrapper).exists()).toBe(false)
+		})
+
+		it('draws nobody twice when the second page repeats somebody from the first', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('7001') })
+			await openMembers(wrapper)
+
+			axios.get.mockResolvedValueOnce({ data: page(3, 4), headers: {} })
+			await showMore(wrapper).trigger('click')
+			await flushPromises()
+
+			const accts = wrapper.findAll('.lists-settings__member-acct').map((el) => el.text())
+			expect(accts).toHaveLength(7)
+			expect(new Set(accts).size).toBe(7)
+		})
+
+		it('takes out somebody who was only on the second page', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('7001') })
+			await openMembers(wrapper)
+			axios.get.mockResolvedValueOnce({ data: [bob], headers: {} })
+			await showMore(wrapper).trigger('click')
+			await flushPromises()
+
+			axios.delete.mockResolvedValue({ data: {} })
+			const bobRow = wrapper.findAll('.lists-settings__member').find((row) => row.text().includes('@bob@remote.example'))
+			await bobRow.find('button').trigger('click')
+			await flushPromises()
+
+			expect(axios.delete).toHaveBeenCalledWith(`${API}/lists/1/accounts`, { params: { account_ids: [bob.id] } })
+			expect(wrapper.text()).not.toContain('@bob@remote.example')
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(5)
+		})
+
+		it('offers no more when the first page is the whole list', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 12), headers: {} })
+			await openMembers(wrapper)
+
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(12)
+			expect(showMore(wrapper).exists()).toBe(false)
+			expect(axios.get).toHaveBeenCalledTimes(2)
+		})
+
+		it('pages a list a Nextcloud group makes too', async () => {
+			const wrapper = await mountLists([list('2', 'Design', { nextcloud_group: 'design' })])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('9') })
+			await openMembers(wrapper, 'Design')
+
+			expect(showMore(wrapper).exists()).toBe(true)
+		})
+	})
+
 	/** The group decides all three, and the server answers 422 to anybody else. */
 	it('offers no rename, no delete and no adding for a list a Nextcloud group makes', async () => {
 		const wrapper = await mountLists([list('2', 'Design', { nextcloud_group: 'design' })])

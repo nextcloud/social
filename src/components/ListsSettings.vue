@@ -126,6 +126,11 @@
 							</NcButton>
 						</li>
 					</ul>
+					<div v-if="membersCursor[list.id]" class="lists-settings__more">
+						<NcButton :disabled="loadingMore === list.id" @click="fetchMoreMembers(list)">
+							{{ loadingMore === list.id ? t('social', 'Loading …') : t('social', 'Show more') }}
+						</NcButton>
+					</div>
 
 					<!-- a list is a view of what the reader follows, so what is
 					     offered here is anybody the search knows; the server says
@@ -196,6 +201,7 @@ import axios from '@nextcloud/axios'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import ActorAvatar from './ActorAvatar.vue'
+import { nextCursor } from '../utils/linkHeader.js'
 import eventBus, { LISTS_CHANGED } from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
@@ -209,8 +215,9 @@ const SEARCH_DELAY_MS = 250
  *
  * The server's own ceiling, and also the most Nextcloud will let through: its
  * dispatcher refuses any `limit` outside 1–500 before the route is reached.
- * A list longer than this shows its first 500 — the panel is a check on who
- * is in a group, not a directory.
+ * A longer list is paged with Show more, on the cursor the server's `Link`
+ * header names — the membership row, not the account, because taking
+ * somebody out and putting them back gives them a new place in the list.
  */
 const MEMBERS_PER_REQUEST = 500
 
@@ -261,6 +268,10 @@ export default {
 			expanded: null,
 			/** @type {Record<string, import('../types/Mastodon.js').Account[]>} members by list id, once asked */
 			members: {},
+			/** @type {Record<string, string>} where each list's next page of members starts, '' once there is none */
+			membersCursor: {},
+			/** the id of the list whose next page of members is being fetched, or null */
+			loadingMore: null,
 			/** whether a request that changes a list is in flight */
 			busy: false,
 			search: '',
@@ -432,14 +443,45 @@ export default {
 				// error. Nextcloud's dispatcher applies a range of 1–500 to
 				// any parameter called `limit` and throws before the route is
 				// reached, so 0 came back as an HTML error page.
-				const { data } = await axios.get(generateUrl(`apps/social/api/v1/lists/${list.id}/accounts`), {
+				const { data, headers } = await axios.get(generateUrl(`apps/social/api/v1/lists/${list.id}/accounts`), {
 					params: { limit: MEMBERS_PER_REQUEST },
 				})
 				this.members = { ...this.members, [list.id]: Array.isArray(data) ? data : [] }
+				this.membersCursor = { ...this.membersCursor, [list.id]: nextCursor(headers) }
 			} catch (error) {
 				logger.error('Failed to load the members of the list', { error })
 				showError(t('social', 'Could not load who is in the list'))
 				this.members = { ...this.members, [list.id]: [] }
+				this.membersCursor = { ...this.membersCursor, [list.id]: '' }
+			}
+		},
+
+		/** @param {object} list the list whose next page of members to add */
+		async fetchMoreMembers(list) {
+			const cursor = this.membersCursor[list.id]
+			if (!cursor || this.loadingMore === list.id) {
+				return
+			}
+			this.loadingMore = list.id
+			try {
+				const { data, headers } = await axios.get(generateUrl(`apps/social/api/v1/lists/${list.id}/accounts`), {
+					params: { limit: MEMBERS_PER_REQUEST, max_id: cursor },
+				})
+				// the first page was fetched again meanwhile, after an add,
+				// and this one no longer follows on from what is shown
+				if (this.membersCursor[list.id] !== cursor) {
+					return
+				}
+				const shown = this.members[list.id] ?? []
+				const seen = new Set(shown.map((member) => member.id))
+				const more = (Array.isArray(data) ? data : []).filter((member) => !seen.has(member.id))
+				this.members = { ...this.members, [list.id]: [...shown, ...more] }
+				this.membersCursor = { ...this.membersCursor, [list.id]: nextCursor(headers) }
+			} catch (error) {
+				logger.error('Failed to load more of the members of the list', { error })
+				showError(t('social', 'Could not load who is in the list'))
+			} finally {
+				this.loadingMore = null
 			}
 		},
 
@@ -643,6 +685,10 @@ export default {
 		font-size: 13px;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	&__more {
+		margin-top: 4px;
 	}
 
 	&__add {
