@@ -281,6 +281,13 @@ trait ApiMedia {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	// A write, and the only one in this file that had no ceiling: the same
+	// pair its POST sibling carries. Both attributes rather than just the user
+	// one, because Nextcloud applies `UserRateLimit` only to a caller with a
+	// session — and a client holding an OAuth token has none, which is every
+	// client this API is written for.
+	#[AnonRateLimit(limit: 30, period: 60)]
+	#[UserRateLimit(limit: 30, period: 60)]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/media/{nid}')]
 	public function mediaUpdate(int|string $nid): Response {
 		try {
@@ -336,6 +343,26 @@ trait ApiMedia {
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
+	// The one byte route here that carried no ceiling at all, while its six
+	// siblings below all do. A uuid harvested from a public timeline could be
+	// asked for in a loop, with a `Range` each time, for as long as anybody
+	// cared to.
+	//
+	// The numbers are the most generous pair already in this file — the ones
+	// `mediaLadderFile()` and `mediaPlaylistFile()` use — and deliberately so.
+	// This is the highest-volume route the app has: a timeline is forty to
+	// sixty of these a screen (see below), a portfolio is a gridful, and
+	// **every other fediverse server fetches media through it unsigned**, so
+	// one busy instance pulling a popular post's pictures arrives as a single
+	// anonymous address. A limit tight enough to matter against a determined
+	// scraper would show up first as broken images on a public page and as
+	// media that never arrives on a peer.
+	//
+	// So this caps the unbounded case and closes the gap against the siblings;
+	// it is not a bandwidth control. That belongs in front of the server,
+	// where the bytes actually are.
+	#[AnonRateLimit(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 3000, period: 60)]
 	#[FrontpageRoute(verb: 'GET', url: '/media/{uuid}')]
 	public function mediaOpen(string $uuid): Response {
 		if (strpos($uuid, '.') > 0) {
