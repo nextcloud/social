@@ -44,6 +44,7 @@ class ActionServiceTest extends TestCase {
 	private Note $post;
 
 	private \OCA\Social\Service\DislikeService|\PHPUnit\Framework\MockObject\MockObject $dislikeService;
+	private \OCA\Social\Service\InterestService|\PHPUnit\Framework\MockObject\MockObject $interestService;
 
 	protected function setUp(): void {
 		$this->streamService = $this->createMock(StreamService::class);
@@ -63,6 +64,7 @@ class ActionServiceTest extends TestCase {
 		);
 
 		$this->dislikeService = $this->createMock(\OCA\Social\Service\DislikeService::class);
+		$this->interestService = $this->createMock(\OCA\Social\Service\InterestService::class);
 
 		$this->service = new ActionService(
 			$this->streamService,
@@ -73,6 +75,7 @@ class ActionServiceTest extends TestCase {
 			$this->actionsRequest,
 			$this->conversationsRequest,
 			$this->dislikeService,
+			$this->interestService,
 		);
 
 		$this->actor = new Person();
@@ -233,5 +236,26 @@ class ActionServiceTest extends TestCase {
 		$this->dislikeService->expects($this->once())->method('delete')
 			->with($this->actor, self::POST_ID);
 		$this->service->action($this->actor, 42, 'undislike');
+	}
+
+	/**
+	 * A like, a boost and a bookmark teach My interests from here, where
+	 * every one of them passes, so an app's count as much as the web's; taking
+	 * one back teaches nothing.
+	 */
+	public function testWhatTheReaderDoesToAPostTeachesTheirInterests(): void {
+		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+		$learned = [];
+		$this->interestService->method('recordAction')->willReturnCallback(
+			function ($actor, $post, string $action) use (&$learned): void {
+				$learned[] = $action;
+			}
+		);
+
+		foreach (['favourite', 'reblog', 'bookmark', 'unfavourite', 'unreblog', 'unbookmark', 'mute'] as $action) {
+			$this->service->action($this->actor, 42, $action);
+		}
+
+		$this->assertSame(['favourite', 'boost', 'bookmark'], $learned);
 	}
 }

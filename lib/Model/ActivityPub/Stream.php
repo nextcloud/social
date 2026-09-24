@@ -347,6 +347,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private array $taggedPeople = [];
 
 	/**
+	 * Why My interests put this post in front of the reader: the hashtags it
+	 * matched and whether they were learned, followed, related or trending.
+	 * Null everywhere else, which is every other timeline.
+	 *
+	 * @var array{tags: string[], reason: string}|null
+	 */
+	private ?array $interest = null;
+
+	/**
 	 * Whether the author has put this post away.
 	 *
 	 * Local and never federated: an archived post is still on every server
@@ -1100,6 +1109,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		return $this->taggedPeople;
 	}
 
+	/** @return array{tags: string[], reason: string}|null */
+	public function getInterest(): ?array {
+		return $this->interest;
+	}
+
+	/** @param array{tags: string[], reason: string}|null $interest */
+	public function setInterest(?array $interest): self {
+		$this->interest = $interest;
+
+		return $this;
+	}
+
 	/** @param Person[] $taggedPeople */
 	public function setTaggedPeople(array $taggedPeople): self {
 		$this->taggedPeople = $taggedPeople;
@@ -1845,6 +1866,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// who is in the picture. Pixelfed's `tagged_people`, and the same
 			// key, because its own app reads it
 			'tagged_people' => $this->getTaggedPeople(),
+			// what matched, on My interests only; the web interface draws the
+			// "why am I seeing this" line from it
+			'interest' => $this->getInterest(),
 			'content' => $this->getContent(),
 			'sensitive' => $this->isSensitive(),
 			'spoiler_text' => $this->getSpoilerText(),

@@ -28,6 +28,7 @@ use OCA\Social\Service\BannerService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\InterestService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\StreamActionService;
 use OCP\IL10N;
@@ -117,6 +118,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	private const PATH_BOOKMARKS = self::PATH_ROOT . 'bookmarks.csv';
 	private const PATH_LIKES = self::PATH_ROOT . 'likes.csv';
 	private const PATH_OUTBOX = self::PATH_ROOT . 'outbox.json';
+	/** My interests: what was learned and chosen, and the reader's switches. */
+	private const PATH_INTERESTS = self::PATH_ROOT . 'interests.json';
 	/**
 	 * Where the files sit, relative to the app's folder in the archive, in the
 	 * layout Mastodon's own export uses: `media_attachments/files/<id>/original.<ext>`
@@ -179,6 +182,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		private ActorRelationRequest $actorRelationRequest,
 		private StreamRequest $streamRequest,
 		private StreamActionService $streamActionService,
+		private InterestService $interestService,
 		private ITempManager $tempManager,
 		private IURLGenerator $urlGenerator,
 		private LoggerInterface $logger,
@@ -292,7 +296,29 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$this->exportFollows($actor, $exportDestination, $output);
 		$this->exportRelations($actor, $exportDestination, $output);
 		$this->exportMarks($actor, $exportDestination, $output);
+		$this->exportInterests($actor, $exportDestination, $output);
 		$this->exportOutbox($actor, $exportDestination, $output);
+	}
+
+	/**
+	 * My interests, as the JSON `InterestService::export()` writes. Not the
+	 * posts the reader hid: those name posts on this server, which mean
+	 * nothing anywhere else.
+	 */
+	private function exportInterests(
+		Person $actor,
+		IExportDestination $exportDestination,
+		OutputInterface $output,
+	): void {
+		try {
+			$data = $this->interestService->export($actor);
+			$exportDestination->addFileContents(
+				self::PATH_INTERESTS, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+			);
+			$output->writeln('Exported ' . count($data['interests']) . ' interest(s) to ' . self::PATH_INTERESTS . '…');
+		} catch (Throwable $e) {
+			throw new SocialMigratorException('Could not export the Social interests', 0, $e);
+		}
 	}
 
 	/**
@@ -866,7 +892,31 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$this->importFollows($userId, $importSource, $output);
 		$this->importRelations($actor, $importSource, $output);
 		$this->importMarks($actor, $importSource, $output);
+		$this->importInterests($actor, $importSource, $output);
 		$this->importOutbox($actor, $importSource, $output);
+	}
+
+	/** Takes My interests back; an archive from before they existed has none. */
+	private function importInterests(Person $actor, IImportSource $importSource, OutputInterface $output): void {
+		$contents = $this->optionalFile($importSource, self::PATH_INTERESTS, $output);
+		if ($contents === null) {
+			return;
+		}
+
+		$data = json_decode($contents, true);
+		if (!is_array($data)) {
+			$output->writeln(self::PATH_INTERESTS . ' is not JSON, skipping the interests…');
+
+			return;
+		}
+
+		try {
+			$output->writeln('Imported ' . $this->interestService->import($actor, $data) . ' interest(s)…');
+		} catch (Throwable $e) {
+			// the rest of the account is worth more than its interests
+			$this->logger->warning('cannot import the interests', ['exception' => $e]);
+			$output->writeln('Could not import the interests (' . $e->getMessage() . ')…');
+		}
 	}
 
 	/**

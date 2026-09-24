@@ -75,6 +75,7 @@ class PostService {
 		private ConfigService $configService,
 		private IEventDispatcher $eventDispatcher,
 		private LoggerInterface $logger,
+		private InterestService $interestService,
 	) {
 	}
 
@@ -173,6 +174,7 @@ class PostService {
 		$this->snapshotSource($note);
 
 		$token = $this->activityService->createActivity($actor, $note, $activity);
+		$this->learnFromReply($actor, $post->getReplyTo());
 		// One counter, moved by one. This used to recompute all three with
 		// aggregate queries on **every post written** — including a
 		// `COUNT(*)` over `social_follow`, which for an account with a million
@@ -582,6 +584,25 @@ class PostService {
 				LinkifyService::TYPE_HASHTAG => $post->addHashtag($entity['name']),
 				default => null,
 			};
+		}
+	}
+
+	/**
+	 * A reply is the strongest thing a reader says about a post short of
+	 * writing one: its hashtags count for My interests. Read as the viewer,
+	 * and never allowed to fail the post it is a side effect of.
+	 */
+	private function learnFromReply(Person $actor, string $replyTo): void {
+		if ($replyTo === '') {
+			return;
+		}
+
+		try {
+			$this->interestService->recordAction(
+				$actor, $this->streamService->getStreamById($replyTo, true), InterestService::ACTION_REPLY
+			);
+		} catch (\Throwable $e) {
+			$this->logger->debug('[PostService] the post replied to is not one to learn from', ['exception' => $e]);
 		}
 	}
 }

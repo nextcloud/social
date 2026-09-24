@@ -45,6 +45,7 @@ use Psr\Log\LoggerInterface;
  */
 class StreamRequest extends StreamRequestBuilder {
 	use StreamTimelines;
+	use StreamInterests;
 
 	/** replies other people wrote to this account's posts */
 	public const PARTNERS_INBOUND = 1;

@@ -128,6 +128,7 @@ class NavigationControllerTest extends TestCase {
 			$this->checkService,
 			$this->sensitiveMediaService,
 			$this->sectionsService,
+			$this->createMock(\OCA\Social\Service\InterestService::class),
 			$this->streamService,
 			$this->filterService,
 			$this->createMock(MiscService::class),
@@ -187,6 +188,9 @@ class NavigationControllerTest extends TestCase {
 				'section_news' => true,
 				'group_lists' => [],
 			],
+			// whether My interests is on for this reader; what it holds is
+			// InterestService::pageState()'s, tested there
+			'interests' => [],
 			'cloudAddress' => 'https://cloud.example/index.php',
 		], $this->serverData());
 	}

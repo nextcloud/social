@@ -42,6 +42,8 @@ class CoreRequestBuilder {
 	public const TABLE_FOLLOWED_TAGS = 'social_followed_tag';
 	public const TABLE_FOLLOWS = 'social_follow';
 	public const TABLE_HASHTAGS = 'social_hashtag';
+	public const TABLE_INTERESTS = 'social_interest';
+	public const TABLE_INTEREST_HIDES = 'social_interest_hide';
 	public const TABLE_FILTERS = 'social_filter';
 	public const TABLE_FILTER_KEYWORDS = 'social_filter_kw';
 	public const TABLE_FILTER_STATUSES = 'social_filter_st';
@@ -228,6 +230,22 @@ class CoreRequestBuilder {
 			'id',
 			'actor_id_prim',
 			'hashtag',
+			'creation'
+		],
+		self::TABLE_INTERESTS => [
+			'id',
+			'actor_id_prim',
+			'hashtag',
+			'score',
+			'scored_at',
+			'manual',
+			'position',
+			'score_week'
+		],
+		self::TABLE_INTEREST_HIDES => [
+			'id',
+			'actor_id_prim',
+			'stream_nid',
 			'creation'
 		],
 		self::TABLE_FILTERS => [

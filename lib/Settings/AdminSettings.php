@@ -15,6 +15,7 @@ use OCA\Social\Service\BackgroundHealthService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\InterestService;
 use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PostReviewService;
@@ -75,6 +76,7 @@ class AdminSettings implements IDelegatedSettings {
 		private IL10N $l10n,
 		private ServerSettingsService $serverSettingsService,
 		private SectionsService $sectionsService,
+		private InterestService $interestService,
 		private IUserSession $userSession,
 		private IGroupManager $groupManager,
 		private IInitialState $initialState,
@@ -117,6 +119,8 @@ class AdminSettings implements IDelegatedSettings {
 			// because a picker showing raw ids is a picker nobody can use.
 			'sections' => $this->isAdministrator() ? $this->sectionsService->current() : null,
 			'groups' => $this->isAdministrator() ? $this->availableGroups() : null,
+			// My interests, for the same administrator proper
+			'interests' => $this->isAdministrator() ? $this->interestService->adminSettings() : null,
 			'accessType' => $this->fediverseService->getAccessType(),
 			'accessList' => $this->fediverseService->getListedAddresses(),
 			'retentionDays' => (int)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_DAYS),

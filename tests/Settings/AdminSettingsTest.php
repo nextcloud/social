@@ -133,6 +133,7 @@ class AdminSettingsTest extends TestCase {
 			$this->l10n(),
 			$this->serverSettingsService,
 			$this->sectionsService,
+			$this->createMock(\OCA\Social\Service\InterestService::class),
 			$userSession,
 			$groupManager,
 			$this->initialState,
