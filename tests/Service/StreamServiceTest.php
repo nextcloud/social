@@ -961,7 +961,8 @@ class StreamServiceTest extends TestCase {
 				[$root->getId(), true, ACore::FORMAT_ACTIVITYPUB, $root],
 			]);
 		$this->streamRequest->method('getDescendants')->with($post->getId())->willReturn([$reply]);
-		$this->linkPreviewService->expects($this->once())->method('attachCards')->with([$root, $parent, $reply]);
+		// the opened post among them, in thread order
+		$this->linkPreviewService->expects($this->once())->method('attachCards')->with([$root, $parent, $post, $reply]);
 
 		$context = $this->service->getContextByNid(3);
 
@@ -1617,5 +1618,35 @@ class StreamServiceTest extends TestCase {
 
 		$this->assertStringContainsString(':a:', $this->emojiScanned);
 		$this->assertStringContainsString(':b:', $this->emojiScanned);
+	}
+
+	/**
+	 * The opened post gets its link preview too.
+	 *
+	 * The cards were attached to the ancestors and the descendants and not to
+	 * the post the reader had actually opened — which in the Direct messages
+	 * view is the message on screen, rendered from `last_status`. It was the
+	 * one post in the thread with a bare link where every other had a card.
+	 */
+	public function testTheOpenedPostIsInTheBatchOfCardsWithItsThread(): void {
+		$post = new Note();
+		$post->setId('https://cloud.example.org/notes/opened');
+		$post->setNid(17);
+		$descendant = new Note();
+		$descendant->setId('https://cloud.example.org/notes/reply');
+
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([$descendant]);
+
+		$batched = [];
+		$this->linkPreviewService->method('attachCards')
+			->willReturnCallback(function (array $posts) use (&$batched): void {
+				$batched = array_map(static fn (Stream $one): string => $one->getId(), $posts);
+			});
+
+		$this->service->getContextByNid(17);
+
+		$this->assertContains('https://cloud.example.org/notes/opened', $batched);
+		$this->assertContains('https://cloud.example.org/notes/reply', $batched);
 	}
 }

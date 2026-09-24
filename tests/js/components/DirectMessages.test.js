@@ -255,6 +255,97 @@ describe('DirectMessages', () => {
 		expect(wrapper.vm.messageForDisplay({ visibility: 'direct', content: '<p><a class="mention" href="https://elsewhere.example/@carol">@carol</a> hello</p>' }).content).toContain('@carol')
 	})
 
+	// `\w` is ASCII whatever else is set, so a handle on an internationalised
+	// domain — or with a non-ASCII local part — was not recognised as the
+	// routing mention and stayed on screen in every message.
+	it('hides a routing mention whose handle is not ASCII', async () => {
+		const mueller = { id: 'https://müller.example/users/jan', acct: 'jan@müller.example', display_name: 'Jan' }
+		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), accounts: [mueller] }] })
+		const wrapper = mountMessages('10')
+		await flushPromises()
+
+		const rendered = wrapper.vm.messageForDisplay({
+			visibility: 'direct',
+			content: '<p>@jan@müller.example guten Morgen</p>',
+		})
+
+		expect(rendered.content).toBe('<p>guten Morgen</p>')
+	})
+
+	// An `.h-card` was stripped whoever it named, so a message opening with a
+	// mention of somebody else lost the name it was about.
+	it('keeps a leading mention of somebody who is not the peer', async () => {
+		const wrapper = mountMessages('10')
+		await flushPromises()
+
+		const rendered = wrapper.vm.messageForDisplay({
+			visibility: 'direct',
+			content: '<p><span class="h-card"><a href="https://remote.example/@carol">@carol</a></span> look at this</p>',
+		})
+
+		expect(rendered.content).toContain('@carol')
+	})
+
+	// The href was matched with `includes()`, so the peer `bob` matched a link
+	// to `/@bobby` and a message to bobby lost its mention of bob.
+	it('does not take one handle for another that starts the same way', async () => {
+		const bobby = { id: 'https://remote.example/users/bobby', acct: 'bobby@remote.example', display_name: 'Bobby' }
+		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), accounts: [bobby] }] })
+		const wrapper = mountMessages('10')
+		await flushPromises()
+
+		const rendered = wrapper.vm.messageForDisplay({
+			visibility: 'direct',
+			content: '<p><span class="h-card"><a href="https://remote.example/@bob">@bob</a></span> said so</p>',
+		})
+
+		expect(rendered.content).toContain('@bob')
+	})
+
+	// With no peer to compare against it hid the first mention whoever it
+	// named, which is worse than leaving a routing handle on screen.
+	it('hides nothing when there is no peer to compare against', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		const rendered = wrapper.vm.withoutProtocolRecipient({
+			visibility: 'direct',
+			content: '<p><span class="h-card"><a href="https://remote.example/@bob">@bob</a></span> hello</p>',
+		}, null)
+
+		expect(rendered).toContain('@bob')
+	})
+
+	// A conversation of three was answered with one mention — the first
+	// account that was not the reader — so the third person dropped out of the
+	// exchange at the first reply, without anybody being told.
+	it('answers everybody a group conversation is between', async () => {
+		const carol = { id: 'https://remote.example/users/carol', acct: 'carol@remote.example', display_name: 'Carol' }
+		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), accounts: [bob, carol] }] })
+		const wrapper = mountMessages('10')
+		await flushPromises()
+
+		wrapper.vm.messageText = 'both of you'
+		await wrapper.vm.sendMessage()
+
+		expect(post).toHaveBeenCalledWith(
+			'/index.php/apps/social/api/v1/statuses',
+			expect.objectContaining({ status: '@bob@remote.example @carol@remote.example both of you' }),
+		)
+	})
+
+	// A handle is not case-sensitive, and the filtering beside this lowercases
+	// one — so the same person could be opened as a second chat.
+	it('opens the conversation that is already there whatever case was typed', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		wrapper.vm.startConversation({ acct: 'Bob@Remote.Example', display_name: 'Bob' })
+
+		expect(wrapper.emitted('select').at(-1)).toEqual(['10'])
+		expect(post).not.toHaveBeenCalled()
+	})
+
 	it('dismisses a conversation from the inbox using the native row action', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
