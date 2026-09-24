@@ -289,7 +289,6 @@ import IconNewspaperVariantOutline from 'vue-material-design-icons/NewspaperVari
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
-import IconAccountEdit from 'vue-material-design-icons/AccountEditOutline.vue'
 import IconAccountClock from 'vue-material-design-icons/AccountClock.vue'
 import IconHeart from 'vue-material-design-icons/Heart.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
@@ -357,7 +356,6 @@ export default {
 		Composer,
 		IconHome,
 		IconAccountCircle,
-		IconAccountEdit,
 		IconBell,
 		IconCommentAccount,
 		IconHeart,
@@ -636,24 +634,23 @@ export default {
 					// somewhere they go looking: the button this menu hangs off
 					// used to *be* the link to it, and moving that button here
 					// without putting the link back would have left a profile
-					// nobody could reach
-					{
-						key: 'social-profile',
-						icon: IconAccountCircle,
-						title: t('social', 'My profile'),
-						// The profile section is part of Nextcloud's user page; send
-						// this shortcut there too, instead of reopening Social's
-						// separate profile screen.
-						to: generateUrl(`/u/${encodeURIComponent(this.currentUser?.uid ?? '')}`),
-					},
+					// nobody could reach.
+					//
+					// One entry, not two. There were "My profile", pointing at
+					// Nextcloud's user page, and "Social profile", pointing at
+					// the profile this app publishes — two rows a few pixels
+					// apart, both called somebody's profile, and no way to tell
+					// from the sidebar which one had your posts on it. This is
+					// the app's own profile: the page with the posts, the
+					// followers and the bio, which is what somebody clicking
+					// their own name in a social app is looking for. Nextcloud's
+					// user page is still where Nextcloud puts it, under the
+					// avatar at the top right of every app.
 					...(this.currentAccount?.acct
 						? [{
-								key: 'social-account-profile',
-								icon: IconAccountEdit,
-								title: t('social', 'Social profile'),
-								// The Nextcloud profile page shows posts in the native user
-								// profile; Social's own profile remains the place to edit its
-								// federated bio, fields, links and banner.
+								key: 'social-profile',
+								icon: IconAccountCircle,
+								title: t('social', 'My profile'),
 								to: { name: 'profile', params: { account: this.currentAccount.acct } },
 							}]
 						: []),

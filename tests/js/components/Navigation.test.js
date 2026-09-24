@@ -772,8 +772,7 @@ describe('Navigation', () => {
 			'Activities',
 			'Direct messages',
 			'Discover',
-			'My profile',
-			// Social profile appears only when an ActivityPub account exists.
+			// the profile entry appears only when an ActivityPub account exists
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -792,7 +791,6 @@ describe('Navigation', () => {
 		const wrapper = mountNavigation()
 
 		expect(moreNames(wrapper)).toEqual([
-			'My profile',
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -813,7 +811,17 @@ describe('Navigation', () => {
 		])
 	})
 
-	it('keeps the editable Social profile beside the native Nextcloud profile', () => {
+	/**
+	 * One profile entry, not two.
+	 *
+	 * There were "My profile", pointing at Nextcloud's user page, and "Social
+	 * profile", pointing at the profile this app publishes — two rows a few
+	 * pixels apart, both called somebody's profile, with no way to tell from
+	 * the sidebar which one had your posts on it. What is left is this app's
+	 * own profile, which is what somebody clicking their own name in a social
+	 * app is looking for.
+	 */
+	it('has one profile entry, and it is the one with the posts on it', () => {
 		const accountStore = useAccountStore()
 		accountStore.addAccount({
 			actorId: 'https://cloud.example/apps/social/@alice',
@@ -825,14 +833,22 @@ describe('Navigation', () => {
 		accountStore.setCurrentAccount('alice@cloud.example')
 
 		const wrapper = mountNavigation()
-		const socialProfile = item(wrapper, 'Social profile')
 
-		expect(item(wrapper, 'My profile').attributes('data-href')).toBe('/index.php/u/alice')
-		expect(socialProfile.attributes('data-href')).toBe('/resolved/profile')
-		expect(wrapper.vm.menu.more.find(({ title }) => title === 'Social profile').to).toEqual({
+		expect(moreNames(wrapper).filter((name) => name.endsWith('profile'))).toEqual(['My profile'])
+		expect(item(wrapper, 'My profile').attributes('data-href')).toBe('/resolved/profile')
+		expect(wrapper.vm.menu.more.find(({ title }) => title === 'My profile').to).toEqual({
 			name: 'profile',
 			params: { account: 'alice@cloud.example' },
 		})
+	})
+
+	/**
+	 * And no entry at all before there is an account to have a profile on:
+	 * the route needs a handle, and somebody who has not finished the setup
+	 * screen has none.
+	 */
+	it('offers no profile until there is an account with one', () => {
+		expect(moreNames(mountNavigation())).not.toContain('My profile')
 	})
 
 	// the account at the bottom
@@ -858,16 +874,6 @@ describe('Navigation', () => {
 	})
 
 	/** Their own page is the first thing behind their own face. */
-	it('keeps a way to their own profile in the menu', async () => {
-		const wrapper = mountNavigation()
-		const profile = item(wrapper, 'My profile')
-
-		expect(profile.attributes('data-href')).toBe('/index.php/u/alice')
-
-		await profile.trigger('click')
-
-		expect(router.push).not.toHaveBeenCalled()
-	})
 
 	/**
 	 * They are scopes of the Home page, set by the switcher above the posts,
@@ -1278,7 +1284,6 @@ describe('Navigation entries are links', () => {
 		['Follow requests', '/index.php/apps/social/follow_requests'],
 		['Liked posts', '/index.php/apps/social/timeline/favourites'],
 		['Bookmarks', '/index.php/apps/social/timeline/bookmarks'],
-		['My profile', '/index.php/u/alice'],
 		['Blocking', '/index.php/apps/social/blocked'],
 	])('gives %s a real href', async (name, href) => {
 		expect(link(await mountReal(), name).attributes('href')).toBe(href)
