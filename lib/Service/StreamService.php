@@ -587,7 +587,11 @@ class StreamService {
 			'ancestors' => array_reverse($ancestors),
 			'descendants' => $this->streamRequest->getDescendants($post->getId())
 		];
-		$this->attachCardsToPosts(array_merge($context['ancestors'], $context['descendants']));
+		// the post itself as well: it is drawn with the thread — the open
+		// direct message is rendered from it — and leaving it out of the batch
+		// meant the one post the reader actually opened was the only one
+		// without its link preview
+		$this->attachCardsToPosts(array_merge($context['ancestors'], [$post], $context['descendants']));
 
 		return $context;
 	}
