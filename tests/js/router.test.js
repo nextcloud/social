@@ -185,10 +185,12 @@ describe('router', () => {
 			column.id = 'app-content-vue'
 			document.body.appendChild(column)
 			try {
-				column.scrollTop = 4200
-				// leaving the timeline is what records the offset
 				const guard = router.options.scrollBehavior
 				await router.push('/timeline/home').catch(() => {})
+				// scrolled *while on* the timeline, which is the only moment
+				// there is one to record: arriving takes the column to the top
+				column.scrollTop = 4200
+				// and leaving it is what records the offset
 				await router.push('/@alice/7').catch(() => {})
 				column.scrollTop = 0
 
@@ -236,6 +238,27 @@ describe('router', () => {
 
 		it('goes to the top of a page it has not been at before', () => {
 			expect(router.options.scrollBehavior({}, {}, null)).toEqual({ top: 0 })
+		})
+
+		/**
+		 * `{ top: 0 }` is the window's, and the window never scrolls here — so
+		 * the column kept the offset the last page was read at. Going from a
+		 * long page to a short one then showed a screenful of nothing, for as
+		 * long as the incoming page's chunk took to arrive.
+		 */
+		it('takes the scrolling column to the top as well', () => {
+			const column = document.createElement('div')
+			column.id = 'app-content-vue'
+			document.body.appendChild(column)
+			try {
+				column.scrollTop = 6000
+
+				router.options.scrollBehavior({}, {}, null)
+
+				expect(column.scrollTop).toBe(0)
+			} finally {
+				column.remove()
+			}
 		})
 
 		it('scrolls to an anchor when the URL names one', () => {

@@ -95,8 +95,9 @@ class NavigationController extends Controller {
 	#[NoAdminRequired]
 	#[PublicPage]
 	// The client-side router owns `/follow_requests`, `/blocked`, `/discover`,
-	// `/migration`, `/statistics`, `/settings` and `/search`; the server has to
-	// answer them too, or reloading or bookmarking one of those pages is a 404.
+	// `/migration`, `/statistics`, `/settings`, `/search` and `/reels`; the
+	// server has to answer them too, or reloading or bookmarking one of those
+	// pages is a 404 — and a page nobody can link to is one nobody can be sent.
 	// `postfix` keeps the route names apart: a route is keyed by controller,
 	// method and postfix, so several routes on one method without it would
 	// leave only the last. The profile and post pages, `/@{username}` and
@@ -109,6 +110,7 @@ class NavigationController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
 	#[FrontpageRoute(verb: 'GET', url: '/statistics', postfix: 'statistics')]
 	#[FrontpageRoute(verb: 'GET', url: '/settings', postfix: 'settings')]
+	#[FrontpageRoute(verb: 'GET', url: '/reels', postfix: 'reels')]
 	#[FrontpageRoute(verb: 'GET', url: '/search', postfix: 'search')]
 	#[FrontpageRoute(verb: 'GET', url: '/search/{term}', postfix: 'searchterm')]
 	#[FrontpageRoute(verb: 'GET', url: '/collections/{id}', postfix: 'collection', requirements: ['id' => '\\d+'])]
