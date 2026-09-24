@@ -28,10 +28,15 @@ const stubs = {
 		emits: ['update:modelValue'],
 		template: '<label><span>{{ label }}</span><input :value="modelValue" :placeholder="placeholder" :type="type" @input="$emit(\'update:modelValue\', $event.target.value)"></label>',
 	},
+	// shaped like the real one: the textarea is the element, and `label` draws
+	// a floating one over it rather than a caption beside it
 	NcTextArea: {
-		props: ['modelValue', 'label', 'placeholder'],
+		name: 'NcTextArea',
+		// `labelOutside` is typed on the real component, so a bare attribute
+		// casts to true; untyped it would arrive as the empty string
+		props: { modelValue: {}, label: {}, placeholder: {}, labelOutside: { type: Boolean } },
 		emits: ['update:modelValue'],
-		template: '<label><span>{{ label }}</span><textarea :value="modelValue" :placeholder="placeholder" @input="$emit(\'update:modelValue\', $event.target.value)" /></label>',
+		template: '<div class="textarea"><span v-if="label && !labelOutside" class="textarea__label">{{ label }}</span><textarea class="textarea__input" :value="modelValue" :placeholder="placeholder" @input="$emit(\'update:modelValue\', $event.target.value)" /></div>',
 	},
 	TimelineEntry: { props: ['item', 'type', 'hideAuthor', 'hideAvatar'], template: '<article class="message-stub" :data-id="item.id" :data-hide-author="hideAuthor" :data-hide-avatar="hideAvatar">{{ item.content }}</article>' },
 }
@@ -79,6 +84,31 @@ describe('DirectMessages', () => {
 		await wrapper.find('.direct-messages__conversation').trigger('click')
 
 		expect(wrapper.emitted('select')).toEqual([['10']])
+	})
+
+	/**
+	 * The composer is a chat box: the placeholder is the whole of its label.
+	 *
+	 * Given a `label`, `NcTextArea` draws a floating one absolutely positioned
+	 * 11px from the top of the input — and this composer halves the padding
+	 * the component reserves for it, so the label sat on top of whatever was
+	 * being typed. `labelOutside` says there is no floating label to place,
+	 * and the field is named for a screen reader the other way.
+	 */
+	it('names the message box without drawing a label over it', async () => {
+		const wrapper = mountMessages('10')
+		await flushPromises()
+
+		const boxes = wrapper.findAllComponents({ name: 'NcTextArea' })
+
+		expect(boxes.length).toBeGreaterThan(0)
+		for (const box of boxes) {
+			expect(box.props('labelOutside')).toBe(true)
+			expect(box.props('label')).toBeFalsy()
+			expect(box.attributes('aria-label')).toBe('Write a message…')
+		}
+		// and so nothing is drawn over the field
+		expect(wrapper.find('.textarea__label').exists()).toBe(false)
 	})
 
 	it('opens a recipient search with no social visibility controls', async () => {
