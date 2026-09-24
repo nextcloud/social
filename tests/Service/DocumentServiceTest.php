@@ -615,10 +615,29 @@ class DocumentServiceTest extends TestCase {
 		return $url;
 	}
 
+	/**
+	 * The avatar version is the avatar app's setting, and it is a number.
+	 *
+	 * Read as text on a Nextcloud that types what it stores, it threw — out of
+	 * `createActor()`, so making an account answered 500 and every request
+	 * that needed an actor answered 401 after it. Asserted as "asks for the
+	 * number", because what the call was is the whole of the bug.
+	 */
+	public function testTheAvatarVersionIsAskedForAsANumber(): void {
+		$this->avatarUrl();
+		$this->configService->expects($this->once())->method('getUserValueInt')
+			->with('version', 'alice', 'avatar')->willReturn(0);
+		$this->configService->expects($this->never())->method('getUserValue');
+		$this->cacheDocumentsRequest->method('getByUrl')
+			->willThrowException(new CacheDocumentDoesNotExistException());
+
+		$this->assertSame('', $this->service->cacheLocalAvatarByUsername($this->alice(0)));
+	}
+
 	public function testCacheLocalAvatarCreatesANewImageWhenTheAvatarChanged(): void {
 		$url = $this->avatarUrl();
 		$alice = $this->alice(1);
-		$this->configService->method('getUserValue')->with('version', 'alice', 'avatar')->willReturn('2');
+		$this->configService->method('getUserValueInt')->with('version', 'alice', 'avatar')->willReturn(2);
 		$icon = new Image();
 		$icon->setUrlCloud('https://cloud.example.com');
 		$ap = $this->createMock(AP::class);
@@ -642,7 +661,7 @@ class DocumentServiceTest extends TestCase {
 	public function testCacheLocalAvatarReusesTheCachedImageWhenUnchanged(): void {
 		$url = $this->avatarUrl();
 		$alice = $this->alice(2);
-		$this->configService->method('getUserValue')->willReturn('2');
+		$this->configService->method('getUserValueInt')->willReturn(2);
 		$cached = new Image();
 		$cached->setId('https://cloud.example.com/documents/avatar/existing');
 		$this->cacheDocumentsRequest->expects($this->once())->method('getByUrl')->with($url)->willReturn($cached);
@@ -653,7 +672,7 @@ class DocumentServiceTest extends TestCase {
 
 	public function testCacheLocalAvatarIsEmptyWhenNothingIsCachedYet(): void {
 		$this->avatarUrl();
-		$this->configService->method('getUserValue')->willReturn('0');
+		$this->configService->method('getUserValueInt')->willReturn(0);
 		$this->cacheDocumentsRequest->method('getByUrl')->willThrowException(new CacheDocumentDoesNotExistException());
 
 		$this->assertSame('', $this->service->cacheLocalAvatarByUsername($this->alice(0)));

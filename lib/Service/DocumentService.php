@@ -772,8 +772,7 @@ class DocumentService {
 			'core.avatar.getAvatar', ['userId' => $actor->getUserId(), 'size' => 128]
 		);
 
-		$versionCurrent
-			= (int)$this->configService->getUserValue('version', $actor->getUserId(), 'avatar');
+		$versionCurrent = $this->configService->getUserValueInt('version', $actor->getUserId(), 'avatar');
 		$versionCached = $actor->getAvatarVersion();
 		if ($versionCurrent > $versionCached) {
 			/** @var Image $icon */
