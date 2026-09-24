@@ -262,6 +262,17 @@ export default {
 	max-width: 46em;
 	margin: 8px auto 0;
 	color: var(--color-text-maxcontrast);
+	/*
+	 * The intro and the captions below are interpolated as *text* — the intro
+	 * is what its owner typed, and a caption is `htmlToPlainText()` of a post
+	 * — so the paragraph breaks in them are newlines rather than markup, and
+	 * HTML collapses a newline to a space. Somebody's three paragraphs
+	 * therefore arrived as one run-on line. Not rendered as HTML instead: the
+	 * intro is a plain-text field and a caption is deliberately stripped of
+	 * the markup a post carries, so `pre-line` is what keeps the breaks
+	 * without putting either back.
+	 */
+	white-space: pre-line;
 }
 
 .portfolio__by {
@@ -325,6 +336,8 @@ export default {
 
 .portfolio__caption {
 	margin-block: 8px 0;
+	/* see `.portfolio__intro` */
+	white-space: pre-line;
 }
 
 .portfolio__meta {

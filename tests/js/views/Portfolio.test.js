@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Portfolio from '../../../src/views/Portfolio.vue'
@@ -82,6 +84,57 @@ describe('Portfolio', () => {
 		expect(wrapper.find('.portfolio__title').text()).toBe('Selected work')
 		expect(wrapper.text()).toContain('Buildings, mostly.')
 		expect(wrapper.findAll('.portfolio__work')).toHaveLength(2)
+	})
+
+	/**
+	 * The intro is a plain-text field and a caption is `htmlToPlainText()` of a
+	 * post, so the paragraph breaks in both are newlines rather than markup —
+	 * and HTML collapses a newline to a space. Somebody's three paragraphs
+	 * arrived as one run-on line (#2284).
+	 */
+	it('keeps the line breaks in the sentence its owner wrote', async () => {
+		get.mockResolvedValue({
+			data: page({ intro: 'First paragraph.\n\nSecond one.\nAnd a third line.' }),
+		})
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const intro = wrapper.find('.portfolio__intro')
+		expect(intro.text()).toContain('First paragraph.')
+		// the breaks reach the DOM: nothing upstream strips them
+		expect(intro.element.textContent).toContain('\n\n')
+	})
+
+	/**
+	 * And that the stylesheet renders them. jsdom applies no scoped SCSS, so
+	 * the computed style says nothing here — the rule itself is what is
+	 * asserted, because without it the newlines above are drawn as spaces and
+	 * the test before this one passes anyway.
+	 */
+	it('asks the stylesheet to draw those breaks', () => {
+		const source = readFileSync(
+			resolve(process.cwd(), 'src/views/Portfolio.vue'),
+			'utf8',
+		)
+
+		for (const selector of ['.portfolio__intro', '.portfolio__caption']) {
+			const block = source.slice(source.indexOf(selector + ' {'))
+			expect(
+				block.slice(0, block.indexOf('}')),
+				selector + ' must keep `white-space: pre-line`, or the paragraph breaks in it'
+				+ ' are drawn as spaces',
+			).toContain('white-space: pre-line')
+		}
+	})
+
+	it('keeps them in a caption too', async () => {
+		get.mockResolvedValue({
+			data: page({ posts: [work('1', { content: '<p>One.</p><p>Two.</p>' })] }),
+		})
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(wrapper.find('.portfolio__caption').element.textContent).toContain('\n')
 	})
 
 	/** A page its owner has not published is the same answer as one that is not there. */
