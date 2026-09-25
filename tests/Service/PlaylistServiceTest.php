@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CollectionsRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\Collection;
 use OCA\Social\Service\PlaylistService;
@@ -39,8 +41,12 @@ class PlaylistServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->collectionsRequest = $this->createMock(CollectionsRequest::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
+		$cacheActorsRequest->method('getFromId')->willReturnCallback(
+			static fn (string $id): Person => (new Person())->setId($id)
+		);
 		$this->service = new PlaylistService(
-			$this->collectionsRequest, $this->streamService, new NullLogger()
+			$this->collectionsRequest, $this->streamService, new NullLogger(), $cacheActorsRequest
 		);
 	}
 
@@ -91,7 +97,7 @@ class PlaylistServiceTest extends TestCase {
 		$this->assertTrue($this->service->receive($this->wire([
 			['type' => 'PlaylistElement', 'position' => 1, 'object' => self::ONE],
 			['type' => 'PlaylistElement', 'position' => 2, 'object' => self::TWO],
-		]), self::CHANNEL));
+		]), self::CHANNEL, self::CHANNEL));
 
 		$this->assertSame([self::ONE, self::TWO], [$added[0], $added[1]]);
 	}
@@ -106,7 +112,7 @@ class PlaylistServiceTest extends TestCase {
 		$this->collectionsRequest->expects($this->never())->method('save');
 		$this->collectionsRequest->expects($this->once())->method('update');
 
-		$this->service->receive($this->wire([['object' => self::ONE]]), self::CHANNEL);
+		$this->service->receive($this->wire([['object' => self::ONE]]), self::CHANNEL, self::CHANNEL);
 	}
 
 	/**
@@ -118,7 +124,7 @@ class PlaylistServiceTest extends TestCase {
 		$this->collectionsRequest->method('getByActor')->willReturn([$this->collection()]);
 		$this->collectionsRequest->expects($this->once())->method('clearItems');
 
-		$this->service->receive($this->wire([['object' => self::ONE]]), self::CHANNEL);
+		$this->service->receive($this->wire([['object' => self::ONE]]), self::CHANNEL, self::CHANNEL);
 	}
 
 	/**
@@ -138,7 +144,7 @@ class PlaylistServiceTest extends TestCase {
 		$this->service->receive($this->wire([
 			['object' => self::ONE],
 			['object' => self::TWO],
-		]), self::CHANNEL);
+		]), self::CHANNEL, self::CHANNEL);
 	}
 
 	/** An empty page with a title on it is worse than nothing. */
@@ -146,12 +152,12 @@ class PlaylistServiceTest extends TestCase {
 		$this->holding();
 		$this->collectionsRequest->expects($this->never())->method('save');
 
-		$this->assertFalse($this->service->receive($this->wire([['object' => self::ONE]]), self::CHANNEL));
+		$this->assertFalse($this->service->receive($this->wire([['object' => self::ONE]]), self::CHANNEL, self::CHANNEL));
 	}
 
 	public function testAPlaylistWithNoNameOrNoOwnerIsNotStored(): void {
-		$this->assertFalse($this->service->receive($this->wire([], name: ''), self::CHANNEL));
-		$this->assertFalse($this->service->receive($this->wire([]), ''));
+		$this->assertFalse($this->service->receive($this->wire([], name: ''), self::CHANNEL, self::CHANNEL));
+		$this->assertFalse($this->service->receive($this->wire([]), '', self::CHANNEL));
 	}
 
 	// --- the other direction ---------------------------------------------

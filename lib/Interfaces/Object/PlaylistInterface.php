@@ -37,7 +37,8 @@ class PlaylistInterface extends AbstractActivityPubInterface implements IActivit
 	}
 
 	/**
-	 * @throws InvalidOriginException the playlist is not on the server that sent it
+	 * @throws InvalidOriginException the playlist is not on the server that
+	 *                                sent it, or not the sender's to write
 	 */
 	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
@@ -79,6 +80,9 @@ class PlaylistInterface extends AbstractActivityPubInterface implements IActivit
 		$this->save($item);
 	}
 
+	/**
+	 * @throws InvalidOriginException the playlist is not the sender's to write
+	 */
 	#[\Override]
 	public function save(ACore $item): void {
 		if (!$item instanceof Playlist) {
@@ -91,6 +95,10 @@ class PlaylistInterface extends AbstractActivityPubInterface implements IActivit
 			$owner = $owner['id'] ?? ($owner[0]['id'] ?? ($owner[0] ?? ''));
 		}
 
-		$this->playlistService->receive($wire, is_string($owner) ? $owner : '');
+		// who sent it, which is what the owner is held to: the activity's
+		// actor, or nobody for a playlist that arrived on its own
+		$actorId = $item->isRoot() ? '' : $item->getRoot()->getActorId();
+
+		$this->playlistService->receive($wire, is_string($owner) ? $owner : '', $actorId);
 	}
 }

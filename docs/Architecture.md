@@ -1191,6 +1191,12 @@ instance already holds go in one: a playlist naming forty videos nobody here
 has seen is not a reason to fetch forty videos, and it fills in as the rest
 arrives by following the channel. A playlist of nothing we hold is not stored
 at all, because an empty page with a title on it is worse than nothing.
+The playlist's owner (`attributedTo`) decides whose collection it is rebuilt
+into, so it is held to the actor that sent it: the owner has to be that actor,
+or a channel on the actor's server that names the actor in its own
+`attributedTo` — which is how PeerTube publishes one, from the account and
+attributed to the channel. An owner that is a local account, or is not known
+here, is refused (`PlaylistService::checkOwner()`).
 
 A document arriving a **second** time — a redelivery, an `Update` of the post it
 hangs off — describes a file on somebody else's server and knows nothing about
