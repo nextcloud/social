@@ -247,4 +247,26 @@ class LenientImportTest extends TestCase {
 
 		$this->assertSame(['https://www.w3.org/ns/activitystreams#Public'], $note->getCcArray());
 	}
+	public function testTheBannerKeepsTheTypeItsDocumentGave(): void {
+		$person = $this->actor(['image' => ['type' => 'Image', 'mediaType' => 'image/png', 'url' => 'https://peertube.example/header.png']]);
+
+		$this->assertSame(
+			['type' => 'Image', 'mediaType' => 'image/png', 'url' => 'https://peertube.example/header.png'],
+			$person->exportAsActivityPub()['image']
+		);
+	}
+
+	public function testALocalBannerIsTypedByItsMediaAddress(): void {
+		$person = $this->actor(['image' => ['type' => 'Image', 'mediaType' => 'image/png', 'url' => 'https://peertube.example/header.png']]);
+		$person->setHeader('https://cloud.example/apps/social/media/abc.webp');
+
+		$this->assertSame('image/webp', $person->exportAsActivityPub()['image']['mediaType']);
+	}
+
+	public function testABannerOfUnknownTypeStatesNone(): void {
+		$person = $this->actor();
+		$person->setHeader('https://cloud.example/banner');
+
+		$this->assertArrayNotHasKey('mediaType', $person->exportAsActivityPub()['image']);
+	}
 }

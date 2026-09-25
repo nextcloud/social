@@ -64,6 +64,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private string $featured = '';
 	private string $avatar = '';
 	private string $header = '';
+	/** The banner's type as its own document stated it; '' when nothing did. */
+	private string $headerMediaType = '';
 	private bool $locked = false;
 	private array $emojis = [];
 	private bool $bot = false;
@@ -223,6 +225,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setHeader(string $header): self {
 		$this->header = $header;
+		// whatever was said about the picture this replaces is not about this one
+		$this->headerMediaType = '';
 
 		return $this;
 	}
@@ -940,10 +944,35 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$this->setIcon($icon);
 		}
 
-		$image = $this->get('url', self::largestImage($data, 'image'), '');
+		$banner = self::largestImage($data, 'image');
+		$image = $this->get('url', $banner, '');
 		if ($image !== '') {
 			$this->setHeader($image);
+			$this->headerMediaType = $this->validate(self::AS_STRING, 'mediaType', $banner, '');
 		}
+	}
+
+	/**
+	 * What the banner is, for the `mediaType` of the actor's `image`.
+	 *
+	 * GoToSocial stores the declared type, so `image/jpeg` for every banner —
+	 * what this used to say — was a wrong statement about each PNG and WebP.
+	 * A remote banner keeps the type its own document gave; a local one is
+	 * served from `/media/{uuid}.{subtype}`, which names it. Anything else is
+	 * left unstated rather than guessed.
+	 */
+	private function headerMediaType(): string {
+		if ($this->headerMediaType !== '') {
+			return $this->headerMediaType;
+		}
+
+		$extension = strtolower(pathinfo((string)parse_url($this->header, PHP_URL_PATH), PATHINFO_EXTENSION));
+
+		return match ($extension) {
+			'jpg', 'jpeg' => 'image/jpeg',
+			'png', 'gif', 'webp', 'avif' => 'image/' . $extension,
+			default => '',
+		};
 	}
 
 	/**
@@ -1099,9 +1128,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$source = json_decode($this->getSource(), true);
 		if (is_array($source)) {
-			$image = $this->get('url', self::largestImage($source, 'image'), '');
+			$banner = self::largestImage($source, 'image');
+			$image = $this->get('url', $banner, '');
 			if ($image !== '') {
 				$this->setHeader($image);
+				$this->headerMediaType = $this->validate(self::AS_STRING, 'mediaType', $banner, '');
 			}
 			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
 			// Whose a channel is. The cached copy is what every read of an
@@ -1293,11 +1324,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		if ($this->header !== '') {
-			$data['image'] = [
+			$data['image'] = array_filter([
 				'type' => 'Image',
-				'mediaType' => 'image/jpeg',
-				'url' => $this->header
-			];
+				'mediaType' => $this->headerMediaType(),
+				'url' => $this->header,
+			], static fn (string $value): bool => $value !== '');
 		}
 
 		$result = array_merge(
