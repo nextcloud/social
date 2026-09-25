@@ -88,9 +88,9 @@ export default {
 		 * over a post says something about its hashtags, which My interests
 		 * is told. Null from a profile, which is about the person.
 		 *
-		 * @type {import('vue').PropType<import('../types/Mastodon.js').Status|null>}
 		 */
 		status: {
+			/** @type {import('vue').PropType<import('../types/Mastodon.js').Status|null>} */
 			type: Object,
 			default: null,
 		},

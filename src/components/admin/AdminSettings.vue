@@ -136,6 +136,14 @@ const NOTHING = {
 	reviewTotal: 0,
 	reviewFirstPost: true,
 	autospam: true,
+	/**
+	 * My interests, or null where this instance does not offer it — the
+	 * card and its section are drawn only when the server sends it
+	 * (`InterestService::adminSettings()`).
+	 *
+	 * @type {{enabled: boolean, learningDefault: boolean, halfLife: number, threshold: number, cap: number, window: number}|null}
+	 */
+	interests: null,
 	reviewVideos: false,
 	server: null,
 	accessType: 'all_but',

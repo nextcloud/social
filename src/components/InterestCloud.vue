@@ -56,7 +56,7 @@
 					@update:shown="onShown(entry.tag, $event)">
 					<template #trigger="{ attrs }">
 						<button
-							:ref="(el) => setTagRef(entry.tag, el)"
+							:ref="(el) => setTagRef(entry.tag, /** @type {HTMLElement} */ (el))"
 							type="button"
 							class="interest-cloud__tag"
 							v-bind="attrs"
@@ -260,8 +260,12 @@ export default {
 	},
 
 	props: {
-		/** the listed interests, in rank order, as the state answers them */
+		/**
+		 * The listed interests, in rank order, as the state answers them.
+		 *
+		 */
 		interests: {
+			/** @type {import('vue').PropType<{tag: string, score: number, rank: number, pinned: boolean, source: string, trend?: number}[]>} */
 			type: Array,
 			default: () => [],
 		},
@@ -277,6 +281,13 @@ export default {
 
 	data() {
 		return {
+			/**
+			 * The element of each tag, by tag, for measuring a move — a Map,
+			 * which is what `setTagRef()` fills. The elements are DOM nodes.
+			 *
+			 * @type {Map<string, HTMLElement>}
+			 */
+			tagRefs: new Map(),
 			GHOSTS,
 			STEP_SIZES,
 			hintId: `interest-cloud-hint-${++uid}`,
@@ -332,11 +343,6 @@ export default {
 				this.focusIndex = Math.max(0, list.length - 1)
 			}
 		},
-	},
-
-	created() {
-		/** @type {Map<string, HTMLElement>} the tag buttons, for moving focus */
-		this.tagRefs = new Map()
 	},
 
 	beforeUnmount() {
@@ -740,7 +746,7 @@ export default {
 				return
 			}
 
-			const rect = event.currentTarget?.getBoundingClientRect?.()
+			const rect = /** @type {HTMLElement} */ (event.currentTarget)?.getBoundingClientRect?.()
 			const rtl = document.documentElement?.dir === 'rtl'
 			const middle = rect ? rect.left + rect.width / 2 : 0
 			const before = rtl ? event.clientX > middle : event.clientX < middle

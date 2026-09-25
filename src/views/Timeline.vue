@@ -220,7 +220,7 @@ export default {
 		 * @return {object|null} custom properties, or null off a tag page
 		 */
 		tagStyle() {
-			return this.type === 'tags' ? tagStyle(this.$route.params.tag) : null
+			return this.type === 'tags' ? tagStyle(String(this.$route.params.tag)) : null
 		},
 
 		/** What this timeline is, in the words the sidebar uses for it. */
@@ -512,6 +512,14 @@ export default {
 			}
 		},
 
+		/**
+		 * Which list this is. A route parameter is `string | string[]`, and
+		 * every reader of this compares it against one string or looks it up
+		 * in a list of them, so it is narrowed here rather than at each of
+		 * them.
+		 *
+		 * @return {string}
+		 */
 		type() {
 			if (this.$route.name === 'tags') {
 				return 'tags'
@@ -520,7 +528,7 @@ export default {
 				return 'list'
 			}
 			if (this.$route.params.type) {
-				return this.$route.params.type
+				return String(this.$route.params.type)
 			}
 			return 'home'
 		},

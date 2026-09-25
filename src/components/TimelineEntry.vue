@@ -328,7 +328,7 @@ export default {
 				return null
 			}
 
-			return interestReason(this.item.interest ?? this.entryContent?.interest)
+			return interestReason(/** @type {import('../types/Mastodon.js').Status} */ (this.item).interest ?? this.entryContent?.interest)
 		},
 
 		/** @return {boolean} */

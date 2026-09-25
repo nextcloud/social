@@ -254,6 +254,14 @@ export default {
 	data() {
 		return {
 			/**
+			 * The reading tracker this list feeds, or null while there is
+			 * none. Held raw: it carries an IntersectionObserver and its own
+			 * timers, and proxying those deeply buys nothing.
+			 *
+			 * @type {ReturnType<typeof import('../services/interestTracker.js').createInterestTracker>|null}
+			 */
+			tracker: null,
+			/**
 			 * The posts of the list being left, kept on screen while the next
 			 * one loads so a switch does not blink through a skeleton.
 			 *
@@ -1074,7 +1082,7 @@ export default {
 		 * @return {object|undefined} the post it happened to
 		 */
 		trackedStatusOf(event) {
-			const entry = event.target?.closest?.('[data-status-id]')
+			const entry = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (event.target)?.closest?.('[data-status-id]'))
 			if (!entry || !this.$el.contains(entry)) {
 				return undefined
 			}
@@ -1097,12 +1105,12 @@ export default {
 				return
 			}
 
-			if (event.target.closest('.post-attachments')) {
+			if (/** @type {HTMLElement} */ (event.target).closest('.post-attachments')) {
 				this.tracker?.record(status, 'media')
 				return
 			}
 
-			const link = event.target.closest('a[href]')
+			const link = /** @type {HTMLAnchorElement|null} */ (/** @type {HTMLElement} */ (event.target).closest('a[href]'))
 			if (link && link.closest('.post-message, .post-card') && isLinkOut(link)) {
 				this.tracker?.record(status, 'link')
 			}

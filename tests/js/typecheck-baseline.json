@@ -351,9 +351,8 @@
 		"TS2339 Property 'width' does not exist on type '{}'.": 1
 	},
 	"src/views/Timeline.vue": {
-		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 3,
-		"TS2339 Property 'refresh' does not exist on type 'unknown'.": 1,
-		"TS2345 Argument of type 'string | string[]' is not assignable to parameter of type 'string'.": 4
+		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 1,
+		"TS2339 Property 'refresh' does not exist on type 'unknown'.": 1
 	},
 	"src/views/TimelineSinglePost.vue": {
 		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 2,
