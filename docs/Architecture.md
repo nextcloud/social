@@ -28,7 +28,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.65
+**App version:** 0.26.66
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -522,7 +522,7 @@ It chooses between whatever it is given rather than between three timelines it k
 kinds of child: the hashtags the reader follows, their lists, and what the
 instance is trending. It replaced two captions that each grew without limit —
 somebody who follows forty tags pushed their own feed off a laptop screen —
-and, since 0.26.65, the trending section that used to sit above it as a caption
+and, since 0.26.66, the trending section that used to sit above it as a caption
 of its own. The three are not equal and the order says so: a followed tag and a
 list were *chosen*, a trending tag is merely popular, so trending fills what is
 left after the chosen ones have their places (`chooseEntries()` in
@@ -1191,6 +1191,12 @@ instance already holds go in one: a playlist naming forty videos nobody here
 has seen is not a reason to fetch forty videos, and it fills in as the rest
 arrives by following the channel. A playlist of nothing we hold is not stored
 at all, because an empty page with a title on it is worse than nothing.
+The playlist's owner (`attributedTo`) decides whose collection it is rebuilt
+into, so it is held to the actor that sent it: the owner has to be that actor,
+or a channel on the actor's server that names the actor in its own
+`attributedTo` — which is how PeerTube publishes one, from the account and
+attributed to the channel. An owner that is a local account, or is not known
+here, is refused (`PlaylistService::checkOwner()`).
 
 A document arriving a **second** time — a redelivery, an `Update` of the post it
 hangs off — describes a file on somebody else's server and knows nothing about
@@ -2167,7 +2173,7 @@ with `media_type=image` — what people showed rather than what they said. It is
 the same query and the same filters, one predicate narrower, so nothing about
 visibility, blocks, mutes or silencing is decided twice.
 
-It asked `only_media` alone until 0.26.65, which is Mastodon's question — *does
+It asked `only_media` alone until 0.26.66, which is Mastodon's question — *does
 this post carry an attachment* — and is not the one a page called Photos is
 asking: measured against a live instance, forty posts of that timeline carried
 twenty-five video attachments. `media_type` is the app's own narrowing and the

@@ -9,7 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CollectionsRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Model\Client\Collection;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -45,6 +48,7 @@ class PlaylistService {
 		private CollectionsRequest $collectionsRequest,
 		private StreamService $streamService,
 		private LoggerInterface $logger,
+		private CacheActorsRequest $cacheActorsRequest,
 	) {
 	}
 
@@ -58,14 +62,19 @@ class PlaylistService {
 	 * app's collections are keyed by a local row.
 	 *
 	 * @param array<string, mixed> $data the wire `Playlist`
+	 * @param string $ownerId the playlist's `attributedTo`
+	 * @param string $actorId the actor of the activity that carried it
 	 *
 	 * @return bool whether anything was stored
+	 * @throws InvalidOriginException the actor may not write the owner's playlists
 	 */
-	public function receive(array $data, string $ownerId): bool {
+	public function receive(array $data, string $ownerId, string $actorId): bool {
 		$title = trim((string)($data['name'] ?? ''));
 		if ($title === '' || $ownerId === '') {
 			return false;
 		}
+
+		$this->checkOwner($ownerId, $actorId);
 
 		$items = $this->localItems($data);
 		if ($items === []) {
@@ -95,6 +104,47 @@ class PlaylistService {
 
 			return false;
 		}
+	}
+
+	/**
+	 * Whether the actor that sent a playlist may write the owner's collections.
+	 *
+	 * The collection is found and rebuilt by owner and title, so the owner is
+	 * the whole of what decides whose page a received playlist lands on — and
+	 * the origin check on the playlist's id says only which server sent it.
+	 * The owner has to be the actor itself or, the way PeerTube publishes
+	 * them, a channel on the actor's server that names the actor as its own.
+	 * A local actor's collections are only ever written by that actor, here.
+	 *
+	 * @throws InvalidOriginException
+	 */
+	private function checkOwner(string $ownerId, string $actorId): void {
+		try {
+			$owner = $this->cacheActorsRequest->getFromId($ownerId);
+		} catch (CacheActorDoesNotExistException $e) {
+			throw new InvalidOriginException('PlaylistService::checkOwner - unknown owner: ' . $ownerId);
+		}
+
+		if ($owner->isLocal()) {
+			throw new InvalidOriginException('PlaylistService::checkOwner - local owner: ' . $ownerId);
+		}
+
+		if ($actorId !== '' && $ownerId === $actorId) {
+			return;
+		}
+
+		$actorHost = parse_url($actorId, PHP_URL_HOST);
+		if (is_string($actorHost) && $actorHost !== '' && $actorHost === parse_url($ownerId, PHP_URL_HOST)) {
+			foreach ($owner->getAttributedToActors() as $behind) {
+				if ($behind['id'] === $actorId) {
+					return;
+				}
+			}
+		}
+
+		throw new InvalidOriginException(
+			'PlaylistService::checkOwner - owner: ' . $ownerId . ' - actor: ' . $actorId
+		);
 	}
 
 	/**
