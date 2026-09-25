@@ -316,12 +316,13 @@ app, some of what is lost is protection:
 
 - **Kept in the database instead** (`social_durable_cache`, expired rows
   deleted by `Cron\Cache`): the inbox throttle (`inbox_throttle`), the
-  record of Linked Data signatures already accepted, which is what refuses a
-  replayed activity, and the statistics page's fifteen-minute copy. All of
-  it works; each costs a few queries.
-- **Off**: the per-server delivery breaker, so a dead peer is retried at full
-  speed; and the `Idempotency-Key` record, so a client that retries a post
-  can publish it twice.
+  records of Linked Data signatures and of signed requests already accepted,
+  which are what refuse a replayed activity, the `Idempotency-Key` record that
+  keeps a client's retried post from being published twice, and the
+  statistics page's fifteen-minute copy. All of it works; each costs a few
+  queries.
+- **Always in the database**, memcache or not: the per-server delivery
+  breaker (`social_host_breaker`), which every process and the cron share.
 - **Worked out again on every request**: the network figures, peer trends
   and follow suggestions.
 

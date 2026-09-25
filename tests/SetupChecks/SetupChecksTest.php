@@ -307,7 +307,10 @@ class SetupChecksTest extends TestCase {
 		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
 		$this->assertStringContainsString('memcache.local', $description);
 		$this->assertStringContainsString('inbox throttle', $description);
-		$this->assertStringContainsString('delivery breaker', $description);
+		$this->assertStringContainsString('duplicate-post protection', $description);
+		// the breaker is in the database whether or not there is a memcache,
+		// so the warning must not say it is off
+		$this->assertStringNotContainsString('delivery breaker', $description);
 	}
 
 	private function queue(int $abandoned, int $stale): OutboundQueueNotStuck {

@@ -65,6 +65,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FilterService;
@@ -236,6 +237,7 @@ class ApiController extends Controller {
 		private WatchService $watchService,
 		private IFactory $l10nFactory,
 		private TimelineRevisionService $timelineRevisionService,
+		private DurableCache $durableCache,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -1259,7 +1261,7 @@ class ApiController extends Controller {
 			return null;
 		}
 
-		$nid = $this->cacheFactory->createDistributed(self::IDEMPOTENCY_CACHE)->get($key);
+		$nid = $this->durableCache->get(self::IDEMPOTENCY_CACHE, $key);
 		if ((!is_string($nid) && !is_int($nid)) || !ctype_digit((string)$nid) || \OCA\Social\Tools\Nid::compare($nid, '0') < 1) {
 			return null;
 		}
@@ -1281,8 +1283,9 @@ class ApiController extends Controller {
 			return;
 		}
 
-		$this->cacheFactory->createDistributed(self::IDEMPOTENCY_CACHE)
-			->set($key, $nid, self::IDEMPOTENCY_TTL);
+		// in `DurableCache`, so a retried post is still recognised on an
+		// instance with no memory cache
+		$this->durableCache->set(self::IDEMPOTENCY_CACHE, $key, (string)$nid, self::IDEMPOTENCY_TTL);
 	}
 
 	/**

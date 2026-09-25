@@ -203,6 +203,9 @@ class ApiControllerTest extends TestCase {
 	/** what a previous request with the same Idempotency-Key created, per test */
 	private array $idempotencyCache = [];
 
+	/** the table behind the durable cache, shared by every controller one test makes */
+	private ?\OCA\Social\Tests\Helper\InMemoryDurableCacheRequest $durableCacheRequest = null;
+
 	private array $filesBackup;
 	/** temporary files a test made, removed in tearDown */
 	private array $tempFiles = [];
@@ -425,7 +428,8 @@ class ApiControllerTest extends TestCase {
 			$this->annualReportService,
 			$this->createMock(\OCA\Social\Service\WatchService::class),
 			$this->l10nFactory,
-			$this->timelineRevisionService
+			$this->timelineRevisionService,
+			$this->durableCache(),
 		);
 	}
 
@@ -4684,5 +4688,19 @@ class ApiControllerTest extends TestCase {
 		}
 
 		$this->assertSame([], $bare, 'these routes are unthrottled for a bearer-token client');
+	}
+
+	/**
+	 * The durable cache on its table backend — as on an instance with no
+	 * memcache — so the Idempotency-Key round trip is exercised there.
+	 */
+	private function durableCache(): \OCA\Social\Service\DurableCache {
+		$factory = $this->createMock(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createMock(\OCP\AppFramework\Utility\ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$this->durableCacheRequest ??= new \OCA\Social\Tests\Helper\InMemoryDurableCacheRequest();
+
+		return new \OCA\Social\Service\DurableCache($factory, $this->durableCacheRequest, $time);
 	}
 }
