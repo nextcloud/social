@@ -24,6 +24,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
@@ -325,8 +326,20 @@ class LocalControllerTest extends TestCase {
 		$this->actorForUser();
 		$note = $this->createMock(Stream::class);
 		$note->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@alice');
+		$note->method('getType')->willReturn(Note::TYPE);
 		$this->streamService->method('getStreamById')->with('https://x/n/1')->willReturn($note);
 		$this->streamService->expects($this->once())->method('deleteLocalItem')->with($note, Note::TYPE);
+
+		$this->assertSuccess($this->controller()->postDelete('https://x/n/1'), []);
+	}
+
+	public function testPostDeleteRemovesAPollByItsOwnType(): void {
+		$this->actorForUser();
+		$poll = $this->createMock(Stream::class);
+		$poll->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@alice');
+		$poll->method('getType')->willReturn(Question::TYPE);
+		$this->streamService->method('getStreamById')->willReturn($poll);
+		$this->streamService->expects($this->once())->method('deleteLocalItem')->with($poll, Question::TYPE);
 
 		$this->assertSuccess($this->controller()->postDelete('https://x/n/1'), []);
 	}

@@ -24,7 +24,6 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Image;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Security\RemoteAddress;
@@ -394,7 +393,9 @@ class LocalController extends Controller {
 				throw new InvalidResourceException('user have no rights');
 			}
 
-			$this->streamService->deleteLocalItem($note, Note::TYPE);
+			// by its own type: a poll is a `Question`, and a delete guarded to
+			// `Note` would federate the Delete and leave the poll in place
+			$this->streamService->deleteLocalItem($note, $note->getType());
 
 			return $this->success();
 		} catch (Exception $e) {
