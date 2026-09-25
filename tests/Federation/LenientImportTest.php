@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Tests\Model\TActivityPubMocks;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../Model/TActivityPubMocks.php';
@@ -223,5 +224,27 @@ class LenientImportTest extends TestCase {
 
 	public function testMarkupInADisplayNameIsStillRemoved(): void {
 		$this->assertSame('Alice', $this->actor(['name' => '<b>Alice</b>'])->getName());
+	}
+	/** @return array<string, array{string}> */
+	public static function publicSpellings(): array {
+		return [
+			'full IRI' => ['https://www.w3.org/ns/activitystreams#Public'],
+			'compacted' => ['as:Public'],
+			'bare' => ['Public'],
+		];
+	}
+
+	#[DataProvider('publicSpellings')]
+	public function testEverySpellingOfThePublicCollectionIsPublic(string $public): void {
+		$note = $this->note(['to' => [$public]]);
+
+		$this->assertSame(['https://www.w3.org/ns/activitystreams#Public'], $note->getToArray());
+		$this->assertTrue($note->isPublic());
+	}
+
+	public function testAShortPublicInCcIsUnlistedAddressing(): void {
+		$note = $this->note(['to' => ['https://peer.example/users/bob/followers'], 'cc' => 'as:Public']);
+
+		$this->assertSame(['https://www.w3.org/ns/activitystreams#Public'], $note->getCcArray());
 	}
 }

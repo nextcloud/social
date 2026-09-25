@@ -834,7 +834,18 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return string[]
 	 */
 	private function validateRecipients(string $k, array $data): array {
-		return $this->validateArray(self::AS_ID, $k, [$k => self::listOf($k, $data)], []);
+		// The public collection has three spellings in the vocabulary: the
+		// full IRI, the compacted `as:Public` and a bare `Public`. The short
+		// two are not http URIs, so they were dropped as ids and a public post
+		// was stored with no public recipient — a direct message. Mastodon
+		// accepts all three.
+		$recipients = array_map(
+			static fn ($recipient) => (is_string($recipient) && in_array($recipient, ['as:Public', 'Public'], true))
+				? self::CONTEXT_PUBLIC : $recipient,
+			self::listOf($k, $data)
+		);
+
+		return $this->validateArray(self::AS_ID, $k, [$k => $recipients], []);
 	}
 
 	/**
