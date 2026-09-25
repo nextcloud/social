@@ -48,10 +48,17 @@ import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import axios from '@nextcloud/axios'
-import TimelineEntry from './TimelineEntry.vue'
+import { defineAsyncComponent } from 'vue'
 import PostReactedBy from './PostReactedBy.vue'
 import MessageContent from './MessageContent.js'
 import logger from '../services/logger.js'
+
+// The whole post renderer: the menu, the gallery, the hover card, polls and
+// quotes. The profile page's entry is loaded on Nextcloud's own profile page
+// for every user, most of whom have not posted anything, so the renderer
+// arrives only once there is a post to draw -- and as the same chunk the app
+// already has, rather than a second copy inside this entry.
+const TimelineEntry = defineAsyncComponent(() => import('./TimelineEntry.vue'))
 
 export default {
 	name: 'ProfileStatusCard',

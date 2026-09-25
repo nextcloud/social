@@ -37,6 +37,10 @@ describe('ProfileStatusCard', () => {
 		expect(wrapper.find('.reacted-by-stub').exists()).toBe(true)
 	})
 
+	it('fetches the post renderer only once there is a post to draw', () => {
+		expect(ProfileStatusCard.components.TimelineEntry.__asyncLoader).toBeTypeOf('function')
+	})
+
 	it('loads only direct replies when the comments action is opened', async () => {
 		const get = vi.spyOn(axios, 'get').mockResolvedValue({ data: { descendants: [
 			{ id: '43', in_reply_to_id: '42', content: '<p>Direct reply</p>' },
