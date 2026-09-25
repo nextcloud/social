@@ -660,13 +660,10 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 				// tags it allows, so `onclick` and `javascript:` survive it.
 				return HtmlSanitizer::sanitize($value);
 			case self::AS_USERNAME:
-				$value = strip_tags($value);
-
-				return $value;
 			case self::AS_ACCOUNT:
-				$value = strip_tags($value);
-
-				return $value;
+				// a display name is prose as much as a bio is, and `Alice <3`
+				// came through strip_tags() as `Alice `
+				return self::withoutMarkup($value);
 		}
 
 		if ($exception) {

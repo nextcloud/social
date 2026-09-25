@@ -216,4 +216,12 @@ class LenientImportTest extends TestCase {
 		$this->assertSame('<p><a href="https://news.example/story">story</a></p>', $linked->getContent());
 		$this->assertSame('<p>body</p>', $unsafe->getContent());
 	}
+	public function testADisplayNameWithALessThanSignIsKeptWhole(): void {
+		$this->assertSame('Alice <3 cats & dogs', $this->actor(['name' => 'Alice <3 cats & dogs'])->getName());
+		$this->assertSame('a<b', $this->actor(['name' => 'a<b'])->getName());
+	}
+
+	public function testMarkupInADisplayNameIsStillRemoved(): void {
+		$this->assertSame('Alice', $this->actor(['name' => '<b>Alice</b>'])->getName());
+	}
 }
