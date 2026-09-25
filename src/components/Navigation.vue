@@ -619,6 +619,17 @@ export default {
 						// with nothing lit says they are nowhere
 						covers: ['news', 'link'],
 					},
+					// the last of the things to read, after the three kind
+					// filters: what this account follows off the fediverse
+					// rather than on it. Above Activities with the rest of
+					// them, because everything below that is something that
+					// happened rather than something to go and read.
+					{
+						key: 'social-subscriptions',
+						icon: IconRss,
+						title: t('social', 'Subscriptions'),
+						to: { name: 'subscriptions' },
+					},
 					{
 						key: 'social-notifications',
 						icon: IconBell,
@@ -641,16 +652,6 @@ export default {
 						icon: IconCompass,
 						title: t('social', 'Discover'),
 						to: { name: 'discover' },
-					},
-					// beside Discover: both are somewhere to read what this
-					// account does not already follow. The page has existed
-					// since subscriptions landed and nothing linked to it, so
-					// it was reachable only by typing the address.
-					{
-						key: 'social-subscriptions',
-						icon: IconRss,
-						title: t('social', 'Subscriptions'),
-						to: { name: 'subscriptions' },
 					},
 				]),
 
