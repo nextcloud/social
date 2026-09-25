@@ -928,7 +928,10 @@ trait StreamTimelines {
 
 		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
 		$page->linkToStreamTags('st', 's.id_prim');
-		$page->andWhere($page->exprLimitToDBField('hashtag', $options->getArgument(), true, false, 'st'));
+		// the stored form, compared as it stands, so `social_st_ht` answers it
+		$page->andWhere($page->expr()->eq(
+			'st.hashtag', $page->createNamedParameter(FollowedTagsRequest::normalise($options->getArgument()))
+		));
 
 		$page->limitToViewer('sd', 'f', true);
 		$page->andWhere($page->expr()->eq('s.attributed_to_prim', 'ca.id_prim'));

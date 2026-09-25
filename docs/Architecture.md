@@ -174,7 +174,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_stream_act` | Per-viewer stream flags (`liked`, `boosted`, `replied`, `bookmarked`, `values`) |
 | `social_stream_dest` | Stream visibility targets (who sees what) |
 | `social_stream_queue` | Inbound stream processing queue |
-| `social_stream_tag` | Stream-to-hashtag mapping |
+| `social_stream_tag` | Stream-to-hashtag mapping: one row per (post, tag), the tag in the form `FollowedTagsRequest::normalise()` gives it, so every reader compares it as it stands |
 | `social_actor_relation` | Blocks and mutes: one row per (local actor, target actor, `block`/`mute`/`blocked_by`) |
 | `social_report` | Moderation reports, local and federated `Flag` activities, with a `resolved` flag |
 | `social_media_block` | Pictures this instance refuses by sha256 of the file, with the reason, who decided it, and how many times it has since been turned away |
@@ -229,6 +229,8 @@ Two of those deserve a warning.
 `Version1000Date20260910000003` exists because the step before it was wrong about the cron. `manageHashtags()` skips a hashtag whose freshly counted trend equals the JSON already stored, which on an instance that has just upgraded is the normal case — so the zeroed counter columns would never have been written, and `getTrending()` reads nothing else. The backfill pages through `social_hashtag` on its primary key, leaves rows already in agreement alone, and is a no-op on a fresh install.
 
 There is no downgrade path, and none is possible: `Version1000Date20260611000001` drops tables outright.
+
+`Version1000Date20260925000001` brings `social_stream_tag.hashtag` into that normalised form for the rows written before posts' tags were stored in it: they used to be kept as their author wrote them, compared through `LOWER(st.hashtag)`, and no index answers a comparison over a function of the column. It pages on the primary key, reads only the rows whose tag is not lowercase where the database's `LOWER()` folds Unicode (every row on SQLite, whose does not), and where two tags of one post become the same one deletes the second rather than letting the unique `(stream_id, hashtag)` index refuse the rewrite.
 
 There is no notifications table: in-app notifications are stored in `social_stream` as `SocialAppNotification` items. (A `TABLE_NOTIFICATION` constant naming a `social_notif` table that no migration ever created used to be declared here; it has been removed.)
 

@@ -633,19 +633,16 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * relationship with the author — so the caller adds that; see
 	 * `StreamRequest::followedTagNids()`, which limits to public.
 	 *
-	 * The stored tag is lowered rather than the followed one, because
-	 * `social_stream_tag` holds the tag as it was written (`#NextCloud` stays
-	 * `NextCloud`) while a followed tag is stored normalised — see
-	 * `FollowedTagsRequest::normalise()`. It is the same comparison
-	 * `getTimelineHashtag()` makes on the same column, which is what keeps
-	 * "posts tagged #x" and "I follow #x" meaning one thing.
-	 *
-	 * That `LOWER()` is also why the join is not driven from the followed tags:
-	 * no index can answer it from that side. Driven from the stream, which is
-	 * what the `nid` ordering and the page limit ask for anyway, each candidate
-	 * post looks its own tags up through `social_stream_tag`'s
-	 * `(stream_id, hashtag)` unique index and the account's tags come out of
-	 * `social_followed_tag`'s `(actor_id_prim, hashtag)` index.
+	 * Both sides hold the tag in one form — `FollowedTagsRequest::normalise()`,
+	 * which `social_stream_tag` is written in as well (see
+	 * `Version1000Date20260925000001`) — so they are compared as they stand.
+	 * It is the same comparison `hashtagTimelineNids()` makes on the same
+	 * column, which is what keeps "posts tagged #x" and "I follow #x" meaning
+	 * one thing. With no function over either column the join can be driven
+	 * from the account's followed tags (`social_followed_tag`'s
+	 * `(actor_id_prim, hashtag)` index) to the posts carrying them
+	 * (`social_st_ht`), as well as from the stream through the
+	 * `(stream_id, hashtag)` unique index.
 	 *
 	 * A post carrying two followed tags matches twice; the caller selects
 	 * DISTINCT over the one column it pages by, which is the cheap place to
@@ -673,10 +670,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 					$aliasFollowed . '.actor_id_prim',
 					$this->createNamedParameter($this->prim($this->getViewer()->getId()))
 				),
-				$expr->eq(
-					$aliasFollowed . '.hashtag',
-					$this->func()->lower($aliasTags . '.hashtag')
-				)
+				$expr->eq($aliasFollowed . '.hashtag', $aliasTags . '.hashtag')
 			)
 		);
 
