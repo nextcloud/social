@@ -67,6 +67,7 @@ class CoreRequestBuilder {
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REACTIONS = 'social_reaction';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
+	public const TABLE_HOST_BREAKER = 'social_host_breaker';
 	public const TABLE_POST_HOLD = 'social_post_hold';
 	public const TABLE_SCHEDULED = 'social_scheduled';
 
@@ -653,6 +654,13 @@ class CoreRequestBuilder {
 			'summary',
 			'thumbnail',
 			'published'
+		],
+		self::TABLE_HOST_BREAKER => [
+			'host_prim',
+			'host',
+			'strikes',
+			'open_until',
+			'last_failure'
 		],
 		self::TABLE_STREAM => [
 			'nid',

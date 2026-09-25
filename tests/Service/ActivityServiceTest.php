@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\HostBreakerRequest;
 use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -72,6 +73,9 @@ class ActivityServiceTest extends TestCase {
 	private NoteInterface|MockObject $noteInterface;
 	private AnnounceInterface|MockObject $announceInterface;
 	private ActivityService $service;
+	private HostBreakerRequest|MockObject $hostBreakerRequest;
+	/** @var array<string, array{strikes: int, open_until: int, last_failure: int}> */
+	private array $breakerRows = [];
 
 	protected function setUp(): void {
 		$this->noteInterface = $this->createMock(NoteInterface::class);
@@ -93,6 +97,23 @@ class ActivityServiceTest extends TestCase {
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->relayRequest = $this->createMock(RelayRequest::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+
+		// the breaker's table, held in memory: a failure one pass records is
+		// what the next pass reads
+		$this->breakerRows = [];
+		$this->hostBreakerRequest = $this->createMock(HostBreakerRequest::class);
+		$this->hostBreakerRequest->method('failingSince')->willReturnCallback(
+			fn (int $since): array => array_filter($this->breakerRows, fn (array $row): bool => $row['last_failure'] > $since)
+		);
+		$this->hostBreakerRequest->method('open')->willReturnCallback(
+			function (string $host, int $strikes, int $openUntil, int $now): void {
+				$this->breakerRows[$host] = ['strikes' => $strikes, 'open_until' => $openUntil, 'last_failure' => $now];
+			}
+		);
+		$this->hostBreakerRequest->method('close')->willReturnCallback(function (string $host): void {
+			unset($this->breakerRows[$host]);
+		});
+
 		$this->service = new ActivityService(
 			$this->createMock(StreamRequest::class),
 			$this->followsRequest,
@@ -103,7 +124,7 @@ class ActivityServiceTest extends TestCase {
 			$this->configService,
 			$this->actorsRequest,
 			$this->relayRequest,
-			$this->createMock(\OCP\ICacheFactory::class),
+			$this->hostBreakerRequest,
 			$this->logger
 		);
 	}
@@ -1183,15 +1204,89 @@ class ActivityServiceTest extends TestCase {
 		$this->assertTrue($this->service->manageRequest($this->queue()));
 	}
 
-	public function testManageInitForgetsFailedInstances(): void {
+	/**
+	 * Without a memcache the breaker held nothing: every pass — and every
+	 * process — found each dead host again, one thirty-second timeout at a
+	 * time. Kept in the database, a failure one pass records holds the host
+	 * back in the next.
+	 */
+	public function testAHostFoundFailingInOnePassIsHeldBackInTheNext(): void {
 		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
-		$this->requestQueueService->expects($this->exactly(2))->method('initRequest');
-		$this->requestQueueService->expects($this->exactly(2))->method('endRequest')->with($this->anything(), false);
+		$this->requestQueueService->expects($this->once())->method('initRequest');
+		$this->requestQueueService->expects($this->once())->method('postponeRequest');
+
+		$this->service->manageInit();
+		$this->assertTrue($this->service->manageRequest($this->queue()));
+		$this->service->manageInit();
+		$this->assertFalse($this->service->manageRequest($this->queue()));
+
+		$this->assertSame(1, $this->breakerRows['remote.example']['strikes']);
+		$this->assertEqualsWithDelta(time() + ActivityService::BREAKER_BASE, $this->breakerRows['remote.example']['open_until'], 2);
+	}
+
+	/** Each failure in a row doubles the wait, up to the ceiling. */
+	public function testAHostThatKeepsFailingIsLeftAloneLongerEachTime(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->breakerRows['remote.example'] = ['strikes' => 3, 'open_until' => time() - 1, 'last_failure' => time() - 300];
 
 		$this->service->manageInit();
 		$this->service->manageRequest($this->queue());
+
+		$this->assertSame(4, $this->breakerRows['remote.example']['strikes']);
+		$this->assertEqualsWithDelta(time() + 8 * ActivityService::BREAKER_BASE, $this->breakerRows['remote.example']['open_until'], 2);
+	}
+
+	/** Strikes older than the ceiling are forgotten: a host that failed yesterday starts again at one. */
+	public function testOldStrikesDoNotCount(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->breakerRows['remote.example'] = ['strikes' => 6, 'open_until' => 0, 'last_failure' => time() - 2 * ActivityService::BREAKER_MAX];
+
 		$this->service->manageInit();
 		$this->service->manageRequest($this->queue());
+
+		$this->assertSame(1, $this->breakerRows['remote.example']['strikes']);
+	}
+
+	public function testAHostThatAnswersIsClearedAndAHealthyOneCostsNoWrite(): void {
+		$this->curlService->method('retrieveJson')->willReturn([]);
+		$this->breakerRows['remote.example'] = ['strikes' => 2, 'open_until' => time() - 1, 'last_failure' => time() - 120];
+		$this->hostBreakerRequest->expects($this->once())->method('close')->with('remote.example');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($this->queue());
+		// a second success, and one to a host with no record: no more writes
+		$this->service->manageRequest($this->queue());
+		$this->service->manageRequest($this->queue('https://other.example/inbox', InstancePath::TYPE_GLOBAL));
+
+		$this->assertArrayNotHasKey('remote.example', $this->breakerRows);
+	}
+
+	/** One query per drain, not one per row. */
+	public function testTheBreakerIsReadOncePerDrain(): void {
+		$this->curlService->method('retrieveJson')->willReturn([]);
+		$this->hostBreakerRequest->expects($this->once())->method('failingSince');
+
+		$this->service->manageInit();
+		for ($i = 0; $i < 5; $i++) {
+			$this->service->manageRequest($this->queue());
+		}
+	}
+
+	/** A breaker that cannot be read — the table not there yet — falls back to the per-pass list. */
+	public function testAnUnreadableBreakerFallsBackToThePerPassList(): void {
+		$service = new ActivityService(
+			$this->createMock(StreamRequest::class), $this->followsRequest, $this->cacheActorsRequest,
+			$this->signatureService, $this->requestQueueService, $this->curlService, $this->configService,
+			$this->actorsRequest, $this->relayRequest, $broken = $this->createMock(HostBreakerRequest::class), $this->logger
+		);
+		$broken->method('failingSince')->willThrowException(new \RuntimeException('no such table'));
+		$broken->method('open')->willThrowException(new \RuntimeException('no such table'));
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->requestQueueService->expects($this->once())->method('initRequest');
+
+		$service->manageInit();
+		$this->assertTrue($service->manageRequest($this->queue()));
+		$this->assertFalse($service->manageRequest($this->queue()));
 	}
 
 	public function testManageRequestGivesUpWhenQueueEntryCannotBeClaimed(): void {

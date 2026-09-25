@@ -68,6 +68,8 @@ class Queue extends TimedJob {
 		// the delivered and abandoned rows past their retention; a cheap DELETE
 		// with a WHERE, so it runs every pass rather than on a schedule of its own
 		$this->requestQueueService->purgeFinished();
+		// and the breaker rows of hosts that have not failed for an hour
+		$this->activityService->forgetRecoveredHosts();
 
 		$requests = $this->requestQueueService->getRequestStandby();
 		$this->activityService->manageInit();

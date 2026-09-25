@@ -156,6 +156,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`) |
 | `social_instance` | Known federated instances (version, metadata) |
 | `social_req_queue` | Outbound ActivityPub delivery queue, indexed for the drain's own sort on `(status, priority, tries, last)` |
+| `social_host_breaker` | The delivery circuit breaker: one row per peer that failed within the last hour, with its consecutive failures and the moment it is worth asking again, in unix seconds. Read once per drain by `ActivityService`, so a row addressed to a dead peer is held back without spending a timeout; cleared when the peer answers, forgotten an hour after its last failure (`Cron\Queue`) |
 | `social_stream` | Core content table: posts, notes, activities. Nine JSON-in-TEXT columns (`to_array`, `cc`, `bcc`, `hashtags`, `tags`, `details`, `instances`, `attachments`, `cache`) beside the scalar ones; `source` holds the ActivityPub wire object verbatim, and `archived` — a post its author has put away |
 | `social_discover_cat` | The subjects an instance says Explore is about: a name and the hashtags it means, in the order an administrator put them in |
 | `social_trend_review` | What a moderator has decided about something that is trending: one row per rejected (or approved) tag, link or status |
@@ -884,10 +885,15 @@ delivery abandoned halfway is one the peer may already have taken.
 
 The circuit breaker used to be per-pass: `manageInit()` emptied it at the start
 of every run, so a dead peer was rediscovered every twelve minutes, one
-30-second timeout at a time, for every row addressed to it. It is in the
-distributed cache now, shared between the cron, the async worker and every
-`social:worker` process, with the wait doubling per consecutive failure up to an
-hour and clearing the moment the host answers.
+30-second timeout at a time, for every row addressed to it. It then moved to the
+distributed cache — which on an instance without a memcache is a `NullCache`
+that holds nothing, so there it was per-pass still. It is in the database now
+(`social_host_breaker`, `HostBreakerRequest`), shared between the cron, the
+async worker and every `social:worker` process, with the wait doubling per
+consecutive failure up to an hour and clearing the moment the host answers. A
+drain reads the failing hosts once, when it starts (`manageInit()` forgets the
+copy), and looks every row's host up in that before it spends a timeout on it;
+a healthy host costs no write at all, and one that fails costs one.
 
 And the **inbox no longer walks a whole thread inline**. That walk runs after the
 response is flushed but while the FPM worker is still held, and each item can be

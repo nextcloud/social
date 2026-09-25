@@ -14,6 +14,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\HostBreakerRequest;
 use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -41,8 +42,6 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
-use OCP\ICache;
-use OCP\ICacheFactory;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -63,23 +62,29 @@ class ActivityService {
 	 *
 	 * The list used to be per-pass: `manageInit()` emptied it at the start of
 	 * every run, so a dead peer was discovered afresh every twelve minutes, one
-	 * 30-second timeout at a time, for every row addressed to it. Kept in the
-	 * distributed cache the discovery survives the pass — and a host that keeps
-	 * failing is left alone for longer each time, up to an hour, which is the
-	 * difference between a dead instance costing a few seconds a day and
-	 * costing the whole delivery budget.
+	 * 30-second timeout at a time, for every row addressed to it. Kept in
+	 * `social_host_breaker` the discovery survives the pass and the process —
+	 * and a host that keeps failing is left alone for longer each time, up to
+	 * an hour, which is the difference between a dead instance costing a few
+	 * seconds a day and costing the whole delivery budget. Strikes older than
+	 * the ceiling no longer count.
 	 */
-	private const BREAKER_BASE = 60;
-	private const BREAKER_MAX = 3600;
+	public const BREAKER_BASE = 60;
+	public const BREAKER_MAX = 3600;
 
 	/** The hosts this pass has already found to be failing. */
 	private ?array $failInstances = null;
 
+	/**
+	 * The breaker's rows as this drain found them, loaded on first use and
+	 * again after every `manageInit()`.
+	 *
+	 * @var array<string, array{strikes: int, open_until: int, last_failure: int}>|null
+	 */
+	private ?array $breaker = null;
+
 	/** The hostnames this instance answers to; see `localHosts()`. */
 	private ?array $localHosts = null;
-
-	/** Shared across every process that delivers; see the constants above. */
-	private ICache $breaker;
 
 	public function __construct(
 		private StreamRequest $streamRequest,
@@ -91,13 +96,9 @@ class ActivityService {
 		private ConfigService $configService,
 		private ActorsRequest $actorsRequest,
 		private RelayRequest $relayRequest,
-		ICacheFactory $cacheFactory,
+		private HostBreakerRequest $hostBreakerRequest,
 		private LoggerInterface $logger,
 	) {
-		// shared between the cron, the async worker and every `social:worker`
-		// process, which is the point: one of them discovering that a host is
-		// down should spare all of them
-		$this->breaker = $cacheFactory->createDistributed('social.breaker');
 	}
 
 	/**
@@ -301,6 +302,39 @@ class ActivityService {
 
 	public function manageInit() {
 		$this->failInstances = [];
+		$this->breaker = null;
+	}
+
+	/**
+	 * The breaker's state, shared between the cron, the async worker and every
+	 * `social:worker` process — which is the point: one of them discovering
+	 * that a host is down spares all of them.
+	 *
+	 * @return array<string, array{strikes: int, open_until: int, last_failure: int}>
+	 */
+	private function breakerState(): array {
+		if ($this->breaker === null) {
+			try {
+				$this->breaker = $this->hostBreakerRequest->failingSince(time() - self::BREAKER_MAX);
+			} catch (\Throwable $e) {
+				// the table not there yet (an upgrade not run) or the database
+				// having a moment: the per-pass list is the fallback
+				$this->breaker = [];
+			}
+		}
+
+		return $this->breaker;
+	}
+
+	/**
+	 * Forgets the hosts that have not failed for longer than the breaker's
+	 * ceiling. A cheap DELETE on an index, for the cron to run each pass.
+	 */
+	public function forgetRecoveredHosts(): void {
+		try {
+			$this->hostBreakerRequest->forgetBefore(time() - self::BREAKER_MAX);
+		} catch (\Throwable $e) {
+		}
 	}
 
 	/**
@@ -308,28 +342,18 @@ class ActivityService {
 	 *
 	 * Asked before a delivery is attempted rather than after it times out,
 	 * which is the whole saving: a row addressed to a dead instance costs a
-	 * cache read instead of thirty seconds. The answer is a timestamp rather
-	 * than a yes/no because the rows addressed to the host have to be held
-	 * back until then — see `manageRequest()`.
+	 * lookup in a map this drain loaded once instead of thirty seconds. The
+	 * answer is a timestamp rather than a yes/no because the rows addressed to
+	 * the host have to be held back until then — see `manageRequest()`.
 	 */
 	private function circuitOpenUntil(string $host): int {
 		if (in_array($host, $this->failInstances ?? [], true)) {
 			return time() + self::BREAKER_BASE;
 		}
 
-		try {
-			$until = $this->breaker->get('open:' . $host);
-		} catch (\Throwable $e) {
-			// no distributed cache configured, or it is unreachable: fall back
-			// to the per-pass list, which is what this was before
-			return 0;
-		}
+		$until = $this->breakerState()[$host]['open_until'] ?? 0;
 
-		if ($until === null) {
-			return 0;
-		}
-
-		return max((int)$until, time() + 1);
+		return ($until > time()) ? $until : 0;
 	}
 
 	/**
@@ -342,21 +366,35 @@ class ActivityService {
 	private function openCircuit(string $host): void {
 		$this->failInstances[] = $host;
 
+		$now = time();
+		$state = $this->breakerState();
+		$strikes = (($state[$host]['last_failure'] ?? 0) > $now - self::BREAKER_MAX)
+			? $state[$host]['strikes'] + 1
+			: 1;
+		$for = min(self::BREAKER_MAX, self::BREAKER_BASE * (int)(2 ** min(6, $strikes - 1)));
+
+		$this->breaker[$host] = ['strikes' => $strikes, 'open_until' => $now + $for, 'last_failure' => $now];
 		try {
-			$strikes = (int)($this->breaker->get('strikes:' . $host) ?? 0) + 1;
-			$for = min(self::BREAKER_MAX, self::BREAKER_BASE * (int)(2 ** min(6, $strikes - 1)));
-			$this->breaker->set('open:' . $host, time() + $for, $for);
-			$this->breaker->set('strikes:' . $host, $strikes, self::BREAKER_MAX);
+			$this->hostBreakerRequest->open($host, $strikes, $now + $for, $now);
 		} catch (\Throwable $e) {
 			// the per-pass list above is the fallback
 		}
 	}
 
-	/** A host that answered: it is not failing, whatever it did before. */
+	/**
+	 * A host that answered: it is not failing, whatever it did before.
+	 *
+	 * Only a host this drain knows to have failed costs a write; a healthy
+	 * one, which is nearly every delivery, costs nothing.
+	 */
 	private function closeCircuit(string $host): void {
+		if (!isset($this->breakerState()[$host])) {
+			return;
+		}
+
+		unset($this->breaker[$host]);
 		try {
-			$this->breaker->remove('open:' . $host);
-			$this->breaker->remove('strikes:' . $host);
+			$this->hostBreakerRequest->close($host);
 		} catch (\Throwable $e) {
 		}
 	}
