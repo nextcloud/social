@@ -431,6 +431,14 @@ describe('App', () => {
 		expect(source).toMatch(/prefers-reduced-motion: reduce/)
 	})
 
+	// two blocks saying the same thing drift apart the first time one is edited
+	it('says how the page change looks with less motion in one place', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+		const blocks = source.split('@media (prefers-reduced-motion: reduce)').slice(1)
+
+		expect(blocks.filter((block) => block.slice(0, block.indexOf('\n}')).includes('.page-enter-active'))).toHaveLength(1)
+	})
+
 	describe('push notifications', () => {
 		const status = { id: 's1', content: '<p>live</p>', created_at: '2026-03-01T10:00:00Z' }
 		let addCallback

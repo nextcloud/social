@@ -329,13 +329,9 @@ import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
 /**
- * Taking your account out, and bringing one in: a section of Settings.
- *
- * It was a page of its own with an entry in the account menu. That menu is for
- * places to read something, and this is a thing you do to the account -- which
- * is what Settings is for. The heading and the sentence under it belong to the
- * section now, so they live in `Settings.vue` beside the other sections'
- * headings rather than being repeated here.
+ * Taking your account out, and bringing one in: the body of the Migration
+ * page. The heading and the sentence under it belong to the page, so they
+ * live in `views/Migration.vue` rather than being repeated here.
  */
 export default {
 	name: 'MigrationSettings',

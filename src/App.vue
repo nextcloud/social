@@ -751,20 +751,6 @@ a.external_link {
 	}
 }
 
-/* a reader who has asked their system for less movement gets the change
-   without the movement -- the crossfade still says a page was replaced */
-@media (prefers-reduced-motion: reduce) {
-	.page-enter-active,
-	.page-leave-active {
-		transition: opacity 0.12s linear;
-	}
-
-	.page-enter-from,
-	.page-leave-to {
-		transform: none;
-	}
-}
-
 /**
  * Two levels of elevation, defined once, so every card in the app agrees about
  * what "resting" and "lifted" look like.
