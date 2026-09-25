@@ -60,8 +60,8 @@ class FediverseTest extends TestCase {
 			->with(['first.example'])
 			->willReturn(1);
 		$this->fediverseService->expects($this->once())
-			->method('silenceAddress')
-			->with('second.example');
+			->method('silenceAddresses')
+			->with(['second.example']);
 
 		$this->assertSame(0, $this->tester->execute(['action' => 'import', 'address' => $this->csvPath, '--force' => true]));
 		$this->assertStringContainsString('Blocked 1 domains and silenced 1', $this->tester->getDisplay());

@@ -40,8 +40,6 @@ class BlocklistSubscriptionServiceTest extends TestCase {
 
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturn('all_but');
-		$this->fediverseService->method('isExactlyListed')->willReturn(false);
-		$this->fediverseService->method('isSilenced')->willReturn(false);
 
 		$this->client = $this->createMock(IClient::class);
 		$clientService = $this->createMock(IClientService::class);
@@ -128,7 +126,7 @@ class BlocklistSubscriptionServiceTest extends TestCase {
 		$this->answers('[{"domain":"blocked.example","severity":"suspend"},{"domain":"limited.example","severity":"silence"}]');
 		$this->fediverseService->expects($this->once())->method('addAddresses')
 			->with(['blocked.example'])->willReturn(1);
-		$this->fediverseService->expects($this->once())->method('silenceAddress')->with('limited.example');
+		$this->fediverseService->expects($this->once())->method('silenceAddresses')->with(['limited.example']);
 
 		$result = $this->service->fetch('mastodon.social');
 

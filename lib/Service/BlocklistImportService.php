@@ -141,34 +141,43 @@ class BlocklistImportService {
 			throw new InvalidArgumentException('a block list cannot be imported into an allow list');
 		}
 
+		// both lists read once and looked up in memory, and each written once
+		// at the end: asking FediverseService per domain decoded the whole list
+		// for every entry of a list that is a couple of thousand long
+		$silencedHosts = $this->fediverseService->silencedHosts();
+		$listedHosts = $this->fediverseService->exactlyListedHosts();
+
 		$toBlock = [];
+		$toSilence = [];
 		$alreadyBlocked = 0;
-		$silenced = 0;
 		$alreadySilenced = 0;
 
 		foreach ($entries as $domain => $severity) {
 			if ($severity === self::SEVERITY_SILENCE) {
-				if ($this->fediverseService->isSilenced($domain)) {
+				if (FediverseService::covers($silencedHosts, $domain)) {
 					$alreadySilenced++;
 
 					continue;
 				}
 
-				$silenced++;
-				if (!$dryRun) {
-					$this->fediverseService->silenceAddress($domain);
-				}
+				$silencedHosts[FediverseService::normalizeHost($domain)] = true;
+				$toSilence[] = $domain;
 
 				continue;
 			}
 
-			if ($this->fediverseService->isExactlyListed($domain)) {
+			if (isset($listedHosts[FediverseService::normalizeHost($domain)])) {
 				$alreadyBlocked++;
 
 				continue;
 			}
 
 			$toBlock[] = $domain;
+		}
+
+		$silenced = count($toSilence);
+		if (!$dryRun && $toSilence !== []) {
+			$this->fediverseService->silenceAddresses($toSilence);
 		}
 
 		$blocked = count($toBlock);

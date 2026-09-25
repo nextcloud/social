@@ -195,16 +195,42 @@ class FediverseService {
 
 	/** Whether an address is silenced, subdomains included as a block is. */
 	public function isSilenced(string $address): bool {
-		$host = $this->normalizeAddress($address);
-		if ($host === '') {
-			return false;
-		}
+		return self::covers($this->silencedHosts(), $address);
+	}
 
-		foreach ($this->getSilencedAddresses() as $silenced) {
-			$silenced = $this->normalizeAddress($silenced);
-			if ($silenced !== '' && ($host === $silenced || str_ends_with($host, '.' . $silenced))) {
+	/**
+	 * The silenced instances, normalised, as a set to look hosts up in.
+	 *
+	 * @return array<string, true>
+	 */
+	public function silencedHosts(): array {
+		return self::hostSet($this->getSilencedAddresses());
+	}
+
+	/**
+	 * The access list's own entries, normalised, as a set — what
+	 * `isExactlyListed()` asks about, for a caller with many hosts to ask.
+	 *
+	 * @return array<string, true>
+	 */
+	public function exactlyListedHosts(): array {
+		return self::hostSet(array_map('strval', $this->getListedAddresses()));
+	}
+
+	/**
+	 * Whether a set of hosts covers an address: the address itself or any
+	 * domain it sits under, the way a block or a silence is read.
+	 *
+	 * @param array<string, true> $hosts as silencedHosts() returns
+	 */
+	public static function covers(array $hosts, string $address): bool {
+		$host = self::normalizeHost($address);
+		while ($host !== '') {
+			if (isset($hosts[$host])) {
 				return true;
 			}
+			$dot = strpos($host, '.');
+			$host = ($dot === false) ? '' : substr($host, $dot + 1);
 		}
 
 		return false;
@@ -212,16 +238,58 @@ class FediverseService {
 
 	/** Silences an instance. Silencing one already silenced is a no-op. */
 	public function silenceAddress(string $address): void {
-		$host = $this->normalizeAddress($address);
-		if ($host === '' || $this->isSilenced($host)) {
-			return;
+		$this->silenceAddresses([$address]);
+	}
+
+	/**
+	 * Silences a batch of instances with one read and one write of the list.
+	 *
+	 * A published block list is a couple of thousand domains; silencing them
+	 * one call at a time decoded and rewrote the whole list per domain, which
+	 * is quadratic in the list and a settings write per entry.
+	 *
+	 * @param string[] $addresses
+	 * @return int how many were not silenced already
+	 */
+	public function silenceAddresses(array $addresses): int {
+		$list = $this->getSilencedAddresses();
+		$known = self::hostSet($list);
+
+		$added = 0;
+		foreach ($addresses as $address) {
+			$host = self::normalizeHost($address);
+			if ($host === '' || self::covers($known, $host)) {
+				continue;
+			}
+
+			$known[$host] = true;
+			$list[] = $host;
+			$added++;
 		}
 
-		$list = $this->getSilencedAddresses();
-		$list[] = $host;
-		$this->configService->setAppValue(
-			ConfigService::SOCIAL_SILENCED_LIST, (string)json_encode(array_values($list))
-		);
+		if ($added > 0) {
+			$this->configService->setAppValue(
+				ConfigService::SOCIAL_SILENCED_LIST, (string)json_encode(array_values($list))
+			);
+		}
+
+		return $added;
+	}
+
+	/**
+	 * @param string[] $addresses
+	 * @return array<string, true>
+	 */
+	private static function hostSet(array $addresses): array {
+		$set = [];
+		foreach ($addresses as $address) {
+			$host = self::normalizeHost($address);
+			if ($host !== '') {
+				$set[$host] = true;
+			}
+		}
+
+		return $set;
 	}
 
 	/**
@@ -266,6 +334,10 @@ class FediverseService {
 	 * the trailing dot of the absolute form, and without surrounding space.
 	 */
 	private function normalizeAddress(string $address): string {
+		return self::normalizeHost($address);
+	}
+
+	public static function normalizeHost(string $address): string {
 		return rtrim(strtolower(trim($address)), '.');
 	}
 
