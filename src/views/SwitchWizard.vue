@@ -172,16 +172,24 @@
 					class="switch__card"
 					width="1200"
 					height="675"
+					role="img"
 					:aria-label="t('social', 'A card naming your new account')" />
 
+				<p v-if="announcementFailed" class="switch__note" role="alert">
+					{{ t('social', 'Your address could not be read, so the card and the words are not ready yet.') }}
+					<NcButton variant="tertiary" @click="loadAnnouncement">
+						{{ t('social', 'Try again') }}
+					</NcButton>
+				</p>
+
 				<div class="switch__buttons">
-					<NcButton variant="primary" @click="downloadCard">
+					<NcButton variant="primary" :disabled="!announcementReady" @click="downloadCard">
 						<template #icon>
 							<IconDownload :size="20" />
 						</template>
 						{{ t('social', 'Save the card') }}
 					</NcButton>
-					<NcButton @click="copyAnnouncement">
+					<NcButton :disabled="!announcementReady" @click="copyAnnouncement">
 						<template #icon>
 							<IconCheck v-if="copied" :size="20" />
 							<IconContentCopy v-else :size="20" />
@@ -258,7 +266,10 @@ export default {
 			found: [],
 			selected: [],
 			announcement: { handle: '', url: '', text: '' },
+			/** whether the announcement could not be fetched */
+			announcementFailed: false,
 			copied: false,
+			copiedTimer: null,
 			/** which step is talking to the server: '', 'posts', 'people', 'probe', 'follow' */
 			busy: '',
 		}
@@ -317,22 +328,63 @@ export default {
 		chosen() {
 			return this.networks.find((one) => one.id === this.network) ?? null
 		},
+
+		/**
+		 * Whether there is an account to name. Before the answer arrives the
+		 * card says `@you` and the words are empty, and neither is worth
+		 * saving or copying.
+		 *
+		 * @return {boolean}
+		 */
+		announcementReady() {
+			return Boolean(this.announcement.handle) && Boolean(this.announcement.text)
+		},
 	},
 
-	async mounted() {
-		try {
-			const { data } = await axios.get(generateUrl('apps/social/api/v1/migration/announcement'))
-			this.announcement = data
-		} catch (error) {
-			logger.warn('Could not read the announcement', { error })
-		}
+	watch: {
+		// a reader who picks a network before the answer lands would otherwise
+		// keep the card drawn without their name on it
+		announcement() {
+			this.$nextTick(() => this.drawCard())
+		},
+	},
+
+	mounted() {
+		this.loadAnnouncement()
+	},
+
+	beforeUnmount() {
+		window.clearTimeout(this.copiedTimer)
 	},
 
 	methods: {
 		t,
 		n,
 
+		async loadAnnouncement() {
+			this.announcementFailed = false
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/migration/announcement'))
+				this.announcement = data
+			} catch (error) {
+				logger.warn('Could not read the announcement', { error })
+				this.announcementFailed = true
+			}
+		},
+
+		/**
+		 * @param {string} id the network picked. What was read and found for
+		 *        another one belongs to that one's archive, not this.
+		 */
 		choose(id) {
+			if (id !== this.network) {
+				this.archiveFile = null
+				this.postsResult = ''
+				this.candidates = []
+				this.probed = 0
+				this.found = []
+				this.selected = []
+			}
 			this.network = id
 			this.$nextTick(() => this.drawCard())
 		},
@@ -551,6 +603,11 @@ export default {
 			try {
 				await navigator.clipboard.writeText(this.announcement.text)
 				this.copied = true
+				// so the button goes back to saying what it does, not what it once did
+				window.clearTimeout(this.copiedTimer)
+				this.copiedTimer = window.setTimeout(() => {
+					this.copied = false
+				}, 3000)
 			} catch (error) {
 				// no clipboard permission, or a page served over plain HTTP:
 				// the words are on screen and selectable either way
