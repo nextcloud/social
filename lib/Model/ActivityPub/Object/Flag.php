@@ -20,6 +20,13 @@ use OCA\Social\Model\ActivityPub\ACore;
 class Flag extends ACore implements JsonSerializable {
 	public const TYPE = 'Flag';
 
+	/**
+	 * How many ids an incoming report may name. Mastodon's carry the account
+	 * and a handful of its statuses; the rest of a longer list is dropped
+	 * rather than stored against the report.
+	 */
+	public const MAX_OBJECT_IDS = 50;
+
 	/** @var string[] every id from the wire `object`, in order */
 	private array $objectIds = [];
 	private string $content = '';
@@ -67,6 +74,7 @@ class Flag extends ACore implements JsonSerializable {
 			$object = [$object];
 		}
 		$this->setObjectIds(is_array($object) ? $object : []);
+		$this->objectIds = array_slice($this->objectIds, 0, self::MAX_OBJECT_IDS);
 		if ($this->getObjectIds() !== [] && $this->getObjectId() === '') {
 			$this->setObjectId($this->getObjectIds()[0]);
 		}

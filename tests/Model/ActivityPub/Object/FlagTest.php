@@ -62,6 +62,18 @@ class FlagTest extends TestCase {
 		$this->assertSame(['https://cloud.example/apps/social/@alice'], $flag->getObjectIds());
 	}
 
+	public function testImportKeepsNoMoreIdsThanAReportMayName(): void {
+		$ids = [];
+		for ($i = 0; $i < Flag::MAX_OBJECT_IDS + 25; $i++) {
+			$ids[] = 'https://remote.example/users/x/statuses/' . $i;
+		}
+
+		$flag = new Flag();
+		$flag->import(['type' => 'Flag', 'object' => $ids]);
+
+		$this->assertSame(array_slice($ids, 0, Flag::MAX_OBJECT_IDS), $flag->getObjectIds());
+	}
+
 	public function testJsonSerializeCarriesObjectsAndContent(): void {
 		$flag = new Flag();
 		$flag->setObjectIds(['https://cloud.example/apps/social/@alice']);

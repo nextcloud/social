@@ -92,20 +92,21 @@ class ReportService {
 	 * sends `object` as a list mixing the reported account and status ids; the
 	 * first id that resolves to a local account is stored as the target, the
 	 * remaining ids as the reported statuses.
+	 *
+	 * Resolved against the cache alone, in one query: a local account is
+	 * always there, and a lookup that fetched every id it missed made this
+	 * instance send a request to each URL a sender cared to list, inside the
+	 * inbox request.
 	 */
 	public function reportFromFlag(Flag $flag): Report {
+		$cached = $this->cacheActorService->getCachedFromIds($flag->getObjectIds());
 		$accountId = '';
 		$statusIds = [];
 		foreach ($flag->getObjectIds() as $objectId) {
-			if ($accountId === '') {
-				try {
-					$actor = $this->cacheActorService->getFromId($objectId);
-					if ($actor->isLocal()) {
-						$accountId = $objectId;
-						continue;
-					}
-				} catch (Exception $e) {
-				}
+			$actor = $cached[$objectId] ?? null;
+			if ($accountId === '' && $actor !== null && $actor->isLocal()) {
+				$accountId = $objectId;
+				continue;
 			}
 			$statusIds[] = $objectId;
 		}

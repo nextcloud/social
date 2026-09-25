@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Db\ReportsRequest;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ReportNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Flag;
@@ -196,13 +195,8 @@ class ReportServiceTest extends TestCase {
 
 	public function testReportFromFlagSplitsTheLocalAccountFromTheStatuses(): void {
 		$this->withAdmin();
-		$this->cacheActorService->method('getFromId')
-			->willReturnCallback(function (string $id): Person {
-				if ($id === self::ALICE) {
-					return $this->person(self::ALICE);
-				}
-				throw new CacheActorDoesNotExistException();
-			});
+		$this->cacheActorService->method('getCachedFromIds')
+			->willReturn([self::ALICE => $this->person(self::ALICE)]);
 		$this->reportsRequest->expects($this->once())->method('save')->willReturn(3);
 
 		$flag = new Flag();
@@ -228,8 +222,7 @@ class ReportServiceTest extends TestCase {
 
 	public function testReportFromFlagKeepsTheFirstIdWhenNothingResolves(): void {
 		$this->withAdmin();
-		$this->cacheActorService->method('getFromId')
-			->willThrowException(new CacheActorDoesNotExistException());
+		$this->cacheActorService->method('getCachedFromIds')->willReturn([]);
 		$this->reportsRequest->method('save')->willReturn(4);
 
 		$flag = new Flag();
@@ -243,6 +236,47 @@ class ReportServiceTest extends TestCase {
 
 		$this->assertSame('https://gone.example/@x', $report->getAccountId());
 		$this->assertSame(['https://gone.example/@x/1'], $report->getStatusIds());
+	}
+
+	/**
+	 * Every id is the sender's to choose: fetching the ones not cached made a
+	 * single Flag a request to each of them, from inside the inbox.
+	 */
+	public function testReportFromFlagFetchesNothingItNames(): void {
+		$this->withAdmin();
+		$ids = [];
+		for ($i = 0; $i < 20; $i++) {
+			$ids[] = 'https://target' . $i . '.example/users/x';
+		}
+		$this->cacheActorService->expects($this->once())
+			->method('getCachedFromIds')->with($ids)->willReturn([]);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->reportsRequest->method('save')->willReturn(5);
+
+		$flag = new Flag();
+		$flag->import(['type' => 'Flag', 'actor' => self::REMOTE_ACTOR, 'object' => $ids]);
+
+		$report = $this->service->reportFromFlag($flag);
+
+		$this->assertSame($ids[0], $report->getAccountId());
+	}
+
+	public function testReportFromFlagDoesNotTakeACachedRemoteAccountAsTheTarget(): void {
+		$this->withAdmin();
+		$this->cacheActorService->method('getCachedFromIds')->willReturn([
+			self::REMOTE_ACTOR => $this->person(self::REMOTE_ACTOR, false),
+			self::ALICE => $this->person(self::ALICE),
+		]);
+		$this->reportsRequest->method('save')->willReturn(6);
+
+		$flag = new Flag();
+		$flag->import(['type' => 'Flag', 'actor' => self::REMOTE_ACTOR, 'object' => [self::REMOTE_ACTOR, self::ALICE]]);
+
+		$report = $this->service->reportFromFlag($flag);
+
+		$this->assertSame(self::ALICE, $report->getAccountId());
+		$this->assertSame([self::REMOTE_ACTOR], $report->getStatusIds());
 	}
 
 	public function testGetReportsResolvesTargetAccountsAndSurvivesFailures(): void {
