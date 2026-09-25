@@ -744,10 +744,29 @@ class AccountServiceTest extends TestCase {
 	}
 
 	public function testManageDeletedActorsSkipsLiveActors(): void {
-		$this->actorsRequest->method('getAll')->willReturn([$this->alice()]);
+		$this->actorsRequest->method('getDeletedBefore')->willReturn([]);
 		$this->actorsRequest->expects($this->never())->method('delete');
 
 		$this->assertSame(0, $this->service->manageDeletedActors());
+	}
+
+	/**
+	 * The reaper asks the database for the expired deletions only, in a
+	 * bounded batch: reading every local account with its key pair to find
+	 * them is a memory-limit fatal on a large instance.
+	 */
+	public function testManageDeletedActorsReadsOnlyTheExpiredDeletions(): void {
+		$gone = $this->alice();
+		$this->actorsRequest->expects($this->never())->method('getAll');
+		$this->actorsRequest->expects($this->once())->method('getDeletedBefore')
+			->with(
+				$this->callback(fn (int $before): bool => abs($before - (time() - AccountService::TIME_RETENTION)) <= 2),
+				AccountService::DELETED_ACTOR_BATCH
+			)
+			->willReturn([$gone]);
+		$this->actorsRequest->expects($this->once())->method('delete')->with($gone->getPreferredUsername());
+
+		$this->assertSame(1, $this->service->manageDeletedActors());
 	}
 
 	public function testBlindKeyRotationWithoutActorsDoesNothing(): void {

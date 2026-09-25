@@ -125,10 +125,10 @@ class Cache extends TimedJob {
 			'syncRemoteTimelines' => function () use ($deadline): void {
 				$this->syncRemoteTimelines($deadline);
 			},
-			'verifyProfileLinks' => function (): void {
+			'verifyProfileLinks' => function () use ($deadline): void {
 				// this instance's own accounts; remote ones are checked with their
 				// details refresh
-				$this->profileLinkVerifier?->verifyLocalActors();
+				$this->profileLinkVerifier?->verifyLocalActors(ProfileLinkVerifier::LOCAL_BATCH, $deadline);
 			},
 			'measureMediaUsage' => function (): void {
 				// a `stat` per stored file, which is why it is here and not on

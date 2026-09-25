@@ -267,12 +267,46 @@ class ActorsRequest extends ActorsRequestBuilder {
 	 * @return Person[]
 	 * @throws SocialAppConfigException
 	 */
-	public function getPage(int $limit, string $afterPrim = ''): array {
+	public function getPage(int $limit, string $afterPrim = '', bool $withLinksOnly = false): array {
 		$qb = $this->getActorsSelectSql();
 		if ($afterPrim !== '') {
 			$qb->andWhere($qb->expr()->gt('a.id_prim', $qb->createNamedParameter($afterPrim)));
 		}
+		if ($withLinksOnly) {
+			// a coarse filter for the profile-link walk, so the accounts with
+			// nothing to verify are skipped in the database rather than built
+			// into a Person each; ProfileLinkVerifier::linkOf() decides the rest
+			$qb->andWhere($qb->expr()->like('a.fields', $qb->createNamedParameter('%http%')));
+		}
 		$qb->orderBy('a.id_prim', 'asc');
+		$qb->setMaxResults($limit);
+
+		$accounts = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$accounts[] = $this->parseActorsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $accounts;
+	}
+
+	/**
+	 * Local accounts marked deleted before `$before`, oldest first, at most
+	 * `$limit` of them — what the cron removes once the grace period is over.
+	 *
+	 * The zero date some MySQL installations hold for "not deleted" is not a
+	 * deletion; the lower bound keeps it out.
+	 *
+	 * @return Person[]
+	 * @throws SocialAppConfigException
+	 */
+	public function getDeletedBefore(int $before, int $limit): array {
+		$qb = $this->getActorsSelectSql();
+		$qb->andWhere($qb->expr()->isNotNull('a.deleted'));
+		$qb->andWhere($qb->expr()->gt('a.deleted', $qb->createNamedParameter(new DateTime('@86400'), IQueryBuilder::PARAM_DATE)));
+		$qb->andWhere($qb->expr()->lt('a.deleted', $qb->createNamedParameter(new DateTime('@' . $before), IQueryBuilder::PARAM_DATE)));
+		$qb->orderBy('a.deleted', 'asc');
 		$qb->setMaxResults($limit);
 
 		$accounts = [];

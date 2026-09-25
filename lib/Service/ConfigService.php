@@ -313,6 +313,12 @@ class ConfigService {
 	public const SOCIAL_LOCAL_ACTOR_CURSOR = 'local_actor_cursor';
 
 	/**
+	 * Where the profile-link verification walk over the local accounts got
+	 * to, as an `id_prim`; bookkeeping like `SOCIAL_LOCAL_ACTOR_CURSOR`.
+	 */
+	public const SOCIAL_PROFILE_LINK_CURSOR = 'profile_link_cursor';
+
+	/**
 	 * How far back a content search looks, in days; `0` searches everything.
 	 *
 	 * `content ILIKE '%term%'` cannot use an index — a leading wildcard never
@@ -425,6 +431,7 @@ class ConfigService {
 		self::SOCIAL_VIDEO_LADDER_HEIGHTS => '360,720,1080',
 		self::SOCIAL_VIDEO_QUOTA => '0',
 		self::SOCIAL_LOCAL_ACTOR_CURSOR => '',
+		self::SOCIAL_PROFILE_LINK_CURSOR => '',
 		self::SOCIAL_DEST_NID_FILLED => '0',
 		self::SOCIAL_SEARCH_WINDOW_DAYS => '365',
 		self::SOCIAL_NSFW_POLICY => 'default',

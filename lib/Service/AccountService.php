@@ -60,6 +60,9 @@ class AccountService {
 	/** How long a soft-deleted actor is kept before `manageDeletedActors()` purges it. */
 	public const TIME_RETENTION = 3600;
 
+	/** Deleted local accounts removed per cron pass; the rest wait a pass. */
+	public const DELETED_ACTOR_BATCH = 500;
+
 	/**
 	 * What may appear in a `preferredUsername`. Letters, digits and underscore,
 	 * with dot and dash allowed inside but not at either end — the intersection
@@ -1172,22 +1175,22 @@ class AccountService {
 	}
 
 	/**
+	 * Removes the local accounts whose deletion is older than the grace
+	 * period, a bounded batch per pass.
+	 *
+	 * Asks the database for those rows only: reading every local account, key
+	 * pair included, to find the handful marked deleted is a memory-limit
+	 * fatal on a large instance, which kills the whole cron run rather than
+	 * this step.
+	 *
 	 * @return int
 	 * @throws Exception
 	 */
 	public function manageDeletedActors(): int {
-		$entries = $this->actorsRequest->getAll();
 		$deleted = 0;
-		foreach ($entries as $item) {
-			// delete after an hour
-			if ($item->getDeleted() === 0) {
-				continue;
-			}
-
-			if ($item->getDeleted() < (time() - self::TIME_RETENTION)) {
-				$this->actorsRequest->delete($item->getPreferredUsername());
-				$deleted++;
-			}
+		foreach ($this->actorsRequest->getDeletedBefore(time() - self::TIME_RETENTION, self::DELETED_ACTOR_BATCH) as $item) {
+			$this->actorsRequest->delete($item->getPreferredUsername());
+			$deleted++;
 		}
 
 		return $deleted;
