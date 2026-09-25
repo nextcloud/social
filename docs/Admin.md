@@ -544,7 +544,17 @@ its posts are refused outright, because nobody is going to read the fortieth.
 In block-list mode (the default, `access_type=all_but`) everything on it is
 refused, including every subdomain, and blocking a domain queues a purge of
 everything it ever sent. In allow-list mode (`none_but`) the list is the only
-instances this server will talk to at all. An instance that is a nuisance
+instances this server will talk to at all — and it is matched exactly, so a
+subdomain of a listed domain is a different instance and is not covered.
+
+The one thing an entry does cover is **what an allowed instance holds
+elsewhere**. A post's pictures are fetched from whatever host the post says
+holds them, and that is routinely not the host the post came from: a post on
+`mastodon.xyz` carries its media on `6-28.mastodon.xyz`, and object storage or
+a CDN is common besides. Those hosts are judged as the instance that named
+them, because nobody can list the buckets another server keeps its pictures
+in. Judging them on their own refused every picture from every allowed
+instance, so allow-list mode federated text and nothing else. An instance that is a nuisance
 rather than a menace can be *silenced* instead with `occ social:fediverse
 silence`: its accounts leave the public timelines and stay readable for the
 people who follow them.

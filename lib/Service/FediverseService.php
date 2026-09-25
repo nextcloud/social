@@ -38,24 +38,50 @@ class FediverseService {
 	 * @throws UnauthorizedFediverseException
 	 * @throws SocialAppConfigException
 	 */
-	public function authorized(string $address): bool {
+	/**
+	 * Whether this instance may talk to an address.
+	 *
+	 * `$onBehalfOf` is the instance that *named* the address, where the two
+	 * differ: a picture on a post is fetched from whatever host the post says
+	 * holds it, and that is routinely not the host the post came from —
+	 * Mastodon serves its media from a sibling host (`6-28.mastodon.xyz` for a
+	 * post on `mastodon.xyz`), and object storage or a CDN is common besides.
+	 *
+	 * That distinction only matters to the allow list, which matches exactly.
+	 * An admin allows the instances they mean to federate with, by the names
+	 * those instances are known by; nobody lists the buckets their pictures sit
+	 * in, and there is no way for them to know what those are. Judging the
+	 * media host against that list refused every picture from every allowed
+	 * instance, so an allow-listed instance federated text and nothing else.
+	 * What the admin decided is that *this instance* may be talked to, and its
+	 * pictures are part of what it publishes.
+	 *
+	 * The block list is unchanged and still judges both: it matches subdomains
+	 * already (`isListed()`), so a blocked instance's media host is blocked
+	 * with it, and naming a third party's address does not launder it either.
+	 */
+	public function authorized(string $address, string $onBehalfOf = ''): bool {
 		if ($address === '') {
 			throw new UnauthorizedFediverseException('Empty Origin');
 		}
 
 		if ($this->getAccessType()
 			=== $this->configService->accessTypeList['BLACKLIST']
-			&& !$this->isListed($address)) {
+			&& !$this->isListed($address)
+			&& ($onBehalfOf === '' || !$this->isListed($onBehalfOf))) {
 			return true;
 		}
 
-		if ($this->getAccessType()
-			=== $this->configService->accessTypeList['WHITELIST']
-			&& ($this->isExactlyListed($address) || $this->isLocal($address))) {
+		if ($this->getAccessType() === $this->configService->accessTypeList['WHITELIST']) {
 			// an allow list widens no further than what the admin wrote: a
 			// subdomain of an allowed domain is a different instance, and
-			// whoever runs the parent domain is not asked before one appears
-			return true;
+			// whoever runs the parent domain is not asked before one appears.
+			// The one thing it does cover is what an allowed instance holds
+			// elsewhere, which is what `$onBehalfOf` names.
+			$judged = ($onBehalfOf !== '') ? $onBehalfOf : $address;
+			if ($this->isExactlyListed($judged) || $this->isLocal($judged)) {
+				return true;
+			}
 		}
 
 		throw new UnauthorizedFediverseException('Unauthorized Fediverse');

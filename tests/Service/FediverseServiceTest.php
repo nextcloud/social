@@ -523,4 +523,64 @@ class FediverseServiceTest extends TestCase {
 
 		$this->assertTrue(true, 'addAddress() did not throw');
 	}
+
+	// #2281: a post arrives and its pictures do not. Mastodon serves media
+	// from a sibling host — `6-28.mastodon.xyz` for a post on `mastodon.xyz` —
+	// and an allow list names instances, not the buckets their pictures sit in.
+
+	public function testAnAllowedInstanceMayServeItsMediaFromAnotherHost(): void {
+		$this->withAccess('none_but', ['mastodon.xyz']);
+
+		$this->assertTrue(
+			$this->service->authorized('6-28.mastodon.xyz', 'mastodon.xyz'),
+			'the post was allowed through; its pictures are part of what it published'
+		);
+	}
+
+	/**
+	 * And the allow list still means what it says on its own. A host nobody
+	 * named, asked about for nobody, is refused exactly as before — this is
+	 * the assertion that would catch the fix being written as "let media
+	 * through".
+	 */
+	public function testAMediaHostOnItsOwnIsStillRefusedUnderAnAllowList(): void {
+		$this->withAccess('none_but', ['mastodon.xyz']);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+		$this->service->authorized('6-28.mastodon.xyz');
+	}
+
+	/** Nor does an allowed instance get to name a host on somebody else's behalf. */
+	public function testAnAllowedInstanceCannotNameAnUnallowedOneForSomebodyElse(): void {
+		$this->withAccess('none_but', ['mastodon.xyz']);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+		$this->service->authorized('files.example.invalid', 'pleroma.example');
+	}
+
+	/**
+	 * The block list is untouched and judges both ends. It matches subdomains
+	 * already, so a blocked instance's media host goes with it...
+	 */
+	public function testABlockedInstanceMediaHostIsStillBlocked(): void {
+		$this->withAccess('all_but', ['mastodon.xyz']);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+		$this->service->authorized('6-28.mastodon.xyz', 'mastodon.xyz');
+	}
+
+	/** ...and naming a third party's address does not launder a blocked instance. */
+	public function testABlockedInstanceCannotLaunderItselfThroughAnotherHost(): void {
+		$this->withAccess('all_but', ['blocked.example']);
+
+		$this->expectException(UnauthorizedFediverseException::class);
+		$this->service->authorized('cdn.example.invalid', 'blocked.example');
+	}
+
+	/** An ordinary fetch under a block list is unaffected. */
+	public function testAnUnblockedInstanceMediaIsFetchedAsBefore(): void {
+		$this->withAccess('all_but', ['blocked.example']);
+
+		$this->assertTrue($this->service->authorized('6-28.mastodon.xyz', 'mastodon.xyz'));
+	}
 }
