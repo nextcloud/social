@@ -21,8 +21,10 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\StatisticsService;
-use OCP\ICache;
+use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICacheFactory;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -43,17 +45,19 @@ class StatisticsServiceTest extends TestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
-		// a cache that keeps nothing, so each test counts rather than reading
-		// what the one before it left behind
+		// an instance with no memcache, and a table of its own per test, so each
+		// test counts rather than reading what the one before it left behind
 		$cacheFactory = $this->createMock(ICacheFactory::class);
-		$cacheFactory->method('createDistributed')->willReturn($this->createMock(ICache::class));
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(static fn (): int => time());
 
 		$this->service = new StatisticsService(
 			$this->streamRequest,
 			$this->followsRequest,
 			$this->createMock(AccountService::class),
 			$this->cacheActorsRequest,
-			$cacheFactory,
+			new DurableCache($cacheFactory, new InMemoryDurableCacheRequest(), $time),
 		);
 	}
 
@@ -124,6 +128,29 @@ class StatisticsServiceTest extends TestCase {
 			->willReturnCallback(static function (ProbeOptions $options) use (&$remaining): array {
 				return array_splice($remaining, 0, max(1, $options->getLimit()));
 			});
+	}
+
+	/**
+	 * The page is the most expensive read the app has. Kept in the distributed
+	 * cache alone, an instance with no memcache counted it again on every load.
+	 */
+	public function testWithoutAMemcacheASecondLoadIsReadRatherThanCounted(): void {
+		$this->streamRequest->expects($this->once())->method('getTimeline')->willReturn([]);
+
+		$first = $this->service->cachedForAccount($this->alice());
+		$second = $this->service->cachedForAccount($this->alice());
+
+		$this->assertFalse($first['window']['cached']);
+		$this->assertTrue($second['window']['cached']);
+	}
+
+	public function testAskingForAFreshPageCountsAgain(): void {
+		$this->streamRequest->expects($this->exactly(2))->method('getTimeline')->willReturn([]);
+
+		$this->service->cachedForAccount($this->alice());
+		$fresh = $this->service->cachedForAccount($this->alice(), 0, true);
+
+		$this->assertFalse($fresh['window']['cached']);
 	}
 
 	public function testItCountsWhatTheAccountWroteAndWhatCameBack(): void {

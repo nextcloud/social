@@ -305,14 +305,15 @@ already says a memcache would be faster; this one is there because, for this
 app, some of what is lost is protection:
 
 - **Kept in the database instead** (`social_durable_cache`, expired rows
-  deleted by `Cron\Cache`): the inbox throttle (`inbox_throttle`) and the
+  deleted by `Cron\Cache`): the inbox throttle (`inbox_throttle`), the
   record of Linked Data signatures already accepted, which is what refuses a
-  replayed activity. Both work; each costs a few queries per delivery.
+  replayed activity, and the statistics page's fifteen-minute copy. All of
+  it works; each costs a few queries.
 - **Off**: the per-server delivery breaker, so a dead peer is retried at full
   speed; and the `Idempotency-Key` record, so a client that retries a post
   can publish it twice.
-- **Worked out again on every request**: the statistics page, the network
-  figures, peer trends and follow suggestions.
+- **Worked out again on every request**: the network figures, peer trends
+  and follow suggestions.
 
 APCu (`memcache.local = \OC\Memcache\APCu`) is enough for all of it on a
 single web server; Redis is what several need.

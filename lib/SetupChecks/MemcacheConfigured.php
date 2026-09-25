@@ -50,7 +50,7 @@ class MemcacheConfigured implements ISetupCheck {
 		}
 
 		return SetupResult::warning(
-			$this->l10n->t('No memory cache is configured (memcache.local or memcache.distributed). Social keeps its inbox throttle and the signatures it already accepted in the database instead, which is slower. The per-server delivery breaker and duplicate-post protection are off, and the statistics, network figures, trends and suggestions are worked out again on every request. Configure APCu or Redis.'),
+			$this->l10n->t('No memory cache is configured (memcache.local or memcache.distributed). Social keeps its inbox throttle and the signatures it already accepted in the database instead, which is slower. The per-server delivery breaker and duplicate-post protection are off, and the network figures, trends and suggestions are worked out again on every request. Configure APCu or Redis.'),
 			self::DOC
 		);
 	}
