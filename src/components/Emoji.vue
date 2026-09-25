@@ -3,11 +3,14 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
+	<span v-if="missing" class="emoji emoji--native">{{ emoji }}</span>
 	<img
+		v-else
 		class="emoji"
 		draggable="false"
 		:alt="emoji"
-		:src="emojiUrl">
+		:src="emojiUrl"
+		@error="missing = true">
 </template>
 
 <script>
@@ -27,6 +30,18 @@ export default {
 		},
 	},
 
+	data() {
+		return {
+			/**
+			 * Whether the picture for this emoji failed to load. The pictures
+			 * stop at whichever Unicode version the bundled Twemoji knows;
+			 * anything newer has no file, and is better drawn as the reader's
+			 * own glyph than as a broken image.
+			 */
+			missing: false,
+		}
+	},
+
 	computed: {
 		/**
 		 * @return {string}
@@ -42,6 +57,12 @@ export default {
 		 */
 		emojiUrl() {
 			return generateFilePath('social', 'img', 'twemoji/' + this.icon + '.svg')
+		},
+	},
+
+	watch: {
+		emoji() {
+			this.missing = false
 		},
 	},
 }
