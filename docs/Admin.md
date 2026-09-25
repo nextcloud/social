@@ -785,6 +785,28 @@ re-read holds for — and still 80 a pass when every batch holds one that runs
 into the 30-second timeout. Before, it was twenty a pass, 80 an hour. Past that the re-read interval simply stretches; nothing
 starves, because the stalest feed always goes next.
 
+**Plan the upgrade window on a large instance.** Three upgrade steps rewrite
+`social_stream` row by row, and they run inside `occ upgrade`, while the server
+is in maintenance mode — there is no way to defer them:
+
+- `Version1000Date20260917000001` copies each post's sort key onto every one of
+  its recipient rows in `social_stream_dest`;
+- `Version1000Date20260917000003` reads every post's attachments to record what
+  kind of media it carries;
+- `Version1000Date20260917000005` reads every post's content to record whether
+  it is a news item.
+
+Each walks the table 5,000 posts to a statement, after a `COUNT(*)` over it, and
+prints its progress every 50,000. The time is proportional to the number of
+posts — for the first step to the number of recipient rows, which is several per
+post — and to how fast the database rewrites rows; none of it has been measured
+on a large instance, so time it on a copy of the database first. As a rough
+rule of thumb rather than a measurement, expect minutes per million posts for
+each of the three, and so hours of maintenance mode for ten million. The media
+and news steps only touch rows that still carry no value, so an upgrade
+interrupted during them picks up where it stopped; the first starts again from
+the beginning.
+
 Two settings exist for size and are listed above: `search_window_days` bounds
 what a content search scans, and `retention_days` bounds what cached remote
 media costs. Both trade completeness for a bounded cost, and the default of each
