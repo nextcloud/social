@@ -223,6 +223,9 @@ class CacheActorServiceTest extends TestCase {
 			'leading at' => ['@alice'],
 			'cloud host' => ['alice@cloud.example.com'],
 			'social address' => ['@alice@social.example.com'],
+			// a host name is case-insensitive
+			'cloud host in capitals' => ['alice@CLOUD.example.com'],
+			'social address in capitals' => ['alice@Social.Example.com'],
 		];
 	}
 

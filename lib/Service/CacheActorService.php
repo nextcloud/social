@@ -257,9 +257,10 @@ class CacheActorService {
 			[$account, $instance] = explode('@', $account, 2);
 		}
 
+		// a host name is case-insensitive, as the account part already is
 		if ($instance !== ''
-			&& $this->configService->getCloudHost() !== $instance
-			&& $this->configService->getSocialAddress() !== $instance) {
+			&& strcasecmp($this->configService->getCloudHost(), $instance) !== 0
+			&& strcasecmp($this->configService->getSocialAddress(), $instance) !== 0) {
 			throw new CacheActorDoesNotExistException('Address is not local');
 		}
 

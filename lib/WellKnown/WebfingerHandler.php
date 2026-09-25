@@ -116,7 +116,7 @@ class WebfingerHandler implements IHandler {
 			return $previousResponse;
 		}
 
-		$instanceActor = $this->instanceActorResponse($subject, $subjectAcct);
+		$instanceActor = $this->instanceActorResponse($subject);
 		if ($instanceActor !== null) {
 			return $instanceActor;
 		}
@@ -148,6 +148,18 @@ class WebfingerHandler implements IHandler {
 		$href = $actor->getId();
 		if ($href === '') {
 			return new JrdResponse('', Http::STATUS_NOT_FOUND);
+		}
+
+		// The subject is the account's own handle, never the query echoed
+		// back: `acct:@maya@host`, `acct:Maya@host` and a bare `maya@host`
+		// all find this account, and a consumer that splits the answer on
+		// `@` read the first of them as a user with no name.
+		try {
+			$address = $this->configService->getSocialAddress();
+			if ($address !== '' && $actor->getPreferredUsername() !== '') {
+				$subjectAcct = 'acct:' . $actor->getPreferredUsername() . '@' . $address;
+			}
+		} catch (SocialAppConfigException $e) {
 		}
 
 		$response = new JrdResponse($subjectAcct);
@@ -191,7 +203,7 @@ class WebfingerHandler implements IHandler {
 	 *
 	 * @return IResponse|null null when the subject is somebody else's
 	 */
-	private function instanceActorResponse(string $subject, string $subjectAcct): ?IResponse {
+	private function instanceActorResponse(string $subject): ?IResponse {
 		try {
 			$address = $this->configService->getSocialAddress();
 			$id = $this->instanceActorService->getId();
@@ -203,7 +215,7 @@ class WebfingerHandler implements IHandler {
 			return null;
 		}
 
-		$response = new JrdResponse($subjectAcct);
+		$response = new JrdResponse('acct:' . $address . '@' . $address);
 		$response->addAlias($id);
 		$response->addLink('self', 'application/activity+json', $id);
 

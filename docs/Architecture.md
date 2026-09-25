@@ -1303,7 +1303,7 @@ predate the FEP. `quoteAuthorization` carries the approval once there is one.
 
 `WellKnown/WebfingerHandler` is registered as a Nextcloud well-known handler and serves three services at the server root:
 
-- **WebFinger:** `/.well-known/webfinger?resource=acct:user@domain` — returns the `self` link to the actor. The href is the actor's **stored id**, not a URL built from the host the request arrived under: on an instance reachable under two names, the request-derived form handed a remote server an actor id that disagreed with the document it then fetched
+- **WebFinger:** `/.well-known/webfinger?resource=acct:user@domain` — returns the `self` link to the actor. The href is the actor's **stored id**, not a URL built from the host the request arrived under: on an instance reachable under two names, the request-derived form handed a remote server an actor id that disagreed with the document it then fetched. The `subject` is always the account's own handle, `acct:<preferredUsername>@<social address>`, whichever form found it (`acct:@user@host`, another letter case, no `acct:` scheme, the actor id), and the host part of a handle is compared case-insensitively
 - **NodeInfo:** `/.well-known/nodeinfo` — returns the discovery document pointing at the app's own `/apps/social/.well-known/nodeinfo/2.0` route (`OAuthController::nodeinfo2()`), which carries the actual server metadata
 - **host-meta:** `/.well-known/host-meta`
 
