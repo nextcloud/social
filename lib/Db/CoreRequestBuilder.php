@@ -159,6 +159,7 @@ class CoreRequestBuilder {
 			'id',
 			'type',
 			'account',
+			'account_lower',
 			'host',
 			'local',
 			'following',

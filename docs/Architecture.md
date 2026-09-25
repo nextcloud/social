@@ -149,7 +149,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 |-------|---------|
 | `social_action` | Like/Announce actions as ActivityPub objects (actor → object, with type) |
 | `social_actor` | Local user actors (tied to NC accounts, holds the RSA key pair) |
-| `social_cache_actor` | Cached remote federated actors (inbox/outbox URLs, public keys, counts), and the refresh bookkeeping `sync_attempt`/`sync_failures` |
+| `social_cache_actor` | Cached remote federated actors (inbox/outbox URLs, public keys, counts), the refresh bookkeeping `sync_attempt`/`sync_failures`, and `account_lower`, the handle lowercased and indexed (`social_ca_al`) for the account search and the lookup by handle |
 | `social_cache_doc` | Cached remote and local media attachments |
 | `social_client` | OAuth 2.0 client registrations |
 | `social_follow` | Follow relationships (actor → object, with accepted flag) |
@@ -231,6 +231,8 @@ Two of those deserve a warning.
 There is no downgrade path, and none is possible: `Version1000Date20260611000001` drops tables outright.
 
 `Version1000Date20260925000001` brings `social_stream_tag.hashtag` into that normalised form for the rows written before posts' tags were stored in it: they used to be kept as their author wrote them, compared through `LOWER(st.hashtag)`, and no index answers a comparison over a function of the column. It pages on the primary key, reads only the rows whose tag is not lowercase where the database's `LOWER()` folds Unicode (every row on SQLite, whose does not), and where two tags of one post become the same one deletes the second rather than letting the unique `(stream_id, hashtag)` index refuse the rewrite.
+
+`Version1000Date20260925000002` adds that `account_lower` column and fills it in for the rows already cached, paged on the primary key. The account search behind the mention picker, `/api/v2/search`, `/api/v1/accounts/search` and the unified search used to match a prefix of `account` under `COLLATE utf8mb4_general_ci` on MySQL, and the lookup by handle compared `LOWER(account)`: an unindexed column either way, so every keystroke read every cached actor. They compare the lowercased copy as it stands now (`CacheActorsRequest::searchAccounts()`), which MySQL and MariaDB answer as an index range; PostgreSQL and SQLite plan a prefix `LIKE` as a range only under a C collation or `case_sensitive_like`, so there the search is still a scan, of one short column, while the lookup by handle is an index lookup everywhere.
 
 There is no notifications table: in-app notifications are stored in `social_stream` as `SocialAppNotification` items. (A `TABLE_NOTIFICATION` constant naming a `social_notif` table that no migration ever created used to be declared here; it has been removed.)
 

@@ -253,6 +253,7 @@ class Benchmark extends SocialCommand {
 				'id_prim' => md5($id),
 				'type' => Person::TYPE,
 				'account' => 'actor' . $i . '@' . self::HOST,
+				'account_lower' => 'actor' . $i . '@' . self::HOST,
 				'preferred_username' => 'actor' . $i,
 				'name' => 'Actor ' . $i,
 				'inbox' => $id . '/inbox',

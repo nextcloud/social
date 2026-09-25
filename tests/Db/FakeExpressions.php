@@ -47,6 +47,10 @@ class FakeExpressions {
 		return $x . ' <= ' . $y;
 	}
 
+	public function like($x, $y, $type = null): string {
+		return $x . ' LIKE ' . $y;
+	}
+
 	public function isNull($x): string {
 		return $x . ' IS NULL';
 	}

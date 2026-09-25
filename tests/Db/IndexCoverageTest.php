@@ -53,6 +53,9 @@ class IndexCoverageTest extends TestCase {
 		yield 'what a viewer did to a post' => [
 			'social_stream_act', ['stream_id_prim', 'actor_id_prim'],
 		];
+		yield 'an account search, on every keystroke of the mention picker' => [
+			'social_cache_actor', ['account_lower'],
+		];
 		yield 'the outbound queue a drain reads' => [
 			'social_req_queue', ['status'],
 		];
