@@ -8,9 +8,11 @@ const webpack = require('webpack')
 const webpackConfig = require('@nextcloud/webpack-vue-config')
 const CopyPlugin = require('copy-webpack-plugin')
 
+// the Twemoji pictures posts draw their emoji with. `twemoji` itself stopped
+// at Unicode 12; Discord's fork carries the same file layout and keeps up
 webpackConfig.plugins.push(new CopyPlugin({
 	patterns: [
-		{ from: 'node_modules/twemoji/2/svg/', to: '../img/twemoji' },
+		{ from: 'node_modules/@discordapp/twemoji/dist/svg/', to: '../img/twemoji' },
 	],
 }))
 

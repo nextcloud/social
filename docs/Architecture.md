@@ -1414,7 +1414,7 @@ object": the row stays, its content does not.
 
 ## Frontend Architecture
 
-The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and twemoji.
+The user interface is a **Vue 3** front end using Vue Router, Pinia, `@nextcloud/vue` components, `@nextcloud/axios`, DOMPurify (via `src/utils/sanitizeHtml.js`), linkifyjs, and the Twemoji pictures of `@discordapp/twemoji`, which the build copies into `img/twemoji/`.
 
 ### Entry bundles
 
