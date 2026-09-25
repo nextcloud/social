@@ -48,6 +48,26 @@ describe('normaliseMessage', () => {
 		expect(normaliseMessage("Property 'x' does not exist on type 'ServerData'.")).toBe("Property 'x' does not exist on type 'ServerData'.")
 		expect(normaliseMessage(`Type '${'a'.repeat(90)}' is wrong.`)).toBe("Type '…' is wrong.")
 	})
+
+	/**
+	 * Which CI runner a job landed on decided whether the check passed. A
+	 * TS2694 names the module it looked in by absolute path, and the length
+	 * test alone elided `/home/runner/actions-runner/_work/…` while leaving
+	 * `/home/runner/work/…` — so one error read as new on one runner and as
+	 * fixed on the other.
+	 */
+	it('gives one key wherever the checkout happens to be', () => {
+		const message = (root) => `Namespace '"${root}/src/components/Composer/Composer.vue"' has no exported member 'LocalAttachment'.`
+		const keys = [
+			'/home/runner/actions-runner/_work/social/social',
+			'/home/runner/work/social/social',
+			'/private/tmp/claude/scratchpad/wt-mi',
+			'C:\\Users\\someone\\social',
+		].map((root) => normaliseMessage(message(root)))
+
+		expect(new Set(keys).size).toBe(1)
+		expect(keys[0]).toBe('Namespace \'"src/components/Composer/Composer.vue"\' has no exported member \'LocalAttachment\'.')
+	})
 })
 
 describe('summarise', () => {

@@ -39,11 +39,26 @@ const DIAGNOSTIC = /^(.+?)\((\d+),(\d+)\): error (TS\d+): (.*)$/
  * long says nothing a reader needs, and would make every error that mentions
  * it look new after an unrelated edit.
  *
+ * An absolute path is cut to the part inside the checkout first, because the
+ * length test alone made the key depend on where the tree happens to sit. A
+ * `TS2694` names the module it looked in by absolute path, and
+ * `/home/runner/work/social/social/src/…` is under the threshold while
+ * `/home/runner/actions-runner/_work/social/social/src/…` is over it — so the
+ * same error recorded on one runner read as a new one on the other, and as a
+ * fixed one coming back. Which runner a job landed on decided whether the
+ * check passed.
+ *
  * @param {string} message the first line of a diagnostic
- * @return {string} the message with component instance types and very long types elided
+ * @return {string} the message with paths made relative and long types elided
  */
 export function normaliseMessage(message) {
-	return message.replace(/'[^']*'/g, (quoted) => (
+	// anything rooted, to the first path segment that is part of this tree
+	const rooted = message.replace(
+		/(["'])(?:[A-Za-z]:)?[/\\][^"']*?[/\\](src|tests|tools|node_modules)[/\\]/g,
+		'$1$2/',
+	)
+
+	return rooted.replace(/'[^']*'/g, (quoted) => (
 		quoted.length > 80 || quoted.includes('ComponentPublicInstance') ? "'…'" : quoted
 	))
 }
