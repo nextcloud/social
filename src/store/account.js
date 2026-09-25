@@ -287,6 +287,16 @@ export const useAccountStore = defineStore('account', {
 		setFollowingsAllLoaded({ actorId, loaded }) {
 			this.accountsFollowingsAllLoaded = { ...this.accountsFollowingsAllLoaded, [actorId]: loaded }
 		},
+		/**
+		 * Replaces page one. `allLoaded` is reset here, and this is the only
+		 * place it is: the fetch above only ever sets it *true*, when a page
+		 * comes back short. An account whose list was short on an earlier
+		 * visit and has grown since would otherwise keep that `true` through
+		 * the refresh, and the view stops paging the moment it reads it — so
+		 * only the first page would be reachable until the page was reloaded.
+		 * `addFollowersAppend` deliberately does not reset it: a later page is
+		 * not a new list.
+		 */
 		addFollowers({ account, data }) {
 			const key = keyFor(this, account)
 			const { users, lastId } = collectActors(this, data)
@@ -301,6 +311,7 @@ export const useAccountStore = defineStore('account', {
 			this.accountsFollowers = { ...this.accountsFollowers, [key]: [...existing, ...users] }
 			this.accountsFollowersMaxId = { ...this.accountsFollowersMaxId, [key]: lastId }
 		},
+		/** Replaces page one; resets `allLoaded` for the reason above. */
 		addFollowing({ account, data }) {
 			const key = keyFor(this, account)
 			const { users, lastId } = collectActors(this, data)

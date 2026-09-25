@@ -737,6 +737,33 @@ describe('account store actions', () => {
 			expect(store.accountsFollowersAllLoaded[alice.url]).toBe(false)
 		})
 
+		// #2330: the list was short on an earlier visit and the account has
+		// gained followers since. The refreshed first page is full, so there
+		// is more to page through and `allLoaded` must not still say there is
+		// not.
+		it('stops saying the list is complete when a refreshed first page is full', async () => {
+			axios.get.mockResolvedValue({ data: [bob, carol] })
+			await store.fetchAccountFollowers({ account: ALICE })
+			expect(store.accountsFollowersAllLoaded[alice.url]).toBe(true)
+
+			const full = Array.from({ length: 20 }, (unused, i) => ({
+				id: String(200 + i),
+				acct: `v${i}@remote.tld`,
+				url: `https://remote.tld/@v${i}`,
+			}))
+			axios.get.mockResolvedValue({ data: full })
+			await store.fetchAccountFollowers({ account: ALICE })
+
+			expect(store.accountsFollowersAllLoaded[alice.url]).toBe(false)
+			expect(store.accountsFollowersMaxId[alice.url]).toBe('219')
+
+			// and the next page can actually be asked for
+			axios.get.mockClear()
+			axios.get.mockResolvedValue({ data: [bob] })
+			await store.fetchAccountFollowers({ account: ALICE, maxId: store.accountsFollowersMaxId[alice.url] })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/${ALICE}/followers`, { params: { limit: 20, max_id: '219' } })
+		})
+
 		it('does not start a second request while one is running', async () => {
 			store.setFollowersLoading({ actorId: alice.url, loading: true })
 
@@ -773,6 +800,25 @@ describe('account store actions', () => {
 			expect(store.accountsFollowingsLoading[alice.url]).toBe(false)
 		})
 
+		// the same guarantee as the followers list above, and worth pinning
+		// twice: the reset lives in `addFollowing`, not in the fetch, so
+		// nothing beside the fetch says it has to happen
+		it('stops saying the list is complete when a refreshed first page is full', async () => {
+			axios.get.mockResolvedValue({ data: [bob] })
+			await store.fetchAccountFollowing({ account: ALICE })
+			expect(store.accountsFollowingsAllLoaded[alice.url]).toBe(true)
+
+			const full = Array.from({ length: 20 }, (unused, i) => ({
+				id: String(300 + i),
+				acct: `w${i}@remote.tld`,
+				url: `https://remote.tld/@w${i}`,
+			}))
+			axios.get.mockResolvedValue({ data: full })
+			await store.fetchAccountFollowing({ account: ALICE })
+
+			expect(store.accountsFollowingsAllLoaded[alice.url]).toBe(false)
+			expect(store.accountsFollowingsMaxId[alice.url]).toBe('319')
+		})
 		it('appends the next page when max_id is given', async () => {
 			store.addFollowing({ account: ALICE, data: [bob] })
 			axios.get.mockResolvedValue({ data: [carol] })
