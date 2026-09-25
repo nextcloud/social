@@ -6,6 +6,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import VideoReels from '../../../src/views/VideoReels.vue'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
@@ -233,6 +234,41 @@ describe('VideoReels', () => {
 		wrapper.unmount()
 
 		expect(videos[0].pause).toHaveBeenCalled()
+	})
+
+	/**
+	 * The single-post route is `/@:account/:id`: a link that names only the
+	 * id throws while it renders, and Vue drops the component whose render
+	 * threw, so the link was never on the page at all.
+	 */
+	it('links each slide to its post, by account and id', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const store = useTimelineStore()
+		const statuses = [video('1', { acct: 'bob@remote.example' })]
+		store.fetchTimeline = vi.fn(async () => {
+			store.addToTimeline(statuses)
+
+			return []
+		})
+		const empty = { render: () => null }
+		const router = createRouter({
+			history: createMemoryHistory('/index.php/apps/social'),
+			routes: [
+				{ path: '/', component: empty },
+				{ path: '/timeline/:type?', name: 'timeline', component: empty },
+				{ path: '/@:account', name: 'profile', component: empty },
+				{ path: '/@:account/:id', name: 'single-post', component: empty },
+			],
+		})
+		await router.push('/')
+
+		const wrapper = mount(VideoReels, {
+			global: { plugins: [pinia, router], stubs: { NcButton: true } },
+		})
+		await flushPromises()
+
+		expect(wrapper.find('a.reel__open').attributes('href')).toBe('/index.php/apps/social/@bob@remote.example/1')
 	})
 
 	it('says so when there is nothing to watch', async () => {

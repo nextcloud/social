@@ -57,7 +57,7 @@
 					</p>
 					<router-link
 						class="reel__open"
-						:to="{ name: 'single-post', params: { id: entry.status.id } }">
+						:to="{ name: 'single-post', params: { account: entry.status.account.acct, id: entry.status.id } }">
 						{{ t('social', 'Open the post') }}
 					</router-link>
 				</div>
