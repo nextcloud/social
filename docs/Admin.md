@@ -332,7 +332,7 @@ single web server; Redis is what several need.
 
 ## The administration page
 
-**Administration → Social.** Seventeen cards, grouped by what they are for --
+**Administration → Social.** Cards, grouped by what they are for --
 Overview, Moderation, What people see, What is kept, Federation, Server -- with
 a list of them beside the page on a wide screen:
 
@@ -349,8 +349,8 @@ a list of them beside the page on a wide screen:
   new account, and posts that tripped one of the spam rules. Each row carries
   the text, because a held post is in no timeline and there is nowhere else to
   go and read it. *Publish* sends it out; *Refuse* deletes it and tells its
-  author. Two switches at the top turn first-post review and the spam rules on
-  and off.
+  author. Three switches at the top turn first-post review, the spam rules and
+  holding every post with a video on it on and off.
 - **Sections** — what this instance offers the people using it. Four switches,
   **all on by default**: *Stories*, and the *Photos*, *Videos* and *News*
   timelines. Turning one off takes it out of the sidebar and stops it being
@@ -401,8 +401,10 @@ a list of them beside the page on a wide screen:
   Retention removes). Added up by the background job once a day, because
   counting it is one file lookup per stored file; the page says when it was
   measured. `occ social:media:usage` measures it on demand.
-- **A rejected remote attachment** — after changing this instance's media
-  limits or fixing a temporary origin problem, retry just that file with
+
+  Not a card, but the thing to know beside this one: a **rejected remote
+  attachment** — after changing this instance's media limits or fixing a
+  temporary origin problem, retry just that file with
   `occ social:media:retry <remote_url>`. Use the exact `remote_url` reported
   by the attachment; Social clears the stored refusal for that one uncached
   row and tries it immediately. The normal media checks still apply, so a
@@ -428,6 +430,9 @@ a list of them beside the page on a wide screen:
   actually happened.
 - **Fediverse access** — the block list or the allow list, the same one `occ
   social:fediverse` manages.
+- **Block lists** — import a list of servers to block, with a preview of what it
+  would do, or follow one somebody else publishes; see
+  [*following a published list*](#commands-by-task) under Moderation below.
 - **Announcements** — a notice every account here is shown once.
 - **Server** — the instance-wide settings below, which had no interface at all
   before and could only be set with `occ config:app:set`.
@@ -589,8 +594,9 @@ the moderation routes accept.
 
 ### The Server card
 
-These eight are what the **Server** section of the settings page writes. Each
-can still be set with `occ`; the page validates the ranges given here.
+Instance-wide settings. Most of them are on the **Server** section of the
+settings page, which validates the ranges given here; every one can be set with
+`occ`.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
@@ -660,7 +666,7 @@ administrator reaches for.
 **Is it working?**
 
 ```bash
-occ social:check:install            # the four setup checks, plus repairs
+occ social:check:install            # the setup checks it can run from the console, plus repairs
 occ social:check:install --offline  # the same without the network probe
 occ social:queue:status             # what the outbound queue is doing
 occ social:details <id>             # who can see one post and where it lands
@@ -850,7 +856,7 @@ of this costs on the hardware in front of you.
 
 ## What to watch
 
-- **Administration → Overview.** The four checks above are there precisely so
+- **Administration → Overview.** The setup checks above are there precisely so
   that an administrator who never opens Social still hears about it.
 - **The delivery queue.** A rising count of failing deliveries against one host
   is that instance's problem; a rising count against all of them is this one's.

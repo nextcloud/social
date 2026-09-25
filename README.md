@@ -153,8 +153,9 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   previews for anything marked sensitive.
 - **An ALT badge on every described picture**, wherever it is drawn, that shows the
   description when pressed.
-- **Lists**, made and filled in Settings or from anybody's profile — and **every
-  Nextcloud group you are in is already a list**, built and maintained by nobody.
+- **Lists**, made and filled in Settings or from anybody's profile — and **the
+  Nextcloud groups your administrator chose** are lists of their own, built and
+  maintained by nobody.
 - **Follow a hashtag** and it reads exactly like following a person.
 - **Filter out words you would rather not read** — **Blocking → Filtered words**. A
   filter is a handful of words, the timelines it applies in, and whether a matching
@@ -287,11 +288,12 @@ own unified search. No external search engine to run.
   Pixelfed, moderatable, with its own followers. The membership is the group,
   asked live, so leaving it takes the account away with it. Who wrote each post
   is recorded and shown to the team and to moderators, and to nobody else.
-- **Your year, as a report** — Mastodon's `#Wrapstodon`: twelve months of what
-  you posted and who arrived, the hashtags you used, the three posts that
-  travelled furthest, and a one-word description of how you use the account.
-  Computed from the posts already here, so it cannot go stale and needs no job
-  to run.
+- **Your year, as a report** — Mastodon's `#Wrapstodon`, through the API only
+  (`/api/v1/annual_reports`; the web client has no page for it yet): twelve
+  months of what you posted and who arrived, the hashtags you used, the three
+  posts that travelled furthest, and a one-word description of how you use the
+  account. Computed from the posts already here, so it cannot go stale and needs
+  no job to run.
 - **Quote controls** — who may quote each of your posts (anybody, your
   followers, nobody), who already has, and a button that detaches one and tells
   their server. Mastodon 4.5's `quote_approval_policy`, its quote list and its
@@ -479,7 +481,7 @@ the same app, not a second design.
   document or a Deck card and it becomes a card with the author, the text and the first
   picture. Only what anybody could read is rendered, because the card is cached once
   for everyone who sees the link.
-- **Nine Dashboard widgets** and an entry in the **contacts menu**.
+- **Dashboard widgets** and an entry in the **contacts menu**.
 - **The Activity app** lists your follows, mentions, boosts and favourites, and puts
   them in the Activity digest mail. Activity's own notifications stay off: the bell is
   the bell.
@@ -507,7 +509,8 @@ the same app, not a second design.
   "tell me when they post", and its opposite number — **hide their boosts**, which
   keeps what somebody passes on out of your timelines while leaving everything they
   write themselves.
-- **Per-user domain blocks** and conversation mute, through the API.
+- **Per-user domain blocks** — **Blocking → Hidden servers** — and conversation
+  mute, which is through the API only.
 - **Nothing is sent to a third party.** No geocoder — a place on a post is one this
   instance has seen or one you name yourself, because sending somebody's location to a
   stranger at the moment they are deciding whether to publish it is exactly the failure
@@ -554,9 +557,11 @@ the administration settings:
   deliveries still queued towards it.
 - **Setup checks in Administration → Overview** — whether `.well-known/webfinger`
   answers, whether the address Social builds its ids from is still the server's,
-  whether the delivery job has run lately, and whether anything is stuck.
-  `occ social:check:install` runs the same four and exits non-zero, so a deployment
-  script can ask.
+  whether the delivery job has run lately, whether anything is stuck, whether
+  Mastodon apps can reach the API, and more (see
+  [docs/Admin.md](docs/Admin.md#the-setup-checks)). `occ social:check:install` runs
+  the WebFinger, address, delivery-job, queue and client-API ones and exits
+  non-zero on an error, so a deployment script can ask.
 
 ![Statistics](img/readme/statistics.png)
 
@@ -591,15 +596,16 @@ else's.
   `occ social:queue:process`.
 - **Inbox forwarding**, so a reply from a stranger's instance reaches your followers —
   forwarded untouched and only when it carries its author's linked-data signature.
-- **26 `occ` commands**, documented in [docs/OCC-Commands.md](docs/OCC-Commands.md).
+- **`occ` commands**, documented in [docs/OCC-Commands.md](docs/OCC-Commands.md).
 
 > [!IMPORTANT]
-> **Third-party Mastodon clients cannot reach the API yet.** Every route is served
-> under `/apps/social/`, and the Mastodon client protocol has no way to be told about a
-> non-root API base — so a client given your domain looks for `/api/v1/...` and finds
-> nothing. Serving those paths at the domain root is the one thing standing between
-> this and stock clients. See
-> [docs/Mastodon-Compatibility.md](docs/Mastodon-Compatibility.md).
+> **Mastodon apps work once the web server maps `/api` and `/oauth` onto the app.**
+> Every route is served under `/apps/social/`, and a Mastodon app given your domain
+> looks for `/api/v1/...` at its root. The rules for Apache and nginx are in
+> [`contrib/webserver/`](contrib/webserver), explained in
+> [docs/Admin.md](docs/Admin.md#mastodon-apps-cannot-connect), and
+> Administration → Overview says whether they are in place. It is a web-server
+> change, not an app setting.
 
 ## 🚧 Not implemented yet
 

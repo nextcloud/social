@@ -2,7 +2,7 @@
 
 All commands are invoked via `php occ <command>` from the Nextcloud root directory.
 
-This page documents the twenty-four commands the app registers in
+This page documents the commands the app registers in
 `appinfo/info.xml`. Every command extends `OCA\Social\Command\SocialCommand`,
 the app's own base class, which extends Symfony's `Command` — nothing here
 reaches into the server's private `core/`. That base class declares the generic
@@ -1197,14 +1197,16 @@ The app files themselves are not removed, and the app is not disabled.
 
 ## Background Jobs
 
-The app registers three `TimedJob`s in `appinfo/info.xml`, run by Nextcloud's
-cron, and queues two more on demand:
+The `TimedJob`s below are among those registered in `<background-jobs>` in
+`appinfo/info.xml` (that list is the complete one), run by Nextcloud's cron;
+the last two are queued on demand instead:
 
 | Job | Class | Description |
 |-----|-------|-------------|
-| Cache maintenance | `OCA\Social\Cron\Cache` | Every 12 minutes, with a 300-second budget. Same steps as `social:cache:refresh` (deleted actors, local actor cache, remote actors and their details, documents, hashtags), and additionally closes polls, prunes remote statuses past retention, evicts cached remote accounts nobody here refers to, syncs the timelines of cached remote actors, verifies profile links and reconciles group lists. A run that spends its budget logs which steps it skipped, and the next run starts with the first of them, so the steps at the end of the list are not the ones that never run. No key rotation is performed. |
+| Cache maintenance | `OCA\Social\Cron\Cache` | Every 12 minutes, with a 300-second budget. Same steps as `social:cache:refresh` (deleted actors, local actor cache, remote actors and their details, documents, hashtags), and additionally closes polls, prunes remote statuses past retention, evicts cached remote accounts nobody here refers to, syncs the timelines of cached remote actors, verifies profile links, reconciles group lists, finds out which servers the Discover page may ask and deletes the expired rows of the durable cache. A run that spends its budget logs which steps it skipped, and the next run starts with the first of them, so the steps at the end of the list are not the ones that never run. No key rotation is performed. |
 | Queue processing | `OCA\Social\Cron\Queue` | Every 12 minutes. Processes the outbound request queue **and** the stream queue, like `social:queue:process`. |
 | Expired stories | `OCA\Social\Cron\ExpiredStories` | Hourly. Deletes the stories whose day is up, at most 500 per run. The second of the two guards on a story's expiry: every read already filters on `expires_at`, so an instance whose cron has stopped shows nothing it should not — but without this the rows and their pictures would pile up for ever, and "it disappears after a day" would be true of what people can see and false of what is stored. |
 | Scheduled posts | `OCA\Social\Cron\ScheduledPosts` | Every 5 minutes. Publishes the posts whose `scheduled_at` has passed, at most 50 per run. Shorter than the other two on purpose: a scheduled post may be published up to one cron period late, and a longer period would promise a precision the five-minute minimum on `scheduled_at` implies but the app could not keep. |
+| Block lists | `OCA\Social\Cron\BlocklistSync` | Daily. Re-reads the block lists an administrator follows and applies what they say; does nothing while no source is on. |
 | Domain purge | `OCA\Social\Cron\DomainPurge` | Queued with a domain when one is added to the deny list — not registered in `appinfo/info.xml`, because a job listed there is added once at install time with no argument. Does 10 batches of 50 accounts per run and re-queues itself while anything of the domain is left. |
 | Actor cleanup | `OCA\Social\Cron\ActorCleanup` | Queued with an actor id when a deleted account is addressed by more posts than one inbox request should rewrite — not in `appinfo/info.xml`, for the same reason as the domain purge. Rewrites 2000 posts per run and re-queues itself while any remain. Without it, the rewrite ran inline in the request a peer was waiting on for its `Delete`, so the peer timed out, re-sent, and the work started over. |

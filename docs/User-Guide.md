@@ -7,8 +7,10 @@ app; where something is only reachable through the Mastodon-compatible API or
 a Mastodon client, it says so.
 
 **Verified against:** app version 0.19.95, `master`, 2026-09-15 — every claim
-below was checked against the code of that tree. Menu and button names are
-the English strings of the web client.
+below was checked against the code of that tree — and 0.26.60, 2026-09-25, for
+*Getting an account*, the group lists under Explore and *What the web client
+does not do yet* only; the rest has not been re-checked since. Menu and button
+names are the English strings of the web client.
 
 ## Contents
 
@@ -26,13 +28,14 @@ the English strings of the web client.
 ## Getting an account
 
 There is no sign-up. A Nextcloud account is the account: the first time you
-open **Social** from the app menu, a fediverse identity is created for you —
-depending on the version, straight away or after a short screen asking whether
-you want one. Your handle is your Nextcloud user id — or, where that is not a
-valid handle, a lower-cased copy of it with anything outside letters, digits,
-`_`, `.` and `-` turned into an underscore — and your address is
-`@handle@your-nextcloud-host`. Anyone on Mastodon, Pixelfed, PeerTube or any
-other server that speaks ActivityPub can follow it.
+open **Social** from the app menu, a short screen asks whether you want a
+fediverse identity here, or would rather name the one you already have
+somewhere else. Nothing is created until you choose. You pick your handle on
+that screen — it starts out as a suggestion made from your Nextcloud user id,
+may use letters, digits and underscore with dot and dash inside, and **cannot
+be changed later** — and your address is `@handle@your-nextcloud-host`. Anyone
+on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can
+follow it.
 
 Your display name and avatar come from your Nextcloud account and are changed
 there. The rest of the profile — banner, bio, profile fields — is edited in
@@ -249,8 +252,9 @@ The sidebar is the map:
 - **Explore** — one collapsible entry holding everything there is to look at
   besides your own feed: the hashtags you follow, your **lists**, and the tags
   this server is busy with right now, in that order. Each list is a timeline of
-  its own; every Nextcloud group you belong to (up to 500 members) is a list
-  automatically, kept in step with the group, and your own are made in
+  its own; a Nextcloud group you belong to (up to 500 members) is a list too
+  when your administrator has chosen that group for it — none are, until they
+  do — kept in step with the group, and your own are made in
   **Settings → Lists**. Explore shows as much as the sidebar has room for and
   no more — make the window taller and more appears. What you follow is never
   pushed out by what happens to be trending: the trending tags take only the
@@ -673,9 +677,9 @@ applies where nothing else claims the key.
 
 ## What the web client does not do yet
 
-Third-party Mastodon clients cannot connect to this server yet, because the
-API is served under the app's own path rather than at the domain root (see
-[Mastodon-Compatibility.md](Mastodon-Compatibility.md)); until that changes, the
-web client is the client. There is no post translation — `ActionService`'s
-`translate` hands the post back unchanged — and no streaming API, so the page
-polls.
+Mastodon apps on a phone or desktop can connect only once the web server
+maps `/api` and `/oauth` at the domain root onto the app: the API is served
+under the app's own path, and a Mastodon app looks for it at the root. The
+rules are in `contrib/webserver/` and [Admin.md](Admin.md#mastodon-apps-cannot-connect);
+ask your administrator whether they are in place. There is no streaming API,
+so the page polls.
