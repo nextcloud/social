@@ -1820,6 +1820,10 @@ class StreamRequest extends StreamRequestBuilder {
 			// and which member of a team wrote it, which is the trail a team
 			// account keeps and has nothing left to be about
 			[self::TABLE_TEAM_POSTS, 'stream_id_prim'],
+			// and that it was brought over from an archive: the import skips
+			// any source id it remembers, so a deleted import could never be
+			// brought over again
+			[self::TABLE_IMPORTED_POSTS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->getQueryBuilder();
 			$qb->delete($table)

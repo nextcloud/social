@@ -177,7 +177,8 @@ re-publishing somebody's years of posts would put them into the timeline of
 every person who follows them, on every server, at once. The original id is
 remembered in `social_import_post`, so running the command twice over the same
 archive writes nothing the second time, and a reply keeps its parent where the
-archive holds both.
+archive holds both. Deleting an imported post forgets it as well, so a later
+run of the same archive brings that post over again.
 
 What is left alone: boosts (somebody else's post), direct messages (addressed
 to accounts on the old server, so a copy here would be addressed to nobody),
