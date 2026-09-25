@@ -977,28 +977,35 @@ trait StreamTimelines {
 	}
 
 	public function countNotificationsSince(Person $actor, int|string $sinceNid, int $cap = 99): int {
-		$qb = $this->getStreamSelectSql();
-		$qb->setViewer($actor);
-
-		$qb->limitToType(SocialAppNotification::TYPE);
-		$qb->selectDestFollowing('sd', '');
-		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
-		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
+		// the rows that make up the badge, as the notifications page chooses
+		// them, projected to one column and cut at the cap
+		$page = $this->getStreamNidsSelectSql();
+		$page->setViewer($actor);
+		$page->limitToType(SocialAppNotification::TYPE);
+		$page->selectDestFollowing('sd', '');
+		$page->limitToDest($actor->getId(), 'notif', '', 'sd');
+		$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
 
 		if (\OCA\Social\Tools\Nid::compare($sinceNid, '0') > 0) {
-			$qb->andWhere($qb->expr()->gt('s.nid', $qb->createNamedParameter($sinceNid)));
+			// on the recipient row's nid where it can be trusted, which makes
+			// the marker a range over `social_sd_atn`; see paginateOnRecipient()
+			$nid = $this->recipientNidsAreFilled() ? 'sd.nid' : 's.nid';
+			$page->andWhere($page->expr()->gt($nid, $page->createNamedParameter($sinceNid)));
 		}
 
-		$qb->setMaxResults($cap + 1);
+		$page->setMaxResults($cap + 1);
+
+		// and counted by the database: nothing but the number comes back
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'unread'))
+			->from($qb->createFunction('(' . $page->getSQL() . ')'), 'unread_page');
+		$qb->setParameters($page->getParameters(), $page->getParameterTypes());
 
 		$cursor = $qb->executeQuery();
-		$count = 0;
-		while ($cursor->fetch() !== false) {
-			$count++;
-		}
+		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
-		return $count;
+		return ($data === false) ? 0 : (int)$data['unread'];
 	}
 
 	/**
