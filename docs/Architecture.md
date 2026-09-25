@@ -416,7 +416,7 @@ ignores a slow response when the dialog has switched to another post.
 
 A delivery is retried when the peer's answer says it might accept the activity later — 408, 429 and any 5xx — and the row is dropped only on an answer that says it never will, or once `MAX_TRIES` is reached. A host that has just answered with a transient status is added to the run's failing set, so the rest of the run does not ask it once per queued activity.
 
-**Activities the app emits:** Create, Update, Delete, Follow, Accept, Reject, Like, Announce, Block, Undo.
+**Activities the app emits:** Create, Update, Delete, Follow, Accept, Reject, Like, Announce, Block, Undo. Every `Undo` embeds the activity it takes back rather than naming it by id — PeerTube decides what is undone by `object.type` and ignores a bare id; an `Undo{Announce}` carries a fresh `Announce` with the id, actor, object and audience of the stored one (`BoostService::undoneAnnounce()`), not the stored row's export.
 
 Reject goes out when a follow request is refused (`FollowInterface::rejectFollowRequest()`, also used to answer a `Follow` from a blocked actor) and when an accepted follow is severed by a block. Block and `Undo{Block}` go out from `RelationshipService`, unless the `federate_blocks` app setting is `0`.
 

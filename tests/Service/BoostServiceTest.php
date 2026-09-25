@@ -376,6 +376,25 @@ class BoostServiceTest extends TestCase {
 
 	// delete()
 
+	public function testTheUndoEmbedsTheAnnounceItTakesBack(): void {
+		// PeerTube dispatches on object.type; a bare id is "unknown activity
+		// object type" there and the share is never removed
+		$alice = $this->alice();
+		$this->streamRequest->method('getStreamById')->with(self::POST_ID, true)->willReturn($this->publicNote());
+		$this->streamRequest->method('getStreamByObjectId')->willReturn($this->storedAnnounce());
+		$this->cacheActorService->method('getFromId')->willReturn($this->bob());
+
+		$undo = $this->service->delete($alice, self::POST_ID);
+
+		$object = json_decode((string)json_encode($undo), true)['object'] ?? null;
+		$this->assertIsArray($object);
+		$this->assertSame('Announce', $object['type']);
+		$this->assertSame(self::ANNOUNCE_ID, $object['id']);
+		$this->assertSame(self::ALICE_ID, $object['actor']);
+		$this->assertSame(self::POST_ID, $object['object']);
+		$this->assertArrayNotHasKey('source', $object);
+	}
+
 	public function testDeleteSendsUndoRemovesAnnounceAndClearsFlag(): void {
 		$alice = $this->alice();
 		$announce = $this->storedAnnounce();

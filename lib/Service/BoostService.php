@@ -166,7 +166,7 @@ class BoostService {
 			$announce = $this->findAnnounce($actor, $postId);
 			$announce->setActor($actor);
 
-			$undo->setObjectId($announce->getId());
+			$undo->setObject($this->undoneAnnounce($actor, $announce, $postId));
 			$undo->addCc($actor->getFollowers());
 
 			$interface = AP::instance()->getInterfaceFromType(Announce::TYPE);
@@ -182,6 +182,29 @@ class BoostService {
 		$this->streamActionService->setActionBool($actor->getId(), $postId, StreamAction::BOOSTED, false);
 
 		return $undo;
+	}
+
+	/**
+	 * The Announce an Undo takes back, embedded the way every other Undo
+	 * here embeds its object.
+	 *
+	 * PeerTube reads `object.type` to decide what is being undone and ignores
+	 * an Undo whose object is a bare id, so the share was never removed there.
+	 * Built from the stored row rather than exported from it: the row carries
+	 * the boosted post and this app's bookkeeping, and a peer needs the id,
+	 * the actor, the object and the audience.
+	 */
+	private function undoneAnnounce(Person $actor, Stream $announce, string $postId): Announce {
+		$embedded = new Announce();
+		$embedded->setId($announce->getId());
+		$embedded->setActorId($actor->getId());
+		$embedded->setObjectId(($announce->getObjectId() !== '') ? $announce->getObjectId() : $postId);
+		$embedded->setTo($announce->getTo());
+		$embedded->setToArray($announce->getToArray());
+		$embedded->setCcArray($announce->getCcArray());
+		$embedded->setPublished($announce->getPublished());
+
+		return $embedded;
 	}
 
 	/** Whether this actor has already boosted the post. */
