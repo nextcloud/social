@@ -52,6 +52,13 @@ describe('StoryComposerDialog', () => {
 		showSuccess.mockReset()
 	})
 
+	it('keeps the file input behind its button out of the tab order', () => {
+		const input = mountDialog().wrapper.find('input[type="file"]')
+
+		expect(input.attributes('tabindex')).toBe('-1')
+		expect(input.attributes('aria-hidden')).toBe('true')
+	})
+
 	it('cannot post before a picture was chosen', () => {
 		const { wrapper } = mountDialog()
 
