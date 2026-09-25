@@ -28,8 +28,13 @@ function mountDialog() {
 	setActivePinia(pinia)
 	const store = useTimelineStore()
 	const createMedia = vi.spyOn(store, 'createMedia').mockResolvedValue({ id: 'm1' })
-	globalThis.URL.createObjectURL ??= () => 'blob:preview'
-	globalThis.URL.revokeObjectURL ??= () => {}
+	// Assigned, not defaulted. jsdom provides both now, and its own
+	// `createObjectURL` reads a `_buffer` off the blob that a `File` built in
+	// the test realm does not carry — so `??=` left the real one in place and
+	// every pick threw past the assertions, failing the run while every test
+	// passed.
+	globalThis.URL.createObjectURL = () => 'blob:preview'
+	globalThis.URL.revokeObjectURL = () => {}
 
 	const wrapper = mount(StoryComposerDialog, {
 		props: { open: true },
