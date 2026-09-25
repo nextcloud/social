@@ -266,6 +266,36 @@ describe('account store actions', () => {
 		})
 	})
 
+	describe('an account nobody holds', () => {
+		const notFound = () => Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } })
+
+		it('is not an app error on the global lookup', async () => {
+			axios.get.mockRejectedValue(notFound())
+
+			await expect(store.fetchAccountInfo('nobody-here')).resolves.toBeUndefined()
+
+			expect(errorsStore.appErrors).toEqual([])
+			expect(logger.error).not.toHaveBeenCalled()
+			expect(store.getAccount('nobody-here')).toBeUndefined()
+		})
+
+		it('is not an app error on the public lookup', async () => {
+			axios.get.mockRejectedValue(notFound())
+
+			await expect(store.fetchPublicAccountInfo('nobody-here')).resolves.toBeUndefined()
+
+			expect(errorsStore.appErrors).toEqual([])
+		})
+
+		it('leaves a server that failed an app error', async () => {
+			axios.get.mockRejectedValue(Object.assign(new Error('bad gateway'), { response: { status: 502 } }))
+
+			await store.fetchAccountInfo(bob.acct)
+
+			expect(errorsStore.appErrors).toEqual([expect.objectContaining({ title: 'Account lookup failed' })])
+		})
+	})
+
 	describe('fetchPublicAccountInfo', () => {
 		it('GETs the public info of a local user and indexes the result', async () => {
 			axios.get.mockResolvedValue({ data: alice })
