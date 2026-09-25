@@ -106,6 +106,18 @@ function groupKey(notification) {
 }
 
 /**
+ * One row of the notifications page: a Notification, or several folded into
+ * one card.
+ *
+ * A card keeps the shape of the newest member it stands for and adds the two
+ * fields that make it a group — everybody in it, and every row it covers, so
+ * that marking it read covers all of them. A single notification is returned
+ * untouched and simply has neither.
+ *
+ * @typedef {import("../types/Mastodon").Notification & {accounts?: import("../types/Mastodon").Account[], ids?: string[], nid?: string}} NotificationCard
+ */
+
+/**
  * Folds the same reaction into one card.
  *
  * Twelve favourites of one post were twelve cards quoting the same post twelve
@@ -127,7 +139,7 @@ function groupKey(notification) {
  * returned as it came, untouched.
  *
  * @param {import("../types/Mastodon").Notification[]} entries newest first
- * @return {object[]} the cards, newest first
+ * @return {NotificationCard[]} the cards, newest first
  */
 export function groupNotifications(entries) {
 	const cards = []
@@ -186,7 +198,7 @@ export function groupNotifications(entries) {
  * notification it was meant to cover, so the badge came back however often the
  * reader cleared it.
  *
- * @param {object} card a notification, or a card from groupNotifications()
+ * @param {NotificationCard} card a notification, or a card from groupNotifications()
  * @return {string} the id, '0' when there is none to read
  */
 export function newestIdOf(card) {
@@ -198,7 +210,7 @@ export function newestIdOf(card) {
 /**
  * A grouped card's first line: who, and what they all did.
  *
- * @param {object} notification a card from groupNotifications() with `accounts`
+ * @param {NotificationCard} notification a card from groupNotifications() with `accounts`
  * @return {string}
  */
 function groupedSummary(notification) {

@@ -62,8 +62,8 @@ export function accountHue(acct) {
  * The style an element carries so that everything inside it can be that
  * account's colour.
  *
- * @param {object|string} account an account, or a handle
- * @return {object} a style binding
+ * @param {import('../types/Mastodon.js').Account|string} account an account, or a handle
+ * @return {Record<string, string>} a style binding
  */
 export function accountStyle(account) {
 	const acct = typeof account === 'string'

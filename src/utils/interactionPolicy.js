@@ -12,7 +12,7 @@
  * carries one — so an absent key is "the author said nothing", which is most
  * posts and means yes.
  *
- * @param {object} item the post, as the client API sends one
+ * @param {Record<string, any>} item the post, as the client API sends one
  * @param {string} interaction one of reply, boost, like, quote
  * @return {boolean} whether to offer it
  */
@@ -27,7 +27,7 @@ export function allowedByAuthor(item, interaction) {
  * audience, so the server grants either one only for a post that was already
  * everybody's. Offering the action on anything narrower is offering a refusal.
  *
- * @param {object} item the post
+ * @param {Record<string, any>} item the post
  * @return {boolean} whether its audience allows it
  */
 export function isShareable(item) {

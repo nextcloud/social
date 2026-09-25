@@ -36,7 +36,7 @@
  * chunk with the code that needs it, instead of in the entry this file was
  * split out of to keep small.
  *
- * @return {Promise<object>} the dialogs module, loaded once
+ * @return {Promise<typeof import('@nextcloud/dialogs')>} the dialogs module, loaded once
  */
 function dialogs() {
 	return Promise.all([

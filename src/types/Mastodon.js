@@ -143,6 +143,26 @@
  * @property {?{state: string, quoted_status: ?Status}} quote - the post this one quotes, null when it quotes none; `state` is pending, accepted, rejected or revoked
  * @property {Poll} [poll] - Ex: null
  * @property {?number} [view_count] - how many accounts here opened the post; only on the author's own copy, null on everybody else's
+ * @property {FilterResult[]} [filtered] - one entry per filter this post matched; only `warn` filters ever arrive, a `hide` match is not sent at all
+ * @property {?{can_reply?: {always?: string[], approval_required?: boolean}, can_quote?: {always?: string[]}}} [interaction_policy] - who the author allows to reply and quote
+ */
+
+/**
+ * @typedef Filter - https://docs.joinmastodon.org/entities/Filter (v2)
+ * @property {string} id
+ * @property {string} title - what the reader called it
+ * @property {string[]} context - home, notifications, public, thread, account
+ * @property {?string} expires_at - null for a filter that never expires
+ * @property {string} filter_action - `warn` (cover the post) or `hide` (never send it)
+ * @property {{id: string, keyword: string, whole_word: boolean}[]} [keywords]
+ * @property {{id: string, status_id: string}[]} [statuses]
+ */
+
+/**
+ * @typedef FilterResult - https://docs.joinmastodon.org/entities/FilterResult
+ * @property {Filter} filter - the filter that matched
+ * @property {string[]} [keyword_matches] - the post's own text that matched, not the reader's keyword
+ * @property {string[]} [status_matches]
  */
 
 /**

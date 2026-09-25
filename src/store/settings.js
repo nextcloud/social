@@ -6,6 +6,13 @@
 import { defineStore } from 'pinia'
 
 /**
+ * What this store holds, for the getter that is handed it.
+ *
+ * @typedef {object} SettingsState
+ * @property {import('../composables/useServerData.js').ServerData} serverData what the server put in the page
+ */
+
+/**
  * What the server told the page about itself, as `templates/main.php` sent it.
  */
 export const useSettingsStore = defineStore('settings', {
@@ -15,7 +22,7 @@ export const useSettingsStore = defineStore('settings', {
 
 	getters: {
 		/**
-		 * @param {object} state the store state
+		 * @param {SettingsState} state the store state
 		 * @return {import('../composables/useServerData.js').ServerData} the whole block
 		 */
 		getServerData(state) {

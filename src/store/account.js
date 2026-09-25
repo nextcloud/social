@@ -23,12 +23,37 @@ import { useTimelineStore } from './timeline.js'
 const FOLLOW_PAGE_SIZE = 20
 
 /**
+ * What this store holds, for the helpers and getters that are handed it.
+ *
+ * Written down because they are plain functions taking the state as an
+ * argument: without it every one read `state.accounts` off an untyped
+ * `object`, which TypeScript 7 no longer lets through.
+ *
+ * @typedef {object} AccountState
+ * @property {string} currentAccountHandle the handle the reader is signed in as
+ * @property {import('../types/Mastodon.js').Account & {source?: {privacy?: string, sensitive?: boolean, language?: string, note?: string, fields?: object[]}}|null} credentials the reader's own CredentialAccount
+ * @property {Record<string, import('../types/Mastodon.js').Account>} accounts every account seen, by actor url
+ * @property {Record<string, string[]>} accountsFollowers the actor urls of the followers loaded per account
+ * @property {Record<string, string[]>} accountsFollowings the actor urls of the followed accounts loaded per account
+ * @property {Record<string, import('../types/Mastodon.js').Relationship>} accountsRelationships the viewer's relationship per account id
+ * @property {Record<string, string>} accountIdMap numeric account id -> actor url
+ * @property {Record<string, string>} accountsFollowersMaxId where each followers page ended
+ * @property {Record<string, string>} accountsFollowingsMaxId where each following page ended
+ * @property {Record<string, boolean>} accountsFollowersLoading whether a followers page is in flight
+ * @property {Record<string, boolean>} accountsFollowingsLoading whether a following page is in flight
+ * @property {Record<string, boolean>} accountsFollowersAllLoaded whether the followers list is complete
+ * @property {Record<string, boolean>} accountsFollowingsAllLoaded whether the following list is complete
+ * @property {Record<string, boolean>} accountsFollowersFailed whether the followers list failed to load
+ * @property {Record<string, boolean>} accountsFollowingsFailed whether the following list failed to load
+ */
+
+/**
  * The actor URL an account handle resolves to, or undefined.
  *
  * This used to read a module-level `state` object rather than the store's own,
  * which worked only because there happened to be exactly one store.
  *
- * @param {object} state the store state
+ * @param {AccountState} state the store state
  * @param {string} account a handle, or an actor URL
  * @return {string|undefined}
  */
@@ -37,7 +62,7 @@ function actorIdFor(state, account) {
 }
 
 /**
- * @param {object} state the store state
+ * @param {AccountState} state the store state
  * @param {string} account a handle, or an actor URL
  * @return {string} what the follower and following lists are keyed by
  */
@@ -65,7 +90,7 @@ function visibilityFromWire(privacy) {
 /**
  * Files an account under its actor URL, and remembers which handle names it.
  *
- * @param {object} state the store state
+ * @param {AccountState} state the store state
  * @param {object} payload the account
  * @param {string} payload.actorId its actor URL
  * @param {import('../types/Mastodon.js').Account} payload.data the account itself
@@ -93,7 +118,7 @@ function indexAccount(state, { actorId, data }) {
 /**
  * Collects a page of actors into one of the two lists.
  *
- * @param {object} state the store state
+ * @param {AccountState} state the store state
  * @param {import('../types/Mastodon.js').Account[]} data the page
  * @return {{users: string[], lastId: string}} the actor URLs and the last id seen
  */
@@ -116,7 +141,7 @@ function collectActors(state, data) {
  * rather than a failure: the page that asked says "User not found" itself, and
  * an app error blaming a remote server would be wrong on both counts.
  *
- * @param {object} error what axios threw
+ * @param {{response?: {status?: number}}} error what axios threw
  * @return {boolean}
  */
 function isNoSuchAccount(error) {
@@ -172,7 +197,7 @@ export const useAccountStore = defineStore('account', {
 
 	getters: {
 		/**
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {() => Record<string, import('../types/Mastodon.js').Account>} every account, keyed by actor URL
 		 */
 		getAllAccounts(state) {
@@ -185,7 +210,7 @@ export const useAccountStore = defineStore('account', {
 		 * which is also the only thing the old `accountLoaded` getter answered,
 		 * so there is one query here rather than two.
 		 *
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {(account: string) => import('../types/Mastodon.js').Account|undefined} handle -> account
 		 */
 		getAccount(state) {
@@ -194,7 +219,7 @@ export const useAccountStore = defineStore('account', {
 			}
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {(accountId: string) => import('../types/Mastodon.js').Relationship|undefined} numeric account id -> relationship
 		 */
 		getRelationshipWith(state) {
@@ -215,35 +240,35 @@ export const useAccountStore = defineStore('account', {
 		 * or a value this app does not know, is '' so the caller falls through
 		 * to its next choice.
 		 *
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {string} one of the composer's visibility ids, or ''
 		 */
 		defaultPostVisibility(state) {
 			return visibilityFromWire(state.credentials?.source?.privacy)
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {(id: string) => import('../types/Mastodon.js').Account[]} handle -> the accounts following it
 		 */
 		getAccountFollowers(state) {
 			return (id) => (state.accountsFollowers[keyFor(state, id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {(id: string) => import('../types/Mastodon.js').Account[]} handle -> the accounts it follows
 		 */
 		getAccountFollowing(state) {
 			return (id) => (state.accountsFollowings[keyFor(state, id)] || []).map((actorId) => state.accounts[actorId]).filter(Boolean)
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {(account: string) => string|undefined} handle -> actor URL
 		 */
 		getActorIdForAccount(state) {
 			return (account) => actorIdFor(state, account)
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {AccountState} state the store state
 		 * @return {(followingAccount: string) => boolean} handle or numeric id -> whether the reader follows it
 		 */
 		isFollowingUser(state) {
@@ -466,7 +491,7 @@ export const useAccountStore = defineStore('account', {
 			}
 		},
 		/**
-		 * @param {object} data a CredentialAccount as the credentials routes answer
+		 * @param {import('../types/Mastodon.js').Account & {source?: {privacy?: string, sensitive?: boolean, language?: string, note?: string, fields?: object[]}}} data a CredentialAccount as the credentials routes answer
 		 */
 		setCredentials(data) {
 			if (!data?.id) {
@@ -518,7 +543,7 @@ export const useAccountStore = defineStore('account', {
 		 *
 		 * @param {string} account the handle that was acted on
 		 * @param {boolean} following what to show until the server answers
-		 * @return {object|null} what the relationship was, to put back on failure
+		 * @return {{id: string, data: import('../types/Mastodon.js').Relationship}|null} what the relationship was, to put back on failure
 		 */
 		assumeFollowing(account, following) {
 			const actorId = this.accounts[account]?.url ?? account
@@ -537,7 +562,7 @@ export const useAccountStore = defineStore('account', {
 		},
 
 		/**
-		 * @param {object|null} previous what `assumeFollowing()` handed back
+		 * @param {{id: string, data: import('../types/Mastodon.js').Relationship}|null} previous what `assumeFollowing()` handed back
 		 */
 		restoreFollowing(previous) {
 			if (previous !== null) {

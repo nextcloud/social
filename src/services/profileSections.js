@@ -10,8 +10,8 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
  * A custom element owns a separate Vue app, so it cannot inherit the globals
  * installed by the main Social entry.
  *
- * @param {object} app Vue app created by `defineCustomElement`
- * @param {object} globals Nextcloud's `OC` and `OCA` globals
+ * @param {{config: {globalProperties: Record<string, unknown>}}} app Vue app created by `defineCustomElement`
+ * @param {{OC?: unknown, OCA?: unknown}} globals Nextcloud's `OC` and `OCA` globals
  */
 export function configureSocialProfileApp(app, globals) {
 	app.config.globalProperties.t = t
@@ -31,7 +31,7 @@ export function configureSocialProfileApp(app, globals) {
  * first assignment and register synchronously, before the Profile page reads
  * it. If a Nextcloud version has already created the registry, register now.
  *
- * @param {object} profile the `OCA.Profile` namespace
+ * @param {{ProfileSections?: {registerSection?: (section: object) => void}}} profile the `OCA.Profile` namespace
  * @param {object} section section descriptor accepted by `registerSection`
  * @return {boolean} whether registration is immediate or has been queued
  */
