@@ -19,7 +19,7 @@
 		     meant to open the post. The poster still shows, which is what the
 		     reader is choosing from. -->
 		<video
-			v-if="attachment !== null && attachment.type === 'video'"
+			v-if="hasSource && attachment.type === 'video'"
 			ref="video"
 			class="attachment__preview"
 			:src="plainSource"
@@ -41,7 +41,7 @@
 				:label="caption.language || t('social', 'Subtitles')">
 		</video>
 		<audio
-			v-else-if="attachment !== null && attachment.type === 'audio'"
+			v-else-if="hasSource && attachment.type === 'audio'"
 			class="attachment__audio"
 			:src="attachment.url"
 			:aria-label="attachment.description || ''"
@@ -52,7 +52,7 @@
 		<!-- a file: nothing to draw, so it is named. The whole card is the
 		     link, since there is nothing else on it to press -->
 		<a
-			v-else-if="attachment !== null && attachment.type === 'unknown'"
+			v-else-if="hasSource && attachment.type === 'unknown'"
 			class="attachment__file"
 			:href="attachment.url"
 			target="_blank"
@@ -221,6 +221,23 @@ export default {
 			return this.attachment?.type === 'video' || this.attachment?.type === 'audio'
 		},
 
+		/**
+		 * Whether there are bytes to point at.
+		 *
+		 * An attachment this instance holds no copy of — refused by the cache
+		 * limits, or not fetched yet — now arrives with `url: null` rather than
+		 * a link to a copy that is not here. Without this the video element
+		 * was given no `src` and sat blank, and the file card was a link with
+		 * no `href`; the placeholder below says what happened instead.
+		 *
+		 * @return {boolean}
+		 */
+		hasSource() {
+			return this.attachment !== null
+				&& typeof this.attachment.url === 'string'
+				&& this.attachment.url !== ''
+		},
+
 		/** @return {boolean} whether this is a file rather than something to draw or play */
 		isFile() {
 			return this.attachment?.type === 'unknown'
@@ -299,7 +316,17 @@ export default {
 
 		/** @return {boolean} whether the still-image placeholder is on screen */
 		showsPlaceholder() {
-			return !this.isAv && this.attachment !== null && (this.previewFailed || !this.hasPreview)
+			if (this.attachment === null) {
+				return false
+			}
+
+			// nothing to play and nothing to download either: the placeholder
+			// is the only thing that can say so
+			if (!this.hasSource) {
+				return true
+			}
+
+			return !this.isAv && (this.previewFailed || !this.hasPreview)
 		},
 
 		/** @return {string} what the placeholder stands for */

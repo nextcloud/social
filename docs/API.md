@@ -711,7 +711,9 @@ remote one, as on Mastodon: both describe a user of *this* instance.
 
 `POST /api/v1/media` and `POST /api/v2/media` are both served by `ApiController::mediaNew()`, and it and `mediaFromFile()` share the storing half (`storeAttachment()`) so the two ways in cannot drift apart on the things that matter — the mime filter, the resizing, and the row not being public. On the wire an attachment's alt text travels as the ActivityPub `name`, both incoming and outgoing.
 
-Every key of a `MediaAttachment` is always present, `null` when there is nothing to put in it (`preview_url`, `remote_url`, `meta`, `description`, `blurhash`). `meta` is an object, never a list.
+Every key of a `MediaAttachment` is always present, `null` when there is nothing to put in it (`url`, `preview_url`, `remote_url`, `meta`, `description`, `blurhash`). `meta` is an object, never a list.
+
+`url` is `null` where this instance holds no copy of the file — the cache refused it, or has not fetched it yet. It used to name `/media/` with an empty id in it, which 404s for every client that follows it and is indistinguishable from an attachment that is merely slow. `remote_url` still says where the file came from and `cache_error` why there is no copy (`1` size, `2` type, `3` unreachable, `4` unreadable), which is what a reader is shown. The origin is deliberately **not** offered as a fallback: loading it in the reader's browser would tell the origin who is reading and walk straight past the limits that refused the copy in the first place. The ActivityPub `Document` this row is served as names the origin instead, because a peer asking for the bytes has to be told a host that serves them and no browser is doing that fetch.
 
 `hls_url` is a key of this app's own, alongside Mastodon's. Where an
 administrator has turned the ladder on (`video_ladder`) and the background job

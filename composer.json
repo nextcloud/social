@@ -2,7 +2,7 @@
 	"name": "nextcloud/social",
 	"description": "Social app",
 	"license": "AGPL-3.0-or-later",
-	"version": "0.26.64",
+	"version": "0.26.65",
 	"minimum-stability": "stable",
 	"authors": [
 		{
@@ -43,7 +43,7 @@
 		"nextcloud/coding-standard": "^1.0.0",
 		"nextcloud/ocp": "dev-master",
 		"vimeo/psalm": "^6.17",
-		"symfony/console": "^6.4 || ^7.4"
+		"symfony/console": "^6.4"
 	},
 	"scripts": {
 		"lint": "find . -name \\*.php -not -path './vendor/*' -not -path './build/*' -print0 | xargs -0 -n1 php -l",
