@@ -21,6 +21,7 @@ use OCA\Social\Model\Details;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tools\Exceptions\DateTimeException;
+use OCA\Social\Tools\Nid;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -309,10 +310,16 @@ trait StreamTimelines {
 	 * thirty seconds.
 	 *
 	 * Here the sort key is *on the row being filtered*, so
-	 * `(actor_id, type, nid)` answers the whole page from the index: a
-	 * descending range per followed collection, merged, stopping at the limit.
-	 * No temporary table, no row lookups, and nothing read that the page does
-	 * not return.
+	 * `(actor_id, type, nid)` answers the page from the index, without a row
+	 * lookup. It is not a merge that stops at the limit: across several
+	 * collections the database reads every entry the predicate admits and
+	 * sorts them, so the predicate is what bounds the read. Two things bound
+	 * it. The collections come from `FollowsRequest::limitToHomeCollections()`,
+	 * which names up to five hundred of them and leaves a longer list to the
+	 * database. And the page is read within a window of publication time —
+	 * the nid is the publication time with a random suffix — first the last
+	 * day before the cursor, widened only when that comes back short; see
+	 * `homeRecipientNids()`.
 	 *
 	 * The filters that used to ride along in that query — blocks, mutes,
 	 * hidden boosts, the media narrowing — are **not** applied here. They are
@@ -349,20 +356,61 @@ trait StreamTimelines {
 			return null;
 		}
 
-		$collections = $this->followsRequest->getHomeCollectionPrims($this->viewer->getId());
-		// an account's own posts reach its own timeline through the recipient
-		// row addressed to its own follower collection, which it is not a
-		// follower of
 		$own = $this->viewer->getFollowers();
-		if ($own !== '') {
-			$collections[] = md5($own);
-		}
-
-		if ($collections === []) {
+		$qb = $this->getQueryBuilder();
+		$followed = $this->followsRequest->limitToHomeCollections($qb, 'sd.actor_id', $this->viewer->getId());
+		if ($followed === '' && $own === '') {
 			return null;
 		}
 
-		$qb = $this->getQueryBuilder();
+		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
+		}
+		$ascending = $options->isInverted();
+		// read wider than the page: the filters this query no longer carries
+		// are applied to the rows afterwards, and a page that lost three posts
+		// to a block should still come back with twenty
+		$wanted = min(self::HOME_OVERREAD_MAX, $options->getLimit() * self::HOME_OVERREAD);
+
+		$nids = [];
+		if ($followed !== '') {
+			$this->selectHomeRecipients($qb, $followed, $options, $wanted);
+
+			if ($ascending) {
+				$anchor = Nid::publishedTimeOf($options->getMinId(), self::NID_LIMIT);
+			} elseif ($options->getMaxId() > 0) {
+				$anchor = Nid::publishedTimeOf($options->getMaxId(), self::NID_LIMIT);
+			} else {
+				$anchor = time();
+			}
+			$nids = $this->homeRecipientNids($qb, $wanted, $ascending, $anchor, $options->getSince());
+		}
+
+		// An account's own posts reach its own timeline through the recipient
+		// row addressed to its own follower collection, which it is not a
+		// follower of. A query of its own rather than one more name in the
+		// list: past the cap the list is a sub-select, and `OR` beside it keeps
+		// MariaDB from turning it into a semi-join — it scanned every recipient
+		// row instead. One collection is one index range, read in order and
+		// stopping at the limit, so it needs no window either.
+		if ($own !== '') {
+			$mine = $this->getQueryBuilder();
+			$this->selectHomeRecipients(
+				$mine, $mine->expr()->eq('sd.actor_id', $mine->createNamedParameter(md5($own))), $options, $wanted
+			);
+			$nids = $this->mergeNidPages($nids, $this->getNidsFromRequest($mine), $options, $wanted);
+		}
+
+		return $nids;
+	}
+
+	/**
+	 * The page query over recipient rows, for the collections `$collections`
+	 * names.
+	 */
+	private function selectHomeRecipients(
+		SocialQueryBuilder $qb, string $collections, ProbeOptions $options, int $wanted,
+	): void {
 		$expr = $qb->expr();
 		// Not `DISTINCT`. A post reaches this set through its author's
 		// follower collection and no other, so a duplicate needs a post
@@ -375,10 +423,7 @@ trait StreamTimelines {
 		// against 20.8 on the seeded instance.
 		$qb->select('sd.nid')
 			->from(self::TABLE_STREAM_DEST, 'sd')
-			->where($expr->in(
-				'sd.actor_id',
-				$qb->createNamedParameter($collections, IQueryBuilder::PARAM_STR_ARRAY)
-			))
+			->where($collections)
 			->andWhere($expr->eq('sd.type', $qb->createNamedParameter('recipient')))
 			// a row written before the column existed carries 0 and would sort
 			// to the bottom for ever; it is excluded rather than shown last
@@ -391,24 +436,139 @@ trait StreamTimelines {
 			$qb->andWhere($expr->lt('sd.nid', $qb->createNamedParameter($options->getMaxId())));
 		}
 		if ($options->getMinId() > 0) {
-			$options->setInverted(true);
 			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getMinId())));
 		}
 
 		$qb->orderBy('sd.nid', $options->isInverted() ? 'asc' : 'desc');
-		// read wider than the page: the filters this query no longer carries
-		// are applied to the rows afterwards, and a page that lost three posts
-		// to a block should still come back with twenty
-		$qb->setMaxResults(min(self::HOME_OVERREAD_MAX, $options->getLimit() * self::HOME_OVERREAD));
+		$qb->setMaxResults($wanted);
+	}
 
-		$nids = [];
-		$cursor = $qb->executeQuery();
-		while ($data = $cursor->fetch()) {
-			$nids[] = (string)$data['nid'];
+	/**
+	 * The newest nid on the viewer's home timeline, or '0': what its entity
+	 * tag is built from.
+	 *
+	 * The same collections and the same windows as the page, so a probe the
+	 * client repeats every thirty seconds reads the last day of what the
+	 * viewer follows rather than all of it.
+	 */
+	public function newestHomeNid(Person $viewer): string {
+		$newest = '0';
+
+		$qb = $this->getQueryBuilder();
+		$followed = $this->followsRequest->limitToHomeCollections($qb, 'sd.actor_id', $viewer->getId());
+		if ($followed !== '') {
+			$qb->select('sd.nid')
+				->from(self::TABLE_STREAM_DEST, 'sd')
+				->where($followed)
+				->andWhere($qb->expr()->eq('sd.type', $qb->createNamedParameter('recipient')))
+				->orderBy('sd.nid', 'desc')
+				->setMaxResults(1);
+			$newest = $this->homeRecipientNids($qb, 1, false, time(), 0)[0] ?? '0';
 		}
-		$cursor->closeCursor();
+
+		// the account's own posts, apart for the reason the page gives
+		$own = $viewer->getFollowers();
+		if ($own !== '') {
+			$mine = $this->newestNidFor([md5($own)]);
+			if (Nid::compare($mine, $newest) > 0) {
+				$newest = $mine;
+			}
+		}
+
+		return $newest;
+	}
+
+	/**
+	 * Runs a home recipient query within a window of publication time, widened
+	 * until the page is full.
+	 *
+	 * A nid is `published_time * NID_LIMIT + random`, so "published within
+	 * the last day before the cursor" is a range on the column the query is
+	 * ordered by, and it turns the sort over everything the viewer follows
+	 * into a sort over that day. The answer is exact rather than approximate:
+	 * every row outside a window is further from the cursor than every row
+	 * inside it, so a window that yields `$wanted` rows yields the same rows
+	 * the unbounded query would. Only a short page is read again, wider, and
+	 * the last attempt has no bound at all. The query is built once and each
+	 * attempt rebinds the one parameter.
+	 *
+	 * @param SocialQueryBuilder $qb ordered on `sd.nid` and limited to `$wanted`
+	 * @param bool $ascending whether the page reads forward from its cursor
+	 * @param int $anchor the publication time the window is measured from
+	 * @param int|string $since a lower bound the query already carries, if any
+	 *
+	 * @return string[]
+	 */
+	private function homeRecipientNids(
+		SocialQueryBuilder $qb, int $wanted, bool $ascending, int $anchor, int|string $since,
+	): array {
+		$qb->andWhere(
+			$ascending
+				? $qb->expr()->lt('sd.nid', $qb->createNamedParameter((string)PHP_INT_MAX, IQueryBuilder::PARAM_STR, ':home_window'))
+				: $qb->expr()->gt('sd.nid', $qb->createNamedParameter('0', IQueryBuilder::PARAM_STR, ':home_window'))
+		);
+
+		$windows = self::HOME_WINDOWS;
+		$windows[] = 0;
+		$nids = [];
+		foreach ($windows as $seconds) {
+			$bound = $this->homeWindowBound($anchor, $seconds, $ascending);
+			$qb->setParameter('home_window', $bound);
+
+			$nids = [];
+			$cursor = $qb->executeQuery();
+			while ($data = $cursor->fetch()) {
+				$nids[] = (string)$data['nid'];
+			}
+			$cursor->closeCursor();
+
+			// a full page is the page; so is one whose window already reaches
+			// past the lower bound the query carries anyway
+			if (count($nids) >= $wanted || $seconds === 0
+				|| (!$ascending && Nid::compare($since, '0') > 0 && Nid::compare($bound, $since) <= 0)) {
+				break;
+			}
+		}
 
 		return array_values(array_unique($nids));
+	}
+
+	/**
+	 * The nid `$seconds` of publication time away from `$anchor`: below it
+	 * for a page read backwards, above it for one read forwards. No window —
+	 * `$seconds` of 0, or one reaching before 1970 — is the widest bound the
+	 * column allows.
+	 */
+	private function homeWindowBound(int $anchor, int $seconds, bool $ascending): string {
+		if ($seconds === 0 || $anchor <= 0 || (!$ascending && $anchor - $seconds < 0)) {
+			return $ascending ? (string)PHP_INT_MAX : '0';
+		}
+
+		$time = $ascending ? $anchor + $seconds : $anchor - $seconds;
+
+		return Nid::fromPublishedTime($time, 0, self::NID_LIMIT);
+	}
+
+	/**
+	 * Pages a timeline on the recipient row's nid rather than the post's.
+	 *
+	 * For a query whose recipient join, aliased `sd`, fixes the collection and
+	 * the type; see `SocialLimitsQueryBuilder::paginate()`. The two nids are
+	 * the same number — the row is written with its post's — except on an
+	 * instance whose backfill has not finished, where a row may still carry 0
+	 * and would sort to the bottom for ever, so until the flag says so the
+	 * page stays on the post's. A zero is excluded rather than shown last, as
+	 * on the home timeline.
+	 */
+	private function paginateOnRecipient(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		if (!$this->recipientNidsAreFilled()) {
+			$qb->paginate($options);
+
+			return;
+		}
+
+		$qb->paginate($options, 'sd');
+		$qb->andWhere($qb->expr()->gt('sd.nid', $qb->createNamedParameter('0')));
 	}
 
 	/**
@@ -478,10 +638,11 @@ trait StreamTimelines {
 	 *
 	 * @param string[] $first
 	 * @param string[] $second
+	 * @param int|null $limit where to cut, when not at the page's own limit
 	 *
 	 * @return string[]
 	 */
-	private function mergeNidPages(array $first, array $second, ProbeOptions $options): array {
+	private function mergeNidPages(array $first, array $second, ProbeOptions $options, ?int $limit = null): array {
 		if ($second === []) {
 			return $first;
 		}
@@ -493,7 +654,7 @@ trait StreamTimelines {
 			usort($nids, static fn (string $a, string $b): int => \OCA\Social\Tools\Nid::compare($b, $a));
 		}
 
-		return array_slice($nids, 0, $options->getLimit());
+		return array_slice($nids, 0, $limit ?? $options->getLimit());
 	}
 
 	/**
@@ -591,7 +752,7 @@ trait StreamTimelines {
 	protected function directTimelineNids(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql(false);
 		$page->filterType(SocialAppNotification::TYPE);
-		$page->paginate($options);
+		$this->paginateOnRecipient($page, $options);
 		$this->filterKind($page, $options);
 
 		// the author is joined for the filters below, not for its columns
@@ -767,7 +928,10 @@ trait StreamTimelines {
 
 		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
 		$page->linkToStreamTags('st', 's.id_prim');
-		$page->andWhere($page->exprLimitToDBField('hashtag', $options->getArgument(), true, false, 'st'));
+		// the stored form, compared as it stands, so `social_st_ht` answers it
+		$page->andWhere($page->expr()->eq(
+			'st.hashtag', $page->createNamedParameter(FollowedTagsRequest::normalise($options->getArgument()))
+		));
 
 		$page->limitToViewer('sd', 'f', true);
 		$page->andWhere($page->expr()->eq('s.attributed_to_prim', 'ca.id_prim'));
@@ -840,7 +1004,7 @@ trait StreamTimelines {
 		$qb->limitToType(SocialAppNotification::TYPE);
 		$qb->limitToSubTypes($wanted);
 		$qb->limitToSubTypes(Stream::subTypesOfNotificationTypes($options->getExcludeTypes()), true);
-		$qb->paginate($options);
+		$this->paginateOnRecipient($qb, $options);
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->limitToDest($actorId, 'notif', '', 'sd');
@@ -955,28 +1119,35 @@ trait StreamTimelines {
 	}
 
 	public function countNotificationsSince(Person $actor, int|string $sinceNid, int $cap = 99): int {
-		$qb = $this->getStreamSelectSql();
-		$qb->setViewer($actor);
-
-		$qb->limitToType(SocialAppNotification::TYPE);
-		$qb->selectDestFollowing('sd', '');
-		$qb->limitToDest($actor->getId(), 'notif', '', 'sd');
-		$qb->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
+		// the rows that make up the badge, as the notifications page chooses
+		// them, projected to one column and cut at the cap
+		$page = $this->getStreamNidsSelectSql();
+		$page->setViewer($actor);
+		$page->limitToType(SocialAppNotification::TYPE);
+		$page->selectDestFollowing('sd', '');
+		$page->limitToDest($actor->getId(), 'notif', '', 'sd');
+		$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_NOTIFICATIONS);
 
 		if (\OCA\Social\Tools\Nid::compare($sinceNid, '0') > 0) {
-			$qb->andWhere($qb->expr()->gt('s.nid', $qb->createNamedParameter($sinceNid)));
+			// on the recipient row's nid where it can be trusted, which makes
+			// the marker a range over `social_sd_atn`; see paginateOnRecipient()
+			$nid = $this->recipientNidsAreFilled() ? 'sd.nid' : 's.nid';
+			$page->andWhere($page->expr()->gt($nid, $page->createNamedParameter($sinceNid)));
 		}
 
-		$qb->setMaxResults($cap + 1);
+		$page->setMaxResults($cap + 1);
+
+		// and counted by the database: nothing but the number comes back
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'unread'))
+			->from($qb->createFunction('(' . $page->getSQL() . ')'), 'unread_page');
+		$qb->setParameters($page->getParameters(), $page->getParameterTypes());
 
 		$cursor = $qb->executeQuery();
-		$count = 0;
-		while ($cursor->fetch() !== false) {
-			$count++;
-		}
+		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
-		return $count;
+		return ($data === false) ? 0 : (int)$data['unread'];
 	}
 
 	/**
@@ -1058,7 +1229,7 @@ trait StreamTimelines {
 		// the recipient join fixes the actor (the public collection) and the
 		// type, which the unique index makes at most one row
 		$page = $this->getStreamNidsSelectSql(false);
-		$page->paginate($options);
+		$this->paginateOnRecipient($page, $options);
 		$this->filterKind($page, $options);
 
 		// `local=true` is this instance's own posts, `remote=true` every other

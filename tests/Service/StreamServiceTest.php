@@ -1495,14 +1495,37 @@ class StreamServiceTest extends TestCase {
 	public function testAFullPagePointsAtTheNextOne(): void {
 		$this->streamRequest->method('getPublicRepliesTo')
 			->willReturn(array_map(
-				fn (int $i): Note => $this->post('https://remote.example/notes/' . $i),
+				function (int $i): Note {
+					$reply = $this->post('https://remote.example/notes/' . $i);
+					$reply->setNid((string)(1790000000000000000 + $i));
+
+					return $reply;
+				},
 				range(1, 40)
 			));
 
 		$page = $this->service->getRepliesPage($this->post(), 1);
 
 		$this->assertCount(40, $page->getOrderedItems());
-		$this->assertSame(self::GENERATED_ID . '/replies?page=2', $page->getNext());
+		// the next page starts after this one's last reply, not at an offset
+		$this->assertSame(self::GENERATED_ID . '/replies?page=true&min_id=1790000000000000040', $page->getNext());
+	}
+
+	public function testARepliesCursorPageIsReadAfterItsCursor(): void {
+		$this->streamRequest->expects($this->once())->method('getPublicRepliesTo')
+			->with(self::GENERATED_ID, 40, 0, '1790000000000000040')
+			->willReturn([]);
+
+		$page = $this->service->getRepliesPage($this->post(), 1, '1790000000000000040');
+
+		$this->assertSame(self::GENERATED_ID . '/replies?page=true&min_id=1790000000000000040', $page->getId());
+		$this->assertSame([], $page->getOrderedItems());
+	}
+
+	public function testARepliesCursorThatIsNotANidStartsNoPage(): void {
+		$this->streamRequest->expects($this->never())->method('getPublicRepliesTo');
+
+		$this->assertSame([], $this->service->getRepliesPage($this->post(), 1, 'x')->getOrderedItems());
 	}
 
 	// the Emoji tags a post carries

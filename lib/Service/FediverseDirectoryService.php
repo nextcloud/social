@@ -35,7 +35,10 @@ use Throwable;
  * **What it does not do is aggregate.** No list is stored, nothing is indexed,
  * and an answer is kept for five minutes so that typing does not hammer four
  * servers per keystroke. The people in it are not this instance's to hold, and
- * a copy would be a directory nobody agreed to be in.
+ * a copy would be a directory nobody agreed to be in. What *is* stored is
+ * about servers, not people: which ones a directory of servers lists and what
+ * software each peer runs, written by `refresh()` from `Cron\Cache` so that
+ * listing the sources never waits on a remote host.
  *
  * The kinds it can ask:
  *
@@ -130,9 +133,24 @@ class FediverseDirectoryService {
 	/** How many servers a discovery pass contributes. */
 	private const DISCOVERY_LIMIT = 3;
 
-	/** How long a server list, or one server's software, is remembered. */
+	/** How long a server list, or one server's software, is trusted before it is asked again. */
 	private const DISCOVERY_TTL = 86400;
 	private const SOFTWARE_TTL = 604800;
+
+	/**
+	 * Where `refresh()` writes what it found out about servers: the list the
+	 * directory of servers answered with, and the software of each peer it
+	 * asked. An app value rather than a cache, because the cron writes it and a
+	 * web request reads it, and APCu — the memcache of most small instances —
+	 * is not shared between the two.
+	 */
+	public const CONFIG_KNOWN = 'directory_known';
+
+	/** How many peers one refresh asks for their NodeInfo, at most. */
+	public const LOOKUPS_PER_REFRESH = 8;
+
+	/** How many servers the stored list keeps, of either kind. */
+	private const KNOWN_MAX = 100;
 
 	/**
 	 * What a server calls its software, and which of the APIs above that is.
@@ -207,19 +225,20 @@ class FediverseDirectoryService {
 	 * strongest signal available for "we deal with them a lot".
 	 *
 	 * The software has to be known before a server can be asked, since the
-	 * kind decides the API — so each one is asked its NodeInfo once and the
-	 * answer is kept for a week. A server whose software this cannot speak to
-	 * is left out rather than asked in a language it does not answer.
+	 * kind decides the API. What `refresh()` found out is all this reads: a
+	 * peer it has not asked yet is left out until it has, and a server whose
+	 * software this cannot speak to is left out rather than asked in a
+	 * language it does not answer.
 	 *
 	 * @return DirectorySource[]
 	 */
 	private function peerSources(): array {
-		$raw = trim((string)$this->configService->getAppValue(self::CONFIG_PEERS));
-		$wanted = ($raw === '') ? self::PEERS_DEFAULT : (int)$raw;
+		$wanted = $this->peersWanted();
 		if ($wanted < 1) {
 			return [];
 		}
 
+		$software = $this->known()['software'];
 		$sources = [];
 		foreach ($this->instanceStatsRequest->remoteHostCounts() as $host => $seen) {
 			if (count($sources) >= $wanted) {
@@ -231,7 +250,7 @@ class FediverseDirectoryService {
 				continue;
 			}
 
-			$kind = $this->softwareKind($host);
+			$kind = self::SOFTWARE_KINDS[$software[$host]['name'] ?? ''] ?? null;
 			if ($kind === null) {
 				continue;
 			}
@@ -242,73 +261,177 @@ class FediverseDirectoryService {
 		return $sources;
 	}
 
+	private function peersWanted(): int {
+		$raw = trim((string)$this->configService->getAppValue(self::CONFIG_PEERS));
+
+		return ($raw === '') ? self::PEERS_DEFAULT : (int)$raw;
+	}
+
+	private function discoveryWanted(): bool {
+		return trim((string)$this->configService->getAppValue(self::CONFIG_DISCOVERY)) !== '0';
+	}
+
 	/**
 	 * Servers a directory of servers says exist.
 	 *
 	 * The list carries each server's software, so nothing has to be sniffed,
-	 * and it is kept for a day: which servers exist is not news that changes
-	 * between two searches. It is the weakest of the three ways a source gets
-	 * here — somebody else's editorial choice about servers this instance has
-	 * never spoken to — so it comes last and contributes few.
+	 * and `refresh()` asks for it once a day: which servers exist is not news
+	 * that changes between two searches. It is the weakest of the three ways a
+	 * source gets here — somebody else's editorial choice about servers this
+	 * instance has never spoken to — so it comes last and contributes few.
 	 *
 	 * @return DirectorySource[]
 	 */
 	private function discoveredSources(): array {
-		if (trim((string)$this->configService->getAppValue(self::CONFIG_DISCOVERY)) === '0') {
+		if (!$this->discoveryWanted()) {
 			return [];
 		}
 
-		$cached = $this->cache->get('discovery');
-		if (!is_string($cached)) {
-			try {
-				$listed = $this->curlService->retrieveJson(
-					'get',
-					'https://' . self::DISCOVERY_HOST . self::DISCOVERY_PATH,
-					['timeout' => self::TIMEOUT, 'json_headers' => false, 'headers' => ['Accept' => 'application/json']]
-				);
-				$cached = json_encode($listed['data'] ?? $listed);
-			} catch (Throwable $e) {
-				$this->logger->debug('[FediverseDirectoryService] no server list', ['exception' => $e]);
-				// remembered as empty as well, so a directory that is down is
-				// not asked again on the next keystroke
-				$cached = '[]';
-			}
-
-			$this->cache->set('discovery', $cached, self::DISCOVERY_TTL);
-		}
-
-		$rows = json_decode($cached, true);
 		$sources = [];
-		foreach (is_array($rows) ? $rows : [] as $row) {
+		foreach ($this->known()['discovered']['servers'] as $row) {
 			if (count($sources) >= self::DISCOVERY_LIMIT) {
 				break;
 			}
 
-			$host = strtolower(trim((string)(is_array($row) ? ($row['domain'] ?? '') : '')));
-			$software = strtolower(trim((string)(is_array($row) ? ($row['software_name'] ?? '') : '')));
-			$kind = self::SOFTWARE_KINDS[$software] ?? null;
-			if ($host === '' || $kind === null || !$this->allowed($host)) {
+			$kind = self::SOFTWARE_KINDS[$row['software']] ?? null;
+			if ($kind === null || !$this->allowed($row['host'])) {
 				continue;
 			}
 
-			$sources[] = new DirectorySource($host, $kind, $host, DirectorySource::ORIGIN_DISCOVERED);
+			$sources[] = new DirectorySource($row['host'], $kind, $row['host'], DirectorySource::ORIGIN_DISCOVERED);
 		}
 
 		return $sources;
 	}
 
 	/**
-	 * What software a server runs, from its NodeInfo, or null when it does not
-	 * say or runs something none of these APIs fit.
+	 * Finds out what `sources()` reads: the directory of servers' list, once a
+	 * day, and the software of the peers `sources()` would ask, once a week
+	 * each. Called from `Cron\Cache`, never from a request — the Discover page
+	 * used to wait three to five seconds on these on every load.
+	 *
+	 * Bounded per run by `LOOKUPS_PER_REFRESH`; a peer it did not get to is
+	 * asked on the next one, and until then `sources()` leaves it out.
 	 */
-	private function softwareKind(string $host): ?string {
-		$key = 'software/' . $host;
-		$known = $this->cache->get($key);
-		if (is_string($known)) {
-			return ($known === '') ? null : $known;
+	public function refresh(): void {
+		$known = $this->known();
+		$now = time();
+
+		if ($this->discoveryWanted() && $now - $known['discovered']['fetched'] >= self::DISCOVERY_TTL) {
+			$known['discovered'] = ['fetched' => $now, 'servers' => $this->fetchServerList()];
 		}
 
-		$kind = null;
+		$wanted = $this->peersWanted();
+		$found = 0;
+		$lookups = 0;
+		foreach (($wanted < 1) ? [] : $this->instanceStatsRequest->remoteHostCounts() as $host => $seen) {
+			$host = (string)$host;
+			if ($found >= $wanted || $lookups >= self::LOOKUPS_PER_REFRESH) {
+				break;
+			}
+			if ($host === '' || !$this->allowed($host)) {
+				continue;
+			}
+
+			$entry = $known['software'][$host] ?? null;
+			if ($entry === null || $now - $entry['checked'] >= self::SOFTWARE_TTL) {
+				$lookups++;
+				$entry = ['name' => $this->softwareName($host), 'checked' => $now];
+				// the miss is remembered too: a server that does not publish
+				// NodeInfo will not start doing so before next week
+				$known['software'][$host] = $entry;
+			}
+
+			if (isset(self::SOFTWARE_KINDS[$entry['name']])) {
+				$found++;
+			}
+		}
+
+		// the most recently checked are the ones still worth keeping
+		uasort($known['software'], static fn (array $a, array $b): int => $b['checked'] <=> $a['checked']);
+		$known['software'] = array_slice($known['software'], 0, self::KNOWN_MAX, true);
+
+		$this->configService->setAppValue(self::CONFIG_KNOWN, json_encode($known));
+	}
+
+	/**
+	 * What `refresh()` last wrote, in a shape that can be read without
+	 * checking every key: an app value can be edited by hand.
+	 *
+	 * @return array{
+	 *     discovered: array{fetched: int, servers: list<array{host: string, software: string}>},
+	 *     software: array<string, array{name: string, checked: int}>
+	 * }
+	 */
+	private function known(): array {
+		$raw = json_decode((string)$this->configService->getAppValue(self::CONFIG_KNOWN), true);
+		$raw = is_array($raw) ? $raw : [];
+
+		$discovered = is_array($raw['discovered'] ?? null) ? $raw['discovered'] : [];
+		$servers = [];
+		foreach (is_array($discovered['servers'] ?? null) ? $discovered['servers'] : [] as $row) {
+			if (is_array($row) && is_string($row['host'] ?? null) && is_string($row['software'] ?? null)) {
+				$servers[] = ['host' => $row['host'], 'software' => $row['software']];
+			}
+		}
+
+		$software = [];
+		foreach (is_array($raw['software'] ?? null) ? $raw['software'] : [] as $host => $entry) {
+			if (is_array($entry) && is_string($entry['name'] ?? null)) {
+				$software[(string)$host] = ['name' => $entry['name'], 'checked' => (int)($entry['checked'] ?? 0)];
+			}
+		}
+
+		return [
+			'discovered' => ['fetched' => (int)($discovered['fetched'] ?? 0), 'servers' => $servers],
+			'software' => $software,
+		];
+	}
+
+	/**
+	 * The servers the directory of servers lists whose software one of these
+	 * APIs fits, or none when it does not answer — remembered as empty as
+	 * well, so a directory that is down is asked again tomorrow rather than
+	 * on every run.
+	 *
+	 * @return list<array{host: string, software: string}>
+	 */
+	private function fetchServerList(): array {
+		try {
+			$listed = $this->curlService->retrieveJson(
+				'get',
+				'https://' . self::DISCOVERY_HOST . self::DISCOVERY_PATH,
+				['timeout' => self::TIMEOUT, 'json_headers' => false, 'headers' => ['Accept' => 'application/json']]
+			);
+		} catch (Throwable $e) {
+			$this->logger->debug('[FediverseDirectoryService] no server list', ['exception' => $e]);
+
+			return [];
+		}
+
+		$rows = $listed['data'] ?? $listed;
+		$servers = [];
+		foreach (is_array($rows) ? $rows : [] as $row) {
+			if (count($servers) >= self::KNOWN_MAX) {
+				break;
+			}
+
+			$host = strtolower(trim((string)(is_array($row) ? ($row['domain'] ?? '') : '')));
+			$software = strtolower(trim((string)(is_array($row) ? ($row['software_name'] ?? '') : '')));
+			if ($host !== '' && isset(self::SOFTWARE_KINDS[$software])) {
+				$servers[] = ['host' => $host, 'software' => $software];
+			}
+		}
+
+		return $servers;
+	}
+
+	/**
+	 * What software a server says it runs, from its NodeInfo, or '' when it
+	 * does not say.
+	 */
+	private function softwareName(string $host): string {
+		$name = '';
 		try {
 			$index = $this->curlService->retrieveJson(
 				'get',
@@ -333,7 +456,6 @@ class FediverseDirectoryService {
 					['timeout' => self::TIMEOUT, 'json_headers' => false, 'headers' => ['Accept' => 'application/json']]
 				);
 				$name = strtolower(trim((string)($nodeinfo['software']['name'] ?? '')));
-				$kind = self::SOFTWARE_KINDS[$name] ?? null;
 			}
 		} catch (Throwable $e) {
 			$this->logger->debug('[FediverseDirectoryService] no nodeinfo', [
@@ -341,11 +463,7 @@ class FediverseDirectoryService {
 			]);
 		}
 
-		// the miss is remembered too: a server that does not publish NodeInfo
-		// will not start doing so before the next search
-		$this->cache->set($key, $kind ?? '', self::SOFTWARE_TTL);
-
-		return $kind;
+		return $name;
 	}
 
 	/** Whether this instance is willing to talk to that host at all. */

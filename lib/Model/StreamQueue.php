@@ -24,6 +24,8 @@ class StreamQueue implements JsonSerializable {
 
 	public const TYPE_CACHE = 'Cache';
 	public const TYPE_LINK_PREVIEW = 'LinkPreview';
+	/** A post to fetch from its origin: `streamId` is its URL, no row holds it yet. */
+	public const TYPE_FETCH = 'Fetch';
 	public const TYPE_VERIFY = 'Signature';
 
 	public const STATUS_STANDBY = 0;

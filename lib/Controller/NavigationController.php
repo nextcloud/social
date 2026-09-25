@@ -198,6 +198,14 @@ class NavigationController extends Controller {
 						]);
 					} else {
 						$this->logger->info('[NavigationController] Returning setup page (admin user)');
+						// nothing is probed before there is an address to probe
+						// from, but the page reads the same shape either way
+						$serverData['checks'] = [
+							'success' => true,
+							'checks' => [],
+							'addresses' => $this->checkService->cloudAddresses(),
+							'clientApi' => [],
+						];
 						$this->initialState->provideInitialState('serverData', $serverData);
 						return new TemplateResponse(Application::APP_ID, 'main');
 					}
@@ -449,11 +457,7 @@ class NavigationController extends Controller {
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
-			$this->logger->error('[NavigationController] Failed to get document', [
-				'id' => $id,
-				'exception' => $e->getMessage()
-			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -482,11 +486,7 @@ class NavigationController extends Controller {
 
 			return $response;
 		} catch (Exception $e) {
-			$this->logger->error('[NavigationController] Failed to get public document', [
-				'id' => $id,
-				'exception' => $e->getMessage()
-			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -506,7 +506,7 @@ class NavigationController extends Controller {
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -528,7 +528,7 @@ class NavigationController extends Controller {
 
 			return $response;
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 

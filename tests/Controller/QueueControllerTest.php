@@ -55,7 +55,7 @@ class QueueControllerTest extends TestCase {
 		$this->markTestSkipped(
 			'With queued requests, asyncForRequest() detaches the HTTP response (TAsync::async()) and ends in '
 			. 'exit() because the connection is already closed; that path needs an end-to-end test. The body '
-			. 'of the loop is deliver(), which is exercised below.'
+			. 'drain is ActivityService::manageRequests(), tested there; what is left here is handBack(), below.'
 		);
 	}
 
@@ -67,8 +67,6 @@ class QueueControllerTest extends TestCase {
 	 */
 	public function testAFailedDeliveryIsReturnedToStandbyInsteadOfLeftRunning(): void {
 		$request = (new RequestQueue())->setToken('tok');
-		$this->activityService->method('manageRequest')
-			->willThrowException(new SignatureException('cannot sign: the private key is empty'));
 		$ended = [];
 		$this->requestQueueService->expects($this->once())->method('endRequest')
 			->willReturnCallback(function (RequestQueue $queue, bool $success) use (&$ended): void {
@@ -80,32 +78,31 @@ class QueueControllerTest extends TestCase {
 				$logged[] = $message;
 			});
 
-		$this->controller->deliverOne($request);
+		$this->controller->handBackOne($request, new SignatureException('cannot sign: the private key is empty'));
 
 		$this->assertSame([['tok', false]], $ended);
 		$this->assertStringContainsString('SignatureException', $logged[0]);
 	}
 
 	public function testADeliveryThatCannotEvenBeEndedIsLoggedAndSwallowed(): void {
-		$this->activityService->method('manageRequest')
-			->willThrowException(new \RuntimeException('boom'));
 		$this->requestQueueService->method('endRequest')
 			->willThrowException(new \RuntimeException('the database is gone'));
 
 		$this->logger->expects($this->exactly(2))->method('warning');
 
 		// the caller is a detached worker draining a batch: it has to go on
-		$this->controller->deliverOne((new RequestQueue())->setToken('tok'));
+		$this->controller->handBackOne((new RequestQueue())->setToken('tok'), new \RuntimeException('boom'));
 		$this->addToAssertionCount(1);
 	}
 }
 
 /**
- * asyncForRequest() ends in exit(), so the loop cannot be entered from a test;
- * this exposes its body, which is where the error handling lives.
+ * asyncForRequest() ends in exit(), so the drain cannot be entered from a test;
+ * this exposes what it does with a row that failed, which is where the error
+ * handling lives.
  */
 class TestableQueueController extends QueueController {
-	public function deliverOne(RequestQueue $request): void {
-		$this->deliver($request);
+	public function handBackOne(RequestQueue $request, \Throwable $e): void {
+		$this->handBack($request, $e);
 	}
 }

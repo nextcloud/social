@@ -64,6 +64,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private string $featured = '';
 	private string $avatar = '';
 	private string $header = '';
+	/** The banner's type as its own document stated it; '' when nothing did. */
+	private string $headerMediaType = '';
 	private bool $locked = false;
 	private array $emojis = [];
 	private bool $bot = false;
@@ -223,6 +225,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setHeader(string $header): self {
 		$this->header = $header;
+		// whatever was said about the picture this replaces is not about this one
+		$this->headerMediaType = '';
 
 		return $this;
 	}
@@ -866,11 +870,30 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * A local field's value as the HTML `PropertyValue.value` is on the wire.
+	 *
+	 * A local value is stored as it was typed, and every peer renders `value`
+	 * as HTML: a `<` or `&` went out as markup, and an address was plain text
+	 * on Mastodon, which verifies a field only from a link in it. An address
+	 * on its own becomes a link with `rel="me"`, which is what Mastodon's own
+	 * fields carry; everything else is escaped.
+	 */
+	private static function fieldValueAsHtml(string $value): string {
+		$escaped = htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		if (preg_match('~^https?://\S+$~i', $value) !== 1 || filter_var($value, FILTER_VALIDATE_URL) === false) {
+			return $escaped;
+		}
+
+		return '<a href="' . $escaped . '" target="_blank" rel="nofollow noopener noreferrer me" translate="no">'
+			. $escaped . '</a>';
+	}
+
+	/**
 	 * @return array[] the PropertyValue entries of an actor's `attachment`
 	 */
 	private function extractFieldsFromAttachment(array $data): array {
 		$fields = [];
-		foreach ($this->getArray('attachment', $data, []) as $entry) {
+		foreach (self::listOf('attachment', $data) as $entry) {
 			if (!is_array($entry) || ($entry['type'] ?? '') !== 'PropertyValue') {
 				continue;
 			}
@@ -905,7 +928,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
 			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
 			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
-			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []))
+			->setAlsoKnownAs(self::listOf('alsoKnownAs', $data))
 			->setMovedTo($this->validate(ACore::AS_URL, 'movedTo', $data, ''));
 		// A key that says whose it is has to say this actor. A document handing
 		// over somebody else's `owner` is a key takeover written out in full:
@@ -934,16 +957,74 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		/** @var Image $icon */
 		$icon = AP::instance()->getItemFromType(Image::TYPE);
 		$icon->setParent($this);
-		$icon->import($this->getArray('icon', $data, []));
+		$icon->import(self::largestImage($data, 'icon'));
 
 		if ($icon->getType() === Image::TYPE) {
 			$this->setIcon($icon);
 		}
 
-		$image = $this->get('image.url', $data, '');
+		$banner = self::largestImage($data, 'image');
+		$image = $this->get('url', $banner, '');
 		if ($image !== '') {
 			$this->setHeader($image);
+			$this->headerMediaType = $this->validate(self::AS_STRING, 'mediaType', $banner, '');
 		}
+	}
+
+	/**
+	 * What the banner is, for the `mediaType` of the actor's `image`.
+	 *
+	 * GoToSocial stores the declared type, so `image/jpeg` for every banner —
+	 * what this used to say — was a wrong statement about each PNG and WebP.
+	 * A remote banner keeps the type its own document gave; a local one is
+	 * served from `/media/{uuid}.{subtype}`, which names it. Anything else is
+	 * left unstated rather than guessed.
+	 */
+	private function headerMediaType(): string {
+		if ($this->headerMediaType !== '') {
+			return $this->headerMediaType;
+		}
+
+		$extension = strtolower(pathinfo((string)parse_url($this->header, PHP_URL_PATH), PATHINFO_EXTENSION));
+
+		return match ($extension) {
+			'jpg', 'jpeg' => 'image/jpeg',
+			'png', 'gif', 'webp', 'avif' => 'image/' . $extension,
+			default => '',
+		};
+	}
+
+	/**
+	 * The one picture to keep out of an `icon` or `image`.
+	 *
+	 * Mastodon sends one `Image`; PeerTube sends a list of them, one per size,
+	 * for an account's avatar and a channel's banner alike. Handed the whole
+	 * list, `Image::import()` found no `type` and the picture was dropped, so
+	 * every PeerTube account arrived without an avatar. The largest is taken,
+	 * as `PeerTubeService::thumbnail()` does for a video's poster: they are
+	 * the same picture, and the others are its thumbnails.
+	 *
+	 * @param array<array-key, mixed> $data
+	 *
+	 * @return array<array-key, mixed> the `Image`, or [] when there is none
+	 */
+	private static function largestImage(array $data, string $k): array {
+		$best = [];
+		$bestArea = -1;
+		foreach (self::listOf($k, $data) as $candidate) {
+			// an untyped picture is still one; anything else typed is not
+			if (!is_array($candidate) || ($candidate['type'] ?? Image::TYPE) !== Image::TYPE) {
+				continue;
+			}
+
+			$area = (int)($candidate['width'] ?? 0) * (int)($candidate['height'] ?? 0);
+			if ($area > $bestArea) {
+				$bestArea = $area;
+				$best = $candidate;
+			}
+		}
+
+		return $best;
 	}
 
 	/**
@@ -1066,11 +1147,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$source = json_decode($this->getSource(), true);
 		if (is_array($source)) {
-			$image = $this->get('image.url', $source, '');
+			$banner = self::largestImage($source, 'image');
+			$image = $this->get('url', $banner, '');
 			if ($image !== '') {
 				$this->setHeader($image);
+				$this->headerMediaType = $this->validate(self::AS_STRING, 'mediaType', $banner, '');
 			}
-			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			$this->setAlsoKnownAs(self::listOf('alsoKnownAs', $source));
 			// Whose a channel is. The cached copy is what every read of an
 			// actor is served from and it has no column for this, so it comes
 			// back out of the source document the same way `alsoKnownAs` does —
@@ -1240,11 +1323,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		if ($this->fields !== []) {
+			$local = $this->isLocal();
 			$data['attachment'] = array_map(
 				static fn (array $field): array => [
 					'type' => 'PropertyValue',
 					'name' => $field['name'],
-					'value' => $field['value']
+					'value' => $local ? self::fieldValueAsHtml($field['value']) : $field['value'],
 				],
 				$this->fields
 			);
@@ -1260,11 +1344,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		if ($this->header !== '') {
-			$data['image'] = [
+			$data['image'] = array_filter([
 				'type' => 'Image',
-				'mediaType' => 'image/jpeg',
-				'url' => $this->header
-			];
+				'mediaType' => $this->headerMediaType(),
+				'url' => $this->header,
+			], static fn (string $value): bool => $value !== '');
 		}
 
 		$result = array_merge(

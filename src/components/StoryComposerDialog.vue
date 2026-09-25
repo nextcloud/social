@@ -13,11 +13,15 @@
 			{{ t('social', 'One picture or video, for the people who follow you, gone after a day.') }}
 		</p>
 
+		<!-- opened by the button below, which is the control a keyboard and a
+		     screen reader reach; the input stays out of both -->
 		<input
 			ref="file"
 			type="file"
 			accept="image/*,video/mp4,video/webm,video/quicktime"
 			class="hidden-visually"
+			tabindex="-1"
+			aria-hidden="true"
 			@change="choose">
 
 		<button

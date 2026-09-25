@@ -204,6 +204,30 @@ describe('FirstRun', () => {
 		expect(wrapper.find('.first-run__result').text()).toBe('12 followed, 1 skipped, 1 could not be reached')
 	})
 
+	// the user guide sends Pixelfed users here with their JSON export, which
+	// the import reads; a CSV-only picker greyed it out
+	it('lets the reader pick the JSON follows file Pixelfed exports', async () => {
+		serverHas()
+		const wrapper = await mountFirstRun()
+		await next(wrapper)
+		await next(wrapper)
+
+		const accept = wrapper.find('input[type="file"]').attributes('accept').split(',')
+		expect(accept).toEqual(expect.arrayContaining(['.csv', '.json', 'application/json']))
+		expect(wrapper.text()).toContain('pixelfed-following.json')
+	})
+
+	it('keeps the file input behind its button out of the tab order', async () => {
+		serverHas()
+		const wrapper = await mountFirstRun()
+		await next(wrapper)
+		await next(wrapper)
+
+		const input = wrapper.find('input[type="file"]')
+		expect(input.attributes('tabindex')).toBe('-1')
+		expect(input.attributes('aria-hidden')).toBe('true')
+	})
+
 	it('ends by putting the caret in the composer', async () => {
 		serverHas()
 		const emit = vi.spyOn(eventBus, 'emit')

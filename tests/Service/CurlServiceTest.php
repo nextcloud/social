@@ -23,6 +23,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\HttpSignatureService;
+use OCA\Social\Tests\Helper\EndlessStream;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -977,5 +978,147 @@ class CurlServiceTest extends TestCase {
 			'application/activity+json',
 			$sentHeaders['https://' . self::PUBLIC_IP . '/a/following']['Accept']
 		);
+	}
+
+	/** One byte past the limit and no further, whatever the server sends. */
+	public function testReadAtMostStopsOneBytePastTheLimit(): void {
+		$response = $this->createMock(IResponse::class);
+		$response->method('getBody')->willReturn(EndlessStream::open());
+
+		$this->assertSame(1025, strlen(CurlService::readAtMost($response, 1024)));
+		$this->assertLessThan(64 * 1024, EndlessStream::$read);
+	}
+
+	/** @return array{method: string, url: string, options: array} */
+	private function delivery(string $path): array {
+		return [
+			'method' => 'post',
+			'url' => 'https://' . self::PUBLIC_IP . $path,
+			'options' => ['headers' => ['Signature' => 'x'], 'body' => '{"type":"Create"}', 'timeout' => 30],
+		];
+	}
+
+	/**
+	 * Deliveries to different servers go out together, each settled as a
+	 * single delivery would be: nothing where it would have returned, the
+	 * exception where it would have thrown.
+	 */
+	public function testSeveralDeliveriesAreSentAtOnceAndEachIsSettledOnItsOwn(): void {
+		$sent = [];
+		$this->client->expects($this->never())->method('request');
+		$this->client->method('postAsync')->willReturnCallback(
+			function (string $url, array $options) use (&$sent) {
+				$sent[$url] = $options;
+
+				return $this->promiseOf(match (true) {
+					str_ends_with($url, '/ok') => $this->answer('{}', 202),
+					str_ends_with($url, '/html') => $this->answer('<p>thanks</p>', 200, 'text/html'),
+					str_ends_with($url, '/busy') => $this->answer('', 503),
+					default => new \RuntimeException('connection timed out'),
+				});
+			}
+		);
+
+		$outcomes = $this->service()->sendMany([
+			'ok' => $this->delivery('/ok'),
+			'html' => $this->delivery('/html'),
+			'busy' => $this->delivery('/busy'),
+			'dead' => $this->delivery('/dead'),
+		]);
+
+		$this->assertCount(4, $sent, 'all four sent before any was waited for');
+		$this->assertSame('{"type":"Create"}', $sent['https://' . self::PUBLIC_IP . '/ok']['body']);
+		$this->assertFalse($sent['https://' . self::PUBLIC_IP . '/ok']['allow_redirects']);
+		$this->assertNull($outcomes['ok']);
+		$this->assertNull($outcomes['html'], 'an answer that is not JSON is still delivered');
+		$this->assertInstanceOf(RequestContentException::class, $outcomes['busy']);
+		$this->assertSame(503, $outcomes['busy']->getCode());
+		$this->assertInstanceOf(RequestNetworkException::class, $outcomes['dead']);
+	}
+
+	public function testADeliveryToABlockedHostIsNotSent(): void {
+		$this->fediverseService->method('authorized')->willThrowException(new UnauthorizedFediverseException());
+		$this->client->expects($this->never())->method('postAsync');
+
+		$outcomes = $this->service()->sendMany(['a' => $this->delivery('/inbox')]);
+
+		$this->assertInstanceOf(UnauthorizedFediverseException::class, $outcomes['a']);
+	}
+
+	public function testADeliveryToALocalAddressIsNotSent(): void {
+		$this->client->expects($this->never())->method('postAsync');
+
+		$outcomes = $this->service()->sendMany([
+			'a' => ['method' => 'post', 'url' => 'https://127.0.0.1/inbox', 'options' => ['body' => '{}']],
+		]);
+
+		$this->assertInstanceOf(RequestServerException::class, $outcomes['a']);
+	}
+
+	/**
+	 * The client is told not to follow redirects, so each hop can be checked
+	 * against the block list; a delivery that is redirected is finished by
+	 * the single-request path, which does that.
+	 */
+	public function testARedirectedDeliveryIsFinishedOneHopAtATime(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/inbox';
+		$to = 'https://' . self::PUBLIC_IP . '/users/bob/inbox';
+		$this->client->method('postAsync')->willReturn($this->promiseOf($this->redirect('/users/bob/inbox', 308)));
+		$asked = $this->answerPerUrl([
+			$from => $this->redirect('/users/bob/inbox', 308),
+			$to => $this->answer('', 202),
+		]);
+
+		$outcomes = $this->service()->sendMany(['a' => $this->delivery('/inbox')]);
+
+		$this->assertNull($outcomes['a']);
+		$this->assertSame([$from, $to], $asked());
+	}
+
+	public function testAnAnswerOverTheSizeLimitIsAFailureOfItsOwnKind(): void {
+		$this->client->method('postAsync')
+			->willReturn($this->promiseOf($this->answer(str_repeat('a', 10 * 1048576 + 1), 200, 'text/html')));
+
+		$outcomes = $this->service()->sendMany(['a' => $this->delivery('/inbox')]);
+
+		$this->assertInstanceOf(RequestResultSizeException::class, $outcomes['a']);
+	}
+
+	/** Each request goes out with its own method, whatever its case. */
+	public function testEachDeliveryIsSentWithItsOwnMethod(): void {
+		$called = [];
+		foreach (['getAsync', 'putAsync', 'deleteAsync'] as $call) {
+			$this->client->method($call)->willReturnCallback(
+				function (string $url) use ($call, &$called) {
+					$called[$url] = $call;
+
+					return $this->promiseOf($this->answer('{}'));
+				}
+			);
+		}
+		$this->client->expects($this->never())->method('postAsync');
+
+		$requests = [];
+		foreach (['get', 'PUT', 'delete'] as $method) {
+			$requests[$method] = ['method' => $method] + $this->delivery('/' . strtolower($method));
+		}
+		$outcomes = $this->service()->sendMany($requests);
+
+		$this->assertSame([null, null, null], array_values($outcomes));
+		$this->assertSame([
+			'https://' . self::PUBLIC_IP . '/get' => 'getAsync',
+			'https://' . self::PUBLIC_IP . '/put' => 'putAsync',
+			'https://' . self::PUBLIC_IP . '/delete' => 'deleteAsync',
+		], $called);
+	}
+
+	public function testAPromiseThatSettlesWithoutAResponseIsANetworkFailure(): void {
+		$promise = $this->createMock(\OCP\Http\Client\IPromise::class);
+		$promise->method('wait')->willReturn(null);
+		$this->client->method('postAsync')->willReturn($promise);
+
+		$outcomes = $this->service()->sendMany(['a' => $this->delivery('/inbox')]);
+
+		$this->assertInstanceOf(RequestNetworkException::class, $outcomes['a']);
 	}
 }

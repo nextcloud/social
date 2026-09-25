@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\HostBreakerRequest;
 use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\NoHighPriorityRequestException;
@@ -40,7 +41,6 @@ use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamQueueService;
-use OCP\ICacheFactory;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -133,7 +133,7 @@ class SocialDeleteRoundTripTest extends TestCase {
 			$configService,
 			$actorsRequest,
 			$this->createMock(RelayRequest::class),
-			$this->createMock(ICacheFactory::class),
+			$this->createMock(HostBreakerRequest::class),
 			$this->createMock(LoggerInterface::class),
 		);
 

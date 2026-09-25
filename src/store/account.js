@@ -112,6 +112,18 @@ function collectActors(state, data) {
 }
 
 /**
+ * Whether a lookup failed because nobody holds that handle. That is an answer
+ * rather than a failure: the page that asked says "User not found" itself, and
+ * an app error blaming a remote server would be wrong on both counts.
+ *
+ * @param {object} error what axios threw
+ * @return {boolean}
+ */
+function isNoSuchAccount(error) {
+	return error?.response?.status === 404
+}
+
+/**
  * How long to let relationship requests pile up before sending them as one.
  * Long enough for a page of UserEntry components to mount, short enough that
  * the follow buttons do not visibly lag.
@@ -312,6 +324,9 @@ export const useAccountStore = defineStore('account', {
 				this.addAccount({ actorId: response.data.url, data: response.data })
 				return response.data
 			} catch (error) {
+				if (isNoSuchAccount(error)) {
+					return undefined
+				}
 				// the account handle is somebody's identity: it belongs in the
 				// app log, not in every reader's browser console
 				logger.error('Failed to load account details', { error })
@@ -380,6 +395,9 @@ export const useAccountStore = defineStore('account', {
 				this.addAccount({ actorId: response.data.url, data: response.data })
 				return response.data
 			} catch (error) {
+				if (isNoSuchAccount(error)) {
+					return undefined
+				}
 				logger.error('Failed to load public account details', { error })
 				useErrorsStore().addAppError({
 					title: t('social', 'Account lookup failed'),

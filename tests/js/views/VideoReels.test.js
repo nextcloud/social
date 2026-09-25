@@ -6,6 +6,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import VideoReels from '../../../src/views/VideoReels.vue'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 
@@ -109,6 +110,21 @@ describe('VideoReels', () => {
 		expect(wrapper.findAll('.reel')).toHaveLength(2)
 	})
 
+	it('keys each slide by its video, so a post with two keeps two', async () => {
+		const { wrapper } = await mountReels([
+			video('1', {
+				attachments: [
+					{ id: 'a', type: 'video', url: 'https://cloud.example/a.mp4' },
+					{ id: 'b', type: 'video', url: 'https://cloud.example/b.mp4' },
+				],
+			}),
+		])
+
+		// the key Vue diffs the slides by, as it sits on each rendered <article>
+		const keys = wrapper.findAll('article.reel').map((slide) => slide.element.__vnode.key)
+		expect(keys).toEqual(['1:a', '1:b'])
+	})
+
 	it('leaves the pictures on a mixed post out of the stack', async () => {
 		const { wrapper } = await mountReels([
 			video('1', {
@@ -178,6 +194,40 @@ describe('VideoReels', () => {
 		expect(scrolled).toEqual([1])
 	})
 
+	it('moves without the smooth scroll for a reader who asked for less motion', async () => {
+		vi.stubGlobal('matchMedia', (query) => ({ matches: query.includes('reduce') }))
+		const { wrapper } = await mountReels()
+		const behaviours = []
+		wrapper.vm.slides.forEach((slide) => {
+			slide.scrollIntoView = (options) => behaviours.push(options.behavior)
+		})
+
+		await wrapper.find('.reels__track').trigger('keydown', { key: 'ArrowDown' })
+
+		expect(behaviours).toEqual(['auto'])
+	})
+
+	it('is announced as a region under its name', async () => {
+		const { wrapper } = await mountReels()
+
+		expect(wrapper.find('.reels').attributes('role')).toBe('region')
+		expect(wrapper.find('.reels').attributes('aria-label')).toBe('Videos, one at a time')
+	})
+
+	/**
+	 * The router keeps this view when only `?scope=` changes, so the prop
+	 * changes under a mounted stack.
+	 */
+	it('switches the feed when the scope changes', async () => {
+		const { wrapper, store } = await mountReels()
+
+		await wrapper.setProps({ scope: 'federated' })
+		await flushPromises()
+
+		expect(store.params.scope).toBe('federated')
+		expect(store.fetchTimeline).toHaveBeenCalledTimes(2)
+	})
+
 	it('pauses and resumes with the space bar', async () => {
 		const { wrapper } = await mountReels()
 		const first = wrapper.findAll('video')[0].element
@@ -233,6 +283,88 @@ describe('VideoReels', () => {
 		wrapper.unmount()
 
 		expect(videos[0].pause).toHaveBeenCalled()
+	})
+
+	/**
+	 * The single-post route is `/@:account/:id`: a link that names only the
+	 * id throws while it renders, and Vue drops the component whose render
+	 * threw, so the link was never on the page at all.
+	 */
+	it('links each slide to its post, by account and id', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const store = useTimelineStore()
+		const statuses = [video('1', { acct: 'bob@remote.example' })]
+		store.fetchTimeline = vi.fn(async () => {
+			store.addToTimeline(statuses)
+
+			return []
+		})
+		const empty = { render: () => null }
+		const router = createRouter({
+			history: createMemoryHistory('/index.php/apps/social'),
+			routes: [
+				{ path: '/', component: empty },
+				{ path: '/timeline/:type?', name: 'timeline', component: empty },
+				{ path: '/@:account', name: 'profile', component: empty },
+				{ path: '/@:account/:id', name: 'single-post', component: empty },
+			],
+		})
+		await router.push('/')
+
+		const wrapper = mount(VideoReels, {
+			global: { plugins: [pinia, router], stubs: { NcButton: true } },
+		})
+		await flushPromises()
+
+		expect(wrapper.find('a.reel__open').attributes('href')).toBe('/index.php/apps/social/@bob@remote.example/1')
+	})
+
+	it('says it is loading while the first page is on its way', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const store = useTimelineStore()
+		store.fetchTimeline = vi.fn(() => new Promise(() => {}))
+
+		const wrapper = mount(VideoReels, {
+			global: { plugins: [pinia], stubs: { NcButton: true, RouterLink: true } },
+		})
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('Loading videos')
+		expect(wrapper.text()).not.toContain('No videos here yet.')
+	})
+
+	/**
+	 * A failed request is not an empty feed, and "No videos here yet" over a
+	 * 500 tells the reader something that is not true.
+	 */
+	it('says the videos could not be loaded, and asks again on request', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const store = useTimelineStore()
+		store.fetchTimeline = vi.fn().mockRejectedValueOnce(new Error('500'))
+
+		const wrapper = mount(VideoReels, {
+			global: { plugins: [pinia], stubs: { RouterLink: true } },
+		})
+		await flushPromises()
+
+		const alert = wrapper.find('[role="alert"]')
+		expect(alert.text()).toContain('could not be loaded')
+		expect(wrapper.text()).not.toContain('No videos here yet.')
+
+		store.fetchTimeline.mockImplementationOnce(async () => {
+			store.addToTimeline([video('1')])
+
+			return [video('1')]
+		})
+		await alert.find('button').trigger('click')
+		await flushPromises()
+
+		expect(store.fetchTimeline).toHaveBeenCalledTimes(2)
+		expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+		expect(wrapper.findAll('.reel')).toHaveLength(1)
 	})
 
 	it('says so when there is nothing to watch', async () => {

@@ -863,13 +863,15 @@ export default {
 		 *
 		 * A failure is silence: the line is a nicety, and a profile that could
 		 * not answer it should say nothing rather than say something went wrong.
-		 * The viewer's own profile answers an empty list, as Mastodon's does.
+		 * The viewer's own profile answers an empty list, as Mastodon's does,
+		 * and a visitor who is not logged in follows nobody here and is not
+		 * allowed to ask.
 		 *
 		 * @return {Promise<void>}
 		 */
 		async readFamiliar() {
 			const id = this.highlightsAccountId
-			if (id === '' || this.isOwnProfile) {
+			if (id === '' || this.isOwnProfile || this.serverData.public) {
 				this.familiar = []
 
 				return

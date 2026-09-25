@@ -13,17 +13,21 @@ use OCA\Social\Controller\LocalController;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
+use OCA\Social\Exceptions\FollowLimitException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
@@ -41,6 +45,7 @@ use OCA\Social\Service\LikeService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -325,8 +330,20 @@ class LocalControllerTest extends TestCase {
 		$this->actorForUser();
 		$note = $this->createMock(Stream::class);
 		$note->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@alice');
+		$note->method('getType')->willReturn(Note::TYPE);
 		$this->streamService->method('getStreamById')->with('https://x/n/1')->willReturn($note);
 		$this->streamService->expects($this->once())->method('deleteLocalItem')->with($note, Note::TYPE);
+
+		$this->assertSuccess($this->controller()->postDelete('https://x/n/1'), []);
+	}
+
+	public function testPostDeleteRemovesAPollByItsOwnType(): void {
+		$this->actorForUser();
+		$poll = $this->createMock(Stream::class);
+		$poll->method('getAttributedTo')->willReturn('https://cloud.example/apps/social/@alice');
+		$poll->method('getType')->willReturn(Question::TYPE);
+		$this->streamService->method('getStreamById')->willReturn($poll);
+		$this->streamService->expects($this->once())->method('deleteLocalItem')->with($poll, Question::TYPE);
 
 		$this->assertSuccess($this->controller()->postDelete('https://x/n/1'), []);
 	}
@@ -338,7 +355,20 @@ class LocalControllerTest extends TestCase {
 		$this->streamService->method('getStreamById')->willReturn($note);
 		$this->streamService->expects($this->never())->method('deleteLocalItem');
 
-		$this->assertFailure($this->controller()->postDelete('https://x/n/1'), InvalidResourceException::class, 'user have no rights');
+		$this->assertFailure(
+			$this->controller()->postDelete('https://x/n/1'), InvalidResourceException::class, 'user have no rights',
+			Http::STATUS_UNPROCESSABLE_ENTITY
+		);
+	}
+
+	public function testPostDeleteOfAnUnknownPostAnswersNotFound(): void {
+		$this->actorForUser();
+		$this->streamService->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streamService->expects($this->never())->method('deleteLocalItem');
+
+		$this->assertFailure(
+			$this->controller()->postDelete('https://x/n/gone'), StreamNotFoundException::class, null, Http::STATUS_NOT_FOUND
+		);
 	}
 
 	public function testPostDeleteRequiresALoggedInUser(): void {
@@ -351,8 +381,16 @@ class LocalControllerTest extends TestCase {
 
 	public function testActionFollowFollowsAndRefreshesCounters(): void {
 		$actor = $this->actorForUser();
-		$this->followService->expects($this->once())->method('followAccount')->with($actor, 'bob@remote.example');
-		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following');
+		$this->followService->expects($this->once())->method('followAccount')->with($actor, 'bob@remote.example')->willReturn(true);
+		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following', 1);
+
+		$this->assertSuccess($this->controller()->actionFollow('bob@remote.example'), []);
+	}
+
+	public function testActionFollowOfAnAccountAlreadyFollowedLeavesTheCountAlone(): void {
+		$this->actorForUser();
+		$this->followService->method('followAccount')->willReturn(false);
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->assertSuccess($this->controller()->actionFollow('bob@remote.example'), []);
 	}
@@ -362,7 +400,36 @@ class LocalControllerTest extends TestCase {
 		$this->followService->method('followAccount')->willThrowException(new FollowSameAccountException("Don't follow yourself, be your own lead"));
 		$this->accountService->expects($this->never())->method('bumpActorCount');
 
-		$this->assertFailure($this->controller()->actionFollow('alice'), FollowSameAccountException::class, "Don't follow yourself, be your own lead");
+		$this->assertFailure(
+			$this->controller()->actionFollow('alice'), FollowSameAccountException::class, "Don't follow yourself, be your own lead",
+			Http::STATUS_UNPROCESSABLE_ENTITY
+		);
+	}
+
+	public function testActionFollowOverTheLimitAnswersTooManyRequests(): void {
+		$this->actorForUser();
+		$this->followService->method('followAccount')->willThrowException(new FollowLimitException());
+
+		$this->assertFailure(
+			$this->controller()->actionFollow('bob@remote.example'), FollowLimitException::class, null,
+			Http::STATUS_TOO_MANY_REQUESTS
+		);
+	}
+
+	public function testActionFollowOfAnUnreachableServerAnswersBadGateway(): void {
+		$this->actorForUser();
+		$this->followService->method('followAccount')->willThrowException(new RequestNetworkException());
+
+		$this->assertFailure(
+			$this->controller()->actionFollow('bob@down.example'), RequestNetworkException::class, null, Http::STATUS_BAD_GATEWAY
+		);
+	}
+
+	public function testActionFollowStillAnswersAServerFailureWithA500(): void {
+		$this->actorForUser();
+		$this->followService->method('followAccount')->willThrowException(new \RuntimeException('database gone'));
+
+		$this->assertFailure($this->controller()->actionFollow('bob@remote.example'), \RuntimeException::class);
 	}
 
 	public function testActionFollowRequiresALoggedInUser(): void {
@@ -373,8 +440,16 @@ class LocalControllerTest extends TestCase {
 
 	public function testActionUnfollowUnfollowsAndRefreshesCounters(): void {
 		$actor = $this->actorForUser();
-		$this->followService->expects($this->once())->method('unfollowAccount')->with($actor, 'bob@remote.example');
-		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following');
+		$this->followService->expects($this->once())->method('unfollowAccount')->with($actor, 'bob@remote.example')->willReturn(true);
+		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following', -1);
+
+		$this->assertSuccess($this->controller()->actionUnfollow('bob@remote.example'), []);
+	}
+
+	public function testActionUnfollowOfAnAccountNotFollowedLeavesTheCountAlone(): void {
+		$this->actorForUser();
+		$this->followService->method('unfollowAccount')->willReturn(false);
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->assertSuccess($this->controller()->actionUnfollow('bob@remote.example'), []);
 	}
@@ -383,7 +458,9 @@ class LocalControllerTest extends TestCase {
 		$this->actorForUser();
 		$this->followService->method('unfollowAccount')->willThrowException(new CacheActorDoesNotExistException());
 
-		$this->assertFailure($this->controller()->actionUnfollow('ghost'), CacheActorDoesNotExistException::class);
+		$this->assertFailure(
+			$this->controller()->actionUnfollow('ghost'), CacheActorDoesNotExistException::class, null, Http::STATUS_NOT_FOUND
+		);
 	}
 
 	// stream*()
@@ -593,7 +670,21 @@ class LocalControllerTest extends TestCase {
 		$this->configService->method('getCloudHost')->willReturn('cloud.example');
 		$this->cacheActorService->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException());
 
-		$this->assertFailure($this->controller(null)->globalAccountInfo('ghost@remote.example'), CacheActorDoesNotExistException::class);
+		$this->assertFailure(
+			$this->controller(null)->globalAccountInfo('ghost@remote.example'), CacheActorDoesNotExistException::class, null,
+			Http::STATUS_NOT_FOUND
+		);
+	}
+
+	/** A local name nobody holds is the same 404 as on `accountInfo()`. */
+	public function testGlobalAccountInfoOfUnknownLocalAccountAnswersNotFound(): void {
+		$this->accountService->method('getCachedLocalActor')
+			->willThrowException(new ActorDoesNotExistException('Actor not found for user: nobody-here'));
+
+		$this->assertFailure(
+			$this->controller(null)->globalAccountInfo('nobody-here'), ActorDoesNotExistException::class, null,
+			Http::STATUS_NOT_FOUND
+		);
 	}
 
 	// knownActor(), through the one public route left on it: the avatar

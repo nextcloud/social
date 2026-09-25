@@ -474,7 +474,8 @@ export default {
 
 		showInfo() {
 			// `firstrun` from the server, or `?welcome=1`, which is what the
-			// setup screen reloads with once the account exists
+			// setup screen reloads with once the account exists and what
+			// Settings links to for somebody who wants it again
 			return (this.settingsStore.getServerData.firstrun || this.$route.query?.welcome === '1') && !this.infoHidden
 		},
 
@@ -557,6 +558,12 @@ export default {
 
 		hideInfo() {
 			this.infoHidden = true
+			// or reloading the page would bring it back
+			if (this.$route.query?.welcome !== undefined) {
+				const query = { ...this.$route.query }
+				delete query.welcome
+				this.$router.replace({ query })
+			}
 		},
 
 		/**

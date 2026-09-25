@@ -477,6 +477,104 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 	}
 
+	/**
+	 * A reply forwarded by the server of the post it answers (AP §7.1.2),
+	 * written on a server that makes no Linked Data signatures.
+	 */
+	private function forwardedActivity(string $type, string $objectId, string $actorId): void {
+		$this->configService->method('getCloudHost')->willReturn('cloud.example');
+		$this->signedRequestFrom('https://mastodon.example', 1234, 'https://mastodon.example/users/carol');
+		$activity = $this->incomingActivity();
+		$activity->method('getType')->willReturn($type);
+		$activity->method('getActorId')->willReturn($actorId);
+		$activity->method('hasObject')->willReturn(false);
+		$activity->method('getObjectId')->willReturn($objectId);
+		$this->signatureService->method('checkObject')->willReturn(false);
+		$this->signatureService->method('assertSignerSpeaksFor')
+			->willThrowException(new InvalidOriginException('not yours'));
+	}
+
+	public function testAForwardedCreateIsFetchedFromItsOriginNotImported(): void {
+		$this->forwardedActivity('Create', 'https://gts.example/users/dan/statuses/1', 'https://gts.example/users/dan');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->once())->method('queueFetch')
+			->with($this->isType('string'), 'https://gts.example/users/dan/statuses/1')
+			->willReturn(true);
+		$this->streamQueueService->expects($this->once())->method('cacheStreamByToken');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+		$this->assertSame(1, $this->controller->asyncCalls);
+	}
+
+	public function testAForwardedUpdateReachesTheUserInboxTooAndIsFetched(): void {
+		$this->forwardedActivity('Update', 'https://gts.example/users/dan/statuses/1', 'https://gts.example/users/dan');
+		$this->localActor('alice');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->once())->method('queueFetch')->willReturn(true);
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->inbox('alice')->getStatus());
+	}
+
+	public function testAForwardedObjectOffItsActorsHostIsNotFetched(): void {
+		// an actor on one server "creating" an object on another is no reason
+		// to go and fetch it: the answer could not be theirs
+		$this->forwardedActivity('Create', 'https://elsewhere.example/notes/1', 'https://gts.example/users/dan');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testALocalObjectIsNeverFetchedBackFromThisServer(): void {
+		$this->forwardedActivity('Create', 'https://cloud.example/apps/social/@alice/1', 'https://cloud.example/apps/social/@alice');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testAForwardedDeleteIsAcknowledgedAndDropped(): void {
+		$this->forwardedActivity('Delete', 'https://gts.example/users/dan/statuses/1', 'https://gts.example/users/dan');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testAFollowItsSignerMayNotSpeakForIsStillRefused(): void {
+		$this->forwardedActivity('Follow', 'https://cloud.example/apps/social/@alice', 'https://gts.example/users/dan');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testARequestTakenInOnceIsAcknowledgedAndNotProcessedAgain(): void {
+		$this->signedRequestFrom('https://remote.example');
+		$this->signatureService->method('isReplayed')->willReturn(true);
+		$this->importService->expects($this->never())->method('importFromJson');
+		$this->signatureService->expects($this->never())->method('rememberRequest');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testATakenInRequestIsRemembered(): void {
+		$this->signedRequestFrom('https://remote.example');
+		$this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(true);
+		$this->signatureService->expects($this->once())->method('rememberRequest');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testAFailedRequestIsNotRememberedSoItsRetryIsProcessed(): void {
+		$this->signedRequestFrom('https://remote.example');
+		$this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(true);
+		$this->importService->method('parseIncomingRequest')->willThrowException(new \RuntimeException('database went away'));
+		$this->signatureService->expects($this->never())->method('rememberRequest');
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $this->controller->sharedInbox()->getStatus());
+	}
+
 	public function testSharedInboxLetsALinkedDataSignatureSpeakForAForwardedActivity(): void {
 		// a relayed or forwarded activity is signed by the server that passed it
 		// on; the signature on the object itself is what vouches for the actor
@@ -730,6 +828,55 @@ class ActivityPubControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A row read with its author joined is flagged for complete details, and
+	 * exported that way it carries the stored document as `source`, the whole
+	 * author as `actor_info` and this app's counters and queue state.
+	 */
+	private function bookkeptNote(string $id): Note {
+		$author = new Person();
+		$author->setId('https://cloud.example/@alice');
+		$note = new Note();
+		$note->setId($id);
+		$note->setAttributedTo('https://cloud.example/@alice');
+		$note->setActor($author);
+		$note->setSource('{"id":"' . $id . '"}');
+		$note->setCompleteDetails(true);
+
+		return $note;
+	}
+
+	private function assertNoBookkeeping(array $object): void {
+		foreach (['source', 'actor_info', 'details', 'cache', 'action', 'publishedTime'] as $key) {
+			$this->assertArrayNotHasKey($key, $object);
+		}
+	}
+
+	public function testTheOutboxServesNoInternalBookkeeping(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+		$this->streamRequest->method('getPublicByAuthor')
+			->willReturn([$this->bookkeptNote('https://cloud.example/@alice/notes/1')]);
+
+		$page = json_decode((string)json_encode($this->controller->outbox('alice', '1')->getData()), true);
+
+		$this->assertNoBookkeeping($page['orderedItems'][0]['object']);
+	}
+
+	public function testTheFeaturedCollectionServesNoInternalBookkeeping(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$this->localActor('alice', $actor);
+		$this->pinService->method('getPinnedPosts')
+			->willReturn([$this->bookkeptNote('https://cloud.example/@alice/notes/1')]);
+
+		$collection = json_decode((string)json_encode($this->controller->featured('alice')->getData()), true);
+
+		$this->assertNoBookkeeping($collection['orderedItems'][0]);
+	}
+
 	public function testFeaturedAlwaysServesActivityPubEvenToBrowsers(): void {
 		// unlike followers/following there is no public page to fall back to
 		$this->acceptHeader('text/html');
@@ -899,6 +1046,7 @@ class ActivityPubControllerTest extends TestCase {
 			$note = new Note();
 			$note->setId('https://cloud.example/@alice/notes/' . $i);
 			$note->setAttributedTo('https://cloud.example/@alice');
+			$note->setNid((string)(1790000000000000100 - $i));
 			$posts[] = $note;
 		}
 		$this->streamRequest->method('getPublicByAuthor')->willReturn($posts);
@@ -906,8 +1054,47 @@ class ActivityPubControllerTest extends TestCase {
 		/** @var OrderedCollectionPage $page */
 		$page = $this->controller->outbox('alice', '2')->getData();
 
-		$this->assertSame('https://cloud.example/@alice/outbox?page=3', $page->getNext());
+		// the next page starts below this one's last post, not at an offset
+		$this->assertSame(
+			'https://cloud.example/@alice/outbox?page=true&max_id=' . (1790000000000000100 - OrderedCollection::PAGE_SIZE + 1),
+			$page->getNext()
+		);
 		$this->assertSame('https://cloud.example/@alice/outbox?page=1', $page->getPrev());
+	}
+
+	/**
+	 * A cursor page reads below its cursor rather than at an offset: page
+	 * 2,500 used to read and discard 100,000 posts first, on every fetch.
+	 */
+	public function testAnOutboxCursorPageIsReadBelowItsCursor(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+
+		$this->streamRequest->expects($this->once())->method('getPublicByAuthor')
+			->with('https://cloud.example/@alice', OrderedCollection::PAGE_SIZE, 0, '1790000000000000077')
+			->willReturn([]);
+
+		/** @var OrderedCollectionPage $page */
+		$page = $this->controller->outbox('alice', 'true', '1790000000000000077')->getData();
+
+		$this->assertSame('https://cloud.example/@alice/outbox?page=true&max_id=1790000000000000077', $page->getId());
+		$this->assertSame('', $page->getNext());
+	}
+
+	public function testAnOutboxCursorThatIsNotANidStartsNoPage(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+
+		$this->streamRequest->expects($this->never())->method('getPublicByAuthor');
+
+		/** @var OrderedCollectionPage $page */
+		$page = $this->controller->outbox('alice', 'true', "1' OR 1=1")->getData();
+
+		$this->assertSame([], $page->getOrderedItems());
 	}
 
 	public function testFollowersOfUnknownUserFails(): void {
@@ -1468,5 +1655,45 @@ class ActivityPubControllerTest extends TestCase {
 		$this->storyService->expects($this->never())->method('bySourceId');
 
 		$this->assertSame($page, $this->controller->story('alice', 7));
+	}
+	/**
+	 * The Accept orders peers send, and the header each must get back. The
+	 * dispatcher picks the responder from the first entry it knows, so
+	 * GoToSocial (profiled `ld+json` first) and Mastodon (`activity+json`
+	 * first) reach different responders.
+	 *
+	 * @return array<string, array{string, string}>
+	 */
+	public static function peerAcceptHeaders(): array {
+		return [
+			'GoToSocial' => [
+				'application/ld+json; profile="https://www.w3.org/ns/activitystreams",application/activity+json',
+				'application/ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8',
+			],
+			'Mastodon' => [
+				'application/activity+json, application/ld+json',
+				'application/activity+json; charset=utf-8',
+			],
+		];
+	}
+
+	#[DataProvider('peerAcceptHeaders')]
+	public function testResponderAnswersAnActivityStreamsContentType(string $accept, string $expected): void {
+		$format = $this->controller->getResponderByHTTPHeader($accept);
+		$built = $this->controller->buildResponse(new DataResponse(['type' => 'Person']), $format);
+
+		$this->assertSame($expected, $built->getHeaders()['Content-Type']);
+	}
+
+	#[DataProvider('peerAcceptHeaders')]
+	public function testResponderKeepsTheStatusAndHeaders(string $accept): void {
+		$response = new DataResponse(['status' => -1], Http::STATUS_GONE);
+		$response->addHeader('X-Social-Test', 'kept');
+
+		$format = $this->controller->getResponderByHTTPHeader($accept);
+		$built = $this->controller->buildResponse($response, $format);
+
+		$this->assertSame(Http::STATUS_GONE, $built->getStatus());
+		$this->assertSame('kept', $built->getHeaders()['X-Social-Test']);
 	}
 }

@@ -19,6 +19,7 @@ use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\Docs;
+use OCA\Social\SetupChecks\MemcacheConfigured;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
 use OCA\Social\SetupChecks\ReachableByStrictPeers;
@@ -27,13 +28,14 @@ use OCA\Social\SetupChecks\WebFingerReachable;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJob;
 use OCP\BackgroundJob\IJobList;
+use OCP\ICacheFactory;
 use OCP\IL10N;
 use OCP\SetupCheck\SetupResult;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The seven checks Administration → Overview shows.
+ * The checks Administration → Overview shows.
  *
  * Each of them is the only thing that says a particular kind of breakage has
  * happened: an administrator who never opens Social used to find out that
@@ -174,10 +176,33 @@ class SetupChecksTest extends TestCase {
 			'configured' => 'https://cloud.example', 'expected' => 'https://cloud.example',
 		]);
 		$checkService->method('checkCloudAddress')->willReturn(true);
+		$checkService->method('checkSocialUrl')->willReturn(true);
 
 		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
 
 		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	/**
+	 * The cloud address is right and the ids are not: `social_url` came from
+	 * the first request's host. Nothing compared the two.
+	 */
+	public function testIdsMintedFromAnotherAddressAreAnErrorThatNamesBoth(): void {
+		$checkService = $this->checkService();
+		$checkService->method('cloudAddresses')->willReturn([
+			'configured' => 'https://cloud.example/index.php', 'expected' => 'https://cloud.example/index.php',
+		]);
+		$checkService->method('configuredSocialUrl')->willReturn('http://internal:8080/index.php/apps/social/');
+		$checkService->method('checkCloudAddress')->willReturn(true);
+		$checkService->method('checkSocialUrl')->willReturn(false);
+
+		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::ERROR, $result->getSeverity());
+		$this->assertStringContainsString('http://internal:8080/index.php/apps/social/', $description);
+		$this->assertStringContainsString('occ config:app:delete social social_url', $description);
+		$this->assertStringContainsString('occ social:reset --uri=https://cloud.example/index.php', $description);
 	}
 
 	/**
@@ -259,6 +284,35 @@ class SetupChecksTest extends TestCase {
 		$this->assertSame(SetupResult::ERROR, $result->getSeverity());
 	}
 
+	private function memcache(bool $available): MemcacheConfigured {
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn($available);
+
+		return new MemcacheConfigured($this->l10n, $cacheFactory);
+	}
+
+	public function testAnInstanceWithAMemcacheIsQuiet(): void {
+		$this->assertSame(SetupResult::SUCCESS, $this->memcache(true)->run()->getSeverity());
+	}
+
+	/**
+	 * Nextcloud's own check says a memcache would be faster. Here some of what
+	 * is lost without one is protection, and the warning has to say which, or
+	 * it reads like the one the administrator has already decided to ignore.
+	 */
+	public function testNoMemcacheIsAWarningThatNamesWhatIsOff(): void {
+		$result = $this->memcache(false)->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('memcache.local', $description);
+		$this->assertStringContainsString('inbox throttle', $description);
+		$this->assertStringContainsString('duplicate-post protection', $description);
+		// the breaker is in the database whether or not there is a memcache,
+		// so the warning must not say it is off
+		$this->assertStringNotContainsString('delivery breaker', $description);
+	}
+
 	private function queue(int $abandoned, int $stale): OutboundQueueNotStuck {
 		$health = $this->createMock(FederationHealthService::class);
 		$health->method('stuck')->willReturn(['abandoned' => $abandoned, 'stale' => $stale]);
@@ -301,6 +355,7 @@ class SetupChecksTest extends TestCase {
 			CloudAddressMatches::DOC,
 			CronRanRecently::DOC,
 			OutboundQueueNotStuck::DOC,
+			MemcacheConfigured::DOC,
 		] as $link) {
 			$this->assertStringStartsWith(Docs::ADMIN_GUIDE . '#', $link);
 			$anchor = substr($link, strlen(Docs::ADMIN_GUIDE) + 1);

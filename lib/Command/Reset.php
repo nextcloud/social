@@ -115,7 +115,12 @@ class Reset extends SocialCommand {
 		$this->checkService->checkInstallationStatus(true);
 		$output->writeln('');
 
-		return $this->setCloudAddress($input, $output);
+		$result = $this->setCloudAddress($input, $output);
+		// nothing is left that carries the old base URL, so it follows the
+		// cloud address, whatever request first set it
+		$this->configService->setSocialUrl();
+
+		return $result;
 	}
 
 	/**

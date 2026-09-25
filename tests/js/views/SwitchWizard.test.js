@@ -185,4 +185,102 @@ describe('SwitchWizard', () => {
 
 		expect(wrapper.find('.switch__announce').text()).toBe(ANNOUNCEMENT.text)
 	})
+
+	describe('the card', () => {
+		let drawn
+
+		beforeEach(() => {
+			drawn = []
+			const ctx = {
+				canvas: { width: 1200, height: 675 },
+				font: '400 10px sans-serif',
+				createLinearGradient: () => ({ addColorStop: () => {} }),
+				fillRect: () => {},
+				measureText: () => ({ width: 10 }),
+				fillText: (text) => drawn.push(text),
+			}
+			HTMLCanvasElement.prototype.getContext = vi.fn(() => ctx)
+		})
+
+		it('is redrawn with the account once the announcement arrives after the network was picked', async () => {
+			let answer
+			axios.get.mockReturnValue(new Promise((resolve) => {
+				answer = resolve
+			}))
+			const wrapper = mount(SwitchWizard, { global: { stubs: { NcLoadingIcon: true, RouterLink: true } } })
+			await pick(wrapper, 'X')
+			expect(drawn).toContain('@you')
+
+			drawn = []
+			answer({ data: ANNOUNCEMENT })
+			await flushPromises()
+
+			expect(drawn).toContain(ANNOUNCEMENT.handle)
+			expect(drawn).toContain(ANNOUNCEMENT.url)
+		})
+
+		it('is announced as a picture', async () => {
+			const wrapper = await mountWizard()
+			await pick(wrapper, 'X')
+
+			expect(wrapper.find('canvas').attributes('role')).toBe('img')
+		})
+	})
+
+	it('says so when the announcement cannot be read, and offers nothing empty to save or copy', async () => {
+		axios.get.mockRejectedValue(new Error('500'))
+		const wrapper = mount(SwitchWizard, { global: { stubs: { NcLoadingIcon: true, RouterLink: true } } })
+		await flushPromises()
+		await pick(wrapper, 'X')
+
+		expect(wrapper.find('[role="alert"]').text()).toContain('could not be read')
+		const buttons = wrapper.findAll('.switch__buttons button').filter((b) => /Save the card|Copy the words/.test(b.text()))
+		expect(buttons).toHaveLength(2)
+		for (const button of buttons) {
+			expect(button.attributes('disabled')).toBeDefined()
+		}
+
+		axios.get.mockResolvedValue({ data: ANNOUNCEMENT })
+		await wrapper.findAll('button').find((b) => b.text() === 'Try again').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+		expect(wrapper.find('.switch__announce').text()).toBe(ANNOUNCEMENT.text)
+	})
+
+	it('goes back to "Copy the words" a moment after copying them', async () => {
+		vi.useFakeTimers()
+		try {
+			Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn().mockResolvedValue(undefined) }, configurable: true })
+			const wrapper = await mountWizard()
+			await pick(wrapper, 'X')
+			const copy = () => wrapper.findAll('.switch__buttons button').find((b) => /Copy the words|Copied/.test(b.text()))
+
+			await copy().trigger('click')
+			await flushPromises()
+			expect(copy().text()).toBe('Copied')
+
+			vi.advanceTimersByTime(3000)
+			await flushPromises()
+			expect(copy().text()).toBe('Copy the words')
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	it('forgets what was read for one network when another is picked', async () => {
+		const wrapper = await mountWizard()
+		await pick(wrapper, 'Instagram')
+		wrapper.vm.candidates = ['bob@threads.net']
+		wrapper.vm.found = [{ handle: 'bob@threads.net' }]
+		wrapper.vm.selected = ['bob@threads.net']
+		wrapper.vm.probed = 1
+
+		await pick(wrapper, 'X')
+
+		expect(wrapper.vm.candidates).toEqual([])
+		expect(wrapper.vm.found).toEqual([])
+		expect(wrapper.vm.selected).toEqual([])
+		expect(wrapper.vm.probed).toBe(0)
+	})
 })

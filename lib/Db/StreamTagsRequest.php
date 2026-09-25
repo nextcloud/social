@@ -39,7 +39,13 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 		}
 
 		$streamId = $this->getQueryBuilder()->prim($stream->getId());
-		foreach ($stream->getHashTags() as $hashtag) {
+		// stored in the form every reader compares, so that the comparison is
+		// on the column as it stands and `social_st_ht` can answer it; see
+		// Version1000Date20260925000001
+		$hashtags = array_unique(array_map(
+			static fn ($hashtag): string => FollowedTagsRequest::normalise((string)$hashtag), $stream->getHashTags()
+		));
+		foreach (array_filter($hashtags, static fn (string $hashtag): bool => $hashtag !== '') as $hashtag) {
 			try {
 				$this->dbConnection->insertIgnoreConflict(
 					self::TABLE_STREAM_TAGS,

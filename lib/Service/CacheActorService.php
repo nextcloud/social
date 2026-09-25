@@ -48,6 +48,13 @@ use Psr\Log\LoggerInterface;
  */
 class CacheActorService {
 	/**
+	 * The most batches one timed pass takes — a guard, not the limit: the
+	 * deadline is what ends a pass, and this keeps one that the clock does not
+	 * stop (a frozen test clock, a stamp that is never written) finite.
+	 */
+	public const MAX_BATCHES = 40;
+
+	/**
 	 * Actors already resolved during this request.
 	 *
 	 * A page of twenty posts asks for the same author several times over, and
@@ -257,9 +264,10 @@ class CacheActorService {
 			[$account, $instance] = explode('@', $account, 2);
 		}
 
+		// a host name is case-insensitive, as the account part already is
 		if ($instance !== ''
-			&& $this->configService->getCloudHost() !== $instance
-			&& $this->configService->getSocialAddress() !== $instance) {
+			&& strcasecmp($this->configService->getCloudHost(), $instance) !== 0
+			&& strcasecmp($this->configService->getSocialAddress(), $instance) !== 0) {
 			throw new CacheActorDoesNotExistException('Address is not local');
 		}
 
@@ -386,19 +394,68 @@ class CacheActorService {
 	}
 
 	/**
-	 * Refreshes every cached remote actor that is due.
+	 * Refreshes the cached remote actors that are due.
+	 *
+	 * Without a deadline, one batch of `CacheActorsRequest::SYNC_BATCH`, or
+	 * every due actor when forced — what `occ social:cache:refresh` asks for.
+	 * With one, batch after batch until the deadline: fifty a pass, 120
+	 * passes a day, is 6,000 refreshes a day, and a ten-day lifetime over
+	 * more than 60,000 cached actors was then never met — every actor was
+	 * overdue, and stale keys and avatars stayed stale for months.
+	 *
+	 * @param int $deadline when to stop taking actors, or 0 for one batch
 	 *
 	 * @return int how many were due, whether or not their refresh worked
 	 * @throws Exception
 	 */
-	public function manageCacheRemoteActors(bool $force = false): int {
-		$update = $this->cacheActorsRequest->getRemoteActorsToUpdate($force, $this->now());
+	public function manageCacheRemoteActors(bool $force = false, int $deadline = 0): int {
+		return $this->walkDue(
+			fn (): array => $this->cacheActorsRequest->getRemoteActorsToUpdate($force, $this->now()),
+			function (Person $item): void {
+				$this->refreshRemoteActor($item);
+			},
+			$force ? 0 : $deadline
+		);
+	}
 
-		foreach ($update as $item) {
-			$this->refreshRemoteActor($item);
+	/**
+	 * Hands every actor the selection returns to `$each`, a batch at a time,
+	 * until the deadline, an empty batch, a batch of nothing but actors this
+	 * pass already handled (a stamp that could not be written), or
+	 * `MAX_BATCHES`. No deadline is one batch.
+	 *
+	 * @param callable(): Person[] $select
+	 * @param callable(Person): void $each
+	 *
+	 * @return int how many actors were handled
+	 */
+	private function walkDue(callable $select, callable $each, int $deadline): int {
+		$done = 0;
+		$seen = [];
+
+		for ($batch = 0; $batch < self::MAX_BATCHES; $batch++) {
+			$fresh = 0;
+			foreach ($select() as $item) {
+				if (isset($seen[$item->getId()])) {
+					continue;
+				}
+				$seen[$item->getId()] = true;
+				$fresh++;
+
+				$each($item);
+				$done++;
+
+				if ($deadline > 0 && time() >= $deadline) {
+					return $done;
+				}
+			}
+
+			if ($deadline <= 0 || $fresh === 0) {
+				break;
+			}
 		}
 
-		return sizeof($update);
+		return $done;
 	}
 
 	/**
@@ -451,35 +508,45 @@ class CacheActorService {
 	}
 
 	/**
+	 * Refreshes the counts, pinned posts and verified links of the cached
+	 * remote actors whose details are due — batch after batch until the
+	 * deadline, as `manageCacheRemoteActors()` does.
+	 *
+	 * @param int $deadline when to stop taking actors, or 0 for one batch
+	 *
 	 * @return int
 	 * @throws Exception
 	 */
-	public function manageDetailsRemoteActors(bool $force = false): int {
-		$update = $this->cacheActorsRequest->getRemoteActorsToUpdateDetails($force, $this->now());
-
+	public function manageDetailsRemoteActors(bool $force = false, int $deadline = 0): int {
 		// WARNING: risk of race condition if something else update details on remote actor.
 		// Any details update on remote cache-actor must be managed from here.
-		foreach ($update as $item) {
-			try {
-				$this->addRemoteActorDetailCount($item);
-				// what else a profile shows that only a fetch can answer: the
-				// posts the account has pinned, and whether its links link back
-				$this->featuredCollection()?->refresh($item);
-				$this->profileLinkVerifier()?->verify($item);
-				$this->cacheActorsRequest->updateDetails($item);
-			} catch (Exception $e) {
-				// the same book the refresh keeps: `details_update` only moves
-				// on success, so without this the fifty oldest were the fifty
-				// unreachable, on every pass
-				$this->logger->info(
-					'could not refresh the details of ' . $item->getId() . ': ' . $e->getMessage(),
-					['actor' => $item->getId(), 'exception' => $e]
-				);
-				$this->cacheActorsRequest->recordSyncAttempt($item->getId(), false, $this->now());
-			}
-		}
+		return $this->walkDue(
+			fn (): array => $this->cacheActorsRequest->getRemoteActorsToUpdateDetails($force, $this->now()),
+			function (Person $item): void {
+				$this->refreshRemoteDetails($item);
+			},
+			$force ? 0 : $deadline
+		);
+	}
 
-		return sizeof($update);
+	private function refreshRemoteDetails(Person $item): void {
+		try {
+			$this->addRemoteActorDetailCount($item);
+			// what else a profile shows that only a fetch can answer: the
+			// posts the account has pinned, and whether its links link back
+			$this->featuredCollection()?->refresh($item);
+			$this->profileLinkVerifier()?->verify($item);
+			$this->cacheActorsRequest->updateDetails($item);
+		} catch (Exception $e) {
+			// the same book the refresh keeps: `details_update` only moves
+			// on success, so without this the fifty oldest were the fifty
+			// unreachable, on every pass
+			$this->logger->info(
+				'could not refresh the details of ' . $item->getId() . ': ' . $e->getMessage(),
+				['actor' => $item->getId(), 'exception' => $e]
+			);
+			$this->cacheActorsRequest->recordSyncAttempt($item->getId(), false, $this->now());
+		}
 	}
 
 	public function addRemoteActorDetailCount(Person $actor): void {

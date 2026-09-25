@@ -18,9 +18,10 @@ use Throwable;
 /**
  * Re-reads the feeds people here follow.
  *
- * A bounded number per pass, oldest read first, so a hundred subscriptions are
- * worked through over several runs rather than a hundred outbound requests in
- * one. Each read is conditional, so a feed that has not changed costs a 304.
+ * For a bounded time per pass (`SubscriptionService::PASS_SECONDS`), several
+ * at once, never-read first and then stalest first, so however many there are
+ * the pass ends well inside the interval and the next one carries on. Each
+ * read is conditional, so a feed that has not changed costs a 304.
  */
 class Subscriptions extends TimedJob {
 	public function __construct(

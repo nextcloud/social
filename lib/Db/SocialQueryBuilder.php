@@ -65,12 +65,15 @@ class SocialQueryBuilder extends SocialFiltersQueryBuilder {
 	}
 
 	/**
-	 * Limit the request to the account
-	 *
-	 * @param string $account
+	 * Limit the request to the cached accounts whose handle starts with
+	 * `$account`, in any case: a prefix of `account_lower`, compared as it
+	 * stands so that its index can answer it. See
+	 * `CacheActorsRequest::searchAccounts()`.
 	 */
 	public function searchInAccount(string $account) {
-		$dbConn = $this->getConnection();
-		$this->searchInDBField('account', $dbConn->escapeLikeParameter($account) . '%');
+		$pf = ($this->getType() === self::SELECT) ? $this->getDefaultSelectAlias() . '.' : '';
+		$prefix = $this->getConnection()->escapeLikeParameter(CacheActorsRequest::lowerAccount($account)) . '%';
+
+		$this->andWhere($this->expr()->like($pf . 'account_lower', $this->createNamedParameter($prefix)));
 	}
 }

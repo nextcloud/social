@@ -288,7 +288,7 @@ here so a reader who finds that report knows why the code no longer matches it.
 | Two cron loops did unbounded outbound HTTP per row | `getRemoteActorsToUpdateDetails()` and `getStandby()` are capped (one remains — see above) |
 | The admin report list resolved each reported account one at a time, fetching over the network when uncached: one unreachable instance hung the page | `ReportService::getReports()` resolves them in one batch from the cache only |
 | `filterSilencedActors()` was dead code, so a silenced account was not silenced | Called from the three read paths that need it |
-| `HashtagService::manageHashtags()` ran five hydrated wide queries and one write per hashtag, and reported the same number for every window | `StreamRequest::countHashtagsSince()` is a grouped aggregate |
+| `HashtagService::manageHashtags()` ran five hydrated wide queries and one write per hashtag, and reported the same number for every window | `StreamRequest::countHashtagsInWindows()` is one grouped aggregate over the widest window, with a conditional sum per window |
 | `CacheActorsRequest::getSharedInboxes()` returned `''` for actors with no shared inbox, which the caller turned into a delivery to the host `''` | Empty values and local actors are excluded in SQL |
 | The delivery fan-out hydrated every follower into a `Follow` with a `Person` and its details to read one string off each | `ActivityService::generateInstancePathsFollowers()` asks `FollowsRequest::getFollowerInboxes()` for one row per distinct inbox, resolved in the database — the number of *instances*, not of followers |
 | `MigrationService` re-followed on behalf of every local follower from one unbounded read | Paged at `REFOLLOW_PAGE`, bounded at `REFOLLOW_MAX` |

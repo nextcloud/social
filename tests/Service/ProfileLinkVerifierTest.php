@@ -171,12 +171,59 @@ class ProfileLinkVerifierTest extends TestCase {
 		$plain = new Person();
 		$plain->setId('https://cloud.example/apps/social/@bob');
 		$plain->setFields([['name' => 'City', 'value' => 'Berlin']]);
-		$this->actorsRequest->method('getAll')->willReturn([$plain, $local]);
+		$this->actorsRequest->method('getPage')->willReturnOnConsecutiveCalls([$plain, $local], []);
 		$cached = $this->actor();
 		$this->cacheActorsRequest->method('getFromId')->with(self::ACTOR)->willReturn($cached);
 		$this->cacheActorsRequest->expects($this->once())->method('updateDetails')->with($this->identicalTo($cached));
 
 		$this->assertSame(1, $this->verifier->verifyLocalActors());
 		$this->assertArrayHasKey('https://alice.example/', $cached->getDetailsAll()['fields_verified']);
+	}
+
+	/**
+	 * The walk reads a page of the accounts that carry a link, not the whole
+	 * table, and the next pass carries on where this one stopped.
+	 */
+	public function testTheLocalWalkPagesAndRemembersWhereItStopped(): void {
+		$stored = ['profile_link_cursor' => 'before'];
+		$this->config->method('getAppValue')->willReturnCallback(fn (string $key): string => $stored[$key] ?? '');
+		$this->config->method('setAppValue')->willReturnCallback(function (string $key, string $value) use (&$stored): void {
+			$stored[$key] = $value;
+		});
+
+		$accounts = [];
+		for ($i = 0; $i < 3; $i++) {
+			$this->pages['https://site' . $i . '.example/'] = '<a rel="me" href="https://cloud.example/apps/social/@u' . $i . '">x</a>';
+			$account = new Person();
+			$account->setId('https://cloud.example/apps/social/@u' . $i);
+			$account->setFields([['name' => 'Web', 'value' => 'https://site' . $i . '.example/']]);
+			$accounts[] = $account;
+		}
+		$this->cacheActorsRequest->method('getFromId')->willReturnCallback(function (string $id): Person {
+			$cached = new Person();
+			$cached->setId($id);
+
+			return $cached;
+		});
+
+		$this->actorsRequest->expects($this->never())->method('getAll');
+		$this->actorsRequest->expects($this->once())->method('getPage')
+			->with(ProfileLinkVerifier::LOCAL_PAGE, 'before', true)
+			->willReturn($accounts);
+
+		$this->assertSame(2, $this->verifier->verifyLocalActors(2));
+		$this->assertSame(md5('https://cloud.example/apps/social/@u1'), $stored['profile_link_cursor']);
+	}
+
+	public function testTheWalkStartsOverAtTheEndOfTheTable(): void {
+		$stored = ['profile_link_cursor' => 'somewhere'];
+		$this->config->method('getAppValue')->willReturnCallback(fn (string $key): string => $stored[$key] ?? '');
+		$this->config->method('setAppValue')->willReturnCallback(function (string $key, string $value) use (&$stored): void {
+			$stored[$key] = $value;
+		});
+		$this->actorsRequest->method('getPage')->willReturn([]);
+
+		$this->assertSame(0, $this->verifier->verifyLocalActors());
+		$this->assertSame('', $stored['profile_link_cursor']);
 	}
 }

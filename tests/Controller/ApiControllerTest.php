@@ -203,6 +203,9 @@ class ApiControllerTest extends TestCase {
 	/** what a previous request with the same Idempotency-Key created, per test */
 	private array $idempotencyCache = [];
 
+	/** the table behind the durable cache, shared by every controller one test makes */
+	private ?\OCA\Social\Tests\Helper\InMemoryDurableCacheRequest $durableCacheRequest = null;
+
 	private array $filesBackup;
 	/** temporary files a test made, removed in tearDown */
 	private array $tempFiles = [];
@@ -408,7 +411,6 @@ class ApiControllerTest extends TestCase {
 			$this->scheduledStatusService,
 			$this->postReviewService,
 			$this->sensitiveMediaService,
-			$this->createMock(\OCA\Social\Db\FollowsRequest::class),
 			$this->viewCountService,
 			$this->teamService,
 			$this->emojiService,
@@ -426,7 +428,8 @@ class ApiControllerTest extends TestCase {
 			$this->annualReportService,
 			$this->createMock(\OCA\Social\Service\WatchService::class),
 			$this->l10nFactory,
-			$this->timelineRevisionService
+			$this->timelineRevisionService,
+			$this->durableCache(),
 		);
 	}
 
@@ -2181,7 +2184,8 @@ class ApiControllerTest extends TestCase {
 		$target = $this->knownTarget();
 		$target->method('getAccount')->willReturn('bob@remote.example');
 		$this->followService->expects($this->once())
-			->method('followAccount')->with($this->identicalTo($viewer), 'bob@remote.example');
+			->method('followAccount')->with($this->identicalTo($viewer), 'bob@remote.example')
+			->willReturn(true);
 		$this->accountService->expects($this->once())
 			->method('bumpActorCount')->with($viewer->getId(), 'count_following', 1);
 
@@ -2200,6 +2204,41 @@ class ApiControllerTest extends TestCase {
 		$target->method('getAccount')->willReturn('bob@remote.example');
 		$this->followService->expects($this->once())->method('unfollowAccount');
 		$this->followService->method('getRelationshipWith')->willReturn(new Relationship(42));
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountUnfollow('42')->getStatus());
+	}
+
+	/** The same call on an existing follow is how a client flips its bell or its boosts. */
+	public function testReFollowingToChangeASettingLeavesTheCountAlone(): void {
+		$this->loggedInAs();
+		$target = $this->knownTarget();
+		$target->method('getAccount')->willReturn('bob@remote.example');
+		$this->followService->method('followAccount')->willReturn(false);
+		$this->followService->method('getRelationshipWith')->willReturn(new Relationship(42));
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountFollow('42', true)->getStatus());
+	}
+
+	public function testUnfollowingSomebodyNotFollowedLeavesTheCountAlone(): void {
+		$this->loggedInAs();
+		$target = $this->knownTarget();
+		$target->method('getAccount')->willReturn('bob@remote.example');
+		$this->followService->method('unfollowAccount')->willReturn(false);
+		$this->followService->method('getRelationshipWith')->willReturn(new Relationship(42));
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->accountUnfollow('42')->getStatus());
+	}
+
+	public function testUnfollowingTakesOneOffTheFollowingCount(): void {
+		$viewer = $this->loggedInAs();
+		$target = $this->knownTarget();
+		$target->method('getAccount')->willReturn('bob@remote.example');
+		$this->followService->method('unfollowAccount')->willReturn(true);
+		$this->followService->method('getRelationshipWith')->willReturn(new Relationship(42));
+		$this->accountService->expects($this->once())
+			->method('bumpActorCount')->with($viewer->getId(), 'count_following', -1);
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->accountUnfollow('42')->getStatus());
 	}
@@ -4649,5 +4688,19 @@ class ApiControllerTest extends TestCase {
 		}
 
 		$this->assertSame([], $bare, 'these routes are unthrottled for a bearer-token client');
+	}
+
+	/**
+	 * The durable cache on its table backend — as on an instance with no
+	 * memcache — so the Idempotency-Key round trip is exercised there.
+	 */
+	private function durableCache(): \OCA\Social\Service\DurableCache {
+		$factory = $this->createMock(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createMock(\OCP\AppFramework\Utility\ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$this->durableCacheRequest ??= new \OCA\Social\Tests\Helper\InMemoryDurableCacheRequest();
+
+		return new \OCA\Social\Service\DurableCache($factory, $this->durableCacheRequest, $time);
 	}
 }

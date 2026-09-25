@@ -146,12 +146,10 @@ class BlocklistImportServiceTest extends TestCase {
 
 	/** Each half of a list goes where it belongs. */
 	public function testApplyingBlocksAndSilencesSeparately(): void {
-		$this->fediverseService->method('isExactlyListed')->willReturn(false);
-		$this->fediverseService->method('isSilenced')->willReturn(false);
 		$this->fediverseService->expects($this->once())->method('addAddresses')
 			->with(['blocked.example'])->willReturn(1);
-		$this->fediverseService->expects($this->once())->method('silenceAddress')
-			->with('limited.example');
+		$this->fediverseService->expects($this->once())->method('silenceAddresses')
+			->with(['limited.example']);
 
 		$applied = $this->service->apply([
 			'blocked.example' => BlocklistImportService::SEVERITY_SUSPEND,
@@ -162,12 +160,40 @@ class BlocklistImportServiceTest extends TestCase {
 		$this->assertSame(1, $applied['silenced']);
 	}
 
+	/**
+	 * The two lists are read once for the whole apply and written once, not
+	 * asked about and rewritten per domain.
+	 */
+	public function testApplyingALargeListReadsAndWritesEachListOnce(): void {
+		$entries = [];
+		for ($i = 0; $i < 2000; $i++) {
+			$entries['s' . $i . '.example'] = BlocklistImportService::SEVERITY_SILENCE;
+			$entries['b' . $i . '.example'] = BlocklistImportService::SEVERITY_SUSPEND;
+		}
+		// covered by an entry earlier in the same list
+		$entries['www.s1.example'] = BlocklistImportService::SEVERITY_SILENCE;
+
+		$this->fediverseService->expects($this->once())->method('silencedHosts')->willReturn([]);
+		$this->fediverseService->expects($this->once())->method('exactlyListedHosts')->willReturn([]);
+		$this->fediverseService->expects($this->never())->method('isSilenced');
+		$this->fediverseService->expects($this->never())->method('isExactlyListed');
+		$this->fediverseService->expects($this->never())->method('silenceAddress');
+		$this->fediverseService->expects($this->once())->method('silenceAddresses')
+			->with($this->countOf(2000))->willReturn(2000);
+		$this->fediverseService->expects($this->once())->method('addAddresses')
+			->with($this->countOf(2000))->willReturn(2000);
+
+		$applied = $this->service->apply($entries);
+
+		$this->assertSame(2000, $applied['silenced']);
+		$this->assertSame(1, $applied['alreadySilenced']);
+		$this->assertSame(2000, $applied['blocked']);
+	}
+
 	/** A preview changes nothing, which is what makes it worth showing. */
 	public function testADryRunWritesNothing(): void {
-		$this->fediverseService->method('isExactlyListed')->willReturn(false);
-		$this->fediverseService->method('isSilenced')->willReturn(false);
 		$this->fediverseService->expects($this->never())->method('addAddresses');
-		$this->fediverseService->expects($this->never())->method('silenceAddress');
+		$this->fediverseService->expects($this->never())->method('silenceAddresses');
 
 		$would = $this->service->apply([
 			'blocked.example' => BlocklistImportService::SEVERITY_SUSPEND,
@@ -180,10 +206,10 @@ class BlocklistImportServiceTest extends TestCase {
 
 	/** What is already decided is reported rather than decided again. */
 	public function testWhatIsAlreadyListedIsCountedApart(): void {
-		$this->fediverseService->method('isExactlyListed')->willReturn(true);
-		$this->fediverseService->method('isSilenced')->willReturn(true);
+		$this->fediverseService->method('exactlyListedHosts')->willReturn(['blocked.example' => true]);
+		$this->fediverseService->method('silencedHosts')->willReturn(['example' => true]);
 		$this->fediverseService->expects($this->never())->method('addAddresses');
-		$this->fediverseService->expects($this->never())->method('silenceAddress');
+		$this->fediverseService->expects($this->never())->method('silenceAddresses');
 
 		$applied = $this->service->apply([
 			'blocked.example' => BlocklistImportService::SEVERITY_SUSPEND,

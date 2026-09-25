@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\HostBreakerRequest;
 use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -72,6 +73,9 @@ class ActivityServiceTest extends TestCase {
 	private NoteInterface|MockObject $noteInterface;
 	private AnnounceInterface|MockObject $announceInterface;
 	private ActivityService $service;
+	private HostBreakerRequest|MockObject $hostBreakerRequest;
+	/** @var array<string, array{strikes: int, open_until: int, last_failure: int}> */
+	private array $breakerRows = [];
 
 	protected function setUp(): void {
 		$this->noteInterface = $this->createMock(NoteInterface::class);
@@ -93,6 +97,23 @@ class ActivityServiceTest extends TestCase {
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->relayRequest = $this->createMock(RelayRequest::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
+
+		// the breaker's table, held in memory: a failure one pass records is
+		// what the next pass reads
+		$this->breakerRows = [];
+		$this->hostBreakerRequest = $this->createMock(HostBreakerRequest::class);
+		$this->hostBreakerRequest->method('failingSince')->willReturnCallback(
+			fn (int $since): array => array_filter($this->breakerRows, fn (array $row): bool => $row['last_failure'] > $since)
+		);
+		$this->hostBreakerRequest->method('open')->willReturnCallback(
+			function (string $host, int $strikes, int $openUntil, int $now): void {
+				$this->breakerRows[$host] = ['strikes' => $strikes, 'open_until' => $openUntil, 'last_failure' => $now];
+			}
+		);
+		$this->hostBreakerRequest->method('close')->willReturnCallback(function (string $host): void {
+			unset($this->breakerRows[$host]);
+		});
+
 		$this->service = new ActivityService(
 			$this->createMock(StreamRequest::class),
 			$this->followsRequest,
@@ -103,7 +124,7 @@ class ActivityServiceTest extends TestCase {
 			$this->configService,
 			$this->actorsRequest,
 			$this->relayRequest,
-			$this->createMock(\OCP\ICacheFactory::class),
+			$this->hostBreakerRequest,
 			$this->logger
 		);
 	}
@@ -296,7 +317,7 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(self::TOKEN, $this->service->updateActivity($alice, $note));
 
 		$this->assertInstanceOf(Update::class, $queued);
-		$this->assertSame(self::NOTE_ID . '/activity#update', $queued->getId());
+		$this->assertStringStartsWith(self::NOTE_ID . '#updates/', $queued->getId());
 		$this->assertSame($note, $queued->getObject());
 		$this->assertSame($queued, $note->getParent());
 		$this->assertSame($alice, $queued->getActor());
@@ -496,6 +517,50 @@ class ActivityServiceTest extends TestCase {
 			'https://relay.example/inbox',
 			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
 		);
+	}
+
+	/** The ids of the Updates queued for these items, in order. */
+	private function updateIds(ACore ...$items): array {
+		$ids = [];
+		$this->requestQueueService->method('generateRequestQueue')->willReturnCallback(
+			function (array $paths, ACore $item) use (&$ids): string {
+				$ids[] = $item->getId();
+
+				return self::TOKEN;
+			}
+		);
+		$this->requestQueueService->method('getPriorityRequest')->willThrowException(new NoHighPriorityRequestException());
+		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
+
+		foreach ($items as $item) {
+			$this->service->updateActivity($this->alice(), $item);
+		}
+
+		return $ids;
+	}
+
+	public function testTwoEditsOfOnePostAreTwoActivities(): void {
+		// a peer that remembers activities by id dropped the second edit
+		$first = $this->note();
+		$first->setUpdated('2026-09-01T10:00:00+00:00');
+		$second = $this->note();
+		$second->setUpdated('2026-09-01T10:05:00+00:00');
+
+		$ids = $this->updateIds($first, $second);
+
+		$this->assertSame(self::NOTE_ID . '#updates/' . strtotime('2026-09-01T10:00:00+00:00'), $ids[0]);
+		$this->assertNotSame($ids[0], $ids[1]);
+	}
+
+	public function testTheSameVersionKeepsItsId(): void {
+		$first = $this->note();
+		$first->setUpdated('2026-09-01T10:00:00+00:00');
+		$again = $this->note();
+		$again->setUpdated('2026-09-01T10:00:00+00:00');
+
+		$ids = $this->updateIds($first, $again);
+
+		$this->assertSame($ids[0], $ids[1]);
 	}
 
 	public function testAnUpdateOfAPublicPostAlsoGoesToEveryAcceptedRelay(): void {
@@ -1139,15 +1204,89 @@ class ActivityServiceTest extends TestCase {
 		$this->assertTrue($this->service->manageRequest($this->queue()));
 	}
 
-	public function testManageInitForgetsFailedInstances(): void {
+	/**
+	 * Without a memcache the breaker held nothing: every pass — and every
+	 * process — found each dead host again, one thirty-second timeout at a
+	 * time. Kept in the database, a failure one pass records holds the host
+	 * back in the next.
+	 */
+	public function testAHostFoundFailingInOnePassIsHeldBackInTheNext(): void {
 		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
-		$this->requestQueueService->expects($this->exactly(2))->method('initRequest');
-		$this->requestQueueService->expects($this->exactly(2))->method('endRequest')->with($this->anything(), false);
+		$this->requestQueueService->expects($this->once())->method('initRequest');
+		$this->requestQueueService->expects($this->once())->method('postponeRequest');
+
+		$this->service->manageInit();
+		$this->assertTrue($this->service->manageRequest($this->queue()));
+		$this->service->manageInit();
+		$this->assertFalse($this->service->manageRequest($this->queue()));
+
+		$this->assertSame(1, $this->breakerRows['remote.example']['strikes']);
+		$this->assertEqualsWithDelta(time() + ActivityService::BREAKER_BASE, $this->breakerRows['remote.example']['open_until'], 2);
+	}
+
+	/** Each failure in a row doubles the wait, up to the ceiling. */
+	public function testAHostThatKeepsFailingIsLeftAloneLongerEachTime(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->breakerRows['remote.example'] = ['strikes' => 3, 'open_until' => time() - 1, 'last_failure' => time() - 300];
 
 		$this->service->manageInit();
 		$this->service->manageRequest($this->queue());
+
+		$this->assertSame(4, $this->breakerRows['remote.example']['strikes']);
+		$this->assertEqualsWithDelta(time() + 8 * ActivityService::BREAKER_BASE, $this->breakerRows['remote.example']['open_until'], 2);
+	}
+
+	/** Strikes older than the ceiling are forgotten: a host that failed yesterday starts again at one. */
+	public function testOldStrikesDoNotCount(): void {
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->breakerRows['remote.example'] = ['strikes' => 6, 'open_until' => 0, 'last_failure' => time() - 2 * ActivityService::BREAKER_MAX];
+
 		$this->service->manageInit();
 		$this->service->manageRequest($this->queue());
+
+		$this->assertSame(1, $this->breakerRows['remote.example']['strikes']);
+	}
+
+	public function testAHostThatAnswersIsClearedAndAHealthyOneCostsNoWrite(): void {
+		$this->curlService->method('retrieveJson')->willReturn([]);
+		$this->breakerRows['remote.example'] = ['strikes' => 2, 'open_until' => time() - 1, 'last_failure' => time() - 120];
+		$this->hostBreakerRequest->expects($this->once())->method('close')->with('remote.example');
+
+		$this->service->manageInit();
+		$this->service->manageRequest($this->queue());
+		// a second success, and one to a host with no record: no more writes
+		$this->service->manageRequest($this->queue());
+		$this->service->manageRequest($this->queue('https://other.example/inbox', InstancePath::TYPE_GLOBAL));
+
+		$this->assertArrayNotHasKey('remote.example', $this->breakerRows);
+	}
+
+	/** One query per drain, not one per row. */
+	public function testTheBreakerIsReadOncePerDrain(): void {
+		$this->curlService->method('retrieveJson')->willReturn([]);
+		$this->hostBreakerRequest->expects($this->once())->method('failingSince');
+
+		$this->service->manageInit();
+		for ($i = 0; $i < 5; $i++) {
+			$this->service->manageRequest($this->queue());
+		}
+	}
+
+	/** A breaker that cannot be read — the table not there yet — falls back to the per-pass list. */
+	public function testAnUnreadableBreakerFallsBackToThePerPassList(): void {
+		$service = new ActivityService(
+			$this->createMock(StreamRequest::class), $this->followsRequest, $this->cacheActorsRequest,
+			$this->signatureService, $this->requestQueueService, $this->curlService, $this->configService,
+			$this->actorsRequest, $this->relayRequest, $broken = $this->createMock(HostBreakerRequest::class), $this->logger
+		);
+		$broken->method('failingSince')->willThrowException(new \RuntimeException('no such table'));
+		$broken->method('open')->willThrowException(new \RuntimeException('no such table'));
+		$this->curlService->method('retrieveJson')->willThrowException(new RequestNetworkException());
+		$this->requestQueueService->expects($this->once())->method('initRequest');
+
+		$service->manageInit();
+		$this->assertTrue($service->manageRequest($this->queue()));
+		$this->assertFalse($service->manageRequest($this->queue()));
 	}
 
 	public function testManageRequestGivesUpWhenQueueEntryCannotBeClaimed(): void {
@@ -1159,5 +1298,184 @@ class ActivityServiceTest extends TestCase {
 
 		$this->service->manageInit();
 		$this->service->manageRequest($this->queue());
+	}
+
+	private function nothingHandedBack(): callable {
+		return function (RequestQueue $queue, \Throwable $e): void {
+			$this->fail('handed back: ' . $e->getMessage());
+		};
+	}
+
+	/**
+	 * One after another, a dead peer's timeout was paid in front of every
+	 * other delivery. A batch goes out as one wave, one row per host, and
+	 * each row is settled as a single delivery would be.
+	 */
+	public function testABatchToDifferentHostsGoesOutAsOneWave(): void {
+		$waves = [];
+		$this->curlService->expects($this->once())->method('sendMany')
+			->willReturnCallback(function (array $requests) use (&$waves): array {
+				$waves[] = array_column($requests, 'url');
+
+				return [0 => null, 1 => new RequestContentException('', 503), 2 => new RequestContentException('', 410)];
+			});
+		$ended = [];
+		$this->requestQueueService->method('endRequest')
+			->willReturnCallback(function (RequestQueue $queue, bool $success) use (&$ended): void {
+				$ended[] = [$queue->getInstance()->getUri(), $success];
+			});
+		$this->requestQueueService->expects($this->once())->method('deleteRequest');
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests([
+			$this->queue('https://a.example/inbox'),
+			$this->queue('https://b.example/inbox'),
+			$this->queue('https://c.example/inbox'),
+		], time() + 60, $this->nothingHandedBack());
+
+		$this->assertSame(3, $attempted);
+		$this->assertSame([['https://a.example/inbox', 'https://b.example/inbox', 'https://c.example/inbox']], $waves);
+		$this->assertSame([['https://a.example/inbox', true], ['https://b.example/inbox', false]], $ended);
+		$this->assertArrayHasKey('b.example', $this->breakerRows, 'the host that answered 503 is held back');
+	}
+
+	/**
+	 * Two rows for one host are not sent at once; and once the first has
+	 * failed, the second is held back by the breaker instead of spending a
+	 * timeout of its own.
+	 */
+	public function testASecondRowForAFailingHostIsHeldBackWithoutBeingSent(): void {
+		$waves = [];
+		$this->curlService->method('sendMany')
+			->willReturnCallback(function (array $requests) use (&$waves): array {
+				$waves[] = array_column($requests, 'url');
+
+				return array_map(
+					fn (array $r) => str_contains($r['url'], 'dead.example') ? new RequestNetworkException('timed out') : null,
+					$requests
+				);
+			});
+		$this->requestQueueService->expects($this->once())->method('postponeRequest');
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests([
+			$this->queue('https://dead.example/users/a/inbox'),
+			$this->queue('https://dead.example/users/b/inbox'),
+			$this->queue('https://alive.example/inbox'),
+		], time() + 60, $this->nothingHandedBack());
+
+		$this->assertSame(2, $attempted);
+		$this->assertSame([['https://dead.example/users/a/inbox', 'https://alive.example/inbox']], $waves);
+	}
+
+	public function testAWaveHoldsAtMostTheParallelLimit(): void {
+		$sizes = [];
+		$this->curlService->method('sendMany')
+			->willReturnCallback(function (array $requests) use (&$sizes): array {
+				$sizes[] = count($requests);
+
+				return array_fill_keys(array_keys($requests), null);
+			});
+		$queues = [];
+		for ($i = 0; $i < ActivityService::PARALLEL + 5; $i++) {
+			$queues[] = $this->queue('https://host' . $i . '.example/inbox');
+		}
+
+		$this->service->manageInit();
+		$this->assertSame(ActivityService::PARALLEL + 5, $this->service->manageRequests($queues, time() + 60, $this->nothingHandedBack()));
+
+		$this->assertSame([ActivityService::PARALLEL, 5], $sizes);
+	}
+
+	/** A row that cannot even be signed is handed back; the rest of its wave still goes. */
+	public function testARowThatFailsUnexpectedlyIsHandedBackAndTheWaveStillGoes(): void {
+		$this->signatureService->method('signRequest')->willReturnCallback(
+			function (string $url): array {
+				if (str_contains($url, 'bad.example')) {
+					throw new \RuntimeException('the private key is empty');
+				}
+
+				return [];
+			}
+		);
+		$this->curlService->expects($this->once())->method('sendMany')
+			->with($this->countOf(1))->willReturn([1 => null]);
+		$handedBack = [];
+
+		$this->service->manageInit();
+		$this->service->manageRequests(
+			[$this->queue('https://bad.example/inbox'), $this->queue('https://good.example/inbox')],
+			time() + 60,
+			function (RequestQueue $queue, \Throwable $e) use (&$handedBack): void {
+				$handedBack[] = $queue->getInstance()->getUri();
+			}
+		);
+
+		$this->assertSame(['https://bad.example/inbox'], $handedBack);
+	}
+
+	public function testNoWaveStartsPastTheDeadline(): void {
+		$this->curlService->expects($this->never())->method('sendMany');
+		$this->requestQueueService->expects($this->never())->method('initRequest');
+
+		$this->assertSame(0, $this->service->manageRequests([$this->queue()], time() - 1, $this->nothingHandedBack()));
+	}
+
+	/** A host another process found down is held back from the first wave on, without a request. */
+	public function testAHostTheBreakerHoldsIsPostponedWithoutBeingSent(): void {
+		$this->breakerRows['dead.example'] = ['strikes' => 1, 'open_until' => time() + 600, 'last_failure' => time()];
+		$this->curlService->expects($this->once())->method('sendMany')
+			->with($this->countOf(1))->willReturn([1 => null]);
+		$this->requestQueueService->expects($this->once())->method('postponeRequest');
+		$this->requestQueueService->expects($this->once())->method('initRequest');
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests(
+			[$this->queue('https://dead.example/inbox'), $this->queue('https://alive.example/inbox')],
+			time() + 60,
+			$this->nothingHandedBack()
+		);
+
+		$this->assertSame(1, $attempted);
+	}
+
+	/** A row another worker took between the read and the claim is left to that worker. */
+	public function testARowSomebodyElseTookIsNeitherSentNorHandedBack(): void {
+		$this->requestQueueService->method('initRequest')->willReturnCallback(
+			function (RequestQueue $queue): void {
+				if (str_contains($queue->getInstance()->getUri(), 'taken.example')) {
+					throw new QueueStatusException();
+				}
+			}
+		);
+		$this->curlService->expects($this->once())->method('sendMany')
+			->with($this->countOf(1))->willReturn([1 => null]);
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests(
+			[$this->queue('https://taken.example/inbox'), $this->queue('https://free.example/inbox')],
+			time() + 60,
+			$this->nothingHandedBack()
+		);
+
+		$this->assertSame(1, $attempted);
+	}
+
+	/** An outcome the delivery does not know how to end is the caller's, as a single delivery's is. */
+	public function testAnOutcomeThatCannotBeSettledIsHandedBack(): void {
+		$this->curlService->method('sendMany')->willReturn([0 => new \RuntimeException('the database is gone')]);
+		$this->requestQueueService->expects($this->never())->method('endRequest');
+		$handedBack = [];
+
+		$this->service->manageInit();
+		$this->service->manageRequests(
+			[$this->queue('https://a.example/inbox')],
+			time() + 60,
+			function (RequestQueue $queue, \Throwable $e) use (&$handedBack): void {
+				$handedBack[] = $e->getMessage();
+			}
+		);
+
+		$this->assertSame(['the database is gone'], $handedBack);
 	}
 }

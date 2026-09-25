@@ -92,6 +92,13 @@ class StreamRequest extends StreamRequestBuilder {
 	private const HOME_OVERREAD_MAX = 300;
 
 	/**
+	 * How far back from its cursor a home page first reads, and how far each
+	 * retry reaches, in seconds; a page still short after the last one reads
+	 * without a bound. See `homeRecipientNids()`.
+	 */
+	private const HOME_WINDOWS = [86400, 7 * 86400, 30 * 86400, 365 * 86400];
+
+	/**
 	 * How many further windows a page that filtering emptied may read. See
 	 * `refilledHomePage()`.
 	 */
@@ -855,11 +862,16 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * Oldest first, because that is the order a thread is read in and the order
 	 * `OrderedCollectionPage` offsets are stable under: newest-first paging
-	 * renumbers every page as soon as somebody replies again.
+	 * renumbers every page as soon as somebody replies again. Ordered on the
+	 * nid, which is the publication time with a random suffix, so that a page
+	 * can start after the last one's final reply (`$after`) rather than read
+	 * and discard every reply before it.
+	 *
+	 * @param string $after the nid the page starts after, '' for none
 	 *
 	 * @return Stream[]
 	 */
-	public function getPublicRepliesTo(string $id, int $limit, int $offset = 0): array {
+	public function getPublicRepliesTo(string $id, int $limit, int $offset = 0, string $after = ''): array {
 		if ($id === '' || $limit < 1) {
 			return [];
 		}
@@ -874,7 +886,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
-		$qb->orderBy('s.published_time', 'asc');
+		if ($after !== '') {
+			$qb->andWhere($qb->expr()->gt('s.nid', $qb->createNamedParameter(Nid::normalize($after))));
+		}
+
+		$qb->orderBy('s.nid', 'asc');
 		$qb->setMaxResults($limit);
 		$qb->setFirstResult($offset);
 
@@ -1129,14 +1145,18 @@ class StreamRequest extends StreamRequestBuilder {
 	/**
 	 * The public posts of one author, oldest last, in fixed-size windows.
 	 *
-	 * The outbox collection is paged by page number rather than by cursor —
-	 * that is what the collection itself advertises, and what a consumer
-	 * walking `first`/`next` follows — so this takes an offset instead of the
-	 * `since` the client timelines use.
+	 * Newest first, on the nid. The collection's `first` is still numbered and
+	 * a numbered page is still answered, by offset, because those are the
+	 * addresses peers already hold; every `next` link is a cursor (`$before`,
+	 * the nid of the previous page's last post), which the author's
+	 * `attributed_to_prim` index answers in nid order without reading the
+	 * pages before it.
+	 *
+	 * @param string $before the nid the page starts below, '' for none
 	 *
 	 * @return Stream[]
 	 */
-	public function getPublicByAuthor(string $actorId, int $limit, int $offset = 0): array {
+	public function getPublicByAuthor(string $actorId, int $limit, int $offset = 0, string $before = ''): array {
 		if ($actorId === '' || $limit < 1) {
 			return [];
 		}
@@ -1151,7 +1171,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
-		$qb->orderBy('s.published_time', 'desc');
+		if ($before !== '') {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter(Nid::normalize($before))));
+		}
+
+		$qb->orderBy('s.nid', 'desc');
 		$qb->setMaxResults($limit);
 		$qb->setFirstResult($offset);
 
@@ -1334,27 +1358,64 @@ class StreamRequest extends StreamRequestBuilder {
 	/**
 	 * How often each hashtag was used since a point in time.
 	 *
-	 * This is what the trends cron needs, and all it needs. It used to hydrate
-	 * the posts themselves — every column of every note, plus its action row —
-	 * and count the tags in PHP, bounded to a sample of the most recent
-	 * thousand notes; on a busy instance all five windows saw the same
-	 * thousand notes and every period therefore reported the same count.
+	 * One window of `countHashtagsInWindows()`, for a caller that wants one.
 	 *
 	 * @return array<string, int> hashtag => how many posts used it
 	 */
 	public function countHashtagsSince(int $since): array {
+		return $this->countHashtagsInWindows(['since' => $since])['since'];
+	}
+
+	/**
+	 * How often each hashtag was used in each of several windows, in one pass.
+	 *
+	 * This is what the trends cron needs, and all it needs. It used to hydrate
+	 * the posts themselves — every column of every note, plus its action row —
+	 * and count the tags in PHP, bounded to a sample of the most recent
+	 * thousand notes; on a busy instance all five windows saw the same
+	 * thousand notes and every period therefore reported the same count. Then
+	 * it was one grouped query per window, which read the tag rows of the
+	 * widest window five times over; now the widest window is read once and
+	 * each narrower one is a conditional sum over the same rows.
+	 *
+	 * A hashtag used in none of a window's posts is absent from that window
+	 * rather than zero.
+	 *
+	 * @param array<string, int> $windows name => since, as a timestamp
+	 *
+	 * @return array<string, array<string, int>> name => (hashtag => how many posts used it)
+	 */
+	public function countHashtagsInWindows(array $windows): array {
+		$result = array_fill_keys(array_keys($windows), []);
+		if ($windows === []) {
+			return $result;
+		}
+
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 
-		$date = new DateTime();
-		$date->setTimestamp($since);
+		$qb->select('st.hashtag');
+		$aliases = [];
+		foreach (array_keys($windows) as $i => $name) {
+			$date = new DateTime();
+			$date->setTimestamp($windows[$name]);
+			$aliases[$name] = 'w' . $i;
+			$qb->selectAlias(
+				$qb->createFunction(
+					'SUM(CASE WHEN '
+					. $expr->gte('s.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
+					. ' THEN 1 ELSE 0 END)'
+				),
+				'w' . $i
+			);
+		}
 
-		$qb->select('st.hashtag')
-			->selectAlias($qb->func()->count('*'), 'total')
-			->from(self::TABLE_STREAM_TAGS, 'st')
+		$widest = new DateTime();
+		$widest->setTimestamp(min($windows));
+		$qb->from(self::TABLE_STREAM_TAGS, 'st')
 			->innerJoin('st', self::TABLE_STREAM, 's', $expr->eq('s.id_prim', 'st.stream_id'))
 			->where($expr->gte(
-				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+				's.published_time', $qb->createNamedParameter($widest, IQueryBuilder::PARAM_DATE)
 			))
 			// public posts only, the rule `HashtagsRequest::related()` counts
 			// by: a tag used inside a followers-only thread or a direct message
@@ -1369,14 +1430,18 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->setDefaultSelectAlias('s');
 		$qb->limitToStatusTypes();
 
-		$counts = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$counts[(string)$data['hashtag']] = (int)$data['total'];
+			foreach ($aliases as $name => $alias) {
+				$count = (int)($data[$alias] ?? 0);
+				if ($count > 0) {
+					$result[$name][(string)$data['hashtag']] = $count;
+				}
+			}
 		}
 		$cursor->closeCursor();
 
-		return $counts;
+		return $result;
 	}
 
 	/**
@@ -1820,6 +1885,10 @@ class StreamRequest extends StreamRequestBuilder {
 			// and which member of a team wrote it, which is the trail a team
 			// account keeps and has nothing left to be about
 			[self::TABLE_TEAM_POSTS, 'stream_id_prim'],
+			// and that it was brought over from an archive: the import skips
+			// any source id it remembers, so a deleted import could never be
+			// brought over again
+			[self::TABLE_IMPORTED_POSTS, 'stream_id_prim'],
 		] as [$table, $field]) {
 			$qb = $this->getQueryBuilder();
 			$qb->delete($table)

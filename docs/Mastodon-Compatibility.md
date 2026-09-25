@@ -7,7 +7,10 @@ it. Written for whoever has to decide what to build next.
 
 **Verified against:** app version 0.19.95, `master`, 2026-09-15 — every status
 re-checked against the code, and the client-facing claims re-checked against a
-running instance rather than against the unit tests.
+running instance rather than against the unit tests — and 0.26.60, 2026-09-25,
+against the code only, for the domain-root sections (§1, §2, §3.1, §9 item 1
+and *Where to start*), the post import (§5.3, item 28) and the list of what
+Mastodon has no equivalent for; the rest has not been re-checked since.
 
 **What changed in this revision**, for a reader who knew the document before:
 a walk of Mastodon's documented client routes found 23 genuinely unserved (the
@@ -47,9 +50,10 @@ rather than hanging, and `emails/confirmations`, which belongs to a sign-up
 this app does not own. Everything else exists, and §3.3 says which of them is a
 stub.
 
-It is **not** a drop-in replacement for Mastodon, and two things stand between
-it and that goal. One is small, mechanical and still open: the API is not
-served at the domain root. (The other of that pair — an OAuth app row holding
+It is **not** a drop-in replacement for Mastodon, and two things stood between
+it and that goal. One was small and mechanical: the API is not served at the
+domain root by the app itself, and the web-server rules that put it there now
+ship with the app (§3.1). (The other of that pair — an OAuth app row holding
 exactly one token — is fixed: authorizations are their own table, so two people
 can use the same client.) The second is architectural: **an actor's identity is
 recomputed from configuration on every read rather than stored**, and every URI
@@ -70,7 +74,7 @@ report that does not separate them will either sound alarming or sound smug.
 
 | Test | Question | Verdict |
 |---|---|---|
-| **The client test** | Do existing Mastodon apps work against it, unmodified? | **No** — one blocker left, days of work |
+| **The client test** | Do existing Mastodon apps work against it, unmodified? | **Only once the shipped web-server rules are installed** (§3.1), and then without push or streaming (§3.3); without the rules, no |
 | **The peer test** | Would other fediverse servers notice the difference? | **Almost no** — federation quality is genuinely good, with one live defect (§4) |
 | **The takeover test** | Can an existing Mastodon instance move onto it, same domain, same users, without the network noticing? | **No** — and this is weeks to months of work |
 
@@ -80,7 +84,7 @@ Most of the value is in the first test. Most of the difficulty is in the third.
 
 ## 3. The client test
 
-### 3.1 Blocker — the API is not at the domain root
+### 3.1 The API at the domain root
 
 Every route is registered under the app prefix (a `#[FrontpageRoute]` on the
 controller method), served at
@@ -90,14 +94,17 @@ handlers (`AppInfo\Application`).
 
 Ivory, Tusky, Mona, Elk, Ice Cubes and Phanpy all build request URLs as
 `https://<domain>/api/v1/...` from the domain the user types. The Mastodon client
-protocol has **no mechanism for a non-root API base**, so none of them can reach
-any endpoint. The app ships no rewrite, no webserver snippet and no setup
-guidance. `README.md` now says so plainly rather than promising that
-third-party clients can log in, which is what it used to say.
+protocol has **no mechanism for a non-root API base**, so out of the box none of
+them can reach any endpoint.
 
-Nothing else in this section matters until this is fixed. The fix is either a
-documented reverse-proxy rewrite from `/api` and `/oauth` to the app, or root
-route registration from the app itself.
+The way in is a web-server change, not an app setting: the app ships the rules
+that map `/api` and `/oauth` at the domain root onto itself, for Apache and
+nginx, in `contrib/webserver/`, with the explanation in
+[Admin.md](Admin.md#mastodon-apps-cannot-connect). The `ClientApiAtRoot` setup
+check (and `ProxyForwardsTheScheme` beside it) says in Administration →
+Overview whether they are in place, and an administrator opening the app sees
+the same warning with the rules to paste until they are. Where they are not,
+nothing else in this section is reachable by a stock client.
 
 ### 3.2 Fixed — one access token per registered app
 
@@ -268,7 +275,8 @@ featured collections, a real `replies` collection, Mastodon-shaped HTML content
 whose `u-url mention` and `hashtag` anchors agree with the `tag` array
 (`lib/Service/LinkifyService.php`), `contentMap` and language, correct visibility
 addressing that fails closed on unknown, `updated` on edits, inbox forwarding per
-ActivityPub 7.1.2 with the LD signature preserved, per-inbox delivery
+ActivityPub 7.1.2 with the LD signature preserved (and, receiving one without an LD
+signature, the object fetched from its origin rather than refused), per-inbox delivery
 deduplication, and a retry window of 16 attempts on Sidekiq's `tries⁴+15`
 backoff — about 49 hours, deliberately matching Mastodon.
 
@@ -392,8 +400,13 @@ bookmarks and favourites as URLs, the account's **own posts as an ActivityPub
 `media_attachments/` in the layout Mastodon's own archive uses, with each
 attachment's `url` rewritten to point into the archive. What comes back on import
 is the profile, the follows, the relations, the marks, the banner and the files
-of the posts this server still has. The posts themselves are counted and not
-written, and the key pair is deliberately never carried.
+of the posts this server still has. That import counts the posts and does not
+write them, and the key pair is deliberately never carried. Posts are brought
+over separately: **Settings → Migration → Bring your posts with you** and
+`occ social:account:import-posts` (`PostImportService`) read another server's
+archive and write the account's own posts as new local posts, dated when they
+were written, with their pictures, under ids of this server and with nothing
+federated.
 
 The follows *file* is read whichever network wrote it: Mastodon's CSV, or
 Pixelfed's `pixelfed-following.json` — a JSON array of actor URLs, which the
@@ -516,9 +529,9 @@ client renders it as a link and a reader on another Nextcloud gets a file card.
 Nothing a browser would execute is accepted: HTML and SVG are refused `422`, and
 everything served carries `X-Content-Type-Options: nosniff`.
 
-And in the other direction, Mastodon has no equivalent for: ten dashboard
+And in the other direction, Mastodon has no equivalent for: dashboard
 widgets, profile-page integration, posting a picture straight from Nextcloud
-Files, Social data in `occ user:export`, and twenty-odd occ commands as an admin
+Files, Social data in `occ user:export`, and occ commands as an admin
 surface.
 
 ---
@@ -598,7 +611,7 @@ whether it is done. Query and scalability work has its own list in
 
 | # | Work | Effort | Why it is first | Status |
 |---|---|---|---|---|
-| 1 | **Serve `/api` and `/oauth` at the domain root**, or document the reverse-proxy rewrite and ship a setup check for it | Days | Every route is a `#[FrontpageRoute]` under `/apps/social/`, and the Mastodon client protocol has no way to be told about a non-root API base. No stock client can reach *any* of the surface below | **open** |
+| 1 | **Serve `/api` and `/oauth` at the domain root**, or document the reverse-proxy rewrite and ship a setup check for it | Days | Every route is a `#[FrontpageRoute]` under `/apps/social/`, and the Mastodon client protocol has no way to be told about a non-root API base. No stock client can reach *any* of the surface below without it | done as the second: `contrib/webserver/`, [Admin.md](Admin.md#mastodon-apps-cannot-connect), the `ClientApiAtRoot` setup check and the in-app warning. The app cannot do it by itself: Nextcloud lets only a short list of apps claim root URLs |
 | 2 | **Per-user OAuth tokens** — an authorization table keyed to (app, account) instead of one `token` column on `social_client` | Days | A second authorization against the same `client_id` revoked the first, so user B signing into Elk signed user A out | done (`social_client_auth`) |
 
 ### Tier 2 — days of work each, and each one a thing a client shows
@@ -694,7 +707,7 @@ Untouched, and item 24 gates the other six.
 | 25 | **Serve the Mastodon URL space** — `/users/{name}`, `/users/{name}/statuses/{id}`, root `/inbox`, `/outbox`, `/followers`, `/following` — and resolve the requested URI rather than rebuilding it | Weeks | Peers hold the old URIs as primary keys; after a domain swap every one of them 404s |
 | 26 | **Key-pair import**, root-only and loudly warned | Days | Keys are always generated; the old `keyId` becomes unresolvable and every signature fails on the far side |
 | 27 | **A handle and id rename path** | Weeks | The `*_prim` md5 columns mean an id change is a fan-out rewrite across roughly a dozen tables |
-| 28 | **Status and follower-graph importers**, writing rows and federating nothing | Months | The *export* half is whole — `SocialMigrator` writes the account's own posts as an ActivityPub `OrderedCollection`, **their pictures and videos** under `media_attachments/`, and its followers and following as CSV — and the import side restores the profile, follows, relations, bookmarks, the banner and the files of the posts this server already has. Nothing writes **statuses** back, so the media of a post that is not here stays in the archive; followers cannot be imported at all until identity is continuous |
+| 28 | **Status and follower-graph importers**, writing rows and federating nothing | Months | The *export* half is whole — `SocialMigrator` writes the account's own posts as an ActivityPub `OrderedCollection`, **their pictures and videos** under `media_attachments/`, and its followers and following as CSV — and the import side restores the profile, follows, relations, bookmarks, the banner and the files of the posts this server already has. Statuses are written back by the post import (`PostImportService`, `occ social:account:import-posts`) as new local posts under this server's ids, federating nothing — not under their original ids, which needs 24; followers cannot be imported at all until identity is continuous |
 | 29 | **Counter and threading reconciliation**, and a **cutover verification command** that fetches our own actor over HTTPS as a peer would | Weeks | Without it, nobody can tell whether a cutover worked until the network says so |
 | 30 | **The operational runbook** — freeze, drain, dump, import, flip, keep the old inbox reachable | Days | |
 
@@ -729,11 +742,10 @@ says `4.3.0`, so a client that reads it before it asks will ask.
 
 ### Where to start
 
-**One thing blocks everything else, and it is item 1.** Until the API answers
-at the domain root, no stock client reaches *any* of the surface above it.
-Everything else is polish on a server nobody can connect to. It is days of
-work — a documented reverse-proxy rewrite and a setup check, or root route
-registration from the app — and it has not been started.
+**Item 1 is done as far as an app can do it.** The API answers at the domain
+root once an administrator installs the shipped web-server rules, and the setup
+check says whether they have; on an instance where they have not, no stock
+client reaches *any* of the surface above.
 
 **Item 39 next, ahead of anything larger.** It is hours of work, it is the only
 thing on this list a *peer* currently gets wrong, and every post with a picture

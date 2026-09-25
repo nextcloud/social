@@ -177,6 +177,43 @@ class CheckService {
 		];
 	}
 
+	/** The base URL every id is minted from, or '' before it is set. */
+	public function configuredSocialUrl(): string {
+		return (string)$this->configService->getAppValue(ConfigService::SOCIAL_URL);
+	}
+
+	/**
+	 * Whether `social_url`, which every id is minted from, is on the scheme,
+	 * host and port of `cloud_url`.
+	 *
+	 * They can disagree on an instance set up before `social_url` was derived
+	 * from `cloud_url`: it was then taken from the first request that opened
+	 * the app, and an internal hostname or a proxy that does not pass the
+	 * scheme on is inside every id since. Reported, never corrected, for the
+	 * same reason as the cloud address.
+	 */
+	public function checkSocialUrl(): bool {
+		$configured = $this->configuredCloudAddress();
+		$socialUrl = $this->configuredSocialUrl();
+		if ($configured === '' || $socialUrl === '') {
+			return true;
+		}
+
+		return $this->origin($configured) === $this->origin($socialUrl);
+	}
+
+	private function origin(string $url): string {
+		$parts = parse_url($url);
+		if (!is_array($parts)) {
+			return strtolower($url);
+		}
+
+		$scheme = strtolower($parts['scheme'] ?? '');
+		$port = $parts['port'] ?? (($scheme === 'https') ? 443 : 80);
+
+		return $scheme . '://' . strtolower($parts['host'] ?? '') . ':' . $port;
+	}
+
 	private function configuredCloudAddress(): string {
 		try {
 			// getCloudUrl() predates return types and can hand back anything

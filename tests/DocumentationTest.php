@@ -1214,6 +1214,70 @@ class DocumentationTest extends TestCase {
 	}
 
 	/**
+	 * The places somebody deciding whether to install the app reads first.
+	 *
+	 * @return iterable<string, array{string}>
+	 */
+	public static function firstReadDocuments(): iterable {
+		yield 'app store' => ['appinfo/info.xml'];
+		yield 'readme' => ['README.md'];
+		yield 'user guide' => ['docs/User-Guide.md'];
+	}
+
+	/**
+	 * All three said Mastodon apps *cannot* connect, long after the web-server
+	 * rules that let them shipped: a person on the app store left believing
+	 * their phone would never work, and the answer was reachable from none of
+	 * them.
+	 */
+	#[DataProvider('firstReadDocuments')]
+	public function testTheWayMastodonAppsConnectIsNamedWhereAReaderLooksFirst(string $path): void {
+		$document = $this->read($path);
+
+		$this->assertStringContainsString('contrib/webserver', $document, $path . ' does not say where the rules for Mastodon apps are');
+		$this->assertDoesNotMatchRegularExpression(
+			'/(clients?|apps?) cannot (reach|connect)/i',
+			$document,
+			$path . ' says Mastodon apps cannot connect; they can, once the shipped web-server rules are in place'
+		);
+	}
+
+	/**
+	 * A group is a list only when an administrator has chosen it, and none is
+	 * by default. Promising every group as a list left people looking for lists
+	 * that were never going to appear.
+	 */
+	#[DataProvider('firstReadDocuments')]
+	public function testGroupListsAreDescribedAsTheAdministratorsChoice(string $path): void {
+		$this->assertDoesNotMatchRegularExpression(
+			'/every\s+Nextcloud\s+group\s+you\s+(are\s+in|belong\s+to)/i',
+			$this->read($path),
+			$path . ' promises every group as a list; only the groups an administrator chose are'
+		);
+	}
+
+	/**
+	 * How many setup checks, commands or background jobs there are went wrong
+	 * in every document that said, within weeks. The lists themselves are
+	 * the authority, so the prose does not count them.
+	 */
+	public function testTheProseDoesNotCountWhatTheCodeLists(): void {
+		$number = '(?:\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty[- ]?\w*|thirty[- ]?\w*)';
+		$paths = ['README.md', 'appinfo/info.xml', ...array_map(
+			fn (string $file): string => 'docs/' . basename($file),
+			glob(dirname(__DIR__) . '/docs/*.md') ?: []
+		)];
+
+		foreach ($paths as $path) {
+			$this->assertDoesNotMatchRegularExpression(
+				'/\b' . $number . '\s+(?:setup\s+checks|`?occ`?\s+commands|commands\s+the\s+app\s+registers|`TimedJob`s|dashboard\s+widgets)\b/i',
+				$this->read($path),
+				$path . ' counts something the code lists; name the list instead'
+			);
+		}
+	}
+
+	/**
 	 * @param string[] $values
 	 * @return string[]
 	 */

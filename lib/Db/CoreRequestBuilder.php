@@ -52,6 +52,7 @@ class CoreRequestBuilder {
 	public const TABLE_ACCOUNT_NOTES = 'social_account_note';
 	public const TABLE_CONVERSATION_STATE = 'social_convo_state';
 	public const TABLE_DOMAIN_BLOCKS = 'social_domain_block';
+	public const TABLE_DURABLE_CACHE = 'social_durable_cache';
 	public const TABLE_MUTE_EXPIRY = 'social_mute_expiry';
 	public const TABLE_FEATURED_TAGS = 'social_featured_tag';
 	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
@@ -67,6 +68,7 @@ class CoreRequestBuilder {
 	public const TABLE_REPORTS = 'social_report';
 	public const TABLE_REACTIONS = 'social_reaction';
 	public const TABLE_REQUEST_QUEUE = 'social_req_queue';
+	public const TABLE_HOST_BREAKER = 'social_host_breaker';
 	public const TABLE_POST_HOLD = 'social_post_hold';
 	public const TABLE_SCHEDULED = 'social_scheduled';
 
@@ -159,6 +161,7 @@ class CoreRequestBuilder {
 			'id',
 			'type',
 			'account',
+			'account_lower',
 			'host',
 			'local',
 			'following',
@@ -630,6 +633,11 @@ class CoreRequestBuilder {
 			'params',
 			'creation'
 		],
+		self::TABLE_DURABLE_CACHE => [
+			'cache_key',
+			'cache_value',
+			'expires'
+		],
 		self::TABLE_FEEDS => [
 			'id',
 			'user_id',
@@ -652,6 +660,13 @@ class CoreRequestBuilder {
 			'summary',
 			'thumbnail',
 			'published'
+		],
+		self::TABLE_HOST_BREAKER => [
+			'host_prim',
+			'host',
+			'strikes',
+			'open_until',
+			'last_failure'
 		],
 		self::TABLE_STREAM => [
 			'nid',
@@ -980,22 +995,25 @@ class CoreRequestBuilder {
 	//
 
 	/**
-	 * @param IExtendedQueryBuilder $qb
-	 * @param string $fieldActorId
-	 * @param Person $author
-	 * @param string $alias
+	 * The cached actor a row names, as a LEFT JOIN on the prim columns.
+	 *
+	 * The id columns themselves carry no index and a `LOWER()` over them would
+	 * defeat one anyway, so matching on them was a scan of every cached actor
+	 * for each row of the page. A prim is the md5 of the id exactly as it was
+	 * written, which makes this an exact match where the old join folded case:
+	 * an id is a URI, and two that differ in case name different resources.
+	 *
+	 * @param string $fieldActorId the id column of the row, whose `_prim`
+	 *                             sibling is what is compared
 	 *
 	 * @deprecated - use SocialCrossQueryBuilder:leftJoinCacheActor
 	 */
 	protected function leftJoinCacheActors(
-		IExtendedQueryBuilder $qb, string $fieldActorId, ?Person $author = null, string $alias = '',
+		IExtendedQueryBuilder $qb, string $fieldActorId, string $alias = '',
 	) {
 		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
 			return;
 		}
-
-		$expr = $qb->expr();
-		$func = $qb->func();
 
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
@@ -1017,30 +1035,16 @@ class CoreRequestBuilder {
 			->selectAlias('ca.creation', 'ca_creation')
 			->selectAlias('ca.local', 'ca_local');
 
-		if ($author !== null) {
-			$andX = $expr->andX(
-				$qb->exprLimitToDBField('attributed_to', $author->getId(), true, false, 's'),
-				$expr->eq(
-					$func->lower($this->defaultSelectAlias . '.attributed_to'),
-					$func->lower('ca.id')
-				)
-			);
-			$orX = $expr->orX(
-				$expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id')),
-				$andX
-			);
-		} else {
-			$orX = $expr->orX(
-				$expr->eq($func->lower($pf . '.' . $fieldActorId), $func->lower('ca.id'))
-			);
-		}
-
 		$qb->leftJoin(
-			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca', $orX
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_CACHE_ACTORS, 'ca',
+			$qb->expr()->eq('ca.id_prim', $pf . '.' . $fieldActorId . '_prim')
 		);
 	}
 
 	/**
+	 * The local account a row names, joined on the prim columns for the reason
+	 * leftJoinCacheActors() gives.
+	 *
 	 * @param IExtendedQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param string $alias
@@ -1051,9 +1055,6 @@ class CoreRequestBuilder {
 			return;
 		}
 
-		$expr = $qb->expr();
-		$func = $qb->func();
-
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
 		$qb->selectAlias('lja.id', 'accounts_id')
@@ -1063,13 +1064,9 @@ class CoreRequestBuilder {
 			->selectAlias('lja.summary', 'accounts_summary')
 			->selectAlias('lja.public_key', 'accounts_public_key');
 
-		$on = $expr->eq(
-			$func->lower($pf . '.' . $fieldActorId),
-			$func->lower('lja.id')
-		);
-
 		$qb->leftJoin(
-			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_ACTORS, 'lja', $on
+			$this->defaultSelectAlias, CoreRequestBuilder::TABLE_ACTORS, 'lja',
+			$qb->expr()->eq('lja.id_prim', $pf . '.' . $fieldActorId . '_prim')
 		);
 	}
 
@@ -1162,14 +1159,14 @@ class CoreRequestBuilder {
 	}
 
 	/**
-	 * @param IExtendedQueryBuilder $qb
+	 * @param SocialQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param bool $asFollower
 	 * @param string $prefix
 	 * @param string $pf
 	 */
 	protected function leftJoinFollowAsViewer(
-		IExtendedQueryBuilder $qb, string $fieldActorId, bool $asFollower = true,
+		SocialQueryBuilder $qb, string $fieldActorId, bool $asFollower = true,
 		string $prefix = 'follow', string $pf = '',
 	) {
 		if ($qb->getType() !== IExtendedQueryBuilder::SELECT) {
@@ -1181,31 +1178,23 @@ class CoreRequestBuilder {
 		}
 
 		$expr = $qb->expr();
-		$func = $qb->func();
 		if ($pf === '') {
 			$pf = $this->defaultSelectAlias;
 		}
 
-		// Build all conditions first for andX()
+		// on the prims, which `social_f_oa_u` (object, actor) answers from
+		// either side; see leftJoinCacheActors() for why not on the ids
+		$viewer = $qb->createNamedParameter($qb->prim($this->viewer->getId()));
+		$row = $pf . '.' . $fieldActorId . '_prim';
 		$conditions = [];
 		$conditions[] = $qb->exprLimitToDBFieldInt('accepted', 1, $prefix . '_f');
 
 		if ($asFollower === true) {
-			$conditions[] = $expr->eq(
-				$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.object_id')
-			);
-			$conditions[] = $expr->eq(
-				$func->lower($prefix . '_f.actor_id'),
-				$func->lower($qb->createNamedParameter($this->viewer->getId()))
-			);
+			$conditions[] = $expr->eq($prefix . '_f.object_id_prim', $row);
+			$conditions[] = $expr->eq($prefix . '_f.actor_id_prim', $viewer);
 		} else {
-			$conditions[] = $expr->eq(
-				$func->lower($pf . '.' . $fieldActorId), $func->lower($prefix . '_f.actor_id')
-			);
-			$conditions[] = $expr->eq(
-				$func->lower($prefix . '_f.object_id'),
-				$func->lower($qb->createNamedParameter($this->viewer->getId()))
-			);
+			$conditions[] = $expr->eq($prefix . '_f.actor_id_prim', $row);
+			$conditions[] = $expr->eq($prefix . '_f.object_id_prim', $viewer);
 		}
 
 		$qb->selectAlias($prefix . '_f.id', $prefix . '_id')
@@ -1248,11 +1237,11 @@ class CoreRequestBuilder {
 	}
 
 	/**
-	 * @param IExtendedQueryBuilder $qb
+	 * @param SocialQueryBuilder $qb
 	 * @param string $fieldActorId
 	 * @param string $pf
 	 */
-	protected function leftJoinDetails(IExtendedQueryBuilder $qb, string $fieldActorId = 'id', string $pf = '') {
+	protected function leftJoinDetails(SocialQueryBuilder $qb, string $fieldActorId = 'id', string $pf = '') {
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, true, 'as_follower', $pf);
 		$this->leftJoinFollowAsViewer($qb, $fieldActorId, false, 'as_followed', $pf);
 	}

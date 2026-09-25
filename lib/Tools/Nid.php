@@ -83,6 +83,22 @@ final class Nid {
 	}
 
 	/**
+	 * The `publishedTime` half of a nid composed at `$limit`'s width, or 0 for
+	 * one too short to have one. A nid issued at a narrower width decodes to
+	 * a time long before it was written; a caller that bounds a read by the
+	 * result must stay correct for any value it gets.
+	 */
+	public static function publishedTimeOf(int|string $nid, int $limit): int {
+		$nid = self::normalize($nid);
+		$suffixWidth = strlen((string)$limit) - 1;
+		if ($limit < 2 || strlen($nid) <= $suffixWidth || strlen($nid) - $suffixWidth > 12) {
+			return 0;
+		}
+
+		return (int)substr($nid, 0, -$suffixWidth);
+	}
+
+	/**
 	 * Compose `publishedTime * limit + random` without overflowing PHP_INT_MAX.
 	 * `$random` must fit in the fixed-width suffix used by the nid generator.
 	 */

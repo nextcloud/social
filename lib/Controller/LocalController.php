@@ -24,7 +24,6 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Image;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Security\RemoteAddress;
@@ -143,7 +142,7 @@ class LocalController extends Controller {
 				'exception' => $e->getMessage(),
 				'trace' => $e->getTraceAsString()
 			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -297,7 +296,7 @@ class LocalController extends Controller {
 				'exception' => $e->getMessage(),
 				'trace' => $e->getTraceAsString(),
 			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		} finally {
 			if (is_string($tmpFile) && $tmpFile !== '' && file_exists($tmpFile)) {
 				unlink($tmpFile);
@@ -369,7 +368,7 @@ class LocalController extends Controller {
 				'exception' => $e->getMessage(),
 				'trace' => $e->getTraceAsString()
 			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -394,11 +393,13 @@ class LocalController extends Controller {
 				throw new InvalidResourceException('user have no rights');
 			}
 
-			$this->streamService->deleteLocalItem($note, Note::TYPE);
+			// by its own type: a poll is a `Question`, and a delete guarded to
+			// `Note` would federate the Delete and leave the poll in place
+			$this->streamService->deleteLocalItem($note, $note->getType());
 
 			return $this->success();
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -432,7 +433,7 @@ class LocalController extends Controller {
 			// the reason is the answer: which handle to try instead
 			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -454,7 +455,7 @@ class LocalController extends Controller {
 		} catch (InvalidHandleException $e) {
 			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -493,7 +494,7 @@ class LocalController extends Controller {
 			// help there is
 			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -505,12 +506,13 @@ class LocalController extends Controller {
 				throw new AccountDoesNotExistException('User not logged in');
 			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$this->followService->followAccount($actor, $account);
-			$this->accountService->bumpActorCount($actor->getId(), 'count_following', 1);
+			if ($this->followService->followAccount($actor, $account)) {
+				$this->accountService->bumpActorCount($actor->getId(), 'count_following', 1);
+			}
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -522,12 +524,13 @@ class LocalController extends Controller {
 				throw new AccountDoesNotExistException('User not logged in');
 			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$this->followService->unfollowAccount($actor, $account);
-			$this->accountService->bumpActorCount($actor->getId(), 'count_following', -1);
+			if ($this->followService->unfollowAccount($actor, $account)) {
+				$this->accountService->bumpActorCount($actor->getId(), 'count_following', -1);
+			}
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -551,7 +554,7 @@ class LocalController extends Controller {
 
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -585,10 +588,8 @@ class LocalController extends Controller {
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($actor, Http::STATUS_OK);
-		} catch (CacheActorDoesNotExistException|AccountDoesNotExistException $e) {
-			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -675,12 +676,7 @@ class LocalController extends Controller {
 			$this->logger->debug('[LocalController] Actor info retrieved', ['actorId' => $actor->getId()]);
 			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
-			$this->logger->error('[LocalController] globalAccountInfo failed', [
-				'account' => $account,
-				'exception' => $e->getMessage(),
-				'trace' => $e->getTraceAsString()
-			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -797,7 +793,7 @@ class LocalController extends Controller {
 
 			return $this->success(['accounts' => $accounts, 'exact' => $match]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -828,7 +824,7 @@ class LocalController extends Controller {
 
 			return $this->success(['tags' => $tags, 'exact' => $match]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 

@@ -25,6 +25,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
@@ -501,6 +502,15 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->linkPreviewService->expects($this->once())->method('deleteCard')->with(self::NOTE);
 
 		$this->handler->activity($this->wrap(Delete::TYPE, $note), $note);
+	}
+
+	public function testDeleteRemovesAPollAsAQuestion(): void {
+		$poll = new Question();
+		$poll->setId(self::NOTE);
+
+		$this->streamRequest->expects($this->once())->method('deleteById')->with(self::NOTE, Question::TYPE);
+
+		$this->handler->delete($poll);
 	}
 
 	public function testDeletingAReplyRecountsItsParent(): void {

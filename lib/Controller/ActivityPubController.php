@@ -31,7 +31,10 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\QuoteAuthorization;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
@@ -132,16 +135,30 @@ class ActivityPubController extends Controller {
 		$this->initialState = $initialState;
 		$this->logger = $logger;
 
-		$this->registerResponder('activity+json', function ($response) {
-			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
-			$resp->addHeader('Content-Type', 'application/activity+json; charset=utf-8');
+		$this->registerResponder('activity+json', $this->activityStreamsResponder('application/activity+json; charset=utf-8'));
+		$this->registerResponder(
+			'ld+json; profile="https://www.w3.org/ns/activitystreams"',
+			$this->activityStreamsResponder('application/ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8')
+		);
+	}
+
+	/**
+	 * A responder answering in the media type the peer asked for.
+	 *
+	 * It builds on the framework's own `json` responder so that a returned
+	 * `DataResponse` keeps its status and headers: a 404, 410 or 401 must
+	 * reach the peer as such, not as a 200 with an error in the body. The
+	 * header has to be a type the peer recognises as ActivityStreams —
+	 * GoToSocial asks for the profiled `application/ld+json` first and
+	 * refuses any other answer.
+	 */
+	private function activityStreamsResponder(string $contentType): \Closure {
+		return function ($response) use ($contentType): Response {
+			$resp = $this->buildResponse($response, 'json');
+			$resp->addHeader('Content-Type', $contentType);
+
 			return $resp;
-		});
-		$this->registerResponder('ld+json; profile="https://www.w3.org/ns/activitystreams"', function ($response) {
-			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
-			$resp->addHeader('Content-Type', 'ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8');
-			return $resp;
-		});
+		};
 	}
 
 	/**
@@ -314,6 +331,10 @@ class ActivityPubController extends Controller {
 			$signer = '';
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime, $signer);
 			$this->fediverseService->authorized($origin);
+			if ($this->signatureService->isReplayed($this->request)) {
+				// these signed bytes were taken in once already
+				return $this->success();
+			}
 
 			// the per-origin ceiling is spent here rather than on the way in:
 			// before this line the origin is only what the sender wrote, and
@@ -326,7 +347,11 @@ class ActivityPubController extends Controller {
 				// no Linked Data signature to vouch for the object, so the only
 				// thing standing behind this activity is the key that signed the
 				// request — and it has to be the actor's own
-				$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				try {
+					$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				} catch (InvalidOriginException $e) {
+					return $this->acceptForwarded($activity, $origin, $e);
+				}
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
 
@@ -344,6 +369,7 @@ class ActivityPubController extends Controller {
 				$this->logUnhandled($e, $origin, $activity);
 			}
 
+			$this->signatureService->rememberRequest($this->request);
 			$this->async();
 			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
 
@@ -389,6 +415,10 @@ class ActivityPubController extends Controller {
 			$signer = '';
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime, $signer);
 			$this->fediverseService->authorized($origin);
+			if ($this->signatureService->isReplayed($this->request)) {
+				// these signed bytes were taken in once already
+				return $this->success();
+			}
 
 			// the per-origin ceiling is spent here rather than on the way in:
 			// before this line the origin is only what the sender wrote, and
@@ -403,7 +433,11 @@ class ActivityPubController extends Controller {
 				// no Linked Data signature to vouch for the object, so the only
 				// thing standing behind this activity is the key that signed the
 				// request — and it has to be the actor's own
-				$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				try {
+					$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				} catch (InvalidOriginException $e) {
+					return $this->acceptForwarded($activity, $origin, $e);
+				}
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
 
@@ -421,6 +455,7 @@ class ActivityPubController extends Controller {
 				$this->logUnhandled($e, $origin, $activity);
 			}
 
+			$this->signatureService->rememberRequest($this->request);
 			$this->async();
 			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
 
@@ -437,6 +472,71 @@ class ActivityPubController extends Controller {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
 			return $this->rejectDelivery($e);
+		}
+	}
+
+	/**
+	 * An activity signed by somebody other than its actor, with nothing on it
+	 * to prove the actor wrote it.
+	 *
+	 * That is ActivityPub's inbox forwarding (§7.1.2): Mastodon passes a reply
+	 * on to the followers of the post it answers, signed with its own user's
+	 * key, and a reply from a server that makes no Linked Data signatures
+	 * arrives exactly like this. Refusing it was final for the forwarder, so the
+	 * reply never reached this copy of the thread. The body is still not
+	 * believed: a `Create` or `Update` of an object on its actor's own host is
+	 * answered by queueing a fetch of that object from there, and only what
+	 * that server serves is taken in (`StreamQueueService::fetchFromOrigin()`).
+	 * A forwarded `Delete` or `Announce` is acknowledged and dropped, as
+	 * Mastodon drops what it cannot verify. Any other activity is still
+	 * refused: nothing forwards a Follow or a Like.
+	 *
+	 * @throws InvalidOriginException for an activity no forwarder sends
+	 */
+	private function acceptForwarded(ACore $activity, string $origin, InvalidOriginException $e): Response {
+		$type = $activity->getType();
+		if (!in_array($type, [Create::TYPE, Update::TYPE, Delete::TYPE, Announce::TYPE], true)) {
+			throw $e;
+		}
+
+		$objectId = $activity->hasObject() ? $activity->getObject()->getId() : $activity->getObjectId();
+		$token = $this->uuid();
+		$queued = in_array($type, [Create::TYPE, Update::TYPE], true)
+			&& $this->isOnRemoteActorHost($objectId, $activity->getActorId())
+			&& $this->streamQueueService->queueFetch($token, $objectId);
+
+		$this->logger->info('a forwarded activity was not signed by its actor', [
+			'activityType' => $type,
+			'activity' => $activity->getId(),
+			'object' => $objectId,
+			'actor' => $activity->getActorId(),
+			'origin' => $origin,
+			'fetch' => $queued,
+		]);
+
+		$this->signatureService->rememberRequest($this->request);
+		if ($queued) {
+			$this->async();
+			$this->streamQueueService->cacheStreamByToken($token);
+		}
+
+		return new DataResponse(['result' => [], 'status' => 1], Http::STATUS_ACCEPTED);
+	}
+
+	/**
+	 * Whether an object is on its actor's host, and that host is not this one:
+	 * a post of ours is never fetched back from ourselves.
+	 */
+	private function isOnRemoteActorHost(string $objectId, string $actorId): bool {
+		$objectHost = strtolower((string)parse_url($objectId, PHP_URL_HOST));
+		if ($objectHost === '' || $objectHost !== strtolower((string)parse_url($actorId, PHP_URL_HOST))) {
+			return false;
+		}
+
+		try {
+			return $objectHost !== strtolower($this->configService->getCloudHost());
+		} catch (SocialAppConfigException $e) {
+			return false;
 		}
 	}
 
@@ -584,7 +684,7 @@ class ActivityPubController extends Controller {
 	// replaced the GET and remote servers fetching an outbox got nothing.
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/outbox')]
 	#[FrontpageRoute(verb: 'POST', url: '/@{username}/outbox', postfix: 'post')]
-	public function outbox(string $username, string $page = ''): Response {
+	public function outbox(string $username, string $page = '', string $max_id = ''): Response {
 		//		if (!$this->checkSourceActivityStreams()) {
 		//			return $this->socialPubController->outbox($username);
 		//		}
@@ -599,8 +699,8 @@ class ActivityPubController extends Controller {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$requested = OrderedCollectionPage::requestedPage($page);
-			if ($requested > 0) {
-				return $this->activityPubSuccess($this->outboxPage($actor, $requested));
+			if ($requested > 0 || $max_id !== '') {
+				return $this->activityPubSuccess($this->outboxPage($actor, max(1, $requested), $max_id));
 			}
 
 			return $this->activityPubSuccess($this->streamService->getOutboxCollection($actor));
@@ -617,13 +717,18 @@ class ActivityPubController extends Controller {
 	 * what was sent: the post is the durable record, and a consumer reading an
 	 * outbox wants the object, not our original delivery envelope.
 	 */
-	private function outboxPage(Person $actor, int $page): OrderedCollectionPage {
+	private function outboxPage(Person $actor, int $page, string $before = ''): OrderedCollectionPage {
 		$items = [];
-		$posts = $this->streamRequest->getPublicByAuthor(
-			$actor->getId(),
-			OrderedCollection::PAGE_SIZE,
-			($page - 1) * OrderedCollection::PAGE_SIZE
-		);
+		$numbered = ($before === '');
+		// a cursor is a nid; anything else starts no page
+		$posts = (!$numbered && !ctype_digit($before))
+			? []
+			: $this->streamRequest->getPublicByAuthor(
+				$actor->getId(),
+				OrderedCollection::PAGE_SIZE,
+				$numbered ? ($page - 1) * OrderedCollection::PAGE_SIZE : 0,
+				$before
+			);
 
 		// The activities live inside the page, so none of them is a document
 		// root: giving each one a parent is what keeps a `@context` off all
@@ -631,6 +736,10 @@ class ActivityPubController extends Controller {
 		$enclosing = new OrderedCollectionPage();
 
 		foreach ($posts as $post) {
+			// the author was joined in, which flags the row for this app's own
+			// bookkeeping (`source`, `cache`, `actor_info`, …); a peer gets the
+			// Note as `displayPost()` serves it
+			$post->setCompleteDetails(false);
 			$create = new Create($enclosing);
 			$post->setParent($create);
 			$create->setId($post->getId() . '/activity');
@@ -644,7 +753,12 @@ class ActivityPubController extends Controller {
 			$items[] = $create->exportAsActivityPub();
 		}
 
-		return OrderedCollectionPage::of($actor->getOutbox(), $actor->getOutbox(), $page, $items);
+		$last = end($posts);
+		$next = ($last === false) ? '' : (string)$last->getNid();
+
+		return $numbered
+			? OrderedCollectionPage::of($actor->getOutbox(), $actor->getOutbox(), $page, $items, $next)
+			: OrderedCollectionPage::after($actor->getOutbox(), $actor->getOutbox(), 'max_id', $before, $items, $next);
 	}
 
 	/**
@@ -678,6 +792,7 @@ class ActivityPubController extends Controller {
 				array_map(
 					static function (Stream $post): array {
 						$post->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
+						$post->setCompleteDetails(false);
 
 						return $post->exportAsActivityPub();
 					},
@@ -704,7 +819,7 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/followers')]
-	public function followers(string $username, string $page = ''): Response {
+	public function followers(string $username, string $page = '', string $max_id = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
 		}
@@ -723,9 +838,9 @@ class ActivityPubController extends Controller {
 			// collection again and its `first` pointed at itself: a consumer
 			// following it looped or gave up.
 			$requested = OrderedCollectionPage::requestedPage($page);
-			if ($requested > 0) {
+			if ($requested > 0 || $max_id !== '') {
 				return $this->activityPubSuccess(
-					$this->followService->getFollowersPage($actor, $requested)
+					$this->followService->getFollowersPage($actor, max(1, $requested), $max_id)
 				);
 			}
 
@@ -748,7 +863,7 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/following')]
-	public function following(string $username, string $page = ''): Response {
+	public function following(string $username, string $page = '', string $max_id = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->following($username);
 		}
@@ -763,9 +878,9 @@ class ActivityPubController extends Controller {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$requested = OrderedCollectionPage::requestedPage($page);
-			if ($requested > 0) {
+			if ($requested > 0 || $max_id !== '') {
 				return $this->activityPubSuccess(
-					$this->followService->getFollowingPage($actor, $requested)
+					$this->followService->getFollowingPage($actor, max(1, $requested), $max_id)
 				);
 			}
 
@@ -858,7 +973,7 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/replies')]
-	public function replies(string $username, string $token, string $page = ''): Response {
+	public function replies(string $username, string $token, string $page = '', string $min_id = ''): Response {
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
 		try {
@@ -884,8 +999,8 @@ class ActivityPubController extends Controller {
 		}
 
 		$requested = OrderedCollectionPage::requestedPage($page);
-		if ($requested > 0) {
-			return $this->activityPubSuccess($this->streamService->getRepliesPage($post, $requested));
+		if ($requested > 0 || $min_id !== '') {
+			return $this->activityPubSuccess($this->streamService->getRepliesPage($post, max(1, $requested), $min_id));
 		}
 
 		return $this->activityPubSuccess($this->streamService->getRepliesCollection($post));

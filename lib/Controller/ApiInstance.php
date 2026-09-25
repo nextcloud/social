@@ -23,6 +23,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Response;
 use Throwable;
 
@@ -47,10 +48,10 @@ trait ApiInstance {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/instance/')]
-	public function instance(): DataResponse {
+	public function instance(): JSONResponse {
 		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
 
-		return new DataResponse($local, Http::STATUS_OK);
+		return Revalidation::byContent($this->request, new DataResponse($local, Http::STATUS_OK));
 	}
 
 	/**
@@ -255,9 +256,9 @@ trait ApiInstance {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v2/instance')]
-	public function instanceV2(): DataResponse {
+	public function instanceV2(): JSONResponse {
 		$local = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
 
-		return new DataResponse($local->asV2(), Http::STATUS_OK);
+		return Revalidation::byContent($this->request, new DataResponse($local->asV2(), Http::STATUS_OK));
 	}
 }

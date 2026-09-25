@@ -13,10 +13,20 @@ import axios from '@nextcloud/axios'
 import App from '../../src/App.vue'
 import ShortcutHelp from '../../src/components/ShortcutHelp.vue'
 import ShortcutList from '../../src/components/ShortcutList.vue'
-import eventBus from '../../src/services/eventBus.js'
+import eventBus, { REACTION_PICK } from '../../src/services/eventBus.js'
 import { useAccountStore } from '../../src/store/account.js'
 import { useSettingsStore } from '../../src/store/settings.js'
 import { useTimelineStore } from '../../src/store/timeline.js'
+
+// counts how often the emoji picker's chunk is fetched: the factory runs on
+// the module's first import, which for App is its async component loading
+const pickerChunk = vi.hoisted(() => ({ loads: 0 }))
+vi.mock('../../src/components/ReactionPicker.vue', async () => {
+	pickerChunk.loads++
+	const { h } = await import('vue')
+
+	return { __esModule: true, default: { name: 'ReactionPicker', props: ['firstAsk'], render: () => h('div', { class: 'reaction-picker-chunk' }) } }
+})
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -212,6 +222,31 @@ describe('App', () => {
 		})
 	})
 
+	/**
+	 * Rendered at all, the picker is a 935 KB chunk of emoji data and the
+	 * colour picker, fetched on every page by every visitor -- most of whom
+	 * never add a reaction.
+	 */
+	it('fetches the emoji picker only once somebody asks for a reaction', async () => {
+		const withoutPicker = { ...stubs }
+		delete withoutPicker.ReactionPicker
+		const wrapper = mount(App, {
+			global: { plugins: [pinia, routePlugin], mocks: { $router: router }, stubs: withoutPicker },
+		})
+		mounted.push(wrapper)
+		await flushPromises()
+
+		expect(pickerChunk.loads).toBe(0)
+		expect(wrapper.find('.reaction-picker-chunk').exists()).toBe(false)
+
+		const ask = { react: vi.fn() }
+		eventBus.emit(REACTION_PICK, ask)
+		await flushPromises()
+
+		expect(pickerChunk.loads).toBe(1)
+		expect(wrapper.findComponent({ name: 'ReactionPicker' }).props('firstAsk').react).toBe(ask.react)
+	})
+
 	it('imports the server data and loads the current account', () => {
 		mountApp()
 		expect(settingsStore.serverData).toEqual(baseServerData)
@@ -396,6 +431,14 @@ describe('App', () => {
 		expect(source).toMatch(/prefers-reduced-motion: reduce/)
 	})
 
+	// two blocks saying the same thing drift apart the first time one is edited
+	it('says how the page change looks with less motion in one place', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/App.vue'), 'utf8')
+		const blocks = source.split('@media (prefers-reduced-motion: reduce)').slice(1)
+
+		expect(blocks.filter((block) => block.slice(0, block.indexOf('\n}')).includes('.page-enter-active'))).toHaveLength(1)
+	})
+
 	describe('push notifications', () => {
 		const status = { id: 's1', content: '<p>live</p>', created_at: '2026-03-01T10:00:00Z' }
 		let addCallback
@@ -442,6 +485,39 @@ describe('App', () => {
 	})
 
 	describe('before the setup is finished', () => {
+		/**
+		 * What `NavigationController::navigate()` sent an administrator before
+		 * any address was set: no `checks` and no `cloudAddress`. The setup form
+		 * read `checks.success` and threw, and the page stayed blank.
+		 */
+		const setupPayload = {
+			public: false,
+			firstrun: false,
+			needsAccount: false,
+			setup: true,
+			isAdmin: true,
+			cliUrl: 'https://cloud.example.org',
+			nsfwPolicy: 'default',
+			nsfwChoice: '',
+			sections: { stories: true, section_photos: true, section_videos: true, section_news: true },
+		}
+
+		it('draws the setup form from the payload the server sends', async () => {
+			setInitialState('social', 'serverData', setupPayload)
+			window._nc_initial_state?.clear()
+			vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
+			const wrapper = mountApp()
+
+			expect(wrapper.find('.setup h2').text()).toBe('Social app setup')
+
+			await wrapper.find('input.setup-input').setValue('https://social.example.org')
+			await wrapper.find('form').trigger('submit')
+			await flushPromises()
+
+			expect(wrapper.find('.router-view-stub').exists()).toBe(true)
+			expect(wrapper.find('.setup').exists()).toBe(false)
+		})
+
 		it('lets administrators enter the ActivityPub base URL and finish the setup', async () => {
 			setServerData({ setup: true, isAdmin: true })
 			const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })

@@ -14,8 +14,9 @@ things it needs are the things any fediverse server needs: a stable public
 address, a `.well-known` answer, and a cron that runs.
 
 **A stable address.** Social copies `overwrite.cli.url` into its own
-`cloud_url` the first time somebody opens the app, and builds every account id,
-post id and WebFinger answer from that copy. It never reads the system value
+`cloud_url` the first time somebody opens the app, derives `social_url` (that
+address followed by `/apps/social/`) from it, and builds every account id,
+post id and WebFinger answer from those copies. It never reads the system value
 again. Set `overwrite.cli.url` — and get it right — before anyone opens Social;
 changing the server's address afterwards is the single most expensive mistake
 available here, because the old address is inside every id already federated.
@@ -57,7 +58,7 @@ and not one to carry into production.
 
 ## The setup checks
 
-Social registers seven checks in **Administration → Overview**, beside
+Social registers its own checks in **Administration → Overview**, beside
 Nextcloud's own. They are the things that break federation, or stop clients
 connecting, without anything else saying so, and each links back to this page.
 
@@ -262,6 +263,15 @@ occ config:app:get social cloud_url
 occ config:system:get overwrite.cli.url
 ```
 
+The same check compares the scheme, host and port of `social_url` — the base
+the ids are actually minted from — with `cloud_url`. They can only disagree on
+an instance set up by an earlier version, which took `social_url` from the
+first request that opened the app: an internal hostname, or `http` behind a
+proxy that does not pass the scheme on. If nothing has federated yet,
+`occ config:app:delete social social_url` and it is derived from `cloud_url`
+the next time the app is opened; otherwise `occ social:reset --uri=<address>`
+moves both.
+
 Social reports the mismatch and will not correct it, because the stored address
 is inside every id already written. Either point `overwrite.cli.url` back at
 the address Social knows, or accept the rename and run `occ social:reset
@@ -297,11 +307,33 @@ The **Federation health** section of the Social settings names the instances
 the failures are stacked against, with the highest attempt count so far and
 when each was last tried.
 
+### No memory cache
+
+Without `memcache.local` or `memcache.distributed` in `config.php`, every cache
+Social asks Nextcloud for is one that forgets each write. Nextcloud's own check
+already says a memcache would be faster; this one is there because, for this
+app, some of what is lost is protection:
+
+- **Kept in the database instead** (`social_durable_cache`, expired rows
+  deleted by `Cron\Cache`): the inbox throttle (`inbox_throttle`), the
+  records of Linked Data signatures and of signed requests already accepted,
+  which are what refuse a replayed activity, the `Idempotency-Key` record that
+  keeps a client's retried post from being published twice, and the
+  statistics page's fifteen-minute copy. All of it works; each costs a few
+  queries.
+- **Always in the database**, memcache or not: the per-server delivery
+  breaker (`social_host_breaker`), which every process and the cron share.
+- **Worked out again on every request**: the network figures, peer trends
+  and follow suggestions.
+
+APCu (`memcache.local = \OC\Memcache\APCu`) is enough for all of it on a
+single web server; Redis is what several need.
+
 ---
 
 ## The administration page
 
-**Administration → Social.** Seventeen cards, grouped by what they are for --
+**Administration → Social.** Cards, grouped by what they are for --
 Overview, Moderation, What people see, What is kept, Federation, Server -- with
 a list of them beside the page on a wide screen:
 
@@ -318,8 +350,8 @@ a list of them beside the page on a wide screen:
   new account, and posts that tripped one of the spam rules. Each row carries
   the text, because a held post is in no timeline and there is nowhere else to
   go and read it. *Publish* sends it out; *Refuse* deletes it and tells its
-  author. Two switches at the top turn first-post review and the spam rules on
-  and off.
+  author. Three switches at the top turn first-post review, the spam rules and
+  holding every post with a video on it on and off.
 - **Sections** — what this instance offers the people using it. Four switches,
   **all on by default**: *Stories*, and the *Photos*, *Videos* and *News*
   timelines. Turning one off takes it out of the sidebar and stops it being
@@ -370,8 +402,10 @@ a list of them beside the page on a wide screen:
   Retention removes). Added up by the background job once a day, because
   counting it is one file lookup per stored file; the page says when it was
   measured. `occ social:media:usage` measures it on demand.
-- **A rejected remote attachment** — after changing this instance's media
-  limits or fixing a temporary origin problem, retry just that file with
+
+  Not a card, but the thing to know beside this one: a **rejected remote
+  attachment** — after changing this instance's media limits or fixing a
+  temporary origin problem, retry just that file with
   `occ social:media:retry <remote_url>`. Use the exact `remote_url` reported
   by the attachment; Social clears the stored refusal for that one uncached
   row and tries it immediately. The normal media checks still apply, so a
@@ -397,6 +431,9 @@ a list of them beside the page on a wide screen:
   actually happened.
 - **Fediverse access** — the block list or the allow list, the same one `occ
   social:fediverse` manages.
+- **Block lists** — import a list of servers to block, with a preview of what it
+  would do, or follow one somebody else publishes; see
+  [*following a published list*](#commands-by-task) under Moderation below.
 - **Announcements** — a notice every account here is shown once.
 - **Server** — the instance-wide settings below, which had no interface at all
   before and could only be set with `occ config:app:set`.
@@ -547,18 +584,20 @@ the moderation routes accept.
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `cloud_url` | *(empty)* | The base address every id is built from, copied from `overwrite.cli.url` the first time the app is opened. Changing it by hand does not rewrite the ids already issued. |
-| `social_url` | *(empty)* | The app's own base URL (`…/apps/social/`), used for profile links, WebFinger and NodeInfo. Derived at the same moment as `cloud_url`. |
+| `social_url` | *(empty)* | The app's own base URL (`…/apps/social/`), which every id is minted from and which profile links, WebFinger and NodeInfo use. Derived from `cloud_url` — never from the request — the first time the app is opened with `cloud_url` set, and again by `occ social:reset`. |
 | `social_address` | *(empty)* | The hostname accounts are federated under, when it is not the host of `cloud_url`. Only set this if the fediverse address genuinely differs from the Nextcloud host, and only before the first account exists. |
 | `service` | `1` | Unused; a leftover of the original installer. |
 | `installed_version` | | Written by the upgrade machinery. |
 | `media_usage` | *(written by the job)* | The last measurement of what is on disk, as JSON with the moment it was taken. Bookkeeping, not a setting: the walk is a `stat` per stored file and belongs in the cron, so the administration page reads this rather than counting on page load. |
+| `directory_known` | *(written by the job)* | What `Cron\Cache` last found out about the servers the Discover page may ask: the `fediverse.info` server list and each federated peer's NodeInfo software, as JSON with when each was read. Bookkeeping, not a setting: the page reads this rather than asking those servers while somebody waits. |
 | `polls_swept` | `0` | How far the closed-poll sweep has got, as a timestamp. |
 | `story_secret` | *(generated)* | The secret a story's fetch capability is derived from, made the first time a story is published. Changing it invalidates every outstanding capability at once, which is the only revocation it needs: a story lives a day. Never set this by hand. |
 
 ### The Server card
 
-These eight are what the **Server** section of the settings page writes. Each
-can still be set with `occ`; the page validates the ranges given here.
+Instance-wide settings. Most of them are on the **Server** section of the
+settings page, which validates the ranges given here; every one can be set with
+`occ`.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
@@ -575,6 +614,7 @@ can still be set with `occ`; the page validates the ranges given here.
 | `video_ladder_heights` | `360,720,1080` | Which heights, comma-separated, 144–2160. Heights at or above a video's own are skipped rather than upscaled, and the video's own height is always a rung, so the best rung is never worse than the file beside it. A list with nothing usable in it is refused by the admin card rather than silently replaced with the default. Only consulted when `video_ladder` is on. |
 | `search_window_days` | `365` | How far back a content search looks. `content ILIKE '%term%'` cannot use an index — a leading wildcard never can — so an unbounded search reads every post the instance has ever stored, joined to seven other tables, **on every keystroke**; at ten million rows that is a table scan with the rate limit as the only defence. A year covers what anybody is looking for. `0` searches everything, which an instance small enough can afford to say. |
 | `local_actor_cursor` | `''` | Bookkeeping, not a setting: where the cron's local-account refresh walk got to. It used to read every local account into memory on every pass; it pages now, and this is what makes the next pass carry on rather than start again. |
+| `profile_link_cursor` | `''` | Bookkeeping, not a setting: where the cron's walk over the local accounts whose profile fields carry a link got to, so the next pass checks the next ones. |
 | `video_quota` | `0` | How many megabytes of video **one account** may keep here; `0` is no quota, which is what every instance has in effect today. A different question from `max_video_size`, which is a ceiling on one file: that is about a single request, this about a year of them. Off by default because an instance that has been running without a quota and acquires one on upgrade would start refusing uploads from exactly the accounts that use it most. Checked once, where an upload is written, against the size recorded on each stored file — so a video uploaded before this app recorded sizes counts as nothing until the daily usage job has been past it, which fills the column in as it walks. The **ladders this server builds do not count against it**: they are made because an administrator asked for them, are several times the size of the upload, and would turn a quota somebody was told about into one several times smaller. They are counted in what an administrator is shown, because they are real disk. Who is holding what is under **Administration → Social → Storage**. |
 | `nsfw_policy` | `default` | What happens to media somebody marked sensitive, for readers who have not chosen for themselves. PeerTube's three NSFW policies under Mastodon's names for the same three states: `show_all` (PeerTube's *display*), `default` (its *blur* — covered, the blurhash showing, one press away, and what this app has always done) and `hide_all` (its *hide* — not drawn, and no button to draw it). Anybody can override it for themselves under **Settings** in the app, and "follow the instance" stays a state of its own, so changing this moves everybody who is following it and nobody who has chosen. A **content warning is a different thing** and always covers its post, whatever this says. |
 | `review_videos` | `0` | Whether every post with a video on it waits for a moderator. The third rule of the review queue, beside a new account's first post and the spam rules, and the one an instance that hosts video wants: a video is minutes of somebody's attention and a great deal of somebody else's disk. **Unlike the other two it is not about the account** — a trusted account with a thousand posts behind it is held by it too, every time, because what it is about is the video. A moderator's own video is not held, and neither is a direct message. Under **Administration → Social → Posts waiting to be looked at**. |
@@ -627,7 +667,7 @@ administrator reaches for.
 **Is it working?**
 
 ```bash
-occ social:check:install            # the four setup checks, plus repairs
+occ social:check:install            # the setup checks it can run from the console, plus repairs
 occ social:check:install --offline  # the same without the network probe
 occ social:queue:status             # what the outbound queue is doing
 occ social:details <id>             # who can see one post and where it lands
@@ -746,18 +786,65 @@ tenfold cut in the request volume, for one app install. The polls also answer
 `304` now when nothing has changed, so even without it most of them cost an
 index probe and an empty response rather than a rendered page.
 
-**Run delivery workers.** `Cron\Queue` moves at most 200 deliveries every twelve
-minutes and, when peers are slow, as few as ten — a ceiling of about a thousand
-an hour, which an instance whose accounts are followed across thousands of
-servers exceeds with a single popular post. `occ social:worker` is the same
-delivery in a loop that does not stop, and **several may run at once**; see
-[OCC-Commands.md](OCC-Commands.md) for a systemd unit. The cron job is unchanged,
-so an instance that will not run a daemon keeps what it has.
+**Run delivery workers.** `Cron\Queue` delivers twenty servers at a time and
+takes batch after batch for its 300 seconds: with peers that answer within a
+second that is up to 6,000 deliveries a run, some 30,000 an hour, and when every
+batch runs into a dead peer's 30-second timeout still about 200 a run. A peer
+that fails is left alone — from a minute, doubling to an hour — and that is
+kept in the database (`social_host_breaker`), so it holds without a memcache and
+across runs: a dead server costs one timeout per wait, not one per row. An
+instance whose accounts are followed across tens of thousands of servers still
+outgrows that with a popular post, and `occ social:worker` is the same delivery
+in a loop that does not stop; **several may run at once**, see
+[OCC-Commands.md](OCC-Commands.md) for a systemd unit. The worker still delivers
+one row at a time, so it is more processes, not wider ones, that add capacity.
 
 **Watch the cron actually finish.** The steps are budgeted at 300 seconds a pass
 and resume where they stopped, so a pass that runs out of time is normal. A pass
 that *never* reaches the later steps is not: `social:check` and the Nextcloud log
 are where that shows.
+
+**Cached remote accounts** are refreshed by `Cron\Cache` for up to 90 seconds
+a pass, and their details (counts, pinned posts, verified links) for up to 90
+more, batch after batch of fifty, the longest-waiting first. A refresh is one
+fetch, so at a third of a second to a second each that is 90 to 300 accounts a
+pass, 11,000 to 36,000 a day — enough for the ten-day refresh cycle to hold
+over roughly 110,000 to 360,000 cached accounts, where one batch of fifty a
+pass held to about 60,000. A details refresh is three or more fetches, so it
+covers fewer, 30 to 90 a pass. Past those sizes the cycle stretches and the
+stalest still go first; a key that rotated in between is fetched again the
+first time a signature fails to verify.
+
+**Feed subscriptions** are re-read by `Cron\Subscriptions` every fifteen
+minutes, for up to 240 seconds a pass, ten feeds at a time, never-read first and
+then stalest first. A batch costs about as long as its slowest feed, so a pass
+reads roughly 1,200 to 2,400 feeds when they answer within one to two seconds —
+five to ten thousand an hour, which is how many subscribed feeds the hourly
+re-read holds for — and still 80 a pass when every batch holds one that runs
+into the 30-second timeout. Before, it was twenty a pass, 80 an hour. Past that the re-read interval simply stretches; nothing
+starves, because the stalest feed always goes next.
+
+**Plan the upgrade window on a large instance.** Three upgrade steps rewrite
+`social_stream` row by row, and they run inside `occ upgrade`, while the server
+is in maintenance mode — there is no way to defer them:
+
+- `Version1000Date20260917000001` copies each post's sort key onto every one of
+  its recipient rows in `social_stream_dest`;
+- `Version1000Date20260917000003` reads every post's attachments to record what
+  kind of media it carries;
+- `Version1000Date20260917000005` reads every post's content to record whether
+  it is a news item.
+
+Each walks the table 5,000 posts to a statement, after a `COUNT(*)` over it, and
+prints its progress every 50,000. The time is proportional to the number of
+posts — for the first step to the number of recipient rows, which is several per
+post — and to how fast the database rewrites rows; none of it has been measured
+on a large instance, so time it on a copy of the database first. As a rough
+rule of thumb rather than a measurement, expect minutes per million posts for
+each of the three, and so hours of maintenance mode for ten million. The media
+and news steps only touch rows that still carry no value, so an upgrade
+interrupted during them picks up where it stopped; the first starts again from
+the beginning.
 
 Two settings exist for size and are listed above: `search_window_days` bounds
 what a content search scans, and `retention_days` bounds what cached remote
@@ -770,7 +857,7 @@ of this costs on the hardware in front of you.
 
 ## What to watch
 
-- **Administration → Overview.** The four checks above are there precisely so
+- **Administration → Overview.** The setup checks above are there precisely so
   that an administrator who never opens Social still hears about it.
 - **The delivery queue.** A rising count of failing deliveries against one host
   is that instance's problem; a rising count against all of them is this one's.

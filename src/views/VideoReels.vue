@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="reels" :aria-label="t('social', 'Videos, one at a time')">
+	<div class="reels" role="region" :aria-label="t('social', 'Videos, one at a time')">
 		<div
 			ref="track"
 			class="reels__track"
@@ -12,7 +12,7 @@
 			@scroll.passive="onScroll">
 			<article
 				v-for="(entry, index) in reels"
-				:key="entry.status.id"
+				:key="entry.key"
 				:ref="(el) => setSlide(el, index)"
 				class="reel"
 				:data-index="index">
@@ -57,13 +57,29 @@
 					</p>
 					<router-link
 						class="reel__open"
-						:to="{ name: 'single-post', params: { id: entry.status.id } }">
+						:to="{ name: 'single-post', params: { account: entry.status.account.acct, id: entry.status.id } }">
 						{{ t('social', 'Open the post') }}
 					</router-link>
 				</div>
 			</article>
 
-			<div v-if="reels.length === 0 && !loading" class="reels__empty">
+			<div v-if="reels.length === 0 && loading" class="reels__empty">
+				<NcLoadingIcon :size="44" appearance="light" />
+				<p>{{ t('social', 'Loading videos …') }}</p>
+			</div>
+
+			<!-- a feed that could not be fetched is not a feed with nothing in it -->
+			<div v-else-if="reels.length === 0 && failed" class="reels__empty" role="alert">
+				<p>{{ t('social', 'The videos could not be loaded.') }}</p>
+				<NcButton @click="load">
+					<template #icon>
+						<IconRefresh :size="20" />
+					</template>
+					{{ t('social', 'Try again') }}
+				</NcButton>
+			</div>
+
+			<div v-else-if="reels.length === 0" class="reels__empty">
 				<p>{{ t('social', 'No videos here yet.') }}</p>
 				<NcButton :to="{ name: 'timeline', params: { type: 'videos' } }">
 					{{ t('social', 'Back to Videos') }}
@@ -110,7 +126,9 @@
 import { mapStores } from 'pinia'
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconClose from 'vue-material-design-icons/Close.vue'
+import IconRefresh from 'vue-material-design-icons/Refresh.vue'
 import IconVolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import IconVolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import { useTimelineStore } from '../store/timeline.js'
@@ -125,9 +143,11 @@ export default {
 	name: 'VideoReels',
 	components: {
 		IconClose,
+		IconRefresh,
 		IconVolumeHigh,
 		IconVolumeOff,
 		NcButton,
+		NcLoadingIcon,
 	},
 
 	props: {
@@ -148,6 +168,8 @@ export default {
 			muted: true,
 			playing: 0,
 			loading: false,
+			/** the last page asked for could not be fetched */
+			failed: false,
 			allLoaded: false,
 			/** the <video> of each slide, by index */
 			videos: [],
@@ -174,6 +196,9 @@ export default {
 				for (const media of status.media_attachments ?? []) {
 					if (media.type === 'video' || media.type === 'gifv') {
 						entries.push({
+							// one slide per video, so the post's id alone is
+							// shared by every slide of a post with several
+							key: status.id + ':' + media.id,
 							status,
 							video: media,
 							text: htmlToPlainText(status.content ?? '').trim(),
@@ -186,12 +211,16 @@ export default {
 		},
 	},
 
+	watch: {
+		// the query is the prop, and the router reuses this view when only
+		// the query changes, so a new scope has to switch the feed here
+		scope() {
+			this.open()
+		},
+	},
+
 	mounted() {
-		this.timelineStore.changeTimelineType({
-			type: 'videos',
-			params: { scope: this.scope },
-		})
-		this.load()
+		this.open()
 
 		// `threshold: 0.6` rather than a bare intersection: two slides touch
 		// the viewport for most of a scroll, and whichever was observed last
@@ -220,6 +249,17 @@ export default {
 
 	methods: {
 		t,
+
+		/** Points the store at the videos of this scope and fetches the first page. */
+		open() {
+			this.timelineStore.changeTimelineType({
+				type: 'videos',
+				params: { scope: this.scope },
+			})
+			this.allLoaded = false
+			this.playing = 0
+			this.load()
+		},
 
 		setSlide(el, index) {
 			this.slides[index] = el
@@ -311,7 +351,9 @@ export default {
 			if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 				event.preventDefault()
 				const next = this.playing + ((event.key === 'ArrowDown') ? 1 : -1)
-				this.slides[next]?.scrollIntoView({ behavior: 'smooth' })
+				this.slides[next]?.scrollIntoView({
+					behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth',
+				})
 			} else if (event.key === ' ') {
 				event.preventDefault()
 				this.togglePlay(this.playing)
@@ -351,6 +393,7 @@ export default {
 			}
 
 			this.loading = true
+			this.failed = false
 			const params = {}
 			const ids = this.timelineStore.getTimeline.map((status) => status.id)
 			const cursor = oldestId(ids)
@@ -363,6 +406,7 @@ export default {
 				this.allLoaded = Array.isArray(page) ? page.length === 0 : true
 			} catch (error) {
 				logger.error('Could not load more videos', { error })
+				this.failed = true
 			} finally {
 				this.loading = false
 			}

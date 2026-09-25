@@ -508,6 +508,23 @@ describe('ProfileInfo', () => {
 			expect(open.mock.calls[0][0]).toBe('/index.php/apps/social/api/v1/ostatus/followRemote/bob')
 			expect(open.mock.calls[0][1]).toBe('followRemote')
 		})
+
+		// the route needs a login; asking anyway was a 401 on every profile
+		it('does not ask who the visitor follows that follows this account', async () => {
+			mountProfile('bob@remote.example')
+			await flushPromises()
+
+			const asked = vi.mocked(axios.get).mock.calls.map(([url]) => String(url))
+			expect(asked.some((url) => url.endsWith('/accounts/familiar_followers'))).toBe(false)
+		})
+	})
+
+	it('asks a reader who is logged in who they follow that follows this account', async () => {
+		mountProfile('bob@remote.example')
+		await flushPromises()
+
+		const asked = vi.mocked(axios.get).mock.calls.map(([url]) => String(url))
+		expect(asked.some((url) => url.endsWith('/accounts/familiar_followers'))).toBe(true)
 	})
 
 	describe('profile metadata fields', () => {

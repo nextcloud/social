@@ -49,6 +49,8 @@ class FediverseDirectoryServiceTest extends TestCase {
 	private string $peersWanted = '0';
 	/** whether the server directory is asked, as the app value would say it */
 	private string $discovery = '0';
+	/** what refresh() last wrote about servers */
+	private string $stored = '';
 	private FediverseDirectoryService $service;
 
 	/** The configured `directories` value, as an administrator would write it. */
@@ -76,8 +78,15 @@ class FediverseDirectoryServiceTest extends TestCase {
 					// off here, so a test that counts requests counts the ones
 					// it made; the tests below about discovery turn it on
 					FediverseDirectoryService::CONFIG_DISCOVERY => $this->discovery,
+					FediverseDirectoryService::CONFIG_KNOWN => $this->stored,
 					default => '',
 				};
+			});
+		$this->configService->method('setAppValue')
+			->willReturnCallback(function (string $key, string $value): void {
+				if ($key === FediverseDirectoryService::CONFIG_KNOWN) {
+					$this->stored = $value;
+				}
 			});
 		$this->configService->method('getCloudHost')->willReturn(self::LOCAL_HOST);
 
@@ -319,6 +328,7 @@ class FediverseDirectoryServiceTest extends TestCase {
 		$this->nodeinfoFor('shonk.example', 'sharkey');
 		$this->nodeinfoFor('third.example', 'mastodon');
 
+		$this->service->refresh();
 		$sources = $this->service->sources();
 		$peers = array_values(array_filter(
 			$sources,
@@ -343,6 +353,7 @@ class FediverseDirectoryServiceTest extends TestCase {
 		$this->nodeinfoFor('writefreely.example', 'writefreely');
 		$this->nodeinfoFor('chaos.social', 'mastodon');
 
+		$this->service->refresh();
 		$hosts = array_map(
 			static fn (DirectorySource $source): string => $source->getHost(), $this->service->sources()
 		);
@@ -357,6 +368,7 @@ class FediverseDirectoryServiceTest extends TestCase {
 		$this->instanceStatsRequest->expects($this->never())->method('remoteHostCounts');
 		$this->service = $this->build($this->createMock(ICache::class));
 
+		$this->service->refresh();
 		$this->service->sources();
 	}
 
@@ -369,11 +381,80 @@ class FediverseDirectoryServiceTest extends TestCase {
 		$this->service = $this->build($this->createMock(ICache::class));
 		$this->nodeinfoFor('chaos.social', 'mastodon');
 
+		$this->service->refresh();
 		$hosts = array_map(
 			static fn (DirectorySource $source): string => $source->getHost(), $this->service->sources()
 		);
 
 		$this->assertNotContains('spam.example', $hosts);
+		foreach ($this->asked as $url) {
+			$this->assertStringNotContainsString('spam.example', $url);
+		}
+	}
+
+	/**
+	 * The Discover page lists the sources on every load. It used to find out
+	 * each peer's software and the directory of servers' list right there,
+	 * which on an instance without a memcache was ten live requests and three
+	 * to five seconds on every load.
+	 */
+	public function testListingTheSourcesAsksNoRemoteServer(): void {
+		$this->peersWanted = '2';
+		$this->discovery = '1';
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->instanceStatsRequest->method('remoteHostCounts')->willReturn(['chaos.social' => 120]);
+		$this->service = $this->build($this->createMock(ICache::class));
+		$this->nodeinfoFor('chaos.social', 'mastodon');
+		$this->answers['fediverse.info'] = ['data' => [['domain' => 'sharkey.example', 'software_name' => 'sharkey']]];
+
+		// before the first refresh there is nothing stored, and nothing is asked
+		$first = $this->service->sources();
+		$this->assertSame([], $this->asked);
+		$this->assertNotContains('chaos.social', array_map(
+			static fn (DirectorySource $source): string => $source->getHost(), $first
+		));
+
+		$this->service->refresh();
+		$this->asked = [];
+		$hosts = array_map(
+			static fn (DirectorySource $source): string => $source->getHost(), $this->service->sources()
+		);
+
+		$this->assertSame([], $this->asked);
+		$this->assertContains('chaos.social', $hosts);
+		$this->assertContains('sharkey.example', $hosts);
+	}
+
+	/** What the cron found out a week ago is not asked again every twelve minutes. */
+	public function testARefreshAsksAPeerItAlreadyKnowsNothing(): void {
+		$this->peersWanted = '1';
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->instanceStatsRequest->method('remoteHostCounts')->willReturn(['chaos.social' => 120]);
+		$this->service = $this->build($this->createMock(ICache::class));
+		$this->nodeinfoFor('chaos.social', 'mastodon');
+
+		$this->service->refresh();
+		$this->asked = [];
+		$this->service->refresh();
+
+		$this->assertSame([], $this->asked);
+	}
+
+	/** A cron run is bounded however many servers this instance knows. */
+	public function testOneRefreshAsksABoundedNumberOfPeers(): void {
+		$this->peersWanted = '50';
+		$hosts = [];
+		for ($i = 0; $i < 30; $i++) {
+			$hosts['peer' . $i . '.example'] = 100 - $i;
+		}
+		$this->instanceStatsRequest = $this->createMock(InstanceStatsRequest::class);
+		$this->instanceStatsRequest->method('remoteHostCounts')->willReturn($hosts);
+		$this->service = $this->build($this->createMock(ICache::class));
+
+		$this->service->refresh();
+
+		$nodeinfo = array_filter($this->asked, static fn (string $url): bool => str_contains($url, '/.well-known/nodeinfo'));
+		$this->assertCount(FediverseDirectoryService::LOOKUPS_PER_REFRESH, $nodeinfo);
 	}
 
 	// servers a directory of servers names
@@ -385,6 +466,7 @@ class FediverseDirectoryServiceTest extends TestCase {
 			['domain' => 'sharkey.example', 'software_name' => 'sharkey'],
 		]];
 
+		$this->service->refresh();
 		$discovered = array_values(array_filter(
 			$this->service->sources(),
 			static fn (DirectorySource $source): bool => $source->getOrigin() === DirectorySource::ORIGIN_DISCOVERED
@@ -399,12 +481,13 @@ class FediverseDirectoryServiceTest extends TestCase {
 
 	public function testADirectoryOfServersThatDoesNotAnswerCostsNothingTwice(): void {
 		$this->discovery = '1';
-		$cache = $this->createMock(ICache::class);
-		$cache->expects($this->once())->method('set')
-			->with('discovery', '[]', $this->anything());
-		$this->service = $this->build($cache);
 
-		$this->service->sources();
+		$this->service->refresh();
+		$this->service->refresh();
+
+		$this->assertCount(1, array_filter(
+			$this->asked, static fn (string $url): bool => str_contains($url, 'fediverse.info')
+		));
 	}
 
 	/** An empty list is "ask nobody but ourselves", which is a real answer. */

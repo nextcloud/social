@@ -862,20 +862,27 @@ class StreamService {
 	 * edited or deleted. It is also what keeps the page small: a thread of
 	 * forty replies is forty URIs.
 	 */
-	public function getRepliesPage(Stream $post, int $page): OrderedCollectionPage {
+	public function getRepliesPage(Stream $post, int $page, string $after = ''): OrderedCollectionPage {
 		$id = $post->getId() . Stream::REPLIES_PATH;
 
-		$replies = $this->streamRequest->getPublicRepliesTo(
-			$post->getId(),
-			OrderedCollection::PAGE_SIZE,
-			($page - 1) * OrderedCollection::PAGE_SIZE
-		);
+		$numbered = ($after === '');
+		// a cursor is a nid; anything else starts no page
+		$replies = (!$numbered && !ctype_digit($after))
+			? []
+			: $this->streamRequest->getPublicRepliesTo(
+				$post->getId(),
+				OrderedCollection::PAGE_SIZE,
+				$numbered ? ($page - 1) * OrderedCollection::PAGE_SIZE : 0,
+				$after
+			);
 
-		return OrderedCollectionPage::of(
-			$id, $id, $page, array_values(array_map(
-				static fn (Stream $reply): string => $reply->getId(), $replies
-			))
-		);
+		$last = end($replies);
+		$next = ($last === false) ? '' : (string)$last->getNid();
+		$items = array_values(array_map(static fn (Stream $reply): string => $reply->getId(), $replies));
+
+		return $numbered
+			? OrderedCollectionPage::of($id, $id, $page, $items, $next, 'min_id')
+			: OrderedCollectionPage::after($id, $id, 'min_id', $after, $items, $next);
 	}
 
 	/**

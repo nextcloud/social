@@ -204,6 +204,8 @@ class FollowService {
 	 * @param Person $actor
 	 * @param string $account
 	 *
+	 * @return bool whether a follow was made: false when one already existed
+	 *
 	 * @throws CacheActorDoesNotExistException
 	 * @throws FollowSameAccountException
 	 * @throws InvalidOriginException
@@ -221,7 +223,7 @@ class FollowService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function followAccount(Person $actor, string $account) {
+	public function followAccount(Person $actor, string $account): bool {
 		$this->moderationService->assertNotSuspended($actor->getId());
 		$this->logger->debug('FollowService::followAccount called', [
 			'actor' => $actor->getId(),
@@ -234,7 +236,7 @@ class FollowService {
 			'remoteNid' => $remoteActor->getNid(),
 		]);
 
-		$this->followActor($actor, $remoteActor);
+		return $this->followActor($actor, $remoteActor);
 	}
 
 	/**
@@ -244,11 +246,15 @@ class FollowService {
 	 * that a caller holding the actor already — an import that was handed
 	 * actor URLs rather than handles — does not resolve it a second time.
 	 *
+	 * @return bool whether a follow was made: false when one already existed,
+	 *              which is what a client re-following to change a setting
+	 *              sends
+	 *
 	 * @throws FollowSameAccountException
 	 * @throws SocialAppConfigException
 	 * @throws Throwable
 	 */
-	public function followActor(Person $actor, Person $remoteActor): void {
+	public function followActor(Person $actor, Person $remoteActor): bool {
 		$this->moderationService->assertNotSuspended($actor->getId());
 		$this->assertWithinFollowLimit($actor);
 
@@ -280,6 +286,8 @@ class FollowService {
 				'actor' => $actor->getId(),
 				'target' => $remoteActor->getId(),
 			]);
+
+			return false;
 		} catch (FollowNotFoundException $e) {
 			$this->followsRequest->save($follow);
 			// their home timeline holds different posts from now on, which its
@@ -316,7 +324,7 @@ class FollowService {
 				$this->followInterface->processIncomingRequest($follow);
 				$this->logger->info('FollowService::followAccount - local follow handled in process');
 
-				return;
+				return true;
 			}
 
 			$follow->addInstancePath(
@@ -332,12 +340,16 @@ class FollowService {
 					'error' => $e->getMessage(),
 				]);
 			}
+
+			return true;
 		}
 	}
 
 	/**
 	 * @param Person $actor
 	 * @param string $account
+	 *
+	 * @return bool whether a follow was removed: false when there was none
 	 *
 	 * @throws CacheActorDoesNotExistException
 	 * @throws InvalidOriginException
@@ -355,7 +367,7 @@ class FollowService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function unfollowAccount(Person $actor, string $account) {
+	public function unfollowAccount(Person $actor, string $account): bool {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
 
 		try {
@@ -388,7 +400,7 @@ class FollowService {
 					'target' => $remoteActor->getId(),
 				]);
 
-				return;
+				return true;
 			}
 
 			$undo->addInstancePath(
@@ -397,7 +409,10 @@ class FollowService {
 				)
 			);
 			$this->activityService->request($undo);
+
+			return true;
 		} catch (FollowNotFoundException $e) {
+			return false;
 		}
 	}
 
@@ -462,20 +477,35 @@ class FollowService {
 	 * how another instance discovers who to deliver to when its own record is
 	 * incomplete, and how account migration tools rebuild a follower list.
 	 */
-	public function getFollowersPage(Person $actor, int $page): OrderedCollectionPage {
-		return OrderedCollectionPage::of(
-			$actor->getFollowers(),
-			$this->collectionRoute('social.ActivityPub.followers', $actor),
-			$page,
-			array_map(
-				static fn (Follow $follow): string => $follow->getActorId(),
-				$this->followsRequest->getFollowersByActorId(
-					$actor->getId(),
-					OrderedCollection::PAGE_SIZE,
-					($page - 1) * OrderedCollection::PAGE_SIZE
-				)
-			)
+	public function getFollowersPage(Person $actor, int $page, string $before = ''): OrderedCollectionPage {
+		return $this->followPage(
+			$actor->getFollowers(), $this->collectionRoute('social.ActivityPub.followers', $actor), $page, $before,
+			fn (int $offset, string $cursor): array => $this->followsRequest->getFollowersByActorId(
+				$actor->getId(), OrderedCollection::PAGE_SIZE, $offset, $cursor
+			),
+			static fn (Follow $follow): string => $follow->getActorId()
 		);
+	}
+
+	/**
+	 * A page of the followers or following collection: by number when a
+	 * `page` was asked for, after a cursor when a `max_id` was, and with its
+	 * `next` a cursor either way; see OrderedCollectionPage::of().
+	 *
+	 * @param callable(int, string): Follow[] $read the follows at an offset or after a cursor
+	 * @param callable(Follow): string $item what the collection lists of each
+	 */
+	private function followPage(
+		string $collection, string $route, int $page, string $before, callable $read, callable $item,
+	): OrderedCollectionPage {
+		$follows = ($before === '') ? $read(($page - 1) * OrderedCollection::PAGE_SIZE, '') : $read(0, $before);
+		$last = end($follows);
+		$next = ($last === false) ? '' : FollowsRequest::cursorAfter($last);
+		$items = array_values(array_map($item, $follows));
+
+		return ($before === '')
+			? OrderedCollectionPage::of($collection, $route, $page, $items, $next)
+			: OrderedCollectionPage::after($collection, $route, 'max_id', $before, $items, $next);
 	}
 
 	/**
@@ -503,19 +533,13 @@ class FollowService {
 	}
 
 	/** One page of the following collection. See getFollowersPage(). */
-	public function getFollowingPage(Person $actor, int $page): OrderedCollectionPage {
-		return OrderedCollectionPage::of(
-			$actor->getFollowing(),
-			$this->collectionRoute('social.ActivityPub.following', $actor),
-			$page,
-			array_map(
-				static fn (Follow $follow): string => $follow->getObjectId(),
-				$this->followsRequest->getFollowingByActorId(
-					$actor->getId(),
-					OrderedCollection::PAGE_SIZE,
-					($page - 1) * OrderedCollection::PAGE_SIZE
-				)
-			)
+	public function getFollowingPage(Person $actor, int $page, string $before = ''): OrderedCollectionPage {
+		return $this->followPage(
+			$actor->getFollowing(), $this->collectionRoute('social.ActivityPub.following', $actor), $page, $before,
+			fn (int $offset, string $cursor): array => $this->followsRequest->getFollowingByActorId(
+				$actor->getId(), OrderedCollection::PAGE_SIZE, $offset, $cursor
+			),
+			static fn (Follow $follow): string => $follow->getObjectId()
 		);
 	}
 

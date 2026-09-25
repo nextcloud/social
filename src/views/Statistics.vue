@@ -791,6 +791,22 @@ import { seriesStyle } from '../utils/tagColour.js'
 import logger from '../services/logger.js'
 
 /**
+ * A `YYYY-MM` key from the server, named as a month.
+ *
+ * The server counts in UTC, so the key's first midnight is a UTC one; read in
+ * a zone west of it, that midnight is still the last evening of the month
+ * before, and September's column would be labelled August.
+ *
+ * @param {string} key `YYYY-MM`
+ * @param {object} options `toLocaleDateString()` options
+ * @param {string|undefined} locale as `toLocaleDateString()` takes it
+ * @return {string}
+ */
+function utcMonth(key, options, locale = undefined) {
+	return new Date(key + '-01T00:00:00Z').toLocaleDateString(locale, { ...options, timeZone: 'UTC' })
+}
+
+/**
  * The reader's own numbers.
  *
  * Everything here is drawn with CSS rather than a charting library: two bar
@@ -903,8 +919,8 @@ export default {
 
 			return months.map((month) => ({
 				key: month,
-				label: new Date(month + '-01T00:00:00Z').toLocaleDateString(undefined, { month: 'narrow' }),
-				title: [new Date(month + '-01T00:00:00Z').toLocaleDateString(undefined, { year: 'numeric', month: 'long' })]
+				label: utcMonth(month, { month: 'narrow' }),
+				title: [utcMonth(month, { year: 'numeric', month: 'long' })]
 					.concat(this.activityKinds.map((kind) => `${kind.label}: ${activity[kind.key]?.[month] ?? 0}`))
 					.join(' · '),
 				parts: this.activityKinds.map((kind) => ({
@@ -1451,8 +1467,9 @@ export default {
 
 			return rows.map((row) => ({
 				...row,
-				// 2024-01-07 was a Sunday, which is how PHP's `w` numbers them
-				label: new Date(Date.UTC(2024, 0, 7 + row.day)).toLocaleDateString(undefined, { weekday: 'long' }),
+				// 2024-01-07 was a Sunday, which is how PHP's `w` numbers them;
+				// named in UTC for the reason utcMonth() gives
+				label: new Date(Date.UTC(2024, 0, 7 + row.day)).toLocaleDateString(undefined, { weekday: 'long', timeZone: 'UTC' }),
 				share: Math.round((row.average / best) * 100) + '%',
 			}))
 		},
@@ -1706,8 +1723,7 @@ export default {
 				return ''
 			}
 
-			return new Date(month + '-01T00:00:00Z')
-				.toLocaleDateString(getCanonicalLocale(), { year: 'numeric', month: 'short' })
+			return utcMonth(month, { year: 'numeric', month: 'short' }, getCanonicalLocale())
 		},
 
 		/**
@@ -1760,8 +1776,8 @@ export default {
 			return Object.entries(counts).map(([key, count]) => ({
 				key,
 				count,
-				label: new Date(key + '-01T00:00:00Z').toLocaleDateString(undefined, { month: 'narrow' }),
-				full: new Date(key + '-01T00:00:00Z').toLocaleDateString(undefined, { year: 'numeric', month: 'long' }),
+				label: utcMonth(key, { month: 'narrow' }),
+				full: utcMonth(key, { year: 'numeric', month: 'long' }),
 				height: Math.round((count / tallest) * 100) + '%',
 			}))
 		},
@@ -2467,6 +2483,8 @@ export default {
 
 .stats__windows {
 	display: flex;
+	flex-wrap: wrap;
+	max-width: 100%;
 	overflow: hidden;
 	border: 2px solid var(--color-border-dark);
 	border-radius: var(--border-radius-element, 24px);
@@ -2479,6 +2497,7 @@ export default {
 	margin: 0;
 	background: transparent;
 	color: var(--color-main-text);
+	flex: 1 1 auto;
 	font-size: .9em;
 	white-space: nowrap;
 

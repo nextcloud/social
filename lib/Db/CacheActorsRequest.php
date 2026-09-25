@@ -76,6 +76,15 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	}
 
 	/**
+	 * A handle as `account_lower` holds it: what the account lookups and the
+	 * account search compare, so that a handle typed in any case finds the
+	 * account through the index.
+	 */
+	public static function lowerAccount(string $account): string {
+		return mb_strtolower($account, 'UTF-8');
+	}
+
+	/**
 	 * Insert cache about an Actor in database.
 	 */
 	public function save(Person $actor): void {
@@ -105,7 +114,9 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 			// from the handle, which never changes for a row
 			->setValue('host', $qb->createNamedParameter(
 				Version1000Date20260920000002::hostOf($actor->getAccount())
-			));
+			))
+			// what an account search matches a prefix of; see searchAccounts()
+			->setValue('account_lower', $qb->createNamedParameter(self::lowerAccount($actor->getAccount())));
 
 		try {
 			if ($actor->getCreation() > 0) {
@@ -148,6 +159,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 		// one that has none must not be able to erase what is stored.
 		if ($actor->getAccount() !== '') {
 			$qb->set('account', $qb->createNamedParameter($actor->getAccount()));
+			$qb->set('account_lower', $qb->createNamedParameter(self::lowerAccount($actor->getAccount())));
 		}
 
 		$qb->set('following', $qb->createNamedParameter($actor->getFollowing()))
@@ -353,7 +365,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 */
 	public function getFromAccount(string $account): Person {
 		$qb = $this->getCacheActorsSelectSql();
-		$qb->limitToAccount($account);
+		$qb->limitToDBField('account_lower', self::lowerAccount($account));
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 
@@ -379,7 +391,19 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	}
 
 	/**
-	 * @param string $search
+	 * The cached accounts whose handle starts with what was typed.
+	 *
+	 * Asked on every keystroke of the composer's mention picker, and of
+	 * `/api/v2/search`, `/api/v1/accounts/search` and the unified search. The
+	 * handle used to be matched through `account LIKE ?`, which MySQL was told
+	 * to compare `COLLATE utf8mb4_general_ci` to make it case-insensitive — and
+	 * an unindexed column compared under another collation is a scan of every
+	 * cached actor. The lowercased copy `account_lower` carries the index
+	 * `social_ca_al`, and a prefix `LIKE` on it, compared as it stands, is a
+	 * range scan on MySQL and MariaDB. PostgreSQL and SQLite plan a `LIKE` as
+	 * a range only under a C collation or `case_sensitive_like`; there it is
+	 * still a scan, of one short column.
+	 *
 	 * @param string $followedBy when set, only the accounts this actor follows
 	 *                           — narrowed in the query, so the limit counts
 	 *                           followed accounts rather than cutting the

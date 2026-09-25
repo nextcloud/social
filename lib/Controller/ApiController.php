@@ -12,7 +12,6 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheDocumentsRequest;
-use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -66,6 +65,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\FilterService;
@@ -143,22 +143,6 @@ class ApiController extends Controller {
 	 */
 	private string $pollTag = '';
 
-	/**
-	 * The headers every `Response` works out for itself. `tagged()` carries a
-	 * response's headers to the one it hands back and leaves these behind: the
-	 * new response computes the same values, and copying them would freeze
-	 * today's into a response that knows how to derive them — `Cache-Control`
-	 * above all, which is the one being set on purpose.
-	 */
-	private const FRAMEWORK_HEADERS = [
-		'Cache-Control',
-		'Content-Security-Policy',
-		'Feature-Policy',
-		'X-Request-Id',
-		'X-Robots-Tag',
-		'X-User-Id',
-	];
-
 	use TNCDataResponse;
 
 	private IURLGenerator $urlGenerator;
@@ -235,7 +219,6 @@ class ApiController extends Controller {
 		private ScheduledStatusService $scheduledStatusService,
 		private PostReviewService $postReviewService,
 		private SensitiveMediaService $sensitiveMediaService,
-		private FollowsRequest $followsRequest,
 		private ViewCountService $viewCountService,
 		private TeamService $teamService,
 		private EmojiService $emojiService,
@@ -254,6 +237,7 @@ class ApiController extends Controller {
 		private WatchService $watchService,
 		private IFactory $l10nFactory,
 		private TimelineRevisionService $timelineRevisionService,
+		private DurableCache $durableCache,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 
@@ -828,8 +812,10 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/custom_emojis')]
-	public function customEmojis(): DataResponse {
-		return new DataResponse($this->emojiService->visible(), Http::STATUS_OK);
+	public function customEmojis(): JSONResponse {
+		return Revalidation::byContent(
+			$this->request, new DataResponse($this->emojiService->visible(), Http::STATUS_OK)
+		);
 	}
 
 	/**
@@ -1275,7 +1261,7 @@ class ApiController extends Controller {
 			return null;
 		}
 
-		$nid = $this->cacheFactory->createDistributed(self::IDEMPOTENCY_CACHE)->get($key);
+		$nid = $this->durableCache->get(self::IDEMPOTENCY_CACHE, $key);
 		if ((!is_string($nid) && !is_int($nid)) || !ctype_digit((string)$nid) || \OCA\Social\Tools\Nid::compare($nid, '0') < 1) {
 			return null;
 		}
@@ -1297,8 +1283,9 @@ class ApiController extends Controller {
 			return;
 		}
 
-		$this->cacheFactory->createDistributed(self::IDEMPOTENCY_CACHE)
-			->set($key, $nid, self::IDEMPOTENCY_TTL);
+		// in `DurableCache`, so a retried post is still recognised on an
+		// instance with no memory cache
+		$this->durableCache->set(self::IDEMPOTENCY_CACHE, $key, (string)$nid, self::IDEMPOTENCY_TTL);
 	}
 
 	/**
@@ -1413,7 +1400,7 @@ class ApiController extends Controller {
 				// a follow, a block, a mute, a filter, a followed hashtag —
 				// none of which moves an id. See TimelineRevisionService.
 				$notModified = $this->notModified(
-					'h' . $this->streamRequest->newestNidFor($this->viewerCollections())
+					'h' . (($this->viewer === null) ? '0' : $this->streamRequest->newestHomeNid($this->viewer))
 					. '-' . $limit
 					. '-' . $this->timelineRevisionService->of($this->currentSession())
 				);
@@ -2420,10 +2407,13 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
-			$this->followService->followAccount($this->viewer, $target->getAccount());
 			// one counter moved by one, rather than all three recomputed with
-			// aggregate queries: see `AccountService::bumpActorCount()`
-			$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', 1);
+			// aggregate queries: see `AccountService::bumpActorCount()`. Only
+			// for a follow that is new: the same call on an existing one is how
+			// a client changes the switches below
+			if ($this->followService->followAccount($this->viewer, $target->getAccount())) {
+				$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', 1);
+			}
 
 			// the bell on a profile, which Mastodon sends *with* the follow.
 			// Absent means "leave it as it is": a client re-following to change
@@ -2455,8 +2445,9 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
-			$this->followService->unfollowAccount($this->viewer, $target->getAccount());
-			$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', -1);
+			if ($this->followService->unfollowAccount($this->viewer, $target->getAccount())) {
+				$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', -1);
+			}
 
 			return new DataResponse(
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
@@ -2570,7 +2561,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/trends/tags')]
-	public function trendTags(int $limit = 10, string $period = HashtagService::PERIOD_DEFAULT): DataResponse {
+	public function trendTags(int $limit = 10, string $period = HashtagService::PERIOD_DEFAULT): Response {
 		try {
 			$this->initViewer(false);
 			$limit = max(1, min(20, $limit));
@@ -2583,7 +2574,7 @@ class ApiController extends Controller {
 				$tags[] = $this->hashtagService->tagEntity($hashtag['hashtag'], null, $period);
 			}
 
-			return new DataResponse($tags, Http::STATUS_OK);
+			return Revalidation::byContent($this->request, new DataResponse($tags, Http::STATUS_OK));
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -3916,14 +3907,8 @@ class ApiController extends Controller {
 		}
 
 		$etag = '"' . $tag . '"';
-		$sent = trim($this->request->getHeader('If-None-Match'));
-
-		if ($sent !== '' && ($sent === $etag || $sent === $tag || $sent === 'W/' . $etag)) {
-			$response = new JSONResponse([], Http::STATUS_NOT_MODIFIED);
-			$response->addHeader('ETag', $etag);
-			$response->addHeader('Cache-Control', 'private, no-cache');
-
-			return $response;
+		if (Revalidation::matches($this->request, $etag)) {
+			return Revalidation::notModified($etag);
 		}
 
 		$this->pollTag = $etag;
@@ -3956,42 +3941,15 @@ class ApiController extends Controller {
 	 * that knows how to work them out.
 	 */
 	private function tagged(DataResponse $response): JSONResponse {
-		$json = new JSONResponse($response->getData(), $response->getStatus());
-
-		foreach ($response->getHeaders() as $name => $value) {
-			if (in_array($name, self::FRAMEWORK_HEADERS, true)) {
-				continue;
-			}
-
-			$json->addHeader($name, $value);
-		}
+		$json = Revalidation::asJson($response);
 
 		if ($this->pollTag !== '') {
 			$json->addHeader('ETag', $this->pollTag);
-			$json->addHeader('Cache-Control', 'private, no-cache');
+			$json->addHeader('Cache-Control', Revalidation::CACHE_CONTROL);
 			$this->pollTag = '';
 		}
 
 		return $json;
-	}
-
-	/**
-	 * What the viewer's timelines are keyed on: the collections a page of the
-	 * home timeline is read from.
-	 *
-	 * @return string[]
-	 */
-	private function viewerCollections(): array {
-		if ($this->viewer === null) {
-			return [];
-		}
-
-		$collections = $this->followsRequest->getHomeCollectionPrims($this->viewer->getId());
-		if ($this->viewer->getFollowers() !== '') {
-			$collections[] = md5($this->viewer->getFollowers());
-		}
-
-		return $collections;
 	}
 
 	private function paged(array $items, int $limit, ?array $page = null, ?int $rows = null): DataResponse {

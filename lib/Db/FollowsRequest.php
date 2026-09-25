@@ -390,10 +390,16 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 *
 	 * @return Follow[]
 	 */
-	public function getFollowersByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
+	public function getFollowersByActorId(string $actorId, int $limit = 0, int $offset = 0, string $before = ''): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 		$qb->limitToAccepted(true);
+		// the accepted Loopback row an actor has on itself is how its own
+		// posts reach its home timeline, not a follower: listed, it made
+		// every actor a follower of itself and the page one longer than
+		// the collection's totalItems
+		$qb->limitToType(Follow::TYPE);
+		$this->limitBeforeCursor($qb, $before);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
@@ -409,6 +415,52 @@ class FollowsRequest extends FollowsRequestBuilder {
 		}
 
 		return $this->getFollowsFromRequest($qb);
+	}
+
+	/**
+	 * Where the page after `$follow` starts, in the order the follower and
+	 * following lists are read: `creation` descending, then `id_prim`.
+	 */
+	public static function cursorAfter(Follow $follow): string {
+		return $follow->getCreation() . '-' . md5($follow->getId());
+	}
+
+	/** Whether `$cursor` is one cursorAfter() could have written. */
+	public static function isCursor(string $cursor): bool {
+		return preg_match('/^\d{1,12}-[0-9a-f]{32}$/', $cursor) === 1;
+	}
+
+	/**
+	 * Limit a follower or following list to the rows after a cursor.
+	 *
+	 * A keyset rather than an offset: an offset page reads and discards every
+	 * row before it, so page 2,500 of a large follower list read 100,000 rows
+	 * to return forty, on every fetch a crawling peer made. The first
+	 * predicate is the range `social_f_ocr` (object_id_prim, creation) serves;
+	 * the second breaks the tie within one second the way the order does.
+	 *
+	 * @param string $cursor '' for the first page; see cursorAfter()
+	 */
+	private function limitBeforeCursor(SocialQueryBuilder $qb, string $cursor): void {
+		if ($cursor === '') {
+			return;
+		}
+
+		$expr = $qb->expr();
+		if (!self::isCursor($cursor)) {
+			// no row comes after something that is not a cursor
+			$qb->andWhere($expr->eq('f.id_prim', $qb->createNamedParameter('')));
+
+			return;
+		}
+
+		[$time, $prim] = explode('-', $cursor, 2);
+		$creation = $qb->createNamedParameter(new DateTime('@' . $time), IQueryBuilder::PARAM_DATE);
+		$qb->andWhere($expr->lte('f.creation', $creation));
+		$qb->andWhere($expr->orX(
+			$expr->lt('f.creation', $creation),
+			$expr->lt('f.id_prim', $qb->createNamedParameter($prim))
+		));
 	}
 
 	/**
@@ -718,10 +770,13 @@ class FollowsRequest extends FollowsRequestBuilder {
 		) . ')';
 	}
 
-	public function getFollowingByActorId(string $actorId, int $limit = 0, int $offset = 0): array {
+	public function getFollowingByActorId(string $actorId, int $limit = 0, int $offset = 0, string $before = ''): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 		$qb->limitToAccepted(true);
+		// not the Loopback row; see getFollowersByActorId()
+		$qb->limitToType(Follow::TYPE);
+		$this->limitBeforeCursor($qb, $before);
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 			$qb->setFirstResult($offset);

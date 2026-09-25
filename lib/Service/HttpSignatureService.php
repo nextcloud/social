@@ -205,12 +205,7 @@ class HttpSignatureService {
 	 * plus the port when the URL names one that is not the scheme's default.
 	 */
 	private function authority(string $url): string {
-		$parts = parse_url($url);
-		$host = $parts['host'] ?? '';
-		$port = $parts['port'] ?? null;
-		$default = (($parts['scheme'] ?? '') === 'https') ? 443 : 80;
-
-		return ($port === null || $port === $default) ? $host : $host . ':' . $port;
+		return ConfigService::authorityOf($url);
 	}
 
 	/**

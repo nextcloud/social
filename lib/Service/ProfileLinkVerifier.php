@@ -43,6 +43,10 @@ class ProfileLinkVerifier {
 	public const RECHECK_SECONDS = 24 * 3600;
 	/** how many local accounts one cron pass looks at */
 	public const LOCAL_BATCH = 20;
+	/** how many accounts with a link one page of the walk reads */
+	public const LOCAL_PAGE = 200;
+	/** ...and how many pages one pass may read */
+	public const LOCAL_PAGES = 5;
 
 	public function __construct(
 		private CacheDocumentService $cacheDocumentService,
@@ -151,32 +155,62 @@ class ProfileLinkVerifier {
 	 * against the web like anybody else's, and the verdict written to their
 	 * cached copy, which is what the Account entity is exported from.
 	 *
+	 * A walk, a page at a time, carried on by the next pass from where this
+	 * one stopped (`SOCIAL_PROFILE_LINK_CURSOR`), and only over accounts whose
+	 * fields name a web address at all. It used to read every local account,
+	 * key pair included, until twenty had been checked — on an instance where
+	 * few accounts carry a link, the whole table, every twelve minutes.
+	 *
+	 * @param int $deadline when the pass must stop, or 0 for no limit
+	 *
 	 * @return int how many accounts were checked
 	 */
-	public function verifyLocalActors(int $limit = self::LOCAL_BATCH): int {
+	public function verifyLocalActors(int $limit = self::LOCAL_BATCH, int $deadline = 0): int {
+		$after = (string)$this->configService->getAppValue(ConfigService::SOCIAL_PROFILE_LINK_CURSOR);
 		$checked = 0;
-		foreach ($this->actorsRequest->getAll() as $actor) {
-			if ($checked >= $limit) {
+
+		for ($page = 0; $page < self::LOCAL_PAGES; $page++) {
+			$batch = $this->actorsRequest->getPage(self::LOCAL_PAGE, $after, true);
+			if ($batch === []) {
+				// the end of the table: begin again next pass
+				$after = '';
 				break;
 			}
-			if (array_filter(array_map(fn (array $f): string => self::linkOf((string)($f['value'] ?? '')), $actor->getFields())) === []) {
-				continue;
-			}
-			try {
-				$cached = $this->cacheActorsRequest->getFromId($actor->getId());
-			} catch (Throwable $e) {
-				continue;
-			}
-			// the cached copy is what is checked and what carries the verdict,
-			// but the fields themselves are what the account set
-			$cached->setFields($actor->getFields());
-			if ($this->verify($cached)) {
-				$this->cacheActorsRequest->updateDetails($cached);
-				$checked++;
+
+			foreach ($batch as $actor) {
+				$after = md5($actor->getId());
+				if ($this->verifyLocal($actor)) {
+					$checked++;
+				}
+				if ($checked >= $limit || ($deadline > 0 && time() >= $deadline)) {
+					break 2;
+				}
 			}
 		}
 
+		$this->configService->setAppValue(ConfigService::SOCIAL_PROFILE_LINK_CURSOR, $after);
+
 		return $checked;
+	}
+
+	private function verifyLocal(Person $actor): bool {
+		if (array_filter(array_map(fn (array $f): string => self::linkOf((string)($f['value'] ?? '')), $actor->getFields())) === []) {
+			return false;
+		}
+		try {
+			$cached = $this->cacheActorsRequest->getFromId($actor->getId());
+		} catch (Throwable $e) {
+			return false;
+		}
+		// the cached copy is what is checked and what carries the verdict,
+		// but the fields themselves are what the account set
+		$cached->setFields($actor->getFields());
+		if (!$this->verify($cached)) {
+			return false;
+		}
+		$this->cacheActorsRequest->updateDetails($cached);
+
+		return true;
 	}
 
 	private static function normalise(string $url): string {

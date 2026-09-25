@@ -56,25 +56,29 @@ class HashtagServiceTest extends TestCase {
 	}
 
 	/**
-	 * Answers countHashtagsSince() from a set of (hashtag, age in seconds,
+	 * Answers countHashtagsInWindows() from a set of (hashtag, age in seconds,
 	 * how many posts) rows, and records the windows it was asked for.
 	 *
 	 * @param array<array{0: string, 1: int, 2: int}> $uses
 	 * @param int[] $requestedSince
 	 */
 	private function counting(array $uses, array &$requestedSince): void {
-		$this->streamRequest->method('countHashtagsSince')
-			->willReturnCallback(function (int $since) use ($uses, &$requestedSince): array {
-				$requestedSince[] = $since;
+		$this->streamRequest->method('countHashtagsInWindows')
+			->willReturnCallback(function (array $windows) use ($uses, &$requestedSince): array {
+				$result = [];
+				foreach ($windows as $name => $since) {
+					$requestedSince[] = $since;
 
-				$counts = [];
-				foreach ($uses as [$hashtag, $age, $total]) {
-					if (time() - $age >= $since) {
-						$counts[$hashtag] = ($counts[$hashtag] ?? 0) + $total;
+					$counts = [];
+					foreach ($uses as [$hashtag, $age, $total]) {
+						if (time() - $age >= $since) {
+							$counts[$hashtag] = ($counts[$hashtag] ?? 0) + $total;
+						}
 					}
+					$result[$name] = $counts;
 				}
 
-				return $counts;
+				return $result;
 			});
 	}
 
@@ -111,7 +115,7 @@ class HashtagServiceTest extends TestCase {
 	}
 
 	public function testManageHashtagsWithoutRecentNotesTouchesNothing(): void {
-		$this->streamRequest->method('countHashtagsSince')->willReturn([]);
+		$this->streamRequest->method('countHashtagsInWindows')->willReturn([]);
 		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([['hashtag' => 'old']]);
 		$this->hashtagsRequest->expects($this->never())->method('upsert');
 
@@ -282,11 +286,14 @@ class HashtagServiceTest extends TestCase {
 		$this->assertSame(array_fill_keys(HashtagService::PERIODS, 50), $written['tag49']);
 	}
 
-	public function testTheCountingIsOneGroupedQueryPerWindow(): void {
+	public function testTheCountingIsOneGroupedQueryForEveryWindow(): void {
 		// not one hydrated page of posts per window, counted in PHP — which
-		// also made every window report the same number on a busy instance
-		$this->streamRequest->expects($this->exactly(count(HashtagService::PERIODS)))
-			->method('countHashtagsSince')
+		// also made every window report the same number on a busy instance —
+		// and not one scan of the tag table per window either
+		$this->streamRequest->expects($this->never())->method('countHashtagsSince');
+		$this->streamRequest->expects($this->once())
+			->method('countHashtagsInWindows')
+			->with($this->callback(fn (array $windows): bool => array_keys($windows) === HashtagService::PERIODS))
 			->willReturn([]);
 		$this->hashtagsRequest->method('getWithAnyTrend')->willReturn([]);
 

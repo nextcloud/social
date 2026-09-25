@@ -660,13 +660,10 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 				// tags it allows, so `onclick` and `javascript:` survive it.
 				return HtmlSanitizer::sanitize($value);
 			case self::AS_USERNAME:
-				$value = strip_tags($value);
-
-				return $value;
 			case self::AS_ACCOUNT:
-				$value = strip_tags($value);
-
-				return $value;
+				// a display name is prose as much as a bio is, and `Alice <3`
+				// came through strip_tags() as `Alice `
+				return self::withoutMarkup($value);
 		}
 
 		if ($exception) {
@@ -784,7 +781,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 */
 	protected function extractEmojisFromTag(array $data): array {
 		$emojis = [];
-		foreach ($this->getArray('tag', $data, []) as $tag) {
+		foreach (self::listOf('tag', $data) as $tag) {
 			if (!is_array($tag) || ($tag['type'] ?? '') !== 'Emoji') {
 				continue;
 			}
@@ -820,7 +817,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
 		$this->setActorId($this->validate(self::AS_ID, 'actor', $data, ''));
 		$this->setObjectId($this->validate(self::AS_ID, 'object', $data, ''));
-		$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $data, []));
+		$this->setTags($this->validateArray(self::AS_TAGS, 'tag', ['tag' => self::listOf('tag', $data)], []));
 	}
 
 	/**
@@ -837,11 +834,43 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return string[]
 	 */
 	private function validateRecipients(string $k, array $data): array {
-		if (is_string($data[$k] ?? null)) {
-			$data[$k] = [$data[$k]];
+		// The public collection has three spellings in the vocabulary: the
+		// full IRI, the compacted `as:Public` and a bare `Public`. The short
+		// two are not http URIs, so they were dropped as ids and a public post
+		// was stored with no public recipient — a direct message. Mastodon
+		// accepts all three.
+		$recipients = array_map(
+			static fn ($recipient) => (is_string($recipient) && in_array($recipient, ['as:Public', 'Public'], true))
+				? self::CONTEXT_PUBLIC : $recipient,
+			self::listOf($k, $data)
+		);
+
+		return $this->validateArray(self::AS_ID, $k, [$k => $recipients], []);
+	}
+
+	/**
+	 * A field of an incoming document as a list, whichever of the forms
+	 * ActivityStreams allows it came in.
+	 *
+	 * Every property that is not functional may be one value or a list of
+	 * them: `"attachment": {…}`, `"tag": {…}` and `"to": "…#Public"` are all
+	 * sent. Read through `getArray()`, a single object was walked value by
+	 * value — a string handed to a parser that wants an array, which is a
+	 * TypeError and a 500 for the whole delivery — and a single string was
+	 * json-decoded into nothing. This is for wire documents only; a database
+	 * row keeps `getArray()`, where a string is a JSON column.
+	 *
+	 * @param array<array-key, mixed> $data
+	 *
+	 * @return list<mixed>
+	 */
+	public static function listOf(string $k, array $data): array {
+		$value = $data[$k] ?? null;
+		if (is_string($value) || (is_array($value) && $value !== [] && !array_is_list($value))) {
+			return [$value];
 		}
 
-		return $this->validateArray(self::AS_ID, $k, $data, []);
+		return is_array($value) ? array_values($value) : [];
 	}
 
 	/**

@@ -104,6 +104,20 @@ class StreamTagsRequestTest extends TestCase {
 	}
 
 	/**
+	 * Stored in the one form every reader compares, so the hashtag timeline
+	 * and the followed-tags join can compare the column as it stands — which
+	 * the `social_st_ht` index answers — instead of `LOWER(st.hashtag)`, which
+	 * no index does. Two spellings of one tag on one post are one row.
+	 */
+	public function testTheTagsAreStoredNormalised(): void {
+		$this->request->generateStreamTags(
+			$this->note(new Note(), ['NextCloud', 'nextcloud', '#Fediverse', 'ÄRGER', ' '])
+		);
+
+		$this->assertSame(['nextcloud', 'fediverse', 'ärger'], $this->hashtagsWritten());
+	}
+
+	/**
 	 * A poll is a `Question`, which extends `Note` and carries hashtags like
 	 * any other post. Comparing the type name instead left every poll out of
 	 * every tag timeline and out of every followed-tag home page, and its

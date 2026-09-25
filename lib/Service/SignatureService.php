@@ -54,7 +54,15 @@ class SignatureService {
 	public const DATE_HEADER = 'D, d M Y H:i:s T';
 	public const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
 
-	public const DATE_DELAY = 300;
+	/**
+	 * How old a signed request's `Date` (or RFC 9421 `created`) may be, and
+	 * how far ahead of this server's clock. Mastodon's own bounds: a peer
+	 * whose clock is six minutes off, or whose queue delivers a request it
+	 * signed a while ago, used to lose every delivery here with a final 401.
+	 * A request inside the window is taken in once — see `isReplayed()`.
+	 */
+	public const DATE_PAST = 43200; // 12h
+	public const DATE_FUTURE = 3600; // 1h
 
 	/**
 	 * How far an LD signature's `created` may lie from now. Forwarded
@@ -63,6 +71,12 @@ class SignatureService {
 	 * re-posting a captured activity.
 	 */
 	public const LD_WINDOW = 86400; // 24h
+
+	/** The `DurableCache` namespace of the LD signatures already accepted. */
+	public const LD_SEEN_NAMESPACE = 'social.ldsig';
+
+	/** The `DurableCache` namespace of the signed requests already taken in. */
+	public const REQUEST_SEEN_NAMESPACE = 'social.httpsig';
 
 	/**
 	 * How long a request is allowed to take when it is fetching the signing key
@@ -129,7 +143,6 @@ class SignatureService {
 	private ConfigService $configService;
 	private HttpSignatureService $httpSignatureService;
 	private HttpMessageSignatureParser $messageSignatures;
-	private ICache $seenSignatures;
 	private ICache $keyAttempts;
 	private LoggerInterface $logger;
 
@@ -142,6 +155,7 @@ class SignatureService {
 		HttpSignatureService $httpSignatureService,
 		ICacheFactory $cacheFactory,
 		LoggerInterface $logger,
+		private DurableCache $durableCache,
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
@@ -150,7 +164,6 @@ class SignatureService {
 		$this->configService = $configService;
 		$this->httpSignatureService = $httpSignatureService;
 		$this->messageSignatures = new HttpMessageSignatureParser();
-		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
 		$this->keyAttempts = $cacheFactory->createDistributed('social.keys');
 		$this->logger = $logger;
 	}
@@ -259,6 +272,34 @@ class SignatureService {
 	}
 
 	/**
+	 * Whether this exact signed request was already taken in.
+	 *
+	 * A signature is only as fresh as its `Date`, and the window above is
+	 * twelve hours wide: without this, a captured delivery could be sent
+	 * again for that long — a Follow after its Undo, say. A peer's own retry
+	 * signs again with a new `Date`, so it is never mistaken for a repeat.
+	 * The request is remembered only once it has been taken in
+	 * (`rememberRequest()`), so identical bytes resent after a failure are
+	 * still processed. Kept in `DurableCache`, so the guard holds on an
+	 * instance with no memory cache too.
+	 */
+	public function isReplayed(IRequest $request): bool {
+		return $this->durableCache->get(self::REQUEST_SEEN_NAMESPACE, $this->requestKey($request)) !== null;
+	}
+
+	/**
+	 * Records a signed request as taken in, for as long as its date would
+	 * still be accepted.
+	 */
+	public function rememberRequest(IRequest $request): void {
+		$this->durableCache->set(self::REQUEST_SEEN_NAMESPACE, $this->requestKey($request), 1, self::DATE_PAST + self::DATE_FUTURE);
+	}
+
+	private function requestKey(IRequest $request): string {
+		return md5($request->getHeader('Signature') . "\n" . $request->getHeader('Signature-Input'));
+	}
+
+	/**
 	 * The Date header, parsed and held to the replay window.
 	 *
 	 * @return int the request time it names
@@ -280,11 +321,11 @@ class SignatureService {
 			throw new SignatureException('missing date header');
 		}
 
-		if ($time < (time() - self::DATE_DELAY)) {
+		if ($time < (time() - self::DATE_PAST)) {
 			throw new SignatureException('object is too old');
 		}
 
-		if ($time > (time() + self::DATE_DELAY)) {
+		if ($time > (time() + self::DATE_FUTURE)) {
 			// without an upper bound, a request stamped into the far future
 			// stays replayable until that date is finally "too old"
 			throw new SignatureException('object is from the future');
@@ -382,10 +423,10 @@ class SignatureService {
 			if (!is_int($created)) {
 				throw new SignatureException('signature created is not an integer');
 			}
-			if ($created < $now - self::DATE_DELAY) {
+			if ($created < $now - self::DATE_PAST) {
 				throw new SignatureException('signature created is too old');
 			}
-			if ($created > $now + self::DATE_DELAY) {
+			if ($created > $now + self::DATE_FUTURE) {
 				throw new SignatureException('signature created is from the future');
 			}
 			$time = $created;
@@ -434,7 +475,7 @@ class SignatureService {
 		// the authority verified is this instance's own, as for `host` on the
 		// draft-cavage path; a peer that signed another one is told why in the log
 		$authority = array_intersect($covered, ['host', '@authority', '@target-uri']) === []
-			? $this->configService->getCloudHost()
+			? $this->configService->getCloudAuthority()
 			: $this->signedHost($request->getHeader('host'));
 		$base = $this->messageSignatures->signatureBase(
 			$request, $signature['components'], $signature['serialized'], $authority
@@ -486,7 +527,8 @@ class SignatureService {
 	}
 
 	/**
-	 * The host a signature is verified against: always the configured one.
+	 * The host a signature is verified against: always the configured one,
+	 * with its port when the cloud URL names a non-default one.
 	 *
 	 * The signed host is what the sender addressed; substituting the
 	 * configured one is what stops a captured request being replayed
@@ -496,7 +538,7 @@ class SignatureService {
 	 * fail verification — with nothing in the log to say why.
 	 */
 	private function signedHost(string $sent): string {
-		$configured = $this->configService->getCloudHost();
+		$configured = $this->configService->getCloudAuthority();
 		if ($sent !== '' && strtolower($sent) !== strtolower($configured)) {
 			$this->logger->notice(
 				'the host a peer signed is not the configured host, so its signature cannot verify',
@@ -687,13 +729,16 @@ class SignatureService {
 				return false;
 			}
 
+			// kept in `DurableCache`: in the distributed cache alone, an
+			// instance with no memcache remembered nothing and accepted every
+			// replay inside the window
 			$seenKey = hash('sha256', $signature->getSignatureValue());
-			if ($this->seenSignatures->get($seenKey) !== null) {
+			if ($this->durableCache->get(self::LD_SEEN_NAMESPACE, $seenKey) !== null) {
 				$this->logger->notice('LD signature replayed', ['actorId' => $actorId]);
 
 				return false;
 			}
-			$this->seenSignatures->set($seenKey, 1, self::LD_WINDOW * 2);
+			$this->durableCache->set(self::LD_SEEN_NAMESPACE, $seenKey, 1, self::LD_WINDOW * 2);
 
 			$object->setOrigin(
 				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE, $time

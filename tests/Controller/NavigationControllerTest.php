@@ -295,6 +295,28 @@ class NavigationControllerTest extends TestCase {
 		$this->assertArrayNotHasKey('cloudAddress', $this->serverData());
 	}
 
+	/**
+	 * The setup form and the page after it read `checks.success`; without the
+	 * key the form threw while rendering and the administrator got a blank page.
+	 */
+	public function testTheSetupPageCarriesChecksWithoutProbingAnything(): void {
+		$this->systemValues([]);
+		$this->configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());
+		$this->groupManager->method('isAdmin')->willReturn(true);
+		$this->request->method('getParam')->with('cloudAddress')->willReturn(null);
+		$this->checkService->expects($this->never())->method('checkDefault');
+		$this->checkService->method('cloudAddresses')->willReturn(['configured' => '', 'expected' => '']);
+
+		$this->controller()->navigate();
+
+		$this->assertSame([
+			'success' => true,
+			'checks' => [],
+			'addresses' => ['configured' => '', 'expected' => ''],
+			'clientApi' => [],
+		], $this->serverData()['checks']);
+	}
+
 	public function testNavigateStoresTheCloudAddressSubmittedByAnAdmin(): void {
 		$this->systemValues([]);
 		$this->configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());
@@ -533,13 +555,14 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	#[DataProvider('documentEndpoints')]
-	public function testMissingDocumentsAreReportedAsFailures(string $action, string $method): void {
+	public function testMissingDocumentsAnswerNotFound(string $action, string $method): void {
 		$this->documentService->method($method)->willThrowException(new CacheDocumentDoesNotExistException('missing'));
 
 		$response = $this->controller()->$action('doc-404');
 
 		$this->assertInstanceOf(DataResponse::class, $response);
-		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		// a stale link to a document is the caller's, not this server's
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 		$this->assertSame(-1, $response->getData()['status']);
 		$this->assertSame('request failed', $response->getData()['error']);
 		$this->assertArrayNotHasKey('exception', $response->getData(), 'internals must not leak');

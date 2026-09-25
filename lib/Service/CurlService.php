@@ -481,6 +481,88 @@ class CurlService {
 	}
 
 	/**
+	 * Several requests at once, each settled the way `retrieveJson()` settles
+	 * one: what it would have thrown, or null where it would have returned.
+	 *
+	 * For the delivery queue, whose rows go to different servers and have
+	 * nothing to do with each other: one after another, the slowest peer — a
+	 * dead one waiting out its timeout — set the pace for every other. The
+	 * checks a single request makes run before anything is sent (the
+	 * federation policy, the local-address guard); the size ceiling applies to
+	 * each answer as it is read. A redirect is finished by the single-request
+	 * path, because each hop is checked before it is followed. An answer that
+	 * is not JSON is not a failure: a delivery wants the status, not a body.
+	 *
+	 * @param array<array-key, array{method: string, url: string, options: array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool}}> $requests
+	 *
+	 * @return array<array-key, Throwable|null> the key of each request => its outcome
+	 */
+	public function sendMany(array $requests): array {
+		$client = $this->clientService->newClient();
+
+		$outcomes = [];
+		$promises = [];
+		foreach ($requests as $key => $request) {
+			$method = strtolower($request['method']);
+			$clientOptions = $this->clientOptions($method, $request['options']);
+			$clientOptions['allow_redirects'] = false;
+
+			try {
+				$this->assertReachable($request['url'], $clientOptions);
+				$promises[$key] = match ($method) {
+					'post' => $client->postAsync($request['url'], $clientOptions),
+					'put' => $client->putAsync($request['url'], $clientOptions),
+					'delete' => $client->deleteAsync($request['url'], $clientOptions),
+					default => $client->getAsync($request['url'], $clientOptions),
+				};
+			} catch (Throwable $e) {
+				$outcomes[$key] = $e;
+			}
+		}
+
+		foreach ($promises as $key => $promise) {
+			$url = $requests[$key]['url'];
+			try {
+				$response = $promise->wait();
+			} catch (Throwable $e) {
+				$outcomes[$key] = new RequestNetworkException($e->getMessage() . ' - ' . $url, (int)$e->getCode());
+
+				continue;
+			}
+
+			$outcomes[$key] = ($response instanceof IResponse)
+				? $this->settledOutcome($requests[$key], $response)
+				: new RequestNetworkException('no response - ' . $url);
+		}
+
+		return $outcomes;
+	}
+
+	/**
+	 * @param array{method: string, url: string, options: array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool}} $request
+	 */
+	private function settledOutcome(array $request, IResponse $response): ?Throwable {
+		try {
+			if ($this->redirectTarget($response, $request['url']) !== '') {
+				$this->retrieveJson($request['method'], $request['url'], $request['options']);
+
+				return null;
+			}
+
+			$this->body($response);
+			if ($response->getStatusCode() >= 300) {
+				return new RequestContentException($request['url'], $response->getStatusCode());
+			}
+
+			return null;
+		} catch (RequestResultNotJsonException $e) {
+			return null;
+		} catch (Throwable $e) {
+			return $e;
+		}
+	}
+
+	/**
 	 * @param array<string, mixed> $base
 	 * @param array<string, mixed> $extra
 	 *
@@ -926,28 +1008,35 @@ class CurlService {
 	 * @throws RequestResultSizeException
 	 */
 	private function body(IResponse $response): string {
-		$stream = $response->getBody();
-		if (!is_resource($stream)) {
-			// a client that does not stream (a test double, say) hands over
-			// the whole body at once
-			$body = (string)$stream;
-			if (strlen($body) > $this->maxDownloadSize) {
-				throw new RequestResultSizeException();
-			}
-
-			return $body;
-		}
-
-		try {
-			$body = (string)stream_get_contents($stream, $this->maxDownloadSize + 1);
-		} finally {
-			fclose($stream);
-		}
-
+		$body = self::readAtMost($response, $this->maxDownloadSize);
 		if (strlen($body) > $this->maxDownloadSize) {
 			throw new RequestResultSizeException();
 		}
 
 		return $body;
+	}
+
+	/**
+	 * At most `$max + 1` bytes of a response body — one more than allowed, so
+	 * the caller can tell a body that fits from one that does not — without
+	 * ever holding more than that.
+	 *
+	 * The request has to have been made with `'stream' => true`: without it
+	 * the client has already buffered the whole body, of whatever size, as a
+	 * string, and a limit applied afterwards limits nothing.
+	 */
+	public static function readAtMost(IResponse $response, int $max): string {
+		$stream = $response->getBody();
+		if (!is_resource($stream)) {
+			// a client that does not stream (a test double, say) hands over
+			// the whole body at once
+			return substr((string)$stream, 0, $max + 1);
+		}
+
+		try {
+			return (string)stream_get_contents($stream, $max + 1);
+		} finally {
+			fclose($stream);
+		}
 	}
 }

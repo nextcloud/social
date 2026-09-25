@@ -23,6 +23,10 @@ use OCP\SetupCheck\SetupResult;
  * WebFinger answers for a host nobody asks about, and every new post carries
  * an id that resolves nowhere. Reported and not corrected — the stored
  * address is inside every id already written.
+ *
+ * The ids themselves are minted from `social_url`, which on an instance set
+ * up before it was derived from `cloud_url` came from the first request's
+ * host and scheme, so that is compared too.
  */
 class CloudAddressMatches implements ISetupCheck {
 	public const DOC = Docs::ADMIN_GUIDE . '#the-address-social-is-set-up-for';
@@ -57,6 +61,16 @@ class CloudAddressMatches implements ISetupCheck {
 		if ($addresses['expected'] === '') {
 			return SetupResult::warning(
 				$this->l10n->t('overwrite.cli.url is not set, so there is nothing to compare the address Social is set up for (%1$s) against. Set it: cron and occ build links from it.', [$addresses['configured']]),
+				self::DOC
+			);
+		}
+
+		if ($this->checkService->checkCloudAddress() && !$this->checkService->checkSocialUrl()) {
+			return SetupResult::error(
+				$this->l10n->t(
+					'Social is set up for %1$s, but builds every account and post id from %2$s: the app was first opened through another address, and that is the one other servers are given. If nothing has federated yet, delete the social_url app value ("occ config:app:delete social social_url") and it is derived from %1$s the next time the app is opened. Otherwise "occ social:reset --uri=%1$s" moves it — which deletes everything Social holds.',
+					[$addresses['configured'], $this->checkService->configuredSocialUrl()]
+				),
 				self::DOC
 			);
 		}

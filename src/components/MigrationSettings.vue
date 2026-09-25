@@ -79,11 +79,16 @@
 			<p class="migration__note">
 				{{ t('social', 'Posts in the archive are listed rather than published again, so importing cannot flood the timelines of people who follow you. Their pictures are put back on the posts this server still has, and your banner is restored.') }}
 			</p>
+			<!-- each file input here is opened by the button after it, which is
+			     the control a keyboard and a screen reader reach; the input
+			     itself is kept out of both, or it is an unnamed "Browse…" -->
 			<input
 				ref="archive"
 				type="file"
 				accept=".zip,application/zip"
 				class="hidden-visually"
+				tabindex="-1"
+				aria-hidden="true"
 				@change="importArchive">
 			<NcButton :disabled="importing" @click="$refs.archive.click()">
 				<template #icon>
@@ -119,6 +124,8 @@
 				type="file"
 				accept=".csv,text/csv,.json,application/json"
 				class="hidden-visually"
+				tabindex="-1"
+				aria-hidden="true"
 				@change="importFollows">
 			<NcButton :disabled="followsBusy" @click="$refs.follows.click()">
 				<template #icon>
@@ -144,6 +151,8 @@
 					type="file"
 					accept=".csv,text/csv"
 					class="hidden-visually"
+					tabindex="-1"
+					aria-hidden="true"
 					@change="importCsv($event, 'blocks')">
 				<NcButton :disabled="csvImport !== ''" @click="$refs.blocks.click()">
 					<template #icon>
@@ -157,6 +166,8 @@
 					type="file"
 					accept=".csv,text/csv"
 					class="hidden-visually"
+					tabindex="-1"
+					aria-hidden="true"
 					@change="importCsv($event, 'mutes')">
 				<NcButton :disabled="csvImport !== ''" @click="$refs.mutes.click()">
 					<template #icon>
@@ -170,6 +181,8 @@
 					type="file"
 					accept=".csv,text/csv"
 					class="hidden-visually"
+					tabindex="-1"
+					aria-hidden="true"
 					@change="importCsv($event, 'lists')">
 				<NcButton :disabled="csvImport !== ''" @click="$refs.lists.click()">
 					<template #icon>
@@ -201,6 +214,8 @@
 				type="file"
 				accept=".zip,application/zip,.json,application/json"
 				class="hidden-visually"
+				tabindex="-1"
+				aria-hidden="true"
 				@change="importPosts">
 			<NcButton :disabled="postsBusy" @click="$refs.posts.click()">
 				<template #icon>
@@ -314,13 +329,9 @@ import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
 /**
- * Taking your account out, and bringing one in: a section of Settings.
- *
- * It was a page of its own with an entry in the account menu. That menu is for
- * places to read something, and this is a thing you do to the account -- which
- * is what Settings is for. The heading and the sentence under it belong to the
- * section now, so they live in `Settings.vue` beside the other sections'
- * headings rather than being repeated here.
+ * Taking your account out, and bringing one in: the body of the Migration
+ * page. The heading and the sentence under it belong to the page, so they
+ * live in `views/Migration.vue` rather than being repeated here.
  */
 export default {
 	name: 'MigrationSettings',

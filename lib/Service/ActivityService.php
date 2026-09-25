@@ -14,6 +14,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\HostBreakerRequest;
 use OCA\Social\Db\RelayRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -31,6 +32,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -40,8 +42,6 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
-use OCP\ICache;
-use OCP\ICacheFactory;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -56,29 +56,38 @@ class ActivityService {
 	public const TIMEOUT_ASYNC = 10;
 	public const TIMEOUT_SERVICE = 30;
 
+	/** How many deliveries `manageRequests()` has in flight at once, one per host. */
+	public const PARALLEL = 20;
+
 	/**
 	 * How long a host that has just failed is left alone, and the ceiling on
 	 * that.
 	 *
 	 * The list used to be per-pass: `manageInit()` emptied it at the start of
 	 * every run, so a dead peer was discovered afresh every twelve minutes, one
-	 * 30-second timeout at a time, for every row addressed to it. Kept in the
-	 * distributed cache the discovery survives the pass — and a host that keeps
-	 * failing is left alone for longer each time, up to an hour, which is the
-	 * difference between a dead instance costing a few seconds a day and
-	 * costing the whole delivery budget.
+	 * 30-second timeout at a time, for every row addressed to it. Kept in
+	 * `social_host_breaker` the discovery survives the pass and the process —
+	 * and a host that keeps failing is left alone for longer each time, up to
+	 * an hour, which is the difference between a dead instance costing a few
+	 * seconds a day and costing the whole delivery budget. Strikes older than
+	 * the ceiling no longer count.
 	 */
-	private const BREAKER_BASE = 60;
-	private const BREAKER_MAX = 3600;
+	public const BREAKER_BASE = 60;
+	public const BREAKER_MAX = 3600;
 
 	/** The hosts this pass has already found to be failing. */
 	private ?array $failInstances = null;
 
+	/**
+	 * The breaker's rows as this drain found them, loaded on first use and
+	 * again after every `manageInit()`.
+	 *
+	 * @var array<string, array{strikes: int, open_until: int, last_failure: int}>|null
+	 */
+	private ?array $breaker = null;
+
 	/** The hostnames this instance answers to; see `localHosts()`. */
 	private ?array $localHosts = null;
-
-	/** Shared across every process that delivers; see the constants above. */
-	private ICache $breaker;
 
 	public function __construct(
 		private StreamRequest $streamRequest,
@@ -90,13 +99,9 @@ class ActivityService {
 		private ConfigService $configService,
 		private ActorsRequest $actorsRequest,
 		private RelayRequest $relayRequest,
-		ICacheFactory $cacheFactory,
+		private HostBreakerRequest $hostBreakerRequest,
 		private LoggerInterface $logger,
 	) {
-		// shared between the cron, the async worker and every `social:worker`
-		// process, which is the point: one of them discovering that a host is
-		// down should spare all of them
-		$this->breaker = $cacheFactory->createDistributed('social.breaker');
 	}
 
 	/**
@@ -138,7 +143,7 @@ class ActivityService {
 		$item->setParent($update);
 
 		$update->setObject($item);
-		$update->setId($item->getId() . '/activity#update');
+		$update->setId($item->getId() . '#updates/' . $this->updateSerial($item));
 		$update->setInstancePaths($item->getInstancePaths());
 		$this->copyAudience($item, $update);
 
@@ -146,6 +151,25 @@ class ActivityService {
 		$this->signatureService->signObject($actor, $update);
 
 		return $this->request($update);
+	}
+
+	/**
+	 * What tells one `Update` of an object from the next.
+	 *
+	 * An activity id has to be unique, and every edit of a post used to go
+	 * out as `<post>/activity#update`: a peer that remembers the activities it
+	 * has seen by id dropped the second edit as a repeat. Mastodon names its
+	 * own `#updates/<edited_at>`; the post's `updated` is the same thing here,
+	 * so a redelivery of one version keeps its id. An object with no such date
+	 * — an actor, a poll whose count moved — gets the time in milliseconds.
+	 */
+	private function updateSerial(ACore $item): string {
+		$updated = ($item instanceof Stream) ? strtotime($item->getUpdated()) : false;
+		if ($updated !== false && $updated > 0) {
+			return (string)$updated;
+		}
+
+		return (string)(int)floor(microtime(true) * 1000.0);
 	}
 
 	/**
@@ -281,6 +305,39 @@ class ActivityService {
 
 	public function manageInit() {
 		$this->failInstances = [];
+		$this->breaker = null;
+	}
+
+	/**
+	 * The breaker's state, shared between the cron, the async worker and every
+	 * `social:worker` process — which is the point: one of them discovering
+	 * that a host is down spares all of them.
+	 *
+	 * @return array<string, array{strikes: int, open_until: int, last_failure: int}>
+	 */
+	private function breakerState(): array {
+		if ($this->breaker === null) {
+			try {
+				$this->breaker = $this->hostBreakerRequest->failingSince(time() - self::BREAKER_MAX);
+			} catch (\Throwable $e) {
+				// the table not there yet (an upgrade not run) or the database
+				// having a moment: the per-pass list is the fallback
+				$this->breaker = [];
+			}
+		}
+
+		return $this->breaker;
+	}
+
+	/**
+	 * Forgets the hosts that have not failed for longer than the breaker's
+	 * ceiling. A cheap DELETE on an index, for the cron to run each pass.
+	 */
+	public function forgetRecoveredHosts(): void {
+		try {
+			$this->hostBreakerRequest->forgetBefore(time() - self::BREAKER_MAX);
+		} catch (\Throwable $e) {
+		}
 	}
 
 	/**
@@ -288,28 +345,18 @@ class ActivityService {
 	 *
 	 * Asked before a delivery is attempted rather than after it times out,
 	 * which is the whole saving: a row addressed to a dead instance costs a
-	 * cache read instead of thirty seconds. The answer is a timestamp rather
-	 * than a yes/no because the rows addressed to the host have to be held
-	 * back until then — see `manageRequest()`.
+	 * lookup in a map this drain loaded once instead of thirty seconds. The
+	 * answer is a timestamp rather than a yes/no because the rows addressed to
+	 * the host have to be held back until then — see `manageRequest()`.
 	 */
 	private function circuitOpenUntil(string $host): int {
 		if (in_array($host, $this->failInstances ?? [], true)) {
 			return time() + self::BREAKER_BASE;
 		}
 
-		try {
-			$until = $this->breaker->get('open:' . $host);
-		} catch (\Throwable $e) {
-			// no distributed cache configured, or it is unreachable: fall back
-			// to the per-pass list, which is what this was before
-			return 0;
-		}
+		$until = $this->breakerState()[$host]['open_until'] ?? 0;
 
-		if ($until === null) {
-			return 0;
-		}
-
-		return max((int)$until, time() + 1);
+		return ($until > time()) ? $until : 0;
 	}
 
 	/**
@@ -322,21 +369,35 @@ class ActivityService {
 	private function openCircuit(string $host): void {
 		$this->failInstances[] = $host;
 
+		$now = time();
+		$state = $this->breakerState();
+		$strikes = (($state[$host]['last_failure'] ?? 0) > $now - self::BREAKER_MAX)
+			? $state[$host]['strikes'] + 1
+			: 1;
+		$for = min(self::BREAKER_MAX, self::BREAKER_BASE * (int)(2 ** min(6, $strikes - 1)));
+
+		$this->breaker[$host] = ['strikes' => $strikes, 'open_until' => $now + $for, 'last_failure' => $now];
 		try {
-			$strikes = (int)($this->breaker->get('strikes:' . $host) ?? 0) + 1;
-			$for = min(self::BREAKER_MAX, self::BREAKER_BASE * (int)(2 ** min(6, $strikes - 1)));
-			$this->breaker->set('open:' . $host, time() + $for, $for);
-			$this->breaker->set('strikes:' . $host, $strikes, self::BREAKER_MAX);
+			$this->hostBreakerRequest->open($host, $strikes, $now + $for, $now);
 		} catch (\Throwable $e) {
 			// the per-pass list above is the fallback
 		}
 	}
 
-	/** A host that answered: it is not failing, whatever it did before. */
+	/**
+	 * A host that answered: it is not failing, whatever it did before.
+	 *
+	 * Only a host this drain knows to have failed costs a write; a healthy
+	 * one, which is nearly every delivery, costs nothing.
+	 */
 	private function closeCircuit(string $host): void {
+		if (!isset($this->breakerState()[$host])) {
+			return;
+		}
+
+		unset($this->breaker[$host]);
 		try {
-			$this->breaker->remove('open:' . $host);
-			$this->breaker->remove('strikes:' . $host);
+			$this->hostBreakerRequest->close($host);
 		} catch (\Throwable $e) {
 		}
 	}
@@ -397,6 +458,7 @@ class ActivityService {
 		$url = $queue->getInstance()->getUri();
 		$body = $this->bodyFromQueue($queue);
 
+		$failure = null;
 		try {
 			$headers = $this->signatureService->signRequest($url, $body, $queue);
 			$this->curlService->retrieveJson(
@@ -404,9 +466,138 @@ class ActivityService {
 				$url,
 				['headers' => $headers, 'body' => $body, 'timeout' => $queue->getTimeout()]
 			);
+		} catch (UnauthorizedFediverseException|RequestResultNotJsonException|RequestContentException|ActorDoesNotExistException|RequestResultSizeException|RequestNetworkException|RequestServerException $e) {
+			// what settle() knows how to end; anything else is the caller's
+			$failure = $e;
+		}
+
+		$this->settle($queue, $failure, $live);
+
+		return true;
+	}
+
+	/**
+	 * Delivers a batch of queued requests, several servers at a time.
+	 *
+	 * The rows go out in waves of up to `PARALLEL`, at most one per host in a
+	 * wave — a host is not asked twice at once, and once it has failed the
+	 * breaker holds the rest of its rows back without a timeout — through
+	 * `CurlService::sendMany()`. A wave costs about as long as its slowest
+	 * peer, so a dead one costs its timeout once, beside nineteen deliveries,
+	 * rather than in front of all of them. Every row is settled exactly as
+	 * `manageRequest()` settles one.
+	 *
+	 * @param RequestQueue[] $queues each carrying the timeout it is sent with
+	 * @param int $deadline when to stop starting waves, or 0 for none
+	 * @param callable(RequestQueue, \Throwable): void $failed what to do with a row
+	 *                                                         that failed in a way this does not handle itself — the row is `running`
+	 *                                                         by then, and handing it back is the caller's
+	 *
+	 * @return int how many rows were attempted
+	 */
+	public function manageRequests(array $queues, int $deadline, callable $failed): int {
+		$attempted = 0;
+		$pending = array_values($queues);
+
+		while ($pending !== [] && ($deadline <= 0 || time() < $deadline)) {
+			$wave = [];
+			$hosts = [];
+			$later = [];
+			foreach ($pending as $queue) {
+				$host = $queue->getInstance()->getAddress();
+				if (count($wave) >= self::PARALLEL || isset($hosts[$host])) {
+					$later[] = $queue;
+					continue;
+				}
+				$hosts[$host] = true;
+				$wave[] = $queue;
+			}
+			$pending = $later;
+
+			$attempted += $this->deliverWave($wave, $failed);
+		}
+
+		return $attempted;
+	}
+
+	/**
+	 * @param list<RequestQueue> $wave
+	 * @param callable(RequestQueue, \Throwable): void $failed
+	 *
+	 * @return int how many rows were attempted
+	 */
+	private function deliverWave(array $wave, callable $failed): int {
+		$sending = [];
+		foreach ($wave as $i => $queue) {
+			try {
+				$openUntil = $this->circuitOpenUntil($queue->getInstance()->getAddress());
+				if ($openUntil > 0) {
+					$this->requestQueueService->postponeRequest($queue, $openUntil);
+					continue;
+				}
+
+				try {
+					$this->requestQueueService->initRequest($queue);
+				} catch (QueueStatusException $e) {
+					// somebody else took it: nothing to hand back
+					continue;
+				}
+
+				$url = $queue->getInstance()->getUri();
+				$body = $this->bodyFromQueue($queue);
+				$sending[$i] = [
+					'method' => $this->methodFromQueue($queue),
+					'url' => $url,
+					'options' => [
+						'headers' => $this->signatureService->signRequest($url, $body, $queue),
+						'body' => $body,
+						'timeout' => $queue->getTimeout(),
+					],
+				];
+			} catch (\Throwable $e) {
+				$this->settleOrHandBack($queue, $e, $failed);
+			}
+		}
+
+		if ($sending === []) {
+			return 0;
+		}
+
+		foreach ($this->curlService->sendMany($sending) as $i => $outcome) {
+			$this->settleOrHandBack($wave[$i], $outcome, $failed);
+		}
+
+		return count($sending);
+	}
+
+	/** @param callable(RequestQueue, \Throwable): void $failed */
+	private function settleOrHandBack(RequestQueue $queue, ?\Throwable $outcome, callable $failed): void {
+		try {
+			$this->settle($queue, $outcome, false);
+		} catch (\Throwable $e) {
+			$failed($queue, $e);
+		}
+	}
+
+	/**
+	 * Ends one attempted delivery according to how it went: delivered, to be
+	 * retried (and the host held back), or dropped for good.
+	 *
+	 * @throws \Throwable a failure this does not know how to end, for the caller
+	 */
+	private function settle(RequestQueue $queue, ?\Throwable $failure, bool $live): void {
+		$host = $queue->getInstance()->getAddress();
+		$url = $queue->getInstance()->getUri();
+
+		if ($failure === null || $failure instanceof RequestResultNotJsonException) {
+			// an answer that is not JSON is still an answer: delivered
 			$this->closeCircuit($host);
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (UnauthorizedFediverseException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof UnauthorizedFediverseException) {
 			// nothing was sent: the domain is not one this instance federates
 			// with. Kept as delivered, it told the author their post had
 			// reached a server it was never offered to.
@@ -414,45 +605,57 @@ class ActivityService {
 				'Delivery refused by the instance policy, dropping the request: ' . $url
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestResultNotJsonException $e) {
-			$this->requestQueueService->endRequest($queue, true);
-		} catch (RequestContentException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof RequestContentException) {
 			// The peer answered, but not with a 2xx. Whether that is worth
 			// retrying depends entirely on the status: a 503 during an upgrade
 			// or a 429 from a rate limiter is temporary and used to cost us
 			// every activity queued for that instance, deleted on the spot.
-			if ($this->isTransientHttpStatus($e->getCode())) {
+			if ($this->isTransientHttpStatus($failure->getCode())) {
 				$this->logger->notice(
-					'Temporary error while managing request: HTTP ' . $e->getCode() . ' - '
-					. $url . ' - ' . $e->getMessage()
+					'Temporary error while managing request: HTTP ' . $failure->getCode() . ' - '
+					. $url . ' - ' . $failure->getMessage()
 				);
 				$this->requestQueueService->endRequest($queue, false);
 				$this->holdHost($host, $live);
 
-				return true;
+				return;
 			}
 
 			$this->logger->notice(
-				'Permanent error while managing request: HTTP ' . $e->getCode() . ' - '
-				. $url . ' - ' . $e->getMessage()
+				'Permanent error while managing request: HTTP ' . $failure->getCode() . ' - '
+				. $url . ' - ' . $failure->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (ActorDoesNotExistException|RequestResultSizeException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof ActorDoesNotExistException || $failure instanceof RequestResultSizeException) {
 			$this->logger->notice(
-				'Error while managing request: ' . $url . ' ' . get_class($e) . ': '
-				. $e->getMessage()
+				'Error while managing request: ' . $url . ' ' . get_class($failure) . ': '
+				. $failure->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestNetworkException|RequestServerException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof RequestNetworkException || $failure instanceof RequestServerException) {
 			$this->logger->notice(
 				'Temporary error while managing request: RequestServerException - ' . $url
-				. ' - ' . get_class($e) . ': ' . $e->getMessage()
+				. ' - ' . get_class($failure) . ': ' . $failure->getMessage()
 			);
 			$this->requestQueueService->endRequest($queue, false);
 			$this->holdHost($host, $live);
+
+			return;
 		}
 
-		return true;
+		throw $failure;
 	}
 
 	/**

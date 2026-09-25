@@ -185,8 +185,11 @@ class BlocklistSubscriptionService {
 			$response = $this->clientService->newClient()->get($url, [
 				'timeout' => self::TIMEOUT,
 				'headers' => ['Accept' => 'application/json, text/csv, text/plain'],
+				'stream' => true,
 			]);
-			$body = (string)$response->getBody();
+			// one byte past the ceiling at most, which is enough for parse()
+			// to refuse the list as too large without it all being in memory
+			$body = CurlService::readAtMost($response, BlocklistImportService::MAX_BYTES);
 		} catch (Throwable $e) {
 			$this->logger->notice('could not read a subscribed block list', [
 				'source' => $id, 'url' => $url, 'exception' => $e,

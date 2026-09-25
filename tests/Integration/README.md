@@ -45,6 +45,9 @@ to stop.
   whether the fast page query or the old join answers it: the Loopback row is
   what carries a mention from an account they do not follow, and a set of
   recipient rows built without it drops every one of them.
+- `Db/DurableCacheTableTest` — the table behind `DurableCache` on an instance
+  with no memcache: a read ignores an expired row, an insert over an existing
+  key is skipped rather than raised, the purge takes only what has expired.
 - `Db/ActorRelationRequestTest` / `Db/StreamFilterTest` — block/mute storage and
   the hidden-actor anti-join on every timeline.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with

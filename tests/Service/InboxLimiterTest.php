@@ -12,32 +12,37 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Exceptions\PayloadTooLargeException;
 use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\InboxLimiter;
-use OCP\ICache;
+use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICacheFactory;
 use OCP\IRequest;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Run on an instance with no memcache, which is where the throttle used to be
+ * off: the counters were kept in `createDistributed()`, a cache there that
+ * forgets every write, so every delivery read a count of zero.
+ */
 class InboxLimiterTest extends TestCase {
 	private ConfigService|MockObject $configService;
 	private InboxLimiter $limiter;
-	/** @var array<string, mixed> the distributed cache, simulated */
-	private array $cache = [];
+	/** the counters' table */
+	private InMemoryDurableCacheRequest $table;
 
 	protected function setUp(): void {
-		$cache = $this->createMock(ICache::class);
-		$cache->method('get')->willReturnCallback(fn (string $key) => $this->cache[$key] ?? null);
-		$cache->method('set')->willReturnCallback(function (string $key, $value) {
-			$this->cache[$key] = $value;
-
-			return true;
-		});
 		$cacheFactory = $this->createMock(ICacheFactory::class);
-		$cacheFactory->method('createDistributed')->with('social.inbox')->willReturn($cache);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(static fn (): int => time());
+		$this->table = new InMemoryDurableCacheRequest();
 
 		$this->configService = $this->createMock(ConfigService::class);
-		$this->limiter = new InboxLimiter($cacheFactory, $this->configService);
+		$this->limiter = new InboxLimiter(
+			new DurableCache($cacheFactory, $this->table, $time), $this->configService
+		);
 	}
 
 	private function limit(int $limit): void {
@@ -142,7 +147,7 @@ class InboxLimiterTest extends TestCase {
 			$this->limiter->assertOriginAllowed('one.example');
 		}
 
-		$this->assertSame([], $this->cache);
+		$this->assertSame([], $this->table->rows);
 	}
 
 	public function testDifferentSourceAddressesUseDifferentBuckets(): void {
@@ -207,6 +212,6 @@ class InboxLimiterTest extends TestCase {
 		for ($i = 0; $i < 50; $i++) {
 			$this->limiter->assertAllowed($request);
 		}
-		$this->assertSame([], $this->cache, 'disabled limiter never touches the cache');
+		$this->assertSame([], $this->table->rows, 'disabled limiter never touches the cache');
 	}
 }

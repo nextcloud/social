@@ -270,6 +270,25 @@ describe('Timeline', () => {
 		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(true)
 	})
 
+	// or reloading the page would bring it back, and so would Back
+	it('takes the welcome out of the address once the introduction is closed', async () => {
+		const replace = vi.fn()
+		const wrapper = mount(Timeline, {
+			global: {
+				plugins: [pinia],
+				mocks: {
+					$route: { name: 'timeline', params: {}, query: { welcome: '1', other: 'x' } },
+					$router: { replace },
+				},
+				stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, StoryBar: StoryBarStub },
+			},
+		})
+		await wrapper.findComponent(FirstRunStub).vm.$emit('done')
+
+		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(false)
+		expect(replace).toHaveBeenCalledWith({ query: { other: 'x' } })
+	})
+
 	describe('on the first run', () => {
 		beforeEach(() => {
 			makeStore({ firstrun: true })

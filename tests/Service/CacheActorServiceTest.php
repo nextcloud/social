@@ -223,6 +223,9 @@ class CacheActorServiceTest extends TestCase {
 			'leading at' => ['@alice'],
 			'cloud host' => ['alice@cloud.example.com'],
 			'social address' => ['@alice@social.example.com'],
+			// a host name is case-insensitive
+			'cloud host in capitals' => ['alice@CLOUD.example.com'],
+			'social address in capitals' => ['alice@Social.Example.com'],
 		];
 	}
 
@@ -395,6 +398,60 @@ class CacheActorServiceTest extends TestCase {
 			->with(self::BOB, true, self::NOW);
 
 		$this->assertTrue($this->serviceWithClock()->refreshRemoteActor($bob));
+	}
+
+	/** @return Person[] */
+	private function remoteBatch(int $from, int $count): array {
+		$batch = [];
+		for ($i = $from; $i < $from + $count; $i++) {
+			$batch[] = $this->person('https://other.example/users/u' . $i, 'u' . $i);
+		}
+
+		return $batch;
+	}
+
+	/**
+	 * Given time, the refresh takes batch after batch: fifty a pass could not
+	 * keep a ten-day lifetime past about 60,000 cached actors.
+	 */
+	public function testATimedRefreshTakesBatchesUntilNothingIsDue(): void {
+		$this->cacheActorsRequest->expects($this->exactly(3))->method('getRemoteActorsToUpdate')
+			->willReturnOnConsecutiveCalls($this->remoteBatch(0, 50), $this->remoteBatch(50, 50), []);
+		$this->curlService->method('retrieveObject')->willThrowException(new RequestNetworkException('down'));
+		$this->cacheActorsRequest->expects($this->exactly(100))->method('recordSyncAttempt');
+
+		$this->assertSame(100, $this->serviceWithClock()->manageCacheRemoteActors(false, time() + 60));
+	}
+
+	public function testATimedRefreshStopsAtItsDeadline(): void {
+		$this->cacheActorsRequest->expects($this->once())->method('getRemoteActorsToUpdate')
+			->willReturn($this->remoteBatch(0, 50));
+		$this->curlService->method('retrieveObject')->willThrowException(new RequestNetworkException('down'));
+
+		$this->assertSame(1, $this->serviceWithClock()->manageCacheRemoteActors(false, time() - 1));
+	}
+
+	/**
+	 * A stamp that could not be written leaves the same rows due: the pass
+	 * handles each once and ends, rather than asking the same peers again
+	 * until the deadline.
+	 */
+	public function testATimedRefreshHandlesAnActorOncePerPass(): void {
+		$batch = $this->remoteBatch(0, 3);
+		$this->cacheActorsRequest->expects($this->exactly(2))->method('getRemoteActorsToUpdate')->willReturn($batch);
+		$this->curlService->expects($this->exactly(3))->method('retrieveObject')
+			->willThrowException(new RequestNetworkException('down'));
+
+		$this->assertSame(3, $this->serviceWithClock()->manageCacheRemoteActors(false, time() + 60));
+	}
+
+	public function testTheDetailsRefreshIsTimedTheSameWay(): void {
+		$this->cacheActorsRequest->expects($this->exactly(3))->method('getRemoteActorsToUpdateDetails')
+			->willReturnOnConsecutiveCalls($this->remoteBatch(0, 50), $this->remoteBatch(50, 20), []);
+		$this->cacheActorsRequest->method('updateDetails')->willThrowException(new \RuntimeException('gone'));
+		$this->cacheActorsRequest->expects($this->exactly(70))->method('recordSyncAttempt');
+
+		$this->assertSame(70, $this->serviceWithClock()->manageDetailsRemoteActors(false, time() + 60));
 	}
 
 	/** The same service, with a clock a test can hold still. */

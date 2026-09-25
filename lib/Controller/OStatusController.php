@@ -86,7 +86,7 @@ class OStatusController extends Controller {
 				'social', 'main', []
 			);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -106,7 +106,7 @@ class OStatusController extends Controller {
 				'social', 'main', [], 'guest'
 			);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -141,7 +141,7 @@ class OStatusController extends Controller {
 
 			return $this->success(['url' => $url]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 }

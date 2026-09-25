@@ -84,8 +84,20 @@
 				{{ t('social', 'Latest') }}
 			</h2>
 
+			<!-- a list that could not be fetched is not a list with nothing in it -->
+			<div v-if="failed" class="subs__failed" role="alert">
+				<p>{{ t('social', 'Your subscriptions could not be loaded.') }}</p>
+				<NcButton :disabled="busy !== ''" @click="retry">
+					<template #icon>
+						<NcLoadingIcon v-if="busy === 'load'" :size="20" />
+						<IconRefresh v-else :size="20" />
+					</template>
+					{{ t('social', 'Try again') }}
+				</NcButton>
+			</div>
+
 			<NcEmptyContent
-				v-if="items.length === 0 && busy !== 'load'"
+				v-else-if="items.length === 0 && busy !== 'load'"
 				:name="t('social', 'Nothing yet')"
 				:description="t('social', 'Follow a channel or a blog above, and what it publishes turns up here.')">
 				<template #icon>
@@ -93,19 +105,16 @@
 				</template>
 			</NcEmptyContent>
 
-			<ul v-else class="entries">
+			<ul v-if="items.length" class="entries">
 				<li v-for="item in items" :key="item.id" class="entries__item">
 					<a
 						class="entries__link"
 						:href="item.link"
 						target="_blank"
 						rel="noopener noreferrer">
-						<img
-							v-if="item.thumbnail"
-							class="entries__thumb"
-							:src="item.thumbnail"
-							alt=""
-							loading="lazy">
+						<!-- no thumbnail: the feed's picture is on its own host,
+						     which the page's img-src does not allow, and there is
+						     no local route that fetches it the way attachments are -->
 						<span class="entries__body">
 							<span class="entries__title">{{ item.title }}</span>
 							<span class="entries__meta">
@@ -118,7 +127,7 @@
 				</li>
 			</ul>
 
-			<NcButton v-if="items.length && !allLoaded" :disabled="busy !== ''" @click="load">
+			<NcButton v-if="items.length && !allLoaded && !failed" :disabled="busy !== ''" @click="load">
 				<template #icon>
 					<NcLoadingIcon v-if="busy === 'load'" :size="20" />
 					<IconChevronDown v-else :size="20" />
@@ -138,8 +147,8 @@
  * makes them not leave. Every channel publishes an Atom feed, so the channels
  * come along.
  *
- * The page is deliberately not a timeline. An entry is a headline, a still and
- * a link out — there is no boost, no reply, no favourite, because this server
+ * The page is deliberately not a timeline. An entry is a headline, a summary
+ * and a link out — there is no boost, no reply, no favourite, because this server
  * has no right to publish somebody else's video and an id minted for one would
  * be an address pretending to be the thing. Everything anybody does with an
  * entry happens on the site it came from.
@@ -154,6 +163,7 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconChevronDown from 'vue-material-design-icons/ChevronDown.vue'
 import IconClose from 'vue-material-design-icons/Close.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
+import IconRefresh from 'vue-material-design-icons/Refresh.vue'
 import IconRssBox from 'vue-material-design-icons/RssBox.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
 import logger from '../services/logger.js'
@@ -166,6 +176,7 @@ export default {
 		IconChevronDown,
 		IconClose,
 		IconPlus,
+		IconRefresh,
 		IconRssBox,
 		IconUpload,
 		NcButton,
@@ -180,7 +191,9 @@ export default {
 			feeds: [],
 			items: [],
 			allLoaded: false,
-			/** '', 'add', 'load', 'takeout' */
+			/** the feed list or a page of entries could not be fetched */
+			failed: false,
+			/** '', 'add', 'remove', 'load', 'takeout' */
 			busy: '',
 		}
 	},
@@ -204,6 +217,7 @@ export default {
 				this.feeds = data.feeds ?? []
 			} catch (error) {
 				logger.warn('Could not list subscriptions', { error })
+				this.failed = true
 			}
 		},
 
@@ -221,6 +235,19 @@ export default {
 
 			this.busy = 'load'
 			try {
+				await this.fetchPage()
+			} finally {
+				this.busy = ''
+			}
+		},
+
+		/**
+		 * One page appended, with no check of `busy`: `reload()` runs inside
+		 * an add, a remove or an import, which hold `busy` for their own
+		 * spinner, and the list they emptied has to be filled again.
+		 */
+		async fetchPage() {
+			try {
 				const params = { limit: 40 }
 				const last = this.items.at(-1)
 				if (last) {
@@ -236,8 +263,7 @@ export default {
 				this.allLoaded = page.length === 0
 			} catch (error) {
 				logger.warn('Could not load feed entries', { error })
-			} finally {
-				this.busy = ''
+				this.failed = true
 			}
 		},
 
@@ -299,12 +325,29 @@ export default {
 			}
 		},
 
+		/** What failed, asked again: both lists when nothing is shown yet, else the next page. */
+		async retry() {
+			if (this.items.length > 0) {
+				this.failed = false
+				await this.load()
+				return
+			}
+
+			this.busy = 'load'
+			try {
+				await this.reload()
+			} finally {
+				this.busy = ''
+			}
+		},
+
 		/** Both lists again from the top: what is followed decides what is listed. */
 		async reload() {
 			this.items = []
 			this.allLoaded = false
+			this.failed = false
 			await this.refresh()
-			await this.load()
+			await this.fetchPage()
 		},
 	},
 }
@@ -367,6 +410,22 @@ export default {
 
 	&__file {
 		display: none;
+	}
+
+	&__failed {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 12px;
+		padding: 24px 20px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 12px);
+		text-align: center;
+
+		p {
+			margin: 0;
+			color: var(--color-text-maxcontrast);
+		}
 	}
 }
 
@@ -440,15 +499,6 @@ export default {
 		}
 	}
 
-	&__thumb {
-		flex: 0 0 auto;
-		inline-size: 160px;
-		aspect-ratio: 16 / 9;
-		object-fit: cover;
-		border-radius: var(--border-radius-large, 8px);
-		background: var(--color-background-dark);
-	}
-
 	&__body {
 		display: flex;
 		flex-direction: column;
@@ -471,16 +521,6 @@ export default {
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
-	}
-
-	@media (max-width: 500px) {
-		&__link {
-			flex-direction: column;
-		}
-
-		&__thumb {
-			inline-size: 100%;
-		}
 	}
 }
 </style>

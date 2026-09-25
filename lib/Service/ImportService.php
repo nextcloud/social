@@ -48,7 +48,15 @@ class ImportService {
 			throw new ActivityPubFormatException();
 		}
 
-		return AP::instance()->getItemFromData($data);
+		// the models are strictly typed, and a document that puts a string
+		// where an object belongs trips that deep inside one of them. It is the
+		// sender's bytes that are wrong, which is a 400 — not a 500 that makes
+		// the peer send the same bytes again for two days
+		try {
+			return AP::instance()->getItemFromData($data);
+		} catch (\TypeError $e) {
+			throw new ActivityPubFormatException('malformed activity: ' . $e->getMessage(), 0, $e);
+		}
 	}
 
 	/**

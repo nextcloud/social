@@ -72,15 +72,17 @@ class QueueController extends Controller {
 		// closed the connection, and this worker only delivers queued activities.
 		$this->async();
 
-		$deadline = time() + self::MAX_DURATION;
-		$this->activityService->manageInit();
+		// a post's whole fan-out, several servers at a time: one after
+		// another, the budget ran out on the first few slow peers
 		foreach ($requests as $request) {
-			if (time() >= $deadline) {
-				break;
-			}
 			$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
-			$this->deliver($request);
 		}
+		$this->activityService->manageInit();
+		$this->activityService->manageRequests(
+			$requests,
+			time() + self::MAX_DURATION,
+			fn (RequestQueue $request, Throwable $e) => $this->handBack($request, $e)
+		);
 
 		// exit(), not a Response: the connection is gone and headers are sent, so
 		// letting the framework render a response would only feed warnings into the
@@ -89,35 +91,32 @@ class QueueController extends Controller {
 	}
 
 	/**
-	 * One delivery attempt, whose failure costs this row and nothing else.
+	 * A delivery that failed in a way `ActivityService` does not end itself,
+	 * which costs this row and nothing else.
 	 *
-	 * manageRequest() marks the row `running` before it starts and ends it for
-	 * the failures it handles itself; anything else — a corrupt signing key, the
-	 * database going away — came out of here unhandled, stranding the row as
-	 * `running` (never retried, never counted against MAX_TRIES, freed by the
-	 * stale reaper an hour later) and abandoning every request left in the
-	 * batch. There is no one to report an error to either: the connection was
-	 * closed by async() before the loop started.
+	 * The row is `running` by then — marked before the attempt — and anything
+	 * a delivery does not handle itself (a corrupt signing key, the database
+	 * going away) used to come out of here unhandled, stranding it (never
+	 * retried, never counted against MAX_TRIES, freed by the stale reaper an
+	 * hour later) and abandoning every request left in the batch. There is no
+	 * one to report an error to either: the connection was closed by async()
+	 * before the drain started.
 	 */
-	protected function deliver(RequestQueue $request): void {
-		try {
-			$this->activityService->manageRequest($request);
-		} catch (Throwable $e) {
-			$this->logger->warning(
-				'[QueueController] delivery of ' . $request->getToken() . ' failed: '
-				. get_class($e) . ' ' . $e->getMessage(),
-				['exception' => $e, 'token' => $request->getToken()]
-			);
+	protected function handBack(RequestQueue $request, Throwable $e): void {
+		$this->logger->warning(
+			'[QueueController] delivery of ' . $request->getToken() . ' failed: '
+			. get_class($e) . ' ' . $e->getMessage(),
+			['exception' => $e, 'token' => $request->getToken()]
+		);
 
-			try {
-				$this->requestQueueService->endRequest($request, false);
-			} catch (Throwable $dbError) {
-				// the database is what just failed; the stale reaper is the backstop
-				$this->logger->warning(
-					'[QueueController] cannot return ' . $request->getToken() . ' to standby',
-					['exception' => $dbError, 'token' => $request->getToken()]
-				);
-			}
+		try {
+			$this->requestQueueService->endRequest($request, false);
+		} catch (Throwable $dbError) {
+			// the database is what just failed; the stale reaper is the backstop
+			$this->logger->warning(
+				'[QueueController] cannot return ' . $request->getToken() . ' to standby',
+				['exception' => $dbError, 'token' => $request->getToken()]
+			);
 		}
 	}
 }

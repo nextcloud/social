@@ -18,8 +18,6 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
-use OCP\ICache;
-use OCP\ICacheFactory;
 
 /**
  * What an account has done here, and what came back.
@@ -107,19 +105,23 @@ class StatisticsService {
 	 * minutes is long enough that reading the page, scrolling it and coming
 	 * back is free, and short enough that a post from this morning shows up
 	 * on it.
+	 *
+	 * Kept in `DurableCache`, so that it is kept at all on an instance with no
+	 * memcache: in the distributed cache alone the page was counted again on
+	 * every load there, `fresh` or not.
 	 */
 	private const CACHE_SECONDS = 900;
 
-	private ICache $cache;
+	/** The `DurableCache` namespace the computed pages live in. */
+	public const CACHE_NAMESPACE = Application::APP_ID . '/statistics';
 
 	public function __construct(
 		private StreamRequest $streamRequest,
 		private FollowsRequest $followsRequest,
 		private AccountService $accountService,
 		private CacheActorsRequest $cacheActorsRequest,
-		ICacheFactory $cacheFactory,
+		private DurableCache $cache,
 	) {
-		$this->cache = $cacheFactory->createDistributed(Application::APP_ID . '/statistics');
 	}
 
 	/**
@@ -136,20 +138,17 @@ class StatisticsService {
 		$key = md5($actor->getId()) . '.' . $days;
 
 		if (!$fresh) {
-			$cached = $this->cache->get($key);
-			if (is_string($cached) && $cached !== '') {
-				$page = json_decode($cached, true);
-				if (is_array($page)) {
-					$page['window']['cached'] = true;
+			$page = $this->cache->get(self::CACHE_NAMESPACE, $key);
+			if (is_array($page)) {
+				$page['window']['cached'] = true;
 
-					return $page;
-				}
+				return $page;
 			}
 		}
 
 		$page = $this->forAccount($actor, $days);
 		$page['window']['cached'] = false;
-		$this->cache->set($key, (string)json_encode($page), self::CACHE_SECONDS);
+		$this->cache->set(self::CACHE_NAMESPACE, $key, $page, self::CACHE_SECONDS);
 
 		return $page;
 	}

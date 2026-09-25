@@ -96,6 +96,47 @@ class FediverseServiceTest extends TestCase {
 		$this->assertSame(['noisy.example'], $this->service->getSilencedAddresses());
 	}
 
+	/**
+	 * A published list silences a couple of thousand instances at once. Each
+	 * one used to decode and rewrite the whole list; a batch reads it once
+	 * and writes it once.
+	 */
+	public function testABatchOfSilencesIsOneReadAndOneWrite(): void {
+		$reads = 0;
+		$writes = 0;
+		$stored = '["old.example"]';
+		$this->configService->method('getAppValue')
+			->willReturnCallback(function (string $key) use (&$reads, &$stored): string {
+				$reads++;
+
+				return $stored;
+			});
+		$this->configService->method('setAppValue')
+			->willReturnCallback(function (string $key, string $value) use (&$writes, &$stored): void {
+				$writes++;
+				$stored = $value;
+			});
+
+		$domains = ['sub.old.example', 'dup.example', 'dup.example', 'a.dup.example'];
+		for ($i = 0; $i < 2000; $i++) {
+			$domains[] = 'n' . $i . '.example';
+		}
+
+		$added = $this->service->silenceAddresses($domains);
+
+		$this->assertSame(2001, $added, 'new ones only: a subdomain of a silenced one is covered already');
+		$this->assertSame(1, $reads);
+		$this->assertSame(1, $writes);
+		$this->assertCount(2002, json_decode($stored, true));
+	}
+
+	public function testABatchThatAddsNothingWritesNothing(): void {
+		$this->withStoredConfig([ConfigService::SOCIAL_SILENCED_LIST => '["noisy.example"]']);
+		$this->configService->expects($this->never())->method('setAppValue');
+
+		$this->assertSame(0, $this->service->silenceAddresses(['noisy.example', 'www.noisy.example']));
+	}
+
 	/** Nothing was deleted by a silence, so lifting it brings everything back. */
 	public function testLiftingASilenceRemovesIt(): void {
 		$this->withStoredConfig([

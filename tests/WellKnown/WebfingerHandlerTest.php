@@ -29,6 +29,7 @@ use OCP\AppFramework\Http\JSONResponse;
 use OCP\Http\WellKnown\IRequestContext;
 use OCP\Http\WellKnown\IResponse;
 use OCP\IRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -67,6 +68,7 @@ class WebfingerHandlerTest extends TestCase {
 			fn (bool $noPhp = false): string => $noPhp ? 'https://cloud.example' : 'https://cloud.example/index.php'
 		);
 		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/index.php/apps/social/');
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
 
 		\OC::$server->register(IRequest::class, $this->request);
 
@@ -203,7 +205,34 @@ class WebfingerHandlerTest extends TestCase {
 
 		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
 
-		$this->assertSame('alice@cloud.example', $json['subject']);
+		$this->assertSame('acct:alice@cloud.example', $json['subject']);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function looseSubjects(): array {
+		return [
+			'leading @' => ['acct:@alice@cloud.example'],
+			'user case' => ['acct:Alice@cloud.example'],
+			'host case' => ['acct:alice@CLOUD.example'],
+			'no scheme' => ['alice@cloud.example'],
+			'actor id' => [self::ACTOR_URL],
+		];
+	}
+
+	/**
+	 * Whatever form of the handle found the account, the answer names it in
+	 * one: a consumer that splits `acct:@alice@host` on `@` reads a user with
+	 * no name.
+	 */
+	#[DataProvider('looseSubjects')]
+	public function testTheSubjectIsTheAccountsOwnHandleNotTheQuery(string $resource): void {
+		$this->resource($resource);
+		$this->cacheActorService->method('getFromLocalAccount')->willReturn($this->localActor('alice'));
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->localActor('alice'));
+
+		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
+
+		$this->assertSame('acct:alice@cloud.example', $json['subject']);
 	}
 
 	public function testAMissingResourceParameterIsABadRequest(): void {
@@ -264,7 +293,7 @@ class WebfingerHandlerTest extends TestCase {
 
 		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
 
-		$this->assertSame(self::ACTOR_URL, $json['subject']);
+		$this->assertSame('acct:alice@cloud.example', $json['subject']);
 		$this->assertSame(self::ACTOR_URL, $json['links'][0]['href']);
 	}
 
@@ -349,7 +378,6 @@ class WebfingerHandlerTest extends TestCase {
 	 */
 	public function testTheInstanceActorIsDiscoverableUnderTheHostHandle(): void {
 		$this->resource('acct:cloud.example@cloud.example');
-		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
 		$this->cacheActorService->expects($this->never())->method('getFromLocalAccount');
 
 		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
@@ -365,7 +393,6 @@ class WebfingerHandlerTest extends TestCase {
 	/** A domain is not case-sensitive, and a peer may ask in any case. */
 	public function testTheInstanceActorHandleIsMatchedRegardlessOfCase(): void {
 		$this->resource('acct:Cloud.Example@CLOUD.example');
-		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
 
 		$json = $this->jsonOf($this->handler->handleWebfinger($this->context, null));
 
@@ -378,7 +405,6 @@ class WebfingerHandlerTest extends TestCase {
 	 */
 	public function testAnOrdinaryHandleIsStillLookedUpAsALocalAccount(): void {
 		$this->resource('acct:alice@cloud.example');
-		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
 		$this->cacheActorService->expects($this->once())
 			->method('getFromLocalAccount')
 			->willReturn($this->localActor('alice'));

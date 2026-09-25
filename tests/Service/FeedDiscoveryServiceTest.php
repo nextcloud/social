@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use InvalidArgumentException;
 use OCA\Social\Service\FeedDiscoveryService;
+use OCA\Social\Tests\Helper\EndlessStream;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
@@ -196,5 +197,31 @@ class FeedDiscoveryServiceTest extends TestCase {
 			'another scheme' => ['file:///etc/passwd'],
 			'nothing' => ['   '],
 		];
+	}
+
+	/**
+	 * A page is read up to the ceiling as it arrives, not buffered whole and
+	 * cut afterwards: a server that never stops sending must not be able to
+	 * fill this process's memory.
+	 */
+	public function testAPageIsReadNoFurtherThanTheCeiling(): void {
+		$options = [];
+		$response = $this->createMock(IResponse::class);
+		$response->method('getBody')->willReturn(EndlessStream::open());
+		$response->method('getHeader')->willReturn('text/html');
+		$this->client->method('get')->willReturnCallback(function (string $url, array $sent) use ($response, &$options): IResponse {
+			$options = $sent;
+
+			return $response;
+		});
+
+		try {
+			$this->service->discover('https://blog.example/');
+		} catch (InvalidArgumentException) {
+			// nothing to find in a page of 'a's; what matters is that it returned
+		}
+
+		$this->assertTrue($options['stream'] ?? false);
+		$this->assertLessThan(3 * 1024 * 1024, EndlessStream::$read);
 	}
 }

@@ -34,6 +34,12 @@ class Queue extends TimedJob {
 	 */
 	public const MAX_DURATION = 300;
 
+	/**
+	 * The most standby batches one run takes — a guard for a run whose
+	 * deliveries all come back at once; the deadline is what normally ends it.
+	 */
+	public const MAX_BATCHES = 30;
+
 	private ActivityService $activityService;
 	private RequestQueueService $requestQueueService;
 	private StreamQueueService $streamQueueService;
@@ -68,41 +74,67 @@ class Queue extends TimedJob {
 		// the delivered and abandoned rows past their retention; a cheap DELETE
 		// with a WHERE, so it runs every pass rather than on a schedule of its own
 		$this->requestQueueService->purgeFinished();
+		// and the breaker rows of hosts that have not failed for an hour
+		$this->activityService->forgetRecoveredHosts();
 
-		$requests = $this->requestQueueService->getRequestStandby();
-		$this->activityService->manageInit();
-
-		foreach ($requests as $request) {
-			if (time() >= $deadline) {
+		// batch after batch while there is time: the rows of one batch go out
+		// twenty servers at a time (`ActivityService::manageRequests()`), so
+		// 200 of them take seconds rather than the whole budget, and stopping
+		// after one batch left the rest of the pass idle
+		$seen = [];
+		for ($batch = 0; $batch < self::MAX_BATCHES && time() < $deadline; $batch++) {
+			$requests = [];
+			foreach ($this->requestQueueService->getRequestStandby() as $request) {
+				// a row this pass already handed out and could not end is not
+				// a reason to spend the rest of the budget on it
+				$key = ($request->getId() > 0) ? 'row' . $request->getId() : 'object' . spl_object_id($request);
+				if (isset($seen[$key])) {
+					continue;
+				}
+				$seen[$key] = true;
+				$request->setTimeout(ActivityService::TIMEOUT_SERVICE);
+				$requests[] = $request;
+			}
+			if ($requests === []) {
 				break;
 			}
 
-			$request->setTimeout(ActivityService::TIMEOUT_SERVICE);
-			try {
-				$this->activityService->manageRequest($request);
-			} catch (SocialAppConfigException $e) {
-				// The app is misconfigured, so *every* delivery in this queue
-				// will fail the same way. That used to be swallowed silently:
-				// at warning, because federation is down until it is fixed.
-				$this->logger->warning(
-					'[Cron\\Queue] cannot deliver ' . $request->getToken()
-					. ': the Social app is not configured (' . $e->getMessage() . ')',
-					['exception' => $e, 'token' => $request->getToken()]
-				);
-				$this->releaseRequest($request);
-			} catch (Throwable $e) {
-				// One row must cost that row and no more. manageRequest() ends
-				// the failures it knows about, but a corrupt signing key or the
-				// database going away comes out of it unhandled — and used to
-				// take the rest of the batch with it.
-				$this->logger->warning(
-					'[Cron\\Queue] delivery of ' . $request->getToken() . ' failed: '
-					. get_class($e) . ' ' . $e->getMessage(),
-					['exception' => $e, 'token' => $request->getToken()]
-				);
-				$this->releaseRequest($request);
-			}
+			$this->activityService->manageInit();
+			$this->activityService->manageRequests(
+				$requests,
+				$deadline,
+				fn (RequestQueue $request, Throwable $e) => $this->failed($request, $e)
+			);
 		}
+	}
+
+	/**
+	 * A row whose delivery ended in a way `ActivityService` does not handle
+	 * itself: logged, and handed back to standby.
+	 */
+	private function failed(RequestQueue $request, Throwable $e): void {
+		if ($e instanceof SocialAppConfigException) {
+			// The app is misconfigured, so *every* delivery in this queue
+			// will fail the same way. That used to be swallowed silently:
+			// at warning, because federation is down until it is fixed.
+			$this->logger->warning(
+				'[Cron\\Queue] cannot deliver ' . $request->getToken()
+				. ': the Social app is not configured (' . $e->getMessage() . ')',
+				['exception' => $e, 'token' => $request->getToken()]
+			);
+		} else {
+			// One row must cost that row and no more. manageRequest() ends
+			// the failures it knows about, but a corrupt signing key or the
+			// database going away comes out of it unhandled — and used to
+			// take the rest of the batch with it.
+			$this->logger->warning(
+				'[Cron\\Queue] delivery of ' . $request->getToken() . ' failed: '
+				. get_class($e) . ' ' . $e->getMessage(),
+				['exception' => $e, 'token' => $request->getToken()]
+			);
+		}
+
+		$this->releaseRequest($request);
 	}
 
 	/**

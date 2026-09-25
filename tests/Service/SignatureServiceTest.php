@@ -25,14 +25,17 @@ use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCA\Social\Tests\Helper\RsaPssSigner;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
@@ -48,6 +51,9 @@ use Psr\Log\NullLogger;
 
 class SignatureServiceTest extends TestCase {
 	private const CLOUD_HOST = 'cloud.example.com';
+
+	/** What the configured cloud URL answers as `host[:port]`. */
+	private string $cloudAuthority = self::CLOUD_HOST;
 	private const LOCAL_ACTOR = 'https://cloud.example.com/apps/social/@alice';
 	private const REMOTE_ACTOR = 'https://remote.example/users/bob';
 	private const REMOTE_KEY_ID = self::REMOTE_ACTOR . '#main-key';
@@ -61,8 +67,8 @@ class SignatureServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private SignatureService $service;
-	/** @var array<string, mixed> backing store of the mocked replay cache */
-	private array $seenSignatures = [];
+	/** the replay records, on the table an instance without a memcache uses */
+	private InMemoryDurableCacheRequest $seenSignatures;
 	/** @var array<string, mixed> backing store of the mocked key-attempt cache */
 	private array $keyAttempts = [];
 	/** @var array<string, int> the ttl each cache entry was written with */
@@ -91,20 +97,19 @@ class SignatureServiceTest extends TestCase {
 
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		$configService->method('getCloudAuthority')->willReturnCallback(fn (): string => $this->cloudAuthority);
 		// the real one narrows the request timeout around the call; here it only
 		// has to run what it is given
 		$configService->method('withRequestTimeout')
 			->willReturnCallback(fn (int $timeout, callable $action) => $action());
 
 		// in-memory stand-ins for the two distributed caches
-		$this->seenSignatures = [];
+		$this->seenSignatures = new InMemoryDurableCacheRequest();
 		$this->keyAttempts = [];
 		$this->cacheTtl = [];
 		$cacheFactory = $this->createMock(ICacheFactory::class);
 		$cacheFactory->method('createDistributed')->willReturnCallback(
-			fn (string $prefix): ICache => $prefix === 'social.keys'
-				? $this->arrayCache($this->keyAttempts)
-				: $this->arrayCache($this->seenSignatures)
+			fn (string $prefix): ICache => $this->arrayCache($this->keyAttempts)
 		);
 
 		$this->service = new SignatureService(
@@ -118,7 +123,22 @@ class SignatureServiceTest extends TestCase {
 			),
 			$cacheFactory,
 			new NullLogger(),
+			$this->durableCache(),
 		);
+	}
+
+	/**
+	 * The LD replay records as an instance with no memcache keeps them: there,
+	 * `createDistributed()` forgets every write, and a replay cache kept in it
+	 * accepted the same signature twice.
+	 */
+	private function durableCache(): DurableCache {
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(static fn (): int => time());
+
+		return new DurableCache($cacheFactory, $this->seenSignatures, $time);
 	}
 
 	/**
@@ -276,6 +296,30 @@ class SignatureServiceTest extends TestCase {
 		$this->assertSame((new DateTime($headers['date']))->getTimestamp(), $time);
 	}
 
+	public function testAnInstanceOnANonDefaultPortVerifiesTheHostWithItsPort(): void {
+		// a peer signs the Host it connected to, port included
+		$this->cloudAuthority = self::CLOUD_HOST . ':8443';
+		$this->rebuildWith(null);
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['host' => self::CLOUD_HOST . ':8443']);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testTheConfiguredPortIsNotDroppedToVerifyAHostWithout(): void {
+		// the substitution still binds the signature to this instance
+		$this->cloudAuthority = self::CLOUD_HOST . ':8443';
+		$this->rebuildWith(null);
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
 	public function testCheckRequestAcceptsRsaSha512(): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->signedHeaders($body, self::$privateKey, [], '(request-target) host date digest', 'rsa-sha512');
@@ -422,7 +466,7 @@ class SignatureServiceTest extends TestCase {
 
 	public function testCheckRequestRejectsAnExpiredDate(): void {
 		$body = '{"type":"Follow"}';
-		$expired = gmdate(SignatureService::DATE_HEADER, time() - SignatureService::DATE_DELAY - 30);
+		$expired = gmdate(SignatureService::DATE_HEADER, time() - SignatureService::DATE_PAST - 30);
 		$headers = $this->signedHeaders($body, self::$privateKey, ['date' => $expired]);
 
 		$this->expectException(SignatureException::class);
@@ -434,12 +478,34 @@ class SignatureServiceTest extends TestCase {
 		// without the upper bound, a request stamped into the future would stay
 		// replayable until that date finally became "too old"
 		$body = '{"type":"Follow"}';
-		$future = gmdate(SignatureService::DATE_HEADER, time() + SignatureService::DATE_DELAY + 30);
+		$future = gmdate(SignatureService::DATE_HEADER, time() + SignatureService::DATE_FUTURE + 30);
 		$headers = $this->signedHeaders($body, self::$privateKey, ['date' => $future]);
 
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage('from the future');
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testARequestSignedTenMinutesAgoIsAccepted(): void {
+		// a clock six minutes off, or a queue that took a while, used to lose
+		// the delivery for good
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['date' => gmdate(SignatureService::DATE_HEADER, time() - 600)]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testARequestIsReplayedOnlyOnceItWasRemembered(): void {
+		$headers = $this->signedHeaders('{"type":"Follow"}', self::$privateKey);
+		$request = $this->incomingRequest($headers);
+		$other = $this->incomingRequest($this->signedHeaders('{"type":"Undo"}', self::$privateKey));
+
+		$this->assertFalse($this->service->isReplayed($request));
+		$this->service->rememberRequest($request);
+
+		$this->assertTrue($this->service->isReplayed($request));
+		$this->assertFalse($this->service->isReplayed($other), 'another signature is another request');
 	}
 
 	public function testCheckRequestRejectsAMissingDate(): void {
@@ -769,8 +835,8 @@ class SignatureServiceTest extends TestCase {
 	/** @return array<string, array{int, string}> */
 	public static function createdOutsideTheWindow(): array {
 		return [
-			'too old' => [-SignatureService::DATE_DELAY - 30, 'too old'],
-			'from the future' => [SignatureService::DATE_DELAY + 30, 'from the future'],
+			'too old' => [-SignatureService::DATE_PAST - 30, 'too old'],
+			'from the future' => [SignatureService::DATE_FUTURE + 30, 'from the future'],
 		];
 	}
 
@@ -954,6 +1020,7 @@ class SignatureServiceTest extends TestCase {
 		$seen = [];
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		$configService->method('getCloudAuthority')->willReturnCallback(fn (): string => $this->cloudAuthority);
 		$configService->method('withRequestTimeout')->willReturnCallback(
 			function (int $timeout, callable $action) use (&$seen) {
 				$seen[] = $timeout;
@@ -1121,15 +1188,14 @@ class SignatureServiceTest extends TestCase {
 		if ($configService === null) {
 			$configService = $this->createMock(ConfigService::class);
 			$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+			$configService->method('getCloudAuthority')->willReturnCallback(fn (): string => $this->cloudAuthority);
 			$configService->method('withRequestTimeout')
 				->willReturnCallback(fn (int $timeout, callable $action) => $action());
 		}
 
 		$cacheFactory = $this->createMock(ICacheFactory::class);
 		$cacheFactory->method('createDistributed')->willReturnCallback(
-			fn (string $prefix): ICache => $prefix === 'social.keys'
-				? $this->arrayCache($this->keyAttempts)
-				: $this->arrayCache($this->seenSignatures)
+			fn (string $prefix): ICache => $this->arrayCache($this->keyAttempts)
 		);
 
 		$this->service = new SignatureService(
@@ -1143,6 +1209,7 @@ class SignatureServiceTest extends TestCase {
 			),
 			$cacheFactory,
 			new NullLogger(),
+			$this->durableCache(),
 		);
 	}
 

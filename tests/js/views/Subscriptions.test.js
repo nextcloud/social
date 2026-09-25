@@ -88,6 +88,18 @@ describe('Subscriptions', () => {
 		expect(link.attributes('target')).toBe('_blank')
 	})
 
+	/**
+	 * The thumbnail is a URL on the feed's own host (i.ytimg.com for YouTube),
+	 * which Nextcloud's img-src refuses: an <img> for it is an empty box and a
+	 * CSP violation, never a picture.
+	 */
+	it('does not point an image at the feed\'s host', async () => {
+		const wrapper = await mountPage()
+
+		expect(wrapper.find('.entries__link').exists()).toBe(true)
+		expect(wrapper.find('img').exists()).toBe(false)
+	})
+
 	it('offers no way to boost, reply to or favourite one', async () => {
 		const wrapper = await mountPage()
 
@@ -107,6 +119,51 @@ describe('Subscriptions', () => {
 		expect(axios.post.mock.calls[0][0]).toContain('/subscriptions')
 		expect(axios.post.mock.calls[0][1]).toEqual({ url: 'UCXuqSBlHAE6Xw-yeJA0Tunw' })
 		expect(wrapper.find('.feeds__name').text()).toBe('A channel')
+	})
+
+	/**
+	 * An add, a remove and an import each hold `busy` for their own spinner
+	 * while they reload, and the reload must not be turned away by it.
+	 */
+	it('lists the entries again after following something', async () => {
+		const wrapper = await mountPage({ feeds: [], items: [] })
+		axios.post.mockResolvedValue({ data: { feed: FEED } })
+		serve()
+
+		wrapper.vm.url = 'https://example.org/feed'
+		await wrapper.vm.add()
+		await flushPromises()
+
+		expect(wrapper.vm.items).toHaveLength(1)
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+		expect(wrapper.text()).not.toContain('Nothing yet')
+	})
+
+	it('lists the entries again after unfollowing something', async () => {
+		const wrapper = await mountPage({ feeds: [FEED, { ...FEED, id: '4', title: 'Another' }] })
+		axios.delete.mockResolvedValue({ data: { unsubscribed: true } })
+
+		await wrapper.vm.remove({ ...FEED, id: '4' })
+		await flushPromises()
+
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+		expect(wrapper.vm.busy).toBe('')
+	})
+
+	it('lists the entries again after a Takeout import', async () => {
+		const wrapper = await mountPage({ feeds: [], items: [] })
+		axios.post.mockResolvedValue({ data: { subscribed: 1, already: 0, failed: {} } })
+		serve()
+
+		const input = wrapper.find('input[type="file"]')
+		Object.defineProperty(input.element, 'files', {
+			value: [new File(['Channel Id,Channel Url,Channel Title'], 'subscriptions.csv')],
+			configurable: true,
+		})
+		await input.trigger('change')
+		await flushPromises()
+
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
 	})
 
 	it('unfollows one by its id', async () => {
@@ -163,6 +220,50 @@ describe('Subscriptions', () => {
 		})
 
 		expect(wrapper.find('.feeds__error').text()).toBe('could not connect')
+	})
+
+	/**
+	 * A 500 or a dropped connection is not an empty list, and "Nothing yet"
+	 * over it tells the reader their subscriptions are gone.
+	 */
+	it('says the entries could not be loaded, and asks again on request', async () => {
+		axios.get.mockImplementation((url) => url.includes('/subscriptions/timeline')
+			? Promise.reject(new Error('500'))
+			: Promise.resolve({ data: { feeds: [FEED] } }))
+		const wrapper = mount(Subscriptions, { global: { stubs: { NcLoadingIcon: true } } })
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').text()).toContain('could not be loaded')
+		expect(wrapper.text()).not.toContain('Nothing yet')
+
+		serve()
+		await wrapper.find('[role="alert"] button').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+	})
+
+	it('says so when the list of subscriptions cannot be fetched', async () => {
+		axios.get.mockImplementation((url) => url.includes('/subscriptions/timeline')
+			? Promise.resolve({ data: { items: [] } })
+			: Promise.reject(new Error('network')))
+		const wrapper = mount(Subscriptions, { global: { stubs: { NcLoadingIcon: true } } })
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+		expect(wrapper.text()).not.toContain('Nothing yet')
+	})
+
+	it('keeps what is listed when an older page fails', async () => {
+		const wrapper = await mountPage()
+		axios.get.mockRejectedValue(new Error('500'))
+
+		await wrapper.vm.load()
+		await flushPromises()
+
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+		expect(wrapper.find('[role="alert"]').exists()).toBe(true)
 	})
 
 	it('says what the page is for when nothing is followed yet', async () => {

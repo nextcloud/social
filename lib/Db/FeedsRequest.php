@@ -226,24 +226,82 @@ class FeedsRequest extends CoreRequestBuilder {
 		return true;
 	}
 
-	/** The feeds due a re-read, oldest first. What the cron walks. */
+	/**
+	 * Drops what a feed holds beyond its newest `$keep` entries, and anything
+	 * published before `$before`, whichever reaches further.
+	 *
+	 * Both halves read `social_feeditem_fp` (feed, published): the cut-off is
+	 * the `$keep`-th newest date, found with an offset into that index, and
+	 * the delete is a range on it.
+	 *
+	 * @return int how many entries were removed
+	 */
+	public function prune(int $feedId, int $keep, int $before): int {
+		$cutoff = new DateTime('@' . $before);
+
+		$nth = $this->getQueryBuilder();
+		$nth->select('published')
+			->from(self::TABLE_FEED_ITEMS)
+			->where($nth->expr()->eq('feed_id', $nth->createNamedParameter($feedId, IQueryBuilder::PARAM_INT)))
+			->orderBy('published', 'desc')
+			->setFirstResult(max(0, $keep - 1))
+			->setMaxResults(1);
+		$cursor = $nth->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($row !== false && is_string($row['published'] ?? null) && $row['published'] !== '') {
+			$oldestKept = new DateTime($row['published']);
+			if ($oldestKept > $cutoff) {
+				$cutoff = $oldestKept;
+			}
+		}
+
+		$qb = $this->getQueryBuilder();
+		$qb->delete(self::TABLE_FEED_ITEMS)
+			->where($qb->expr()->eq('feed_id', $qb->createNamedParameter($feedId, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->lt('published', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_DATE)));
+
+		return $qb->executeStatement();
+	}
+
+	/**
+	 * The feeds due a re-read. What the cron walks.
+	 *
+	 * The ones never read come first — a feed somebody has just followed is
+	 * stored unread and waits for this — then the rest, stalest first. Two
+	 * queries rather than one `ORDER BY fetched_at`, because where NULL sorts
+	 * is not portable: first on MySQL and SQLite, last on PostgreSQL, where a
+	 * new subscription would wait behind every stale one.
+	 */
 	public function due(int $limit, int $olderThan): array {
+		$fresh = $this->getQueryBuilder();
+		$fresh->select('id', 'url', 'etag', 'modified_at')
+			->from(self::TABLE_FEEDS)
+			->where($fresh->expr()->isNull('fetched_at'))
+			->orderBy('id', 'asc')
+			->setMaxResults($limit);
+		$rows = $this->rowsOf($fresh);
+
+		if (count($rows) >= $limit) {
+			return $rows;
+		}
+
 		$qb = $this->getQueryBuilder();
 		$qb->select('id', 'url', 'etag', 'modified_at')
 			->from(self::TABLE_FEEDS)
+			->where($qb->expr()->lt(
+				'fetched_at',
+				$qb->createNamedParameter(new DateTime('@' . $olderThan), IQueryBuilder::PARAM_DATE)
+			))
 			->orderBy('fetched_at', 'asc')
-			->setMaxResults($limit);
+			->setMaxResults($limit - count($rows));
 
-		$qb->andWhere(
-			$qb->expr()->orX(
-				$qb->expr()->isNull('fetched_at'),
-				$qb->expr()->lt(
-					'fetched_at',
-					$qb->createNamedParameter(new DateTime('@' . $olderThan), IQueryBuilder::PARAM_DATE)
-				)
-			)
-		);
+		return array_merge($rows, $this->rowsOf($qb));
+	}
 
+	/** @return array<array<string, mixed>> */
+	private function rowsOf(SocialQueryBuilder $qb): array {
 		$rows = [];
 		$cursor = $qb->executeQuery();
 		while ($row = $cursor->fetch()) {

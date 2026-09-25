@@ -31,4 +31,21 @@ describe('Emoji', () => {
 		expect(mountEmoji('🏳️‍🌈').find('img').attributes('src'))
 			.toBe('/apps/social/img/twemoji/1f3f3-fe0f-200d-1f308.svg')
 	})
+
+	// 🥹 is Unicode 14; a Twemoji older than that has no picture for it
+	it('falls back to the character itself when there is no picture for it', async () => {
+		const wrapper = mountEmoji('🥹')
+		await wrapper.find('img').trigger('error')
+
+		expect(wrapper.find('img').exists()).toBe(false)
+		expect(wrapper.find('span.emoji').text()).toBe('🥹')
+	})
+
+	it('tries the picture again for the next emoji it is handed', async () => {
+		const wrapper = mountEmoji('🥹')
+		await wrapper.find('img').trigger('error')
+		await wrapper.setProps({ emoji: '😀' })
+
+		expect(wrapper.find('img.emoji').attributes('src')).toBe('/apps/social/img/twemoji/1f600.svg')
+	})
 })

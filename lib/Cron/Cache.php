@@ -16,6 +16,8 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheActorSweepService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\DurableCache;
+use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MediaUsageService;
@@ -45,6 +47,16 @@ class Cache extends TimedJob {
 	 */
 	public const MAX_DURATION = 300;
 
+	/**
+	 * How long each of the two remote-actor refresh steps may take, in
+	 * seconds, inside the pass's own budget.
+	 *
+	 * They take batch after batch until this runs out, rather than one batch
+	 * of fifty — which could not keep a ten-day lifetime past about 60,000
+	 * cached actors. Ninety each leaves the other steps a third of the pass.
+	 */
+	public const REMOTE_ACTOR_SECONDS = 90;
+
 	/** Cached remote actors evicted per pass; see CacheActorSweepService. */
 	public const SWEEP_BATCH = 500;
 
@@ -72,6 +84,8 @@ class Cache extends TimedJob {
 		private ?CacheActorSweepService $cacheActorSweepService = null,
 		private ?ConfigService $configService = null,
 		private ?MediaUsageService $mediaUsageService = null,
+		private ?DurableCache $durableCache = null,
+		private ?FediverseDirectoryService $fediverseDirectoryService = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
@@ -96,11 +110,11 @@ class Cache extends TimedJob {
 				// memory; it pages and resumes now, and is told when to stop
 				$this->accountService->manageCacheLocalActors($deadline);
 			},
-			'manageCacheRemoteActors' => function (): void {
-				$this->cacheActorService->manageCacheRemoteActors();
+			'manageCacheRemoteActors' => function () use ($deadline): void {
+				$this->cacheActorService->manageCacheRemoteActors(false, $this->stepDeadline($deadline));
 			},
-			'manageDetailsRemoteActors' => function (): void {
-				$this->cacheActorService->manageDetailsRemoteActors();
+			'manageDetailsRemoteActors' => function () use ($deadline): void {
+				$this->cacheActorService->manageDetailsRemoteActors(false, $this->stepDeadline($deadline));
 			},
 			'manageCacheDocuments' => function (): void {
 				$this->documentService->manageCacheDocuments();
@@ -125,10 +139,10 @@ class Cache extends TimedJob {
 			'syncRemoteTimelines' => function () use ($deadline): void {
 				$this->syncRemoteTimelines($deadline);
 			},
-			'verifyProfileLinks' => function (): void {
+			'verifyProfileLinks' => function () use ($deadline): void {
 				// this instance's own accounts; remote ones are checked with their
 				// details refresh
-				$this->profileLinkVerifier?->verifyLocalActors();
+				$this->profileLinkVerifier?->verifyLocalActors(ProfileLinkVerifier::LOCAL_BATCH, $deadline);
 			},
 			'measureMediaUsage' => function (): void {
 				// a `stat` per stored file, which is why it is here and not on
@@ -144,7 +158,22 @@ class Cache extends TimedJob {
 				// group's lists were, a change the listener did not see
 				$this->groupListService?->reconcile();
 			},
+			'refreshDirectorySources' => function (): void {
+				// which servers the Discover page may ask, found out here so
+				// that the page never waits on a remote host to list them
+				$this->fediverseDirectoryService?->refresh();
+			},
+			'purgeDurableCache' => function (): void {
+				// a read already ignores an expired row; this keeps the table
+				// the size of what is live
+				$this->durableCache?->purgeExpired();
+			},
 		];
+	}
+
+	/** The sooner of the pass's deadline and a remote-actor step's own budget. */
+	private function stepDeadline(int $deadline): int {
+		return min($deadline, $this->time->getTime() + self::REMOTE_ACTOR_SECONDS);
 	}
 
 	/** When the disk was last added up, as the stored measurement says. */
