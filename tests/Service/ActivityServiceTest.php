@@ -1420,4 +1420,62 @@ class ActivityServiceTest extends TestCase {
 
 		$this->assertSame(0, $this->service->manageRequests([$this->queue()], time() - 1, $this->nothingHandedBack()));
 	}
+
+	/** A host another process found down is held back from the first wave on, without a request. */
+	public function testAHostTheBreakerHoldsIsPostponedWithoutBeingSent(): void {
+		$this->breakerRows['dead.example'] = ['strikes' => 1, 'open_until' => time() + 600, 'last_failure' => time()];
+		$this->curlService->expects($this->once())->method('sendMany')
+			->with($this->countOf(1))->willReturn([1 => null]);
+		$this->requestQueueService->expects($this->once())->method('postponeRequest');
+		$this->requestQueueService->expects($this->once())->method('initRequest');
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests(
+			[$this->queue('https://dead.example/inbox'), $this->queue('https://alive.example/inbox')],
+			time() + 60,
+			$this->nothingHandedBack()
+		);
+
+		$this->assertSame(1, $attempted);
+	}
+
+	/** A row another worker took between the read and the claim is left to that worker. */
+	public function testARowSomebodyElseTookIsNeitherSentNorHandedBack(): void {
+		$this->requestQueueService->method('initRequest')->willReturnCallback(
+			function (RequestQueue $queue): void {
+				if (str_contains($queue->getInstance()->getUri(), 'taken.example')) {
+					throw new QueueStatusException();
+				}
+			}
+		);
+		$this->curlService->expects($this->once())->method('sendMany')
+			->with($this->countOf(1))->willReturn([1 => null]);
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests(
+			[$this->queue('https://taken.example/inbox'), $this->queue('https://free.example/inbox')],
+			time() + 60,
+			$this->nothingHandedBack()
+		);
+
+		$this->assertSame(1, $attempted);
+	}
+
+	/** An outcome the delivery does not know how to end is the caller's, as a single delivery's is. */
+	public function testAnOutcomeThatCannotBeSettledIsHandedBack(): void {
+		$this->curlService->method('sendMany')->willReturn([0 => new \RuntimeException('the database is gone')]);
+		$this->requestQueueService->expects($this->never())->method('endRequest');
+		$handedBack = [];
+
+		$this->service->manageInit();
+		$this->service->manageRequests(
+			[$this->queue('https://a.example/inbox')],
+			time() + 60,
+			function (RequestQueue $queue, \Throwable $e) use (&$handedBack): void {
+				$handedBack[] = $e->getMessage();
+			}
+		);
+
+		$this->assertSame(['the database is gone'], $handedBack);
+	}
 }

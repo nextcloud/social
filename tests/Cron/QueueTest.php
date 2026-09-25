@@ -143,6 +143,20 @@ class QueueTest extends TestCase {
 		$this->assertSame([[1, 2], [3]], $handed);
 	}
 
+	/** A queue that refills as fast as it drains still ends the run. */
+	public function testARunTakesNoMoreThanTheBatchCeiling(): void {
+		$next = 0;
+		$this->requestQueueService->method('getRequestStandby')
+			->willReturnCallback(function () use (&$next): array {
+				return [(new RequestQueue())->setId(++$next)];
+			});
+		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
+		$this->activityService->expects($this->exactly(Queue::MAX_BATCHES))->method('manageRequests')
+			->willReturn(1);
+
+		$this->job->start($this->jobList);
+	}
+
 	/**
 	 * The catch used to name SocialAppConfigException and nothing else, but
 	 * a delivery also lets a SignatureException out (openssl_sign on an
