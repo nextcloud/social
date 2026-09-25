@@ -812,6 +812,13 @@ occ social:reset
 - [docs/User-Guide.md](docs/User-Guide.md)
   is the guide for the people using the app: getting an account, following,
   posting, reading, managing the account, keyboard shortcuts.
+- [docs/My-Interests.md](docs/My-Interests.md)
+  is a specification, not a description of anything that exists: a feed built
+  from the hashtags somebody's reading shows they care about, with every learned
+  interest visible and editable. It records the decisions an interview settled —
+  what is learned, what is deliberately not, how a user turns it off and what
+  happens to what was learned — so that whoever implements it does not have to
+  take them again. Nothing in it is built; the header says so.
 - Before picking up refactoring work, read
   [docs/Technical-Debt.md](docs/Technical-Debt.md)
   — what in the app is old, borrowed or load-bearing, and what changing it would
