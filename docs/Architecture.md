@@ -1221,7 +1221,10 @@ Mastodon-family server renders a `Video` as well as it rendered the `Note`; what
 reader in the same class, in `PeerTubePublishTest`.
 
 What is **not** done: `Audio` (Funkwhale), `Article`, `Page` and `Event` are
-still read by `fillNoteLikeContent()` alone — title and link, no media. Nor are
+still read by `fillNoteLikeContent()` alone — title and link, no media. The
+link includes a `Link` attachment's `href`, which is where a Lemmy link post
+keeps the one thing it is about (it has no `url`); it is appended to the content
+unless the content already links it, and the link preview is made from it. Nor are
 there channels: a `Video` is attributed to the author's `Person`, where PeerTube
 sends the `[Person, Group]` pair. Both are valid ActivityPub; only the second is
 what PeerTube itself would send.

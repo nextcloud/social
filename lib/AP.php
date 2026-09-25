@@ -268,7 +268,16 @@ class AP {
 	 * post would end up counted as a vote.
 	 */
 	private function fillNoteLikeContent(ACore $item, array $data): void {
-		if (!$item instanceof Note || $item->getContent() !== '') {
+		if (!$item instanceof Note) {
+			return;
+		}
+
+		$this->fillTitle($item, $data);
+		$this->appendLinkAttachment($item, $data);
+	}
+
+	private function fillTitle(Note $item, array $data): void {
+		if ($item->getContent() !== '') {
 			return;
 		}
 
@@ -286,6 +295,38 @@ class AP {
 		}
 
 		$item->setContent($content);
+	}
+
+	/**
+	 * The link a link post is about, which Lemmy sends as the only
+	 * `attachment` of a `Page` — `{type: "Link", href: …}` — and nowhere else:
+	 * no `url`, nothing in the content. There is no model for a `Link`
+	 * attachment, so it used to be dropped with the rest of what
+	 * `importAttachments()` cannot store, and the one thing a link post is
+	 * went with it. It is appended to the content as a link, which is also
+	 * what the link preview is made from.
+	 */
+	private function appendLinkAttachment(Note $item, array $data): void {
+		foreach (ACore::listOf('attachment', $data) as $attachment) {
+			if (!is_array($attachment) || ($attachment['type'] ?? '') !== 'Link') {
+				continue;
+			}
+
+			$href = is_string($attachment['href'] ?? null) ? $attachment['href'] : '';
+			$scheme = strtolower((string)parse_url($href, PHP_URL_SCHEME));
+			if ($scheme !== 'https' && $scheme !== 'http') {
+				continue;
+			}
+
+			$escaped = htmlspecialchars($href, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			if (!str_contains($item->getContent(), 'href="' . $escaped . '"')) {
+				$item->setContent(
+					$item->getContent() . '<p><a href="' . $escaped . '">' . $escaped . '</a></p>'
+				);
+			}
+
+			return;
+		}
 	}
 
 	/**

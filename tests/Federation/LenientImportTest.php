@@ -172,4 +172,48 @@ class LenientImportTest extends TestCase {
 
 		$this->assertSame('https://peertube.example/banners/big.jpg', $person->getHeader());
 	}
+	/** @return array<string, mixed> a Lemmy link post as Lemmy federates it */
+	private function lemmyPage(array $extra = []): array {
+		return array_merge([
+			'id' => 'https://lemmy.example/post/1',
+			'type' => 'Page',
+			'attributedTo' => 'https://lemmy.example/u/bob',
+			'to' => ['https://lemmy.example/c/news', 'https://www.w3.org/ns/activitystreams#Public'],
+			'audience' => 'https://lemmy.example/c/news',
+			'name' => 'A headline',
+			'content' => '<p>body</p>',
+			'mediaType' => 'text/html',
+			'attachment' => [['type' => 'Link', 'href' => 'https://news.example/story']],
+			'image' => ['type' => 'Image', 'url' => 'https://lemmy.example/pictrs/1.jpg'],
+			'published' => '2026-09-01T00:00:00Z',
+		], $extra);
+	}
+
+	public function testALemmyLinkPostKeepsItsLink(): void {
+		$note = AP::instance()->getItemFromData($this->lemmyPage());
+
+		$this->assertInstanceOf(Note::class, $note);
+		$this->assertSame('<p>body</p><p><a href="https://news.example/story">https://news.example/story</a></p>', $note->getContent());
+	}
+
+	public function testALemmyLinkPostWithoutABodyIsItsTitleAndItsLink(): void {
+		$note = AP::instance()->getItemFromData($this->lemmyPage(['content' => '']));
+
+		$this->assertInstanceOf(Note::class, $note);
+		$this->assertSame('<p>A headline</p><p><a href="https://news.example/story">https://news.example/story</a></p>', $note->getContent());
+	}
+
+	public function testALinkAlreadyInTheContentIsNotRepeatedNorAnUnsafeOneAdded(): void {
+		$linked = AP::instance()->getItemFromData($this->lemmyPage([
+			'content' => '<p><a href="https://news.example/story">story</a></p>',
+		]));
+		$unsafe = AP::instance()->getItemFromData($this->lemmyPage([
+			'attachment' => ['type' => 'Link', 'href' => 'javascript:alert(1)'],
+		]));
+
+		$this->assertInstanceOf(Note::class, $linked);
+		$this->assertInstanceOf(Note::class, $unsafe);
+		$this->assertSame('<p><a href="https://news.example/story">story</a></p>', $linked->getContent());
+		$this->assertSame('<p>body</p>', $unsafe->getContent());
+	}
 }
