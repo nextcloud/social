@@ -110,6 +110,21 @@ describe('VideoReels', () => {
 		expect(wrapper.findAll('.reel')).toHaveLength(2)
 	})
 
+	it('keys each slide by its video, so a post with two keeps two', async () => {
+		const { wrapper } = await mountReels([
+			video('1', {
+				attachments: [
+					{ id: 'a', type: 'video', url: 'https://cloud.example/a.mp4' },
+					{ id: 'b', type: 'video', url: 'https://cloud.example/b.mp4' },
+				],
+			}),
+		])
+
+		// the key Vue diffs the slides by, as it sits on each rendered <article>
+		const keys = wrapper.findAll('article.reel').map((slide) => slide.element.__vnode.key)
+		expect(keys).toEqual(['1:a', '1:b'])
+	})
+
 	it('leaves the pictures on a mixed post out of the stack', async () => {
 		const { wrapper } = await mountReels([
 			video('1', {

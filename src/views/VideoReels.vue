@@ -12,7 +12,7 @@
 			@scroll.passive="onScroll">
 			<article
 				v-for="(entry, index) in reels"
-				:key="entry.status.id"
+				:key="entry.key"
 				:ref="(el) => setSlide(el, index)"
 				class="reel"
 				:data-index="index">
@@ -174,6 +174,9 @@ export default {
 				for (const media of status.media_attachments ?? []) {
 					if (media.type === 'video' || media.type === 'gifv') {
 						entries.push({
+							// one slide per video, so the post's id alone is
+							// shared by every slide of a post with several
+							key: status.id + ':' + media.id,
 							status,
 							video: media,
 							text: htmlToPlainText(status.content ?? '').trim(),
