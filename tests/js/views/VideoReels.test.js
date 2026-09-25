@@ -286,6 +286,53 @@ describe('VideoReels', () => {
 		expect(wrapper.find('a.reel__open').attributes('href')).toBe('/index.php/apps/social/@bob@remote.example/1')
 	})
 
+	it('says it is loading while the first page is on its way', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const store = useTimelineStore()
+		store.fetchTimeline = vi.fn(() => new Promise(() => {}))
+
+		const wrapper = mount(VideoReels, {
+			global: { plugins: [pinia], stubs: { NcButton: true, RouterLink: true } },
+		})
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('Loading videos')
+		expect(wrapper.text()).not.toContain('No videos here yet.')
+	})
+
+	/**
+	 * A failed request is not an empty feed, and "No videos here yet" over a
+	 * 500 tells the reader something that is not true.
+	 */
+	it('says the videos could not be loaded, and asks again on request', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const store = useTimelineStore()
+		store.fetchTimeline = vi.fn().mockRejectedValueOnce(new Error('500'))
+
+		const wrapper = mount(VideoReels, {
+			global: { plugins: [pinia], stubs: { RouterLink: true } },
+		})
+		await flushPromises()
+
+		const alert = wrapper.find('[role="alert"]')
+		expect(alert.text()).toContain('could not be loaded')
+		expect(wrapper.text()).not.toContain('No videos here yet.')
+
+		store.fetchTimeline.mockImplementationOnce(async () => {
+			store.addToTimeline([video('1')])
+
+			return [video('1')]
+		})
+		await alert.find('button').trigger('click')
+		await flushPromises()
+
+		expect(store.fetchTimeline).toHaveBeenCalledTimes(2)
+		expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+		expect(wrapper.findAll('.reel')).toHaveLength(1)
+	})
+
 	it('says so when there is nothing to watch', async () => {
 		const { wrapper } = await mountReels([])
 

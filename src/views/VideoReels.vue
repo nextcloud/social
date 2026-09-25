@@ -63,7 +63,23 @@
 				</div>
 			</article>
 
-			<div v-if="reels.length === 0 && !loading" class="reels__empty">
+			<div v-if="reels.length === 0 && loading" class="reels__empty">
+				<NcLoadingIcon :size="44" appearance="light" />
+				<p>{{ t('social', 'Loading videos …') }}</p>
+			</div>
+
+			<!-- a feed that could not be fetched is not a feed with nothing in it -->
+			<div v-else-if="reels.length === 0 && failed" class="reels__empty" role="alert">
+				<p>{{ t('social', 'The videos could not be loaded.') }}</p>
+				<NcButton @click="load">
+					<template #icon>
+						<IconRefresh :size="20" />
+					</template>
+					{{ t('social', 'Try again') }}
+				</NcButton>
+			</div>
+
+			<div v-else-if="reels.length === 0" class="reels__empty">
 				<p>{{ t('social', 'No videos here yet.') }}</p>
 				<NcButton :to="{ name: 'timeline', params: { type: 'videos' } }">
 					{{ t('social', 'Back to Videos') }}
@@ -110,7 +126,9 @@
 import { mapStores } from 'pinia'
 import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconClose from 'vue-material-design-icons/Close.vue'
+import IconRefresh from 'vue-material-design-icons/Refresh.vue'
 import IconVolumeHigh from 'vue-material-design-icons/VolumeHigh.vue'
 import IconVolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import { useTimelineStore } from '../store/timeline.js'
@@ -125,9 +143,11 @@ export default {
 	name: 'VideoReels',
 	components: {
 		IconClose,
+		IconRefresh,
 		IconVolumeHigh,
 		IconVolumeOff,
 		NcButton,
+		NcLoadingIcon,
 	},
 
 	props: {
@@ -148,6 +168,8 @@ export default {
 			muted: true,
 			playing: 0,
 			loading: false,
+			/** the last page asked for could not be fetched */
+			failed: false,
 			allLoaded: false,
 			/** the <video> of each slide, by index */
 			videos: [],
@@ -354,6 +376,7 @@ export default {
 			}
 
 			this.loading = true
+			this.failed = false
 			const params = {}
 			const ids = this.timelineStore.getTimeline.map((status) => status.id)
 			const cursor = oldestId(ids)
@@ -366,6 +389,7 @@ export default {
 				this.allLoaded = Array.isArray(page) ? page.length === 0 : true
 			} catch (error) {
 				logger.error('Could not load more videos', { error })
+				this.failed = true
 			} finally {
 				this.loading = false
 			}
