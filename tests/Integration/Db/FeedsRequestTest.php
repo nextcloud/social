@@ -60,8 +60,22 @@ class FeedsRequestTest extends TestCase {
 		}
 		$this->item($id, 'ancient', 400 * 86400);
 
-		$this->assertSame(1, $this->feeds->prune($id, 10, time() - 180 * 86400), 'the old one, by age');
-		$this->assertSame(2, $this->feeds->prune($id, 3, time() - 180 * 86400), 'past the three newest');
+		$this->assertSame(0, $this->feeds->prune($id, 10, time() - 180 * 86400), 'below the allowance, age drops nothing');
+		$this->assertSame(3, $this->feeds->prune($id, 3, time() - 180 * 86400), 'past the three newest');
+		$this->assertSame([$id => 3], $this->feeds->countsFor([$id]));
+	}
+
+	/**
+	 * A feed that stopped publishing years ago keeps everything it has: every
+	 * entry is past the age cut-off, and applying it would empty the feed.
+	 */
+	public function testADormantFeedIsNotEmptiedByTheAgeCutOff(): void {
+		$id = $this->feeds->create(self::USER, 'https://feeds.example/dormant', '', '');
+		for ($i = 0; $i < 3; $i++) {
+			$this->item($id, 'ancient-' . $i, (1000 + $i) * 86400);
+		}
+
+		$this->assertSame(0, $this->feeds->prune($id, 500, time() - 180 * 86400));
 		$this->assertSame([$id => 3], $this->feeds->countsFor([$id]));
 	}
 

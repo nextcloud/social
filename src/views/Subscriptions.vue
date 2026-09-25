@@ -65,6 +65,12 @@
 							{{ n('social', '%n entry', '%n entries', feed.items) }}
 						</span>
 						<span v-if="feed.error" class="feeds__error">{{ feed.error }}</span>
+						<span v-else-if="feed.read && !feed.items" class="feeds__quiet">
+							{{ t('social', 'Read fine, but it lists nothing') }}
+						</span>
+						<span v-else-if="!feed.read" class="feeds__quiet">
+							{{ t('social', 'Not read yet') }}
+						</span>
 					</span>
 					<NcButton
 						variant="tertiary"
@@ -469,6 +475,10 @@ export default {
 	&__meta {
 		color: var(--color-text-maxcontrast);
 		font-size: 90%;
+	}
+
+	&__quiet {
+		color: var(--color-text-maxcontrast);
 	}
 
 	&__error {

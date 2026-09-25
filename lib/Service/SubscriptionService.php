@@ -94,6 +94,9 @@ class SubscriptionService {
 				'site_url' => (string)($row['site_url'] ?? ''),
 				'items' => $counts[$id] ?? 0,
 				'error' => (string)($row['error'] ?? ''),
+				// a feed with nothing in it means one thing before its first
+				// read and another after, and the page says so either way
+				'read' => ($row['fetched_at'] ?? null) !== null,
 			];
 		}
 
@@ -314,13 +317,16 @@ class SubscriptionService {
 			return 0;
 		}
 
+		// Everything the feed offers is stored, however old. The age was a
+		// filter here as well as in the prune, and between them a feed that
+		// had not published inside `KEEP_DAYS` was emptied on arrival: a blog
+		// whose last post is from 2023 read cleanly, parsed to a hundred
+		// entries, stored none of them and showed "0 entries" with no error
+		// against it. What bounds a feed is `KEEP_ITEMS`, which the prune
+		// applies, and the prune keeps that many whatever their age.
 		$tooOld = time() - self::KEEP_DAYS * 86400;
 		$added = 0;
 		foreach ($read['items'] as $item) {
-			$published = ((string)($item['published'] ?? '') !== '') ? strtotime((string)$item['published']) : false;
-			if ($published !== false && $published < $tooOld) {
-				continue;
-			}
 			if ($this->feedsRequest->addItem($id, $item)) {
 				$added++;
 			}
