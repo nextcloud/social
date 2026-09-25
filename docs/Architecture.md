@@ -28,7 +28,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.68
+**App version:** 0.26.69
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -527,7 +527,7 @@ It chooses between whatever it is given rather than between three timelines it k
 kinds of child: the hashtags the reader follows, their lists, and what the
 instance is trending. It replaced two captions that each grew without limit —
 somebody who follows forty tags pushed their own feed off a laptop screen —
-and, since 0.26.68, the trending section that used to sit above it as a caption
+and, since 0.26.69, the trending section that used to sit above it as a caption
 of its own. The three are not equal and the order says so: a followed tag and a
 list were *chosen*, a trending tag is merely popular, so trending fills what is
 left after the chosen ones have their places (`chooseEntries()` in
@@ -2178,7 +2178,7 @@ with `media_type=image` — what people showed rather than what they said. It is
 the same query and the same filters, one predicate narrower, so nothing about
 visibility, blocks, mutes or silencing is decided twice.
 
-It asked `only_media` alone until 0.26.68, which is Mastodon's question — *does
+It asked `only_media` alone until 0.26.69, which is Mastodon's question — *does
 this post carry an attachment* — and is not the one a page called Photos is
 asking: measured against a live instance, forty posts of that timeline carried
 twenty-five video attachments. `media_type` is the app's own narrowing and the
