@@ -158,13 +158,7 @@ export function total(baseline) {
  * @return {{ output: string, status: number }} what vue-tsc printed, and its exit status
  */
 export function runVueTsc(project, cwd) {
-	// not vue-tsc's own bin: that resolves `typescript/lib/tsc`, which
-	// TypeScript 7 does not ship. See tools/vue-tsc-run.cjs.
-	//
-	// Anchored to the process, not to `cwd` — which is the project being
-	// checked, a scratch directory under node_modules in the tests — and not
-	// to `import.meta.url`, which is not a file URL when vitest imports this.
-	const bin = join(process.cwd(), 'tools', 'vue-tsc-run.cjs')
+	const bin = createRequire(join(cwd, 'package.json')).resolve('vue-tsc/bin/vue-tsc.js')
 	const result = spawnSync(process.execPath, [bin, '-p', project, '--pretty', 'false'], {
 		cwd,
 		encoding: 'utf8',
