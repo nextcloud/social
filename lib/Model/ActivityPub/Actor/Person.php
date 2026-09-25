@@ -870,6 +870,25 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * A local field's value as the HTML `PropertyValue.value` is on the wire.
+	 *
+	 * A local value is stored as it was typed, and every peer renders `value`
+	 * as HTML: a `<` or `&` went out as markup, and an address was plain text
+	 * on Mastodon, which verifies a field only from a link in it. An address
+	 * on its own becomes a link with `rel="me"`, which is what Mastodon's own
+	 * fields carry; everything else is escaped.
+	 */
+	private static function fieldValueAsHtml(string $value): string {
+		$escaped = htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		if (preg_match('~^https?://\S+$~i', $value) !== 1 || filter_var($value, FILTER_VALIDATE_URL) === false) {
+			return $escaped;
+		}
+
+		return '<a href="' . $escaped . '" target="_blank" rel="nofollow noopener noreferrer me" translate="no">'
+			. $escaped . '</a>';
+	}
+
+	/**
 	 * @return array[] the PropertyValue entries of an actor's `attachment`
 	 */
 	private function extractFieldsFromAttachment(array $data): array {
@@ -1304,11 +1323,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		if ($this->fields !== []) {
+			$local = $this->isLocal();
 			$data['attachment'] = array_map(
 				static fn (array $field): array => [
 					'type' => 'PropertyValue',
 					'name' => $field['name'],
-					'value' => $field['value']
+					'value' => $local ? self::fieldValueAsHtml($field['value']) : $field['value'],
 				],
 				$this->fields
 			);

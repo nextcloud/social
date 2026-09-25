@@ -1096,4 +1096,33 @@ class PersonTest extends TestCase {
 
 		$this->assertSame(['followers' => 1], $person->getDetails('count'));
 	}
+	public function testALocalFieldGoesOutAsHtmlWithAnAddressLinkedRelMe(): void {
+		$person = new Person();
+		$person->setId('https://social.example/@alice');
+		$person->setLocal(true);
+		$person->setFields([
+			['name' => 'Website', 'value' => 'https://alice.example/?a=1&b=2'],
+			['name' => 'Motto', 'value' => 'a <b> & c'],
+			['name' => 'Not a link', 'value' => 'see https://alice.example'],
+		]);
+
+		$values = array_column($person->exportAsActivityPub()['attachment'], 'value');
+
+		$this->assertSame([
+			'<a href="https://alice.example/?a=1&amp;b=2" target="_blank" rel="nofollow noopener noreferrer me" translate="no">https://alice.example/?a=1&amp;b=2</a>',
+			'a &lt;b&gt; &amp; c',
+			'see https://alice.example',
+		], $values);
+	}
+
+	public function testARemoteFieldIsServedAsItArrived(): void {
+		$person = new Person();
+		$person->setId('https://remote.example/users/bob');
+		$person->setFields([['name' => 'Web', 'value' => '<a href="https://bob.example" rel="me">bob.example</a>']]);
+
+		$this->assertSame(
+			'<a href="https://bob.example" rel="me">bob.example</a>',
+			$person->exportAsActivityPub()['attachment'][0]['value']
+		);
+	}
 }
