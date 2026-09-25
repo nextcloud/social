@@ -142,22 +142,6 @@ class ApiController extends Controller {
 	 */
 	private string $pollTag = '';
 
-	/**
-	 * The headers every `Response` works out for itself. `tagged()` carries a
-	 * response's headers to the one it hands back and leaves these behind: the
-	 * new response computes the same values, and copying them would freeze
-	 * today's into a response that knows how to derive them — `Cache-Control`
-	 * above all, which is the one being set on purpose.
-	 */
-	private const FRAMEWORK_HEADERS = [
-		'Cache-Control',
-		'Content-Security-Policy',
-		'Feature-Policy',
-		'X-Request-Id',
-		'X-Robots-Tag',
-		'X-User-Id',
-	];
-
 	use TNCDataResponse;
 
 	private IURLGenerator $urlGenerator;
@@ -826,8 +810,10 @@ class ApiController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/custom_emojis')]
-	public function customEmojis(): DataResponse {
-		return new DataResponse($this->emojiService->visible(), Http::STATUS_OK);
+	public function customEmojis(): JSONResponse {
+		return Revalidation::byContent(
+			$this->request, new DataResponse($this->emojiService->visible(), Http::STATUS_OK)
+		);
 	}
 
 	/**
@@ -2572,7 +2558,7 @@ class ApiController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/trends/tags')]
-	public function trendTags(int $limit = 10, string $period = HashtagService::PERIOD_DEFAULT): DataResponse {
+	public function trendTags(int $limit = 10, string $period = HashtagService::PERIOD_DEFAULT): Response {
 		try {
 			$this->initViewer(false);
 			$limit = max(1, min(20, $limit));
@@ -2585,7 +2571,7 @@ class ApiController extends Controller {
 				$tags[] = $this->hashtagService->tagEntity($hashtag['hashtag'], null, $period);
 			}
 
-			return new DataResponse($tags, Http::STATUS_OK);
+			return Revalidation::byContent($this->request, new DataResponse($tags, Http::STATUS_OK));
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -3918,14 +3904,8 @@ class ApiController extends Controller {
 		}
 
 		$etag = '"' . $tag . '"';
-		$sent = trim($this->request->getHeader('If-None-Match'));
-
-		if ($sent !== '' && ($sent === $etag || $sent === $tag || $sent === 'W/' . $etag)) {
-			$response = new JSONResponse([], Http::STATUS_NOT_MODIFIED);
-			$response->addHeader('ETag', $etag);
-			$response->addHeader('Cache-Control', 'private, no-cache');
-
-			return $response;
+		if (Revalidation::matches($this->request, $etag)) {
+			return Revalidation::notModified($etag);
 		}
 
 		$this->pollTag = $etag;
@@ -3958,19 +3938,11 @@ class ApiController extends Controller {
 	 * that knows how to work them out.
 	 */
 	private function tagged(DataResponse $response): JSONResponse {
-		$json = new JSONResponse($response->getData(), $response->getStatus());
-
-		foreach ($response->getHeaders() as $name => $value) {
-			if (in_array($name, self::FRAMEWORK_HEADERS, true)) {
-				continue;
-			}
-
-			$json->addHeader($name, $value);
-		}
+		$json = Revalidation::asJson($response);
 
 		if ($this->pollTag !== '') {
 			$json->addHeader('ETag', $this->pollTag);
-			$json->addHeader('Cache-Control', 'private, no-cache');
+			$json->addHeader('Cache-Control', Revalidation::CACHE_CONTROL);
 			$this->pollTag = '';
 		}
 

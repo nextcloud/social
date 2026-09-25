@@ -936,6 +936,14 @@ route that builds the `JSONResponse` itself reaches the wire as it is.
 framework class. The media routes were never affected: a `FileDisplayResponse`
 does not go through the responder.
 
+The routes the sidebar reads on every page load — `/api/v1/custom_emojis`,
+`/api/v1/trends/tags`, `/api/v1/instance`, `/api/v2/instance`, `/api/v1/lists`
+and `/api/v1/followed_tags` — have no cheap version number to tag, and are
+cheap to build, so they are tagged by what they say (`Revalidation::byContent()`,
+a hash of the body and the paging `Link`) and go out the same way, as a
+`JSONResponse` with `private, no-cache`. The server still builds the answer; the
+body is not sent again and the browser keeps the copy it has.
+
 With `notify_push` installed the client is told instead of asking, and the poll
 interval drops from thirty seconds to five minutes; that is the single largest
 reduction available to an administrator and it is one app install.

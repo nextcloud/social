@@ -35,6 +35,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
@@ -117,7 +118,7 @@ class ListController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/lists')]
-	public function index(): DataResponse {
+	public function index(): Response {
 		try {
 			$this->initViewer();
 			// the lists the viewer's groups give them, made when they would
@@ -128,9 +129,9 @@ class ListController extends Controller {
 				$this->logger->warning('[ListController] could not make the group lists', ['exception' => $e]);
 			}
 
-			return new DataResponse(
+			return Revalidation::byContent($this->request, new DataResponse(
 				$this->listsRequest->getByActor($this->viewer->getId()), Http::STATUS_OK
-			);
+			));
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

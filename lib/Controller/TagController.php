@@ -27,6 +27,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
@@ -84,7 +85,7 @@ class TagController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/followed_tags')]
-	public function followedTags(int $limit = 20, int $max_id = 0, int $min_id = 0): DataResponse {
+	public function followedTags(int $limit = 20, int $max_id = 0, int $min_id = 0): Response {
 		try {
 			$this->initViewer();
 			$limit = max(1, min(self::MAX_LIMIT, $limit));
@@ -98,7 +99,7 @@ class TagController extends Controller {
 				$tags[] = $this->hashtagService->tagEntity($row['hashtag'], true);
 			}
 
-			return $this->paged($tags, $limit, array_column($rows, 'id'));
+			return Revalidation::byContent($this->request, $this->paged($tags, $limit, array_column($rows, 'id')));
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

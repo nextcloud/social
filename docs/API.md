@@ -37,6 +37,8 @@ The Social app exposes four groups of endpoints. Each is registered as a `#[Fron
 
 All URLs are relative to the app's route base, i.e. index.php/apps/social + the URL from the route table (for example, index.php/apps/social/api/v1/statuses).
 
+**Conditional GETs.** The home timeline and the unread counts carry an `ETag` built from the newest id the viewer can see; the routes a page load reads for its sidebar — `/api/v1/custom_emojis`, `/api/v1/trends/tags`, `/api/v1/instance/`, `/api/v2/instance`, `/api/v1/lists` and `/api/v1/followed_tags` — carry one built from the answer itself. All of them go out with `Cache-Control: private, no-cache`, and a request whose `If-None-Match` names the current tag is answered `304` with no body.
+
 None of these are OCS routes: `#[ApiRoute]` would put them under `/ocsapp`, which is not where any of these paths are published.
 
 `GET /api/v1/accounts/{id}` is the one route still declared in `appinfo/routes.php`. Its `{id}` accepts slashes, so it also matches `/api/v1/accounts/{account}/lists` and `/api/v1/accounts/{account}/featured_tags`, and it has to be offered to the matcher after them; those two belong to other controllers, and attribute routes are contributed one controller at a time in filesystem order. The array file is loaded after every attribute route of the app, which is the guarantee that route needs.
