@@ -22,6 +22,7 @@ use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Db\FiltersRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ImportedPostsRequest;
+use OCA\Social\Db\InterestsRequest;
 use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\MuteExpiryRequest;
@@ -78,6 +79,7 @@ class ActorCascadeService {
 		private ListsRequest $listsRequest,
 		private ConversationsRequest $conversationsRequest,
 		private FeaturedTagsRequest $featuredTagsRequest,
+		private InterestsRequest $interestsRequest,
 		private AnnouncementsRequest $announcementsRequest,
 		private ScheduledStatusesRequest $scheduledStatusesRequest,
 		private CollectionsRequest $collectionsRequest,
@@ -148,6 +150,8 @@ class ActorCascadeService {
 			'lists' => fn () => $this->listsRequest->deleteRelatedId($actorId),
 			'conversations' => fn () => $this->conversationsRequest->deleteRelatedId($actorId),
 			'featuredTags' => fn () => $this->featuredTagsRequest->deleteRelatedId($actorId),
+			// what My interests learned about it, and the posts it hid there
+			'interests' => fn () => $this->interestsRequest->deleteRelatedId($actorId),
 			'announcements' => fn () => $this->announcementsRequest->deleteRelatedId($actorId),
 			// the posts it had asked to have published later, which are the one
 			// thing here that would otherwise go *out* under an account nothing

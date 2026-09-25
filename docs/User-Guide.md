@@ -277,6 +277,49 @@ A post that links somewhere gets a preview card, read by this server rather
 than by your browser. With the `notify_push` app installed, new posts arrive
 live; without it the page checks every 30 seconds.
 
+### My interests
+
+**My interests** is the second feed in the switcher above the posts, right
+after My Feed and before Local and Global. It is made of the hashtags you read: Social notices
+which posts you stay on longer than you usually do, which you scroll past, and
+what you like, boost, reply to, bookmark, open, or whose pictures and links you
+open. From that it keeps a list of hashtags, and the feed shows the posts of
+the last week that carry them — the best matches first, fresher ones ahead of
+older ones, with nobody allowed to fill it, and now and then a post from a
+hashtag that often comes up alongside yours. Each post says why it is there:
+*Because you're interested in #photography*, *Because you follow #nextcloud*,
+*Related to #film*. Hashtags you follow count from the start, so the feed has
+something to show on the first day; until it has learned a little, it also
+shows what is trending here, and says so.
+
+**Less like this**, in a post's menu, takes that post out of the feed and
+counts its hashtags down. On the feed itself the post goes at once and *Undo*
+brings it back. Muting somebody from one of their posts counts too.
+
+**Where you change it.** **Settings → My interests** shows the list as a cloud:
+the bigger and bolder a hashtag, the more it counts. Drag one to where you want
+it, or click it for *Higher priority*, *Lower priority*, *Move to top*, *Pin*
+and *Remove*; with the keyboard, the arrow keys move between hashtags, Enter
+opens that menu and Alt with ← or → moves one. A moved hashtag is **pinned**:
+it stays where you put it, while the others move as you read. *+ Add* puts a
+hashtag of your own on the list, and the ones Social has almost learned are
+offered underneath. Removing a hashtag forgets it — reading more about it can
+bring it back — and a hashtag you follow stays for as long as you follow it.
+*Languages* limits the feed to posts in the languages you choose.
+
+**Turning it off.** *Learn from my browsing* stops the learning and takes the
+feed away; what was learned is kept, frozen, in case you turn it back on.
+*Pause learning* keeps the feed as it is and stops learning for a while — for
+the day you are reading about something you do not want more of — and nothing
+fades while it is paused. *Reset all interests* forgets everything. None of it
+leaves this server, nobody else can see it, and it travels with your account
+when you export it. Your administrator may have turned the feature off, or made
+learning something you switch on yourself.
+
+**In a Mastodon app** there is no My interests feed: it is part of this web
+interface. What you like, boost, reply to and bookmark in an app still counts;
+only the web interface knows how long you looked at something.
+
 ### Announcements from your administrators
 
 When the administrators of this Nextcloud post a notice — a maintenance

@@ -391,6 +391,25 @@ class ConfigService {
 	public const CONTACT_EMAIL = 'contact_email';
 	public const SOCIAL_CONTACT_ACCOUNT = 'contact_account';
 
+	/**
+	 * My interests: the feed built from the hashtags a reader lingers on.
+	 *
+	 * `interests` switches the whole feature, and off means off: nothing is
+	 * learned, the feed and its settings are gone, and what was learned is
+	 * kept for the day it is switched back on. `interests_default` is what a
+	 * reader who never touched their own switch gets — on out of the box, and
+	 * the one to turn off where learning from reading has to be opted into.
+	 * The other four tune the arithmetic: the half-life of a score in days,
+	 * the score a learned tag needs to be listed, how many are listed, and how
+	 * many days back the feed looks for posts.
+	 */
+	public const SOCIAL_INTERESTS = 'interests';
+	public const SOCIAL_INTERESTS_DEFAULT = 'interests_default';
+	public const SOCIAL_INTERESTS_HALF_LIFE = 'interests_half_life';
+	public const SOCIAL_INTERESTS_THRESHOLD = 'interests_threshold';
+	public const SOCIAL_INTERESTS_CAP = 'interests_cap';
+	public const SOCIAL_INTERESTS_WINDOW = 'interests_window';
+
 	public array $defaults = [
 		self::CLOUD_URL => '',
 		self::SOCIAL_URL => '',
@@ -439,7 +458,13 @@ class ConfigService {
 		self::SOCIAL_EXTENDED_DESCRIPTION => '',
 		self::CONTACT_EMAIL => '',
 		self::SOCIAL_CONTACT_ACCOUNT => '',
-		self::SOCIAL_POLLS_SWEPT => '0'
+		self::SOCIAL_POLLS_SWEPT => '0',
+		self::SOCIAL_INTERESTS => '1',
+		self::SOCIAL_INTERESTS_DEFAULT => '1',
+		self::SOCIAL_INTERESTS_HALF_LIFE => '30',
+		self::SOCIAL_INTERESTS_THRESHOLD => '3',
+		self::SOCIAL_INTERESTS_CAP => '30',
+		self::SOCIAL_INTERESTS_WINDOW => '7',
 	];
 
 	public array $accessTypeList = [

@@ -106,6 +106,7 @@ class PostServiceQuoteTest extends TestCase {
 			$this->createMock(\OCA\Social\Service\ConfigService::class),
 			$this->createMock(\OCP\EventDispatcher\IEventDispatcher::class),
 			new NullLogger(),
+			$this->createMock(\OCA\Social\Service\InterestService::class),
 		);
 	}
 

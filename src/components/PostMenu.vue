@@ -117,6 +117,14 @@
 			</template>
 			{{ item.pinned ? t('social', 'Unpin from profile') : t('social', 'Pin to profile') }}
 		</NcActionButton>
+		<!-- teaches My interests about the post's hashtags; only offered where
+		     there is something to teach it -->
+		<NcActionButton v-if="canLessLikeThis" closeAfterClick @click="$emit('lessLikeThis')">
+			<template #icon>
+				<ThumbDownOutline :size="20" />
+			</template>
+			{{ t('social', 'Less like this') }}
+		</NcActionButton>
 		<!-- what to do about somebody else, from the post that made the reader
 		     want to: both take their posts out of every timeline at once -->
 		<NcActionButton v-if="canModerateAuthor" @click="$emit('mute')">
@@ -158,9 +166,11 @@ import PencilBoxOutline from 'vue-material-design-icons/PencilBoxOutline.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import PinOff from 'vue-material-design-icons/PinOff.vue'
 import SendCheck from 'vue-material-design-icons/SendCheck.vue'
+import ThumbDownOutline from 'vue-material-design-icons/ThumbDownOutline.vue'
 import Translate from 'vue-material-design-icons/Translate.vue'
 import VolumeOff from 'vue-material-design-icons/VolumeOff.vue'
 import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
+import { hasInterestsFeed } from '../services/interests.js'
 import { originOf } from '../utils/instanceIdentity.js'
 
 /**
@@ -194,6 +204,7 @@ export default {
 		Pin,
 		PinOff,
 		SendCheck,
+		ThumbDownOutline,
 		Translate,
 		VolumeOff,
 	},
@@ -240,6 +251,12 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+
+		/** `serverData.interests`: whether My interests is on for the reader */
+		interests: {
+			type: Object,
+			default: null,
+		},
 	},
 
 	emits: [
@@ -256,6 +273,7 @@ export default {
 		'bookmark',
 		'collect',
 		'pin',
+		'lessLikeThis',
 		'mute',
 		'block',
 		'report',
@@ -319,6 +337,19 @@ export default {
 		 */
 		canModerateAuthor() {
 			return !this.isPublic && !!this.currentAccount && !this.isMine
+		},
+
+		/**
+		 * @return {boolean} whether "Less like this" can teach My interests
+		 * anything: the feed is on, somebody else wrote the post, and it
+		 * carries a hashtag to be lowered
+		 */
+		canLessLikeThis() {
+			return !this.isPublic
+				&& hasInterestsFeed(this.interests)
+				&& !!this.currentAccount
+				&& !this.isMine
+				&& (this.item.tags ?? []).length > 0
 		},
 
 		/**

@@ -9,9 +9,15 @@ import { nextTick, reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import TimelineSinglePost from '../../../src/views/TimelineSinglePost.vue'
 import eventBus from '../../../src/services/eventBus.js'
+import { signalNow } from '../../../src/services/interestTracker.js'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
+
+vi.mock('../../../src/services/interestTracker.js', async (importOriginal) => ({
+	...(await importOriginal()),
+	signalNow: vi.fn(),
+}))
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -492,5 +498,36 @@ describe('TimelineSinglePost', () => {
 
 			expect(wrapper.find('.thread').classes()).toContain('thread--connected')
 		})
+	})
+})
+
+describe('opening a post, for My interests', () => {
+	beforeEach(() => {
+		window.history.replaceState({}, '', '/apps/social/@bob/123')
+		setState('item', fromServer)
+		signalNow.mockClear()
+	})
+
+	afterEach(() => {
+		while (mounted.length > 0) {
+			mounted.pop().unmount()
+		}
+	})
+
+	it('is reported once, from the detail view, while learning is on', async () => {
+		makeStore({ interests: { enabled: true, learning: true, paused: false } })
+		mountView()
+		await flushPromises()
+
+		expect(signalNow).toHaveBeenCalledTimes(1)
+		expect(signalNow).toHaveBeenCalledWith(expect.objectContaining({ id: '123' }), 'open', 'detail', expect.any(Function))
+	})
+
+	it('is not reported while learning is paused', async () => {
+		makeStore({ interests: { enabled: true, learning: true, paused: true } })
+		mountView()
+		await flushPromises()
+
+		expect(signalNow).not.toHaveBeenCalled()
 	})
 })

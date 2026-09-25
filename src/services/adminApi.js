@@ -52,6 +52,15 @@ export function sectionsUrl() {
 }
 
 /**
+ * The My interests card's one endpoint.
+ *
+ * @return {string} the whole URL
+ */
+export function interestsUrl() {
+	return generateUrl('/apps/social/admin/interests')
+}
+
+/**
  * The relays this instance subscribes to.
  *
  * @param {string} [path] appended below /apps/social/admin/relays

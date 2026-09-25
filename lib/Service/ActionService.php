@@ -59,6 +59,7 @@ class ActionService {
 		private ActionsRequest $actionsRequest,
 		private ConversationsRequest $conversationsRequest,
 		private DislikeService $dislikeService,
+		private InterestService $interestService,
 	) {
 	}
 
@@ -165,6 +166,7 @@ class ActionService {
 		switch ($action) {
 			case self::FAVOURITE:
 				$this->favourite($actor, $post->getId());
+				$this->interestService->recordAction($actor, $post, InterestService::ACTION_FAVOURITE);
 				break;
 
 			case self::UNFAVOURITE:
@@ -173,6 +175,7 @@ class ActionService {
 
 			case self::REBLOG:
 				$this->reblog($actor, $post->getId());
+				$this->interestService->recordAction($actor, $post, InterestService::ACTION_BOOST);
 				break;
 
 			case self::UNREBLOG:
@@ -181,6 +184,7 @@ class ActionService {
 
 			case self::BOOKMARK:
 				$this->bookmark($actor, $post->getId());
+				$this->interestService->recordAction($actor, $post, InterestService::ACTION_BOOKMARK);
 				break;
 
 			case self::UNBOOKMARK:

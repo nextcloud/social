@@ -281,3 +281,32 @@ describe('the post menu', () => {
 		})
 	})
 })
+
+describe('less like this', () => {
+	const ON = { enabled: true, learning: true, paused: false }
+	const tagged = { tags: [{ name: 'film' }] }
+	const offers = (wrapper) => items(wrapper).includes('Less like this')
+
+	it('is offered on somebody else\'s tagged post while My interests is on', () => {
+		const wrapper = mountMenu(tagged, { interests: ON })
+
+		expect(offers(wrapper)).toBe(true)
+		itemFor(wrapper, 'Less like this').trigger('click')
+		expect(wrapper.emitted('lessLikeThis')).toHaveLength(1)
+	})
+
+	it('is still offered while learning is paused: the feed is still there', () => {
+		expect(offers(mountMenu(tagged, { interests: { ...ON, paused: true } }))).toBe(true)
+	})
+
+	it.each([
+		['the feature is off', tagged, { interests: { ...ON, enabled: false } }],
+		['the reader opted out', tagged, { interests: { ...ON, learning: false } }],
+		['the server says nothing', tagged, {}],
+		['the post has no hashtag', { tags: [] }, { interests: ON }],
+		['the reader wrote it', { ...tagged, account: ME }, { interests: ON }],
+		['nobody is signed in', tagged, { interests: ON, isPublic: true }],
+	])('is not offered when %s', (_, item, props) => {
+		expect(offers(mountMenu(item, props))).toBe(false)
+	})
+})

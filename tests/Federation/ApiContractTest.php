@@ -96,6 +96,8 @@ class ApiContractTest extends TestCase {
 		// 'tagged_people' is Pixelfed's key for the people named in a
 		// photograph. Empty unless a page read filled it in; on the wire the
 		// same fact is carried as `Mention` tags, which is where a peer looks.
+		// 'interest' is why My interests showed the post: the hashtags it
+		// matched and the reason. Null on every other timeline.
 		$expected = [
 			'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
@@ -103,7 +105,7 @@ class ApiContractTest extends TestCase {
 			'quote_approval', 'reply_approval', 'interaction_policy', 'video',
 			'dislikes_count', 'disliked',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
-			'tagged_people', 'tags', 'uri', 'url', 'view_count', 'visibility',
+			'tagged_people', 'tags', 'uri', 'url', 'view_count', 'visibility', 'interest',
 		];
 		sort($expected);
 

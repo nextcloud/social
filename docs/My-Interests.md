@@ -1,6 +1,8 @@
 # My Interests — feature specification
 
-Status: specified 2026-09-24, not implemented · App: Social (baseline 0.27.0)
+Status: specified 2026-09-24, implemented on `feat/my-interests` (not yet released) · App: Social
+
+Where the implementation settled something differently from the first draft, this document says what was built; the API reference is the `My interests` section of [API.md](API.md).
 
 ## 1. Summary
 
@@ -49,17 +51,17 @@ Non-goals (v1)
 | Followed hashtags | Kept as a separate list; followed tags seed interests |
 | Settings controls | Pause learning, reset all, include in data export |
 | Cold start | Followed tags, featured tags and local trending, with a "still learning" hint |
-| Placement | Timeline switcher option; Mastodon API for apps |
+| Placement | Timeline switcher, second after My Feed; the web interface only — no Mastodon API for it |
 | Safety | Mutes, blocks, domain blocks and filters respected; language filter |
 | Admin | Enable/disable the feature; default for users; tuning parameters |
 
 ## 4. User experience
 
 ### 4.1 Feed
-- A fourth option, **My interests**, in the timeline switcher next to My Feed /
-  Local / Global ([src/views/Timeline.vue](../src/views/Timeline.vue), the
-  `home|timeline|federated` options). Route `/interests`, which needs a
-  `NavigationController` route as well as the client route.
+- **My interests** is the second option in the timeline switcher: My Feed /
+  My interests / Local / Global ([src/views/Timeline.vue](../src/views/Timeline.vue)).
+  Route `/timeline/interests`, which the existing `/timeline/{path}` server
+  route already serves.
 - Each post shows a small chip: "Because you follow #photography" (for a
   followed tag) or "Because you're interested in #photography" (learned or
   manual). With two or more matches: "#photography, #analog +1". Tapping the
@@ -94,8 +96,9 @@ A new section in [src/views/Settings.vue](../src/views/Settings.vue) with id
   element of the section (see 4.4).
 - **Add interest**: a hashtag input with autocomplete from known hashtags, at
   the end of the cloud (an inline "+ Add" pill that turns into the input). The
-  tag is added as a manual interest at the bottom of the pinned block and
-  animates into its place in the cloud.
+  tag is added as a manual interest. It floats with the listing threshold as
+  its score, so it usually lands low in the cloud; the cloud brings it into
+  view so the reader sees where it went.
 - **Languages for My interests**: multi-select, empty = all languages. This is
   a new preference; Social has no language preference yet.
 - **Reset all interests**: clears learned scores, manual entries, pins and the
@@ -128,9 +131,9 @@ cleanly at phone width.
   calm: a pin for pinned, a hand/pencil for added by you, a bell for followed,
   no glyph for learned.
 - *Trend* (learned tags only): a subtle up/down arrow when the score moved by
-  more than 20 % over the last 7 days. This needs a `score_week` column (the
-  decayed score copied over by the weekly background job) in
-  `social_interest`. It is optional: drop both if the cloud gets noisy.
+  more than 20 % since the week began. `score_week` holds the score as the
+  current week of activity began: it is set when a signal arrives in a week
+  after the previous one, so no job is needed.
 - Tags with a negative score are not shown in the cloud.
 - Hover/focus shows a tooltip: "Rank 4 · learned · score 12.3".
 
@@ -220,7 +223,7 @@ when the action comes from a Mastodon app:
 | Expand media / play video / open link | web `media`, `link` events | +1 |
 | Long dwell / normal dwell / skip | web `dwell`, `skip` events | +1 / +0.3 / −0.2 (see 6.1) |
 | Less like this | new endpoint | −3 |
-| Mute author (from a post) | `MuteDialog` → mute endpoint with the post id | −1 |
+| Mute author (from a post) | `MuteDialog` sends a `mute` signal after a successful mute | −1 |
 
 Undoing an action (unfavourite, unboost, unbookmark) does not subtract. It is
 not worth the bookkeeping, and decay covers it.
@@ -283,18 +286,24 @@ the listing threshold. It is always listed, but real reading still moves it
 above other entries. Unfollowing removes the floor; the learned score stays.
 
 ### 6.5 The listed interests
-Effective list, in order:
-1. **Pinned** entries (learned or manual), in the user's drag order.
-2. **Manual** unpinned entries, in the user's drag order.
-3. **Learned and followed** entries with effective score ≥ `T` (admin, default
-   3.0), by score, until the list holds `N` entries (admin, default 30).
+A **pinned** tag holds an absolute rank: the rank it was moved or pinned to.
+Every other listed tag floats and fills the free ranks by score:
 
-Dragging an unpinned learned tag pins it at the drop position. Dragging is
-the only way to fix a position, which matches "drag to reorder + pin"; the pin
-toggle unpins it back into the scored block.
+- manual and followed tags, with at least `T` (admin, default 3.0) as their
+  score;
+- learned tags whose score is at least `T`;
 
-Learning is **thin** while fewer than 3 entries qualify. The feed then adds
-the user's featured tags and the top 10 local trending tags
+up to `N` (admin, default 30) listed tags. A pin is the reader's word and is
+not counted against the cap. Two pins asking for one rank land next to each
+other; a pin beyond the end of the list lands at its end.
+
+Moving a tag to rank *p* (dragging it there, *Higher/Lower priority* or *Move
+to top*) pins it at *p* and moves every pin at *p* or below down one, so it
+lands exactly where it was dropped. Unpinning lets it float again. Learned tags
+above the threshold that did not fit under the cap are the first candidates.
+
+Learning is **thin** while fewer than 3 entries are listed. The feed then adds
+the reader's featured tags and the top 10 local trending tags
 (`HashtagService` trends) as temporary seeds with weight 0.5. These do not
 appear in Settings.
 
@@ -340,82 +349,91 @@ Applied when a page is assembled:
 
 ### 7.4 Pagination
 Ranking is not chronological, so a page is cut from a **ranked snapshot** of
-post ids, cached per user for 15 minutes (`ICache`). The snapshot supports
-both `offset` and `max_id`: with `max_id` the page continues after that id's
-position in the snapshot, so clients that page with the last post's id work
-unchanged. Pull to refresh (no cursor) builds a new snapshot. The response
-carries a `Link` header with `next` (`max_id`) and `prev`.
+post ids, kept per reader in the distributed cache for an hour; every read
+extends it. With `max_id` the page continues after that id's position in the
+snapshot, so clients that page with the last post's id work unchanged;
+`offset` works too. A request with no cursor builds a new snapshot. When no
+snapshot is kept — it expired, or the instance has no memory cache — the
+ranking is made again and the cursor looked up in it, and a cursor that is no
+longer in it ends the feed. The `Link` header carries `next` only.
 
 ## 8. API
 
-Internal (web UI), under the app's existing API routing:
+All under the app's API routing, all the viewer's own, all a 404 while the
+administrator has the feature off:
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/v1/interests/signals` | batch of web events (5.1); 204; rate limited 30/min |
-| GET | `/api/v1/interests` | effective list with source, pinned, rank, score |
-| POST | `/api/v1/interests` | add manual `{ tag }` |
-| PUT | `/api/v1/interests/order` | `{ tags: [...] }` for the pinned + manual block |
-| POST | `/api/v1/interests/{tag}/pin` / `unpin` | |
-| DELETE | `/api/v1/interests/{tag}` | reset (6.3) / remove manual entry |
-| POST | `/api/v1/interests/reset` | reset all |
-| GET/PUT | `/api/v1/interests/settings` | learning on/off, paused, languages, notice acknowledged |
-| POST | `/api/v1/statuses/{id}/less_like_this` | −3 to its tags, hide from feed |
+| GET | `/api/v1/interests` | settings, listed interests in rank order, candidates, `thin`, `cap` |
+| POST | `/api/v1/interests` | add a manual interest `{ tag }` |
+| POST | `/api/v1/interests/{tag}/move` | pin at rank `{ position }` |
+| POST | `/api/v1/interests/{tag}/pin`, `/unpin` | pin where it stands / let it float |
+| DELETE | `/api/v1/interests/{tag}` | forget it; 422 for a followed tag |
+| POST | `/api/v1/interests/reset` | forget everything |
+| PUT | `/api/v1/interests/settings` | learning, paused, languages, notice acknowledged |
+| POST | `/api/v1/interests/signals` | web events (5.1); 204; 30 a minute |
+| POST / DELETE | `/api/v1/interests/less/{nid}` | less like this / undo |
 | GET | `/api/v1/timelines/interests` | the feed; `limit`, `max_id`, `offset` |
+| POST | `/admin/interests` | the admin card (administrators only) |
 
-Mastodon apps: there is no standard endpoint for this, and clients do not know
-`/api/v1/timelines/interests`. To make the feed visible in existing apps
-without client changes, `/api/v1/lists` also returns a **pseudo-list**
-`{ "id": "interests", "title": "My interests", "replies_policy": "none",
-"exclusive": false }`, and `/api/v1/timelines/list/interests` serves the
-feed ([ListController.php:384](../lib/Controller/ListController.php#L384)).
-Editing the pseudo-list (members, title, delete) returns 422. Learning from
-apps is limited to the explicit actions in 5.2, because apps send no dwell.
+Every mutation answers the full state, so the page never works out ranks
+itself. "Less like this" lives under `/api/v1/interests/` rather than beside
+the status actions, because `POST /api/v1/statuses/{nid}/{act}` would match
+it. The feed is a literal route of its own rather than a name for
+`ApiController::timelines()`: the router matches it exactly before it tries
+the slashed `/api/v1/timelines/{timeline}/`, so which controller is read first
+does not decide it.
 
-These endpoints need to go into `Mastodon-Compatibility.md` and the route
-tables. Watch out for the cross-controller route-order hazard (#2284).
+Mastodon apps: there is no standard endpoint for this, and the feed is not
+offered to them — it belongs to this app's own web interface. A pseudo-list
+was built and taken out again: in a list the feed looked like something it is
+not, and apps offered edits that could only fail. What a reader does in an app
+still teaches their interests, through the explicit actions in 5.2; apps send
+no dwell.
 
 ## 9. Data model
 
-Two new tables. They are schema-only, so they go into the squashed migration,
-`$tables`, `Architecture.md`, and a regenerated `schema.json`.
+Two new tables, in a migration step of their own
+(`Version1000Date20260925000020`) rather than in the squash: the squash is
+recorded as run on every existing instance, so a table added to it would reach
+fresh installs only.
 
 `social_interest`
 
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint, autoincrement | |
-| actor_id | string(127) | local actor |
+| actor_id_prim | string(32) | the reader, as every other table keys it |
 | hashtag | string(127) | normalised |
 | score | float | clamped [−10, 50] |
-| scored_at | datetime | for lazy decay |
-| manual | bool | added by the user |
-| pinned | bool | |
-| position | int, nullable | order within the pinned/manual block |
-| score_week | float, nullable | optional, for the cloud's trend arrow (4.4) |
+| scored_at | bigint | unix time, for lazy decay |
+| manual | smallint | added by the reader |
+| position | int, nullable | the pinned rank; null floats |
+| score_week | float, nullable | the score as the current week began, for the trend arrow |
 
-Unique index `(actor_id, hashtag)`; index `(actor_id, score)`.
+Unique index `(actor_id_prim, hashtag)`. Every read is one reader's whole set,
+which stays small: past 500 rows the faintest learned ones are forgotten.
 
-`social_interest_hide` — posts marked "less like this": `actor_id`,
-`stream_id`, `created_at`, unique `(actor_id, stream_id)`. Rows older than
-`W` days are purged by the existing background job, because they cannot match
-the candidate window any more.
+`social_interest_hide` — posts marked "less like this": `actor_id_prim`,
+`stream_nid`, `creation`, unique `(actor_id_prim, stream_nid)`. A daily job
+(`Cron\InterestHides`) forgets rows older than `W` days, which can no longer
+keep anything out of the feed.
 
-Per-user preferences (`IConfig` user values, app `social`): `interests_enabled`
-(default `1`), `interests_paused`, `interests_paused_at`,
+Per-user preferences (user config, app `social`): `interests_learning`
+(empty until the reader chooses, then `1`/`0`), `interests_paused_at`,
 `interests_languages` (JSON), `interests_baseline` (float),
 `interests_notice_ack`.
 
-Folding a signal into a score is one upsert per (actor, tag). On PostgreSQL a
-swallowed unique violation aborts the transaction, so this must be a real
-upsert or a select-then-insert with retry, never a catch-and-ignore.
+Folding a signal into a score is an update, then an insert that skips a
+conflicting row, then the update again — never an insert that catches a unique
+violation, which aborts the whole transaction on PostgreSQL.
 
 ## 10. Administration
 
 In `AdminSettings` (Social admin page):
 - **Enable My interests** (default on). Off: the switcher tab and settings
-  section are hidden, all `/interests` endpoints and the pseudo-list return
-  404 / are omitted, and nothing is collected. Existing data is kept, so
+  section are hidden, all `/interests` endpoints return
+  404, and nothing is collected. Existing data is kept, so
   switching the feature back on restores everyone's interests.
 - **Learning default for users** (on / off, default on). It applies to every
   user who has not changed the *Learn from my browsing* toggle themselves; a
@@ -434,7 +452,7 @@ In `AdminSettings` (Social admin page):
 - No raw event log: signals are folded into scores and discarded. Dedupe keys
   expire after 24 h.
 - **Data export** (`lib/UserMigration/SocialMigrator.php`): interests
-  (hashtag, score, scored_at, manual, pinned, position) and the preferences in
+  (hashtag, score, scored_at, manual, position) and the preferences in
   §9 are exported and imported. Imported scores keep their `scored_at`, so
   decay continues correctly. `social_interest_hide` is not exported.
 - **Account deletion** (`ActorCascadeService`): both tables are purged for the
@@ -475,7 +493,7 @@ In `AdminSettings` (Social admin page):
   exclusion rules (mutes, blocks, filters, language, hidden, own posts),
   snapshot pagination by `offset` and by `max_id`.
 - Controllers: every endpoint, including the disabled-by-admin and opted-out
-  paths, rate limiting, 422 on editing the pseudo-list, and that one user can
+  paths, rate limiting, and that one user can
   never read or change another user's interests.
 - Signal hooks in Like/Boost/Bookmark/reply services, including dedupe.
 - Migrator export/import round trip; cascade on account deletion.
@@ -491,22 +509,15 @@ In `AdminSettings` (Social admin page):
 ## 15. Documentation
 The README, `info.xml` description (with a fresh screenshot of the feed and
 the settings section), `Architecture.md` (tables, scorer, tracker),
-`Mastodon-Compatibility.md` (new endpoints, pseudo-list) must be updated in
+`Mastodon-Compatibility.md` (new endpoints) must be updated in
 the same change as the code; `DocumentationTest` guards the checkable parts.
 
-## 16. Delivery plan
-1. **Scoring core**: tables, `InterestScorer`, `InterestService`, server-side
-   action hooks, settings endpoints, export/cascade. Learning from actions
-   starts; there is no UI yet.
-2. **Web tracker**: `interestTracker.js`, signals endpoint, first-use notice.
-3. **Feed**: candidate query, ranking, diversity, snapshot pagination, switcher
-   tab, chip, less like this, thin-learning seeds, pseudo-list.
-4. **Settings UI**: Interests section with the interest cloud
-   (drag/popover/pin/add/remove/candidates), reset, languages, toggles.
-5. **Admin**: enable switch, learning default for users, tuning parameters.
+## 16. Delivery
 
-Each phase is one PR. Phases 1+2 and 3 are the large ones; together they are
-likely to approach the size where a split matters.
+Built as one branch in the order above — the scoring core and the server
+hooks, the web tracker, the feed and its controls, the settings cloud, the
+admin card. It is large; if it is to be reviewed in pieces, the server half
+and the two frontend halves are separate commits.
 
 ## 17. Decisions
 Resolved 2026-09-24:
@@ -515,10 +526,8 @@ Resolved 2026-09-24:
 2. **Remove = reset only**: confirmed. A removed tag can be learned again;
    lasting suppression comes from "less like this" or a filter.
 3. **Admin disable keeps data**: confirmed (§10).
-4. **How the feed reaches Mastodon apps**: as a pseudo-list named
-   "My interests" (§8). Apps only show the feeds the Mastodon API defines,
-   and every app has a Lists section, so the feed appears there without app
-   changes. Editing the pseudo-list (rename, members, delete) returns 422,
-   which some apps show as an error; this is accepted.
+4. **How the feed reaches Mastodon apps**: it does not. The feed is shown by
+   Social's own web interface only; a pseudo-list for apps was tried and
+   removed as confusing (§8). Actions taken in apps still count.
 
 No open points remain.

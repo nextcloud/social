@@ -14,6 +14,7 @@
 			'timeline-entry--unread': unread,
 		}"
 		:style="entryStyle"
+		:data-status-id="entryContent?.id"
 		tabindex="-1">
 		<div v-if="isNotification" class="notification__header">
 			<span class="notification__summary">
@@ -80,6 +81,17 @@
 				{{ t('social', 'boosted') }}
 			</div>
 		</template>
+		<!-- why My interests put the post here, and the way to the tag that
+		     did it. Above the post rather than inside it: it is the feed's
+		     remark about the post, not part of what the author wrote -->
+		<router-link
+			v-if="interest !== null"
+			class="interest-reason"
+			:to="{ name: 'tags', params: { tag: interest.tag } }"
+			:aria-label="interest.label">
+			<Pound :size="16" />
+			<span class="interest-reason__text">{{ interest.text }}</span>
+		</router-link>
 		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :displayFollowButton="false" :item="item.account" />
 		<template v-else>
 			<div v-if="entryContent" class="wrapper">
@@ -115,12 +127,14 @@ import At from 'vue-material-design-icons/At.vue'
 import Poll from 'vue-material-design-icons/Poll.vue'
 import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
 import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
+import Pound from 'vue-material-design-icons/Pound.vue'
 import { translate } from '@nextcloud/l10n'
 import TimelinePost from './TimelinePost.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import { GROUP_FACES, notificationSummary } from '../services/notifications.js'
+import { interestReason } from '../utils/interestReason.js'
 import { onTick } from '../services/clock.js'
 import { isPhone, onPhoneChange } from '../services/phone.js'
 import { mapStores } from 'pinia'
@@ -161,6 +175,7 @@ export default {
 		Poll,
 		MessageOutline,
 		MessagePlusOutline,
+		Pound,
 	},
 
 	props: {
@@ -300,6 +315,20 @@ export default {
 			} else {
 				return this.item
 			}
+		},
+
+		/**
+		 * Why My interests shows this post, from the `interest` the feed puts
+		 * on each of its posts; every other timeline sends null.
+		 *
+		 * @return {{tag: string, text: string, label: string}|null}
+		 */
+		interest() {
+			if (this.isNotification) {
+				return null
+			}
+
+			return interestReason(/** @type {import('../types/Mastodon.js').Status} */ (this.item).interest ?? this.entryContent?.interest)
 		},
 
 		/** @return {boolean} */
@@ -613,6 +642,31 @@ export default {
 		.user-avatar {
 			display: none;
 		}
+	}
+}
+
+// the same quiet line a boost gets, as a link: it goes somewhere
+.interest-reason {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	margin-bottom: 6px;
+	padding: 2px 10px 2px 6px;
+	border-radius: var(--border-radius-pill);
+	background-color: var(--color-background-hover);
+	color: var(--color-text-maxcontrast);
+	font-size: 13px;
+
+	&:hover,
+	&:focus-visible {
+		color: var(--color-main-text);
+	}
+
+	&__text {
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
 	}
 }
 

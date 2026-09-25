@@ -349,3 +349,29 @@ describe('TimelineEntry', () => {
 		})
 	})
 })
+
+describe('why My interests shows a post', () => {
+	it('names the reason above the post, as a link to the tag', () => {
+		const { wrapper } = mountEntry({ ...post, interest: { tags: ['photography'], reason: 'followed' } }, { type: 'interests' })
+
+		const chip = wrapper.findComponent(RouterLinkStub)
+		expect(chip.classes()).toContain('interest-reason')
+		expect(chip.props('to')).toEqual({ name: 'tags', params: { tag: 'photography' } })
+		expect(chip.text()).toBe('Because you follow #photography')
+		expect(chip.attributes('aria-label')).toBe('Why you\'re seeing this: you follow #photography')
+		// before the post, not inside it
+		expect(wrapper.element.firstElementChild).toBe(chip.element)
+	})
+
+	it('draws nothing on a post the feed did not choose', () => {
+		const { wrapper } = mountEntry({ ...post, interest: null })
+
+		expect(wrapper.find('.interest-reason').exists()).toBe(false)
+	})
+
+	it('marks the entry with the post the reader sees, for the tracker', () => {
+		expect(mountEntry(post).wrapper.attributes('data-status-id')).toBe('p1')
+		// a boost is tracked as the post it boosts
+		expect(mountEntry(boost).wrapper.attributes('data-status-id')).toBe('p1')
+	})
+})

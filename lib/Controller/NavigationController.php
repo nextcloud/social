@@ -23,6 +23,7 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FilterService;
+use OCA\Social\Service\InterestService;
 use OCA\Social\Service\MiscService;
 use OCA\Social\Service\SectionsService;
 use OCA\Social\Service\SensitiveMediaService;
@@ -75,6 +76,7 @@ class NavigationController extends Controller {
 		private CheckService $checkService,
 		private SensitiveMediaService $sensitiveMediaService,
 		private SectionsService $sectionsService,
+		private InterestService $interestService,
 		private StreamService $streamService,
 		private FilterService $filterService,
 		private MiscService $miscService,
@@ -165,6 +167,10 @@ class NavigationController extends Controller {
 			// appeared and then vanished would read as a bug rather than as a
 			// setting.
 			'sections' => $this->sectionsService->current(),
+			// My interests: whether the feed, its settings and the tracking
+			// that teaches it are on for this reader, decided before the
+			// switcher above the timeline is drawn
+			'interests' => $this->interestService->pageState($this->userId),
 		];
 
 		$this->logger->debug('[NavigationController] Initial serverData', ['serverData' => $serverData]);

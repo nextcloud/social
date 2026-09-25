@@ -86,6 +86,7 @@ import IconAccount from 'vue-material-design-icons/AccountCircleOutline.vue'
 import IconApps from 'vue-material-design-icons/KeyOutline.vue'
 import IconArchive from 'vue-material-design-icons/ArchiveOutline.vue'
 import IconDelete from 'vue-material-design-icons/DeleteOutline.vue'
+import IconInterests from 'vue-material-design-icons/TagHeartOutline.vue'
 import IconIntroduction from 'vue-material-design-icons/HandWaveOutline.vue'
 import IconKeyboard from 'vue-material-design-icons/KeyboardOutline.vue'
 import IconLists from 'vue-material-design-icons/FormatListBulleted.vue'
@@ -96,6 +97,7 @@ import IconScheduled from 'vue-material-design-icons/ClockOutline.vue'
 import IconTags from 'vue-material-design-icons/Pound.vue'
 import { defineAsyncComponent } from 'vue'
 import { t } from '@nextcloud/l10n'
+import { useServerData } from '../composables/useServerData.js'
 import { currentSection, scrollToSection, watchSections } from '../services/sectionRail.js'
 
 // Two forms of some size that nobody sees until they open this page, so they
@@ -108,6 +110,9 @@ const RecapSettings = defineAsyncComponent(() => import(/* webpackChunkName: "se
 const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
 // same chunk again: forms and text fields nobody sees until they open this page
 const FeaturedTagsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FeaturedTagsSettings.vue'))
+// and again: the cloud, its popovers and the language picker are only ever
+// drawn on this page
+const InterestsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/InterestsSettings.vue'))
 
 /**
  * Settings: what this app holds about how the reader uses it.
@@ -133,11 +138,13 @@ export default {
 		DeleteAccount,
 		FeaturedTagsSettings,
 		HeldPosts,
+		InterestsSettings,
 		IntroductionSettings,
 		IconAccount,
 		IconApps,
 		IconArchive,
 		IconDelete,
+		IconInterests,
 		IconIntroduction,
 		IconKeyboard,
 		IconLists,
@@ -151,6 +158,12 @@ export default {
 		RecapSettings,
 		ScheduledPosts,
 		ShortcutList,
+	},
+
+	setup() {
+		const { serverData } = useServerData()
+
+		return { serverData }
 	},
 
 	data() {
@@ -192,6 +205,17 @@ export default {
 					title: t('social', 'Featured hashtags'),
 					lede: t('social', 'The hashtags you want your profile to be known for. They sit under your bio, and anybody can click one to read what you posted with it.'),
 				},
+				// only where the administrator has the feature on: without it
+				// there is no feed for the list to shape
+				...(this.serverData?.interests?.enabled === true
+					? [{
+							id: 'interests',
+							icon: 'IconInterests',
+							component: 'InterestsSettings',
+							title: t('social', 'My interests'),
+							lede: t('social', 'The hashtags Social has noticed you reading, the biggest first. They make up your My interests feed: drag one to change its place, pin it, remove it, or add your own. Nobody but you sees this.'),
+						}]
+					: []),
 				{
 					id: 'lists',
 					icon: 'IconLists',

@@ -75,7 +75,10 @@ class PostServiceTest extends TestCase {
 	private StatusRevisionService|MockObject $revisionService;
 	private string $userLanguage = 'de_DE';
 
+	private \OCA\Social\Service\InterestService|MockObject $interestService;
+
 	protected function setUp(): void {
+		$this->interestService = $this->createMock(\OCA\Social\Service\InterestService::class);
 		$this->revisionService = $this->createMock(StatusRevisionService::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->accountService = $this->createMock(AccountService::class);
@@ -135,6 +138,7 @@ class PostServiceTest extends TestCase {
 			$this->createMock(\OCA\Social\Service\ConfigService::class),
 			$this->eventDispatcher,
 			new NullLogger(),
+			$this->interestService,
 		);
 	}
 
@@ -1212,5 +1216,29 @@ class PostServiceTest extends TestCase {
 			strip_tags($published[0]->getPost()->getContent())
 		);
 		$this->assertSame(self::ACTOR_ID, $published[0]->getAuthorId());
+	}
+
+	/** Replying teaches My interests the hashtags of the post replied to. */
+	public function testAReplyTeachesTheParentsTags(): void {
+		$parentId = 'https://remote.example/notes/parent';
+		$parent = new Note();
+		$parent->setId($parentId);
+		$parent->setAttributedTo(self::BOB_ID);
+		$this->streamRequest->method('getStreamById')->willReturn($parent);
+		$this->cacheActorService->method('getFromId')->willReturn($this->bob());
+		$this->expectCreateActivity($note);
+		$this->interestService->expects($this->once())->method('recordAction')
+			->with($this->isInstanceOf(Person::class), $this->identicalTo($parent), \OCA\Social\Service\InterestService::ACTION_REPLY);
+
+		$post = $this->post('I agree');
+		$post->setReplyTo($parentId);
+		$this->service->createPost($post);
+	}
+
+	public function testAPostThatRepliesToNothingTeachesNothing(): void {
+		$this->expectCreateActivity($note);
+		$this->interestService->expects($this->never())->method('recordAction');
+
+		$this->service->createPost($this->post('just saying'));
 	}
 }

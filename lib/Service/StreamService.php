@@ -661,6 +661,27 @@ class StreamService {
 	}
 
 	/**
+	 * Posts named by nid, as the viewer may see them and dressed the way a
+	 * timeline page is — the page My interests ranks is decided before the
+	 * posts are read, so it cannot come out of `getTimeline()`.
+	 *
+	 * @param string[] $nids
+	 *
+	 * @return array<string, Stream> by nid; a post the viewer may no longer
+	 *                               see is simply not there
+	 */
+	public function visiblePosts(array $nids): array {
+		$posts = $this->streamRequest->getVisibleByNids($nids);
+		$list = array_values($posts);
+		$this->linkPreviewService->attachCards($list);
+		$this->placeService->attachPlaces($list);
+		$this->reactionSummaryService->attachReactions($list, $this->viewer?->getId() ?? '');
+		$this->attachTaggedPeople($list);
+
+		return $posts;
+	}
+
+	/**
 	 * The people named in each post's pictures.
 	 *
 	 * Read here rather than in `MediaTagService`, which owns the writing side:

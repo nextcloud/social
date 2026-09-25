@@ -219,6 +219,12 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @return {object[]} the statuses
 		 */
 		getTimeline(state) {
+			// My interests is ranked, not chronological: the server's order is
+			// the point of it, and sorting it by date would undo the ranking
+			if (state.type === 'interests') {
+				return state.timeline.map((statusId) => state.statuses[statusId]).filter(Boolean)
+			}
+
 			return sortedByDate(state, state.timeline)
 		},
 		/**
@@ -351,12 +357,18 @@ export const useTimelineStore = defineStore('timeline', {
 		 * reappeared among the replies.
 		 *
 		 * @param {import('../types/Mastodon.js').Status} status the status that could not be deleted
+		 * @param {number} [index] where in the list it was, for a list whose
+		 *                         order is not its dates (My interests)
 		 */
-		restoreStatus(status) {
+		restoreStatus(status, index = -1) {
 			indexStatus(this, status)
 			const list = this.removedFrom?.[status.id] === 'parents' ? 'parentsTimeline' : 'timeline'
 			if (this[list].indexOf(status.id) === -1) {
-				this[list].push(status.id)
+				if (index >= 0 && index <= this[list].length) {
+					this[list].splice(index, 0, status.id)
+				} else {
+					this[list].push(status.id)
+				}
 			}
 			const removedFrom = { ...this.removedFrom }
 			delete removedFrom[status.id]

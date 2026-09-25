@@ -89,6 +89,19 @@ you follow, of this instance and of the whole Fediverse are one click apart.
 
 <img src="img/readme/post-actions.gif" alt="Hovering a post opens its actions" width="680">
 
+![My interests in the settings](img/readme/interests.png)
+
+- **My interests** — the second feed in the switcher, right after My Feed, made of the hashtags you actually
+  read. Social notices what you stay on, what you scroll past, and what you like,
+  boost, reply to, bookmark and open, and keeps a list of hashtags from it; the feed
+  is the last week's posts carrying them, the best matches and the freshest first, no
+  author allowed to fill it, and now and then a hashtag that often travels with yours.
+  Every post says why it is there, and **Less like this** in its menu takes it out.
+  **Settings → My interests** draws the list as a cloud — the bigger the hashtag, the
+  more it counts — where you drag, pin, remove and add them, choose languages, pause
+  or turn it off. It never leaves this server and nobody else sees it.
+  Administrators can switch it off or make it opt-in.
+
 ![Stories](img/readme/stories.png)
 
 - **Stories** — a row of faces above your feed: whose stories are up. One picture or

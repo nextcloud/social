@@ -67,6 +67,7 @@ class SocialMigratorTest extends TestCase {
 	private ActorRelationRequest|MockObject $actorRelationRequest;
 	private StreamRequest|MockObject $streamRequest;
 	private StreamActionService|MockObject $streamActionService;
+	private \OCA\Social\Service\InterestService|MockObject $interestService;
 	private SocialMigrator $migrator;
 	private RecordingOutput $output;
 
@@ -89,6 +90,8 @@ class SocialMigratorTest extends TestCase {
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->streamActionService = $this->createMock(StreamActionService::class);
+		$this->interestService = $this->createMock(\OCA\Social\Service\InterestService::class);
+		$this->interestService->method('export')->willReturn(['version' => 1, 'settings' => [], 'interests' => []]);
 
 		$tempManager = $this->createMock(ITempManager::class);
 		$tempManager->method('getTemporaryFile')->willReturnCallback(function (): string {
@@ -120,6 +123,7 @@ class SocialMigratorTest extends TestCase {
 			$this->actorRelationRequest,
 			$this->streamRequest,
 			$this->streamActionService,
+			$this->interestService,
 			$tempManager,
 			$urlGenerator,
 			new NullLogger(),
@@ -298,6 +302,7 @@ class SocialMigratorTest extends TestCase {
 			'social/bookmarks.csv',
 			'social/followers.csv',
 			'social/following_accounts.csv',
+			'social/interests.json',
 			'social/likes.csv',
 			'social/muted_accounts.csv',
 			'social/outbox.json',
