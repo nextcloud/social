@@ -587,7 +587,21 @@ class Document extends ACore implements JsonSerializable {
 		$media->setSizeBytes($this->getSizeBytes());
 
 		if (!is_null($urlGenerator)) {
-			if ($this->isStreamed()) {
+			// A refused copy names nothing. `getMediaUrl()` builds
+			// `/media/{local_copy}{ext}` whatever `local_copy` says, so a
+			// document this instance could not cache went out as
+			// `/media/.jpeg` — a link to this server with no bytes behind it.
+			// Every client fetched it, every fetch 404'd, and a third-party
+			// one has no way to tell that from an attachment that is merely
+			// slow. Mastodon leaves the url off such an attachment; so does
+			// this. `remote_url` and `cache_error` below still say where it
+			// came from and why it was refused, which is what the reader is
+			// shown instead — the origin is deliberately not offered as a
+			// fallback, see MediaAttachment::asLocal().
+			if (!$this->isStreamed() && $this->getLocalCopy() === '') {
+				$media->setUrl('')
+					->setPreviewUrl('');
+			} elseif ($this->isStreamed()) {
 				// no local copy to name: the bytes are fetched from the origin
 				// as they are played, and the route that does it is addressed
 				// by the row rather than by a uuid there is none of. The

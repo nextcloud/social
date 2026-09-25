@@ -319,4 +319,57 @@ describe('MediaAttachment', () => {
 		// the component's own emit carries no payload (the native event is recorded separately)
 		expect(wrapper.emitted('click')).toContainEqual([])
 	})
+
+	// #2290: an attachment this instance holds no copy of. The server used to
+	// send a link to a copy that was not here; it sends null now, and none of
+	// these elements may be drawn around nothing.
+
+	it('says why an image is missing rather than fetching a copy that is not here', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					...attachment,
+					url: null,
+					preview_url: null,
+					remote_url: 'https://files.remote.example/media/cat.jpg',
+					cache_error: 1,
+				},
+			},
+		})
+
+		expect(wrapper.find('img').exists()).toBe(false)
+		const placeholder = wrapper.find('.attachment__failed')
+		expect(placeholder.exists()).toBe(true)
+		expect(placeholder.attributes('aria-label')).toContain('media size limit')
+	})
+
+	it('draws no player for a video with no copy here', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: { ...attachment, type: 'video', url: null, preview_url: null, cache_error: 2 },
+			},
+		})
+
+		// an empty <video> sat blank and said nothing
+		expect(wrapper.find('video').exists()).toBe(false)
+		expect(wrapper.find('.attachment__failed').exists()).toBe(true)
+	})
+
+	it('offers no download link for a file with no copy here', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: { ...attachment, type: 'unknown', url: null, preview_url: null, cache_error: 3 },
+			},
+		})
+
+		expect(wrapper.find('a.attachment__file').exists()).toBe(false)
+		expect(wrapper.find('.attachment__failed').exists()).toBe(true)
+	})
+
+	it('still draws an attachment that is here', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+
+		expect(wrapper.find('img').exists()).toBe(true)
+		expect(wrapper.find('.attachment__failed').exists()).toBe(false)
+	})
 })

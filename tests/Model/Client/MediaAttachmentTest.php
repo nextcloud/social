@@ -308,4 +308,61 @@ class MediaAttachmentTest extends TestCase {
 		$media->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
 		$this->assertSame($media->asDocument(), $media->jsonSerialize());
 	}
+
+	/**
+	 * A client is told there is nothing here rather than handed a link to it.
+	 * `url` used to be the empty string once the document stopped inventing
+	 * one, and `""` is not a url either — Mastodon sends null.
+	 */
+	public function testAnAttachmentWithNoCopyHereSendsNullRatherThanAnEmptyUrl(): void {
+		$media = new MediaAttachment();
+		$media->setId('7')
+			->setType('image')
+			->setMediaType('image/jpeg')
+			->setUrl('')
+			->setPreviewUrl('')
+			->setRemoteUrl('https://files.remote.example/media/cat.jpg')
+			->setCacheError(1);
+
+		$local = $media->asLocal();
+
+		$this->assertNull($local['url']);
+		$this->assertNull($local['preview_url']);
+		$this->assertSame('https://files.remote.example/media/cat.jpg', $local['remote_url']);
+		$this->assertSame(1, $local['cache_error']);
+	}
+
+	/**
+	 * The wire is the other way round: a peer asking for the bytes has to be
+	 * told a host that serves them, and this instance serves none. Naming the
+	 * origin there raises none of the questions it would in `asLocal()`,
+	 * because no reader's browser is doing the fetching.
+	 */
+	public function testTheWireNamesTheOriginWhenThereIsNoCopyHere(): void {
+		$media = new MediaAttachment();
+		$media->setType('image')
+			->setMediaType('image/jpeg')
+			->setUrl('')
+			->setRemoteUrl('https://files.remote.example/media/cat.jpg');
+
+		$this->assertSame(
+			'https://files.remote.example/media/cat.jpg',
+			$media->asDocument()['url']
+		);
+	}
+
+	/** A copy that is here is still named, on both sides. */
+	public function testACopyHereIsNamedAsBefore(): void {
+		$media = new MediaAttachment();
+		$media->setType('image')
+			->setMediaType('image/jpeg')
+			->setUrl('https://cloud.example.org/index.php/apps/social/media/abc.jpeg')
+			->setRemoteUrl('https://files.remote.example/media/cat.jpg');
+
+		$this->assertNotNull($media->asLocal()['url']);
+		$this->assertSame(
+			'https://cloud.example.org/index.php/apps/social/media/abc.jpeg',
+			$media->asDocument()['url']
+		);
+	}
 }

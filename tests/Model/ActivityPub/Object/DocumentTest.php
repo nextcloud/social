@@ -13,6 +13,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\Client\AttachmentMeta;
+use OCA\Social\Service\DocumentService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -249,5 +250,57 @@ class DocumentTest extends TestCase {
 		$this->assertSame(113.0, $media->getMeta()?->getDuration());
 		$this->assertSame(1920, $media->getMeta()?->getOriginal()?->getWidth());
 		$this->assertSame(720, $media->getMeta()?->getSmall()?->getHeight());
+	}
+
+	/**
+	 * The one this instance was asked about in #2290: an image it refused to
+	 * cache was still served as a link to itself, with nothing behind it.
+	 */
+	public function testAnAttachmentWithNoLocalCopyNamesNoUrlOfItsOwn(): void {
+		$document = new Document();
+		$document->setNid(11)
+			->setMediaType('image/jpeg')
+			->setUrl('https://files.mastodon.social/media/cat.jpg')
+			->setLocalCopy('')
+			->setResizedCopy('')
+			->setError(DocumentService::ERROR_SIZE);
+
+		$media = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->assertSame('', $media->getUrl(), 'no copy here, so no link to here');
+		$this->assertSame('', $media->getPreviewUrl());
+		// still said, so a reader can be told where it came from and why
+		$this->assertSame('https://files.mastodon.social/media/cat.jpg', $media->getRemoteUrl());
+		$this->assertSame(DocumentService::ERROR_SIZE, $media->getCacheError());
+	}
+
+	/**
+	 * The same holds before anything has been tried: an attachment waiting for
+	 * the cron has no copy either, and a link to one would 404 just the same.
+	 */
+	public function testAnAttachmentNotYetFetchedNamesNoUrlEither(): void {
+		$document = new Document();
+		$document->setNid(12)
+			->setMediaType('image/png')
+			->setUrl('https://files.mastodon.social/media/dog.png')
+			->setLocalCopy('');
+
+		$media = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->assertSame('', $media->getUrl());
+		$this->assertSame(0, $media->getCacheError(), 'nothing was refused; it has not been tried');
+	}
+
+	/** A copy that does exist is named exactly as before. */
+	public function testAnAttachmentWithACopyIsUnchanged(): void {
+		$document = new Document();
+		$document->setNid(13)
+			->setMediaType('image/jpeg')
+			->setUrl('https://files.mastodon.social/media/cat.jpg')
+			->setLocalCopy('abc');
+
+		$media = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->assertSame('https://cloud.example.org/social.Api.mediaOpen/abc.jpeg', $media->getUrl());
 	}
 }

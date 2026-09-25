@@ -170,10 +170,14 @@ class StreamTest extends TestCase {
 		$this->assertContainsOnlyInstancesOf(MediaAttachment::class, $attachments);
 		$this->assertSame('image', $attachments[0]->getType());
 		$this->assertSame('https://files.mastodon.social/media/cat.jpg', $attachments[0]->getRemoteUrl());
-		$this->assertStringEndsWith('social.Api.mediaOpen/.jpeg', $attachments[0]->getUrl());
-		$this->assertStringEndsWith('.jpeg', $attachments[0]->getPreviewUrl());
 		$this->assertSame('https://files.mastodon.social/media/dog.png', $attachments[1]->getRemoteUrl());
-		$this->assertStringEndsWith('.png', $attachments[1]->getUrl());
+		// Nothing has been fetched yet, so this instance holds no copy and
+		// names no url of its own. It used to name `/media/.jpeg` — the route
+		// with an empty uuid in it — which 404s for every client that tries.
+		foreach ($attachments as $attachment) {
+			$this->assertSame('', $attachment->getUrl());
+			$this->assertSame('', $attachment->getPreviewUrl());
+		}
 	}
 
 	/**

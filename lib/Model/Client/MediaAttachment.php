@@ -235,6 +235,12 @@ class MediaAttachment implements JsonSerializable {
 		$meta = $this->getMeta()?->jsonSerialize();
 		$preview = $this->onThisInstance($this->getPreviewUrl());
 		$remote = $this->getRemoteUrl();
+		// An attachment this instance holds no copy of names no url here:
+		// there is nothing on this server to fetch, and a link that 404s tells
+		// a client less than no link at all. Mastodon sends null for the same
+		// case; `remote_url` and `cache_error` below say where it came from
+		// and why there is no copy.
+		$url = $this->onThisInstance($this->getUrl());
 
 		return [
 			'id' => $this->getId(),
@@ -244,7 +250,7 @@ class MediaAttachment implements JsonSerializable {
 			// refuses an attachment without one; Mastodon sniffs the URL and
 			// hid for weeks that every re-served post had lost it.
 			'media_type' => $this->getMediaType(),
-			'url' => $this->onThisInstance($this->getUrl()),
+			'url' => ($url === null || $url === '') ? null : $url,
 			'preview_url' => ($preview === null || $preview === '') ? null : $preview,
 			// not Mastodon's: where the same video exists at several sizes, a
 			// player that understands HLS gets the one that fits the
@@ -343,7 +349,13 @@ class MediaAttachment implements JsonSerializable {
 			= [
 				'type' => Document::TYPE,
 				'mediaType' => $this->getMediaType(),
-				'url' => $this->getUrl(),
+				// The origin where this instance holds no copy of its own. A
+				// peer asked for the bytes has to be told a host that serves
+				// them, and an empty url — or one pointing at a copy that was
+				// refused here — is a statement no receiver can act on. This
+				// is server to server, so it raises none of the questions
+				// `asLocal()` answers by refusing to name the origin.
+				'url' => ($this->getUrl() === '') ? (string)$this->getRemoteUrl() : $this->getUrl(),
 				// the wire carries the alt text as `name`
 				'name' => ($this->getDescription() === '') ? null : $this->getDescription(),
 			];
