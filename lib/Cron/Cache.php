@@ -17,6 +17,7 @@ use OCA\Social\Service\CacheActorSweepService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\DurableCache;
+use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MediaUsageService;
@@ -84,6 +85,7 @@ class Cache extends TimedJob {
 		private ?ConfigService $configService = null,
 		private ?MediaUsageService $mediaUsageService = null,
 		private ?DurableCache $durableCache = null,
+		private ?FediverseDirectoryService $fediverseDirectoryService = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
@@ -155,6 +157,11 @@ class Cache extends TimedJob {
 				// the catch-all behind the listener: an account made after its
 				// group's lists were, a change the listener did not see
 				$this->groupListService?->reconcile();
+			},
+			'refreshDirectorySources' => function (): void {
+				// which servers the Discover page may ask, found out here so
+				// that the page never waits on a remote host to list them
+				$this->fediverseDirectoryService?->refresh();
 			},
 			'purgeDurableCache' => function (): void {
 				// a read already ignores an expired row; this keeps the table

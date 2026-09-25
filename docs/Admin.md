@@ -573,6 +573,7 @@ the moderation routes accept.
 | `service` | `1` | Unused; a leftover of the original installer. |
 | `installed_version` | | Written by the upgrade machinery. |
 | `media_usage` | *(written by the job)* | The last measurement of what is on disk, as JSON with the moment it was taken. Bookkeeping, not a setting: the walk is a `stat` per stored file and belongs in the cron, so the administration page reads this rather than counting on page load. |
+| `directory_known` | *(written by the job)* | What `Cron\Cache` last found out about the servers the Discover page may ask: the `fediverse.info` server list and each federated peer's NodeInfo software, as JSON with when each was read. Bookkeeping, not a setting: the page reads this rather than asking those servers while somebody waits. |
 | `polls_swept` | `0` | How far the closed-poll sweep has got, as a timestamp. |
 | `story_secret` | *(generated)* | The secret a story's fetch capability is derived from, made the first time a story is published. Changing it invalidates every outstanding capability at once, which is the only revocation it needs: a story lives a day. Never set this by hand. |
 

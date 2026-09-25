@@ -18,6 +18,7 @@ use OCA\Social\Service\CacheActorSweepService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\DurableCache;
+use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\PollService;
@@ -51,6 +52,7 @@ class CacheTest extends TestCase {
 	private CacheActorSweepService|MockObject $sweepService;
 	private ConfigService|MockObject $configService;
 	private DurableCache|MockObject $durableCache;
+	private FediverseDirectoryService|MockObject $directoryService;
 	/** The clock every part of the job reads; a step may move it. */
 	private int $now = self::NOW;
 	/** @var CacheActorsRequest&MockObject */
@@ -83,6 +85,7 @@ class CacheTest extends TestCase {
 		$this->sweepService = $this->createMock(CacheActorSweepService::class);
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->durableCache = $this->createMock(DurableCache::class);
+		$this->directoryService = $this->createMock(FediverseDirectoryService::class);
 
 		$this->job = new Cache(
 			$time,
@@ -100,7 +103,8 @@ class CacheTest extends TestCase {
 			$this->sweepService,
 			$this->configService,
 			null,
-			$this->durableCache
+			$this->durableCache,
+			$this->directoryService
 		);
 	}
 
@@ -311,6 +315,14 @@ class CacheTest extends TestCase {
 		$this->job->start($this->jobList);
 	}
 
+	/** The Discover page reads what this finds out, and never asks itself. */
+	public function testTheDirectorySourcesAreRefreshedHere(): void {
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
+		$this->directoryService->expects($this->once())->method('refresh');
+
+		$this->job->start($this->jobList);
+	}
+
 	public function testTheCacheCronEvictsTheActorsNobodyRefersToAnyMore(): void {
 		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
 		$this->sweepService->expects($this->once())->method('sweep')
@@ -341,7 +353,7 @@ class CacheTest extends TestCase {
 			'nothing after the step that ran out of time may run'
 		);
 		$this->assertCount(1, $this->warnings);
-		$this->assertStringContainsString('13 step(s) skipped', $this->warnings[0]['message']);
+		$this->assertStringContainsString('14 step(s) skipped', $this->warnings[0]['message']);
 		$this->assertStringContainsString('manageCacheLocalActors', $this->warnings[0]['message']);
 	}
 
