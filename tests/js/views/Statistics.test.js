@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
@@ -852,5 +854,19 @@ describe('Statistics', () => {
 		expect(page).not.toContain('carry a description')
 		expect(page).not.toContain('How steadily you post')
 		expect(wrapper.find('.stats__list').exists()).toBe(false)
+	})
+
+	/**
+	 * jsdom does no layout, so this reads the rule itself: four unbreakable
+	 * labels are 448 px wide, and on a 400 px phone a group that neither
+	 * wraps nor scrolls cut "Last 365 days" to "Last 36" with no way to it.
+	 */
+	it('lets the window choices wrap onto a second row on a narrow screen', () => {
+		const source = readFileSync(resolve(process.cwd(), 'src/views/Statistics.vue'), 'utf8')
+		const rule = source.match(/\n\.stats__windows \{([^}]*)\}/)
+
+		expect(rule).not.toBeNull()
+		expect(rule[1]).toMatch(/flex-wrap: wrap;/)
+		expect(rule[1]).toMatch(/max-width: 100%;/)
 	})
 })

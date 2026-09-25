@@ -2483,6 +2483,8 @@ export default {
 
 .stats__windows {
 	display: flex;
+	flex-wrap: wrap;
+	max-width: 100%;
 	overflow: hidden;
 	border: 2px solid var(--color-border-dark);
 	border-radius: var(--border-radius-element, 24px);
@@ -2495,6 +2497,7 @@ export default {
 	margin: 0;
 	background: transparent;
 	color: var(--color-main-text);
+	flex: 1 1 auto;
 	font-size: .9em;
 	white-space: nowrap;
 
