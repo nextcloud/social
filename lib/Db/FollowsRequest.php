@@ -394,6 +394,11 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 		$qb->limitToAccepted(true);
+		// the accepted Loopback row an actor has on itself is how its own
+		// posts reach its home timeline, not a follower: listed, it made
+		// every actor a follower of itself and the page one longer than
+		// the collection's totalItems
+		$qb->limitToType(Follow::TYPE);
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
 		$qb->orderBy('f.creation', 'desc');
@@ -722,6 +727,8 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 		$qb->limitToAccepted(true);
+		// not the Loopback row; see getFollowersByActorId()
+		$qb->limitToType(Follow::TYPE);
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 			$qb->setFirstResult($offset);
