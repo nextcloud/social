@@ -16,6 +16,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheActorSweepService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\MediaUsageService;
@@ -82,6 +83,7 @@ class Cache extends TimedJob {
 		private ?CacheActorSweepService $cacheActorSweepService = null,
 		private ?ConfigService $configService = null,
 		private ?MediaUsageService $mediaUsageService = null,
+		private ?DurableCache $durableCache = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
@@ -153,6 +155,11 @@ class Cache extends TimedJob {
 				// the catch-all behind the listener: an account made after its
 				// group's lists were, a change the listener did not see
 				$this->groupListService?->reconcile();
+			},
+			'purgeDurableCache' => function (): void {
+				// a read already ignores an expired row; this keeps the table
+				// the size of what is live
+				$this->durableCache?->purgeExpired();
 			},
 		];
 	}

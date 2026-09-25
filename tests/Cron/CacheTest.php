@@ -17,6 +17,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheActorSweepService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
 use OCA\Social\Service\PollService;
@@ -49,6 +50,7 @@ class CacheTest extends TestCase {
 	private ProfileLinkVerifier|MockObject $profileLinkVerifier;
 	private CacheActorSweepService|MockObject $sweepService;
 	private ConfigService|MockObject $configService;
+	private DurableCache|MockObject $durableCache;
 	/** The clock every part of the job reads; a step may move it. */
 	private int $now = self::NOW;
 	/** @var CacheActorsRequest&MockObject */
@@ -80,6 +82,7 @@ class CacheTest extends TestCase {
 		$this->profileLinkVerifier = $this->createMock(ProfileLinkVerifier::class);
 		$this->sweepService = $this->createMock(CacheActorSweepService::class);
 		$this->configService = $this->createMock(ConfigService::class);
+		$this->durableCache = $this->createMock(DurableCache::class);
 
 		$this->job = new Cache(
 			$time,
@@ -95,7 +98,9 @@ class CacheTest extends TestCase {
 			$this->groupListService,
 			$this->profileLinkVerifier,
 			$this->sweepService,
-			$this->configService
+			$this->configService,
+			null,
+			$this->durableCache
 		);
 	}
 
@@ -294,6 +299,18 @@ class CacheTest extends TestCase {
 		return $order;
 	}
 
+	/**
+	 * A read already ignores an expired row of the durable cache's table;
+	 * without a purge the table would still grow by every counter and replay
+	 * record an instance without a memcache ever wrote.
+	 */
+	public function testTheDurableCacheIsPurgedOnEveryPass(): void {
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
+		$this->durableCache->expects($this->once())->method('purgeExpired')->willReturn(3);
+
+		$this->job->start($this->jobList);
+	}
+
 	public function testTheCacheCronEvictsTheActorsNobodyRefersToAnyMore(): void {
 		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
 		$this->sweepService->expects($this->once())->method('sweep')
@@ -324,7 +341,7 @@ class CacheTest extends TestCase {
 			'nothing after the step that ran out of time may run'
 		);
 		$this->assertCount(1, $this->warnings);
-		$this->assertStringContainsString('12 step(s) skipped', $this->warnings[0]['message']);
+		$this->assertStringContainsString('13 step(s) skipped', $this->warnings[0]['message']);
 		$this->assertStringContainsString('manageCacheLocalActors', $this->warnings[0]['message']);
 	}
 

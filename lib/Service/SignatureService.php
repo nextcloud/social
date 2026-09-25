@@ -72,6 +72,12 @@ class SignatureService {
 	 */
 	public const LD_WINDOW = 86400; // 24h
 
+	/** The `DurableCache` namespace of the LD signatures already accepted. */
+	public const LD_SEEN_NAMESPACE = 'social.ldsig';
+
+	/** The `DurableCache` namespace of the signed requests already taken in. */
+	public const REQUEST_SEEN_NAMESPACE = 'social.httpsig';
+
 	/**
 	 * How long a request is allowed to take when it is fetching the signing key
 	 * of a keyId this instance has never seen.
@@ -137,8 +143,6 @@ class SignatureService {
 	private ConfigService $configService;
 	private HttpSignatureService $httpSignatureService;
 	private HttpMessageSignatureParser $messageSignatures;
-	private ICache $seenSignatures;
-	private ICache $seenRequests;
 	private ICache $keyAttempts;
 	private LoggerInterface $logger;
 
@@ -151,6 +155,7 @@ class SignatureService {
 		HttpSignatureService $httpSignatureService,
 		ICacheFactory $cacheFactory,
 		LoggerInterface $logger,
+		private DurableCache $durableCache,
 	) {
 		$this->actorsRequest = $actorsRequest;
 		$this->cacheActorService = $cacheActorService;
@@ -159,8 +164,6 @@ class SignatureService {
 		$this->configService = $configService;
 		$this->httpSignatureService = $httpSignatureService;
 		$this->messageSignatures = new HttpMessageSignatureParser();
-		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
-		$this->seenRequests = $cacheFactory->createDistributed('social.httpsig');
 		$this->keyAttempts = $cacheFactory->createDistributed('social.keys');
 		$this->logger = $logger;
 	}
@@ -277,10 +280,11 @@ class SignatureService {
 	 * signs again with a new `Date`, so it is never mistaken for a repeat.
 	 * The request is remembered only once it has been taken in
 	 * (`rememberRequest()`), so identical bytes resent after a failure are
-	 * still processed.
+	 * still processed. Kept in `DurableCache`, so the guard holds on an
+	 * instance with no memory cache too.
 	 */
 	public function isReplayed(IRequest $request): bool {
-		return $this->seenRequests->get($this->requestKey($request)) !== null;
+		return $this->durableCache->get(self::REQUEST_SEEN_NAMESPACE, $this->requestKey($request)) !== null;
 	}
 
 	/**
@@ -288,7 +292,7 @@ class SignatureService {
 	 * still be accepted.
 	 */
 	public function rememberRequest(IRequest $request): void {
-		$this->seenRequests->set($this->requestKey($request), 1, self::DATE_PAST + self::DATE_FUTURE);
+		$this->durableCache->set(self::REQUEST_SEEN_NAMESPACE, $this->requestKey($request), 1, self::DATE_PAST + self::DATE_FUTURE);
 	}
 
 	private function requestKey(IRequest $request): string {
@@ -725,13 +729,16 @@ class SignatureService {
 				return false;
 			}
 
+			// kept in `DurableCache`: in the distributed cache alone, an
+			// instance with no memcache remembered nothing and accepted every
+			// replay inside the window
 			$seenKey = hash('sha256', $signature->getSignatureValue());
-			if ($this->seenSignatures->get($seenKey) !== null) {
+			if ($this->durableCache->get(self::LD_SEEN_NAMESPACE, $seenKey) !== null) {
 				$this->logger->notice('LD signature replayed', ['actorId' => $actorId]);
 
 				return false;
 			}
-			$this->seenSignatures->set($seenKey, 1, self::LD_WINDOW * 2);
+			$this->durableCache->set(self::LD_SEEN_NAMESPACE, $seenKey, 1, self::LD_WINDOW * 2);
 
 			$object->setOrigin(
 				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE, $time

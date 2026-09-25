@@ -52,6 +52,7 @@ class CoreRequestBuilder {
 	public const TABLE_ACCOUNT_NOTES = 'social_account_note';
 	public const TABLE_CONVERSATION_STATE = 'social_convo_state';
 	public const TABLE_DOMAIN_BLOCKS = 'social_domain_block';
+	public const TABLE_DURABLE_CACHE = 'social_durable_cache';
 	public const TABLE_MUTE_EXPIRY = 'social_mute_expiry';
 	public const TABLE_FEATURED_TAGS = 'social_featured_tag';
 	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
@@ -631,6 +632,11 @@ class CoreRequestBuilder {
 			'scheduled_at',
 			'params',
 			'creation'
+		],
+		self::TABLE_DURABLE_CACHE => [
+			'cache_key',
+			'cache_value',
+			'expires'
 		],
 		self::TABLE_FEEDS => [
 			'id',

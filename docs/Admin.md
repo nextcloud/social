@@ -57,7 +57,7 @@ and not one to carry into production.
 
 ## The setup checks
 
-Social registers seven checks in **Administration → Overview**, beside
+Social registers its own checks in **Administration → Overview**, beside
 Nextcloud's own. They are the things that break federation, or stop clients
 connecting, without anything else saying so, and each links back to this page.
 
@@ -296,6 +296,26 @@ occ social:queue:retry --flush --min-tries 16   # or drop them, for a peer that 
 The **Federation health** section of the Social settings names the instances
 the failures are stacked against, with the highest attempt count so far and
 when each was last tried.
+
+### No memory cache
+
+Without `memcache.local` or `memcache.distributed` in `config.php`, every cache
+Social asks Nextcloud for is one that forgets each write. Nextcloud's own check
+already says a memcache would be faster; this one is there because, for this
+app, some of what is lost is protection:
+
+- **Kept in the database instead** (`social_durable_cache`, expired rows
+  deleted by `Cron\Cache`): the inbox throttle (`inbox_throttle`) and the
+  record of Linked Data signatures already accepted, which is what refuses a
+  replayed activity. Both work; each costs a few queries per delivery.
+- **Off**: the per-server delivery breaker, so a dead peer is retried at full
+  speed; and the `Idempotency-Key` record, so a client that retries a post
+  can publish it twice.
+- **Worked out again on every request**: the statistics page, the network
+  figures, peer trends and follow suggestions.
+
+APCu (`memcache.local = \OC\Memcache\APCu`) is enough for all of it on a
+single web server; Redis is what several need.
 
 ---
 

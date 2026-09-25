@@ -26,6 +26,7 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\ImageConversionService;
@@ -183,6 +184,7 @@ class OutboundFederationWireTest extends TestCase {
 			$this->httpSignatureService(),
 			$cacheFactory,
 			new NullLogger(),
+			$this->createMock(DurableCache::class),
 		);
 	}
 

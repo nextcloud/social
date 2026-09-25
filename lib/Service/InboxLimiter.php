@@ -11,8 +11,6 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Exceptions\PayloadTooLargeException;
 use OCA\Social\Exceptions\TooManyRequestsException;
-use OCP\ICache;
-use OCP\ICacheFactory;
 use OCP\IRequest;
 
 /**
@@ -37,8 +35,11 @@ use OCP\IRequest;
  * proved, and only a peer that can sign for a host can spend that host's
  * budget.
  *
- * Fixed one-minute windows in the distributed cache; the counter is not atomic,
- * which is fine for a ceiling. A limit of 0 disables the check.
+ * Fixed one-minute windows in `DurableCache`, so the ceiling holds on an
+ * instance with no memcache too: in the distributed cache alone it read zero
+ * on every delivery there and never refused one. A refused delivery counts
+ * as well — a sender that keeps knocking stays over the ceiling. A limit of 0
+ * disables the check.
  */
 class InboxLimiter {
 	public const WINDOW = 60;
@@ -56,13 +57,13 @@ class InboxLimiter {
 	 */
 	public const MAX_BODY = 1048576;
 
-	private ICache $cache;
+	/** The `DurableCache` namespace the counters live in. */
+	public const CACHE_NAMESPACE = 'social.inbox';
 
 	public function __construct(
-		ICacheFactory $cacheFactory,
+		private DurableCache $cache,
 		private ConfigService $configService,
 	) {
-		$this->cache = $cacheFactory->createDistributed('social.inbox');
 	}
 
 	/**
@@ -157,11 +158,8 @@ class InboxLimiter {
 	private function consume(string $bucket, int $window, int $limit): void {
 		$key = $bucket . '.' . $window;
 
-		$count = (int)($this->cache->get($key) ?? 0);
-		if ($count >= $limit) {
+		if ($this->cache->inc(self::CACHE_NAMESPACE, $key, self::WINDOW * 2) > $limit) {
 			throw new TooManyRequestsException('inbox rate limit exceeded');
 		}
-
-		$this->cache->set($key, $count + 1, self::WINDOW * 2);
 	}
 }

@@ -25,14 +25,17 @@ use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCA\Social\Tests\Helper\RsaPssSigner;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
@@ -64,8 +67,8 @@ class SignatureServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private SignatureService $service;
-	/** @var array<string, mixed> backing store of the mocked replay cache */
-	private array $seenSignatures = [];
+	/** the replay records, on the table an instance without a memcache uses */
+	private InMemoryDurableCacheRequest $seenSignatures;
 	/** @var array<string, mixed> backing store of the mocked key-attempt cache */
 	private array $keyAttempts = [];
 	/** @var array<string, int> the ttl each cache entry was written with */
@@ -101,14 +104,12 @@ class SignatureServiceTest extends TestCase {
 			->willReturnCallback(fn (int $timeout, callable $action) => $action());
 
 		// in-memory stand-ins for the two distributed caches
-		$this->seenSignatures = [];
+		$this->seenSignatures = new InMemoryDurableCacheRequest();
 		$this->keyAttempts = [];
 		$this->cacheTtl = [];
 		$cacheFactory = $this->createMock(ICacheFactory::class);
 		$cacheFactory->method('createDistributed')->willReturnCallback(
-			fn (string $prefix): ICache => $prefix === 'social.keys'
-				? $this->arrayCache($this->keyAttempts)
-				: $this->arrayCache($this->seenSignatures)
+			fn (string $prefix): ICache => $this->arrayCache($this->keyAttempts)
 		);
 
 		$this->service = new SignatureService(
@@ -122,7 +123,22 @@ class SignatureServiceTest extends TestCase {
 			),
 			$cacheFactory,
 			new NullLogger(),
+			$this->durableCache(),
 		);
+	}
+
+	/**
+	 * The LD replay records as an instance with no memcache keeps them: there,
+	 * `createDistributed()` forgets every write, and a replay cache kept in it
+	 * accepted the same signature twice.
+	 */
+	private function durableCache(): DurableCache {
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(static fn (): int => time());
+
+		return new DurableCache($cacheFactory, $this->seenSignatures, $time);
 	}
 
 	/**
@@ -1179,9 +1195,7 @@ class SignatureServiceTest extends TestCase {
 
 		$cacheFactory = $this->createMock(ICacheFactory::class);
 		$cacheFactory->method('createDistributed')->willReturnCallback(
-			fn (string $prefix): ICache => $prefix === 'social.keys'
-				? $this->arrayCache($this->keyAttempts)
-				: $this->arrayCache($this->seenSignatures)
+			fn (string $prefix): ICache => $this->arrayCache($this->keyAttempts)
 		);
 
 		$this->service = new SignatureService(
@@ -1195,6 +1209,7 @@ class SignatureServiceTest extends TestCase {
 			),
 			$cacheFactory,
 			new NullLogger(),
+			$this->durableCache(),
 		);
 	}
 

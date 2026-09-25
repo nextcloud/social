@@ -33,6 +33,7 @@ use OCA\Social\Search\UnifiedSearchProvider;
 use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
+use OCA\Social\SetupChecks\MemcacheConfigured;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
 use OCA\Social\SetupChecks\ReachableByStrictPeers;
@@ -98,8 +99,8 @@ class Application extends App implements IBootstrap {
 		$context->registerDashboardWidget(SocialFederationHealthWidget::class);
 		$context->registerNotifierService(Notifier::class);
 		$context->registerUserMigrator(SocialMigrator::class);
-		// Administration → Overview: the four things that break federation
-		// silently, in the place an administrator already looks
+		// Administration → Overview: what breaks federation, or switches a
+		// protection off, silently — in the place an administrator already looks
 		$context->registerSetupCheck(WebFingerReachable::class);
 		$context->registerSetupCheck(CloudAddressMatches::class);
 		$context->registerSetupCheck(ReachableByStrictPeers::class);
@@ -108,6 +109,7 @@ class Application extends App implements IBootstrap {
 		$context->registerSetupCheck(OutboundQueueNotStuck::class);
 		$context->registerSetupCheck(ClientApiAtRoot::class);
 		$context->registerSetupCheck(ProxyForwardsTheScheme::class);
+		$context->registerSetupCheck(MemcacheConfigured::class);
 	}
 
 	#[\Override]
