@@ -25,6 +25,7 @@ use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 require_once __DIR__ . '/../TActivityPubMocks.php';
 
@@ -207,6 +208,77 @@ class StreamTest extends TestCase {
 		$attachments = $stream->getAttachments();
 		$this->assertCount(1, $attachments, 'the one that could be stored');
 		$this->assertSame('https://files.mastodon.social/media/dog.png', $attachments[0]->getRemoteUrl());
+	}
+
+	/**
+	 * #2281: a reader reports that a post's pictures are missing and nobody
+	 * can say why. Every way an attachment leaves the import is a `continue`,
+	 * the post keeps its own frozen copy of whichever survived, and none of it
+	 * was written down — so there was nothing to look at afterwards, on the
+	 * instance that dropped them or anywhere else.
+	 */
+	public function testDroppedAttachmentsAreWrittenDownWithTheirReason(): void {
+		$logger = $this->createMock(LoggerInterface::class);
+		$logged = [];
+		$logger->method('warning')->willReturnCallback(
+			function (string $message, array $context = []) use (&$logged): void {
+				$logged[] = [$message, $context];
+			}
+		);
+		\OC::$server->register(LoggerInterface::class, $logger);
+
+		$this->apInterface(DocumentInterface::class)->method('save')
+			->willThrowException(new \RuntimeException('the origin is down'));
+		$this->apInterface(ImageInterface::class)->expects($this->once())->method('save');
+
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'attachment' => [
+				['type' => 'Document', 'mediaType' => 'image/jpeg', 'url' => 'https://files.mastodon.social/media/cat.jpg'],
+				['type' => 'Image', 'mediaType' => 'image/png', 'url' => 'https://files.mastodon.social/media/dog.png'],
+				['type' => 'Link', 'href' => 'https://example.org/'],
+			],
+		]);
+
+		$this->assertCount(1, $logged, 'one line for the post, not one per attachment');
+		[$message, $context] = $logged[0];
+		$this->assertSame('dropped attachments while importing a post', $message);
+		$this->assertSame(3, $context['arrived']);
+		$this->assertSame(1, $context['kept']);
+
+		$reasons = array_column($context['dropped'], 'reason');
+		$this->assertContains('could not be stored', $reasons, 'the one whose save threw');
+		// the Link: its type has no interface, so it never becomes a Document
+		// to have a type checked. The line says which type it was, because the
+		// exception for an unknown one carries no message at all.
+		$this->assertContains('unreadable', $reasons);
+		$link = $context['dropped'][array_search('unreadable', $reasons, true)];
+		$this->assertSame('Link', $link['type']);
+		$this->assertSame('https://example.org/', $link['url']);
+		// and the reason names the file, or the line says nothing useful
+		$stored = $context['dropped'][array_search('could not be stored', $reasons, true)];
+		$this->assertSame('https://files.mastodon.social/media/cat.jpg', $stored['url']);
+		$this->assertStringContainsString('the origin is down', $stored['error']);
+	}
+
+	/** Nothing is logged when every attachment survives. */
+	public function testNothingIsLoggedWhenEveryAttachmentSurvives(): void {
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->never())->method('warning');
+		\OC::$server->register(LoggerInterface::class, $logger);
+
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'attachment' => [
+				['type' => 'Document', 'mediaType' => 'image/jpeg', 'url' => 'https://files.mastodon.social/media/cat.jpg'],
+			],
+		]);
+
+		$this->assertCount(1, $stream->getAttachments());
 	}
 
 	/**
