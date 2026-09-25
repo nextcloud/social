@@ -109,6 +109,51 @@ describe('Subscriptions', () => {
 		expect(wrapper.find('.feeds__name').text()).toBe('A channel')
 	})
 
+	/**
+	 * An add, a remove and an import each hold `busy` for their own spinner
+	 * while they reload, and the reload must not be turned away by it.
+	 */
+	it('lists the entries again after following something', async () => {
+		const wrapper = await mountPage({ feeds: [], items: [] })
+		axios.post.mockResolvedValue({ data: { feed: FEED } })
+		serve()
+
+		wrapper.vm.url = 'https://example.org/feed'
+		await wrapper.vm.add()
+		await flushPromises()
+
+		expect(wrapper.vm.items).toHaveLength(1)
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+		expect(wrapper.text()).not.toContain('Nothing yet')
+	})
+
+	it('lists the entries again after unfollowing something', async () => {
+		const wrapper = await mountPage({ feeds: [FEED, { ...FEED, id: '4', title: 'Another' }] })
+		axios.delete.mockResolvedValue({ data: { unsubscribed: true } })
+
+		await wrapper.vm.remove({ ...FEED, id: '4' })
+		await flushPromises()
+
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+		expect(wrapper.vm.busy).toBe('')
+	})
+
+	it('lists the entries again after a Takeout import', async () => {
+		const wrapper = await mountPage({ feeds: [], items: [] })
+		axios.post.mockResolvedValue({ data: { subscribed: 1, already: 0, failed: {} } })
+		serve()
+
+		const input = wrapper.find('input[type="file"]')
+		Object.defineProperty(input.element, 'files', {
+			value: [new File(['Channel Id,Channel Url,Channel Title'], 'subscriptions.csv')],
+			configurable: true,
+		})
+		await input.trigger('change')
+		await flushPromises()
+
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+	})
+
 	it('unfollows one by its id', async () => {
 		const wrapper = await mountPage()
 		axios.delete.mockResolvedValue({ data: { unsubscribed: true } })

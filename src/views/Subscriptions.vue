@@ -180,7 +180,7 @@ export default {
 			feeds: [],
 			items: [],
 			allLoaded: false,
-			/** '', 'add', 'load', 'takeout' */
+			/** '', 'add', 'remove', 'load', 'takeout' */
 			busy: '',
 		}
 	},
@@ -221,6 +221,19 @@ export default {
 
 			this.busy = 'load'
 			try {
+				await this.fetchPage()
+			} finally {
+				this.busy = ''
+			}
+		},
+
+		/**
+		 * One page appended, with no check of `busy`: `reload()` runs inside
+		 * an add, a remove or an import, which hold `busy` for their own
+		 * spinner, and the list they emptied has to be filled again.
+		 */
+		async fetchPage() {
+			try {
 				const params = { limit: 40 }
 				const last = this.items.at(-1)
 				if (last) {
@@ -236,8 +249,6 @@ export default {
 				this.allLoaded = page.length === 0
 			} catch (error) {
 				logger.warn('Could not load feed entries', { error })
-			} finally {
-				this.busy = ''
 			}
 		},
 
@@ -304,7 +315,7 @@ export default {
 			this.items = []
 			this.allLoaded = false
 			await this.refresh()
-			await this.load()
+			await this.fetchPage()
 		},
 	},
 }
