@@ -477,6 +477,39 @@ describe('App', () => {
 	})
 
 	describe('before the setup is finished', () => {
+		/**
+		 * What `NavigationController::navigate()` sent an administrator before
+		 * any address was set: no `checks` and no `cloudAddress`. The setup form
+		 * read `checks.success` and threw, and the page stayed blank.
+		 */
+		const setupPayload = {
+			public: false,
+			firstrun: false,
+			needsAccount: false,
+			setup: true,
+			isAdmin: true,
+			cliUrl: 'https://cloud.example.org',
+			nsfwPolicy: 'default',
+			nsfwChoice: '',
+			sections: { stories: true, section_photos: true, section_videos: true, section_news: true },
+		}
+
+		it('draws the setup form from the payload the server sends', async () => {
+			setInitialState('social', 'serverData', setupPayload)
+			window._nc_initial_state?.clear()
+			vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })
+			const wrapper = mountApp()
+
+			expect(wrapper.find('.setup h2').text()).toBe('Social app setup')
+
+			await wrapper.find('input.setup-input').setValue('https://social.example.org')
+			await wrapper.find('form').trigger('submit')
+			await flushPromises()
+
+			expect(wrapper.find('.router-view-stub').exists()).toBe(true)
+			expect(wrapper.find('.setup').exists()).toBe(false)
+		})
+
 		it('lets administrators enter the ActivityPub base URL and finish the setup', async () => {
 			setServerData({ setup: true, isAdmin: true })
 			const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: {} })

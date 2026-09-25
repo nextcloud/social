@@ -295,6 +295,28 @@ class NavigationControllerTest extends TestCase {
 		$this->assertArrayNotHasKey('cloudAddress', $this->serverData());
 	}
 
+	/**
+	 * The setup form and the page after it read `checks.success`; without the
+	 * key the form threw while rendering and the administrator got a blank page.
+	 */
+	public function testTheSetupPageCarriesChecksWithoutProbingAnything(): void {
+		$this->systemValues([]);
+		$this->configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());
+		$this->groupManager->method('isAdmin')->willReturn(true);
+		$this->request->method('getParam')->with('cloudAddress')->willReturn(null);
+		$this->checkService->expects($this->never())->method('checkDefault');
+		$this->checkService->method('cloudAddresses')->willReturn(['configured' => '', 'expected' => '']);
+
+		$this->controller()->navigate();
+
+		$this->assertSame([
+			'success' => true,
+			'checks' => [],
+			'addresses' => ['configured' => '', 'expected' => ''],
+			'clientApi' => [],
+		], $this->serverData()['checks']);
+	}
+
 	public function testNavigateStoresTheCloudAddressSubmittedByAnAdmin(): void {
 		$this->systemValues([]);
 		$this->configService->method('getCloudUrl')->willThrowException(new SocialAppConfigException());

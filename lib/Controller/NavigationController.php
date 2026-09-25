@@ -198,6 +198,14 @@ class NavigationController extends Controller {
 						]);
 					} else {
 						$this->logger->info('[NavigationController] Returning setup page (admin user)');
+						// nothing is probed before there is an address to probe
+						// from, but the page reads the same shape either way
+						$serverData['checks'] = [
+							'success' => true,
+							'checks' => [],
+							'addresses' => $this->checkService->cloudAddresses(),
+							'clientApi' => [],
+						];
 						$this->initialState->provideInitialState('serverData', $serverData);
 						return new TemplateResponse(Application::APP_ID, 'main');
 					}

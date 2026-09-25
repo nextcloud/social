@@ -35,7 +35,7 @@
 					{{ t('social', 'Log in to {host}', { host: instanceHost }) }}
 				</NcButton>
 			</div>
-			<div v-if="serverData.isAdmin && !serverData.checks.success" class="setup social__wrapper">
+			<div v-if="serverData.isAdmin && checksFailed" class="setup social__wrapper">
 				<SetupChecks
 					:checks="serverData.checks.checks"
 					:addresses="serverData.checks.addresses"
@@ -102,7 +102,7 @@
 					</NcButton>
 				</p>
 				<SetupChecks
-					v-if="!serverData.checks.success"
+					v-if="checksFailed"
 					:checks="serverData.checks.checks"
 					:addresses="serverData.checks.addresses"
 					:clientApi="serverData.checks.clientApi || []" />
@@ -198,6 +198,16 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
+
+		/**
+		 * Whether the administrator's checks found something to warn about.
+		 * Only an administrator's page carries them at all.
+		 *
+		 * @return {boolean}
+		 */
+		checksFailed() {
+			return this.serverData.checks !== undefined && !this.serverData.checks.success
+		},
 
 		/**
 		 * The server the visitor is already looking at, named so that the
