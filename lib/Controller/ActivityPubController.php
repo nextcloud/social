@@ -720,6 +720,10 @@ class ActivityPubController extends Controller {
 		$enclosing = new OrderedCollectionPage();
 
 		foreach ($posts as $post) {
+			// the author was joined in, which flags the row for this app's own
+			// bookkeeping (`source`, `cache`, `actor_info`, …); a peer gets the
+			// Note as `displayPost()` serves it
+			$post->setCompleteDetails(false);
 			$create = new Create($enclosing);
 			$post->setParent($create);
 			$create->setId($post->getId() . '/activity');
@@ -767,6 +771,7 @@ class ActivityPubController extends Controller {
 				array_map(
 					static function (Stream $post): array {
 						$post->setExportFormat(ACore::FORMAT_ACTIVITYPUB);
+						$post->setCompleteDetails(false);
 
 						return $post->exportAsActivityPub();
 					},

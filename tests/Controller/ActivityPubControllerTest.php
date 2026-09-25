@@ -800,6 +800,55 @@ class ActivityPubControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A row read with its author joined is flagged for complete details, and
+	 * exported that way it carries the stored document as `source`, the whole
+	 * author as `actor_info` and this app's counters and queue state.
+	 */
+	private function bookkeptNote(string $id): Note {
+		$author = new Person();
+		$author->setId('https://cloud.example/@alice');
+		$note = new Note();
+		$note->setId($id);
+		$note->setAttributedTo('https://cloud.example/@alice');
+		$note->setActor($author);
+		$note->setSource('{"id":"' . $id . '"}');
+		$note->setCompleteDetails(true);
+
+		return $note;
+	}
+
+	private function assertNoBookkeeping(array $object): void {
+		foreach (['source', 'actor_info', 'details', 'cache', 'action', 'publishedTime'] as $key) {
+			$this->assertArrayNotHasKey($key, $object);
+		}
+	}
+
+	public function testTheOutboxServesNoInternalBookkeeping(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+		$this->streamRequest->method('getPublicByAuthor')
+			->willReturn([$this->bookkeptNote('https://cloud.example/@alice/notes/1')]);
+
+		$page = json_decode((string)json_encode($this->controller->outbox('alice', '1')->getData()), true);
+
+		$this->assertNoBookkeeping($page['orderedItems'][0]['object']);
+	}
+
+	public function testTheFeaturedCollectionServesNoInternalBookkeeping(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$this->localActor('alice', $actor);
+		$this->pinService->method('getPinnedPosts')
+			->willReturn([$this->bookkeptNote('https://cloud.example/@alice/notes/1')]);
+
+		$collection = json_decode((string)json_encode($this->controller->featured('alice')->getData()), true);
+
+		$this->assertNoBookkeeping($collection['orderedItems'][0]);
+	}
+
 	public function testFeaturedAlwaysServesActivityPubEvenToBrowsers(): void {
 		// unlike followers/following there is no public page to fall back to
 		$this->acceptHeader('text/html');
