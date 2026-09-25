@@ -53,6 +53,21 @@ describe('Migration', () => {
 		expect(wrapper.text()).toContain('Coming from another network')
 	})
 
+	/**
+	 * The inputs are off screen but not hidden: left in the tab order they
+	 * are six unnamed "file upload" stops between the buttons that open them.
+	 */
+	it('leaves only the buttons for a keyboard to reach, not the file inputs behind them', () => {
+		const wrapper = mountPage()
+		const inputs = wrapper.findAll('input[type="file"]')
+
+		expect(inputs).toHaveLength(6)
+		for (const input of inputs) {
+			expect(input.attributes('tabindex')).toBe('-1')
+			expect(input.attributes('aria-hidden')).toBe('true')
+		}
+	})
+
 	// export
 
 	it('asks the server for the archive and saves it under the name it was given', async () => {
