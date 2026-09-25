@@ -96,7 +96,10 @@ jobs:
 
       - name: Set up the app's PHP dependencies
         working-directory: apps/social
-        run: composer i
+        # without the dev ones, as the app store ships it: the app's autoloader
+        # is prepended to the server's, so a dev-only package the server also
+        # carries (symfony/console) is served in place of the server's own
+        run: composer i --no-dev
 
       - name: Set up Nextcloud
         run: |
@@ -271,7 +274,11 @@ jobs:
 
       - name: Interop tests
         working-directory: apps/social
-        run: composer run test:interop
+        # the suite needs phpunit; installed only now, once the server is up
+        # and the app enabled with what ships
+        run: |
+          composer i
+          composer run test:interop
 
       - name: What each side saw, when it went wrong
         if: failure()
