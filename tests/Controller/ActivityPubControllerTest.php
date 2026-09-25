@@ -1469,4 +1469,44 @@ class ActivityPubControllerTest extends TestCase {
 
 		$this->assertSame($page, $this->controller->story('alice', 7));
 	}
+	/**
+	 * The Accept orders peers send, and the header each must get back. The
+	 * dispatcher picks the responder from the first entry it knows, so
+	 * GoToSocial (profiled `ld+json` first) and Mastodon (`activity+json`
+	 * first) reach different responders.
+	 *
+	 * @return array<string, array{string, string}>
+	 */
+	public static function peerAcceptHeaders(): array {
+		return [
+			'GoToSocial' => [
+				'application/ld+json; profile="https://www.w3.org/ns/activitystreams",application/activity+json',
+				'application/ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8',
+			],
+			'Mastodon' => [
+				'application/activity+json, application/ld+json',
+				'application/activity+json; charset=utf-8',
+			],
+		];
+	}
+
+	#[DataProvider('peerAcceptHeaders')]
+	public function testResponderAnswersAnActivityStreamsContentType(string $accept, string $expected): void {
+		$format = $this->controller->getResponderByHTTPHeader($accept);
+		$built = $this->controller->buildResponse(new DataResponse(['type' => 'Person']), $format);
+
+		$this->assertSame($expected, $built->getHeaders()['Content-Type']);
+	}
+
+	#[DataProvider('peerAcceptHeaders')]
+	public function testResponderKeepsTheStatusAndHeaders(string $accept): void {
+		$response = new DataResponse(['status' => -1], Http::STATUS_GONE);
+		$response->addHeader('X-Social-Test', 'kept');
+
+		$format = $this->controller->getResponderByHTTPHeader($accept);
+		$built = $this->controller->buildResponse($response, $format);
+
+		$this->assertSame(Http::STATUS_GONE, $built->getStatus());
+		$this->assertSame('kept', $built->getHeaders()['X-Social-Test']);
+	}
 }

@@ -132,16 +132,30 @@ class ActivityPubController extends Controller {
 		$this->initialState = $initialState;
 		$this->logger = $logger;
 
-		$this->registerResponder('activity+json', function ($response) {
-			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
-			$resp->addHeader('Content-Type', 'application/activity+json; charset=utf-8');
+		$this->registerResponder('activity+json', $this->activityStreamsResponder('application/activity+json; charset=utf-8'));
+		$this->registerResponder(
+			'ld+json; profile="https://www.w3.org/ns/activitystreams"',
+			$this->activityStreamsResponder('application/ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8')
+		);
+	}
+
+	/**
+	 * A responder answering in the media type the peer asked for.
+	 *
+	 * It builds on the framework's own `json` responder so that a returned
+	 * `DataResponse` keeps its status and headers: a 404, 410 or 401 must
+	 * reach the peer as such, not as a 200 with an error in the body. The
+	 * header has to be a type the peer recognises as ActivityStreams —
+	 * GoToSocial asks for the profiled `application/ld+json` first and
+	 * refuses any other answer.
+	 */
+	private function activityStreamsResponder(string $contentType): \Closure {
+		return function ($response) use ($contentType): Response {
+			$resp = $this->buildResponse($response, 'json');
+			$resp->addHeader('Content-Type', $contentType);
+
 			return $resp;
-		});
-		$this->registerResponder('ld+json; profile="https://www.w3.org/ns/activitystreams"', function ($response) {
-			$resp = new \OCP\AppFramework\Http\JSONResponse($response->getData());
-			$resp->addHeader('Content-Type', 'ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8');
-			return $resp;
-		});
+		};
 	}
 
 	/**
