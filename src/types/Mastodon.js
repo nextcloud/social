@@ -142,6 +142,7 @@
  * @property {Reaction[]} reactions - the emoji reactions on the post, most used first; always an array, `[]` when there are none
  * @property {?{state: string, quoted_status: ?Status}} quote - the post this one quotes, null when it quotes none; `state` is pending, accepted, rejected or revoked
  * @property {Poll} [poll] - Ex: null
+ * @property {?number} [view_count] - how many accounts here opened the post; only on the author's own copy, null on everybody else's
  */
 
 /**

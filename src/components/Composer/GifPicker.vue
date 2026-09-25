@@ -134,6 +134,8 @@ export default {
 			loading: true,
 			/** true while an attachment is being made, so nothing is chosen twice */
 			busy: false,
+			/** the pending search, while the reader is still typing */
+			debounce: null,
 		}
 	},
 

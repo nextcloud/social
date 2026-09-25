@@ -93,6 +93,8 @@ export default {
 			cancelling: [],
 			/** whether the last page came back full, so there may be more behind it */
 			hasMore: false,
+			/** the post-scheduled handler, kept so only this one is removed */
+			onScheduled: null,
 		}
 	},
 

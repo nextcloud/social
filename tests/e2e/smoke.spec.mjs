@@ -199,8 +199,8 @@ test.describe('Social, in a browser', () => {
 		const headings = page.locator('.settings__section-heading')
 		await expect(headings.first()).toBeVisible()
 
-		expect((await headings.allInnerTexts()).slice(-3))
-			.toEqual(['Migration', 'Keyboard shortcuts', 'Delete your Social account'])
+		expect((await headings.allInnerTexts()).slice(-2))
+			.toEqual(['Keyboard shortcuts', 'Delete your Social account'])
 	})
 
 	test('Discover has its sections', async ({ page }) => {

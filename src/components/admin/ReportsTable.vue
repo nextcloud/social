@@ -127,7 +127,7 @@ export default {
 	props: {
 		/** the rows, as /moderation/reports sends them */
 		reports: {
-			type: Array,
+			type: /** @type {import('vue').PropType<import('../../types/Moderation.js').ModerationReport[]>} */ (Array),
 			required: true,
 		},
 

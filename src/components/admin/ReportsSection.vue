@@ -108,7 +108,7 @@ export default {
 	props: {
 		/** the first page of the open reports */
 		reports: {
-			type: Array,
+			type: /** @type {import('vue').PropType<import('../../types/Moderation.js').ModerationReport[]>} */ (Array),
 			required: true,
 		},
 

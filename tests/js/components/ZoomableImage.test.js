@@ -4,6 +4,7 @@
  */
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import { isReactive } from 'vue'
 import ZoomableImage from '../../../src/components/ZoomableImage.vue'
 
 /**
@@ -211,5 +212,22 @@ describe('ZoomableImage', () => {
 			expect(wrapper.vm.offsetX).toBe(0)
 			expect(wrapper.vm.offsetY).toBe(0)
 		})
+	})
+
+	// what a gesture keeps changes on every pointermove and nothing renders
+	// from it; a reactive proxy would only add work to each event
+	it('keeps its pointer bookkeeping out of reactivity', async () => {
+		const wrapper = mountImage()
+		giveFrameASize(wrapper)
+
+		await send(wrapper, 'pointerdown', { clientX: 100, pointerId: 1 })
+		expect(wrapper.vm.pointers.size).toBe(1)
+		expect(isReactive(wrapper.vm.pointers)).toBe(false)
+		expect(wrapper.vm.gesture).not.toBeNull()
+		expect(isReactive(wrapper.vm.gesture)).toBe(false)
+
+		await send(wrapper, 'pointerdown', { clientX: 300, pointerId: 2 })
+		expect(wrapper.vm.pinch).not.toBeNull()
+		expect(isReactive(wrapper.vm.pinch)).toBe(false)
 	})
 })
