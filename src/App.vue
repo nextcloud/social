@@ -15,8 +15,9 @@
 		<Navigation v-if="!serverData.public" @search="search" />
 		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
 		<!-- one emoji picker for the page, fetched the first time a reaction
-		     bar asks for one; see ReactionPicker for why it is not on the card -->
-		<ReactionPicker />
+		     bar asks for one; see ReactionPicker for why it is not on the card.
+		     Rendered, even unopened, it is the chunk and all its emoji data -->
+		<ReactionPicker v-if="firstReactionAsk" :firstAsk="firstReactionAsk" />
 		<NcAppContent>
 			<!--
 				A visitor reading a public page has no sidebar and therefore no
@@ -126,7 +127,7 @@ import { listenForShortcuts } from './services/shortcuts.js'
 import TimelineSkeleton from './components/TimelineSkeleton.vue'
 import { pageDirection } from './services/pageOrder.js'
 import { canViewTransition, markDirection, startPageTransition } from './services/pageTransition.js'
-import eventBus from './services/eventBus.js'
+import eventBus, { REACTION_PICK } from './services/eventBus.js'
 
 import axios from '@nextcloud/axios'
 import { loadState } from '@nextcloud/initial-state'
@@ -190,6 +191,8 @@ export default {
 			/** the router hooks, so they can be taken off again */
 			stopBefore: null,
 			stopAfter: null,
+			/** the request that mounts the emoji picker; it takes the rest itself */
+			firstReactionAsk: null,
 		}
 	},
 
@@ -233,6 +236,7 @@ export default {
 		this.watchNavigation()
 		eventBus.on('shortcut:help', this.toggleShortcutHelp)
 		eventBus.on('shortcut:home', this.goHome)
+		eventBus.on(REACTION_PICK, this.onFirstReactionAsk)
 	},
 
 	unmounted() {
@@ -242,6 +246,7 @@ export default {
 		this.disarmPending()
 		eventBus.off('shortcut:help', this.toggleShortcutHelp)
 		eventBus.off('shortcut:home', this.goHome)
+		eventBus.off(REACTION_PICK, this.onFirstReactionAsk)
 	},
 
 	beforeMount() {
@@ -348,6 +353,20 @@ export default {
 		/** @param {string} url where to send the browser; a test replaces this */
 		reloadTo(url) {
 			window.location.assign(url)
+		},
+
+		/**
+		 * Mounts the emoji picker for the first reaction anybody asks for; from
+		 * then on it listens on the bus itself.
+		 *
+		 * @param {{react: Function}} payload who asked, and what to tell
+		 */
+		onFirstReactionAsk(payload) {
+			if (typeof payload?.react !== 'function') {
+				return
+			}
+			eventBus.off(REACTION_PICK, this.onFirstReactionAsk)
+			this.firstReactionAsk = payload
 		},
 
 		toggleShortcutHelp() {

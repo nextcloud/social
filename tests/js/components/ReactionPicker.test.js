@@ -34,6 +34,21 @@ describe('ReactionPicker', () => {
 		expect(wrapper.find('.reaction-picker').exists()).toBe(true)
 	})
 
+	// App mounts the picker on the first request, which it is then too late
+	// to hear on the bus
+	it('answers the request it was mounted for', async () => {
+		const react = vi.fn()
+		const wrapper = mount(ReactionPicker, { props: { firstAsk: { react } }, global: { stubs } })
+		await wrapper.vm.$nextTick()
+
+		expect(wrapper.find('.reaction-picker').exists()).toBe(true)
+
+		wrapper.findComponent({ name: 'NcEmojiPicker' }).vm.$emit('select', '🎉')
+		await wrapper.vm.$nextTick()
+
+		expect(react).toHaveBeenCalledWith('🎉')
+	})
+
 	it('gives the chosen emoji back to whoever asked', async () => {
 		const react = vi.fn()
 		const wrapper = mountPicker()

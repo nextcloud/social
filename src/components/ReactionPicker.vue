@@ -53,8 +53,8 @@ import eventBus, { REACTION_PICK } from '../services/eventBus.js'
 /**
  * The emoji picker the reaction bars share.
  *
- * One for the page, mounted by `App` and fetched only once somebody asks for
- * it. The cards do not own it: `@nextcloud/vue` may not be imported anywhere
+ * One for the page, mounted by `App` only once somebody asks for it, with
+ * that first request as `firstAsk`; later ones arrive over the bus. The cards do not own it: `@nextcloud/vue` may not be imported anywhere
  * under `TimelinePost`, which the app's entry and the dashboard's both pull
  * in — a framework import beneath it moves the shared l10n chunk out of
  * `social-framework` and copies half a megabyte into each entry.
@@ -71,6 +71,14 @@ export default {
 		NcEmojiPicker,
 	},
 
+	props: {
+		/** the request that had the picker mounted, answered as it arrives */
+		firstAsk: {
+			type: /** @type {import('vue').PropType<{react: Function}>} */ (Object),
+			default: null,
+		},
+	},
+
 	data() {
 		return {
 			open: false,
@@ -81,6 +89,9 @@ export default {
 
 	mounted() {
 		eventBus.on(REACTION_PICK, this.onAsked)
+		if (this.firstAsk !== null) {
+			this.onAsked(this.firstAsk)
+		}
 	},
 
 	beforeUnmount() {
