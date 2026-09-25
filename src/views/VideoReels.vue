@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="reels" :aria-label="t('social', 'Videos, one at a time')">
+	<div class="reels" role="region" :aria-label="t('social', 'Videos, one at a time')">
 		<div
 			ref="track"
 			class="reels__track"
@@ -211,12 +211,16 @@ export default {
 		},
 	},
 
+	watch: {
+		// the query is the prop, and the router reuses this view when only
+		// the query changes, so a new scope has to switch the feed here
+		scope() {
+			this.open()
+		},
+	},
+
 	mounted() {
-		this.timelineStore.changeTimelineType({
-			type: 'videos',
-			params: { scope: this.scope },
-		})
-		this.load()
+		this.open()
 
 		// `threshold: 0.6` rather than a bare intersection: two slides touch
 		// the viewport for most of a scroll, and whichever was observed last
@@ -245,6 +249,17 @@ export default {
 
 	methods: {
 		t,
+
+		/** Points the store at the videos of this scope and fetches the first page. */
+		open() {
+			this.timelineStore.changeTimelineType({
+				type: 'videos',
+				params: { scope: this.scope },
+			})
+			this.allLoaded = false
+			this.playing = 0
+			this.load()
+		},
 
 		setSlide(el, index) {
 			this.slides[index] = el
@@ -336,7 +351,9 @@ export default {
 			if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 				event.preventDefault()
 				const next = this.playing + ((event.key === 'ArrowDown') ? 1 : -1)
-				this.slides[next]?.scrollIntoView({ behavior: 'smooth' })
+				this.slides[next]?.scrollIntoView({
+					behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth',
+				})
 			} else if (event.key === ' ') {
 				event.preventDefault()
 				this.togglePlay(this.playing)

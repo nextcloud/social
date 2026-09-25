@@ -194,6 +194,40 @@ describe('VideoReels', () => {
 		expect(scrolled).toEqual([1])
 	})
 
+	it('moves without the smooth scroll for a reader who asked for less motion', async () => {
+		vi.stubGlobal('matchMedia', (query) => ({ matches: query.includes('reduce') }))
+		const { wrapper } = await mountReels()
+		const behaviours = []
+		wrapper.vm.slides.forEach((slide) => {
+			slide.scrollIntoView = (options) => behaviours.push(options.behavior)
+		})
+
+		await wrapper.find('.reels__track').trigger('keydown', { key: 'ArrowDown' })
+
+		expect(behaviours).toEqual(['auto'])
+	})
+
+	it('is announced as a region under its name', async () => {
+		const { wrapper } = await mountReels()
+
+		expect(wrapper.find('.reels').attributes('role')).toBe('region')
+		expect(wrapper.find('.reels').attributes('aria-label')).toBe('Videos, one at a time')
+	})
+
+	/**
+	 * The router keeps this view when only `?scope=` changes, so the prop
+	 * changes under a mounted stack.
+	 */
+	it('switches the feed when the scope changes', async () => {
+		const { wrapper, store } = await mountReels()
+
+		await wrapper.setProps({ scope: 'federated' })
+		await flushPromises()
+
+		expect(store.params.scope).toBe('federated')
+		expect(store.fetchTimeline).toHaveBeenCalledTimes(2)
+	})
+
 	it('pauses and resumes with the space bar', async () => {
 		const { wrapper } = await mountReels()
 		const first = wrapper.findAll('video')[0].element
