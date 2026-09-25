@@ -842,6 +842,27 @@ class ConfigService {
 	}
 
 	/**
+	 * What `social_url` should be for the stored `cloud_url`: that address
+	 * with the app's route path after it, or '' while there is none.
+	 *
+	 * The path is read off the route rather than written out, and taken from
+	 * `/apps/` on, so the web root and `index.php` come from `cloud_url`
+	 * alone and the two cannot disagree about either.
+	 */
+	public function derivedSocialUrl(): string {
+		$cloudUrl = $this->getAppValue(self::CLOUD_URL);
+		if ($cloudUrl === '') {
+			return '';
+		}
+
+		$route = $this->urlGenerator->linkToRoute('social.Navigation.navigate');
+		$pos = strpos($route, '/apps/');
+		$path = ($pos === false) ? '/apps/' . Application::APP_ID . '/' : substr($route, $pos);
+
+		return rtrim($cloudUrl, '/') . $path;
+	}
+
+	/**
 	 * The secret the story capabilities are derived from, made the first time
 	 * one is needed.
 	 *
@@ -861,15 +882,23 @@ class ConfigService {
 	}
 
 	/**
-	 * @param string $url
+	 * Stores the app's own base URL, which every id is minted from.
 	 *
-	 * @throws SocialAppConfigException
+	 * Without an argument it is derived from `cloud_url`, and nothing is
+	 * stored while that is not set. It used to be the absolute URL of the
+	 * request that happened to find it empty — the host and scheme that
+	 * request arrived with — so an instance first opened through an internal
+	 * name, or behind a proxy that does not pass the scheme on, federated
+	 * every id under that address for good while `cloud_url` was right.
+	 *
+	 * @param string $url
 	 */
 	public function setSocialUrl(string $url = '') {
 		if ($url === '') {
-			$url = $this->urlGenerator->getAbsoluteURL(
-				$this->urlGenerator->linkToRoute('social.Navigation.navigate')
-			);
+			$url = $this->derivedSocialUrl();
+			if ($url === '') {
+				return;
+			}
 		}
 
 		if (parse_url($url, PHP_URL_SCHEME) === null) {

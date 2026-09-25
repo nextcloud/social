@@ -176,10 +176,33 @@ class SetupChecksTest extends TestCase {
 			'configured' => 'https://cloud.example', 'expected' => 'https://cloud.example',
 		]);
 		$checkService->method('checkCloudAddress')->willReturn(true);
+		$checkService->method('checkSocialUrl')->willReturn(true);
 
 		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
 
 		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	/**
+	 * The cloud address is right and the ids are not: `social_url` came from
+	 * the first request's host. Nothing compared the two.
+	 */
+	public function testIdsMintedFromAnotherAddressAreAnErrorThatNamesBoth(): void {
+		$checkService = $this->checkService();
+		$checkService->method('cloudAddresses')->willReturn([
+			'configured' => 'https://cloud.example/index.php', 'expected' => 'https://cloud.example/index.php',
+		]);
+		$checkService->method('configuredSocialUrl')->willReturn('http://internal:8080/index.php/apps/social/');
+		$checkService->method('checkCloudAddress')->willReturn(true);
+		$checkService->method('checkSocialUrl')->willReturn(false);
+
+		$result = (new CloudAddressMatches($this->l10n, $checkService))->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::ERROR, $result->getSeverity());
+		$this->assertStringContainsString('http://internal:8080/index.php/apps/social/', $description);
+		$this->assertStringContainsString('occ config:app:delete social social_url', $description);
+		$this->assertStringContainsString('occ social:reset --uri=https://cloud.example/index.php', $description);
 	}
 
 	/**

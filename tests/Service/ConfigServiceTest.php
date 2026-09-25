@@ -337,18 +337,36 @@ class ConfigServiceTest extends TestCase {
 		$this->service->getSocialUrl();
 	}
 
-	public function testSetSocialUrlDerivesItFromTheNavigationRoute(): void {
-		$this->urlGenerator->expects($this->once())
-			->method('linkToRoute')
+	/**
+	 * From the cloud address, not from the request: the request that finds
+	 * `social_url` empty may have arrived through an internal name or a proxy
+	 * that drops the scheme, and whatever it says is inside every id minted
+	 * from then on.
+	 */
+	public function testSetSocialUrlDerivesItFromTheCloudAddressAndNotTheRequest(): void {
+		$this->withAppValues([ConfigService::CLOUD_URL => 'https://cloud.example.com/nextcloud/index.php']);
+		// the route as this request's own URL generator writes it
+		$this->urlGenerator->method('linkToRoute')
 			->with('social.Navigation.navigate')
-			->willReturn('/nextcloud/apps/social/');
-		$this->urlGenerator->expects($this->once())
-			->method('getAbsoluteURL')
-			->with('/nextcloud/apps/social/')
-			->willReturn('https://cloud.example.com/nextcloud/apps/social/');
+			->willReturn('/internal/index.php/apps/social/');
+		$this->urlGenerator->expects($this->never())->method('getAbsoluteURL');
 		$this->appConfig->expects($this->once())
 			->method('setValueString')
-			->with('social', ConfigService::SOCIAL_URL, 'https://cloud.example.com/nextcloud/apps/social/');
+			->with('social', ConfigService::SOCIAL_URL, 'https://cloud.example.com/nextcloud/index.php/apps/social/');
+
+		$this->service->setSocialUrl();
+	}
+
+	public function testTheIndexPhpOfTheSocialUrlIsTheCloudAddresss(): void {
+		$this->withAppValues([ConfigService::CLOUD_URL => 'https://cloud.example.com/']);
+		$this->urlGenerator->method('linkToRoute')->willReturn('/index.php/apps/social/');
+
+		$this->assertSame('https://cloud.example.com/apps/social/', $this->service->derivedSocialUrl());
+	}
+
+	public function testNoSocialUrlIsStoredBeforeThereIsACloudAddress(): void {
+		$this->withAppValues([]);
+		$this->appConfig->expects($this->never())->method('setValueString');
 
 		$this->service->setSocialUrl();
 	}

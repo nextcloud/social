@@ -14,8 +14,9 @@ things it needs are the things any fediverse server needs: a stable public
 address, a `.well-known` answer, and a cron that runs.
 
 **A stable address.** Social copies `overwrite.cli.url` into its own
-`cloud_url` the first time somebody opens the app, and builds every account id,
-post id and WebFinger answer from that copy. It never reads the system value
+`cloud_url` the first time somebody opens the app, derives `social_url` (that
+address followed by `/apps/social/`) from it, and builds every account id,
+post id and WebFinger answer from those copies. It never reads the system value
 again. Set `overwrite.cli.url` — and get it right — before anyone opens Social;
 changing the server's address afterwards is the single most expensive mistake
 available here, because the old address is inside every id already federated.
@@ -261,6 +262,15 @@ To see the two values:
 occ config:app:get social cloud_url
 occ config:system:get overwrite.cli.url
 ```
+
+The same check compares the scheme, host and port of `social_url` — the base
+the ids are actually minted from — with `cloud_url`. They can only disagree on
+an instance set up by an earlier version, which took `social_url` from the
+first request that opened the app: an internal hostname, or `http` behind a
+proxy that does not pass the scheme on. If nothing has federated yet,
+`occ config:app:delete social social_url` and it is derived from `cloud_url`
+the next time the app is opened; otherwise `occ social:reset --uri=<address>`
+moves both.
 
 Social reports the mismatch and will not correct it, because the stored address
 is inside every id already written. Either point `overwrite.cli.url` back at
@@ -568,7 +578,7 @@ the moderation routes accept.
 | Key | Default | Meaning |
 |-----|---------|---------|
 | `cloud_url` | *(empty)* | The base address every id is built from, copied from `overwrite.cli.url` the first time the app is opened. Changing it by hand does not rewrite the ids already issued. |
-| `social_url` | *(empty)* | The app's own base URL (`…/apps/social/`), used for profile links, WebFinger and NodeInfo. Derived at the same moment as `cloud_url`. |
+| `social_url` | *(empty)* | The app's own base URL (`…/apps/social/`), which every id is minted from and which profile links, WebFinger and NodeInfo use. Derived from `cloud_url` — never from the request — the first time the app is opened with `cloud_url` set, and again by `occ social:reset`. |
 | `social_address` | *(empty)* | The hostname accounts are federated under, when it is not the host of `cloud_url`. Only set this if the fediverse address genuinely differs from the Nextcloud host, and only before the first account exists. |
 | `service` | `1` | Unused; a leftover of the original installer. |
 | `installed_version` | | Written by the upgrade machinery. |

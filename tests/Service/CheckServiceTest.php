@@ -651,6 +651,46 @@ class CheckServiceTest extends TestCase {
 		$this->assertTrue($this->service->checkCloudAddress());
 	}
 
+	/** @param string $socialUrl what social_url holds */
+	private function socialUrlIs(string $socialUrl, string $cloudUrl = 'https://social.example/index.php'): void {
+		$this->configService->method('getCloudUrl')->willReturn($cloudUrl);
+		$this->configService->method('getAppValue')->willReturnCallback(
+			fn (string $key): string => $key === ConfigService::SOCIAL_URL ? $socialUrl : ''
+		);
+	}
+
+	/**
+	 * Ids are minted from `social_url`, which used to be the absolute URL of
+	 * the first request that opened the app: behind a proxy that does not
+	 * pass the scheme on, or opened through an internal name, it disagrees
+	 * with `cloud_url` for good and nothing said so.
+	 */
+	public function testIdsMintedUnderAnotherHostThanTheCloudAddressAreReported(): void {
+		$this->socialUrlIs('http://internal-host:8080/index.php/apps/social/');
+
+		$this->assertFalse($this->service->checkSocialUrl());
+	}
+
+	public function testIdsMintedOverAnotherSchemeAreReportedToo(): void {
+		$this->socialUrlIs('http://social.example/index.php/apps/social/');
+
+		$this->assertFalse($this->service->checkSocialUrl());
+	}
+
+	public function testASocialUrlOnTheCloudAddressIsQuietWhateverItsPath(): void {
+		// pretty URLs or not, a web root or not: the path is not what other
+		// servers resolve an id's host by
+		$this->socialUrlIs('https://SOCIAL.example:443/apps/social/');
+
+		$this->assertTrue($this->service->checkSocialUrl());
+	}
+
+	public function testNoSocialUrlYetIsNotADisagreement(): void {
+		$this->socialUrlIs('');
+
+		$this->assertTrue($this->service->checkSocialUrl());
+	}
+
 	public function testTheAddressCheckFailsOnceTheServersUrlHasMovedOn(): void {
 		$this->config->method('getSystemValue')->willReturnCallback(
 			fn (string $key, $default = null) => $key === 'overwrite.cli.url' ? 'https://new.example' : $default

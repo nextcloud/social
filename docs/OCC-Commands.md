@@ -1153,7 +1153,7 @@ php occ social:reset [--uninstall] [--uri ADDRESS] [-f|--force]
 | Option | Value | Description |
 |--------|-------|-------------|
 | `--uninstall` | none | Full removal instead of a data flush |
-| `--uri` | address | The cloud base address to rebuild every id from, instead of being asked for it. This is the option `social:check:install` names when the configured address no longer matches the server |
+| `--uri` | address | The cloud base address to rebuild every id from, instead of being asked for it. This is the option `social:check:install` names when the configured address no longer matches the server. After the flush `social_url`, the base ids are minted from, is derived from the cloud address again, with or without this option |
 | `-f`, `--force` | none | Skip both confirmations (required with `--no-interaction`) |
 
 The command asks **two** confirmations before doing anything:
