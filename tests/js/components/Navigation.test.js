@@ -1259,7 +1259,10 @@ describe('Navigation entries are links', () => {
 			return mount(Navigation, {
 				global: {
 					plugins: [realPinia, appRouter],
-					stubs: { ...realStubs, NcAppNavigationSettings: false },
+					// `transition: false` as well: the panel is inside a
+					// `<Transition>`, and the stub test-utils puts there by default
+					// replaces the div this block is about with a placeholder
+					stubs: { ...realStubs, NcAppNavigationSettings: false, transition: false },
 				},
 			})
 		}
@@ -1286,6 +1289,26 @@ describe('Navigation entries are links', () => {
 			expect(entries.length).toBeGreaterThan(1)
 			const parents = new Set(entries.map((entry) => entry.element.parentElement))
 			expect(parents.size).toBe(entries.length)
+		}, FIRST_REAL_MOUNT_MS)
+
+		/**
+		 * The panel is given its own surface -- background, rounded edge,
+		 * hairline, shadow -- so that the reader's own pages are not eight
+		 * more rows on the end of the list of places to read, and its height
+		 * cap is raised so the last entry is not cut in half. Both are written
+		 * against `> div[id]`, because the component's own class names are
+		 * content-hashed and change with the library, and that div is the one
+		 * the button's `aria-controls` names.
+		 */
+		it('gives the panel an id the button points at, and no sibling to be confused with', async () => {
+			const menu = (await mountWithRealMenu()).find('.navigation__more')
+			const controls = menu.find('button[aria-expanded]').attributes('aria-controls')
+
+			const panels = [...menu.element.children].filter((child) => child.id)
+
+			expect(controls).toBeTruthy()
+			expect(panels.map((panel) => panel.id)).toEqual([controls])
+			expect(panels[0].querySelectorAll('.app-navigation-entry').length).toBeGreaterThan(1)
 		}, FIRST_REAL_MOUNT_MS)
 
 		it('numbers the entries from nothing, in the order they are drawn', async () => {

@@ -1432,6 +1432,57 @@ export default {
 }
 
 /*
+ * The account menu is a panel over the sidebar, not more of the sidebar.
+ *
+ * Its rows are `NcAppNavigationItem`s -- the same component the timelines
+ * above are drawn with -- so opening it put eight more rows on the end of a
+ * column of seven, in the same type at the same indent with the same icons.
+ * Nothing said where the places to read ended and the reader's own pages
+ * began, and over a full sidebar the whole thing read as one list that had
+ * grown rather than as a menu that had opened.
+ *
+ * So while it is open the drawer is drawn as its own surface: the page's
+ * background rather than the sidebar's, a rounded edge, a hairline and a
+ * shadow cast up over the rows it covers. Closed, it is a row like any other
+ * again -- nothing here applies until the button says it is open.
+ *
+ * The panel is addressed as the container's only child carrying an `id`: that
+ * is the element the button's `aria-controls` points at, and the component's
+ * own class names are content-hashed (`_content_CW2CF`) and change with the
+ * next release of the library. There is a test for both.
+ */
+.navigation__more {
+	/* the shadow falls on the entries above, so the panel has to be over them */
+	position: relative;
+	z-index: 2;
+	transition: background-color .2s ease, box-shadow .2s ease;
+}
+
+.navigation__more:has(button[aria-expanded="true"]) {
+	background-color: var(--color-main-background);
+	border-start-start-radius: var(--border-radius-large, 12px);
+	border-start-end-radius: var(--border-radius-large, 12px);
+	box-shadow:
+		0 -1px 0 var(--color-border),
+		0 -10px 24px -12px rgba(0, 0, 0, .35);
+}
+
+.navigation__more > :deep(div[id]) {
+	/* The library caps this at 300px, which is four pixels short of the eight
+	   entries this menu has: Settings, the last of them, was cut in half and
+	   reachable only by scrolling a panel that did not look scrollable. It
+	   still gives way to a short window rather than running off the screen. */
+	max-height: min(60vh, 420px);
+}
+
+/* The account row is the panel's head while the panel is open, so it is set
+   in the ink the rest of the sidebar uses for the page you are on, and the
+   rows below it are inset from it. */
+.navigation__more:has(button[aria-expanded="true"]) :deep(.button-vue__text) {
+	color: var(--color-main-text);
+}
+
+/*
  * The account menu opens as a drawer: the rows come in from the leading edge,
  * one behind the next.
  *
