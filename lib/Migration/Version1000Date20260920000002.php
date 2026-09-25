@@ -72,11 +72,18 @@ class Version1000Date20260920000002 extends SimpleMigrationStep {
 
 		$output->info('filling in the server of ' . $total . ' cached account(s)');
 
+		// keyset on `id_prim`, not "the next rows still empty": a handle with
+		// no `@` (a relay, an actor saved with no `preferredUsername`) is
+		// written back as `''`, still matches, and without the cursor the same
+		// 5,000 of them came back as every page and the upgrade never ended
 		$done = 0;
+		$after = '';
 		while (true) {
 			$page = $this->connection->executeQuery(
 				'SELECT `id_prim`, `account` FROM `' . $table . '`'
-				. ' WHERE (`host` = \'\' OR `host` IS NULL) LIMIT ' . self::BATCH
+				. ' WHERE (`host` = \'\' OR `host` IS NULL) AND `id_prim` > ?'
+				. ' ORDER BY `id_prim` ASC LIMIT ' . self::BATCH,
+				[$after]
 			)->fetchAll();
 
 			if ($page === []) {
@@ -91,6 +98,7 @@ class Version1000Date20260920000002 extends SimpleMigrationStep {
 				$cases .= ' WHEN ? THEN ?';
 				$values[] = (string)$row['id_prim'];
 				$values[] = self::hostOf((string)$row['account']);
+				$after = (string)$row['id_prim'];
 			}
 
 			$in = implode(', ', array_fill(0, count($prims), '?'));
