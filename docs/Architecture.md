@@ -742,9 +742,33 @@ post's.
 when it is written. It is safe to denormalise because a nid never changes after
 the row exists — there is no update path to keep in step, only an insert — and
 it is the only way to have the sort key and the filter on the same table, which
-no index can span. With `(actor_id, type, nid)` the page is a descending index
-range per followed collection, merged, stopping at the limit: **50 ms** against
-the same 1,661, and index-only. Thirty-three times.
+no index can span. With `(actor_id, type, nid)` the page is answered from the
+index alone, without a row lookup: **50 ms** against the same 1,661. It is not a
+merge that stops at the limit — `EXPLAIN` says `range social_sd_atn … Using
+index; Using filesort`: across several collections the database reads every
+entry the predicate admits and sorts them, so those 50 ms were the cost of
+reading and sorting every index entry of the reader's followed collections, and
+they grow with everything those accounts ever posted. What bounds the read is therefore
+the predicate, twice over:
+
+- **The collections** come from `FollowsRequest::limitToHomeCollections()`:
+  up to 500 (`HOME_COLLECTIONS_IN_A_QUERY`) are named in an `IN (…)`; past that
+  the set is an `EXISTS` over `social_follow` correlated on the row, so a
+  statement never carries one parameter per followed account — SQLite refuses
+  one past 32,766. MariaDB turns that `EXISTS` into a semi-join driven from
+  the follow rows, provided nothing is `OR`ed beside it, so the reader's own
+  follower collection — how their own posts reach them — is read by a second
+  query of one collection and merged, rather than named in the list.
+- **The time.** A nid is the publication time times 10⁹ plus a random suffix,
+  so "published in the last day before the cursor" is a range on the same
+  column (`StreamTimelines::homeRecipientNids()`). The page is read within one
+  day first and only a page that comes back short is read again, over a week,
+  a month, a year and finally without a bound. It is exact, not a sample: every
+  row outside a window is further from the cursor than every row inside it, so
+  a window that fills the page holds the same rows the unbounded query would
+  have returned, and the merge with the followed-hashtag half below keeps its
+  guarantee. The home `ETag` (`newestHomeNid()`), which a client asks for every
+  thirty seconds, is the same query with a limit of one.
 
 The rows it reads over are the ones the join matched, which is **every accepted
 follow row of the viewer's, whatever its type** — not only the ones of type
@@ -872,8 +896,10 @@ first, and leaves the rest to the stream queue that exists for it.
 A client asks for the home timeline and the unread count every thirty seconds,
 and the answer is almost always the one it already holds. Both carry an `ETag`
 built from the newest id the viewer can see — which changes exactly when the
-answer does and costs one index-only probe, far less than the page it stands in
-for — so a poll that has not changed is answered `304`. Media carries the stored
+answer does and costs an index-only read of the recipient rows: for the unread
+count one descending range of the viewer's own, for the home timeline the same
+windowed read the page makes, with a limit of one — so a poll that has not
+changed is answered `304`. Media carries the stored
 file's own tag, which matters because a timeline is forty to sixty pictures a
 screen and each was a full Nextcloud boot.
 

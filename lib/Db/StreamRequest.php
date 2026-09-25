@@ -92,6 +92,13 @@ class StreamRequest extends StreamRequestBuilder {
 	private const HOME_OVERREAD_MAX = 300;
 
 	/**
+	 * How far back from its cursor a home page first reads, and how far each
+	 * retry reaches, in seconds; a page still short after the last one reads
+	 * without a bound. See `homeRecipientNids()`.
+	 */
+	private const HOME_WINDOWS = [86400, 7 * 86400, 30 * 86400, 365 * 86400];
+
+	/**
 	 * How many further windows a page that filtering emptied may read. See
 	 * `refilledHomePage()`.
 	 */

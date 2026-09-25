@@ -12,7 +12,6 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Db\CacheDocumentsRequest;
-use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -235,7 +234,6 @@ class ApiController extends Controller {
 		private ScheduledStatusService $scheduledStatusService,
 		private PostReviewService $postReviewService,
 		private SensitiveMediaService $sensitiveMediaService,
-		private FollowsRequest $followsRequest,
 		private ViewCountService $viewCountService,
 		private TeamService $teamService,
 		private EmojiService $emojiService,
@@ -1413,7 +1411,7 @@ class ApiController extends Controller {
 				// a follow, a block, a mute, a filter, a followed hashtag —
 				// none of which moves an id. See TimelineRevisionService.
 				$notModified = $this->notModified(
-					'h' . $this->streamRequest->newestNidFor($this->viewerCollections())
+					'h' . (($this->viewer === null) ? '0' : $this->streamRequest->newestHomeNid($this->viewer))
 					. '-' . $limit
 					. '-' . $this->timelineRevisionService->of($this->currentSession())
 				);
@@ -3977,25 +3975,6 @@ class ApiController extends Controller {
 		}
 
 		return $json;
-	}
-
-	/**
-	 * What the viewer's timelines are keyed on: the collections a page of the
-	 * home timeline is read from.
-	 *
-	 * @return string[]
-	 */
-	private function viewerCollections(): array {
-		if ($this->viewer === null) {
-			return [];
-		}
-
-		$collections = $this->followsRequest->getHomeCollectionPrims($this->viewer->getId());
-		if ($this->viewer->getFollowers() !== '') {
-			$collections[] = md5($this->viewer->getFollowers());
-		}
-
-		return $collections;
 	}
 
 	private function paged(array $items, int $limit, ?array $page = null, ?int $rows = null): DataResponse {

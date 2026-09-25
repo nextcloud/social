@@ -408,7 +408,6 @@ class ApiControllerTest extends TestCase {
 			$this->scheduledStatusService,
 			$this->postReviewService,
 			$this->sensitiveMediaService,
-			$this->createMock(\OCA\Social\Db\FollowsRequest::class),
 			$this->viewCountService,
 			$this->teamService,
 			$this->emojiService,

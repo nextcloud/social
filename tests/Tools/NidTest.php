@@ -44,6 +44,18 @@ class NidTest extends TestCase {
 		);
 	}
 
+	public function testThePublishedTimeIsReadBackOffANid(): void {
+		$this->assertSame(1700000000, Nid::publishedTimeOf('1700000000000000123', 1000000000));
+		$this->assertSame(1700000000, Nid::publishedTimeOf(Nid::fromPublishedTime(1700000000, 999999999, 1000000000), 1000000000));
+	}
+
+	public function testANidTooShortToCarryATimeHasNone(): void {
+		$this->assertSame(0, Nid::publishedTimeOf('123456789', 1000000000));
+		$this->assertSame(0, Nid::publishedTimeOf('0', 1000000000));
+		// thirteen digits of seconds is not a date, and not an int on 32 bits
+		$this->assertSame(0, Nid::publishedTimeOf('1234567890123000000000', 1000000000));
+	}
+
 	public function testNormalizeRejectsNonDecimalValues(): void {
 		$this->expectException(InvalidArgumentException::class);
 		Nid::normalize('12.3');
