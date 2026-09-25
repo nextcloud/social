@@ -862,11 +862,16 @@ class StreamRequest extends StreamRequestBuilder {
 	 *
 	 * Oldest first, because that is the order a thread is read in and the order
 	 * `OrderedCollectionPage` offsets are stable under: newest-first paging
-	 * renumbers every page as soon as somebody replies again.
+	 * renumbers every page as soon as somebody replies again. Ordered on the
+	 * nid, which is the publication time with a random suffix, so that a page
+	 * can start after the last one's final reply (`$after`) rather than read
+	 * and discard every reply before it.
+	 *
+	 * @param string $after the nid the page starts after, '' for none
 	 *
 	 * @return Stream[]
 	 */
-	public function getPublicRepliesTo(string $id, int $limit, int $offset = 0): array {
+	public function getPublicRepliesTo(string $id, int $limit, int $offset = 0, string $after = ''): array {
 		if ($id === '' || $limit < 1) {
 			return [];
 		}
@@ -881,7 +886,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
-		$qb->orderBy('s.published_time', 'asc');
+		if ($after !== '') {
+			$qb->andWhere($qb->expr()->gt('s.nid', $qb->createNamedParameter(Nid::normalize($after))));
+		}
+
+		$qb->orderBy('s.nid', 'asc');
 		$qb->setMaxResults($limit);
 		$qb->setFirstResult($offset);
 
@@ -1136,14 +1145,18 @@ class StreamRequest extends StreamRequestBuilder {
 	/**
 	 * The public posts of one author, oldest last, in fixed-size windows.
 	 *
-	 * The outbox collection is paged by page number rather than by cursor —
-	 * that is what the collection itself advertises, and what a consumer
-	 * walking `first`/`next` follows — so this takes an offset instead of the
-	 * `since` the client timelines use.
+	 * Newest first, on the nid. The collection's `first` is still numbered and
+	 * a numbered page is still answered, by offset, because those are the
+	 * addresses peers already hold; every `next` link is a cursor (`$before`,
+	 * the nid of the previous page's last post), which the author's
+	 * `attributed_to_prim` index answers in nid order without reading the
+	 * pages before it.
+	 *
+	 * @param string $before the nid the page starts below, '' for none
 	 *
 	 * @return Stream[]
 	 */
-	public function getPublicByAuthor(string $actorId, int $limit, int $offset = 0): array {
+	public function getPublicByAuthor(string $actorId, int $limit, int $offset = 0, string $before = ''): array {
 		if ($actorId === '' || $limit < 1) {
 			return [];
 		}
@@ -1158,7 +1171,11 @@ class StreamRequest extends StreamRequestBuilder {
 
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 
-		$qb->orderBy('s.published_time', 'desc');
+		if ($before !== '') {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter(Nid::normalize($before))));
+		}
+
+		$qb->orderBy('s.nid', 'desc');
 		$qb->setMaxResults($limit);
 		$qb->setFirstResult($offset);
 

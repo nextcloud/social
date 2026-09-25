@@ -603,11 +603,44 @@ class FollowServiceTest extends TestCase {
 		$page = $this->service->getFollowersPage($this->alice(), 2);
 
 		$this->assertSame('https://cloud.example/apps/social/@alice/followers?page=1', $page->getPrev());
+		$last = $this->follow(self::BOB_ID, self::ALICE_ID, true);
 		$this->assertSame(
-			'https://cloud.example/apps/social/@alice/followers?page=3',
+			'https://cloud.example/apps/social/@alice/followers?page=true&max_id=' . FollowsRequest::cursorAfter($last),
 			$page->getNext(),
-			'a full page cannot know it is the last'
+			'a full page cannot know it is the last, and the next one starts after its last row'
 		);
+	}
+
+	/** The page after a cursor is read from the cursor, not at an offset. */
+	public function testAFollowersCursorPageIsReadAfterItsCursor(): void {
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturn('https://cloud.example/apps/social/@alice/followers');
+		$cursor = '1790000000-' . md5('https://remote.example/follow/1');
+		$this->followsRequest->expects($this->once())
+			->method('getFollowersByActorId')
+			->with(self::ALICE_ID, OrderedCollection::PAGE_SIZE, 0, $cursor)
+			->willReturn([$this->follow(self::BOB_ID, self::ALICE_ID, true)]);
+
+		$page = $this->service->getFollowersPage($this->alice(), 1, $cursor);
+
+		$this->assertSame(
+			'https://cloud.example/apps/social/@alice/followers?page=true&max_id=' . rawurlencode($cursor), $page->getId()
+		);
+		$this->assertSame([self::BOB_ID], $page->getOrderedItems());
+		$this->assertSame('', $page->getNext(), 'a short page is the last');
+		$this->assertSame('', $page->getPrev());
+	}
+
+	public function testAFollowingCursorPageIsReadAfterItsCursor(): void {
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturn('https://cloud.example/apps/social/@alice/following');
+		$cursor = '1790000000-' . md5('https://remote.example/follow/1');
+		$this->followsRequest->expects($this->once())
+			->method('getFollowingByActorId')
+			->with(self::ALICE_ID, OrderedCollection::PAGE_SIZE, 0, $cursor)
+			->willReturn([$this->follow(self::ALICE_ID, self::BOB_ID, true)]);
+
+		$this->assertSame([self::BOB_ID], $this->service->getFollowingPage($this->alice(), 1, $cursor)->getOrderedItems());
 	}
 
 	public function testFollowingPageListsTheFollowedActorUris(): void {

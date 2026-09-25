@@ -1046,6 +1046,7 @@ class ActivityPubControllerTest extends TestCase {
 			$note = new Note();
 			$note->setId('https://cloud.example/@alice/notes/' . $i);
 			$note->setAttributedTo('https://cloud.example/@alice');
+			$note->setNid((string)(1790000000000000100 - $i));
 			$posts[] = $note;
 		}
 		$this->streamRequest->method('getPublicByAuthor')->willReturn($posts);
@@ -1053,8 +1054,47 @@ class ActivityPubControllerTest extends TestCase {
 		/** @var OrderedCollectionPage $page */
 		$page = $this->controller->outbox('alice', '2')->getData();
 
-		$this->assertSame('https://cloud.example/@alice/outbox?page=3', $page->getNext());
+		// the next page starts below this one's last post, not at an offset
+		$this->assertSame(
+			'https://cloud.example/@alice/outbox?page=true&max_id=' . (1790000000000000100 - OrderedCollection::PAGE_SIZE + 1),
+			$page->getNext()
+		);
 		$this->assertSame('https://cloud.example/@alice/outbox?page=1', $page->getPrev());
+	}
+
+	/**
+	 * A cursor page reads below its cursor rather than at an offset: page
+	 * 2,500 used to read and discard 100,000 posts first, on every fetch.
+	 */
+	public function testAnOutboxCursorPageIsReadBelowItsCursor(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+
+		$this->streamRequest->expects($this->once())->method('getPublicByAuthor')
+			->with('https://cloud.example/@alice', OrderedCollection::PAGE_SIZE, 0, '1790000000000000077')
+			->willReturn([]);
+
+		/** @var OrderedCollectionPage $page */
+		$page = $this->controller->outbox('alice', 'true', '1790000000000000077')->getData();
+
+		$this->assertSame('https://cloud.example/@alice/outbox?page=true&max_id=1790000000000000077', $page->getId());
+		$this->assertSame('', $page->getNext());
+	}
+
+	public function testAnOutboxCursorThatIsNotANidStartsNoPage(): void {
+		$actor = new Person();
+		$actor->setId('https://cloud.example/@alice');
+		$actor->setOutbox('https://cloud.example/@alice/outbox');
+		$this->localActor('alice', $actor);
+
+		$this->streamRequest->expects($this->never())->method('getPublicByAuthor');
+
+		/** @var OrderedCollectionPage $page */
+		$page = $this->controller->outbox('alice', 'true', "1' OR 1=1")->getData();
+
+		$this->assertSame([], $page->getOrderedItems());
 	}
 
 	public function testFollowersOfUnknownUserFails(): void {

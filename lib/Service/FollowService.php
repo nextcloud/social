@@ -477,20 +477,35 @@ class FollowService {
 	 * how another instance discovers who to deliver to when its own record is
 	 * incomplete, and how account migration tools rebuild a follower list.
 	 */
-	public function getFollowersPage(Person $actor, int $page): OrderedCollectionPage {
-		return OrderedCollectionPage::of(
-			$actor->getFollowers(),
-			$this->collectionRoute('social.ActivityPub.followers', $actor),
-			$page,
-			array_map(
-				static fn (Follow $follow): string => $follow->getActorId(),
-				$this->followsRequest->getFollowersByActorId(
-					$actor->getId(),
-					OrderedCollection::PAGE_SIZE,
-					($page - 1) * OrderedCollection::PAGE_SIZE
-				)
-			)
+	public function getFollowersPage(Person $actor, int $page, string $before = ''): OrderedCollectionPage {
+		return $this->followPage(
+			$actor->getFollowers(), $this->collectionRoute('social.ActivityPub.followers', $actor), $page, $before,
+			fn (int $offset, string $cursor): array => $this->followsRequest->getFollowersByActorId(
+				$actor->getId(), OrderedCollection::PAGE_SIZE, $offset, $cursor
+			),
+			static fn (Follow $follow): string => $follow->getActorId()
 		);
+	}
+
+	/**
+	 * A page of the followers or following collection: by number when a
+	 * `page` was asked for, after a cursor when a `max_id` was, and with its
+	 * `next` a cursor either way; see OrderedCollectionPage::of().
+	 *
+	 * @param callable(int, string): Follow[] $read the follows at an offset or after a cursor
+	 * @param callable(Follow): string $item what the collection lists of each
+	 */
+	private function followPage(
+		string $collection, string $route, int $page, string $before, callable $read, callable $item,
+	): OrderedCollectionPage {
+		$follows = ($before === '') ? $read(($page - 1) * OrderedCollection::PAGE_SIZE, '') : $read(0, $before);
+		$last = end($follows);
+		$next = ($last === false) ? '' : FollowsRequest::cursorAfter($last);
+		$items = array_values(array_map($item, $follows));
+
+		return ($before === '')
+			? OrderedCollectionPage::of($collection, $route, $page, $items, $next)
+			: OrderedCollectionPage::after($collection, $route, 'max_id', $before, $items, $next);
 	}
 
 	/**
@@ -518,19 +533,13 @@ class FollowService {
 	}
 
 	/** One page of the following collection. See getFollowersPage(). */
-	public function getFollowingPage(Person $actor, int $page): OrderedCollectionPage {
-		return OrderedCollectionPage::of(
-			$actor->getFollowing(),
-			$this->collectionRoute('social.ActivityPub.following', $actor),
-			$page,
-			array_map(
-				static fn (Follow $follow): string => $follow->getObjectId(),
-				$this->followsRequest->getFollowingByActorId(
-					$actor->getId(),
-					OrderedCollection::PAGE_SIZE,
-					($page - 1) * OrderedCollection::PAGE_SIZE
-				)
-			)
+	public function getFollowingPage(Person $actor, int $page, string $before = ''): OrderedCollectionPage {
+		return $this->followPage(
+			$actor->getFollowing(), $this->collectionRoute('social.ActivityPub.following', $actor), $page, $before,
+			fn (int $offset, string $cursor): array => $this->followsRequest->getFollowingByActorId(
+				$actor->getId(), OrderedCollection::PAGE_SIZE, $offset, $cursor
+			),
+			static fn (Follow $follow): string => $follow->getObjectId()
 		);
 	}
 

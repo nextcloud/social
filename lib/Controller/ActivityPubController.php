@@ -684,7 +684,7 @@ class ActivityPubController extends Controller {
 	// replaced the GET and remote servers fetching an outbox got nothing.
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/outbox')]
 	#[FrontpageRoute(verb: 'POST', url: '/@{username}/outbox', postfix: 'post')]
-	public function outbox(string $username, string $page = ''): Response {
+	public function outbox(string $username, string $page = '', string $max_id = ''): Response {
 		//		if (!$this->checkSourceActivityStreams()) {
 		//			return $this->socialPubController->outbox($username);
 		//		}
@@ -699,8 +699,8 @@ class ActivityPubController extends Controller {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$requested = OrderedCollectionPage::requestedPage($page);
-			if ($requested > 0) {
-				return $this->activityPubSuccess($this->outboxPage($actor, $requested));
+			if ($requested > 0 || $max_id !== '') {
+				return $this->activityPubSuccess($this->outboxPage($actor, max(1, $requested), $max_id));
 			}
 
 			return $this->activityPubSuccess($this->streamService->getOutboxCollection($actor));
@@ -717,13 +717,18 @@ class ActivityPubController extends Controller {
 	 * what was sent: the post is the durable record, and a consumer reading an
 	 * outbox wants the object, not our original delivery envelope.
 	 */
-	private function outboxPage(Person $actor, int $page): OrderedCollectionPage {
+	private function outboxPage(Person $actor, int $page, string $before = ''): OrderedCollectionPage {
 		$items = [];
-		$posts = $this->streamRequest->getPublicByAuthor(
-			$actor->getId(),
-			OrderedCollection::PAGE_SIZE,
-			($page - 1) * OrderedCollection::PAGE_SIZE
-		);
+		$numbered = ($before === '');
+		// a cursor is a nid; anything else starts no page
+		$posts = (!$numbered && !ctype_digit($before))
+			? []
+			: $this->streamRequest->getPublicByAuthor(
+				$actor->getId(),
+				OrderedCollection::PAGE_SIZE,
+				$numbered ? ($page - 1) * OrderedCollection::PAGE_SIZE : 0,
+				$before
+			);
 
 		// The activities live inside the page, so none of them is a document
 		// root: giving each one a parent is what keeps a `@context` off all
@@ -748,7 +753,12 @@ class ActivityPubController extends Controller {
 			$items[] = $create->exportAsActivityPub();
 		}
 
-		return OrderedCollectionPage::of($actor->getOutbox(), $actor->getOutbox(), $page, $items);
+		$last = end($posts);
+		$next = ($last === false) ? '' : (string)$last->getNid();
+
+		return $numbered
+			? OrderedCollectionPage::of($actor->getOutbox(), $actor->getOutbox(), $page, $items, $next)
+			: OrderedCollectionPage::after($actor->getOutbox(), $actor->getOutbox(), 'max_id', $before, $items, $next);
 	}
 
 	/**
@@ -809,7 +819,7 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/followers')]
-	public function followers(string $username, string $page = ''): Response {
+	public function followers(string $username, string $page = '', string $max_id = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->followers($username);
 		}
@@ -828,9 +838,9 @@ class ActivityPubController extends Controller {
 			// collection again and its `first` pointed at itself: a consumer
 			// following it looped or gave up.
 			$requested = OrderedCollectionPage::requestedPage($page);
-			if ($requested > 0) {
+			if ($requested > 0 || $max_id !== '') {
 				return $this->activityPubSuccess(
-					$this->followService->getFollowersPage($actor, $requested)
+					$this->followService->getFollowersPage($actor, max(1, $requested), $max_id)
 				);
 			}
 
@@ -853,7 +863,7 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/following')]
-	public function following(string $username, string $page = ''): Response {
+	public function following(string $username, string $page = '', string $max_id = ''): Response {
 		if (!$this->checkSourceActivityStreams()) {
 			return $this->socialPubController->following($username);
 		}
@@ -868,9 +878,9 @@ class ActivityPubController extends Controller {
 			$actor = $this->cacheActorService->getFromLocalAccount($username);
 
 			$requested = OrderedCollectionPage::requestedPage($page);
-			if ($requested > 0) {
+			if ($requested > 0 || $max_id !== '') {
 				return $this->activityPubSuccess(
-					$this->followService->getFollowingPage($actor, $requested)
+					$this->followService->getFollowingPage($actor, max(1, $requested), $max_id)
 				);
 			}
 
@@ -963,7 +973,7 @@ class ActivityPubController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/@{username}/{token}/replies')]
-	public function replies(string $username, string $token, string $page = ''): Response {
+	public function replies(string $username, string $token, string $page = '', string $min_id = ''): Response {
 		$postId = $this->configService->getSocialUrl() . '@' . $username . '/' . $token;
 
 		try {
@@ -989,8 +999,8 @@ class ActivityPubController extends Controller {
 		}
 
 		$requested = OrderedCollectionPage::requestedPage($page);
-		if ($requested > 0) {
-			return $this->activityPubSuccess($this->streamService->getRepliesPage($post, $requested));
+		if ($requested > 0 || $min_id !== '') {
+			return $this->activityPubSuccess($this->streamService->getRepliesPage($post, max(1, $requested), $min_id));
 		}
 
 		return $this->activityPubSuccess($this->streamService->getRepliesCollection($post));

@@ -26,27 +26,65 @@ class OrderedCollectionPage extends ACore implements JsonSerializable {
 	}
 
 	/**
-	 * One page of a collection: the items, a back-reference to the collection
-	 * they belong to, and the neighbours a consumer walks.
+	 * One page of a collection by number: the items, a back-reference to the
+	 * collection they belong to, and the neighbours a consumer walks.
 	 *
 	 * `next` is present exactly when the page came back full — the only thing
 	 * that can be known here without counting the whole collection again — so a
-	 * consumer stops at the first page that is not.
+	 * consumer stops at the first page that is not. With `$nextCursor` it
+	 * points at a cursor page (see after()) rather than at the next number:
+	 * a numbered page is an offset, which reads and discards every item before
+	 * it, and a consumer following `next` from page one would pay that on
+	 * every page after it.
 	 *
 	 * @param string[]|array[] $items
+	 * @param string $cursorName the query parameter a cursor travels in
 	 */
-	public static function of(string $partOf, string $pageUrl, int $page, array $items): self {
+	public static function of(
+		string $partOf, string $pageUrl, int $page, array $items, string $nextCursor = '', string $cursorName = 'max_id',
+	): self {
+		$next = ($nextCursor === '')
+			? $pageUrl . '?page=' . ($page + 1)
+			: self::cursorUrl($pageUrl, $cursorName, $nextCursor);
+
+		return self::build(
+			$partOf, $pageUrl . '?page=' . $page, $items, $next,
+			($page > 1) ? $pageUrl . '?page=' . ($page - 1) : ''
+		);
+	}
+
+	/**
+	 * The page after a cursor: what every `next` link of a collection names.
+	 * It carries no `prev`: the collection is walked forwards from `first`.
+	 *
+	 * @param string[]|array[] $items
+	 * @param string $cursor where this page starts
+	 * @param string $nextCursor where the page after it would
+	 */
+	public static function after(
+		string $partOf, string $pageUrl, string $cursorName, string $cursor, array $items, string $nextCursor,
+	): self {
+		return self::build(
+			$partOf, self::cursorUrl($pageUrl, $cursorName, $cursor), $items,
+			self::cursorUrl($pageUrl, $cursorName, $nextCursor), ''
+		);
+	}
+
+	private static function cursorUrl(string $pageUrl, string $cursorName, string $cursor): string {
+		return $pageUrl . '?page=true&' . $cursorName . '=' . rawurlencode($cursor);
+	}
+
+	/** @param string[]|array[] $items */
+	private static function build(string $partOf, string $id, array $items, string $next, string $prev): self {
 		$collectionPage = new self();
-		$collectionPage->setId($pageUrl . '?page=' . $page);
+		$collectionPage->setId($id);
 		$collectionPage->setPartOf($partOf);
 		$collectionPage->setOrderedItems($items);
 
 		if (count($items) === OrderedCollection::PAGE_SIZE) {
-			$collectionPage->setNext($pageUrl . '?page=' . ($page + 1));
+			$collectionPage->setNext($next);
 		}
-		if ($page > 1) {
-			$collectionPage->setPrev($pageUrl . '?page=' . ($page - 1));
-		}
+		$collectionPage->setPrev($prev);
 
 		return $collectionPage;
 	}
