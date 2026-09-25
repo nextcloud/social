@@ -1,0 +1,146 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Tests\Federation;
+
+use OCA\Social\AP;
+use OCA\Social\Exceptions\ActivityPubFormatException;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\ImportService;
+use OCA\Social\Tests\Model\TActivityPubMocks;
+use PHPUnit\Framework\TestCase;
+
+require_once __DIR__ . '/../Model/TActivityPubMocks.php';
+
+/**
+ * The forms ActivityStreams allows a document to take that are not the ones
+ * Mastodon sends: a single object where a list is usual, a string where an
+ * object is, a short spelling of a well-known IRI. Each of these arrives from
+ * some peer, and each was lost or broke the delivery.
+ */
+class LenientImportTest extends TestCase {
+	use TActivityPubMocks;
+
+	protected function setUp(): void {
+		$this->installActivityPub();
+		\OC::$server->register(\OCP\IURLGenerator::class, $this->createMock(\OCP\IURLGenerator::class));
+		$this->apInterface(\OCA\Social\Interfaces\Actor\PersonInterface::class)
+			->method('getItemById')
+			->willThrowException(new \OCA\Social\Exceptions\ItemNotFoundException());
+	}
+
+	protected function tearDown(): void {
+		AP::set(null);
+		\OC::$server->reset();
+	}
+
+	/** @param array<string, mixed> $extra */
+	private function actor(array $extra = []): Person {
+		$person = AP::instance()->getItemFromData(array_merge([
+			'@context' => 'https://www.w3.org/ns/activitystreams',
+			'id' => 'https://peertube.example/accounts/alice',
+			'type' => 'Person',
+			'preferredUsername' => 'alice',
+			'name' => 'Alice',
+			'inbox' => 'https://peertube.example/accounts/alice/inbox',
+			'outbox' => 'https://peertube.example/accounts/alice/outbox',
+			'publicKey' => [
+				'id' => 'https://peertube.example/accounts/alice#main-key',
+				'owner' => 'https://peertube.example/accounts/alice',
+				'publicKeyPem' => "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n",
+			],
+		], $extra));
+		$this->assertInstanceOf(Person::class, $person);
+
+		return $person;
+	}
+
+	/** @param array<string, mixed> $extra */
+	private function note(array $extra = []): Note {
+		$note = AP::instance()->getItemFromData(array_merge([
+			'id' => 'https://peer.example/notes/1',
+			'type' => 'Note',
+			'attributedTo' => 'https://peer.example/users/bob',
+			'content' => '<p>hello</p>',
+			'published' => '2026-09-01T00:00:00Z',
+			'to' => ['https://www.w3.org/ns/activitystreams#Public'],
+			'cc' => ['https://peer.example/users/bob/followers'],
+		], $extra));
+		$this->assertInstanceOf(Note::class, $note);
+
+		return $note;
+	}
+
+	public function testASingleAttachmentObjectIsOneAttachment(): void {
+		$note = $this->note([
+			'attachment' => ['type' => 'Document', 'mediaType' => 'image/jpeg', 'url' => 'https://peer.example/media/1.jpg'],
+		]);
+
+		$this->assertCount(1, $note->getAttachments());
+	}
+
+	public function testAnAttachmentThatIsNotAnObjectIsSkipped(): void {
+		$note = $this->note(['attachment' => ['https://peer.example/media/1.jpg', 42]]);
+
+		$this->assertSame([], $note->getAttachments());
+	}
+
+	public function testASingleTagObjectIsOneTag(): void {
+		$note = $this->note([
+			'tag' => ['type' => 'Hashtag', 'name' => '#photography', 'href' => 'https://peer.example/tags/photography'],
+		]);
+
+		$this->assertSame(['photography'], $note->getHashtags());
+	}
+
+	public function testASingleEmojiTagObjectIsRead(): void {
+		$note = $this->note([
+			'content' => '<p>hi :wave:</p>',
+			'tag' => ['type' => 'Emoji', 'name' => ':wave:', 'icon' => ['type' => 'Image', 'url' => 'https://peer.example/emoji/wave.png']],
+		]);
+
+		$this->assertSame('wave', $note->getEmojis()[0]['shortcode'] ?? null);
+	}
+
+	public function testASingleRecipientStringIsARecipient(): void {
+		$note = $this->note(['to' => 'https://www.w3.org/ns/activitystreams#Public', 'cc' => 'https://peer.example/users/bob/followers']);
+
+		$this->assertSame(['https://www.w3.org/ns/activitystreams#Public'], $note->getToArray());
+		$this->assertSame(['https://peer.example/users/bob/followers'], $note->getCcArray());
+	}
+
+	public function testASinglePropertyValueIsAProfileField(): void {
+		$person = $this->actor(['attachment' => ['type' => 'PropertyValue', 'name' => 'Web', 'value' => 'https://alice.example']]);
+
+		$this->assertSame([['name' => 'Web', 'value' => 'https://alice.example']], $person->getFields());
+	}
+
+	public function testAModelTypeErrorIsAFormatError(): void {
+		// what a 500 used to be made of: a model handed a string where it
+		// declares an array, deep inside the import
+		$ap = $this->createMock(AP::class);
+		$ap->method('getItemFromData')->willThrowException(new \TypeError('must be of type array, string given'));
+		AP::set($ap);
+		$service = $this->getMockBuilder(ImportService::class)->disableOriginalConstructor()->onlyMethods([])->getMock();
+
+		$this->expectException(ActivityPubFormatException::class);
+
+		$service->importFromJson('{"type":"Create"}');
+	}
+
+	public function testListOfTakesEveryFormAFieldArrivesIn(): void {
+		$this->assertSame([], ACore::listOf('k', []));
+		$this->assertSame([], ACore::listOf('k', ['k' => null]));
+		$this->assertSame(['a'], ACore::listOf('k', ['k' => 'a']));
+		$this->assertSame([['type' => 'X']], ACore::listOf('k', ['k' => ['type' => 'X']]));
+		$this->assertSame(['a', 'b'], ACore::listOf('k', ['k' => ['a', 'b']]));
+	}
+}

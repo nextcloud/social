@@ -1292,7 +1292,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setContent($this->get('content', $data, ''));
 		$this->setLanguage(self::languageOf($data));
 		$this->setUpdated($this->validate(self::AS_DATE, 'updated', $data, ''));
-		$this->importAttachments($this->getArray('attachment', $data, []));
+		$this->importAttachments(self::listOf('attachment', $data));
 		$this->convertPublished();
 
 		$remoteLikes = self::statedCount($data, 'likes');
@@ -1424,10 +1424,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				break;
 			}
 
+			if (!is_array($item)) {
+				continue;
+			}
+
 			try {
 				/** @var Document $attachment */
 				$attachment = AP::instance()->getItemFromData($item, $this);
-			} catch (Exception $e) {
+			} catch (Exception|\TypeError $e) {
 				continue;
 			}
 
@@ -1535,7 +1539,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				// field falls back on its own, because a post may legitimately
 				// have four of the five empty.
 				if ($this->getTags() === []) {
-					$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $sourceData, []));
+					$this->setTags($this->validateArray(self::AS_TAGS, 'tag', ['tag' => self::listOf('tag', $sourceData)], []));
 				}
 				if ($this->getLanguage() === '') {
 					$this->setLanguage(self::languageOf($sourceData));

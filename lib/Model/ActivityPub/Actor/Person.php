@@ -870,7 +870,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	private function extractFieldsFromAttachment(array $data): array {
 		$fields = [];
-		foreach ($this->getArray('attachment', $data, []) as $entry) {
+		foreach (self::listOf('attachment', $data) as $entry) {
 			if (!is_array($entry) || ($entry['type'] ?? '') !== 'PropertyValue') {
 				continue;
 			}

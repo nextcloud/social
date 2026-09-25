@@ -784,7 +784,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 */
 	protected function extractEmojisFromTag(array $data): array {
 		$emojis = [];
-		foreach ($this->getArray('tag', $data, []) as $tag) {
+		foreach (self::listOf('tag', $data) as $tag) {
 			if (!is_array($tag) || ($tag['type'] ?? '') !== 'Emoji') {
 				continue;
 			}
@@ -820,7 +820,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		$this->setPublished($this->validate(self::AS_DATE, 'published', $data, ''));
 		$this->setActorId($this->validate(self::AS_ID, 'actor', $data, ''));
 		$this->setObjectId($this->validate(self::AS_ID, 'object', $data, ''));
-		$this->setTags($this->validateArray(self::AS_TAGS, 'tag', $data, []));
+		$this->setTags($this->validateArray(self::AS_TAGS, 'tag', ['tag' => self::listOf('tag', $data)], []));
 	}
 
 	/**
@@ -837,11 +837,32 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	 * @return string[]
 	 */
 	private function validateRecipients(string $k, array $data): array {
-		if (is_string($data[$k] ?? null)) {
-			$data[$k] = [$data[$k]];
+		return $this->validateArray(self::AS_ID, $k, [$k => self::listOf($k, $data)], []);
+	}
+
+	/**
+	 * A field of an incoming document as a list, whichever of the forms
+	 * ActivityStreams allows it came in.
+	 *
+	 * Every property that is not functional may be one value or a list of
+	 * them: `"attachment": {…}`, `"tag": {…}` and `"to": "…#Public"` are all
+	 * sent. Read through `getArray()`, a single object was walked value by
+	 * value — a string handed to a parser that wants an array, which is a
+	 * TypeError and a 500 for the whole delivery — and a single string was
+	 * json-decoded into nothing. This is for wire documents only; a database
+	 * row keeps `getArray()`, where a string is a JSON column.
+	 *
+	 * @param array<array-key, mixed> $data
+	 *
+	 * @return list<mixed>
+	 */
+	public static function listOf(string $k, array $data): array {
+		$value = $data[$k] ?? null;
+		if (is_string($value) || (is_array($value) && $value !== [] && !array_is_list($value))) {
+			return [$value];
 		}
 
-		return $this->validateArray(self::AS_ID, $k, $data, []);
+		return is_array($value) ? array_values($value) : [];
 	}
 
 	/**
