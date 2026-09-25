@@ -11,7 +11,7 @@ namespace OCA\Social\Tests\Migration;
 
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Migration\Version1000Date20221118000002;
-use OCA\Social\Migration\Version1000Date20260924000001;
+use OCA\Social\Migration\Version1000Date20260925000020;
 use OCP\DB\Types;
 use OCP\IAppConfig;
 use PHPUnit\Framework\TestCase;
@@ -27,7 +27,7 @@ class InterestTablesTest extends TestCase {
 	/** @return array<string, array{columns: array, indexes: array, primary: array}> */
 	private function schema(): array {
 		return MigrationReplay::run(
-			[Version1000Date20221118000002::class, Version1000Date20260924000001::class],
+			[Version1000Date20221118000002::class, Version1000Date20260925000020::class],
 			[IAppConfig::class => $this->createStub(IAppConfig::class)]
 		)->shape();
 	}
@@ -74,10 +74,10 @@ class InterestTablesTest extends TestCase {
 
 	public function testRunTwiceItAsksForNothingTheSecondTime(): void {
 		$stand = [IAppConfig::class => $this->createStub(IAppConfig::class)];
-		$schema = MigrationReplay::run([Version1000Date20221118000002::class, Version1000Date20260924000001::class], $stand);
+		$schema = MigrationReplay::run([Version1000Date20221118000002::class, Version1000Date20260925000020::class], $stand);
 		$once = $schema->shape();
 
-		MigrationReplay::run([Version1000Date20260924000001::class], $stand, $schema);
+		MigrationReplay::run([Version1000Date20260925000020::class], $stand, $schema);
 
 		$this->assertSame($once, $schema->shape());
 	}

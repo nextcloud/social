@@ -394,7 +394,7 @@ no dwell.
 ## 9. Data model
 
 Two new tables, in a migration step of their own
-(`Version1000Date20260924000001`) rather than in the squash: the squash is
+(`Version1000Date20260925000020`) rather than in the squash: the squash is
 recorded as run on every existing instance, so a table added to it would reach
 fresh installs only.
 

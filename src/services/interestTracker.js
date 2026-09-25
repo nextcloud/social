@@ -70,7 +70,7 @@ export function contextFor(type) {
  * Whether reading this post may teach anything: it carries a hashtag, and the
  * reader did not write it.
  *
- * @param {object|null|undefined} status the post the reader sees
+ * @param {Record<string, any>|null|undefined} status the post the reader sees
  * @param {(status: object) => boolean} isOwn whether the reader wrote it
  * @return {boolean}
  */
@@ -142,10 +142,24 @@ function sideOf(entry, viewportHeight) {
 }
 
 /**
+ * One post being watched on screen: the element, the post, and how long it has
+ * been in view. The same shape the `watched` Map is declared with below.
+ *
+ * @typedef {object} WatchedView
+ * @property {Element} element the post's element
+ * @property {Record<string, any>} status the post itself
+ * @property {boolean} visible whether it is on screen now
+ * @property {number|null} since when the current stretch began, null between them
+ * @property {number} ms how long it has been watched in total
+ * @property {number} enteredAt when it last came into view
+ * @property {string} enteredFrom which edge it came from
+ */
+
+/**
  * @param {object} options what the tracker works with
  * @param {string} options.context what the signals say they came from
  * @param {(events: object[], options: {beacon: boolean}) => Promise<void>} [options.send] how a batch goes out
- * @param {(status: object) => boolean} [options.isOwn] whether the reader wrote a post
+ * @param {(status: Record<string, any>) => boolean} [options.isOwn] whether the reader wrote a post
  * @param {() => number} [options.now] the clock
  * @param {Document} [options.document] where visibility and input are read
  * @param {Window} [options.window] where focus, the observer and timers come from
@@ -197,7 +211,7 @@ export function createInterestTracker({
 	/**
 	 * Closes the stretch a post is counting, adding it to the view's total.
 	 *
-	 * @param {object} view one of `watched`
+	 * @param {WatchedView} view one of `watched`
 	 * @param {number} at when the stretch ended
 	 */
 	function settle(view, at) {
@@ -228,7 +242,7 @@ export function createInterestTracker({
 	/**
 	 * Ends one view of one post: a dwell if it was read, a skip if it went past.
 	 *
-	 * @param {object} view one of `watched`
+	 * @param {WatchedView} view one of `watched`
 	 * @param {number} at when the view ended
 	 * @param {string|null} leftTo where it went: 'above', 'below', or null when
 	 *                             it did not leave the screen (the page went away)
@@ -412,13 +426,16 @@ export function createInterestTracker({
 	win.addEventListener('pagehide', onPageHide)
 	armIdle()
 
-	return {
+	// named rather than returned straight, so that `sync()` can call the two
+	// beside it: `this` inside an object literal is still being built, and
+	// TypeScript reads it as `{}`
+	const tracker = {
 		/**
 		 * Starts watching a post. Posts that cannot teach anything — the
 		 * reader's own, or ones without a hashtag — are never watched.
 		 *
 		 * @param {Element} element the entry on the page
-		 * @param {object} status the post the reader sees in it
+		 * @param {Record<string, any>} status the post the reader sees in it
 		 */
 		observe(element, status) {
 			if (destroyed || watched.has(element) || !isTrackable(status, isOwn)) {
@@ -455,11 +472,11 @@ export function createInterestTracker({
 			const present = new Set(pairs.map(([element]) => element))
 			for (const element of [...watched.keys()]) {
 				if (!present.has(element)) {
-					this.unobserve(element)
+					tracker.unobserve(element)
 				}
 			}
 			for (const [element, status] of pairs) {
-				this.observe(element, status)
+				tracker.observe(element, status)
 			}
 		},
 
@@ -468,7 +485,7 @@ export function createInterestTracker({
 		 * in it, a link from it, or muted its author. Once per post and kind
 		 * per page view.
 		 *
-		 * @param {object} status the post
+		 * @param {Record<string, any>} status the post
 		 * @param {'open'|'media'|'link'|'mute'} kind what happened
 		 */
 		record(status, kind) {
@@ -518,6 +535,8 @@ export function createInterestTracker({
 			win.removeEventListener('pagehide', onPageHide)
 		},
 	}
+
+	return tracker
 }
 
 /**
@@ -525,7 +544,7 @@ export function createInterestTracker({
  * author from it. The same rules as the tracker — nothing for the reader's
  * own posts or for posts without a hashtag.
  *
- * @param {object} status the post
+ * @param {Record<string, any>} status the post
  * @param {string} kind what happened
  * @param {string} context where
  * @param {(status: object) => boolean} [isOwn] whether the reader wrote it

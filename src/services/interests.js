@@ -31,7 +31,7 @@ function url(path = '') {
  * has not opted out, and learning is not paused. Absent — an older server, or
  * a page with nobody signed in — is off.
  *
- * @param {object|null|undefined} interests `serverData.interests`
+ * @param {{enabled?: boolean, learning?: boolean, paused?: boolean}|null|undefined} interests `serverData.interests`
  * @return {boolean}
  */
 export function isTracking(interests) {
@@ -42,7 +42,7 @@ export function isTracking(interests) {
  * Whether the reader has the feed at all: the tab, the post menu item. Pausing
  * stops the learning, not the feed.
  *
- * @param {object|null|undefined} interests `serverData.interests`
+ * @param {{enabled?: boolean, learning?: boolean, paused?: boolean}|null|undefined} interests `serverData.interests`
  * @return {boolean}
  */
 export function hasInterestsFeed(interests) {
