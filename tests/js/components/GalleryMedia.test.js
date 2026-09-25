@@ -55,12 +55,19 @@ describe('GalleryMedia', () => {
 				.toContain('aspect-ratio: 1')
 		})
 
-		it('keeps a panorama and a tall portrait inside a shape a timeline can show', () => {
+		/**
+		 * The frame used to be clamped between 3:4 and 16:9, and anything
+		 * outside that was reshaped: a 9:16 short was given a 3:4 box and had
+		 * its top and bottom cut off by `cover`. A timeline is kept usable by
+		 * the `max-height` on the frame instead, which makes a tall picture
+		 * smaller without changing what shape it is.
+		 */
+		it('gives a panorama and a tall portrait their own shape, extreme or not', () => {
 			const panorama = mountMedia({ attachment: photo({ meta: { original: { width: 3000, height: 500 } } }) })
-			const portrait = mountMedia({ attachment: photo({ meta: { original: { width: 500, height: 3000 } } }) })
+			const short = mountMedia({ attachment: photo({ meta: { original: { width: 1080, height: 1920 } } }) })
 
-			expect(panorama.find('.photo').attributes('style')).toContain(`aspect-ratio: ${16 / 9}`)
-			expect(portrait.find('.photo').attributes('style')).toContain(`aspect-ratio: ${3 / 4}`)
+			expect(panorama.find('.photo').attributes('style')).toContain(`aspect-ratio: ${3000 / 500}`)
+			expect(short.find('.photo').attributes('style')).toContain(`aspect-ratio: ${1080 / 1920}`)
 		})
 
 		it('reserves a default shape for media that carries no dimensions at all', () => {

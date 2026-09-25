@@ -22,6 +22,7 @@
 				:index="index"
 				:total="media.length"
 				:ratio="mosaicRatio"
+				:fit="media.length === 1 ? 'contain' : 'cover'"
 				:interactive="to === null"
 				@open="openMedia(index)" />
 		</div>
@@ -249,6 +250,13 @@ export default {
 		 * @return {number} the shape of a mosaic tile. A lone picture keeps its
 		 * own; a pair is squared off, because two tiles of different heights
 		 * beside one another read as two posts.
+		 *
+		 * A lone picture is drawn `contain` to go with it, so that the one
+		 * case where the frame and the media can still disagree -- an
+		 * attachment that reported no dimensions at all, and so was given
+		 * `DEFAULT_RATIO` -- letterboxes rather than crops. Tiles stay `cover`:
+		 * their square is deliberate, and a square drawn `contain` is a
+		 * picture floating in a grey box.
 		 */
 		mosaicRatio() {
 			return this.media.length === 1 ? ratioOf(this.media[0], DEFAULT_RATIO) : 1
