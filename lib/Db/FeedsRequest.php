@@ -230,6 +230,13 @@ class FeedsRequest extends CoreRequestBuilder {
 	 * Drops what a feed holds beyond its newest `$keep` entries, and anything
 	 * published before `$before`, whichever reaches further.
 	 *
+	 * **The newest `$keep` are kept whatever their age.** A blog that stopped
+	 * posting years ago is still a blog somebody chose to follow, and the age
+	 * cut-off on its own emptied it: every entry was older than `$before`, so
+	 * the page showed nothing and said nothing about why. The cut-off is there
+	 * to bound what one feed may store, and below `$keep` entries there is
+	 * nothing to bound.
+	 *
 	 * Both halves read `social_feeditem_fp` (feed, published): the cut-off is
 	 * the `$keep`-th newest date, found with an offset into that index, and
 	 * the delete is a range on it.
@@ -250,7 +257,13 @@ class FeedsRequest extends CoreRequestBuilder {
 		$row = $cursor->fetch();
 		$cursor->closeCursor();
 
-		if ($row !== false && is_string($row['published'] ?? null) && $row['published'] !== '') {
+		if ($row === false) {
+			// fewer than `$keep` entries: there is nothing beyond the newest
+			// `$keep`, so there is nothing to drop
+			return 0;
+		}
+
+		if (is_string($row['published'] ?? null) && $row['published'] !== '') {
 			$oldestKept = new DateTime($row['published']);
 			if ($oldestKept > $cutoff) {
 				$cutoff = $oldestKept;

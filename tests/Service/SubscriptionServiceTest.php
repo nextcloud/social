@@ -148,24 +148,50 @@ class SubscriptionServiceTest extends TestCase {
 	}
 
 	/**
-	 * A read that added something prunes the feed to its allowance; an entry
-	 * older than the age limit is not stored at all, or the next read of a
-	 * document that still lists it would store it again.
+	 * Nothing in a feed means one thing before its first read and another
+	 * after, and the page has no other way to tell them apart.
 	 */
-	public function testAReadPrunesAndSkipsWhatIsTooOldToKeep(): void {
-		$old = gmdate(DATE_RSS, time() - (SubscriptionService::KEEP_DAYS + 10) * 86400);
-		$this->answers('<?xml version="1.0"?><rss version="2.0"><channel><title>Blog</title>'
-			. '<item><guid>new</guid><title>New</title><link>https://blog.example/new</link></item>'
-			. '<item><guid>old</guid><title>Old</title><link>https://blog.example/old</link><pubDate>' . $old . '</pubDate></item>'
-			. '</channel></rss>');
+	public function testTheListSaysWhetherAFeedHasBeenReadYet(): void {
+		$this->feedsRequest->method('feedsOf')->willReturn([
+			['id' => 1, 'url' => 'https://blog.example/feed', 'title' => 'Blog', 'site_url' => '', 'error' => '', 'fetched_at' => '2026-09-01 08:00:00'],
+			['id' => 2, 'url' => 'https://other.example/feed', 'title' => '', 'site_url' => '', 'error' => '', 'fetched_at' => null],
+		]);
+		$this->feedsRequest->method('countsFor')->willReturn([1 => 0]);
 
-		$this->feedsRequest->expects($this->once())->method('addItem')
-			->with(7, $this->callback(fn (array $item): bool => $item['guid'] === 'new'))
-			->willReturn(true);
+		$feeds = $this->service->feeds('alice');
+
+		$this->assertTrue($feeds[0]['read']);
+		$this->assertSame(0, $feeds[0]['items']);
+		$this->assertFalse($feeds[1]['read']);
+	}
+
+	/** A read that added something prunes the feed to its allowance. */
+	public function testAReadPrunesToTheAllowance(): void {
+		$this->answers(self::FEED);
+		$this->feedsRequest->method('addItem')->willReturn(true);
 		$this->feedsRequest->expects($this->once())->method('prune')
 			->with(7, SubscriptionService::KEEP_ITEMS, $this->callback(
 				fn (int $before): bool => abs($before - (time() - SubscriptionService::KEEP_DAYS * 86400)) <= 2
 			));
+
+		$this->assertSame(1, $this->service->refresh($this->feed()));
+	}
+
+	/**
+	 * Age decides nothing here. A blog whose last post is years old is still
+	 * a blog somebody chose to follow: it used to read cleanly, parse, and
+	 * store none of its entries, leaving a subscription that said "0 entries"
+	 * with no error against it. The prune bounds a feed, not this.
+	 */
+	public function testAFeedThatStoppedPostingYearsAgoIsStillStored(): void {
+		$old = gmdate(DATE_RSS, time() - (SubscriptionService::KEEP_DAYS + 10) * 86400);
+		$this->answers('<?xml version="1.0"?><rss version="2.0"><channel><title>Blog</title>'
+			. '<item><guid>old</guid><title>Old</title><link>https://blog.example/old</link><pubDate>' . $old . '</pubDate></item>'
+			. '</channel></rss>');
+
+		$this->feedsRequest->expects($this->once())->method('addItem')
+			->with(7, $this->callback(fn (array $item): bool => $item['guid'] === 'old'))
+			->willReturn(true);
 
 		$this->assertSame(1, $this->service->refresh($this->feed()));
 	}

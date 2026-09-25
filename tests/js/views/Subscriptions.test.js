@@ -28,6 +28,7 @@ const FEED = {
 	kind: 'youtube',
 	items: 12,
 	error: '',
+	read: true,
 }
 
 const ITEM = {
@@ -220,6 +221,21 @@ describe('Subscriptions', () => {
 		})
 
 		expect(wrapper.find('.feeds__error').text()).toBe('could not connect')
+	})
+
+	/**
+	 * "0 entries" against a feed that answered perfectly well reads as a
+	 * failure nobody reported. It is worth saying which of the two it is.
+	 */
+	it('separates a feed that holds nothing from one not read yet', async () => {
+		const empty = await mountPage({ feeds: [{ ...FEED, items: 0 }] })
+		expect(empty.find('.feeds__quiet').text()).toBe('Read fine, but it lists nothing')
+
+		const unread = await mountPage({ feeds: [{ ...FEED, items: 0, read: false }] })
+		expect(unread.find('.feeds__quiet').text()).toBe('Not read yet')
+
+		const held = await mountPage({ feeds: [FEED] })
+		expect(held.find('.feeds__quiet').exists()).toBe(false)
 	})
 
 	/**
