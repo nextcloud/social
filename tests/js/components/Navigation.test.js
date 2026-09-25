@@ -786,10 +786,10 @@ describe('Navigation', () => {
 			'Photos',
 			'Videos',
 			'News',
+			'Subscriptions',
 			'Activities',
 			'Direct messages',
 			'Discover',
-			'Subscriptions',
 			// the profile entry appears only when an ActivityPub account exists
 			'Follow requests',
 			'Liked posts',
@@ -825,10 +825,10 @@ describe('Navigation', () => {
 			'Photos',
 			'Videos',
 			'News',
+			'Subscriptions',
 			'Activities',
 			'Direct messages',
 			'Discover',
-			'Subscriptions',
 		])
 	})
 
