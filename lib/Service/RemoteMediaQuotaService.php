@@ -112,9 +112,27 @@ class RemoteMediaQuotaService {
 		}
 	}
 
-	/** The host a document's address names, lower-cased and without a port. */
-	public function hostOf(string $url): string {
-		$host = parse_url($url, PHP_URL_HOST);
+	/**
+	 * The host a cached document is charged to: the one its bytes came from,
+	 * which is what its `url` names.
+	 *
+	 * Not the host of its id. An attachment that arrives without an id of its
+	 * own -- Mastodon's and Nextcloud Social's both do -- is given one under
+	 * this instance's address (see `Document::import()`), so keyed by id every
+	 * such picture from every server was charged to this instance, as one
+	 * domain: with a quota set, once they added up to it, every remote picture
+	 * from anywhere was refused as too large. The id stands in only for a
+	 * document with no url.
+	 */
+	public static function chargedHost(string $url, string $id): string {
+		$host = self::host($url);
+
+		return ($host !== '') ? $host : self::host($id);
+	}
+
+	/** The host an address names, lower-cased and without a port. */
+	private static function host(string $address): string {
+		$host = parse_url($address, PHP_URL_HOST);
 
 		return is_string($host) ? strtolower($host) : '';
 	}

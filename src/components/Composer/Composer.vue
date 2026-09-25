@@ -223,28 +223,7 @@
 			<!-- When the post goes out, if not now. The picker is most of a
 			     date library and arrives when the clock is pressed, not with
 			     every composer; until then this block is not here at all. -->
-			<div v-if="scheduling" class="schedule-editor">
-				<!-- the picker names itself through `ariaLabel`; a `for` here
-				     would point at the wrapper rather than the input -->
-				<span class="schedule-editor__label">
-					{{ t('social', 'Publish at') }}
-				</span>
-				<NcDateTimePicker
-					v-if="schedulePickerLoaded"
-					class="schedule-editor__picker"
-					type="datetime"
-					:modelValue="scheduledAt"
-					:min="minScheduleDate"
-					:minuteStep="5"
-					:clearable="false"
-					:ariaLabel="t('social', 'When to publish the post')"
-					@update:modelValue="scheduledAt = $event" />
-				<NcLoadingIcon v-else :size="20" />
-				<!-- the server refuses anything sooner, so say so here, where
-				     the time can still be moved -->
-				<span v-if="scheduleTooSoon" class="schedule-editor__hint" role="status">
-					{{ t('social', 'Pick a time at least five minutes from now.') }}
-				</span>
+			<SchedulePicker v-if="scheduling" v-model="scheduledAt">
 				<NcButton
 					variant="tertiary"
 					class="schedule-editor__remove"
@@ -255,7 +234,7 @@
 						<Close :size="18" />
 					</template>
 				</NcButton>
-			</div>
+			</SchedulePicker>
 
 			<!-- A panel, and so above the toolbar with the others rather than
 			     inside it: the toolbar row is `max-height: 120px; overflow:
@@ -462,6 +441,7 @@ import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
 import PlacePicker from './PlacePicker.vue'
+import SchedulePicker from './SchedulePicker.vue'
 import { defineAsyncComponent } from 'vue'
 import { translate, translatePlural } from '@nextcloud/l10n'
 import { showError, showSuccess } from '../../services/toast.js'
@@ -493,6 +473,7 @@ import { focusParam, isFocalPoint } from '../../utils/focalPoint.js'
 import { htmlToPlainText } from '../../utils/plainText.js'
 import { defaultLanguage, isLanguageCode, rememberedLanguage } from '../../utils/postLanguage.js'
 import { fullDateTime } from '../../utils/relativeTime.js'
+import { datePickerModule, isTooSoon, proposedSchedule } from '../../utils/schedule.js'
 import { useCurrentUser } from '../../composables/useCurrentUser.js'
 import { useServerData } from '../../composables/useServerData.js'
 import { userKey } from '../../utils/browserStore.js'
@@ -570,20 +551,6 @@ function contentWarningPresets() {
 }
 
 /**
- * How far ahead a scheduled post has to be, in milliseconds: the server's
- * `ScheduledStatusService::MIN_LEAD_TIME`, which is Mastodon's five minutes.
- * Checked here as well so the refusal comes before the request, while the
- * time can still be moved.
- */
-const MIN_SCHEDULE_LEAD = 5 * 60 * 1000
-
-/** the step the picker offers, and what a proposed time is rounded to */
-const SCHEDULE_STEP = 5 * 60 * 1000
-
-/** how far ahead the clock proposes when it is first pressed */
-const SCHEDULE_PROPOSAL = 60 * 60 * 1000
-
-/**
  * The emoji picker's module, fetched at most once.
  *
  * It carries the whole emoji set — most of a megabyte of source — so it is its
@@ -594,18 +561,9 @@ const SCHEDULE_PROPOSAL = 60 * 60 * 1000
  */
 
 /**
- * The date picker's module, fetched at most once, for the same reason: it
- * brings a date library and its locales with it, and most posts go out now.
- *
- * @return {Promise<object>} the module
- */
-let datePicker = null
-const datePickerModule = () => (datePicker ??= import('@nextcloud/vue/components/NcDateTimePicker'))
-
-/**
  * The shared picture library, fetched when somebody first asks for it.
  *
- * Same reason as the two pickers above: it brings `NcTextField` with it, and
+ * Same reason as the emoji and date pickers: it brings `NcTextField` with it, and
  * that pulls `@nextcloud/vue`'s l10n chunk — half a megabyte — into whatever
  * chunk it lands in. Statically imported here it landed in the app's initial
  * bundle and nearly doubled it, for a panel most readers never open.
@@ -622,11 +580,6 @@ export default {
 			onError: (error) => logger.error('Could not load the emoji picker', { error }),
 		}),
 
-		NcDateTimePicker: defineAsyncComponent({
-			loader: datePickerModule,
-			onError: (error) => logger.error('Could not load the date picker', { error }),
-		}),
-
 		GifPicker: defineAsyncComponent({
 			loader: gifPickerModule,
 			onError: (error) => logger.error('Could not load the picture library', { error }),
@@ -640,6 +593,7 @@ export default {
 		ClockOutline,
 		MapMarkerOutline,
 		PlacePicker,
+		SchedulePicker,
 		Close,
 		FolderImage,
 		AlertOutline,
@@ -1077,17 +1031,6 @@ export default {
 		},
 
 		/**
-		 * The soonest the picker offers, which is also what the server
-		 * accepts. A Date rather than a number, because that is what the
-		 * picker's `min` takes.
-		 *
-		 * @return {Date}
-		 */
-		minScheduleDate() {
-			return new Date(Date.now() + MIN_SCHEDULE_LEAD)
-		},
-
-		/**
 		 * Whether the time picked is one the server would refuse: less than
 		 * five minutes out, or not a time at all.
 		 *
@@ -1098,9 +1041,7 @@ export default {
 				return false
 			}
 
-			return !(this.scheduledAt instanceof Date)
-				|| Number.isNaN(this.scheduledAt.getTime())
-				|| this.scheduledAt.getTime() < Date.now() + MIN_SCHEDULE_LEAD
+			return isTooSoon(this.scheduledAt)
 		},
 
 		canPost() {
@@ -2393,7 +2334,7 @@ export default {
 			}
 
 			this.scheduling = true
-			this.scheduledAt = new Date(Math.ceil((Date.now() + SCHEDULE_PROPOSAL) / SCHEDULE_STEP) * SCHEDULE_STEP)
+			this.scheduledAt = proposedSchedule()
 			if (this.schedulePickerLoaded || this.schedulePickerLoading) {
 				return
 			}
@@ -3119,35 +3060,8 @@ $composer-duration: 220ms;
 	}
 }
 
-.schedule-editor {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 8px;
-	margin: 8px 0;
-	padding: 8px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius);
-
-	&__label {
-		font-size: 13px;
-		color: var(--color-text-maxcontrast);
-	}
-
-	&__picker {
-		flex: 1 1 200px;
-		min-width: 0;
-	}
-
-	&__hint {
-		flex-basis: 100%;
-		font-size: 12px;
-		color: var(--color-error);
-	}
-
-	&__remove {
-		margin-inline-start: auto;
-	}
+.schedule-editor__remove {
+	margin-inline-start: auto;
 }
 
 /* the allowance as a ring that fills, rather than a limit you discover */

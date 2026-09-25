@@ -61,7 +61,10 @@ const NO_PEERS = { tags: [], sources: [] }
  * Answers the three requests the page makes.
  *
  * @param {object[]} tags what the trends endpoint returns
- * @param {object[]|Error} followed what the followed-tags endpoint returns
+ * @param {object[]|Error|Function} followed what the followed-tags endpoint
+ *                                         returns; a function is given the
+ *                                         request's params and answers with
+ *                                         the whole response, headers and all
  * @param {object|Error|Function} peers what the peer-trends endpoint returns; a
  *                                      function is given the query, so a test
  *                                      can answer a search differently
@@ -71,6 +74,9 @@ function serve(tags, followed = [], peers = NO_PEERS) {
 		if (url.endsWith('/followed_tags')) {
 			if (followed instanceof Error) {
 				throw followed
+			}
+			if (typeof followed === 'function') {
+				return followed(config?.params ?? {})
 			}
 
 			return { data: followed }
@@ -216,11 +222,57 @@ describe('TrendingHashtags', () => {
 
 		const lookups = axios.get.mock.calls.filter(([url]) => /\/tags\/[^/]+$/.test(url))
 		expect(lookups).toHaveLength(0)
-		expect(axios.get).toHaveBeenCalledWith(`${API}/followed_tags`, { params: { limit: 200 } })
+		expect(axios.get).toHaveBeenCalledWith(`${API}/followed_tags`, { params: { limit: 50 } })
 
 		const buttons = wrapper.findAllComponents(HashtagFollowButton)
 		expect(buttons[0].text()).toBe('Follow')
 		expect(buttons[1].text()).toBe('Following')
+	})
+
+	/**
+	 * The server answers at most fifty followed tags a page, and the buttons
+	 * take the list they are handed as the whole truth: a followed tag that
+	 * was on the second page was drawn as Follow.
+	 */
+	it('reads every page of followed tags before handing the list to the buttons', async () => {
+		const firstPage = Array.from({ length: 50 }, (_, i) => tag(`t${i}`, 1))
+		serve([tag('nextcloud', 4), tag('fediverse', 2)], (params) => params.max_id === '51'
+			? { data: [tag('fediverse', 2)], headers: {} }
+			: { data: firstPage, headers: { link: `<${API}/followed_tags?limit=50&max_id=51>; rel="next"` } })
+		const wrapper = mountTrends()
+		await flushPromises()
+
+		expect(axios.get).toHaveBeenCalledWith(`${API}/followed_tags`, { params: { limit: 50, max_id: '51' } })
+		const lookups = axios.get.mock.calls.filter(([url]) => /\/tags\/[^/]+$/.test(url))
+		expect(lookups).toHaveLength(0)
+
+		const buttons = wrapper.findAllComponents(HashtagFollowButton)
+		expect(buttons[0].text()).toBe('Follow')
+		expect(buttons[1].text()).toBe('Following')
+	})
+
+	it('asks once when the reader follows fewer tags than one page holds', async () => {
+		serve([tag('nextcloud', 4)], [tag('nextcloud', 4)])
+		mountTrends()
+		await flushPromises()
+
+		const reads = axios.get.mock.calls.filter(([url]) => url.endsWith('/followed_tags'))
+		expect(reads).toHaveLength(1)
+	})
+
+	it('hands the buttons no list when it could not read to the end of it', async () => {
+		let asked = 0
+		serve([tag('nextcloud', 4)], () => {
+			asked++
+
+			return { data: [tag(`t${asked}`, 1)], headers: { link: `<${API}/followed_tags?max_id=${1000 - asked}>; rel="next"` } }
+		})
+		const wrapper = mountTrends()
+		await flushPromises()
+
+		expect(asked).toBe(5)
+		expect(wrapper.findComponent(HashtagFollowButton).props('known')).toBeNull()
+		expect(axios.get).toHaveBeenCalledWith(`${API}/tags/nextcloud`)
 	})
 
 	it('leaves each button to ask for itself when that list could not be read', async () => {

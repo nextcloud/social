@@ -35,6 +35,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCA\Social\Tools\Nid;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -56,6 +57,23 @@ class DocumentService {
 
 	/** A playlist is text and is read whole; this is the ceiling on that. */
 	private const MAX_PLAYLIST = 2 * 1024 * 1024;
+
+	/**
+	 * Seconds one attachment download may take when nobody is waiting for it.
+	 *
+	 * A federation request is capped at ConfigService::DEFAULT_REQUEST_TIMEOUT
+	 * for the *whole* transfer, not per read: the server's HTTP client is
+	 * curl, and curl's timeout ends a download that is still arriving. Ten
+	 * seconds is right inside an inbox request, and is also the end of any
+	 * picture larger than ten seconds of the origin's upstream -- a phone
+	 * photo from a Nextcloud on a home connection is several megabytes, and
+	 * Social stores and serves the original. The inbox leaves such a picture
+	 * for the caching run, so the caching run has to be able to finish it.
+	 *
+	 * Below `CacheDocumentsRequest::CACHING_TIMEOUT`, so that a download
+	 * still running is never started a second time by the next pass.
+	 */
+	public const BACKGROUND_FETCH_TIMEOUT = 120;
 
 	public function __construct(
 		private IUrlGenerator $urlGenerator,
@@ -159,6 +177,25 @@ class DocumentService {
 		}
 
 		throw new CacheDocumentDoesNotExistException();
+	}
+
+	/**
+	 * `cacheRemoteDocument()` for a caller nobody is waiting on -- the caching
+	 * run and the retry command -- with the download given
+	 * `BACKGROUND_FETCH_TIMEOUT` rather than the federation default. Reaching
+	 * the origin keeps the default, so a host that is down still fails fast.
+	 *
+	 * @throws CacheDocumentDoesNotExistException
+	 * @throws MalformedArrayException
+	 * @throws SocialAppConfigException
+	 */
+	public function cacheRemoteDocumentInBackground(string $id): Document {
+		/** @var Document */
+		return $this->configService->withRequestTimeout(
+			self::BACKGROUND_FETCH_TIMEOUT,
+			fn (): Document => $this->cacheRemoteDocument($id),
+			ConfigService::DEFAULT_REQUEST_TIMEOUT
+		);
 	}
 
 	/**
@@ -384,7 +421,7 @@ class DocumentService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function openStreamed(int|string $nid, string $range = ''): array {
-		if ($nid < 1) {
+		if (!ctype_digit((string)$nid) || Nid::compare($nid, '0') < 1) {
 			throw new NotFoundException('invalid document');
 		}
 
@@ -703,7 +740,7 @@ class DocumentService {
 			}
 
 			try {
-				$this->cacheRemoteDocument($item->getId());
+				$this->cacheRemoteDocumentInBackground($item->getId());
 			} catch (Throwable $e) {
 				// One unusable row must never end the run: everything queued
 				// behind it would silently stop being cached, on every pass.

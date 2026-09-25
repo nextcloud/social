@@ -75,7 +75,7 @@ class FiltersRequestTest extends TestCase {
 		$read = $this->request->getById($filter->getId(), self::ALICE);
 
 		$this->assertCount(1, $read->getStatuses());
-		$this->assertSame(4242, $read->getStatuses()[0]->getStatusId());
+		$this->assertSame('4242', $read->getStatuses()[0]->getStatusId());
 		$this->assertCount(1, $read->getKeywords());
 	}
 
@@ -99,7 +99,7 @@ class FiltersRequestTest extends TestCase {
 
 		$read = $this->request->getStatusById($id, self::ALICE);
 
-		$this->assertSame(11, $read->getStatusId());
+		$this->assertSame('11', $read->getStatusId());
 		$this->assertSame($filter->getId(), $read->getFilterId());
 	}
 

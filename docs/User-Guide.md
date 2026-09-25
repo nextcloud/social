@@ -138,8 +138,11 @@ network hiccup.
 - **Send it later.** The clock button turns **Post** into **Schedule**: pick a
   time at least five minutes from now and the post waits on the server until
   then. What is waiting is listed under **Settings → Scheduled posts**, where
-  one can be cancelled; to move a post to another time, cancel it and write it
-  again.
+  one can be cancelled or moved: the clock beside an entry opens the same
+  picker at the time it has, and **Save** sends the new one. The five-minute
+  rule applies again, and so does the limit of 25 posts a day; a time the
+  server refuses leaves the post where it was, and the reason is shown.
+  What a waiting post says cannot be changed there.
 - **Replying and quoting.** **Reply** under a post opens the composer
   addressed to its author; **Quote** in a post's menu embeds it in yours. Only
   public and unlisted posts held by this server can be quoted, and the quoted
@@ -228,8 +231,11 @@ The sidebar is the map:
   badge cleared on your phone is cleared here too.
 - **Direct messages** — private conversations, one chat per person. **New
   message** first offers people from your existing chats and the accounts you
-  follow. Search by name or `@handle` to find somebody else; a search failure
-  is shown separately from a genuine empty result. Selecting somebody with an
+  follow. Search by name, `@handle` or profile link to find somebody else:
+  the people you know — accounts you follow and people from your chats — are
+  listed first under **People you know**, and every other account the search
+  finds follows under **Other accounts**. A search failure is shown separately
+  from a genuine empty result. Selecting somebody with an
   existing conversation opens that chat instead of creating another one.
   The new chat uses the same person header and message field as an existing
   conversation. Messages are sent privately to that person, so there is no

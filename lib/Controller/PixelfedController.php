@@ -355,7 +355,7 @@ class PixelfedController extends ClientApiController {
 	#[UserRateLimit(limit: 60, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag')]
 	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag', postfix: 'pf')]
-	public function composeTag(int $status_id = 0, array $accounts = []): DataResponse {
+	public function composeTag(int|string $status_id = 0, array $accounts = []): DataResponse {
 		try {
 			$this->initViewer(['write:statuses']);
 
@@ -380,7 +380,7 @@ class PixelfedController extends ClientApiController {
 	#[UserRateLimit(limit: 60, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1.1/compose/tag/untagme')]
 	#[FrontpageRoute(verb: 'POST', url: '/api/pixelfed/v1/compose/tag/untagme', postfix: 'pf')]
-	public function composeUntagMe(int $status_id = 0): DataResponse {
+	public function composeUntagMe(int|string $status_id = 0): DataResponse {
 		try {
 			$this->initViewer(['write:statuses']);
 
@@ -398,7 +398,10 @@ class PixelfedController extends ClientApiController {
 	 *
 	 * Which of them the reader may see is not decided here: the ids come out
 	 * of the tag table and each post is read the way any other post is read
-	 * for this reader, so one they may not see is simply not among them.
+	 * for this reader, so one they may not see is simply not among them —
+	 * and a page can therefore be short without being the last. Whether there
+	 * is another is said by the `Link` header, whose `max_id` is the last tag
+	 * row read rather than the last post shown.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -409,10 +412,14 @@ class PixelfedController extends ClientApiController {
 			$this->initViewer(['read:statuses']);
 			$subject = $this->cacheActorService->resolve($account_id);
 
-			return new DataResponse(
-				$this->mediaTagService->photosOf($this->viewer(), $subject->getId(), $limit, $max_id),
-				Http::STATUS_OK
-			);
+			$page = $this->mediaTagService->photosOf($this->viewer(), $subject->getId(), $limit, $max_id);
+
+			$response = new DataResponse($page['posts'], Http::STATUS_OK);
+			if ($page['next'] !== null) {
+				$response->addHeader('Link', '<' . $this->pageUrl(['max_id' => $page['next']]) . '>; rel="next"');
+			}
+
+			return $response;
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

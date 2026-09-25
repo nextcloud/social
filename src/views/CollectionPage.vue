@@ -115,7 +115,7 @@
 			</NcEmptyContent>
 
 			<div v-if="hasMore" class="collection__more">
-				<NcButton :disabled="loadingMore" @click="loadMore">
+				<NcButton :disabled="loadingMore" @click="loadMore()">
 					{{ t('social', 'Show more') }}
 				</NcButton>
 			</div>
@@ -175,6 +175,7 @@ import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
 import { useAccountStore } from '../store/account.js'
+import { latestLoad } from '../utils/latestLoad.js'
 
 /** how many posts one page of a collection asks for: the API's ceiling */
 const PAGE = 40
@@ -238,6 +239,7 @@ export default {
 			saving: false,
 			showDelete: false,
 			deleting: false,
+			loads: latestLoad(),
 		}
 	},
 
@@ -294,47 +296,71 @@ export default {
 		n,
 
 		/**
-		 * @param suffix
+		 * @param {string} suffix what follows the collection in the path
+		 * @param {string|number} id the collection, the one on screen unless given
 		 * @return {string} the API path of this collection
 		 */
-		url(suffix = '') {
-			return generateUrl(`apps/social/api/v1/collections/${this.id}${suffix}`)
+		url(suffix = '', id = this.id) {
+			return generateUrl(`apps/social/api/v1/collections/${id}${suffix}`)
 		},
 
 		/** @return {Promise<void>} */
 		async load() {
+			// the id is taken once, so the collection and its posts are always
+			// asked of the same one even if the route moves on in between
+			const id = this.id
+			const isNewest = this.loads.begin()
 			this.loading = true
+			this.loadingMore = false
 			this.error = ''
 			this.posts = []
 			this.managing = false
 			try {
-				const { data } = await axios.get(this.url())
+				const { data } = await axios.get(this.url('', id))
+				if (!isNewest()) {
+					return
+				}
 				this.collection = data
-				await this.loadMore()
+				await this.loadMore(id, isNewest)
 			} catch (error) {
 				logger.error('could not load the collection', { error })
-				this.error = (error?.response?.status === 404)
-					? t('social', 'There is no such collection, or it is not one you can see.')
-					: t('social', 'The collection could not be loaded.')
+				if (isNewest()) {
+					this.error = (error?.response?.status === 404)
+						? t('social', 'There is no such collection, or it is not one you can see.')
+						: t('social', 'The collection could not be loaded.')
+				}
 			} finally {
-				this.loading = false
+				if (isNewest()) {
+					this.loading = false
+				}
 			}
 		},
 
-		/** @return {Promise<void>} */
-		async loadMore() {
+		/**
+		 * @param {string|number} id the collection the page belongs to
+		 * @param {function(): boolean} isNewest whether that is still the collection on screen
+		 * @return {Promise<void>}
+		 */
+		async loadMore(id = this.id, isNewest = this.loads.current()) {
 			this.loadingMore = true
 			try {
-				const { data } = await axios.get(this.url('/items'), { params: { limit: PAGE, offset: this.posts.length } })
+				const { data } = await axios.get(this.url('/items', id), { params: { limit: PAGE, offset: this.posts.length } })
+				if (!isNewest()) {
+					return
+				}
 				const page = Array.isArray(data) ? data : []
 				this.posts = [...this.posts, ...page]
 				// a page shorter than asked for is the last one
 				this.hasMore = page.length >= PAGE
 			} catch (error) {
 				logger.error('could not load the collection\'s posts', { error })
-				showError(t('social', 'The posts of the collection could not be loaded'))
+				if (isNewest()) {
+					showError(t('social', 'The posts of the collection could not be loaded'))
+				}
 			} finally {
-				this.loadingMore = false
+				if (isNewest()) {
+					this.loadingMore = false
+				}
 			}
 		},
 

@@ -28,7 +28,7 @@ Nextcloud Social is a federated social networking app built on the W3C ActivityP
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.62
+**App version:** 0.26.63
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -567,7 +567,7 @@ A reply is forwarded only when all of this holds: it arrived with a **valid link
 
 An activity whose type this app does not implement is logged at `notice` with its type, activity id, object id, actor and origin, and answered `200 OK` so the sender does not redeliver it forever. It used to be discarded without a word, which made "posts from that instance never arrive" impossible to diagnose from this side.
 
-`Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied.
+`Tombstone` has no interface either, and deliberately so: it names a deleted object rather than being one. `DeleteInterface` handles it by id — when an embedded object has no handler it looks the id up as a note, then as an actor, the same path a `Delete` carrying a bare id string takes. This is how a deletion from Mastodon, which sends `Delete` with an embedded `Tombstone`, is applied. Nextcloud Social sends the same shape. The note row is removed under a guard on its type, which is `Question` for a poll and `Note` for everything else a post is stored as.
 
 An incoming `Block` targeting a local user is remembered as a `blocked_by` relation and severs the follow relationship in both directions; `Undo{Block}` lifts it. A `Follow` from an actor the target has blocked is answered with a `Reject`.
 
@@ -1124,6 +1124,19 @@ post that showed the picture until the caching cron happened to fetch it again;
 row's key onto the incoming document first. That is a bug older than video —
 every re-delivered Mastodon picture hit it — but a streamed row depends on it
 twice over, since the key is what the media proxy is addressed by.
+
+A picture the inbox could not fetch is stored with an empty `local_copy`, and
+the post's own copy of its attachments (the `attachments` column, the client
+format keyed by the document's nid) says so. When the caching cron or
+`occ social:media:retry` fetches it later, `StreamRequest::updateAttachments()`
+rebuilds that one entry from the document and leaves the post's other entries
+as they were stored. The inbox holds the download to the federation timeout,
+ten seconds for the whole transfer (the server's HTTP client is curl, and its
+timeout ends a download that is still arriving), so a large original from a
+slow origin is left to the caching run. The caching run and the retry command
+allow the download `DocumentService::BACKGROUND_FETCH_TIMEOUT` (120 seconds),
+which stays below the five minutes after which another run would start the
+same download again; reaching the origin keeps the ten-second limit.
 
 When a remote image is refused permanently, the post still arrives with an
 image placeholder. The local attachment response now carries `cache_error`:

@@ -90,9 +90,9 @@ class Timeline extends ExtendedBase {
 		$options = new ProbeOptions();
 		$options->setFormat(Stream::FORMAT_LOCAL);
 		$options->setLimit(intval($input->getOption('limit')))
-			->setMinId(intval($input->getOption('min_id')))
-			->setMaxId(intval($input->getOption('max_id')))
-			->setSince(intval($input->getOption('since')));
+			->setMinId($this->cursor($input, 'min_id'))
+			->setMaxId($this->cursor($input, 'max_id'))
+			->setSince($this->cursor($input, 'since'));
 
 		if ($input->getOption('local')) {
 			$options->setLocal(true);
@@ -114,5 +114,24 @@ class Timeline extends ExtendedBase {
 		$this->outputStreams($this->streamRequest->getTimeline($options));
 
 		return 0;
+	}
+
+	/**
+	 * A paging option, which is a nid: kept as the decimal string it was typed
+	 * as, because `intval()` clamps a wide one to PHP_INT_MAX.
+	 *
+	 * @throws Exception the option is not a nid
+	 */
+	private function cursor(InputInterface $input, string $option): string {
+		$value = trim((string)$input->getOption($option));
+		if ($value === '') {
+			return '0';
+		}
+
+		if (!ctype_digit($value)) {
+			throw new Exception('--' . $option . ' must be a status id');
+		}
+
+		return $value;
 	}
 }

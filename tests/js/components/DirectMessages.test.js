@@ -190,7 +190,7 @@ describe('DirectMessages', () => {
 	it('searches for one recipient and starts an existing chat instead of duplicating it', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
-		get.mockResolvedValueOnce({ data: [bob] })
+		get.mockImplementation(async (url) => ({ data: url.endsWith('/accounts/search') ? [bob] : [] }))
 		await wrapper.vm.searchAccounts('bob')
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'bob', limit: 8, resolve: false } })
@@ -224,12 +224,89 @@ describe('DirectMessages', () => {
 		await flushPromises()
 
 		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
-		expect(wrapper.find('.direct-messages__people-heading').text()).toContain('Search results')
+		expect(wrapper.find('.direct-messages__people-heading').text()).toContain('People you know')
 		await wrapper.find('.direct-messages__recipient-search input').setValue('@bob')
 		await wrapper.vm.searchAccounts('@bob')
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: '@bob', limit: 8, resolve: true } })
 		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
+	})
+
+	describe('recipient search', () => {
+		const carol = { id: '31', acct: 'carol@remote.example', display_name: 'Carol' }
+		const caroline = { id: '32', acct: 'caroline@elsewhere.example', display_name: 'Caroline' }
+
+		async function openSearch(followed, all, query = 'caro') {
+			get.mockImplementation(async (url, config) => {
+				if (url.endsWith('/conversations')) {
+					return { data: [] }
+				}
+				if (url.endsWith('/accounts/search')) {
+					return { data: config.params.following ? followed : all }
+				}
+				return { data: [] }
+			})
+			const wrapper = mountMessages()
+			await flushPromises()
+			await wrapper.find('.direct-messages__list-heading button').trigger('click')
+			await flushPromises()
+			await wrapper.find('.direct-messages__recipient-search input').setValue(query)
+			await wrapper.vm.searchAccounts(query)
+			await flushPromises()
+
+			return wrapper
+		}
+
+		const names = (wrapper, group) => wrapper.findAll(`.direct-messages__recipient-results--${group} .native-list-item-stub > span:not(.native-actions):not(.avatar-stub)`)
+			.map((item) => item.text())
+
+		it('lists the people the reader follows first and every other account under its own heading', async () => {
+			const wrapper = await openSearch([carol], [caroline, carol])
+
+			expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'caro', limit: 8, resolve: false, following: true } })
+			expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'caro', limit: 8, resolve: false } })
+			expect(wrapper.findAll('.direct-messages__people-heading').map((heading) => heading.text()))
+				.toEqual(['People you know', 'Other accounts'])
+			expect(names(wrapper, 'known')).toEqual(['Carol'])
+			// Carol was in both answers and is listed once, among the people known
+			expect(names(wrapper, 'others')).toEqual(['Caroline'])
+		})
+
+		it('asks the server twice per search, never once per account', async () => {
+			await openSearch([carol], [caroline])
+
+			expect(get.mock.calls.filter(([url]) => url.endsWith('/accounts/search'))).toHaveLength(2)
+		})
+
+		it('shows only other accounts when the reader follows nobody who matches', async () => {
+			const wrapper = await openSearch([], [caroline])
+
+			expect(wrapper.findAll('.direct-messages__people-heading').map((heading) => heading.text()))
+				.toEqual(['Other accounts'])
+			expect(names(wrapper, 'others')).toEqual(['Caroline'])
+		})
+
+		it('treats one account under two spellings of its handle as one', async () => {
+			const wrapper = await openSearch([carol], [{ ...carol, id: undefined, acct: 'Carol@Remote.Example' }])
+
+			expect(names(wrapper, 'known')).toEqual(['Carol'])
+			expect(wrapper.find('.direct-messages__recipient-results--others').exists()).toBe(false)
+		})
+
+		// the server matched the link; neither the name nor the handle contains it
+		it('lists what a pasted profile link resolved to', async () => {
+			const wrapper = await openSearch([], [carol], 'https://remote.example/@carol')
+
+			expect(names(wrapper, 'others')).toEqual(['Carol'])
+			expect(wrapper.text()).not.toContain('No people found')
+		})
+
+		it('says nobody was found only when both groups are empty', async () => {
+			const wrapper = await openSearch([], [])
+
+			expect(wrapper.findAll('.direct-messages__people-heading')).toHaveLength(0)
+			expect(wrapper.text()).toContain('No people found')
+		})
 	})
 
 	it('hides only the leading protocol recipient mention in direct message bubbles and previews', async () => {
@@ -513,9 +590,13 @@ describe('DirectMessages', () => {
 		await flushPromises()
 		await wrapper.vm.searchAccounts('https://remote.example/@bob')
 
-		expect(get).toHaveBeenLastCalledWith(
+		expect(get).toHaveBeenCalledWith(
 			'/index.php/apps/social/api/v1/accounts/search',
 			{ params: { q: 'https://remote.example/@bob', limit: 8, resolve: true } },
+		)
+		expect(get).toHaveBeenCalledWith(
+			'/index.php/apps/social/api/v1/accounts/search',
+			{ params: { q: 'https://remote.example/@bob', limit: 8, resolve: true, following: true } },
 		)
 	})
 

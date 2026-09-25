@@ -137,11 +137,7 @@ class SocialFollowRequestsWidget implements IAPIWidgetV2, IIconWidget, IButtonWi
 			$this->followService->setViewer($viewer);
 
 			$link = $this->getRequestsUrl();
-			$pending = array_slice(
-				$this->followService->getPendingRequests(),
-				0,
-				max(1, min($limit, self::MAX_ITEMS))
-			);
+			$pending = $this->followService->getPendingRequests(max(1, min($limit, self::MAX_ITEMS)));
 
 			$items = [];
 			foreach ($pending as $follower) {

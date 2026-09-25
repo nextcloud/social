@@ -144,15 +144,25 @@ describe('Settings', () => {
 
 	/**
 	 * A page of its own for a list that is usually empty, and whose entries
-	 * offer one action, would be a navigation entry earning its place from
+	 * offer two actions, would be a navigation entry earning its place from
 	 * nothing. The composer's clock is where a post is scheduled; this is
-	 * where one is taken back.
+	 * where one is moved or taken back.
 	 */
 	it('holds the posts waiting to go out', async () => {
 		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
 		await flushPromises()
 
 		expect(wrapper.findComponent(ScheduledPosts).exists()).toBe(true)
+	})
+
+	/** A waiting post can be moved here, so the section does not send people to write it again. */
+	it('says a waiting post can be moved as well as cancelled', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		const lede = wrapper.find('#scheduled .settings__section-lede').text()
+		expect(lede).toContain('Move one to another time')
+		expect(lede).not.toContain('write it again')
 	})
 
 	/**

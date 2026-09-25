@@ -40,6 +40,7 @@ class MediaTagServiceTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private NotificationService|MockObject $notificationService;
 	private ActivityService|MockObject $activityService;
+	private StreamRequest|MockObject $streamRequest;
 	private MediaTagService $service;
 
 	protected function setUp(): void {
@@ -50,10 +51,11 @@ class MediaTagServiceTest extends TestCase {
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->notificationService = $this->createMock(NotificationService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
+		$this->streamRequest = $this->createMock(StreamRequest::class);
 
 		$this->service = new MediaTagService(
 			$this->mediaTagsRequest,
-			$this->createMock(StreamRequest::class),
+			$this->streamRequest,
 			$this->streamService,
 			$this->cacheActorService,
 			$this->activityService,
@@ -267,5 +269,52 @@ class MediaTagServiceTest extends TestCase {
 
 		$this->assertArrayHasKey('acct', $named[0]->exportAsLocal());
 		$this->assertArrayNotHasKey('@context', (array)json_decode((string)json_encode($named[0]), true));
+	}
+
+	/**
+	 * A reader may not see every post the tag table names, and those are left
+	 * out of the page — so a page can be short, or empty, while the table
+	 * still holds more. The cursor is the last row read, not the last post
+	 * returned, and it is there because the page read as many rows as it
+	 * asked for.
+	 */
+	public function testAPageTheReaderMayNotSeeAllOfStillSaysWhereTheNextOneStarts(): void {
+		$this->mediaTagsRequest->expects($this->once())->method('streamsFor')
+			->with(self::BOB, 3, '90')
+			->willReturn([80, 70, 60]);
+		$this->streamRequest->method('getStreamByNid')
+			->willReturnCallback(function (int|string $nid): Stream {
+				if ($nid !== 80) {
+					throw new ItemNotFoundException();
+				}
+
+				return $this->post();
+			});
+
+		$page = $this->service->photosOf($this->person(self::ALICE), self::BOB, 3, '90');
+
+		$this->assertCount(1, $page['posts']);
+		$this->assertSame('60', $page['next']);
+	}
+
+	public function testAPageThatReadFewerRowsThanItAskedForIsTheLast(): void {
+		$this->mediaTagsRequest->method('streamsFor')->willReturn([80]);
+		$this->streamRequest->method('getStreamByNid')->willReturn($this->post());
+
+		$page = $this->service->photosOf($this->person(self::ALICE), self::BOB, 20);
+
+		$this->assertCount(1, $page['posts']);
+		$this->assertNull($page['next']);
+	}
+
+	public function testTheLimitIsClampedToWhatOneReadOfTheTableAnswers(): void {
+		$this->mediaTagsRequest->expects($this->once())->method('streamsFor')
+			->with(self::BOB, MediaTagsRequest::MAX_PAGE)
+			->willReturn(range(100, 100 - MediaTagsRequest::MAX_PAGE + 1));
+		$this->streamRequest->method('getStreamByNid')->willReturn($this->post());
+
+		$page = $this->service->photosOf($this->person(self::ALICE), self::BOB, 500);
+
+		$this->assertSame((string)(100 - MediaTagsRequest::MAX_PAGE + 1), $page['next']);
 	}
 }

@@ -324,7 +324,7 @@ class FiltersRequest extends FiltersRequestBuilder {
 	public function saveStatus(FilterStatus $status): int {
 		$qb = $this->getStatusesInsertSql();
 		$qb->setValue('filter_id', $qb->createNamedParameter($status->getFilterId(), IQueryBuilder::PARAM_INT))
-			->setValue('status_id', $qb->createNamedParameter($status->getStatusId(), IQueryBuilder::PARAM_INT))
+			->setValue('status_id', $qb->createNamedParameter($status->getStatusId(), IQueryBuilder::PARAM_STR))
 			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
 
 		$qb->executeStatement();

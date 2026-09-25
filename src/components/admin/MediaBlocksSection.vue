@@ -29,7 +29,7 @@
 			{{ t('social', 'The checksum of a file is what sha256sum prints for it. It matches that exact file: a re-encoded or re-cropped copy is a different file and is not caught.') }}
 		</p>
 
-		<NcEmptyContent v-if="blocks.length === 0" :name="t('social', 'Nothing is refused.')">
+		<NcEmptyContent v-if="blocks.length === 0 && next === null" :name="t('social', 'Nothing is refused.')">
 			<template #icon>
 				<IconCheckCircle :size="20" />
 			</template>
@@ -61,12 +61,23 @@
 				</tr>
 			</tbody>
 		</table>
+
+		<template v-if="next !== null">
+			<p class="social-admin__hint">
+				{{ n('social', 'Showing the newest {shown} of {total} refused file.', 'Showing the newest {shown} of {total} refused files.', total, { shown: blocks.length, total }) }}
+			</p>
+			<p class="social-admin__actions">
+				<NcButton :disabled="loadingMore" @click="loadMore">
+					{{ t('social', 'Show more') }}
+				</NcButton>
+			</p>
+		</template>
 	</NcSettingsSection>
 </template>
 
 <script>
 import axios from '@nextcloud/axios'
-import { translate as t } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import IconCheckCircle from 'vue-material-design-icons/CheckCircle.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -98,6 +109,11 @@ export default {
 	data() {
 		return {
 			blocks: [],
+			/** the `maxId` of the page after the rows here, null once there is none */
+			next: null,
+			/** how many files are refused in all, on screen or not */
+			total: 0,
+			loadingMore: false,
 			hash: '',
 			reason: '',
 			busy: false,
@@ -110,6 +126,18 @@ export default {
 
 	methods: {
 		t,
+		n,
+
+		/**
+		 * Replaces what is on screen with the first page a response carries.
+		 *
+		 * @param {object} data the response
+		 */
+		showFirstPage(data) {
+			this.blocks = data.blocks ?? []
+			this.next = data.next ?? null
+			this.total = data.total ?? this.blocks.length
+		},
 
 		/**
 		 * @param {string} hash the whole checksum
@@ -133,9 +161,35 @@ export default {
 		async load() {
 			try {
 				const { data } = await axios.get(moderationUrl('/media/blocks'))
-				this.blocks = data.blocks ?? []
+				this.showFirstPage(data)
 			} catch {
 				showError(t('social', 'Could not load the refused files'))
+			}
+		},
+
+		/**
+		 * The page after the rows here, added below them.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async loadMore() {
+			if (this.loadingMore || this.next === null) {
+				return
+			}
+
+			this.loadingMore = true
+			try {
+				const { data } = await axios.get(moderationUrl('/media/blocks'), {
+					params: { maxId: this.next },
+				})
+				const known = new Set(this.blocks.map((block) => block.hash))
+				this.blocks = this.blocks.concat((data.blocks ?? []).filter((block) => !known.has(block.hash)))
+				this.next = data.next ?? null
+				this.total = data.total ?? this.total
+			} catch {
+				showError(t('social', 'Could not load the refused files'))
+			} finally {
+				this.loadingMore = false
 			}
 		},
 
@@ -147,7 +201,7 @@ export default {
 					hash: this.hash.trim(),
 					reason: this.reason.trim(),
 				})
-				this.blocks = data.blocks ?? []
+				this.showFirstPage(data)
 				this.hash = ''
 				this.reason = ''
 			} catch (error) {
@@ -158,6 +212,13 @@ export default {
 		},
 
 		/**
+		 * Allows one file again.
+		 *
+		 * The row is taken out of the list on screen rather than the list
+		 * being replaced by the first page the server answers with: the row
+		 * may be on a later page, and whoever removed it is still reading
+		 * there.
+		 *
 		 * @param {object} block the row to remove
 		 * @return {Promise<void>}
 		 */
@@ -167,7 +228,8 @@ export default {
 				const { data } = await axios.delete(moderationUrl('/media/blocks'), {
 					data: { hash: block.hash },
 				})
-				this.blocks = data.blocks ?? []
+				this.blocks = this.blocks.filter((row) => row.hash !== block.hash)
+				this.total = data.total ?? Math.max(0, this.total - 1)
 			} catch {
 				showError(t('social', 'Could not allow that file again'))
 			} finally {

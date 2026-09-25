@@ -41,7 +41,7 @@ describe('ProfileTagged', () => {
 		await flushPromises()
 
 		const wanted = '/apps/social/api/v1.1/accounts/bob%40remote.example/tagged'
-		expect(get).toHaveBeenCalledWith(expect.stringContaining(wanted))
+		expect(get).toHaveBeenCalledWith(expect.stringContaining(wanted), { params: { limit: 20 } })
 	})
 
 	it('draws one entry per photo it is given', async () => {
@@ -83,5 +83,85 @@ describe('ProfileTagged', () => {
 
 		expect(wrapper.find('.tagged__error').exists()).toBe(true)
 		expect(wrapper.text()).toContain('Try again')
+	})
+
+	describe('paging', () => {
+		const page = (from, count) => Array.from({ length: count }, (_, i) => ({ id: String(from - i) }))
+		const next = (maxId) => ({ link: `</apps/social/api/v1.1/accounts/bob/tagged?limit=20&max_id=${maxId}>; rel="next"` })
+
+		it('asks for the next page from the Link header cursor and appends it', async () => {
+			get.mockResolvedValueOnce({ data: page(100, 20), headers: next('81') })
+				.mockResolvedValueOnce({ data: page(80, 5), headers: {} })
+
+			const wrapper = mountView()
+			await flushPromises()
+			expect(wrapper.findAll('.entry-stub')).toHaveLength(20)
+
+			await wrapper.find('.tagged__more button').trigger('click')
+			await flushPromises()
+
+			expect(get).toHaveBeenLastCalledWith(expect.any(String), { params: { limit: 20, max_id: '81' } })
+			expect(wrapper.findAll('.entry-stub')).toHaveLength(25)
+		})
+
+		it('draws no post twice when the pages overlap', async () => {
+			get.mockResolvedValueOnce({ data: page(100, 20), headers: next('81') })
+				.mockResolvedValueOnce({ data: page(82, 5), headers: {} })
+
+			const wrapper = mountView()
+			await flushPromises()
+			await wrapper.find('.tagged__more button').trigger('click')
+			await flushPromises()
+
+			const ids = wrapper.findAllComponents({ name: 'TimelineEntry' }).map((entry) => entry.props('item').id)
+			expect(ids).toHaveLength(23)
+			expect(new Set(ids).size).toBe(23)
+		})
+
+		/**
+		 * The server leaves out the posts this reader may not see, so a page
+		 * with fewer than twenty in it is not the end while it still says
+		 * where the next one starts.
+		 */
+		it('keeps paging after a short page that still has a next link', async () => {
+			get.mockResolvedValueOnce({ data: page(100, 3), headers: next('81') })
+
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.find('.tagged__more button').exists()).toBe(true)
+		})
+
+		it('stops once the server sends no next link, even after a full page', async () => {
+			get.mockResolvedValueOnce({ data: page(100, 20), headers: {} })
+
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.find('.tagged__more').exists()).toBe(false)
+		})
+
+		it('loads the next page when the end of the list scrolls into view', async () => {
+			let callback
+			vi.stubGlobal('IntersectionObserver', class {
+				constructor(cb) {
+					callback = cb
+				}
+
+				observe() {}
+				disconnect() {}
+			})
+			get.mockResolvedValueOnce({ data: page(100, 20), headers: next('81') })
+				.mockResolvedValueOnce({ data: [], headers: {} })
+
+			const wrapper = mountView()
+			await flushPromises()
+			callback([{ isIntersecting: true }])
+			await flushPromises()
+
+			expect(get).toHaveBeenCalledTimes(2)
+			expect(wrapper.find('.tagged__more').exists()).toBe(false)
+			vi.unstubAllGlobals()
+		})
 	})
 })

@@ -731,10 +731,15 @@ export default {
 
 /* while the sidebar is collapsed its toggle sits over the top-left corner of
    the content, where the composer or the heading begins; the first thing on
-   the page starts below it */
+   the page starts below it. The distance is a property so that a page sized
+   to the viewport (DirectMessages.vue) can take it off its own height */
 @include layout.below(layout.$folded) {
+	.social__wrapper {
+		--social-toggle-clearance: calc(var(--default-clickable-area, 44px) + var(--default-grid-baseline, 4px) * 2);
+	}
+
 	.social__wrapper > :first-child {
-		margin-top: calc(var(--default-clickable-area, 44px) + var(--default-grid-baseline, 4px) * 2);
+		margin-top: var(--social-toggle-clearance);
 	}
 }
 

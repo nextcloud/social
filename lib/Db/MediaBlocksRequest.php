@@ -90,22 +90,30 @@ class MediaBlocksRequest extends CoreRequestBuilder {
 	}
 
 	/**
-	 * The whole list, newest first. It is a handful of rows on any instance
-	 * that has one at all.
+	 * A page of the list, newest first: the rows added before the one
+	 * `$maxId` names, or from the top without one.
 	 *
-	 * @return array<int, array<string, mixed>>
+	 * Ordered and cut on the row id, which is unique and only ever grows, so
+	 * the pages neither overlap nor leave a gap between them however many
+	 * files are refused while somebody reads them.
+	 *
+	 * @return array<int, array{id: int, hash: string, reason: string, moderator: string, blocked: int, creation: string}>
 	 */
-	public function getAll(int $limit = 500): array {
+	public function getPage(int $limit, int $maxId = 0): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('hash', 'reason', 'moderator', 'blocked', 'creation')
-			->from(self::TABLE_MEDIA_BLOCKS)
-			->orderBy('id', 'desc')
+		$qb->select('id', 'hash', 'reason', 'moderator', 'blocked', 'creation')
+			->from(self::TABLE_MEDIA_BLOCKS);
+		if ($maxId > 0) {
+			$qb->where($qb->expr()->lt('id', $qb->createNamedParameter($maxId, IQueryBuilder::PARAM_INT)));
+		}
+		$qb->orderBy('id', 'desc')
 			->setMaxResults($limit);
 
 		$rows = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
 			$rows[] = [
+				'id' => (int)$data['id'],
 				'hash' => (string)$data['hash'],
 				'reason' => (string)$data['reason'],
 				'moderator' => (string)$data['moderator'],
@@ -116,6 +124,19 @@ class MediaBlocksRequest extends CoreRequestBuilder {
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/** How many files are refused, all of them. */
+	public function count(): int {
+		$qb = $this->getQueryBuilder();
+		$qb->selectAlias($qb->func()->count('*'), 'count')
+			->from(self::TABLE_MEDIA_BLOCKS);
+
+		$cursor = $qb->executeQuery();
+		$count = $cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return (int)$count;
 	}
 
 	private function countRefusal(string $hash): void {

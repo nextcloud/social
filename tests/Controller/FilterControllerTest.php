@@ -822,6 +822,34 @@ class FilterControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A post id wider than a PHP int is stored as the string it was sent as;
+	 * an `(int)` cast would have clamped it to PHP_INT_MAX.
+	 */
+	public function testAWidePostIdIsStoredExactly(): void {
+		$filter = $this->stored(self::ALICE);
+
+		$response = $this->controller()->addStatus($filter->getId(), '92233720368547758070');
+
+		$this->assertSame(['id' => '1', 'status_id' => '92233720368547758070'], $response->getData());
+		$this->assertSame(
+			[['id' => '1', 'status_id' => '92233720368547758070']],
+			$this->controller()->statuses($filter->getId())->getData()
+		);
+	}
+
+	public function testAStatusIdThatIsNotANidIsRefused(): void {
+		$filter = $this->stored(self::ALICE);
+
+		foreach (['abc', '12abc', '-5', '0'] as $statusId) {
+			$this->assertSame(
+				Http::STATUS_UNPROCESSABLE_ENTITY,
+				$this->controller()->addStatus($filter->getId(), $statusId)->getStatus(),
+				$statusId
+			);
+		}
+	}
+
 	public function testAStatusIdIsRequired(): void {
 		$filter = $this->stored(self::ALICE);
 

@@ -9,10 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Db;
 
+use DateTime;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -25,6 +28,7 @@ class FollowLifecycleTest extends TestCase {
 	private const ALICE = 'https://cloud.example.org/fltest/users/alice';
 	private const BOB = 'https://remote.example/fltest/users/bob';
 	private const NEW_BOB = 'https://new.example/fltest/users/bob';
+	private const ASKER = 'https://asking.example/fltest/users/';
 
 	private FollowsRequest $request;
 	private CacheActorsRequest $cacheActorsRequest;
@@ -45,6 +49,9 @@ class FollowLifecycleTest extends TestCase {
 		foreach ([self::ALICE, self::BOB, self::NEW_BOB] as $id) {
 			$this->request->deleteRelatedId($id);
 			$this->cacheActorsRequest->deleteCacheById($id);
+		}
+		for ($i = 0; $i < 5; $i++) {
+			$this->request->deleteRelatedId(self::ASKER . $i);
 		}
 	}
 
@@ -131,6 +138,51 @@ class FollowLifecycleTest extends TestCase {
 		$this->assertSame(2, $this->request->countFollowers(self::BOB));
 	}
 
+	/**
+	 * Five requests stamped with the same second, read two at a time: every
+	 * one of them once, in the same order a single read gives, forwards along
+	 * `max_id` and back along `min_id`.
+	 */
+	public function testPendingRequestsPageAcrossRequestsFromTheSameSecond(): void {
+		for ($i = 0; $i < 5; $i++) {
+			$this->follow(self::ASKER . $i . '#follow', self::ASKER . $i, self::BOB, false);
+		}
+		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+		$qb->update('social_follow')
+			->set('creation', $qb->createNamedParameter(new DateTime('2026-01-01 12:00:00'), IQueryBuilder::PARAM_DATE))
+			->where($qb->expr()->eq('object_id_prim', $qb->createNamedParameter(md5(self::BOB))))
+			->executeStatement();
+
+		$all = array_map(
+			static fn (Follow $follow): string => $follow->getActorId(),
+			$this->request->getPendingByObjectId(self::BOB)
+		);
+		$this->assertCount(5, $all);
+
+		$read = [];
+		$pages = [];
+		$cursor = '';
+		do {
+			$page = $this->request->getPendingByObjectId(self::BOB, 2, $cursor);
+			$pages[] = $page;
+			foreach ($page as $follow) {
+				$read[] = $follow->getActorId();
+			}
+			$cursor = $page === [] ? '' : FollowsRequest::pendingCursor(end($page));
+		} while (count($page) === 2);
+
+		$this->assertSame($all, $read, 'nothing skipped, nothing twice, the order kept');
+
+		$back = $this->request->getPendingByObjectId(
+			self::BOB, 2, '', FollowsRequest::pendingCursor($pages[2][0])
+		);
+		$this->assertSame(
+			array_slice($all, 2, 2),
+			array_map(static fn (Follow $follow): string => $follow->getActorId(), $back),
+			'min_id hands back the page just before the cursor, newest first'
+		);
+	}
+
 	public function testFollowerInboxesAreResolvedToOnePerInstance(): void {
 		// this is what the delivery fan-out needs, and all it needs: the whole
 		// follower list used to be hydrated into memory for it, one Person and
@@ -192,5 +244,34 @@ class FollowLifecycleTest extends TestCase {
 
 		$this->assertSame(0, $this->request->countFollowing(self::ALICE), 'alice→bob is gone');
 		$this->assertSame(1, $this->request->countFollowers(self::ALICE), 'bob→alice survives');
+	}
+
+	public function testAccountSearchCanBeNarrowedToFollowedAccounts(): void {
+		// a direct message's recipient box asks for the people the reader
+		// follows first; narrowing only the first page of an ordinary search
+		// found nobody when the followed account ranked below the limit
+		foreach ([self::BOB => 'fltestbob@remote.example', self::NEW_BOB => 'fltestbobby@new.example'] as $id => $account) {
+			$actor = new Person();
+			$actor->setId($id);
+			$actor->setAccount($account);
+			$actor->setPreferredUsername('fltestbob');
+			$actor->setInbox($id . '/inbox');
+			$this->cacheActorsRequest->save($actor);
+		}
+		$this->follow(self::ALICE . '#follow/15', self::ALICE, self::BOB, false);
+		$this->follow(self::ALICE . '#follow/16', self::ALICE, self::NEW_BOB, true);
+
+		$ids = static fn (array $found): array => array_map(static fn (Person $actor): string => $actor->getId(), $found);
+
+		$this->assertEqualsCanonicalizing(
+			[self::BOB, self::NEW_BOB],
+			$ids($this->cacheActorsRequest->searchAccounts('fltestbob'))
+		);
+		$this->assertSame(
+			[self::NEW_BOB],
+			$ids($this->cacheActorsRequest->searchAccounts('fltestbob', 1, self::ALICE)),
+			'only an accepted follow counts, and the limit counts followed accounts'
+		);
+		$this->assertSame([], $this->cacheActorsRequest->searchAccounts('fltestbob', null, self::NEW_BOB));
 	}
 }

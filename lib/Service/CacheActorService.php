@@ -377,11 +377,12 @@ class CacheActorService {
 
 	/**
 	 * @param string $search
+	 * @param string $followedBy when set, only the accounts this actor follows
 	 *
 	 * @return Person[]
 	 */
-	public function searchCachedAccounts(string $search, ?int $limit = null): array {
-		return $this->cacheActorsRequest->searchAccounts($search, $limit);
+	public function searchCachedAccounts(string $search, ?int $limit = null, string $followedBy = ''): array {
+		return $this->cacheActorsRequest->searchAccounts($search, $limit, $followedBy);
 	}
 
 	/**

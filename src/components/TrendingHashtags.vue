@@ -148,6 +148,7 @@ import HashtagFollowButton from './HashtagFollowButton.vue'
 import PeerTagRows from './PeerTagRows.vue'
 import logger from '../services/logger.js'
 import { useServerData } from '../composables/useServerData.js'
+import { nextCursor } from '../utils/linkHeader.js'
 
 /** As many as the server will rank. */
 const LIMIT = 20
@@ -160,6 +161,16 @@ const DEBOUNCE = 400
  * everything and tells the reader nothing.
  */
 const MIN_LENGTH = 2
+
+/** The most followed tags the server answers in one page. */
+const FOLLOWED_PAGE_SIZE = 50
+
+/**
+ * How many pages of followed tags are read before giving up on knowing all of
+ * them. Past this many follows, twenty lookups — one per button — is the
+ * cheaper way to draw the page.
+ */
+const FOLLOWED_MAX_PAGES = 5
 
 export default {
 	name: 'TrendingHashtags',
@@ -185,6 +196,14 @@ export default {
 			tags: [],
 			/** the hashtags this reader follows, or null while that is unknown */
 			followed: null,
+			/**
+			 * The read of `followed`, which the rows wait for: a button drawn
+			 * before it is settled asks about its own tag, and the list would
+			 * then have saved nothing.
+			 *
+			 * @type {Promise<void>}
+			 */
+			followedRead: Promise.resolve(),
 			period: '1d',
 			loading: false,
 			error: null,
@@ -292,8 +311,8 @@ export default {
 	},
 
 	beforeMount() {
+		this.followedRead = this.loadFollowed()
 		this.load()
-		this.loadFollowed()
 		this.ask()
 	},
 
@@ -347,6 +366,7 @@ export default {
 					generateUrl('apps/social/api/v1/directories/hashtags'),
 					{ params: { q: query, limit: LIMIT } },
 				)
+				await this.followedRead
 
 				// the reader has typed on since this was asked
 				const wanted = this.query.trim()
@@ -384,6 +404,7 @@ export default {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/trends/tags'), {
 					params: { limit: LIMIT, period },
 				})
+				await this.followedRead
 				// another window was chosen while this was in flight, and this
 				// answer is a ranking of the one that is gone
 				if (period !== this.period) {
@@ -408,9 +429,15 @@ export default {
 		},
 
 		/**
-		 * Which of these the reader already follows, in one request rather than
-		 * one per tag: twenty rows on this page would otherwise be twenty
+		 * Which of these the reader already follows, in a few requests rather
+		 * than one per tag: twenty rows on this page would otherwise be twenty
 		 * lookups before anything could be drawn.
+		 *
+		 * The buttons take this list as the whole truth — a tag not in it is
+		 * drawn as not followed — so it is handed to them only once the server
+		 * has said there is no further page. A reader who follows more than
+		 * `FOLLOWED_MAX_PAGES` pages of tags gets no list at all, and
+		 * each button asks about its own tag instead.
 		 */
 		async loadFollowed() {
 			if (this.serverData.public) {
@@ -418,10 +445,21 @@ export default {
 			}
 
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/followed_tags'), {
-					params: { limit: 200 },
-				})
-				this.followed = (Array.isArray(data) ? data : []).map((tag) => tag.name)
+				const names = []
+				let cursor = ''
+				for (let page = 0; page < FOLLOWED_MAX_PAGES; page++) {
+					const params = { limit: FOLLOWED_PAGE_SIZE }
+					if (cursor) {
+						params.max_id = cursor
+					}
+					const { data, headers } = await axios.get(generateUrl('apps/social/api/v1/followed_tags'), { params })
+					names.push(...(Array.isArray(data) ? data : []).map((tag) => tag.name))
+					cursor = nextCursor(headers)
+					if (!cursor) {
+						this.followed = names
+						return
+					}
+				}
 			} catch (error) {
 				// the buttons ask for themselves when this is not known
 				logger.debug('Could not read which hashtags are followed', { error })

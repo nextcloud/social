@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Tools\Nid;
 
 /**
  * What a keyword filter does to what the viewer is shown.
@@ -182,7 +183,7 @@ class FilterService {
 			$covered = [];
 			foreach ($ids as $id) {
 				if ($filter->covers($id)) {
-					$covered[] = (string)$id;
+					$covered[] = $id;
 				}
 			}
 
@@ -206,18 +207,23 @@ class FilterService {
 	 *
 	 * @param array $status a status entity
 	 *
-	 * @return int[]
+	 * @return string[] nids, as decimal strings
 	 */
 	private function matchableIds(array $status): array {
 		$ids = [];
 		foreach ([$status, $status['reblog'] ?? null] as $entity) {
-			$id = is_array($entity) ? (int)($entity['id'] ?? 0) : 0;
-			if ($id > 0) {
-				$ids[$id] = true;
+			$id = is_array($entity) ? (string)($entity['id'] ?? '') : '';
+			if (!ctype_digit($id) || Nid::compare($id, '0') < 1) {
+				continue;
+			}
+
+			$id = Nid::normalize($id);
+			if (!in_array($id, $ids, true)) {
+				$ids[] = $id;
 			}
 		}
 
-		return array_keys($ids);
+		return $ids;
 	}
 
 	/** @param array<array{filter: array, ...}> $results */

@@ -159,33 +159,42 @@
 					:placeholder="t('social', 'Search for a person by name or @username')"
 					autocomplete="off"
 					type="search" />
-				<div class="direct-messages__people-heading">
-					<h3>{{ recipientQuery.trim().length >= 2 ? t('social', 'Search results') : t('social', 'People you know') }}</h3>
-					<span v-if="searchingAccounts || loadingSuggestions" role="status">{{ t('social', 'Searching…') }}</span>
-				</div>
 				<p v-if="searchError" class="direct-messages__state direct-messages__recipient-feedback" role="alert">
 					{{ t('social', 'Could not search for people. Please try again.') }}
 				</p>
-				<ul v-if="visibleRecipients.length" class="direct-messages__recipient-results">
-					<li v-for="account in visibleRecipients" :key="account.id || account.acct">
-						<NcListItem
-							class="direct-messages__recipient-option"
-							:name="account.display_name || account.username || account.acct"
-							:linkAriaLabel="t('social', 'Start a conversation with {name}', { name: account.display_name || account.acct })"
-							@click="startConversation(account, $event)">
-							<template #icon>
-								<ActorAvatar :actor="account" :size="40" :link="false" />
-							</template>
-							<template #subname>
-								@{{ account.acct }}
-							</template>
-						</NcListItem>
-					</li>
-				</ul>
-				<p v-else-if="recipientQuery.trim().length >= 2 && !searchingAccounts && !searchError" class="direct-messages__state direct-messages__recipient-feedback">
+				<template v-for="group in recipientGroups" :key="group.key">
+					<div class="direct-messages__people-heading">
+						<h3 :id="`direct-messages-recipients-${group.key}`">
+							{{ group.title }}
+						</h3>
+					</div>
+					<ul
+						class="direct-messages__recipient-results"
+						:class="`direct-messages__recipient-results--${group.key}`"
+						:aria-labelledby="`direct-messages-recipients-${group.key}`">
+						<li v-for="account in group.accounts" :key="account.id || account.acct">
+							<NcListItem
+								class="direct-messages__recipient-option"
+								:name="account.display_name || account.username || account.acct"
+								:linkAriaLabel="t('social', 'Start a conversation with {name}', { name: account.display_name || account.acct })"
+								@click="startConversation(account, $event)">
+								<template #icon>
+									<ActorAvatar :actor="account" :size="40" :link="false" />
+								</template>
+								<template #subname>
+									@{{ account.acct }}
+								</template>
+							</NcListItem>
+						</li>
+					</ul>
+				</template>
+				<p v-if="searchingAccounts || loadingSuggestions" class="direct-messages__state direct-messages__recipient-feedback" role="status">
+					{{ t('social', 'Searching…') }}
+				</p>
+				<p v-else-if="hasRecipientQuery && !recipientGroups.length && !searchError" class="direct-messages__state direct-messages__recipient-feedback">
 					{{ t('social', 'No people found') }}
 				</p>
-				<p v-else-if="!loadingSuggestions && !visibleRecipients.length" class="direct-messages__state direct-messages__recipient-feedback">
+				<p v-else-if="!hasRecipientQuery && !recipientGroups.length" class="direct-messages__state direct-messages__recipient-feedback">
 					{{ t('social', 'Search for someone to start a conversation') }}
 				</p>
 			</div>
@@ -316,6 +325,7 @@ import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
 import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
 import DeleteOutline from 'vue-material-design-icons/DeleteOutline.vue'
 import TimelineEntry from './TimelineEntry.vue'
+import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 import logger from '../services/logger.js'
 
@@ -344,33 +354,6 @@ function hostOf(url) {
 	} catch {
 		return ''
 	}
-}
-
-/**
- * The `max_id` the server put in its `Link: …; rel="next"` header.
- *
- * It has to come from there rather than from the last row on screen: the
- * cursor is a message nid and a conversation id is its thread root, which does
- * not move when a message arrives — paging on it would skip conversations.
- *
- * @param {object} headers the response headers
- * @return {string} the cursor, or '' when the server said this is the last page
- */
-function nextCursor(headers) {
-	const link = headers?.link ?? headers?.Link ?? ''
-	for (const part of String(link).split(',')) {
-		if (!/;\s*rel\s*=\s*"?next"?/.test(part)) {
-			continue
-		}
-
-		const url = part.match(/<([^>]*)>/)?.[1]
-		const cursor = url?.match(/[?&]max_id=([^&]*)/)?.[1]
-		if (cursor) {
-			return decodeURIComponent(cursor)
-		}
-	}
-
-	return ''
 }
 
 /**
@@ -436,6 +419,7 @@ export default {
 			newMessageOpen: false,
 			recipientQuery: '',
 			accountResults: [],
+			followedResults: [],
 			suggestedAccounts: [],
 			loadingSuggestions: false,
 			searchingAccounts: false,
@@ -469,23 +453,54 @@ export default {
 			return this.conversations.find((conversation) => String(conversation.id) === this.selectedConversationId) ?? null
 		},
 
-		visibleRecipients() {
+		hasRecipientQuery() {
+			return this.recipientQuery.trim().replace(/^@/, '').length >= 2
+		},
+
+		/**
+		 * Who the recipient box offers, in two groups: the people the reader
+		 * knows — accounts they follow and the people they already talk to —
+		 * and after them, under their own heading, every other account the
+		 * search found. A stranger from the directory used to be listed among
+		 * the reader's own contacts with nothing to tell them apart.
+		 *
+		 * @return {{key: string, title: string, accounts: object[]}[]} the groups that have anybody in them
+		 */
+		recipientGroups() {
 			const query = this.recipientQuery.trim().replace(/^@/, '').toLocaleLowerCase()
+			const searching = this.hasRecipientQuery
 			const seen = new Set()
-			return [
-				...(query.length >= 2 ? this.accountResults : []),
-				...this.conversations.flatMap((conversation) => conversation.accounts ?? []),
-				...this.suggestedAccounts,
-			].filter((account) => {
-				const key = String(account?.id || account?.acct || '').toLocaleLowerCase()
-				const name = String(account?.display_name || account?.username || '').toLocaleLowerCase()
-				if (!account?.acct || !key || seen.has(key) || this.isOwnAccount(account)
-					|| (query && !name.includes(query) && !String(account.acct).toLocaleLowerCase().includes(query))) {
+			const keys = (account) => [account?.id, account?.acct]
+				.filter(Boolean)
+				.map((value) => String(value).toLocaleLowerCase())
+			const take = (account) => {
+				const accountKeys = keys(account)
+				if (!account?.acct || this.isOwnAccount(account) || accountKeys.some((key) => seen.has(key))) {
 					return false
 				}
-				seen.add(key)
+				accountKeys.forEach((key) => seen.add(key))
 				return true
-			}).slice(0, 12)
+			}
+			// the server already matched what it returns, however it was typed
+			// — a pasted profile link is in neither the name nor the handle —
+			// so only the accounts known locally are matched here
+			const matches = (account) => !query
+				|| String(account?.display_name || account?.username || '').toLocaleLowerCase().includes(query)
+				|| String(account?.acct ?? '').toLocaleLowerCase().includes(query)
+
+			const known = [
+				...(searching ? this.followedResults : []),
+				...[
+					...this.conversations.flatMap((conversation) => conversation.accounts ?? []),
+					...this.suggestedAccounts,
+				].filter(matches),
+			].filter(take).slice(0, 12)
+			const others = (searching ? this.accountResults : []).filter(take).slice(0, 8)
+
+			return [
+				{ key: 'known', title: t('social', 'People you know'), accounts: known },
+				{ key: 'others', title: t('social', 'Other accounts'), accounts: others },
+			].filter((group) => group.accounts.length > 0)
 		},
 
 		messages() {
@@ -529,8 +544,9 @@ export default {
 			clearTimeout(this.accountSearchTimer)
 			this.accountSearchRequest++
 			this.accountResults = []
+			this.followedResults = []
 			this.searchError = false
-			if (query.trim().length < 2) {
+			if (!this.hasRecipientQuery) {
 				this.searchingAccounts = false
 				return
 			}
@@ -668,23 +684,28 @@ export default {
 			return [...unique.values()]
 		},
 
+		/**
+		 * One search, asked twice at once: narrowed to the accounts the reader
+		 * follows, and not narrowed. The narrowed one is not a filter over the
+		 * other — the server searches the follows themselves — so somebody the
+		 * reader follows is found even when a page of strangers matches first.
+		 *
+		 * @param {string} query what was typed
+		 */
 		async searchAccounts(query) {
 			const request = ++this.accountSearchRequest
+			const url = generateUrl('apps/social/api/v1/accounts/search')
+			const resolve = isHandle(query)
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/search'), { params: { q: query, limit: 8, resolve: isHandle(query) } })
+				const [followed, all] = await Promise.all([
+					axios.get(url, { params: { q: query, limit: 8, resolve, following: true } }),
+					axios.get(url, { params: { q: query, limit: 8, resolve } }),
+				])
 				if (request !== this.accountSearchRequest) {
 					return
 				}
-				const accounts = Array.isArray(data) ? data : []
-				const seen = new Set()
-				this.accountResults = accounts.filter((account) => {
-					const key = String(account.id || account.acct).toLocaleLowerCase()
-					if (!account.acct || seen.has(key) || this.isOwnAccount(account)) {
-						return false
-					}
-					seen.add(key)
-					return true
-				}).slice(0, 8)
+				this.followedResults = Array.isArray(followed.data) ? followed.data : []
+				this.accountResults = Array.isArray(all.data) ? all.data : []
 			} catch (error) {
 				if (request === this.accountSearchRequest) {
 					this.searchError = true
@@ -713,6 +734,7 @@ export default {
 			this.messageText = ''
 			this.sendError = false
 			this.accountResults = []
+			this.followedResults = []
 			this.recipientQuery = ''
 		},
 
@@ -1034,13 +1056,22 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
+/*
+ * No `min-height`: the panes scroll inside the height below, and a floor under
+ * it only ever made the box taller than the viewport, which pushed the message
+ * field off a short screen and scrolled the whole page instead. Below
+ * `$folded` the page starts under the navigation toggle (Timeline.vue), and
+ * that distance comes off the height too, or the Send button is below the
+ * bottom edge.
+ */
 .direct-messages {
 	display: grid;
 	grid-template-columns: clamp(17.5rem, 23vw, 20rem) minmax(0, 1fr);
 	width: 100%;
-	height: calc(100dvh - var(--header-height, 50px) - 0.6rem);
-	min-height: 36rem;
+	height: calc(100dvh - var(--header-height, 50px) - 0.6rem - var(--social-toggle-clearance, 0px));
 	background: var(--color-main-background);
 }
 
@@ -1069,7 +1100,19 @@ export default {
 
 .direct-messages__list-heading {
 	justify-content: space-between;
-	padding-inline-start: 3.5rem;
+}
+
+/*
+ * Room for Nextcloud's app-navigation toggle. Where the navigation is pinned
+ * the toggle sits over the top-left corner of the content — that corner is
+ * this heading, open or closed — and without the room it covers the first
+ * letters of "Messages". Below `$folded` the page already starts beneath the
+ * toggle (Timeline.vue), so the room there would be empty.
+ */
+@media (min-width: layout.$folded + 1px) {
+	.direct-messages__list-heading {
+		padding-inline-start: 3.5rem;
+	}
 }
 
 .direct-messages__list-heading h2,
@@ -1373,10 +1416,6 @@ export default {
 	font-weight: 650;
 }
 
-.direct-messages__people-heading span {
-	font-size: 0.8rem;
-}
-
 .direct-messages__recipient-results {
 	max-width: 42rem;
 	margin: 0 auto;
@@ -1513,10 +1552,14 @@ export default {
 	}
 }
 
-@media (max-width: 980px) {
+/*
+ * One pane at a time from here down. Above it the list keeps its 17.5rem and
+ * the thread has at least 32rem, which is wider than the thread already is
+ * beside a pinned navigation at 1024px.
+ */
+@include layout.below(layout.$crowded) {
 	.direct-messages {
 		grid-template-columns: minmax(0, 1fr);
-		min-height: calc(100dvh - var(--header-height, 50px) - 0.6rem);
 	}
 
 	.direct-messages__list-panel {

@@ -505,12 +505,75 @@ class ModerationControllerTest extends TestCase {
 		$hash = str_repeat('a1', 32);
 		$this->mediaBlocksRequest->expects($this->once())->method('block')
 			->with($hash, 'the same image for the third time', 'alice');
-		$this->mediaBlocksRequest->method('getAll')->willReturn([]);
+		$this->mediaBlocksRequest->method('getPage')->willReturn([]);
 
 		$this->assertSame(
 			Http::STATUS_OK,
 			$this->controller->mediaBlockAdd($hash, 'the same image for the third time')->getStatus()
 		);
+	}
+
+	/** @return array<int, array<string, mixed>> rows with ids $from down to $to */
+	private function mediaBlockRows(int $from, int $to): array {
+		$rows = [];
+		for ($id = $from; $id >= $to; $id--) {
+			$rows[] = [
+				'id' => $id, 'hash' => hash('sha256', (string)$id), 'reason' => '',
+				'moderator' => 'alice', 'blocked' => 0, 'creation' => '2026-09-15 10:00:00',
+			];
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * A refused file is enforced whether anybody can see it or not, so the
+	 * list cannot simply stop: a full page says where the next one starts,
+	 * and how many there are in all.
+	 */
+	public function testAFullPageOfRefusedFilesSaysWhereTheNextOneStarts(): void {
+		$this->mediaBlocksRequest->expects($this->once())->method('getPage')
+			->with(101, 0)->willReturn($this->mediaBlockRows(600, 500));
+		$this->mediaBlocksRequest->method('count')->willReturn(600);
+
+		$data = $this->controller->mediaBlocks()->getData();
+
+		$this->assertCount(100, $data['blocks']);
+		$this->assertSame(600, $data['blocks'][0]['id']);
+		$this->assertSame(501, $data['next']);
+		$this->assertSame(600, $data['total']);
+	}
+
+	public function testALaterPageIsReadFromTheCursorAndTheLastOneSaysSo(): void {
+		$this->mediaBlocksRequest->expects($this->once())->method('getPage')
+			->with(101, 101)->willReturn($this->mediaBlockRows(100, 1));
+		$this->mediaBlocksRequest->method('count')->willReturn(200);
+
+		$data = $this->controller->mediaBlocks(101)->getData();
+
+		$this->assertCount(100, $data['blocks']);
+		$this->assertNull($data['next']);
+	}
+
+	public function testAShortListIsOnePage(): void {
+		$this->mediaBlocksRequest->method('getPage')->willReturn($this->mediaBlockRows(2, 1));
+		$this->mediaBlocksRequest->method('count')->willReturn(2);
+
+		$this->assertSame(
+			['blocks' => $this->mediaBlockRows(2, 1), 'next' => null, 'total' => 2],
+			$this->controller->mediaBlocks()->getData()
+		);
+	}
+
+	public function testAFileIsAllowedAgainByItsHashWhicheverPageItWasOn(): void {
+		$hash = str_repeat('b2', 32);
+		$this->mediaBlocksRequest->expects($this->once())->method('unblock')->with($hash);
+		$this->mediaBlocksRequest->method('getPage')->willReturn([]);
+		$this->mediaBlocksRequest->method('count')->willReturn(0);
+
+		$data = $this->controller->mediaBlockRemove(' ' . strtoupper($hash) . ' ')->getData();
+
+		$this->assertSame(['blocks' => [], 'next' => null, 'total' => 0], $data);
 	}
 
 	/** A row that can never match a file is a row nobody can explain later. */

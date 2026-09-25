@@ -323,6 +323,25 @@ class MediaUsageServiceTest extends TestCase {
 	}
 
 	/**
+	 * An attachment without an id of its own is given one under this
+	 * instance's address, and its bytes belong to the server its url names.
+	 */
+	public function testAnAttachmentWithAGeneratedIdIsTotalledUnderTheServerItCameFrom(): void {
+		$this->row(1, self::CLOUD . '/documents/g/1d2c3b4a-0000-4000-8000-000000000000', [
+			'url' => 'https://social.b.example/apps/social/media/0bef598f-ef65-4857-a108-b3766689b78c.jpeg',
+			'local_copy' => $this->onDisk('a', 500),
+		]);
+		$this->row(2, self::CLOUD . '/documents/g/2d2c3b4a-0000-4000-8000-000000000000', [
+			'url' => 'https://files.mastodon.example/media/cat.jpg',
+			'local_copy' => $this->onDisk('b', 300),
+		]);
+
+		$usage = $this->service->measure();
+
+		$this->assertSame(['social.b.example' => 500, 'files.mastodon.example' => 300], $usage['domains']);
+	}
+
+	/**
 	 * Everything the counters were holding is in the figure the walk just
 	 * wrote; leaving them would charge those bytes twice and shrink the quota
 	 * a little more with every pass.

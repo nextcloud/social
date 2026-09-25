@@ -191,7 +191,7 @@ class CollectionController extends ClientApiController {
 	#[PublicPage]
 	#[UserRateLimit(limit: 60, period: 60)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/collections/{id}/items', requirements: ['id' => '\\d+'])]
-	public function addItem(int $id, int $status_id = 0): DataResponse {
+	public function addItem(int $id, int|string $status_id = 0): DataResponse {
 		try {
 			$this->initViewer(['write:collections']);
 
@@ -210,7 +210,7 @@ class CollectionController extends ClientApiController {
 		url: '/api/v1/collections/{id}/items/{status_id}',
 		requirements: ['id' => '\\d+', 'status_id' => '\\d+']
 	)]
-	public function removeItem(int $id, int $status_id): DataResponse {
+	public function removeItem(int $id, int|string $status_id): DataResponse {
 		try {
 			$this->initViewer(['write:collections']);
 

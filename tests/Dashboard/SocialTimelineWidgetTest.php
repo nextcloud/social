@@ -230,6 +230,24 @@ class SocialTimelineWidgetTest extends TestCase {
 		$this->assertSame(0, $options->getMinId(), 'minId would hand back the oldest rows instead of the newest');
 	}
 
+	/**
+	 * The sinceId is a nid; one wider than a PHP int is asked for as the
+	 * string it came as, where an `(int)` cast clamped it to PHP_INT_MAX.
+	 */
+	public function testAWideSinceIsAskedForExactly(): void {
+		$this->viewer();
+		$options = null;
+		$this->streamService->method('getTimeline')->willReturnCallback(function (ProbeOptions $o) use (&$options): array {
+			$options = $o;
+
+			return [];
+		});
+
+		$this->widget->getItemsV2('alice', '92233720368547758070');
+
+		$this->assertSame('92233720368547758070', $options->getSince());
+	}
+
 	public function testAnUnusableSinceIsIgnored(): void {
 		$this->viewer();
 		$options = null;

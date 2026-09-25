@@ -21,13 +21,21 @@
 			</NcButton>
 		</div>
 
-		<ul v-else-if="posts.length" class="tagged__list">
-			<TimelineEntry
-				v-for="post in posts"
-				:key="post.id"
-				:item="post"
-				type="account" />
-		</ul>
+		<template v-else-if="posts.length">
+			<ul class="tagged__list">
+				<TimelineEntry
+					v-for="post in posts"
+					:key="post.id"
+					:item="post"
+					type="account" />
+			</ul>
+			<NcLoadingIcon v-if="loadingMore" class="tagged__loading" :size="32" />
+			<div v-else-if="cursor" class="tagged__more">
+				<NcButton @click="loadMore">
+					{{ t('social', 'Show more') }}
+				</NcButton>
+			</div>
+		</template>
 
 		<NcEmptyContent
 			v-else
@@ -37,6 +45,8 @@
 				<IconAccountBoxMultiple :size="20" />
 			</template>
 		</NcEmptyContent>
+
+		<div ref="sentinel" class="tagged__sentinel" />
 	</div>
 </template>
 
@@ -53,6 +63,11 @@ import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import logger from '../services/logger.js'
 import { profileKinds } from '../composables/useProfileKinds.js'
+import { latestLoad } from '../utils/latestLoad.js'
+import { nextCursor } from '../utils/linkHeader.js'
+
+/** How many posts one request asks for; the route's own default. */
+const PAGE_SIZE = 20
 
 /**
  * The photographs somebody else took that this account is named in.
@@ -62,6 +77,10 @@ import { profileKinds } from '../composables/useProfileKinds.js'
  * Photos and Videos. What the reader may see is the server's decision — a
  * post they could not otherwise read is simply not in the answer — so this
  * page renders what it is given and asks no questions of its own.
+ *
+ * It pages on the `Link` header and not on the last post drawn: a page the
+ * reader may not see all of comes back short without being the last, so only
+ * the header's absence says there is nothing more.
  */
 export default {
 	name: 'ProfileTagged',
@@ -80,14 +99,24 @@ export default {
 		return {
 			posts: [],
 			loading: true,
+			loadingMore: false,
 			error: '',
+			loads: latestLoad(),
+			/** where the next page starts, '' once the server said there is none */
+			cursor: '',
+			observer: null,
 		}
 	},
 
 	computed: {
+		/** @return {string} the handle in the route */
+		account() {
+			return String(this.$route.params.account ?? '')
+		},
+
 		/** @return {Array} the five places a profile can be read */
 		kinds() {
-			return profileKinds(this.$route.params.account)
+			return profileKinds(this.account)
 		},
 
 		/** @return {string} */
@@ -102,25 +131,90 @@ export default {
 
 	mounted() {
 		this.load()
+		this.observer = new IntersectionObserver((entries) => {
+			if (entries[0]?.isIntersecting) {
+				this.loadMore()
+			}
+		}, { rootMargin: '300px' })
+		this.observer.observe(this.$refs.sentinel)
+	},
+
+	unmounted() {
+		this.observer?.disconnect()
 	},
 
 	methods: {
 		t,
 
+		/**
+		 * @param {string} account the account whose photos to ask for
+		 * @param {string} maxId where the page starts, '' for the first
+		 * @return {Promise<{posts: Array, cursor: string}>}
+		 */
+		async fetchPage(account, maxId) {
+			const url = generateUrl('apps/social/api/v1.1/accounts/{account}/tagged', { account })
+			const params = { limit: PAGE_SIZE }
+			if (maxId) {
+				params.max_id = maxId
+			}
+			const { data, headers } = await axios.get(url, { params })
+
+			return { posts: Array.isArray(data) ? data : [], cursor: nextCursor(headers) }
+		},
+
 		/** @return {Promise<void>} */
 		async load() {
+			const isNewest = this.loads.begin()
+			const account = this.account
 			this.loading = true
+			this.loadingMore = false
 			this.error = ''
+			this.cursor = ''
 			try {
-				const account = this.$route.params.account
-				const url = generateUrl('apps/social/api/v1.1/accounts/{account}/tagged', { account })
-				const { data } = await axios.get(url)
-				this.posts = Array.isArray(data) ? data : []
+				const page = await this.fetchPage(account, '')
+				if (!isNewest()) {
+					return
+				}
+				this.posts = page.posts
+				this.cursor = page.cursor
 			} catch (error) {
 				logger.error('could not load the photos somebody is tagged in', { error })
-				this.error = t('social', 'Could not load these photos')
+				if (isNewest()) {
+					this.error = t('social', 'Could not load these photos')
+				}
 			} finally {
-				this.loading = false
+				if (isNewest()) {
+					this.loading = false
+				}
+			}
+		},
+
+		/** @return {Promise<void>} */
+		async loadMore() {
+			if (this.loading || this.loadingMore || !this.cursor) {
+				return
+			}
+			const account = this.account
+			// tied to the load that drew the first page: a page for a profile
+			// the reader has since left is theirs no longer
+			const isNewest = this.loads.current()
+			this.loadingMore = true
+			try {
+				const page = await this.fetchPage(account, this.cursor)
+				// a page that arrives after the reader has moved to another
+				// profile belongs to the one they left
+				if (!isNewest() || account !== this.account) {
+					return
+				}
+				const seen = new Set(this.posts.map((post) => post.id))
+				this.posts = [...this.posts, ...page.posts.filter((post) => !seen.has(post.id))]
+				this.cursor = page.cursor
+			} catch (error) {
+				logger.error('could not load more of the photos somebody is tagged in', { error })
+			} finally {
+				if (isNewest()) {
+					this.loadingMore = false
+				}
 			}
 		},
 	},
@@ -135,6 +229,16 @@ export default {
 .tagged__error {
 	text-align: center;
 	margin-block: 24px;
+}
+
+.tagged__more {
+	display: flex;
+	justify-content: center;
+	margin-block: 16px;
+}
+
+.tagged__sentinel {
+	height: 1px;
 }
 
 .tagged__list {

@@ -27,6 +27,7 @@ use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
@@ -297,7 +298,11 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 	#[\Override]
 	public function delete(ACore $item): void {
 		/** @var Note $item */
-		$this->streamRequest->deleteById($item->getId(), Note::TYPE);
+		// guarded by type so that a note's id never takes a row of another kind
+		// with it -- and a poll is stored as the `Question` it is, so a guard
+		// of `Note` alone left every deleted poll where it was
+		$type = ($item->getType() === Question::TYPE) ? Question::TYPE : Note::TYPE;
+		$this->streamRequest->deleteById($item->getId(), $type);
 		$this->linkPreviewService->deleteCard($item->getId());
 		// the post it answered counts one reply fewer now. `updateDetails()`
 		// recounts rather than decrements, so it has to run after the row has

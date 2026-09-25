@@ -479,7 +479,7 @@ class FilterServiceTest extends TestCase {
 
 	// the other half of a filter: a post it covers by name
 
-	private function covering(string $actorId, int $statusId, string $action = Filter::ACTION_WARN): Filter {
+	private function covering(string $actorId, int|string $statusId, string $action = Filter::ACTION_WARN): Filter {
 		$filter = (new Filter())
 			->setId(9)
 			->setActorId($actorId)
@@ -545,4 +545,19 @@ class FilterServiceTest extends TestCase {
 		$this->assertSame(['42'], $results[0]['status_matches']);
 	}
 
+	/**
+	 * A nid wider than a PHP int is compared as the string it is. Cast, both
+	 * sides would clamp to PHP_INT_MAX and a filter on one post would cover
+	 * its neighbour too.
+	 */
+	public function testAPostIdWiderThanAPhpIntIsMatchedExactly(): void {
+		$this->covering(self::ALICE, '92233720368547758070');
+
+		$results = $this->service->results(['id' => '92233720368547758070'], $this->stored[self::ALICE]);
+		$this->assertSame(['92233720368547758070'], $results[0]['status_matches']);
+
+		$this->assertSame(
+			[], $this->service->results(['id' => '92233720368547758071'], $this->stored[self::ALICE])
+		);
+	}
 }

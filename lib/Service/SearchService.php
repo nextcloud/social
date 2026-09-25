@@ -212,10 +212,11 @@ class SearchService {
 	/**
 	 * @param string $search
 	 * @param int|null $limit how many accounts a paging caller needs, null for all of them
+	 * @param string $followedBy when set, only the accounts this actor follows
 	 *
 	 * @return Person[]
 	 */
-	public function searchAccounts(string $search, ?int $limit = null): array {
+	public function searchAccounts(string $search, ?int $limit = null, string $followedBy = ''): array {
 		$type = $this->getTypeFromSearch($search);
 
 		if ($search === '' || !($type & self::SEARCH_ACCOUNTS)) {
@@ -224,13 +225,18 @@ class SearchService {
 
 		$search = ltrim($search, '@');
 
-		try {
-			// search and cache eventual exact account first
-			$this->cacheActorService->getFromAccount($search);
-		} catch (Exception $e) {
+		// an account this instance has never seen is not one anybody here
+		// follows, so fetching it would be a request to another server whose
+		// answer is filtered straight back out
+		if ($followedBy === '') {
+			try {
+				// search and cache eventual exact account first
+				$this->cacheActorService->getFromAccount($search);
+			} catch (Exception $e) {
+			}
 		}
 
-		return $this->cacheActorService->searchCachedAccounts($search, $limit);
+		return $this->cacheActorService->searchCachedAccounts($search, $limit, $followedBy);
 	}
 
 	/**

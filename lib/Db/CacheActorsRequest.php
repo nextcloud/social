@@ -380,12 +380,27 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 	/**
 	 * @param string $search
+	 * @param string $followedBy when set, only the accounts this actor follows
+	 *                           — narrowed in the query, so the limit counts
+	 *                           followed accounts rather than cutting the
+	 *                           search short before any of them is reached
 	 *
 	 * @return Person[]
 	 */
-	public function searchAccounts(string $search, ?int $limit = null): array {
+	public function searchAccounts(string $search, ?int $limit = null, string $followedBy = ''): array {
 		$qb = $this->getCacheActorsSelectSql();
 		$qb->searchInAccount($search);
+		if ($followedBy !== '') {
+			$qb->innerJoin(
+				$qb->getDefaultSelectAlias(),
+				CoreRequestBuilder::TABLE_FOLLOWS,
+				'ca_f',
+				$qb->expr()->eq('ca.id_prim', 'ca_f.object_id_prim')
+			);
+			$qb->limitToType(Follow::TYPE, 'ca_f');
+			$qb->limitToAccepted(true, 'ca_f');
+			$qb->limitToActorIdPrim($qb->prim($followedBy), 'ca_f');
+		}
 		$qb->leftJoinCacheDocuments('icon_id');
 		$this->leftJoinDetails($qb);
 		$qb->limitResults(min($limit ?? self::SEARCH_LIMIT, self::SEARCH_LIMIT));

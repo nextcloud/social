@@ -114,9 +114,6 @@ class CacheDocumentServiceTest extends TestCase {
 	private function unlimitedDomainQuota(): \OCA\Social\Service\RemoteMediaQuotaService {
 		$this->domainQuota = $this->createMock(\OCA\Social\Service\RemoteMediaQuotaService::class);
 		$this->domainQuota->method('fits')->willReturn(true);
-		$this->domainQuota->method('hostOf')->willReturnCallback(
-			static fn (string $url): string => (string)parse_url($url, PHP_URL_HOST)
-		);
 
 		return $this->domainQuota;
 	}
@@ -408,6 +405,30 @@ class CacheDocumentServiceTest extends TestCase {
 		} finally {
 			unlink($tmp);
 		}
+	}
+
+	/**
+	 * A Nextcloud Social or Mastodon attachment arrives without an id and is
+	 * given one under this instance's address; it is charged to the server
+	 * its url names, which is the one the bytes came from.
+	 */
+	public function testAnAttachmentWithAGeneratedIdIsChargedToTheServerItCameFrom(): void {
+		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
+		$this->tempFiles[] = $tmp;
+		$png = $this->pngBytes(12, 12);
+		file_put_contents($tmp, $png);
+		$written = [];
+		$this->captureWrites($written);
+		$this->blurService->method('generateBlurHash')->willReturn('hash');
+		$document = new Document();
+		$document->setId('https://cloud.example/documents/g/1d2c3b4a-0000-4000-8000-000000000000');
+		$document->setUrl('https://social.b.example/apps/social/media/0bef598f-ef65-4857-a108-b3766689b78c.jpeg');
+		$this->domainQuota->expects($this->once())
+			->method('fits')->with('social.b.example', strlen($png))->willReturn(true);
+		$this->domainQuota->expects($this->once())
+			->method('record')->with('social.b.example', strlen($png));
+
+		$this->quietly(fn () => $this->service->saveFromTempToCache($document, $tmp));
 	}
 
 	#[WithoutErrorHandler]

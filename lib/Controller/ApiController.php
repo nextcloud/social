@@ -593,22 +593,39 @@ class ApiController extends Controller {
 	}
 
 	/**
-	 * The accounts waiting for the viewer's approval to follow them.
+	 * The accounts waiting for the viewer's approval to follow them, newest
+	 * first, a page at a time.
 	 *
+	 * Paged the way Mastodon pages it — `limit` (40, at most 80), `max_id` and
+	 * `min_id`, and a `Link` header — and, as in Mastodon, the cursor is the
+	 * follow request's and not the account's: see
+	 * FollowsRequest::getPendingByObjectId() for what it holds. `paged()` does
+	 * not fit, since it pages on the entities' own ids.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/follow_requests')]
-	public function followRequests(): DataResponse {
+	public function followRequests(int $limit = 40, string $max_id = '', string $min_id = ''): DataResponse {
 		try {
 			$this->initViewer(true);
 
-			$accounts = $this->followService->getPendingRequests();
-			foreach ($accounts as $account) {
+			$limit = ($limit < 1) ? 40 : min($limit, 80);
+			$page = $this->followService->getPendingRequestPage($limit, $max_id, $min_id);
+			foreach ($page['accounts'] as $account) {
 				$account->setExportFormat(ACore::FORMAT_LOCAL);
 			}
 
-			return new DataResponse($accounts, Http::STATUS_OK);
+			$response = new DataResponse($page['accounts'], Http::STATUS_OK);
+			if ($page['rows'] > 0) {
+				$links = [];
+				if ($page['rows'] >= $limit) {
+					$links[] = '<' . $this->pageUrl(['max_id' => $page['last']]) . '>; rel="next"';
+				}
+				$links[] = '<' . $this->pageUrl(['min_id' => $page['first']]) . '>; rel="prev"';
+				$response->addHeader('Link', implode(', ', $links));
+			}
+
+			return $response;
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -2195,29 +2212,31 @@ class ApiController extends Controller {
 				return new DataResponse([], Http::STATUS_OK);
 			}
 
-			$found = $this->searchService->searchAccounts($q, $limit);
+			// `following=true` is a client completing a reply rather than
+			// searching: it wants the people already in the conversation's
+			// reach, not everybody this instance has ever cached. The search
+			// itself is narrowed rather than its answer: filtering the first
+			// `limit` matches found nobody whenever the followed account was
+			// not among them.
+			$found = $this->searchService->searchAccounts($q, $limit, $following ? $this->viewer->getId() : '');
 			if ($resolve && (str_starts_with($q, '@') || str_starts_with($q, 'http'))) {
-				$found = array_merge($this->searchService->searchUri($q), $found);
+				$resolved = $this->searchService->searchUri($q);
+				if ($following) {
+					$resolved = array_filter(
+						$resolved,
+						fn (Person $account): bool
+							=> $this->followService->getRelationshipWith($account)->isFollowing()
+					);
+				}
+				$found = array_merge($resolved, $found);
 			}
 
 			$accounts = [];
 			foreach ($found as $account) {
 				$accounts[$account->getId()] = $account->setExportFormat(ACore::FORMAT_LOCAL);
 			}
-			$accounts = array_slice(array_values($accounts), 0, $limit);
 
-			// `following=true` is a client completing a reply rather than
-			// searching: it wants the people already in the conversation's
-			// reach, not everybody this instance has ever cached
-			if ($following) {
-				$accounts = array_values(array_filter(
-					$accounts,
-					fn (Person $account): bool
-						=> $this->followService->getRelationshipWith($account)->isFollowing()
-				));
-			}
-
-			return new DataResponse(array_slice($accounts, 0, $limit), Http::STATUS_OK);
+			return new DataResponse(array_slice(array_values($accounts), 0, $limit), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

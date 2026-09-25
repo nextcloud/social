@@ -338,7 +338,9 @@ a list of them beside the page on a wide screen:
 - **Refused pictures** — files this instance will not store, named by their
   sha256. The one thing the account-level tools do not do is stop a *file*
   coming back; a refused one is turned away wherever it arrives, an upload here
-  or an attachment fetched from another server.
+  or an attachment fetched from another server. The list shows the newest 100;
+  when there are more it says how many, and **Show more** adds the next 100
+  below. **Allow again** works on any row, on whichever page.
 - **What this server is about** — a few named subjects, each a handful of
   hashtags, shown at the top of Explore above the trending lists. Trending on
   a small server is four hashtags and a wedding; this is the part of that page
@@ -373,7 +375,9 @@ a list of them beside the page on a wide screen:
   `occ social:media:retry <remote_url>`. Use the exact `remote_url` reported
   by the attachment; Social clears the stored refusal for that one uncached
   row and tries it immediately. The normal media checks still apply, so a
-  retry can be refused again.
+  retry can be refused again. A picture that simply took too long to arrive
+  while its post was being received is not refused: the background job fetches
+  it again, and it and the retry command allow a download two minutes.
 - **Federation health** — what the outbound queue is doing, including how long
   the longest-failing delivery has been failing: the counts say how much and
   where, and that says whether it started an hour ago or a week ago, which is
@@ -579,7 +583,7 @@ can still be set with `occ`; the page validates the ranges given here.
 | `rate_limit_anon` | `300` | The same budget for a caller with **no account**, counted per address. |
 | `rate_limit_window` | `300` | How long that window is, in seconds. |
 | `follow_limit` | `100` | How many follows **one account** may send in an hour. A compromised account, or one running a script, can fan out follows to thousands of servers from this instance's address in a few minutes — every one a signed request this instance is answerable for. An hour rather than a day because what this catches is a burst, and high enough that importing a follow list from another server still goes through. Counted from the rows, so it holds on an instance with no memcache. `0` is no limit. |
-| `domain_media_quota` | `0` | How many megabytes of media **one other server** may keep here. Every picture on a post somebody here follows is fetched and cached, and nothing bounded that by where it came from: one server posting large images at a high rate fills the disk of every instance that follows anybody on it. Counted from the figure the daily storage walk takes, plus successfully cached bytes from that host since — rejected or unreadable downloads do not spend quota. The figure is up to a day coarse and errs towards refusing early. Off by default, because an instance that has been federating for a year and acquires a quota on upgrade would start refusing the pictures of the servers it talks to most. Who is holding what is under **Administration → Social → Storage**. |
+| `domain_media_quota` | `0` | How many megabytes of media **one other server** may keep here. Every picture on a post somebody here follows is fetched and cached, and nothing bounded that by where it came from: one server posting large images at a high rate fills the disk of every instance that follows anybody on it. The server is the host of the file's own address (its `url`), which for a Mastodon instance is often a separate media host. Counted from the figure the daily storage walk takes, plus successfully cached bytes from that host since — rejected or unreadable downloads do not spend quota. The figure is up to a day coarse and errs towards refusing early. Off by default, because an instance that has been federating for a year and acquires a quota on upgrade would start refusing the pictures of the servers it talks to most. Who is holding what is under **Administration → Social → Storage**. |
 | `secure_mode` | `0` | Refuse ActivityPub fetches that are not signed. Mastodon's secure mode. Turning it on makes this instance invisible to every peer that does not sign what it asks for, and to every anonymous reader; it is a decision about who to federate with, not a hardening step to apply by default. |
 | `publish_blocks` | `0` | Publish the deny list on `/api/v1/instance/domain_blocks`, the way Mastodon does, so somebody choosing a server can see who it will not talk to. Whether *this* server wants that read by anybody is a disclosure decision. |
 | `allow_self_signed` | `0` | Accept peers whose certificates do not check out. **Development only**: on a server anybody else uses, this hands every federated request to whoever can answer for the address. |

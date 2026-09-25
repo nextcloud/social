@@ -171,7 +171,7 @@ class ConversationController extends Controller {
 	// `/api/v1/conversations/{id}` cannot read this as a conversation named
 	// "4/read" because `{id}` matches one segment, and it has to stay that way.
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/conversations/{id}/read')]
-	public function read(int $id): DataResponse {
+	public function read(int|string $id): DataResponse {
 		try {
 			$this->initViewer(['write:conversations']);
 
@@ -191,7 +191,7 @@ class ConversationController extends Controller {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/conversations/{id}')]
-	public function delete(int $id): DataResponse {
+	public function delete(int|string $id): DataResponse {
 		try {
 			$this->initViewer(['write:conversations']);
 			$this->conversationService->remove($this->viewer, $id);

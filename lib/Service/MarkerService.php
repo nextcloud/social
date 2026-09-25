@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Tools\Nid;
 use OCP\Config\IUserConfig;
 
 /**
@@ -62,15 +63,24 @@ class MarkerService {
 	}
 
 	/**
-	 * The last read position as a number, which is what a comparison against a
-	 * stream's nid needs. An unread timeline, or a marker from a client that
-	 * stored something that is not a number, reads as zero — everything unread.
+	 * The last read position as a nid, which is what a comparison against a
+	 * stream's nid needs — as its decimal string, because a nid does not fit
+	 * a PHP int everywhere. An unread timeline, or a marker from a client that
+	 * stored something that is not a nid, reads as zero — everything unread.
 	 */
-	public function lastReadId(string $userId, string $timeline): int {
+	public function lastReadId(string $userId, string $timeline): string {
 		$markers = $this->getAll($userId);
-		$id = $markers[$timeline]['last_read_id'] ?? '0';
 
-		return is_numeric($id) ? (int)$id : 0;
+		return $this->nid($markers[$timeline]['last_read_id'] ?? '0') ?? '0';
+	}
+
+	/** A stored or submitted position as a normalised nid, null if it is not one. */
+	private function nid(mixed $id): ?string {
+		if (!is_string($id) && !is_int($id)) {
+			return null;
+		}
+
+		return ctype_digit((string)$id) ? Nid::normalize($id) : null;
 	}
 
 	/**
@@ -86,8 +96,9 @@ class MarkerService {
 		$markers = $this->getAll($userId);
 		$current = $markers[$timeline] ?? null;
 
-		if ($current !== null && is_numeric($current['last_read_id']) && is_numeric($lastReadId)
-			&& (int)$current['last_read_id'] >= (int)$lastReadId) {
+		$was = $this->nid($current['last_read_id'] ?? null);
+		$now = $this->nid($lastReadId);
+		if ($current !== null && $was !== null && $now !== null && Nid::compare($was, $now) >= 0) {
 			return $current;
 		}
 

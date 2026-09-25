@@ -900,7 +900,7 @@ class FollowServiceTest extends TestCase {
 
 		$this->followsRequest->expects($this->once())
 			->method('getPendingByObjectId')
-			->with(self::ALICE_ID)
+			->with(self::ALICE_ID, 0, '', '')
 			->willReturn([
 				$this->follow(self::BOB_ID, self::ALICE_ID, false),
 				$this->follow(self::CAROL_ID, self::ALICE_ID, false),
@@ -915,6 +915,60 @@ class FollowServiceTest extends TestCase {
 			});
 
 		$this->assertSame([$bob], $this->service->getPendingRequests());
+	}
+
+	public function testTheDashboardsLimitReachesTheQuery(): void {
+		$this->service->setViewer($this->alice());
+
+		$this->followsRequest->expects($this->once())
+			->method('getPendingByObjectId')
+			->with(self::ALICE_ID, 7, '', '')
+			->willReturn([]);
+
+		$this->assertSame([], $this->service->getPendingRequests(7));
+	}
+
+	/**
+	 * A request whose account cannot be resolved is left off the page, but
+	 * the page is still the rows it read: the cursor has to move past it and
+	 * the next page has to be offered.
+	 */
+	public function testAPageIsCutOnTheFollowRowsNotOnTheAccountsResolved(): void {
+		$this->service->setViewer($this->alice());
+		$bob = $this->person(self::BOB_ID, 'bob', 2);
+		$first = $this->follow(self::BOB_ID, self::ALICE_ID, false)
+			->setCreation(1767268800)->setIdPrim(str_repeat('b', 32));
+		$last = $this->follow(self::CAROL_ID, self::ALICE_ID, false)
+			->setCreation(1767268800)->setIdPrim(str_repeat('a', 32));
+
+		$this->followsRequest->expects($this->once())
+			->method('getPendingByObjectId')
+			->with(self::ALICE_ID, 2, '1767268801-' . str_repeat('c', 32), '')
+			->willReturn([$first, $last]);
+		$this->cacheActorService->method('getFromId')
+			->willReturnCallback(function (string $id) use ($bob): Person {
+				if ($id === self::BOB_ID) {
+					return $bob;
+				}
+				throw new CacheActorDoesNotExistException();
+			});
+
+		$page = $this->service->getPendingRequestPage(2, '1767268801-' . str_repeat('c', 32));
+
+		$this->assertSame([$bob], $page['accounts']);
+		$this->assertSame(2, $page['rows']);
+		$this->assertSame('1767268800-' . str_repeat('b', 32), $page['first']);
+		$this->assertSame('1767268800-' . str_repeat('a', 32), $page['last']);
+	}
+
+	public function testAnEmptyPageHasNoCursors(): void {
+		$this->service->setViewer($this->alice());
+		$this->followsRequest->method('getPendingByObjectId')->willReturn([]);
+
+		$this->assertSame(
+			['accounts' => [], 'rows' => 0, 'first' => '', 'last' => ''],
+			$this->service->getPendingRequestPage(40)
+		);
 	}
 
 	public function testAuthorizeFollowRequestConfirmsThePendingFollow(): void {

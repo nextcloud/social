@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -488,23 +489,108 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * The follows towards this actor that still wait for approval.
+	 * The follows towards this actor that still wait for approval, newest
+	 * first.
+	 *
+	 * Paged on the pair the list is ordered by, `(creation, id_prim)`, which is
+	 * what pendingCursor() spells out for a row. `creation` alone is stored to
+	 * the second, and a cursor on it would skip or repeat the requests that
+	 * arrived within the same one; `id_prim` is the table's key and settles
+	 * every tie. The cursor carries the date itself rather than naming a row
+	 * to look it up from: the row a page ended on is as likely as not to have
+	 * been answered — rejected, and so deleted — by the time the next page is
+	 * asked for.
+	 *
+	 * `$maxId` asks for what is older than the cursor, `$minId` for what is
+	 * newer; the second is read oldest first so that the rows next to the
+	 * cursor are the ones the limit keeps, and turned round again. A cursor
+	 * that is not one of ours pages nothing, rather than starting the list
+	 * again for a client that would follow it round forever.
+	 *
+	 * @param int $limit 0 for every pending request
 	 *
 	 * @return Follow[]
 	 */
-	public function getPendingByObjectId(string $actorId, int $limit = 0): array {
+	public function getPendingByObjectId(
+		string $actorId,
+		int $limit = 0,
+		string $maxId = '',
+		string $minId = '',
+	): array {
 		$qb = $this->getFollowsSelectSql();
 		$this->limitToPrim($qb, 'object_id_prim', $actorId);
 		$qb->limitToAccepted(false);
+
+		$newer = ($minId !== '');
+		foreach ([[$maxId, false], [$minId, true]] as [$cursor, $after]) {
+			if ($cursor === '') {
+				continue;
+			}
+
+			$position = self::parsePendingCursor($cursor);
+			if ($position === null) {
+				return [];
+			}
+
+			$qb->andWhere($this->beyondPending($qb, $position[0], $position[1], $after));
+		}
+
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
 		}
 		$this->leftJoinCacheActors($qb, 'actor_id');
 		$this->leftJoinDetails($qb, 'id', 'ca');
-		$qb->orderBy('f.creation', 'desc');
-		$qb->addOrderBy('f.id_prim', 'desc');
+		$qb->orderBy('f.creation', $newer ? 'asc' : 'desc');
+		$qb->addOrderBy('f.id_prim', $newer ? 'asc' : 'desc');
 
-		return $this->getFollowsFromRequest($qb);
+		$follows = $this->getFollowsFromRequest($qb);
+
+		return $newer ? array_reverse($follows) : $follows;
+	}
+
+	/**
+	 * Where a pending follow sits in getPendingByObjectId()'s order, as the
+	 * cursor a page of it is continued from.
+	 */
+	public static function pendingCursor(Follow $follow): string {
+		return $follow->getCreation() . '-' . $follow->getIdPrim();
+	}
+
+	/**
+	 * @return array{0: int, 1: string}|null the timestamp and the key, or null
+	 *                                       for anything pendingCursor() does
+	 *                                       not write
+	 */
+	private static function parsePendingCursor(string $cursor): ?array {
+		if (preg_match('/^(\d{1,12})-([0-9a-f]{32})$/', $cursor, $match) !== 1) {
+			return null;
+		}
+
+		return [(int)$match[1], $match[2]];
+	}
+
+	/**
+	 * The rows ordered after (or before) a cursor's `(creation, id_prim)`,
+	 * spelled out rather than as a row constructor, which SQLite does not
+	 * index.
+	 */
+	private function beyondPending(
+		SocialQueryBuilder $qb,
+		int $creation,
+		string $idPrim,
+		bool $after,
+	): ICompositeExpression|string {
+		$expr = $qb->expr();
+		$time = $qb->createNamedParameter($this->dateTime($creation), IQueryBuilder::PARAM_DATE);
+		$key = $qb->createNamedParameter($idPrim);
+
+		return $expr->orX(
+			$after ? $expr->gt('f.creation', $time) : $expr->lt('f.creation', $time),
+			$expr->andX(
+				$expr->eq('f.creation', $time),
+				$after ? $expr->gt('f.id_prim', $key) : $expr->lt('f.id_prim', $key)
+			)
+		);
 	}
 
 	/**

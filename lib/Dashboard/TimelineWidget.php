@@ -124,9 +124,11 @@ abstract class TimelineWidget implements IAPIWidgetV2, IIconWidget, IButtonWidge
 
 			// the client hands back the sinceId of the newest row it holds.
 			// setSince() keeps the newest-first order, where setMinId() would
-			// invert it and hand the dashboard the oldest rows instead.
+			// invert it and hand the dashboard the oldest rows instead. It is a
+			// nid, so it stays the string it came as: an `(int)` cast clamps a
+			// wide one to PHP_INT_MAX.
 			if ($since !== null && ctype_digit($since)) {
-				$options->setSince((int)$since);
+				$options->setSince($since);
 			}
 
 			$this->configureProbe($options);

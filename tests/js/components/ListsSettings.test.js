@@ -207,6 +207,76 @@ describe('ListsSettings', () => {
 		expect(axios.post).toHaveBeenCalledWith(`${API}/lists/1/accounts`, { account_ids: [bob.id] })
 	})
 
+	describe('when searches overlap (#2335)', () => {
+		/**
+		 * @param {object} wrapper the mounted settings
+		 * @return {Promise<Function>} asks the search route, answering each call only when told
+		 */
+		async function openSearch(wrapper) {
+			await rowFor(wrapper, 'Book club').findAll('button').find((b) => b.text() === 'Members').trigger('click')
+			await flushPromises()
+			const calls = []
+			axios.get.mockImplementation(() => new Promise((resolve, reject) => calls.push({ resolve, reject })))
+
+			return (term) => {
+				wrapper.vm.search = term
+				wrapper.vm.runSearch(term)
+
+				return calls.at(-1)
+			}
+		}
+		const found = (name) => ({ data: { result: { accounts: [{ id: `https://remote.example/users/${name}`, account: `${name}@remote.example`, name }] } } })
+
+		it('keeps the newer answer when an older search fails last', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			const ask = await openSearch(wrapper)
+
+			const older = ask('al')
+			const newer = ask('bob')
+			newer.resolve(found('bob'))
+			await flushPromises()
+			older.reject(new Error('timed out'))
+			await flushPromises()
+
+			expect(wrapper.findAll('.lists-settings__result').map((hit) => hit.text())).toEqual([expect.stringContaining('bob')])
+			expect(wrapper.text()).not.toContain('Nobody by that name.')
+		})
+
+		it('lets only the newest of two asks for the same words own the answer', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			const ask = await openSearch(wrapper)
+
+			const first = ask('bob')
+			const retry = ask('bob')
+			retry.resolve(found('bob'))
+			await flushPromises()
+			first.reject(new Error('timed out'))
+			await flushPromises()
+
+			expect(wrapper.findAll('.lists-settings__result')).toHaveLength(1)
+
+			const again = ask('bob')
+			const last = ask('bob')
+			last.resolve(found('robert'))
+			await flushPromises()
+			again.resolve(found('bob'))
+			await flushPromises()
+
+			expect(wrapper.find('.lists-settings__result').text()).toContain('robert')
+		})
+
+		it('still says so when the newest search itself fails', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			const ask = await openSearch(wrapper)
+
+			ask('bob').reject(new Error('timed out'))
+			await flushPromises()
+
+			expect(wrapper.findAll('.lists-settings__result')).toHaveLength(0)
+			expect(wrapper.text()).toContain('Nobody by that name.')
+		})
+	})
+
 	it('takes somebody out of a list with the ids on the address', async () => {
 		const wrapper = await mountLists([list('1', 'Book club')])
 		axios.get.mockResolvedValue({ data: [bob] })
@@ -221,6 +291,89 @@ describe('ListsSettings', () => {
 			params: { account_ids: [bob.id] },
 		})
 		expect(wrapper.find('.lists-settings__member').exists()).toBe(false)
+	})
+
+	describe('a list longer than one page', () => {
+		const member = (n) => ({ id: `https://remote.example/users/u${n}`, acct: `u${n}@remote.example`, username: `u${n}`, display_name: `U${n}` })
+		const page = (from, count) => Array.from({ length: count }, (_, i) => member(from + i))
+		const next = (maxId) => ({ link: `</index.php/apps/social/api/v1/lists/1/accounts?limit=500&max_id=${maxId}>; rel="next"` })
+
+		async function openMembers(wrapper, title = 'Book club') {
+			await rowFor(wrapper, title).findAll('button').find((b) => b.text() === 'Members').trigger('click')
+			await flushPromises()
+		}
+		const showMore = (wrapper) => wrapper.find('.lists-settings__more button')
+
+		// whether there is more is the Link header's to say, not the page's
+		// length, so a first page of five with a next link stands for 500
+
+		it('offers the next page when the server says there is one, and asks for it by the Link cursor', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('7001') })
+			await openMembers(wrapper)
+
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(5)
+			expect(showMore(wrapper).exists()).toBe(true)
+
+			axios.get.mockResolvedValueOnce({ data: page(5, 3), headers: {} })
+			await showMore(wrapper).trigger('click')
+			await flushPromises()
+
+			// the cursor is the membership row the header names, not an account id
+			expect(axios.get).toHaveBeenLastCalledWith(`${API}/lists/1/accounts`, { params: { limit: 500, max_id: '7001' } })
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(8)
+			expect(showMore(wrapper).exists()).toBe(false)
+		})
+
+		it('draws nobody twice when the second page repeats somebody from the first', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('7001') })
+			await openMembers(wrapper)
+
+			axios.get.mockResolvedValueOnce({ data: page(3, 4), headers: {} })
+			await showMore(wrapper).trigger('click')
+			await flushPromises()
+
+			const accts = wrapper.findAll('.lists-settings__member-acct').map((el) => el.text())
+			expect(accts).toHaveLength(7)
+			expect(new Set(accts).size).toBe(7)
+		})
+
+		it('takes out somebody who was only on the second page', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('7001') })
+			await openMembers(wrapper)
+			axios.get.mockResolvedValueOnce({ data: [bob], headers: {} })
+			await showMore(wrapper).trigger('click')
+			await flushPromises()
+
+			axios.delete.mockResolvedValue({ data: {} })
+			const bobRow = wrapper.findAll('.lists-settings__member').find((row) => row.text().includes('@bob@remote.example'))
+			await bobRow.find('button').trigger('click')
+			await flushPromises()
+
+			expect(axios.delete).toHaveBeenCalledWith(`${API}/lists/1/accounts`, { params: { account_ids: [bob.id] } })
+			expect(wrapper.text()).not.toContain('@bob@remote.example')
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(5)
+		})
+
+		it('offers no more when the first page is the whole list', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			axios.get.mockResolvedValueOnce({ data: page(0, 12), headers: {} })
+			await openMembers(wrapper)
+
+			expect(wrapper.findAll('.lists-settings__member')).toHaveLength(12)
+			expect(showMore(wrapper).exists()).toBe(false)
+			expect(axios.get).toHaveBeenCalledTimes(2)
+		})
+
+		it('pages a list a Nextcloud group makes too', async () => {
+			const wrapper = await mountLists([list('2', 'Design', { nextcloud_group: 'design' })])
+			axios.get.mockResolvedValueOnce({ data: page(0, 5), headers: next('9') })
+			await openMembers(wrapper, 'Design')
+
+			expect(showMore(wrapper).exists()).toBe(true)
+		})
 	})
 
 	/** The group decides all three, and the server answers 422 to anybody else. */

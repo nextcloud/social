@@ -344,7 +344,7 @@ class CacheDocumentService {
 	 * @throws CacheContentSizeException
 	 */
 	private function filterDomainQuota(Document $document, int $size): void {
-		$host = $this->remoteMediaQuotaService->hostOf($document->getId());
+		$host = RemoteMediaQuotaService::chargedHost($document->getUrl(), $document->getId());
 		if ($this->remoteMediaQuotaService->fits($host, $size)) {
 			return;
 		}
@@ -371,7 +371,7 @@ class CacheDocumentService {
 		}
 
 		$this->remoteMediaQuotaService->record(
-			$this->remoteMediaQuotaService->hostOf($document->getId()),
+			RemoteMediaQuotaService::chargedHost($document->getUrl(), $document->getId()),
 			$size,
 		);
 	}

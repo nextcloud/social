@@ -209,6 +209,18 @@ class SearchServiceTest extends TestCase {
 		$this->assertSame([], $this->service->searchAccounts('bob'));
 	}
 
+	/** Nobody here follows an account this instance has never seen. */
+	public function testSearchingFollowedAccountsNarrowsTheCacheSearchAndFetchesNothing(): void {
+		$bob = new Person();
+		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->cacheActorService->expects($this->once())
+			->method('searchCachedAccounts')
+			->with('bob', 8, 'https://cloud.example/users/alice')
+			->willReturn([$bob]);
+
+		$this->assertSame([$bob], $this->service->searchAccounts('@bob', 8, 'https://cloud.example/users/alice'));
+	}
+
 	public function testSearchAccountsWithEmptySearchDoesNothing(): void {
 		$this->cacheActorService->expects($this->never())->method($this->anything());
 

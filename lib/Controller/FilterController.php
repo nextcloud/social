@@ -24,6 +24,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\TimelineRevisionService;
+use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -603,8 +604,10 @@ class FilterController extends Controller {
 			$this->initViewer(['write:filters', 'write']);
 			$filter = $this->filter($id);
 
-			$statusId = (int)trim($status_id);
-			if ($statusId < 1) {
+			// kept as the string it was sent as: a nid does not fit a PHP int
+			// everywhere, and a cast would name a different post
+			$statusId = trim($status_id);
+			if (!ctype_digit($statusId) || Nid::compare($statusId, '0') < 1) {
 				throw new InvalidResourceException('status_id is required');
 			}
 

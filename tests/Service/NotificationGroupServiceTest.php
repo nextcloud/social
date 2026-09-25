@@ -157,6 +157,20 @@ class NotificationGroupServiceTest extends TestCase {
 		$this->assertSame('9', $group['page_min_id']);
 	}
 
+	/**
+	 * Nor as PHP ints: two ids past PHP_INT_MAX both cast to it, and the
+	 * bounds of the page would then be whichever came first.
+	 */
+	public function testIdsWiderThanAPhpIntAreComparedExactly(): void {
+		$post = $this->post(10);
+		$older = $this->notification(1, Like::TYPE, 100, $post)->setNid('92233720368547758070');
+		$newer = $this->notification(2, Like::TYPE, 900, $post)->setNid('92233720368547758071');
+		$group = $this->service->group([$older, $newer])['notification_groups'][0];
+
+		$this->assertSame('92233720368547758071', $group['page_max_id']);
+		$this->assertSame('92233720368547758070', $group['page_min_id']);
+	}
+
 	public function testAtMostEightAccountsAreSampled(): void {
 		$post = $this->post(10);
 		$notifications = [];

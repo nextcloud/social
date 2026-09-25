@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Model\Client;
 
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
+use OCA\Social\Model\Client\FilterStatus;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -26,6 +27,24 @@ class FilterTest extends TestCase {
 			->setContexts([Filter::CONTEXT_HOME, Filter::CONTEXT_PUBLIC])
 			->setAction(Filter::ACTION_HIDE)
 			->addKeyword((new FilterKeyword())->setId(3)->setKeyword('banana')->setWholeWord(true));
+	}
+
+	/**
+	 * The post a filter status names is a nid, which is wider than a PHP int
+	 * on a 32-bit server: it is held and compared as its decimal string.
+	 */
+	public function testAFilterStatusKeepsAWidePostIdExact(): void {
+		$status = (new FilterStatus())->setId(1)->setFilterId(7)->setStatusId('092233720368547758070');
+
+		$this->assertSame('92233720368547758070', $status->getStatusId());
+		$this->assertSame(['id' => '1', 'status_id' => '92233720368547758070'], $status->jsonSerialize());
+
+		$filter = $this->filter()->addStatus($status);
+		$this->assertTrue($filter->covers('92233720368547758070'));
+		$this->assertFalse($filter->covers('92233720368547758071'));
+		$this->assertFalse($filter->covers(PHP_INT_MAX));
+		$this->assertFalse($filter->covers('not-a-nid'));
+		$this->assertFalse($filter->covers(0));
 	}
 
 	public function testTheEntityIsTheOneMastodonDocuments(): void {

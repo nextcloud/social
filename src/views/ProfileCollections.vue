@@ -104,6 +104,7 @@ import { profileKinds } from '../composables/useProfileKinds.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
 import { useAccountStore } from '../store/account.js'
+import { latestLoad } from '../utils/latestLoad.js'
 
 /**
  * An account's collections — Pixelfed's albums — as the fourth tab of a
@@ -139,6 +140,7 @@ export default {
 			newTitle: '',
 			newFollowersOnly: false,
 			creating: false,
+			loads: latestLoad(),
 		}
 	},
 
@@ -186,6 +188,7 @@ export default {
 			// for the account store to be filled, and on the first paint it is
 			// not
 			const account = this.account
+			const isNewest = this.loads.begin()
 			if (!account) {
 				this.loading = false
 
@@ -196,12 +199,18 @@ export default {
 			this.error = ''
 			try {
 				const { data } = await axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(account)}/collections`))
-				this.collections = Array.isArray(data) ? data : []
+				if (isNewest()) {
+					this.collections = Array.isArray(data) ? data : []
+				}
 			} catch (error) {
 				logger.error('could not load the collections', { error })
-				this.error = t('social', 'The collections could not be loaded.')
+				if (isNewest()) {
+					this.error = t('social', 'The collections could not be loaded.')
+				}
 			} finally {
-				this.loading = false
+				if (isNewest()) {
+					this.loading = false
+				}
 			}
 		},
 

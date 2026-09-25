@@ -8,14 +8,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
 import ScheduledPosts from '../../../src/components/ScheduledPosts.vue'
 import eventBus from '../../../src/services/eventBus.js'
-import { showError } from '../../../src/services/toast.js'
+import { showError, showSuccess } from '../../../src/services/toast.js'
 
 vi.mock('@nextcloud/axios', () => ({
-	default: { get: vi.fn(), delete: vi.fn() },
+	default: { get: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
+
+// the composer's date picker, reduced to handing a time in and taking one back
+vi.mock('@nextcloud/vue/components/NcDateTimePicker', () => ({
+	__esModule: true,
+	default: {
+		name: 'NcDateTimePicker',
+		props: ['modelValue', 'min', 'type', 'minuteStep', 'clearable', 'ariaLabel'],
+		emits: ['update:modelValue'],
+		template: '<div class="date-picker-stub" />',
+	},
 }))
 
 const LIST = '/index.php/apps/social/api/v1/scheduled_statuses'
@@ -232,5 +243,169 @@ describe('ScheduledPosts', () => {
 		await flushPromises()
 
 		expect(axios.get).not.toHaveBeenCalled()
+	})
+
+	describe('changing the time', () => {
+		const inDays = (days) => new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+		const picker = (wrapper) => wrapper.findComponent({ name: 'NcDateTimePicker' })
+		const texts = (wrapper) => wrapper.findAll('.scheduled-posts__text').map((one) => one.text())
+
+		/**
+		 * Three posts a day apart, soonest first.
+		 *
+		 * @return {object[]}
+		 */
+		function three() {
+			return [
+				{ ...scheduled, id: '1', scheduled_at: inDays(1).toISOString(), params: { text: 'first' } },
+				{ ...scheduled, id: '2', scheduled_at: inDays(2).toISOString(), params: { text: 'second' } },
+				{ ...scheduled, id: '3', scheduled_at: inDays(3).toISOString(), params: { text: 'third' } },
+			]
+		}
+
+		/**
+		 * Opens the picker under one entry and picks a time in it.
+		 *
+		 * @param {object} wrapper the mounted list
+		 * @param {number} index which entry
+		 * @param {Date} when the time to pick
+		 */
+		async function pick(wrapper, index, when) {
+			await wrapper.findAll('.scheduled-posts__reschedule')[index].trigger('click')
+			await flushPromises()
+			picker(wrapper).vm.$emit('update:modelValue', when)
+			await flushPromises()
+		}
+
+		it('starts from the time the post already has', async () => {
+			const wrapper = mountList()
+			await flushPromises()
+
+			await wrapper.find('.scheduled-posts__reschedule').trigger('click')
+			await flushPromises()
+
+			expect(picker(wrapper).props('modelValue').toISOString()).toBe(scheduled.scheduled_at)
+			expect(picker(wrapper).props('minuteStep')).toBe(5)
+			// nothing has changed yet, so there is nothing to save
+			expect(wrapper.find('.scheduled-posts__save').attributes('disabled')).toBeDefined()
+		})
+
+		it('sends the new time to the post\'s own address', async () => {
+			const wrapper = mountList(three())
+			await flushPromises()
+			const when = inDays(5)
+			axios.put.mockResolvedValue({ data: { ...three()[0], scheduled_at: when.toISOString() } })
+
+			await pick(wrapper, 0, when)
+			await wrapper.find('.scheduled-posts__save').trigger('click')
+			await flushPromises()
+
+			expect(axios.put).toHaveBeenCalledWith(`${LIST}/1`, { scheduled_at: when.toISOString() })
+			expect(showSuccess).toHaveBeenCalledWith(expect.stringContaining('Moved to'))
+			expect(wrapper.find('.schedule-editor').exists()).toBe(false)
+		})
+
+		it('moves the entry to where its new time puts it', async () => {
+			const wrapper = mountList(three())
+			await flushPromises()
+			const when = new Date(inDays(2).getTime() + 60 * 60 * 1000)
+			axios.put.mockResolvedValue({ data: { ...three()[0], scheduled_at: when.toISOString() } })
+
+			await pick(wrapper, 0, when)
+			await wrapper.find('.scheduled-posts__save').trigger('click')
+			await flushPromises()
+
+			expect(texts(wrapper)).toEqual(['second', 'first', 'third'])
+			expect(wrapper.findAll('time')[1].attributes('datetime')).toBe(when.toISOString())
+		})
+
+		it('does not offer a time the server would refuse', async () => {
+			const wrapper = mountList()
+			await flushPromises()
+
+			await pick(wrapper, 0, new Date(Date.now() + 60 * 1000))
+
+			expect(wrapper.find('.schedule-editor__hint').text())
+				.toBe('Pick a time at least five minutes from now.')
+			expect(wrapper.find('.scheduled-posts__save').attributes('disabled')).toBeDefined()
+		})
+
+		/** The daily cap is only known to the server, so its word is shown. */
+		it('leaves the entry as it was and says why when the server refuses', async () => {
+			const entries = three()
+			const wrapper = mountList(entries)
+			await flushPromises()
+			axios.put.mockRejectedValue({
+				response: { status: 422, data: { error: 'this account already has 25 statuses scheduled for that day' } },
+			})
+
+			await pick(wrapper, 0, inDays(5))
+			await wrapper.find('.scheduled-posts__save').trigger('click')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith('this account already has 25 statuses scheduled for that day')
+			expect(texts(wrapper)).toEqual(['first', 'second', 'third'])
+			expect(wrapper.findAll('time')[0].attributes('datetime')).toBe(entries[0].scheduled_at)
+			// the picker stays, so another time can be tried
+			expect(wrapper.find('.schedule-editor').exists()).toBe(true)
+		})
+
+		it('says something even when the server gives no reason', async () => {
+			const wrapper = mountList()
+			await flushPromises()
+			axios.put.mockRejectedValue(new Error('offline'))
+
+			await pick(wrapper, 0, inDays(5))
+			await wrapper.find('.scheduled-posts__save').trigger('click')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith('Could not change the time of the scheduled post')
+		})
+
+		it('still cancels a post that has been moved', async () => {
+			const wrapper = mountList(three())
+			await flushPromises()
+			const when = inDays(5)
+			axios.put.mockResolvedValue({ data: { ...three()[0], scheduled_at: when.toISOString() } })
+			await pick(wrapper, 0, when)
+			await wrapper.find('.scheduled-posts__save').trigger('click')
+			await flushPromises()
+			expect(texts(wrapper)).toEqual(['second', 'third', 'first'])
+
+			axios.delete.mockResolvedValue({ data: {} })
+			await wrapper.findAll('.scheduled-posts__cancel')[2].trigger('click')
+			await flushPromises()
+
+			expect(axios.delete).toHaveBeenCalledWith(`${LIST}/1`)
+			expect(texts(wrapper)).toEqual(['second', 'third'])
+		})
+
+		/**
+		 * Left last, the moved entry would be the cursor for the next page,
+		 * and that page would skip everything between its old time and its
+		 * new one.
+		 */
+		it('lets a post moved past the end of a partial list go to the page it belongs on', async () => {
+			const full = Array.from({ length: 50 }, (entry, index) => ({
+				...scheduled,
+				id: String(index + 1),
+				scheduled_at: inDays(index + 1).toISOString(),
+			}))
+			const wrapper = mountList(full)
+			await flushPromises()
+			const when = inDays(80)
+			axios.put.mockResolvedValue({ data: { ...full[0], scheduled_at: when.toISOString() } })
+
+			await pick(wrapper, 0, when)
+			await wrapper.find('.scheduled-posts__save').trigger('click')
+			await flushPromises()
+			expect(wrapper.findAll('.scheduled-posts__item')).toHaveLength(49)
+
+			axios.get.mockResolvedValue({ data: [] })
+			await wrapper.find('.scheduled-posts__more button').trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenLastCalledWith(LIST, { params: { limit: 50, min_id: '50' } })
+		})
 	})
 })

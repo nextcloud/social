@@ -487,17 +487,28 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * @return Document[]
+	 * The post's stored attachment copies with the one for $document rebuilt
+	 * from it.
+	 *
+	 * The copies are the client format `save()` writes, keyed by the
+	 * document's nid, not cache rows: read back as `Document`s they matched
+	 * nothing, and the whole list was written out again in the ActivityPub
+	 * shape, without ids, previews or alt text. The picture the cron had just
+	 * fetched kept its empty link, and every other picture on the post lost
+	 * its preview with it. The copies that are not this document's are kept
+	 * exactly as stored.
+	 *
+	 * @return array<mixed>
 	 */
 	private function updateAttachmentInList(Document $document, array $attachments): array {
+		$nid = (string)$document->getNid();
+
 		$new = [];
 		foreach ($attachments as $attachment) {
-			$tmp = new Document();
-			$tmp->importFromDatabase($attachment);
-			if ($tmp->getId() === $document->getId()) {
-				$new[] = $document;
+			if (is_array($attachment) && (string)($attachment['id'] ?? '') === $nid) {
+				$new[] = $document->convertToMediaAttachment($this->urlGenerator)->asLocal();
 			} else {
-				$new[] = $tmp;
+				$new[] = $attachment;
 			}
 		}
 

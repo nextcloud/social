@@ -176,9 +176,16 @@ class MediaTagService {
 	 * tag table and the posts are read the way any other post is read for this
 	 * reader, so one they may not see is simply not among them.
 	 *
-	 * @return Stream[]
+	 * That is also why the cursor is returned beside the posts rather than
+	 * left to the client to take from the last of them: a page can come back
+	 * short, or empty, because the reader may not see what the tag table
+	 * held, and the rows after it are still there. `next` is the last tag row
+	 * read, and null once a page read fewer rows than it asked for.
+	 *
+	 * @return array{posts: Stream[], next: ?string}
 	 */
 	public function photosOf(Person $viewer, string $accountId, int $limit = 20, int|string $maxId = '0'): array {
+		$limit = max(1, min($limit, MediaTagsRequest::MAX_PAGE));
 		$nids = $this->mediaTagsRequest->streamsFor($accountId, $limit, $maxId);
 
 		$posts = [];
@@ -194,7 +201,10 @@ class MediaTagService {
 
 		$this->streamService->attachTaggedPeople($posts);
 
-		return $posts;
+		return [
+			'posts' => $posts,
+			'next' => (count($nids) >= $limit) ? (string)end($nids) : null,
+		];
 	}
 
 	/** Every tag on a post, for a deletion. */
