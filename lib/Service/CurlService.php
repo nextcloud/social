@@ -683,14 +683,19 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function openStream(string $url, array $headers = []): array {
+	/**
+	 * @param string $onBehalfOf the instance that named this url, where that is
+	 *                           not the host serving it — see
+	 *                           {@see FediverseService::authorized()}
+	 */
+	public function openStream(string $url, array $headers = [], string $onBehalfOf = ''): array {
 		$clientOptions = $this->clientOptions('get', ['json_headers' => false, 'headers' => $headers]);
 		$clientOptions['allow_redirects'] = false;
 		$client = $this->clientService->newClient();
 
 		$response = null;
 		for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
-			$this->assertReachable($url, $clientOptions);
+			$this->assertReachable($url, $clientOptions, $onBehalfOf);
 
 			try {
 				$response = $client->get($url, $clientOptions);
@@ -952,9 +957,9 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 * @throws SocialAppConfigException
 	 */
-	private function assertReachable(string $url, array $clientOptions): void {
+	private function assertReachable(string $url, array $clientOptions, string $onBehalfOf = ''): void {
 		$host = (string)parse_url($url, PHP_URL_HOST);
-		$this->fediverseService->authorized($host);
+		$this->fediverseService->authorized($host, $onBehalfOf);
 
 		if (!($clientOptions['nextcloud']['allow_local_address'] ?? false) && RemoteAddress::isLocalHost($host)) {
 			throw new RequestServerException('host resolves to a local address: ' . $host);

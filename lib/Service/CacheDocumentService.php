@@ -936,7 +936,7 @@ class CacheDocumentService {
 			$headers['Range'] = $range;
 		}
 
-		return $this->curlService->openStream($url, $headers);
+		return $this->curlService->openStream($url, $headers, self::referringHost($document));
 	}
 
 	/**
@@ -980,6 +980,24 @@ class CacheDocumentService {
 	 * @throws MalformedArrayException
 	 * @throws RequestServerException
 	 */
+	/**
+	 * The instance that named this file, which is not always the one serving
+	 * it: a post on `mastodon.xyz` carries pictures on `6-28.mastodon.xyz`,
+	 * and object storage or a CDN is common besides. The post's own address is
+	 * what says which instance published it; its author's stands in where an
+	 * attachment arrived without a parent.
+	 */
+	private static function referringHost(Document $document): string {
+		foreach ([$document->getParentId(), $document->getAccount(), $document->getId()] as $address) {
+			$host = parse_url($address, PHP_URL_HOST);
+			if (is_string($host) && $host !== '') {
+				return strtolower($host);
+			}
+		}
+
+		return '';
+	}
+
 	private function assertFetchable(string $url): void {
 		$parsed = parse_url($url);
 		if (!is_array($parsed)) {
