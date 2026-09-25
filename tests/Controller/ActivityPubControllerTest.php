@@ -547,6 +547,34 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->sharedInbox()->getStatus());
 	}
 
+	public function testARequestTakenInOnceIsAcknowledgedAndNotProcessedAgain(): void {
+		$this->signedRequestFrom('https://remote.example');
+		$this->signatureService->method('isReplayed')->willReturn(true);
+		$this->importService->expects($this->never())->method('importFromJson');
+		$this->signatureService->expects($this->never())->method('rememberRequest');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testATakenInRequestIsRemembered(): void {
+		$this->signedRequestFrom('https://remote.example');
+		$this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(true);
+		$this->signatureService->expects($this->once())->method('rememberRequest');
+
+		$this->assertSame(Http::STATUS_OK, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testAFailedRequestIsNotRememberedSoItsRetryIsProcessed(): void {
+		$this->signedRequestFrom('https://remote.example');
+		$this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(true);
+		$this->importService->method('parseIncomingRequest')->willThrowException(new \RuntimeException('database went away'));
+		$this->signatureService->expects($this->never())->method('rememberRequest');
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $this->controller->sharedInbox()->getStatus());
+	}
+
 	public function testSharedInboxLetsALinkedDataSignatureSpeakForAForwardedActivity(): void {
 		// a relayed or forwarded activity is signed by the server that passed it
 		// on; the signature on the object itself is what vouches for the actor

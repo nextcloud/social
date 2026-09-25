@@ -331,6 +331,10 @@ class ActivityPubController extends Controller {
 			$signer = '';
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime, $signer);
 			$this->fediverseService->authorized($origin);
+			if ($this->signatureService->isReplayed($this->request)) {
+				// these signed bytes were taken in once already
+				return $this->success();
+			}
 
 			// the per-origin ceiling is spent here rather than on the way in:
 			// before this line the origin is only what the sender wrote, and
@@ -365,6 +369,7 @@ class ActivityPubController extends Controller {
 				$this->logUnhandled($e, $origin, $activity);
 			}
 
+			$this->signatureService->rememberRequest($this->request);
 			$this->async();
 			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
 
@@ -410,6 +415,10 @@ class ActivityPubController extends Controller {
 			$signer = '';
 			$origin = $this->signatureService->checkRequest($this->request, $body, $requestTime, $signer);
 			$this->fediverseService->authorized($origin);
+			if ($this->signatureService->isReplayed($this->request)) {
+				// these signed bytes were taken in once already
+				return $this->success();
+			}
 
 			// the per-origin ceiling is spent here rather than on the way in:
 			// before this line the origin is only what the sender wrote, and
@@ -446,6 +455,7 @@ class ActivityPubController extends Controller {
 				$this->logUnhandled($e, $origin, $activity);
 			}
 
+			$this->signatureService->rememberRequest($this->request);
 			$this->async();
 			$this->streamQueueService->cacheStreamByToken($activity->getRequestToken());
 
@@ -504,6 +514,7 @@ class ActivityPubController extends Controller {
 			'fetch' => $queued,
 		]);
 
+		$this->signatureService->rememberRequest($this->request);
 		if ($queued) {
 			$this->async();
 			$this->streamQueueService->cacheStreamByToken($token);

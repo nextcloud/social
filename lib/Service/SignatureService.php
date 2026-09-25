@@ -54,7 +54,15 @@ class SignatureService {
 	public const DATE_HEADER = 'D, d M Y H:i:s T';
 	public const DATE_OBJECT = 'Y-m-d\TH:i:s\Z';
 
-	public const DATE_DELAY = 300;
+	/**
+	 * How old a signed request's `Date` (or RFC 9421 `created`) may be, and
+	 * how far ahead of this server's clock. Mastodon's own bounds: a peer
+	 * whose clock is six minutes off, or whose queue delivers a request it
+	 * signed a while ago, used to lose every delivery here with a final 401.
+	 * A request inside the window is taken in once — see `isReplayed()`.
+	 */
+	public const DATE_PAST = 43200; // 12h
+	public const DATE_FUTURE = 3600; // 1h
 
 	/**
 	 * How far an LD signature's `created` may lie from now. Forwarded
@@ -130,6 +138,7 @@ class SignatureService {
 	private HttpSignatureService $httpSignatureService;
 	private HttpMessageSignatureParser $messageSignatures;
 	private ICache $seenSignatures;
+	private ICache $seenRequests;
 	private ICache $keyAttempts;
 	private LoggerInterface $logger;
 
@@ -151,6 +160,7 @@ class SignatureService {
 		$this->httpSignatureService = $httpSignatureService;
 		$this->messageSignatures = new HttpMessageSignatureParser();
 		$this->seenSignatures = $cacheFactory->createDistributed('social.ldsig');
+		$this->seenRequests = $cacheFactory->createDistributed('social.httpsig');
 		$this->keyAttempts = $cacheFactory->createDistributed('social.keys');
 		$this->logger = $logger;
 	}
@@ -259,6 +269,33 @@ class SignatureService {
 	}
 
 	/**
+	 * Whether this exact signed request was already taken in.
+	 *
+	 * A signature is only as fresh as its `Date`, and the window above is
+	 * twelve hours wide: without this, a captured delivery could be sent
+	 * again for that long — a Follow after its Undo, say. A peer's own retry
+	 * signs again with a new `Date`, so it is never mistaken for a repeat.
+	 * The request is remembered only once it has been taken in
+	 * (`rememberRequest()`), so identical bytes resent after a failure are
+	 * still processed.
+	 */
+	public function isReplayed(IRequest $request): bool {
+		return $this->seenRequests->get($this->requestKey($request)) !== null;
+	}
+
+	/**
+	 * Records a signed request as taken in, for as long as its date would
+	 * still be accepted.
+	 */
+	public function rememberRequest(IRequest $request): void {
+		$this->seenRequests->set($this->requestKey($request), 1, self::DATE_PAST + self::DATE_FUTURE);
+	}
+
+	private function requestKey(IRequest $request): string {
+		return md5($request->getHeader('Signature') . "\n" . $request->getHeader('Signature-Input'));
+	}
+
+	/**
 	 * The Date header, parsed and held to the replay window.
 	 *
 	 * @return int the request time it names
@@ -280,11 +317,11 @@ class SignatureService {
 			throw new SignatureException('missing date header');
 		}
 
-		if ($time < (time() - self::DATE_DELAY)) {
+		if ($time < (time() - self::DATE_PAST)) {
 			throw new SignatureException('object is too old');
 		}
 
-		if ($time > (time() + self::DATE_DELAY)) {
+		if ($time > (time() + self::DATE_FUTURE)) {
 			// without an upper bound, a request stamped into the far future
 			// stays replayable until that date is finally "too old"
 			throw new SignatureException('object is from the future');
@@ -382,10 +419,10 @@ class SignatureService {
 			if (!is_int($created)) {
 				throw new SignatureException('signature created is not an integer');
 			}
-			if ($created < $now - self::DATE_DELAY) {
+			if ($created < $now - self::DATE_PAST) {
 				throw new SignatureException('signature created is too old');
 			}
-			if ($created > $now + self::DATE_DELAY) {
+			if ($created > $now + self::DATE_FUTURE) {
 				throw new SignatureException('signature created is from the future');
 			}
 			$time = $created;

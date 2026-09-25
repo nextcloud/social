@@ -450,7 +450,7 @@ class SignatureServiceTest extends TestCase {
 
 	public function testCheckRequestRejectsAnExpiredDate(): void {
 		$body = '{"type":"Follow"}';
-		$expired = gmdate(SignatureService::DATE_HEADER, time() - SignatureService::DATE_DELAY - 30);
+		$expired = gmdate(SignatureService::DATE_HEADER, time() - SignatureService::DATE_PAST - 30);
 		$headers = $this->signedHeaders($body, self::$privateKey, ['date' => $expired]);
 
 		$this->expectException(SignatureException::class);
@@ -462,12 +462,34 @@ class SignatureServiceTest extends TestCase {
 		// without the upper bound, a request stamped into the future would stay
 		// replayable until that date finally became "too old"
 		$body = '{"type":"Follow"}';
-		$future = gmdate(SignatureService::DATE_HEADER, time() + SignatureService::DATE_DELAY + 30);
+		$future = gmdate(SignatureService::DATE_HEADER, time() + SignatureService::DATE_FUTURE + 30);
 		$headers = $this->signedHeaders($body, self::$privateKey, ['date' => $future]);
 
 		$this->expectException(SignatureException::class);
 		$this->expectExceptionMessage('from the future');
 		$this->service->checkRequest($this->incomingRequest($headers), $body);
+	}
+
+	public function testARequestSignedTenMinutesAgoIsAccepted(): void {
+		// a clock six minutes off, or a queue that took a while, used to lose
+		// the delivery for good
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['date' => gmdate(SignatureService::DATE_HEADER, time() - 600)]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testARequestIsReplayedOnlyOnceItWasRemembered(): void {
+		$headers = $this->signedHeaders('{"type":"Follow"}', self::$privateKey);
+		$request = $this->incomingRequest($headers);
+		$other = $this->incomingRequest($this->signedHeaders('{"type":"Undo"}', self::$privateKey));
+
+		$this->assertFalse($this->service->isReplayed($request));
+		$this->service->rememberRequest($request);
+
+		$this->assertTrue($this->service->isReplayed($request));
+		$this->assertFalse($this->service->isReplayed($other), 'another signature is another request');
 	}
 
 	public function testCheckRequestRejectsAMissingDate(): void {
@@ -797,8 +819,8 @@ class SignatureServiceTest extends TestCase {
 	/** @return array<string, array{int, string}> */
 	public static function createdOutsideTheWindow(): array {
 		return [
-			'too old' => [-SignatureService::DATE_DELAY - 30, 'too old'],
-			'from the future' => [SignatureService::DATE_DELAY + 30, 'from the future'],
+			'too old' => [-SignatureService::DATE_PAST - 30, 'too old'],
+			'from the future' => [SignatureService::DATE_FUTURE + 30, 'from the future'],
 		];
 	}
 
