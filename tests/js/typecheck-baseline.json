@@ -48,7 +48,7 @@
 	},
 	"src/components/Composer/PreviewGrid.vue": {
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<{ [x: string]: any; }>'.": 1,
-		"TS2694 Namespace '…' has no exported member 'LocalAttachment'.": 1
+		"TS2694 Namespace '\"src/components/Composer/Composer.vue\"' has no exported member 'LocalAttachment'.": 1
 	},
 	"src/components/Composer/PreviewGridItem.vue": {
 		"TS2339 Property 'focus' does not exist on type 'unknown'.": 1,
@@ -57,7 +57,7 @@
 		"TS2339 Property 'value' does not exist on type 'EventTarget'.": 2,
 		"TS2345 Argument of type '\"filter\"' is not assignable to parameter of type '\"focus\" | \"delete\" | \"describe\" | \"commitDescription\" | \"commitFocus\"'.": 1,
 		"TS2353 Object literal may only specify known properties, and 'type' does not exist in type 'PropType<any>'.": 1,
-		"TS2694 Namespace '…' has no exported member 'LocalAttachment'.": 1
+		"TS2694 Namespace '\"src/components/Composer/Composer.vue\"' has no exported member 'LocalAttachment'.": 1
 	},
 	"src/components/DirectMessages.vue": {
 		"TS1003 Identifier expected.": 1,
