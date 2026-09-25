@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
 class HashtagTrendsTest extends TestCase {
 	private const BASE = 'https://remote.example/trends';
 	private const AUTHOR = self::BASE . '/users/author';
-	private const TAGS = ['#itest-steady', '#itest-spike', '#itest-quiet'];
+	private const TAGS = ['itest-steady', 'itest-spike', 'itest-quiet'];
 
 	private StreamRequest $streamRequest;
 	private HashtagsRequest $hashtagsRequest;
@@ -79,54 +79,54 @@ class HashtagTrendsTest extends TestCase {
 	}
 
 	public function testEachWindowCountsOnlyWhatFallsInsideIt(): void {
-		$this->note('a', ['#itest-steady'], 60);
-		$this->note('b', ['#itest-steady'], 5 * 86400);
-		$this->note('c', ['#itest-spike'], 120);
+		$this->note('a', ['itest-steady'], 60);
+		$this->note('b', ['itest-steady'], 5 * 86400);
+		$this->note('c', ['itest-spike'], 120);
 
 		$lastHour = $this->streamRequest->countHashtagsSince(time() - 3600);
 		$tenDays = $this->streamRequest->countHashtagsSince(time() - 864000);
 
-		$this->assertSame(1, $lastHour['#itest-steady'] ?? 0);
-		$this->assertSame(1, $lastHour['#itest-spike'] ?? 0);
+		$this->assertSame(1, $lastHour['itest-steady'] ?? 0);
+		$this->assertSame(1, $lastHour['itest-spike'] ?? 0);
 		// the older post is only inside the wider window: the two windows must
 		// not report the same number
-		$this->assertSame(2, $tenDays['#itest-steady'] ?? 0);
+		$this->assertSame(2, $tenDays['itest-steady'] ?? 0);
 	}
 
 	public function testAllWindowsAreCountedInOneQuery(): void {
-		$this->note('a', ['#itest-steady'], 60);
-		$this->note('b', ['#itest-steady'], 5 * 86400);
+		$this->note('a', ['itest-steady'], 60);
+		$this->note('b', ['itest-steady'], 5 * 86400);
 
 		$counts = $this->streamRequest->countHashtagsInWindows([
 			'1h' => time() - 3600,
 			'10d' => time() - 864000,
 		]);
 
-		$this->assertSame(1, $counts['1h']['#itest-steady'] ?? 0);
-		$this->assertSame(2, $counts['10d']['#itest-steady'] ?? 0);
+		$this->assertSame(1, $counts['1h']['itest-steady'] ?? 0);
+		$this->assertSame(2, $counts['10d']['itest-steady'] ?? 0);
 	}
 
 	public function testATagUsedByNoPostInTheWindowIsAbsentRatherThanZero(): void {
-		$this->note('a', ['#itest-quiet'], 5 * 86400);
+		$this->note('a', ['itest-quiet'], 5 * 86400);
 
-		$this->assertArrayNotHasKey('#itest-quiet', $this->streamRequest->countHashtagsSince(time() - 3600));
+		$this->assertArrayNotHasKey('itest-quiet', $this->streamRequest->countHashtagsSince(time() - 3600));
 	}
 
 	public function testTrendingIsOrderedAndCutByTheDatabase(): void {
-		$this->hashtagsRequest->save('#itest-steady', ['1h' => 2, '12h' => 9, '1d' => 40, '3d' => 40, '10d' => 40]);
-		$this->hashtagsRequest->save('#itest-spike', ['1h' => 12, '12h' => 12, '1d' => 12, '3d' => 12, '10d' => 12]);
-		$this->hashtagsRequest->save('#itest-quiet', ['1h' => 0, '12h' => 0, '1d' => 2, '3d' => 2, '10d' => 2]);
+		$this->hashtagsRequest->save('itest-steady', ['1h' => 2, '12h' => 9, '1d' => 40, '3d' => 40, '10d' => 40]);
+		$this->hashtagsRequest->save('itest-spike', ['1h' => 12, '12h' => 12, '1d' => 12, '3d' => 12, '10d' => 12]);
+		$this->hashtagsRequest->save('itest-quiet', ['1h' => 0, '12h' => 0, '1d' => 2, '3d' => 2, '10d' => 2]);
 
 		$hour = array_column($this->hashtagsRequest->getTrending('1h', 10), 'hashtag');
 		$day = array_column($this->hashtagsRequest->getTrending('1d', 10), 'hashtag');
 
 		// the window decides the order, and a tag unused within it is left out
 		$this->assertSame(
-			['#itest-spike', '#itest-steady'],
+			['itest-spike', 'itest-steady'],
 			array_values(array_intersect($hour, self::TAGS))
 		);
 		$this->assertSame(
-			['#itest-steady', '#itest-spike', '#itest-quiet'],
+			['itest-steady', 'itest-spike', 'itest-quiet'],
 			array_values(array_intersect($day, self::TAGS))
 		);
 	}
@@ -144,13 +144,13 @@ class HashtagTrendsTest extends TestCase {
 	}
 
 	public function testUpdateKeepsTheJsonAndTheCountersInStep(): void {
-		$this->hashtagsRequest->save('#itest-steady', ['1h' => 1, '12h' => 1, '1d' => 1, '3d' => 1, '10d' => 1]);
-		$this->hashtagsRequest->update('#itest-steady', ['1h' => 7, '12h' => 7, '1d' => 7, '3d' => 7, '10d' => 7]);
+		$this->hashtagsRequest->save('itest-steady', ['1h' => 1, '12h' => 1, '1d' => 1, '3d' => 1, '10d' => 1]);
+		$this->hashtagsRequest->update('itest-steady', ['1h' => 7, '12h' => 7, '1d' => 7, '3d' => 7, '10d' => 7]);
 
-		$row = $this->hashtagsRequest->getHashtag('#itest-steady');
+		$row = $this->hashtagsRequest->getHashtag('itest-steady');
 		$this->assertSame(7, (int)$row['trend']['1h']);
 		$this->assertSame(
-			['#itest-steady'],
+			['itest-steady'],
 			array_values(array_intersect(
 				array_column($this->hashtagsRequest->getTrending('1h', 10), 'hashtag'),
 				self::TAGS
