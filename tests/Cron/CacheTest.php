@@ -138,6 +138,33 @@ class CacheTest extends TestCase {
 		$this->assertSame([$bob, $carol], $synced);
 	}
 
+	/**
+	 * The two remote-actor refreshes are given a time to fill rather than one
+	 * batch of fifty, each its own share of the pass so neither takes it all.
+	 */
+	public function testTheRemoteActorRefreshesAreGivenTheirOwnShareOfThePass(): void {
+		$given = [];
+		$this->cacheActorService->expects($this->once())->method('manageCacheRemoteActors')
+			->willReturnCallback(function (bool $force, int $deadline) use (&$given): int {
+				$given['refresh'] = [$force, $deadline];
+
+				return 0;
+			});
+		$this->cacheActorService->expects($this->once())->method('manageDetailsRemoteActors')
+			->willReturnCallback(function (bool $force, int $deadline) use (&$given): int {
+				$given['details'] = [$force, $deadline];
+
+				return 0;
+			});
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
+
+		$this->job->start($this->jobList);
+
+		$this->assertSame([false, self::NOW + Cache::REMOTE_ACTOR_SECONDS], $given['refresh']);
+		$this->assertSame([false, self::NOW + Cache::REMOTE_ACTOR_SECONDS], $given['details']);
+		$this->assertLessThan(Cache::MAX_DURATION, 2 * Cache::REMOTE_ACTOR_SECONDS);
+	}
+
 	public function testAFailingStepDoesNotStopTheOthers(): void {
 		// An Error (e.g. the undefined-constant fatal manageDeletedActors used to
 		// raise) is not an Exception, so a catch (Exception) would have let it kill

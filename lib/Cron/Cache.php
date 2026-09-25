@@ -45,6 +45,16 @@ class Cache extends TimedJob {
 	 */
 	public const MAX_DURATION = 300;
 
+	/**
+	 * How long each of the two remote-actor refresh steps may take, in
+	 * seconds, inside the pass's own budget.
+	 *
+	 * They take batch after batch until this runs out, rather than one batch
+	 * of fifty — which could not keep a ten-day lifetime past about 60,000
+	 * cached actors. Ninety each leaves the other steps a third of the pass.
+	 */
+	public const REMOTE_ACTOR_SECONDS = 90;
+
 	/** Cached remote actors evicted per pass; see CacheActorSweepService. */
 	public const SWEEP_BATCH = 500;
 
@@ -96,11 +106,11 @@ class Cache extends TimedJob {
 				// memory; it pages and resumes now, and is told when to stop
 				$this->accountService->manageCacheLocalActors($deadline);
 			},
-			'manageCacheRemoteActors' => function (): void {
-				$this->cacheActorService->manageCacheRemoteActors();
+			'manageCacheRemoteActors' => function () use ($deadline): void {
+				$this->cacheActorService->manageCacheRemoteActors(false, $this->stepDeadline($deadline));
 			},
-			'manageDetailsRemoteActors' => function (): void {
-				$this->cacheActorService->manageDetailsRemoteActors();
+			'manageDetailsRemoteActors' => function () use ($deadline): void {
+				$this->cacheActorService->manageDetailsRemoteActors(false, $this->stepDeadline($deadline));
 			},
 			'manageCacheDocuments' => function (): void {
 				$this->documentService->manageCacheDocuments();
@@ -145,6 +155,11 @@ class Cache extends TimedJob {
 				$this->groupListService?->reconcile();
 			},
 		];
+	}
+
+	/** The sooner of the pass's deadline and a remote-actor step's own budget. */
+	private function stepDeadline(int $deadline): int {
+		return min($deadline, $this->time->getTime() + self::REMOTE_ACTOR_SECONDS);
 	}
 
 	/** When the disk was last added up, as the stored measurement says. */

@@ -760,6 +760,17 @@ and resume where they stopped, so a pass that runs out of time is normal. A pass
 that *never* reaches the later steps is not: `social:check` and the Nextcloud log
 are where that shows.
 
+**Cached remote accounts** are refreshed by `Cron\Cache` for up to 90 seconds
+a pass, and their details (counts, pinned posts, verified links) for up to 90
+more, batch after batch of fifty, the longest-waiting first. A refresh is one
+fetch, so at a third of a second to a second each that is 90 to 300 accounts a
+pass, 11,000 to 36,000 a day — enough for the ten-day refresh cycle to hold
+over roughly 110,000 to 360,000 cached accounts, where one batch of fifty a
+pass held to about 60,000. A details refresh is three or more fetches, so it
+covers fewer, 30 to 90 a pass. Past those sizes the cycle stretches and the
+stalest still go first; a key that rotated in between is fetched again the
+first time a signature fails to verify.
+
 **Feed subscriptions** are re-read by `Cron\Subscriptions` every fifteen
 minutes, for up to 240 seconds a pass, ten feeds at a time, never-read first and
 then stalest first. A batch costs about as long as its slowest feed, so a pass
