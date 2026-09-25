@@ -31,6 +31,7 @@ use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Tombstone;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Tools\Exceptions\RequestContentException;
@@ -138,7 +139,7 @@ class ActivityService {
 		$item->setParent($update);
 
 		$update->setObject($item);
-		$update->setId($item->getId() . '/activity#update');
+		$update->setId($item->getId() . '#updates/' . $this->updateSerial($item));
 		$update->setInstancePaths($item->getInstancePaths());
 		$this->copyAudience($item, $update);
 
@@ -146,6 +147,25 @@ class ActivityService {
 		$this->signatureService->signObject($actor, $update);
 
 		return $this->request($update);
+	}
+
+	/**
+	 * What tells one `Update` of an object from the next.
+	 *
+	 * An activity id has to be unique, and every edit of a post used to go
+	 * out as `<post>/activity#update`: a peer that remembers the activities it
+	 * has seen by id dropped the second edit as a repeat. Mastodon names its
+	 * own `#updates/<edited_at>`; the post's `updated` is the same thing here,
+	 * so a redelivery of one version keeps its id. An object with no such date
+	 * — an actor, a poll whose count moved — gets the time in milliseconds.
+	 */
+	private function updateSerial(ACore $item): string {
+		$updated = ($item instanceof Stream) ? strtotime($item->getUpdated()) : false;
+		if ($updated !== false && $updated > 0) {
+			return (string)$updated;
+		}
+
+		return (string)(int)floor(microtime(true) * 1000.0);
 	}
 
 	/**

@@ -296,7 +296,7 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(self::TOKEN, $this->service->updateActivity($alice, $note));
 
 		$this->assertInstanceOf(Update::class, $queued);
-		$this->assertSame(self::NOTE_ID . '/activity#update', $queued->getId());
+		$this->assertStringStartsWith(self::NOTE_ID . '#updates/', $queued->getId());
 		$this->assertSame($note, $queued->getObject());
 		$this->assertSame($queued, $note->getParent());
 		$this->assertSame($alice, $queued->getActor());
@@ -496,6 +496,50 @@ class ActivityServiceTest extends TestCase {
 			'https://relay.example/inbox',
 			array_map(static fn (InstancePath $path): string => $path->getUri(), $paths)
 		);
+	}
+
+	/** The ids of the Updates queued for these items, in order. */
+	private function updateIds(ACore ...$items): array {
+		$ids = [];
+		$this->requestQueueService->method('generateRequestQueue')->willReturnCallback(
+			function (array $paths, ACore $item) use (&$ids): string {
+				$ids[] = $item->getId();
+
+				return self::TOKEN;
+			}
+		);
+		$this->requestQueueService->method('getPriorityRequest')->willThrowException(new NoHighPriorityRequestException());
+		$this->requestQueueService->method('getRequestFromToken')->willReturn([]);
+
+		foreach ($items as $item) {
+			$this->service->updateActivity($this->alice(), $item);
+		}
+
+		return $ids;
+	}
+
+	public function testTwoEditsOfOnePostAreTwoActivities(): void {
+		// a peer that remembers activities by id dropped the second edit
+		$first = $this->note();
+		$first->setUpdated('2026-09-01T10:00:00+00:00');
+		$second = $this->note();
+		$second->setUpdated('2026-09-01T10:05:00+00:00');
+
+		$ids = $this->updateIds($first, $second);
+
+		$this->assertSame(self::NOTE_ID . '#updates/' . strtotime('2026-09-01T10:00:00+00:00'), $ids[0]);
+		$this->assertNotSame($ids[0], $ids[1]);
+	}
+
+	public function testTheSameVersionKeepsItsId(): void {
+		$first = $this->note();
+		$first->setUpdated('2026-09-01T10:00:00+00:00');
+		$again = $this->note();
+		$again->setUpdated('2026-09-01T10:00:00+00:00');
+
+		$ids = $this->updateIds($first, $again);
+
+		$this->assertSame($ids[0], $ids[1]);
 	}
 
 	public function testAnUpdateOfAPublicPostAlsoGoesToEveryAcceptedRelay(): void {
