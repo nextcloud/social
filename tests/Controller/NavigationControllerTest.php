@@ -533,13 +533,14 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	#[DataProvider('documentEndpoints')]
-	public function testMissingDocumentsAreReportedAsFailures(string $action, string $method): void {
+	public function testMissingDocumentsAnswerNotFound(string $action, string $method): void {
 		$this->documentService->method($method)->willThrowException(new CacheDocumentDoesNotExistException('missing'));
 
 		$response = $this->controller()->$action('doc-404');
 
 		$this->assertInstanceOf(DataResponse::class, $response);
-		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		// a stale link to a document is the caller's, not this server's
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 		$this->assertSame(-1, $response->getData()['status']);
 		$this->assertSame('request failed', $response->getData()['error']);
 		$this->assertArrayNotHasKey('exception', $response->getData(), 'internals must not leak');

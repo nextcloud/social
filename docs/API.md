@@ -779,12 +779,14 @@ Ids: a video's `id` is the post's `nid`, which is what this app's own API gives 
 
 These endpoints exist to serve the app's own Vue frontend. They are session-authenticated only, mostly wrap their payload in the `{"result": …, "status": 1}` envelope, and are not part of any Mastodon client contract.
 
+A failure on the routes of `LocalController`, `NavigationController` and `OStatusController` answers `{"status": -1, "error": "request failed"}` with a status that says whose failure it is: **404** for a post, account or document that does not exist, **422** for a request that cannot be carried out as asked (somebody else's post, a malformed handle, following yourself), **403** where another instance's policy refuses it, **429** over the follow limit and **502** when another server could not be reached or answered nonsense. Only what is left, a failure of this server's own, is a **500**, and only that is logged.
+
 ### Posts
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
 | POST | `/api/v1/post` | user | `content` (`''`), `to` (array), `type` (default `public`), `replyTo` (`''`), `attachments` (mixed, default `[]`), `hashtags` (array), `poll` (object, optional), `spoilerText` (`''`, the content warning) | Creates a post. Returns `{"result": {"post": <object>, "token": "<request token>"}, "status": 1}`. |
-| DELETE | `/api/v1/post` | user | `id` (required) | Deletes an own post; `{"result": [], "status": 1}`. Rejects posts not attributed to the caller. |
+| DELETE | `/api/v1/post` | user | `id` (required) | Deletes an own post; `{"result": [], "status": 1}`. An unknown id is a **404**, a post not attributed to the caller a **422**. |
 
 Boosting from a client goes through `POST /api/v1/statuses/{nid}/{act}` with `reblog`.
 

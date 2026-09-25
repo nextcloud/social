@@ -449,11 +449,7 @@ class NavigationController extends Controller {
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
-			$this->logger->error('[NavigationController] Failed to get document', [
-				'id' => $id,
-				'exception' => $e->getMessage()
-			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -482,11 +478,7 @@ class NavigationController extends Controller {
 
 			return $response;
 		} catch (Exception $e) {
-			$this->logger->error('[NavigationController] Failed to get public document', [
-				'id' => $id,
-				'exception' => $e->getMessage()
-			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -506,7 +498,7 @@ class NavigationController extends Controller {
 
 			return new FileDisplayResponse($file, Http::STATUS_OK, ['Content-Type' => $mime]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -528,7 +520,7 @@ class NavigationController extends Controller {
 
 			return $response;
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 

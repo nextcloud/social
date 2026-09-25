@@ -85,8 +85,8 @@ class OStatusControllerTest extends TestCase {
 		return $actor;
 	}
 
-	private function assertFailure(DataResponse $response, string $exceptionClass): void {
-		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+	private function assertFailure(DataResponse $response, string $exceptionClass, int $status = Http::STATUS_INTERNAL_SERVER_ERROR): void {
+		$this->assertSame($status, $response->getStatus());
 		$this->assertSame(-1, $response->getData()['status']);
 		// internals ($exceptionClass) must never reach the response
 		$this->assertSame('request failed', $response->getData()['error']);
@@ -132,7 +132,9 @@ class OStatusControllerTest extends TestCase {
 	public function testSubscribeFailsForUnknownActor(): void {
 		$this->cacheActorService->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException());
 
-		$this->assertFailure($this->controller->subscribe('ghost@remote.example'), CacheActorDoesNotExistException::class);
+		$this->assertFailure(
+			$this->controller->subscribe('ghost@remote.example'), CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND
+		);
 	}
 
 	public function testFollowRemoteRendersAGuestPageForTheLocalAccount(): void {
@@ -173,7 +175,10 @@ class OStatusControllerTest extends TestCase {
 		$this->accountService->method('getActor')->willReturn($this->actorWithAccount('alice@cloud.example'));
 		$this->curlService->method('webfingerAccount')->willReturn(['links' => [['rel' => 'self', 'href' => 'x']]]);
 
-		$this->assertFailure($this->controller->getLink('alice', 'bob@remote.example'), RetrieveAccountFormatException::class);
+		$this->assertFailure(
+			$this->controller->getLink('alice', 'bob@remote.example'), RetrieveAccountFormatException::class,
+			Http::STATUS_UNPROCESSABLE_ENTITY
+		);
 	}
 
 	public function testGetLinkFailsWhenWebfingerFails(): void {

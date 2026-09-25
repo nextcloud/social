@@ -142,7 +142,7 @@ class LocalController extends Controller {
 				'exception' => $e->getMessage(),
 				'trace' => $e->getTraceAsString()
 			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -296,7 +296,7 @@ class LocalController extends Controller {
 				'exception' => $e->getMessage(),
 				'trace' => $e->getTraceAsString(),
 			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		} finally {
 			if (is_string($tmpFile) && $tmpFile !== '' && file_exists($tmpFile)) {
 				unlink($tmpFile);
@@ -368,7 +368,7 @@ class LocalController extends Controller {
 				'exception' => $e->getMessage(),
 				'trace' => $e->getTraceAsString()
 			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -399,7 +399,7 @@ class LocalController extends Controller {
 
 			return $this->success();
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -433,7 +433,7 @@ class LocalController extends Controller {
 			// the reason is the answer: which handle to try instead
 			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -455,7 +455,7 @@ class LocalController extends Controller {
 		} catch (InvalidHandleException $e) {
 			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -494,7 +494,7 @@ class LocalController extends Controller {
 			// help there is
 			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -512,7 +512,7 @@ class LocalController extends Controller {
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -530,7 +530,7 @@ class LocalController extends Controller {
 
 			return $this->success([]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -554,7 +554,7 @@ class LocalController extends Controller {
 
 			return $this->success(['account' => $actor]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -588,10 +588,8 @@ class LocalController extends Controller {
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
 			return new DataResponse($actor, Http::STATUS_OK);
-		} catch (CacheActorDoesNotExistException|AccountDoesNotExistException $e) {
-			return $this->fail($e, [], Http::STATUS_NOT_FOUND, false);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -678,12 +676,7 @@ class LocalController extends Controller {
 			$this->logger->debug('[LocalController] Actor info retrieved', ['actorId' => $actor->getId()]);
 			return new DataResponse($actor, Http::STATUS_OK);
 		} catch (Exception $e) {
-			$this->logger->error('[LocalController] globalAccountInfo failed', [
-				'account' => $account,
-				'exception' => $e->getMessage(),
-				'trace' => $e->getTraceAsString()
-			]);
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -800,7 +793,7 @@ class LocalController extends Controller {
 
 			return $this->success(['accounts' => $accounts, 'exact' => $match]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
@@ -831,7 +824,7 @@ class LocalController extends Controller {
 
 			return $this->success(['tags' => $tags, 'exact' => $match]);
 		} catch (Exception $e) {
-			return $this->fail($e);
+			return $this->failFor($e);
 		}
 	}
 
