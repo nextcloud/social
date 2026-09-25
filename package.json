@@ -90,11 +90,12 @@
 		"stylelint-config-recommended-vue": "^2.0.0",
 		"terser-webpack-plugin": "^5.6.1",
 		"ts-loader": "^9.5.7",
-		"typescript": "^5.9.3",
+		"typescript": "^7.0.2",
 		"vite": "^8.3.0",
 		"vitest": "^5.0.0",
 		"vue-loader": "^17.4.2",
 		"vue-tsc": "^3.3.11",
+		"vue-tsc-typescript": "npm:typescript@^5.9.3",
 		"webpack": "^5.111.1",
 		"webpack-cli": "^7.2.3",
 		"webpack-dev-server": "^6.0.0"
