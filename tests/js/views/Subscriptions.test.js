@@ -210,6 +210,50 @@ describe('Subscriptions', () => {
 		expect(wrapper.find('.feeds__error').text()).toBe('could not connect')
 	})
 
+	/**
+	 * A 500 or a dropped connection is not an empty list, and "Nothing yet"
+	 * over it tells the reader their subscriptions are gone.
+	 */
+	it('says the entries could not be loaded, and asks again on request', async () => {
+		axios.get.mockImplementation((url) => url.includes('/subscriptions/timeline')
+			? Promise.reject(new Error('500'))
+			: Promise.resolve({ data: { feeds: [FEED] } }))
+		const wrapper = mount(Subscriptions, { global: { stubs: { NcLoadingIcon: true } } })
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').text()).toContain('could not be loaded')
+		expect(wrapper.text()).not.toContain('Nothing yet')
+
+		serve()
+		await wrapper.find('[role="alert"] button').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+	})
+
+	it('says so when the list of subscriptions cannot be fetched', async () => {
+		axios.get.mockImplementation((url) => url.includes('/subscriptions/timeline')
+			? Promise.resolve({ data: { items: [] } })
+			: Promise.reject(new Error('network')))
+		const wrapper = mount(Subscriptions, { global: { stubs: { NcLoadingIcon: true } } })
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+		expect(wrapper.text()).not.toContain('Nothing yet')
+	})
+
+	it('keeps what is listed when an older page fails', async () => {
+		const wrapper = await mountPage()
+		axios.get.mockRejectedValue(new Error('500'))
+
+		await wrapper.vm.load()
+		await flushPromises()
+
+		expect(wrapper.find('.entries__title').text()).toBe('The tide coming in')
+		expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+	})
+
 	it('says what the page is for when nothing is followed yet', async () => {
 		const wrapper = await mountPage({ feeds: [], items: [] })
 
