@@ -16,6 +16,9 @@ use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Object\NoteInterface;
+use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -49,6 +52,7 @@ class StreamQueueServiceTest extends TestCase {
 	private MiscService|MockObject $miscService;
 	private LinkPreviewService|MockObject $linkPreviewService;
 	private AP|MockObject $ap;
+	private ImportService|MockObject $importService;
 	private StreamQueueService $service;
 
 	protected function setUp(): void {
@@ -59,13 +63,14 @@ class StreamQueueServiceTest extends TestCase {
 		$this->miscService = $this->createMock(MiscService::class);
 		$this->linkPreviewService = $this->createMock(LinkPreviewService::class);
 		$this->ap = $this->createMock(AP::class);
+		$this->importService = $this->createMock(ImportService::class);
 		AP::set($this->ap);
 
 		$this->service = new StreamQueueService(
 			$this->streamRequest,
 			$this->streamQueueRequest,
 			$this->cacheActorService,
-			$this->createMock(ImportService::class),
+			$this->importService,
 			$this->curlService,
 			$this->miscService,
 			$this->linkPreviewService,
@@ -478,5 +483,97 @@ class StreamQueueServiceTest extends TestCase {
 
 		$this->service->cacheStreamByToken('tok');
 		$this->assertSame([$first, $second], $deleted);
+	}
+	public function testQueueFetchQueuesAnHttpUrl(): void {
+		$this->streamQueueRequest->expects($this->once())->method('create')
+			->with($this->callback(function (StreamQueue $queue): bool {
+				$this->assertSame(StreamQueue::TYPE_FETCH, $queue->getType());
+				$this->assertSame(self::REPLY_URL, $queue->getStreamId());
+
+				return true;
+			}));
+
+		$this->assertTrue($this->service->queueFetch('tok', self::REPLY_URL));
+	}
+
+	public function testQueueFetchRefusesWhatIsNotAnHttpUrlOrDoesNotFit(): void {
+		$this->streamQueueRequest->expects($this->never())->method('create');
+
+		$this->assertFalse($this->service->queueFetch('tok', 'file:///etc/passwd'));
+		$this->assertFalse($this->service->queueFetch('tok', 'https://remote.example/' . str_repeat('a', 300)));
+	}
+
+	private function fetchQueue(): StreamQueue {
+		return new StreamQueue('tok', StreamQueue::TYPE_FETCH, self::REPLY_URL);
+	}
+
+	private function fetchedNote(string $id = self::REPLY_URL, string $updated = ''): Note {
+		$note = new Note();
+		$note->setId($id);
+		$note->setAttributedTo(self::BOB);
+		$note->setUpdated($updated);
+		$this->curlService->expects($this->once())->method('retrieveObject')->with(self::REPLY_URL)
+			->willReturn(['id' => $id, 'type' => 'Note']);
+		$this->ap->method('getItemFromData')->willReturn($note);
+
+		return $note;
+	}
+
+	public function testAFetchedPostIsTakenInAsACreateOfItsAuthorFromItsHost(): void {
+		$note = $this->fetchedNote();
+		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->cacheActorService->expects($this->once())->method('getFromId')->with(self::BOB);
+		$this->importService->expects($this->once())->method('parseIncomingRequest')
+			->with($this->callback(function (ACore $activity) use ($note): bool {
+				$this->assertInstanceOf(Create::class, $activity);
+				$this->assertSame(self::BOB, $activity->getActorId());
+				$this->assertSame($note, $activity->getObject());
+				$this->assertSame('remote.example', $activity->getOrigin());
+				$this->assertSame(SignatureService::ORIGIN_REQUEST, $activity->getOriginSource());
+
+				return true;
+			}));
+		$this->streamQueueRequest->expects($this->once())->method('delete');
+
+		$this->service->manageStreamQueue($this->fetchQueue());
+	}
+
+	public function testAFetchedPostThatIsNotTheOneAskedForIsDropped(): void {
+		$this->fetchedNote('https://remote.example/notes/other');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueRequest->expects($this->once())->method('delete');
+		$this->streamQueueRequest->expects($this->never())->method('setAsFailure');
+
+		$this->service->manageStreamQueue($this->fetchQueue());
+	}
+
+	public function testAStoredPostEditedSinceIsTakenInAsAnUpdate(): void {
+		$this->fetchedNote(self::REPLY_URL, '2026-09-02T00:00:00Z');
+		$stored = new Note();
+		$stored->setUpdated('2026-09-01T00:00:00Z');
+		$this->streamRequest->method('getStreamById')->willReturn($stored);
+		$this->importService->expects($this->once())->method('parseIncomingRequest')
+			->with($this->isInstanceOf(Update::class));
+
+		$this->service->manageStreamQueue($this->fetchQueue());
+	}
+
+	public function testAStoredPostThatHasNotChangedIsLeftAlone(): void {
+		$this->fetchedNote(self::REPLY_URL, '2026-09-01T00:00:00Z');
+		$stored = new Note();
+		$stored->setUpdated('2026-09-01T00:00:00Z');
+		$this->streamRequest->method('getStreamById')->willReturn($stored);
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueRequest->expects($this->once())->method('delete');
+
+		$this->service->manageStreamQueue($this->fetchQueue());
+	}
+
+	public function testAnUnreachableOriginIsAskedAgainLater(): void {
+		$this->curlService->method('retrieveObject')->willThrowException(new RequestNetworkException('timeout'));
+		$this->streamQueueRequest->expects($this->once())->method('setAsFailure');
+		$this->streamQueueRequest->expects($this->never())->method('delete');
+
+		$this->service->manageStreamQueue($this->fetchQueue());
 	}
 }

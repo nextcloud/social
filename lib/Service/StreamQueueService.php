@@ -20,7 +20,10 @@ use OCA\Social\Exceptions\RedundancyLimitException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
+use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
@@ -86,6 +89,28 @@ class StreamQueueService {
 		$cache = new StreamQueue($token, $type, $streamId);
 
 		$this->streamQueueRequest->create($cache);
+	}
+
+	/**
+	 * Queues a post to be fetched from the server that holds it, under the
+	 * token of the delivery that named it.
+	 *
+	 * This is how an activity nobody can vouch for is taken in: the body is
+	 * not stored, the object is asked for by its id and only what its own
+	 * server answers is kept (see `fetchFromOrigin()`). The column is 255
+	 * wide, and an id that does not fit is not queued.
+	 *
+	 * @return bool whether it was queued
+	 */
+	public function queueFetch(string $token, string $url): bool {
+		$scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+		if (($scheme !== 'https' && $scheme !== 'http') || strlen($url) > 255) {
+			return false;
+		}
+
+		$this->generateStreamQueue($token, StreamQueue::TYPE_FETCH, $url);
+
+		return true;
 	}
 
 	/**
@@ -165,6 +190,10 @@ class StreamQueueService {
 					$this->manageStreamQueueLinkPreview($queue);
 					break;
 
+				case StreamQueue::TYPE_FETCH:
+					$this->manageStreamQueueFetch($queue);
+					break;
+
 				default:
 					$this->deleteCache($queue);
 					break;
@@ -204,6 +233,85 @@ class StreamQueueService {
 
 		$this->linkPreviewService->generate($stream);
 		$this->deleteCache($queue);
+	}
+
+	/**
+	 * Fetches the post a queue item names. A server that could not be reached
+	 * is asked again by the queue; an answer that is not an acceptable post
+	 * ends the item, because asking again gets the same answer.
+	 */
+	private function manageStreamQueueFetch(StreamQueue $queue): void {
+		try {
+			$this->fetchFromOrigin($queue->getStreamId());
+		} catch (
+			RequestNetworkException
+			|RequestResultNotJsonException
+			|RequestServerException $e
+		) {
+			$this->logger->info('could not fetch a post from its origin', [
+				'url' => $queue->getStreamId(),
+				'exception' => $e,
+			]);
+			$this->endCache($queue, false);
+
+			return;
+		} catch (Throwable $e) {
+			$this->logger->info('a post fetched from its origin was not taken in', [
+				'url' => $queue->getStreamId(),
+				'exception' => $e,
+			]);
+		}
+
+		$this->deleteCache($queue);
+	}
+
+	/**
+	 * Takes in a post as the server that holds it serves it.
+	 *
+	 * The document has to be the one asked for (its id is the URL) and a post,
+	 * and its author has to live on the same host — `NoteInterface` checks that
+	 * against the origin set here, which is the URL's host and nothing the
+	 * delivery said. It then goes through the inbox's own path as a `Create`
+	 * of its author, or as an `Update` when a copy is stored and the fetched
+	 * one says it was edited since; a copy that has not changed is left alone.
+	 *
+	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException
+	 * @throws RequestNetworkException
+	 * @throws RequestResultNotJsonException
+	 * @throws RequestServerException
+	 */
+	private function fetchFromOrigin(string $url): void {
+		$data = $this->curlService->retrieveObject($url);
+		$object = AP::instance()->getItemFromData($data);
+		if ($object->getId() !== $url) {
+			throw new InvalidOriginException('the document does not claim the address it came from: ' . $url);
+		}
+
+		if (!($object instanceof Stream)
+			|| !in_array($object->getType(), array_merge([Note::TYPE, Question::TYPE], AP::NOTE_LIKE_TYPES), true)) {
+			throw new InvalidResourceException('not a post: ' . $url);
+		}
+
+		$activity = new Create();
+		try {
+			$stored = $this->streamRequest->getStreamById($url);
+			if ($object->getUpdated() === '' || $object->getUpdated() === $stored->getUpdated()) {
+				return;
+			}
+			$activity = new Update();
+		} catch (StreamNotFoundException $e) {
+		}
+
+		$activity->setId($url);
+		$activity->setActorId($object->getAttributedTo());
+		$activity->setOrigin((string)parse_url($url, PHP_URL_HOST), SignatureService::ORIGIN_REQUEST, time());
+		$activity->setObject($object);
+
+		// its author has to be known before the post can be shown as theirs
+		$this->cacheActorService->getFromId($object->getAttributedTo());
+
+		$this->importService->parseIncomingRequest($activity);
 	}
 
 	/**

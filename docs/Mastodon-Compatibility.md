@@ -268,7 +268,8 @@ featured collections, a real `replies` collection, Mastodon-shaped HTML content
 whose `u-url mention` and `hashtag` anchors agree with the `tag` array
 (`lib/Service/LinkifyService.php`), `contentMap` and language, correct visibility
 addressing that fails closed on unknown, `updated` on edits, inbox forwarding per
-ActivityPub 7.1.2 with the LD signature preserved, per-inbox delivery
+ActivityPub 7.1.2 with the LD signature preserved (and, receiving one without an LD
+signature, the object fetched from its origin rather than refused), per-inbox delivery
 deduplication, and a retry window of 16 attempts on Sidekiq's `tries⁴+15`
 backoff — about 49 hours, deliberately matching Mastodon.
 

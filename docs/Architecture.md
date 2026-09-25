@@ -429,7 +429,7 @@ The app never emits Add, Remove or Move. It can parse all three — `AP::getItem
 3. `SignatureService::checkRequest()` checks the `date` header for freshness, that `content-length` matches the body, that `digest` matches the body, and then the HTTP signature. It returns the verified origin host, or throws — a request whose signature does not verify never reaches step 4
 4. `FediverseService::authorized()` is called with that origin, then `InboxLimiter::assertOriginAllowed()` spends that origin's own, looser bucket. The per-origin ceiling is spent here rather than at step 2 because before step 3 the origin is only what the sender wrote
 5. `ImportService::importFromJson()` parses the body into a typed object
-6. If the body carries a valid Linked Data Signature the origin is taken from it, otherwise the HTTP-signature origin is used
+6. If the body carries a valid Linked Data Signature the origin is taken from it, otherwise the HTTP-signature origin is used — and then the key that signed the request has to be the activity's actor's own (`SignatureService::assertSignerSpeaksFor()`). When it is not, the activity is a forward with nothing to vouch for it and is handled by `ActivityPubController::acceptForwarded()` instead of steps 7–8: see **Receiving a forward** below
 7. `ImportService::parseIncomingRequest()` looks the handler up with `AP::getInterfaceForItem()` and calls `processIncomingRequest()`. Every exception from the handler is logged and swallowed
 8. The controller answers 200 and then drains the inbound stream queue for that request token
 
@@ -437,7 +437,7 @@ The app never emits Add, Remove or Move. It can parse all three — `AP::getItem
 
 | Status | When |
 |--------|------|
-| 401 | Nothing about the request proves who sent it: no signature, one that does not verify, a replay, a `Date` outside the window, a `Signature` header missing its parts, or an activity whose actor is not the origin that signed for it |
+| 401 | Nothing about the request proves who sent it: no signature, one that does not verify, a replay, a `Date` outside the window, a `Signature` header missing its parts, or an activity whose actor is not the origin that signed for it (except a forwarded `Create`, `Update`, `Delete` or `Announce`, answered 202 — see **Receiving a forward**) |
 | 403 | The instance access list refuses this origin — a decision about who may talk to this instance, not a failure |
 | 400 | The bytes could not be read as an activity, or the `Date` could not be parsed. Redelivering the same bytes cannot help |
 | 404 | Addressed to a local actor that does not exist |
@@ -446,6 +446,8 @@ The app never emits Add, Remove or Move. It can parse all three — `AP::getItem
 | 500 | A fault of this instance's own, and nothing else |
 
 An activity that is understood but has no handler is still answered 200 (see below), as is one whose signature says the key is gone.
+
+**Receiving a forward.** The other end of §7.1.2: Mastodon passes a reply on to the followers of the post it answers, signed with its own user's key, and a reply written on a server that makes no Linked Data signatures (GoToSocial, Pleroma, Pixelfed, PeerTube, Lemmy and most others) arrives signed by somebody other than its actor with nothing on it to say the actor wrote it. That used to be a 401, which is final for the forwarder, so the reply never reached this copy of the thread. The body is still not believed, and is never stored: a `Create` or `Update` whose object is on its actor's own host — and not on this one — is answered `202` and the object is queued by its id as a `StreamQueue::TYPE_FETCH` item under a fresh token, drained inline like any other queue item. `StreamQueueService::fetchFromOrigin()` fetches it signed through `CurlService::retrieveObject()`, requires the document to carry the id it was fetched from and to be a post, sets the origin to the URL's host, and hands it to `ImportService::parseIncomingRequest()` as a `Create` of its `attributedTo` — or an `Update` when a stored copy exists and the fetched `updated` differs, and nothing at all when it does not — so the author-on-the-object's-host checks of `NoteInterface` apply to what that server served. An unreachable origin is retried by the queue. A forwarded `Delete` or `Announce` is answered `202` and dropped, the way Mastodon drops what it cannot verify; any other activity signed by somebody else is still a 401.
 
 **Incoming activities that are actually acted on:**
 

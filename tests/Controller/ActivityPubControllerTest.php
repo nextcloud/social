@@ -477,6 +477,76 @@ class ActivityPubControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 	}
 
+	/**
+	 * A reply forwarded by the server of the post it answers (AP §7.1.2),
+	 * written on a server that makes no Linked Data signatures.
+	 */
+	private function forwardedActivity(string $type, string $objectId, string $actorId): void {
+		$this->configService->method('getCloudHost')->willReturn('cloud.example');
+		$this->signedRequestFrom('https://mastodon.example', 1234, 'https://mastodon.example/users/carol');
+		$activity = $this->incomingActivity();
+		$activity->method('getType')->willReturn($type);
+		$activity->method('getActorId')->willReturn($actorId);
+		$activity->method('hasObject')->willReturn(false);
+		$activity->method('getObjectId')->willReturn($objectId);
+		$this->signatureService->method('checkObject')->willReturn(false);
+		$this->signatureService->method('assertSignerSpeaksFor')
+			->willThrowException(new InvalidOriginException('not yours'));
+	}
+
+	public function testAForwardedCreateIsFetchedFromItsOriginNotImported(): void {
+		$this->forwardedActivity('Create', 'https://gts.example/users/dan/statuses/1', 'https://gts.example/users/dan');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->once())->method('queueFetch')
+			->with($this->isType('string'), 'https://gts.example/users/dan/statuses/1')
+			->willReturn(true);
+		$this->streamQueueService->expects($this->once())->method('cacheStreamByToken');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+		$this->assertSame(1, $this->controller->asyncCalls);
+	}
+
+	public function testAForwardedUpdateReachesTheUserInboxTooAndIsFetched(): void {
+		$this->forwardedActivity('Update', 'https://gts.example/users/dan/statuses/1', 'https://gts.example/users/dan');
+		$this->localActor('alice');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->once())->method('queueFetch')->willReturn(true);
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->inbox('alice')->getStatus());
+	}
+
+	public function testAForwardedObjectOffItsActorsHostIsNotFetched(): void {
+		// an actor on one server "creating" an object on another is no reason
+		// to go and fetch it: the answer could not be theirs
+		$this->forwardedActivity('Create', 'https://elsewhere.example/notes/1', 'https://gts.example/users/dan');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testALocalObjectIsNeverFetchedBackFromThisServer(): void {
+		$this->forwardedActivity('Create', 'https://cloud.example/apps/social/@alice/1', 'https://cloud.example/apps/social/@alice');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testAForwardedDeleteIsAcknowledgedAndDropped(): void {
+		$this->forwardedActivity('Delete', 'https://gts.example/users/dan/statuses/1', 'https://gts.example/users/dan');
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller->sharedInbox()->getStatus());
+	}
+
+	public function testAFollowItsSignerMayNotSpeakForIsStillRefused(): void {
+		$this->forwardedActivity('Follow', 'https://cloud.example/apps/social/@alice', 'https://gts.example/users/dan');
+		$this->streamQueueService->expects($this->never())->method('queueFetch');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->sharedInbox()->getStatus());
+	}
+
 	public function testSharedInboxLetsALinkedDataSignatureSpeakForAForwardedActivity(): void {
 		// a relayed or forwarded activity is signed by the server that passed it
 		// on; the signature on the object itself is what vouches for the actor

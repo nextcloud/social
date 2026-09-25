@@ -31,7 +31,10 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Interfaces\Activity\QuoteRequestInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Create;
+use OCA\Social\Model\ActivityPub\Activity\Delete;
+use OCA\Social\Model\ActivityPub\Activity\Update;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\QuoteAuthorization;
 use OCA\Social\Model\ActivityPub\OrderedCollection;
 use OCA\Social\Model\ActivityPub\OrderedCollectionPage;
@@ -340,7 +343,11 @@ class ActivityPubController extends Controller {
 				// no Linked Data signature to vouch for the object, so the only
 				// thing standing behind this activity is the key that signed the
 				// request — and it has to be the actor's own
-				$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				try {
+					$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				} catch (InvalidOriginException $e) {
+					return $this->acceptForwarded($activity, $origin, $e);
+				}
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
 
@@ -417,7 +424,11 @@ class ActivityPubController extends Controller {
 				// no Linked Data signature to vouch for the object, so the only
 				// thing standing behind this activity is the key that signed the
 				// request — and it has to be the actor's own
-				$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				try {
+					$this->signatureService->assertSignerSpeaksFor($signer, $activity);
+				} catch (InvalidOriginException $e) {
+					return $this->acceptForwarded($activity, $origin, $e);
+				}
 				$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, $requestTime);
 			}
 
@@ -451,6 +462,70 @@ class ActivityPubController extends Controller {
 			return $this->acceptUnhandledType($e, $origin, $body);
 		} catch (Exception $e) {
 			return $this->rejectDelivery($e);
+		}
+	}
+
+	/**
+	 * An activity signed by somebody other than its actor, with nothing on it
+	 * to prove the actor wrote it.
+	 *
+	 * That is ActivityPub's inbox forwarding (§7.1.2): Mastodon passes a reply
+	 * on to the followers of the post it answers, signed with its own user's
+	 * key, and a reply from a server that makes no Linked Data signatures
+	 * arrives exactly like this. Refusing it was final for the forwarder, so the
+	 * reply never reached this copy of the thread. The body is still not
+	 * believed: a `Create` or `Update` of an object on its actor's own host is
+	 * answered by queueing a fetch of that object from there, and only what
+	 * that server serves is taken in (`StreamQueueService::fetchFromOrigin()`).
+	 * A forwarded `Delete` or `Announce` is acknowledged and dropped, as
+	 * Mastodon drops what it cannot verify. Any other activity is still
+	 * refused: nothing forwards a Follow or a Like.
+	 *
+	 * @throws InvalidOriginException for an activity no forwarder sends
+	 */
+	private function acceptForwarded(ACore $activity, string $origin, InvalidOriginException $e): Response {
+		$type = $activity->getType();
+		if (!in_array($type, [Create::TYPE, Update::TYPE, Delete::TYPE, Announce::TYPE], true)) {
+			throw $e;
+		}
+
+		$objectId = $activity->hasObject() ? $activity->getObject()->getId() : $activity->getObjectId();
+		$token = $this->uuid();
+		$queued = in_array($type, [Create::TYPE, Update::TYPE], true)
+			&& $this->isOnRemoteActorHost($objectId, $activity->getActorId())
+			&& $this->streamQueueService->queueFetch($token, $objectId);
+
+		$this->logger->info('a forwarded activity was not signed by its actor', [
+			'activityType' => $type,
+			'activity' => $activity->getId(),
+			'object' => $objectId,
+			'actor' => $activity->getActorId(),
+			'origin' => $origin,
+			'fetch' => $queued,
+		]);
+
+		if ($queued) {
+			$this->async();
+			$this->streamQueueService->cacheStreamByToken($token);
+		}
+
+		return new DataResponse(['result' => [], 'status' => 1], Http::STATUS_ACCEPTED);
+	}
+
+	/**
+	 * Whether an object is on its actor's host, and that host is not this one:
+	 * a post of ours is never fetched back from ourselves.
+	 */
+	private function isOnRemoteActorHost(string $objectId, string $actorId): bool {
+		$objectHost = strtolower((string)parse_url($objectId, PHP_URL_HOST));
+		if ($objectHost === '' || $objectHost !== strtolower((string)parse_url($actorId, PHP_URL_HOST))) {
+			return false;
+		}
+
+		try {
+			return $objectHost !== strtolower($this->configService->getCloudHost());
+		} catch (SocialAppConfigException $e) {
+			return false;
 		}
 	}
 
