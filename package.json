@@ -74,7 +74,7 @@
 		"@nextcloud/webpack-vue-config": "^7.0.4",
 		"@playwright/test": "^1.63.0",
 		"@vitejs/plugin-vue": "^6.0.9",
-		"@vitest/coverage-v8": "^5.0.0",
+		"@vitest/coverage-v8": "^5.0.1",
 		"@vue/compiler-sfc": "^3.5.43",
 		"@vue/test-utils": "^2.5.0",
 		"babel-loader": "^10.1.1",
