@@ -221,12 +221,15 @@ class FeedDiscoveryService {
 				'headers' => [
 					'Accept' => 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/html;q=0.8, */*;q=0.5',
 				],
+				// only the head of a page is worth reading, and a body read
+				// whole before cutting it is a body of any size in memory
+				'stream' => true,
 			]);
 		} catch (Throwable $e) {
 			throw new InvalidArgumentException('that address could not be read');
 		}
 
-		$body = substr((string)$response->getBody(), 0, self::MAX_HTML);
+		$body = substr(CurlService::readAtMost($response, self::MAX_HTML), 0, self::MAX_HTML);
 		$contentType = $response->getHeader('Content-Type');
 
 		return [$body, $contentType];

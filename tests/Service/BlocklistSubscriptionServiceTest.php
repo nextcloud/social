@@ -14,6 +14,7 @@ use OCA\Social\Service\BlocklistImportService;
 use OCA\Social\Service\BlocklistSubscriptionService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Tests\Helper\EndlessStream;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
@@ -184,5 +185,27 @@ class BlocklistSubscriptionServiceTest extends TestCase {
 		$results = $this->service->fetchEnabled();
 
 		$this->assertSame(['mastodon.social'], array_keys($results));
+	}
+
+	/**
+	 * A list is read no further than one byte past the import ceiling, and
+	 * refused as too large, rather than buffered whole first.
+	 */
+	public function testAListLargerThanTheCeilingIsRefusedWithoutReadingItAll(): void {
+		$options = [];
+		$response = $this->createMock(IResponse::class);
+		$response->method('getBody')->willReturn(EndlessStream::open());
+		$this->client->method('get')->willReturnCallback(function (string $url, array $sent) use ($response, &$options): IResponse {
+			$options = $sent;
+
+			return $response;
+		});
+		$this->fediverseService->expects($this->never())->method('addAddresses');
+
+		$result = $this->service->fetch('mastodon.social');
+
+		$this->assertTrue($options['stream'] ?? false);
+		$this->assertStringContainsString('larger than', (string)($result['error'] ?? ''));
+		$this->assertLessThan(BlocklistImportService::MAX_BYTES + 1024 * 1024, EndlessStream::$read);
 	}
 }

@@ -23,6 +23,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\HttpSignatureService;
+use OCA\Social\Tests\Helper\EndlessStream;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
@@ -977,5 +978,14 @@ class CurlServiceTest extends TestCase {
 			'application/activity+json',
 			$sentHeaders['https://' . self::PUBLIC_IP . '/a/following']['Accept']
 		);
+	}
+
+	/** One byte past the limit and no further, whatever the server sends. */
+	public function testReadAtMostStopsOneBytePastTheLimit(): void {
+		$response = $this->createMock(IResponse::class);
+		$response->method('getBody')->willReturn(EndlessStream::open());
+
+		$this->assertSame(1025, strlen(CurlService::readAtMost($response, 1024)));
+		$this->assertLessThan(64 * 1024, EndlessStream::$read);
 	}
 }

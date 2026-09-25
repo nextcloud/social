@@ -155,6 +155,9 @@ class SubscriptionService {
 			$response = $this->clientService->newClient()->get($url, [
 				'timeout' => self::TIMEOUT,
 				'headers' => $headers,
+				// read as it arrives, so the ceiling below is a ceiling on
+				// memory and not on a string already in it
+				'stream' => true,
 			]);
 		} catch (Throwable $e) {
 			$this->logger->debug('a followed feed could not be read', ['feed' => $url, 'exception' => $e]);
@@ -169,7 +172,12 @@ class SubscriptionService {
 			return 0;
 		}
 
-		$body = substr((string)$response->getBody(), 0, self::MAX_BYTES);
+		$body = CurlService::readAtMost($response, self::MAX_BYTES);
+		if (strlen($body) > self::MAX_BYTES) {
+			$this->feedsRequest->recordRead($id, '', '', '', '', 'too large to read');
+
+			return 0;
+		}
 
 		try {
 			$read = $this->parserService->parse($body);
