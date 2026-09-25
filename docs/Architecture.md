@@ -610,6 +610,10 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   announcer is the account the video is already attributed to, because somebody
   boosting their own post to resurface it is a thing people do and this must not
   swallow that.
+- **An account's `icon` and a channel's `image` are lists** of `Image`s, one
+  per size, where Mastodon sends one. `Person::largestImage()` keeps the
+  largest by `width` × `height` (and a single object as it is), so a PeerTube
+  account arrives with its avatar and a channel with its banner.
 - **The title is in `name`**, which a `Note` has no use for — and must not be
   copied into, since `name` on a note means the option a poll vote chose. So the
   title becomes the first paragraph of the content, linked to the watch page.

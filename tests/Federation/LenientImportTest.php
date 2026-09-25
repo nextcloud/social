@@ -143,4 +143,33 @@ class LenientImportTest extends TestCase {
 		$this->assertSame([['type' => 'X']], ACore::listOf('k', ['k' => ['type' => 'X']]));
 		$this->assertSame(['a', 'b'], ACore::listOf('k', ['k' => ['a', 'b']]));
 	}
+	public function testAPeerTubeAvatarListKeepsTheLargestPicture(): void {
+		$person = $this->actor([
+			'icon' => [
+				['type' => 'Image', 'mediaType' => 'image/png', 'width' => 48, 'height' => 48, 'url' => 'https://peertube.example/lazy-static/avatars/48.png'],
+				['type' => 'Image', 'mediaType' => 'image/png', 'width' => 120, 'height' => 120, 'url' => 'https://peertube.example/lazy-static/avatars/120.png'],
+				['type' => 'Image', 'mediaType' => 'image/png', 'width' => 600, 'height' => 600, 'url' => 'https://peertube.example/lazy-static/avatars/600.png'],
+			],
+		]);
+
+		$this->assertTrue($person->hasIcon());
+		$this->assertSame('https://peertube.example/lazy-static/avatars/600.png', $person->getIcon()->getUrl());
+	}
+
+	public function testASingleAvatarObjectIsStillRead(): void {
+		$person = $this->actor(['icon' => ['type' => 'Image', 'mediaType' => 'image/png', 'url' => 'https://peertube.example/a.png']]);
+
+		$this->assertSame('https://peertube.example/a.png', $person->getIcon()->getUrl());
+	}
+
+	public function testAPeerTubeBannerListKeepsTheLargestPicture(): void {
+		$person = $this->actor([
+			'image' => [
+				['type' => 'Image', 'width' => 1920, 'height' => 317, 'url' => 'https://peertube.example/banners/big.jpg'],
+				['type' => 'Image', 'width' => 600, 'height' => 100, 'url' => 'https://peertube.example/banners/small.jpg'],
+			],
+		]);
+
+		$this->assertSame('https://peertube.example/banners/big.jpg', $person->getHeader());
+	}
 }

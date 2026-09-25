@@ -934,16 +934,49 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		/** @var Image $icon */
 		$icon = AP::instance()->getItemFromType(Image::TYPE);
 		$icon->setParent($this);
-		$icon->import($this->getArray('icon', $data, []));
+		$icon->import(self::largestImage($data, 'icon'));
 
 		if ($icon->getType() === Image::TYPE) {
 			$this->setIcon($icon);
 		}
 
-		$image = $this->get('image.url', $data, '');
+		$image = $this->get('url', self::largestImage($data, 'image'), '');
 		if ($image !== '') {
 			$this->setHeader($image);
 		}
+	}
+
+	/**
+	 * The one picture to keep out of an `icon` or `image`.
+	 *
+	 * Mastodon sends one `Image`; PeerTube sends a list of them, one per size,
+	 * for an account's avatar and a channel's banner alike. Handed the whole
+	 * list, `Image::import()` found no `type` and the picture was dropped, so
+	 * every PeerTube account arrived without an avatar. The largest is taken,
+	 * as `PeerTubeService::thumbnail()` does for a video's poster: they are
+	 * the same picture, and the others are its thumbnails.
+	 *
+	 * @param array<array-key, mixed> $data
+	 *
+	 * @return array<array-key, mixed> the `Image`, or [] when there is none
+	 */
+	private static function largestImage(array $data, string $k): array {
+		$best = [];
+		$bestArea = -1;
+		foreach (self::listOf($k, $data) as $candidate) {
+			// an untyped picture is still one; anything else typed is not
+			if (!is_array($candidate) || ($candidate['type'] ?? Image::TYPE) !== Image::TYPE) {
+				continue;
+			}
+
+			$area = (int)($candidate['width'] ?? 0) * (int)($candidate['height'] ?? 0);
+			if ($area > $bestArea) {
+				$bestArea = $area;
+				$best = $candidate;
+			}
+		}
+
+		return $best;
 	}
 
 	/**
@@ -1066,7 +1099,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$source = json_decode($this->getSource(), true);
 		if (is_array($source)) {
-			$image = $this->get('image.url', $source, '');
+			$image = $this->get('url', self::largestImage($source, 'image'), '');
 			if ($image !== '') {
 				$this->setHeader($image);
 			}
