@@ -160,6 +160,7 @@ OC.L10N.register(
     "News" : "Nachrichten",
     "Activities" : "Aktivitäten",
     "Discover" : "Entdecken",
+    "Subscriptions" : "Abonnements",
     "My profile" : "Mein Profil",
     "Follow requests" : "Folgeanfragen",
     "Bookmarks" : "Lesezeichen",

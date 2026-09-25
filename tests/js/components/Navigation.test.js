@@ -763,6 +763,23 @@ describe('Navigation', () => {
 		})
 	})
 
+	/**
+	 * Subscriptions had a client route, a view and a server route, and nothing
+	 * anywhere linked to it — so the only way to the page was typing the
+	 * address. The three routes that arrived together each need a way in, and
+	 * the other two have one: Videos carries a **Watch** button to the reel
+	 * stack, and Migration carries one to the switch wizard. This is the one
+	 * that had none.
+	 */
+	it('offers a way to every page that has no other one', () => {
+		const wrapper = mountNavigation()
+
+		const destinations = [...wrapper.vm.menu.timelines, ...wrapper.vm.menu.more]
+			.map((entry) => entry.to?.name)
+
+		expect(destinations).toContain('subscriptions')
+	})
+
 	it('lists the fixed entries in order, without an errors entry when there are none', () => {
 		expect(itemNames(mountNavigation())).toEqual([
 			'My Feed',
@@ -772,6 +789,7 @@ describe('Navigation', () => {
 			'Activities',
 			'Direct messages',
 			'Discover',
+			'Subscriptions',
 			// the profile entry appears only when an ActivityPub account exists
 			'Follow requests',
 			'Liked posts',
@@ -810,6 +828,7 @@ describe('Navigation', () => {
 			'Activities',
 			'Direct messages',
 			'Discover',
+			'Subscriptions',
 		])
 	})
 

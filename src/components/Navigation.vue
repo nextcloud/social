@@ -299,6 +299,7 @@ import IconCompass from 'vue-material-design-icons/Compass.vue'
 import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import IconNewspaperVariantOutline from 'vue-material-design-icons/NewspaperVariantOutline.vue'
+import IconRss from 'vue-material-design-icons/Rss.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
@@ -640,6 +641,16 @@ export default {
 						icon: IconCompass,
 						title: t('social', 'Discover'),
 						to: { name: 'discover' },
+					},
+					// beside Discover: both are somewhere to read what this
+					// account does not already follow. The page has existed
+					// since subscriptions landed and nothing linked to it, so
+					// it was reachable only by typing the address.
+					{
+						key: 'social-subscriptions',
+						icon: IconRss,
+						title: t('social', 'Subscriptions'),
+						to: { name: 'subscriptions' },
 					},
 				]),
 
