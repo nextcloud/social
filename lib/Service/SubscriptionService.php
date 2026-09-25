@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use InvalidArgumentException;
 use OCA\Social\Db\FeedsRequest;
 use OCP\Http\Client\IClientService;
+use OCP\Http\Client\IResponse;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -31,8 +32,21 @@ class SubscriptionService {
 	/** The biggest feed worth reading. */
 	private const MAX_BYTES = 4 * 1024 * 1024;
 
-	/** How many feeds one cron pass refreshes. */
-	public const PER_RUN = 20;
+	/**
+	 * How long one pass of the job may spend reading feeds, in seconds.
+	 *
+	 * A time budget, not a count: twenty feeds a pass, one after another, was
+	 * 80 feeds an hour for the whole instance — the hourly re-read held for
+	 * one reader with a modest list and nobody else. Well inside the job's
+	 * fifteen-minute interval, with a read's own timeout to spare.
+	 */
+	public const PASS_SECONDS = 240;
+
+	/**
+	 * How many feeds are read at once. They have nothing to do with each
+	 * other, and read one after another the slowest set the pace for all.
+	 */
+	public const PARALLEL = 10;
 
 	/** How often a feed is re-read. */
 	public const INTERVAL = 3600;
@@ -155,9 +169,95 @@ class SubscriptionService {
 	 * @return int how many entries were new
 	 */
 	public function refresh(array $feed): int {
-		$id = (int)$feed['id'];
-		$url = (string)$feed['url'];
+		try {
+			$response = $this->clientService->newClient()->get((string)$feed['url'], $this->requestOptions($feed));
+		} catch (Throwable $e) {
+			return $this->unreadable($feed, $e);
+		}
 
+		return $this->absorb($feed, $response);
+	}
+
+	/**
+	 * Re-reads the feeds that are due, stalest first, until the pass's time
+	 * is up or nothing is due. What the cron does.
+	 *
+	 * `PARALLEL` at a time: a batch costs about as long as its slowest feed,
+	 * so a pass reads some thousands of feeds when they answer in a second or
+	 * two, and still `PASS_SECONDS / TIMEOUT * PARALLEL` (80) when every batch
+	 * holds one that times out — against twenty a pass, in sequence, before.
+	 *
+	 * @param int $deadline when the pass must stop, or 0 for `PASS_SECONDS` from now
+	 *
+	 * @return int how many entries arrived
+	 */
+	public function refreshDue(int $deadline = 0): int {
+		$deadline = ($deadline > 0) ? $deadline : time() + self::PASS_SECONDS;
+		$added = 0;
+		$seen = [];
+
+		while (time() < $deadline) {
+			$batch = [];
+			foreach ($this->feedsRequest->due(self::PARALLEL, time() - self::INTERVAL) as $feed) {
+				// a read whose outcome could not be recorded would be due
+				// again at once; once a pass is enough
+				if (!isset($seen[(int)$feed['id']])) {
+					$seen[(int)$feed['id']] = true;
+					$batch[] = $feed;
+				}
+			}
+
+			if ($batch === []) {
+				break;
+			}
+
+			$added += $this->refreshBatch($batch);
+		}
+
+		return $added;
+	}
+
+	/**
+	 * Reads a batch of feeds concurrently and stores what each had.
+	 *
+	 * @param array<array<string, mixed>> $feeds
+	 */
+	private function refreshBatch(array $feeds): int {
+		$client = $this->clientService->newClient();
+
+		$promises = [];
+		$added = 0;
+		foreach ($feeds as $i => $feed) {
+			try {
+				$promises[$i] = $client->getAsync((string)$feed['url'], $this->requestOptions($feed));
+			} catch (Throwable $e) {
+				$added += $this->unreadable($feed, $e);
+			}
+		}
+
+		foreach ($promises as $i => $promise) {
+			try {
+				$response = $promise->wait();
+			} catch (Throwable $e) {
+				$added += $this->unreadable($feeds[$i], $e);
+
+				continue;
+			}
+
+			$added += ($response instanceof IResponse)
+				? $this->absorb($feeds[$i], $response)
+				: $this->unreadable($feeds[$i], null);
+		}
+
+		return $added;
+	}
+
+	/**
+	 * @param array<string, mixed> $feed
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function requestOptions(array $feed): array {
 		$headers = ['Accept' => 'application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.5'];
 		if ((string)($feed['etag'] ?? '') !== '') {
 			$headers['If-None-Match'] = (string)$feed['etag'];
@@ -166,20 +266,32 @@ class SubscriptionService {
 			$headers['If-Modified-Since'] = (string)$feed['modified_at'];
 		}
 
-		try {
-			$response = $this->clientService->newClient()->get($url, [
-				'timeout' => self::TIMEOUT,
-				'headers' => $headers,
-				// read as it arrives, so the ceiling below is a ceiling on
-				// memory and not on a string already in it
-				'stream' => true,
-			]);
-		} catch (Throwable $e) {
-			$this->logger->debug('a followed feed could not be read', ['feed' => $url, 'exception' => $e]);
-			$this->feedsRequest->recordRead($id, '', '', '', '', 'could not be read');
+		return [
+			'timeout' => self::TIMEOUT,
+			'headers' => $headers,
+			// read as it arrives, so the ceiling below is a ceiling on
+			// memory and not on a string already in it
+			'stream' => true,
+		];
+	}
 
-			return 0;
-		}
+	/** @param array<string, mixed> $feed */
+	private function unreadable(array $feed, ?Throwable $e): int {
+		$this->logger->debug('a followed feed could not be read', ['feed' => (string)$feed['url'], 'exception' => $e]);
+		$this->feedsRequest->recordRead((int)$feed['id'], '', '', '', '', 'could not be read');
+
+		return 0;
+	}
+
+	/**
+	 * Stores what one read of a feed brought.
+	 *
+	 * @param array<string, mixed> $feed
+	 *
+	 * @return int how many entries were new
+	 */
+	private function absorb(array $feed, IResponse $response): int {
+		$id = (int)$feed['id'];
 
 		if ($response->getStatusCode() === 304) {
 			$this->feedsRequest->recordRead($id, '', '', (string)$feed['etag'], (string)$feed['modified_at'], '');
@@ -226,20 +338,6 @@ class SubscriptionService {
 			$response->getHeader('Last-Modified'),
 			''
 		);
-
-		return $added;
-	}
-
-	/**
-	 * Re-reads the feeds that are due. What the cron does.
-	 *
-	 * @return int how many entries arrived
-	 */
-	public function refreshDue(): int {
-		$added = 0;
-		foreach ($this->feedsRequest->due(self::PER_RUN, time() - self::INTERVAL) as $feed) {
-			$added += $this->refresh($feed);
-		}
 
 		return $added;
 	}

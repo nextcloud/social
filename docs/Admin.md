@@ -760,6 +760,15 @@ and resume where they stopped, so a pass that runs out of time is normal. A pass
 that *never* reaches the later steps is not: `social:check` and the Nextcloud log
 are where that shows.
 
+**Feed subscriptions** are re-read by `Cron\Subscriptions` every fifteen
+minutes, for up to 240 seconds a pass, ten feeds at a time, never-read first and
+then stalest first. A batch costs about as long as its slowest feed, so a pass
+reads roughly 1,200 to 2,400 feeds when they answer within one to two seconds —
+five to ten thousand an hour, which is how many subscribed feeds the hourly
+re-read holds for — and still 80 a pass when every batch holds one that runs
+into the 30-second timeout. Before, it was twenty a pass, 80 an hour. Past that the re-read interval simply stretches; nothing
+starves, because the stalest feed always goes next.
+
 Two settings exist for size and are listed above: `search_window_days` bounds
 what a content search scans, and `retention_days` bounds what cached remote
 media costs. Both trade completeness for a bounded cost, and the default of each

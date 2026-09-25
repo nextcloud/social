@@ -16,6 +16,7 @@ use OCA\Social\Service\SubscriptionService;
 use OCA\Social\Tests\Helper\EndlessStream;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
+use OCP\Http\Client\IPromise;
 use OCP\Http\Client\IResponse;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -175,5 +176,90 @@ class SubscriptionServiceTest extends TestCase {
 		$this->feedsRequest->expects($this->never())->method('prune');
 
 		$this->assertSame(0, $this->service->refresh($this->feed()));
+	}
+
+	/** @param array<array<string, mixed>> $feeds */
+	private function feeds(int $from, int $count): array {
+		$feeds = [];
+		for ($i = $from; $i < $from + $count; $i++) {
+			$feeds[] = ['id' => $i, 'url' => 'https://blog.example/feed' . $i, 'etag' => '', 'modified_at' => ''];
+		}
+
+		return $feeds;
+	}
+
+	/**
+	 * A batch is sent before any of it is waited for: the feeds are read
+	 * together, and one slow server holds up its batch rather than the pass.
+	 */
+	public function testADueBatchIsReadConcurrently(): void {
+		$events = [];
+		$response = $this->createMock(IResponse::class);
+		$response->method('getStatusCode')->willReturn(304);
+		$this->client->expects($this->never())->method('get');
+		$this->client->method('getAsync')->willReturnCallback(function (string $url, array $options) use (&$events, $response): IPromise {
+			$events[] = 'send ' . $url;
+			$this->assertTrue($options['stream']);
+			$promise = $this->createMock(IPromise::class);
+			$promise->method('wait')->willReturnCallback(function () use (&$events, $url, $response): IResponse {
+				$events[] = 'wait ' . $url;
+
+				return $response;
+			});
+
+			return $promise;
+		});
+		$this->feedsRequest->method('due')->willReturnOnConsecutiveCalls($this->feeds(1, 3), []);
+		$this->feedsRequest->expects($this->exactly(3))->method('recordRead');
+
+		$this->service->refreshDue(time() + 60);
+
+		$this->assertSame([
+			'send https://blog.example/feed1', 'send https://blog.example/feed2', 'send https://blog.example/feed3',
+			'wait https://blog.example/feed1', 'wait https://blog.example/feed2', 'wait https://blog.example/feed3',
+		], $events);
+	}
+
+	/** The pass goes on to the next batch while it has time, not after twenty. */
+	public function testThePassKeepsTakingBatchesUntilNothingIsDue(): void {
+		$response = $this->createMock(IResponse::class);
+		$response->method('getStatusCode')->willReturn(304);
+		$promise = $this->createMock(IPromise::class);
+		$promise->method('wait')->willReturn($response);
+		$this->client->method('getAsync')->willReturn($promise);
+
+		$this->feedsRequest->expects($this->exactly(4))->method('due')
+			->with(SubscriptionService::PARALLEL, $this->anything())
+			->willReturnOnConsecutiveCalls(
+				$this->feeds(1, SubscriptionService::PARALLEL),
+				$this->feeds(11, SubscriptionService::PARALLEL),
+				$this->feeds(21, SubscriptionService::PARALLEL),
+				[]
+			);
+		$this->feedsRequest->expects($this->exactly(3 * SubscriptionService::PARALLEL))->method('recordRead');
+
+		$this->service->refreshDue(time() + 60);
+	}
+
+	public function testAPassWithNoTimeLeftReadsNothing(): void {
+		$this->feedsRequest->expects($this->never())->method('due');
+		$this->client->expects($this->never())->method('getAsync');
+
+		$this->assertSame(0, $this->service->refreshDue(time() - 1));
+	}
+
+	/**
+	 * A feed handed out again in the same pass — its read could not be
+	 * recorded — is not read again: the pass ends instead of spinning.
+	 */
+	public function testAFeedIsReadOncePerPass(): void {
+		$promise = $this->createMock(IPromise::class);
+		$promise->method('wait')->willThrowException(new \RuntimeException('down'));
+		$this->client->expects($this->once())->method('getAsync')->willReturn($promise);
+		$this->feedsRequest->method('due')->willReturn($this->feeds(1, 1));
+		$this->feedsRequest->expects($this->once())->method('recordRead')
+			->with(1, '', '', '', '', 'could not be read');
+
+		$this->assertSame(0, $this->service->refreshDue(time() + 60));
 	}
 }
