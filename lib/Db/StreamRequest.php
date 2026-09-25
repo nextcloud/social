@@ -1358,27 +1358,64 @@ class StreamRequest extends StreamRequestBuilder {
 	/**
 	 * How often each hashtag was used since a point in time.
 	 *
-	 * This is what the trends cron needs, and all it needs. It used to hydrate
-	 * the posts themselves — every column of every note, plus its action row —
-	 * and count the tags in PHP, bounded to a sample of the most recent
-	 * thousand notes; on a busy instance all five windows saw the same
-	 * thousand notes and every period therefore reported the same count.
+	 * One window of `countHashtagsInWindows()`, for a caller that wants one.
 	 *
 	 * @return array<string, int> hashtag => how many posts used it
 	 */
 	public function countHashtagsSince(int $since): array {
+		return $this->countHashtagsInWindows(['since' => $since])['since'];
+	}
+
+	/**
+	 * How often each hashtag was used in each of several windows, in one pass.
+	 *
+	 * This is what the trends cron needs, and all it needs. It used to hydrate
+	 * the posts themselves — every column of every note, plus its action row —
+	 * and count the tags in PHP, bounded to a sample of the most recent
+	 * thousand notes; on a busy instance all five windows saw the same
+	 * thousand notes and every period therefore reported the same count. Then
+	 * it was one grouped query per window, which read the tag rows of the
+	 * widest window five times over; now the widest window is read once and
+	 * each narrower one is a conditional sum over the same rows.
+	 *
+	 * A hashtag used in none of a window's posts is absent from that window
+	 * rather than zero.
+	 *
+	 * @param array<string, int> $windows name => since, as a timestamp
+	 *
+	 * @return array<string, array<string, int>> name => (hashtag => how many posts used it)
+	 */
+	public function countHashtagsInWindows(array $windows): array {
+		$result = array_fill_keys(array_keys($windows), []);
+		if ($windows === []) {
+			return $result;
+		}
+
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 
-		$date = new DateTime();
-		$date->setTimestamp($since);
+		$qb->select('st.hashtag');
+		$aliases = [];
+		foreach (array_keys($windows) as $i => $name) {
+			$date = new DateTime();
+			$date->setTimestamp($windows[$name]);
+			$aliases[$name] = 'w' . $i;
+			$qb->selectAlias(
+				$qb->createFunction(
+					'SUM(CASE WHEN '
+					. $expr->gte('s.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE))
+					. ' THEN 1 ELSE 0 END)'
+				),
+				'w' . $i
+			);
+		}
 
-		$qb->select('st.hashtag')
-			->selectAlias($qb->func()->count('*'), 'total')
-			->from(self::TABLE_STREAM_TAGS, 'st')
+		$widest = new DateTime();
+		$widest->setTimestamp(min($windows));
+		$qb->from(self::TABLE_STREAM_TAGS, 'st')
 			->innerJoin('st', self::TABLE_STREAM, 's', $expr->eq('s.id_prim', 'st.stream_id'))
 			->where($expr->gte(
-				's.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
+				's.published_time', $qb->createNamedParameter($widest, IQueryBuilder::PARAM_DATE)
 			))
 			// public posts only, the rule `HashtagsRequest::related()` counts
 			// by: a tag used inside a followers-only thread or a direct message
@@ -1393,14 +1430,18 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->setDefaultSelectAlias('s');
 		$qb->limitToStatusTypes();
 
-		$counts = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$counts[(string)$data['hashtag']] = (int)$data['total'];
+			foreach ($aliases as $name => $alias) {
+				$count = (int)($data[$alias] ?? 0);
+				if ($count > 0) {
+					$result[$name][(string)$data['hashtag']] = $count;
+				}
+			}
 		}
 		$cursor->closeCursor();
 
-		return $counts;
+		return $result;
 	}
 
 	/**

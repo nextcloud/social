@@ -93,6 +93,19 @@ class HashtagTrendsTest extends TestCase {
 		$this->assertSame(2, $tenDays['#itest-steady'] ?? 0);
 	}
 
+	public function testAllWindowsAreCountedInOneQuery(): void {
+		$this->note('a', ['#itest-steady'], 60);
+		$this->note('b', ['#itest-steady'], 5 * 86400);
+
+		$counts = $this->streamRequest->countHashtagsInWindows([
+			'1h' => time() - 3600,
+			'10d' => time() - 864000,
+		]);
+
+		$this->assertSame(1, $counts['1h']['#itest-steady'] ?? 0);
+		$this->assertSame(2, $counts['10d']['#itest-steady'] ?? 0);
+	}
+
 	public function testATagUsedByNoPostInTheWindowIsAbsentRatherThanZero(): void {
 		$this->note('a', ['#itest-quiet'], 5 * 86400);
 

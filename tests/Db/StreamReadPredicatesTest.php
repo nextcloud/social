@@ -100,7 +100,7 @@ class StreamReadPredicatesTest extends TestCase {
 	 * posts for exactly this reason.
 	 */
 	public function testTrendsAreCountedOverPublicPostsOnly(): void {
-		$body = $this->methodBody(self::SOURCE, 'countHashtagsSince');
+		$body = $this->methodBody(self::SOURCE, 'countHashtagsInWindows');
 
 		$this->assertStringContainsString(
 			"->andWhere(\$expr->eq(\n\t\t\t\t's.visibility', \$qb->createNamedParameter(Stream::TYPE_PUBLIC)\n\t\t\t))",
@@ -112,6 +112,19 @@ class StreamReadPredicatesTest extends TestCase {
 			$body,
 			'anything with a tag row counts, not only a status'
 		);
+	}
+
+	/**
+	 * The five trend windows are the same rows at different cut-offs: one
+	 * grouped read of the widest, with a conditional sum per window, rather
+	 * than one scan of the tag table each.
+	 */
+	public function testTheTrendWindowsAreCountedInOnePass(): void {
+		$body = $this->methodBody(self::SOURCE, 'countHashtagsInWindows');
+
+		$this->assertSame(1, substr_count($body, 'executeQuery()'));
+		$this->assertStringContainsString("'SUM(CASE WHEN '", $body);
+		$this->assertStringContainsString('min($windows)', $body, 'the scan is bounded by the widest window');
 	}
 
 	/**

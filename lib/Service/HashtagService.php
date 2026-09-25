@@ -64,14 +64,15 @@ class HashtagService {
 		// the instance has ever seen on every cron run
 		$current = $this->hashtagsRequest->getWithAnyTrend();
 
+		// all five windows in one read of the widest: they are the same rows
 		$time = time();
-		$hashtags = [
-			'1h' => $this->streamRequest->countHashtagsSince($time - self::TREND_1H),
-			'12h' => $this->streamRequest->countHashtagsSince($time - self::TREND_12H),
-			'1d' => $this->streamRequest->countHashtagsSince($time - self::TREND_1D),
-			'3d' => $this->streamRequest->countHashtagsSince($time - self::TREND_3D),
-			'10d' => $this->streamRequest->countHashtagsSince($time - self::TREND_10D)
-		];
+		$hashtags = $this->streamRequest->countHashtagsInWindows([
+			'1h' => $time - self::TREND_1H,
+			'12h' => $time - self::TREND_12H,
+			'1d' => $time - self::TREND_1D,
+			'3d' => $time - self::TREND_3D,
+			'10d' => $time - self::TREND_10D,
+		]);
 
 		$count = 0;
 		$formatted = $this->formatTrend($hashtags);
