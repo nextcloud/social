@@ -40,6 +40,19 @@ class SubscriptionService {
 	/** How many feeds one account may follow. */
 	public const MAX_FEEDS = 200;
 
+	/**
+	 * How many entries one feed keeps, and for how long.
+	 *
+	 * A feed document carries its latest hundred entries at most
+	 * (`FeedParserService::MAX_ITEMS`), and every read adds what is new: a
+	 * newsroom publishing all day grew its rows without bound. What is past
+	 * either limit is dropped after each read, and an entry older than the age
+	 * limit is not stored in the first place — it would be deleted again on
+	 * every read of a document that still lists it.
+	 */
+	public const KEEP_ITEMS = 500;
+	public const KEEP_DAYS = 180;
+
 	public function __construct(
 		private FeedsRequest $feedsRequest,
 		private FeedDiscoveryService $discoveryService,
@@ -79,8 +92,12 @@ class SubscriptionService {
 	 * The address is resolved first — a page is read for the feed it declares,
 	 * a YouTube channel for the one it has — so what is stored is the feed
 	 * rather than what was typed. Following the same thing twice is one
-	 * subscription: the second attempt reads it again rather than making a
-	 * copy.
+	 * subscription.
+	 *
+	 * The feed itself is not read here. The request answers once the row is
+	 * stored, and the cron reads it on its next pass — a feed never read goes
+	 * first (`FeedsRequest::due()`) — rather than holding a PHP worker for a
+	 * second fetch of up to `TIMEOUT` seconds and a hundred inserts.
 	 *
 	 * @throws InvalidArgumentException nothing there, or too many already
 	 */
@@ -95,8 +112,6 @@ class SubscriptionService {
 		if ($id === 0) {
 			$id = $this->feedsRequest->create($userId, $url, '', '');
 		}
-
-		$this->refresh(['id' => $id, 'url' => $url, 'etag' => '', 'modified_at' => '']);
 
 		return ['id' => $id, 'url' => $url];
 	}
@@ -187,11 +202,20 @@ class SubscriptionService {
 			return 0;
 		}
 
+		$tooOld = time() - self::KEEP_DAYS * 86400;
 		$added = 0;
 		foreach ($read['items'] as $item) {
+			$published = ((string)($item['published'] ?? '') !== '') ? strtotime((string)$item['published']) : false;
+			if ($published !== false && $published < $tooOld) {
+				continue;
+			}
 			if ($this->feedsRequest->addItem($id, $item)) {
 				$added++;
 			}
+		}
+
+		if ($added > 0) {
+			$this->feedsRequest->prune($id, self::KEEP_ITEMS, $tooOld);
 		}
 
 		$this->feedsRequest->recordRead(
@@ -225,7 +249,11 @@ class SubscriptionService {
 	 *
 	 * `subscriptions.csv` names one channel a line with its id in the first
 	 * column, which is the one form a feed address can be built from without
-	 * asking YouTube anything.
+	 * asking YouTube anything. So nothing is fetched here: each channel is
+	 * stored and the cron reads them, a batch a pass. It used to follow and
+	 * read every channel inside the upload request — up to two hundred
+	 * sequential fetches, which `max_execution_time` cut off part-way with no
+	 * word of where it stopped.
 	 *
 	 * @return int how many were newly followed
 	 */
@@ -238,6 +266,7 @@ class SubscriptionService {
 		fwrite($handle, $csv);
 		rewind($handle);
 
+		$held = count($this->feedsRequest->feedsOf($userId));
 		$followed = 0;
 		while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
 			if ($row === [null]) {
@@ -250,9 +279,17 @@ class SubscriptionService {
 				continue;
 			}
 
+			if ($held >= self::MAX_FEEDS) {
+				break;
+			}
+
 			try {
-				$this->follow($userId, 'https://www.youtube.com/channel/' . $channel);
-				$followed++;
+				$url = $this->discoveryService->discover('https://www.youtube.com/channel/' . $channel);
+				if ($this->feedsRequest->idOf($userId, $url) === 0) {
+					$this->feedsRequest->create($userId, $url, '', '');
+					$held++;
+					$followed++;
+				}
 			} catch (Throwable $e) {
 				$this->logger->debug('a takeout channel could not be followed', [
 					'channel' => $channel, 'exception' => $e,

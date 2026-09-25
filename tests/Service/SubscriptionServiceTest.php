@@ -87,4 +87,93 @@ class SubscriptionServiceTest extends TestCase {
 		$this->assertSame(0, $this->service->refresh($this->feed()));
 		$this->assertLessThan(5 * 1024 * 1024, EndlessStream::$read);
 	}
+
+	/**
+	 * Following answers once the row is stored: the feed is read by the cron,
+	 * not inside the request.
+	 */
+	public function testFollowingStoresTheFeedWithoutReadingIt(): void {
+		$this->discovery->method('discover')->willReturn('https://blog.example/feed');
+		$this->feedsRequest->method('feedsOf')->willReturn([]);
+		$this->feedsRequest->method('idOf')->willReturn(0);
+		$this->feedsRequest->expects($this->once())->method('create')
+			->with('alice', 'https://blog.example/feed', '', '')->willReturn(9);
+		$this->client->expects($this->never())->method('get');
+		$this->feedsRequest->expects($this->never())->method('addItem');
+
+		$this->assertSame(['id' => 9, 'url' => 'https://blog.example/feed'], $this->service->follow('alice', 'https://blog.example/'));
+	}
+
+	/**
+	 * A takeout is two hundred channels at most; each becomes a row and none
+	 * is fetched in the upload request.
+	 */
+	public function testATakeoutStoresEveryChannelAndFetchesNothing(): void {
+		$csv = "Channel Id,Channel Url,Channel Title\n";
+		for ($i = 0; $i < 3; $i++) {
+			$csv .= 'UC' . str_repeat((string)$i, 22) . ",https://www.youtube.com/channel/x,Channel $i\n";
+		}
+		$this->discovery->method('discover')->willReturnCallback(
+			fn (string $url): string => 'https://www.youtube.com/feeds/videos.xml?channel_id=' . substr($url, strrpos($url, '/') + 1)
+		);
+		$this->feedsRequest->method('feedsOf')->willReturn([]);
+		$this->feedsRequest->method('idOf')->willReturn(0);
+		$this->feedsRequest->expects($this->exactly(3))->method('create');
+		$this->client->expects($this->never())->method('get');
+
+		$this->assertSame(3, $this->service->importTakeout('alice', $csv));
+	}
+
+	public function testATakeoutStopsAtTheFeedAllowance(): void {
+		$csv = '';
+		for ($i = 0; $i < 5; $i++) {
+			$csv .= 'UC' . str_repeat((string)$i, 22) . "\n";
+		}
+		$this->discovery->method('discover')->willReturnArgument(0);
+		$this->feedsRequest->method('feedsOf')->willReturn(array_fill(0, SubscriptionService::MAX_FEEDS - 2, ['id' => 1]));
+		$this->feedsRequest->method('idOf')->willReturn(0);
+		$this->feedsRequest->expects($this->exactly(2))->method('create');
+
+		$this->assertSame(2, $this->service->importTakeout('alice', $csv));
+	}
+
+	public function testAChannelAlreadyFollowedIsNotCountedAgain(): void {
+		$this->discovery->method('discover')->willReturnArgument(0);
+		$this->feedsRequest->method('feedsOf')->willReturn([]);
+		$this->feedsRequest->method('idOf')->willReturn(4);
+		$this->feedsRequest->expects($this->never())->method('create');
+
+		$this->assertSame(0, $this->service->importTakeout('alice', 'UC' . str_repeat('a', 22) . "\n"));
+	}
+
+	/**
+	 * A read that added something prunes the feed to its allowance; an entry
+	 * older than the age limit is not stored at all, or the next read of a
+	 * document that still lists it would store it again.
+	 */
+	public function testAReadPrunesAndSkipsWhatIsTooOldToKeep(): void {
+		$old = gmdate(DATE_RSS, time() - (SubscriptionService::KEEP_DAYS + 10) * 86400);
+		$this->answers('<?xml version="1.0"?><rss version="2.0"><channel><title>Blog</title>'
+			. '<item><guid>new</guid><title>New</title><link>https://blog.example/new</link></item>'
+			. '<item><guid>old</guid><title>Old</title><link>https://blog.example/old</link><pubDate>' . $old . '</pubDate></item>'
+			. '</channel></rss>');
+
+		$this->feedsRequest->expects($this->once())->method('addItem')
+			->with(7, $this->callback(fn (array $item): bool => $item['guid'] === 'new'))
+			->willReturn(true);
+		$this->feedsRequest->expects($this->once())->method('prune')
+			->with(7, SubscriptionService::KEEP_ITEMS, $this->callback(
+				fn (int $before): bool => abs($before - (time() - SubscriptionService::KEEP_DAYS * 86400)) <= 2
+			));
+
+		$this->assertSame(1, $this->service->refresh($this->feed()));
+	}
+
+	public function testAReadThatAddsNothingDoesNotPrune(): void {
+		$this->answers(self::FEED);
+		$this->feedsRequest->method('addItem')->willReturn(false);
+		$this->feedsRequest->expects($this->never())->method('prune');
+
+		$this->assertSame(0, $this->service->refresh($this->feed()));
+	}
 }
