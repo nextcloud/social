@@ -37,6 +37,7 @@ use OCA\Social\Tools\Model\CacheItem;
 use OCA\Social\Traits\TDetails;
 use OCP\IURLGenerator;
 use OCP\Server;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -1420,6 +1421,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function importAttachments(array $list): void {
 		$urlGenerator = Server::get(IURLGenerator::class);
+		$logger = Server::get(LoggerInterface::class);
+		/** why each attachment that did not make it was left out */
+		$dropped = [];
 
 		$new = [];
 		foreach ($list as $item) {
@@ -1433,6 +1437,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			}
 
 			if (!is_array($item)) {
+				$dropped[] = ['reason' => 'not an object'];
 				continue;
 			}
 
@@ -1440,11 +1445,21 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				/** @var Document $attachment */
 				$attachment = AP::instance()->getItemFromData($item, $this);
 			} catch (Exception|\TypeError $e) {
+				// the exception for an unknown type carries no message, so the
+				// type the sender declared is what makes this line worth
+				// having at all
+				$dropped[] = [
+					'reason' => 'unreadable',
+					'type' => (string)($item['type'] ?? ''),
+					'url' => (string)($item['url'] ?? $item['href'] ?? ''),
+					'error' => $e->getMessage(),
+				];
 				continue;
 			}
 
 			if ($attachment->getType() !== Document::TYPE
 				&& $attachment->getType() !== Image::TYPE) {
+				$dropped[] = ['reason' => 'not a document or image', 'type' => $attachment->getType()];
 				continue;
 			}
 
@@ -1453,16 +1468,19 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 					$this->validateEntryString(ACore::AS_URL, $attachment->getUrl())
 				);
 			} catch (InvalidResourceEntryException $e) {
+				$dropped[] = ['reason' => 'url refused', 'url' => $attachment->getUrl()];
 				continue;
 			}
 
 			if ($attachment->getUrl() === '') {
+				$dropped[] = ['reason' => 'no url'];
 				continue;
 			}
 
 			try {
 				$interface = AP::instance()->getInterfaceFromType($attachment->getType());
 			} catch (ItemUnknownException $e) {
+				$dropped[] = ['reason' => 'no interface for the type', 'type' => $attachment->getType()];
 				continue;
 			}
 
@@ -1474,11 +1492,31 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				// can, and letting that out of here dropped the whole Create:
 				// the text, the thread it belongs to and the notification with
 				// it, over one picture. The attachment that could not be
-				// stored is left out and the post is kept.
+				// stored is left out and the post is kept -- but said out loud,
+				// because the post then shows fewer pictures than it has and
+				// nothing else anywhere says why.
+				$dropped[] = [
+					'reason' => 'could not be stored',
+					'url' => $attachment->getUrl(),
+					'error' => $e->getMessage(),
+				];
 				continue;
 			}
 
 			$new[] = $attachment->convertToMediaAttachment($urlGenerator);
+		}
+
+		// A post that arrived with pictures and is stored with fewer is a
+		// thing readers report and nobody can diagnose: every way out of the
+		// loop above is silent, and the post keeps its own frozen copy of what
+		// survived, so there is nothing to go back to afterwards either.
+		if ($dropped !== []) {
+			$logger->warning('dropped attachments while importing a post', [
+				'status' => $this->getId(),
+				'arrived' => count($list),
+				'kept' => count($new),
+				'dropped' => $dropped,
+			]);
 		}
 
 		$this->setAttachments($new);
