@@ -99,7 +99,22 @@ describe('Settings', () => {
 
 		expect(wrapper.find('.settings__heading').text()).toBe('Settings')
 		expect(wrapper.findAll('.settings__section-heading').map((h) => h.text()))
-			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Keyboard shortcuts', 'Delete your Social account'])
+			.toEqual(['Your account', 'Featured hashtags', 'Lists', 'Scheduled posts', 'Portfolio', 'Archived posts', 'Waiting to be looked at', 'Looking back', 'Authorized apps', 'Introduction', 'Keyboard shortcuts', 'Delete your Social account'])
+	})
+
+	/**
+	 * The introduction is shown once, after the setup screen; an account made
+	 * by an administrator never saw it, and nothing brought it back.
+	 */
+	it('offers the first-run introduction again', async () => {
+		const wrapper = mount(Settings, { global: { stubs: asyncStubs } })
+		await flushPromises()
+
+		const section = wrapper.find('#introduction')
+		expect(section.exists()).toBe(true)
+		const button = section.findComponent({ name: 'NcButton' })
+		expect(button.text()).toBe('Show the introduction again')
+		expect(button.props('to')).toEqual({ name: 'timeline', query: { welcome: '1' } })
 	})
 
 	/**

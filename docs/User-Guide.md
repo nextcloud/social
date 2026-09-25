@@ -41,7 +41,8 @@ Social (see [Managing your account](#managing-your-account)).
 On the first visit the app shows a four-step introduction: your address with a
 copy button, people to follow, a way to bring the follows you already have from
 another server, and a button that puts you in the composer. Every step can be
-skipped, and once closed it does not come back.
+skipped; once closed it stays closed, and **Settings → Introduction** shows it
+again.
 
 ## Finding and following people
 

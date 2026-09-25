@@ -78,6 +78,7 @@ import ArchivedPosts from '../components/ArchivedPosts.vue'
 import AuthorizedApps from '../components/AuthorizedApps.vue'
 import DeleteAccount from '../components/DeleteAccount.vue'
 import HeldPosts from '../components/HeldPosts.vue'
+import IntroductionSettings from '../components/IntroductionSettings.vue'
 import PortfolioSettings from '../components/PortfolioSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
 import ShortcutList from '../components/ShortcutList.vue'
@@ -85,6 +86,7 @@ import IconAccount from 'vue-material-design-icons/AccountCircleOutline.vue'
 import IconApps from 'vue-material-design-icons/KeyOutline.vue'
 import IconArchive from 'vue-material-design-icons/ArchiveOutline.vue'
 import IconDelete from 'vue-material-design-icons/DeleteOutline.vue'
+import IconIntroduction from 'vue-material-design-icons/HandWaveOutline.vue'
 import IconKeyboard from 'vue-material-design-icons/KeyboardOutline.vue'
 import IconLists from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconPortfolio from 'vue-material-design-icons/ImageMultipleOutline.vue'
@@ -131,10 +133,12 @@ export default {
 		DeleteAccount,
 		FeaturedTagsSettings,
 		HeldPosts,
+		IntroductionSettings,
 		IconAccount,
 		IconApps,
 		IconArchive,
 		IconDelete,
+		IconIntroduction,
 		IconKeyboard,
 		IconLists,
 		IconPortfolio,
@@ -236,6 +240,13 @@ export default {
 					component: 'AuthorizedApps',
 					title: t('social', 'Authorized apps'),
 					lede: t('social', 'The apps you have signed in to with this account — a phone client, a cross-poster, anything that asked. Each one holds a key to your account until you take it back, so this is the page to open after losing a phone.'),
+				},
+				{
+					id: 'introduction',
+					icon: 'IconIntroduction',
+					component: 'IntroductionSettings',
+					title: t('social', 'Introduction'),
+					lede: t('social', 'The four steps shown when your account was new: your address, people to follow, and the follows you had on another server.'),
 				},
 				{
 					id: 'shortcuts',

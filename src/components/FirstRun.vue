@@ -124,13 +124,17 @@
 					{{ t('social', 'Already somewhere else?') }}
 				</h2>
 				<p class="first-run__lead">
-					{{ t('social', 'If you have an account on Mastodon or another server, bring the people you follow. Every server exports them as a following_accounts.csv — upload it and each one is followed from here.') }}
+					{{ t('social', 'If you have an account on Mastodon or another server, bring the people you follow. Mastodon and servers like it export them as following_accounts.csv, Pixelfed as pixelfed-following.json — upload that file and each one is followed from here.') }}
 				</p>
+				<!-- opened by the button below, which is the control a keyboard
+				     and a screen reader reach; the input stays out of both -->
 				<input
 					ref="follows"
 					type="file"
-					accept=".csv,text/csv"
+					accept=".csv,text/csv,.json,application/json"
 					class="hidden-visually"
+					tabindex="-1"
+					aria-hidden="true"
 					@change="importFollows">
 				<div class="first-run__import">
 					<NcButton variant="primary" :disabled="followsBusy" @click="$refs.follows.click()">
@@ -138,7 +142,7 @@
 							<NcLoadingIcon v-if="followsBusy" :size="20" />
 							<IconUpload v-else :size="20" />
 						</template>
-						{{ followsBusy ? t('social', 'Following …') : t('social', 'Upload following_accounts.csv') }}
+						{{ followsBusy ? t('social', 'Following …') : t('social', 'Upload your follows') }}
 					</NcButton>
 					<p v-if="followsResult" class="first-run__result" role="status">
 						{{ followsResult }}
