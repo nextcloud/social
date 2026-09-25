@@ -334,9 +334,6 @@
 		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 1,
 		"TS2339 Property 'getBoundingClientRect' does not exist on type 'unknown'.": 1
 	},
-	"src/views/ProfileTagged.vue": {
-		"TS2345 Argument of type 'string | string[]' is not assignable to parameter of type 'string'.": 1
-	},
 	"src/views/ProfileTimeline.vue": {
 		"TS2322 Type 'string | string[]' is not assignable to type 'string'.": 1,
 		"TS2345 Argument of type 'string | string[]' is not assignable to parameter of type 'string'.": 2

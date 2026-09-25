@@ -109,9 +109,14 @@ export default {
 	},
 
 	computed: {
+		/** @return {string} the handle in the route */
+		account() {
+			return String(this.$route.params.account ?? '')
+		},
+
 		/** @return {Array} the five places a profile can be read */
 		kinds() {
-			return profileKinds(this.$route.params.account)
+			return profileKinds(this.account)
 		},
 
 		/** @return {string} */
@@ -160,7 +165,7 @@ export default {
 		/** @return {Promise<void>} */
 		async load() {
 			const isNewest = this.loads.begin()
-			const account = this.$route.params.account
+			const account = this.account
 			this.loading = true
 			this.loadingMore = false
 			this.error = ''
@@ -189,7 +194,7 @@ export default {
 			if (this.loading || this.loadingMore || !this.cursor) {
 				return
 			}
-			const account = this.$route.params.account
+			const account = this.account
 			// tied to the load that drew the first page: a page for a profile
 			// the reader has since left is theirs no longer
 			const isNewest = this.loads.current()
@@ -198,7 +203,7 @@ export default {
 				const page = await this.fetchPage(account, this.cursor)
 				// a page that arrives after the reader has moved to another
 				// profile belongs to the one they left
-				if (!isNewest() || account !== this.$route.params.account) {
+				if (!isNewest() || account !== this.account) {
 					return
 				}
 				const seen = new Set(this.posts.map((post) => post.id))
