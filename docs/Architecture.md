@@ -868,13 +868,27 @@ per keystroke.
 
 ## Delivering at scale
 
-`Cron\Queue` reads 200 rows every twelve minutes and delivers them one after
-another with a 30-second timeout each inside a 300-second budget: about a
+`Cron\Queue` used to read 200 rows every twelve minutes and deliver them one
+after another with a 30-second timeout each inside a 300-second budget: about a
 thousand deliveries an hour at best and **ten** at worst, since ten unresponsive
-peers fill the whole pass. An instance whose accounts are followed across
-twenty thousand servers therefore takes the better part of a day to deliver one
-popular post, and Nextcloud runs one `cron.php` at a time so there is no
-parallelism to be had by adding servers.
+peers filled the whole pass. It now delivers **several servers at a time**:
+`ActivityService::manageRequests()` sends a batch in waves of up to `PARALLEL`
+(20) rows, one per host, through `CurlService::sendMany()` (the HTTP client's
+async calls, which Guzzle runs on one curl multi handle), and settles every row
+exactly as a single delivery is settled. A wave costs about as long as its
+slowest peer, so a dead peer costs its timeout once, beside nineteen
+deliveries, instead of in front of all of them — and then the breaker below
+holds its other rows back without a timeout at all. When a batch is done and
+time is left, the run takes the next one (up to `MAX_BATCHES`, 30).
+
+What that comes to: with peers answering within a second, a wave of twenty
+takes about a second and a run delivers up to its ceiling of 6,000 rows (30
+batches of 200) — some 30,000 an hour against a thousand before. When every
+wave holds a peer that runs into the 30-second timeout it is ten waves, 200
+deliveries a run, against ten. The async drain a new post starts
+(`QueueController`, 90 seconds at a 10-second timeout) goes out the same way,
+twenty servers at a time. Nextcloud runs one `cron.php` at a time, so past that
+the way to scale is `social:worker`.
 
 `occ social:worker` is the same delivery in a loop that does not stop. Claiming
 a row was already atomic — `setAsRunning()` is an `UPDATE … WHERE status =

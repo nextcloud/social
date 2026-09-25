@@ -56,6 +56,9 @@ class ActivityService {
 	public const TIMEOUT_ASYNC = 10;
 	public const TIMEOUT_SERVICE = 30;
 
+	/** How many deliveries `manageRequests()` has in flight at once, one per host. */
+	public const PARALLEL = 20;
+
 	/**
 	 * How long a host that has just failed is left alone, and the ceiling on
 	 * that.
@@ -455,6 +458,7 @@ class ActivityService {
 		$url = $queue->getInstance()->getUri();
 		$body = $this->bodyFromQueue($queue);
 
+		$failure = null;
 		try {
 			$headers = $this->signatureService->signRequest($url, $body, $queue);
 			$this->curlService->retrieveJson(
@@ -462,9 +466,138 @@ class ActivityService {
 				$url,
 				['headers' => $headers, 'body' => $body, 'timeout' => $queue->getTimeout()]
 			);
+		} catch (UnauthorizedFediverseException|RequestResultNotJsonException|RequestContentException|ActorDoesNotExistException|RequestResultSizeException|RequestNetworkException|RequestServerException $e) {
+			// what settle() knows how to end; anything else is the caller's
+			$failure = $e;
+		}
+
+		$this->settle($queue, $failure, $live);
+
+		return true;
+	}
+
+	/**
+	 * Delivers a batch of queued requests, several servers at a time.
+	 *
+	 * The rows go out in waves of up to `PARALLEL`, at most one per host in a
+	 * wave — a host is not asked twice at once, and once it has failed the
+	 * breaker holds the rest of its rows back without a timeout — through
+	 * `CurlService::sendMany()`. A wave costs about as long as its slowest
+	 * peer, so a dead one costs its timeout once, beside nineteen deliveries,
+	 * rather than in front of all of them. Every row is settled exactly as
+	 * `manageRequest()` settles one.
+	 *
+	 * @param RequestQueue[] $queues each carrying the timeout it is sent with
+	 * @param int $deadline when to stop starting waves, or 0 for none
+	 * @param callable(RequestQueue, \Throwable): void $failed what to do with a row
+	 *                                                         that failed in a way this does not handle itself — the row is `running`
+	 *                                                         by then, and handing it back is the caller's
+	 *
+	 * @return int how many rows were attempted
+	 */
+	public function manageRequests(array $queues, int $deadline, callable $failed): int {
+		$attempted = 0;
+		$pending = array_values($queues);
+
+		while ($pending !== [] && ($deadline <= 0 || time() < $deadline)) {
+			$wave = [];
+			$hosts = [];
+			$later = [];
+			foreach ($pending as $queue) {
+				$host = $queue->getInstance()->getAddress();
+				if (count($wave) >= self::PARALLEL || isset($hosts[$host])) {
+					$later[] = $queue;
+					continue;
+				}
+				$hosts[$host] = true;
+				$wave[] = $queue;
+			}
+			$pending = $later;
+
+			$attempted += $this->deliverWave($wave, $failed);
+		}
+
+		return $attempted;
+	}
+
+	/**
+	 * @param list<RequestQueue> $wave
+	 * @param callable(RequestQueue, \Throwable): void $failed
+	 *
+	 * @return int how many rows were attempted
+	 */
+	private function deliverWave(array $wave, callable $failed): int {
+		$sending = [];
+		foreach ($wave as $i => $queue) {
+			try {
+				$openUntil = $this->circuitOpenUntil($queue->getInstance()->getAddress());
+				if ($openUntil > 0) {
+					$this->requestQueueService->postponeRequest($queue, $openUntil);
+					continue;
+				}
+
+				try {
+					$this->requestQueueService->initRequest($queue);
+				} catch (QueueStatusException $e) {
+					// somebody else took it: nothing to hand back
+					continue;
+				}
+
+				$url = $queue->getInstance()->getUri();
+				$body = $this->bodyFromQueue($queue);
+				$sending[$i] = [
+					'method' => $this->methodFromQueue($queue),
+					'url' => $url,
+					'options' => [
+						'headers' => $this->signatureService->signRequest($url, $body, $queue),
+						'body' => $body,
+						'timeout' => $queue->getTimeout(),
+					],
+				];
+			} catch (\Throwable $e) {
+				$this->settleOrHandBack($queue, $e, $failed);
+			}
+		}
+
+		if ($sending === []) {
+			return 0;
+		}
+
+		foreach ($this->curlService->sendMany($sending) as $i => $outcome) {
+			$this->settleOrHandBack($wave[$i], $outcome, $failed);
+		}
+
+		return count($sending);
+	}
+
+	/** @param callable(RequestQueue, \Throwable): void $failed */
+	private function settleOrHandBack(RequestQueue $queue, ?\Throwable $outcome, callable $failed): void {
+		try {
+			$this->settle($queue, $outcome, false);
+		} catch (\Throwable $e) {
+			$failed($queue, $e);
+		}
+	}
+
+	/**
+	 * Ends one attempted delivery according to how it went: delivered, to be
+	 * retried (and the host held back), or dropped for good.
+	 *
+	 * @throws \Throwable a failure this does not know how to end, for the caller
+	 */
+	private function settle(RequestQueue $queue, ?\Throwable $failure, bool $live): void {
+		$host = $queue->getInstance()->getAddress();
+		$url = $queue->getInstance()->getUri();
+
+		if ($failure === null || $failure instanceof RequestResultNotJsonException) {
+			// an answer that is not JSON is still an answer: delivered
 			$this->closeCircuit($host);
 			$this->requestQueueService->endRequest($queue, true);
-		} catch (UnauthorizedFediverseException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof UnauthorizedFediverseException) {
 			// nothing was sent: the domain is not one this instance federates
 			// with. Kept as delivered, it told the author their post had
 			// reached a server it was never offered to.
@@ -472,45 +605,57 @@ class ActivityService {
 				'Delivery refused by the instance policy, dropping the request: ' . $url
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestResultNotJsonException $e) {
-			$this->requestQueueService->endRequest($queue, true);
-		} catch (RequestContentException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof RequestContentException) {
 			// The peer answered, but not with a 2xx. Whether that is worth
 			// retrying depends entirely on the status: a 503 during an upgrade
 			// or a 429 from a rate limiter is temporary and used to cost us
 			// every activity queued for that instance, deleted on the spot.
-			if ($this->isTransientHttpStatus($e->getCode())) {
+			if ($this->isTransientHttpStatus($failure->getCode())) {
 				$this->logger->notice(
-					'Temporary error while managing request: HTTP ' . $e->getCode() . ' - '
-					. $url . ' - ' . $e->getMessage()
+					'Temporary error while managing request: HTTP ' . $failure->getCode() . ' - '
+					. $url . ' - ' . $failure->getMessage()
 				);
 				$this->requestQueueService->endRequest($queue, false);
 				$this->holdHost($host, $live);
 
-				return true;
+				return;
 			}
 
 			$this->logger->notice(
-				'Permanent error while managing request: HTTP ' . $e->getCode() . ' - '
-				. $url . ' - ' . $e->getMessage()
+				'Permanent error while managing request: HTTP ' . $failure->getCode() . ' - '
+				. $url . ' - ' . $failure->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (ActorDoesNotExistException|RequestResultSizeException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof ActorDoesNotExistException || $failure instanceof RequestResultSizeException) {
 			$this->logger->notice(
-				'Error while managing request: ' . $url . ' ' . get_class($e) . ': '
-				. $e->getMessage()
+				'Error while managing request: ' . $url . ' ' . get_class($failure) . ': '
+				. $failure->getMessage()
 			);
 			$this->requestQueueService->deleteRequest($queue);
-		} catch (RequestNetworkException|RequestServerException $e) {
+
+			return;
+		}
+
+		if ($failure instanceof RequestNetworkException || $failure instanceof RequestServerException) {
 			$this->logger->notice(
 				'Temporary error while managing request: RequestServerException - ' . $url
-				. ' - ' . get_class($e) . ': ' . $e->getMessage()
+				. ' - ' . get_class($failure) . ': ' . $failure->getMessage()
 			);
 			$this->requestQueueService->endRequest($queue, false);
 			$this->holdHost($host, $live);
+
+			return;
 		}
 
-		return true;
+		throw $failure;
 	}
 
 	/**

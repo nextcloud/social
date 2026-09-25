@@ -747,13 +747,18 @@ tenfold cut in the request volume, for one app install. The polls also answer
 `304` now when nothing has changed, so even without it most of them cost an
 index probe and an empty response rather than a rendered page.
 
-**Run delivery workers.** `Cron\Queue` moves at most 200 deliveries every twelve
-minutes and, when peers are slow, as few as ten — a ceiling of about a thousand
-an hour, which an instance whose accounts are followed across thousands of
-servers exceeds with a single popular post. `occ social:worker` is the same
-delivery in a loop that does not stop, and **several may run at once**; see
-[OCC-Commands.md](OCC-Commands.md) for a systemd unit. The cron job is unchanged,
-so an instance that will not run a daemon keeps what it has.
+**Run delivery workers.** `Cron\Queue` delivers twenty servers at a time and
+takes batch after batch for its 300 seconds: with peers that answer within a
+second that is up to 6,000 deliveries a run, some 30,000 an hour, and when every
+batch runs into a dead peer's 30-second timeout still about 200 a run. A peer
+that fails is left alone — from a minute, doubling to an hour — and that is
+kept in the database (`social_host_breaker`), so it holds without a memcache and
+across runs: a dead server costs one timeout per wait, not one per row. An
+instance whose accounts are followed across tens of thousands of servers still
+outgrows that with a popular post, and `occ social:worker` is the same delivery
+in a loop that does not stop; **several may run at once**, see
+[OCC-Commands.md](OCC-Commands.md) for a systemd unit. The worker still delivers
+one row at a time, so it is more processes, not wider ones, that add capacity.
 
 **Watch the cron actually finish.** The steps are budgeted at 300 seconds a pass
 and resume where they stopped, so a pass that runs out of time is normal. A pass

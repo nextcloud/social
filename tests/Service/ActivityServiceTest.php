@@ -1299,4 +1299,125 @@ class ActivityServiceTest extends TestCase {
 		$this->service->manageInit();
 		$this->service->manageRequest($this->queue());
 	}
+
+	private function nothingHandedBack(): callable {
+		return function (RequestQueue $queue, \Throwable $e): void {
+			$this->fail('handed back: ' . $e->getMessage());
+		};
+	}
+
+	/**
+	 * One after another, a dead peer's timeout was paid in front of every
+	 * other delivery. A batch goes out as one wave, one row per host, and
+	 * each row is settled as a single delivery would be.
+	 */
+	public function testABatchToDifferentHostsGoesOutAsOneWave(): void {
+		$waves = [];
+		$this->curlService->expects($this->once())->method('sendMany')
+			->willReturnCallback(function (array $requests) use (&$waves): array {
+				$waves[] = array_column($requests, 'url');
+
+				return [0 => null, 1 => new RequestContentException('', 503), 2 => new RequestContentException('', 410)];
+			});
+		$ended = [];
+		$this->requestQueueService->method('endRequest')
+			->willReturnCallback(function (RequestQueue $queue, bool $success) use (&$ended): void {
+				$ended[] = [$queue->getInstance()->getUri(), $success];
+			});
+		$this->requestQueueService->expects($this->once())->method('deleteRequest');
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests([
+			$this->queue('https://a.example/inbox'),
+			$this->queue('https://b.example/inbox'),
+			$this->queue('https://c.example/inbox'),
+		], time() + 60, $this->nothingHandedBack());
+
+		$this->assertSame(3, $attempted);
+		$this->assertSame([['https://a.example/inbox', 'https://b.example/inbox', 'https://c.example/inbox']], $waves);
+		$this->assertSame([['https://a.example/inbox', true], ['https://b.example/inbox', false]], $ended);
+		$this->assertArrayHasKey('b.example', $this->breakerRows, 'the host that answered 503 is held back');
+	}
+
+	/**
+	 * Two rows for one host are not sent at once; and once the first has
+	 * failed, the second is held back by the breaker instead of spending a
+	 * timeout of its own.
+	 */
+	public function testASecondRowForAFailingHostIsHeldBackWithoutBeingSent(): void {
+		$waves = [];
+		$this->curlService->method('sendMany')
+			->willReturnCallback(function (array $requests) use (&$waves): array {
+				$waves[] = array_column($requests, 'url');
+
+				return array_map(
+					fn (array $r) => str_contains($r['url'], 'dead.example') ? new RequestNetworkException('timed out') : null,
+					$requests
+				);
+			});
+		$this->requestQueueService->expects($this->once())->method('postponeRequest');
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests([
+			$this->queue('https://dead.example/users/a/inbox'),
+			$this->queue('https://dead.example/users/b/inbox'),
+			$this->queue('https://alive.example/inbox'),
+		], time() + 60, $this->nothingHandedBack());
+
+		$this->assertSame(2, $attempted);
+		$this->assertSame([['https://dead.example/users/a/inbox', 'https://alive.example/inbox']], $waves);
+	}
+
+	public function testAWaveHoldsAtMostTheParallelLimit(): void {
+		$sizes = [];
+		$this->curlService->method('sendMany')
+			->willReturnCallback(function (array $requests) use (&$sizes): array {
+				$sizes[] = count($requests);
+
+				return array_fill_keys(array_keys($requests), null);
+			});
+		$queues = [];
+		for ($i = 0; $i < ActivityService::PARALLEL + 5; $i++) {
+			$queues[] = $this->queue('https://host' . $i . '.example/inbox');
+		}
+
+		$this->service->manageInit();
+		$this->assertSame(ActivityService::PARALLEL + 5, $this->service->manageRequests($queues, time() + 60, $this->nothingHandedBack()));
+
+		$this->assertSame([ActivityService::PARALLEL, 5], $sizes);
+	}
+
+	/** A row that cannot even be signed is handed back; the rest of its wave still goes. */
+	public function testARowThatFailsUnexpectedlyIsHandedBackAndTheWaveStillGoes(): void {
+		$this->signatureService->method('signRequest')->willReturnCallback(
+			function (string $url): array {
+				if (str_contains($url, 'bad.example')) {
+					throw new \RuntimeException('the private key is empty');
+				}
+
+				return [];
+			}
+		);
+		$this->curlService->expects($this->once())->method('sendMany')
+			->with($this->countOf(1))->willReturn([1 => null]);
+		$handedBack = [];
+
+		$this->service->manageInit();
+		$this->service->manageRequests(
+			[$this->queue('https://bad.example/inbox'), $this->queue('https://good.example/inbox')],
+			time() + 60,
+			function (RequestQueue $queue, \Throwable $e) use (&$handedBack): void {
+				$handedBack[] = $queue->getInstance()->getUri();
+			}
+		);
+
+		$this->assertSame(['https://bad.example/inbox'], $handedBack);
+	}
+
+	public function testNoWaveStartsPastTheDeadline(): void {
+		$this->curlService->expects($this->never())->method('sendMany');
+		$this->requestQueueService->expects($this->never())->method('initRequest');
+
+		$this->assertSame(0, $this->service->manageRequests([$this->queue()], time() - 1, $this->nothingHandedBack()));
+	}
 }

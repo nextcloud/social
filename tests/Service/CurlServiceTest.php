@@ -988,4 +988,60 @@ class CurlServiceTest extends TestCase {
 		$this->assertSame(1025, strlen(CurlService::readAtMost($response, 1024)));
 		$this->assertLessThan(64 * 1024, EndlessStream::$read);
 	}
+
+	/** @return array{method: string, url: string, options: array} */
+	private function delivery(string $path): array {
+		return [
+			'method' => 'post',
+			'url' => 'https://' . self::PUBLIC_IP . $path,
+			'options' => ['headers' => ['Signature' => 'x'], 'body' => '{"type":"Create"}', 'timeout' => 30],
+		];
+	}
+
+	/**
+	 * Deliveries to different servers go out together, each settled as a
+	 * single delivery would be: nothing where it would have returned, the
+	 * exception where it would have thrown.
+	 */
+	public function testSeveralDeliveriesAreSentAtOnceAndEachIsSettledOnItsOwn(): void {
+		$sent = [];
+		$this->client->expects($this->never())->method('request');
+		$this->client->method('postAsync')->willReturnCallback(
+			function (string $url, array $options) use (&$sent) {
+				$sent[$url] = $options;
+
+				return $this->promiseOf(match (true) {
+					str_ends_with($url, '/ok') => $this->answer('{}', 202),
+					str_ends_with($url, '/html') => $this->answer('<p>thanks</p>', 200, 'text/html'),
+					str_ends_with($url, '/busy') => $this->answer('', 503),
+					default => new \RuntimeException('connection timed out'),
+				});
+			}
+		);
+
+		$outcomes = $this->service()->sendMany([
+			'ok' => $this->delivery('/ok'),
+			'html' => $this->delivery('/html'),
+			'busy' => $this->delivery('/busy'),
+			'dead' => $this->delivery('/dead'),
+		]);
+
+		$this->assertCount(4, $sent, 'all four sent before any was waited for');
+		$this->assertSame('{"type":"Create"}', $sent['https://' . self::PUBLIC_IP . '/ok']['body']);
+		$this->assertFalse($sent['https://' . self::PUBLIC_IP . '/ok']['allow_redirects']);
+		$this->assertNull($outcomes['ok']);
+		$this->assertNull($outcomes['html'], 'an answer that is not JSON is still delivered');
+		$this->assertInstanceOf(RequestContentException::class, $outcomes['busy']);
+		$this->assertSame(503, $outcomes['busy']->getCode());
+		$this->assertInstanceOf(RequestNetworkException::class, $outcomes['dead']);
+	}
+
+	public function testADeliveryToABlockedHostIsNotSent(): void {
+		$this->fediverseService->method('authorized')->willThrowException(new UnauthorizedFediverseException());
+		$this->client->expects($this->never())->method('postAsync');
+
+		$outcomes = $this->service()->sendMany(['a' => $this->delivery('/inbox')]);
+
+		$this->assertInstanceOf(UnauthorizedFediverseException::class, $outcomes['a']);
+	}
 }

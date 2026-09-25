@@ -69,19 +69,45 @@ class QueueTest extends TestCase {
 		$this->assertSame(12 * 60, $interval->getValue($this->job));
 	}
 
+	/**
+	 * The mocked drain: hands every row to `$deliver`, and a row it throws for
+	 * to the failure callback the job passed — which is what
+	 * `ActivityService::manageRequests()` does with a failure it does not end
+	 * itself.
+	 *
+	 * @param callable(RequestQueue): void $deliver
+	 */
+	private function draining(callable $deliver): void {
+		$this->activityService->method('manageRequests')
+			->willReturnCallback(function (array $requests, int $deadline, callable $failed) use ($deliver): int {
+				foreach ($requests as $request) {
+					try {
+						$deliver($request);
+					} catch (\Throwable $e) {
+						$failed($request, $e);
+					}
+				}
+
+				return count($requests);
+			});
+	}
+
 	public function testStandbyRequestsAreSentWithTheServiceTimeout(): void {
 		$first = (new RequestQueue())->setToken('t1');
 		$second = (new RequestQueue())->setToken('t2');
 		$this->requestQueueService->method('getRequestStandby')->willReturn([$first, $second]);
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
-		$this->activityService->expects($this->once())->method('manageInit');
+		$this->activityService->expects($this->atLeastOnce())->method('manageInit');
 		$managed = [];
-		$this->activityService->expects($this->exactly(2))->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$managed): bool {
-				$this->assertSame(ActivityService::TIMEOUT_SERVICE, $request->getTimeout());
-				$managed[] = $request->getToken();
+		$this->activityService->expects($this->once())->method('manageRequests')
+			->willReturnCallback(function (array $requests, int $deadline) use (&$managed): int {
+				foreach ($requests as $request) {
+					$this->assertSame(ActivityService::TIMEOUT_SERVICE, $request->getTimeout());
+					$managed[] = $request->getToken();
+				}
+				$this->assertGreaterThan(time(), $deadline);
 
-				return true;
+				return count($requests);
 			});
 
 		$this->job->start($this->jobList);
@@ -90,8 +116,36 @@ class QueueTest extends TestCase {
 	}
 
 	/**
+	 * A batch of 200 goes out twenty servers at a time and takes seconds, so
+	 * a run with time left takes the next one rather than idling out the rest
+	 * of its budget — and stops when nothing new is due.
+	 */
+	public function testTheRunTakesBatchAfterBatchUntilNothingNewIsDue(): void {
+		$batches = [
+			[(new RequestQueue())->setId(1), (new RequestQueue())->setId(2)],
+			[(new RequestQueue())->setId(3)],
+			// a row the first batch could not end, handed out again
+			[(new RequestQueue())->setId(2)],
+		];
+		$this->requestQueueService->method('getRequestStandby')
+			->willReturnOnConsecutiveCalls(...$batches);
+		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
+		$handed = [];
+		$this->activityService->expects($this->exactly(2))->method('manageRequests')
+			->willReturnCallback(function (array $requests) use (&$handed): int {
+				$handed[] = array_map(fn (RequestQueue $r): int => $r->getId(), $requests);
+
+				return count($requests);
+			});
+
+		$this->job->start($this->jobList);
+
+		$this->assertSame([[1, 2], [3]], $handed);
+	}
+
+	/**
 	 * The catch used to name SocialAppConfigException and nothing else, but
-	 * manageRequest() also lets a SignatureException out (openssl_sign on an
+	 * a delivery also lets a SignatureException out (openssl_sign on an
 	 * empty or corrupt private key) and an \OCP\DB\Exception escape the calls
 	 * that end the row. The row is already `running` by then, so it was neither
 	 * retried nor counted against MAX_TRIES until the stale reaper freed it an
@@ -103,15 +157,12 @@ class QueueTest extends TestCase {
 		$this->requestQueueService->method('getRequestStandby')->willReturn([$bad, $good]);
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
-		$this->activityService->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
-				if ($request->getToken() === 'bad') {
-					throw new SignatureException('cannot sign: the private key is empty');
-				}
-				$sent[] = $request->getToken();
-
-				return true;
-			});
+		$this->draining(function (RequestQueue $request) use (&$sent): void {
+			if ($request->getToken() === 'bad') {
+				throw new SignatureException('cannot sign: the private key is empty');
+			}
+			$sent[] = $request->getToken();
+		});
 
 		// and the row goes back to standby, so it is retried and eventually
 		// exhausts its tries instead of sitting `running` forever
@@ -141,15 +192,12 @@ class QueueTest extends TestCase {
 		$this->requestQueueService->method('getRequestStandby')->willReturn([$bad, $good]);
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
-		$this->activityService->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
-				if ($request->getToken() === 'bad') {
-					throw new \RuntimeException('boom');
-				}
-				$sent[] = $request->getToken();
-
-				return true;
-			});
+		$this->draining(function (RequestQueue $request) use (&$sent): void {
+			if ($request->getToken() === 'bad') {
+				throw new \RuntimeException('boom');
+			}
+			$sent[] = $request->getToken();
+		});
 		$this->requestQueueService->method('endRequest')
 			->willThrowException(new \RuntimeException('the database is gone'));
 
@@ -166,15 +214,12 @@ class QueueTest extends TestCase {
 		$this->requestQueueService->method('getRequestStandby')->willReturn([$bad, $good]);
 		$this->streamQueueService->method('getRequestStandby')->willReturn([]);
 		$sent = [];
-		$this->activityService->expects($this->exactly(2))->method('manageRequest')
-			->willReturnCallback(function (RequestQueue $request) use (&$sent): bool {
-				if ($request->getToken() === 'bad') {
-					throw new SocialAppConfigException();
-				}
-				$sent[] = $request->getToken();
-
-				return true;
-			});
+		$this->draining(function (RequestQueue $request) use (&$sent): void {
+			if ($request->getToken() === 'bad') {
+				throw new SocialAppConfigException();
+			}
+			$sent[] = $request->getToken();
+		});
 
 		// the catch used to be empty: a misconfigured app dropped every
 		// delivery without a line anywhere

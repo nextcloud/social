@@ -405,16 +405,15 @@ php occ social:worker [--once] [--max-seconds SECONDS] [--quiet-log]
 | `--max-seconds` | int (0) | Stop after this long, so a supervisor can restart it; `0` runs until stopped |
 | `--quiet-log` | none | Do not print a line per batch |
 
-**Why it matters:** `Cron\Queue` reads **200 rows every twelve minutes** and
-delivers them one after another with a 30-second timeout each, inside a
-300-second budget. That is about a thousand deliveries an hour at best and
-**ten** at worst — ten unresponsive peers at 30 seconds each fill the whole
-budget. An instance whose accounts are followed across twenty thousand servers
-therefore takes the better part of a day to deliver one popular post, with
-everything else queued behind it, and Nextcloud runs one `cron.php` at a time so
-there is no parallelism to be had by adding servers.
+**Why it matters:** `Cron\Queue` runs every twelve minutes with a 300-second
+budget. It delivers twenty servers at a time and takes batch after batch of 200
+while time is left — up to 6,000 deliveries a run when peers answer within a
+second, and about 200 when every batch runs into a dead peer's 30-second
+timeout — and Nextcloud runs one `cron.php` at a time, so that is its ceiling.
+An instance whose accounts are followed across tens of thousands of servers
+reaches it with one popular post.
 
-This is the same delivery in a loop that does not stop. A healthy peer answers in
+This is the same delivery in a loop that does not stop, one row at a time. A healthy peer answers in
 a fraction of a second, so one worker moves thousands of rows an hour rather than
 a thousand a day — and because claiming a row is already atomic (an
 `UPDATE … WHERE status = standby` that throws when it loses the race),
