@@ -8,22 +8,26 @@
  *
  * The space has to be reserved from the metadata alone: a timeline that lets
  * every image size itself jumps under the reader's thumb as each one arrives.
+ *
+ * The box is the shape the media actually is. There used to be a floor of 3:4
+ * and a ceiling of 16:9 here, and anything outside them was reshaped to fit: a
+ * 9:16 short -- which is what a phone records, and what the comment beside the
+ * floor claimed to allow -- was given a 3:4 box and had its top and bottom cut
+ * off by the `cover` the frame is drawn with. A tall frame still must not take
+ * over a timeline, so `GalleryMedia` caps how tall one may be *drawn*. That
+ * bounds the frame without reshaping the picture: what will not fit is made
+ * smaller, never cropped.
  */
-
-/** a phone portrait is 9:16; anything taller than this would fill the viewport */
-export const MIN_RATIO = 3 / 4
-
-/** a panorama is 3:1 or worse, and a sliver that tall shows nothing */
-export const MAX_RATIO = 16 / 9
-
-/** what an attachment that never reported its size is given */
-export const DEFAULT_RATIO = 4 / 3
 
 /**
- * @param {?object} attachment a Mastodon MediaAttachment
- * @param {number} [fallback] the ratio for media that carries no dimensions
- * @return {number} width divided by height, inside the range above
+ * What an attachment that never reported its size is given.
+ *
+ * Only a picture whose dimensions are unknown gets a shape it did not ask
+ * for. Everything else keeps its own: a short shot on a phone is 9:16, and
+ * it is shown 9:16.
  */
+export const DEFAULT_RATIO = 4 / 3
+
 export function ratioOf(attachment, fallback = DEFAULT_RATIO) {
 	// `meta` is absent for a remote attachment this instance has not cached
 	// yet, and AttachmentMeta::jsonSerialize() drops zero width and height
@@ -35,5 +39,5 @@ export function ratioOf(attachment, fallback = DEFAULT_RATIO) {
 		return fallback
 	}
 
-	return Math.min(MAX_RATIO, Math.max(MIN_RATIO, width / height))
+	return width / height
 }

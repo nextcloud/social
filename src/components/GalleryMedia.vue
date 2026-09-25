@@ -134,6 +134,12 @@ export default {
 	position: relative;
 	margin: 0;
 	width: 100%;
+	/* A frame is the shape its media is, so a 9:16 short in a 600px column
+	   wants to be over a thousand pixels tall and pushes everything under it
+	   off the screen. The height is capped instead of the shape: what will
+	   not fit is drawn smaller, inside a frame that keeps its own proportions
+	   -- the picture is never cut to make it shorter. */
+	max-height: 80vh;
 	overflow: hidden;
 	border-radius: var(--border-radius-large, 12px);
 	background: var(--color-background-dark);
