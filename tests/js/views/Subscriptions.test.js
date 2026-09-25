@@ -88,6 +88,18 @@ describe('Subscriptions', () => {
 		expect(link.attributes('target')).toBe('_blank')
 	})
 
+	/**
+	 * The thumbnail is a URL on the feed's own host (i.ytimg.com for YouTube),
+	 * which Nextcloud's img-src refuses: an <img> for it is an empty box and a
+	 * CSP violation, never a picture.
+	 */
+	it('does not point an image at the feed\'s host', async () => {
+		const wrapper = await mountPage()
+
+		expect(wrapper.find('.entries__link').exists()).toBe(true)
+		expect(wrapper.find('img').exists()).toBe(false)
+	})
+
 	it('offers no way to boost, reply to or favourite one', async () => {
 		const wrapper = await mountPage()
 

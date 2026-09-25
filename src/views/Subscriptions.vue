@@ -112,12 +112,9 @@
 						:href="item.link"
 						target="_blank"
 						rel="noopener noreferrer">
-						<img
-							v-if="item.thumbnail"
-							class="entries__thumb"
-							:src="item.thumbnail"
-							alt=""
-							loading="lazy">
+						<!-- no thumbnail: the feed's picture is on its own host,
+						     which the page's img-src does not allow, and there is
+						     no local route that fetches it the way attachments are -->
 						<span class="entries__body">
 							<span class="entries__title">{{ item.title }}</span>
 							<span class="entries__meta">
@@ -150,8 +147,8 @@
  * makes them not leave. Every channel publishes an Atom feed, so the channels
  * come along.
  *
- * The page is deliberately not a timeline. An entry is a headline, a still and
- * a link out — there is no boost, no reply, no favourite, because this server
+ * The page is deliberately not a timeline. An entry is a headline, a summary
+ * and a link out — there is no boost, no reply, no favourite, because this server
  * has no right to publish somebody else's video and an id minted for one would
  * be an address pretending to be the thing. Everything anybody does with an
  * entry happens on the site it came from.
@@ -502,15 +499,6 @@ export default {
 		}
 	}
 
-	&__thumb {
-		flex: 0 0 auto;
-		inline-size: 160px;
-		aspect-ratio: 16 / 9;
-		object-fit: cover;
-		border-radius: var(--border-radius-large, 8px);
-		background: var(--color-background-dark);
-	}
-
 	&__body {
 		display: flex;
 		flex-direction: column;
@@ -533,16 +521,6 @@ export default {
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
-	}
-
-	@media (max-width: 500px) {
-		&__link {
-			flex-direction: column;
-		}
-
-		&__thumb {
-			inline-size: 100%;
-		}
 	}
 }
 </style>
