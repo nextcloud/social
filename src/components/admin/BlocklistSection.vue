@@ -235,7 +235,10 @@ export default {
 				})
 				this.sources = data.sources ?? []
 				if (enabled) {
-					await this.check(source)
+					// the source as the server has it now: the one handed in
+					// is the row from before the switch, still marked off, and
+					// checking it would only ask what it would do
+					await this.check(this.sources.find((one) => one.id === source.id) ?? { ...source, enabled })
 				}
 			} catch (error) {
 				showError(errorMessage(error, t('social', 'Could not change that source')))

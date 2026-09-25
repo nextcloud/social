@@ -146,6 +146,28 @@ describe('the block list section', () => {
 		expect(wrapper.text()).toContain('Would block 12 and silence 30 of 42 servers.')
 	})
 
+	/**
+	 * Switching a source on means applying it now: a dry run there leaves
+	 * "Would block …" under a source the administrator thinks is applied.
+	 */
+	it('applies a source when it is switched on, rather than asking what it would do', async () => {
+		const wrapper = await mountBlocklist()
+		const on = structuredClone(sources)
+		on[0].enabled = true
+		axios.post
+			.mockResolvedValueOnce({ data: { sources: on } })
+			.mockResolvedValueOnce({
+				data: { result: { dryRun: false, blocked: 12, silenced: 3, read: 200 }, sources: on, list: [] },
+			})
+
+		await wrapper.vm.toggle(wrapper.vm.sources[0], true)
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenNthCalledWith(1, `${BLOCKLIST}/sources`, { id: 'mastodon.social', enabled: true })
+		expect(axios.post).toHaveBeenNthCalledWith(2, `${BLOCKLIST}/fetch`, { id: 'mastodon.social', dryRun: false })
+		expect(wrapper.text()).not.toContain('Would block')
+	})
+
 	/** A server that publishes no list is a thing to say, not a failure. */
 	it('says when a server does not publish a list', async () => {
 		const wrapper = await mountBlocklist()
