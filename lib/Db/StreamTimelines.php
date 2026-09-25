@@ -412,6 +412,28 @@ trait StreamTimelines {
 	}
 
 	/**
+	 * Pages a timeline on the recipient row's nid rather than the post's.
+	 *
+	 * For a query whose recipient join, aliased `sd`, fixes the collection and
+	 * the type; see `SocialLimitsQueryBuilder::paginate()`. The two nids are
+	 * the same number — the row is written with its post's — except on an
+	 * instance whose backfill has not finished, where a row may still carry 0
+	 * and would sort to the bottom for ever, so until the flag says so the
+	 * page stays on the post's. A zero is excluded rather than shown last, as
+	 * on the home timeline.
+	 */
+	private function paginateOnRecipient(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		if (!$this->recipientNidsAreFilled()) {
+			$qb->paginate($options);
+
+			return;
+		}
+
+		$qb->paginate($options, 'sd');
+		$qb->andWhere($qb->expr()->gt('sd.nid', $qb->createNamedParameter('0')));
+	}
+
+	/**
 	 * Whether the recipient rows carry their post's sort key yet.
 	 *
 	 * A flag written by the migration when its backfill finishes, not a
@@ -591,7 +613,7 @@ trait StreamTimelines {
 	protected function directTimelineNids(ProbeOptions $options): array {
 		$page = $this->getStreamNidsSelectSql(false);
 		$page->filterType(SocialAppNotification::TYPE);
-		$page->paginate($options);
+		$this->paginateOnRecipient($page, $options);
 		$this->filterKind($page, $options);
 
 		// the author is joined for the filters below, not for its columns
@@ -840,7 +862,7 @@ trait StreamTimelines {
 		$qb->limitToType(SocialAppNotification::TYPE);
 		$qb->limitToSubTypes($wanted);
 		$qb->limitToSubTypes(Stream::subTypesOfNotificationTypes($options->getExcludeTypes()), true);
-		$qb->paginate($options);
+		$this->paginateOnRecipient($qb, $options);
 
 		$qb->selectDestFollowing('sd', '');
 		$qb->limitToDest($actorId, 'notif', '', 'sd');
@@ -1058,7 +1080,7 @@ trait StreamTimelines {
 		// the recipient join fixes the actor (the public collection) and the
 		// type, which the unique index makes at most one row
 		$page = $this->getStreamNidsSelectSql(false);
-		$page->paginate($options);
+		$this->paginateOnRecipient($page, $options);
 		$this->filterKind($page, $options);
 
 		// `local=true` is this instance's own posts, `remote=true` every other

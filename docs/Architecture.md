@@ -726,8 +726,17 @@ therefore cost Σ(all posts of everyone you follow), and a client asks for one
 every thirty seconds. Measured on a seeded instance of 402,725 posts and 805,212
 recipient rows, with both paths run against the same machine in the same pass:
 the old query takes **1,661 ms** and the public timeline over the same rows
-**4.2 ms** — the public one's recipient is a single constant, so it walks posts
-newest-first and probes one row each.
+**4.2 ms**. That figure is not a bounded read either: `EXPLAIN` on MariaDB shows
+the public, notification and direct pages driving from their recipient rows —
+one collection and one type, a constant — joining each to its post and sorting
+all of them in a temporary table (`Using temporary; Using filesort`), so the
+cost grew with every public post ever written and with every notification an
+account ever received. They now page on the recipient row's `nid`
+(`SocialLimitsQueryBuilder::paginate()` with the `sd` alias,
+`StreamTimelines::paginateOnRecipient()`), and `social_sd_atn` answers the
+filter and the order as one descending range that stops at the limit — once the
+backfill flag below says every row carries its nid; until then they page on the
+post's.
 
 `social_stream_dest.nid` is the post's own nid, copied onto the recipient row
 when it is written. It is safe to denormalise because a nid never changes after

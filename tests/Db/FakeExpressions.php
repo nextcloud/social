@@ -39,6 +39,10 @@ class FakeExpressions {
 		return $x . ' < ' . $y;
 	}
 
+	public function gte($x, $y, $type = null): string {
+		return $x . ' >= ' . $y;
+	}
+
 	public function lte($x, $y, $type = null): string {
 		return $x . ' <= ' . $y;
 	}

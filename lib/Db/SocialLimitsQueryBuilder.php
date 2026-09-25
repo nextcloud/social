@@ -328,12 +328,21 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
-	 * @param ProbeOptions $options
+	 * Bounds and orders a page on a nid.
 	 *
+	 * On the post's own by default. A timeline whose recipient join fixes the
+	 * collection and the type — public, notifications, direct — passes the
+	 * recipient row's alias instead: that row carries the post's nid too, and
+	 * `social_sd_atn` (actor_id, type, nid) then serves the filter and the
+	 * order as one descending range. Ordered on `s.nid`, MariaDB drove from the
+	 * same recipient rows anyway, joined every one of them to its post and
+	 * sorted the lot in a temporary table to keep twenty.
+	 *
+	 * @param string $alias the table whose nid pages; '' for the post's
 	 */
-	public function paginate(ProbeOptions $options) {
+	public function paginate(ProbeOptions $options, string $alias = '') {
 		$expr = $this->expr();
-		$pf = $this->getDefaultSelectAlias();
+		$pf = ($alias === '') ? $this->getDefaultSelectAlias() : $alias;
 
 		if ($options->getSince() > 0) {
 			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getSince())));
