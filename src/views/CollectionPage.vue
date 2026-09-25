@@ -338,7 +338,7 @@ export default {
 
 		/**
 		 * @param {string|number} id the collection the page belongs to
-		 * @param {function(): boolean} isNewest whether that is still the collection on screen
+		 * @param {() => boolean} isNewest whether that is still the collection on screen
 		 * @return {Promise<void>}
 		 */
 		async loadMore(id = this.id, isNewest = this.loads.current()) {

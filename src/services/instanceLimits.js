@@ -48,7 +48,7 @@ function positive(value, fallback) {
 /**
  * The limits an instance entity carries.
  *
- * @param {object|null} instance a `GET /api/v1/instance` answer
+ * @param {{configuration?: {statuses?: {max_characters?: number, max_media_attachments?: number}, media_attachments?: object, polls?: object, translation?: {enabled?: boolean}}}|null} instance a `GET /api/v1/instance` answer
  * @return {{maxCharacters: number, maxAttachments: number, translation: boolean}}
  */
 export function limitsFrom(instance) {

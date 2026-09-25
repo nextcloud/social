@@ -13,6 +13,15 @@ import logger from '../services/logger.js'
 import { isNewerId, newerId } from '../utils/snowflake.js'
 
 /**
+ * What this store holds, for the getters that are handed it.
+ *
+ * @typedef {object} NotificationState
+ * @property {number} unread how many notifications have not been read
+ * @property {number} unreadDirect how many conversations have something unread in them
+ * @property {string} lastReadId the row the reader had read up to, '0' while unknown
+ */
+
+/**
  * How many notifications have arrived since the reader last looked, and where
  * "last looked" is.
  *
@@ -45,7 +54,7 @@ export const useNotificationsStore = defineStore('notifications', {
 
 	getters: {
 		/**
-		 * @param {object} state the store state
+		 * @param {NotificationState} state the store state
 		 * @return {number} what the badge shows
 		 */
 		unreadNotifications(state) {
@@ -53,7 +62,7 @@ export const useNotificationsStore = defineStore('notifications', {
 		},
 
 		/**
-		 * @param {object} state the store state
+		 * @param {NotificationState} state the store state
 		 * @return {number} what the Direct messages badge shows
 		 */
 		unreadDirectMessages(state) {

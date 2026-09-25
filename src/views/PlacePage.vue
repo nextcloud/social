@@ -153,7 +153,7 @@ export default {
 
 		/**
 		 * @param {string|number} id the place the page belongs to
-		 * @param {function(): boolean} isNewest whether that is still the place on screen
+		 * @param {() => boolean} isNewest whether that is still the place on screen
 		 * @return {Promise<void>}
 		 */
 		async loadMore(id = this.id, isNewest = this.loads.current()) {

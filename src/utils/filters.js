@@ -108,7 +108,7 @@ export function expiryOptions() {
  * moment, and the server stops applying the filter the moment it passes
  * without deleting the row.
  *
- * @param {object} filter a v2 Filter entity
+ * @param {Record<string, any>} filter a v2 Filter entity, as the wire gave it
  * @param {number} [now] the moment to measure against, for tests
  * @return {boolean} false once it has expired
  */
@@ -125,7 +125,7 @@ export function isActive(filter, now = Date.now()) {
 /**
  * When a filter stops applying, in words.
  *
- * @param {object} filter a v2 Filter entity
+ * @param {Record<string, any>} filter a v2 Filter entity, as the wire gave it
  * @param {number} [now] the moment to measure against, for tests
  * @return {string} a sentence for the summary line
  */
@@ -153,8 +153,8 @@ export function expiryLabel(filter, now = Date.now()) {
  * `hide` filter matched is not sent at all — so anything here is something to
  * cover rather than something to drop.
  *
- * @param {object} status a status entity
- * @return {object[]} one entry per filter that matched
+ * @param {Record<string, any>} status a status entity, as the wire gave it
+ * @return {import('../types/Mastodon.js').FilterResult[]} one entry per filter that matched
  */
 export function matchedFilters(status) {
 	const results = status?.filtered
@@ -165,7 +165,7 @@ export function matchedFilters(status) {
 }
 
 /**
- * @param {object} status a status entity
+ * @param {Record<string, any>} status a status entity, as the wire gave it
  * @return {string[]} the names of the filters that matched, each once. Several
  * can match one post, and naming only the first would send a reader off to
  * change a filter that is not the whole reason the post is covered.
@@ -185,7 +185,7 @@ export function matchedFilterTitles(status) {
  * and printing it on the cover would put exactly the words somebody filtered
  * back in front of them. The name is what they have to look for in Settings.
  *
- * @param {object} status a status entity
+ * @param {Record<string, any>} status a status entity, as the wire gave it
  * @return {string} a line for the cover
  */
 export function filterCoverLabel(status) {
@@ -204,7 +204,7 @@ export function filterCoverLabel(status) {
  * leaves the form saying only "no". The messages are the API's own English;
  * the form is written so that none of them should ever be reached.
  *
- * @param {object} error what axios threw
+ * @param {{response?: {data?: {error?: string}}}} error what axios threw
  * @param {string} fallback what to say when the server said nothing useful
  * @return {string} the message to show
  */

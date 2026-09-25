@@ -9,7 +9,7 @@ import { generateUrl } from '@nextcloud/router'
  * Remote actors have no corresponding `/u/{uid}` page and return an empty
  * string so their caller can keep the Social/Fediverse profile destination.
  *
- * @param {object} account a Mastodon-compatible account
+ * @param {import('../types/Mastodon.js').Account} account a Mastodon-compatible account
  * @param {string|number|null} [statusId] optional Social status to focus
  * @return {string}
  */
@@ -30,7 +30,7 @@ export function localProfileUrl(account, statusId = null) {
  * Public local posts can be opened in the native profile's Social section.
  * Restricted posts retain Social's normal post URL.
  *
- * @param {object} status a Mastodon-compatible status
+ * @param {import('../types/Mastodon.js').Status} status a Mastodon-compatible status
  * @return {string}
  */
 export function publicLocalStatusUrl(status) {

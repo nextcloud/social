@@ -12,21 +12,21 @@
  * every await, whether it is still the newest; a load that is not leaves the
  * data, the error and the loading flag to the one that is.
  *
- * @return {{ begin: function(): function(): boolean, current: function(): function(): boolean }}
+ * @return {{begin: () => (() => boolean), current: () => (() => boolean)}}
  */
 export function latestLoad() {
 	let newest = 0
 
 	/**
 	 * @param {number} ticket the generation a load belongs to
-	 * @return {function(): boolean} whether that generation is still the newest
+	 * @return {() => boolean} whether that generation is still the newest
 	 */
 	const check = (ticket) => () => ticket === newest
 
 	return {
-		/** @return {function(): boolean} a new generation, which outdates every earlier one */
+		/** @return {() => boolean} a new generation, which outdates every earlier one */
 		begin: () => check(++newest),
-		/** @return {function(): boolean} the generation already running, for work that continues it */
+		/** @return {() => boolean} the generation already running, for work that continues it */
 		current: () => check(newest),
 	}
 }

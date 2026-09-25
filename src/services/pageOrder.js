@@ -43,7 +43,7 @@ const BEYOND = ORDER.length
  * `params.type`, so the type is part of the identity. Everything else is its
  * route name.
  *
- * @param {object} route a route, or anything with `name` and `params`
+ * @param {{name?: string|symbol|null, params?: Record<string, string|string[]>}} route a route, or anything with `name` and `params`
  * @return {string} the identity
  */
 export function pageIdentity(route) {
@@ -58,7 +58,7 @@ export function pageIdentity(route) {
 /**
  * How far down the sidebar a page is.
  *
- * @param {object} route the route to place
+ * @param {{name?: string|symbol|null, params?: Record<string, string|string[]>}} route the route to place
  * @return {number} its rank, or one past the end for somewhere the sidebar does not list
  */
 export function pageRank(route) {
@@ -74,8 +74,8 @@ export function pageRank(route) {
  * neither page is on the sidebar for -- a post to another post, say -- where
  * a slide would be inventing a geography that is not there.
  *
- * @param {object} to where they are going
- * @param {object} from where they were
+ * @param {{name?: string|symbol|null, params?: Record<string, string|string[]>}} to where they are going
+ * @param {{name?: string|symbol|null, params?: Record<string, string|string[]>}} from where they were
  * @return {'forward'|'back'|''} the direction
  */
 export function pageDirection(to, from) {

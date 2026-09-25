@@ -68,7 +68,7 @@ export function relaysUrl(path = '') {
  * and swallowing that would leave an administrator with a form that says only
  * "no".
  *
- * @param {object} error what axios threw
+ * @param {{response?: {status?: number, data?: {error?: string}}}} error what axios threw
  * @param {string} fallback what to say when the server said nothing useful
  * @return {string} the message to show
  */

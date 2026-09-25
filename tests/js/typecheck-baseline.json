@@ -213,7 +213,6 @@
 		"TS2322 Type 'Timeout' is not assignable to type 'number'.": 2,
 		"TS2322 Type '{}' is not assignable to type 'Record<string, boolean>'.": 1,
 		"TS2322 Type '{}' is not assignable to type 'Record<string, number>'.": 1,
-		"TS2339 Property 'singlePost' does not exist on type '…'.": 1,
 		"TS2345 Argument of type 'unknown' is not assignable to parameter of type 'string'.": 1,
 		"TS2538 Type 'string[]' cannot be used as an index type.": 1
 	},

@@ -10,6 +10,13 @@ import logger from '../services/logger.js'
 let nextErrorId = 0
 
 /**
+ * What this store holds, for the getters that are handed it.
+ *
+ * @typedef {object} ErrorState
+ * @property {{id: string, message: string}[]} errors what is on screen, newest last
+ */
+
+/**
  * The errors the app is currently showing the reader, newest last.
  */
 export const useErrorsStore = defineStore('errors', {
@@ -19,14 +26,14 @@ export const useErrorsStore = defineStore('errors', {
 
 	getters: {
 		/**
-		 * @param {object} state the store state
+		 * @param {ErrorState} state the store state
 		 * @return {object[]} every error still on screen
 		 */
 		appErrors(state) {
 			return state.errors
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {ErrorState} state the store state
 		 * @return {boolean} whether there is anything to show
 		 */
 		hasErrors(state) {

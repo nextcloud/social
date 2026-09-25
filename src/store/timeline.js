@@ -60,10 +60,34 @@ function rememberCelebrated() {
 }
 
 /**
+ * What this store holds, for the helpers and getters that are handed it.
+ *
+ * Written down because they are plain functions taking the state as an
+ * argument: without it every one of them read `state.statuses` off an untyped
+ * `object`, which TypeScript 7 no longer lets through.
+ *
+ * @typedef {object} TimelineState
+ * @property {Record<string, import('../types/Mastodon.js').Status>} statuses every status seen, by id
+ * @property {string[]} timeline the ids on screen, newest first
+ * @property {string[]} parentsTimeline the ids above a post being read in its thread
+ * @property {Record<string, string>} removedFrom which list a removed status came from
+ * @property {string} type which timeline this is
+ * @property {Array|null} seededPage the first screenful the server rendered with the page
+ * @property {{tag?: string, id?: string, account?: string, scope?: string, media?: string, filter?: string, url?: string, singlePost?: string}} params what the current list was asked for
+ * @property {string} account whose timeline, where it is somebody's
+ * @property {{identity: string, timeline: string[], parentsTimeline: string[], statuses: object, removedFrom: object}[]} remembered the lists lately visited
+ * @property {boolean} restored whether the list was put back rather than loaded
+ * @property {boolean} composerDisplayStatus whether the composer is open
+ * @property {string} searchQuery what is being searched for
+ * @property {boolean} firstPostCelebration whether the celebration is on screen
+ * @property {boolean} firstPostCelebrated whether this session has celebrated already
+ */
+
+/**
  * Indexes a status, and the status it boosts, by id.
  *
- * @param {object} state the store state
- * @param {object} status the status to index
+ * @param {TimelineState} state the store state
+ * @param {import('../types/Mastodon.js').Status} status the status to index
  */
 function indexStatus(state, status) {
 	if (status === undefined || status === null || status.id === undefined) {
@@ -79,7 +103,7 @@ function indexStatus(state, status) {
 }
 
 /**
- * @param {object} state the store state
+ * @param {TimelineState} state the store state
  * @param {string[]} ids the ids of one of the two lists
  * @return {object[]} the statuses those ids name, newest first
  */
@@ -105,7 +129,7 @@ function sortedByDate(state, ids) {
  * does catches that as well.
  *
  * @param {string[]} list the id list to append to, in place
- * @param {object[]} statuses what arrived
+ * @param {import('../types/Mastodon.js').Status[]} statuses what arrived
  */
 function appendNew(list, statuses) {
 	const known = new Set(list)
@@ -140,7 +164,7 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @type {Array|null}
 		 */
 		seededPage: loadState('social', 'firstPage', null),
-		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string, filter?: string, url?: string}} */
+		/** @type {{tag?: string, id?: string, account?: string, scope?: string, media?: string, filter?: string, url?: string, singlePost?: string}} */
 		params: {},
 		account: '',
 		/**
@@ -177,7 +201,7 @@ export const useTimelineStore = defineStore('timeline', {
 
 	getters: {
 		/**
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {boolean} whether the composer is open
 		 */
 		getComposerDisplayStatus(state) {
@@ -191,28 +215,28 @@ export const useTimelineStore = defineStore('timeline', {
 		 * your search" for posts the instance was holding. Searching now asks the
 		 * server (`/api/v2/search`), so the timeline is only the timeline.
 		 *
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {object[]} the statuses
 		 */
 		getTimeline(state) {
 			return sortedByDate(state, state.timeline)
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {object[]} the ancestors of the post on screen, newest first
 		 */
 		getParentsTimeline(state) {
 			return sortedByDate(state, state.parentsTimeline)
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {string} what the reader searched for
 		 */
 		getSearchQuery(state) {
 			return state.searchQuery
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {boolean} whether the celebration is on screen
 		 */
 		isCelebratingFirstPost(state) {
@@ -226,28 +250,28 @@ export const useTimelineStore = defineStore('timeline', {
 		 * tells the list that the thing it is showing has been swapped underneath
 		 * it, whether by a type, a tag, an account or a single post.
 		 *
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {string} the identity of the current timeline
 		 */
 		getTimelineIdentity(state) {
 			return JSON.stringify([state.type, state.account, state.params])
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {(statusId: string) => object|undefined} id -> status
 		 */
 		getStatus(state) {
 			return (statusId) => state.statuses[statusId]
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {object|undefined} the post a single-post view is showing
 		 */
 		getSinglePost(state) {
 			return state.statuses[state.params.singlePost]
 		},
 		/**
-		 * @param {object} state the store state
+		 * @param {TimelineState} state the store state
 		 * @return {(statusId: string) => object|undefined} id -> status, with a log line when there is none
 		 */
 		getPostFromTimeline(state) {
@@ -326,7 +350,7 @@ export const useTimelineStore = defineStore('timeline', {
 		 * always appended to `timeline`, so a failed delete of an ancestor
 		 * reappeared among the replies.
 		 *
-		 * @param {object} status the status that could not be deleted
+		 * @param {import('../types/Mastodon.js').Status} status the status that could not be deleted
 		 */
 		restoreStatus(status) {
 			indexStatus(this, status)
@@ -344,7 +368,7 @@ export const useTimelineStore = defineStore('timeline', {
 		 * un-bookmarking from the bookmarks left a hint behind for a status that
 		 * is not coming back — and the next rollback of that id read it.
 		 *
-		 * @param {object} status the status whose removal stands
+		 * @param {import('../types/Mastodon.js').Status} status the status whose removal stands
 		 */
 		forgetRemoval(status) {
 			if (this.removedFrom[status.id] === undefined) {
@@ -644,7 +668,7 @@ export const useTimelineStore = defineStore('timeline', {
 		/**
 		 * Uploads one attachment.
 		 *
-		 * @param {File|object} payload the file, or `{file, onProgress}`
+		 * @param {File|{file: File, onProgress?: (fraction: number) => void}} payload the file, or `{file, onProgress}`
 		 * @return {Promise<object|undefined>} the media entity, or undefined when the server refused
 		 */
 		async createMedia(payload) {
@@ -823,7 +847,7 @@ export const useTimelineStore = defineStore('timeline', {
 		 * server's. The answer carries the new one.
 		 *
 		 * @param {object} root0 the status to dislike
-		 * @param {object} root0.status that status
+		 * @param {import('../types/Mastodon.js').Status} root0.status that status
 		 * @return {Promise<object|undefined>} the updated status
 		 */
 		async postDislike({ status }) {
@@ -839,7 +863,7 @@ export const useTimelineStore = defineStore('timeline', {
 
 		/**
 		 * @param {object} root0 the status to stop disliking
-		 * @param {object} root0.status that status
+		 * @param {import('../types/Mastodon.js').Status} root0.status that status
 		 * @return {Promise<object|undefined>} the updated status
 		 */
 		async postUndislike({ status }) {
