@@ -1274,7 +1274,15 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 		$this->setEmojis($this->extractEmojisFromTag($data));
 
-		$this->setInReplyTo($this->validate(self::AS_ID, 'inReplyTo', $data, ''));
+		// the post replied to may come embedded rather than by id — both are
+		// the vocabulary's — and read as a string the thread link was lost
+		$inReplyTo = $data['inReplyTo'] ?? '';
+		if (is_array($inReplyTo) && !array_is_list($inReplyTo)) {
+			$inReplyTo = $inReplyTo['id'] ?? '';
+		}
+		$this->setInReplyTo(
+			$this->validate(self::AS_ID, 'inReplyTo', ['inReplyTo' => is_string($inReplyTo) ? $inReplyTo : ''], '')
+		);
 		$this->setQuote($this->quoteIdOf($data));
 		$this->setQuoteAuthorization($this->validate(self::AS_ID, 'quoteAuthorization', $data, ''));
 		$this->setQuotePolicy(self::quotePolicyOf($data));

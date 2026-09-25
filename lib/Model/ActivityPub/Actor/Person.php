@@ -928,7 +928,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			->setFollowers($this->validate(ACore::AS_URL, 'followers', $data, ''))
 			->setFollowing($this->validate(ACore::AS_URL, 'following', $data, ''))
 			->setFeatured($this->validate(ACore::AS_URL, 'featured', $data, ''))
-			->setAlsoKnownAs($this->getArray('alsoKnownAs', $data, []))
+			->setAlsoKnownAs(self::listOf('alsoKnownAs', $data))
 			->setMovedTo($this->validate(ACore::AS_URL, 'movedTo', $data, ''));
 		// A key that says whose it is has to say this actor. A document handing
 		// over somebody else's `owner` is a key takeover written out in full:
@@ -1153,7 +1153,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				$this->setHeader($image);
 				$this->headerMediaType = $this->validate(self::AS_STRING, 'mediaType', $banner, '');
 			}
-			$this->setAlsoKnownAs($this->getArray('alsoKnownAs', $source, []));
+			$this->setAlsoKnownAs(self::listOf('alsoKnownAs', $source));
 			// Whose a channel is. The cached copy is what every read of an
 			// actor is served from and it has no column for this, so it comes
 			// back out of the source document the same way `alsoKnownAs` does —

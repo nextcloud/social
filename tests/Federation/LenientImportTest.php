@@ -269,4 +269,22 @@ class LenientImportTest extends TestCase {
 
 		$this->assertArrayNotHasKey('mediaType', $person->exportAsActivityPub()['image']);
 	}
+	public function testAnEmbeddedInReplyToKeepsTheThreadLink(): void {
+		$note = $this->note(['inReplyTo' => ['id' => 'https://peer.example/notes/0', 'type' => 'Note']]);
+
+		$this->assertSame('https://peer.example/notes/0', $note->getInReplyTo());
+	}
+
+	public function testAnInReplyToThatIsNeitherIsNone(): void {
+		$this->assertSame('', $this->note(['inReplyTo' => ['https://peer.example/notes/0']])->getInReplyTo());
+		$this->assertSame('', $this->note(['inReplyTo' => ['id' => 'javascript:alert(1)']])->getInReplyTo());
+	}
+
+	public function testASingleAlsoKnownAsStringIsAnAlias(): void {
+		// MoveInterface reads the target's aliases; a single string used to
+		// read as none and a legitimate Move was refused
+		$person = $this->actor(['alsoKnownAs' => 'https://old.example/users/alice']);
+
+		$this->assertSame(['https://old.example/users/alice'], $person->getAlsoKnownAs());
+	}
 }
