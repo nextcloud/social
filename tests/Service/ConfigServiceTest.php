@@ -249,6 +249,24 @@ class ConfigServiceTest extends TestCase {
 		$this->assertSame('localhost', $this->service->getCloudHost());
 	}
 
+	/** @return array<string, array{string, string}> */
+	public static function cloudAuthorityProvider(): array {
+		return [
+			'no port' => ['https://cloud.example.com/nextcloud/index.php', 'cloud.example.com'],
+			'non-default port' => ['https://cloud.example.com:8443/', 'cloud.example.com:8443'],
+			'default https port' => ['https://cloud.example.com:443/', 'cloud.example.com'],
+			'default http port' => ['http://localhost:80', 'localhost'],
+			'http on another port' => ['http://localhost:8080', 'localhost:8080'],
+		];
+	}
+
+	#[DataProvider('cloudAuthorityProvider')]
+	public function testGetCloudAuthorityKeepsANonDefaultPort(string $stored, string $expected): void {
+		$this->withAppValues([ConfigService::CLOUD_URL => $stored]);
+
+		$this->assertSame($expected, $this->service->getCloudAuthority());
+	}
+
 	public function testGetCloudHostThrowsWhenUnconfigured(): void {
 		$this->withAppValues([]);
 

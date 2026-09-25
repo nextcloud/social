@@ -707,6 +707,38 @@ class ConfigService {
 	}
 
 	/**
+	 * The configured host as a peer addresses it: the hostname, plus the port
+	 * when the cloud URL names one that is not its scheme's default. It is
+	 * what a peer puts in `Host` and signs, so an instance on `:8443` has to
+	 * verify against `example.org:8443` and not `example.org`.
+	 *
+	 * @throws SocialAppConfigException
+	 */
+	public function getCloudAuthority(): string {
+		// asked first for its refusal of a URL with no host
+		$this->getCloudHost();
+
+		return self::authorityOf($this->getCloudUrl());
+	}
+
+	/**
+	 * `host[:port]` of a URL, the port only when it is not the scheme's
+	 * default; '' for a URL with no host.
+	 */
+	public static function authorityOf(string $url): string {
+		$parts = parse_url($url);
+		$host = is_array($parts) ? ($parts['host'] ?? '') : '';
+		if ($host === '') {
+			return '';
+		}
+
+		$port = $parts['port'] ?? null;
+		$default = (strtolower($parts['scheme'] ?? '') === 'https') ? 443 : 80;
+
+		return ($port === null || $port === $default) ? $host : $host . ':' . $port;
+	}
+
+	/**
 	 * getCloudHost - cloud.example.com
 	 *
 	 * @return string

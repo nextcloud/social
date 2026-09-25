@@ -434,7 +434,7 @@ class SignatureService {
 		// the authority verified is this instance's own, as for `host` on the
 		// draft-cavage path; a peer that signed another one is told why in the log
 		$authority = array_intersect($covered, ['host', '@authority', '@target-uri']) === []
-			? $this->configService->getCloudHost()
+			? $this->configService->getCloudAuthority()
 			: $this->signedHost($request->getHeader('host'));
 		$base = $this->messageSignatures->signatureBase(
 			$request, $signature['components'], $signature['serialized'], $authority
@@ -486,7 +486,8 @@ class SignatureService {
 	}
 
 	/**
-	 * The host a signature is verified against: always the configured one.
+	 * The host a signature is verified against: always the configured one,
+	 * with its port when the cloud URL names a non-default one.
 	 *
 	 * The signed host is what the sender addressed; substituting the
 	 * configured one is what stops a captured request being replayed
@@ -496,7 +497,7 @@ class SignatureService {
 	 * fail verification — with nothing in the log to say why.
 	 */
 	private function signedHost(string $sent): string {
-		$configured = $this->configService->getCloudHost();
+		$configured = $this->configService->getCloudAuthority();
 		if ($sent !== '' && strtolower($sent) !== strtolower($configured)) {
 			$this->logger->notice(
 				'the host a peer signed is not the configured host, so its signature cannot verify',

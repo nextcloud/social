@@ -48,6 +48,9 @@ use Psr\Log\NullLogger;
 
 class SignatureServiceTest extends TestCase {
 	private const CLOUD_HOST = 'cloud.example.com';
+
+	/** What the configured cloud URL answers as `host[:port]`. */
+	private string $cloudAuthority = self::CLOUD_HOST;
 	private const LOCAL_ACTOR = 'https://cloud.example.com/apps/social/@alice';
 	private const REMOTE_ACTOR = 'https://remote.example/users/bob';
 	private const REMOTE_KEY_ID = self::REMOTE_ACTOR . '#main-key';
@@ -91,6 +94,7 @@ class SignatureServiceTest extends TestCase {
 
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		$configService->method('getCloudAuthority')->willReturnCallback(fn (): string => $this->cloudAuthority);
 		// the real one narrows the request timeout around the call; here it only
 		// has to run what it is given
 		$configService->method('withRequestTimeout')
@@ -274,6 +278,30 @@ class SignatureServiceTest extends TestCase {
 
 		$this->assertSame('remote.example', $origin);
 		$this->assertSame((new DateTime($headers['date']))->getTimestamp(), $time);
+	}
+
+	public function testAnInstanceOnANonDefaultPortVerifiesTheHostWithItsPort(): void {
+		// a peer signs the Host it connected to, port included
+		$this->cloudAuthority = self::CLOUD_HOST . ':8443';
+		$this->rebuildWith(null);
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, ['host' => self::CLOUD_HOST . ':8443']);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
+	}
+
+	public function testTheConfiguredPortIsNotDroppedToVerifyAHostWithout(): void {
+		// the substitution still binds the signature to this instance
+		$this->cloudAuthority = self::CLOUD_HOST . ':8443';
+		$this->rebuildWith(null);
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->expectException(SignatureException::class);
+
+		$this->service->checkRequest($this->incomingRequest($headers), $body);
 	}
 
 	public function testCheckRequestAcceptsRsaSha512(): void {
@@ -954,6 +982,7 @@ class SignatureServiceTest extends TestCase {
 		$seen = [];
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+		$configService->method('getCloudAuthority')->willReturnCallback(fn (): string => $this->cloudAuthority);
 		$configService->method('withRequestTimeout')->willReturnCallback(
 			function (int $timeout, callable $action) use (&$seen) {
 				$seen[] = $timeout;
@@ -1121,6 +1150,7 @@ class SignatureServiceTest extends TestCase {
 		if ($configService === null) {
 			$configService = $this->createMock(ConfigService::class);
 			$configService->method('getCloudHost')->willReturn(self::CLOUD_HOST);
+			$configService->method('getCloudAuthority')->willReturnCallback(fn (): string => $this->cloudAuthority);
 			$configService->method('withRequestTimeout')
 				->willReturnCallback(fn (int $timeout, callable $action) => $action());
 		}
