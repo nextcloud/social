@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 
@@ -327,7 +327,68 @@ describe('Statistics', () => {
 			.map((dt) => dt.text())
 
 		expect(days).toHaveLength(7)
-		expect(days[0]).toBe(new Date(Date.UTC(2024, 0, 7)).toLocaleDateString(undefined, { weekday: 'long' }))
+		expect(days[0]).toBe(new Date(Date.UTC(2024, 0, 7)).toLocaleDateString(undefined, { weekday: 'long', timeZone: 'UTC' }))
+	})
+
+	/**
+	 * The server counts in UTC and keys its months `YYYY-MM`. The first
+	 * midnight of September in UTC is the evening of 31 August in New York,
+	 * and read in the local zone every chart there was a month out and every
+	 * weekday a day out.
+	 */
+	describe('west of UTC', () => {
+		let zone
+
+		beforeEach(() => {
+			zone = process.env.TZ
+			process.env.TZ = 'America/New_York'
+		})
+
+		afterEach(() => {
+			if (zone === undefined) {
+				delete process.env.TZ
+			} else {
+				process.env.TZ = zone
+			}
+		})
+
+		const long = (month) => new Date(Date.UTC(2026, month, 15)).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
+
+		it('names each month\'s column by the month it counts', async () => {
+			axios.get.mockResolvedValue({ data: answer({ by_month: { '2026-08': 39, '2026-09': 4 } }) })
+
+			const wrapper = mountPage()
+			await flushPromises()
+
+			const months = wrapper.findAll('.stats__bars--posts li')
+			expect(months[1].attributes('title')).toContain(long(8))
+			expect(months[0].attributes('title')).toContain(long(7))
+		})
+
+		it('names the month in what the account did', async () => {
+			axios.get.mockResolvedValue({ data: answer() })
+
+			const wrapper = mountPage()
+			await flushPromises()
+
+			const titles = wrapper.findAll('.stats__stack-bars').map((bar) => bar.attributes('title'))
+			expect(titles[0]).toContain(long(7))
+			expect(titles[1]).toContain(long(8))
+		})
+
+		it('starts the weekdays on Sunday', async () => {
+			axios.get.mockResolvedValue({ data: answer() })
+
+			const wrapper = mountPage()
+			await flushPromises()
+
+			const first = wrapper.findAll('.stats__card')
+				.find((card) => card.text().includes('When your posts do best'))
+				.find('.stats__row dt')
+				.text()
+			// 2024-01-07 at noon is a Sunday in every zone on Earth
+			expect(first).toBe(new Date(2024, 0, 7, 12).toLocaleDateString(undefined, { weekday: 'long' }))
+		})
 	})
 
 	it('says where the audience is and how much of it is on this server', async () => {
