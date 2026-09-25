@@ -59,11 +59,13 @@ class StarterPackServiceTest extends TestCase {
 
 		$this->followService = $this->createMock(FollowService::class);
 		$this->followService->method('followAccount')
-			->willReturnCallback(function (Person $actor, string $account): void {
+			->willReturnCallback(function (Person $actor, string $account): bool {
 				if (!in_array($account, $this->resolvable, true)) {
 					throw new RuntimeException('cannot follow');
 				}
 				$this->followed[] = $account;
+
+				return true;
 			});
 
 		$this->service = new StarterPackService(

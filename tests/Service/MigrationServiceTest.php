@@ -298,11 +298,13 @@ class MigrationServiceTest extends TestCase {
 			static fn (string $id): Person => $id === $bob->getId() ? $bob : $dave
 		);
 		$calls = 0;
-		$this->followService->method('followAccount')->willReturnCallback(function () use (&$calls): void {
+		$this->followService->method('followAccount')->willReturnCallback(function () use (&$calls): bool {
 			$calls++;
 			if ($calls === 1) {
 				throw new RuntimeException('unreachable');
 			}
+
+			return true;
 		});
 
 		$this->service->move('alice', self::NEW_ALICE);
@@ -434,8 +436,10 @@ class MigrationServiceTest extends TestCase {
 		$this->accountService->method('getActorFromUserId')->with('alice')->willReturn($alice);
 		$followed = [];
 		$this->followService->method('followAccount')
-			->willReturnCallback(function (Person $actor, string $account) use (&$followed): void {
+			->willReturnCallback(function (Person $actor, string $account) use (&$followed): bool {
 				$followed[] = $account;
+
+				return true;
 			});
 
 		$result = $this->service->importFollows('alice', self::MASTODON_CSV);
@@ -449,10 +453,12 @@ class MigrationServiceTest extends TestCase {
 	public function testImportFollowsContinuesPastAFailureAndReportsIt(): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->followService->method('followAccount')
-			->willReturnCallback(static function (Person $actor, string $account): void {
+			->willReturnCallback(static function (Person $actor, string $account): bool {
 				if ($account === 'dave@other.example') {
 					throw new RuntimeException('instance unreachable');
 				}
+
+				return true;
 			});
 
 		$result = $this->service->importFollows('alice', self::MASTODON_CSV);
@@ -464,10 +470,12 @@ class MigrationServiceTest extends TestCase {
 	public function testImportFollowsSkipsTheImportingAccountItself(): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->followService->method('followAccount')
-			->willReturnCallback(static function (Person $actor, string $account): void {
+			->willReturnCallback(static function (Person $actor, string $account): bool {
 				if ($account === 'bob@cloud.example') {
 					throw new FollowSameAccountException();
 				}
+
+				return true;
 			});
 
 		$result = $this->service->importFollows(

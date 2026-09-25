@@ -175,7 +175,7 @@ class FollowServiceTest extends TestCase {
 			}))
 			->willReturn('token');
 
-		$this->service->followAccount($this->alice(), 'bob@remote.example');
+		$this->assertTrue($this->service->followAccount($this->alice(), 'bob@remote.example'));
 
 		$this->assertInstanceOf(Follow::class, $saved);
 		$this->assertSame($saved, $sent);
@@ -289,7 +289,7 @@ class FollowServiceTest extends TestCase {
 				return true;
 			}));
 
-		$this->service->followAccount($this->alice(), 'carol');
+		$this->assertTrue($this->service->followAccount($this->alice(), 'carol'));
 
 		$this->assertInstanceOf(Follow::class, $handled);
 		$this->assertSame(self::ALICE_ID, $handled->getActorId());
@@ -314,7 +314,7 @@ class FollowServiceTest extends TestCase {
 		$this->followsRequest->expects($this->never())->method('save');
 		$this->activityService->expects($this->never())->method('request');
 
-		$this->service->followAccount($this->alice(), 'bob@remote.example');
+		$this->assertFalse($this->service->followAccount($this->alice(), 'bob@remote.example'));
 	}
 
 	public function testFollowAccountKeepsTheFollowWhenFederationFails(): void {
@@ -383,7 +383,7 @@ class FollowServiceTest extends TestCase {
 			}))
 			->willReturn('token');
 
-		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
+		$this->assertTrue($this->service->unfollowAccount($this->alice(), 'bob@remote.example'));
 
 		$this->assertInstanceOf(Undo::class, $sent);
 		$this->assertStringContainsString('#undo/follows/', $sent->getId());
@@ -409,7 +409,7 @@ class FollowServiceTest extends TestCase {
 		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($follow));
 		$this->activityService->expects($this->never())->method('request');
 
-		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
+		$this->assertTrue($this->service->unfollowAccount($this->alice(), 'bob@remote.example'));
 	}
 
 	public function testUnfollowAccountIsANoopWhenNotFollowing(): void {
@@ -419,7 +419,7 @@ class FollowServiceTest extends TestCase {
 		$this->activityService->expects($this->never())->method('request');
 		$this->timelineRevisionService->expects($this->never())->method('bumpForActor');
 
-		$this->service->unfollowAccount($this->alice(), 'bob@remote.example');
+		$this->assertFalse($this->service->unfollowAccount($this->alice(), 'bob@remote.example'));
 	}
 
 	/**

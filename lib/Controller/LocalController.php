@@ -506,8 +506,9 @@ class LocalController extends Controller {
 				throw new AccountDoesNotExistException('User not logged in');
 			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$this->followService->followAccount($actor, $account);
-			$this->accountService->bumpActorCount($actor->getId(), 'count_following', 1);
+			if ($this->followService->followAccount($actor, $account)) {
+				$this->accountService->bumpActorCount($actor->getId(), 'count_following', 1);
+			}
 
 			return $this->success([]);
 		} catch (Exception $e) {
@@ -523,8 +524,9 @@ class LocalController extends Controller {
 				throw new AccountDoesNotExistException('User not logged in');
 			}
 			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$this->followService->unfollowAccount($actor, $account);
-			$this->accountService->bumpActorCount($actor->getId(), 'count_following', -1);
+			if ($this->followService->unfollowAccount($actor, $account)) {
+				$this->accountService->bumpActorCount($actor->getId(), 'count_following', -1);
+			}
 
 			return $this->success([]);
 		} catch (Exception $e) {

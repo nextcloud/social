@@ -204,6 +204,8 @@ class FollowService {
 	 * @param Person $actor
 	 * @param string $account
 	 *
+	 * @return bool whether a follow was made: false when one already existed
+	 *
 	 * @throws CacheActorDoesNotExistException
 	 * @throws FollowSameAccountException
 	 * @throws InvalidOriginException
@@ -221,7 +223,7 @@ class FollowService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function followAccount(Person $actor, string $account) {
+	public function followAccount(Person $actor, string $account): bool {
 		$this->moderationService->assertNotSuspended($actor->getId());
 		$this->logger->debug('FollowService::followAccount called', [
 			'actor' => $actor->getId(),
@@ -234,7 +236,7 @@ class FollowService {
 			'remoteNid' => $remoteActor->getNid(),
 		]);
 
-		$this->followActor($actor, $remoteActor);
+		return $this->followActor($actor, $remoteActor);
 	}
 
 	/**
@@ -244,11 +246,15 @@ class FollowService {
 	 * that a caller holding the actor already — an import that was handed
 	 * actor URLs rather than handles — does not resolve it a second time.
 	 *
+	 * @return bool whether a follow was made: false when one already existed,
+	 *              which is what a client re-following to change a setting
+	 *              sends
+	 *
 	 * @throws FollowSameAccountException
 	 * @throws SocialAppConfigException
 	 * @throws Throwable
 	 */
-	public function followActor(Person $actor, Person $remoteActor): void {
+	public function followActor(Person $actor, Person $remoteActor): bool {
 		$this->moderationService->assertNotSuspended($actor->getId());
 		$this->assertWithinFollowLimit($actor);
 
@@ -280,6 +286,8 @@ class FollowService {
 				'actor' => $actor->getId(),
 				'target' => $remoteActor->getId(),
 			]);
+
+			return false;
 		} catch (FollowNotFoundException $e) {
 			$this->followsRequest->save($follow);
 			// their home timeline holds different posts from now on, which its
@@ -316,7 +324,7 @@ class FollowService {
 				$this->followInterface->processIncomingRequest($follow);
 				$this->logger->info('FollowService::followAccount - local follow handled in process');
 
-				return;
+				return true;
 			}
 
 			$follow->addInstancePath(
@@ -332,12 +340,16 @@ class FollowService {
 					'error' => $e->getMessage(),
 				]);
 			}
+
+			return true;
 		}
 	}
 
 	/**
 	 * @param Person $actor
 	 * @param string $account
+	 *
+	 * @return bool whether a follow was removed: false when there was none
 	 *
 	 * @throws CacheActorDoesNotExistException
 	 * @throws InvalidOriginException
@@ -355,7 +367,7 @@ class FollowService {
 	 * @throws RequestResultNotJsonException
 	 * @throws UnauthorizedFediverseException
 	 */
-	public function unfollowAccount(Person $actor, string $account) {
+	public function unfollowAccount(Person $actor, string $account): bool {
 		$remoteActor = $this->cacheActorService->getFromAccount($account);
 
 		try {
@@ -388,7 +400,7 @@ class FollowService {
 					'target' => $remoteActor->getId(),
 				]);
 
-				return;
+				return true;
 			}
 
 			$undo->addInstancePath(
@@ -397,7 +409,10 @@ class FollowService {
 				)
 			);
 			$this->activityService->request($undo);
+
+			return true;
 		} catch (FollowNotFoundException $e) {
+			return false;
 		}
 	}
 

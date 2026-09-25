@@ -364,8 +364,16 @@ class LocalControllerTest extends TestCase {
 
 	public function testActionFollowFollowsAndRefreshesCounters(): void {
 		$actor = $this->actorForUser();
-		$this->followService->expects($this->once())->method('followAccount')->with($actor, 'bob@remote.example');
-		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following');
+		$this->followService->expects($this->once())->method('followAccount')->with($actor, 'bob@remote.example')->willReturn(true);
+		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following', 1);
+
+		$this->assertSuccess($this->controller()->actionFollow('bob@remote.example'), []);
+	}
+
+	public function testActionFollowOfAnAccountAlreadyFollowedLeavesTheCountAlone(): void {
+		$this->actorForUser();
+		$this->followService->method('followAccount')->willReturn(false);
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->assertSuccess($this->controller()->actionFollow('bob@remote.example'), []);
 	}
@@ -386,8 +394,16 @@ class LocalControllerTest extends TestCase {
 
 	public function testActionUnfollowUnfollowsAndRefreshesCounters(): void {
 		$actor = $this->actorForUser();
-		$this->followService->expects($this->once())->method('unfollowAccount')->with($actor, 'bob@remote.example');
-		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following');
+		$this->followService->expects($this->once())->method('unfollowAccount')->with($actor, 'bob@remote.example')->willReturn(true);
+		$this->accountService->expects($this->once())->method('bumpActorCount')->with($actor->getId(), 'count_following', -1);
+
+		$this->assertSuccess($this->controller()->actionUnfollow('bob@remote.example'), []);
+	}
+
+	public function testActionUnfollowOfAnAccountNotFollowedLeavesTheCountAlone(): void {
+		$this->actorForUser();
+		$this->followService->method('unfollowAccount')->willReturn(false);
+		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->assertSuccess($this->controller()->actionUnfollow('bob@remote.example'), []);
 	}

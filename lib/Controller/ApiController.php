@@ -2420,10 +2420,13 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
-			$this->followService->followAccount($this->viewer, $target->getAccount());
 			// one counter moved by one, rather than all three recomputed with
-			// aggregate queries: see `AccountService::bumpActorCount()`
-			$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', 1);
+			// aggregate queries: see `AccountService::bumpActorCount()`. Only
+			// for a follow that is new: the same call on an existing one is how
+			// a client changes the switches below
+			if ($this->followService->followAccount($this->viewer, $target->getAccount())) {
+				$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', 1);
+			}
 
 			// the bell on a profile, which Mastodon sends *with* the follow.
 			// Absent means "leave it as it is": a client re-following to change
@@ -2455,8 +2458,9 @@ class ApiController extends Controller {
 			$this->initViewer(true);
 			$target = $this->resolveTargetAccount($id);
 
-			$this->followService->unfollowAccount($this->viewer, $target->getAccount());
-			$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', -1);
+			if ($this->followService->unfollowAccount($this->viewer, $target->getAccount())) {
+				$this->accountService->bumpActorCount($this->viewer->getId(), 'count_following', -1);
+			}
 
 			return new DataResponse(
 				$this->followService->getRelationshipWith($target), Http::STATUS_OK
