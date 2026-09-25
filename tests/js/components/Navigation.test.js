@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
@@ -1259,7 +1261,10 @@ describe('Navigation entries are links', () => {
 			return mount(Navigation, {
 				global: {
 					plugins: [realPinia, appRouter],
-					stubs: { ...realStubs, NcAppNavigationSettings: false },
+					// `transition: false` as well: the panel is inside a
+					// `<Transition>`, and the stub test-utils puts there by default
+					// replaces the div this block is about with a placeholder
+					stubs: { ...realStubs, NcAppNavigationSettings: false, transition: false },
 				},
 			})
 		}
@@ -1286,6 +1291,62 @@ describe('Navigation entries are links', () => {
 			expect(entries.length).toBeGreaterThan(1)
 			const parents = new Set(entries.map((entry) => entry.element.parentElement))
 			expect(parents.size).toBe(entries.length)
+		}, FIRST_REAL_MOUNT_MS)
+
+		/**
+		 * The panel is given its own surface -- background, rounded edge,
+		 * hairline, shadow -- so that the reader's own pages are not eight
+		 * more rows on the end of the list of places to read, and its height
+		 * cap is raised so the last entry is not cut in half. Both are written
+		 * against `> div[id]`, because the component's own class names are
+		 * content-hashed and change with the library, and that div is the one
+		 * the button's `aria-controls` names.
+		 */
+		it('gives the panel an id the button points at, and no sibling to be confused with', async () => {
+			const menu = (await mountWithRealMenu()).find('.navigation__more')
+			const controls = menu.find('button[aria-expanded]').attributes('aria-controls')
+
+			const panels = [...menu.element.children].filter((child) => child.id)
+
+			expect(controls).toBeTruthy()
+			expect(panels.map((panel) => panel.id)).toEqual([controls])
+			expect(panels[0].querySelectorAll('.app-navigation-entry').length).toBeGreaterThan(1)
+		}, FIRST_REAL_MOUNT_MS)
+
+		/**
+		 * The rows are animated with `@keyframes` rather than with a
+		 * transition, and that is not a matter of taste. The panel is held by
+		 * `v-show`, so while the menu is shut its rows are inside a
+		 * `display: none` subtree; an element that was not rendered has no
+		 * previous value to transition *from*, and the browser goes straight
+		 * to the final one. Written as a transition the stagger computes a
+		 * correct delay and then never runs -- which is exactly what it did,
+		 * unnoticed, from the day it was written until it was measured in a
+		 * real browser. A jsdom mount applies no scoped CSS and cannot catch
+		 * it, so the rule itself is read here.
+		 */
+		it('animates the rows with keyframes, which a row coming out of display:none can do', () => {
+			const source = readFileSync(resolve('src/components/Navigation.vue'), 'utf8')
+			const selector = /\.navigation__more:has\(button\[aria-expanded="true"\]\) :deep\(\.app-navigation-entry\) \{[^}]*\}/
+			const rule = source.match(selector)
+
+			expect(rule).not.toBeNull()
+			expect(rule[0]).toMatch(/animation:/)
+			expect(rule[0]).not.toMatch(/transition/)
+		})
+
+		/**
+		 * The stagger runs from the bottom row up, and CSS works that out as
+		 * `total - 1 - index`. A ninth entry added to the menu without the
+		 * count following it would give every row the wrong delay, and the
+		 * bottom one a delay of -38ms, which simply does not animate.
+		 */
+		it('passes an entry total that matches the entries drawn', async () => {
+			const menu = (await mountWithRealMenu()).find('.navigation__more')
+			const total = menu.attributes('style').match(/--entry-total:\s*(\d+)/)
+
+			expect(total).not.toBeNull()
+			expect(Number(total[1])).toBe(menu.findAll('[style*="--entry-index"]').length)
 		}, FIRST_REAL_MOUNT_MS)
 
 		it('numbers the entries from nothing, in the order they are drawn', async () => {

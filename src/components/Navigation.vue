@@ -172,14 +172,15 @@
 				     and the cog itself is hidden. -->
 				<NcAppNavigationSettings
 					class="navigation__more"
-					:style="{ '--social-face': `url(${avatarUrl})` }"
+					:style="{ '--social-face': `url(${avatarUrl})`, '--entry-total': moreCount }"
 					:name="profileName">
-					<!-- `--entry-index` is what staggers the opening: the rows
-					     each wait a little longer than the one above. It is
-					     passed from here because the DOM cannot be counted --
-					     every entry sits in a wrapper of its own, so each one is
-					     its parent's first child and `nth-child` would give them
-					     all the same delay. -->
+					<!-- `--entry-index`, with `--entry-total` above, is what
+					     staggers the opening: the bottom row pops first and the
+					     rest follow upward. Both are passed from here because
+					     the DOM cannot be counted -- every entry sits in a
+					     wrapper of its own, so each one is its parent's first
+					     child and neither `nth-child` nor `nth-last-child`
+					     distinguishes them. -->
 					<NcAppNavigationItem
 						v-for="(item, index) in menu.more"
 						:key="item.key"
@@ -537,6 +538,19 @@ export default {
 				|| this.currentUser?.displayName
 				|| this.currentUser?.uid
 				|| ''
+		},
+
+		/**
+		 * How many rows the account menu holds.
+		 *
+		 * The stylesheet staggers them from the bottom row upward, so it needs
+		 * the count as well as each row's index: the delay is
+		 * `total - 1 - index`. Blocking, Migration and Settings are written out
+		 * in the template rather than coming from `menu.more`, so they are
+		 * added here; a test holds this equal to the number of entries drawn.
+		 */
+		moreCount() {
+			return this.menu.more.length + 3
 		},
 
 		/**
@@ -1432,63 +1446,125 @@ export default {
 }
 
 /*
- * The account menu opens as a drawer: the rows come in from the leading edge,
- * one behind the next.
+ * The account menu is a panel over the sidebar, not more of the sidebar.
+ *
+ * Its rows are `NcAppNavigationItem`s -- the same component the timelines
+ * above are drawn with -- so opening it put eight more rows on the end of a
+ * column of seven, in the same type at the same indent with the same icons.
+ * Nothing said where the places to read ended and the reader's own pages
+ * began, and over a full sidebar the whole thing read as one list that had
+ * grown rather than as a menu that had opened.
+ *
+ * So while it is open the drawer is drawn as its own surface: the page's
+ * background rather than the sidebar's, a rounded edge, a hairline and a
+ * shadow cast up over the rows it covers. Closed, it is a row like any other
+ * again -- nothing here applies until the button says it is open.
+ *
+ * The panel is addressed as the container's only child carrying an `id`: that
+ * is the element the button's `aria-controls` points at, and the component's
+ * own class names are content-hashed (`_content_CW2CF`) and change with the
+ * next release of the library. There is a test for both.
+ */
+.navigation__more {
+	/* the shadow falls on the entries above, so the panel has to be over them */
+	position: relative;
+	z-index: 2;
+	transition: background-color .2s ease, box-shadow .2s ease;
+}
+
+.navigation__more:has(button[aria-expanded="true"]) {
+	background-color: var(--color-main-background);
+	border-start-start-radius: var(--border-radius-large, 12px);
+	border-start-end-radius: var(--border-radius-large, 12px);
+	box-shadow:
+		0 -1px 0 var(--color-border),
+		0 -10px 24px -12px rgba(0, 0, 0, .35);
+}
+
+.navigation__more > :deep(div[id]) {
+	/* The library caps this at 300px, which is four pixels short of the eight
+	   entries this menu has: Settings, the last of them, was cut in half and
+	   reachable only by scrolling a panel that did not look scrollable. It
+	   still gives way to a short window rather than running off the screen. */
+	max-height: min(60vh, 420px);
+}
+
+/* The account row is the panel's head while the panel is open, so it is set
+   in the ink the rest of the sidebar uses for the page you are on, and the
+   rows below it are inset from it. */
+.navigation__more:has(button[aria-expanded="true"]) :deep(.button-vue__text) {
+	color: var(--color-main-text);
+}
+
+/*
+ * The account menu opens as a drawer: each row pops up out of its own bottom
+ * edge, the row nearest the button first and the rest following upward.
  *
  * `NcAppNavigationSettings` animates its own `max-height`, so the panel grew
  * and the rows inside it were simply there when it finished -- the container
- * moved and its contents did not. These slide in behind it, 34ms apart, in the
- * direction the sidebar itself runs.
+ * moved and its contents did not. These scale up from 82%, overshooting a
+ * little on the way (the tail of the easing curve goes past 1), so the menu
+ * reads as growing out of the button rather than as a list that was already
+ * written and got uncovered.
+ *
+ * **An animation and not a transition, because a transition cannot run here.**
+ * The panel is held by `v-show`, so while the menu is shut it is
+ * `display: none` and its rows are not rendered at all. An element that was
+ * not rendered has no previous value to transition *from*, so the browser
+ * jumps straight to the final one: the rows appeared fully formed, all eight
+ * at once, and the stagger this file has carried since it was written never
+ * ran a single time. The delay was computed correctly and thrown away. A
+ * keyframe animation does start when an element is first rendered, which is
+ * exactly the moment in question.
+ *
+ * The stagger runs from the bottom row up, which is the direction the panel
+ * itself grows: it is anchored at the foot of the sidebar, so an opening
+ * drawer pushes its own top edge upward. Rows appearing the other way would
+ * travel against it. There is nothing to mirror for right-to-left -- a scale
+ * has no leading edge -- so the drawer is the same in both.
  *
  * Driven off `aria-expanded`, which is the accordion's own state and the only
  * hook it offers: there is no `open` prop and no event, and the component's
  * internal class names are content-hashed, so anything keyed on those would
  * break on the next release of the library.
  *
- * The delay comes from `--entry-index`, set in the template. The DOM cannot be
- * counted here: `NcAppNavigationItem` puts every entry in a wrapper of its own,
- * so each one is its parent's first child and `nth-child` hands them all the
- * same delay. There is a test that they are laid out that way, so that this
- * comment stops being true loudly rather than quietly.
+ * The delay comes from `--entry-index` and `--entry-total`, both set in the
+ * template. The DOM cannot be counted here: `NcAppNavigationItem` puts every
+ * entry in a wrapper of its own, so each one is its parent's first child and
+ * `nth-child` hands them all the same delay -- and `nth-last-child`, which
+ * would give the bottom-up order directly, fails for the same reason. There
+ * are tests that they are laid out that way and that the total matches the
+ * number of entries, so these comments stop being true loudly rather than
+ * quietly.
  *
- * All of it sits inside `@supports selector(:has(*))` on purpose. Without
- * `:has()` the browser drops the rule that brings the rows *back*, and a bare
- * `opacity: 0` would leave the menu permanently empty -- so where it is not
- * supported, nothing animates and the menu behaves exactly as it does today.
+ * Nothing here needs an `@supports` guard any more. Where `:has()` is not
+ * supported the whole rule is invalid and dropped, and because the resting
+ * state of a row is now its own -- opacity and scale live in the keyframes,
+ * not in a base rule -- what is left is a menu that opens without animating.
+ * The guard existed to stop a bare `opacity: 0` from leaving it permanently
+ * empty, and there is no longer a bare `opacity: 0`.
  */
-@supports selector(:has(*)) {
-	.navigation__more :deep(.app-navigation-entry) {
+@keyframes social-menu-pop {
+	from {
 		opacity: 0;
-		/* the leading edge, whichever side that is */
-		transform: translateX(calc(var(--social-menu-slide, 1) * -14px));
-		transition:
-			opacity .24s ease,
-			transform .34s cubic-bezier(.3, 1.25, .5, 1);
+		transform: scale(.82);
 	}
+}
 
-	[dir="rtl"] .navigation__more {
-		--social-menu-slide: -1;
-	}
+.navigation__more:has(button[aria-expanded="true"]) :deep(.app-navigation-entry) {
+	/* out of its own bottom edge, towards the row above */
+	transform-origin: 50% 100%;
+	animation: social-menu-pop .39s cubic-bezier(.34, 1.56, .64, 1) both;
+	/* counted from the bottom: the last row waits for nothing */
+	animation-delay: calc((var(--entry-total, 1) - 1 - var(--entry-index, 0)) * 38ms);
+}
 
+/* A reader who asked for no movement gets the menu all at once, with no
+   stagger: a row that appears a fifth of a second after the one below it is
+   the movement they turned off, even though nothing travels. */
+@media (prefers-reduced-motion: reduce) {
 	.navigation__more:has(button[aria-expanded="true"]) :deep(.app-navigation-entry) {
-		opacity: 1;
-		transform: none;
-		transition-delay: calc(var(--entry-index, 0) * 34ms);
-	}
-
-	/* A reader who asked for no movement still gets the menu, all at once and
-	   without the stagger: a row that fades in a fifth of a second after the
-	   one above it is the movement they turned off, even though nothing
-	   travels. */
-	@media (prefers-reduced-motion: reduce) {
-		.navigation__more :deep(.app-navigation-entry) {
-			transition: none;
-			transform: none;
-		}
-
-		.navigation__more:has(button[aria-expanded="true"]) :deep(.app-navigation-entry) {
-			transition-delay: 0ms;
-		}
+		animation: none;
 	}
 }
 
