@@ -36,7 +36,7 @@
 		"@nextcloud/l10n": "^3.4.1",
 		"@nextcloud/logger": "^3.0.3",
 		"@nextcloud/notify_push": "^1.4.0",
-		"@nextcloud/router": "^3.1.0",
+		"@nextcloud/router": "^3.2.0",
 		"@nextcloud/vue": "^9.8.0",
 		"blurhash": "^2.0.5",
 		"debounce": "^3.0.0",
