@@ -789,10 +789,11 @@ describe('Navigation', () => {
 			'Videos',
 			'News',
 			'Subscriptions',
-			'Activities',
 			'Direct messages',
 			'Discover',
-			// the profile entry appears only when an ActivityPub account exists
+			// the profile entry appears only when an ActivityPub account exists;
+			// Activities follows it
+			'Activities',
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -812,6 +813,7 @@ describe('Navigation', () => {
 		const wrapper = mountNavigation()
 
 		expect(moreNames(wrapper)).toEqual([
+			'Activities',
 			'Follow requests',
 			'Liked posts',
 			'Bookmarks',
@@ -828,10 +830,20 @@ describe('Navigation', () => {
 			'Videos',
 			'News',
 			'Subscriptions',
-			'Activities',
 			'Direct messages',
 			'Discover',
 		])
+	})
+
+	/**
+	 * Activities is inside the account menu, so while the menu is shut the
+	 * account button carries the unread count; otherwise it would be a count
+	 * nobody sees until they go looking for it.
+	 */
+	it('puts the unread Activities count on the account button', () => {
+		expect(mountNavigation().find('.navigation__more').attributes('data-unread')).toBeUndefined()
+		expect(mountNavigation({ unread: 5 }).find('.navigation__more').attributes('data-unread')).toBe('5')
+		expect(mountNavigation({ unread: 250 }).find('.navigation__more').attributes('data-unread')).toBe('99+')
 	})
 
 	/**

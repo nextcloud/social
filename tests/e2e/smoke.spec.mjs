@@ -20,7 +20,8 @@ test.describe('Social, in a browser', () => {
 	test('opens with its sidebar and a feed', async ({ page }) => {
 		await openApp(page)
 
-		for (const name of ['My Feed', 'Photos', 'Videos', 'News', 'Activities', 'Direct messages', 'Discover']) {
+		// Activities is in the account menu at the foot, not at the top level
+		for (const name of ['My Feed', 'Photos', 'Videos', 'News', 'Direct messages', 'Discover']) {
 			await expect(navEntry(page, name), `${name} is in the sidebar`).toBeVisible()
 		}
 		await expect(page.locator('.social__timeline')).toBeVisible()

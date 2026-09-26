@@ -223,7 +223,10 @@ The sidebar is the map:
   here, so this stays news rather than becoming your feed again.
 - **Activities** — your notifications: mentions, favourites, boosts, new
   followers and follow requests, poll results, edits of posts you boosted.
-  The sidebar badge counts what arrived since you last looked, and the same
+  It is in the account menu at the foot of the sidebar, under **My profile**,
+  because it is about you rather than a place to go and read. The badge
+  counts what arrived since you last looked, and sits on your name while the
+  menu is shut so it is never out of sight; the same
   events reach the Nextcloud bell and its mail digest; a follow request can be
   accepted or declined from the bell itself. The page says how many that is at
   the top — *3 new activities*, with a **Mark all as read** button that clears
