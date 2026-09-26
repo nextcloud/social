@@ -390,16 +390,6 @@ export default {
 					description: t('social', 'Posts with pictures will show up here'),
 				},
 
-				news: {
-					image: 'img/undraw/posts.svg',
-					title: t('social', 'No news yet'),
-					description: t('social', 'Articles, and posts linking to one, will show up here. Widen the circle above to see what the rest of the fediverse is reading.'),
-					action: {
-						label: t('social', 'See what is being shared'),
-						to: { name: 'discover' },
-					},
-				},
-
 				link: {
 					image: 'img/undraw/posts.svg',
 					title: t('social', 'Nothing said about this link'),

@@ -79,7 +79,6 @@ class AdminSettingsTest extends TestCase {
 			'stories' => true,
 			'section_photos' => true,
 			'section_videos' => true,
-			'section_news' => true,
 			'group_lists' => [],
 		]);
 

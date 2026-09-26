@@ -40,7 +40,6 @@ class SectionsServiceTest extends TestCase {
 			ConfigService::SOCIAL_STORIES => '1',
 			ConfigService::SOCIAL_SECTION_PHOTOS => '1',
 			ConfigService::SOCIAL_SECTION_VIDEOS => '1',
-			ConfigService::SOCIAL_SECTION_NEWS => '1',
 			ConfigService::SOCIAL_GROUP_LISTS => '[]',
 		];
 
@@ -67,7 +66,12 @@ class SectionsServiceTest extends TestCase {
 		$this->assertTrue($current[ConfigService::SOCIAL_STORIES]);
 		$this->assertTrue($current[ConfigService::SOCIAL_SECTION_PHOTOS]);
 		$this->assertTrue($current[ConfigService::SOCIAL_SECTION_VIDEOS]);
-		$this->assertTrue($current[ConfigService::SOCIAL_SECTION_NEWS]);
+	}
+
+	/** News is gone from the app, and with it the switch that offered it. */
+	public function testNewsIsNoLongerASection(): void {
+		$this->assertArrayNotHasKey('section_news', $this->service->current());
+		$this->assertNotContains('section_news', SectionsService::KEYS);
 	}
 
 	public function testNoGroupBecomesAListByDefault(): void {
@@ -76,20 +80,19 @@ class SectionsServiceTest extends TestCase {
 	}
 
 	public function testSavingTurnsSectionsOffAndOnAgain(): void {
-		$saved = $this->service->save(false, false, true, false, []);
+		$saved = $this->service->save(false, false, true, []);
 
 		$this->assertFalse($saved[ConfigService::SOCIAL_STORIES]);
 		$this->assertFalse($saved[ConfigService::SOCIAL_SECTION_PHOTOS]);
 		$this->assertTrue($saved[ConfigService::SOCIAL_SECTION_VIDEOS]);
-		$this->assertFalse($saved[ConfigService::SOCIAL_SECTION_NEWS]);
 		$this->assertFalse($this->service->storiesEnabled());
 
-		$this->assertTrue($this->service->save(true, true, true, true, [])[ConfigService::SOCIAL_STORIES]);
+		$this->assertTrue($this->service->save(true, true, true, [])[ConfigService::SOCIAL_STORIES]);
 		$this->assertTrue($this->service->storiesEnabled());
 	}
 
 	public function testChosenGroupsAreKeptInOrderAndAnsweredBack(): void {
-		$saved = $this->service->save(true, true, true, true, ['berlin', 'design']);
+		$saved = $this->service->save(true, true, true, ['berlin', 'design']);
 
 		$this->assertSame(['berlin', 'design'], $saved[ConfigService::SOCIAL_GROUP_LISTS]);
 		$this->assertTrue($this->service->groupHasList('berlin'));
@@ -98,7 +101,7 @@ class SectionsServiceTest extends TestCase {
 	}
 
 	public function testTheSameGroupTwiceIsStoredOnce(): void {
-		$saved = $this->service->save(true, true, true, true, ['design', 'design', ' ']);
+		$saved = $this->service->save(true, true, true, ['design', 'design', ' ']);
 
 		$this->assertSame(['design'], $saved[ConfigService::SOCIAL_GROUP_LISTS]);
 	}
@@ -109,12 +112,12 @@ class SectionsServiceTest extends TestCase {
 	 */
 	public function testAGroupThatDoesNotExistIsRefused(): void {
 		$this->expectException(InvalidArgumentException::class);
-		$this->service->save(true, true, true, true, ['design', 'nosuchgroup']);
+		$this->service->save(true, true, true, ['design', 'nosuchgroup']);
 	}
 
 	public function testNothingIsWrittenWhenOneGroupIsRefused(): void {
 		try {
-			$this->service->save(false, false, false, false, ['nosuchgroup']);
+			$this->service->save(false, false, false, ['nosuchgroup']);
 		} catch (InvalidArgumentException) {
 		}
 
@@ -129,7 +132,7 @@ class SectionsServiceTest extends TestCase {
 		$this->groups = $many;
 
 		$this->expectException(InvalidArgumentException::class);
-		$this->service->save(true, true, true, true, $many);
+		$this->service->save(true, true, true, $many);
 	}
 
 	/**
@@ -138,7 +141,7 @@ class SectionsServiceTest extends TestCase {
 	 * recreate it and a read is not the place to decide they were not.
 	 */
 	public function testAGroupDeletedSinceItWasChosenIsNotAnswered(): void {
-		$this->service->save(true, true, true, true, ['design', 'berlin']);
+		$this->service->save(true, true, true, ['design', 'berlin']);
 		$this->groups = ['design'];
 
 		$this->assertSame(['design'], $this->service->groupLists());

@@ -90,7 +90,6 @@ class NavigationControllerTest extends TestCase {
 			'stories' => true,
 			'section_photos' => true,
 			'section_videos' => true,
-			'section_news' => true,
 			'group_lists' => [],
 		]);
 		$this->groupManager = $this->createMock(IGroupManager::class);
@@ -185,7 +184,6 @@ class NavigationControllerTest extends TestCase {
 				'stories' => true,
 				'section_photos' => true,
 				'section_videos' => true,
-				'section_news' => true,
 				'group_lists' => [],
 			],
 			// whether My interests is on for this reader; what it holds is

@@ -53,13 +53,11 @@ again.
   people, hashtags and posts this server knows. Somebody this server has never
   met is found by their full handle, `@user@example.org`: the app resolves it
   over WebFinger and shows the account.
-- **Discover** (in the sidebar) has six tabs: **People** (suggestions, with
+- **Discover** (in the sidebar) has five tabs: **People** (suggestions, with
   the people who share your Nextcloud and have said where they are on the
   fediverse listed first under *On your Nextcloud*), **Starter packs**,
-  **Pictures** and **Videos** being looked at, **Hashtags** that are
-  trending, ranked over a window you pick, and **News** — the articles being
-  shared here most often in that window, each with the number of posts that
-  carried it and a way into what those posts said.
+  **Pictures** and **Videos** being looked at, and **Hashtags** that are
+  trending, ranked over a window you pick.
 - **Find people across the fediverse** sits at the top of the People tab. Type a
   name, a handle or a subject and this server asks several directories at once —
   its own first, then the ones its administrator configured — and offers a
@@ -215,12 +213,6 @@ The sidebar is the map:
   received. **Photos** and **Videos** carry the same switcher over posts that
   are pictures, or videos — including videos from PeerTube channels anyone
   here follows.
-- **News** — the same three scopes again, over what people are reading: posts
-  that link to an article, and posts that *are* one (blogs on Plume,
-  WriteFreely, Ghost or WordPress publish them, and they arrive here whole).
-  A list rather than a grid, each row led by the headline and the source the
-  page gave. A mention or a hashtag is a link too and neither puts a post
-  here, so this stays news rather than becoming your feed again.
 - **Activities** — your notifications: mentions, favourites, boosts, new
   followers and follow requests, poll results, edits of posts you boosted.
   It is in the account menu at the foot of the sidebar, under **My profile**,

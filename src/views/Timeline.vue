@@ -236,8 +236,6 @@ export default {
 					return t('social', 'Photos')
 				case 'videos':
 					return t('social', 'Videos')
-				case 'news':
-					return t('social', 'News')
 				case 'link':
 					// the article is the subject of this page, and the only
 					// thing known about it before the first post arrives is
@@ -271,19 +269,19 @@ export default {
 		 * @return {boolean} whether the three scopes are what this page shows
 		 */
 		isFeed() {
-			return ['home', 'timeline', 'federated', 'interests', 'photos', 'videos', 'news'].includes(this.type)
+			return ['home', 'timeline', 'federated', 'interests', 'photos', 'videos'].includes(this.type)
 		},
 
 		/**
 		 * Whether this page is one page read at three scopes rather than three
-		 * pages. Photos, Videos and News all are: the sidebar entry stays lit
+		 * pages. Photos and Videos both are: the sidebar entry stays lit
 		 * whichever of the three the reader chose, which it would not if each
 		 * scope were a `type` of its own.
 		 *
 		 * @return {boolean}
 		 */
 		isScopedPage() {
-			return ['photos', 'videos', 'news'].includes(this.type)
+			return ['photos', 'videos'].includes(this.type)
 		},
 
 		/**
@@ -298,10 +296,6 @@ export default {
 		 * Not a toggle. One question, one answer — a control to make Photos
 		 * look like a list would be asking the reader to settle something the
 		 * page has already answered by being Photos.
-		 *
-		 * News is a scoped page like those two and is still a list: what it
-		 * shows is headlines, and a headline in a tile is a picture with
-		 * writing on it.
 		 *
 		 * @return {string} 'grid' or 'list'
 		 */
@@ -369,7 +363,7 @@ export default {
 
 			// the reader's own again, chosen by subject rather than by whom they
 			// follow, so it sits beside My Feed rather than after the distances.
-			// Not a scope of Photos or News: it is a ranking of its own, and a
+			// Not a scope of Photos: it is a ranking of its own, and a
 			// narrowing of it would be a second one
 			if (this.hasInterestsTab && !this.isScopedPage) {
 				scopes.splice(1, 0, {

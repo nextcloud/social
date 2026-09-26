@@ -124,12 +124,6 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   how the videos are watched and not which ones they are. Muted until you ask, one
   playing at a time and the rest paused rather than left buffering, and reachable with
   the arrow keys and the space bar.
-- **News** — a third one beside them, over what people are reading rather than what
-  they showed: posts linking to an article, and articles themselves, which is what a
-  blog on Plume, WriteFreely, Ghost or WordPress federates. Drawn as a list, led by
-  the headline. The **News** tab of Discover ranks the articles being shared here
-  most often, and each one opens into what people here said about it — which is the
-  thing a feed reader cannot do.
 ![Videos, including federated PeerTube channels](img/readme/videos.jpg)
 
 - **PeerTube, properly — in both directions.** A PeerTube video arrives with its
@@ -253,8 +247,6 @@ six ways:
   or stored: a hashtag is a string, and following one from here brings in posts the
   same way following any hashtag does.
 - **Trending pictures and videos.**
-- **The articles being shared here**, under **News** — with what people here said about
-  each one, which is the part a feed reader cannot do.
 
 The sidebar has its own way in: **Explore**, one collapsible entry holding the
 hashtags you follow, your lists, and what this server is busy with right now — in that
