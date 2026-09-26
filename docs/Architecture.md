@@ -1731,6 +1731,27 @@ on a like before the switch existed), and `buzz()` also answers
 `fetchUnreadDirectMessages()`: it sounds when the count rises, never for the
 first count a page reads. `SensesSettings.vue` is the Settings section.
 
+**Words and stickers drawn to a picture.** `src/utils/textCard.js` draws a text
+card (a story at 1080×1920, a post at 1080×1080) and bakes stickers into a
+picture, on a canvas, and hands back a `File` that goes up through the ordinary
+`/api/v1/media` like any attachment. So nothing new federates: a Mastodon or
+Pixelfed reader gets a picture. The words travel as the picture's description
+(and, for a card post, in the post itself). `wrapLines()` and `fitText()` are
+the layout, kept pure for the tests; the drawing returns `null`, or the original
+file for stickers, where a browser cannot draw, and the caller says so rather
+than posting something other than what was on screen.
+
+**The games.** `src/utils/composerCommands.js` resolves `/dice [n]`, `/roll`,
+`/flip` and `/pick a, b` in `Composer::createPost()` before anything is sent, so
+the result is plain text in the post and cannot be re-rolled. A command is one
+only at the start of a line or after a space (a URL containing `/dice` is left
+alone), and only `/pick` runs to the end of its line. The tumble the writer sees
+is `tumble()` on a timer; the result was decided before it started.
+
+**Arrivals.** `timelineStore.markArrived(id)` names the post this reader has just
+published for 2.4 seconds; `TimelinePost` plays `post-arrive` and a ring in the
+author's hue while it matches, so a reload afterwards does not replay it.
+
 **Phone layout.** One breakpoint, 600px, stated twice on purpose: as `PHONE_WIDTH` in `src/services/phone.js` (a shared `matchMedia` query with `isPhone()` and `onPhoneChange()`) and as the `@media (max-width: 600px)` rule in the stylesheets that lay themselves out differently on a phone — `TimelineEntry.vue` (the avatar column goes; the face, 36px, sits inside the card over the corner `.post-header` leaves for it, which is why `TimelineAvatar` takes a `size`), `TimelinePost.vue` (less padding), `TimelineSinglePost.vue` (the 64px the fine print and the spine kept for the avatar column), and `Composer.vue` (the toolbar wraps, the visibility menu is icon-only, Post keeps the end of its row). Nextcloud's own mobile breakpoint, 1024px, is where the sidebar collapses; the only rule at that width is `Timeline.vue`'s, which starts the page's first element below the sidebar toggle. A tablet in portrait is between the two and keeps the avatar column.
 
 `Composer.vue` carries a full `tributeOptions` config for `@` account and `#` hashtag completion. `tributejs` is a plain DOM library rather than a component: it is attached to the contenteditable in `mounted()` and detached in `unmounted()`, and it appends its menu to the body, which the unscoped `.tribute-container` rule at the end of the file styles. The account collection searches `/api/v1/global/accounts/search` and the hashtag collection `/api/v1/global/tags/search`, both debounced. The composer's HTML-to-text conversion inserts one newline at each block boundary, including before a block that follows an unwrapped text node; browser contenteditables commonly encode the first Enter in that mixed form, so missing the leading separator concatenates the first two lines in a new post. The shared `htmlToPlainText()` applies the same rule when editing/redrafting and when presenting portfolio captions. The emoji picker is a separate `NcEmojiPicker`; it is loaded on first use and portals to `#content`, outside the composer toolbar and reaction modal's clipping/stacking containers while retaining Nextcloud theme variables inherited from the app root. The reaction picker shares that portal so the popover does not participate in its centered flex panel's sizing or sit beneath its backdrop. Portfolio captions are reduced to plain text by `htmlToPlainText()` and use `white-space: pre-line` so paragraph boundaries remain visible without rendering untrusted HTML.

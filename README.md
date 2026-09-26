@@ -76,6 +76,18 @@ One box, and everything a post can carry.
 - **Quote a post**, with the original author's permission carried on the wire (FEP-044f).
 - **Say what language it is in**, starting from your Nextcloud language.
 - **Send it later.** Pick a time at least five minutes out and Post becomes Schedule.
+- **A short post as a card.** Anything up to 120 characters, with nothing attached, can
+  go out drawn big on colour — six backgrounds, the first in your own colour. It is
+  sent as a picture of the words with the words as its description, and the words stay
+  in the post too, so every server shows the card and every reader can still search it
+  and hear it read aloud.
+- **`/dice`, `/flip` and `/pick`.** Type `/dice` (or `/dice 20`), `/flip`, or
+  `/pick pizza, pasta, sushi` and the game is played when the post goes out: the dice
+  tumble in the composer for half a second and land, and what is posted is plain
+  text — `🎲 4`, `🪙 heads`, `🎯 pasta` — so a Mastodon reader sees the same result.
+- **Posting feels like posting.** The box answers with a quick sweep of light, and the
+  new post drops into place at the top of the timeline with a glow in your colour,
+  instead of simply being there.
 - **Mentions and hashtags** typed by hand become real recipients and real tags.
 
 ## 📖 Read
@@ -116,6 +128,11 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   and the poster is told and sees what was said; watching one posted elsewhere sends a
   receipt to its author, so their own server can count it. The other direction is not ours to fix: Pixelfed sends
   stories only to instances it has identified as Pixelfed.
+- **Text stories and stickers.** A story can be a few words on a coloured card instead
+  of a picture — the type shrinks as you write, the way the picture will — and a
+  picture story can carry stickers: eight emoji and a line of your own words, dragged
+  where you want them (or moved with the arrow keys) and baked into the picture before
+  it goes up, so they arrive on Pixelfed where you put them.
 - **Photos and Videos are timelines of their own**, drawn as grids and asked of the
   server rather than filtered out of a page you already have.
 - **Watch** turns the Videos grid into a stack: one video at a time, full height,
