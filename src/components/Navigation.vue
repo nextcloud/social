@@ -302,7 +302,6 @@ import IconHome from 'vue-material-design-icons/Home.vue'
 import IconCompass from 'vue-material-design-icons/Compass.vue'
 import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
-import IconNewspaperVariantOutline from 'vue-material-design-icons/NewspaperVariantOutline.vue'
 import IconRss from 'vue-material-design-icons/Rss.vue'
 import IconBell from 'vue-material-design-icons/Bell.vue'
 import IconCommentAccount from 'vue-material-design-icons/CommentAccount.vue'
@@ -636,23 +635,7 @@ export default {
 						title: t('social', 'Videos'),
 						to: { name: 'timeline', params: { type: 'videos' } },
 					},
-					// the third of the kind filters, after Photos and Videos:
-					// what people are reading rather than what they showed.
-					// Above Activities because it is something to read, and
-					// everything below this line is something that happened
-					{
-						key: 'social-news',
-						offered: this.offers('news'),
-						icon: IconNewspaperVariantOutline,
-						title: t('social', 'News'),
-						to: { name: 'timeline', params: { type: 'news' } },
-						// the page about one article belongs to this entry as
-						// much as the list does: a reader who followed a
-						// headline is still reading the news, and a sidebar
-						// with nothing lit says they are nowhere
-						covers: ['news', 'link'],
-					},
-					// the last of the things to read, after the three kind
+					// the last of the things to read, after the two kind
 					// filters: what this account follows off the fediverse
 					// rather than on it.
 					{
@@ -962,10 +945,10 @@ export default {
 		 *
 		 * Default on, and on for anything the server did not mention: an older
 		 * server, or a page rendered before this setting existed, sends nothing,
-		 * and a sidebar that lost three entries because of that would look like
+		 * and a sidebar that lost two entries because of that would look like
 		 * the app had broken.
 		 *
-		 * @param {string} section photos, videos or news
+		 * @param {string} section photos or videos
 		 * @return {boolean} whether to draw its entry
 		 */
 		offers(section) {

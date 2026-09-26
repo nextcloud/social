@@ -41,7 +41,6 @@ class SectionsController extends Controller {
 	 * @param bool $stories whether stories are offered
 	 * @param bool $photos whether the Photos timeline is offered
 	 * @param bool $videos whether the Videos timeline is offered
-	 * @param bool $news whether the News timeline is offered
 	 * @param string[] $groupLists the Nextcloud groups whose members get a list for them
 	 */
 	#[FrontpageRoute(verb: 'POST', url: '/admin/sections')]
@@ -49,11 +48,10 @@ class SectionsController extends Controller {
 		bool $stories = true,
 		bool $photos = true,
 		bool $videos = true,
-		bool $news = true,
 		array $groupLists = [],
 	): DataResponse {
 		try {
-			return new DataResponse($this->sectionsService->save($stories, $photos, $videos, $news, $groupLists));
+			return new DataResponse($this->sectionsService->save($stories, $photos, $videos, $groupLists));
 		} catch (InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}

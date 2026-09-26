@@ -615,7 +615,7 @@ describe('Navigation', () => {
 	/**
 	 * Photos, Videos and News are three timelines an administrator can turn
 	 * off, and the sidebar is where that shows. Default on, and on for a
-	 * server that said nothing about it -- a sidebar that lost three entries
+	 * server that said nothing about it -- a sidebar that lost two entries
 	 * because an older server sent no `sections` would read as the app being
 	 * broken rather than as a setting.
 	 */
@@ -626,30 +626,35 @@ describe('Navigation', () => {
 			return mountNavigation()
 		}
 
-		it('draws all three when the server says nothing', () => {
+		it('draws both when the server says nothing', () => {
 			expect(itemNames(offering(undefined)))
-				.toEqual(expect.arrayContaining(['Photos', 'Videos', 'News']))
+				.toEqual(expect.arrayContaining(['Photos', 'Videos']))
 		})
 
-		it('draws all three when the instance offers them', () => {
-			const names = itemNames(offering({ section_photos: true, section_videos: true, section_news: true }))
+		it('draws both when the instance offers them', () => {
+			const names = itemNames(offering({ section_photos: true, section_videos: true }))
 
-			expect(names).toEqual(expect.arrayContaining(['Photos', 'Videos', 'News']))
+			expect(names).toEqual(expect.arrayContaining(['Photos', 'Videos']))
+		})
+
+		/** News is gone from the app: no entry, whatever an old server still sends */
+		it('never draws a News entry', () => {
+			expect(itemNames(offering(undefined))).not.toContain('News')
+			expect(itemNames(offering({ section_news: true }))).not.toContain('News')
 		})
 
 		it('leaves out the ones the instance has turned off', () => {
-			const names = itemNames(offering({ section_photos: false, section_videos: true, section_news: false }))
+			const names = itemNames(offering({ section_photos: false, section_videos: true }))
 
 			expect(names).not.toContain('Photos')
 			expect(names).toContain('Videos')
-			expect(names).not.toContain('News')
 			// and the rest of the sidebar is untouched
 			expect(names).toContain('My Feed')
 			expect(names).toContain('Direct messages')
 		})
 
 		it('keeps the entries it draws whole', () => {
-			const wrapper = offering({ section_photos: true, section_videos: false, section_news: true })
+			const wrapper = offering({ section_photos: true, section_videos: false })
 
 			expect(item(wrapper, 'Photos').attributes('data-name')).toBe('Photos')
 			expect(item(wrapper, 'Videos')).toBeUndefined()
@@ -787,7 +792,6 @@ describe('Navigation', () => {
 			'My Feed',
 			'Photos',
 			'Videos',
-			'News',
 			'Subscriptions',
 			'Direct messages',
 			'Discover',
@@ -828,7 +832,6 @@ describe('Navigation', () => {
 			'My Feed',
 			'Photos',
 			'Videos',
-			'News',
 			'Subscriptions',
 			'Direct messages',
 			'Discover',
@@ -1024,10 +1027,6 @@ describe('Navigation', () => {
 		['/timeline/federated', 'My Feed'],
 		['/timeline/photos', 'Photos'],
 		['/timeline/videos', 'Videos'],
-		['/timeline/news', 'News'],
-		// the page about one article is still the News entry's: a reader who
-		// followed a headline has not left the section
-		['/timeline/link', 'News'],
 		['/timeline/favourites', 'Liked posts'],
 		['/timeline/bookmarks', 'Bookmarks'],
 		['/follow_requests', 'Follow requests'],
@@ -1038,6 +1037,8 @@ describe('Navigation', () => {
 
 	it.each([
 		['/timeline/tags/nextcloud'],
+		// the page about one article belonged to News, and News is gone
+		['/timeline/link'],
 		['/@alice/112000000000000001'],
 		['/@alice'],
 		['/@alice/followers'],

@@ -32,7 +32,6 @@ class SectionsService {
 		ConfigService::SOCIAL_STORIES,
 		ConfigService::SOCIAL_SECTION_PHOTOS,
 		ConfigService::SOCIAL_SECTION_VIDEOS,
-		ConfigService::SOCIAL_SECTION_NEWS,
 		ConfigService::SOCIAL_GROUP_LISTS,
 	];
 
@@ -52,7 +51,7 @@ class SectionsService {
 	 * What stands now, typed the way the page and the endpoint hand it back.
 	 *
 	 * @return array{stories: bool, section_photos: bool, section_videos: bool,
-	 *     section_news: bool, group_lists: string[]}
+	 *     group_lists: string[]}
 	 */
 	public function current(): array {
 		return [
@@ -61,8 +60,6 @@ class SectionsService {
 				=> $this->configService->getAppValueBool(ConfigService::SOCIAL_SECTION_PHOTOS),
 			ConfigService::SOCIAL_SECTION_VIDEOS
 				=> $this->configService->getAppValueBool(ConfigService::SOCIAL_SECTION_VIDEOS),
-			ConfigService::SOCIAL_SECTION_NEWS
-				=> $this->configService->getAppValueBool(ConfigService::SOCIAL_SECTION_NEWS),
 			ConfigService::SOCIAL_GROUP_LISTS => $this->groupLists(),
 		];
 	}
@@ -117,13 +114,12 @@ class SectionsService {
 	 * @param bool $stories whether stories are offered
 	 * @param bool $photos whether the Photos timeline is offered
 	 * @param bool $videos whether the Videos timeline is offered
-	 * @param bool $news whether the News timeline is offered
 	 * @param string[] $groupLists the Nextcloud groups that become lists
 	 *
 	 * @return array what current() answers afterwards
 	 * @throws InvalidArgumentException naming the field that was refused
 	 */
-	public function save(bool $stories, bool $photos, bool $videos, bool $news, array $groupLists): array {
+	public function save(bool $stories, bool $photos, bool $videos, array $groupLists): array {
 		$groups = [];
 		foreach ($groupLists as $groupId) {
 			if (!is_string($groupId)) {
@@ -150,7 +146,6 @@ class SectionsService {
 		$this->configService->setAppValue(ConfigService::SOCIAL_STORIES, $stories ? '1' : '0');
 		$this->configService->setAppValue(ConfigService::SOCIAL_SECTION_PHOTOS, $photos ? '1' : '0');
 		$this->configService->setAppValue(ConfigService::SOCIAL_SECTION_VIDEOS, $videos ? '1' : '0');
-		$this->configService->setAppValue(ConfigService::SOCIAL_SECTION_NEWS, $news ? '1' : '0');
 		$this->configService->setAppValue(ConfigService::SOCIAL_GROUP_LISTS, json_encode($groups));
 
 		return $this->current();

@@ -20,11 +20,8 @@
 			<NcCheckboxRadioSwitch v-model="form.videos" type="switch">
 				{{ t('social', 'Videos') }}
 			</NcCheckboxRadioSwitch>
-			<NcCheckboxRadioSwitch v-model="form.news" type="switch">
-				{{ t('social', 'News') }}
-			</NcCheckboxRadioSwitch>
 			<p class="sections__hint">
-				{{ t('social', 'Three timelines in the sidebar, each the same posts read through one filter. A post is not changed by its section being off.') }}
+				{{ t('social', 'Two timelines in the sidebar, each the same posts read through one filter. A post is not changed by its section being off.') }}
 			</p>
 
 			<div class="sections__groups">
@@ -109,7 +106,6 @@ export default {
 				stories: this.settings?.stories !== false,
 				photos: this.settings?.section_photos !== false,
 				videos: this.settings?.section_videos !== false,
-				news: this.settings?.section_news !== false,
 				// the picker works in whole options, so the stored ids are
 				// matched back to the groups they name; an id whose group has
 				// since been deleted stands for itself rather than vanishing
@@ -144,7 +140,6 @@ export default {
 					stories: this.form.stories,
 					photos: this.form.photos,
 					videos: this.form.videos,
-					news: this.form.news,
 					groupLists: this.form.groupLists.map((group) => group.id),
 				})
 				showSuccess(t('social', 'Saved'))

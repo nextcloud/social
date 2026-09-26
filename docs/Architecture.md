@@ -363,7 +363,7 @@ copy in app storage; the original stays where it was, untouched.
 - **ReportService** — Moderation reports: stores what was filed locally over the client API or arrived from a remote instance as a `Flag`, and notifies the instance admins. An incoming `Flag` keeps at most 50 of the ids it names, and they are resolved against the actor cache only: nothing it names is fetched
 - **ModerationService** — Acts on a report: silence, suspend, or take one post down. the two levels are described under ActivityPub Federation below
 - **GroupListService** — Nextcloud groups as Social lists: every group a person is in **that an administrator has chosen** (`SectionsService::groupHasList()`, empty by default, so nothing until somebody chooses) becomes a list of theirs, holding the group's members that have a Social account, kept in step three ways — the lists a viewer is missing are made when they ask for their lists (`ensureForViewer()`, from `GET /api/v1/lists`), a group change is applied the moment it happens (`GroupListListener`, on the four `OCP\Group\Events`), and the cron reconciles every group list against its group (`reconcile()`, from `Cron\Cache`) for what neither saw, such as an account created after the lists were. A group larger than `MAX_GROUP_SIZE` (500) gets no list, and neither does one the administrator has not chosen — deselecting a group takes its lists away on the next `reconcile()`, which is the only place that can see it, since `ensureForViewer()` only ever looks at the groups the viewer is in. A group list is a private list like any other — same table, same timeline, same visibility — whose title and membership are the group's rather than the owner's: `ListController` refuses to delete one or edit its members (422) and keeps its title on an update
-- **SectionsService** — what this instance offers: whether stories are taken, whether the Photos, Videos and News timelines appear (all four on by default), and which Nextcloud groups become lists (empty by default). Read by `NavigationController` into `serverData` so the sidebar is drawn right the first time, by `GroupListService` before it makes a list, and written by `SectionsController` (`POST /admin/sections`, administrators only, all of it or none)
+- **SectionsService** — what this instance offers: whether stories are taken, whether the Photos and Videos timelines appear (all three on by default), and which Nextcloud groups become lists (empty by default). Read by `NavigationController` into `serverData` so the sidebar is drawn right the first time, by `GroupListService` before it makes a list, and written by `SectionsController` (`POST /admin/sections`, administrators only, all of it or none)
 - **DeliveryService** — What the outbound queue looks like to an author: the rows of one post, counted as delivered / sending / waiting / failing / abandoned and listed per server, the ones that need an eye first. Only as good as the queue's retention, which the answer carries, so an old post reports nothing rather than reporting wrongly
 - **FederationHealthService** — What the outbound queue looks like to an administrator: which instances deliveries are failing against, so an instance that has quietly stopped receiving anything is distinguishable from one nobody posted to. Both states, not one: what is still being retried (`getFailing()`, STANDBY with at least one failure) and what has been **given up on** (`getAbandoned()`, `STATUS_ABANDONED`), each grouped per host. The second was reported nowhere — a request on its fifteenth attempt was counted as failing and the moment it was abandoned it left every count, so the queue looked healthiest exactly when a peer had been lost for good. The abandoned figures reach back `RequestQueueService::RETENTION_SECONDS` (seven days), which is how long a finished row is kept; `occ social:queue:status`, the admin settings and the dashboard widget all read this one summary, and `occ social:queue:retry --instance HOST` is what acts on it
 - **TestService** — Backs the WebFinger probe of `occ social:check:install`
@@ -2240,12 +2240,13 @@ attachment whose Mastodon `type` is `video`, or a post that arrived as a PeerTub
 it — the post is a video either way, and a timeline that hid the ones it could
 not play would be hiding exactly the videos worth reporting.
 
-**The News view.** The sidebar's `News`, under Videos, is the third page of the
-same shape: the three feeds with one predicate on them, the scope in the query
-(`/timeline/news?scope=federated`), the same `isScopedPage` branch. It differs
-from its two siblings in one visible way — it is drawn as a **list**, not a
-grid. What it shows is headlines, and a headline in a tile is a picture with
-writing on it.
+**News, on the server only.** The web interface used to have a News timeline
+in the sidebar, a News tab in Discover and a switch for it in the Sections card.
+All three are gone, and `/timeline/news` redirects to My Feed. What stays is
+what a client can still ask for: the `only_news` parameter on the home and
+public timelines, `/api/v1/trends/links`, and `/api/v1/timelines/link` — the
+last is also still how the web interface opens everything said here about one
+article. `section_news` is no longer read or written.
 
 What counts as news is two things, and the app takes both rather than choosing:
 a post that **is** an article — an `Article` or a `Page`, which is what Plume,
@@ -2273,14 +2274,9 @@ Boosts are not in it. A boost is a row of its own with no content of its own, so
 gap: a news page whose top five entries are the same article five times is a
 worse page.
 
-**Where the links themselves are.** `/api/v1/trends/links` has counted the URLs
-this instance shares since the trends were written and nothing ever asked it.
-`TrendingLinks.vue`, the **News** tab of Discover, is that list: the headline,
-the source, the picture the page offers, and how many posts carried it. Each row
-has two ways out — the article, and `/timeline/link?url=…`, which is
-`/api/v1/timelines/link` and is everything said *here* about that article. That
-second one is the whole reason this is in a social app rather than in a feed
-reader, and the endpoint for it was already written too.
+**Where the links themselves are.** `/api/v1/trends/links` counts the URLs this
+instance shares, and `/api/v1/timelines/link?url=…` is everything said *here*
+about one of them. Both are API only now.
 
 In the player, a video attachment with a **preview that is not the video itself**
 gets that preview as its `poster` and `preload="none"`. Only a federated video

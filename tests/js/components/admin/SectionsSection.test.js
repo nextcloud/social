@@ -57,18 +57,16 @@ describe('the sections card', () => {
 			Stories: true,
 			Photos: true,
 			Videos: true,
-			News: true,
 		})
 	})
 
 	it('shows what was turned off as off', () => {
-		const settings = { stories: false, section_photos: false, section_videos: true, section_news: false }
+		const settings = { stories: false, section_photos: false, section_videos: true }
 
 		expect(state(mountCard(settings))).toEqual({
 			Stories: false,
 			Photos: false,
 			Videos: true,
-			News: false,
 		})
 	})
 
@@ -98,7 +96,6 @@ describe('the sections card', () => {
 			stories: true,
 			photos: true,
 			videos: false,
-			news: true,
 			groupLists: [],
 		})
 		expect(showSuccess).toHaveBeenCalledWith('Saved')

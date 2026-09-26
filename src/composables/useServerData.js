@@ -24,7 +24,6 @@ import { useSettingsStore } from '../store/settings.js'
  * @property {boolean} stories - Whether stories are offered
  * @property {boolean} section_photos - Whether the Photos section is offered
  * @property {boolean} section_videos - Whether the Videos section is offered
- * @property {boolean} section_news - Whether the News section is offered
  * @property {string[]} group_lists - The groups offered as lists, by id
  */
 

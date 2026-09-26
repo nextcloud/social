@@ -352,12 +352,12 @@ a list of them beside the page on a wide screen:
   go and read it. *Publish* sends it out; *Refuse* deletes it and tells its
   author. Three switches at the top turn first-post review, the spam rules and
   holding every post with a video on it on and off.
-- **Sections** — what this instance offers the people using it. Four switches,
-  **all on by default**: *Stories*, and the *Photos*, *Videos* and *News*
+- **Sections** — what this instance offers the people using it. Three switches,
+  **all on by default**: *Stories*, and the *Photos* and *Videos*
   timelines. Turning one off takes it out of the sidebar and stops it being
   offered; nothing already posted is touched, so a video posted while Videos
   was off is still a video and appears again the moment it is turned back on.
-  The fifth setting is the Nextcloud groups that become Social lists, and it is
+  The fourth setting is the Nextcloud groups that become Social lists, and it is
   **empty by default**: everybody in a chosen group gets a list for it holding
   the members who have a Social account, nobody is followed by it and nothing
   federates, but a group list does tell everybody in the group who else is in

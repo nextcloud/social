@@ -190,7 +190,6 @@ describe('Timeline', () => {
 		[{ name: 'timeline', params: { type: 'bookmarks' } }, 'Bookmarks', false],
 		// a page of its own like Photos and Videos, so it says which one you
 		// are reading
-		[{ name: 'timeline', params: { type: 'news' } }, 'News', true],
 	])('names the timeline %o for a reader who cannot see which one it is', (route, heading, visible) => {
 		const wrapper = mountTimeline(route)
 		const title = wrapper.find('h1')
@@ -772,40 +771,9 @@ describe('Timeline', () => {
 
 			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('list')
 		})
-
-		/**
-		 * News is a scoped page like Photos and Videos and is still a list:
-		 * what it shows is headlines, and a headline in a tile is a picture
-		 * with writing on it.
-		 */
-		it('draws news as a list although it is a scoped page', () => {
-			const wrapper = mountTimeline({ params: { type: 'news' } })
-
-			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('list')
-			expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(true)
-		})
 	})
 
-	describe('news', () => {
-		/**
-		 * The same page read at three distances rather than three pages: the
-		 * scope rides in the query, which is what keeps the sidebar entry lit
-		 * whichever one the reader chose.
-		 */
-		it('reads the scope out of the query and asks the store for it', () => {
-			mountTimeline({ params: { type: 'news' }, query: { scope: 'federated' } })
-
-			expect(timelineStore.changeTimelineType)
-				.toHaveBeenCalledWith({ type: 'news', params: { scope: 'federated' } })
-		})
-
-		it('falls back to the reader\'s own feed when the address bar says something else', () => {
-			mountTimeline({ params: { type: 'news' }, query: { scope: 'favourites' } })
-
-			expect(timelineStore.changeTimelineType)
-				.toHaveBeenCalledWith({ type: 'news', params: { scope: 'home' } })
-		})
-
+	describe('link', () => {
 		/**
 		 * The page about one article. The link is the subject, so another link
 		 * is another page rather than the same page filtered.

@@ -192,14 +192,13 @@ class ConfigService {
 	 * Whether the Photos, Videos and News timelines are offered.
 	 *
 	 * All on by default. Each is the same stream of posts read through one
-	 * filter -- pictures, videos, what was posted as news -- and an instance
+	 * filter -- pictures or videos -- and an instance
 	 * that does not want a section in the sidebar turns that one off. The
 	 * posts are not touched: a video posted while Videos was off is still a
 	 * video, and shows up again the moment it is turned back on.
 	 */
 	public const SOCIAL_SECTION_PHOTOS = 'section_photos';
 	public const SOCIAL_SECTION_VIDEOS = 'section_videos';
-	public const SOCIAL_SECTION_NEWS = 'section_news';
 
 	/**
 	 * Which Nextcloud groups become Social lists, as a JSON array of group ids.
@@ -439,7 +438,6 @@ class ConfigService {
 		self::SOCIAL_STORIES => '1',
 		self::SOCIAL_SECTION_PHOTOS => '1',
 		self::SOCIAL_SECTION_VIDEOS => '1',
-		self::SOCIAL_SECTION_NEWS => '1',
 		self::SOCIAL_GROUP_LISTS => '[]',
 		self::SOCIAL_REVIEW_POSTS => '1',
 		self::SOCIAL_IMAGE_MAX_EDGE => '0',

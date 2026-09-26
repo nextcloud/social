@@ -354,4 +354,12 @@ describe('router base detection', () => {
 
 		expect(await freshBase()).toBe('/nextcloud/index.php/apps/social')
 	})
+
+	/** News is gone; an address somebody kept for it opens their feed */
+	it('sends the old News address to My Feed', async () => {
+		await router.push('/timeline/news')
+
+		expect(router.currentRoute.value.name).toBe('timeline')
+		expect(router.currentRoute.value.params.type ?? '').toBe('')
+	})
 })

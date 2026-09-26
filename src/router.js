@@ -183,6 +183,12 @@ const router = createRouter({
 				? { name: 'timeline', params: { type: 'timeline' } }
 				: { name: 'timeline' },
 		},
+		// News was a timeline of its own and is gone; an address somebody
+		// kept for it opens their feed rather than an empty page
+		{
+			path: '/timeline/news',
+			redirect: { name: 'timeline' },
+		},
 		{
 			path: '/timeline/:type?',
 			components: {
