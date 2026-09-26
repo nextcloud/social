@@ -31,6 +31,7 @@ What it does:
 - 📱 Pixelfed's own routes — the config its app reads on launch, discover, the story carousel, collections, mutuals, reports, direct-message threads, push (honestly off) and its admin screens — so its app finds what it looks for once the API is at the domain root
 - 🖼️ Stories, collections and places in the web app: a row of faces above your feed with a player and a way to post one; albums as the fourth tab of a profile, each a page of its posts; a pin in the composer that says where a picture was taken, and a page for every place — with nothing ever sent to a map service
 - 🧭 A Discover page: who to follow, with starter packs you can follow in one go
+- 🔊 Sound and touch, per device: a tick on a like, a chime for a direct message, a tap in the hand on a phone. Sound is off until you turn it on
 - 📤 Share to Social from the Files app: pick pictures or videos there and the composer opens with them attached
 - 👥 Lists, and the Nextcloud groups an administrator chooses as lists of their own — kept in step with the group automatically; you make, rename, delete and fill your own in Settings
 - ⚙️ Account settings: the name you publish under, whether people ask before they follow you, whether other servers may suggest you and index your public posts, and the audience every new post starts with

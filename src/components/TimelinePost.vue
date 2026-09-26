@@ -503,6 +503,7 @@ import { mapStores } from 'pinia'
 import { htmlToPlainText } from '../utils/plainText.js'
 import { defaultLanguage, languageName } from '../utils/postLanguage.js'
 import { useAccountStore } from '../store/account.js'
+import { feel } from '../services/senses.js'
 import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
@@ -1523,10 +1524,8 @@ export default {
 		async act(name, action, celebrating) {
 			if (celebrating) {
 				this.celebrate = name
-				// a touch device can feel the confirmation as well as see it
-				if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-					window.navigator.vibrate?.(8)
-				}
+				// heard and felt as well as seen, where the reader allows it
+				feel(name)
 				window.setTimeout(() => {
 					if (this.celebrate === name) {
 						this.celebrate = ''

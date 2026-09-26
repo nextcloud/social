@@ -477,6 +477,13 @@ the composer's toolbar wraps instead of pushing Post off the edge, and a post's 
 gives up the column it kept for an avatar that is no longer beside it. Dark mode is
 the same app, not a second design.
 
+**Sound and touch**, in Settings: a soft tick on a like, a breath of air when a post
+goes out, a two-note chime when a direct message arrives, and a short tap in the hand
+on a phone. Sound is off until you turn it on; vibration is on, and your system's
+setting for less motion turns it off too. Both are kept on the device rather than the
+account, so the laptop at work can stay quiet while your phone taps back. The sounds
+are synthesised in the browser, so there is nothing to download.
+
 ## 🧩 It is a Nextcloud app, so it behaves like one
 
 - **Share to Social, from Files.** Select a picture or a video — up to ten — pick

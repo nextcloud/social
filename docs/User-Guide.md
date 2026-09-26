@@ -539,6 +539,12 @@ table as they always did — and if you already wrote a row called "Pronouns" by
 hand, it is picked up as one.
 
 
+- **Sound and touch.** **Settings → Sound and touch** has two switches:
+  **Play sounds** (a tick on a like, a breath of air when a post goes out, a
+  chime when a direct message arrives; off until you turn it on, with
+  **Listen** to hear them first) and **Vibrate** (a short tap on a phone; on
+  unless you turn it off, and off whenever your system asks for less motion).
+  Both belong to the device you are on, not to your account.
 - **Profile.** **My profile** (behind your portrait at the bottom of the
   sidebar) → **Edit profile**: a banner (upload one or give the address of
   one), a bio, and up to four name/value fields shown under it — your website,
