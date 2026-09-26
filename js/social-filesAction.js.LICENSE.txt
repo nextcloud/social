@@ -19,6 +19,11 @@
  */
 
 /*!
+ * SPDX-FileCopyrightText: 2025 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*!
  * escape-html
  * Copyright(c) 2012-2013 TJ Holowaychuk
  * Copyright(c) 2015 Andreas Lubbe
