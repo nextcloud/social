@@ -65,6 +65,13 @@ again.
   ask only that one. Servers that did not answer are named under the results, so
   a short list is never mistaken for an empty fediverse. Somebody this server
   already knows opens here; a stranger opens on their own server.
+- **Look at who they follow**, on the People tab, suggests the people the
+  people you follow follow. Once it has answered, **Constellation** shows the
+  same suggestions as a small sky: you in the middle, the people you follow who
+  led somewhere around you, and the suggestions at the edge, tied to whoever
+  they came through. It settles by itself; drag a star anywhere and it stays
+  there, and press one to follow. **List** puts it back. Every star is a
+  button that says who it is and why, so a keyboard gets there too.
 - **Starter packs** are named handfuls of accounts with a **Follow everyone**
   button. Two ship with the app — the projects behind the network, and
   photography — and an administrator can curate more.

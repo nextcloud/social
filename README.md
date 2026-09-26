@@ -140,7 +140,9 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   TikTok already knows. The same timeline at the same scope, so the way across changes
   how the videos are watched and not which ones they are. Muted until you ask, one
   playing at a time and the rest paused rather than left buffering, and reachable with
-  the arrow keys and the space bar.
+  the arrow keys and the space bar. A heart button likes the video and sends hearts up
+  the edge; a double tap on the video likes it and puts a heart where your finger was
+  (and never takes a like back); `l` does the same from the keyboard.
 ![Videos, including federated PeerTube channels](img/readme/videos.jpg)
 
 - **PeerTube, properly — in both directions.** A PeerTube video arrives with its
