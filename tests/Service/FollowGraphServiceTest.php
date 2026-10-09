@@ -339,8 +339,6 @@ class FollowGraphServiceTest extends TestCase {
 		$this->service = $this->build($cache);
 
 		$first = $this->counted($this->service->suggestions($this->viewer()));
-		fwrite(STDERR, 'KEPT KEYS: ' . json_encode(array_keys($kept)) . ' values are strings: ' . json_encode(array_map('is_string', $kept)) . '
-');
 		$fetchedOnce = count($this->fetched);
 		$second = $this->counted($this->service->suggestions($this->viewer()));
 

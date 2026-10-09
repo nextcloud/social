@@ -519,12 +519,12 @@ class FediverseServiceTest extends TestCase {
 	}
 
 	public function testABlockStandsEvenWhenItsPurgeCannotBeQueued(): void {
-		$this->withAccess('all_but', []);
+		$this->withStoredConfig([ConfigService::SOCIAL_ACCESS_TYPE => 'all_but', ConfigService::SOCIAL_ACCESS_LIST => '[]']);
 		$this->jobList->method('add')->willThrowException(new Exception('no job list'));
 
 		$this->service->addAddress('spam.example');
 
-		$this->assertTrue(true, 'addAddress() did not throw');
+		$this->assertSame(['spam.example'], json_decode($this->stored[ConfigService::SOCIAL_ACCESS_LIST], true));
 	}
 
 	// #2281: a post arrives and its pictures do not. Mastodon serves media

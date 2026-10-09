@@ -90,8 +90,7 @@ class DomainPurgeTest extends TestCase {
 			->willThrowException(new InvalidResourceException('not a domain'));
 		$this->jobList->expects($this->never())->method('add');
 
+		// a throw out of run() fails the test: the job swallows the failure
 		$this->runJob(['domain' => 'spam.example']);
-
-		$this->assertTrue(true, 'the job swallowed the failure instead of propagating it');
 	}
 }
