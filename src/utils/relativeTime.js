@@ -141,13 +141,14 @@ export function fullDateTime(date) {
  * of the window rather than about the day it runs to.
  *
  * @param {string|number|Date} date the date to write out
+ * @param {string} [timeZone] the zone whose calendar day to name; the reader's own when omitted
  * @return {string} a localised date, or '' for a date that cannot be read
  */
-export function fullDate(date) {
+export function fullDate(date, timeZone = undefined) {
 	const value = new Date(date)
 	if (Number.isNaN(value.getTime())) {
 		return ''
 	}
 
-	return new Intl.DateTimeFormat(locale(), { dateStyle: 'long' }).format(value)
+	return new Intl.DateTimeFormat(locale(), { dateStyle: 'long', timeZone }).format(value)
 }
