@@ -3430,6 +3430,28 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([3, 9, 8, 7], [$captured->getLimit(), $captured->getMaxId(), $captured->getMinId(), $captured->getSince()]);
 	}
 
+	/**
+	 * `since_id` is the name Mastodon gives the cursor, and the one a client
+	 * sends; these two routes read only `since`, so a client asking for the
+	 * followers newer than one it had was answered from the top of the list.
+	 */
+	public function testFollowersAndFollowingTakeMastodonsSinceId(): void {
+		$actor = $this->createStub(Person::class);
+		$this->cacheActorService->method('getFromAccount')->with('alice')->willReturn($actor);
+		$captured = [];
+		$this->cacheActorService->method('probeActors')->willReturnCallback(function (ProbeOptions $o) use (&$captured): array {
+			$captured[] = $o;
+
+			return [];
+		});
+
+		$this->controller()->accountFollowers('alice', since_id: '41');
+		$this->controller()->accountFollowing('alice', since_id: '42');
+		$this->controller()->accountFollowing('alice', since: 43);
+
+		$this->assertSame([41, 42, 43], array_map(static fn (ProbeOptions $o): int|string => $o->getSince(), $captured));
+	}
+
 	public function testAccountFollowingOfBareUsernameIsProbedLocally(): void {
 		$actor = $this->createStub(Person::class);
 		$this->cacheActorService->method('getFromAccount')->with('alice')->willReturn($actor);
