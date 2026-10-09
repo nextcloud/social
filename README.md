@@ -914,19 +914,29 @@ cannot prove.
 
 `tests/e2e/` drives a real Nextcloud with the app installed, in Chromium,
 through [Playwright](https://playwright.dev): sign in, open the app, write a
-post and see it in the feed, walk the Discover page, switch scopes, open a
-group list, add and remove a keyword filter, and check that a post of your own
-offers to be deleted and written again. Nothing is mocked, and the bundle under test is the committed one
-in `js/`. `.github/workflows/e2e.yml` sets up a throwaway server for every pull
-request; against an instance of your own:
+post and see it in the feed, attach and describe a picture, vote in a poll,
+reply and boost, follow and unfollow, send a direct message only its recipient
+can read, receive a like and a mention, search for an account and a hashtag,
+make and fill a list, add and remove a keyword filter, read public profiles and
+posts signed out, and use the main pages on a phone-sized screen. Nothing is
+mocked, and the bundle under test is the committed one in `js/`.
+`.github/workflows/e2e.yml` sets up a throwaway server for every pull request;
+against an instance of your own:
 
 ```
 npx playwright install chromium
 E2E_BASE_URL=https://cloud.example E2E_USER=alice E2E_PASSWORD=… E2E_GROUP="Design" npm run test:e2e
 ```
 
-`E2E_GROUP` is optional — the display name of a Nextcloud group the account is
-in, for the list test; without it that test is skipped.
+`E2E_USER` should not be the administrator: the flows with two people use the
+administrator as the other one (`E2E_ADMIN_USER`/`E2E_ADMIN_PASSWORD`, default
+`admin`/`admin`), who also creates a bystander account for the direct-message
+test. `E2E_GROUP` is optional — the display name of a Nextcloud group the
+account is in, for the list test; without it that test is skipped outside CI.
+The hashtag search test needs a hashtag the cron has counted; the workflow
+seeds `#alohasearch` with `occ social:note:create` and `occ social:cache:refresh`.
+`E2E_BROWSERS=webkit,firefox` (or `all`) also runs the smoke spec in those
+engines, once they are installed.
 
 ## 🛠️ Contributing
 
