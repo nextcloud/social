@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Cron\Queue;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -1657,6 +1658,121 @@ class ActivityServiceTest extends TestCase {
 		$this->assertSame(ActivityService::PARALLEL + 5, $this->service->manageRequests($queues, time() + 60, $this->nothingHandedBack()));
 
 		$this->assertSame([ActivityService::PARALLEL, 5], $sizes);
+	}
+
+	/**
+	 * Four deliveries to each of fifty servers, every one answering in 100 ms,
+	 * in the two orders a batch can come in.
+	 *
+	 * @return array<string, array{list<RequestQueue>}>
+	 */
+	public static function twoHundredDeliveries(): array {
+		return [
+			'each server\'s rows together' => [self::deliveries(static fn (int $host, int $row): int => $host * 4 + $row)],
+			'the servers taking turns' => [self::deliveries(static fn (int $host, int $row): int => $row * 50 + $host)],
+		];
+	}
+
+	/**
+	 * @param callable(int, int): int $position where row `$row` of host `$host` sits in the batch
+	 *
+	 * @return list<RequestQueue>
+	 */
+	private static function deliveries(callable $position): array {
+		$queues = [];
+		for ($host = 0; $host < 50; $host++) {
+			for ($row = 0; $row < 4; $row++) {
+				$queue = new RequestQueue(
+					'{"type":"Create","id":"https://social.example/@alice/' . $row . '"}',
+					new InstancePath('https://host' . $host . '.example/users/u' . $row . '/inbox', InstancePath::TYPE_INBOX, InstancePath::PRIORITY_MEDIUM),
+					self::ALICE_ID
+				);
+				$queue->setToken(self::TOKEN);
+				$queue->setTimeout(10);
+				$queues[$position($host, $row)] = $queue;
+			}
+		}
+		ksort($queues);
+
+		return array_values($queues);
+	}
+
+	/**
+	 * Sends each wave in what its slowest server takes, on a clock of its own
+	 * rather than a real one, and records which hosts each wave went to.
+	 *
+	 * @param array<string, int> $slow host => milliseconds it takes to fail;
+	 *                                 every other host answers in 100 ms
+	 * @param list<list<string>> $waves
+	 */
+	private function sendOnAClock(array $slow, array &$waves, int &$elapsed): void {
+		$this->curlService->method('sendMany')
+			->willReturnCallback(function (array $requests) use ($slow, &$waves, &$elapsed): array {
+				$hosts = [];
+				$outcomes = [];
+				$slowest = 0;
+				foreach ($requests as $i => $request) {
+					$host = (string)parse_url($request['url'], PHP_URL_HOST);
+					$hosts[] = $host;
+					$slowest = max($slowest, $slow[$host] ?? 100);
+					$outcomes[$i] = isset($slow[$host]) ? new RequestNetworkException('timed out') : null;
+				}
+				$waves[] = $hosts;
+				$elapsed += $slowest;
+
+				return $outcomes;
+			});
+	}
+
+	/**
+	 * Two hundred deliveries to fifty servers are ten waves of twenty, never
+	 * one server twice in a wave — a second of a cron pass that may take four
+	 * minutes, where one delivery after another took twenty.
+	 *
+	 * @param list<RequestQueue> $queues
+	 */
+	#[DataProvider('twoHundredDeliveries')]
+	public function testTwoHundredDeliveriesToFiftyServersTakeTenWaves(array $queues): void {
+		$waves = [];
+		$elapsed = 0;
+		$this->sendOnAClock([], $waves, $elapsed);
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests($queues, time() + 60, $this->nothingHandedBack());
+
+		$this->assertSame(200, $attempted);
+		$this->assertLessThanOrEqual(10, count($waves));
+		foreach ($waves as $wave) {
+			$this->assertLessThanOrEqual(ActivityService::PARALLEL, count($wave));
+			$this->assertSame(array_unique($wave), $wave, 'a server is asked twice at once');
+		}
+		$this->assertLessThanOrEqual(1000, $elapsed);
+		$this->assertLessThan(Queue::REQUEST_DURATION * 1000, $elapsed);
+	}
+
+	/**
+	 * One of the fifty servers takes its full ten-second timeout to fail. It
+	 * costs that once, in one wave beside nineteen deliveries that went
+	 * through; its other three rows are held back by the breaker without a
+	 * request, and the other forty-nine servers' rows still go out in ten
+	 * waves.
+	 *
+	 * @param list<RequestQueue> $queues
+	 */
+	#[DataProvider('twoHundredDeliveries')]
+	public function testASlowServerDoesNotHoldBackTheOthers(array $queues): void {
+		$waves = [];
+		$elapsed = 0;
+		$this->sendOnAClock(['host7.example' => 10000], $waves, $elapsed);
+		$this->requestQueueService->expects($this->exactly(3))->method('postponeRequest');
+
+		$this->service->manageInit();
+		$attempted = $this->service->manageRequests($queues, time() + 60, $this->nothingHandedBack());
+
+		$this->assertSame(197, $attempted, 'everything but the slow server\'s three held-back rows');
+		$this->assertLessThanOrEqual(10, count($waves));
+		$this->assertSame(1, count(array_keys(array_merge(...$waves), 'host7.example', true)), 'the slow server is asked once');
+		$this->assertLessThanOrEqual(10000 + 9 * 100, $elapsed, 'its timeout is paid once, beside the rest');
 	}
 
 	/** A row that cannot even be signed is handed back; the rest of its wave still goes. */
