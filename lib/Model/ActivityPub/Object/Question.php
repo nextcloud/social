@@ -72,6 +72,15 @@ class Question extends Note implements JsonSerializable {
 		return ($time === false || $time < 0) ? null : $time;
 	}
 
+	/**
+	 * A time as the client API writes every one: UTC, with milliseconds and
+	 * `Z`. The `endTime` a peer sent is kept as it was written, which may be
+	 * any ISO 8601 spelling.
+	 */
+	private static function clientTime(?int $time): ?string {
+		return ($time === null) ? null : gmdate('Y-m-d\TH:i:s', $time) . '.000Z';
+	}
+
 	public function isExpired(): bool {
 		if ($this->closed !== '') {
 			return true;
@@ -175,7 +184,9 @@ class Question extends Note implements JsonSerializable {
 	#[\Override]
 	public function jsonSerialize(): array {
 		$result = parent::jsonSerialize();
-		if ($this->options === []) {
+		// the client format carries the poll as `poll` (exportAsLocal), and
+		// these are the ActivityPub spellings of the same thing
+		if ($this->options === [] || $this->getExportFormat() === self::FORMAT_LOCAL) {
 			return $result;
 		}
 
@@ -218,7 +229,7 @@ class Question extends Note implements JsonSerializable {
 
 		$result['poll'] = [
 			'id' => (string)$this->getNid(),
-			'expires_at' => ($this->endTime === '') ? null : $this->endTime,
+			'expires_at' => self::clientTime($this->getEndTimestamp()),
 			'expired' => $this->isExpired(),
 			'multiple' => $this->multiple,
 			'votes_count' => array_sum(array_column($this->options, 'votes_count')),

@@ -193,4 +193,42 @@ class QuestionTest extends TestCase {
 		$this->assertSame('fr', $question->getLanguage());
 		$this->assertSame('fr', $question->exportAsLocal()['language']);
 	}
+
+	/**
+	 * `poll.expires_at` is written the way every client API time is,
+	 * whatever spelling the poll's server used for `endTime`: a client that
+	 * parses Mastodon's `….302Z` with a fractional-seconds formatter fails on
+	 * a time without them, and loses the status with it.
+	 */
+	public function testThePollEndIsAClientApiTime(): void {
+		$question = new Question();
+		$question->import($this->mastodonPoll('oneOf', ['endTime' => '2026-11-02T10:30:00+01:00']));
+
+		$this->assertSame('2026-11-02T09:30:00.000Z', $question->exportAsLocal()['poll']['expires_at']);
+
+		$local = new Question();
+		$local->setPollData(['Cats', 'Dogs'], false, 3600);
+		$this->assertMatchesRegularExpression(
+			'/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/',
+			$local->exportAsLocal()['poll']['expires_at']
+		);
+	}
+
+	/**
+	 * The status a client receives carries the poll once, as `poll`. The
+	 * ActivityPub `oneOf`, `endTime` and `votersCount` used to be bolted on
+	 * beside it by jsonSerialize(), which is what a JSON response encodes.
+	 */
+	public function testTheClientFormatCarriesThePollOnlyAsPoll(): void {
+		$question = new Question();
+		$question->import($this->mastodonPoll());
+		$question->setExportFormat(Question::FORMAT_LOCAL);
+
+		$client = json_decode((string)json_encode($question), true);
+
+		$this->assertIsArray($client['poll']);
+		foreach (['oneOf', 'anyOf', 'endTime', 'votersCount', 'closed'] as $key) {
+			$this->assertArrayNotHasKey($key, $client);
+		}
+	}
 }
