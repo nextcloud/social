@@ -312,8 +312,8 @@ class WebSocketServer {
 			$length = unpack('J', substr($buffer, 2, 8))[1];
 			$offset = 10;
 		}
-		if ($length > self::REQUEST_LIMIT) {
-			// a subscriber never sends anything that long; the caller closes
+		if ($length < 0 || $length > self::REQUEST_LIMIT) {
+			// a subscriber never sends anything that long, and a length with its top bit set is none at all; the caller closes
 			$buffer = str_repeat('x', self::REQUEST_LIMIT + 1);
 
 			return null;
