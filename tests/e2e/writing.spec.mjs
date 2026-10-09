@@ -44,8 +44,12 @@ test.describe('writing, in a browser', () => {
 		await expect(like).toBeVisible()
 
 		const before = await like.getAttribute('aria-pressed')
+		// the page flips the button before the server answers, and a reload
+		// before the answer would cancel the request it is checking
+		const saved = page.waitForResponse((response) => /\/(un)?favourite$/.test(response.url()))
 		await like.click()
 		await expect(like).toHaveAttribute('aria-pressed', before === 'true' ? 'false' : 'true')
+		expect((await saved).ok()).toBe(true)
 
 		await page.reload()
 		const after = page.locator('.social__timeline article').first()
