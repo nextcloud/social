@@ -141,7 +141,8 @@ to stop.
   or a vote storing the client entity where the post's ActivityPub document
   belongs; `Api/FamiliarFollowersTest` the reader listed among their own
   familiar followers; `Api/ReactedByTest` every account of `favourited_by`
-  and `reblogged_by` answered as `"id": "0"`. `Api/InstanceConfigurationTest`
+  and `reblogged_by` answered as `"id": "0"`, `Api/BoostedAuthorTest` the
+  same of the author of every boosted post and notified-about status. `Api/InstanceConfigurationTest`
   holds the limits `/api/v2/instance` announces against what a post is
   held to, and caught URLs counted at their full length where the instance
   says 23.
