@@ -106,6 +106,15 @@ to stop.
   its thread, search, and a byte range of a media file. A page of twenty must
   cost what a page of five costs (no query per post) and stay within today's
   count plus two.
+- `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
+  method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
+  join path), Photos and Videos on home, public and a profile, an account's
+  statuses, notifications, the delivery queue's standby read, follower
+  inboxes and the handle lookup. SQLite: every guarded table is searched
+  through an index, never scanned. MySQL: a key and no full read, no filesort
+  or temporary table unless the query is listed as one that sorts.
+  PostgreSQL: no `Seq Scan` on a guarded table. MySQL and PostgreSQL are
+  seeded to ~2,000 posts and `ANALYZE`d first.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
