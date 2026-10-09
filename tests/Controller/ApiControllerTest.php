@@ -1619,6 +1619,33 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame($entity, $response->getData());
 	}
 
+	/** @return array<string, array{int, int}> */
+	public static function scheduledStatusLimits(): array {
+		return [
+			'a page inside the range' => [25, 25],
+			'the most the dispatcher lets through' => [500, 40],
+			'more than that, from a direct caller' => [100000, 40],
+			'zero' => [0, 1],
+			'negative, which SQLite reads as no limit at all' => [-1, 1],
+		];
+	}
+
+	/**
+	 * The limit reached `setMaxResults()` as the client sent it: every other
+	 * paged route clamps it to the page it documents, this one did not.
+	 */
+	#[DataProvider('scheduledStatusLimits')]
+	public function testTheScheduledStatusesPageIsClampedToMastodonsForty(int $asked, int $read): void {
+		$this->loggedInAs();
+		$this->scheduledStatusService->expects($this->once())->method('getAll')
+			->with($this->anything(), $read)
+			->willReturn([]);
+
+		$response = $this->controller()->scheduledStatuses($asked);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
 	/**
 	 * A post a rule holds is stored as a request and never reaches
 	 * `social_stream`, so there is no row for a timeline to find. The client
