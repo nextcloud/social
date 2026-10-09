@@ -6,6 +6,11 @@ import { fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vitest/config'
 
+// Dates are read in one zone on every machine: UTC, or the zone named in
+// SOCIAL_TEST_TZ for a run that looks for zone-dependent code. Set here,
+// before any worker starts, because a worker reads TZ when it boots.
+process.env.TZ = process.env.SOCIAL_TEST_TZ || 'UTC'
+
 export default defineConfig({
 	plugins: [vue()],
 	resolve: {

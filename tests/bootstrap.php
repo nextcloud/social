@@ -42,6 +42,15 @@ spl_autoload_register(static function (string $class): void {
 	}
 });
 
+// Every run reads the clock in one zone: UTC, which Nextcloud pins PHP to
+// before the app runs, or the zone named in SOCIAL_TEST_TZ for a run that looks
+// for zone-dependent code. php.ini's date.timezone differs between machines.
+$zone = getenv('SOCIAL_TEST_TZ');
+date_default_timezone_set(
+	(is_string($zone) && in_array($zone, timezone_identifiers_list(), true)) ? $zone : 'UTC'
+);
+unset($zone);
+
 if (!defined('PHPUNIT_RUN')) {
 	define('PHPUNIT_RUN', 1);
 }

@@ -72,4 +72,19 @@ class TestSuiteIntegrityTest extends TestCase {
 			'a helper named after a TestCase method is a load-time fatal, and it takes the whole suite with it'
 		);
 	}
+
+	/**
+	 * php.ini's zone is whatever the machine has, and code that reads a
+	 * stored or written date in the local zone passes on a UTC laptop and
+	 * fails half a day away. The bootstrap pins one zone so a run means the
+	 * same thing everywhere.
+	 */
+	public function testTheSuiteReadsTheClockInUtcUnlessAskedForAnotherZone(): void {
+		$asked = getenv('SOCIAL_TEST_TZ');
+
+		$this->assertSame(
+			(is_string($asked) && $asked !== '') ? $asked : 'UTC',
+			date_default_timezone_get()
+		);
+	}
 }

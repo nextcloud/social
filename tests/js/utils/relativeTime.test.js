@@ -57,9 +57,11 @@ describe('shortAgo', () => {
 		expect(shortAgo(ago(15 * 86400), now)).toBe('2w')
 	})
 
+	// noon on the 1st in the reader's own zone, which is the zone the date is
+	// written in: noon UTC is already the 2nd east of +12
 	it('gives the date once a post is a month old, and the year once it is not this one', () => {
-		expect(shortAgo(new Date('2026-08-01T12:00:00Z'), now)).toBe('Aug 1')
-		expect(shortAgo(new Date('2025-08-01T12:00:00Z'), now)).toBe('Aug 1, 2025')
+		expect(shortAgo(new Date(2026, 7, 1, 12), now)).toBe('Aug 1')
+		expect(shortAgo(new Date(2025, 7, 1, 12), now)).toBe('Aug 1, 2025')
 	})
 
 	it('says nothing for a date it cannot read, and treats a clock running ahead as now', () => {
