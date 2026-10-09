@@ -162,6 +162,17 @@ class InstanceActorServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The key every signed fetch of this server goes out under: RSA, and no
+	 * shorter than the 2048 bits an actor's own key has.
+	 */
+	public function testTheGeneratedKeyIsRsaOfAtLeast2048Bits(): void {
+		$details = openssl_pkey_get_details(openssl_pkey_get_public($this->service()->getActor()->getPublicKey()));
+
+		$this->assertSame(OPENSSL_KEYTYPE_RSA, $details['type']);
+		$this->assertGreaterThanOrEqual(2048, $details['bits']);
+	}
+
 	/** The published key has to be the one a peer can verify a signature with. */
 	public function testTheStoredPairSignsAndVerifiesAgainstThePublishedKey(): void {
 		$actor = $this->service()->getSigningActor();
