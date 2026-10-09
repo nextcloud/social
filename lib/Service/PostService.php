@@ -615,7 +615,7 @@ class PostService {
 	 * rewrite it the same way or the next re-export federates the old text.
 	 */
 	private function snapshotSource(Stream $stream): void {
-		$stream->setSource(json_encode($stream, JSON_UNESCAPED_SLASHES));
+		$stream->setSource($stream->wireSource());
 	}
 
 	/**

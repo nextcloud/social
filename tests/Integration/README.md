@@ -137,7 +137,8 @@ to stop.
   accounts with a bearer token, each controller built by a fresh app
   container, the answer put through `json_encode()` as the JSON responder
   does (`ApiTestCase`). `Api/StatusMentionsTest` caught every status written
-  here reaching clients with `mentions: []`.
+  here reaching clients with `mentions: []`; `Api/StoredSourceTest` caught an edit or a vote
+  storing the client entity where the post's ActivityPub document belongs.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

@@ -2334,6 +2334,23 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		self::$replyParents = [];
 	}
 
+	/**
+	 * The wire object as the `source` column keeps it: the ActivityPub
+	 * document, whatever format this copy was read in. A post read back for
+	 * an edit or a vote is read in the client format, and snapshotted as it
+	 * stood it stored the Mastodon entity in place of the document — which
+	 * has no `tag` to read the custom emoji from, and no `oneOf` for a poll.
+	 */
+	public function wireSource(): string {
+		$format = $this->getExportFormat();
+		$this->setExportFormat(self::FORMAT_ACTIVITYPUB);
+		try {
+			return (string)json_encode($this, JSON_UNESCAPED_SLASHES);
+		} finally {
+			$this->setExportFormat($format);
+		}
+	}
+
 	/** Forgets the memoised quoted statuses; for tests, which share one process. */
 	public static function resetQuoteCache(): void {
 		self::$quotedStatuses = [];
