@@ -62,6 +62,11 @@ to stop.
   no test had run. `Db/InstanceStatsRequestTest` caught the weekly activity
   counting zero statuses: its window was bound as integers against a DATETIME
   column.
+- `Db/ActorCascadeTest` — deleting a Nextcloud user (`IUser::delete()`, so the
+  listener and the whole cascade run) leaves no row in any table that names
+  their account, and another user's rows untouched. A schema guard fails when
+  a table with an account-like column is neither cascaded nor listed as kept
+  or as a known gap.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
