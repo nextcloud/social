@@ -11,6 +11,10 @@
 # which side failed before blaming the change under review: the last step
 # prints what each side saw. A newer push to the same pull request cancels the
 # run still going for the old one.
+#
+# Pull requests and pushes run against Mastodon 4.3. The weekly and the manual
+# run add the newest Mastodon, which writes quote posts (4.3 cannot, so the
+# quote test skips there) and is where a change on Mastodon's side shows first.
 
 name: Interop against Mastodon and PeerTube
 
@@ -34,7 +38,13 @@ concurrency:
 jobs:
   interop:
     runs-on: ubuntu-latest
-    name: Nextcloud Social ↔ Mastodon, PeerTube
+    strategy:
+      fail-fast: false
+      matrix:
+        mastodon: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["v4.3", "v4.5"]' || '["v4.3"]') }}
+    # the 4.3 leg keeps the name it had before there was a matrix, so a check
+    # required by that name still finds it
+    name: ${{ matrix.mastodon == 'v4.3' && 'Nextcloud Social ↔ Mastodon, PeerTube' || format('Nextcloud Social ↔ Mastodon {0}, PeerTube', matrix.mastodon) }}
 
     services:
       postgres:
@@ -63,6 +73,8 @@ jobs:
 
     env:
       APP_NAME: social
+      # the image tag, and what MastodonInboundTest checks the instance against
+      MASTODON_VERSION: ${{ matrix.mastodon }}
       # Both sides talk to each other over the runner's own loopback, so both
       # have to be willing to. Mastodon refuses private addresses unless it is
       # told otherwise, and Nextcloud's HTTP client refuses localhost unless it
@@ -254,18 +266,18 @@ jobs:
           docker network create interop || true
           docker run -d --name mastodon-setup --network host --env-file /tmp/mastodon.env \
             -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
-            ghcr.io/mastodon/mastodon:v4.3 \
+            "ghcr.io/mastodon/mastodon:${MASTODON_VERSION}" \
             bundle exec rails db:setup
           docker wait mastodon-setup
           docker logs mastodon-setup | tail -20
 
           docker run -d --name mastodon-web --network host --env-file /tmp/mastodon.env \
             -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
-            ghcr.io/mastodon/mastodon:v4.3 \
+            "ghcr.io/mastodon/mastodon:${MASTODON_VERSION}" \
             bundle exec puma -C config/puma.rb
           docker run -d --name mastodon-sidekiq --network host --env-file /tmp/mastodon.env \
             -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
-            ghcr.io/mastodon/mastodon:v4.3 \
+            "ghcr.io/mastodon/mastodon:${MASTODON_VERSION}" \
             bundle exec sidekiq
 
       - name: Wait for Mastodon

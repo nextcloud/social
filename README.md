@@ -921,11 +921,12 @@ composer run test:interop
 ```
 
 `.github/workflows/interop.yml` stands the whole thing up — Postgres, Redis,
-Mastodon, PeerTube, a Nextcloud and an account on each side — weekly and on
-demand. Deliberately
-not on every pull request: it depends on a third-party image whose startup this
-repository does not control. See `tests/Interop/README.md`, including what it
-cannot prove.
+Mastodon, PeerTube, a Nextcloud and an account on each side — on every pull
+request and push against Mastodon 4.3, and weekly and on demand against
+Mastodon 4.5 as well, which is the version that writes quote posts. It depends
+on third-party images whose startup this repository does not control, so a red
+run is worth reading for which side failed. See `tests/Interop/README.md`,
+including what it cannot prove.
 
 ### Browser tests
 

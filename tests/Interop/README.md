@@ -62,7 +62,11 @@ be read and voted on, the vote counted on Mastodon; a picture with its
 description; a hashtag post on that tag's timeline; a profile change (name,
 bio, avatar) refreshing the copy held here; an unfollow ending the follow
 here; and a block ending both follows. A quote is written only by Mastodon 4.4
-and later, so against the 4.3 the workflow pins that test skips and says why.
+and later, so against the 4.3 that pull requests run that test skips and says
+why; the weekly run adds Mastodon 4.5, where it runs. The workflow names the
+version it started in `MASTODON_VERSION`, and
+`testTheMastodonIsTheOneTheWorkflowStarted` fails if the instance reports
+another one, so a leg cannot quietly turn into one that skips the quote test.
 
 The tests on this side talk to this app over HTTPS, at the address the other
 servers know it by, with a token minted the way `/oauth/token` mints one
@@ -143,10 +147,11 @@ Its later runs, with the inbound and client-API tests, found these:
 
 ## What it cannot prove
 
-It runs against **one** version of each, on **one host**, with a certificate
-authority made for the job. So it says nothing about instances running
-`AUTHORIZED_FETCH`, about Mastodon or PeerTube versions other than the ones the
-workflow pins, or about what a public certificate chain would change.
+It runs against **one** version of PeerTube and two of Mastodon (4.3 on every
+run, 4.5 weekly), on **one host**, with a certificate authority made for the
+job. So it says nothing about instances running `AUTHORIZED_FETCH`, about
+Mastodon or PeerTube versions other than the ones the workflow pins, or about
+what a public certificate chain would change.
 
 ## Running it
 
