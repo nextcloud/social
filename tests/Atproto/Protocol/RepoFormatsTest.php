@@ -225,6 +225,50 @@ class RepoFormatsTest extends TestCase {
 	}
 
 	/**
+	 * @return array<string, array{0: array<string, string>, 1: string}> the blocks and the root's CID
+	 */
+	public static function unorderedTrees(): array {
+		$leaf = Cid::forRaw('r');
+		$a = 'app.bsky.feed.post/3jzfcijpj2z2a';
+		$b = 'app.bsky.feed.post/3jzfcijpj2z2b';
+		$entry = static fn (string $key, ?Cid $right = null): array => ['k' => new Bytes($key), 'p' => 0, 't' => $right, 'v' => $leaf];
+		$node = static function (array $entries, ?Cid $left = null): array {
+			$bytes = DagCbor::encode(['e' => $entries, 'l' => $left]);
+
+			return [Cid::forDagCbor($bytes)->toString() => $bytes];
+		};
+		$tree = static function (array ...$nodes): array {
+			$blocks = array_merge(...$nodes);
+
+			return [$blocks, (string)array_key_last($blocks)];
+		};
+		$childB = $node([$entry($b)]);
+		$childA = $node([$entry($a)]);
+
+		return [
+			'two keys the wrong way round' => $tree($node([$entry($b), $entry($a)])),
+			'a key twice in a node' => $tree($node([$entry($a), $entry($a)])),
+			'a left subtree with a key past the node\'s' => $tree($childB, $node([$entry($a)], Cid::parse((string)array_key_first($childB)))),
+			'a right subtree with a key before its entry' => $tree($childA, $node([$entry($b, Cid::parse((string)array_key_first($childA)))])),
+			'a key twice across layers' => $tree($childA, $node([$entry($a)], Cid::parse((string)array_key_first($childA)))),
+		];
+	}
+
+	/**
+	 * The keys of a tree, read in order, strictly ascend: within a node,
+	 * and across the subtrees between its entries. A tree that breaks this
+	 * is not one any PDS made, whatever its CIDs say.
+	 *
+	 * @param array<string, string> $blocks
+	 */
+	#[DataProvider('unorderedTrees')]
+	public function testATreeWhoseKeysDoNotAscendIsRefused(array $blocks, string $root): void {
+		$this->expectException(InvalidArgumentException::class);
+		$this->expectExceptionMessage('out of order');
+		MstReader::leaves(Cid::parse($root), $blocks);
+	}
+
+	/**
 	 * A node whose subtree is itself never ends; the walk does, at the
 	 * depth no real repository reaches.
 	 */
