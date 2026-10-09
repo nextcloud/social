@@ -1019,6 +1019,22 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The value as typed, from what `fieldValueAsHtml()` made of it.
+	 *
+	 * A local actor's cached copy keeps its own served document as `source`,
+	 * and the fields are read back out of it, already rendered: served from
+	 * there they were rendered a second time, and every peer showed the
+	 * markup of the first rendering as text. Only a value that renders back
+	 * to exactly what is stored is decoded; anything else (a row written
+	 * before values were rendered) is the typed value already.
+	 */
+	private static function fieldValueFromHtml(string $value): string {
+		$typed = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML401, 'UTF-8');
+
+		return (self::fieldValueAsHtml($typed) === $value) ? $typed : $value;
+	}
+
+	/**
 	 * @return array[] the PropertyValue entries of an actor's `attachment`
 	 */
 	private function extractFieldsFromAttachment(array $data): array {
@@ -1295,7 +1311,17 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$this->setDiscoverable($this->getBool('discoverable', $source, $this->isDiscoverable()));
 			$this->setIndexable($this->getBool('indexable', $source, $this->isIndexable()));
 			$this->setEmojis($this->extractEmojisFromTag($source));
-			$this->setFields($this->extractFieldsFromAttachment($source));
+			$fields = $this->extractFieldsFromAttachment($source);
+			if ($this->isLocal()) {
+				$fields = array_map(
+					static fn (array $field): array => [
+						'name' => $field['name'],
+						'value' => self::fieldValueFromHtml($field['value']),
+					],
+					$fields
+				);
+			}
+			$this->setFields($fields);
 		}
 
 		// A cached remote row keeps the actor type it was served as, which is

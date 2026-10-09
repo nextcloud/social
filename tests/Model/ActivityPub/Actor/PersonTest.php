@@ -1341,6 +1341,54 @@ class PersonTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A local actor is served from its cached copy, whose `source` is the
+	 * document it was served as, with the field values already rendered. Read
+	 * back from there they are the values as typed, so they are rendered once
+	 * on the wire and not a second time over the first rendering.
+	 */
+	public function testALocalFieldReadBackFromTheCacheIsRenderedOnce(): void {
+		$typed = [
+			['name' => 'Website', 'value' => 'https://alice.example/?a=1&b=2'],
+			['name' => 'Motto', 'value' => 'a <b> & "c" \'d\''],
+		];
+		$person = new Person();
+		$person->setId('https://social.example/@alice');
+		$person->setLocal(true);
+		$person->setFields($typed);
+		$served = $person->exportAsActivityPub()['attachment'];
+
+		$cached = new Person();
+		$cached->importFromDatabase([
+			'id' => 'https://social.example/@alice',
+			'type' => 'Person',
+			'local' => '1',
+			'source' => json_encode($person, JSON_UNESCAPED_SLASHES),
+		]);
+
+		$this->assertSame($typed, $cached->getFields());
+		$this->assertSame($served, $cached->exportAsActivityPub()['attachment']);
+	}
+
+	/** A cached copy written before values were rendered holds them as typed, and keeps them so. */
+	public function testALocalFieldCachedUnrenderedIsReadAsItIs(): void {
+		$cached = new Person();
+		$cached->importFromDatabase([
+			'id' => 'https://social.example/@alice',
+			'type' => 'Person',
+			'local' => '1',
+			'source' => json_encode(['attachment' => [
+				['type' => 'PropertyValue', 'name' => 'Maths', 'value' => 'a<b and b>c'],
+				['type' => 'PropertyValue', 'name' => 'Website', 'value' => 'https://alice.example'],
+			]]),
+		]);
+
+		$this->assertSame([
+			['name' => 'Maths', 'value' => 'a<b and b>c'],
+			['name' => 'Website', 'value' => 'https://alice.example'],
+		], $cached->getFields());
+	}
+
 	/** @return iterable<string, array{string, bool}> */
 	public static function channelOwners(): iterable {
 		yield 'the account the channel names' => ['https://video.example/accounts/owner', true];
