@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Atproto\Protocol;
 use InvalidArgumentException;
 use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
+use OCA\Social\Atproto\Move\RepoArchive;
 use OCA\Social\Atproto\Protocol\Bytes;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -105,6 +106,33 @@ class RepoFormatsTest extends TestCase {
 		$this->assertSame(['did', 'rev', 'sig', 'data', 'prev', 'version'], array_keys(DagCbor::decode($commit->toBytes())), 'canonical key order');
 	}
 
+	/**
+	 * `prev` is always present in a v3 commit and nearly always null, but
+	 * the spec allows a link, and commits written while repositories moved
+	 * from v2 to v3 carry one: such a commit reads, verifies over its own
+	 * prev, writes back to its own bytes, and a repository whose head is
+	 * one is taken when it moves here.
+	 */
+	public function testACommitWithAPrevLinkIsReadAndVerified(): void {
+		$key = PrivateKey::generate(Curve::K256);
+		$record = DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => 'from v2 days', 'createdAt' => '2023-08-01T00:00:00.000Z']);
+		$tree = (new Mst(['app.bsky.feed.post/3jzfcijpj2z2a' => Cid::forDagCbor($record)]))->build();
+		$prev = Cid::forDagCbor(DagCbor::encode(['an' => 'older commit']));
+		$unsigned = ['did' => self::DID, 'version' => 3, 'data' => $tree->root, 'rev' => '3jzfcijpj2z2a', 'prev' => $prev];
+		$bytes = DagCbor::encode($unsigned + ['sig' => new Bytes($key->sign(DagCbor::encode($unsigned)))]);
+
+		$commit = Commit::fromBytes($bytes);
+		$this->assertTrue($prev->equals($commit->prev));
+		$this->assertTrue($commit->verify($key->publicKey()));
+		$this->assertSame($bytes, $commit->toBytes());
+		$this->assertSame(Cid::forDagCbor($bytes)->toString(), $commit->cid()->toString());
+
+		$car = Car::encode([Cid::forDagCbor($bytes)], [Cid::forDagCbor($bytes)->toString() => $bytes] + $tree->blocks + [Cid::forDagCbor($record)->toString() => $record]);
+		$this->assertSame(['app.bsky.feed.post/3jzfcijpj2z2a' => $record], RepoArchive::read($car, self::DID, $key->publicKey())['records']);
+
+		$this->assertNull(Commit::sign(self::DID, $tree->root, '3jzfcijpj2z2a', $key)->prev, 'this app writes null');
+	}
+
 	public static function curves(): array {
 		return ['K-256' => [Curve::K256], 'P-256' => [Curve::P256]];
 	}
@@ -118,6 +146,7 @@ class RepoFormatsTest extends TestCase {
 
 		return [
 			'no prev at all' => [array_diff_key($good, ['prev' => true])],
+			'a prev that is text' => [['prev' => $root->toString()] + $good],
 			'a short signature' => [['sig' => new Bytes(str_repeat("\1", 63))] + $good],
 			'a signature as text' => [['sig' => str_repeat('a', 64)] + $good],
 			'a revision that is not a TID' => [['rev' => '1'] + $good],

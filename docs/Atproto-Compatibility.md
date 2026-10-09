@@ -2077,7 +2077,8 @@ before.
   `getUploadLimits` takes a token for `did:web:video.bsky.app`. A video
   view's playlist is `https://video.bsky.app/watch/<did>/<cid>/playlist.m3u8`,
   its segments relative to it.
-- Commit `version: 3`, `prev: null`, 64-byte low-S secp256k1 signature;
+- Commit `version: 3`, `prev` always present and written null (a CID link
+  is allowed and read), 64-byte low-S secp256k1 signature;
   MST fanout 4, 2 bits per level; CID v1 dag-cbor sha-256.
 - PLC: `POST /:did` operations, `GET /:did` document, `/:did/log/audit`,
   72-hour recovery window; `did:plc` is 24 base32 chars of the genesis
