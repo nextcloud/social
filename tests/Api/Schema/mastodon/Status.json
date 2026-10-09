@@ -192,7 +192,7 @@
 	},
 	"$defs": {
 		"Mention": {
-			"description": "Status::Mention.",
+			"description": "Status::Mention. A mention of an account this server could not resolve keeps the id \"0\" (pinned in ApiContractTest): there is no account here to name, and a string is still what a client decodes.",
 			"type": "object",
 			"required": [
 				"acct",
@@ -203,7 +203,7 @@
 			"properties": {
 				"id": {
 					"type": "string",
-					"format": "id"
+					"pattern": "^[0-9]+$"
 				},
 				"username": {
 					"type": "string"

@@ -34,8 +34,9 @@ What the schemas decide:
   `reblogged`, `muted`, `bookmarked` and `pinned` are then always present.
 - **Formats**: `datetime` is Mastodon's `YYYY-MM-DDTHH:MM:SS.sssZ` exactly;
   `date` is a calendar date (`Account.last_status_at`,
-  `FeaturedTag.last_status_at`); `id` is a string of digits; `url` an
-  absolute http(s) URL.
+  `FeaturedTag.last_status_at`); `id` is a string of digits and never `"0"`,
+  which is what a numeric id that was never read becomes; `url` an absolute
+  http(s) URL.
 - Keys this app adds beside Mastodon's are allowed and not typed here; the
   key sets themselves are pinned in `ApiContractTest`.
 
@@ -51,6 +52,12 @@ surprise:
 - `Notification.type` accepts this app's own namespaced types
   (`bluesky:verified`, `story:react`, …) and Pixelfed's `tagged`, beside
   Mastodon's.
+- `Status.mentions[].id` may be `"0"`: a mention of an account this server
+  could not resolve has no account here to name (`ApiContractTest`).
+- `AdminAccount.role` is null for every account: there are no roles here,
+  being an administrator is a property of the Nextcloud user.
+- `Translation.provider` may be empty: a Nextcloud translation task does not
+  say which service answered it.
 
 ## Using them
 

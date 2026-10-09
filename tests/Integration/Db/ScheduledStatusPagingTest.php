@@ -141,15 +141,29 @@ class ScheduledStatusPagingTest extends TestCase {
 		$this->assertSame([$third, $fourth], $page, 'the two rows before the cursor, in order');
 	}
 
-	/** `since_id` and `min_id` are the same question and answer the same way. */
-	public function testSinceIdAndMinIdAgree(): void {
+	/**
+	 * Here `since_id` and `min_id` agree, and that is particular to this list.
+	 *
+	 * The waiting posts are listed soonest first — the order docs/API.md
+	 * documents for this route, against Mastodon's newest first — and both
+	 * cursors ask for what comes after the cursor in that order, from the row
+	 * next to it. On the newest-first lists the two differ once there are more
+	 * rows than one page: `since_id` is the newest page, `min_id` the one next
+	 * to the cursor (tests/Integration/Api/PaginationTest). So the agreement
+	 * is pinned with more rows after the cursor than the page holds, where a
+	 * `since_id` read Mastodon's way would have skipped to the end.
+	 */
+	public function testSinceIdAndMinIdBothReadOnFromTheCursor(): void {
 		$first = $this->waiting(10);
 		$second = $this->waiting(20);
+		$third = $this->waiting(30);
+		$this->waiting(40);
+		$this->waiting(50);
 
-		$bySince = $this->ids($this->request->getByActor(self::ACTOR, 20, 0, 0, $first));
-		$byMin = $this->ids($this->request->getByActor(self::ACTOR, 20, 0, $first));
+		$bySince = $this->ids($this->request->getByActor(self::ACTOR, 2, 0, 0, $first));
+		$byMin = $this->ids($this->request->getByActor(self::ACTOR, 2, 0, $first));
 
-		$this->assertSame([$second], $bySince);
+		$this->assertSame([$second, $third], $bySince, 'the two rows after the cursor, not the last two');
 		$this->assertSame($bySince, $byMin);
 	}
 

@@ -1,5 +1,5 @@
 {
-	"description": "Admin::Account (docs.joinmastodon.org/entities/Admin_Account).",
+	"description": "Admin::Account (docs.joinmastodon.org/entities/Admin_Account). role is null where Mastodon holds no user for the account; this app sends null for every account (see AdminAccount.php).",
 	"type": "object",
 	"required": [
 		"account",
@@ -79,7 +79,8 @@
 			]
 		},
 		"role": {
-			"$ref": "Role"
+			"$ref": "Role",
+			"nullable": true
 		},
 		"confirmed": {
 			"type": "boolean"

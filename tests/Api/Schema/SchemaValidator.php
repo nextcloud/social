@@ -33,7 +33,8 @@ use stdClass;
  * - `date`: a calendar date, `2026-10-09`
  * - `iso8601`: any ISO 8601 date-time with a zone, for the one field Mastodon
  *   writes with an offset rather than `Z`
- * - `id`: a string of digits, which is what every Mastodon id is on the wire
+ * - `id`: a string of digits that is not `0`, which is what every Mastodon id
+ *   is on the wire; `"0"` is what a numeric id that was never read becomes
  * - `url`: an absolute http(s) URL
  * - `unix-string`: a Unix timestamp written as a string of digits
  * - `language`: an ISO 639 code, optionally with a region or script subtag
@@ -241,6 +242,7 @@ final class SchemaValidator {
 
 				return checkdate((int)$m[2], (int)$m[3], (int)$m[1]);
 			case 'id':
+				return preg_match('/^[1-9]\d*$/', $value) === 1;
 			case 'unix-string':
 				return preg_match('/^\d+$/', $value) === 1;
 			case 'url':

@@ -1,5 +1,5 @@
 {
-	"description": "Translation (docs.joinmastodon.org/entities/Translation). poll is documented as optional.",
+	"description": "Translation (docs.joinmastodon.org/entities/Translation). poll is documented as optional. provider may be empty: a Nextcloud translation task does not say which service answered it.",
 	"type": "object",
 	"required": [
 		"content",
@@ -69,8 +69,7 @@
 			"format": "language"
 		},
 		"provider": {
-			"type": "string",
-			"minLength": 1
+			"type": "string"
 		}
 	}
 }

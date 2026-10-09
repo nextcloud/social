@@ -145,7 +145,11 @@ to stop.
   same of the author of every boosted post and notified-about status. `Api/InstanceConfigurationTest`
   holds the limits `/api/v2/instance` announces against what a post is
   held to, and caught URLs counted at their full length where the instance
-  says 23.
+  says 23. `Api/MastodonEntitySchemaTest` validates every Mastodon entity
+  the routes answer with against the schemas in `tests/Api/Schema`, by type;
+  `Api/PaginationTest` asks every paged list the same questions — `max_id`
+  exclusive, `since_id` the newest page, `min_id` the adjacent one, the
+  `Link` cursors — with three pages of rows behind it.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

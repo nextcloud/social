@@ -89,6 +89,7 @@ class SchemaValidatorTest extends TestCase {
 		return [
 			'an integer id' => [['id' => 109347], '$.id: expected string, got integer'],
 			'an id that is not digits' => [['id' => 'abc'], '$.id: not a valid id'],
+			'the id of nothing' => [['id' => '0'], '$.id: not a valid id'],
 			'a date without milliseconds' => [['created_at' => '2026-10-09T12:34:56Z'], '$.created_at: not a valid datetime'],
 			'a date with an offset' => [['created_at' => '2026-10-09T12:34:56.000+00:00'], '$.created_at: not a valid datetime'],
 			'a date that does not exist' => [['created_at' => '2026-02-30T12:34:56.000Z'], '$.created_at: not a valid datetime'],
