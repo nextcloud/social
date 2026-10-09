@@ -96,6 +96,16 @@ to stop.
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
+- `QueryCounter` / `QueryCounterTest` — records every statement the server's
+  connection executes during a block (through Doctrine's SQL logger, swapped in
+  for the block and put back after), with its parameters; the test proves it
+  counts what the server's own counter counts.
+- `Api/QueryBudgetTest` — query budgets per page of the client API, driven
+  through the controllers as a signed-in reader (`Api/ReaderTestCase`): home (fast
+  and join path), public, notifications, an account's statuses, a status and
+  its thread, search, and a byte range of a media file. A page of twenty must
+  cost what a page of five costs (no query per post) and stay within today's
+  count plus two.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
