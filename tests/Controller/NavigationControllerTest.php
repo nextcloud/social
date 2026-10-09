@@ -237,6 +237,23 @@ class NavigationControllerTest extends TestCase {
 		$this->assertFalse($this->serverData()['isAdmin']);
 	}
 
+	/**
+	 * The admin check of the signed-in page names `$this->userId` with no
+	 * null guard of its own: what keeps a visitor's null away from the group
+	 * manager is the public page returning first. An anonymous visitor is
+	 * never put to it, on either of the routes that serve the page.
+	 */
+	public function testAnAnonymousVisitorIsNeverPutToTheAdminCheck(): void {
+		\OC::$server->register(IInitialStateService::class, $this->createStub(IInitialStateService::class));
+		$this->groupManager->expects($this->never())->method('isAdmin');
+
+		$this->controller(null)->navigate();
+		$this->assertFalse($this->serverData()['isAdmin']);
+
+		$this->controller(null)->timeline('timeline');
+		$this->assertFalse($this->serverData()['isAdmin']);
+	}
+
 	public function testAccountDeletionFarewellIsAvailableAsAPublicPage(): void {
 		\OC::$server->register(IInitialStateService::class, $this->createStub(IInitialStateService::class));
 		$response = $this->controller(null)->accountDeleted();
