@@ -34,6 +34,8 @@ class WebSocketServer {
 	private const OPCODE_CLOSE = 0x8;
 	private const OPCODE_PING = 0x9;
 	private const OPCODE_PONG = 0xA;
+	private const CLOSE_NORMAL = 1000;
+	private const CLOSE_PROTOCOL_ERROR = 1002;
 
 	/** @var resource */
 	private $socket;
@@ -125,13 +127,13 @@ class WebSocketServer {
 		return array_values(array_filter($this->subscribers, static fn (Subscriber $s): bool => $s->upgraded && !$s->closed));
 	}
 
-	public function close(Subscriber $subscriber, string $reason = ''): void {
+	public function close(Subscriber $subscriber, string $reason = '', int $code = self::CLOSE_NORMAL): void {
 		if ($subscriber->closed) {
 			return;
 		}
 		$subscriber->closed = true;
 		if ($subscriber->upgraded) {
-			@fwrite($subscriber->socket, self::frame(self::OPCODE_CLOSE, pack('n', 1000) . $reason));
+			@fwrite($subscriber->socket, self::frame(self::OPCODE_CLOSE, pack('n', $code) . $reason));
 		}
 		$socket = $subscriber->socket;
 		@fclose($socket);
@@ -171,7 +173,13 @@ class WebSocketServer {
 			return $this->handshake($subscriber);
 		}
 		while (($frame = self::readFrame($subscriber->input)) !== null) {
-			[$opcode, $payload] = $frame;
+			[$opcode, $payload, $masked] = $frame;
+			if (!$masked) {
+				// RFC 6455 §5.1: every frame a client sends is masked
+				$this->close($subscriber, 'unmasked frame', self::CLOSE_PROTOCOL_ERROR);
+
+				return false;
+			}
 			if ($opcode === self::OPCODE_CLOSE) {
 				$this->close($subscriber);
 
@@ -285,10 +293,10 @@ class WebSocketServer {
 	}
 
 	/**
-	 * One masked client frame off the front of $buffer, or null when it is
-	 * not all there yet.
+	 * One frame off the front of $buffer, or null when it is not all there
+	 * yet; whether it was masked is for the caller to judge.
 	 *
-	 * @return array{0: int, 1: string}|null opcode and payload
+	 * @return array{0: int, 1: string, 2: bool}|null opcode, payload, and whether it was masked
 	 */
 	public static function readFrame(string &$buffer): ?array {
 		if (strlen($buffer) < 2) {
@@ -333,6 +341,6 @@ class WebSocketServer {
 		}
 		$buffer = substr($buffer, $offset + $maskLength + $length);
 
-		return [$opcode, $payload];
+		return [$opcode, $payload, $masked];
 	}
 }

@@ -98,6 +98,26 @@ class WebSocketBoundsTest extends TestCase {
 	}
 
 	/**
+	 * RFC 6455 §5.1: a client masks every frame it sends, and a server that
+	 * receives one unmasked closes the connection; the close says 1002,
+	 * protocol error, and the ping it carried is not answered.
+	 */
+	public function testAnUnmaskedClientFrameClosesWithAProtocolError(): void {
+		$client = $this->connect(WebSocketServer::PATH);
+		$this->pump();
+		$this->read($client);
+		$this->assertCount(1, $this->server->subscribers());
+
+		fwrite($client, "\x89\x02hi");
+		$this->pump();
+
+		$this->assertSame([], $this->server->subscribers());
+		$close = $this->read($client);
+		$this->assertSame(0x88, ord($close[0]), 'a close frame, not a pong');
+		$this->assertSame(1002, unpack('n', substr($close, 2, 2))[1]);
+	}
+
+	/**
 	 * RFC 6455 §5.2: the most significant bit of a 64-bit length is 0. A
 	 * length with it set is not a frame to read but one too long, as any
 	 * other length past the limit is.
