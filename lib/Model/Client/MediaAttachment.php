@@ -33,6 +33,9 @@ class MediaAttachment implements JsonSerializable {
 	 */
 	private const MEDIA_STREAM = '/(?:^|\/)media\/(?:stream|playlist)\/([0-9]+)$/';
 
+	/** The values of Mastodon's `MediaAttachment.type`. */
+	public const CLIENT_TYPES = ['unknown', 'image', 'gifv', 'video', 'audio'];
+
 	private string $id = '';
 	private string $type = '';
 	private string $mediaType = '';
@@ -259,7 +262,9 @@ class MediaAttachment implements JsonSerializable {
 
 		return [
 			'id' => $this->getId(),
-			'type' => $this->getType(),
+			// one of Mastodon's five: a Document that named no media type
+			// left this empty, which no client's enum has
+			'type' => in_array($this->getType(), self::CLIENT_TYPES, true) ? $this->getType() : 'unknown',
 			// not Mastodon's: the full mime, kept so that the ActivityPub
 			// Document this row is served as later can state it. Pixelfed
 			// refuses an attachment without one; Mastodon sniffs the URL and
