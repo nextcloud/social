@@ -117,6 +117,9 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			} catch (StreamNotFoundException $e) {
 				return; // an edit of a post never received: nothing to rewrite
 			}
+			if (self::isOlderEdit($item, $stored)) {
+				return;
+			}
 			$item->setActivityId($activity->getId());
 			$this->streamRequest->update($item);
 			// the version being replaced, recorded the way a local edit records
@@ -152,6 +155,23 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		return $stored;
+	}
+
+	/**
+	 * Whether an incoming edit is older, by its `updated`, than the version
+	 * already stored.
+	 *
+	 * Edits are delivered out of order — separate queues, a retry overtaking
+	 * the next edit — and applied in arrival order a late older one put the
+	 * text back to what the author had already replaced. Mastodon drops an
+	 * update whose `updated` is earlier than the stored edit time, and so does
+	 * this; either side without a date is applied as before.
+	 */
+	private static function isOlderEdit(Stream $incoming, Stream $stored): bool {
+		$incomingTime = ($incoming->getUpdated() === '') ? false : strtotime($incoming->getUpdated());
+		$storedTime = ($stored->getUpdated() === '') ? false : strtotime($stored->getUpdated());
+
+		return $incomingTime !== false && $storedTime !== false && $incomingTime < $storedTime;
 	}
 
 	/**

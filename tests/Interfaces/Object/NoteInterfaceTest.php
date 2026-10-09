@@ -670,6 +670,34 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
 	}
 
+	/** @return iterable<string, array{string, string, bool}> */
+	public static function editOrders(): iterable {
+		yield 'a newer edit' => ['2026-05-01T12:00:00Z', '2026-05-01T11:00:00Z', true];
+		yield 'the same edit again' => ['2026-05-01T11:00:00Z', '2026-05-01T11:00:00Z', true];
+		yield 'an older edit arriving late' => ['2026-05-01T11:00:00Z', '2026-05-01T12:00:00Z', false];
+		yield 'an edit with no date' => ['', '2026-05-01T12:00:00Z', true];
+		yield 'a first edit of a post never edited' => ['2026-05-01T11:00:00Z', '', true];
+	}
+
+	/**
+	 * Edits arrive out of order; one older than the version stored must not
+	 * put back the text the author already replaced.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('editOrders')]
+	public function testAnEditIsAppliedOnlyWhenItIsNotOlderThanTheStoredOne(string $incoming, string $stored, bool $applied): void {
+		$note = $this->incomingNote();
+		$note->setContent('<p>edited</p>');
+		$note->setUpdated($incoming);
+		$copy = $this->storedCopy();
+		$copy->setUpdated($stored);
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($copy);
+
+		$this->streamRequest->expects($applied ? $this->once() : $this->never())->method('update');
+		$this->revisionService->expects($applied ? $this->once() : $this->never())->method('recordEdit');
+
+		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
+	}
+
 	public function testAnUpdateOfANoteNeverReceivedRecordsNoRevision(): void {
 		$note = $this->incomingNote();
 		$this->nothingStored();
