@@ -150,6 +150,15 @@ to stop.
   `Api/PaginationTest` asks every paged list the same questions — `max_id`
   exclusive, `since_id` the newest page, `min_id` the adjacent one, the
   `Link` cursors — with three pages of rows behind it.
+- `Atproto/OAuthStorageTest` — OAuth for Bluesky apps: a request approved once
+  and its code exchanged once, a refresh token rotated only from the good one
+  (the replaced one finds the session to end), one-time DPoP ids taken once by
+  the unique index, a person removing only their own sessions, expired rows
+  pruned.
+- `Atproto/AtprotoBookkeepingStorageTest` — account moves with their JSON
+  progress and lookup by direction, the PLC operation log in order with what is
+  unconfirmed, firehose rows numbered in order with their bytes whole and pruned
+  past the window, the instance blocklist and labeler subscriptions added once.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
