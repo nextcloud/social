@@ -70,6 +70,8 @@ test.describe('posting, and acting on a post', () => {
 		await expect(description).toBeVisible()
 		// the filters are offered once the upload has landed
 		await expect(composer.locator('.preview-item__filters')).toBeVisible()
+		const preview = composer.locator('.preview-item img.attachment__preview').first()
+		await expect(preview, 'the picture itself is drawn, not only its filter swatches').toBeVisible()
 		await description.fill(alt)
 		await composer.getByRole('button', { name: /^Post(?! as)/ }).click()
 		await expect(composer).toBeHidden()
