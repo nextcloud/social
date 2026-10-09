@@ -424,6 +424,26 @@ class InteropRegressionTest extends TestCase {
 	}
 
 	/**
+	 * A post is serialised on its own before it is sent (its stored source),
+	 * and only then wrapped in its Create. The context it was given as a root
+	 * must not ride along into the activity.
+	 */
+	public function testAPostSerialisedAloneFirstCarriesNoContextInsideItsCreate(): void {
+		$note = new Note();
+		$note->setId('https://cloud.example/@alice/statuses/1');
+		$this->assertArrayHasKey('@context', $note->exportAsActivityPub());
+
+		$create = new Create();
+		$create->setId('https://cloud.example/@alice/statuses/1/activity');
+		$note->setParent($create);
+		$create->setObject($note);
+
+		$wire = json_decode((string)json_encode($create), true);
+		$this->assertArrayHasKey('@context', $wire);
+		$this->assertArrayNotHasKey('@context', $wire['object']);
+	}
+
+	/**
 	 * Nothing in the resolver reaches the network: a wrapping activity that
 	 * refers to something this instance has never seen has nothing to undo or
 	 * accept, and must not become an outbound request an unauthenticated peer
