@@ -112,6 +112,13 @@ to stop.
   interfaces, asserting the stored row and the Mastodon entity it is served
   as; it caught Mastodon's inlined `QuoteRequest.instrument` being dropped.
   `Federation/InboxTestCase` is the shared delivery harness.
+- `Federation/RedeliveryOrderTest` — the same activity delivered twice leaves
+  the rows of the first delivery and a usable connection; an Update before
+  its Create, two edits in reverse order (caught an older edit overwriting a
+  newer one), a Delete before its Create (caught the late Create resurrecting
+  the post), an Undo{Like} before the Like, and a rotated key arriving in an
+  Update{Person} verifying the next signature.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
