@@ -71,12 +71,14 @@ SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
-# Public did:plc audit logs and DID documents of organisation accounts, as
-# plc.directory served them; see tests/Atproto/Identity/PlcAuditLogTest.php.
+# Public did:plc audit logs and DID documents of three organisation accounts,
+# fetched from plc.directory on 2026-10-09: directory data, signed by the
+# accounts' own keys, not authored here. See
+# tests/Atproto/Identity/PlcAuditLogTest.php.
 path = "tests/Atproto/Identity/plc/*.json"
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC0-1.0"
 
 # the Mastodon entity schemas the client API is validated against, written
 # for this app from the Mastodon documentation (see tests/Api/Schema/README.md)
