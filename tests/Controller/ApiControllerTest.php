@@ -669,7 +669,9 @@ class ApiControllerTest extends TestCase {
 	public function testAppsCredentialsForBearerTokenDescribesTheOAuthClient(): void {
 		$this->route = 'social.Api.appsCredentials';
 		$client = new SocialClient();
-		$client->setAppName('Tusky')->setAppWebsite('https://tusky.app')->setAuthUserId('alice');
+		$client->setAppName('Tusky')->setAppWebsite('https://tusky.app')->setAuthUserId('alice')
+			->setAppScopes(['read', 'write'])->setAppRedirectUris(['tusky://oauth']);
+		$client->setAuthScopes(['read']);
 		$this->clientService->method('getFromToken')->with('s3cret')->willReturn($client);
 		$this->userSession->method('getUser')->willReturn(null);
 
@@ -681,7 +683,13 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller('Bearer s3cret')->appsCredentials();
 
 		$this->assertSame(
-			['name' => 'Tusky', 'website' => 'https://tusky.app', 'vapid_key' => ''],
+			[
+				'name' => 'Tusky',
+				'website' => 'https://tusky.app',
+				'scopes' => ['read', 'write'],
+				'redirect_uris' => ['tusky://oauth'],
+				'vapid_key' => '',
+			],
 			$response->getData()
 		);
 	}
