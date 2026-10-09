@@ -79,17 +79,26 @@ class InstanceStatsRequestTest extends TestCase {
 		$this->streamRequest->save($note);
 	}
 
+	/**
+	 * Counted as differences, so statuses the instance already holds — some
+	 * of them written moments ago, on an instance seeded before the suite —
+	 * do not change the answer.
+	 */
 	public function testOnlyStatusesWrittenHereAreCounted(): void {
-		$before = $this->stats->countLocalStatuses();
 		$now = time();
+		$before = $this->stats->countLocalStatuses();
+		$lastWeekBefore = $this->stats->countLocalStatusesBetween($now - 7 * 86400, $now + 1);
 
 		$this->note('old', true, $now - 10 * 86400);
 		$this->note('new', true, $now - 60);
 		$this->note('remote', false, $now - 60);
 
 		$this->assertSame($before + 2, $this->stats->countLocalStatuses());
-		$lastWeek = $this->stats->countLocalStatusesBetween($now - 7 * 86400, $now + 1);
-		$this->assertSame(1, $lastWeek - $this->stats->countLocalStatusesBetween($now - 7 * 86400, $now - 120));
+		$this->assertSame(
+			$lastWeekBefore + 1,
+			$this->stats->countLocalStatusesBetween($now - 7 * 86400, $now + 1),
+			'only the local status of this week falls in this week'
+		);
 	}
 
 	public function testRemoteInstancesAreCountedByTheAccountsCachedFromThem(): void {
