@@ -112,6 +112,11 @@ to stop.
   its thread, search, and a byte range of a media file. A page of twenty must
   cost what a page of five costs (no query per post) and stay within today's
   count plus two.
+- `Api/LimitClampTest` — every `GET` route taking `int $limit`, found by
+  reflection, asked for 500 (the most Nextcloud's dispatcher lets through),
+  100000 and -1: each `LIMIT` that reaches the SQL must be one a request at
+  the route's documented maximum, at 1 or at its default also produced. A
+  route whose page is not read by a query is listed with what bounds it.
 - `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
   method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
   join path), Photos and Videos on home, public and a profile, an account's
