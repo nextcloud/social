@@ -86,6 +86,9 @@ to stop.
   boosters once each.
 - `Db/SocialCrossQueryBuilderTest` — the joins on their own; above all that a
   boost hands the viewer the post it repeats only where they may read it.
+- `Migration/RowBackfillMigrationsTest` — the upgrade steps that fill rows
+  (recipient nids, `media_kind`, `news_kind`, OAuth authorizations moved to
+  `social_client_auth`) run on rows in their pre-upgrade shape, twice.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
