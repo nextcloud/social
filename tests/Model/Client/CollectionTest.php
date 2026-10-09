@@ -67,8 +67,8 @@ class CollectionTest extends TestCase {
 		$this->assertSame('the garden', $collection->getTitle());
 		$this->assertSame('followers', $collection->getVisibility());
 		$this->assertSame(4, $collection->getSize());
-		$this->assertSame(strtotime('2026-09-12 10:00:00'), $collection->getCreation());
-		$this->assertSame(strtotime('2026-09-12 11:30:00'), $collection->getUpdated());
+		$this->assertSame(strtotime('2026-09-12 10:00:00 UTC'), $collection->getCreation());
+		$this->assertSame(strtotime('2026-09-12 11:30:00 UTC'), $collection->getUpdated());
 	}
 
 	/** A collection that has never been edited reports its creation as its update. */

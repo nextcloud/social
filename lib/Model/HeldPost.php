@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model;
 
 use JsonSerializable;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -155,7 +156,7 @@ class HeldPost implements JsonSerializable, StatusParams {
 			->setParams(is_array($params) ? $params : [])
 			->setReason($this->get('reason', $data))
 			->setDigest($this->get('digest', $data))
-			->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
+			->setCreation(DbTime::toTimestamp($creation));
 
 		return $this;
 	}

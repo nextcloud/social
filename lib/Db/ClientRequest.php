@@ -82,8 +82,7 @@ class ClientRequest extends ClientRequestBuilder {
 	 * @return int how many were removed
 	 */
 	public function deleteNeverAuthorized(int $before, int $limit = 500): int {
-		$date = new DateTime();
-		$date->setTimestamp($before);
+		$date = new DateTime('@' . $before);
 
 		$qb = $this->getQueryBuilder();
 		$qb->select('cl.id')

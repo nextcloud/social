@@ -13,6 +13,7 @@ use DateTime;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\InstanceKey;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Tools\DbTime;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -344,11 +345,6 @@ class AtprotoIdentityRequest extends CoreRequestBuilder {
 
 	/** a DATETIME column as unix time, 0 when null */
 	public static function time(mixed $value): int {
-		if ($value === null || $value === '') {
-			return 0;
-		}
-		$time = strtotime((string)$value);
-
-		return $time === false ? 0 : $time;
+		return DbTime::toTimestamp($value);
 	}
 }

@@ -378,10 +378,22 @@ class MetricsServiceTest extends TestCase {
 		$this->assertSame(0.0, $cohorts[0]['data'][0]['rate']);
 	}
 
-	public function testEachMonthOfTheWindowIsACohort(): void {
-		$cohorts = $this->service()->retention(
-			(int)strtotime('2026-07-01T00:00:00Z'), (int)strtotime('2026-09-15T00:00:00Z')
-		);
+	/**
+	 * The months are UTC months whatever zone PHP runs in: stepped in the
+	 * local zone west of Greenwich, the first of July plus a month was the
+	 * 31st.
+	 */
+	#[DataProvider('zones')]
+	public function testEachMonthOfTheWindowIsACohort(string $zone): void {
+		$previous = date_default_timezone_get();
+		date_default_timezone_set($zone);
+		try {
+			$cohorts = $this->service()->retention(
+				(int)strtotime('2026-07-01T00:00:00Z'), (int)strtotime('2026-09-15T00:00:00Z')
+			);
+		} finally {
+			date_default_timezone_set($previous);
+		}
 
 		$this->assertSame([
 			'2026-07-01T00:00:00.000Z',
@@ -391,5 +403,14 @@ class MetricsServiceTest extends TestCase {
 		// a cohort is followed to the end of the window and no further
 		$this->assertCount(3, $cohorts[0]['data']);
 		$this->assertCount(1, $cohorts[2]['data']);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function zones(): array {
+		return [
+			'UTC' => ['UTC'],
+			'west of Greenwich' => ['America/Los_Angeles'],
+			'east of Greenwich' => ['Pacific/Kiritimati'],
+		];
 	}
 }

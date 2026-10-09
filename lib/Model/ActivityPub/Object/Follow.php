@@ -11,6 +11,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\IQueryRow;
 
 /**
@@ -131,7 +132,7 @@ class Follow extends ACore implements JsonSerializable, IQueryRow {
 		$this->setFollowIdPrim($this->get('follow_id_prim', $data, ''));
 		$this->setIdPrim($this->get('id_prim', $data, ''));
 		$creation = $this->get('creation', $data, '');
-		$this->setCreation($creation === '' ? 0 : (int)strtotime($creation));
+		$this->setCreation(DbTime::toTimestamp($creation));
 	}
 
 	/**

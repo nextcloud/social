@@ -123,7 +123,7 @@ class MastodonListTest extends TestCase {
 		$this->assertSame('Friends', $list->getTitle());
 		$this->assertSame('none', $list->getRepliesPolicy());
 		$this->assertTrue($list->isExclusive());
-		$this->assertSame(strtotime('2026-09-11 10:00:00'), $list->getCreation());
+		$this->assertSame(strtotime('2026-09-11 10:00:00 UTC'), $list->getCreation());
 	}
 
 	public function testARowWithNoCreationIsNotDatedToTheEpoch(): void {

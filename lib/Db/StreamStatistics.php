@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\DbTime;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -42,8 +43,7 @@ trait StreamStatistics {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 
-		$date = new DateTime();
-		$date->setTimestamp($since);
+		$date = new DateTime('@' . $since);
 
 		$qb->selectAlias($qb->func()->count('s.id'), 'posts')
 			->selectAlias($qb->createFunction('COUNT(DISTINCT s.attributed_to_prim)'), 'authors')
@@ -95,8 +95,7 @@ trait StreamStatistics {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 
-		$date = new DateTime();
-		$date->setTimestamp($since);
+		$date = new DateTime('@' . $since);
 
 		$qb->select('s.published_time')
 			->from(self::TABLE_STREAM, 's')
@@ -119,7 +118,7 @@ trait StreamStatistics {
 		$times = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$time = (int)strtotime((string)$data['published_time']);
+			$time = DbTime::toTimestamp($data['published_time']);
 			if ($time > 0) {
 				$times[] = $time;
 			}
@@ -150,8 +149,7 @@ trait StreamStatistics {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
 
-		$date = new DateTime();
-		$date->setTimestamp($since);
+		$date = new DateTime('@' . $since);
 
 		$qb->select('st.hashtag')
 			->selectAlias($qb->func()->count('*'), 'total')
@@ -232,8 +230,7 @@ trait StreamStatistics {
 		$qb->select('st.hashtag');
 		$aliases = [];
 		foreach (array_keys($windows) as $i => $name) {
-			$date = new DateTime();
-			$date->setTimestamp($windows[$name]);
+			$date = new DateTime('@' . $windows[$name]);
 			$aliases[$name] = 'w' . $i;
 			$qb->selectAlias(
 				$qb->createFunction(
@@ -245,8 +242,7 @@ trait StreamStatistics {
 			);
 		}
 
-		$widest = new DateTime();
-		$widest->setTimestamp(min($windows));
+		$widest = new DateTime('@' . min($windows));
 		$qb->from(self::TABLE_STREAM_TAGS, 'st')
 			->innerJoin('st', self::TABLE_STREAM, 's', $expr->eq('s.id_prim', 'st.stream_id'))
 			->where($expr->gte(
@@ -334,8 +330,7 @@ trait StreamStatistics {
 			->setMaxResults($limit);
 
 		if ($since > 0) {
-			$date = new DateTime();
-			$date->setTimestamp($since);
+			$date = new DateTime('@' . $since);
 			$qb->andWhere($expr->gte(
 				'r.published_time', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)
 			));

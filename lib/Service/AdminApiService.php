@@ -24,6 +24,7 @@ use OCA\Social\Model\Client\AdminReport;
 use OCA\Social\Model\Moderation;
 use OCA\Social\Model\Report;
 use OCA\Social\Settings\AdminSection;
+use OCA\Social\Tools\DbTime;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
@@ -982,7 +983,7 @@ class AdminApiService {
 				->setTargetAccount($this->reportAccount($actors, $report->getAccountId()))
 				->setAssignedAccount($this->moderator((string)($row['assigned_to'] ?? '')))
 				->setActionTakenByAccount($this->moderator((string)($row['action_taken_by'] ?? '')))
-				->setActionTakenAt((int)strtotime((string)($row['action_taken_at'] ?? '')))
+				->setActionTakenAt(DbTime::toTimestamp($row['action_taken_at'] ?? ''))
 				->setStatuses($this->reportedStatuses($report));
 
 			$admin[] = $entity;
@@ -1071,7 +1072,7 @@ class AdminApiService {
 			->setCategory((string)($row['category'] ?? Report::CATEGORY_OTHER))
 			->setLocal((int)($row['local'] ?? 1) === 1)
 			->setResolved((int)($row['resolved'] ?? 0) === 1)
-			->setCreation((int)strtotime((string)($row['creation'] ?? '')));
+			->setCreation(DbTime::toTimestamp($row['creation'] ?? ''));
 
 		return $report;
 	}

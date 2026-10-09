@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model;
 
 use JsonSerializable;
+use OCA\Social\Tools\DbTime;
 
 /**
  * One thing a moderator decided about one account, kept after the fact.
@@ -75,7 +76,7 @@ class Strike implements JsonSerializable {
 			(string)($row['text'] ?? ''),
 			(string)($row['moderator'] ?? ''),
 			(int)($row['report_id'] ?? 0),
-			isset($row['creation']) ? (int)strtotime((string)$row['creation']) : 0,
+			DbTime::toTimestamp($row['creation'] ?? null),
 			(int)($row['id'] ?? 0),
 		);
 	}

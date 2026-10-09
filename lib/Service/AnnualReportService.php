@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
+use OCA\Social\Tools\DbTime;
 
 /**
  * The year an account had, as Mastodon's `#Wrapstodon` reports it.
@@ -288,8 +289,8 @@ class AnnualReportService {
 	private function followersGained(Person $actor, int $from, int $until): array {
 		$byMonth = [];
 		foreach ($this->followsRequest->getFollowerOrigins($actor->getId(), self::MAX_FOLLOWERS) as $row) {
-			$when = strtotime((string)($row['creation'] ?? ''));
-			if ($when === false || $when < $from || $when >= $until) {
+			$when = DbTime::toTimestamp($row['creation'] ?? '');
+			if ($when === 0 || $when < $from || $when >= $until) {
 				continue;
 			}
 

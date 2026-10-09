@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -179,7 +180,7 @@ class MastodonList implements JsonSerializable {
 			->setExclusive($this->getBool('exclusive', $data))
 			->setGroupId($this->get('group_id', $data))
 			->setVisibility($this->get('visibility', $data))
-			->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
+			->setCreation(DbTime::toTimestamp($creation));
 
 		return $this;
 	}

@@ -12,6 +12,7 @@ namespace OCA\Social\Model\Client;
 use JsonSerializable;
 use OCA\Social\Model\StatusParams;
 use OCA\Social\Model\TStatusParams;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -140,9 +141,9 @@ class ScheduledStatus implements JsonSerializable, StatusParams {
 
 		$this->setId($this->getInt('id', $data))
 			->setActorId($this->get('actor_id', $data))
-			->setScheduledAt(($scheduledAt === '') ? 0 : (int)strtotime($scheduledAt))
+			->setScheduledAt(DbTime::toTimestamp($scheduledAt))
 			->setParams(is_array($params) ? $params : [])
-			->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
+			->setCreation(DbTime::toTimestamp($creation));
 
 		return $this;
 	}

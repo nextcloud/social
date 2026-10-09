@@ -372,8 +372,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$limit = max(1, min(ProbeOptions::MAX_LIMIT, $limit));
 		try {
 			if ($since > 0) {
-				$dTime = new DateTime();
-				$dTime->setTimestamp($since);
+				$dTime = new DateTime('@' . $since);
 				$this->limitToDBFieldDateTime('published_time', $dTime);
 			}
 		} catch (Exception $e) {

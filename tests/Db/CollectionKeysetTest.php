@@ -97,7 +97,7 @@ class CollectionKeysetTest extends TestCase {
 		$follow = new Follow();
 		$follow->importFromDatabase(['id' => 'https://remote.example/follows/1', 'creation' => '2026-09-21 12:26:40']);
 
-		$this->assertSame((new DateTime('2026-09-21 12:26:40'))->getTimestamp(), $follow->getCreation());
+		$this->assertSame((new DateTime('2026-09-21 12:26:40 UTC'))->getTimestamp(), $follow->getCreation());
 	}
 
 	/** Both lists go through the cursor, and the posts are paged on their nid. */
