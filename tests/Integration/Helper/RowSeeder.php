@@ -66,7 +66,7 @@ final class RowSeeder {
 		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'n'))->from($table);
 		foreach ($where as $column => $value) {
-			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter($value)));
+			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter($value, self::typeOf($value))));
 		}
 		$result = $qb->executeQuery();
 		$count = (int)$result->fetchOne();
@@ -80,7 +80,7 @@ final class RowSeeder {
 		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
 		$qb->delete($table);
 		foreach ($where as $column => $value) {
-			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter($value)));
+			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter($value, self::typeOf($value))));
 		}
 		$qb->executeStatement();
 	}
