@@ -150,10 +150,10 @@ class ClientXrpc {
 
 		return match ($method) {
 			'app.bsky.actor.putPreferences' => $this->preferences->put($session, self::json($rawBody)),
-			'com.atproto.repo.createRecord' => $this->writes->create($session, self::json($rawBody)),
-			'com.atproto.repo.putRecord' => $this->writes->put($session, self::json($rawBody)),
+			'com.atproto.repo.createRecord' => $this->writes->create($session, self::writeBody($rawBody)),
+			'com.atproto.repo.putRecord' => $this->writes->put($session, self::writeBody($rawBody)),
 			'com.atproto.repo.deleteRecord' => $this->writes->delete($session, self::json($rawBody)),
-			'com.atproto.repo.applyWrites' => $this->writes->apply($session, self::json($rawBody)),
+			'com.atproto.repo.applyWrites' => $this->writes->apply($session, self::writeBody($rawBody)),
 			'com.atproto.moderation.createReport' => $this->writes->report($session, self::json($rawBody)),
 			BlueskyMutes::MUTE, BlueskyMutes::UNMUTE => $this->mute($session, $method, $rawBody, $headers),
 			BlueskyBookmarks::CREATE, BlueskyBookmarks::DELETE => $this->bookmark($session, $method, $rawBody, $headers),
@@ -359,5 +359,44 @@ class ClientXrpc {
 		}
 
 		return $decoded;
+	}
+
+	/**
+	 * The body of a write, as json() reads it, except that in a record kept
+	 * as the app wrote it (WriteService::KEPT_AS_WRITTEN) an empty JSON
+	 * object stays the empty map (an empty `stdClass`, see DagCbor) rather
+	 * than becoming `[]`, the empty list: that record goes into the
+	 * repository as it is, and its CID has to be the one the app computed.
+	 * Records Social maps are rebuilt, and read as arrays as before.
+	 *
+	 * @throws XrpcException
+	 */
+	private static function writeBody(string $raw): array {
+		$body = self::json($raw);
+		$objects = json_decode($raw);
+		$kept = static fn (mixed $collection): bool => in_array($collection, WriteService::KEPT_AS_WRITTEN, true);
+		if (isset($body['record']) && $kept($body['collection'] ?? null) && $objects instanceof \stdClass) {
+			$body['record'] = self::keepingEmptyMaps($objects->record);
+		}
+		if (is_array($body['writes'] ?? null) && $objects instanceof \stdClass && is_array($objects->writes ?? null)) {
+			foreach ($body['writes'] as $i => $write) {
+				if (is_array($write) && isset($write['value']) && $kept($write['collection'] ?? null) && ($objects->writes[$i] ?? null) instanceof \stdClass) {
+					$body['writes'][$i]['value'] = self::keepingEmptyMaps($objects->writes[$i]->value);
+				}
+			}
+		}
+
+		return $body;
+	}
+
+	private static function keepingEmptyMaps(mixed $value): mixed {
+		if ($value instanceof \stdClass) {
+			$value = get_object_vars($value);
+			if ($value === []) {
+				return new \stdClass();
+			}
+		}
+
+		return is_array($value) ? array_map(self::keepingEmptyMaps(...), $value) : $value;
 	}
 }
