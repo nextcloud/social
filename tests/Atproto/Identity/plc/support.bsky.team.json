@@ -1,0 +1,128 @@
+{
+	"did": "did:plc:oc6vwdlmk2kqyida5i74d3p5",
+	"fetched": "2026-10-09",
+	"audit": [
+		{
+			"did": "did:plc:oc6vwdlmk2kqyida5i74d3p5",
+			"operation": {
+				"sig": "U7MeWWbbQPsgj1ovKlfk3YPXyOQLLJDsiWkiVkj4vnc3QjkJxETpGv9SMaCZZ6dMn_MVhDFaQ6kzZbzPU3zDhw",
+				"prev": null,
+				"type": "create",
+				"handle": "support-team.bsky.social",
+				"service": "https://bsky.social",
+				"signingKey": "did:key:zQ3shP5TBe1sQfSttXty15FAEHV1DZgcxRZNxvEWnPfLFwLxJ",
+				"recoveryKey": "did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg"
+			},
+			"cid": "bafyreidqxvnq23cwsugcayhkh7a637nn74j3nhkod2zyozhdq5bn56kadm",
+			"nullified": false,
+			"createdAt": "2023-01-26T20:35:33.543Z"
+		},
+		{
+			"did": "did:plc:oc6vwdlmk2kqyida5i74d3p5",
+			"operation": {
+				"sig": "se_Ie73gT-5ZY_fntz23iIFzrzIvQUrICb6PQxKMTkF48teRdS6NaOdqZ0ulDkxWySqd5_o6UX4DNtykHNUwZw",
+				"prev": "bafyreidqxvnq23cwsugcayhkh7a637nn74j3nhkod2zyozhdq5bn56kadm",
+				"type": "plc_operation",
+				"services": {
+					"atproto_pds": {
+						"type": "AtprotoPersonalDataServer",
+						"endpoint": "https://bsky.social"
+					}
+				},
+				"alsoKnownAs": [
+					"at://support-team.bsky.social"
+				],
+				"rotationKeys": [
+					"did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg",
+					"did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK"
+				],
+				"verificationMethods": {
+					"atproto": "did:key:zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF"
+				}
+			},
+			"cid": "bafyreifu5arlhid7ccfc3wx6xgzplisec4nslijjs6bwnndqnrdk7rnyrm",
+			"nullified": false,
+			"createdAt": "2023-03-09T23:18:25.203Z"
+		},
+		{
+			"did": "did:plc:oc6vwdlmk2kqyida5i74d3p5",
+			"operation": {
+				"sig": "DsxotV1NzNqu4Z8TM56nuxzg8GQ-4qeoPh9kjjWwqTR812kxTVZXRRTgoab1YwDS5urH1tN1gjoPqyKizZIHhA",
+				"prev": "bafyreifu5arlhid7ccfc3wx6xgzplisec4nslijjs6bwnndqnrdk7rnyrm",
+				"type": "plc_operation",
+				"services": {
+					"atproto_pds": {
+						"type": "AtprotoPersonalDataServer",
+						"endpoint": "https://bsky.social"
+					}
+				},
+				"alsoKnownAs": [
+					"at://support.bsky.team"
+				],
+				"rotationKeys": [
+					"did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg",
+					"did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK"
+				],
+				"verificationMethods": {
+					"atproto": "did:key:zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF"
+				}
+			},
+			"cid": "bafyreibb2s2jqv7lok6uiuwhrszqirt27cwyla6ylr3ivklhjyflhejh5e",
+			"nullified": false,
+			"createdAt": "2023-04-12T22:38:21.641Z"
+		},
+		{
+			"did": "did:plc:oc6vwdlmk2kqyida5i74d3p5",
+			"operation": {
+				"sig": "5XjhG8fpF6XcU2LABw6oKWf5VIwB4KNkoKeOgKV7dJwIxrtm3N9QM8VL_6dG8EZtIFDD4fh4reQ0x2Y57TXg6A",
+				"prev": "bafyreibb2s2jqv7lok6uiuwhrszqirt27cwyla6ylr3ivklhjyflhejh5e",
+				"type": "plc_operation",
+				"services": {
+					"atproto_pds": {
+						"type": "AtprotoPersonalDataServer",
+						"endpoint": "https://amanita.us-east.host.bsky.network"
+					}
+				},
+				"alsoKnownAs": [
+					"at://support.bsky.team"
+				],
+				"rotationKeys": [
+					"did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg",
+					"did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK"
+				],
+				"verificationMethods": {
+					"atproto": "did:key:zQ3shmQgzEHzmeNyxX2enLULRMyjhdM47qU72jbs9vzC7zD7T"
+				}
+			},
+			"cid": "bafyreibdtdkoukz7cvmfg4ojfnkgb25hgqprptw2gy5gapccrgs2zjcyfu",
+			"nullified": false,
+			"createdAt": "2023-11-13T00:21:13.270Z"
+		}
+	],
+	"document": {
+		"@context": [
+			"https://www.w3.org/ns/did/v1",
+			"https://w3id.org/security/multikey/v1",
+			"https://w3id.org/security/suites/secp256k1-2019/v1"
+		],
+		"id": "did:plc:oc6vwdlmk2kqyida5i74d3p5",
+		"alsoKnownAs": [
+			"at://support.bsky.team"
+		],
+		"verificationMethod": [
+			{
+				"id": "did:plc:oc6vwdlmk2kqyida5i74d3p5#atproto",
+				"type": "Multikey",
+				"controller": "did:plc:oc6vwdlmk2kqyida5i74d3p5",
+				"publicKeyMultibase": "zQ3shmQgzEHzmeNyxX2enLULRMyjhdM47qU72jbs9vzC7zD7T"
+			}
+		],
+		"service": [
+			{
+				"id": "#atproto_pds",
+				"type": "AtprotoPersonalDataServer",
+				"serviceEndpoint": "https://amanita.us-east.host.bsky.network"
+			}
+		]
+	}
+}
