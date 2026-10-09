@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Model\ActorRelation;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class ActorRelationRequestBuilder extends CoreRequestBuilder {
@@ -51,7 +52,7 @@ class ActorRelationRequestBuilder extends CoreRequestBuilder {
 
 		$creation = $this->get('creation', $data);
 		if ($creation !== '') {
-			$relation->setCreation((int)strtotime($creation));
+			$relation->setCreation(DbTime::toTimestamp($creation));
 		}
 
 		return $relation;

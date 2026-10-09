@@ -11,6 +11,7 @@ namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -224,7 +225,7 @@ class Portfolio implements IQueryRow, JsonSerializable {
 		$this->setShowAvatar($this->getBool('show_avatar', $data, true));
 
 		$creation = $this->get('creation', $data);
-		$this->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
+		$this->setCreation(DbTime::toTimestamp($creation));
 	}
 
 	#[\Override]

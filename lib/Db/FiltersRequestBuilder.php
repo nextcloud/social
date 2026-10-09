@@ -12,6 +12,7 @@ namespace OCA\Social\Db;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\FilterKeyword;
 use OCA\Social\Model\Client\FilterStatus;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -175,12 +176,12 @@ class FiltersRequestBuilder extends CoreRequestBuilder {
 
 		$expiresAt = $this->get('expires_at', $data);
 		if ($expiresAt !== '') {
-			$filter->setExpiresAt((int)strtotime($expiresAt));
+			$filter->setExpiresAt(DbTime::toTimestamp($expiresAt));
 		}
 
 		$creation = $this->get('creation', $data);
 		if ($creation !== '') {
-			$filter->setCreation((int)strtotime($creation));
+			$filter->setCreation(DbTime::toTimestamp($creation));
 		}
 
 		return $filter;
@@ -195,7 +196,7 @@ class FiltersRequestBuilder extends CoreRequestBuilder {
 
 		$creation = $this->get('creation', $data);
 		if ($creation !== '') {
-			$keyword->setCreation((int)strtotime($creation));
+			$keyword->setCreation(DbTime::toTimestamp($creation));
 		}
 
 		return $keyword;

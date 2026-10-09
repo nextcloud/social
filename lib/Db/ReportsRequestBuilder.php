@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Model\Report;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class ReportsRequestBuilder extends CoreRequestBuilder {
@@ -63,7 +64,7 @@ class ReportsRequestBuilder extends CoreRequestBuilder {
 
 		$creation = $this->get('creation', $data);
 		if ($creation !== '') {
-			$report->setCreation((int)strtotime($creation));
+			$report->setCreation(DbTime::toTimestamp($creation));
 		}
 
 		return $report;

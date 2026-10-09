@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Tools\DbTime;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
@@ -178,12 +179,12 @@ class MetricsService {
 
 		$cohorts = [];
 		foreach ($this->monthsBetween($startAt, $endAt) as $month) {
-			$monthEnd = strtotime('+1 month', $month);
+			$monthEnd = $this->nextMonth($month);
 			$size = count($this->localActorsCreatedBetween($month, $monthEnd));
 			$data = [];
 
 			foreach ($this->monthsBetween($month, $endAt) as $since) {
-				$active = $this->localActorsCreatedBetween($month, $monthEnd, $since, strtotime('+1 month', $since));
+				$active = $this->localActorsCreatedBetween($month, $monthEnd, $since, $this->nextMonth($since));
 				$data[] = [
 					'date' => gmdate('Y-m-d', $since) . 'T00:00:00.000Z',
 					'rate' => $size === 0 ? 0.0 : round(count($active) / $size, 4),
@@ -338,10 +339,15 @@ class MetricsService {
 		$month = (int)strtotime(gmdate('Y-m-01\T00:00:00\Z', $startAt));
 		while ($month < $endAt) {
 			$months[] = $month;
-			$month = (int)strtotime('+1 month', $month);
+			$month = $this->nextMonth($month);
 		}
 
 		return $months;
+	}
+
+	/** The first second of the month after the one `$month` falls in, in UTC. */
+	private function nextMonth(int $month): int {
+		return (new \DateTimeImmutable('@' . $month))->modify('first day of next month midnight')->getTimestamp();
 	}
 
 	// the queries
@@ -365,7 +371,7 @@ class MetricsService {
 		$seen = [];
 		$cursor = $qb->executeQuery();
 		while ($row = $cursor->fetch()) {
-			$day = gmdate('Y-m-d', (int)strtotime((string)$row['published_time']));
+			$day = gmdate('Y-m-d', DbTime::toTimestamp($row['published_time']));
 			$seen[$day][(string)$row['attributed_to_prim']] = true;
 		}
 		$cursor->closeCursor();
@@ -420,7 +426,7 @@ class MetricsService {
 		$counts = [];
 		$cursor = $qb->executeQuery();
 		while ($row = $cursor->fetch()) {
-			$day = gmdate('Y-m-d', (int)strtotime((string)$row['published_time']));
+			$day = gmdate('Y-m-d', DbTime::toTimestamp($row['published_time']));
 			$counts[$day] = ($counts[$day] ?? 0) + 1;
 		}
 		$cursor->closeCursor();
@@ -436,7 +442,7 @@ class MetricsService {
 		$seen = [];
 		$cursor = $qb->executeQuery();
 		while ($row = $cursor->fetch()) {
-			$day = gmdate('Y-m-d', (int)strtotime((string)$row['published_time']));
+			$day = gmdate('Y-m-d', DbTime::toTimestamp($row['published_time']));
 			$seen[$day][(string)$row['attributed_to_prim']] = true;
 		}
 		$cursor->closeCursor();
@@ -528,7 +534,7 @@ class MetricsService {
 		$counts = [];
 		$cursor = $qb->executeQuery();
 		while ($row = $cursor->fetch()) {
-			$day = gmdate('Y-m-d', (int)strtotime((string)$row[$column]));
+			$day = gmdate('Y-m-d', DbTime::toTimestamp($row[$column]));
 			$counts[$day] = ($counts[$day] ?? 0) + 1;
 		}
 		$cursor->closeCursor();
@@ -609,7 +615,7 @@ class MetricsService {
 	 */
 	private function date(IQueryBuilder $qb, int $timestamp) {
 		return $qb->createNamedParameter(
-			(new \DateTime())->setTimestamp($timestamp), IQueryBuilder::PARAM_DATE
+			new \DateTime('@' . $timestamp), IQueryBuilder::PARAM_DATE
 		);
 	}
 

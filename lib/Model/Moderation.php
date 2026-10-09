@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model;
 
 use JsonSerializable;
+use OCA\Social\Tools\DbTime;
 
 /**
  * What this instance has decided about one account.
@@ -36,7 +37,7 @@ class Moderation implements JsonSerializable {
 			(string)($row['actor_id'] ?? ''),
 			(string)($row['level'] ?? ''),
 			(string)($row['comment'] ?? ''),
-			isset($row['creation']) ? (int)strtotime((string)$row['creation']) : 0,
+			DbTime::toTimestamp($row['creation'] ?? null),
 		);
 	}
 

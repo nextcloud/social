@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model;
 
 use JsonSerializable;
+use OCA\Social\Tools\DbTime;
 
 /**
  * One emoji this instance publishes: Mastodon's `CustomEmoji`.
@@ -46,7 +47,7 @@ class CustomEmoji implements JsonSerializable {
 			(string)($row['media_type'] ?? ''),
 			(string)($row['category'] ?? ''),
 			(bool)($row['visible'] ?? true),
-			isset($row['creation']) ? (int)strtotime((string)$row['creation']) : 0,
+			DbTime::toTimestamp($row['creation'] ?? null),
 			(int)($row['id'] ?? 0),
 		);
 	}

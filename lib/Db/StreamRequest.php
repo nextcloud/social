@@ -327,8 +327,7 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 		$qb->set('published', $qb->createNamedParameter($stream->getPublished()));
 		try {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($stream->getPublishedTime());
+			$dTime = new DateTime('@' . $stream->getPublishedTime());
 			$qb->set('published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE));
 		} catch (Exception $e) {
 		}
@@ -905,10 +904,8 @@ class StreamRequest extends StreamRequestBuilder {
 			return [];
 		}
 
-		$fromDate = new DateTime();
-		$fromDate->setTimestamp($from);
-		$untilDate = new DateTime();
-		$untilDate->setTimestamp($until);
+		$fromDate = new DateTime('@' . $from);
+		$untilDate = new DateTime('@' . $until);
 
 		$qb = $this->getStreamSelectSql($format);
 		$qb->limitToAttributedTo($actorId, true);
@@ -1163,8 +1160,7 @@ class StreamRequest extends StreamRequestBuilder {
 	 */
 	public function saveStream(Stream $stream): IQueryBuilder {
 		try {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($stream->getPublishedTime());
+			$dTime = new DateTime('@' . $stream->getPublishedTime());
 		} catch (Exception $e) {
 		}
 
@@ -1247,8 +1243,7 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 
 		try {
-			$dTime = new DateTime();
-			$dTime->setTimestamp($stream->getPublishedTime());
+			$dTime = new DateTime('@' . $stream->getPublishedTime());
 			$qb->setValue(
 				'published_time', $qb->createNamedParameter($dTime, IQueryBuilder::PARAM_DATE)
 			)

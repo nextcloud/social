@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model;
 
 use JsonSerializable;
+use OCA\Social\Tools\DbTime;
 
 /**
  * A block that is about an address rather than an account.
@@ -54,9 +55,8 @@ class AccessBlock implements JsonSerializable {
 			(string)($row['value'] ?? ''),
 			(string)($row['severity'] ?? self::SEVERITY_NO_ACCESS),
 			(string)($row['comment'] ?? ''),
-			isset($row['expires']) && $row['expires'] !== null
-				? (int)strtotime((string)$row['expires']) : 0,
-			isset($row['creation']) ? (int)strtotime((string)$row['creation']) : 0,
+			DbTime::toTimestamp($row['expires'] ?? null),
+			DbTime::toTimestamp($row['creation'] ?? null),
 			(int)($row['id'] ?? 0),
 		);
 	}

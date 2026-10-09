@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 /**
@@ -56,7 +57,7 @@ class FollowedTagsRequestBuilder extends CoreRequestBuilder {
 		return [
 			'id' => $this->getInt('id', $data),
 			'hashtag' => $this->get('hashtag', $data),
-			'creation' => ($creation === '') ? 0 : (int)strtotime($creation),
+			'creation' => DbTime::toTimestamp($creation),
 		];
 	}
 }

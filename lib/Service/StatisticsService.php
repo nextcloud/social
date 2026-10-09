@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
+use OCA\Social\Tools\DbTime;
 use OCP\AppFramework\Utility\ITimeFactory;
 
 /**
@@ -988,7 +989,7 @@ class StatisticsService {
 		$here = parse_url($actor->getId(), PHP_URL_HOST);
 
 		foreach ($rows as $row) {
-			$month = ($row['creation'] === '') ? '' : gmdate('Y-m', (int)strtotime($row['creation']));
+			$month = ($row['creation'] === '') ? '' : gmdate('Y-m', DbTime::toTimestamp($row['creation']));
 			if ($month !== '' && array_key_exists($month, $byMonth)) {
 				$byMonth[$month]++;
 			}

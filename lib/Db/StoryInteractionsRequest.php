@@ -71,10 +71,9 @@ class StoryInteractionsRequest extends CoreRequestBuilder {
 	 * @return bool whether this was the first time it was seen
 	 */
 	public function save(StoryInteraction $interaction): bool {
-		$now = new DateTime('now');
-		$now->setTimestamp(
-			($interaction->getCreation() > 0) ? $interaction->getCreation() : $now->getTimestamp()
-		);
+		$now = new DateTime('@' . (
+			($interaction->getCreation() > 0) ? $interaction->getCreation() : time()
+		));
 
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_STORY_REACTS)

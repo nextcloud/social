@@ -56,10 +56,10 @@ class InstanceStatsRequest extends CoreRequestBuilder {
 		$qb->limitToLocal(true);
 		$qb->limitToStatusTypes();
 		$qb->andWhere($qb->expr()->gte(
-			's.published_time', $qb->createNamedParameter((new DateTime())->setTimestamp($from), IQueryBuilder::PARAM_DATE)
+			's.published_time', $qb->createNamedParameter(new DateTime('@' . $from), IQueryBuilder::PARAM_DATE)
 		));
 		$qb->andWhere($qb->expr()->lt(
-			's.published_time', $qb->createNamedParameter((new DateTime())->setTimestamp($to), IQueryBuilder::PARAM_DATE)
+			's.published_time', $qb->createNamedParameter(new DateTime('@' . $to), IQueryBuilder::PARAM_DATE)
 		));
 
 		$cursor = $qb->executeQuery();

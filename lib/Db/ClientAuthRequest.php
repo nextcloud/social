@@ -211,8 +211,7 @@ class ClientAuthRequest extends ClientRequestBuilder {
 	 */
 	public function deprecate(): void {
 		$qb = $this->getQueryBuilder();
-		$date = new DateTime();
-		$date->setTimestamp(time() - ClientService::TIME_TOKEN_TTL);
+		$date = new DateTime('@' . (time() - ClientService::TIME_TOKEN_TTL));
 
 		$qb->delete(self::TABLE_CLIENT_AUTH)
 			->where($qb->expr()->lt('last_update', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));
