@@ -34,8 +34,6 @@ const ALLOWED = {
 		'note is sanitizeHtml(accountInfo.note)',
 	'components/AccountHoverCard.vue: <p v-if="note" class="account-hover-card__bio" v-html="note" />':
 		'note is sanitizeHtml(account.note)',
-	'components/DirectMessages.vue: wrapper.innerHTML = content':
-		'a status content the server sanitised on read (HtmlSanitizer), into a detached element whose text is only edited and read back',
 	'components/Composer/Composer.vue: this.inputElement().innerHTML = div.innerHTML':
 		'div holds only an emoji set through textContent, so its innerHTML is escaped text',
 }
