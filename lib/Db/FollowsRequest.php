@@ -515,6 +515,9 @@ class FollowsRequest extends FollowsRequestBuilder {
 				$qb->expr()->eq('mine.accepted', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT))
 			)
 		);
+		// the viewer's own loopback follow joins like any other row, and the
+		// reader is never one of their own familiar followers
+		$qb->andWhere($qb->expr()->neq('f.actor_id_prim', $qb->createNamedParameter($qb->prim($viewerId))));
 		$qb->setMaxResults(max(1, $limit));
 
 		$ids = [];
