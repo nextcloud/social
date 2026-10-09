@@ -1490,7 +1490,8 @@ quote's state is `pending`; a failure to even send the request is logged and
 nothing more, because the post is already out.
 
 **Being quoted.** `QuoteRequestInterface::processIncomingRequest()` answers for
-local posts. The policy is `Stream::isQuotable()` — public and unlisted, yes;
+local posts. The request's `instrument` is read as an id whether it arrives as
+one or as the quoting post inlined, which is how Mastodon sends it. The policy is `Stream::isQuotable()` — public and unlisted, yes;
 anything narrower, no — which is the same rule `PinService::pin()` and
 `BoostService::create()` apply, and for the same reason: a quote carries the
 audience of the quoter, so a narrower post would reach readers its author never
