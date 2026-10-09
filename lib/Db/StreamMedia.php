@@ -74,7 +74,7 @@ trait StreamMedia {
 		$qb->select('nid')
 			->from(self::TABLE_STREAM)
 			->setMaxResults(1);
-		$qb->limitToAttributedTo($actorId, true);
+		$qb->andWhere($expr->eq('attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))));
 		$qb->andWhere($expr->like('attachments', $qb->createNamedParameter(
 			'%"id":"' . $this->dbConnection->escapeLikeParameter($nid) . '"%'
 		)));
