@@ -231,4 +231,15 @@ class DurableCacheTest extends TestCase {
 		$this->now += 61;
 		$this->assertNull($cache->getShared('social.test', 'listed'));
 	}
+
+	#[DataProvider('backends')]
+	public function testSharedStateIsRemovedFromTheTableWhateverMemcacheThereIs(bool $memcache): void {
+		$cache = $this->cache($memcache);
+		$cache->setShared('social.test', 'listed', ['a', 'b'], 60);
+
+		$cache->removeShared('social.test', 'listed');
+
+		$this->assertNull($cache->getShared('social.test', 'listed'));
+		$this->assertSame([], $this->table->rows);
+	}
 }

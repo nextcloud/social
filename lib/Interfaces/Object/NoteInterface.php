@@ -18,6 +18,7 @@ use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
+use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -31,6 +32,7 @@ use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\FileCommentsService;
 use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
@@ -57,6 +59,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		private StatusRevisionService $revisionService,
 		private FileCommentsService $fileCommentsService,
 		private ?ReplyRuleService $replyRules = null,
+		private ?DurableCache $durableCache = null,
 	) {
 	}
 
@@ -87,6 +90,9 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			// nobody to attribute to and fails the origin check below.
 			$item->setAttributedTo($activity->getActorId());
 			$activity->checkOrigin($item->getAttributedTo());
+			if (DeleteInterface::deletedBeforeArrival($this->durableCache, $item->getId(), $activity->getActorId())) {
+				return;
+			}
 			$item->setActivityId($activity->getId());
 
 			// asked before the save, because afterwards every delivery of this

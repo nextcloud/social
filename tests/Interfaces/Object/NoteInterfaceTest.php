@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
@@ -220,6 +221,37 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($create, $note);
 
 		$this->assertSame($create->getId(), $note->getActivityId());
+	}
+
+	/** @return iterable<string, array{string, bool}> */
+	public static function earlyDeletes(): iterable {
+		yield 'deleted by its author before it arrived' => [self::REMOTE_URL . '/users/bob', false];
+		yield 'a Delete by somebody else' => [self::REMOTE_URL . '/users/mallory', true];
+	}
+
+	/**
+	 * A Create that arrives after its own Delete must not put back what the
+	 * author took down; a Delete by anybody else changes nothing.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('earlyDeletes')]
+	public function testACreateOvertakenByItsDeleteIsDropped(string $deletedBy, bool $stored): void {
+		$this->nothingStored();
+		$cache = $this->createStub(\OCA\Social\Service\DurableCache::class);
+		$cache->method('getShared')->willReturnCallback(
+			static fn (string $namespace, string $key): ?string => ($namespace === DeleteInterface::EARLY_DELETE_NAMESPACE
+				&& $key === hash('sha256', self::NOTE)) ? $deletedBy : null
+		);
+		$handler = new NoteInterface(
+			$this->streamRequest, $this->cacheActorsRequest, $this->pollService, $this->pushService,
+			$this->streamQueueService, $this->linkPreviewService, $this->forwardService,
+			$this->createStub(\OCA\Social\Service\NotificationService::class), $this->revisionService,
+			$this->fileCommentsService, $this->replyRules, $cache,
+		);
+		$note = $this->incomingNote();
+
+		$this->streamRequest->expects($stored ? $this->once() : $this->never())->method('save');
+
+		$handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}
 
 	public function testCreateOfAStoredNoteIsPushedToConnectedClients(): void {
