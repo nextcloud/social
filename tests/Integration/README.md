@@ -20,6 +20,11 @@ to stop.
 - `Db/ActorsKeyStorageTest` — private keys land encrypted, read back decrypted,
   legacy plaintext rows stay readable, the EncryptPrivateKeys repair converts
   them idempotently.
+- `Db/TokenLifecycleTest` — an OAuth token through `ClientService`: a code
+  exchanged once and refused after ten minutes, a revoked token that names
+  nobody while another account's authorization of the same app survives, an
+  app or account unable to revoke what is not theirs, and a `read` token
+  refused by a write route before its service is reached.
 - `Db/ClientCredentialStorageTest` — OAuth secrets/codes/tokens land hashed,
   plaintext tokens resolve through the hashed lookup, re-authorization
   invalidates the old token, revocation works, a legacy plaintext row is
