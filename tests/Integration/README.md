@@ -40,6 +40,12 @@ to stop.
 - `Db/OnlyMediaTimelineTest` — the predicate behind the Photos view: posts with
   attachments are kept and all three spellings of "no media" (NULL, `''`, `'[]'`)
   are dropped, and a post carrying several pictures is still one post.
+- `Db/OnlyMediaTimelineTest`, `Db/OnlyVideoTimelineTest`,
+  `Db/MediaTypeTimelineTest` also seed media at a realistic ratio
+  (`Db/MediaUnderText`: three pictures and two videos under sixty newer posts
+  of text) and page the Photos and Videos views of home, public and a profile
+  — a page of twenty, then two at a time on `max_id` — with the home fast path
+  on and off: a narrowing applied after the page was chosen finds nothing.
 - `Db/FollowedTagsTest` — the followed-hashtag table and the second half of the
   home timeline: the unique index that makes following twice a no-op, paging on
   the row id, a 127-character multi-byte tag, and the join itself — a public

@@ -18,7 +18,9 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Service\ConfigService;
 use OCP\Server;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -34,6 +36,8 @@ use PHPUnit\Framework\TestCase;
  * a seeded database and wrong on a real one.
  */
 class OnlyMediaTimelineTest extends TestCase {
+	use MediaUnderText;
+
 	private const BASE = 'https://cloud.example.org/onlymedia';
 	private const VIEWER = self::BASE . '/users/viewer';
 	private const AUTHOR = 'https://remote.example/onlymedia/users/author';
@@ -42,18 +46,22 @@ class OnlyMediaTimelineTest extends TestCase {
 	private const SUFFIXES = ['with-media', 'empty-array', 'empty-string', 'two-pictures'];
 
 	private StreamRequest $streamRequest;
+	private string $fastPathBefore = '';
 	private CacheActorsRequest $cacheActorsRequest;
 	private FollowsRequest $followsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->streamRequest = Server::get(StreamRequest::class);
+		$this->fastPathBefore = Server::get(ConfigService::class)->getAppValue(ConfigService::SOCIAL_DEST_NID_FILLED);
 		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
 		$this->followsRequest = Server::get(FollowsRequest::class);
 		$this->cleanup();
 	}
 
 	protected function tearDown(): void {
+		$this->removeMediaUnderText();
+		$this->useHomeFastPath($this->fastPathBefore === '1');
 		$this->cleanup();
 		parent::tearDown();
 	}
@@ -193,5 +201,29 @@ class OnlyMediaTimelineTest extends TestCase {
 		$home = $this->home($viewer, true);
 
 		$this->assertSame(1, count(array_keys($home, $both->getId(), true)));
+	}
+
+	/**
+	 * The Photos view — `only_media` with `media_type=image`, what the web
+	 * app sends — on home and public, with three pictures under sixty newer
+	 * posts of text. The fast path reads the newest rows and narrows after,
+	 * so it must hand a narrowed home timeline to the join instead.
+	 */
+	#[DataProvider('homeFastPath')]
+	public function testPhotosFindThreePicturesUnderSixtyNewerPostsOfText(bool $fast): void {
+		$viewer = $this->seedFollowedAuthor();
+		$this->useHomeFastPath($fast);
+		$photos = $this->seedMediaUnderText(self::BASE, $this->cacheActorsRequest->getFromId(self::AUTHOR))['photos'];
+		$this->streamRequest->setViewer($viewer);
+
+		foreach ([ProbeOptions::HOME, ProbeOptions::PUBLIC] as $probe) {
+			$this->assertFoundUnderText(
+				self::BASE, $photos,
+				static function (ProbeOptions $options) use ($probe): void {
+					$options->setProbe($probe)->setOnlyMedia(true)->setMediaType('image');
+				},
+				$probe . ' Photos'
+			);
+		}
 	}
 }
