@@ -210,7 +210,7 @@ class HistoryControllerTest extends TestCase {
 
 		$this->assertCount(1, $data);
 		$this->assertSame('posted once', $data[0]->jsonSerialize()['content']);
-		$this->assertSame('2026-09-11T10:00:00Z', $data[0]->jsonSerialize()['created_at']);
+		$this->assertSame('2026-09-11T10:00:00.000Z', $data[0]->jsonSerialize()['created_at']);
 	}
 
 	public function testEveryVersionCarriesTheAuthorAccount(): void {

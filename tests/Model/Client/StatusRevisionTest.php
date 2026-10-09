@@ -74,4 +74,25 @@ class StatusRevisionTest extends TestCase {
 	public function testAVersionWithoutAttachmentsStoresAnEmptyList(): void {
 		$this->assertSame('[]', (new StatusRevision())->getMediaAttachmentsAsJson());
 	}
+
+	/** @return array<string, array{string, string}> */
+	public static function storedTimes(): array {
+		return [
+			'a post made here' => ['2026-10-09T17:51:21+00:00', '2026-10-09T17:51:21.000Z'],
+			'an edit made here' => ['2026-10-09T17:52:00Z', '2026-10-09T17:52:00.000Z'],
+			'a peer in another zone' => ['2026-10-09T19:51:21+02:00', '2026-10-09T17:51:21.000Z'],
+			'Mastodon\'s own form' => ['2026-10-09T17:51:21.000Z', '2026-10-09T17:51:21.000Z'],
+		];
+	}
+
+	/**
+	 * `created_at` is a client API time whatever spelling the version was
+	 * stored with, the way Mastodon writes it in a StatusEdit.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('storedTimes')]
+	public function testAVersionIsDatedTheWayTheClientApiDatesThings(string $stored, string $expected): void {
+		$revision = (new StatusRevision())->setPublished($stored);
+
+		$this->assertSame($expected, $revision->jsonSerialize()['created_at']);
+	}
 }
