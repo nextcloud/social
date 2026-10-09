@@ -1,0 +1,349 @@
+{
+	"description": "Instance, v2 (docs.joinmastodon.org/entities/Instance). api_versions is Mastodon 4.3's; this app adds its own key beside `mastodon`.",
+	"type": "object",
+	"required": [
+		"configuration",
+		"contact",
+		"description",
+		"domain",
+		"languages",
+		"registrations",
+		"rules",
+		"source_url",
+		"thumbnail",
+		"title",
+		"usage",
+		"version"
+	],
+	"properties": {
+		"domain": {
+			"type": "string",
+			"minLength": 1
+		},
+		"title": {
+			"type": "string"
+		},
+		"version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"source_url": {
+			"type": "string",
+			"format": "url"
+		},
+		"description": {
+			"type": "string"
+		},
+		"usage": {
+			"type": "object",
+			"required": [
+				"users"
+			],
+			"properties": {
+				"users": {
+					"type": "object",
+					"required": [
+						"active_month"
+					],
+					"properties": {
+						"active_month": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				}
+			}
+		},
+		"thumbnail": {
+			"type": "object",
+			"required": [
+				"url"
+			],
+			"properties": {
+				"url": {
+					"type": "string",
+					"format": "url"
+				},
+				"blurhash": {
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"versions": {
+					"type": "object"
+				}
+			}
+		},
+		"icon": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"size",
+					"src"
+				],
+				"properties": {
+					"src": {
+						"type": "string",
+						"format": "url"
+					},
+					"size": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"languages": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"format": "language"
+			}
+		},
+		"api_versions": {
+			"type": "object",
+			"required": [
+				"mastodon"
+			],
+			"properties": {
+				"mastodon": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		},
+		"configuration": {
+			"type": "object",
+			"required": [
+				"accounts",
+				"media_attachments",
+				"polls",
+				"statuses",
+				"translation",
+				"urls"
+			],
+			"properties": {
+				"statuses": {
+					"type": "object",
+					"required": [
+						"characters_reserved_per_url",
+						"max_characters",
+						"max_media_attachments"
+					],
+					"properties": {
+						"max_characters": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"max_media_attachments": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"characters_reserved_per_url": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"media_attachments": {
+					"type": "object",
+					"required": [
+						"image_matrix_limit",
+						"image_size_limit",
+						"supported_mime_types",
+						"video_frame_rate_limit",
+						"video_matrix_limit",
+						"video_size_limit"
+					],
+					"properties": {
+						"supported_mime_types": {
+							"type": "array",
+							"items": {
+								"type": "string",
+								"pattern": "^[a-z]+/[-+.a-z0-9]+$"
+							},
+							"minItems": 1
+						},
+						"image_size_limit": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"image_matrix_limit": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"video_size_limit": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"video_frame_rate_limit": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"video_matrix_limit": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"description_limit": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"polls": {
+					"type": "object",
+					"required": [
+						"max_characters_per_option",
+						"max_expiration",
+						"max_options",
+						"min_expiration"
+					],
+					"properties": {
+						"max_options": {
+							"type": "integer",
+							"minimum": 2
+						},
+						"max_characters_per_option": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"min_expiration": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"max_expiration": {
+							"type": "integer",
+							"minimum": 1
+						}
+					}
+				},
+				"accounts": {
+					"type": "object",
+					"required": [
+						"max_featured_tags"
+					],
+					"properties": {
+						"max_featured_tags": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"max_pinned_statuses": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"urls": {
+					"type": "object",
+					"required": [],
+					"properties": {
+						"streaming": {
+							"type": "string",
+							"format": "url"
+						},
+						"status": {
+							"type": [
+								"string",
+								"null"
+							],
+							"format": "url"
+						},
+						"about": {
+							"type": "string",
+							"format": "url"
+						},
+						"privacy_policy": {
+							"type": [
+								"string",
+								"null"
+							],
+							"format": "url"
+						},
+						"terms_of_service": {
+							"type": [
+								"string",
+								"null"
+							],
+							"format": "url"
+						}
+					},
+					"description": "Deliberate deviation: no streaming server, so `urls` is an empty object and clients poll at once (docs/Mastodon-Compatibility.md, Tier 2 item 10)."
+				},
+				"translation": {
+					"type": "object",
+					"required": [
+						"enabled"
+					],
+					"properties": {
+						"enabled": {
+							"type": "boolean"
+						}
+					}
+				},
+				"vapid": {
+					"type": "object",
+					"required": [
+						"public_key"
+					],
+					"properties": {
+						"public_key": {
+							"type": "string"
+						}
+					}
+				}
+			}
+		},
+		"registrations": {
+			"type": "object",
+			"required": [
+				"approval_required",
+				"enabled",
+				"message"
+			],
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"approval_required": {
+					"type": "boolean"
+				},
+				"message": {
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"url": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "url"
+				}
+			}
+		},
+		"contact": {
+			"type": "object",
+			"required": [
+				"account",
+				"email"
+			],
+			"properties": {
+				"email": {
+					"type": "string"
+				},
+				"account": {
+					"$ref": "Account",
+					"nullable": true
+				}
+			}
+		},
+		"rules": {
+			"type": "array",
+			"items": {
+				"$ref": "Rule"
+			}
+		}
+	}
+}

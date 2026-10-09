@@ -1,0 +1,106 @@
+{
+	"description": "Admin::Account (docs.joinmastodon.org/entities/Admin_Account).",
+	"type": "object",
+	"required": [
+		"account",
+		"approved",
+		"confirmed",
+		"created_at",
+		"disabled",
+		"domain",
+		"email",
+		"id",
+		"invite_request",
+		"ip",
+		"ips",
+		"locale",
+		"role",
+		"silenced",
+		"suspended",
+		"username"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"username": {
+			"type": "string",
+			"minLength": 1
+		},
+		"domain": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"created_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"email": {
+			"type": "string"
+		},
+		"ip": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"ips": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"ip",
+					"used_at"
+				],
+				"properties": {
+					"ip": {
+						"type": "string"
+					},
+					"used_at": {
+						"type": "string",
+						"format": "datetime"
+					}
+				}
+			}
+		},
+		"locale": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"invite_request": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"role": {
+			"$ref": "Role"
+		},
+		"confirmed": {
+			"type": "boolean"
+		},
+		"approved": {
+			"type": "boolean"
+		},
+		"disabled": {
+			"type": "boolean"
+		},
+		"silenced": {
+			"type": "boolean"
+		},
+		"suspended": {
+			"type": "boolean"
+		},
+		"account": {
+			"$ref": "Account"
+		},
+		"sensitized": {
+			"type": "boolean"
+		}
+	}
+}

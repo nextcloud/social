@@ -1,0 +1,334 @@
+{
+	"description": "Mastodon's Status entity (docs.joinmastodon.org/entities/Status), as an authenticated client sees it: favourited, reblogged, muted, bookmarked and pinned are then always present. application, text and filtered are documented as optional and are only typed when present.",
+	"type": "object",
+	"required": [
+		"account",
+		"bookmarked",
+		"card",
+		"content",
+		"created_at",
+		"edited_at",
+		"emojis",
+		"favourited",
+		"favourites_count",
+		"id",
+		"in_reply_to_account_id",
+		"in_reply_to_id",
+		"language",
+		"media_attachments",
+		"mentions",
+		"muted",
+		"pinned",
+		"poll",
+		"reblog",
+		"reblogged",
+		"reblogs_count",
+		"replies_count",
+		"sensitive",
+		"spoiler_text",
+		"tags",
+		"uri",
+		"url",
+		"visibility"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"uri": {
+			"type": "string",
+			"minLength": 1
+		},
+		"created_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"account": {
+			"$ref": "Account"
+		},
+		"content": {
+			"type": "string"
+		},
+		"visibility": {
+			"type": "string",
+			"enum": [
+				"public",
+				"unlisted",
+				"private",
+				"direct"
+			]
+		},
+		"sensitive": {
+			"type": "boolean"
+		},
+		"spoiler_text": {
+			"type": "string"
+		},
+		"media_attachments": {
+			"type": "array",
+			"items": {
+				"$ref": "MediaAttachment"
+			}
+		},
+		"mentions": {
+			"type": "array",
+			"items": {
+				"$ref": "Status#/$defs/Mention"
+			}
+		},
+		"tags": {
+			"type": "array",
+			"items": {
+				"$ref": "Status#/$defs/Tag"
+			}
+		},
+		"emojis": {
+			"type": "array",
+			"items": {
+				"$ref": "CustomEmoji"
+			}
+		},
+		"reblogs_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"favourites_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"replies_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"url": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "url"
+		},
+		"in_reply_to_id": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "id"
+		},
+		"in_reply_to_account_id": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "id"
+		},
+		"reblog": {
+			"$ref": "Status",
+			"nullable": true
+		},
+		"poll": {
+			"$ref": "Poll",
+			"nullable": true
+		},
+		"card": {
+			"$ref": "PreviewCard",
+			"nullable": true
+		},
+		"language": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "language"
+		},
+		"edited_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"favourited": {
+			"type": "boolean"
+		},
+		"reblogged": {
+			"type": "boolean"
+		},
+		"muted": {
+			"type": "boolean"
+		},
+		"bookmarked": {
+			"type": "boolean"
+		},
+		"pinned": {
+			"type": "boolean"
+		},
+		"application": {
+			"$ref": "Status#/$defs/Application"
+		},
+		"text": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"filtered": {
+			"type": "array",
+			"items": {
+				"$ref": "FilterResult"
+			}
+		},
+		"quote": {
+			"$ref": "Status#/$defs/Quote",
+			"nullable": true
+		},
+		"quote_approval": {
+			"$ref": "Status#/$defs/QuoteApproval"
+		},
+		"quotes_count": {
+			"type": "integer",
+			"minimum": 0
+		}
+	},
+	"$defs": {
+		"Mention": {
+			"description": "Status::Mention.",
+			"type": "object",
+			"required": [
+				"acct",
+				"id",
+				"url",
+				"username"
+			],
+			"properties": {
+				"id": {
+					"type": "string",
+					"format": "id"
+				},
+				"username": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string",
+					"format": "url"
+				},
+				"acct": {
+					"type": "string"
+				}
+			}
+		},
+		"Tag": {
+			"description": "Status::Tag.",
+			"type": "object",
+			"required": [
+				"name",
+				"url"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"minLength": 1
+				},
+				"url": {
+					"type": "string",
+					"format": "url"
+				}
+			}
+		},
+		"Application": {
+			"type": "object",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"website": {
+					"type": [
+						"string",
+						"null"
+					]
+				}
+			}
+		},
+		"Quote": {
+			"description": "Quote or ShallowQuote (Mastodon 4.4+): a state, and the quoted status (Quote) or its id (ShallowQuote).",
+			"type": "object",
+			"required": [
+				"state"
+			],
+			"properties": {
+				"state": {
+					"type": "string",
+					"enum": [
+						"pending",
+						"accepted",
+						"rejected",
+						"revoked",
+						"deleted",
+						"unauthorized",
+						"blocked_account",
+						"blocked_domain",
+						"muted_account"
+					]
+				},
+				"quoted_status": {
+					"$ref": "Status",
+					"nullable": true
+				},
+				"quoted_status_id": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "id"
+				}
+			}
+		},
+		"QuoteApproval": {
+			"description": "QuoteApproval (Mastodon 4.5).",
+			"type": "object",
+			"required": [
+				"automatic",
+				"current_user",
+				"manual"
+			],
+			"properties": {
+				"automatic": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"public",
+							"followers",
+							"following",
+							"unsupported_policy"
+						]
+					}
+				},
+				"manual": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"public",
+							"followers",
+							"following",
+							"unsupported_policy"
+						]
+					}
+				},
+				"current_user": {
+					"type": "string",
+					"enum": [
+						"automatic",
+						"manual",
+						"denied",
+						"unknown"
+					]
+				}
+			}
+		}
+	}
+}

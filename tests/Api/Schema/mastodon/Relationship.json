@@ -1,0 +1,76 @@
+{
+	"description": "Relationship (docs.joinmastodon.org/entities/Relationship).",
+	"type": "object",
+	"required": [
+		"blocked_by",
+		"blocking",
+		"domain_blocking",
+		"endorsed",
+		"followed_by",
+		"following",
+		"id",
+		"languages",
+		"muting",
+		"muting_notifications",
+		"note",
+		"notifying",
+		"requested",
+		"requested_by",
+		"showing_reblogs"
+	],
+	"properties": {
+		"following": {
+			"type": "boolean"
+		},
+		"showing_reblogs": {
+			"type": "boolean"
+		},
+		"notifying": {
+			"type": "boolean"
+		},
+		"followed_by": {
+			"type": "boolean"
+		},
+		"blocking": {
+			"type": "boolean"
+		},
+		"blocked_by": {
+			"type": "boolean"
+		},
+		"muting": {
+			"type": "boolean"
+		},
+		"muting_notifications": {
+			"type": "boolean"
+		},
+		"requested": {
+			"type": "boolean"
+		},
+		"requested_by": {
+			"type": "boolean"
+		},
+		"domain_blocking": {
+			"type": "boolean"
+		},
+		"endorsed": {
+			"type": "boolean"
+		},
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"languages": {
+			"type": [
+				"array",
+				"null"
+			],
+			"items": {
+				"type": "string",
+				"format": "language"
+			}
+		},
+		"note": {
+			"type": "string"
+		}
+	}
+}

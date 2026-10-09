@@ -1,0 +1,118 @@
+{
+	"description": "PreviewCard (docs.joinmastodon.org/entities/PreviewCard). author_url, provider_url and embed_url are strings that may be empty, as Mastodon sends them.",
+	"type": "object",
+	"required": [
+		"author_name",
+		"author_url",
+		"blurhash",
+		"description",
+		"embed_url",
+		"height",
+		"html",
+		"image",
+		"provider_name",
+		"provider_url",
+		"title",
+		"type",
+		"url",
+		"width"
+	],
+	"properties": {
+		"url": {
+			"type": "string",
+			"format": "url"
+		},
+		"title": {
+			"type": "string"
+		},
+		"description": {
+			"type": "string"
+		},
+		"type": {
+			"type": "string",
+			"enum": [
+				"link",
+				"photo",
+				"video",
+				"rich"
+			]
+		},
+		"author_name": {
+			"type": "string"
+		},
+		"author_url": {
+			"type": "string"
+		},
+		"provider_name": {
+			"type": "string"
+		},
+		"provider_url": {
+			"type": "string"
+		},
+		"html": {
+			"type": "string"
+		},
+		"width": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"height": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"image": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "url"
+		},
+		"embed_url": {
+			"type": "string"
+		},
+		"blurhash": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"image_description": {
+			"type": "string"
+		},
+		"published_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"authors": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"url"
+				],
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					},
+					"account": {
+						"$ref": "Account",
+						"nullable": true
+					}
+				}
+			}
+		},
+		"language": {
+			"type": [
+				"string",
+				"null"
+			]
+		}
+	}
+}

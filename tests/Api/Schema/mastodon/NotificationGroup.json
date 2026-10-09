@@ -1,0 +1,89 @@
+{
+	"description": "NotificationGroup (docs.joinmastodon.org/entities/GroupedNotificationsResults/#NotificationGroup), Mastodon 4.3.",
+	"type": "object",
+	"required": [
+		"group_key",
+		"most_recent_notification_id",
+		"notifications_count",
+		"sample_account_ids",
+		"type"
+	],
+	"properties": {
+		"group_key": {
+			"type": "string",
+			"minLength": 1
+		},
+		"notifications_count": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"type": {
+			"anyOf": [
+				{
+					"type": "string",
+					"enum": [
+						"mention",
+						"status",
+						"reblog",
+						"follow",
+						"follow_request",
+						"favourite",
+						"poll",
+						"update",
+						"admin.sign_up",
+						"admin.report",
+						"severed_relationships",
+						"moderation_warning",
+						"quote",
+						"quoted_update",
+						"annual_report"
+					]
+				},
+				{
+					"description": "an extension type, namespaced the way Pleroma and Pixelfed namespace theirs (bluesky:verified, story:react)",
+					"type": "string",
+					"pattern": "^[a-z]+:[a-z_]+$"
+				},
+				{
+					"description": "Pixelfed's own name for a photo tag, which its app reads; a deliberate deviation",
+					"const": "tagged"
+				}
+			]
+		},
+		"most_recent_notification_id": {
+			"type": "string",
+			"format": "id"
+		},
+		"page_min_id": {
+			"type": "string",
+			"format": "id"
+		},
+		"page_max_id": {
+			"type": "string",
+			"format": "id"
+		},
+		"latest_page_notification_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"sample_account_ids": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"format": "id"
+			},
+			"minItems": 1
+		},
+		"status_id": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "id"
+		},
+		"report": {
+			"$ref": "Report",
+			"nullable": true
+		}
+	}
+}

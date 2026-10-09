@@ -1,0 +1,154 @@
+{
+	"description": "MediaAttachment (docs.joinmastodon.org/entities/MediaAttachment). url is null for an attachment this server holds no copy of, as on Mastodon. meta is an object whose shape depends on the type; only the parts every client reads are typed.",
+	"type": "object",
+	"required": [
+		"blurhash",
+		"description",
+		"id",
+		"meta",
+		"preview_url",
+		"remote_url",
+		"type",
+		"url"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"type": {
+			"type": "string",
+			"enum": [
+				"unknown",
+				"image",
+				"gifv",
+				"video",
+				"audio"
+			]
+		},
+		"url": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "url"
+		},
+		"preview_url": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "url"
+		},
+		"remote_url": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "url"
+		},
+		"meta": {
+			"type": [
+				"object",
+				"null"
+			],
+			"required": [],
+			"properties": {
+				"original": {
+					"type": "object",
+					"required": [],
+					"properties": {
+						"width": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"size": {
+							"type": "string"
+						},
+						"aspect": {
+							"type": "number"
+						},
+						"frame_rate": {
+							"type": "string"
+						},
+						"duration": {
+							"type": "number"
+						},
+						"bitrate": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"small": {
+					"type": "object",
+					"required": [],
+					"properties": {
+						"width": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"height": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"size": {
+							"type": "string"
+						},
+						"aspect": {
+							"type": "number"
+						},
+						"frame_rate": {
+							"type": "string"
+						},
+						"duration": {
+							"type": "number"
+						},
+						"bitrate": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"focus": {
+					"type": "object",
+					"required": [
+						"x",
+						"y"
+					],
+					"properties": {
+						"x": {
+							"type": "number"
+						},
+						"y": {
+							"type": "number"
+						}
+					}
+				}
+			}
+		},
+		"description": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"blurhash": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"text_url": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "url"
+		}
+	}
+}

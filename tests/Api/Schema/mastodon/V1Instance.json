@@ -1,0 +1,230 @@
+{
+	"description": "Instance, v1 (docs.joinmastodon.org/entities/V1_Instance), deprecated by Mastodon and still read by older clients.",
+	"type": "object",
+	"required": [
+		"approval_required",
+		"configuration",
+		"contact_account",
+		"description",
+		"email",
+		"invites_enabled",
+		"languages",
+		"registrations",
+		"rules",
+		"short_description",
+		"stats",
+		"thumbnail",
+		"title",
+		"uri",
+		"urls",
+		"version"
+	],
+	"properties": {
+		"uri": {
+			"type": "string",
+			"minLength": 1
+		},
+		"title": {
+			"type": "string"
+		},
+		"short_description": {
+			"type": "string"
+		},
+		"description": {
+			"type": "string"
+		},
+		"email": {
+			"type": "string"
+		},
+		"version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"urls": {
+			"type": "object",
+			"required": [],
+			"properties": {
+				"streaming_api": {
+					"type": "string",
+					"format": "url"
+				}
+			},
+			"description": "Deliberate deviation: no streaming server, so `urls` is an empty object (docs/Mastodon-Compatibility.md, Tier 2 item 10)."
+		},
+		"stats": {
+			"type": "object",
+			"required": [
+				"domain_count",
+				"status_count",
+				"user_count"
+			],
+			"properties": {
+				"user_count": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"status_count": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"domain_count": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		},
+		"thumbnail": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "url"
+		},
+		"languages": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"format": "language"
+			}
+		},
+		"registrations": {
+			"type": "boolean"
+		},
+		"approval_required": {
+			"type": "boolean"
+		},
+		"invites_enabled": {
+			"type": "boolean"
+		},
+		"configuration": {
+			"type": "object",
+			"required": [
+				"media_attachments",
+				"polls",
+				"statuses"
+			],
+			"properties": {
+				"statuses": {
+					"type": "object",
+					"required": [
+						"characters_reserved_per_url",
+						"max_characters",
+						"max_media_attachments"
+					],
+					"properties": {
+						"max_characters": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"max_media_attachments": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"characters_reserved_per_url": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"media_attachments": {
+					"type": "object",
+					"required": [
+						"image_matrix_limit",
+						"image_size_limit",
+						"supported_mime_types",
+						"video_frame_rate_limit",
+						"video_matrix_limit",
+						"video_size_limit"
+					],
+					"properties": {
+						"supported_mime_types": {
+							"type": "array",
+							"items": {
+								"type": "string",
+								"pattern": "^[a-z]+/[-+.a-z0-9]+$"
+							},
+							"minItems": 1
+						},
+						"image_size_limit": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"image_matrix_limit": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"video_size_limit": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"video_frame_rate_limit": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"video_matrix_limit": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"description_limit": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				},
+				"polls": {
+					"type": "object",
+					"required": [
+						"max_characters_per_option",
+						"max_expiration",
+						"max_options",
+						"min_expiration"
+					],
+					"properties": {
+						"max_options": {
+							"type": "integer",
+							"minimum": 2
+						},
+						"max_characters_per_option": {
+							"type": "integer",
+							"minimum": 1
+						},
+						"min_expiration": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"max_expiration": {
+							"type": "integer",
+							"minimum": 1
+						}
+					}
+				},
+				"accounts": {
+					"type": "object",
+					"required": [
+						"max_featured_tags"
+					],
+					"properties": {
+						"max_featured_tags": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"max_pinned_statuses": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				}
+			}
+		},
+		"contact_account": {
+			"$ref": "Account",
+			"nullable": true
+		},
+		"rules": {
+			"type": "array",
+			"items": {
+				"$ref": "Rule"
+			}
+		}
+	}
+}

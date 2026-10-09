@@ -1,0 +1,206 @@
+{
+	"description": "Mastodon's Account entity (docs.joinmastodon.org/entities/Account). last_status_at is a calendar date, not a date-time. The counts are never negative: -1 is how this app stores 'not counted yet', and it must not reach a client.",
+	"type": "object",
+	"required": [
+		"acct",
+		"avatar",
+		"avatar_static",
+		"bot",
+		"created_at",
+		"discoverable",
+		"display_name",
+		"emojis",
+		"fields",
+		"followers_count",
+		"following_count",
+		"group",
+		"header",
+		"header_static",
+		"id",
+		"last_status_at",
+		"locked",
+		"note",
+		"statuses_count",
+		"url",
+		"username"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"username": {
+			"type": "string",
+			"minLength": 1
+		},
+		"acct": {
+			"type": "string",
+			"minLength": 1
+		},
+		"url": {
+			"type": "string",
+			"format": "url"
+		},
+		"display_name": {
+			"type": "string"
+		},
+		"note": {
+			"type": "string"
+		},
+		"avatar": {
+			"type": "string",
+			"format": "url"
+		},
+		"avatar_static": {
+			"type": "string",
+			"format": "url"
+		},
+		"header": {
+			"type": "string",
+			"format": "url"
+		},
+		"header_static": {
+			"type": "string",
+			"format": "url"
+		},
+		"locked": {
+			"type": "boolean"
+		},
+		"fields": {
+			"type": "array",
+			"items": {
+				"$ref": "Account#/$defs/Field"
+			}
+		},
+		"emojis": {
+			"type": "array",
+			"items": {
+				"$ref": "CustomEmoji"
+			}
+		},
+		"bot": {
+			"type": "boolean"
+		},
+		"group": {
+			"type": "boolean"
+		},
+		"discoverable": {
+			"type": [
+				"boolean",
+				"null"
+			]
+		},
+		"created_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"last_status_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "date"
+		},
+		"statuses_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"followers_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"following_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"uri": {
+			"type": "string",
+			"format": "url"
+		},
+		"noindex": {
+			"type": [
+				"boolean",
+				"null"
+			]
+		},
+		"moved": {
+			"$ref": "Account",
+			"nullable": true
+		},
+		"suspended": {
+			"type": "boolean"
+		},
+		"limited": {
+			"type": "boolean"
+		},
+		"indexable": {
+			"type": "boolean"
+		},
+		"hide_collections": {
+			"type": [
+				"boolean",
+				"null"
+			]
+		},
+		"memorial": {
+			"type": [
+				"boolean",
+				"null"
+			]
+		},
+		"roles": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"color",
+					"id",
+					"name"
+				],
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"color": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"avatar_description": {
+			"type": "string"
+		},
+		"header_description": {
+			"type": "string"
+		}
+	},
+	"$defs": {
+		"Field": {
+			"description": "Account::Field. verified_at is written by Mastodon with an offset (`+00:00`) rather than `Z`, so any ISO 8601 date-time with a zone is accepted for it.",
+			"type": "object",
+			"required": [
+				"name",
+				"value",
+				"verified_at"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"value": {
+					"type": "string"
+				},
+				"verified_at": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "iso8601"
+				}
+			}
+		}
+	}
+}

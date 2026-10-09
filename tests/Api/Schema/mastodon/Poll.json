@@ -1,0 +1,83 @@
+{
+	"description": "Poll (docs.joinmastodon.org/entities/Poll). voted and own_votes are only sent to an authenticated client.",
+	"type": "object",
+	"required": [
+		"emojis",
+		"expired",
+		"expires_at",
+		"id",
+		"multiple",
+		"options",
+		"voters_count",
+		"votes_count"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"expires_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"expired": {
+			"type": "boolean"
+		},
+		"multiple": {
+			"type": "boolean"
+		},
+		"votes_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"voters_count": {
+			"type": [
+				"integer",
+				"null"
+			],
+			"minimum": 0
+		},
+		"options": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"title",
+					"votes_count"
+				],
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"votes_count": {
+						"type": [
+							"integer",
+							"null"
+						],
+						"minimum": 0
+					}
+				}
+			},
+			"minItems": 2
+		},
+		"emojis": {
+			"type": "array",
+			"items": {
+				"$ref": "CustomEmoji"
+			}
+		},
+		"voted": {
+			"type": "boolean"
+		},
+		"own_votes": {
+			"type": "array",
+			"items": {
+				"type": "integer",
+				"minimum": 0
+			}
+		}
+	}
+}

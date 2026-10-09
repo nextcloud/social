@@ -1,0 +1,18 @@
+{
+	"description": "FilterStatus (docs.joinmastodon.org/entities/FilterStatus).",
+	"type": "object",
+	"required": [
+		"id",
+		"status_id"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"status_id": {
+			"type": "string",
+			"format": "id"
+		}
+	}
+}

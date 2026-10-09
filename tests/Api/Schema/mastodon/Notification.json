@@ -1,0 +1,67 @@
+{
+	"description": "Notification (docs.joinmastodon.org/entities/Notification). Mastodon defines new types over time and asks clients to ignore what they do not know; this app's own types are namespaced, except Pixelfed's `tagged`.",
+	"type": "object",
+	"required": [
+		"account",
+		"created_at",
+		"id",
+		"type"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"type": {
+			"anyOf": [
+				{
+					"type": "string",
+					"enum": [
+						"mention",
+						"status",
+						"reblog",
+						"follow",
+						"follow_request",
+						"favourite",
+						"poll",
+						"update",
+						"admin.sign_up",
+						"admin.report",
+						"severed_relationships",
+						"moderation_warning",
+						"quote",
+						"quoted_update",
+						"annual_report"
+					]
+				},
+				{
+					"description": "an extension type, namespaced the way Pleroma and Pixelfed namespace theirs (bluesky:verified, story:react)",
+					"type": "string",
+					"pattern": "^[a-z]+:[a-z_]+$"
+				},
+				{
+					"description": "Pixelfed's own name for a photo tag, which its app reads; a deliberate deviation",
+					"const": "tagged"
+				}
+			]
+		},
+		"created_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"account": {
+			"$ref": "Account"
+		},
+		"group_key": {
+			"type": "string"
+		},
+		"status": {
+			"$ref": "Status",
+			"nullable": true
+		},
+		"report": {
+			"$ref": "Report",
+			"nullable": true
+		}
+	}
+}

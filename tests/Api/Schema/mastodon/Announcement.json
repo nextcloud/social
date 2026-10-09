@@ -1,0 +1,127 @@
+{
+	"description": "Announcement (docs.joinmastodon.org/entities/Announcement). `published` is listed by the documentation but not sent by Mastodon's serializer, and `read` only to an authenticated client, so both are typed only when present.",
+	"type": "object",
+	"required": [
+		"all_day",
+		"content",
+		"emojis",
+		"ends_at",
+		"id",
+		"mentions",
+		"published_at",
+		"reactions",
+		"starts_at",
+		"statuses",
+		"tags",
+		"updated_at"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"content": {
+			"type": "string"
+		},
+		"starts_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"ends_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"published": {
+			"type": "boolean"
+		},
+		"all_day": {
+			"type": "boolean"
+		},
+		"published_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"updated_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"read": {
+			"type": "boolean"
+		},
+		"mentions": {
+			"type": "array",
+			"items": {
+				"$ref": "Status#/$defs/Mention"
+			}
+		},
+		"statuses": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"id",
+					"url"
+				],
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "id"
+					},
+					"url": {
+						"type": "string",
+						"format": "url"
+					}
+				}
+			}
+		},
+		"tags": {
+			"type": "array",
+			"items": {
+				"$ref": "Status#/$defs/Tag"
+			}
+		},
+		"emojis": {
+			"type": "array",
+			"items": {
+				"$ref": "CustomEmoji"
+			}
+		},
+		"reactions": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"count",
+					"name"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"count": {
+						"type": "integer",
+						"minimum": 1
+					},
+					"me": {
+						"type": "boolean"
+					},
+					"url": {
+						"type": "string",
+						"format": "url"
+					},
+					"static_url": {
+						"type": "string",
+						"format": "url"
+					}
+				}
+			}
+		}
+	}
+}

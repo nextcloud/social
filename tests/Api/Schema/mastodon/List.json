@@ -1,0 +1,30 @@
+{
+	"description": "List (docs.joinmastodon.org/entities/List).",
+	"type": "object",
+	"required": [
+		"exclusive",
+		"id",
+		"replies_policy",
+		"title"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"title": {
+			"type": "string"
+		},
+		"replies_policy": {
+			"type": "string",
+			"enum": [
+				"followed",
+				"list",
+				"none"
+			]
+		},
+		"exclusive": {
+			"type": "boolean"
+		}
+	}
+}

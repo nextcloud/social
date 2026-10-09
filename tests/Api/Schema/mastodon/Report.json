@@ -1,0 +1,74 @@
+{
+	"description": "Report (docs.joinmastodon.org/entities/Report).",
+	"type": "object",
+	"required": [
+		"action_taken",
+		"action_taken_at",
+		"category",
+		"comment",
+		"created_at",
+		"forwarded",
+		"id",
+		"rule_ids",
+		"status_ids",
+		"target_account"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"action_taken": {
+			"type": "boolean"
+		},
+		"action_taken_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"category": {
+			"type": "string",
+			"enum": [
+				"spam",
+				"legal",
+				"violation",
+				"other"
+			]
+		},
+		"comment": {
+			"type": "string"
+		},
+		"forwarded": {
+			"type": "boolean"
+		},
+		"created_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"status_ids": {
+			"type": [
+				"array",
+				"null"
+			],
+			"items": {
+				"type": "string",
+				"format": "id"
+			}
+		},
+		"rule_ids": {
+			"type": [
+				"array",
+				"null"
+			],
+			"items": {
+				"type": "string",
+				"format": "id"
+			}
+		},
+		"target_account": {
+			"$ref": "Account"
+		}
+	}
+}

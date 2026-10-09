@@ -1,0 +1,13 @@
+{
+	"description": "The answer of GET /api/v1/markers: an object keyed by timeline, never a list.",
+	"type": "object",
+	"properties": {
+		"home": {
+			"$ref": "Marker"
+		},
+		"notifications": {
+			"$ref": "Marker"
+		}
+	},
+	"additionalProperties": false
+}
