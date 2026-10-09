@@ -1,0 +1,123 @@
+{
+    "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://w3id.org/security/v1",
+        {
+            "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+            "sensitive": "as:sensitive",
+            "Hashtag": "as:Hashtag",
+            "movedTo": {
+                "@id": "as:movedTo",
+                "@type": "@id"
+            },
+            "alsoKnownAs": {
+                "@id": "as:alsoKnownAs",
+                "@type": "@id"
+            },
+            "toot": "http://joinmastodon.org/ns#",
+            "featured": {
+                "@id": "toot:featured",
+                "@type": "@id"
+            },
+            "discoverable": "toot:discoverable",
+            "indexable": "toot:indexable",
+            "votersCount": "toot:votersCount",
+            "blurhash": "toot:blurhash",
+            "focalPoint": {
+                "@container": "@list",
+                "@id": "toot:focalPoint"
+            },
+            "Emoji": "toot:Emoji",
+            "schema": "http://schema.org#",
+            "PropertyValue": "schema:PropertyValue",
+            "value": "schema:value",
+            "ostatus": "http://ostatus.org#",
+            "conversation": "ostatus:conversation",
+            "fep044f": "https://w3id.org/fep/044f#",
+            "quote": {
+                "@id": "fep044f:quote",
+                "@type": "@id"
+            },
+            "quoteAuthorization": {
+                "@id": "fep044f:quoteAuthorization",
+                "@type": "@id"
+            },
+            "QuoteRequest": "fep044f:QuoteRequest",
+            "QuoteAuthorization": "fep044f:QuoteAuthorization",
+            "interactingObject": {
+                "@id": "fep044f:interactingObject",
+                "@type": "@id"
+            },
+            "interactionTarget": {
+                "@id": "fep044f:interactionTarget",
+                "@type": "@id"
+            },
+            "quoteUrl": {
+                "@id": "as:quoteUrl",
+                "@type": "@id"
+            },
+            "misskey": "https://misskey-hub.net/ns#",
+            "_misskey_quote": {
+                "@id": "misskey:_misskey_quote",
+                "@type": "@id"
+            },
+            "gts": "https://gotosocial.org/ns#",
+            "interactionPolicy": {
+                "@id": "gts:interactionPolicy",
+                "@type": "@id"
+            },
+            "canQuote": {
+                "@id": "gts:canQuote",
+                "@type": "@id"
+            },
+            "automaticApproval": {
+                "@id": "gts:automaticApproval",
+                "@type": "@id"
+            },
+            "manualApproval": {
+                "@id": "gts:manualApproval",
+                "@type": "@id"
+            }
+        }
+    ],
+    "id": "https://cloud.example/apps/social/@alice",
+    "type": "Person",
+    "url": "https://cloud.example/apps/social/@alice",
+    "summary": "<p>Gardener &amp; sometime &lt;coder&gt;.</p>",
+    "local": true,
+    "aliases": [
+        "https://cloud.example/apps/social/@alice",
+        "https://cloud.example/apps/social/users/alice"
+    ],
+    "preferredUsername": "alice",
+    "name": "Alice",
+    "inbox": "https://cloud.example/apps/social/@alice/inbox",
+    "outbox": "https://cloud.example/apps/social/@alice/outbox",
+    "account": "alice@cloud.example",
+    "following": "https://cloud.example/apps/social/@alice/following",
+    "followers": "https://cloud.example/apps/social/@alice/followers",
+    "endpoints": {
+        "sharedInbox": "https://cloud.example/apps/social/inbox"
+    },
+    "publicKey": {
+        "id": "https://cloud.example/apps/social/@alice#main-key",
+        "owner": "https://cloud.example/apps/social/@alice",
+        "publicKeyPem": "<pem>"
+    },
+    "manuallyApprovesFollowers": false,
+    "discoverable": true,
+    "indexable": true,
+    "featured": "https://cloud.example/apps/social/@alice/collections/featured",
+    "attachment": [
+        {
+            "type": "PropertyValue",
+            "name": "Website",
+            "value": "<a href=\"https://alice.example\" target=\"_blank\" rel=\"nofollow noopener noreferrer me\" translate=\"no\">https://alice.example</a>"
+        },
+        {
+            "type": "PropertyValue",
+            "name": "Pronouns",
+            "value": "she/her"
+        }
+    ]
+}

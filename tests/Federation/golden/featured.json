@@ -1,0 +1,198 @@
+{
+    "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        {
+            "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+            "sensitive": "as:sensitive",
+            "Hashtag": "as:Hashtag",
+            "movedTo": {
+                "@id": "as:movedTo",
+                "@type": "@id"
+            },
+            "alsoKnownAs": {
+                "@id": "as:alsoKnownAs",
+                "@type": "@id"
+            },
+            "toot": "http://joinmastodon.org/ns#",
+            "featured": {
+                "@id": "toot:featured",
+                "@type": "@id"
+            },
+            "discoverable": "toot:discoverable",
+            "indexable": "toot:indexable",
+            "votersCount": "toot:votersCount",
+            "blurhash": "toot:blurhash",
+            "focalPoint": {
+                "@container": "@list",
+                "@id": "toot:focalPoint"
+            },
+            "Emoji": "toot:Emoji",
+            "schema": "http://schema.org#",
+            "PropertyValue": "schema:PropertyValue",
+            "value": "schema:value",
+            "ostatus": "http://ostatus.org#",
+            "conversation": "ostatus:conversation",
+            "fep044f": "https://w3id.org/fep/044f#",
+            "quote": {
+                "@id": "fep044f:quote",
+                "@type": "@id"
+            },
+            "quoteAuthorization": {
+                "@id": "fep044f:quoteAuthorization",
+                "@type": "@id"
+            },
+            "QuoteRequest": "fep044f:QuoteRequest",
+            "QuoteAuthorization": "fep044f:QuoteAuthorization",
+            "interactingObject": {
+                "@id": "fep044f:interactingObject",
+                "@type": "@id"
+            },
+            "interactionTarget": {
+                "@id": "fep044f:interactionTarget",
+                "@type": "@id"
+            },
+            "quoteUrl": {
+                "@id": "as:quoteUrl",
+                "@type": "@id"
+            },
+            "misskey": "https://misskey-hub.net/ns#",
+            "_misskey_quote": {
+                "@id": "misskey:_misskey_quote",
+                "@type": "@id"
+            },
+            "gts": "https://gotosocial.org/ns#",
+            "interactionPolicy": {
+                "@id": "gts:interactionPolicy",
+                "@type": "@id"
+            },
+            "canQuote": {
+                "@id": "gts:canQuote",
+                "@type": "@id"
+            },
+            "automaticApproval": {
+                "@id": "gts:automaticApproval",
+                "@type": "@id"
+            },
+            "manualApproval": {
+                "@id": "gts:manualApproval",
+                "@type": "@id"
+            }
+        }
+    ],
+    "id": "https://cloud.example/apps/social/@alice/collections/featured",
+    "type": "OrderedCollection",
+    "orderedItems": [
+        {
+            "@context": [
+                "https://www.w3.org/ns/activitystreams",
+                {
+                    "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+                    "sensitive": "as:sensitive",
+                    "Hashtag": "as:Hashtag",
+                    "movedTo": {
+                        "@id": "as:movedTo",
+                        "@type": "@id"
+                    },
+                    "alsoKnownAs": {
+                        "@id": "as:alsoKnownAs",
+                        "@type": "@id"
+                    },
+                    "toot": "http://joinmastodon.org/ns#",
+                    "featured": {
+                        "@id": "toot:featured",
+                        "@type": "@id"
+                    },
+                    "discoverable": "toot:discoverable",
+                    "indexable": "toot:indexable",
+                    "votersCount": "toot:votersCount",
+                    "blurhash": "toot:blurhash",
+                    "focalPoint": {
+                        "@container": "@list",
+                        "@id": "toot:focalPoint"
+                    },
+                    "Emoji": "toot:Emoji",
+                    "schema": "http://schema.org#",
+                    "PropertyValue": "schema:PropertyValue",
+                    "value": "schema:value",
+                    "ostatus": "http://ostatus.org#",
+                    "conversation": "ostatus:conversation",
+                    "fep044f": "https://w3id.org/fep/044f#",
+                    "quote": {
+                        "@id": "fep044f:quote",
+                        "@type": "@id"
+                    },
+                    "quoteAuthorization": {
+                        "@id": "fep044f:quoteAuthorization",
+                        "@type": "@id"
+                    },
+                    "QuoteRequest": "fep044f:QuoteRequest",
+                    "QuoteAuthorization": "fep044f:QuoteAuthorization",
+                    "interactingObject": {
+                        "@id": "fep044f:interactingObject",
+                        "@type": "@id"
+                    },
+                    "interactionTarget": {
+                        "@id": "fep044f:interactionTarget",
+                        "@type": "@id"
+                    },
+                    "quoteUrl": {
+                        "@id": "as:quoteUrl",
+                        "@type": "@id"
+                    },
+                    "misskey": "https://misskey-hub.net/ns#",
+                    "_misskey_quote": {
+                        "@id": "misskey:_misskey_quote",
+                        "@type": "@id"
+                    },
+                    "gts": "https://gotosocial.org/ns#",
+                    "interactionPolicy": {
+                        "@id": "gts:interactionPolicy",
+                        "@type": "@id"
+                    },
+                    "canQuote": {
+                        "@id": "gts:canQuote",
+                        "@type": "@id"
+                    },
+                    "automaticApproval": {
+                        "@id": "gts:automaticApproval",
+                        "@type": "@id"
+                    },
+                    "manualApproval": {
+                        "@id": "gts:manualApproval",
+                        "@type": "@id"
+                    }
+                }
+            ],
+            "id": "https://cloud.example/apps/social/@alice/17000000001111111111",
+            "type": "Note",
+            "to": "https://www.w3.org/ns/activitystreams#Public",
+            "cc": [
+                "https://cloud.example/apps/social/@alice/followers"
+            ],
+            "actor": "https://cloud.example/apps/social/@alice",
+            "published": "2026-03-02T08:00:00Z",
+            "local": true,
+            "content": "<p>Pinned: my seed list</p>",
+            "attributedTo": "https://cloud.example/apps/social/@alice",
+            "sensitive": false,
+            "replies": {
+                "id": "https://cloud.example/apps/social/@alice/17000000001111111111/replies",
+                "type": "OrderedCollection",
+                "first": "https://cloud.example/apps/social/@alice/17000000001111111111/replies?page=1"
+            },
+            "interactionPolicy": {
+                "canQuote": {
+                    "automaticApproval": [
+                        "https://www.w3.org/ns/activitystreams#Public",
+                        "https://cloud.example/apps/social/@alice"
+                    ]
+                }
+            },
+            "contentMap": {
+                "en": "<p>Pinned: my seed list</p>"
+            },
+            "url": "https://cloud.example/apps/social/@alice/17000000001111111111"
+        }
+    ],
+    "totalItems": 1
+}

@@ -1,0 +1,149 @@
+{
+    "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://w3id.org/security/v1",
+        {
+            "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+            "sensitive": "as:sensitive",
+            "Hashtag": "as:Hashtag",
+            "movedTo": {
+                "@id": "as:movedTo",
+                "@type": "@id"
+            },
+            "alsoKnownAs": {
+                "@id": "as:alsoKnownAs",
+                "@type": "@id"
+            },
+            "toot": "http://joinmastodon.org/ns#",
+            "featured": {
+                "@id": "toot:featured",
+                "@type": "@id"
+            },
+            "discoverable": "toot:discoverable",
+            "indexable": "toot:indexable",
+            "votersCount": "toot:votersCount",
+            "blurhash": "toot:blurhash",
+            "focalPoint": {
+                "@container": "@list",
+                "@id": "toot:focalPoint"
+            },
+            "Emoji": "toot:Emoji",
+            "schema": "http://schema.org#",
+            "PropertyValue": "schema:PropertyValue",
+            "value": "schema:value",
+            "ostatus": "http://ostatus.org#",
+            "conversation": "ostatus:conversation",
+            "fep044f": "https://w3id.org/fep/044f#",
+            "quote": {
+                "@id": "fep044f:quote",
+                "@type": "@id"
+            },
+            "quoteAuthorization": {
+                "@id": "fep044f:quoteAuthorization",
+                "@type": "@id"
+            },
+            "QuoteRequest": "fep044f:QuoteRequest",
+            "QuoteAuthorization": "fep044f:QuoteAuthorization",
+            "interactingObject": {
+                "@id": "fep044f:interactingObject",
+                "@type": "@id"
+            },
+            "interactionTarget": {
+                "@id": "fep044f:interactionTarget",
+                "@type": "@id"
+            },
+            "quoteUrl": {
+                "@id": "as:quoteUrl",
+                "@type": "@id"
+            },
+            "misskey": "https://misskey-hub.net/ns#",
+            "_misskey_quote": {
+                "@id": "misskey:_misskey_quote",
+                "@type": "@id"
+            },
+            "gts": "https://gotosocial.org/ns#",
+            "interactionPolicy": {
+                "@id": "gts:interactionPolicy",
+                "@type": "@id"
+            },
+            "canQuote": {
+                "@id": "gts:canQuote",
+                "@type": "@id"
+            },
+            "automaticApproval": {
+                "@id": "gts:automaticApproval",
+                "@type": "@id"
+            },
+            "manualApproval": {
+                "@id": "gts:manualApproval",
+                "@type": "@id"
+            }
+        }
+    ],
+    "id": "https://cloud.example/apps/social/@alice/<stamp:1>/activity",
+    "type": "Create",
+    "to": "https://www.w3.org/ns/activitystreams#Public",
+    "cc": [
+        "https://cloud.example/apps/social/@alice/followers"
+    ],
+    "actor": "https://cloud.example/apps/social/@alice",
+    "object": {
+        "id": "https://cloud.example/apps/social/@alice/<stamp:1>",
+        "type": "Note",
+        "to": "https://www.w3.org/ns/activitystreams#Public",
+        "cc": [
+            "https://cloud.example/apps/social/@alice/followers"
+        ],
+        "published": "<now>",
+        "local": true,
+        "content": "<p>Two from the allotment</p>",
+        "attributedTo": "https://cloud.example/apps/social/@alice",
+        "sensitive": false,
+        "replies": {
+            "id": "https://cloud.example/apps/social/@alice/<stamp:1>/replies",
+            "type": "OrderedCollection",
+            "first": "https://cloud.example/apps/social/@alice/<stamp:1>/replies?page=1"
+        },
+        "interactionPolicy": {
+            "canQuote": {
+                "automaticApproval": [
+                    "https://www.w3.org/ns/activitystreams#Public",
+                    "https://cloud.example/apps/social/@alice"
+                ]
+            }
+        },
+        "contentMap": {
+            "en": "<p>Two from the allotment</p>"
+        },
+        "url": "https://cloud.example/apps/social/@alice/<stamp:1>",
+        "attachment": [
+            {
+                "type": "Document",
+                "mediaType": "image/jpeg",
+                "url": "https://cloud.example/apps/social/media/first.jpg",
+                "name": "a row of seedlings",
+                "blurhash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+                "width": 1600,
+                "height": 1200,
+                "focalPoint": [
+                    -0.5,
+                    0.25
+                ]
+            },
+            {
+                "type": "Document",
+                "mediaType": "image/png",
+                "url": "https://cloud.example/apps/social/media/second.png",
+                "name": null,
+                "width": 800,
+                "height": 600
+            }
+        ]
+    },
+    "signature": {
+        "type": "RsaSignature2017",
+        "creator": "https://cloud.example/apps/social/@alice#main-key",
+        "created": "<now>",
+        "signatureValue": "<signatureValue>"
+    }
+}

@@ -1,0 +1,91 @@
+{
+    "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        {
+            "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+            "sensitive": "as:sensitive",
+            "Hashtag": "as:Hashtag",
+            "movedTo": {
+                "@id": "as:movedTo",
+                "@type": "@id"
+            },
+            "alsoKnownAs": {
+                "@id": "as:alsoKnownAs",
+                "@type": "@id"
+            },
+            "toot": "http://joinmastodon.org/ns#",
+            "featured": {
+                "@id": "toot:featured",
+                "@type": "@id"
+            },
+            "discoverable": "toot:discoverable",
+            "indexable": "toot:indexable",
+            "votersCount": "toot:votersCount",
+            "blurhash": "toot:blurhash",
+            "focalPoint": {
+                "@container": "@list",
+                "@id": "toot:focalPoint"
+            },
+            "Emoji": "toot:Emoji",
+            "schema": "http://schema.org#",
+            "PropertyValue": "schema:PropertyValue",
+            "value": "schema:value",
+            "ostatus": "http://ostatus.org#",
+            "conversation": "ostatus:conversation",
+            "fep044f": "https://w3id.org/fep/044f#",
+            "quote": {
+                "@id": "fep044f:quote",
+                "@type": "@id"
+            },
+            "quoteAuthorization": {
+                "@id": "fep044f:quoteAuthorization",
+                "@type": "@id"
+            },
+            "QuoteRequest": "fep044f:QuoteRequest",
+            "QuoteAuthorization": "fep044f:QuoteAuthorization",
+            "interactingObject": {
+                "@id": "fep044f:interactingObject",
+                "@type": "@id"
+            },
+            "interactionTarget": {
+                "@id": "fep044f:interactionTarget",
+                "@type": "@id"
+            },
+            "quoteUrl": {
+                "@id": "as:quoteUrl",
+                "@type": "@id"
+            },
+            "misskey": "https://misskey-hub.net/ns#",
+            "_misskey_quote": {
+                "@id": "misskey:_misskey_quote",
+                "@type": "@id"
+            },
+            "gts": "https://gotosocial.org/ns#",
+            "interactionPolicy": {
+                "@id": "gts:interactionPolicy",
+                "@type": "@id"
+            },
+            "canQuote": {
+                "@id": "gts:canQuote",
+                "@type": "@id"
+            },
+            "automaticApproval": {
+                "@id": "gts:automaticApproval",
+                "@type": "@id"
+            },
+            "manualApproval": {
+                "@id": "gts:manualApproval",
+                "@type": "@id"
+            }
+        }
+    ],
+    "id": "https://cloud.example/apps/social/actor#reports/42",
+    "type": "Flag",
+    "to": "https://remote.example/users/bob",
+    "actor": "https://cloud.example/apps/social/actor",
+    "object": [
+        "https://remote.example/users/bob",
+        "https://remote.example/users/bob/statuses/110000000000000001"
+    ],
+    "content": "spam, and rude about tomatoes"
+}
