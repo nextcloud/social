@@ -884,7 +884,26 @@ class DocumentServiceTest extends TestCase {
 
 		$this->assertSame('video/mp2t', $answer['type']);
 		$this->assertSame(200, $answer['status']);
-		$this->assertContains($segment, $opened());
+		$this->assertSame([$segment], $opened(), 'only the segment is opened, not the playlist again');
+	}
+
+	/**
+	 * A player asks for a segment every few seconds. Opening the playlist's
+	 * own stream on each of those, only to read the row, doubled the requests
+	 * sent to the origin and left a connection open per segment.
+	 */
+	public function testThePlaylistIsReadOnceAndNotOpenedAsAStreamToo(): void {
+		$opened = $this->streamedPlaylist();
+		$this->cacheService->expects($this->once())->method('readRemoteFile')
+			->willReturn("#EXTM3U\n720.m3u8\n");
+
+		$answer = $this->service->openPlaylist('42', static fn (string $url): string => '/proxy?u=' . rawurlencode($url));
+
+		$this->assertSame([], $opened());
+		$this->assertStringContainsString(
+			'/proxy?u=' . rawurlencode('https://peer.example/static/streaming-playlists/hls/720.m3u8'),
+			$answer['playlist']
+		);
 	}
 
 	public function testAFileIsOnlyServedThroughADocumentThatIsAPlaylist(): void {
