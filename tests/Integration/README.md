@@ -141,7 +141,10 @@ to stop.
   or a vote storing the client entity where the post's ActivityPub document
   belongs; `Api/FamiliarFollowersTest` the reader listed among their own
   familiar followers; `Api/ReactedByTest` every account of `favourited_by`
-  and `reblogged_by` answered as `"id": "0"`.
+  and `reblogged_by` answered as `"id": "0"`. `Api/InstanceConfigurationTest`
+  holds the limits `/api/v2/instance` announces against what a post is
+  held to, and caught URLs counted at their full length where the instance
+  says 23.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

@@ -315,7 +315,7 @@ class InstanceService {
 			'statuses' => [
 				'max_characters' => self::MAX_CHARACTERS,
 				'max_media_attachments' => Stream::MAX_ATTACHMENTS,
-				'characters_reserved_per_url' => 23,
+				'characters_reserved_per_url' => LinkifyService::URL_LENGTH,
 			],
 			'media_attachments' => [
 				'supported_mime_types' => $this->supportedMimeTypes(),
