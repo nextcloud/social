@@ -133,6 +133,11 @@ to stop.
   queue of 0, 200 and 400 deliveries, with only the network edge replaced and
   the clock frozen: a constant cost per pass, two statements per delivery and
   three per batch, and the second batch costing exactly what the first did.
+- `Api/*` — the Mastodon client API called the way a client calls it: real
+  accounts with a bearer token, each controller built by a fresh app
+  container, the answer put through `json_encode()` as the JSON responder
+  does (`ApiTestCase`). `Api/StatusMentionsTest` caught every status written
+  here reaching clients with `mentions: []`.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

@@ -356,6 +356,11 @@ class StreamService {
 				'name' => '@' . $account
 			]
 		);
+		// and the client's `mentions`, which a client links handles from and
+		// fills a reply with
+		if ($stream instanceof Note) {
+			$stream->addMention($actor, $actor->getId());
+		}
 
 		// the addressing and the tag stand whatever happens next: they are what
 		// renders the mention here and what tells every recipient who it names
