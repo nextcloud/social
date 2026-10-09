@@ -1212,7 +1212,10 @@ class CoreRequestBuilder {
 
 		$pf = ($alias === '') ? $this->defaultSelectAlias : $alias;
 
-		$qb->selectAlias('ca.id', 'ca_id')
+		// the numeric id is what a client names the account by; without it
+		// every account read through this join was `"id": "0"`
+		$qb->selectAlias('ca.nid', 'ca_nid')
+			->selectAlias('ca.id', 'ca_id')
 			->selectAlias('ca.type', 'ca_type')
 			->selectAlias('ca.account', 'ca_account')
 			->selectAlias('ca.following', 'ca_following')
