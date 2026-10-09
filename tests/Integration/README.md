@@ -67,6 +67,27 @@ to stop.
   their account, and another user's rows untouched. A schema guard fails when
   a table with an account-like column is neither cascaded nor listed as kept
   or as a known gap.
+- `Db/StreamMediaTest` — a post's stored attachment copies and the
+  `social_stream_media` links: paging by nid, `carriesUpload()` (which failed
+  on every database until this test ran it), relinking on a rewrite, remote
+  recovery, and rebuilding a document's copy on the posts that carry it.
+- `Db/StreamDeletionTest` — `deleteRelatedTo()` empties every table that keys
+  on a post and nothing of another post, `deleteByPrims()`, a domain's authors
+  for the instance purge, and the notification sweep's selection.
+- `Db/StreamThreadsTest` — the public `replies` collection and its
+  `totalItems` agree and leave out every reply that is not public; the
+  viewer-filtered reply list.
+- `Db/TimelineValidatorsTest` — the newest-nid probes a timeline's entity tag
+  is built from, and the unread notification badge.
+- `Db/SearchTermsRequestTest` / `Db/StreamTagsRequestTest` — the word index
+  (index, edit, whole words and prefixes, backfill) and the hashtag rows.
+- `Db/StreamStatisticsTest` — the grouped queries behind the statistics page
+  and the activity chart: public posts only, conversation partners both ways,
+  boosters once each.
+- `Db/SocialCrossQueryBuilderTest` — the joins on their own; above all that a
+  boost hands the viewer the post it repeats only where they may read it.
+- `Helper/RowSeeder` — writes a row into any of the app's tables from the
+  installed schema, filling what a test does not name.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

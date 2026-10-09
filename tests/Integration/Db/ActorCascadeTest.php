@@ -9,20 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Db;
 
-use DateTime;
 use Doctrine\DBAL\Schema\Column;
-use Doctrine\DBAL\Schema\Table;
-use Doctrine\DBAL\Types\BigIntType;
-use Doctrine\DBAL\Types\BooleanType;
-use Doctrine\DBAL\Types\DateTimeType;
-use Doctrine\DBAL\Types\DateType;
-use Doctrine\DBAL\Types\DecimalType;
-use Doctrine\DBAL\Types\FloatType;
-use Doctrine\DBAL\Types\IntegerType;
-use Doctrine\DBAL\Types\SmallIntType;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Service\AccountService;
-use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCA\Social\Tests\Integration\Helper\RowSeeder;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IUserManager;
@@ -163,7 +153,7 @@ class ActorCascadeTest extends TestCase {
 			Server::get(ActorsRequest::class)->delete($handle);
 			foreach (self::CASCADED as $table => $references) {
 				foreach ($references as $reference) {
-					$this->deleteMatching($table, $reference, $account);
+					RowSeeder::delete($table, self::naming($reference, $account));
 				}
 			}
 		}
@@ -189,17 +179,11 @@ class ActorCascadeTest extends TestCase {
 		};
 	}
 
-	/** A table as the installed schema has it. */
-	private function table(string $name): Table {
-		return $this->connection->createSchema()->getTable($this->prefix . $name);
-	}
-
 	/**
 	 * One row, with `$reference` naming `$account`, every other reference
-	 * naming `$other`, and every other column filled with something
-	 * unique enough not to collide with a unique index. Nothing is added where creating the
-	 * account already wrote a row naming it there (its cached actor, its
-	 * loopback follow).
+	 * naming `$other`, and every other column left to RowSeeder. Nothing is
+	 * added where creating the account already wrote a row naming it there
+	 * (its cached actor, its loopback follow).
 	 *
 	 * @param array<string, string> $reference
 	 * @param array{uid: string, uri: string} $account
@@ -217,32 +201,18 @@ class ActorCascadeTest extends TestCase {
 			}
 		}
 
-		$qb = $this->connection->getQueryBuilder();
-		$qb->insert($table);
-		foreach ($this->table($table)->getColumns() as $column) {
-			$name = $column->getName();
-			if (array_key_exists($name, $named)) {
-				$qb->setValue($name, $qb->createNamedParameter($named[$name]));
-			} elseif (!$column->getAutoincrement()) {
-				[$value, $type] = $this->filler($column);
-				$qb->setValue($name, $qb->createNamedParameter($value, $type));
-			}
-		}
-		$qb->executeStatement();
+		RowSeeder::insert($table, $named);
 	}
 
-	/** @return array{0: mixed, 1: int|string} */
-	private function filler(Column $column): array {
-		$type = $column->getType();
-
-		return match (true) {
-			$type instanceof BooleanType => [false, IQueryBuilder::PARAM_BOOL],
-			$type instanceof IntegerType, $type instanceof SmallIntType => [random_int(1, 30000), IQueryBuilder::PARAM_INT],
-			$type instanceof BigIntType => [random_int(1, PHP_INT_MAX >> 1), IQueryBuilder::PARAM_INT],
-			$type instanceof FloatType, $type instanceof DecimalType => ['0', IQueryBuilder::PARAM_STR],
-			$type instanceof DateTimeType, $type instanceof DateType => [new DateTime('@' . time()), IQueryBuilder::PARAM_DATE],
-			default => [substr(bin2hex(random_bytes(16)), 0, max(1, min(32, $column->getLength() ?? 32))), IQueryBuilder::PARAM_STR],
-		};
+	/**
+	 * The reference's columns, naming the account.
+	 *
+	 * @param array<string, string> $reference
+	 * @param array{uid: string, uri: string} $account
+	 * @return array<string, string>
+	 */
+	private static function naming(array $reference, array $account): array {
+		return array_map(static fn (string $kind): string => self::valueOf($kind, $account), $reference);
 	}
 
 	/**
@@ -250,29 +220,7 @@ class ActorCascadeTest extends TestCase {
 	 * @param array{uid: string, uri: string} $account
 	 */
 	private function countMatching(string $table, array $reference, array $account): int {
-		$qb = $this->connection->getQueryBuilder();
-		$qb->select($qb->func()->count('*', 'n'))->from($table);
-		foreach ($reference as $column => $kind) {
-			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter(self::valueOf($kind, $account))));
-		}
-		$result = $qb->executeQuery();
-		$count = (int)$result->fetchOne();
-		$result->closeCursor();
-
-		return $count;
-	}
-
-	/**
-	 * @param array<string, string> $reference
-	 * @param array{uid: string, uri: string} $account
-	 */
-	private function deleteMatching(string $table, array $reference, array $account): void {
-		$qb = $this->connection->getQueryBuilder();
-		$qb->delete($table);
-		foreach ($reference as $column => $kind) {
-			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter(self::valueOf($kind, $account))));
-		}
-		$qb->executeStatement();
+		return RowSeeder::count($table, self::naming($reference, $account));
 	}
 
 	public function testDeletingAUserLeavesNoRowThatNamesTheirAccountAndEveryoneElsesRowsAlone(): void {
@@ -355,7 +303,7 @@ class ActorCascadeTest extends TestCase {
 		$this->assertSame([], array_values(array_diff($listed, $tables)), 'a listed table no longer exists');
 
 		foreach (self::CASCADED as $table => $references) {
-			$columns = array_map(static fn (Column $column): string => $column->getName(), $this->table($table)->getColumns());
+			$columns = array_map(static fn (Column $column): string => $column->getName(), RowSeeder::table($table)->getColumns());
 			foreach ($references as $reference) {
 				$this->assertSame([], array_values(array_diff(array_keys($reference), $columns)), $table . ' has the columns it is seeded by');
 			}
