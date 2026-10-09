@@ -237,7 +237,9 @@ test.describe('Aloha Social, in a browser', () => {
 
 	test('a Nextcloud group the account is in is a list in the sidebar', async ({ page }) => {
 		const group = process.env.E2E_GROUP
-		test.skip(!group, 'set E2E_GROUP to the display name of a group this account is in')
+		// the workflow sets it; a run anywhere else may not have a group
+		test.skip(!group && !process.env.CI, 'set E2E_GROUP to the display name of a group this account is in')
+		expect(group, 'E2E_GROUP names a group this account is in').toBeTruthy()
 
 		await openApp(page)
 		// The group is a list because an administrator chose it -- the

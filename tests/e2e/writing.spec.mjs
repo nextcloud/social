@@ -4,7 +4,7 @@
  */
 
 import { expect, test } from '@playwright/test'
-import { login, openApp } from './helpers.mjs'
+import { OTHER_PASSWORD, OTHER_USER, apiAs, ensureAccount, login, openApp, postStatus } from './helpers.mjs'
 
 /**
  * The things a person does *to* their account rather than reads: liking,
@@ -14,18 +14,24 @@ import { login, openApp } from './helpers.mjs'
  * move, a setting that says it saved and did not.
  */
 test.describe('writing, in a browser', () => {
+	// a local timeline with something on it, whatever ran before: an empty
+	// one is a broken page, not a reason to skip
+	test.beforeAll(async () => {
+		const other = await apiAs(OTHER_USER, OTHER_PASSWORD)
+		await ensureAccount(other, OTHER_USER)
+		await postStatus(other, { status: `Something to like ${Date.now()}` })
+		await other.dispose()
+	})
+
 	test.beforeEach(async ({ page }) => {
 		await login(page)
 	})
 
-	/** The post the run acts on, and a skip where the timeline is empty. */
+	/** The post the run acts on: the newest on the local timeline. */
 	async function firstPost(page) {
 		await openApp(page, '/timeline/timeline')
 		const post = page.locator('.social__timeline article').first()
-		if (await post.count() === 0) {
-			test.skip(true, 'this instance has no local posts to act on')
-		}
-		await expect(post).toBeVisible()
+		await expect(post, 'the local timeline shows the public posts').toBeVisible()
 
 		return post
 	}
@@ -35,9 +41,7 @@ test.describe('writing, in a browser', () => {
 		// `aria-pressed` is the state the button publishes, and the one a
 		// screen reader is given; the label changes with it
 		const like = post.locator('.post-action-group--like button[aria-pressed]').first()
-		if (await like.count() === 0) {
-			test.skip(true, 'the first post offers no like button')
-		}
+		await expect(like).toBeVisible()
 
 		const before = await like.getAttribute('aria-pressed')
 		await like.click()

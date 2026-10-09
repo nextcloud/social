@@ -4,6 +4,7 @@
  */
 
 import { defineConfig, devices } from '@playwright/test'
+import { BASE_URL } from './helpers.mjs'
 
 /**
  * The browser tests drive a real Nextcloud with this app installed. Nothing
@@ -28,7 +29,7 @@ export default defineConfig({
 		// with a trailing slash, and every path in the tests without a leading
 		// one: an instance under a sub-path (`/nextcloud`) keeps it that way,
 		// where an absolute path would resolve against the host and lose it
-		baseURL: (process.env.E2E_BASE_URL ?? 'http://localhost:8080').replace(/\/*$/, '/'),
+		baseURL: BASE_URL,
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 		// a development instance answers slowly on first paint
