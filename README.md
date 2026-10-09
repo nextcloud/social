@@ -884,6 +884,15 @@ NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
 
 See `tests/Integration/README.md` for what it covers.
 
+**Coverage** is measured in CI on one leg of `phpunit-sqlite.yml` (the newest
+server and PHP): the unit and the integration suite each write a Clover
+report, `tests/coverage-floor.php` merges the two line by line, puts a table
+per directory in the job summary and fails when line coverage of `lib/` drops
+under the floor in `tests/coverage-floor.json`. `vitest.yml` runs
+`npm run test:coverage`, which fails under the thresholds in
+`vitest.config.js`. Both floors sit about a point under what the suites cover;
+raise them as coverage grows.
+
 ### Interop tests
 
 A third PHP suite in `tests/Interop/` delivers this app's activities to a **real
