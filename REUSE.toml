@@ -44,9 +44,10 @@ SPDX-FileCopyrightText = "2013 Marek Palatinus, Pavol Rusnak, Aaron Voisine, Sea
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
-# The AT Protocol lexicon documents this app validates records against,
-# copied from github.com/bluesky-social/atproto (dual MIT / Apache-2.0).
-path = "lib/Atproto/lexicons/*.json"
+# The AT Protocol lexicon documents this app validates records against, and
+# the query lexicons its tests check the served XRPC answers against, copied
+# from github.com/bluesky-social/atproto (dual MIT / Apache-2.0).
+path = ["lib/Atproto/lexicons/*.json", "tests/Atproto/lexicons/*.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2022-2026 Bluesky Social PBC, and Contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"

@@ -15,8 +15,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * The files copied from upstream, pinned to the upstream commit they were
  * copied from: the interop vectors (bluesky-social/atproto-interop-tests),
- * and the lexicons the app validates records against
- * (bluesky-social/atproto). An edit to any of them fails here; refreshing
+ * the lexicons the app validates records against and the query lexicons
+ * the tests check the served XRPC answers against (both
+ * bluesky-social/atproto). An edit to any of them fails here; refreshing
  * one means copying it again from a newer upstream commit and updating
  * both the commit and its hash below.
  */
@@ -104,10 +105,27 @@ class VendoredFilesTest extends TestCase {
 		'com.atproto.sync.subscribeRepos.json' => 'bfc3e22bfeae701736fbbbd68a56f0b4b8b66ef4e0e10f1c281b2de61c3328ae',
 	];
 
+	/** tests/Atproto/lexicons, each file as upstream has it at ATPROTO_COMMIT */
+	private const QUERY_LEXICONS = [
+		'com.atproto.identity.resolveHandle.json' => 'd1cdbbc2a1a89d905228e0dc65546a140bd96262c60c4756e51027597ec5ebea',
+		'com.atproto.repo.describeRepo.json' => 'e9fa5f3461cbf1e9bfae4aab4c64893a0211125855371734ea4ab387e59f621b',
+		'com.atproto.repo.getRecord.json' => 'd61aee451f284dd251b3451d16826e75f2bf8a6af32705120e1f67a3db4df8ff',
+		'com.atproto.repo.listRecords.json' => 'd862390bf7b25d7f41b113570380320ce96ada19a529b4f50d88f509a7b20b5c',
+		'com.atproto.server.describeServer.json' => 'bfe9afbd9bd7b6e758720a3744470c94fc2bb7d611d6b46b39abccf5ad1eff88',
+		'com.atproto.sync.getBlob.json' => 'aaed9c4f39fe76a0eec90afd8635e5e2a655575e85f752cb6d8ae50be4057421',
+		'com.atproto.sync.getLatestCommit.json' => '698b4028ce312d629948ea6efe7eebe1e543fc7d3d289ee5a7966825d1f5856c',
+		'com.atproto.sync.getRecord.json' => '1d5a50caf428c87b87922e0adf021956c719af589cb89c7a3dc513875df13cdb',
+		'com.atproto.sync.getRepo.json' => 'c16b1b22bef031f0456d90cd4b4f648bc12ea1b3b9918eeb53177362875ee5fa',
+		'com.atproto.sync.getRepoStatus.json' => '389167313a4e806c422ff2bbbd3e9a6190ad4480b57afd97354610b4c6020927',
+		'com.atproto.sync.listBlobs.json' => '26671c6ff5946f09ec633019d20dc3fe8c86af7675f3f9666397f25f8d69d7f1',
+		'com.atproto.sync.listRepos.json' => 'afb3599e6075c8b413cf3431e3d0ce0e66aa7eff681bcdfd0bf88aefdf0b52d1',
+	];
+
 	public static function pinnedDirectories(): array {
 		return [
 			'interop vectors' => [__DIR__ . '/fixtures', self::INTEROP_VECTORS],
 			'lexicons' => [__DIR__ . '/../../lib/Atproto/lexicons', self::LEXICONS],
+			'query lexicons' => [__DIR__ . '/lexicons', self::QUERY_LEXICONS],
 		];
 	}
 
@@ -132,7 +150,7 @@ class VendoredFilesTest extends TestCase {
 	 * its file name and refuses one whose `id` says otherwise.
 	 */
 	public function testEveryLexiconIsTheDocumentItsNameSays(): void {
-		foreach ([__DIR__ . '/../../lib/Atproto/lexicons'] as $directory) {
+		foreach ([__DIR__ . '/../../lib/Atproto/lexicons', __DIR__ . '/lexicons'] as $directory) {
 			foreach (glob($directory . '/*.json') ?: [] as $path) {
 				$document = json_decode((string)file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 				$this->assertSame(1, $document['lexicon'] ?? null, basename($path));
