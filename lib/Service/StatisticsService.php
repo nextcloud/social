@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
+use OCP\AppFramework\Utility\ITimeFactory;
 
 /**
  * What an account has done here, and what came back.
@@ -120,6 +121,7 @@ class StatisticsService {
 		private FollowsRequest $followsRequest,
 		private CacheActorsRequest $cacheActorsRequest,
 		private DurableCache $cache,
+		private ITimeFactory $timeFactory,
 	) {
 	}
 
@@ -173,7 +175,8 @@ class StatisticsService {
 	 */
 	public function forAccount(Person $actor, int $days = 0): array {
 		$days = in_array($days, self::WINDOWS, true) ? $days : 0;
-		$since = ($days > 0) ? time() - ($days * self::DAY) : 0;
+		$now = $this->timeFactory->getTime();
+		$since = ($days > 0) ? $now - ($days * self::DAY) : 0;
 		$posts = [
 			'total' => 0,
 			'originals' => 0,
@@ -200,7 +203,7 @@ class StatisticsService {
 		/** the posts inside the two windows, kept whole so the comparison and
 		 * the per-post list can both be built without a second walk */
 		$recent = [];
-		$bounds = $this->bounds(time());
+		$bounds = $this->bounds($now);
 		$scores = [];
 		$silent = 0;
 		/** what each kind of post collected, to say which kind works */
@@ -1042,9 +1045,13 @@ class StatisticsService {
 	 * @return array<string, int>
 	 */
 	private function emptyMonths(): array {
+		// counted back from the first of the month: "-1 month" from the 31st
+		// overflows into the same month again wherever the month before is shorter
+		$first = (new \DateTimeImmutable('@' . $this->timeFactory->getTime()))
+			->modify('first day of this month midnight');
 		$months = [];
 		for ($back = self::MONTHS - 1; $back >= 0; $back--) {
-			$months[gmdate('Y-m', strtotime('-' . $back . ' months', time()))] = 0;
+			$months[$first->modify('-' . $back . ' months')->format('Y-m')] = 0;
 		}
 
 		return $months;
