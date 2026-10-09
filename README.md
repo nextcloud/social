@@ -893,6 +893,14 @@ under the floor in `tests/coverage-floor.json`. `vitest.yml` runs
 `vitest.config.js`. Both floors sit about a point under what the suites cover;
 raise them as coverage grows.
 
+**Upgrades** are tested by `.github/workflows/upgrade.yml`, on SQLite and
+PostgreSQL: the latest published release is installed and given two accounts,
+posts, a reply, a like, a boost, a follow and a picture (`tests/Upgrade/seed.sh`),
+then replaced by the change under test and upgraded with `occ upgrade`. The
+app's schema has to match a fresh install's, the seeded data has to read back
+through the client API (`tests/Upgrade/verify.py`), and the integration suite
+runs on the upgraded instance.
+
 ### Interop tests
 
 A third PHP suite in `tests/Interop/` delivers this app's activities to a **real
