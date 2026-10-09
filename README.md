@@ -901,6 +901,9 @@ app's schema has to match a fresh install's, the seeded data has to read back
 through the client API (`tests/Upgrade/verify.py`), and the integration suite
 runs on the upgraded instance.
 
+`dependency-audit.yml` runs `composer audit` and `npm audit --omit=dev` on
+every pull request and weekly.
+
 ### Interop tests
 
 A third PHP suite in `tests/Interop/` delivers this app's activities to a **real
