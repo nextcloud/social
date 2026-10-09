@@ -1,0 +1,246 @@
+{
+    "status": {
+        "id": "1748772000123456789",
+        "nid": "1748772000123456789",
+        "local": false,
+        "archived": false,
+        "view_count": null,
+        "tagged_people": [],
+        "interest": null,
+        "content": "<p>first <a href=\"https://remote.example/tags/beans\" class=\"mention hashtag\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">#<span>beans</span></a> of the year</p>",
+        "sensitive": true,
+        "spoiler_text": "garden",
+        "visibility": "public",
+        "language": "en",
+        "place": null,
+        "in_reply_to_id": null,
+        "in_reply_to_account_id": null,
+        "quote": {
+            "state": "pending",
+            "quoted_status": null
+        },
+        "quote_approval": null,
+        "reply_policy": null,
+        "hidden_by_author": null,
+        "can_hide": null,
+        "reply_approval": null,
+        "interaction_policy": null,
+        "dislikes_count": null,
+        "disliked": null,
+        "video": null,
+        "mentions": [],
+        "emojis": [],
+        "tags": [
+            {
+                "name": "beans",
+                "url": "https://cloud.example/apps/social/timeline/tags/beans"
+            }
+        ],
+        "ai_generated": false,
+        "bluesky": null,
+        "replies_count": 2,
+        "reblogs_count": 1,
+        "favourites_count": 5,
+        "quotes_count": 0,
+        "favourited": false,
+        "reblogged": false,
+        "muted": false,
+        "bookmarked": false,
+        "pinned": false,
+        "card": null,
+        "reactions": [],
+        "poll": null,
+        "uri": "https://remote.example/users/bob/statuses/109000000000000001",
+        "url": "https://remote.example/users/bob/statuses/109000000000000001",
+        "reblog": null,
+        "media_attachments": [
+            {
+                "id": "41",
+                "type": "image",
+                "media_type": "image/jpeg",
+                "url": "https://cloud.example/apps/social/media/a1.jpg",
+                "preview_url": "https://cloud.example/apps/social/media/a1.jpg",
+                "hls_url": null,
+                "remote_url": "https://remote.example/media/a1.jpg",
+                "cache_error": null,
+                "meta": {
+                    "original": {
+                        "width": 800,
+                        "height": 600
+                    },
+                    "small": [],
+                    "focus": {
+                        "x": 0,
+                        "y": 0
+                    }
+                },
+                "description": "bean seedlings",
+                "blurhash": "LKO2?U%2Tw=w]~RBVZRi};RPxuwH",
+                "ai_generated": false
+            }
+        ],
+        "created_at": "2025-06-01T10:00:00.000Z",
+        "edited_at": "2025-06-01T11:00:00.000Z",
+        "noindex": false,
+        "account": {
+            "id": "312",
+            "nid": "312",
+            "username": "bob",
+            "acct": "bob@remote.example",
+            "display_name": "Bob",
+            "locked": true,
+            "bot": false,
+            "discoverable": true,
+            "indexable": false,
+            "group": false,
+            "created_at": "2025-01-02T03:04:05.000Z",
+            "note": "<p>grows beans</p>",
+            "url": "https://remote.example/users/bob",
+            "avatar": "https://cloud.example/apps/social/img/social.svg",
+            "avatar_static": "https://cloud.example/apps/social/img/social.svg",
+            "header": "https://remote.example/header.png",
+            "header_static": "https://remote.example/header.png",
+            "avatar_default": true,
+            "header_default": false,
+            "followers_count": 3,
+            "following_count": 4,
+            "statuses_count": 9,
+            "last_status_at": null,
+            "emojis": [],
+            "fields": [
+                {
+                    "name": "Web",
+                    "value": "<a href=\"https://bob.example\" rel=\"me\">bob.example</a>",
+                    "verified_at": null
+                }
+            ],
+            "pronouns": "",
+            "support_link": "",
+            "bluesky": null,
+            "verification": null
+        }
+    },
+    "activitypub": {
+        "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            {
+                "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+                "sensitive": "as:sensitive",
+                "Hashtag": "as:Hashtag",
+                "movedTo": {
+                    "@id": "as:movedTo",
+                    "@type": "@id"
+                },
+                "alsoKnownAs": {
+                    "@id": "as:alsoKnownAs",
+                    "@type": "@id"
+                },
+                "toot": "http://joinmastodon.org/ns#",
+                "featured": {
+                    "@id": "toot:featured",
+                    "@type": "@id"
+                },
+                "discoverable": "toot:discoverable",
+                "indexable": "toot:indexable",
+                "votersCount": "toot:votersCount",
+                "blurhash": "toot:blurhash",
+                "focalPoint": {
+                    "@container": "@list",
+                    "@id": "toot:focalPoint"
+                },
+                "Emoji": "toot:Emoji",
+                "schema": "http://schema.org#",
+                "PropertyValue": "schema:PropertyValue",
+                "value": "schema:value",
+                "ostatus": "http://ostatus.org#",
+                "conversation": "ostatus:conversation",
+                "fep044f": "https://w3id.org/fep/044f#",
+                "quote": {
+                    "@id": "fep044f:quote",
+                    "@type": "@id"
+                },
+                "quoteAuthorization": {
+                    "@id": "fep044f:quoteAuthorization",
+                    "@type": "@id"
+                },
+                "QuoteRequest": "fep044f:QuoteRequest",
+                "QuoteAuthorization": "fep044f:QuoteAuthorization",
+                "interactingObject": {
+                    "@id": "fep044f:interactingObject",
+                    "@type": "@id"
+                },
+                "interactionTarget": {
+                    "@id": "fep044f:interactionTarget",
+                    "@type": "@id"
+                },
+                "quoteUrl": {
+                    "@id": "as:quoteUrl",
+                    "@type": "@id"
+                },
+                "misskey": "https://misskey-hub.net/ns#",
+                "_misskey_quote": {
+                    "@id": "misskey:_misskey_quote",
+                    "@type": "@id"
+                },
+                "gts": "https://gotosocial.org/ns#",
+                "interactionPolicy": {
+                    "@id": "gts:interactionPolicy",
+                    "@type": "@id"
+                },
+                "canQuote": {
+                    "@id": "gts:canQuote",
+                    "@type": "@id"
+                },
+                "automaticApproval": {
+                    "@id": "gts:automaticApproval",
+                    "@type": "@id"
+                },
+                "manualApproval": {
+                    "@id": "gts:manualApproval",
+                    "@type": "@id"
+                }
+            }
+        ],
+        "id": "https://remote.example/users/bob/statuses/109000000000000001",
+        "type": "Note",
+        "to": "https://www.w3.org/ns/activitystreams#Public",
+        "cc": [
+            "https://remote.example/users/bob/followers"
+        ],
+        "actor": "https://remote.example/users/bob",
+        "summary": "garden",
+        "published": "2025-06-01T10:00:00Z",
+        "tag": [
+            {
+                "type": "Hashtag",
+                "href": "https://remote.example/tags/beans",
+                "name": "#beans"
+            }
+        ],
+        "content": "<p>first <a href=\"https://remote.example/tags/beans\" class=\"mention hashtag\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">#<span>beans</span></a> of the year</p>",
+        "attributedTo": "https://remote.example/users/bob",
+        "sensitive": true,
+        "updated": "2025-06-01T11:00:00Z",
+        "quote": "https://remote.example/users/bob/statuses/108000000000000001",
+        "quoteUrl": "https://remote.example/users/bob/statuses/108000000000000001",
+        "_misskey_quote": "https://remote.example/users/bob/statuses/108000000000000001",
+        "contentMap": {
+            "en": "<p>first <a href=\"https://remote.example/tags/beans\" class=\"mention hashtag\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">#<span>beans</span></a> of the year</p>"
+        },
+        "summaryMap": {
+            "en": "garden"
+        },
+        "url": "https://remote.example/users/bob/statuses/109000000000000001",
+        "attachment": [
+            {
+                "type": "Document",
+                "mediaType": "image/jpeg",
+                "url": "https://cloud.example/apps/social/media/a1.jpg",
+                "name": "bean seedlings",
+                "blurhash": "LKO2?U%2Tw=w]~RBVZRi};RPxuwH",
+                "width": 800,
+                "height": 600
+            }
+        ]
+    }
+}

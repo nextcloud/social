@@ -68,7 +68,7 @@ class GoldenGuardTest extends TestCase {
 	public function testEveryGoldenIsWrittenByATest(string $path): void {
 		$name = basename($path, '.json');
 		$sources = '';
-		foreach (glob(__DIR__ . '/Outbound*GoldenTest.php') ?: [] as $test) {
+		foreach (glob(__DIR__ . '/*GoldenTest.php') ?: [] as $test) {
 			$sources .= file_get_contents($test);
 		}
 

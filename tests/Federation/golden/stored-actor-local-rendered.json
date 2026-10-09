@@ -1,0 +1,9 @@
+{
+    "attachment": [
+        {
+            "type": "PropertyValue",
+            "name": "Website",
+            "value": "<a href=\"https://alice.example\" target=\"_blank\" rel=\"nofollow noopener noreferrer me\" translate=\"no\">https://alice.example</a>"
+        }
+    ]
+}
