@@ -181,6 +181,7 @@ class Lexicon {
 
 				return;
 			case 'unknown':
+				$value = self::emptyMapAsArray($value);
 				if (!is_array($value) || ($value !== [] && array_is_list($value))) {
 					throw new LexiconException($path . ' must be an object');
 				}
@@ -197,6 +198,7 @@ class Lexicon {
 	}
 
 	private function checkObject(mixed $value, array $schema, string $nsid, string $path): void {
+		$value = self::emptyMapAsArray($value);
 		if (!is_array($value) || ($value !== [] && array_is_list($value))) {
 			throw new LexiconException($path . ' must be an object');
 		}
@@ -321,6 +323,14 @@ class Lexicon {
 		if (isset($schema['maxLength']) && $length > $schema['maxLength']) {
 			throw new LexiconException($path . ' is longer than ' . $schema['maxLength'] . ' ' . $unit);
 		}
+	}
+
+	/**
+	 * The empty map as DagCbor models it (a `stdClass` with no properties)
+	 * is an object with no fields.
+	 */
+	private static function emptyMapAsArray(mixed $value): mixed {
+		return $value instanceof \stdClass && get_object_vars($value) === [] ? [] : $value;
 	}
 
 	/**

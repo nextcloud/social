@@ -230,6 +230,25 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 		$this->assertEquals(self::post('two'), DagCbor::decode($decoded['blocks'][$cid]), 'the same fields, in DAG-CBOR key order');
 	}
 
+	/**
+	 * A record of another application with an empty object in it, as an
+	 * account moving here brings it: served with the object an object,
+	 * not turned into a list, and with the CID of the bytes as they were.
+	 */
+	public function testAnEmptyObjectInARecordIsServedAsAnObject(): void {
+		$carol = 'did:plc:oc6vwdlmk2kqyida5i74d3p5';
+		$this->identities[$carol] = $this->identity($carol, 'carol.social.example.com', Identity::STATE_ACTIVE);
+		$bytes = DagCbor::encode(['$type' => 'com.example.thing', 'settings' => new \stdClass(), 'tags' => []]);
+		$this->repositories->import($carol, PrivateKey::generate(Curve::K256), ['com.example.thing/3kznmn7xqxl22' => $bytes]);
+
+		$answer = $this->xrpc->query('com.atproto.repo.getRecord', ['repo' => $carol, 'collection' => 'com.example.thing', 'rkey' => '3kznmn7xqxl22']);
+
+		$this->assertSame('{"tags":[],"$type":"com.example.thing","settings":{}}', json_encode($answer['value']));
+		$this->assertSame(Cid::forDagCbor($bytes)->toString(), $answer['cid']);
+		$this->assertFits('com.atproto.repo.getRecord', $answer);
+		$this->lexicon->validate(new \stdClass(), 'app.bsky.feed.threadgate#followerRule');
+	}
+
 	public static function refusals(): array {
 		return [
 			'getLatestCommit of an unknown DID' => ['com.atproto.sync.getLatestCommit', ['did' => 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa'], 404],
