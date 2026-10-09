@@ -1,0 +1,30 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "RsaSignature2017": "https://w3id.org/security#RsaSignature2017"
+    },
+    {
+      "pt": "https://joinpeertube.org/ns#",
+      "sc": "http://schema.org/",
+      "Dislike": "pt:Dislike",
+      "CacheFile": "pt:CacheFile",
+      "expires": "sc:expires",
+      "size": "sc:size",
+      "fps": "sc:fps",
+      "WatchAction": "sc:WatchAction",
+      "startTimestamp": "sc:startTime",
+      "endTimestamp": "sc:endTime"
+    }
+  ],
+  "id": "https://peertube.example/accounts/hank/dislikes/1",
+  "type": "Dislike",
+  "actor": "https://peertube.example/accounts/hank",
+  "object": "{{LOCAL_POST}}",
+  "to": [
+    "https://peertube.example/accounts/peertube/followers",
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "cc": []
+}

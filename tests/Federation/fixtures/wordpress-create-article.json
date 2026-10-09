@@ -1,0 +1,66 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "Hashtag": "as:Hashtag",
+      "sensitive": "as:sensitive",
+      "schema": "http://schema.org#",
+      "pt": "https://joinpeertube.org/ns#",
+      "toot": "http://joinmastodon.org/ns#",
+      "webfinger": {
+        "@id": "https://webfinger.net/#",
+        "@type": "@id"
+      },
+      "litepub": "http://litepub.social/ns#",
+      "lemmy": "https://join-lemmy.org/ns#",
+      "postingRestrictedToMods": "lemmy:postingRestrictedToMods",
+      "discoverable": "toot:discoverable",
+      "indexable": "toot:indexable"
+    }
+  ],
+  "id": "https://blog.example/?p=123&c=1",
+  "type": "Create",
+  "actor": "https://blog.example/author/jules/",
+  "published": "2026-04-05T10:00:00Z",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public",
+    "https://blog.example/wp-json/activitypub/1.0/actors/2/followers"
+  ],
+  "cc": [],
+  "object": {
+    "id": "https://blog.example/?p=123",
+    "type": "Article",
+    "attributedTo": "https://blog.example/author/jules/",
+    "name": "How I grow tomatoes on a balcony",
+    "summary": "<p>A short guide to [&hellip;]</p>",
+    "content": "<h2>Pots</h2><p>Use big ones.</p>",
+    "contentMap": {
+      "en": "<h2>Pots</h2><p>Use big ones.</p>"
+    },
+    "url": "https://blog.example/2026/04/05/tomatoes/",
+    "published": "2026-04-05T10:00:00Z",
+    "updated": "2026-04-05T10:30:00Z",
+    "sensitive": false,
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public",
+      "https://blog.example/wp-json/activitypub/1.0/actors/2/followers"
+    ],
+    "cc": [],
+    "attachment": [
+      {
+        "type": "Image",
+        "url": "https://blog.example/wp-content/uploads/2026/04/tomatoes.jpg",
+        "mediaType": "image/jpeg",
+        "name": "tomato plants on a balcony"
+      }
+    ],
+    "tag": [
+      {
+        "type": "Hashtag",
+        "href": "https://blog.example/tag/gardening/",
+        "name": "#gardening"
+      }
+    ]
+  }
+}

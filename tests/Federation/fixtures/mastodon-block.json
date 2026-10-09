@@ -1,0 +1,7 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.example/users/carol#blocks/12",
+  "type": "Block",
+  "actor": "https://mastodon.example/users/carol",
+  "object": "{{ALICE}}"
+}

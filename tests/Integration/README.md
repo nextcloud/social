@@ -105,7 +105,13 @@ to stop.
   `QueueRetryTest` and `QueueStatusTest` drive the delivery queue through a
   failure and back out again; `StreamPruneTest` covers the retention guard and
   `--dry-run`.
-
+- `Federation/InboundCorpusTest` — the inbound fixture corpus (Misskey,
+  GoToSocial, Akkoma, Friendica, Lemmy, Mastodon 4.5 quotes and polls, Block,
+  Flag, account Delete, PeerTube Dislike/View/CacheFile, Threads, WordPress,
+  Ghost, Bridgy Fed) delivered through `ImportService` and the real inbox
+  interfaces, asserting the stored row and the Mastodon entity it is served
+  as; it caught Mastodon's inlined `QuoteRequest.instrument` being dropped.
+  `Federation/InboxTestCase` is the shared delivery harness.
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across

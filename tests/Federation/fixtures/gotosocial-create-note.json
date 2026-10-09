@@ -1,0 +1,87 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://gotosocial.org/ns",
+    "https://w3id.org/security/v1"
+  ],
+  "id": "https://gts.example/users/erin/statuses/01J0GTS0000000000000000001/activity",
+  "type": "Create",
+  "actor": "https://gts.example/users/erin",
+  "published": "2026-04-02T08:00:00Z",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "cc": [
+    "https://gts.example/users/erin/followers",
+    "{{ALICE}}"
+  ],
+  "object": {
+    "id": "https://gts.example/users/erin/statuses/01J0GTS0000000000000000001",
+    "type": "Note",
+    "attributedTo": "https://gts.example/users/erin",
+    "content": "<p>the beans are coming along</p>",
+    "contentMap": {
+      "en": "<p>the beans are coming along</p>"
+    },
+    "inReplyTo": "{{LOCAL_POST}}",
+    "approvedBy": "{{LOCAL_POST}}/approvals/01J0GTS",
+    "published": "2026-04-02T08:00:00Z",
+    "url": "https://gts.example/@erin/statuses/01J0GTS0000000000000000001",
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public"
+    ],
+    "cc": [
+      "https://gts.example/users/erin/followers",
+      "{{ALICE}}"
+    ],
+    "sensitive": false,
+    "summary": "",
+    "attachment": [],
+    "tag": [
+      {
+        "type": "Mention",
+        "href": "{{ALICE}}",
+        "name": "@alice@cloud.example"
+      }
+    ],
+    "replies": {
+      "id": "https://gts.example/users/erin/statuses/01J0GTS0000000000000000001/replies",
+      "type": "Collection",
+      "first": {
+        "id": "https://gts.example/users/erin/statuses/01J0GTS0000000000000000001/replies?page=true",
+        "type": "CollectionPage",
+        "next": "https://gts.example/users/erin/statuses/01J0GTS0000000000000000001/replies?only_other_accounts=false&page=true",
+        "partOf": "https://gts.example/users/erin/statuses/01J0GTS0000000000000000001/replies",
+        "items": []
+      }
+    },
+    "interactionPolicy": {
+      "canLike": {
+        "automaticApproval": [
+          "https://www.w3.org/ns/activitystreams#Public"
+        ],
+        "manualApproval": []
+      },
+      "canReply": {
+        "automaticApproval": [
+          "https://www.w3.org/ns/activitystreams#Public"
+        ],
+        "manualApproval": []
+      },
+      "canAnnounce": {
+        "automaticApproval": [
+          "https://gts.example/users/erin/followers"
+        ],
+        "manualApproval": [
+          "https://www.w3.org/ns/activitystreams#Public"
+        ]
+      },
+      "canQuote": {
+        "automaticApproval": [
+          "https://gts.example/users/erin"
+        ],
+        "manualApproval": []
+      }
+    }
+  }
+}

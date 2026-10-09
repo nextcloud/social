@@ -1,0 +1,19 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1"
+  ],
+  "id": "https://mastodon.example/users/carol#delete",
+  "type": "Delete",
+  "actor": "https://mastodon.example/users/carol",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "object": "https://mastodon.example/users/carol",
+  "signature": {
+    "type": "RsaSignature2017",
+    "creator": "https://mastodon.example/users/carol#main-key",
+    "created": "2026-04-05T00:00:00Z",
+    "signatureValue": "c2lnbmF0dXJl"
+  }
+}

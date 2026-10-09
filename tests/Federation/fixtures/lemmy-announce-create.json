@@ -1,0 +1,86 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "lemmy": "https://join-lemmy.org/ns#",
+      "litepub": "http://litepub.social/ns#",
+      "pt": "https://joinpeertube.org/ns#",
+      "sc": "http://schema.org/",
+      "ChatMessage": "litepub:ChatMessage",
+      "commentsEnabled": "pt:commentsEnabled",
+      "sensitive": "as:sensitive",
+      "matrixUserId": "lemmy:matrixUserId",
+      "postingRestrictedToMods": "lemmy:postingRestrictedToMods",
+      "removeData": "lemmy:removeData",
+      "stickied": "lemmy:stickied",
+      "moderators": {
+        "@type": "@id",
+        "@id": "lemmy:moderators"
+      },
+      "expires": "as:endTime",
+      "distinguished": "lemmy:distinguished",
+      "language": "sc:inLanguage",
+      "identifier": "sc:identifier"
+    }
+  ],
+  "actor": "https://lemmy.example/c/gardening",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "object": {
+    "actor": "https://lemmy.example/u/dana",
+    "to": [
+      "https://lemmy.example/c/gardening",
+      "https://www.w3.org/ns/activitystreams#Public"
+    ],
+    "object": {
+      "type": "Page",
+      "id": "https://lemmy.example/post/4711",
+      "attributedTo": "https://lemmy.example/u/dana",
+      "to": [
+        "https://lemmy.example/c/gardening",
+        "https://www.w3.org/ns/activitystreams#Public"
+      ],
+      "name": "Best tomato varieties for a cold summer?",
+      "cc": [],
+      "content": "<p>Looking for suggestions.</p>\n",
+      "mediaType": "text/html",
+      "source": {
+        "content": "Looking for suggestions.",
+        "mediaType": "text/markdown"
+      },
+      "attachment": [
+        {
+          "href": "https://seeds.example/tomatoes",
+          "mediaType": "text/html; charset=utf-8",
+          "type": "Link"
+        }
+      ],
+      "commentsEnabled": true,
+      "sensitive": false,
+      "published": "2026-04-03T12:00:00.000000Z",
+      "language": {
+        "identifier": "en",
+        "name": "English"
+      },
+      "audience": "https://lemmy.example/c/gardening",
+      "tag": [
+        {
+          "href": "https://lemmy.example/post/4711",
+          "name": "#gardening",
+          "type": "Hashtag"
+        }
+      ]
+    },
+    "cc": [],
+    "type": "Create",
+    "id": "https://lemmy.example/activities/create/0f1e2d3c-4b5a-4968-8776-655443322110",
+    "audience": "https://lemmy.example/c/gardening"
+  },
+  "cc": [
+    "https://lemmy.example/c/gardening/followers"
+  ],
+  "type": "Announce",
+  "id": "https://lemmy.example/activities/announce/create/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+}

@@ -1,0 +1,48 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "alsoKnownAs": {
+        "@id": "as:alsoKnownAs",
+        "@type": "@id"
+      },
+      "discoverable": "toot:discoverable",
+      "toot": "http://joinmastodon.org/ns#",
+      "PropertyValue": "schema:PropertyValue",
+      "schema": "http://schema.org#",
+      "value": "schema:value"
+    }
+  ],
+  "type": "Person",
+  "id": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz",
+  "url": "https://bsky.app/profile/kim.bsky.social",
+  "preferredUsername": "kim.bsky.social",
+  "name": "Kim",
+  "summary": "<p>plants, mostly</p><p>[<a href=\"https://fed.brid.gy/\">bridged</a> from <a href=\"https://bsky.app/profile/kim.bsky.social\">@kim.bsky.social</a> on Bluesky by Bridgy Fed]</p>",
+  "inbox": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz/inbox",
+  "outbox": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz/outbox",
+  "followers": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz/followers",
+  "following": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz/following",
+  "endpoints": {
+    "sharedInbox": "https://bsky.brid.gy/ap/sharedInbox"
+  },
+  "alsoKnownAs": [
+    "at://did:plc:3jpt2mvvsumj2r7eqk4gzzjz",
+    "https://bsky.app/profile/kim.bsky.social"
+  ],
+  "discoverable": true,
+  "manuallyApprovesFollowers": false,
+  "publicKey": {
+    "id": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz#key",
+    "owner": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBAMfixturekeyfixturekeyfixturekeyfixturekeyfixturekeyfixturekeyfixtureAgMBAAE=\n-----END PUBLIC KEY-----\n"
+  },
+  "attachment": [
+    {
+      "type": "PropertyValue",
+      "name": "Bluesky",
+      "value": "<a rel=\"me\" href=\"https://bsky.app/profile/kim.bsky.social\">kim.bsky.social</a>"
+    }
+  ]
+}

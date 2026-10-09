@@ -1,0 +1,69 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    {
+      "QuoteRequest": "https://w3id.org/fep/044f#QuoteRequest",
+      "toot": "http://joinmastodon.org/ns#",
+      "quote": "https://w3id.org/fep/044f#quote"
+    }
+  ],
+  "id": "https://mastodon.example/users/carol/quote_requests/7",
+  "type": "QuoteRequest",
+  "actor": "https://mastodon.example/users/carol",
+  "object": "{{LOCAL_POST}}",
+  "instrument": {
+    "id": "https://mastodon.example/users/carol/statuses/115000000000000001",
+    "type": "Note",
+    "summary": null,
+    "inReplyTo": null,
+    "published": "2026-04-04T10:00:00Z",
+    "url": "https://mastodon.example/@carol/115000000000000001",
+    "attributedTo": "https://mastodon.example/users/carol",
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public"
+    ],
+    "cc": [
+      "https://mastodon.example/users/carol/followers",
+      "{{ALICE}}"
+    ],
+    "sensitive": false,
+    "atomUri": "https://mastodon.example/users/carol/statuses/115000000000000001",
+    "conversation": "tag:mastodon.example,2026-04-04:objectId=900:objectType=Conversation",
+    "content": "<p>so true</p><p class=\"quote-inline\">RE: <a href=\"{{LOCAL_POST}}\">{{LOCAL_POST}}</a></p>",
+    "contentMap": {
+      "en": "<p>so true</p><p class=\"quote-inline\">RE: <a href=\"{{LOCAL_POST}}\">{{LOCAL_POST}}</a></p>"
+    },
+    "quote": "{{LOCAL_POST}}",
+    "_misskey_quote": "{{LOCAL_POST}}",
+    "quoteUri": "{{LOCAL_POST}}",
+    "interactionPolicy": {
+      "canQuote": {
+        "automaticApproval": [
+          "https://www.w3.org/ns/activitystreams#Public"
+        ]
+      }
+    },
+    "attachment": [],
+    "tag": [],
+    "replies": {
+      "id": "https://mastodon.example/users/carol/statuses/115000000000000001/replies",
+      "type": "Collection",
+      "first": {
+        "type": "CollectionPage",
+        "next": "https://mastodon.example/users/carol/statuses/115000000000000001/replies?only_other_accounts=true&page=true",
+        "partOf": "https://mastodon.example/users/carol/statuses/115000000000000001/replies",
+        "items": []
+      }
+    },
+    "likes": {
+      "id": "https://mastodon.example/users/carol/statuses/115000000000000001/likes",
+      "type": "Collection",
+      "totalItems": 0
+    },
+    "shares": {
+      "id": "https://mastodon.example/users/carol/statuses/115000000000000001/shares",
+      "type": "Collection",
+      "totalItems": 0
+    }
+  }
+}
