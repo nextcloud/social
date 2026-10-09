@@ -203,8 +203,10 @@ trait StreamMedia {
 				continue;
 			}
 
+			// compared as stored: the rebuilt copy holds objects where the
+			// decoded one holds arrays, so the two are never identical
 			$new = $this->updateAttachmentInList($document, $stored);
-			if ($new === $stored) {
+			if (json_decode((string)json_encode($new, JSON_UNESCAPED_SLASHES), true) === $stored) {
 				continue;
 			}
 

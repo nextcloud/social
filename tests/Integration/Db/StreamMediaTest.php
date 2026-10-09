@@ -294,6 +294,8 @@ class StreamMediaTest extends TestCase {
 		$this->assertSame('new', $two[1]['description']);
 		$this->assertSame($plain, $this->row('plain')['attachments'], 'a post without it');
 		$this->assertSame($remote, $this->row('remote-full')['attachments'], 'a remote post');
+
+		$this->assertSame(0, $this->streamRequest->updateLocalAttachmentCopies($document), 'nothing left to rebuild');
 	}
 
 	public function testTheDocumentsACopyNamesAreItsNumericIdsOnceInOrder(): void {
