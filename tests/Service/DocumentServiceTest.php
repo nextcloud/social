@@ -816,4 +816,88 @@ class DocumentServiceTest extends TestCase {
 
 		$this->assertSame([$attachment], $this->service->applyMediaAttributes([$attachment], 'alice', [['id' => '99']]));
 	}
+
+	private const PLAYLIST = 'https://peer.example/static/streaming-playlists/hls/master.m3u8';
+
+	/** A streamed HLS playlist at PLAYLIST, and every segment opened recorded. */
+	private function streamedPlaylist(): callable {
+		$playlist = new Document();
+		$playlist->setUrl(self::PLAYLIST);
+		$playlist->setMediaType('application/x-mpegURL');
+		$playlist->setLocalCopy(Document::COPY_STREAMED);
+		$this->cacheDocumentsRequest->method('getByNid')->with('42')->willReturn($playlist);
+
+		$opened = [];
+		$this->cacheService->method('openRemoteFile')->willReturnCallback(
+			static function (Document $document) use (&$opened): array {
+				$opened[] = $document->getUrl();
+
+				return ['stream' => fopen('php://memory', 'r'), 'status' => 200, 'headers' => []];
+			}
+		);
+
+		return static function () use (&$opened): array {
+			return $opened;
+		};
+	}
+
+	/** @return array<string, array{string}> */
+	public static function filesOffThePlaylistsOrigin(): array {
+		return [
+			'another host' => ['https://evil.example/static/seg-1.ts'],
+			'a host ending in the playlist host' => ['https://evilpeer.example/seg-1.ts'],
+			'a host extending the playlist host' => ['https://peer.example.evil.example/seg-1.ts'],
+			'plain http' => ['http://peer.example/static/seg-1.ts'],
+			'another port' => ['https://peer.example:8443/static/seg-1.ts'],
+			'the playlist host as userinfo' => ['https://peer.example@evil.example/seg-1.ts'],
+			'userinfo with the playlist host before the at' => ['https://peer@evil.example/seg-1.ts'],
+			'no host' => ['/static/seg-1.ts'],
+			'an empty authority' => ['https:///static/seg-1.ts'],
+			'another scheme' => ['gopher://peer.example/static/seg-1.ts'],
+			'a local address' => ['https://127.0.0.1/static/seg-1.ts'],
+		];
+	}
+
+	/**
+	 * `GET /media/hls/{nid}?u=` is anonymous and takes the URL from the caller,
+	 * so the only thing between it and an open proxy is that the URL has to
+	 * share the playlist's origin: scheme, host and port.
+	 */
+	#[DataProvider('filesOffThePlaylistsOrigin')]
+	public function testAPlaylistFileOffThePlaylistsOriginIsNeverFetched(string $url): void {
+		$opened = $this->streamedPlaylist();
+
+		try {
+			$this->service->openPlaylistFile('42', $url);
+			$this->fail($url . ' was accepted as part of the playlist');
+		} catch (NotFoundException $e) {
+			$this->assertSame('that file is not part of this playlist', $e->getMessage());
+		}
+		$this->assertNotContains($url, $opened());
+	}
+
+	public function testAPlaylistFileOnThePlaylistsOriginIsStreamedWithItsType(): void {
+		$opened = $this->streamedPlaylist();
+		$segment = 'https://PEER.example/static/streaming-playlists/hls/720-fragmented.ts';
+
+		$answer = $this->service->openPlaylistFile('42', $segment);
+
+		$this->assertSame('video/mp2t', $answer['type']);
+		$this->assertSame(200, $answer['status']);
+		$this->assertContains($segment, $opened());
+	}
+
+	public function testAFileIsOnlyServedThroughADocumentThatIsAPlaylist(): void {
+		$video = new Document();
+		$video->setUrl('https://peer.example/static/video.mp4');
+		$video->setMediaType('video/mp4');
+		$video->setLocalCopy(Document::COPY_STREAMED);
+		$this->cacheDocumentsRequest->method('getByNid')->willReturn($video);
+		$this->cacheService->method('openRemoteFile')
+			->willReturn(['stream' => fopen('php://memory', 'r'), 'status' => 200, 'headers' => []]);
+
+		$this->expectException(NotFoundException::class);
+
+		$this->service->openPlaylistFile('42', 'https://peer.example/static/other.mp4');
+	}
 }

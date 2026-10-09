@@ -1183,4 +1183,183 @@ class CurlServiceTest extends TestCase {
 
 		$this->assertInstanceOf(RequestNetworkException::class, $outcomes['a']);
 	}
+
+	/** @return array<string, array{string}> */
+	public static function nonHttpUrls(): array {
+		return [
+			'gopher' => ['gopher://' . self::PUBLIC_IP . ':70/_stats'],
+			'dict' => ['dict://' . self::PUBLIC_IP . ':11211/stat'],
+			'ftp' => ['ftp://' . self::PUBLIC_IP . '/users/bob'],
+			'file' => ['file:///etc/passwd'],
+		];
+	}
+
+	/**
+	 * A redirect is where a peer chooses the next URL, and only `http` and
+	 * `https` are followed: anything else is refused before the hop is sent.
+	 */
+	#[DataProvider('nonHttpUrls')]
+	public function testARedirectToANonHttpSchemeIsNeverFollowed(string $target): void {
+		$from = 'https://' . self::PUBLIC_IP . '/@bob';
+		$asked = $this->answerPerUrl([$from => $this->redirect($target)]);
+
+		try {
+			$this->service()->doRequest('get', $from);
+			$this->fail('a redirect to ' . $target . ' was followed');
+		} catch (RequestServerException $e) {
+			$this->assertStringContainsString('non-http', $e->getMessage());
+		}
+		$this->assertSame([$from], $asked());
+	}
+
+	#[DataProvider('nonHttpUrls')]
+	public function testAStreamRedirectedToANonHttpSchemeIsNeverFollowed(string $target): void {
+		$from = 'https://' . self::PUBLIC_IP . '/video.mp4';
+		$asked = [];
+		$this->client->method('get')->willReturnCallback(function (string $url) use ($from, $target, &$asked): IResponse {
+			$asked[] = $url;
+
+			return $this->redirect($target);
+		});
+
+		$this->expectException(RequestServerException::class);
+
+		try {
+			$this->service()->openStream($from);
+		} finally {
+			$this->assertSame([$from], $asked);
+		}
+	}
+
+	/**
+	 * `openStream()` proxies remote video to the reader: it is the outbound
+	 * request whose target a remote post decides most directly, so every
+	 * guard of a single fetch is pinned on it too.
+	 */
+	#[DataProvider('refusedHostProvider')]
+	public function testAStreamFromALocalHostIsRefusedBeforeAnythingIsSent(string $host): void {
+		$this->client->expects($this->never())->method('get');
+
+		$this->expectException(RequestServerException::class);
+
+		$this->service()->openStream('https://' . $host . '/video.mp4');
+	}
+
+	public function testAStreamRedirectedToALocalAddressIsRefused(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/video.mp4';
+		$asked = [];
+		$this->client->method('get')->willReturnCallback(function (string $url) use (&$asked): IResponse {
+			$asked[] = $url;
+
+			return $this->redirect('http://169.254.169.254/latest/meta-data/');
+		});
+
+		$this->expectException(RequestServerException::class);
+
+		try {
+			$this->service()->openStream($from);
+		} finally {
+			$this->assertSame([$from], $asked, 'the local hop is never requested');
+		}
+	}
+
+	public function testAStreamRedirectedToABlockedInstanceIsRefused(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/video.mp4';
+		$this->fediverseService->method('authorized')->willReturnCallback(
+			static function (string $host): bool {
+				if ($host === 'blocked.example') {
+					throw new UnauthorizedFediverseException($host);
+				}
+
+				return true;
+			}
+		);
+		$asked = [];
+		$this->client->method('get')->willReturnCallback(function (string $url) use (&$asked): IResponse {
+			$asked[] = $url;
+
+			return $this->redirect('https://blocked.example/video.mp4');
+		});
+
+		$this->expectException(UnauthorizedFediverseException::class);
+
+		try {
+			$this->service()->openStream($from);
+		} finally {
+			$this->assertSame([$from], $asked);
+		}
+	}
+
+	/** Five hops, as the server's own client would follow, and not a sixth. */
+	public function testAStreamIsGivenUpOnAfterFiveRedirects(): void {
+		$asked = [];
+		$this->client->method('get')->willReturnCallback(function (string $url) use (&$asked): IResponse {
+			$asked[] = $url;
+
+			return $this->redirect('https://' . self::PUBLIC_IP . '/hop' . count($asked));
+		});
+
+		$this->expectException(RequestServerException::class);
+
+		try {
+			$this->service()->openStream('https://' . self::PUBLIC_IP . '/video.mp4');
+		} finally {
+			$this->assertCount(6, $asked, 'the first request and five redirects');
+		}
+	}
+
+	public function testAStreamAfterFiveRedirectsIsServed(): void {
+		$asked = [];
+		$this->client->method('get')->willReturnCallback(function (string $url) use (&$asked): IResponse {
+			$asked[] = $url;
+
+			return (count($asked) <= 5)
+				? $this->redirect('https://' . self::PUBLIC_IP . '/hop' . count($asked))
+				: $this->answer('bytes', 200, 'video/mp4');
+		});
+
+		$opened = $this->service()->openStream('https://' . self::PUBLIC_IP . '/video.mp4');
+
+		$this->assertSame(200, $opened['status']);
+		$this->assertSame('bytes', stream_get_contents($opened['stream']));
+	}
+
+	/**
+	 * A video of a post is served from wherever the post says, which is not
+	 * always the post's own host. The instance that named it is asked about
+	 * too, on the first request and on every hop.
+	 */
+	public function testAStreamIsAuthorizedOnBehalfOfTheInstanceThatNamedIt(): void {
+		$from = 'https://' . self::PUBLIC_IP . '/video.mp4';
+		$to = 'https://203.0.113.11/video.mp4';
+		$authorized = [];
+		$this->fediverseService->method('authorized')->willReturnCallback(
+			static function (string $host, string $onBehalfOf = '') use (&$authorized): bool {
+				$authorized[] = [$host, $onBehalfOf];
+
+				return true;
+			}
+		);
+		$this->client->method('get')->willReturnCallback(
+			fn (string $url): IResponse => ($url === $from) ? $this->redirect($to) : $this->answer('bytes', 200, 'video/mp4')
+		);
+
+		$this->service()->openStream($from, [], 'peertube.example');
+
+		$this->assertSame([[self::PUBLIC_IP, 'peertube.example'], ['203.0.113.11', 'peertube.example']], $authorized);
+	}
+
+	public function testABatchOfDocumentsNeverAsksALocalHost(): void {
+		$this->client->expects($this->never())->method('getAsync');
+
+		$answers = $this->service()->retrieveJsonMany([
+			'https://127.0.0.1/users/bob/following',
+			'https://169.254.169.254/latest/meta-data/',
+		]);
+
+		$this->assertSame([
+			'https://127.0.0.1/users/bob/following' => null,
+			'https://169.254.169.254/latest/meta-data/' => null,
+		], $answers);
+	}
 }
