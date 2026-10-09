@@ -112,11 +112,17 @@ class QueryBudgetTest extends ReaderTestCase {
 			->setValue(Server::get(StreamRequest::class), null);
 	}
 
-	/** @return array<string, array{bool, int}> */
+	/**
+	 * Both include the three queries of the poll tag (`newestHomeNid()`),
+	 * which a request with no cursor is given and a poll that still holds it
+	 * is answered with, and nothing else.
+	 *
+	 * @return array<string, array{bool, int}>
+	 */
 	public static function homePaths(): array {
 		return [
-			'fast path, read off the recipient rows' => [true, 24],
-			'join path, the fallback' => [false, 11],
+			'fast path, read off the recipient rows' => [true, 27],
+			'join path, the fallback' => [false, 14],
 		];
 	}
 

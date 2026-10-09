@@ -3569,6 +3569,48 @@ class ApiControllerTest extends TestCase {
 	}
 
 	/**
+	 * The head of the home timeline is what every client polls, and it is
+	 * asked for with no cursor at all: Nextcloud then hands the action the
+	 * parameters' defaults, the integer `0`. The tag — and with it the `304`
+	 * that spares the page query — has to be offered for that request, not
+	 * only for one that spells out `max_id=0`.
+	 */
+	public function testTheHeadOfTheHomeTimelineIsTaggedWhenNoCursorIsSent(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		$this->streamRequest->method('newestHomeNid')->willReturn('55');
+		$this->timelineRevisionService->method('of')->willReturn(3);
+		$this->captureTimelineOptions($this->pageOfStreams(55, 50));
+
+		$response = $this->controller()->timelines('home');
+
+		$this->assertSame('"h55-20-3"', $response->getHeaders()['ETag'] ?? null);
+	}
+
+	public function testAPollHoldingTheCurrentTagIsAnsweredWithoutReadingThePage(): void {
+		$this->loggedInAs();
+		$this->streamRequest->method('newestHomeNid')->willReturn('55');
+		$this->timelineRevisionService->method('of')->willReturn(3);
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$response = $this->controllerWithHeaders('', ['If-None-Match' => '"h55-20-3"'])->timelines('home');
+
+		$this->assertSame(Http::STATUS_NOT_MODIFIED, $response->getStatus());
+	}
+
+	/** A page reached with a cursor is history: a client asks for it once. */
+	public function testAPageBelowTheHeadIsNotTagged(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		$this->streamRequest->expects($this->never())->method('newestHomeNid');
+		$this->captureTimelineOptions($this->pageOfStreams(40, 30));
+
+		$response = $this->controller()->timelines('home', false, 20, '41');
+
+		$this->assertArrayNotHasKey('ETag', $response->getHeaders());
+	}
+
+	/**
 	 * masto.js — which Elk and Phanpy are both built on — takes the next page
 	 * from the Link header and nowhere else, so without one those clients show
 	 * the first page of a timeline and stop.
