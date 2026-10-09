@@ -134,12 +134,35 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * @return Follow[]
+	 * One page of every follow, in key order: its id and the two accounts it
+	 * joins, which is all a maintenance walk compares. Not built into a
+	 * `Follow` each, which looks up the actor of every row.
+	 *
+	 * @return array<string, array{id: string, actor_id: string, object_id: string}>
+	 *                                                                               keyed by id_prim
 	 */
-	public function getAll(): array {
-		$qb = $this->getFollowsSelectSql();
+	public function getKeyPage(int $limit, string $afterPrim = ''): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('f.id_prim', 'f.id', 'f.actor_id', 'f.object_id')
+			->from(self::TABLE_FOLLOWS, 'f');
+		if ($afterPrim !== '') {
+			$qb->andWhere($qb->expr()->gt('f.id_prim', $qb->createNamedParameter($afterPrim)));
+		}
+		$qb->orderBy('f.id_prim', 'asc');
+		$qb->setMaxResults($limit);
 
-		return $this->getFollowsFromRequest($qb);
+		$page = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$page[(string)$data['id_prim']] = [
+				'id' => (string)$data['id'],
+				'actor_id' => (string)$data['actor_id'],
+				'object_id' => (string)$data['object_id'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $page;
 	}
 
 	/**

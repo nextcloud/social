@@ -126,6 +126,9 @@ to stop.
   or temporary table unless the query is listed as one that sorts.
   PostgreSQL: no `Seq Scan` on a guarded table. MySQL and PostgreSQL are
   seeded to ~2,000 posts and `ANALYZE`d first.
+- `Db/RepairWalkTest` — the repairs `occ social:check:install` runs, over 1,200
+  notes and 600 follows: orphans removed, the rest kept, statements bounded by
+  two a page plus the deletes, and the peak memory under 4 MB.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
