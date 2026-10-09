@@ -129,6 +129,10 @@ to stop.
 - `Db/RepairWalkTest` — the repairs `occ social:check:install` runs, over 1,200
   notes and 600 follows: orphans removed, the rest kept, statements bounded by
   two a page plus the deletes, and the peak memory under 4 MB.
+- `Cron/QueueWorkBudgetTest` — one pass of the delivery cron over a real
+  queue of 0, 200 and 400 deliveries, with only the network edge replaced and
+  the clock frozen: a constant cost per pass, two statements per delivery and
+  three per batch, and the second batch costing exactly what the first did.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
