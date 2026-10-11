@@ -143,11 +143,14 @@ class LinkedDataSignature implements JsonSerializable {
 		try {
 			$hashHeader = $this->hashedCanonicalize($header, true);
 			$hashObject = $this->hashedCanonicalize($this->getObject());
-		} catch (Exception $e) {
+		} catch (Exception|\Error $e) {
 			// Normalisation refuses contexts that are not shipped with the app
 			// (SignatureService::documentLoader), so a document using one cannot be
 			// verified — which is a false result, not an error: the caller falls back
-			// to the HTTP-signature origin.
+			// to the HTTP-signature origin. The normaliser also fails with an
+			// Error on JSON-LD it does not expect — a context that is a NUL, an
+			// empty object where a type belongs — and that document is not
+			// verified either.
 			return false;
 		}
 

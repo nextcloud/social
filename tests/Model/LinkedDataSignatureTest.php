@@ -16,6 +16,7 @@ use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -164,6 +165,32 @@ class LinkedDataSignatureTest extends TestCase {
 	public function testADocumentJsonCannotEncodeIsNotVerified(): void {
 		$signature = new LinkedDataSignature();
 		$signature->import(['object' => "\xff", 'signature' => ['signatureValue' => '=']]);
+		$signature->setPublicKey(self::$publicKey);
+
+		$this->assertFalse($signature->verify());
+	}
+
+	/**
+	 * JSON-LD the normaliser fails on with an Error rather than an exception,
+	 * as fuzzed documents had it: not verified, where the Error used to come
+	 * out of verify(). A context that is a NUL arrives in valid JSON; an
+	 * empty object a body decoded to arrays cannot carry, the model can.
+	 *
+	 * @return array<string, array{array<string, mixed>}>
+	 */
+	public static function unreadableDocuments(): array {
+		return [
+			'a context that is a NUL' => [['@context' => "\0", 'type' => 'Note']],
+			'an empty object for a type' => [['@context' => ['https://www.w3.org/ns/activitystreams'], 'object' => ['type' => new \stdClass()]]],
+		];
+	}
+
+	#[DataProvider('unreadableDocuments')]
+	public function testADocumentTheNormaliserCannotReadIsNotVerified(array $document): void {
+		$signature = new LinkedDataSignature();
+		$signature->import($document + [
+			'signature' => ['created' => '2026-10-11T12:00:00Z', 'signatureValue' => base64_encode('x')],
+		]);
 		$signature->setPublicKey(self::$publicKey);
 
 		$this->assertFalse($signature->verify());
