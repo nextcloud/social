@@ -115,11 +115,19 @@ column, then `streamsByNids()` for exactly those rows
 (`tests/Db/TwoQueryTimelinesTest.php` pins the shape for the three moved last).
 What still pairs `selectDistinct('s.id')` with the full stream column set is
 the single-row lookups (`getStreamById()` and friends, which return one row and
-have nothing to deduplicate), `searchContent()` (which hydrates only the nids
-the word index picked, but still through the wide select), `getDescendants()` /
+have nothing to deduplicate), `getDescendants()` /
 `getRepliesTo()`, `getAnnouncesAndRepliesTo()`, and the `*_dep()` methods behind
 the uncalled Custom Local API routes. Of those, the thread walk is the one worth
 moving next; the `_dep` ones go with their routes.
+
+`searchContent()` moved last, both through the word index and through the scan
+that stands in for it: it was the one read whose wide `DISTINCT` carried the
+viewer's follows join, so a page of twenty was every candidate times every
+account the viewer follows — 30,000 rows of 1.5 KB sorted on disk for an
+account following 300, about 0.6 s on PostgreSQL at any instance size
+(`occ social:benchmark`, 20,000 notes). The visible nids are now chosen over
+the nid and the posts read by primary key afterwards
+(`tests/Integration/Db/SearchHydrationTest.php`).
 
 ### Lookups that cannot use an index
 

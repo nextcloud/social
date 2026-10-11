@@ -107,6 +107,10 @@ to stop.
   viewer-filtered reply list.
 - `Db/TimelineValidatorsTest` — the newest-nid probes a timeline's entity tag
   is built from, and the unread notification badge.
+- `Db/SearchHydrationTest` — a content search, through the word index and
+  through the scan, finds what the viewer may see and not a stranger's
+  followers-only post, and chooses those posts over the nid: no statement that
+  reads the posts' columns joins the viewer's follows.
 - `Db/SearchTermsRequestTest` / `Db/StreamTagsRequestTest` — the word index
   (index, edit, whole words and prefixes, backfill) and the hashtag rows.
 - `Db/StreamStatisticsTest` — the grouped queries behind the statistics page
