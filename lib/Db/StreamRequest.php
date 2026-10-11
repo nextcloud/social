@@ -966,13 +966,15 @@ class StreamRequest extends StreamRequestBuilder {
 	 * window is found however long ago it was published and however many
 	 * other polls there are, and only those rows are read.
 	 *
+	 * @param int|null $now the end of the window; the wall clock when not given
+	 *
 	 * @return Question[]
 	 */
-	public function getPollsClosedSince(int $since, int $limit = 50): array {
+	public function getPollsClosedSince(int $since, int $limit = 50, ?int $now = null): array {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$expr = $qb->expr();
 		$qb->andWhere($expr->gt('s.poll_ends_at', $qb->createNamedParameter($since, IQueryBuilder::PARAM_INT)));
-		$qb->andWhere($expr->lte('s.poll_ends_at', $qb->createNamedParameter(time(), IQueryBuilder::PARAM_INT)));
+		$qb->andWhere($expr->lte('s.poll_ends_at', $qb->createNamedParameter($now ?? time(), IQueryBuilder::PARAM_INT)));
 		$qb->limitToType(Question::TYPE);
 		$qb->orderBy('s.poll_ends_at', 'asc');
 		$qb->addOrderBy('s.nid', 'asc');

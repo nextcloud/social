@@ -23,6 +23,7 @@ use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Tools\Traits\TStringTools;
+use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -55,6 +56,7 @@ class PollService {
 		private NotificationService $notificationService,
 		private ConfigService $configService,
 		private LoggerInterface $logger,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 	}
 
@@ -99,7 +101,7 @@ class PollService {
 	public function vote(Person $viewer, int|string $nid, array $choices): Question {
 		$poll = $this->getPoll($nid, $viewer);
 
-		if ($poll->isExpired()) {
+		if ($poll->isExpired($this->now())) {
 			throw new InvalidActionException('this poll has ended');
 		}
 
@@ -166,7 +168,7 @@ class PollService {
 		}
 
 		$option = $target->findOption($note->getName());
-		if ($option === null || $target->isExpired()) {
+		if ($option === null || $target->isExpired($this->now())) {
 			return true; // a vote, but not a countable one — consume silently
 		}
 
@@ -297,9 +299,9 @@ class PollService {
 
 		// taken before the read, so a poll closing while the sweep runs is
 		// inside the next window rather than between the two
-		$now = time();
-		$since = $this->lastSweep();
-		$polls = $this->streamRequest->getPollsClosedSince($since, $limit);
+		$now = $this->now();
+		$since = $this->lastSweep($now);
+		$polls = $this->streamRequest->getPollsClosedSince($since, $limit, $now);
 		// the voters of every poll in one indexed read; a failure here throws
 		// before the sweep is recorded, so the whole pass is tried again
 		$voters = $this->actionsRequest->votersOfPolls(
@@ -356,15 +358,19 @@ class PollService {
 	 * first run would announce every poll that ever closed, to everybody who
 	 * ever voted.
 	 */
-	private function lastSweep(): int {
+	private function lastSweep(int $now): int {
 		$stored = (int)$this->configService->getAppValue(ConfigService::SOCIAL_POLLS_SWEPT);
 
-		return max($stored, time() - self::SWEEP_FLOOR);
+		return max($stored, $now - self::SWEEP_FLOOR);
 	}
 
 	public function exportPoll(Question $poll): array {
 		$poll->setExportFormat(ACore::FORMAT_LOCAL);
 
 		return $poll->exportAsLocal()['poll'];
+	}
+
+	private function now(): int {
+		return $this->timeFactory?->getTime() ?? time();
 	}
 }
