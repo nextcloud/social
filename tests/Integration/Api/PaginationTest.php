@@ -96,11 +96,9 @@ class PaginationTest extends ApiTestCase {
 	 * @param bool $closed whether the list holds only these rows, so that the
 	 *                     end of the list can be asserted too; the public
 	 *                     timeline may hold older posts of other tests
-	 * @param bool $minIdAdjacent false for the one list known to answer
-	 *                            `min_id` like `since_id` (see testConversations)
 	 */
 	private function assertMastodonPaging(
-		callable $page, array $rows, string $list, bool $closed = true, bool $minIdAdjacent = true,
+		callable $page, array $rows, string $list, bool $closed = true,
 	): void {
 		$this->assertCount(self::ROWS, $rows, $list . ': the fixture');
 		$limit = ['limit' => self::LIMIT];
@@ -137,9 +135,9 @@ class PaginationTest extends ApiTestCase {
 			$list . ': since_id is the newest page above the cursor'
 		);
 		$this->assertSame(
-			array_slice($rows, $minIdAdjacent ? 3 : 0, 3),
+			array_slice($rows, 3, 3),
 			$this->ids($page($limit + ['min_id' => $rows[6]])),
-			$list . ($minIdAdjacent ? ': min_id is the page next to the cursor, newest first' : ': min_id answers like since_id')
+			$list . ': min_id is the page next to the cursor, newest first'
 		);
 
 		$this->assertSame(
@@ -248,13 +246,11 @@ class PaginationTest extends ApiTestCase {
 	}
 
 	/**
-	 * Conversations answer `min_id` like `since_id`: the newest page above
-	 * the cursor rather than the one next to it. ConversationService reads
-	 * a window of messages above the cursor and then keeps the newest
-	 * `limit` conversations of it, where a `min_id` page keeps the oldest.
-	 * A client filling a gap with `prev` skips the conversations between.
-	 * Pinned as it is: ConversationService is being changed elsewhere, and
-	 * the fix belongs there.
+	 * One conversation per message here, as each message starts a thread of
+	 * its own. A page is built from a window of messages and then cut to
+	 * `limit` conversations, so `min_id` has to keep the oldest of them —
+	 * the ones next to the cursor — or a client filling a gap with `prev`
+	 * skips the conversations between.
 	 */
 	public function testConversations(): void {
 		$this->account('alice');
@@ -264,8 +260,7 @@ class PaginationTest extends ApiTestCase {
 		}
 
 		$this->assertMastodonPaging(
-			$this->route(ConversationController::class, 'index', [], 'alice'), $this->newestFirst($rows), 'conversations',
-			minIdAdjacent: false
+			$this->route(ConversationController::class, 'index', [], 'alice'), $this->newestFirst($rows), 'conversations'
 		);
 	}
 

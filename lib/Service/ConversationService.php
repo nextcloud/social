@@ -108,6 +108,10 @@ class ConversationService {
 	 * the direct timeline, and a page of no conversations at that point is the
 	 * end of the list rather than a gap to page past.
 	 *
+	 * `min_id` answers the page next to the cursor, as Mastodon does: the
+	 * oldest conversations above it, still newest first, with `prev` at the
+	 * newest message on the page so that nothing between is skipped.
+	 *
 	 * @return array{conversations: Conversation[], next: int|string, prev: int|string}
 	 */
 	public function getPage(Person $viewer, int $limit, int|string $maxId = '0', int|string $minId = 0, int|string $sinceId = '0'): array {
@@ -127,7 +131,10 @@ class ConversationService {
 		$conversations = $this->entities($viewer, $this->group($messages));
 
 		$filled = (count($conversations) > $limit);
-		$conversations = array_slice($conversations, 0, $limit);
+		// a `min_id` window is the oldest messages above the cursor, and its
+		// page is the conversations next to the cursor: the oldest of them
+		$adjacent = ((string)$minId !== '0' && (string)$minId !== '');
+		$conversations = array_slice($conversations, $adjacent ? -$limit : 0, $limit);
 
 		$nids = [];
 		foreach ($messages as $message) {
@@ -143,10 +150,13 @@ class ConversationService {
 			$next = (count($messages) < self::WINDOW) ? 0 : $this->oldestOf($nids);
 		}
 
+		$first = reset($conversations);
+		$prev = ($adjacent && $filled && $first !== false) ? $first->getLastStatusNid() : $this->newestNidOf($nids);
+
 		return [
 			'conversations' => $conversations,
 			'next' => $next,
-			'prev' => $this->newestNidOf($nids),
+			'prev' => $prev,
 		];
 	}
 
