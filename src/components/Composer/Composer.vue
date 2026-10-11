@@ -1242,6 +1242,9 @@ export default {
 			// change and the box opening is the whole of the answer. Through
 			// expand(), so that it also undoes a close by hand.
 			this.expand()
+			// and the caret goes into it, after the mentions: left on the Reply
+			// button, the first words typed went nowhere
+			this.$nextTick(() => this.focusInput({ atEnd: true }))
 		}
 		eventBus.on('composer-reply', this.onComposerReply)
 
@@ -1439,14 +1442,27 @@ export default {
 			this.openedByHand = false
 		},
 
-		/** Puts the caret in the composer, scrolling it into view if need be. */
-		focusInput() {
+		/**
+		 * Puts the caret in the composer, scrolling it into view if need be.
+		 *
+		 * @param {{atEnd?: boolean}} [options] `atEnd` puts the caret after
+		 *                                      what the box already holds
+		 */
+		focusInput({ atEnd = false } = {}) {
 			const input = this.inputElement()
 			if (input === undefined) {
 				return
 			}
 
 			input.focus()
+			const selection = window.getSelection()
+			if (atEnd && selection !== null && document.activeElement === input) {
+				const range = document.createRange()
+				range.selectNodeContents(input)
+				range.collapse(false)
+				selection.removeAllRanges()
+				selection.addRange(range)
+			}
 			// the composer sits at the top of the timeline, which may be scrolled away
 			if (typeof input.scrollIntoView === 'function') {
 				input.scrollIntoView({ block: 'nearest' })

@@ -123,9 +123,8 @@ test.describe('posting, and acting on a post', () => {
 		// the author before a word is typed
 		const composer = page.locator('.new-post').filter({ hasText: `@${OTHER_USER}` }).first()
 		await expect(composer).toBeVisible()
-		// the focus stays on the Reply button, so the box is clicked into,
-		// which puts the caret after the mention
-		await composer.locator('.message').click()
+		// pressing Reply puts the caret in the box, after the mention
+		await expect(composer.locator('.message')).toBeFocused()
 		await page.keyboard.type(answer)
 		await composer.getByRole('button', { name: /^(Post|Reply)(?! as)/ }).click()
 		await expect(composer).toBeHidden()
