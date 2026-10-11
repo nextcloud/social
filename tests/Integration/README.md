@@ -250,7 +250,12 @@ to stop.
   that misbehave (`Helper/FaultServer`, a PHP built-in server per peer, each a
   host name of its own under `.localhost`): a peer that hangs does not hold up
   the others in its wave — which caught the waves going out one request after
-  another — and costs one timeout however many rows it has.
+  another — and costs one timeout however many rows it has; a 500, a 429 or
+  503 with `Retry-After`, a timeout and a redirect loop each keep the row and
+  open the breaker; the retries follow the documented schedule (16 s, 31 s,
+  96 s) while the breaker doubles (60, 120, 240 s) and lets go once the peer
+  answers; across a mix of failing peers every row is acknowledged exactly
+  once; and an answer cut off mid-body is sent again.
 - `Federation/InboundCorpusTest` — the inbound fixture corpus (Misskey,
   GoToSocial, Akkoma, Friendica, Lemmy, Mastodon 4.5 quotes and polls, Block,
   Flag, account Delete, PeerTube Dislike/View/CacheFile, Threads, WordPress,

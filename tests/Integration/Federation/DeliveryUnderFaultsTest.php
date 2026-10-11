@@ -20,17 +20,20 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\HostBreaker;
 use OCA\Social\Service\RequestQueueService;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\StreamQueueService;
 use OCA\Social\Tests\Integration\Helper\FaultServer;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Config\IUserConfig;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use OCP\Server;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use ReflectionClass;
@@ -38,7 +41,8 @@ use ReflectionMethod;
 use ReflectionNamedType;
 
 /**
- * The delivery cron against peers that misbehave.
+ * The delivery cron against peers that misbehave: hang, fail, ask to be left
+ * alone, cut their answer off or redirect for ever.
  *
  * The peers are fake inboxes on this machine (`FaultServer`), each a host
  * name of its own. What runs is the real `Cron\Queue` pass over real
@@ -55,7 +59,10 @@ use ReflectionNamedType;
  *    to hosts that do not exist, must not decide how long a pass takes.
  *
  * Every pass runs with a two-second timeout (`withRequestTimeout()`, as a
- * bounded production call does) in place of the cron's thirty.
+ * bounded production call does) in place of the cron's thirty. Time is
+ * moved on by moving the stored timestamps back — `last` on the rows,
+ * `open_until` and `last_failure` on the breaker — because both the
+ * schedule and the breaker read the wall clock.
  */
 class DeliveryUnderFaultsTest extends TestCase {
 	private const AUTHOR = 'https://cloud.example.org/faults/users/author';
@@ -130,6 +137,141 @@ class DeliveryUnderFaultsTest extends TestCase {
 		foreach ($held as $row) {
 			$this->assertGreaterThan(time(), $row['last'], 'a row the breaker held back is due before the breaker closes');
 		}
+	}
+
+	/** @return array<string, array{0: string, 1: int}> how a peer fails, and how many requests one delivery makes of it */
+	public static function failuresThatMayPass(): array {
+		return [
+			'a 500' => ['error', 1],
+			'a 429 with Retry-After' => ['busy', 1],
+			'a 503 with Retry-After' => ['unavailable', 1],
+			'a timeout' => ['slow', 1],
+			// the first answer, then each hop the single-request path follows
+			'a redirect loop' => ['loop', 7],
+		];
+	}
+
+	/**
+	 * A failure that may pass keeps the row, spends one of its tries, and
+	 * leaves the peer alone for the breaker's first interval.
+	 */
+	#[DataProvider('failuresThatMayPass')]
+	public function testAFailureThatMayPassIsRetriedAndThePeerLeftAlone(string $behaviour, int $requests): void {
+		$this->queue($behaviour, $this->name, 'only');
+
+		$this->pass();
+
+		$this->assertCount($requests, self::$server->hitsOn($behaviour, $this->name));
+		$row = $this->row('only');
+		$this->assertSame(RequestQueue::STATUS_STANDBY, $row['status'], 'the delivery was dropped');
+		$this->assertSame(1, $row['tries']);
+		$breaker = $this->breaker($behaviour);
+		$this->assertNotNull($breaker, 'the failing peer is not left alone');
+		$this->assertSame(1, $breaker['strikes']);
+		$this->assertSame(HostBreaker::BASE, $breaker['open_until'] - $breaker['last_failure']);
+	}
+
+	/**
+	 * A peer that never answers 4xx-for-good is retried on the schedule
+	 * `RequestQueueService` documents — 16 s after the first failure, 31 s
+	 * after the second, 96 s after the third — and not a moment earlier,
+	 * while the breaker doubles: 60 s, 120 s, 240 s. When the peer is back
+	 * the row is delivered and the breaker forgets the peer.
+	 */
+	public function testRetriesFollowTheDocumentedScheduleUntilThePeerIsBack(): void {
+		$this->queue('flaky', $this->name, 'only');
+
+		foreach ([1 => 16, 2 => 31, 3 => 96] as $tries => $wait) {
+			$this->pass();
+			$this->assertCount($tries, self::$server->hitsOn('flaky', $this->name), 'attempt ' . $tries . ' was not made');
+			$this->assertSame($tries, $this->row('only')['tries']);
+			$breaker = $this->breaker('flaky');
+			$this->assertSame(HostBreaker::BASE * 2 ** ($tries - 1), $breaker['open_until'] - $breaker['last_failure'], 'the breaker did not double');
+			$this->assertSame($wait, RequestQueueService::retryDelay($tries));
+
+			// the breaker's interval over, the schedule's not yet
+			$this->elapseBreaker('flaky', $breaker['open_until'] - $breaker['last_failure'] + 1);
+			$this->elapse($wait - 2);
+			$this->pass();
+			$this->assertCount($tries, self::$server->hitsOn('flaky', $this->name), 'a retry was made before its time');
+
+			$this->elapse(3);
+		}
+
+		self::$server->bringUp('flaky', $this->name);
+		$this->pass();
+
+		$this->assertCount(4, self::$server->hitsOn('flaky', $this->name));
+		$this->assertSame(RequestQueue::STATUS_SUCCESS, $this->row('only')['status']);
+		$this->assertNull($this->breaker('flaky'), 'the breaker still holds a peer that answered');
+	}
+
+	/**
+	 * Every row reaches its peer exactly once, whatever the peers did on the
+	 * way: those that failed are retried until they are back, and nothing a
+	 * peer acknowledged is ever sent to it again. (A peer that hangs past the
+	 * timeout may still take in what it was sent, and is sent it again: that
+	 * is `testAnAnswerCutOffIsSentAgain`'s case.)
+	 */
+	public function testNothingIsLostOrDeliveredTwice(): void {
+		$expected = [];
+		foreach (['ok', 'flaky', 'error', 'busy', 'unavailable'] as $behaviour) {
+			for ($i = 1; $i <= 2; $i++) {
+				$this->queue($behaviour, $this->name, $behaviour . '-' . $i);
+				$expected[$this->host($behaviour) . ' ' . $this->activityId($behaviour . '-' . $i)] = true;
+			}
+		}
+
+		for ($round = 1; $round <= 4 && $this->waiting() > 0; $round++) {
+			$this->pass();
+			if ($round === 1) {
+				foreach (['flaky', 'error', 'busy', 'unavailable'] as $behaviour) {
+					self::$server->bringUp($behaviour, $this->name);
+				}
+			}
+			foreach (['flaky', 'error', 'busy', 'unavailable'] as $behaviour) {
+				$this->elapseBreaker($behaviour, HostBreaker::MAX);
+			}
+			$this->elapse(HostBreaker::MAX);
+		}
+
+		$this->assertSame(0, $this->waiting(), 'a delivery never got through');
+		$accepted = [];
+		foreach (self::$server->hits() as $hit) {
+			if (str_ends_with($hit['host'], '-' . $this->name . '.faults.localhost') && $hit['answer'] >= 200 && $hit['answer'] < 300) {
+				$key = $hit['host'] . ' ' . $hit['id'];
+				$accepted[$key] = ($accepted[$key] ?? 0) + 1;
+			}
+		}
+		ksort($accepted);
+		ksort($expected);
+		$this->assertSame(array_fill_keys(array_keys($expected), 1), $accepted, 'a delivery was lost or acknowledged twice');
+	}
+
+	/**
+	 * A peer that takes the delivery in and then hangs up before its answer
+	 * is complete has, as far as this side can tell, not taken it: the row is
+	 * kept and sent again. Delivery is at least once; the peer recognises the
+	 * activity by its id.
+	 */
+	public function testAnAnswerCutOffIsSentAgain(): void {
+		$this->queue('reset', $this->name, 'only');
+
+		$this->pass();
+		$this->assertCount(1, self::$server->hitsOn('reset', $this->name));
+		$this->assertSame(RequestQueue::STATUS_STANDBY, $this->row('only')['status'], 'a delivery whose answer was cut off counted as delivered');
+		$this->assertSame(1, $this->row('only')['tries']);
+
+		self::$server->bringUp('reset', $this->name);
+		$this->elapseBreaker('reset', HostBreaker::MAX);
+		$this->elapse(HostBreaker::MAX);
+		$this->pass();
+
+		$this->assertSame(RequestQueue::STATUS_SUCCESS, $this->row('only')['status']);
+		$this->assertSame(
+			[$this->activityId('only'), $this->activityId('only')],
+			array_column(self::$server->hitsOn('reset', $this->name), 'id')
+		);
 	}
 
 	// --- the harness ------------------------------------------------------
@@ -209,6 +351,10 @@ class DeliveryUnderFaultsTest extends TestCase {
 		);
 	}
 
+	private function host(string $behaviour): string {
+		return self::$server->host($behaviour, $this->name);
+	}
+
 	private function activityId(string $key): string {
 		return self::AUTHOR . '/activity/' . $this->name . '/' . $key;
 	}
@@ -245,4 +391,60 @@ class DeliveryUnderFaultsTest extends TestCase {
 		return ['status' => (int)$row['status'], 'tries' => (int)$row['tries'], 'last' => $last];
 	}
 
+	/** This test's rows not delivered yet. */
+	private function waiting(): int {
+		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'total'))
+			->from('social_req_queue')
+			->where($qb->expr()->eq('author_prim', $qb->createNamedParameter(md5(self::AUTHOR))))
+			->andWhere($qb->expr()->neq('status', $qb->createNamedParameter(RequestQueue::STATUS_SUCCESS, IQueryBuilder::PARAM_INT)));
+		$cursor = $qb->executeQuery();
+		$waiting = (int)$cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return $waiting;
+	}
+
+	/**
+	 * The breaker's record of a peer, or null when it holds nothing against it.
+	 *
+	 * @return array{strikes: int, open_until: int, last_failure: int}|null
+	 */
+	private function breaker(string $behaviour): ?array {
+		return Server::get(HostBreakerRequest::class)->failingSince(0)[$this->host($behaviour)] ?? null;
+	}
+
+	/** Moves this test's rows `$seconds` into the past, as far as the schedule can tell. */
+	private function elapse(int $seconds): void {
+		$connection = Server::get(IDBConnection::class);
+		$select = $connection->getQueryBuilder();
+		$select->select('id', 'last')
+			->from('social_req_queue')
+			->where($select->expr()->eq('author_prim', $select->createNamedParameter(md5(self::AUTHOR))))
+			->andWhere($select->expr()->isNotNull('last'));
+		$cursor = $select->executeQuery();
+		$rows = $cursor->fetchAll();
+		$cursor->closeCursor();
+
+		foreach ($rows as $row) {
+			$last = new DateTime((string)$row['last'], new DateTimeZone('UTC'));
+			$update = $connection->getQueryBuilder();
+			$update->update('social_req_queue')
+				->set('last', $update->createNamedParameter(new DateTime('@' . ($last->getTimestamp() - $seconds)), IQueryBuilder::PARAM_DATE))
+				->where($update->expr()->eq('id', $update->createNamedParameter((int)$row['id'], IQueryBuilder::PARAM_INT)));
+			$update->executeStatement();
+		}
+	}
+
+	/** Moves the breaker's record of a peer `$seconds` into the past. */
+	private function elapseBreaker(string $behaviour, int $seconds): void {
+		$state = $this->breaker($behaviour);
+		if ($state === null) {
+			return;
+		}
+
+		Server::get(HostBreakerRequest::class)->open(
+			$this->host($behaviour), $state['strikes'], $state['open_until'] - $seconds, $state['last_failure'] - $seconds
+		);
+	}
 }
