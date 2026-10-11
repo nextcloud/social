@@ -12,22 +12,32 @@ namespace OCA\Social\Command;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Db\DomainBlocksRequestBuilder;
+use OCA\Social\Db\FollowedTagsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\SearchTermsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Follow;
+use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Tools\Nid;
+use OCA\Social\Tools\SearchTerms;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IRequest;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 
@@ -43,6 +53,60 @@ class Benchmark extends SocialCommand {
 	/** every actor, note and follow this command writes lives under this host */
 	public const HOST = 'benchmark.invalid';
 
+	/**
+	 * The page sizes every probe is timed at: Mastodon's default page, and
+	 * the largest one `ProbeOptions` lets a client ask for.
+	 */
+	public const PROBE_LIMITS = [20, ProbeOptions::MAX_LIMIT];
+
+	/** What the probes are, in the order they are timed and reported. */
+	public const PROBES = [
+		'home', 'public', 'direct', 'notifications',
+		'photos', 'videos', 'hashtag', 'account', 'search',
+	];
+
+	/*
+	 * The mix of what is seeded, each as "one post in N".
+	 *
+	 * A Photos or Videos timeline narrows the page to the posts carrying that
+	 * kind of media, and that narrowing is only measured when media is the
+	 * minority it is in life: an instance seeded with text alone answers the
+	 * Photos timeline with nothing, at once, and an instance where every post
+	 * has a picture answers it as if it were the home timeline. Roughly one
+	 * post in seven carrying media is what a Mastodon timeline looks like.
+	 */
+
+	/** One post in this many carries a picture. */
+	public const IMAGE_EVERY = 10;
+
+	/** One post in this many carries a video, and none of those also a picture. */
+	public const VIDEO_EVERY = 25;
+
+	/** One post in this many mentions the viewer, and so notifies them. */
+	public const MENTION_EVERY = 20;
+
+	/** One post in this many carries a hashtag. */
+	public const HASHTAG_EVERY = 4;
+
+	/** How many distinct hashtags those posts share between them. */
+	public const HASHTAGS = 20;
+
+	/** The hashtag the hashtag probe reads: one of the shared ones, as common as any. */
+	public const PROBED_TAG = 'benchtag0';
+
+	/**
+	 * Words every seeded post says one of, so that a search has something to
+	 * find in a known share of them. Thirteen, so that which one a post says
+	 * does not line up with which media or hashtag it carries.
+	 */
+	public const TOPICS = [
+		'harbour', 'lantern', 'meadow', 'granite', 'orchard', 'saffron', 'glacier',
+		'violin', 'compass', 'thunder', 'marble', 'pelican', 'juniper',
+	];
+
+	/** The word the search probe looks for. */
+	public const PROBED_WORD = 'harbour';
+
 	/** How many seeded posts one round of `--clean` takes with it. */
 	private const CLEAN_PAGE = 1000;
 
@@ -55,8 +119,18 @@ class Benchmark extends SocialCommand {
 	 */
 	private const CHUNK = 500;
 
+	/**
+	 * The most placeholders one `INSERT` binds. A post is thirty-odd columns
+	 * and a page of them is split to stay under this; SQLite, the tightest of
+	 * the three, allows 32,766.
+	 */
+	private const MAX_PLACEHOLDERS = 20000;
+
 	/** `--followers`, read in `execute()` and used by the seeder. */
 	private int $followersWanted = 0;
+
+	/** The attachment column of a seeded picture or video post, by kind. */
+	private array $attachmentTemplates = [];
 
 	public function __construct(
 		private StreamRequest $streamRequest,
@@ -67,6 +141,7 @@ class Benchmark extends SocialCommand {
 		private ActorsRequest $actorsRequest,
 		private IDBConnection $connection,
 		private IRequest $request,
+		private ConfigService $configService,
 	) {
 		parent::__construct();
 	}
@@ -86,6 +161,23 @@ class Benchmark extends SocialCommand {
 			->addOption('viewer', '', InputOption::VALUE_REQUIRED, 'the local account the timelines are read as', '')
 			->addOption('seed-only', '', InputOption::VALUE_NONE, 'seed without timing')
 			->addOption('time-only', '', InputOption::VALUE_NONE, 'time what is already seeded')
+			->addOption('runs', '', InputOption::VALUE_REQUIRED, 'timed runs of each probe; the median is reported', '3')
+			->addOption(
+				'fail-over', '', InputOption::VALUE_REQUIRED,
+				'fail when a probe takes longer than this many milliseconds'
+			)
+			->addOption(
+				'threshold', '', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY,
+				'a ceiling for one probe, as PROBE=MS or PROBE@LIMIT=MS; repeatable'
+			)
+			->addOption(
+				'baseline', '', InputOption::VALUE_REQUIRED,
+				'a JSON file of earlier timings per database; a probe also fails over --baseline-factor times its entry'
+			)
+			->addOption(
+				'baseline-factor', '', InputOption::VALUE_REQUIRED,
+				'how many times its baseline a probe may take', '3'
+			)
 			->addOption('clean', '', InputOption::VALUE_NONE, 'remove everything this command wrote')
 			->addOption(
 				'force', 'f', InputOption::VALUE_NONE,
@@ -95,21 +187,42 @@ class Benchmark extends SocialCommand {
 
 	#[\Override]
 	protected function execute(InputInterface $input, OutputInterface $output): int {
+		$json = in_array(
+			$input->getOption('output'), [self::OUTPUT_FORMAT_JSON, self::OUTPUT_FORMAT_JSON_PRETTY], true
+		);
+		// with JSON on stdout, everything said along the way goes to stderr,
+		// so that what a script redirects into a file is one JSON document
+		$log = $output;
+		if ($json) {
+			$log = ($output instanceof ConsoleOutputInterface) ? $output->getErrorOutput() : new NullOutput();
+		}
+
 		if ($input->getOption('clean')) {
-			$output->writeln('removed ' . $this->clean() . ' seeded rows');
+			$log->writeln('removed ' . $this->clean() . ' seeded rows');
 
 			return 0;
 		}
 
-		$viewer = $this->viewer((string)$input->getOption('viewer'), $output);
+		// every option is checked before anything is written: a typo in a
+		// threshold should not cost the half hour a large seed takes
+		try {
+			$limits = $this->limitOptions($input);
+		} catch (\InvalidArgumentException $e) {
+			$log->writeln('<error>' . $e->getMessage() . '</error>');
+
+			return 1;
+		}
+
+		$viewer = $this->viewer((string)$input->getOption('viewer'), $log);
 		if ($viewer === null) {
 			return 1;
 		}
 
+		$seeded = null;
 		if (!$input->getOption('time-only')) {
 			$confirmed = $this->confirmSeeding(
 				$input,
-				$output,
+				$log,
 				(int)$input->getOption('actors'),
 				(int)$input->getOption('notes')
 			);
@@ -118,20 +231,171 @@ class Benchmark extends SocialCommand {
 			}
 
 			$this->followersWanted = (int)$input->getOption('followers');
-			$this->seed(
-				(int)$input->getOption('actors'),
-				(int)$input->getOption('notes'),
-				(int)$input->getOption('follows'),
-				$viewer,
-				$output
-			);
+			$seeded = [
+				'actors' => (int)$input->getOption('actors'),
+				'notes' => (int)$input->getOption('notes'),
+				'follows' => (int)$input->getOption('follows'),
+				'followers' => max(0, $this->followersWanted),
+			];
+			$this->seed($seeded['actors'], $seeded['notes'], $seeded['follows'], $viewer, $log);
 		}
 
-		if (!$input->getOption('seed-only')) {
-			$this->time($viewer, $output);
+		if ($input->getOption('seed-only')) {
+			return 0;
+		}
+
+		$results = $this->time($viewer, $limits['runs'], $log);
+		$verdicts = self::judge($results, $limits['thresholds'], $limits['failOver'], $limits['baseline'], $limits['factor']);
+		$over = array_keys(array_filter($verdicts, static fn (array $v): bool => $v['over']));
+
+		if ($json) {
+			$output->writeln((string)json_encode(
+				$this->report($results, $verdicts, $over, $seeded, $viewer, $limits['runs']),
+				JSON_UNESCAPED_SLASHES | (($input->getOption('output') === self::OUTPUT_FORMAT_JSON_PRETTY) ? JSON_PRETTY_PRINT : 0)
+			));
+		} else {
+			$this->printResults($results, $verdicts, $viewer, $output);
+		}
+
+		if ($over !== []) {
+			$log->writeln('<error>over their limit: ' . implode(', ', $over) . '</error>');
+
+			return 1;
 		}
 
 		return 0;
+	}
+
+	/**
+	 * `--runs`, `--fail-over`, `--threshold`, `--baseline` and
+	 * `--baseline-factor`, read and checked.
+	 *
+	 * @return array{runs: int, failOver: ?float, thresholds: array<string, float>, baseline: array<string, float>, factor: float}
+	 * @throws \InvalidArgumentException naming the option that is wrong
+	 */
+	private function limitOptions(InputInterface $input): array {
+		$runs = (int)$input->getOption('runs');
+		if ($runs < 1) {
+			throw new \InvalidArgumentException('--runs must be at least 1');
+		}
+
+		$failOver = null;
+		$raw = $input->getOption('fail-over');
+		if ($raw !== null && $raw !== '') {
+			$failOver = self::milliseconds((string)$raw, '--fail-over');
+		}
+
+		$thresholds = [];
+		foreach ((array)$input->getOption('threshold') as $entry) {
+			$parts = explode('=', (string)$entry, 2);
+			if (count($parts) !== 2 || !self::isProbeKey($parts[0])) {
+				throw new \InvalidArgumentException(
+					'--threshold ' . $entry . ': expected PROBE=MS or PROBE@LIMIT=MS, PROBE one of '
+					. implode(', ', self::PROBES)
+				);
+			}
+			$thresholds[$parts[0]] = self::milliseconds($parts[1], '--threshold ' . $entry);
+		}
+
+		$factor = (float)$input->getOption('baseline-factor');
+		if ($factor <= 0.0) {
+			throw new \InvalidArgumentException('--baseline-factor must be greater than 0');
+		}
+
+		$baseline = [];
+		$path = (string)($input->getOption('baseline') ?? '');
+		if ($path !== '') {
+			$baseline = $this->readBaseline($path);
+		}
+
+		return [
+			'runs' => $runs, 'failOver' => $failOver, 'thresholds' => $thresholds,
+			'baseline' => $baseline, 'factor' => $factor,
+		];
+	}
+
+	/** `home`, or `home@20` for one of `PROBE_LIMITS`. */
+	private static function isProbeKey(string $key): bool {
+		$parts = explode('@', $key, 2);
+		if (!in_array($parts[0], self::PROBES, true)) {
+			return false;
+		}
+
+		return count($parts) === 1 || in_array((int)$parts[1], self::PROBE_LIMITS, true) && (string)(int)$parts[1] === $parts[1];
+	}
+
+	private static function milliseconds(string $value, string $option): float {
+		if (!is_numeric($value) || (float)$value <= 0.0) {
+			throw new \InvalidArgumentException($option . ': ' . $value . ' is not a positive number of milliseconds');
+		}
+
+		return (float)$value;
+	}
+
+	/**
+	 * This database's entries of a baseline file: `{"pgsql": {"home@20": 12.5,
+	 * …}, "mysql": {…}}`. Other top-level keys are free for a note on how
+	 * the numbers were measured.
+	 *
+	 * @return array<string, float>
+	 */
+	private function readBaseline(string $path): array {
+		$content = is_readable($path) ? file_get_contents($path) : false;
+		if ($content === false) {
+			throw new \InvalidArgumentException('--baseline ' . $path . ': cannot be read');
+		}
+
+		$decoded = json_decode($content, true);
+		if (!is_array($decoded)) {
+			throw new \InvalidArgumentException('--baseline ' . $path . ': not a JSON object');
+		}
+
+		$entries = $decoded[$this->databaseName()] ?? [];
+		$baseline = [];
+		foreach (is_array($entries) ? $entries : [] as $key => $ms) {
+			if (self::isProbeKey((string)$key) && str_contains((string)$key, '@') && is_numeric($ms) && (float)$ms > 0.0) {
+				$baseline[(string)$key] = (float)$ms;
+			}
+		}
+
+		return $baseline;
+	}
+
+	/**
+	 * The limit each timing is held to, and whether it went over.
+	 *
+	 * A probe's ceiling is its own `--threshold` (for that page size, else for
+	 * the probe), else `--fail-over`. Its baseline allowance is
+	 * `$factor` times its entry in the baseline. The limit is the larger of
+	 * the two: the ceiling keeps a probe whose baseline is two milliseconds
+	 * from failing on the noise of a shared runner, and the baseline lets a
+	 * probe that has always been slower than the ceiling run without failing
+	 * every night — while still failing the night it gets three times slower.
+	 * A probe with neither has no limit.
+	 *
+	 * @param array<string, array{probe: string, limit: int, ms: float, rows: int}> $results
+	 * @param array<string, float> $thresholds
+	 * @param array<string, float> $baseline
+	 *
+	 * @return array<string, array{limit_ms: ?float, over: bool}>
+	 */
+	public static function judge(
+		array $results, array $thresholds, ?float $failOver, array $baseline, float $factor,
+	): array {
+		$verdicts = [];
+		foreach ($results as $key => $result) {
+			$ceiling = $thresholds[$key] ?? $thresholds[$result['probe']] ?? $failOver;
+			$allowance = isset($baseline[$key]) ? $baseline[$key] * $factor : null;
+
+			$limit = null;
+			if ($ceiling !== null || $allowance !== null) {
+				$limit = max($ceiling ?? 0.0, $allowance ?? 0.0);
+			}
+
+			$verdicts[$key] = ['limit_ms' => $limit, 'over' => $limit !== null && $result['ms'] > $limit];
+		}
+
+		return $verdicts;
 	}
 
 	/**
@@ -199,6 +463,11 @@ class Benchmark extends SocialCommand {
 		}
 	}
 
+	/** The id of the `$i`th seeded actor. */
+	public static function actorId(int $i): string {
+		return 'https://' . self::HOST . '/users/actor' . $i;
+	}
+
 	/**
 	 * Writes the rows, in bulk.
 	 *
@@ -230,7 +499,7 @@ class Benchmark extends SocialCommand {
 		$started = microtime(true);
 		$ids = $this->seedActors($actors, $output);
 		$this->seedFollows($ids, $follows, $followers, $viewer, $output);
-		$this->seedNotes($ids, $notes, $output);
+		$this->seedNotes($ids, $notes, $viewer, $output);
 
 		$output->writeln(sprintf('seeded in %.1f s.', microtime(true) - $started));
 	}
@@ -246,7 +515,7 @@ class Benchmark extends SocialCommand {
 		$now = $this->stamp();
 
 		for ($i = 0; $i < $actors; $i++) {
-			$id = 'https://' . self::HOST . '/users/actor' . $i;
+			$id = self::actorId($i);
 			$ids[] = $id;
 			$rows[] = [
 				'id' => $id,
@@ -361,85 +630,264 @@ class Benchmark extends SocialCommand {
 	}
 
 	/**
-	 * The posts, and the recipient rows that put them in a timeline.
+	 * The posts, and every row that puts them somewhere: the recipient rows of
+	 * the timelines, the tag rows of the hashtag timeline, the words of the
+	 * search index, and a notification for each post that mentions the viewer.
 	 *
-	 * Both are written here rather than one being derived from the other,
-	 * because `generateStreamDest()` is a statement per recipient and the
-	 * whole point of this path is not to do that. What it writes is what that
-	 * method would have: the public collection, and the author's own follower
-	 * collection.
+	 * All of them are written here rather than derived from the posts,
+	 * because each `generate…()` is a statement per row and the whole point of
+	 * this path is not to do that. What is written is what those methods
+	 * would have written for a public post: recipient rows for the public
+	 * collection, the author and the author's follower collection, each
+	 * carrying the post's nid as the home timeline's page query reads it.
 	 *
 	 * @param string[] $ids
 	 */
-	private function seedNotes(array $ids, int $notes, OutputInterface $output): void {
+	private function seedNotes(array $ids, int $notes, Person $viewer, OutputInterface $output): void {
 		if ($ids === [] || $notes < 1) {
 			return;
 		}
 
-		$streamRows = [];
-		$destRows = [];
+		$rows = self::emptyBatch();
 		$now = time();
-		$publicPrim = md5(ACore::CONTEXT_PUBLIC);
 
 		for ($i = 0; $i < $notes; $i++) {
-			$author = $ids[$i % count($ids)];
-			$id = 'https://' . self::HOST . '/notes/' . $i;
-			$prim = md5($id);
-			// spread over the recent past, newest first, so that a page of
-			// twenty is a page of twenty *recent* posts as it would be in life
-			$published = $now - $i * 5;
-			$followers = $author . '/followers';
+			$this->noteRows($i, $ids, $viewer, $now, $rows);
 
-			$streamRows[] = [
-				// the same snowflake `StreamRequest::save()` mints: the second
-				// it was published in, times the limit, plus a random offset.
-				// It is the column every timeline pages and orders on, so a
-				// seeded row whose nid did not sort with the real ones would
-				// measure a different query than the one being served.
-				'nid' => Nid::fromPublishedTime(
-					$published, random_int(1, StreamRequest::NID_LIMIT - 1), StreamRequest::NID_LIMIT
-				),
-				'id' => $id,
-				'id_prim' => $prim,
-				'type' => Note::TYPE,
-				'subtype' => '',
-				'to' => ACore::CONTEXT_PUBLIC,
-				'to_array' => '[]',
-				'cc' => json_encode([$followers]),
-				'bcc' => '[]',
-				'content' => '<p>seeded note ' . $i . ' #benchmark</p>',
-				'summary' => '',
-				'published' => gmdate('Y-m-d\TH:i:s\Z', $published),
-				'published_time' => $this->stamp($published),
-				'attributed_to' => $author,
-				'attributed_to_prim' => md5($author),
-				'visibility' => Stream::TYPE_PUBLIC,
-				'hashtags' => '["benchmark"]',
-				'details' => '{}',
-				'source' => '{}',
-				'instances' => '[]',
-				'attachments' => '[]',
-				'cache' => '{}',
-				'local' => 0,
-				'filter_duplicate' => 0,
-				'creation' => $this->stamp($published),
-			];
-
-			$destRows[] = ['stream_id' => $prim, 'actor_id' => $publicPrim, 'type' => 'recipient', 'subtype' => 'to'];
-			$destRows[] = ['stream_id' => $prim, 'actor_id' => md5($followers), 'type' => 'recipient', 'subtype' => 'cc'];
-
-			if (count($streamRows) >= self::CHUNK) {
-				$this->insertMany(CoreRequestBuilder::TABLE_STREAM, $streamRows);
-				$this->insertMany(CoreRequestBuilder::TABLE_STREAM_DEST, $destRows);
-				$streamRows = [];
-				$destRows = [];
+			if (count($rows[CoreRequestBuilder::TABLE_STREAM]) >= self::CHUNK) {
+				$this->insertBatch($rows);
+				$rows = self::emptyBatch();
 				$this->progress($output, 'notes', $i + 1, $notes);
 			}
 		}
 
-		$this->insertMany(CoreRequestBuilder::TABLE_STREAM, $streamRows);
-		$this->insertMany(CoreRequestBuilder::TABLE_STREAM_DEST, $destRows);
+		$this->insertBatch($rows);
 		$this->progress($output, 'notes', $notes, $notes, true);
+	}
+
+	/** @return array<string, list<array<string, mixed>>> */
+	private static function emptyBatch(): array {
+		return [
+			CoreRequestBuilder::TABLE_STREAM => [],
+			CoreRequestBuilder::TABLE_STREAM_DEST => [],
+			CoreRequestBuilder::TABLE_STREAM_TAGS => [],
+			CoreRequestBuilder::TABLE_SEARCH_TERMS => [],
+		];
+	}
+
+	/** @param array<string, list<array<string, mixed>>> $rows */
+	private function insertBatch(array $rows): void {
+		foreach ($rows as $table => $tableRows) {
+			$this->insertMany($table, $tableRows);
+		}
+	}
+
+	/**
+	 * What kind of media the `$i`th seeded post carries: `video`, `image`,
+	 * or `''` for none.
+	 */
+	public static function mediaOf(int $i): string {
+		if ($i % self::VIDEO_EVERY === 7) {
+			return 'video';
+		}
+
+		return ($i % self::IMAGE_EVERY === 3) ? 'image' : '';
+	}
+
+	/** The hashtag the `$i`th seeded post carries, `''` for none. */
+	public static function hashtagOf(int $i): string {
+		if ($i % self::HASHTAG_EVERY !== 0) {
+			return '';
+		}
+
+		return 'benchtag' . (intdiv($i, self::HASHTAG_EVERY) % self::HASHTAGS);
+	}
+
+	/** Whether the `$i`th seeded post mentions the viewer. */
+	public static function mentionsViewer(int $i): bool {
+		return $i % self::MENTION_EVERY === 11;
+	}
+
+	/**
+	 * The rows of the `$i`th seeded post, added to `$rows`.
+	 *
+	 * @param string[] $ids the seeded actors, who take turns writing
+	 * @param array<string, list<array<string, mixed>>> $rows
+	 */
+	private function noteRows(int $i, array $ids, Person $viewer, int $now, array &$rows): void {
+		$author = $ids[$i % count($ids)];
+		$id = 'https://' . self::HOST . '/notes/' . $i;
+		$prim = md5($id);
+		// spread over the recent past, newest first, so that a page of
+		// twenty is a page of twenty *recent* posts as it would be in life
+		$published = $now - $i * 5;
+		$followers = $author . '/followers';
+		// the same snowflake `StreamRequest::save()` mints: the second it was
+		// published in, times the limit, plus a random offset. It is the column
+		// every timeline pages and orders on, so a seeded row whose nid did not
+		// sort with the real ones would measure a different query than the one
+		// being served.
+		$nid = Nid::fromPublishedTime($published, random_int(1, StreamRequest::NID_LIMIT - 1), StreamRequest::NID_LIMIT);
+
+		$media = self::mediaOf($i);
+		$hashtag = self::hashtagOf($i);
+		$mention = self::mentionsViewer($i);
+		$cc = [$followers];
+		$content = '<p>seeded note ' . $i . ' about ' . self::TOPICS[max(0, $i) % count(self::TOPICS)];
+		if ($mention) {
+			$cc[] = $viewer->getId();
+			$content .= ' <span class="h-card"><a href="' . $viewer->getId() . '" class="u-url mention">@<span>'
+				. $viewer->getPreferredUsername() . '</span></a></span>';
+		}
+		if ($hashtag !== '') {
+			$content .= ' <a href="https://' . self::HOST . '/tags/' . $hashtag . '" class="mention hashtag" rel="tag">#<span>'
+				. $hashtag . '</span></a>';
+		}
+		$content .= '</p>';
+		$attachments = ($media === '') ? '[]' : $this->attachmentsOf($media);
+
+		$rows[CoreRequestBuilder::TABLE_STREAM][] = $this->streamRow([
+			'nid' => $nid,
+			'id' => $id,
+			'id_prim' => $prim,
+			'type' => Note::TYPE,
+			'to' => ACore::CONTEXT_PUBLIC,
+			'cc' => (string)json_encode($cc, JSON_UNESCAPED_SLASHES),
+			'content' => $content,
+			'published' => gmdate('Y-m-d\TH:i:s\Z', $published),
+			'published_time' => $this->stamp($published),
+			'attributed_to' => $author,
+			'attributed_to_prim' => md5($author),
+			'author_host' => DomainBlocksRequestBuilder::authorHostOf($author),
+			'visibility' => Stream::TYPE_PUBLIC,
+			'hashtags' => (string)json_encode(($hashtag === '') ? [] : [$hashtag]),
+			'attachments' => $attachments,
+			'media_kind' => Stream::mediaKindOf($attachments),
+			'news_kind' => Stream::newsKindOf($content),
+			'creation' => $this->stamp($published),
+		]);
+
+		foreach ([
+			[ACore::CONTEXT_PUBLIC, 'to'],
+			[$author, 'to'],
+			[$followers, 'cc'],
+		] as [$recipient, $subtype]) {
+			$rows[CoreRequestBuilder::TABLE_STREAM_DEST][] = self::destRow($prim, $recipient, 'recipient', $subtype, $nid);
+		}
+
+		if ($hashtag !== '') {
+			$rows[CoreRequestBuilder::TABLE_STREAM_TAGS][] = [
+				'stream_id' => $prim, 'hashtag' => FollowedTagsRequest::normalise($hashtag),
+			];
+		}
+
+		foreach (SearchTerms::ofHtml($content) as $term) {
+			$rows[CoreRequestBuilder::TABLE_SEARCH_TERMS][] = [
+				'term' => $term, 'head' => SearchTerms::head($term), 'nid' => $nid, 'stream_id_prim' => $prim,
+			];
+		}
+
+		if (!$mention) {
+			return;
+		}
+
+		// the post names the viewer, so it reaches them as a recipient, and
+		// the inbox writes them a notification of it: a row of its own, found
+		// by its `notif` recipient row, as `NoteInterface` saves it
+		$rows[CoreRequestBuilder::TABLE_STREAM_DEST][] = self::destRow($prim, $viewer->getId(), 'recipient', 'cc', $nid);
+
+		$notificationId = $id . '/notification+mention/' . md5($viewer->getId());
+		$notificationPrim = md5($notificationId);
+		$notificationNid = Nid::fromPublishedTime($published, random_int(1, StreamRequest::NID_LIMIT - 1), StreamRequest::NID_LIMIT);
+		$rows[CoreRequestBuilder::TABLE_STREAM][] = $this->streamRow([
+			'nid' => $notificationNid,
+			'id' => $notificationId,
+			'id_prim' => $notificationPrim,
+			'type' => SocialAppNotification::TYPE,
+			'subtype' => Mention::TYPE,
+			'to' => $viewer->getId(),
+			'summary' => '{account} mentioned you in a post',
+			'published' => gmdate('Y-m-d\TH:i:s\Z', $published),
+			'published_time' => $this->stamp($published),
+			'attributed_to' => $author,
+			'attributed_to_prim' => md5($author),
+			'author_host' => DomainBlocksRequestBuilder::authorHostOf($author),
+			'object_id' => $id,
+			'object_id_prim' => $prim,
+			'local' => 1,
+			'creation' => $this->stamp($published),
+		]);
+		$rows[CoreRequestBuilder::TABLE_STREAM_DEST][] = self::destRow(
+			$notificationPrim, $viewer->getId(), 'notif', '', $notificationNid
+		);
+	}
+
+	/**
+	 * One `social_stream` row: `$values` over the defaults of a post that
+	 * says nothing. Every row has the same columns, which a multi-row
+	 * `INSERT` needs.
+	 *
+	 * @param array<string, mixed> $values
+	 * @return array<string, mixed>
+	 */
+	private function streamRow(array $values): array {
+		return array_merge([
+			'nid' => '0',
+			'id' => '',
+			'id_prim' => '',
+			'type' => '',
+			'subtype' => '',
+			'to' => '',
+			'to_array' => '[]',
+			'cc' => '[]',
+			'bcc' => '[]',
+			'content' => '',
+			'summary' => '',
+			'published' => '',
+			'published_time' => '',
+			'attributed_to' => '',
+			'attributed_to_prim' => '',
+			'author_host' => '',
+			'object_id' => '',
+			'object_id_prim' => '',
+			'visibility' => '',
+			'hashtags' => '[]',
+			'details' => '{}',
+			'source' => '{}',
+			'instances' => '[]',
+			'attachments' => '[]',
+			'media_kind' => Stream::MEDIA_KIND_NONE,
+			'news_kind' => '',
+			'cache' => '{}',
+			'local' => 0,
+			'filter_duplicate' => 0,
+			'creation' => '',
+		], $values);
+	}
+
+	/** @return array{stream_id: string, actor_id: string, type: string, subtype: string, nid: int|string} */
+	private static function destRow(string $streamPrim, string $actorId, string $type, string $subtype, int|string $nid): array {
+		return ['stream_id' => $streamPrim, 'actor_id' => md5($actorId), 'type' => $type, 'subtype' => $subtype, 'nid' => $nid];
+	}
+
+	/**
+	 * The `attachments` column of a seeded post carrying one `$kind`: what
+	 * `StreamRequest::save()` stores for a remote picture or video this
+	 * instance holds no copy of. Built once through the model and reused.
+	 */
+	private function attachmentsOf(string $kind): string {
+		if (!isset($this->attachmentTemplates[$kind])) {
+			$media = new MediaAttachment();
+			$extension = ($kind === 'video') ? 'mp4' : 'jpg';
+			$media->setId('benchmark-' . $kind);
+			$media->setType($kind);
+			$media->setMediaType(MediaAttachment::guessMediaType($kind, 'x.' . $extension));
+			$media->setUrl('https://' . self::HOST . '/media/' . $kind . '.' . $extension);
+			$media->setPreviewUrl('https://' . self::HOST . '/media/' . $kind . '-preview.jpg');
+			$this->attachmentTemplates[$kind] = (string)json_encode([$media->asLocal()], JSON_UNESCAPED_SLASHES);
+		}
+
+		return $this->attachmentTemplates[$kind];
 	}
 
 	/**
@@ -454,21 +902,23 @@ class Benchmark extends SocialCommand {
 	 *
 	 * @param array<int, array<string, mixed>> $rows
 	 */
-	private function insertMany(string $table, array $rows): void {
+	protected function insertMany(string $table, array $rows): void {
 		if ($rows === []) {
 			return;
 		}
 
 		$columns = array_keys($rows[0]);
-		// The platform classes live in Doctrine, which the OCP stub this app is
-		// analysed against does not carry, so the platform is identified by
-		// name rather than by `instanceof`.
-		/** @psalm-suppress UndefinedDocblockClass the ocp stub carries no Doctrine platform classes */
-		$platform = strtolower(get_class($this->connection->getDatabasePlatform()));
-		$postgres = str_contains($platform, 'postgres');
-		$sqlite = str_contains($platform, 'sqlite');
+		$perStatement = max(1, intdiv(self::MAX_PLACEHOLDERS, count($columns)));
+		if (count($rows) > $perStatement) {
+			foreach (array_chunk($rows, $perStatement) as $chunk) {
+				$this->insertMany($table, $chunk);
+			}
 
-		$quote = $postgres ? '"' : '`';
+			return;
+		}
+
+		$platform = $this->databaseName();
+		$quote = ($platform === 'pgsql') ? '"' : '`';
 		$quoted = array_map(static fn (string $c): string => $quote . $c . $quote, $columns);
 
 		$tuple = '(' . implode(', ', array_fill(0, count($columns), '?')) . ')';
@@ -485,10 +935,10 @@ class Benchmark extends SocialCommand {
 		// about the rest" differently, and all three of them have it.
 		$verb = 'INSERT IGNORE';
 		$suffix = '';
-		if ($postgres) {
+		if ($platform === 'pgsql') {
 			$verb = 'INSERT';
 			$suffix = ' ON CONFLICT DO NOTHING';
-		} elseif ($sqlite) {
+		} elseif ($platform === 'sqlite') {
 			$verb = 'INSERT OR IGNORE';
 		}
 
@@ -496,6 +946,25 @@ class Benchmark extends SocialCommand {
 			. implode(', ', array_fill(0, count($rows), $tuple)) . $suffix;
 
 		$this->connection->executeStatement($sql, $values);
+	}
+
+	/**
+	 * `pgsql`, `mysql` or `sqlite`, the names a baseline file is keyed by;
+	 * `other` for anything else.
+	 */
+	protected function databaseName(): string {
+		// The platform classes live in Doctrine, which the OCP stub this app is
+		// analysed against does not carry, so the platform is identified by
+		// name rather than by `instanceof`.
+		/** @psalm-suppress UndefinedDocblockClass the ocp stub carries no Doctrine platform classes */
+		$platform = strtolower(get_class($this->connection->getDatabasePlatform()));
+
+		return match (true) {
+			str_contains($platform, 'postgres') => 'pgsql',
+			str_contains($platform, 'sqlite') => 'sqlite',
+			str_contains($platform, 'mysql'), str_contains($platform, 'maria') => 'mysql',
+			default => 'other',
+		};
 	}
 
 	/** The datetime string every `creation` column in this app carries. */
@@ -526,36 +995,153 @@ class Benchmark extends SocialCommand {
 		}
 	}
 
-	private function time(Person $viewer, OutputInterface $output): void {
-		$this->streamRequest->setViewer($viewer);
-
-		$output->writeln('');
-		$output->writeln('timing the timeline queries as ' . $viewer->getPreferredUsername() . ':');
-
-		foreach ([ProbeOptions::HOME, ProbeOptions::PUBLIC, ProbeOptions::DIRECT, ProbeOptions::NOTIFICATIONS] as $probe) {
-			foreach ([20, 100] as $limit) {
-				$options = new ProbeOptions($this->request);
-				$options->setProbe($probe)->setLimit($limit);
-
-				// the first read warms the caches; the reported number is the
-				// second, which is what a served request actually costs
-				$this->measure($options);
-				$elapsed = $this->measure($options, $rows);
-
-				$output->writeln(sprintf(
-					'  %-14s limit %-4d %7.1f ms  (%d rows)',
-					$probe, $limit, $elapsed, $rows
-				));
+	/**
+	 * What each probe reads, as the web client asks for it: Photos and
+	 * Videos are the home timeline narrowed to a kind of media, the account
+	 * is the first seeded actor's profile, the search is a word a known share
+	 * of the seeded posts say.
+	 *
+	 * @return array<string, callable(int): int> probe => reads one page of
+	 *                                           that size and says how many rows it had
+	 */
+	private function probes(): array {
+		$timeline = fn (string $probe, ?callable $narrow = null): callable => function (int $limit) use ($probe, $narrow): int {
+			$options = new ProbeOptions($this->request);
+			$options->setProbe($probe)->setLimit($limit);
+			if ($narrow !== null) {
+				$narrow($options);
 			}
+
+			return count($this->streamRequest->getTimeline($options));
+		};
+
+		return [
+			'home' => $timeline(ProbeOptions::HOME),
+			'public' => $timeline(ProbeOptions::PUBLIC),
+			'direct' => $timeline(ProbeOptions::DIRECT),
+			'notifications' => $timeline(ProbeOptions::NOTIFICATIONS),
+			'photos' => $timeline(ProbeOptions::HOME, static function (ProbeOptions $options): void {
+				$options->setOnlyMedia(true)->setMediaType('image');
+			}),
+			'videos' => $timeline(ProbeOptions::HOME, static function (ProbeOptions $options): void {
+				$options->setOnlyMedia(true)->setOnlyVideo(true);
+			}),
+			'hashtag' => $timeline(ProbeOptions::HASHTAG, static function (ProbeOptions $options): void {
+				$options->setArgument(self::PROBED_TAG);
+			}),
+			'account' => $timeline(ProbeOptions::ACCOUNT, static function (ProbeOptions $options): void {
+				$options->setAccountId(self::actorId(0));
+			}),
+			'search' => fn (int $limit): int => count($this->streamRequest->searchContent(self::PROBED_WORD, $limit)),
+		];
+	}
+
+	/**
+	 * Every probe at every page size.
+	 *
+	 * @return array<string, array{probe: string, limit: int, ms: float, rows: int}> keyed `probe@limit`
+	 */
+	private function time(Person $viewer, int $runs, OutputInterface $log): array {
+		$this->streamRequest->setViewer($viewer);
+		$log->writeln('');
+		$log->writeln('timing the timeline queries as ' . $viewer->getPreferredUsername() . '…');
+
+		$results = [];
+		foreach ($this->probes() as $probe => $read) {
+			foreach (self::PROBE_LIMITS as $limit) {
+				[$ms, $rows] = $this->measure($read, $limit, $runs);
+				$results[$probe . '@' . $limit] = ['probe' => $probe, 'limit' => $limit, 'ms' => round($ms, 2), 'rows' => $rows];
+			}
+		}
+
+		return $results;
+	}
+
+	/**
+	 * The median of `$runs` reads of one page, after one that is not counted:
+	 * the first read warms the caches, and what is reported is what a served
+	 * request costs. The median rather than the mean, so that one run that
+	 * met a checkpoint or a neighbour's job does not decide the number.
+	 *
+	 * @param callable(int): int $read
+	 * @return array{0: float, 1: int} milliseconds, and the rows the page had
+	 */
+	protected function measure(callable $read, int $limit, int $runs): array {
+		$read($limit);
+
+		$times = [];
+		$rows = 0;
+		for ($run = 0; $run < $runs; $run++) {
+			$start = (float)hrtime(true);
+			$rows = $read($limit);
+			$times[] = ((float)hrtime(true) - $start) / 1e6;
+		}
+
+		return [self::median($times), $rows];
+	}
+
+	/** @param list<float> $values */
+	public static function median(array $values): float {
+		if ($values === []) {
+			return 0.0;
+		}
+
+		sort($values);
+		$middle = intdiv(count($values), 2);
+
+		return (count($values) % 2 === 1) ? $values[$middle] : ($values[$middle - 1] + $values[$middle]) / 2.0;
+	}
+
+	/**
+	 * @param array<string, array{probe: string, limit: int, ms: float, rows: int}> $results
+	 * @param array<string, array{limit_ms: ?float, over: bool}> $verdicts
+	 */
+	private function printResults(array $results, array $verdicts, Person $viewer, OutputInterface $output): void {
+		$output->writeln('');
+		$output->writeln('as ' . $viewer->getPreferredUsername() . ', median of each probe:');
+		foreach ($results as $key => $result) {
+			$limit = $verdicts[$key]['limit_ms'];
+			$output->writeln(sprintf(
+				'  %-14s limit %-4d %8.1f ms  (%d rows)%s',
+				$result['probe'], $result['limit'], $result['ms'], $result['rows'],
+				($limit === null) ? '' : sprintf('  %s %.0f ms', $verdicts[$key]['over'] ? 'OVER' : '≤', $limit)
+			));
 		}
 	}
 
-	private function measure(ProbeOptions $options, ?int &$rows = null): float {
-		$start = microtime(true);
-		$streams = $this->streamRequest->getTimeline($options);
-		$rows = count($streams);
+	/**
+	 * What `--output=json` prints: the timings, what they were held to, and
+	 * enough about the instance to tell two runs' numbers apart.
+	 *
+	 * @param array<string, array{probe: string, limit: int, ms: float, rows: int}> $results
+	 * @param array<string, array{limit_ms: ?float, over: bool}> $verdicts
+	 * @param string[] $over
+	 * @param ?array<string, int> $seeded
+	 * @return array<string, mixed>
+	 */
+	private function report(array $results, array $verdicts, array $over, ?array $seeded, Person $viewer, int $runs): array {
+		$probes = [];
+		foreach ($results as $key => $result) {
+			$probes[$key] = $result + $verdicts[$key];
+		}
 
-		return (microtime(true) - $start) * 1000;
+		return [
+			'database' => $this->databaseName(),
+			'php' => PHP_VERSION,
+			'measured_at' => gmdate('Y-m-d\TH:i:s\Z'),
+			'viewer' => $viewer->getPreferredUsername(),
+			'runs' => $runs,
+			'seeded' => $seeded,
+			// the two switches that decide which query a timeline or a search
+			// is answered by; a number measured with either off is a number
+			// about the slower path
+			'flags' => [
+				'search_index_ready' => $this->configService->getAppValue(SearchTermsRequest::READY) === '1',
+				'dest_nid_filled' => $this->configService->getAppValueBool(ConfigService::SOCIAL_DEST_NID_FILLED),
+			],
+			'probes' => $probes,
+			'over' => $over,
+		];
 	}
 
 	/**
@@ -592,6 +1178,7 @@ class Benchmark extends SocialCommand {
 				[CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id'],
 				[CoreRequestBuilder::TABLE_STREAM_TAGS, 'stream_id'],
 				[CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'stream_id_prim'],
+				[CoreRequestBuilder::TABLE_SEARCH_TERMS, 'stream_id_prim'],
 			] as [$table, $column]) {
 				$qb = $this->connection->getQueryBuilder();
 				$qb->delete($table)->where(
