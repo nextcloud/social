@@ -937,7 +937,8 @@ hand, it is picked up as one.
 - **Blocks, mutes, lists, bookmarks and blocked domains, in.** **Bring your
   blocks, mutes, lists, bookmarks and blocked domains** reads the other files
   from the same export. Bookmarks are the addresses of posts: each is fetched
-  from the server it lives on and marked here, for you alone. A blocked
+  from the server it lives on and marked here, for you alone — if it is a
+  post you may read; the others are listed as not imported. A blocked
   domain hides a whole server from you, as it did there. Blocks and mutes are decisions
   your account makes on its own, so they apply as soon as the file is read —
   and a block federates, exactly as blocking somebody from here does. Do the

@@ -150,6 +150,9 @@ to stop.
   `Api/PaginationTest` asks every paged list the same questions — `max_id`
   exclusive, `since_id` the newest page, `min_id` the adjacent one, the
   `Link` cursors — with three pages of rows behind it.
+  `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and
+  `/api/v1/favourites` to what the reader may read now, and a bookmarks
+  import to the posts the importing account may read.
 - `Atproto/OAuthStorageTest` — OAuth for Bluesky apps: a request approved once
   and its code exchanged once, a refresh token rotated only from the good one
   (the replaced one finds the session to end), one-time DPoP ids taken once by

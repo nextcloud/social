@@ -852,6 +852,12 @@ trait StreamTimelines {
 	 * thousand wide rows to see the newest fifteen. Deciding the page over one
 	 * indexed column first leaves the wide read with exactly the rows it returns.
 	 *
+	 * A mark does not make a post readable: the page is limited to what the
+	 * viewer may read now, as `getStreamById()` would answer it, so a
+	 * followers-only post marked while following its author is not served
+	 * once the follow has ended. That join can match a post once per
+	 * recipient row, hence `DISTINCT`.
+	 *
 	 * @param string $mark the action column that has to be set
 	 *
 	 * @return Stream[]
@@ -861,8 +867,7 @@ trait StreamTimelines {
 			throw new InvalidArgumentException('unknown mark: ' . $mark);
 		}
 
-		// the action join is `(stream_id_prim, actor_id_prim)`, which is unique
-		$page = $this->getStreamNidsSelectSql(false);
+		$page = $this->getStreamNidsSelectSql();
 		$viewer = $page->createNamedParameter($page->prim($page->getViewer()->getId()));
 		$page->limitToStatusTypes();
 		$page->paginate($options);
@@ -875,7 +880,7 @@ trait StreamTimelines {
 				$page->expr()->eq('sa.' . $mark, $page->createNamedParameter(1))
 			)
 		);
-		$page->filterHiddenActors(SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		$page->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
 
 		$nids = $this->getNidsFromRequest($page);
 		if ($nids === []) {

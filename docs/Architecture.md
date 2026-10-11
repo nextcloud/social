@@ -3329,9 +3329,10 @@ no account either: a Fediverse identity is something a user asks for.
   handle may fetch the remote actor (a signed GET), but no `Block` is federated:
   the account on the other end was already blocked, and was never told about the
   move.
-- bookmarks and favourites are re-marked on the posts this server already has.
-  A post nobody here has seen is skipped rather than fetched from its origin,
-  and a favourite is not re-federated as a `Like`.
+- bookmarks and favourites are re-marked on the posts this server already has
+  and the account may read (looked up as the account). A post nobody here has
+  seen is skipped rather than fetched from its origin, and a favourite is not
+  re-federated as a `Like`.
 - the posts in `outbox.json` are **not** replayed into the timeline. Their ids
   belong to the server they were written on, the threads around them are not
   here, and minting new ids would either publish years of posts to the Fediverse

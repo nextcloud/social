@@ -139,9 +139,9 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 *
 	 * The recipient join is `social_stream_dest`, whose unique index is
 	 * `(stream_id, actor_id, type)`: a query that fixes **both** the actor and
-	 * the type — the public timeline, notifications, direct messages, the
-	 * marked timelines — can match at most one row per post and cannot
-	 * duplicate. The home timeline can: a post addressed to three accounts the
+	 * the type — the public timeline, notifications, direct messages — can
+	 * match at most one row per post and cannot duplicate. The home timeline
+	 * and the marked timelines can: a post addressed to three accounts the
 	 * viewer follows matches three rows, which is precisely what the
 	 * deduplication is for.
 	 *

@@ -344,12 +344,17 @@ class MigrationService {
 	 * server does not hold is no mark at all. A bookmark is a local flag;
 	 * nothing is sent to anybody. A line that is not an address is skipped.
 	 *
+	 * Each address is resolved as the importing account, so only a post it may
+	 * read is marked; one it may not is reported as failed, in the same words
+	 * as one that is not there at all.
+	 *
 	 * @param callable(int, int): void|null $progress told how many entries are done, of how many
 	 * @return array{bookmarked: int, skipped: int, failed: array<string, string>}
 	 *                                                                             `failed` maps an address to the reason
 	 */
 	public function importBookmarks(string $userId, string $csv, ?callable $progress = null): array {
 		$actor = $this->accountService->getActorFromUserId($userId);
+		$this->streamRequest->setViewer($actor);
 		$result = ['bookmarked' => 0, 'skipped' => 0, 'failed' => []];
 
 		[$urls, $result['skipped']] = self::addressesOf($csv);
@@ -361,9 +366,9 @@ class MigrationService {
 			}
 
 			try {
-				$post = $this->searchService->resolveStatus($url);
+				$post = $this->searchService->resolveStatus($url, true);
 				if ($post === null) {
-					$result['failed'][$url] = 'not a post this server could fetch';
+					$result['failed'][$url] = 'not a post this server could fetch or this account may read';
 					continue;
 				}
 				$this->streamActionService->setActionBool($actor->getId(), $post->getId(), StreamAction::BOOKMARKED, true);

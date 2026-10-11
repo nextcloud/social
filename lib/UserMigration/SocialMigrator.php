@@ -1179,7 +1179,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * import is a cost they did not agree to, and a mark is restored the moment
 	 * the post arrives here by any ordinary route. The mark is written locally
 	 * only — a favourite is not re-federated as a Like, which the author
-	 * already received once.
+	 * already received once. A post is looked up as the importing account, so
+	 * one it may not read is left unmarked like one this server does not have.
 	 */
 	private function importMarks(Person $actor, IImportSource $importSource, OutputInterface $output): void {
 		foreach ([
@@ -1191,6 +1192,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				continue;
 			}
 
+			$this->streamRequest->setViewer($actor);
 			$marked = 0;
 			$missing = 0;
 			foreach (preg_split('/\r\n|\r|\n/', $contents) ?: [] as $line) {
@@ -1200,7 +1202,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				}
 
 				try {
-					$post = $this->streamRequest->getStreamById($id);
+					$post = $this->streamRequest->getStreamById($id, true);
 				} catch (Throwable $e) {
 					$missing++;
 					continue;
@@ -1218,7 +1220,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 
 			$output->writeln(
 				'Restored ' . $marked . ' ' . $mark . ' mark(s) from ' . $path . '; ' . $missing
-				. ' post(s) this server does not have were left…'
+				. ' post(s) this server does not have or this account may not read were left…'
 			);
 		}
 	}
