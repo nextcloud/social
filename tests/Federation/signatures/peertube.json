@@ -1,0 +1,20 @@
+{
+    "implementation": "PeerTube 8.3",
+    "shapedAfter": "Chocobozzz/PeerTube v8.3.1: server/core/initializers/constants.ts (HTTP_SIGNATURE), server/core/lib/activitypub/send/http.ts (buildSignedRequestOptions), server/core/helpers/requests.ts, server/core/helpers/peertube-crypto.ts (buildDigest); misskey-dev/node-http-message-signatures: src/draft/sign.ts",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://peertube.example/accounts/ivy",
+    "keyId": "https://peertube.example/accounts/ivy#main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqnU+UhNlbKq8HxAlRJI+\n5qL2TdiMUPjWPo2ihDzqAmRP/qBM3+SjWprpIF8w293Jh1fT9w7Z4xJ0l8eROI8t\nHN5HwzpbbRsBjehsSMkDB9+hg56KHMDwVOQOEl0COscbUmmR6iM5o+gGUpuQj47M\nU0EFL488dso2Fd493g02YF9Wtgjru0IAMYN0y7KSDrBoTTFUTBYjD0Nm20ilAbpc\nmte7ayA2cxozXWcc+T/wQ4NySjcEbqyB9RWh0BPqn7d8SjJwv8YaCNItUvf8xz2T\nA6Bu/uTtZpghMzlyG0lkQIVWkESgN6A82kx4gilxOfQ9Xy33SV1U09127MeTvzo5\naQIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "Digest": "SHA-256=lIu7rajd2iQdK2OxCaWHpy+f+WBP+NjUuRayNNYCwTA=",
+        "Content-Type": "application/activity+json",
+        "Accept": "application/activity+json, application/ld+json",
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Host": "cloud.example.com",
+        "Signature": "keyId=\"https://peertube.example/accounts/ivy#main-key\",algorithm=\"rsa-sha256\",headers=\"(request-target) host date digest\",signature=\"ZaOryKX7GUhsOHJmVCN3X56DrJEc8TBgaztUxwkokqiYTT+L7WRyv7uGdOtWed9yrKSkYE0J/+5k7DhJNniTBscz8kwe6XnqfVcSSPRLJQhgGTWTlX5c+4EupfVRiXgaIeTvDwWOJ4YwNFAFqeMhKmkYn2x/ZA4JiQHp3dWMVc6/A0xHzbV/dDzUzN8MkttnRtRUe8f93WABOd9SalHvl3lMvZu+/Z8xdhYA6CEhap7xj+FAV+KlJpUZxDS0OYLsq5T8yqROT29uCBCagSDVlnYlhxyRWOQ0QrkAYfcpP4DnuuWytRdctLdNjuXccjWvVIpOylXD6y9r/DR5N3lpqg==\""
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://peertube.example/accounts/ivy/follows/12\",\"type\":\"Follow\",\"actor\":\"https://peertube.example/accounts/ivy\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}

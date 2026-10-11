@@ -38,6 +38,7 @@ use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IRequest;
@@ -169,6 +170,7 @@ class SignatureService {
 		LoggerInterface $logger,
 		private DurableCache $durableCache,
 		private FediverseService $fediverseService,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 		$this->cacheActorService = $cacheActorService;
 		$this->cacheActorsRequest = $cacheActorsRequest;
@@ -328,17 +330,22 @@ class SignatureService {
 			throw new DateTimeException('date header is not an HTTP date: ' . self::excerpt($header));
 		}
 
-		if ($time < (time() - self::DATE_PAST)) {
+		if ($time < ($this->now() - self::DATE_PAST)) {
 			throw new SignatureException('object is too old');
 		}
 
-		if ($time > (time() + self::DATE_FUTURE)) {
+		if ($time > ($this->now() + self::DATE_FUTURE)) {
 			// without an upper bound, a request stamped into the far future
 			// stays replayable until that date is finally "too old"
 			throw new SignatureException('object is from the future');
 		}
 
 		return $time;
+	}
+
+	/** The time a signature's date is held against. */
+	private function now(): int {
+		return $this->timeFactory?->getTime() ?? time();
 	}
 
 	/**
@@ -490,7 +497,7 @@ class SignatureService {
 	 */
 	private function checkMessageSignatureTime(IRequest $request, array $signature): int {
 		$params = $signature['params'];
-		$now = time();
+		$now = $this->now();
 		$time = 0;
 
 		if ($request->getHeader('date') !== '') {
@@ -804,7 +811,7 @@ class SignatureService {
 			// An LD signature stays valid forever on its own, so any instance
 			// that ever saw the activity could re-POST it indefinitely. Bound it
 			// in time and remember what was already accepted inside that window.
-			if ($signature->getCreated() === '' || abs(time() - $time) > self::LD_WINDOW) {
+			if ($signature->getCreated() === '' || abs($this->now() - $time) > self::LD_WINDOW) {
 				$this->logger->notice('LD signature outside its validity window', [
 					'actorId' => $actorId, 'created' => $signature->getCreated(),
 				]);

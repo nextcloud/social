@@ -1,0 +1,20 @@
+{
+    "implementation": "Friendica 2026.05",
+    "shapedAfter": "friendica/friendica 2026.05-1: src/Util/HTTPSignature.php (post)",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://friendica.example/profile/hank",
+    "keyId": "https://friendica.example/profile/hank#main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAne6J97Ll2LyUBG7isZA9\nOXdcNkondhG8LCFZskTD74NhHHwtjtWq0QG1Iyko566VsVykwTEyj1t8u7v1YX/y\nNgIT78kypvKQ8tvAWu5hptr5pLMM9ssqaCRqJhZBe6qO11EGxQZuaRZovj/cpaKx\n72R0JBpMOW/Qg0GyUaHLrgADbQvVNFOoeHomLH70xUX4EFbRUQzNFrv4rj8EtteU\ntloybADh8HWkjkZBEZf9UCkruKpasIPxn+mc78i819HeMn2PFZztWhxdKvVdDoHv\nG4w+cXAspTItHnNdVmxJgIUmJcxoxu/mQedQJ/Pat6Vgsr9TdEYkxhWDj/wgpOuh\nowIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Content-Length": "261",
+        "Digest": "SHA-256=4/3FUgCc9DR0AugaLhsgLJ6gdI1NAIXCHbKbJPYhLKA=",
+        "Host": "cloud.example.com",
+        "Signature": "keyId=\"https://friendica.example/profile/hank#main-key\",algorithm=\"rsa-sha256\",headers=\"(request-target) date content-length digest host\",signature=\"GTgWhVTch0FgIaHuyesEHRGty25as2n3yqL7d38ybxHD0x24JQd1+JIVt7hf9bahdtXPIabsI7gWrWbTtcrQVSmwXQaF0JUMp2batFXs3qCaRxaQFcMUTbzJIO5xZyQErlF6Q5idb/b3EzTtrRvrW/vLT76AGHy18XaCHfYMRqVaq7ISkoIVZXhlpXa+tx2SpCekIREOiYDcpn4RD/PQsBh0LhUCDJ3C2YtUj8Qc2o9JAcEu6bCt1VNwYBfnliDoLexD/E4YkhfKNqawwjBtT1mM6iNOylSAawHeT03IzKv+5gXbz07hmNgmM+CwiwaZK8SjE1jZJxQZsnaSb3bg9w==\"",
+        "Content-Type": "application/activity+json"
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://friendica.example/objects/5b6c7d8e-1001-0000-0000-000000000001\",\"type\":\"Follow\",\"actor\":\"https://friendica.example/profile/hank\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}

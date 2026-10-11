@@ -1,0 +1,20 @@
+{
+    "implementation": "Misskey 2026.10",
+    "shapedAfter": "misskey-dev/misskey 2026.10.0: packages/backend/src/core/activitypub/ApRequestService.ts (createSignedPost, #signToRequest, #genSigningString)",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://misskey.example/users/9x2a1b3c4d",
+    "keyId": "https://misskey.example/users/9x2a1b3c4d#main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmsl8zNukZoyeM9dnRKow\nt36ma3SNXbu32o0qstFXMOshTvZ2RWYJv7FL+/D1d+/NQInEFsJeqTStmRxnN2wp\nSpTKYIf0V9MaHV5M9SaCRn7q1REpbjRGoToxhidNpSiXYdrmxEMxvHJhxbternTi\n2V2PA2S85e8x9A2+mxid1f/Wy6qA3WKkHkdKCgweYmfth6pfUZoH+w4XYDbU/YOf\n5MTnQhGe+jSL8QIWLGSKnE3WmsnbnvEXJfzQVkwfDT5MY5HGssvgQkgaCUaHG8Ii\nPvHsZFJDlC7cFB526laGQF5CLH9JiHtLaPhdPajKYs53uMClZWEPxrC0kuyU2Byh\nYQIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Host": "cloud.example.com",
+        "Content-Type": "application/activity+json",
+        "Digest": "SHA-256=pFg+C8LuOFvikD0bnPDENAtyri6/XMI8nmA+pFxArR4=",
+        "User-Agent": "Misskey/2026.10.0 (https://misskey.example/)",
+        "Signature": "keyId=\"https://misskey.example/users/9x2a1b3c4d#main-key\",algorithm=\"rsa-sha256\",headers=\"(request-target) date host digest\",signature=\"HC+REXWcVt6EYdt7Seci62UXsyskrFlwvoPyqKw6hPfWpDH7Mg1U1LvUYz+4NJJ5IJBYhmXwVxqftQ4w+1kX04/z8Tp9c2YYQ+ZhuwaaJOroBGi7AacaOdMilvLvANU4QugMkDKdnKtxQTCeXZBvCOAGtEE4WJdtrb58JZd93lEwzhRI82RlYQOmaJzBNw0hGsgz3bSjH8beCo9FJy/tU/tyuJ7dmOrcdAhLYpf9zY/bS6PTFNvtw+yOGm0zzDPRbbyKf8RV0s4RyEhChGi3l5YoAaZic36n1yJ5F1BBjXQ446nAqoIZPzlxdW6bHA4D0dps4+IJS597k1RliDArdw==\""
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://misskey.example/follows/9x2a1b3c4d/9x0z8y7w6v\",\"type\":\"Follow\",\"actor\":\"https://misskey.example/users/9x2a1b3c4d\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}

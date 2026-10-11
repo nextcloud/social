@@ -1,0 +1,20 @@
+{
+    "implementation": "Pixelfed 0.14",
+    "shapedAfter": "pixelfed/pixelfed v0.14.4: app/Util/ActivityPub/HttpSignature.php (signRequest, _headersToSign), app/Services/ActivityPubDeliveryService.php (signedHeaders), app/Models/Profile.php (keyId)",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://pixelfed.example/users/jade",
+    "keyId": "https://pixelfed.example/users/jade#main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp+7hj5Ri+E3Vtl3076Vr\npLVLMCI8vZHI6t8krgB4ZFruSPz9Nk/3o0Oc9+D1RLtwXLTzqfYUgTOspAU35wb1\n9jOvwrPxx5Bd6vwPzI3q9pkc06ti5/5a7ZLqL8VLYtEkwZbIvJBs0kSe0lgn7Ri/\nRbrFgSjIEsTSDIoPgNZTGSlDpF2LjRW1AE4HYL7u9a6iKubQgrWrV6pTf/GkdPLs\ngOvlLcPz+ebq8cnannoyo8VEHB4+4ofN/hN0PTq+MJbhzn5ccVX0Z+Cc75lL3ujH\nJxCJznNqINsNDlUDyfzzLPrIZAHBnLLhtW3vefmHOFqdu/td5f0sfLYK4QMLNXHa\nUwIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "Host": "cloud.example.com",
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Digest": "SHA-256=9QqnAtfdnMhAJHaSLB7pNo40rO+UOa5B4AN/2aOUBr8=",
+        "Content-Type": "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
+        "User-Agent": "(Pixelfed/0.14.4; +https://pixelfed.example)",
+        "Signature": "keyId=\"https://pixelfed.example/users/jade#main-key\",headers=\"(request-target) host date digest content-type user-agent\",algorithm=\"rsa-sha256\",signature=\"YwOS3YZfWfv20tcLAIgmViE4MfjZqAkaDFzwA2qP6PsL5qz1KzBi0HT1mlLMh7c0bH+p1jF+wBkhmiSTSiAnHlS43IZTJXxg6//cF0HMGp4OX09cvvDS1x5PTKSu0w6Q9yPpf+Z06M9sqjkjND/trxpqXdoSAObzf7ilwRE16G5czNOWqYKm2zkvlTQqBnWqdbMVz3Uvl3NsaSkWAkpQaa/y9PR0vG52/5pmlMbEM4bvSH8E5f6E4FGKt+tlU+LCDyt/nJnkz5NeExDsGp2vIIxHR4bVUqDPKaesQTOCSyN3D2q9nlRtzd7z0XUpC+s5R+UVOFBIQSlL0Ha+YDivyA==\""
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://pixelfed.example/users/jade#follow/880011223344556677\",\"type\":\"Follow\",\"actor\":\"https://pixelfed.example/users/jade\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}

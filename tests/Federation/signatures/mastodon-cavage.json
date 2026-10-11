@@ -1,0 +1,21 @@
+{
+    "implementation": "Mastodon 4.7 (draft-cavage)",
+    "shapedAfter": "mastodon/mastodon v4.7.3: app/lib/request.rb (set_common_headers!, perform_cavage_signed_request), app/lib/http_signature_draft.rb, app/workers/activitypub/delivery_worker.rb",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://mastodon.example/users/bob",
+    "keyId": "https://mastodon.example/users/bob#main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAybIx+sH7maCQNh0Enqth\nruDq+YyGngXxbemsgRCTwhLYXGVelH5EAQ/ntSfr8bVh0wVu1tmZoUp9NTG5rIaY\n6HQbEGwy7m8A4X85m03yObDb1X79BP0SOhzsH37bWD2i3CDo59FHFOBCEN5RfR8r\nycclwBWeD5KDYUSdbAZdIEg4FeHTm6+pq/i0Dm8m8qUCniUMQDyF7HQNNv6rZ5x6\nNR4n5e3f0jW/f1V8kO6425FHIad4Sv8ZmLcWFNaUv/eGpykSynvvX7J11udvnujT\nxvfY8+ath3bltU1oFULmBTDL2ETxuqpLoNV5g5VgAF3j17h+kMZLmPcxyqfRFiD3\n7wIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "User-Agent": "http.rb/5.2.0 (Mastodon/4.7.3; +https://mastodon.example/)",
+        "Host": "cloud.example.com",
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Accept-Encoding": "gzip",
+        "Content-Type": "application/activity+json",
+        "Digest": "SHA-256=S4s1VCzrxap7Ama5xSi0sGB49aGE/QGtycLbBj4DX0w=",
+        "Signature": "keyId=\"https://mastodon.example/users/bob#main-key\",algorithm=\"rsa-sha256\",headers=\"host date content-type digest (request-target)\",signature=\"rU4+LSrio3fDuAUwlHqp0f96XJxUsqfL8UHX6atBoxzJ3bZzVVl1BDKe1lDnADiVVXOwIsAsAY6jtllXftgx3IU2yB7oQkdmYWlFXuBTI7MlKOj5+DJnq1xcFZHttHU13mIrjPufXHTUYEUTpZN6rxABMuMVRBfO6iAaCUGoEpXA5gL/5BtnRrmTVDPqc3AosjOuc9yePwwHMhcQC2GSQds9MeodWnkoDqAQLT75F4mNPZXJONaUvzSy1l5VMVEspCsdavGKlf0DY175UB2Ii2xlw6qVQqkL8kRQa9bOLwzhyDPxbIBX6hVkhkWPzlKHzM6JQwfQK0TR2k7WBv5ByQ==\""
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://mastodon.example/2f4e4d2a-6a25-4f1e-9d6e-0d1a9b3c5e7f\",\"type\":\"Follow\",\"actor\":\"https://mastodon.example/users/bob\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}
