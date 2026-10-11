@@ -15,6 +15,7 @@ use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Delete;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\SignatureService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -41,6 +42,51 @@ class DeleteInterfaceTest extends ActivityPubTestCase {
 		}
 
 		return $delete;
+	}
+
+	/** A DurableCache kept in an array, as its table keeps it for every process. */
+	private function memory(array &$entries): DurableCache {
+		$cache = $this->createStub(DurableCache::class);
+		$cache->method('getShared')->willReturnCallback(
+			static function (string $namespace, string $key) use (&$entries): mixed {
+				return $entries[$namespace . '/' . $key] ?? null;
+			}
+		);
+		$cache->method('setShared')->willReturnCallback(
+			static function (string $namespace, string $key, mixed $value) use (&$entries): void {
+				$entries[$namespace . '/' . $key] = $value;
+			}
+		);
+
+		return $cache;
+	}
+
+	/**
+	 * A Delete that overtook its Create finds nothing to delete. It is
+	 * remembered, for its own actor only, so the late Create can be dropped.
+	 */
+	public function testADeleteOfSomethingNotHeldYetIsRememberedForItsActor(): void {
+		$entries = [];
+		$cache = $this->memory($entries);
+		foreach ([$this->noteInterface, $this->personInterface, $this->storyInterface] as $interface) {
+			$interface->method('getItemById')->willThrowException(new ItemNotFoundException());
+		}
+
+		(new DeleteInterface($cache))->processIncomingRequest($this->delete(self::NOTE));
+
+		$this->assertTrue(DeleteInterface::deletedBeforeArrival($cache, self::NOTE, self::BOB));
+		$this->assertFalse(DeleteInterface::deletedBeforeArrival($cache, self::NOTE, self::REMOTE_URL . '/users/mallory'));
+		$this->assertFalse(DeleteInterface::deletedBeforeArrival($cache, self::REMOTE_URL . '/notes/2', self::BOB));
+		$this->assertFalse(DeleteInterface::deletedBeforeArrival(null, self::NOTE, self::BOB));
+	}
+
+	public function testADeleteOfSomethingHeldIsNotRemembered(): void {
+		$entries = [];
+		$this->noteInterface->method('getItemById')->willReturn($this->note(self::NOTE, self::BOB));
+
+		(new DeleteInterface($this->memory($entries)))->processIncomingRequest($this->delete(self::NOTE));
+
+		$this->assertSame([], $entries);
 	}
 
 	public function testDeleteNamingAKnownNoteRemovesTheNote(): void {

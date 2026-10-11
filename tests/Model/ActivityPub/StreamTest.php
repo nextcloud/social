@@ -58,6 +58,29 @@ class StreamTest extends TestCase {
 		\OC::$server->reset();
 	}
 
+	/**
+	 * What the `source` column is given is the ActivityPub document even for
+	 * a post read in the client format, which is how an edit, a vote or a
+	 * policy change reads it: snapshotted as it stood, the column held the
+	 * Mastodon entity, with no `tag` for the custom emoji to be read back from.
+	 */
+	public function testTheWireSourceIsTheActivityPubDocumentWhateverTheReadFormat(): void {
+		$note = new Note();
+		$note->setId('https://cloud.example.org/@alice/1');
+		$note->setAttributedTo('https://cloud.example.org/@alice');
+		$note->setContent('<p>hello :blob:</p>');
+		$note->setPublishedTime(1714564800);
+		$note->addTag(['type' => 'Emoji', 'name' => ':blob:', 'icon' => ['type' => 'Image', 'url' => 'https://cloud.example.org/blob.png']]);
+		$note->setExportFormat(ACore::FORMAT_LOCAL);
+
+		$source = json_decode($note->wireSource(), true);
+
+		$this->assertSame('Note', $source['type']);
+		$this->assertSame(':blob:', $source['tag'][0]['name']);
+		$this->assertArrayNotHasKey('spoiler_text', $source, 'not the client entity');
+		$this->assertSame(ACore::FORMAT_LOCAL, $note->getExportFormat(), 'the copy is left in the format it was read in');
+	}
+
 	public function testImportReadsTheMastodonNoteFields(): void {
 		$stream = new Stream();
 

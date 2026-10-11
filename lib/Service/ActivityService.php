@@ -540,6 +540,11 @@ class ActivityService {
 	 * rather than in front of all of them. Every row is settled exactly as
 	 * `manageRequest()` settles one.
 	 *
+	 * Each wave goes to the hosts with the most rows still to send, and among
+	 * equals to the one whose row came first. Taken in batch order alone, a
+	 * batch holding each host's rows together ended in waves of a few hosts'
+	 * leftovers: fifty hosts of four rows each took twelve waves, not ten.
+	 *
 	 * @param RequestQueue[] $queues each carrying the timeout it is sent with
 	 * @param int $deadline when to stop starting waves, or 0 for none
 	 * @param callable(RequestQueue, \Throwable): void $failed what to do with a row
@@ -553,17 +558,25 @@ class ActivityService {
 		$pending = array_values($queues);
 
 		while ($pending !== [] && ($deadline <= 0 || time() < $deadline)) {
+			$remaining = [];
+			foreach ($pending as $queue) {
+				$host = $queue->getInstance()->getAddress();
+				$remaining[$host] = ($remaining[$host] ?? 0) + 1;
+			}
+			// stable: hosts with as many rows left keep the order they came in
+			arsort($remaining);
+			$hosts = array_fill_keys(array_slice(array_keys($remaining), 0, self::PARALLEL), true);
+
 			$wave = [];
-			$hosts = [];
 			$later = [];
 			foreach ($pending as $queue) {
 				$host = $queue->getInstance()->getAddress();
-				if (count($wave) >= self::PARALLEL || isset($hosts[$host])) {
-					$later[] = $queue;
+				if (isset($hosts[$host])) {
+					unset($hosts[$host]);
+					$wave[] = $queue;
 					continue;
 				}
-				$hosts[$host] = true;
-				$wave[] = $queue;
+				$later[] = $queue;
 			}
 			$pending = $later;
 

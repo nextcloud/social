@@ -65,9 +65,7 @@ class Note extends Stream implements JsonSerializable {
 			try {
 				/** @var Person $actor */
 				$actor = $personInterface->getItemById($mention['url']);
-				$mention['id'] = (string)$actor->getNid();
-				$mention['username'] = $actor->getPreferredUsername();
-				$mention['acct'] = $actor->getAccount();
+				$mention = self::mentionOf($actor, $mention['url']);
 			} catch (ItemNotFoundException $e) {
 			}
 
@@ -75,6 +73,37 @@ class Note extends Stream implements JsonSerializable {
 		}
 
 		$this->setDetailArray(Details::MENTIONS, $mentions);
+	}
+
+	/**
+	 * Adds a known account to the client's `mentions`, once. What a post
+	 * written here is given as each Mention tag is added to it.
+	 */
+	public function addMention(Person $actor, string $url): void {
+		$mentions = $this->getDetails(Details::MENTIONS);
+		foreach ($mentions as $mention) {
+			if (is_array($mention) && ($mention['url'] ?? '') === $url) {
+				return;
+			}
+		}
+
+		$mentions[] = self::mentionOf($actor, $url);
+		$this->setDetailArray(Details::MENTIONS, $mentions);
+	}
+
+	/**
+	 * One entry of Mastodon's `Status.mentions` for a known account: bare
+	 * `acct` for an account of this instance, as `Account.acct` is.
+	 *
+	 * @return array{id: string, username: string, url: string, acct: string}
+	 */
+	public static function mentionOf(Person $actor, string $url): array {
+		return [
+			'id' => (string)$actor->getNid(),
+			'username' => $actor->getPreferredUsername(),
+			'url' => $url,
+			'acct' => $actor->isLocal() ? $actor->getPreferredUsername() : $actor->getAccount(),
+		];
 	}
 
 	public function fillHashtags(): void {

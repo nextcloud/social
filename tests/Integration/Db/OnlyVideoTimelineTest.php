@@ -18,7 +18,9 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Service\ConfigService;
 use OCP\Server;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -36,6 +38,8 @@ use PHPUnit\Framework\TestCase;
  * talks about video.
  */
 class OnlyVideoTimelineTest extends TestCase {
+	use MediaUnderText;
+
 	private const BASE = 'https://cloud.example.org/onlyvideo';
 	private const VIEWER = self::BASE . '/users/viewer';
 	private const AUTHOR = 'https://remote.example/onlyvideo/users/author';
@@ -44,18 +48,22 @@ class OnlyVideoTimelineTest extends TestCase {
 	private const SUFFIXES = ['with-video', 'with-photo', 'no-media', 'peertube', 'alt-text-says-video'];
 
 	private StreamRequest $streamRequest;
+	private string $fastPathBefore = '';
 	private CacheActorsRequest $cacheActorsRequest;
 	private FollowsRequest $followsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->streamRequest = Server::get(StreamRequest::class);
+		$this->fastPathBefore = Server::get(ConfigService::class)->getAppValue(ConfigService::SOCIAL_DEST_NID_FILLED);
 		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
 		$this->followsRequest = Server::get(FollowsRequest::class);
 		$this->cleanup();
 	}
 
 	protected function tearDown(): void {
+		$this->removeMediaUnderText();
+		$this->useHomeFastPath($this->fastPathBefore === '1');
 		$this->cleanup();
 		parent::tearDown();
 	}
@@ -220,5 +228,28 @@ class OnlyVideoTimelineTest extends TestCase {
 		));
 
 		$this->assertSame([self::BASE . '/notes/with-video'], $ids);
+	}
+
+	/**
+	 * The Videos view — `only_media` with `only_video`, what the web app
+	 * sends — on home and public, with two videos (and three pictures) under
+	 * sixty newer posts of text.
+	 */
+	#[DataProvider('homeFastPath')]
+	public function testVideosFindTwoVideosUnderSixtyNewerPostsOfText(bool $fast): void {
+		$viewer = $this->seedFollowedAuthor();
+		$this->useHomeFastPath($fast);
+		$videos = $this->seedMediaUnderText(self::BASE, $this->cacheActorsRequest->getFromId(self::AUTHOR))['videos'];
+		$this->streamRequest->setViewer($viewer);
+
+		foreach ([ProbeOptions::HOME, ProbeOptions::PUBLIC] as $probe) {
+			$this->assertFoundUnderText(
+				self::BASE, $videos,
+				static function (ProbeOptions $options) use ($probe): void {
+					$options->setProbe($probe)->setOnlyMedia(true)->setOnlyVideo(true);
+				},
+				$probe . ' Videos'
+			);
+		}
 	}
 }

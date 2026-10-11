@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Protocol;
 
 use InvalidArgumentException;
+use stdClass;
 
 /**
  * The DRISL subset of CBOR that AT Protocol stores and signs: minimal integer
@@ -20,6 +21,11 @@ use InvalidArgumentException;
  * The PHP model: a list array is a CBOR array, any other array is a map with
  * string keys, int/string/bool/null are themselves, Bytes is a byte string
  * and Cid is a link. Decoding gives the same model back.
+ *
+ * PHP's `[]` is both the empty list and the empty map; it is the empty
+ * list. The empty map is a `stdClass` with no properties, which decoding
+ * gives for one and which encodes as one (any `stdClass` encodes as the map
+ * of its properties), so that what was read re-encodes to the same bytes.
  */
 final class DagCbor {
 	/** deeper than any record or MST node; a bound on untrusted input */
@@ -71,6 +77,11 @@ final class DagCbor {
 	 * {"$bytes": base64}, as the XRPC surface shows them.
 	 */
 	public static function toLexJson(mixed $value): mixed {
+		if ($value instanceof stdClass) {
+			$properties = get_object_vars($value);
+
+			return $properties === [] ? new stdClass() : self::toLexJson($properties);
+		}
 		if ($value instanceof Cid) {
 			return ['$link' => $value->toString()];
 		}
@@ -90,11 +101,19 @@ final class DagCbor {
 	}
 
 	/**
-	 * The reverse of toLexJson(), for records that arrive as JSON.
+	 * The reverse of toLexJson(), for records that arrive as JSON. JSON
+	 * decoded to objects keeps an empty object the empty map; decoded to
+	 * arrays, `{}` and `[]` are the same `[]`, the empty list.
 	 *
 	 * @throws InvalidArgumentException when a $link is not a CID or $bytes not base64
 	 */
 	public static function fromLexJson(mixed $value): mixed {
+		if ($value instanceof stdClass) {
+			$value = get_object_vars($value);
+			if ($value === []) {
+				return new stdClass();
+			}
+		}
 		if (!is_array($value)) {
 			return $value;
 		}
@@ -156,6 +175,9 @@ final class DagCbor {
 
 			return self::head(self::MAJOR_TAG, self::TAG_CID) . self::head(self::MAJOR_BYTES, strlen($link)) . $link;
 		}
+		if ($value instanceof stdClass) {
+			return self::encodeMap(get_object_vars($value), $depth);
+		}
 		if (is_array($value)) {
 			if (array_is_list($value)) {
 				$out = self::head(self::MAJOR_ARRAY, count($value));
@@ -165,17 +187,22 @@ final class DagCbor {
 
 				return $out;
 			}
-			$keys = array_map('strval', array_keys($value));
-			usort($keys, static fn (string $a, string $b): int => strlen($a) <=> strlen($b) ?: strcmp($a, $b));
-			$out = self::head(self::MAJOR_MAP, count($keys));
-			foreach ($keys as $key) {
-				$out .= self::encodeValue($key, $depth + 1) . self::encodeValue($value[$key], $depth + 1);
-			}
 
-			return $out;
+			return self::encodeMap($value, $depth);
 		}
 
 		throw new InvalidArgumentException('No CBOR encoding for ' . get_debug_type($value));
+	}
+
+	private static function encodeMap(array $value, int $depth): string {
+		$keys = array_map('strval', array_keys($value));
+		usort($keys, static fn (string $a, string $b): int => strlen($a) <=> strlen($b) ?: strcmp($a, $b));
+		$out = self::head(self::MAJOR_MAP, count($keys));
+		foreach ($keys as $key) {
+			$out .= self::encodeValue($key, $depth + 1) . self::encodeValue($value[$key], $depth + 1);
+		}
+
+		return $out;
 	}
 
 	private static function head(int $major, int $argument): string {
@@ -248,7 +275,7 @@ final class DagCbor {
 					$map[$key] = self::decodeValue($bytes, $offset, $depth + 1);
 				}
 
-				return $map;
+				return $map === [] ? new stdClass() : $map;
 			case self::MAJOR_TAG:
 				if ($argument !== self::TAG_CID) {
 					throw new InvalidArgumentException('CBOR tag not allowed: ' . $argument);

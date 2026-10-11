@@ -768,6 +768,8 @@ class WriteService {
 	 * @throws XrpcException
 	 */
 	private function keep(ClientSession $session, string $collection, string $rkey, array $record): StoredRecord {
+		// links, bytes and empty maps as the repository models them
+		$record = DagCbor::fromLexJson($record);
 		$did = $session->identity->did;
 		if (in_array($collection, self::GATES, true)) {
 			$gated = Syntax::parseAtUri((string)($record['post'] ?? ''));

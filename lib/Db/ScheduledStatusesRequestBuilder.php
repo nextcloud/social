@@ -45,6 +45,17 @@ class ScheduledStatusesRequestBuilder extends CoreRequestBuilder {
 		return $qb;
 	}
 
+	protected function countScheduledSelectSql(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
+			->from(self::TABLE_SCHEDULED, 'ss');
+
+		$this->defaultSelectAlias = 'ss';
+		$qb->setDefaultSelectAlias('ss');
+
+		return $qb;
+	}
+
 	protected function getScheduledDeleteSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_SCHEDULED);

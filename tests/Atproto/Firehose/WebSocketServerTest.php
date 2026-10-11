@@ -89,7 +89,7 @@ class WebSocketServerTest extends TestCase {
 	public function testAMaskedClientFrameIsRead(): void {
 		$buffer = self::masked(0x9, 'ping') . 'rest';
 		$frame = WebSocketServer::readFrame($buffer);
-		$this->assertSame([0x9, 'ping'], $frame);
+		$this->assertSame([0x9, 'ping', true], $frame);
 		$this->assertSame('rest', $buffer);
 		$partial = "\x89";
 		$this->assertNull(WebSocketServer::readFrame($partial));

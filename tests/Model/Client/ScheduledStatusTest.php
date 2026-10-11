@@ -98,6 +98,20 @@ class ScheduledStatusTest extends TestCase {
 		}
 	}
 
+	/**
+	 * A post scheduled with no language is stored with an empty one, and
+	 * `params.language` is an ISO 639 code or null: an empty string is
+	 * neither, and a client that reads it as a language code fails on it.
+	 */
+	public function testAPostWithNoLanguageSaysNull(): void {
+		$scheduled = $this->scheduled()->setParams(['text' => 'later', 'language' => '']);
+		$this->assertNull($scheduled->jsonSerialize()['params']['language']);
+
+		$german = $this->scheduled()->setParams(['text' => 'später', 'language' => 'de']);
+		$this->assertSame('de', $german->jsonSerialize()['params']['language']);
+		$this->assertSame('', $scheduled->getParams()['language'], 'what is replayed at publication is left as it was');
+	}
+
 	public function testARowIsReadBackAsWhatWasStored(): void {
 		$scheduled = (new ScheduledStatus())->importFromDatabase([
 			'id' => 12,

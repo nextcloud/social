@@ -18,10 +18,37 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Story;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\DurableCache;
 
 class DeleteInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	/** The types a deleted id can refer to, in the order they are looked up. */
 	private const DELETABLE_TYPES = ['Note', 'Person', 'Story'];
+
+	/**
+	 * Where a Delete of something not held yet is remembered, and for how
+	 * long: six hours, as Mastodon remembers one.
+	 */
+	public const EARLY_DELETE_NAMESPACE = 'social.early_delete';
+	public const EARLY_DELETE_TTL = 21600;
+
+	public function __construct(
+		private ?DurableCache $durableCache = null,
+	) {
+	}
+
+	/**
+	 * Whether `$objectId` was deleted by `$actorId` before it arrived here.
+	 *
+	 * A Delete can overtake the Create it undoes — separate queues, a retry
+	 * of the Create landing last — and storing the late Create put back a
+	 * post its author had already taken down, for good. The Delete that found
+	 * nothing is remembered for a while, and a Create of the same object by
+	 * the same actor in that time is dropped.
+	 */
+	public static function deletedBeforeArrival(?DurableCache $durableCache, string $objectId, string $actorId): bool {
+		return $durableCache !== null && $actorId !== '' && $objectId !== ''
+			&& $durableCache->getShared(self::EARLY_DELETE_NAMESPACE, hash('sha256', $objectId)) === $actorId;
+	}
 
 	/**
 	 * @throws InvalidOriginException
@@ -104,6 +131,12 @@ class DeleteInterface extends AbstractActivityPubInterface implements IActivityP
 			$interface->delete($object);
 
 			return;
+		}
+
+		if ($objectId !== '' && $actorId !== '') {
+			$this->durableCache?->setShared(
+				self::EARLY_DELETE_NAMESPACE, hash('sha256', $objectId), $actorId, self::EARLY_DELETE_TTL
+			);
 		}
 	}
 }

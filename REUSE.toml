@@ -44,9 +44,10 @@ SPDX-FileCopyrightText = "2013 Marek Palatinus, Pavol Rusnak, Aaron Voisine, Sea
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
-# The AT Protocol lexicon documents this app validates records against,
-# copied from github.com/bluesky-social/atproto (dual MIT / Apache-2.0).
-path = "lib/Atproto/lexicons/*.json"
+# The AT Protocol lexicon documents this app validates records against, and
+# the query lexicons its tests check the served XRPC answers against, copied
+# from github.com/bluesky-social/atproto (dual MIT / Apache-2.0).
+path = ["lib/Atproto/lexicons/*.json", "tests/Atproto/lexicons/*.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2022-2026 Bluesky Social PBC, and Contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
@@ -64,7 +65,25 @@ SPDX-FileCopyrightText = "2019 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
-path = "tests/Federation/fixtures/*.json"
+path = ["tests/Federation/fixtures/*.json", "tests/Federation/golden/*.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+# Public did:plc audit logs and DID documents of three organisation accounts,
+# fetched from plc.directory on 2026-10-09: directory data, signed by the
+# accounts' own keys, not authored here. See
+# tests/Atproto/Identity/PlcAuditLogTest.php.
+path = "tests/Atproto/Identity/plc/*.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "CC0-1.0"
+
+# the Mastodon entity schemas the client API is validated against, written
+# for this app from the Mastodon documentation (see tests/Api/Schema/README.md)
+[[annotations]]
+path = "tests/Api/Schema/mastodon/*.json"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"

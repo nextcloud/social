@@ -1,0 +1,22 @@
+{
+	"description": "Context (docs.joinmastodon.org/entities/Context).",
+	"type": "object",
+	"required": [
+		"ancestors",
+		"descendants"
+	],
+	"properties": {
+		"ancestors": {
+			"type": "array",
+			"items": {
+				"$ref": "Status"
+			}
+		},
+		"descendants": {
+			"type": "array",
+			"items": {
+				"$ref": "Status"
+			}
+		}
+	}
+}

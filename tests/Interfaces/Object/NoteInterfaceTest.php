@@ -15,6 +15,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
+use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\Object\NoteInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Accept;
@@ -220,6 +221,37 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($create, $note);
 
 		$this->assertSame($create->getId(), $note->getActivityId());
+	}
+
+	/** @return iterable<string, array{string, bool}> */
+	public static function earlyDeletes(): iterable {
+		yield 'deleted by its author before it arrived' => [self::REMOTE_URL . '/users/bob', false];
+		yield 'a Delete by somebody else' => [self::REMOTE_URL . '/users/mallory', true];
+	}
+
+	/**
+	 * A Create that arrives after its own Delete must not put back what the
+	 * author took down; a Delete by anybody else changes nothing.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('earlyDeletes')]
+	public function testACreateOvertakenByItsDeleteIsDropped(string $deletedBy, bool $stored): void {
+		$this->nothingStored();
+		$cache = $this->createStub(\OCA\Social\Service\DurableCache::class);
+		$cache->method('getShared')->willReturnCallback(
+			static fn (string $namespace, string $key): ?string => ($namespace === DeleteInterface::EARLY_DELETE_NAMESPACE
+				&& $key === hash('sha256', self::NOTE)) ? $deletedBy : null
+		);
+		$handler = new NoteInterface(
+			$this->streamRequest, $this->cacheActorsRequest, $this->pollService, $this->pushService,
+			$this->streamQueueService, $this->linkPreviewService, $this->forwardService,
+			$this->createStub(\OCA\Social\Service\NotificationService::class), $this->revisionService,
+			$this->fileCommentsService, $this->replyRules, $cache,
+		);
+		$note = $this->incomingNote();
+
+		$this->streamRequest->expects($stored ? $this->once() : $this->never())->method('save');
+
+		$handler->activity($this->wrap(Create::TYPE, $note), $note);
 	}
 
 	public function testCreateOfAStoredNoteIsPushedToConnectedClients(): void {
@@ -666,6 +698,34 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->revisionService->expects($this->once())
 			->method('recordEdit')
 			->with($this->identicalTo($stored), $this->identicalTo($note));
+
+		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
+	}
+
+	/** @return iterable<string, array{string, string, bool}> */
+	public static function editOrders(): iterable {
+		yield 'a newer edit' => ['2026-05-01T12:00:00Z', '2026-05-01T11:00:00Z', true];
+		yield 'the same edit again' => ['2026-05-01T11:00:00Z', '2026-05-01T11:00:00Z', true];
+		yield 'an older edit arriving late' => ['2026-05-01T11:00:00Z', '2026-05-01T12:00:00Z', false];
+		yield 'an edit with no date' => ['', '2026-05-01T12:00:00Z', true];
+		yield 'a first edit of a post never edited' => ['2026-05-01T11:00:00Z', '', true];
+	}
+
+	/**
+	 * Edits arrive out of order; one older than the version stored must not
+	 * put back the text the author already replaced.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('editOrders')]
+	public function testAnEditIsAppliedOnlyWhenItIsNotOlderThanTheStoredOne(string $incoming, string $stored, bool $applied): void {
+		$note = $this->incomingNote();
+		$note->setContent('<p>edited</p>');
+		$note->setUpdated($incoming);
+		$copy = $this->storedCopy();
+		$copy->setUpdated($stored);
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($copy);
+
+		$this->streamRequest->expects($applied ? $this->once() : $this->never())->method('update');
+		$this->revisionService->expects($applied ? $this->once() : $this->never())->method('recordEdit');
 
 		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
 	}

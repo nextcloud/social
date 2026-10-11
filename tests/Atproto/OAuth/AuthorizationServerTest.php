@@ -21,6 +21,7 @@ use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\OAuth\DpopVerifier;
 use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\OAuth\PermissionSets;
+use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -29,6 +30,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICacheFactory;
 use OCP\Security\ICrypto;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 #[AllowMockObjectsWithoutExpectations]
@@ -46,6 +48,7 @@ class AuthorizationServerTest extends TestCase {
 	private InMemoryOAuthRequest $store;
 	private Identity $alice;
 	private AuthorizationServer $server;
+	private PrivateKey $serviceKey;
 
 	protected function setUp(): void {
 		$this->dpopKey = PrivateKey::generate(Curve::P256);
@@ -70,9 +73,9 @@ class AuthorizationServerTest extends TestCase {
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('forActor')->willReturnCallback(fn (): Identity => $this->alice);
 		$identities->method('getByDid')->willReturnCallback(fn (): Identity => $this->alice);
-		$serviceKey = PrivateKey::generate(Curve::K256);
+		$this->serviceKey = PrivateKey::generate(Curve::K256);
 		$keys = $this->createMock(InstanceKeyService::class);
-		$keys->method('serviceKey')->willReturn($serviceKey);
+		$keys->method('serviceKey')->willReturn($this->serviceKey);
 		$actors = $this->createMock(ActorsRequest::class);
 		$actors->method('getFromUserId')->willReturn(new Person());
 		$sets = $this->createMock(PermissionSets::class);
@@ -352,6 +355,67 @@ class AuthorizationServerTest extends TestCase {
 				$this->fail('taken: ' . $scope);
 			} catch (OAuthException $e) {
 				$this->assertSame('invalid_scope', $e->error, $scope);
+			}
+		}
+	}
+
+	/**
+	 * @return array<string, array{0: callable(array): array{0: array, 1: array, 2: ?PrivateKey}}> what is changed of a genuine token: header, claims, signing key (null for the service key)
+	 */
+	public static function foreignTokens(): array {
+		return [
+			'signed by another key' => [static fn (array $h, array $c): array => [$h, $c, PrivateKey::generate(Curve::K256)]],
+			'not an access token' => [static fn (array $h, array $c): array => [['typ' => 'JWT'] + $h, $c, null]],
+			'from another issuer' => [static fn (array $h, array $c): array => [$h, ['iss' => 'https://evil.example.com'] + $c, null]],
+			'for another service' => [static fn (array $h, array $c): array => [$h, ['aud' => 'did:web:api.bsky.app'] + $c, null]],
+			'bound to no key' => [static fn (array $h, array $c): array => [$h, array_diff_key($c, ['cnf' => true]), null]],
+			'of no session' => [static fn (array $h, array $c): array => [$h, ['sid' => ''] + $c, null]],
+			'expired' => [static fn (array $h, array $c): array => [$h, ['exp' => $c['iat'] - 1] + $c, null]],
+			'of another account' => [static fn (array $h, array $c): array => [$h, ['sub' => 'did:plc:z72i7hdynmk6r22z27h6tvur'] + $c, null]],
+		];
+	}
+
+	/**
+	 * An access token is this server's own, for this PDS, unexpired, bound
+	 * to the key of the proof that comes with it, and of a session that
+	 * still is the account's: a token re-signed or re-addressed, or one an
+	 * app password session holds, is refused with the DPoP challenge.
+	 *
+	 * @param callable(array, array): array{0: array, 1: array, 2: ?PrivateKey} $forge
+	 */
+	#[DataProvider('foreignTokens')]
+	public function testATokenThatIsNotThisServersForThisSessionIsRefused(callable $forge): void {
+		$tokens = $this->signedIn();
+		[$header, $claims] = array_map(static fn (string $part): array => json_decode(Encoding::base64UrlDecode($part), true), array_slice(explode('.', $tokens['access_token']), 0, 2));
+		[$header, $claims, $key] = $forge($header, $claims);
+		$input = Encoding::base64UrlEncode((string)json_encode($header)) . '.' . Encoding::base64UrlEncode((string)json_encode($claims, JSON_UNESCAPED_SLASHES));
+		$forged = $input . '.' . Encoding::base64UrlEncode(($key ?? $this->serviceKey)->sign($input));
+		$url = self::ISSUER . '/xrpc/app.bsky.feed.getTimeline';
+
+		try {
+			$this->server->authenticate('DPoP ' . $forged, $this->proof($url, 'GET', $forged), 'GET', $url);
+			$this->fail('taken');
+		} catch (OAuthException $e) {
+			$this->assertSame(401, $e->status);
+			$this->assertSame('invalid_token', $e->error);
+			$this->assertStringStartsWith('DPoP error="invalid_token"', $e->headers['WWW-Authenticate']);
+		}
+	}
+
+	public function testATokenOfAnEndedSessionOrADeactivatedAccountIsRefused(): void {
+		$url = self::ISSUER . '/xrpc/app.bsky.feed.getTimeline';
+		$tokens = $this->signedIn();
+		$this->server->endSession('alice', $this->server->sessionsOf('alice')[0]['id']);
+		foreach ([$tokens, $this->signedIn()] as $i => $pair) {
+			if ($i === 1) {
+				$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', '', '', Identity::STATE_DEACTIVATED, '', 0);
+			}
+			try {
+				$this->server->authenticate('DPoP ' . $pair['access_token'], $this->proof($url, 'GET', $pair['access_token']), 'GET', $url);
+				$this->fail($i === 0 ? 'the ended session acted' : 'the deactivated account acted');
+			} catch (OAuthException $e) {
+				$this->assertSame(401, $e->status);
+				$this->assertStringContainsString($i === 0 ? 'ended' : 'deactivated', $e->getMessage());
 			}
 		}
 	}

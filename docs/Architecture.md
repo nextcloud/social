@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.207
+**App version:** 0.26.212
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -707,6 +707,10 @@ The routes are **session routes with CSRF**, not client-API ones: an archive of 
 
 **Inbox forwarding (ActivityPub §7.1.2).** A reply to a local post arrives from the replier's instance and from nowhere else, so the followers of the local post would never see it: everyone would read a different, shorter thread. `ForwardService::forwardReply()` therefore passes such a reply on to the followers of the post it replies to, and `NoteInterface::activity()` offers it every newly stored note (a re-delivery finds the note already stored and is not offered again, so nobody is sent the same reply twice).
 
+**Edits out of order.** Edits are delivered out of order as readily as anything else, so `NoteInterface` drops an `Update` whose `updated` is earlier than the one already stored, as Mastodon does; an edit without a date, or of a post never edited, is applied as before.
+
+**A Delete that overtakes its Create.** A `Delete` that finds nothing to delete is remembered for six hours in `DurableCache` (`DeleteInterface::EARLY_DELETE_NAMESPACE`), keyed by the object and holding the deleting actor; a `Create` of that object by that same actor in that time is dropped (`DeleteInterface::deletedBeforeArrival()`), as Mastodon drops one, so a late Create cannot put back a post its author already took down.
+
 A reply is forwarded only when all of this holds: it arrived with a **valid linked-data signature** (`SignatureService::ORIGIN_SIGNATURE`), because the recipients must be able to check the author's own signature rather than take our word for it; the post it replies to is **local**, since only the instance holding a post owes its followers the thread; and both the reply and the post are **public or unlisted**, so a private audience is never widened. The body sent is `getSource()` — the document exactly as it arrived, since re-encoding our model of it would drop the signature and change what was signed. Delivery goes through the normal request queue at `PRIORITY_LOW` via `RequestQueueService::generateRequestQueueFromSource()`, so nothing about it holds up the inbox response. The sender's instance and this one are left out of the recipient list.
 
 **`Add` and `Remove`** are handled by `FeaturedCollection`, which is how a remote account's pinned posts arrive: the activity's `object` is resolved against the local store (Mastodon sends a bare URI, not an embedded object), `target` must be the actor's own `featured` collection, and the post must be one this instance holds and that actor authored. A pin is stored as an action row, capped at `MAX_REMOTE_PINS`. `BlockInterface` records the incoming block as an `ActorRelation` of type `TYPE_BLOCKED_BY`.
@@ -1025,7 +1029,9 @@ after another with a 30-second timeout each inside a 300-second budget: about a
 thousand deliveries an hour at best and **ten** at worst, since ten unresponsive
 peers filled the whole pass. It now delivers **several servers at a time**:
 `ActivityService::manageRequests()` sends a batch in waves of up to `PARALLEL`
-(20) rows, one per host, through `CurlService::sendMany()` (the HTTP client's
+(20) rows, one per host — the hosts with the most rows left first, so a batch
+that holds each host's rows together does not end in waves of a few hosts'
+leftovers — through `CurlService::sendMany()` (the HTTP client's
 async calls, which Guzzle runs on one curl multi handle), and settles every row
 exactly as a single delivery is settled. A settled promise answers Guzzle's
 PSR-7 response rather than the `IResponse` a synchronous call returns, and
@@ -1490,7 +1496,8 @@ quote's state is `pending`; a failure to even send the request is logged and
 nothing more, because the post is already out.
 
 **Being quoted.** `QuoteRequestInterface::processIncomingRequest()` answers for
-local posts. The policy is `Stream::isQuotable()` — public and unlisted, yes;
+local posts. The request's `instrument` is read as an id whether it arrives as
+one or as the quoting post inlined, which is how Mastodon sends it. The policy is `Stream::isQuotable()` — public and unlisted, yes;
 anything narrower, no — which is the same rule `PinService::pin()` and
 `BoostService::create()` apply, and for the same reason: a quote carries the
 audience of the quoter, so a narrower post would reach readers its author never

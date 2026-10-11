@@ -1,0 +1,20 @@
+{
+	"description": "Rule (docs.joinmastodon.org/entities/Rule). hint is Mastodon 4.3's.",
+	"type": "object",
+	"required": [
+		"id",
+		"text"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"text": {
+			"type": "string"
+		},
+		"hint": {
+			"type": "string"
+		}
+	}
+}

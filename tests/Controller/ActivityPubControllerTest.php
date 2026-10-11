@@ -750,6 +750,33 @@ class ActivityPubControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The per-user inbox moves the origin onto a Linked Data signature's actor
+	 * just as the shared one does, and has to put that origin to the access
+	 * list too: the relay that delivered it is not who it came from.
+	 */
+	public function testTheUserInboxRefusesALinkedDataSignedActivityFromABlockedOrigin(): void {
+		$this->signedRequestFrom('https://relay.example');
+		$this->localActor('alice');
+		$activity = $this->incomingActivity();
+		$this->signatureService->method('checkObject')->willReturn(true);
+		$activity->method('getOrigin')->willReturn('blocked.example');
+		$this->fediverseService->method('authorized')->willReturnCallback(
+			static function (string $origin): bool {
+				if ($origin === 'blocked.example') {
+					throw new UnauthorizedFediverseException($origin);
+				}
+
+				return true;
+			}
+		);
+		$this->importService->expects($this->never())->method('parseIncomingRequest');
+
+		$this->assertFailure(
+			$this->controller->inbox('alice'), UnauthorizedFediverseException::class, Http::STATUS_FORBIDDEN
+		);
+	}
+
 	public function testInboxAcknowledgesGoneSignatures(): void {
 		$this->signatureService->method('checkRequest')->willThrowException(new SignatureIsGoneException());
 

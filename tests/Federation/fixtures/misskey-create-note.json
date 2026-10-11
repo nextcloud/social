@@ -1,0 +1,75 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "Key": "sec:Key",
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "quoteUrl": "as:quoteUrl",
+      "toot": "http://joinmastodon.org/ns#",
+      "Emoji": "toot:Emoji",
+      "misskey": "https://misskey-hub.net/ns#",
+      "_misskey_content": "misskey:_misskey_content",
+      "_misskey_quote": "misskey:_misskey_quote",
+      "_misskey_reaction": "misskey:_misskey_reaction",
+      "_misskey_votes": "misskey:_misskey_votes",
+      "_misskey_summary": "misskey:_misskey_summary",
+      "isCat": "misskey:isCat",
+      "vcard": "http://www.w3.org/2006/vcard/ns#"
+    }
+  ],
+  "id": "https://misskey.example/notes/9fq0z1y2x3/activity",
+  "actor": "https://misskey.example/users/9fq0a1b2c3",
+  "type": "Create",
+  "published": "2026-04-01T10:00:00.000Z",
+  "object": {
+    "id": "https://misskey.example/notes/9fq0z1y2x3",
+    "type": "Note",
+    "attributedTo": "https://misskey.example/users/9fq0a1b2c3",
+    "content": "<p><span>look at this </span><a href=\"https://misskey.example/tags/garden\" rel=\"tag\">#garden</a><span> :blobcat:<br><br>RE: </span><a href=\"{{LOCAL_POST}}\">{{LOCAL_POST}}</a></p>",
+    "_misskey_content": "look at this #garden :blobcat:",
+    "source": {
+      "content": "look at this #garden :blobcat:",
+      "mediaType": "text/x.misskeymarkdown"
+    },
+    "_misskey_quote": "{{LOCAL_POST}}",
+    "quoteUrl": "{{LOCAL_POST}}",
+    "quoteUri": "{{LOCAL_POST}}",
+    "published": "2026-04-01T10:00:00.000Z",
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public"
+    ],
+    "cc": [
+      "https://misskey.example/users/9fq0a1b2c3/followers"
+    ],
+    "inReplyTo": null,
+    "attachment": [],
+    "sensitive": false,
+    "tag": [
+      {
+        "type": "Hashtag",
+        "href": "https://misskey.example/tags/garden",
+        "name": "#garden"
+      },
+      {
+        "id": "https://misskey.example/emojis/blobcat",
+        "type": "Emoji",
+        "name": ":blobcat:",
+        "updated": "2025-01-01T00:00:00.000Z",
+        "icon": {
+          "type": "Image",
+          "mediaType": "image/png",
+          "url": "https://misskey.example/files/blobcat.png"
+        }
+      }
+    ]
+  },
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "cc": [
+    "https://misskey.example/users/9fq0a1b2c3/followers"
+  ]
+}

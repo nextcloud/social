@@ -1,0 +1,30 @@
+{
+	"description": "Role (docs.joinmastodon.org/entities/Role). The built-in everyone role has the id -99 in Mastodon too, hence the sign; permissions is a bitmask written as a string.",
+	"type": "object",
+	"required": [
+		"color",
+		"highlighted",
+		"id",
+		"name",
+		"permissions"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"pattern": "^-?[0-9]+$"
+		},
+		"name": {
+			"type": "string"
+		},
+		"color": {
+			"type": "string"
+		},
+		"permissions": {
+			"type": "string",
+			"pattern": "^[0-9]+$"
+		},
+		"highlighted": {
+			"type": "boolean"
+		}
+	}
+}

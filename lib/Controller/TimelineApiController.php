@@ -141,7 +141,7 @@ class TimelineApiController extends MastodonApiController {
 			// index-only probe — see `notModified()`. Only the head of the home
 			// timeline is worth tagging: a page reached with `max_id` is
 			// historical and a client asks for it once.
-			if ($timeline === ProbeOptions::HOME && $max_id === '0' && $min_id === '0') {
+			if ($timeline === ProbeOptions::HOME && (string)$max_id === '0' && (string)$min_id === '0') {
 				// the newest id says whether anything arrived; the revision
 				// says whether the reader has changed what they are shown —
 				// a follow, a block, a mute, a filter, a followed hashtag —

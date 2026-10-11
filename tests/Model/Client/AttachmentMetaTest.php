@@ -90,4 +90,20 @@ class AttachmentMetaTest extends TestCase {
 		$this->assertSame('0:01', $meta->getLength());
 		$this->assertSame('x', $meta->getBlurHash());
 	}
+
+	/**
+	 * A stored attachment whose meta named no sizes — a remote file with no
+	 * copy here has none to name — is sent without them. An empty size went
+	 * out as `"original": []`, a list where Mastodon has an object, and a
+	 * client decoding it into a struct dropped the attachment and the status.
+	 */
+	public function testASizeThatStatesNothingIsLeftOut(): void {
+		$meta = (new AttachmentMeta())->import(['focus' => ['x' => 0.5, 'y' => 0.5]]);
+
+		$json = json_decode((string)json_encode($meta), true);
+
+		$this->assertArrayNotHasKey('original', $json);
+		$this->assertArrayNotHasKey('small', $json);
+		$this->assertSame(['x' => 0.5, 'y' => 0.5], $json['focus']);
+	}
 }

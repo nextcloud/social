@@ -426,6 +426,9 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 		foreach (CoreRequestBuilder::$tables[CoreRequestBuilder::TABLE_CACHE_ACTORS] as $field) {
 			$this->selectAlias($leftAlias . '.' . $field, $prefix . 'ca_' . $field);
 		}
+		// not in the table's column list, which also serves its writes; the
+		// numeric id is what a client names the author by
+		$this->selectAlias($leftAlias . '.nid', $prefix . 'ca_nid');
 
 		$this->leftJoin(
 			$this->getDefaultSelectAlias(),

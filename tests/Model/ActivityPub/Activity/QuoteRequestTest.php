@@ -49,6 +49,27 @@ class QuoteRequestTest extends TestCase {
 		$this->assertSame(self::QUOTING, $request->getInstrument());
 	}
 
+	/**
+	 * Mastodon 4.5 sends the quoting post inline as the instrument
+	 * (`QuoteRequestWorker` serialises with `allow_post_inlining`): read as an
+	 * id only, every request it sent was dropped as naming no quoting post.
+	 */
+	public function testAnInlinedInstrumentIsReadByItsId(): void {
+		$wire = $this->wire();
+		$wire['instrument'] = [
+			'id' => self::QUOTING,
+			'type' => 'Note',
+			'attributedTo' => 'https://mastodon.social/users/alice',
+			'content' => '<p>quoting this</p>',
+			'quote' => self::QUOTED,
+		];
+
+		$request = new QuoteRequest();
+		$request->import($wire);
+
+		$this->assertSame(self::QUOTING, $request->getInstrument());
+	}
+
 	public function testARequestWithoutAnInstrumentNamesNoQuotingPost(): void {
 		$wire = $this->wire();
 		unset($wire['instrument']);

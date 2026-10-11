@@ -225,7 +225,8 @@ class OAuthControllerTest extends TestCase {
 			'id' => '7',
 			'name' => 'Tusky',
 			'website' => 'https://tusky.app',
-			'scopes' => 'read write',
+			'scopes' => ['read', 'write'],
+			'redirect_uris' => ['https://tusky.app/callback'],
 			'client_id' => 'cid',
 			'client_secret' => 'csecret',
 			// Mastodon's Application entity always carries both, and a client
@@ -287,7 +288,22 @@ class OAuthControllerTest extends TestCase {
 	public function testAppsDefaultsToReadScope(): void {
 		$this->clientService->method('createApp');
 
-		$this->assertSame('read', $this->controller->apps('App', 'https://a/cb')->getData()['scopes']);
+		$this->assertSame(['read'], $this->controller->apps('App', 'https://a/cb')->getData()['scopes']);
+	}
+
+	/**
+	 * Mastodon 4.3's Application: `scopes` and `redirect_uris` are lists. A
+	 * client decoding them into `[String]` failed on the one space-separated
+	 * string this used to answer with, and with it the registration.
+	 */
+	public function testAppsAnswersTheScopesAndRedirectUrisAsLists(): void {
+		$this->clientService->method('createApp');
+
+		$data = $this->controller->apps('App', "https://a/cb\nhttps://b/cb", '', 'read write follow')->getData();
+
+		$this->assertSame(['read', 'write', 'follow'], $data['scopes']);
+		$this->assertSame(['https://a/cb', 'https://b/cb'], $data['redirect_uris']);
+		$this->assertSame('https://a/cb', $data['redirect_uri'], 'the first one, as the deprecated key always said');
 	}
 
 	/**

@@ -48,7 +48,7 @@ class DagCborTest extends TestCase {
 	public static function invalidValues(): iterable {
 		yield 'a float' => [['a' => 1.5]];
 		yield 'a float that looks whole' => [['a' => 123.0]];
-		yield 'an object' => [['a' => new \stdClass()]];
+		yield 'an object that is not a plain one' => [['a' => new \ArrayObject()]];
 		yield 'a link that is not a CID' => [['lnk' => ['$link' => '.']]];
 		yield 'bytes that are not base64' => [['b' => ['$bytes' => '***']]];
 		yield 'text that is not UTF-8' => [["\xff"]];
@@ -109,6 +109,47 @@ class DagCborTest extends TestCase {
 		$this->assertSame(['ref' => ['$link' => $cid->toString()], 'raw' => ['$bytes' => 'AAEC']], $json);
 		$this->assertEquals($value, DagCbor::fromLexJson(['ref' => ['$link' => $cid->toString()], 'raw' => ['$bytes' => 'AAEC==']]), 'padding is tolerated');
 		$this->assertEquals($value, DagCbor::fromLexJson($json));
+	}
+
+	/**
+	 * `[]` is the empty list and an empty `stdClass` the empty map, each
+	 * with its own bytes, and a value read back re-encodes to the bytes it
+	 * was read from, so a record's CID survives a decode.
+	 */
+	public function testTheEmptyMapIsNotTheEmptyList(): void {
+		$this->assertSame("\x80", DagCbor::encode([]));
+		$this->assertSame("\xa0", DagCbor::encode(new \stdClass()));
+		$this->assertSame([], DagCbor::decode("\x80"));
+		$this->assertEquals(new \stdClass(), DagCbor::decode("\xa0"));
+
+		$bytes = "\xa3" . "\x61a\x80" . "\x61b\xa0" . "\x65\$type\x70com.example.blah";
+		$value = DagCbor::decode($bytes);
+		$this->assertSame($bytes, DagCbor::encode($value));
+		$this->assertSame('{"a":[],"b":{},"$type":"com.example.blah"}', json_encode(DagCbor::toLexJson($value)), 'and the JSON form keeps the two apart');
+		$this->assertSame(Cid::forDagCbor($bytes)->toString(), Cid::forDagCbor(DagCbor::encode($value))->toString());
+	}
+
+	/**
+	 * The data-model vector "empty list and object", read as JSON objects
+	 * so `{}` is not lost on the way in, encodes `b` as the empty map.
+	 */
+	public function testTheEmptyObjectOfTheDataModelVectorIsAMap(): void {
+		$vectors = json_decode((string)file_get_contents(__DIR__ . '/../fixtures/data-model-valid.json'), false, 512, JSON_THROW_ON_ERROR);
+		$vector = array_values(array_filter($vectors, static fn (\stdClass $vector): bool => $vector->note === 'empty list and object'))[0];
+
+		$encoded = DagCbor::encode(DagCbor::fromLexJson($vector->json));
+		$this->assertStringContainsString("\x61a\x80", $encoded);
+		$this->assertStringContainsString("\x61b\xa0", $encoded);
+		$this->assertEquals($vector->json, json_decode((string)json_encode(DagCbor::toLexJson(DagCbor::decode($encoded)))));
+	}
+
+	/**
+	 * A plain object of any size is the map of its properties, also where
+	 * its keys look like list indexes.
+	 */
+	public function testAnObjectIsTheMapOfItsProperties(): void {
+		$this->assertSame(DagCbor::encode(['a' => 1, 'bb' => [1]]), DagCbor::encode((object)['bb' => [1], 'a' => 1]));
+		$this->assertSame("\xa1\x610\x01", DagCbor::encode((object)['0' => 1]));
 	}
 
 	public function testACarRoundTrips(): void {

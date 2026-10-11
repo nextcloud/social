@@ -96,6 +96,8 @@ class ApiController extends MastodonApiController {
 						// this as a URL fails on the empty string
 						'website' => $this->client->getAppWebsite() === ''
 							? null : $this->client->getAppWebsite(),
+						'scopes' => array_values($this->client->getAppScopes()),
+						'redirect_uris' => array_values($this->client->getAppRedirectUris()),
 						'vapid_key' => ''
 					], Http::STATUS_OK
 				);

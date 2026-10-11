@@ -1383,7 +1383,7 @@ php occ social:check:install [--index] [--offline] [-f|--force]
 Without `--index`:
 
 - runs `CheckService::checkInstallationStatus()`,
-- prints how many invalid followers and invalid notes were removed,
+- removes the follows and the notes whose accounts are no longer cached, walking both tables 200 rows at a time, and prints how many it removed,
 - runs the four checks that Administration → Overview shows (`lib/SetupChecks/`) and prints each with its severity: whether `.well-known/webfinger` answers for an account of this instance, whether the address Aloha Social builds ids from still matches the one the server reports, whether the delivery job has run lately, and whether anything in the outbound queue is stuck. A check that fails links to [Admin.md](Admin.md),
 - prints a verdict line — `all N checks passed`, or `M of N checks reported an error` — and **exits 1** when any check reported an error, so the command can stand in a deployment script
 - prints the current app configuration as pretty JSON.

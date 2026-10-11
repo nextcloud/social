@@ -1,0 +1,8 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://mastodon.example/users/carol#moves/1",
+  "type": "Move",
+  "actor": "https://mastodon.example/users/carol",
+  "object": "https://mastodon.example/users/carol",
+  "target": "https://new.example/users/carol"
+}

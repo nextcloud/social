@@ -206,7 +206,7 @@ class PollService {
 			return;
 		}
 
-		$poll->setSource(json_encode($poll, JSON_UNESCAPED_SLASHES));
+		$poll->setSource($poll->wireSource());
 		$this->streamRequest->update($poll);
 
 		// tell the followers the new counts

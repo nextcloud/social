@@ -268,4 +268,29 @@ class LinkifyServiceTest extends TestCase {
 			$html
 		);
 	}
+
+	/** @return array<string, array{string, int}> */
+	public static function countedLengths(): array {
+		$long = 'https://example.org/' . str_repeat('a', 80);
+
+		return [
+			'plain text' => ['hello there', 11],
+			'a long URL counts as 23' => ['see ' . $long, 4 + 23],
+			'and so does a short one' => ['see https://a.io', 4 + 23],
+			'a URL closing a sentence keeps its full stop' => ['see ' . $long . '.', 4 + 23 + 1],
+			'a remote mention counts as its name' => ['hi @bob@remote.example', 3 + 4],
+			'a local mention counts as written' => ['hi @bob', 7],
+			'multi-byte characters are characters' => ['héllo 🐈', 7],
+		];
+	}
+
+	/**
+	 * What `max_characters` is measured against: what the instance tells a
+	 * client (`characters_reserved_per_url`), so that a post a client shows
+	 * as fitting is not refused here.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('countedLengths')]
+	public function testAPostIsCountedTheWayMastodonCountsIt(string $text, int $expected): void {
+		$this->assertSame($expected, LinkifyService::countableLength($text));
+	}
 }

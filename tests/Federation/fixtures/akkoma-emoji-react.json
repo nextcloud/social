@@ -1,0 +1,33 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://akkoma.example/schemas/litepub-0.1.jsonld",
+    {
+      "@language": "und"
+    }
+  ],
+  "id": "https://akkoma.example/activities/0d1e2f3a-4b5c-4d6e-8f70-819293a4b5c6",
+  "type": "EmojiReact",
+  "actor": "https://akkoma.example/users/frank",
+  "object": "{{LOCAL_POST}}",
+  "content": ":blobcat:",
+  "tag": [
+    {
+      "id": "https://akkoma.example/emoji/blobcat.png",
+      "type": "Emoji",
+      "name": ":blobcat:",
+      "icon": {
+        "type": "Image",
+        "url": "https://akkoma.example/emoji/blobcat.png"
+      }
+    }
+  ],
+  "to": [
+    "{{ALICE}}"
+  ],
+  "cc": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "context": "https://akkoma.example/contexts/abc",
+  "published": "2026-04-02T09:00:00.000Z"
+}

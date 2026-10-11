@@ -1,0 +1,29 @@
+{
+	"description": "Conversation (docs.joinmastodon.org/entities/Conversation).",
+	"type": "object",
+	"required": [
+		"accounts",
+		"id",
+		"last_status",
+		"unread"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"unread": {
+			"type": "boolean"
+		},
+		"accounts": {
+			"type": "array",
+			"items": {
+				"$ref": "Account"
+			}
+		},
+		"last_status": {
+			"$ref": "Status",
+			"nullable": true
+		}
+	}
+}

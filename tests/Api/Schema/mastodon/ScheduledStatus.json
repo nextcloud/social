@@ -1,0 +1,125 @@
+{
+	"description": "ScheduledStatus (docs.joinmastodon.org/entities/ScheduledStatus). application_id is null here: no application is recorded against a post.",
+	"type": "object",
+	"required": [
+		"id",
+		"media_attachments",
+		"params",
+		"scheduled_at"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"scheduled_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"params": {
+			"type": "object",
+			"required": [
+				"application_id",
+				"idempotency",
+				"in_reply_to_id",
+				"language",
+				"media_ids",
+				"poll",
+				"scheduled_at",
+				"sensitive",
+				"spoiler_text",
+				"text",
+				"visibility",
+				"with_rate_limit"
+			],
+			"properties": {
+				"text": {
+					"type": "string"
+				},
+				"poll": {
+					"type": [
+						"object",
+						"null"
+					]
+				},
+				"media_ids": {
+					"type": [
+						"array",
+						"null"
+					],
+					"items": {
+						"type": "string",
+						"format": "id"
+					}
+				},
+				"sensitive": {
+					"type": [
+						"boolean",
+						"null"
+					]
+				},
+				"spoiler_text": {
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"visibility": {
+					"type": "string",
+					"enum": [
+						"public",
+						"unlisted",
+						"private",
+						"direct"
+					]
+				},
+				"in_reply_to_id": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "id"
+				},
+				"language": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "language"
+				},
+				"application_id": {
+					"type": [
+						"integer",
+						"null"
+					],
+					"minimum": 0
+				},
+				"scheduled_at": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "datetime"
+				},
+				"idempotency": {
+					"type": [
+						"string",
+						"null"
+					]
+				},
+				"with_rate_limit": {
+					"type": [
+						"boolean",
+						"null"
+					]
+				}
+			}
+		},
+		"media_attachments": {
+			"type": "array",
+			"items": {
+				"$ref": "MediaAttachment"
+			}
+		}
+	}
+}

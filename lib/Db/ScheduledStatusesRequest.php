@@ -213,9 +213,8 @@ class ScheduledStatusesRequest extends ScheduledStatusesRequestBuilder {
 
 	/** How many posts the account has waiting, against Mastodon's total cap. */
 	public function countByActor(string $actorId): int {
-		$qb = $this->getScheduledSelectSql();
-		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-			->andWhere($qb->expr()->eq('ss.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
+		$qb = $this->countScheduledSelectSql();
+		$qb->andWhere($qb->expr()->eq('ss.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))));
 
 		return $this->countFromRequest($qb);
 	}
@@ -230,9 +229,8 @@ class ScheduledStatusesRequest extends ScheduledStatusesRequestBuilder {
 	 * it differently or not at all.
 	 */
 	public function countByActorBetween(string $actorId, int $from, int $until): int {
-		$qb = $this->getScheduledSelectSql();
-		$qb->selectAlias($qb->createFunction('COUNT(*)'), 'count')
-			->andWhere($qb->expr()->eq('ss.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+		$qb = $this->countScheduledSelectSql();
+		$qb->andWhere($qb->expr()->eq('ss.actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
 			->andWhere(
 				$qb->expr()->gte(
 					'ss.scheduled_at',

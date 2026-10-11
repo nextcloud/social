@@ -17,7 +17,6 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\NoUserException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -45,6 +44,13 @@ class CheckService {
 	use TStringTools;
 
 	public const CACHE_PREFIX = 'social_check_';
+
+	/**
+	 * How many rows the repair walks read at once: two queries a page, the
+	 * page and the cached actors it names, instead of the whole table in
+	 * memory and a query per row.
+	 */
+	public const REPAIR_PAGE = 200;
 
 	/**
 	 * What each client-API probe saw, in the order the bases were tried.
@@ -391,20 +397,27 @@ class CheckService {
 	}
 
 	/**
-	 * @return int
+	 * Deletes the follows whose follower or followed account is no longer
+	 * cached, a page at a time.
+	 *
+	 * @return int how many were deleted
 	 */
 	public function removeInvalidFollows(): int {
 		$count = 0;
-		$follows = $this->followRequest->getAll();
-		foreach ($follows as $follow) {
-			try {
-				$this->cacheActorsRequest->getFromId($follow->getActorId());
-				$this->cacheActorsRequest->getFromId($follow->getObjectId());
-			} catch (CacheActorDoesNotExistException $e) {
-				$this->followRequest->deleteById($follow->getId());
-				$count++;
+		$after = '';
+		do {
+			$page = $this->followRequest->getKeyPage(self::REPAIR_PAGE, $after);
+			$cached = $this->cacheActorsRequest->getFromIds(array_merge(
+				array_column($page, 'actor_id'), array_column($page, 'object_id')
+			));
+			foreach ($page as $prim => $follow) {
+				$after = (string)$prim;
+				if (!isset($cached[$follow['actor_id']], $cached[$follow['object_id']])) {
+					$this->followRequest->deleteById($follow['id']);
+					$count++;
+				}
 			}
-		}
+		} while (count($page) === self::REPAIR_PAGE);
 
 		$this->miscService->log('removeInvalidFollows removed ' . $count . ' entries', 1);
 
@@ -412,20 +425,24 @@ class CheckService {
 	}
 
 	/**
-	 * @return int
+	 * Deletes the notes whose author is no longer cached, a page at a time.
+	 *
+	 * @return int how many were deleted
 	 */
 	public function removeInvalidNotes(): int {
 		$count = 0;
-		$streams = $this->streamRequest->getAll(Note::TYPE);
-		foreach ($streams as $stream) {
-			try {
-				// Check if it's enough for Note, Announce, ...
-				$this->cacheActorsRequest->getFromId($stream->getAttributedTo());
-			} catch (CacheActorDoesNotExistException $e) {
-				$this->streamRequest->deleteById($stream->getId(), Note::TYPE);
-				$count++;
+		$after = '';
+		do {
+			$page = $this->streamRequest->getAuthorPage(Note::TYPE, self::REPAIR_PAGE, $after);
+			$cached = $this->cacheActorsRequest->getFromIds(array_column($page, 'attributed_to'));
+			foreach ($page as $prim => $note) {
+				$after = (string)$prim;
+				if (!isset($cached[$note['attributed_to']])) {
+					$this->streamRequest->deleteById($note['id'], Note::TYPE);
+					$count++;
+				}
 			}
-		}
+		} while (count($page) === self::REPAIR_PAGE);
 
 		$this->miscService->log('removeInvalidNotes removed ' . $count . ' entries', 1);
 

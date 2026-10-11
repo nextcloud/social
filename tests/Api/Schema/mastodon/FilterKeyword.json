@@ -1,0 +1,22 @@
+{
+	"description": "FilterKeyword (docs.joinmastodon.org/entities/FilterKeyword).",
+	"type": "object",
+	"required": [
+		"id",
+		"keyword",
+		"whole_word"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"keyword": {
+			"type": "string",
+			"minLength": 1
+		},
+		"whole_word": {
+			"type": "boolean"
+		}
+	}
+}

@@ -117,6 +117,29 @@ class ActivitiesTest extends TestCase {
 		$this->assertArrayNotHasKey('target', $move->exportAsActivityPub());
 	}
 
+	/** @return iterable<string, array{class-string}> */
+	public static function featuredChanges(): iterable {
+		yield 'pin' => [Add::class];
+		yield 'unpin' => [Remove::class];
+	}
+
+	/**
+	 * Mastodon acts on an `Add` or `Remove` only when its `target` is the
+	 * actor's featured collection, so a pin sent without one never arrived.
+	 */
+	#[DataProvider('featuredChanges')]
+	public function testAPinOrUnpinNamesTheFeaturedCollectionOnTheWire(string $class): void {
+		$activity = new $class();
+		$activity->setId('https://cloud.example/users/alice/statuses/1#add/featured');
+		$activity->setActorId('https://cloud.example/users/alice');
+		$activity->setObjectId('https://cloud.example/users/alice/statuses/1');
+		$activity->setTarget('https://cloud.example/users/alice/collections/featured');
+
+		$wire = json_decode((string)json_encode($activity), true);
+
+		$this->assertSame('https://cloud.example/users/alice/collections/featured', $wire['target']);
+	}
+
 	public function testUndoWithAnEmbeddedFollowExportsTheObjectInline(): void {
 		$undo = new Undo();
 		$undo->setId('https://mastodon.social/users/alice#follows/1/undo')

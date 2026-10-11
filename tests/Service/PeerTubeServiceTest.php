@@ -313,7 +313,13 @@ class PeerTubeServiceTest extends TestCase {
 		$this->assertStringContainsString($expected, $this->service->content($data));
 	}
 
-	/** And the other way round: escaping html shows somebody their own tags. */
+	/**
+	 * And the other way round: escaping html shows somebody their own tags.
+	 *
+	 * Passed through here and stored as sent, like any remote `content`; it
+	 * is sanitised on the way out of the database, which
+	 * `SanitiseOnReadTest` pins.
+	 */
 	public function testADescriptionThatIsNotDeclaredMarkdownIsPassedThrough(): void {
 		$data = $this->video();
 		unset($data['mediaType']);

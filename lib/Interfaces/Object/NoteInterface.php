@@ -18,6 +18,7 @@ use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\AbstractActivityPubInterface;
+use OCA\Social\Interfaces\Activity\DeleteInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Interfaces\Internal\SocialAppNotificationInterface;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -31,6 +32,7 @@ use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\FileCommentsService;
 use OCA\Social\Service\ForwardService;
 use OCA\Social\Service\LinkPreviewService;
@@ -57,6 +59,7 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		private StatusRevisionService $revisionService,
 		private FileCommentsService $fileCommentsService,
 		private ?ReplyRuleService $replyRules = null,
+		private ?DurableCache $durableCache = null,
 	) {
 	}
 
@@ -87,6 +90,9 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			// nobody to attribute to and fails the origin check below.
 			$item->setAttributedTo($activity->getActorId());
 			$activity->checkOrigin($item->getAttributedTo());
+			if (DeleteInterface::deletedBeforeArrival($this->durableCache, $item->getId(), $activity->getActorId())) {
+				return;
+			}
 			$item->setActivityId($activity->getId());
 
 			// asked before the save, because afterwards every delivery of this
@@ -116,6 +122,9 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 				$stored = $this->getStoredForAuthor($activity, $item->getId());
 			} catch (StreamNotFoundException $e) {
 				return; // an edit of a post never received: nothing to rewrite
+			}
+			if (self::isOlderEdit($item, $stored)) {
+				return;
 			}
 			$item->setActivityId($activity->getId());
 			$this->streamRequest->update($item);
@@ -152,6 +161,23 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		return $stored;
+	}
+
+	/**
+	 * Whether an incoming edit is older, by its `updated`, than the version
+	 * already stored.
+	 *
+	 * Edits are delivered out of order — separate queues, a retry overtaking
+	 * the next edit — and applied in arrival order a late older one put the
+	 * text back to what the author had already replaced. Mastodon drops an
+	 * update whose `updated` is earlier than the stored edit time, and so does
+	 * this; either side without a date is applied as before.
+	 */
+	private static function isOlderEdit(Stream $incoming, Stream $stored): bool {
+		$incomingTime = ($incoming->getUpdated() === '') ? false : strtotime($incoming->getUpdated());
+		$storedTime = ($stored->getUpdated() === '') ? false : strtotime($stored->getUpdated());
+
+		return $incomingTime !== false && $storedTime !== false && $incomingTime < $storedTime;
 	}
 
 	/**

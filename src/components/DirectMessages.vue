@@ -1022,12 +1022,13 @@ export default {
 		 */
 		withoutProtocolRecipient(message, recipient = null) {
 			const content = message?.content ?? ''
-			if (message?.visibility !== 'direct' || !content || typeof document === 'undefined') {
+			if (message?.visibility !== 'direct' || !content || typeof DOMParser === 'undefined') {
 				return content
 			}
 
-			const wrapper = document.createElement('div')
-			wrapper.innerHTML = content
+			// parsed into a document of its own: one that never loads an image
+			// or runs a handler, whatever the markup turns out to hold
+			const wrapper = new DOMParser().parseFromString(content, 'text/html').body
 			const paragraph = wrapper.firstElementChild?.tagName === 'P' ? wrapper.firstElementChild : wrapper
 			let first = paragraph.firstChild
 			while (first?.nodeType === Node.TEXT_NODE && !first.textContent.trim()) {

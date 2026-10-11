@@ -71,6 +71,36 @@ class IndexCoverageTest extends TestCase {
 		yield 'the author\'s instance a domain block or a silence compares' => [
 			'social_stream', ['author_host'],
 		];
+		yield 'an account looked up by its handle, on every mention and WebFinger answer' => [
+			'social_cache_actor', ['account_lower'],
+		];
+		yield 'Photos and Videos: the posts carrying one kind of media, newest first' => [
+			'social_stream', ['media_kind', 'nid'],
+		];
+		yield 'the News view: the posts that are articles, newest first' => [
+			'social_stream', ['news_kind', 'nid'],
+		];
+		yield 'the posts of a time window: trends, the hashtag statistics, search results by date' => [
+			'social_stream', ['published_time'],
+		];
+		yield 'the tags of a page of posts, and a post tagged once per tag' => [
+			'social_stream_tag', ['stream_id', 'hashtag'],
+		];
+		yield 'a hashtag timeline and the hashtag trends' => [
+			'social_stream_tag', ['hashtag'],
+		];
+		yield 'the followers of an account, which every delivery reads' => [
+			'social_follow', ['object_id_prim', 'actor_id_prim'],
+		];
+		yield 'a page of an account\'s followers, newest first' => [
+			'social_follow', ['object_id_prim', 'creation'],
+		];
+		yield 'the collections a reader follows, which the home page is read from' => [
+			'social_follow', ['actor_id_prim', 'accepted', 'type', 'follow_id_prim'],
+		];
+		yield 'the deliveries that are due, most urgent first' => [
+			'social_req_queue', ['status', 'priority', 'tries', 'last'],
+		];
 	}
 
 	/**
@@ -152,18 +182,6 @@ class IndexCoverageTest extends TestCase {
 		);
 	}
 
-	/**
-	 * Looking an account up by its handle is **not** in the list above, and
-	 * not by oversight.
-	 *
-	 * `CacheActorsRequest::getFromAccount()` filters with
-	 * `LOWER(account) = LOWER(?)`, and no plain index answers a query that
-	 * wraps its column in a function — so `social_cache_actor` is scanned on
-	 * every WebFinger resolution and every mention. Adding an index would not
-	 * fix it; what would is the `*_prim` idiom this app already uses for
-	 * exactly this problem elsewhere, and that is a migration and a backfill
-	 * rather than a line in a test.
-	 */
 	/** The reader itself: if it stops finding indexes, every row above passes for nothing. */
 	public function testTheMigrationsAreBeingReadAtAll(): void {
 		$declared = $this->declaredIndexes();

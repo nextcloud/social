@@ -367,7 +367,7 @@ class ScheduledStatusService {
 	 * @throws InvalidActionException
 	 */
 	private function assertPublishable(string $content, string $spoilerText, ?array $poll): void {
-		if (mb_strlen($content) + mb_strlen($spoilerText) > InstanceService::MAX_CHARACTERS) {
+		if (LinkifyService::countableLength($content) + mb_strlen($spoilerText) > InstanceService::MAX_CHARACTERS) {
 			throw new InvalidActionException(
 				'a post may not be longer than ' . InstanceService::MAX_CHARACTERS . ' characters'
 			);

@@ -1,0 +1,26 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "id": "https://bsky.brid.gy/convert/ap/at://did:plc:3jpt2mvvsumj2r7eqk4gzzjz/app.bsky.feed.post/3kxyzabc2s2c#bridgy-fed-create",
+  "type": "Create",
+  "actor": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz",
+  "published": "2026-04-05T12:00:00.000Z",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "object": {
+    "id": "https://bsky.brid.gy/convert/ap/at://did:plc:3jpt2mvvsumj2r7eqk4gzzjz/app.bsky.feed.post/3kxyzabc2s2c",
+    "type": "Note",
+    "attributedTo": "https://bsky.brid.gy/ap/did:plc:3jpt2mvvsumj2r7eqk4gzzjz",
+    "content": "<p>first radish of the year</p>",
+    "contentMap": {
+      "en": "<p>first radish of the year</p>"
+    },
+    "url": "https://bsky.app/profile/did:plc:3jpt2mvvsumj2r7eqk4gzzjz/post/3kxyzabc2s2c",
+    "published": "2026-04-05T12:00:00.000Z",
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public"
+    ],
+    "cc": [],
+    "tag": []
+  }
+}

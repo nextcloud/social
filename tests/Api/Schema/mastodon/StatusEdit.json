@@ -1,0 +1,68 @@
+{
+	"description": "StatusEdit (docs.joinmastodon.org/entities/StatusEdit).",
+	"type": "object",
+	"required": [
+		"account",
+		"content",
+		"created_at",
+		"emojis",
+		"media_attachments",
+		"sensitive",
+		"spoiler_text"
+	],
+	"properties": {
+		"content": {
+			"type": "string"
+		},
+		"spoiler_text": {
+			"type": "string"
+		},
+		"sensitive": {
+			"type": "boolean"
+		},
+		"created_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"account": {
+			"$ref": "Account"
+		},
+		"poll": {
+			"type": [
+				"object",
+				"null"
+			],
+			"required": [
+				"options"
+			],
+			"properties": {
+				"options": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [
+							"title"
+						],
+						"properties": {
+							"title": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			}
+		},
+		"media_attachments": {
+			"type": "array",
+			"items": {
+				"$ref": "MediaAttachment"
+			}
+		},
+		"emojis": {
+			"type": "array",
+			"items": {
+				"$ref": "CustomEmoji"
+			}
+		}
+	}
+}

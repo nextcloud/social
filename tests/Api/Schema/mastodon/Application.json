@@ -1,0 +1,54 @@
+{
+	"description": "Application (docs.joinmastodon.org/entities/Application). client_id and client_secret only on the answer to POST /api/v1/apps (CredentialApplication); scopes and redirect_uris are Mastodon 4.3's.",
+	"type": "object",
+	"required": [
+		"name",
+		"website"
+	],
+	"properties": {
+		"name": {
+			"type": "string",
+			"minLength": 1
+		},
+		"website": {
+			"type": [
+				"string",
+				"null"
+			]
+		},
+		"scopes": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"redirect_uris": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"redirect_uri": {
+			"type": "string"
+		},
+		"vapid_key": {
+			"type": "string"
+		},
+		"client_id": {
+			"type": "string",
+			"minLength": 1
+		},
+		"client_secret": {
+			"type": "string",
+			"minLength": 1
+		},
+		"client_secret_expires_at": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"id": {
+			"type": "string",
+			"format": "id"
+		}
+	}
+}

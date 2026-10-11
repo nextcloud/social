@@ -130,7 +130,7 @@ class ReplyRuleService {
 		$this->snapshotListMembers($post);
 		// the wire object carries `interactionPolicy`, so the stored source
 		// says what this server now holds peers to
-		$post->setSource(json_encode($post, JSON_UNESCAPED_SLASHES));
+		$post->setSource($post->wireSource());
 		$this->streamRequest->update($post);
 		try {
 			$this->container?->get(Publisher::class)->updateGates($post);

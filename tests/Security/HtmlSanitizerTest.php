@@ -63,6 +63,62 @@ class HtmlSanitizerTest extends TestCase {
 		$this->assertSame('<a>m</a>', $this->sanitize('<a href="mailto:a@b.c">m</a>'));
 	}
 
+	/** @return array<string, array{string}> */
+	public static function scriptUrls(): array {
+		return [
+			'mixed case' => ['JaVaScRiPt:alert(1)'],
+			'leading space' => [' javascript:alert(1)'],
+			'leading control character' => ["\x01javascript:alert(1)"],
+			'newline inside the scheme' => ["java\nscript:alert(1)"],
+			'decimal entity' => ['&#106;avascript:alert(1)'],
+			'hex entities with the colon' => ['&#x6A;avascript&#x3A;alert(1)'],
+			'a safe-looking fragment' => ['javascript:alert(1)//https://ok.example/'],
+			'data base64' => ['data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=='],
+			'data upper case' => ['DATA:text/html,<script>alert(1)</script>'],
+			'vbscript' => ['vbscript:msgbox(1)'],
+		];
+	}
+
+	/**
+	 * Every way a browser still reads a script URL out of an attribute,
+	 * in each of the two attributes that may hold a URL.
+	 */
+	#[DataProvider('scriptUrls')]
+	public function testDropsScriptUrlsHoweverTheyAreSpelled(string $url): void {
+		$attribute = htmlspecialchars($url, ENT_QUOTES | ENT_HTML5, 'UTF-8', false);
+
+		$this->assertSame('<a>x</a>', $this->sanitize('<a href="' . $attribute . '">x</a>', 'https://remote.example/notes/1'));
+		$this->assertSame(
+			'<blockquote>q</blockquote>',
+			$this->sanitize('<blockquote cite="' . $attribute . '">q</blockquote>', 'https://remote.example/notes/1')
+		);
+	}
+
+	/**
+	 * `&colon;` is an HTML5 entity: the HTML5 parser decodes it into a script
+	 * URL and drops it, while libxml's HTML4 parser reads it as text and keeps
+	 * a relative link. The two answers differ, and neither is a script URL.
+	 */
+	public function testANamedColonEntityNeverBecomesAScriptUrl(): void {
+		$parsers = PHP_VERSION_ID >= 80400 ? [false, true] : [false];
+		foreach ($parsers as $html5) {
+			$result = HtmlSanitizer::sanitizeWith('<a href="javascript&colon;alert(1)">x</a>', 'https://remote.example/notes/1', $html5);
+
+			$this->assertDoesNotMatchRegularExpression('/href="(?!https:\/\/remote\.example\/)/', $result);
+		}
+	}
+
+	public function testDropsFormsAndTheAttributesThatSubmitThem(): void {
+		$result = $this->sanitize(
+			'<form action="javascript:alert(1)"><button formaction="javascript:alert(2)">go</button></form>'
+			. '<a href="https://ok.example/" formaction="javascript:alert(3)">x</a>'
+		);
+
+		$this->assertStringNotContainsString('javascript', $result);
+		$this->assertStringNotContainsString('<form', $result);
+		$this->assertStringNotContainsString('<button', $result);
+	}
+
 	public function testKeepsAllowedSchemes(): void {
 		$result = $this->sanitize(
 			'<a href="https://example.org/@alice">a</a>'

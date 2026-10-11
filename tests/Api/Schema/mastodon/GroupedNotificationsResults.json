@@ -1,0 +1,35 @@
+{
+	"description": "GroupedNotificationsResults, the answer of GET /api/v2/notifications (Mastodon 4.3).",
+	"type": "object",
+	"required": [
+		"accounts",
+		"notification_groups",
+		"statuses"
+	],
+	"properties": {
+		"accounts": {
+			"type": "array",
+			"items": {
+				"$ref": "Account"
+			}
+		},
+		"partial_accounts": {
+			"type": "array",
+			"items": {
+				"type": "object"
+			}
+		},
+		"statuses": {
+			"type": "array",
+			"items": {
+				"$ref": "Status"
+			}
+		},
+		"notification_groups": {
+			"type": "array",
+			"items": {
+				"$ref": "NotificationGroup"
+			}
+		}
+	}
+}

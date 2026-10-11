@@ -422,6 +422,18 @@ class DocumentService {
 	 * @throws UnauthorizedFediverseException
 	 */
 	public function openStreamed(int|string $nid, string $range = ''): array {
+		$document = $this->streamedDocument($nid);
+		$opened = $this->cacheService->openRemoteFile($document, $range);
+
+		return array_merge(['document' => $document], $opened);
+	}
+
+	/**
+	 * The streamable row a nid names, without opening anything at its origin.
+	 *
+	 * @throws NotFoundException
+	 */
+	private function streamedDocument(int|string $nid): Document {
 		if (!ctype_digit((string)$nid) || Nid::compare($nid, '0') < 1) {
 			throw new NotFoundException('invalid document');
 		}
@@ -436,9 +448,7 @@ class DocumentService {
 			throw new NotFoundException('document is not streamed');
 		}
 
-		$opened = $this->cacheService->openRemoteFile($document, $range);
-
-		return array_merge(['document' => $document], $opened);
+		return $document;
 	}
 
 	/**
@@ -463,7 +473,7 @@ class DocumentService {
 	 * @throws NotFoundException
 	 */
 	public function openPlaylist(int|string $nid, callable $proxyUrl): array {
-		$document = $this->openStreamed($nid)['document'];
+		$document = $this->streamedDocument($nid);
 		if (!self::isPlaylist($document->getMediaType())) {
 			throw new NotFoundException('document is not a playlist');
 		}
@@ -489,7 +499,7 @@ class DocumentService {
 	 * @throws NotFoundException
 	 */
 	public function openPlaylistFile(int|string $nid, string $url, string $range = ''): array {
-		$document = $this->openStreamed($nid)['document'];
+		$document = $this->streamedDocument($nid);
 		if (!self::isPlaylist($document->getMediaType())) {
 			throw new NotFoundException('document is not a playlist');
 		}
