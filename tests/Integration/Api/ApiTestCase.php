@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Integration\Api;
 
 use OC\AppFramework\DependencyInjection\DIContainer;
 use OC\AppFramework\Http\Request;
+use OC\Authentication\Token\IProvider as TokenProvider;
 use OC\Security\CSRF\CsrfTokenManager;
 use OCA\Social\AP;
 use OCA\Social\Controller\AccountApiController;
@@ -27,11 +28,14 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Tests\Api\Schema\SchemaValidator;
 use OCP\AppFramework\Http\Response;
+use OCP\Authentication\Token\IToken;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IRequestId;
 use OCP\IUserManager;
 use OCP\IUserSession;
+use OCP\Security\Bruteforce\IThrottler;
+use OCP\Security\ISecureRandom;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -68,6 +72,9 @@ abstract class ApiTestCase extends TestCase {
 
 	private int $clientId = 0;
 
+	/** @var array<string, string> scope list => bearer token, for `scopedToken()` */
+	private array $scopedTokens = [];
+
 	protected SchemaValidator $schemas;
 
 	/** the app container the server booted with, which each call replaces */
@@ -93,6 +100,7 @@ abstract class ApiTestCase extends TestCase {
 		$this->removeClient();
 		$this->accounts = [];
 		$this->tokens = [];
+		$this->scopedTokens = [];
 		Stream::resetReplyParentCache();
 		Stream::resetQuoteCache();
 		// what comes after this test must not resolve the app's services
@@ -196,6 +204,42 @@ abstract class ApiTestCase extends TestCase {
 		return $this->tokens[$name];
 	}
 
+	/**
+	 * A bearer token for the account granted only `$scopes`, from an app of
+	 * its own: a second authorization of the same app would replace the
+	 * first, and with it the token `token()` handed out.
+	 *
+	 * @param string[] $scopes
+	 */
+	protected function scopedToken(string $name, array $scopes): string {
+		$key = $name . ' ' . implode(' ', $scopes);
+		if (!isset($this->scopedTokens[$key])) {
+			$this->account($name);
+			$userId = self::PREFIX . $name;
+			$app = self::APP . '-' . substr(md5($key), 0, 12);
+
+			$client = new SocialClient();
+			$client->setAppName($app)
+				->setAppWebsite('https://client.example')
+				->setAppRedirectUris(['urn:ietf:wg:oauth:2.0:oob'])
+				->setAppScopes(self::SCOPES)
+				->setAppClientId($app . '-id')
+				->setAppClientSecret($app . '-secret');
+			$requests = Server::get(ClientRequest::class);
+			$requests->saveApp($client);
+			$clientId = $requests->getFromClientId($app . '-id')->getId();
+
+			$code = $userId . '-code-' . bin2hex(random_bytes(6));
+			$token = $userId . '-token-' . bin2hex(random_bytes(12));
+			$auth = Server::get(ClientAuthRequest::class);
+			$auth->authorize($clientId, $userId, $userId, $scopes, $code);
+			$auth->exchange($clientId, $code, $token);
+			$this->scopedTokens[$key] = $token;
+		}
+
+		return $this->scopedTokens[$key];
+	}
+
 	private function clientId(): int {
 		if ($this->clientId === 0) {
 			$client = new SocialClient();
@@ -222,6 +266,10 @@ abstract class ApiTestCase extends TestCase {
 	 * @param string|null $as the account calling, or null for no token at all
 	 * @param bool $webSession call as the web app does instead: `$as` signed in
 	 *                         to Nextcloud, with the session's CSRF token and no bearer token
+	 * @param string|null $bearer this bearer token for `$as` rather than the one with every scope
+	 * @param bool $appPassword call as a client holding a Nextcloud app password of `$as`'s
+	 *                          does: Basic auth, which Nextcloud signs in, and
+	 *                          `OCS-APIRequest: true` in place of a CSRF token
 	 */
 	protected function call(
 		string $controller,
@@ -233,6 +281,8 @@ abstract class ApiTestCase extends TestCase {
 		string $path = '/apps/social/api/test',
 		array $files = [],
 		bool $webSession = false,
+		?string $bearer = null,
+		bool $appPassword = false,
 	): ApiResponse {
 		$server = [
 			'REQUEST_METHOD' => $verb,
@@ -244,8 +294,16 @@ abstract class ApiTestCase extends TestCase {
 			$this->account($as);
 			$session->setUser(Server::get(IUserManager::class)->get(self::PREFIX . $as));
 			$server['HTTP_REQUESTTOKEN'] = Server::get(CsrfTokenManager::class)->getToken()->getEncryptedValue();
+		} elseif ($appPassword && $as !== null) {
+			$this->account($as);
+			$password = $this->appPassword($as);
+			$server['PHP_AUTH_USER'] = self::PREFIX . $as;
+			$server['PHP_AUTH_PW'] = $password;
+			$server['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode(self::PREFIX . $as . ':' . $password);
+			$server['HTTP_OCS_APIREQUEST'] = 'true';
+			$server['REMOTE_ADDR'] = '127.0.0.1';
 		} elseif ($as !== null) {
-			$server['HTTP_AUTHORIZATION'] = 'Bearer ' . $this->token($as);
+			$server['HTTP_AUTHORIZATION'] = 'Bearer ' . ($bearer ?? $this->token($as));
 		}
 		if ($verb !== 'GET') {
 			$server['CONTENT_TYPE'] = 'application/x-www-form-urlencoded';
@@ -261,8 +319,15 @@ abstract class ApiTestCase extends TestCase {
 			],
 			Server::get(IRequestId::class),
 			Server::get(IConfig::class),
-			$webSession ? Server::get(CsrfTokenManager::class) : null,
+			($webSession || $appPassword) ? Server::get(CsrfTokenManager::class) : null,
 		);
+		if ($appPassword && $as !== null) {
+			// what Nextcloud does with Basic credentials before any app runs
+			$this->assertTrue(
+				$session->tryBasicAuthLogin($request, Server::get(IThrottler::class)),
+				'Nextcloud did not sign the app password in'
+			);
+		}
 
 		$instance = $this->controller($controller, $request);
 
@@ -289,13 +354,23 @@ abstract class ApiTestCase extends TestCase {
 			$response = $instance->$method(...$arguments);
 		} finally {
 			$_FILES = $uploads;
-			if ($webSession) {
+			if ($webSession || $appPassword) {
 				$session->setUser(null);
 			}
 		}
 		$this->assertInstanceOf(Response::class, $response);
 
 		return new ApiResponse($response);
+	}
+
+	/** A Nextcloud app password of the account's, as Login Flow v2 hands a client one. */
+	private function appPassword(string $name): string {
+		$password = Server::get(ISecureRandom::class)->generate(72, ISecureRandom::CHAR_ALPHANUMERIC);
+		Server::get(TokenProvider::class)->generateToken(
+			$password, self::PREFIX . $name, self::PREFIX . $name, null, 'apictr-app-password', IToken::PERMANENT_TOKEN
+		);
+
+		return $password;
 	}
 
 	/** A route argument as the dispatcher types it from its declaration. */
@@ -388,6 +463,9 @@ abstract class ApiTestCase extends TestCase {
 
 	private function removeClient(): void {
 		Server::get(ClientRequest::class)->deleteApp(self::APP . '-id');
+		foreach (array_keys($this->scopedTokens) as $key) {
+			Server::get(ClientRequest::class)->deleteApp(self::APP . '-' . substr(md5($key), 0, 12) . '-id');
+		}
 		$this->clientId = 0;
 	}
 }

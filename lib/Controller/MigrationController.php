@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ImportJob;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ImportQueueService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\Service\MigrationService;
@@ -19,12 +20,13 @@ use OCA\Social\Service\MoveFinishService;
 use OCA\Social\Service\MoveInService;
 use OCA\Social\Service\PostImportService;
 use OCA\Social\Service\SwitchService;
-use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PasswordConfirmationRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
@@ -32,6 +34,7 @@ use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -40,23 +43,35 @@ use Throwable;
  *
  * These are the Migration page's buttons: the archive out and back in, the
  * lists of accounts another network exported as CSV — follows, blocks, mutes
- * and lists — and the same four written back out one file at a time. They are
- * session routes rather than client-API ones on purpose: they are for the
- * person sitting in front of the browser, not for a Mastodon client, and an
- * archive of everything an account ever wrote is not something a third-party
- * token should be able to ask for.
+ * and lists — and the same four written back out one file at a time.
+ *
+ * The exports, the imports and moving in are client-API routes, so a mobile
+ * client reaches them with the token it signed in with. The whole archive
+ * asks for the broad `read`: it is everything the account ever wrote, more
+ * than any one granular scope covers. One list as CSV asks for the scope that
+ * reads that list, and everything that writes into the account — an import,
+ * a move in — asks for the broad `write`.
+ *
+ * The rest stay the web page's, behind the Nextcloud session: moving away and
+ * undoing it (Nextcloud's password confirmation guards them, and a token has
+ * no password to confirm), the move-in callback the browser lands on, the
+ * aliases and the switch wizard's helpers.
  *
  * The work is `MigrationArchiveService`, which drives the same
  * `SocialMigrator` that Nextcloud's whole-account export uses — so what
  * travels, and what deliberately does not (the private key, above all), is
  * decided in one place for both.
  */
-class MigrationController extends Controller {
+class MigrationController extends ClientApiController {
 	/** A refused upload says which limit it hit rather than "failed". */
 	private const IMPORT_MAX_SIZE = 100 * 1024 * 1024;
 
 	public function __construct(
 		IRequest $request,
+		IUserSession $userSession,
+		LoggerInterface $logger,
+		AccountService $accountService,
+		ClientService $clientService,
 		private ?string $userId,
 		private MigrationArchiveService $archiveService,
 		private MigrationService $migrationService,
@@ -65,24 +80,26 @@ class MigrationController extends Controller {
 		private MoveInService $moveInService,
 		private MoveFinishService $moveFinishService,
 		private IURLGenerator $urlGenerator,
-		private AccountService $accountService,
 		private SwitchService $switchService,
-		private LoggerInterface $logger,
 	) {
-		parent::__construct('social', $request);
+		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
 
 	/** The account's own Social data, as a zip file. */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 6, period: 3600)]
 	#[UserRateLimit(limit: 6, period: 3600)]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/export')]
 	public function export(): Response {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$userId = $this->caller(['read']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 
 		try {
-			$path = $this->archiveService->export($this->userId);
+			$path = $this->archiveService->export($userId);
 			$contents = file_get_contents($path);
 			if ($contents === false) {
 				throw new \RuntimeException('the finished archive could not be read back');
@@ -106,12 +123,12 @@ class MigrationController extends Controller {
 			// sets `inline; filename=""` itself, and does it last
 			$response->addHeader(
 				'Content-Disposition',
-				'attachment; filename="' . $this->archiveService->filename($this->userId) . '"'
+				'attachment; filename="' . $this->archiveService->filename($userId) . '"'
 			);
 
 			return $response;
 		} catch (Throwable $e) {
-			$this->logger->error('Social export failed', ['userId' => $this->userId, 'exception' => $e]);
+			$this->logger->error('Social export failed', ['userId' => $userId, 'exception' => $e]);
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
@@ -124,12 +141,16 @@ class MigrationController extends Controller {
 	 * and the marks, and reports what the outbox holds rather than re-posting
 	 * it — see `SocialMigrator::import()`. Nothing here deletes anything.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 6, period: 3600)]
 	#[UserRateLimit(limit: 6, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/import')]
 	public function import(): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$userId = $this->caller(['write']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 
 		$file = $_FILES['file'] ?? [];
@@ -145,11 +166,11 @@ class MigrationController extends Controller {
 		}
 
 		try {
-			$log = $this->archiveService->import($this->userId, $file['tmp_name']);
+			$log = $this->archiveService->import($userId, $file['tmp_name']);
 
 			return new DataResponse(['imported' => true, 'log' => $log], Http::STATUS_OK);
 		} catch (Throwable $e) {
-			$this->logger->warning('Social import failed', ['userId' => $this->userId, 'exception' => $e]);
+			$this->logger->warning('Social import failed', ['userId' => $userId, 'exception' => $e]);
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
@@ -170,7 +191,9 @@ class MigrationController extends Controller {
 	 * is the import as queued; `GET /api/v1/migration/imports` is where it
 	 * gets to.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/follows')]
 	public function importFollows(): DataResponse {
@@ -183,12 +206,16 @@ class MigrationController extends Controller {
 	 * happens, and is told when the follows or the posts are hidden and the
 	 * file is the way instead.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/move-in/inspect')]
 	public function moveInInspect(string $handle = ''): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$this->caller(['write']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 
 		try {
@@ -204,14 +231,18 @@ class MigrationController extends Controller {
 	 * posts over is queued. The followers themselves are the old server's
 	 * `Move`, which the page points at once this has run.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 10, period: 3600)]
 	#[UserRateLimit(limit: 10, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/move-in')]
 	public function moveIn(string $handle = '', string $follows = '1', string $posts = '1', string $fetch_media = '1'): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$userId = $this->caller(['write']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
-		if ($this->importQueueService->hasActive($this->userId, ImportJob::KIND_MOVE_IN)) {
+		if ($this->importQueueService->hasActive($userId, ImportJob::KIND_MOVE_IN)) {
 			return new DataResponse(
 				['error' => 'a move is already running; wait for it to finish'], Http::STATUS_CONFLICT
 			);
@@ -219,9 +250,9 @@ class MigrationController extends Controller {
 
 		try {
 			$options = $this->moveInService->prepare(
-				$this->userId, $handle, self::flag($follows), self::flag($posts), self::flag($fetch_media)
+				$userId, $handle, self::flag($follows), self::flag($posts), self::flag($fetch_media)
 			);
-			$job = $this->importQueueService->queue($this->userId, ImportJob::KIND_MOVE_IN, null, $options);
+			$job = $this->importQueueService->queue($userId, ImportJob::KIND_MOVE_IN, null, $options);
 		} catch (Throwable $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
@@ -238,16 +269,20 @@ class MigrationController extends Controller {
 	 * app too, is asked to register this one and the person is sent to consent
 	 * there. Answers the URL to send them to.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 10, period: 3600)]
 	#[UserRateLimit(limit: 10, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/move-in/finish')]
 	public function moveInFinishStart(string $handle = ''): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$userId = $this->caller(['write']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 		try {
 			return new DataResponse(
-				['authorize_url' => $this->moveFinishService->start($this->userId, $handle)],
+				['authorize_url' => $this->moveFinishService->start($userId, $handle)],
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
@@ -256,14 +291,15 @@ class MigrationController extends Controller {
 	}
 
 	/** Where a finish started from here stands. */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/move-in/finish')]
 	public function moveInFinishStatus(): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			return new DataResponse($this->moveFinishService->status($this->caller(['read'])), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
-
-		return new DataResponse($this->moveFinishService->status($this->userId), Http::STATUS_OK);
 	}
 
 	/**
@@ -375,31 +411,35 @@ class MigrationController extends Controller {
 	 * The imports this account asked for, newest first, with where each one
 	 * got to: the list the Migration page polls while one runs.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/imports')]
 	public function imports(): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			return new DataResponse(['imports' => $this->importQueueService->listFor($this->caller(['read']))], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
-
-		return new DataResponse(['imports' => $this->importQueueService->listFor($this->userId)], Http::STATUS_OK);
 	}
 
 	/** Takes a finished import off the list; one still running stays, and says so. */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/migration/imports/{id}', requirements: ['id' => '\\d+'])]
 	public function dismissImport(int $id): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$userId = $this->caller(['write']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 
-		if (!$this->importQueueService->dismiss($this->userId, $id)) {
+		if (!$this->importQueueService->dismiss($userId, $id)) {
 			return new DataResponse(
 				['error' => 'no finished import of yours has that id'], Http::STATUS_NOT_FOUND
 			);
 		}
 
-		return new DataResponse(['imports' => $this->importQueueService->listFor($this->userId)], Http::STATUS_OK);
+		return new DataResponse(['imports' => $this->importQueueService->listFor($userId)], Http::STATUS_OK);
 	}
 
 	/**
@@ -480,7 +520,9 @@ class MigrationController extends Controller {
 		}
 	}
 
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/blocks')]
 	public function importBlocks(): DataResponse {
@@ -488,7 +530,9 @@ class MigrationController extends Controller {
 	}
 
 	/** The posts an export bookmarked — Mastodon's `bookmarks.csv`, one address a line. */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/bookmarks')]
 	public function importBookmarks(): DataResponse {
@@ -496,7 +540,9 @@ class MigrationController extends Controller {
 	}
 
 	/** The servers an export blocks — Mastodon's `blocked_domains.csv`, one domain a line. */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/domain_blocks')]
 	public function importDomainBlocks(): DataResponse {
@@ -504,7 +550,9 @@ class MigrationController extends Controller {
 	}
 
 	/** The accounts an export mutes — Mastodon's `muted_accounts.csv`. */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/mutes')]
 	public function importMutes(): DataResponse {
@@ -518,7 +566,9 @@ class MigrationController extends Controller {
 	 * Mastodon's do, and an account not followed yet is counted as skipped
 	 * rather than followed on the quiet by a button that says "lists".
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/lists')]
 	public function importLists(): DataResponse {
@@ -534,16 +584,29 @@ class MigrationController extends Controller {
 	 * the archive from the Export button holds the same files, and this is for
 	 * the person who wants one of them without the whole thing.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/export/{kind}')]
 	public function exportCsv(string $kind): Response {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		// the scope that reads the list on the Mastodon API; a kind that
+		// names no list asks for all of `read`, and is a 404 after that
+		try {
+			$userId = match ($kind) {
+				'following', 'followers' => $this->caller(['read:follows']),
+				'blocks', 'domain_blocks' => $this->caller(['read:blocks']),
+				'mutes' => $this->caller(['read:mutes']),
+				'lists' => $this->caller(['read:lists']),
+				'bookmarks' => $this->caller(['read:bookmarks']),
+				default => $this->caller(['read']),
+			};
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 
 		try {
-			[$name, $csv] = $this->migrationService->exportCsv($this->userId, $kind);
+			[$name, $csv] = $this->migrationService->exportCsv($userId, $kind);
 
 			// `text/csv` with the name spelled out, the way export() hands the
 			// archive over. The name is one of the seven the service chooses
@@ -559,7 +622,7 @@ class MigrationController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Throwable $e) {
 			$this->logger->error('a CSV export failed', [
-				'userId' => $this->userId, 'kind' => $kind, 'exception' => $e,
+				'userId' => $userId, 'kind' => $kind, 'exception' => $e,
 			]);
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
@@ -575,8 +638,10 @@ class MigrationController extends Controller {
 	 * @param array<string, mixed> $options what the run should know
 	 */
 	private function queueUpload(string $kind, array $options = []): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$userId = $this->caller(['write']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 
 		$file = $_FILES['file'] ?? [];
@@ -589,7 +654,7 @@ class MigrationController extends Controller {
 				Http::STATUS_REQUEST_ENTITY_TOO_LARGE
 			);
 		}
-		if ($this->importQueueService->hasActive($this->userId, $kind)) {
+		if ($this->importQueueService->hasActive($userId, $kind)) {
 			return new DataResponse(
 				['error' => 'an import of this kind is already running; wait for it to finish'],
 				Http::STATUS_CONFLICT
@@ -597,9 +662,9 @@ class MigrationController extends Controller {
 		}
 
 		try {
-			$job = $this->importQueueService->queue($this->userId, $kind, $file['tmp_name'], $options);
+			$job = $this->importQueueService->queue($userId, $kind, $file['tmp_name'], $options);
 		} catch (Throwable $e) {
-			$this->logger->warning('queueing an import failed', ['userId' => $this->userId, 'kind' => $kind, 'exception' => $e]);
+			$this->logger->warning('queueing an import failed', ['userId' => $userId, 'kind' => $kind, 'exception' => $e]);
 
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
@@ -655,20 +720,22 @@ class MigrationController extends Controller {
 	 * `PostImportService::importVideo()` for what it refuses and what it
 	 * cannot check.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 10, period: 3600)]
 	#[UserRateLimit(limit: 10, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/video')]
 	public function importVideo(string $url = '', string $fetch_media = '1'): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+		try {
+			$userId = $this->caller(['write']);
+		} catch (Throwable $e) {
+			return $this->error($e);
 		}
 
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId);
-
 			return new DataResponse(
 				$this->postImportService->importVideo(
-					$actor,
+					$this->viewer(),
 					$url,
 					!in_array(strtolower(trim($fetch_media)), ['0', 'false', 'no'], true)
 				),
@@ -680,7 +747,7 @@ class MigrationController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
 			$this->logger->warning('importing a video failed', [
-				'userId' => $this->userId, 'exception' => $e,
+				'userId' => $userId, 'exception' => $e,
 			]);
 
 			return new DataResponse(['error' => 'the video could not be brought over'], Http::STATUS_BAD_REQUEST);
@@ -695,7 +762,9 @@ class MigrationController extends Controller {
 	 * of a web request. Nothing it writes is federated; see
 	 * `PostImportService`.
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/posts')]
 	public function importPosts(): DataResponse {
@@ -769,5 +838,17 @@ class MigrationController extends Controller {
 			// the message says which — it is the whole of the help there is
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
+	}
+
+	/**
+	 * The account behind a client-API route of this controller, held to the
+	 * scopes the route needs.
+	 *
+	 * @param string[] $scopes
+	 */
+	private function caller(array $scopes): string {
+		$this->initViewer($scopes);
+
+		return $this->viewer()->getUserId();
 	}
 }

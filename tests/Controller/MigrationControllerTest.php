@@ -23,11 +23,13 @@ use OCA\Social\Service\PostImportService;
 use OCA\Social\Service\SwitchService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataDisplayResponse;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
-use OCP\IRequest;
+use OCP\AppFramework\Http\Response;
 use OCP\IURLGenerator;
 use OCP\UserMigration\UserMigrationException;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -42,6 +44,8 @@ use Psr\Log\NullLogger;
  */
 #[AllowMockObjectsWithoutExpectations]
 class MigrationControllerTest extends TestCase {
+	use ClientApiCallers;
+
 	private MigrationArchiveService|MockObject $archiveService;
 	private MigrationService|MockObject $migrationService;
 	private PostImportService|MockObject $postImportService;
@@ -49,17 +53,14 @@ class MigrationControllerTest extends TestCase {
 	private MoveInService|MockObject $moveInService;
 	private MoveFinishService|MockObject $moveFinishService;
 	private IURLGenerator|Stub $urlGenerator;
-	private AccountService|Stub $accountService;
 	private SwitchService|Stub $switchService;
 
 	protected function setUp(): void {
 		parent::setUp();
+		$this->setUpCallers();
 		$this->archiveService = $this->createMock(MigrationArchiveService::class);
 		$this->migrationService = $this->createMock(MigrationService::class);
 		$_FILES = [];
-
-		// Response::getHeaders() asks the container for the request
-		\OC::$server->register(IRequest::class, $this->createStub(IRequest::class));
 
 		$this->postImportService = $this->createMock(PostImportService::class);
 		$this->importQueueService = $this->createMock(ImportQueueService::class);
@@ -67,13 +68,8 @@ class MigrationControllerTest extends TestCase {
 		$this->moveFinishService = $this->createMock(MoveFinishService::class);
 		$this->urlGenerator = $this->createStub(IURLGenerator::class);
 		$this->urlGenerator->method('linkToRoute')->willReturnCallback(static fn (string $route): string => '/' . $route);
-		$this->accountService = $this->createStub(AccountService::class);
 		$this->switchService = $this->createStub(SwitchService::class);
-		$this->accountService->method('getActorFromUserId')->willReturn(new Person());
 	}
-
-	/** @var array<string, mixed> what the request carries */
-	private array $params = [];
 
 	/** @var string[] the temporary uploads to clean up */
 	private array $uploaded = [];
@@ -88,9 +84,24 @@ class MigrationControllerTest extends TestCase {
 		parent::tearDown();
 	}
 
+	/**
+	 * Built for `$userId` signed in to Nextcloud, as the Migration page calls
+	 * it, or for nobody; a test that calls with a token sets one up first and
+	 * passes null.
+	 */
 	private function controller(?string $userId = 'alice'): MigrationController {
+		if ($userId !== null) {
+			$this->asSession($userId);
+		} elseif ($this->authorization === '') {
+			$this->asNobody();
+		}
+
 		return new MigrationController(
-			$this->request(),
+			$this->request,
+			$this->userSession,
+			new NullLogger(),
+			$this->accountService,
+			$this->clientService,
 			$userId,
 			$this->archiveService,
 			$this->migrationService,
@@ -99,9 +110,7 @@ class MigrationControllerTest extends TestCase {
 			$this->moveInService,
 			$this->moveFinishService,
 			$this->urlGenerator,
-			$this->accountService,
 			$this->switchService,
-			new NullLogger(),
 		);
 	}
 
@@ -158,15 +167,6 @@ class MigrationControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->aliases()->getStatus());
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->aliasAdd('x')->getStatus());
-	}
-
-	/** A request that answers the parameters the post import reads. */
-	private function request(): IRequest {
-		$request = $this->createMock(IRequest::class);
-		$request->method('getParam')
-			->willReturnCallback(fn (string $key, $default = null) => $this->params[$key] ?? $default);
-
-		return $request;
 	}
 
 	/** An upload carrying `$contents`, cleaned up when the test ends. */
@@ -646,5 +646,149 @@ class MigrationControllerTest extends TestCase {
 			'size' => 1024,
 			'type' => 'application/json',
 		];
+	}
+
+	// a bearer token
+
+	/**
+	 * Every route a client reaches with its token, the scope that serves it,
+	 * one that does not, and what it answers once let in. The uploads are
+	 * sent without a file, so being let in shows as the 400 that says so.
+	 *
+	 * @return array<string, array{callable(MigrationController): Response, string[], string[], int}>
+	 */
+	public static function tokenRoutes(): array {
+		$routes = [
+			'the archive' => [static fn (MigrationController $c): Response => $c->export(), ['read'], ['read:statuses', 'read:accounts', 'read:follows'], Http::STATUS_OK],
+			'restoring the archive' => [static fn (MigrationController $c): Response => $c->import(), ['write'], ['write:accounts', 'read'], Http::STATUS_BAD_REQUEST],
+			'importing follows' => [static fn (MigrationController $c): Response => $c->importFollows(), ['write'], ['write:follows', 'follow'], Http::STATUS_BAD_REQUEST],
+			'importing blocks' => [static fn (MigrationController $c): Response => $c->importBlocks(), ['write'], ['write:blocks'], Http::STATUS_BAD_REQUEST],
+			'importing bookmarks' => [static fn (MigrationController $c): Response => $c->importBookmarks(), ['write'], ['write:bookmarks'], Http::STATUS_BAD_REQUEST],
+			'importing domain blocks' => [static fn (MigrationController $c): Response => $c->importDomainBlocks(), ['write'], ['write:blocks'], Http::STATUS_BAD_REQUEST],
+			'importing mutes' => [static fn (MigrationController $c): Response => $c->importMutes(), ['write'], ['write:mutes'], Http::STATUS_BAD_REQUEST],
+			'importing lists' => [static fn (MigrationController $c): Response => $c->importLists(), ['write'], ['write:lists'], Http::STATUS_BAD_REQUEST],
+			'importing posts' => [static fn (MigrationController $c): Response => $c->importPosts(), ['write'], ['write:statuses'], Http::STATUS_BAD_REQUEST],
+			'importing a video' => [static fn (MigrationController $c): Response => $c->importVideo('https://old.example/videos/1'), ['write'], ['write:statuses', 'write:media'], Http::STATUS_OK],
+			'inspecting the old account' => [static fn (MigrationController $c): Response => $c->moveInInspect('@me@old.example'), ['write'], ['read'], Http::STATUS_OK],
+			'moving in' => [static fn (MigrationController $c): Response => $c->moveIn('@me@old.example'), ['write'], ['write:accounts', 'write:follows'], Http::STATUS_ACCEPTED],
+			'finishing the move' => [static fn (MigrationController $c): Response => $c->moveInFinishStart('@me@old.example'), ['write'], ['write:accounts'], Http::STATUS_OK],
+			'where the finish stands' => [static fn (MigrationController $c): Response => $c->moveInFinishStatus(), ['read'], ['read:accounts'], Http::STATUS_OK],
+			'the imports' => [static fn (MigrationController $c): Response => $c->imports(), ['read'], ['read:statuses'], Http::STATUS_OK],
+			'dismissing an import' => [static fn (MigrationController $c): Response => $c->dismissImport(7), ['write'], ['read', 'write:statuses'], Http::STATUS_OK],
+		];
+
+		foreach ([
+			'following' => ['read:follows', 'read:blocks'],
+			'followers' => ['read:follows', 'read:accounts'],
+			'blocks' => ['read:blocks', 'read:mutes'],
+			'domain_blocks' => ['read:blocks', 'read:follows'],
+			'mutes' => ['read:mutes', 'read:blocks'],
+			'lists' => ['read:lists', 'read:follows'],
+			'bookmarks' => ['read:bookmarks', 'read:favourites'],
+		] as $kind => [$scope, $other]) {
+			$routes['the ' . $kind . ' CSV'] = [static fn (MigrationController $c): Response => $c->exportCsv($kind), [$scope], [$other], Http::STATUS_OK];
+		}
+
+		return $routes;
+	}
+
+	/** Answers the services give once a caller is let in, none of which leaves this process. */
+	private function servicesAnswer(): void {
+		$path = tempnam(sys_get_temp_dir(), 'social-export-test');
+		file_put_contents($path, 'PK');
+		$this->uploaded[] = $path;
+		$this->archiveService->method('export')->willReturn($path);
+		$this->archiveService->method('filename')->willReturn('social-alice.zip');
+		$this->postImportService->method('importVideo')->willReturn(['status' => 'imported']);
+		$this->moveInService->method('inspect')->willReturn(['acct' => 'me@old.example']);
+		$this->moveInService->method('prepare')->willReturn([]);
+		$this->importQueueService->method('hasActive')->willReturn(false);
+		$this->importQueueService->method('queue')->willReturn($this->queued(ImportJob::KIND_MOVE_IN));
+		$this->importQueueService->method('listFor')->willReturn([]);
+		$this->importQueueService->method('dismiss')->willReturn(true);
+		$this->moveFinishService->method('start')->willReturn('https://old.example/oauth/authorize');
+		$this->moveFinishService->method('status')->willReturn(['status' => 'none']);
+		$this->migrationService->method('exportCsv')->willReturn(['list.csv', "a,b\n"]);
+	}
+
+	/**
+	 * @param string[] $granted
+	 * @param string[] $other
+	 */
+	#[DataProvider('tokenRoutes')]
+	public function testATokenGrantedTheRouteScopeIsLetIn(callable $call, array $granted, array $other, int $status): void {
+		$this->servicesAnswer();
+		$this->asToken($granted);
+
+		$response = $call($this->controller(null));
+
+		$this->assertSame($status, $response->getStatus(), json_encode($response instanceof DataResponse ? $response->getData() : ''));
+	}
+
+	/**
+	 * @param string[] $granted
+	 * @param string[] $other
+	 */
+	#[DataProvider('tokenRoutes')]
+	public function testATokenWithoutTheRouteScopeIsRefusedBeforeAnythingRuns(callable $call, array $granted, array $other, int $status): void {
+		$this->asToken($other);
+		foreach ([$this->archiveService, $this->migrationService, $this->postImportService, $this->importQueueService, $this->moveInService, $this->moveFinishService] as $service) {
+			$service->expects($this->never())->method($this->anything());
+		}
+
+		$this->assertSame(Http::STATUS_FORBIDDEN, $call($this->controller(null))->getStatus());
+	}
+
+	/**
+	 * @param string[] $granted
+	 * @param string[] $other
+	 */
+	#[DataProvider('tokenRoutes')]
+	public function testTheMigrationPageIsStillLetInThroughItsSession(callable $call, array $granted, array $other, int $status): void {
+		$this->servicesAnswer();
+
+		$this->assertSame($status, $call($this->controller('alice'))->getStatus());
+	}
+
+	/**
+	 * @param string[] $granted
+	 * @param string[] $other
+	 */
+	#[DataProvider('tokenRoutes')]
+	public function testASessionWithoutItsCsrfTokenIsNobody(callable $call, array $granted, array $other, int $status): void {
+		$this->asSession('alice', false);
+
+		$response = $call(new MigrationController(
+			$this->request, $this->userSession, new NullLogger(), $this->accountService, $this->clientService,
+			'alice', $this->archiveService, $this->migrationService, $this->postImportService,
+			$this->importQueueService, $this->moveInService, $this->moveFinishService, $this->urlGenerator,
+			$this->switchService,
+		));
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+	}
+
+	/** The account a token acts for is the one that granted it, never a parameter. */
+	public function testATokenMovesInAndListsTheImportsOfItsOwnAccount(): void {
+		$this->asToken(['write', 'read'], 'bob');
+		$this->importQueueService->method('hasActive')->willReturn(false);
+		$this->moveInService->expects($this->once())->method('prepare')
+			->with('bob', '@me@old.example', true, true, true)->willReturn([]);
+		$this->importQueueService->expects($this->once())->method('queue')
+			->with('bob', ImportJob::KIND_MOVE_IN, null, [])->willReturn($this->queued(ImportJob::KIND_MOVE_IN));
+		$this->importQueueService->expects($this->once())->method('listFor')->with('bob')->willReturn([]);
+
+		$this->assertSame(Http::STATUS_ACCEPTED, $this->controller(null)->moveIn('@me@old.example')->getStatus());
+		$this->assertSame(Http::STATUS_OK, $this->controller(null)->imports()->getStatus());
+	}
+
+	/** A kind that names no list asks for all of `read`, then is not found. */
+	public function testAnUnknownCsvKindNeedsTheBroadReadBeforeItIsNotFound(): void {
+		$this->asToken(['read:follows']);
+		$this->assertSame(Http::STATUS_FORBIDDEN, $this->controller(null)->exportCsv('likes')->getStatus());
+
+		$this->asToken(['read']);
+		$this->migrationService->method('exportCsv')->willThrowException(new InvalidResourceException('no such list'));
+		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller(null)->exportCsv('likes')->getStatus());
 	}
 }
