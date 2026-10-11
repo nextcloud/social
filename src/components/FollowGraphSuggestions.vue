@@ -14,8 +14,7 @@
 			description of an empty graph.
 		-->
 		<p v-if="needs > 0" class="graph__hint">
-			{{ n('social', 'Follow one more account and this can look at who they follow.',
-				'Follow {count} more accounts and this can look at who they follow.', needs, { count: needs }) }}
+			{{ needsHint }}
 		</p>
 
 		<template v-else>
@@ -140,6 +139,11 @@ export default {
 		/** @return {string} the reader's own face, for the middle of the sky */
 		youAvatar() {
 			return this.accountStore.currentAccount?.avatar ?? ''
+		},
+
+		/** @return {string} how many more follows it takes, as one plural the extractor finds */
+		needsHint() {
+			return n('social', 'Follow one more account and this can look at who they follow.', 'Follow {count} more accounts and this can look at who they follow.', this.needs, { count: this.needs })
 		},
 	},
 
