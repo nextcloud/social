@@ -105,9 +105,21 @@ test.describe('writing, in a browser', () => {
 		await openApp(page)
 		const text = `draft that must survive ${Date.now()}`
 
+		// a draft an earlier run left in this browser's storage would be put
+		// back into the box and replace it while it is typed into: the test
+		// starts from none. The composer reads it when it opens, below
+		await page.evaluate(() => {
+			for (const key of Object.keys(window.localStorage)) {
+				if (key.startsWith('social.composer.draft')) {
+					window.localStorage.removeItem(key)
+				}
+			}
+		})
+
 		await page.locator('.navigation__compose').click()
 		const composer = page.locator('.modal-composer')
 		await expect(composer).toBeVisible()
+		await expect(composer.locator('.message')).toBeEmpty()
 		await composer.locator('.message').click()
 		await page.keyboard.type(text)
 
