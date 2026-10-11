@@ -992,6 +992,19 @@ baseline from what the pages show now:
 A11Y_UPDATE_BASELINE=1 E2E_BASE_URL=… E2E_USER=… E2E_PASSWORD=… npm run test:e2e -- accessibility.spec.mjs
 ```
 
+`pseudo-locale.spec.mjs` reads the app in `en_XA`, a pseudo-locale that
+`tests/e2e/pseudo-locale.mjs` writes from the strings in the source: each one
+accented, a third longer and in brackets (`[Šéţţîñĝš ~]`). It fails on plain
+English inside the app, which is text that never went through `t()` or `n()`,
+and on pages that no longer fit, on a desktop and on a phone. The workflow runs
+it weekly and on demand; by hand:
+
+```
+node tests/e2e/pseudo-locale.mjs        # writes l10n/en_XA.json and .js
+occ user:setting alice core lang en_XA
+E2E_PSEUDO_LOCALE=1 E2E_BASE_URL=… E2E_USER=alice E2E_PASSWORD=… npm run test:e2e -- pseudo-locale.spec.mjs
+```
+
 ## 🛠️ Contributing
 
 - Contributions welcome — open a pull request and run the build and tests locally
