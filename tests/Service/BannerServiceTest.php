@@ -48,7 +48,9 @@ class BannerServiceTest extends TestCase {
 	private ActorService|MockObject $actorService;
 	private CacheActorService|Stub $cacheActorService;
 	private MediaPurgeService|MockObject $mediaPurgeService;
+	private Person $alice;
 	private Person $cached;
+	private ActivityService|MockObject $activityService;
 	private BannerService $service;
 
 	protected function setUp(): void {
@@ -57,6 +59,8 @@ class BannerServiceTest extends TestCase {
 		$alice = new Person();
 		$alice->setId(self::ACTOR);
 		$alice->setPreferredUsername('alice');
+		$alice->setPrivateKey('-----BEGIN PRIVATE KEY-----KEY-----END PRIVATE KEY-----');
+		$this->alice = $alice;
 
 		$this->cached = new Person();
 		$this->cached->setId(self::ACTOR);
@@ -69,6 +73,7 @@ class BannerServiceTest extends TestCase {
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
 		$this->cacheActorService->method('getFromId')->willReturnCallback(fn (): Person => $this->cached);
 		$this->mediaPurgeService = $this->createMock(MediaPurgeService::class);
+		$this->activityService = $this->createMock(ActivityService::class);
 		$configService = $this->createStub(ConfigService::class);
 		$configService->method('getCloudUrl')->willReturn('https://cloud.example/');
 
@@ -78,7 +83,7 @@ class BannerServiceTest extends TestCase {
 			$this->cacheActorService,
 			$this->createStub(CacheDocumentService::class),
 			$this->mediaPurgeService,
-			$this->createStub(ActivityService::class),
+			$this->activityService,
 			$configService,
 			$this->createStub(IURLGenerator::class),
 			new NullLogger(),
@@ -96,6 +101,27 @@ class BannerServiceTest extends TestCase {
 		$this->service->remove('alice');
 
 		$this->assertSame('', $this->cached->getHeader());
+	}
+
+	/**
+	 * The cached copy of the account is what the Update carries, and it holds
+	 * no key: signed with it, the Update went out with no signature of its
+	 * own, and a PHP warning in the log for every banner change.
+	 */
+	public function testTheBannerChangeIsSignedWithTheAccountsOwnKey(): void {
+		$signers = [];
+		$this->activityService->method('updateActivity')
+			->willReturnCallback(function (Person $actor, Person $update) use (&$signers): string {
+				$signers[] = [$actor, $update->getId()];
+
+				return '';
+			});
+
+		$this->service->remove('alice');
+
+		$this->assertCount(1, $signers);
+		$this->assertSame($this->alice, $signers[0][0]);
+		$this->assertSame(self::ACTOR, $signers[0][1]);
 	}
 
 	public function testRemovingABannerNobodySetIsANoOp(): void {
