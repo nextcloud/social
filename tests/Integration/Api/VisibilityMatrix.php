@@ -280,9 +280,10 @@ final class VisibilityMatrix {
 				default => self::EITHER,
 			},
 			'list' => match (true) {
+				$post === 'quote' && $muted => self::EITHER,
 				$muted => false,
 				!$followsOwner => false,
-				$post === 'direct', $post === 'quote' => self::EITHER,
+				$post === 'direct' => self::EITHER,
 				default => true,
 			},
 			'search_statuses', 'unified_search' => self::EITHER,
