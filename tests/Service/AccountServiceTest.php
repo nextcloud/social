@@ -606,6 +606,8 @@ class AccountServiceTest extends TestCase {
 		$lastNote->setPublishedTime(mktime(12, 0, 0, 9, 1, 2026));
 		$this->streamRequest->method('lastNoteFromActorId')->with(self::ALICE)->willReturn($lastNote);
 		$this->actorService->expects($this->once())->method('cacheLocalActor')->with($this->identicalTo($alice));
+		// the copy memoised for the request is the old one once the new one is written
+		$this->cacheActorService->expects($this->once())->method('forget')->with(self::ALICE);
 
 		$this->service->cacheLocalActorByUsername('alice');
 

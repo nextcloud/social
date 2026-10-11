@@ -928,6 +928,10 @@ class AccountService {
 			// is carried over by ActorService::cacheLocalActor().
 			$this->addLocalActorDetailCount($actor);
 			$this->actorService->cacheLocalActor($actor);
+			// and the copy memoised for this request is the old one: a later
+			// read in the same request — a name changed, then shown — gets
+			// the new copy
+			$this->cacheActorService->forget($actor->getId());
 		} catch (ActorDoesNotExistException $e) {
 			// every caller has an account in hand and passes its handle, so
 			// there is no ordinary case for this: swallowing it in silence hid
