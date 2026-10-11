@@ -37,13 +37,13 @@ describe('mentionTributeOptions', () => {
 		vi.mocked(axios.get).mockReset()
 	})
 
-	it('offers accounts with the picture each one has', async () => {
+	it('offers accounts with the picture this server has for each', async () => {
 		vi.mocked(axios.get).mockResolvedValue({
 			data: {
 				result: {
 					accounts: [
-						{ preferredUsername: 'alice', account: 'alice@cloud.example', url: 'https://cloud.example/@alice', local: true, id: 'https://cloud.example/users/alice' },
-						{ preferredUsername: 'bob', account: 'bob@remote.example', url: 'https://remote.example/@bob', local: false, id: 'https://remote.example/users/bob', icon: { url: 'https://remote.example/avatar.png' } },
+						{ id: '1', username: 'alice', acct: 'alice', url: 'https://cloud.example/users/alice', avatar: 'https://cloud.example/avatar/alice/128' },
+						{ id: '2', username: 'bob', acct: 'bob@remote.example', url: 'https://remote.example/users/bob', avatar: 'https://cloud.example/apps/social/media/b0b.png' },
 					],
 				},
 			},
@@ -54,19 +54,17 @@ describe('mentionTributeOptions', () => {
 
 		expect(axios.get).toHaveBeenCalledWith('/apps/social/api/v1/global/accounts/search', { params: { search: 'a' } })
 		expect(shown).toEqual([
-			{ key: 'alice', value: 'alice@cloud.example', url: 'https://cloud.example/@alice', avatar: '//avatar/alice/32' },
-			{ key: 'bob', value: 'bob@remote.example', url: 'https://remote.example/@bob', avatar: '/apps/social/api/v1/global/actor/avatar?id=https%3A%2F%2Fremote.example%2Fusers%2Fbob' },
+			{ key: 'alice', value: 'alice', url: 'https://cloud.example/users/alice', avatar: 'https://cloud.example/avatar/alice/128' },
+			{ key: 'bob', value: 'bob@remote.example', url: 'https://remote.example/users/bob', avatar: 'https://cloud.example/apps/social/media/b0b.png' },
 		])
 	})
 
-	/** A Bluesky result is not stored here, so the cached-avatar route has nothing for it. */
-	it('shows the picture a Bluesky result carries, and mentions it by its bare handle', async () => {
+	it('mentions a Bluesky account by its bare handle', async () => {
 		vi.mocked(axios.get).mockResolvedValue({
 			data: {
 				result: {
 					accounts: [
-						{ preferredUsername: 'dana.bsky.social', account: 'dana.bsky.social', url: 'https://bsky.app/profile/dana.bsky.social', local: false, id: 'https://bsky.app/profile/did:plc:d', icon: { url: 'https://cdn.bsky.app/img/avatar/plain/did:plc:d/abc@jpeg' } },
-						{ preferredUsername: 'bob', account: 'bob@remote.example', url: 'https://remote.example/@bob', local: false, id: 'https://remote.example/users/bob' },
+						{ id: '3', username: 'dana.bsky.social', acct: 'dana.bsky.social', url: 'https://bsky.app/profile/did:plc:d', avatar: 'https://cloud.example/apps/social/img/avatar-missing.png' },
 					],
 				},
 			},
@@ -75,10 +73,8 @@ describe('mentionTributeOptions', () => {
 
 		const shown = await lookUp(mention, 'dana.b')
 
-		expect(shown[0].avatar).toBe('https://cdn.bsky.app/img/avatar/plain/did:plc:d/abc@jpeg')
-		expect(shown[1].avatar).toBe('/apps/social/api/v1/global/actor/avatar?id=https%3A%2F%2Fremote.example%2Fusers%2Fbob')
 		expect(mention.selectTemplate({ original: shown[0] })).toContain('@dana.bsky.social</a>')
-		expect(mention.selectTemplate({ original: shown[0] })).toContain('src="https://cdn.bsky.app/img/avatar/plain/did:plc:d/abc@jpeg"')
+		expect(mention.selectTemplate({ original: shown[0] })).toContain('src="https://cloud.example/apps/social/img/avatar-missing.png"')
 	})
 
 	it('offers the exact hashtag first, then the others', async () => {

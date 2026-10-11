@@ -857,7 +857,7 @@ cannot be loaded.
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
-| GET | `/api/v1/global/accounts/search` | user | `search` (required) | `{"result": {"accounts": [...], "exact": <actor or null>}, "status": 1}`. A leading `@` is stripped; an empty query returns empty lists. |
+| GET | `/api/v1/global/accounts/search` | user | `search` (required) | `{"result": {"accounts": [...], "exact": <account or null>}, "status": 1}`, each a Mastodon `Account` entity (a remote bio sanitised, no copy of the cached actor document). A leading `@` is stripped; an empty query returns empty lists. |
 | GET | `/api/v1/global/tags/search` | user | `search` (required) | `{"result": {"tags": [...], "exact": <tag or null>}, "status": 1}`. A leading `#` is stripped. |
 
 ### Pagination

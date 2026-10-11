@@ -892,14 +892,60 @@ class LocalControllerTest extends TestCase {
 	public function testGlobalAccountsSearchStripsTheAtAndReturnsExactMatch(): void {
 		$this->actorForUser();
 		$exact = $this->createMock(Person::class);
-		$exact->expects($this->once())->method('setCompleteDetails')->with(true);
+		$exact->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
 		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example', false)->willReturn($exact);
-		$this->cacheActorService->method('searchCachedAccounts')->with('bob@remote.example')->willReturn(['a1', 'a2']);
+		$this->cacheActorService->method('searchCachedAccounts')->with('bob@remote.example')->willReturn([]);
 
 		$this->assertSuccess(
 			$this->controller()->globalAccountsSearch('@bob@remote.example'),
-			['accounts' => ['a1', 'a2'], 'exact' => $exact]
+			['accounts' => [], 'exact' => $exact]
 		);
+	}
+
+	/** A cached remote actor, as its row comes back from the database. */
+	private function cachedRemoteActor(): Person {
+		$person = new Person();
+		$person->importFromDatabase([
+			'nid' => '42',
+			'id' => 'https://remote.example/users/bob',
+			'type' => 'Person',
+			'preferred_username' => 'bob',
+			'account' => 'bob@remote.example',
+			'name' => 'Bob',
+			'summary' => '<p>Hi<img src="x" onerror="alert(1)"></p>',
+			'source' => '{"type":"Person","id":"https://remote.example/users/bob","endpoints":{"sharedInbox":"https://remote.example/inbox"}}',
+		]);
+
+		return $person;
+	}
+
+	/**
+	 * The search answers with Account entities, the shape every other route
+	 * serves an account in: a remote bio is the sanitised one, and the actor
+	 * document the account was cached from is not part of the answer.
+	 */
+	public function testGlobalAccountsSearchServesAccountEntities(): void {
+		$urlGenerator = $this->createStub(\OCP\IURLGenerator::class);
+		$urlGenerator->method('linkToRouteAbsolute')->willReturn('https://cloud.example/route');
+		$urlGenerator->method('imagePath')->willReturn('/apps/social/img/placeholder.png');
+		$urlGenerator->method('getAbsoluteURL')->willReturnArgument(0);
+		\OC::$server->register(\OCP\IURLGenerator::class, $urlGenerator);
+		$this->actorForUser();
+		$this->cacheActorService->method('getFromAccount')->willReturn($this->cachedRemoteActor());
+		$this->cacheActorService->method('searchCachedAccounts')->willReturn([$this->cachedRemoteActor()]);
+
+		$response = $this->controller()->globalAccountsSearch('bob@remote.example');
+		$result = json_decode((string)json_encode($response->getData()), true)['result'];
+
+		foreach (['found' => $result['accounts'][0], 'exact' => $result['exact']] as $which => $account) {
+			$this->assertSame('42', $account['id'], $which);
+			$this->assertSame('bob@remote.example', $account['acct'], $which);
+			$this->assertSame('bob', $account['username'], $which);
+			$this->assertStringContainsString('Hi', $account['note'], $which);
+			$this->assertStringNotContainsString('onerror', (string)json_encode($account), $which);
+			$this->assertArrayNotHasKey('source', $account, $which);
+			$this->assertStringNotContainsString('sharedInbox', (string)json_encode($account), $which);
+		}
 	}
 
 	public function testGlobalAccountsSearchWithoutExactMatch(): void {

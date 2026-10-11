@@ -26,16 +26,6 @@ function searchHashtags(text) {
 }
 
 /**
- * Whether an actor id is a Bluesky account's, `https://bsky.app/profile/<did>`.
- *
- * @param {string} id the actor id
- * @return {boolean}
- */
-function isBlueskyId(id) {
-	return typeof id === 'string' && id.startsWith('https://bsky.app/profile/did:')
-}
-
-/**
  * The composer's @ and # autocomplete, as tributejs is configured.
  *
  * What the menus draw comes from other servers, so every value goes through
@@ -69,17 +59,13 @@ export function mentionTributeOptions() {
 
 					const response = await searchAccounts(text)
 
-					// a Bluesky account the picker offers is not stored here, so
-					// the route that serves cached avatars has none for it; the
-					// picture the result carries is the one to show. Every other
-					// remote account keeps the route, which serves the cached copy
+					// Mastodon Account entities, whose avatar is already the
+					// address to draw: this server's copy, or its placeholder
 					const users = response.data.result.accounts.map((user) => ({
-						key: user.preferredUsername,
-						value: user.account,
+						key: user.username,
+						value: user.acct,
 						url: user.url,
-						avatar: user.local
-							? generateUrl('/avatar/{user}/32', { user: user.preferredUsername })
-							: (isBlueskyId(user.id) && user.icon?.url) || generateUrl('apps/social/api/v1/global/actor/avatar?id={id}', { id: user.id }),
+						avatar: user.avatar,
 					}))
 
 					logger.debug('Found accounts for a mention', { count: users.length })

@@ -836,6 +836,10 @@ class LocalController extends Controller {
 	}
 
 	/**
+	 * Accounts known here by a name or handle, as Mastodon Account entities:
+	 * the same shape every other route serves an account in, with a remote
+	 * bio sanitised and no copy of the actor document it was cached from.
+	 *
 	 * @throws Exception
 	 */
 	#[NoAdminRequired]
@@ -855,7 +859,7 @@ class LocalController extends Controller {
 		$match = null;
 		try {
 			$match = $this->cacheActorService->getFromAccount($search, false);
-			$match->setCompleteDetails(true);
+			$match->setExportFormat(ACore::FORMAT_LOCAL);
 		} catch (Exception $e) {
 		}
 
@@ -863,6 +867,9 @@ class LocalController extends Controller {
 			$accounts = $this->cacheActorService->searchCachedAccounts($search);
 			if ($this->blueskySearch !== null) {
 				$accounts = SearchService::withBluesky($accounts, $this->blueskySearch->typeahead($search));
+			}
+			foreach ($accounts as $account) {
+				$account->setExportFormat(ACore::FORMAT_LOCAL);
 			}
 
 			return $this->success(['accounts' => $accounts, 'exact' => $match]);
