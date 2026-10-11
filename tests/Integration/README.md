@@ -108,6 +108,10 @@ to stop.
 - `Migration/RowBackfillMigrationsTest` — the upgrade steps that fill rows
   (recipient nids, `media_kind`, `news_kind`, OAuth authorizations moved to
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
+- `Migration/UpgradeFromOldReleasesTest` — the squash and
+  `Version1000Date20261011500100` on tables put back in the shape a release
+  before 0.23 left: duplicate follow pairs removed before the pair is made
+  unique, the indexes the history dropped dropped, a second run a no-op.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
 - `QueryCounter` / `QueryCounterTest` — records every statement the server's
@@ -175,6 +179,9 @@ to stop.
   progress and lookup by direction, the PLC operation log in order with what is
   unconfirmed, firehose rows numbered in order with their bytes whole and pruned
   past the window, the instance blocklist and labeler subscriptions added once.
+- `Atproto/ListReposQueryBudgetTest` — `com.atproto.sync.listRepos` asks for a
+  page's identities and suspended accounts at once: a page of fifty costs the
+  queries a page of five does, and a suspended account is listed `takendown`.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

@@ -345,8 +345,14 @@ previous commit as the repository's head: the `social_atproto_repo` row
 A picture or video that a record references is a **blob**: uploaded (§8.4)
 or imported (§13), it is the app's own stored file (`social_cache_doc`,
 through `DocumentService`) with a `social_atproto_blob` row giving its CID
-(SHA-256 of the bytes, `raw` multicodec), MIME type and size. `getBlob`
-streams it; `listBlobs` lists them per repository; a blob no record refers
+(SHA-256 of the bytes, `raw` multicodec), MIME type and size. The MIME
+type is the one the bytes are, never the one an upload declared, and
+anything but a picture, a video or a sound is kept as
+`application/octet-stream`. `getBlob` streams it with
+`Content-Security-Policy: default-src 'none'; sandbox` and
+`X-Content-Type-Options: nosniff`, and anything but a picture, a video or
+a sound as `application/octet-stream` with `Content-Disposition:
+attachment`; `listBlobs` lists them per repository; a blob no record refers
 to is deleted by the ordinary document retention. Limits are Bluesky's:
 pictures ≤ 2,000,000 bytes (re-encoded to fit, §8.4), at most four per
 post; a video is one mp4 ≤ 100,000,000 bytes and three minutes, made into
@@ -1530,7 +1536,10 @@ each for a reason:
   routed address the runner answers on its loopback) and the test treats it
   as evidence when it is there.
 - **Suspension** leaves the identity alone (it can be lifted, and nothing is
-  told); deletion tombstones the DID.
+  told on the firehose); while it stands the repository reads answer
+  `RepoTakendown` and `getRepoStatus` and `listRepos` say `takendown`.
+  Deletion tombstones the DID; the reads of its repository answer
+  `RepoNotFound` and `getRepoStatus` says `deleted`.
 
 ### Phase 2 as built
 
@@ -1935,7 +1944,9 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   first among the rotation keys, so the DID stays theirs; this server's key
   is no longer listed — then `activateAccount` there. Here the identity is
   `moved_away`, announced inactive on the firehose, and nothing more is
-  published; no new identity is made for the account.
+  published; no new identity is made for the account. The repository reads
+  here answer `RepoDeactivated`, and `getRepoStatus` and `listRepos` say
+  `deactivated`, as a Bluesky PDS does for an account that moved off it.
 - **A step that fails stops the move**, and *Try again* starts it from that
   step. The DID moves only once the repository and the blobs are there, and
   a hand-over the directory refused is not left for the PLC repair pass:

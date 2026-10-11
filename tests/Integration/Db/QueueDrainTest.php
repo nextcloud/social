@@ -137,8 +137,11 @@ class QueueDrainTest extends TestCase {
 		$this->assertSame([], $this->drained());
 		// the row's last attempt was 100000 s ago -- a day and a bit, well
 		// inside the seven-day retention
-		$this->assertSame(0, $this->requestQueue->deleteFinished(time() - RequestQueueService::RETENTION_SECONDS), 'still within the retention');
-		$this->assertSame(1, $this->requestQueue->deleteFinished(time() + 60), 'purged once it has passed');
+		// counted by this test's rows: the purge is of every finished row
+		$this->requestQueue->deleteFinished(time() - RequestQueueService::RETENTION_SECONDS);
+		$this->assertSame(1, $this->countRows(CoreRequestBuilder::TABLE_REQUEST_QUEUE), 'still within the retention');
+		$this->requestQueue->deleteFinished(time() + 60);
+		$this->assertSame(0, $this->countRows(CoreRequestBuilder::TABLE_REQUEST_QUEUE), 'purged once it has passed');
 	}
 
 	public function testTheMostUrgentRequestIsDrainedFirst(): void {

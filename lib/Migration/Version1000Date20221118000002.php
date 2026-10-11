@@ -11,7 +11,9 @@ namespace OCA\Social\Migration;
 
 use Closure;
 use OCP\DB\ISchemaWrapper;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\DB\Types;
+use OCP\IDBConnection;
 use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
@@ -35,7 +37,18 @@ use OCP\Migration\SimpleMigrationStep;
  * half-upgraded one, and does nothing at all on an instance that is already
  * current. A column that already exists is left as it is: where the history
  * changed a column after creating it, an instance that created it before the
- * change needs a step of its own (`Version1000Date20261009500100`).
+ * change needs a step of its own (`Version1000Date20261009500100`,
+ * `Version1000Date20261011500100`). Three of those changes cannot wait for a
+ * later step and are made here, on a table that exists:
+ *
+ *  - `social_follow` is cleared of duplicate (object, actor) pairs before
+ *    `social_f_oa_u` makes the pair unique (`preSchemaChange()`); an index
+ *    added over rows that violate it fails the upgrade.
+ *  - `social_client.app_client_secret` is widened to 127 characters before
+ *    `Version1000Date20261008000100` writes 71-character digests into it.
+ *  - `social_stream_dest.id` and `social_stream_tag.id` are added as their
+ *    primary key; MySQL refuses an autoincrement column that is not
+ *    a key.
  *
  * **The name is a sort key, not a date.** Nextcloud runs migrations in version
  * order, and this one has to run before the six that remain — each of those
@@ -47,6 +60,48 @@ use OCP\Migration\SimpleMigrationStep;
  * and rewrite rows, which no schema can express and this cannot replace.
  */
 class Version1000Date20221118000002 extends SimpleMigrationStep {
+	/** Duplicate follow pairs read per round trip. */
+	private const CHUNK = 500;
+
+	public function __construct(
+		private IDBConnection $connection,
+	) {
+	}
+
+	/**
+	 * Removes duplicate (object, actor) pairs from `social_follow` on an
+	 * instance that does not have `social_f_oa_u` yet.
+	 *
+	 * The unique indexes the table was created with lead with `accepted`, so a
+	 * pair could exist once pending and once accepted. Of each pair the
+	 * accepted row is kept, since that is the follow both servers believe in,
+	 * then the lowest `id_prim`.
+	 *
+	 * @param Closure(): ISchemaWrapper $schemaClosure
+	 */
+	#[\Override]
+	public function preSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
+		$schema = $schemaClosure();
+		if (!$schema->hasTable('social_follow') || $schema->getTable('social_follow')->hasIndex('social_f_oa_u')) {
+			return;
+		}
+
+		$removed = 0;
+		while (($pairs = $this->duplicateFollowPairs()) !== []) {
+			$before = $removed;
+			foreach ($pairs as $pair) {
+				$removed += $this->keepOneFollow((string)$pair['object_id_prim'], (string)$pair['actor_id_prim']);
+			}
+			if ($removed === $before) {
+				break;
+			}
+		}
+
+		if ($removed > 0) {
+			$output->info(sprintf('removed %d duplicate follow row(s): the same pair existed both pending and accepted', $removed));
+		}
+	}
+
 	/**
 	 * @param IOutput $output
 	 * @param Closure(): ISchemaWrapper $schemaClosure
@@ -465,6 +520,8 @@ class Version1000Date20221118000002 extends SimpleMigrationStep {
 			}
 			if (!$table->hasColumn('app_client_secret')) {
 				$table->addColumn('app_client_secret', Types::STRING, ['default' => '', 'length' => 127, 'notnull' => false]);
+			} elseif (($table->getColumn('app_client_secret')->getLength() ?? 0) < 127) {
+				$table->getColumn('app_client_secret')->setLength(127);
 			}
 			if (!$table->hasColumn('app_scopes')) {
 				$table->addColumn('app_scopes', Types::TEXT, ['notnull' => false]);
@@ -1056,6 +1113,7 @@ class Version1000Date20221118000002 extends SimpleMigrationStep {
 			}
 			if (!$table->hasColumn('id')) {
 				$table->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'length' => 11, 'notnull' => true, 'unsigned' => true]);
+				$table->setPrimaryKey(['id']);
 			}
 			if (!$table->hasColumn('nid')) {
 				$table->addColumn('nid', Types::BIGINT, ['default' => 0, 'length' => 11, 'notnull' => false]);
@@ -1129,6 +1187,7 @@ class Version1000Date20221118000002 extends SimpleMigrationStep {
 			}
 			if (!$table->hasColumn('id')) {
 				$table->addColumn('id', Types::BIGINT, ['autoincrement' => true, 'length' => 11, 'notnull' => true, 'unsigned' => true]);
+				$table->setPrimaryKey(['id']);
 			}
 			if (!$table->hasIndex('sh')) {
 				$table->addUniqueIndex(['stream_id', 'hashtag'], 'sh');
@@ -3012,5 +3071,57 @@ class Version1000Date20221118000002 extends SimpleMigrationStep {
 		}
 
 		return $schema;
+	}
+
+	/**
+	 * Pairs that exist more than once.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private function duplicateFollowPairs(): array {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('object_id_prim', 'actor_id_prim')
+			->from('social_follow')
+			->where($qb->expr()->isNotNull('object_id_prim'))
+			->andWhere($qb->expr()->isNotNull('actor_id_prim'))
+			->groupBy('object_id_prim', 'actor_id_prim')
+			->having($qb->expr()->gt($qb->func()->count('*'), $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
+			->setMaxResults(self::CHUNK);
+
+		$cursor = $qb->executeQuery();
+		$rows = $cursor->fetchAll();
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/**
+	 * Keeps one row of a pair, the accepted one where there is one, and
+	 * deletes the rest.
+	 *
+	 * @return int how many were deleted
+	 */
+	private function keepOneFollow(string $objectPrim, string $actorPrim): int {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('id_prim')
+			->from('social_follow')
+			->where($qb->expr()->eq('object_id_prim', $qb->createNamedParameter($objectPrim)))
+			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($actorPrim)))
+			->orderBy('accepted', 'desc')
+			->addOrderBy('id_prim', 'asc');
+
+		$cursor = $qb->executeQuery();
+		$rows = $cursor->fetchAll();
+		$cursor->closeCursor();
+
+		$deleted = 0;
+		foreach (array_slice($rows, 1) as $row) {
+			$delete = $this->connection->getQueryBuilder();
+			$delete->delete('social_follow')
+				->where($delete->expr()->eq('id_prim', $delete->createNamedParameter((string)$row['id_prim'])));
+			$deleted += $delete->executeStatement();
+		}
+
+		return $deleted;
 	}
 }

@@ -33,8 +33,10 @@ use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Atproto\Xrpc\XrpcService;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoEventRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\ModerationService;
 use OCA\Social\Tests\Atproto\Repository\InMemoryRepoRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IDBConnection;
@@ -57,6 +59,7 @@ use PHPUnit\Framework\TestCase;
 class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 	private const ALICE = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
 	private const BOB = 'did:plc:z72i7hdynmk6r22z27h6tvur';
+	private const DAVE = 'did:plc:vwzwgnygau7ed7b7wt5ux7y2';
 	private const GENERIC_ERRORS = ['InvalidRequest', 'AuthenticationRequired', 'MethodNotImplemented', 'InternalServerError', 'UpgradeRequired'];
 
 	private static ?string $outputs = null;
@@ -107,6 +110,8 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 			$identity->did,
 			PlcOperation::build([PrivateKey::generate(Curve::K256)->publicKey()->didKey()], $identity->signingPublic, $identity->handle, 'https://social.example.com', null),
 		));
+		$identityRequest = $this->createMock(AtprotoIdentityRequest::class);
+		$identityRequest->method('getByDids')->willReturnCallback(fn (array $dids): array => array_intersect_key($this->identities, array_flip($dids)));
 		$blobRequest = $this->createMock(AtprotoBlobRequest::class);
 		$blobRequest->method('list')->willReturnCallback(fn (string $did, int $limit, string $cursor): array => array_slice(
 			array_values(array_filter($this->blobs, static fn (BlobRef $blob): bool => $blob->did === $did && strcmp($blob->cid->toString(), $cursor) > 0)),
@@ -120,10 +125,11 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 		$configService->method('getAppValue')->willReturn('0.26.180');
 		$configService->method('getCloudUrl')->willReturn('https://social.example.com');
 
-		$this->xrpc = new XrpcService($config, $identities, $this->repositories, $this->store, $blobRequest, $pictures, $this->createMock(VideoBlobService::class), $configService);
+		$this->xrpc = new XrpcService($config, $identities, $this->repositories, $this->store, $blobRequest, $pictures, $this->createMock(VideoBlobService::class), $configService, $this->createMock(ModerationService::class), $identityRequest);
 
 		$this->identities[self::ALICE] = $this->identity(self::ALICE, 'alice.social.example.com', Identity::STATE_ACTIVE);
 		$this->identities[self::BOB] = $this->identity(self::BOB, 'bob.social.example.com', Identity::STATE_DEACTIVATED);
+		$this->identities[self::DAVE] = $this->identity(self::DAVE, 'dave.social.example.com', Identity::STATE_MOVED_AWAY);
 		$key = PrivateKey::generate(Curve::K256);
 		$this->repositories->write(self::ALICE, $key, [
 			RepoWrite::create('app.bsky.actor.profile', ['$type' => 'app.bsky.actor.profile', 'displayName' => 'Alice', 'createdAt' => '2026-10-08T10:00:00.000Z'], '', 'self'),
@@ -148,6 +154,7 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 			'getLatestCommit' => ['com.atproto.sync.getLatestCommit', $alice],
 			'getRepoStatus, active' => ['com.atproto.sync.getRepoStatus', $alice],
 			'getRepoStatus, deactivated' => ['com.atproto.sync.getRepoStatus', ['did' => self::BOB]],
+			'getRepoStatus, moved away' => ['com.atproto.sync.getRepoStatus', ['did' => self::DAVE]],
 			'listBlobs' => ['com.atproto.sync.listBlobs', $alice],
 			'listBlobs, a page' => ['com.atproto.sync.listBlobs', $alice + ['limit' => '2']],
 			'listRepos' => ['com.atproto.sync.listRepos', []],
@@ -263,6 +270,11 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 			'listRecords of something not a collection' => ['com.atproto.repo.listRecords', ['repo' => self::ALICE, 'collection' => 'not a collection'], 400],
 			'resolveHandle without a handle' => ['com.atproto.identity.resolveHandle', [], 400],
 			'resolveHandle of a handle not here' => ['com.atproto.identity.resolveHandle', ['handle' => 'carol.social.example.com'], 400],
+			'getRepo of a deactivated account' => ['com.atproto.sync.getRepo', ['did' => self::BOB], 400],
+			'getLatestCommit of a deactivated account' => ['com.atproto.sync.getLatestCommit', ['did' => self::BOB], 400],
+			'sync.getRecord of a deactivated account' => ['com.atproto.sync.getRecord', ['did' => self::BOB, 'collection' => 'app.bsky.feed.post', 'rkey' => '3kznmn7xqxl25'], 400],
+			'getBlob of an account that moved away' => ['com.atproto.sync.getBlob', ['did' => self::DAVE, 'cid' => 'bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy'], 400],
+			'listBlobs of an account that moved away' => ['com.atproto.sync.listBlobs', ['did' => self::DAVE], 400],
 			'resolveHandle of a deactivated account' => ['com.atproto.identity.resolveHandle', ['handle' => 'bob.social.example.com'], 400],
 		];
 	}

@@ -69,6 +69,8 @@ class MoveInServiceTest extends TestCase {
 	private PrivateKey $rotation;
 	private string $car;
 	private string $blob = 'a picture, byte for byte';
+	/** what the stored document's bytes turned out to be */
+	private string $sniffed = 'image/png';
 	private Identity $current;
 	/** @var IdentityService&MockObject */
 	private IdentityService $identities;
@@ -134,7 +136,7 @@ class MoveInServiceTest extends TestCase {
 			$this->assertSame($this->blob, file_get_contents($path), 'stored as it came');
 			$document = new Document();
 			$document->setId('https://social.test/documents/local/9');
-			$document->setMimeType('image/png');
+			$document->setMimeType($this->sniffed);
 
 			return $document;
 		});
@@ -227,6 +229,18 @@ class MoveInServiceTest extends TestCase {
 		$this->assertSame(Move::STEP_CODE, $this->rows[1]->step);
 		$this->assertContains('com.atproto.identity.requestPlcOperationSignature', $this->methods());
 		$this->assertNotContains('com.atproto.identity.signPlcOperation', $this->methods(), 'nothing signed without the code');
+	}
+
+	/**
+	 * A blob copied from the old server keeps the type of its bytes when it
+	 * is a picture, a video or a sound, and is opaque bytes otherwise.
+	 */
+	public function testABlobThatIsNotAMediaFileIsKeptAsOpaqueBytes(): void {
+		$this->sniffed = 'text/plain';
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->blobs->expects($this->once())->method('put')->with($this->callback(fn (BlobRef $blob): bool => $blob->mime === 'application/octet-stream'));
+
+		$this->moves->run($this->rows[1]);
 	}
 
 	public function testWithTheCodeTheDidMovesHere(): void {

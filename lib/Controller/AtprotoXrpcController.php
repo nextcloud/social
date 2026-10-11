@@ -195,13 +195,16 @@ class AtprotoXrpcController extends Controller {
 			if ($result->length >= 0) {
 				$headers['Content-Length'] = (string)$result->length;
 			}
-			$response = new StreamedRemoteResponse($result->stream, $result->status, $headers);
+			$response = new StreamedRemoteResponse($result->stream, $result->status, $result->headers + $headers);
 			$response->cacheFor(60, false, true);
 
 			return $this->cors($response);
 		}
 		if ($result instanceof XrpcBytes) {
 			$response = new DataDisplayResponse($result->bytes, $result->status, ['Content-Type' => $result->contentType]);
+			foreach ($result->headers as $name => $value) {
+				$response->addHeader($name, $value);
+			}
 			if ($result->status === Http::STATUS_OK) {
 				$response->cacheFor(60, false, true);
 			}

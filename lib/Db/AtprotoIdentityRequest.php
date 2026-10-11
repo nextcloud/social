@@ -69,6 +69,29 @@ class AtprotoIdentityRequest extends CoreRequestBuilder {
 	}
 
 	/**
+	 * The identities of these DIDs that are here: one query per 500 of them.
+	 *
+	 * @param string[] $dids
+	 * @return array<string, Identity> by DID
+	 */
+	public function getByDids(array $dids): array {
+		$identities = [];
+		foreach (array_chunk(array_values(array_unique($dids)), 500) as $chunk) {
+			$qb = $this->getQueryBuilder();
+			$qb->select(...self::FIELDS)->from(self::TABLE_ATPROTO_IDENTITY)
+				->where($qb->expr()->in('did', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)));
+			$cursor = $qb->executeQuery();
+			while ($row = $cursor->fetch()) {
+				$identity = $this->identity($row);
+				$identities[$identity->did] = $identity;
+			}
+			$cursor->closeCursor();
+		}
+
+		return $identities;
+	}
+
+	/**
 	 * @throws AtprotoIdentityNotFoundException
 	 */
 	public function getByHandle(string $handle): Identity {

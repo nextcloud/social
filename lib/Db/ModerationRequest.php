@@ -201,6 +201,37 @@ class ModerationRequest extends CoreRequestBuilder {
 		return $ids;
 	}
 
+	/**
+	 * Which of these accounts are under a decision at this level: one query
+	 * per 500 of them, for a page of accounts.
+	 *
+	 * @param string[] $actorIds
+	 * @return array<string, true> actor id => true
+	 */
+	public function amongAt(array $actorIds, string $level): array {
+		$found = [];
+		foreach (array_chunk(array_values(array_unique($actorIds)), 500) as $chunk) {
+			$qb = $this->getQueryBuilder();
+			$prims = array_values(array_filter(array_map(static fn (string $id): string => $qb->prim($id), $chunk)));
+			if ($prims === []) {
+				continue;
+			}
+			$qb->select('actor_id')
+				->from(self::TABLE_MODERATION)
+				->where($qb->expr()->in('actor_id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)))
+				->andWhere($qb->expr()->eq('level', $qb->createNamedParameter($level)));
+			$cursor = $qb->executeQuery();
+			while ($row = $cursor->fetch()) {
+				if (in_array((string)$row['actor_id'], $chunk, true)) {
+					$found[(string)$row['actor_id']] = true;
+				}
+			}
+			$cursor->closeCursor();
+		}
+
+		return $found;
+	}
+
 	public function levelOf(string $actorId): string {
 		$qb = $this->getQueryBuilder();
 		$qb->select('level')

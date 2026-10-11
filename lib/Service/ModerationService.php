@@ -102,6 +102,16 @@ class ModerationService {
 	}
 
 	/**
+	 * Which of these accounts are suspended, asked for a page of them at once.
+	 *
+	 * @param string[] $actorIds
+	 * @return array<string, true> actor id => true
+	 */
+	public function suspendedAmong(array $actorIds): array {
+		return $this->moderationRequest->amongAt($actorIds, Moderation::SUSPEND);
+	}
+
+	/**
 	 * Refuses an account that is suspended here anything it would send out.
 	 *
 	 * A suspension used to be enforced on the way in only, so a local account

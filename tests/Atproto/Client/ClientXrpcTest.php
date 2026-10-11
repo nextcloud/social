@@ -157,7 +157,7 @@ class ClientXrpcTest extends TestCase {
 		$this->inbound->expects($this->exactly(2))->method('procedure')->willReturn([]);
 		$path = $this->file('car');
 		$this->inbound->expects($this->once())->method('importRepo')->with($path, 'Bearer move')->willReturn([]);
-		$this->inbound->expects($this->once())->method('upload')->with($path, 'Bearer move', 'image/png')->willReturn(['blob' => []]);
+		$this->inbound->expects($this->once())->method('upload')->with($path, 'Bearer move')->willReturn(['blob' => []]);
 		$this->sessions->expects($this->never())->method('authenticate');
 		$this->writes->expects($this->never())->method('upload');
 

@@ -222,7 +222,7 @@ class ClientXrpc {
 			throw XrpcException::notImplemented(self::UPLOAD);
 		}
 		if ($this->inbound->owns((string)($headers['authorization'] ?? ''))) {
-			return $this->inbound->upload($path, (string)$headers['authorization'], (string)($headers['content-type'] ?? ''));
+			return $this->inbound->upload($path, (string)$headers['authorization']);
 		}
 		$session = $this->grants->uploader((string)($headers['authorization'] ?? ''));
 		if ($session === null) {

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Xrpc;
 
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -21,10 +22,12 @@ use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\ModerationService;
 
 /**
  * The XRPC methods this instance serves, each answering an array (JSON)
@@ -43,6 +46,8 @@ class XrpcService {
 		private PictureService $pictures,
 		private VideoBlobService $videos,
 		private ConfigService $configService,
+		private ModerationService $moderation,
+		private AtprotoIdentityRequest $identityRequest,
 	) {
 	}
 
@@ -147,9 +152,12 @@ class XrpcService {
 		} catch (AtprotoIdentityNotFoundException) {
 			throw new XrpcException(404, 'RepoNotFound', 'Could not find repo');
 		}
-		$status = ['did' => $identity->did, 'active' => $identity->isActive()];
-		if (!$identity->isActive()) {
-			$status['status'] = $identity->state === Identity::STATE_TOMBSTONED ? 'deleted' : 'deactivated';
+		$inactive = $this->inactiveStatus($identity);
+		$status = ['did' => $identity->did, 'active' => $inactive === ''];
+		if ($inactive !== '') {
+			$status['status'] = $inactive;
+
+			return $status;
 		}
 		$head = $this->repositories->getHead($identity->did);
 		if ($head !== null) {
@@ -183,6 +191,11 @@ class XrpcService {
 		return new XrpcBytes(Car::encode([Cid::parse($head->commitCid)], $blocks), 'application/vnd.ipld.car');
 	}
 
+	/**
+	 * A blob, served from this instance's origin as bytes a browser neither
+	 * runs nor sniffs: sandboxed, and a download unless it is a picture, a
+	 * video or a sound.
+	 */
 	private function getBlob(string $did, string $cid): XrpcBytes {
 		$identity = $this->repoIdentity($did);
 		if (!Cid::isValid($cid)) {
@@ -192,14 +205,19 @@ class XrpcService {
 		if ($blob === null) {
 			throw new XrpcException(404, 'BlobNotFound', 'Blob not found');
 		}
+		$type = BlobRef::servableType($blob->mime);
+		$headers = ['Content-Security-Policy' => "default-src 'none'; sandbox", 'X-Content-Type-Options' => 'nosniff'];
+		if ($type === BlobRef::OPAQUE_TYPE) {
+			$headers['Content-Disposition'] = 'attachment';
+		}
 		try {
 			if (str_starts_with($blob->mime, 'video/')) {
 				$opened = $this->videos->open($blob);
 
-				return new XrpcBytes('', $blob->mime, 200, $opened['stream'], $opened['size']);
+				return new XrpcBytes('', $type, 200, $opened['stream'], $opened['size'], $headers);
 			}
 
-			return new XrpcBytes($this->pictures->read($blob), $blob->mime);
+			return new XrpcBytes($this->pictures->read($blob), $type, 200, null, -1, $headers);
 		} catch (AtprotoException) {
 			throw new XrpcException(404, 'BlobNotFound', 'Blob not found');
 		}
@@ -223,16 +241,18 @@ class XrpcService {
 		$heads = $this->repoRequest->getHeads($limit + 1, $offset);
 		$more = count($heads) > $limit;
 		$heads = array_slice($heads, 0, $limit);
+		$identities = $this->identityRequest->getByDids(array_map(static fn ($head): string => $head->did, $heads));
+		$suspended = $this->moderation->suspendedAmong(array_map(static fn (Identity $identity): string => $identity->actorId, array_values($identities)));
 		$repos = [];
 		foreach ($heads as $head) {
-			try {
-				$identity = $this->identities->getByDid($head->did);
-			} catch (AtprotoIdentityNotFoundException) {
+			$identity = $identities[$head->did] ?? null;
+			if ($identity === null) {
 				continue;
 			}
-			$repo = ['did' => $head->did, 'head' => $head->commitCid, 'rev' => $head->rev, 'active' => $identity->isActive()];
-			if (!$identity->isActive()) {
-				$repo['status'] = $identity->state === Identity::STATE_TOMBSTONED ? 'deleted' : 'deactivated';
+			$inactive = $this->inactiveStatus($identity, $suspended);
+			$repo = ['did' => $head->did, 'head' => $head->commitCid, 'rev' => $head->rev, 'active' => $inactive === ''];
+			if ($inactive !== '') {
+				$repo['status'] = $inactive;
 			}
 			$repos[] = $repo;
 		}
@@ -304,12 +324,33 @@ class XrpcService {
 		if ($identity === null) {
 			throw new XrpcException(404, 'RepoNotFound', 'Could not find repo: ' . $identifier);
 		}
-		// switched off by its owner (§4.6): kept, and served to nobody until it is on again
-		if ($identity->state === Identity::STATE_DEACTIVATED) {
-			throw new XrpcException(400, 'RepoDeactivated', 'Repo has been deactivated: ' . $identifier);
-		}
+		// kept while it is switched off (§4.6), moved away or taken down, and served to nobody
+		match ($this->inactiveStatus($identity)) {
+			'deleted' => throw new XrpcException(404, 'RepoNotFound', 'Could not find repo: ' . $identifier),
+			'takendown' => throw new XrpcException(400, 'RepoTakendown', 'Repo has been takendown: ' . $identifier),
+			'deactivated' => throw new XrpcException(400, 'RepoDeactivated', 'Repo has been deactivated: ' . $identifier),
+			default => null,
+		};
 
 		return $identity;
+	}
+
+	/**
+	 * Why a repository is not served, as `getRepoStatus` and `listRepos`
+	 * name it: `deleted`, `takendown` while a moderator's suspension stands,
+	 * `deactivated` when switched off or moved away; '' when it is served.
+	 *
+	 * @param array<string, true>|null $suspended the suspended accounts of a page, asked at once
+	 */
+	private function inactiveStatus(Identity $identity, ?array $suspended = null): string {
+		if ($identity->state === Identity::STATE_TOMBSTONED) {
+			return 'deleted';
+		}
+		if ($suspended !== null ? isset($suspended[$identity->actorId]) : $this->moderation->isSuspended($identity->actorId)) {
+			return 'takendown';
+		}
+
+		return $identity->isActive() ? '' : 'deactivated';
 	}
 
 	/**

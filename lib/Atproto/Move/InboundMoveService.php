@@ -320,15 +320,15 @@ class InboundMoveService {
 
 	/**
 	 * `com.atproto.repo.uploadBlob` for a move: kept byte for byte, so its CID
-	 * is the one the records name.
+	 * is the one the records name, with the media type its bytes are rather
+	 * than the one the upload declared.
 	 *
 	 * @throws XrpcException
 	 */
-	public function upload(string $path, string $authorization, string $type): array {
+	public function upload(string $path, string $authorization): array {
 		$move = $this->authenticate($authorization);
 		$size = (int)filesize($path);
 		$cid = Cid::forRawDigest((string)hash_file('sha256', $path, true));
-		$mime = $type !== '' && $type !== '*/*' ? $type : (string)mime_content_type($path);
 		$stored = $this->blobs->get($move->did, $cid->toString());
 		if ($stored === null) {
 			try {
@@ -338,13 +338,14 @@ class InboundMoveService {
 
 				throw new XrpcException(500, 'InternalServerError', 'The blob could not be stored');
 			}
-			$this->blobs->put(new BlobRef($move->did, $cid, $document->getId(), $mime, $size));
+			$stored = new BlobRef($move->did, $cid, $document->getId(), BlobRef::servableType($document->getMimeType()), $size);
+			$this->blobs->put($stored);
 			$this->repoRequest->addBlobBytes($move->did, $size);
 			$move->progress = ['blobs' => (int)($move->progress['blobs'] ?? 0) + 1] + $move->progress;
 			$this->moves->update($move);
 		}
 
-		return ['blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid->toString()], 'mimeType' => $stored?->mime ?? $mime, 'size' => $stored?->size ?? $size]];
+		return ['blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid->toString()], 'mimeType' => $stored->mime, 'size' => $stored->size]];
 	}
 
 	/**

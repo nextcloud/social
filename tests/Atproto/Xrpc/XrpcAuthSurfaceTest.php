@@ -30,6 +30,7 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcService;
 use OCA\Social\Controller\AtprotoXrpcController;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Service\ConfigService;
@@ -125,7 +126,7 @@ class XrpcAuthSurfaceTest extends TestCase {
 		$xrpc = new XrpcService(
 			$config, $identities, $this->createMock(RepositoryService::class), $this->createMock(AtprotoRepoRequest::class),
 			$this->createMock(AtprotoBlobRequest::class), $this->createMock(PictureService::class), $this->createMock(VideoBlobService::class),
-			$this->createMock(ConfigService::class),
+			$this->createMock(ConfigService::class), $this->createMock(ModerationService::class), $this->createMock(AtprotoIdentityRequest::class),
 		);
 
 		$request = $this->createMock(IRequest::class);
