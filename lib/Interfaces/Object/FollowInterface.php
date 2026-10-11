@@ -274,16 +274,18 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		if ($activity->getType() === Undo::TYPE) {
 			$activity->checkOrigin($item->getId());
 			$activity->checkOrigin($item->getActorId());
-			// read before the row goes: the count was moved up by the Accept,
-			// so a follow request that was never accepted must not move it
-			// down. The activity carries what the sender wrote, which is not
-			// where this is recorded.
-			$accepted = $this->wasAccepted($item);
-			$this->followsRequest->delete($item);
-			if ($accepted) {
-				$this->accountService->bumpActorCount(
-					$item->getObjectId(), 'count_followers', -1
-				);
+			// The stored row decides both what is removed and whether the
+			// count moves: the Accept moved it up, so only an accepted row
+			// that is actually removed moves it down. The activity carries
+			// what the sender wrote, which is not where this is recorded.
+			$stored = $this->storedFollow($item);
+			if ($stored !== null) {
+				$this->followsRequest->delete($stored);
+				if ($stored->isAccepted()) {
+					$this->accountService->bumpActorCount(
+						$stored->getObjectId(), 'count_followers', -1
+					);
+				}
 			}
 		}
 
@@ -303,15 +305,18 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		}
 	}
 
-	/** Whether the stored follow this activity is about had been accepted. */
-	private function wasAccepted(Follow $follow): bool {
+	/**
+	 * The stored follow an Undo names by its id, when it is the sender's own;
+	 * null when there is no such row.
+	 */
+	private function storedFollow(Follow $follow): ?Follow {
 		try {
-			return $this->followsRequest
-				->getByPersons($follow->getActorId(), $follow->getObjectId())
-				->isAccepted();
+			$stored = $this->followsRequest->getById($follow->getId());
 		} catch (Exception $e) {
-			return false;
+			return null;
 		}
+
+		return ($stored->getActorId() === $follow->getActorId()) ? $stored : null;
 	}
 
 	/**

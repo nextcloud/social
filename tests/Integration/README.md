@@ -17,6 +17,9 @@ to stop.
   Request classes and asserts what each timeline returns: home via the follow
   join, direct-message isolation, favourites/bookmarks via the action join,
   hashtags, account visibility and id-based pagination.
+- `Db/UndoFollowCountTest` — an incoming `Undo{Follow}` moves the follower
+  count only when the stored follow it names is the row removed; one naming a
+  follow id that is not stored changes nothing.
 - `Db/ActorsKeyStorageTest` — private keys land encrypted, read back decrypted,
   legacy plaintext rows stay readable, the EncryptPrivateKeys repair converts
   them idempotently.
