@@ -1,0 +1,175 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The upgrade an administrator runs: the latest published release installed
+# and given data, then replaced by this checkout and upgraded with `occ
+# upgrade`, so the migrations and repair steps run against real rows rather
+# than an empty schema. Afterwards the schema has to match a fresh install's,
+# what was seeded has to read back through the client API
+# (tests/Upgrade/verify.py), and the integration suite has to pass on the
+# upgraded instance.
+#
+# "Latest" is whatever GitHub marks as the latest release when the job runs,
+# so a new release moves the starting point without an edit here.
+
+name: Upgrade from the latest release
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/upgrade.yml'
+      - 'appinfo/**'
+      - 'lib/**'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'tests/Integration/**'
+      - 'tests/Upgrade/**'
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+  schedule:
+    - cron: '11 5 * * 2'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upgrade-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        database: ['sqlite', 'pgsql']
+
+    name: Upgrade on ${{ matrix.database }}
+
+    services:
+      # started for both legs; the SQLite one simply does not use it
+      postgres:
+        image: ghcr.io/nextcloud/continuous-integration-postgres-14:latest
+        ports:
+          - 4444:5432/tcp
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: rootpassword
+          POSTGRES_DB: nextcloud
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 2s --health-retries 5
+
+    env:
+      APP_NAME: social
+      NC_URL: http://localhost:8080
+      SEED_STATE: /tmp/social-upgrade-seed.json
+
+    steps:
+      - name: Checkout server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          repository: nextcloud/server
+          ref: stable35
+
+      - name: Checkout the change under test
+        # outside apps/, so the server sees one copy of the app at a time
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: upgrade-to
+
+      - name: Set up php
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, pgsql, pdo_pgsql
+          coverage: none
+          ini-file: development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "Upgrading from $tag"
+          echo "### Upgrade from $tag" >> "$GITHUB_STEP_SUMMARY"
+          # the tarball the release workflow attaches is what the app store
+          # serves; a release without one is installed from its tag
+          asset=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq ".assets[].name | select(startswith(\"$APP_NAME\") and endswith(\".tar.gz\"))" | head -1)
+          if [ -n "$asset" ]; then
+            release=$(mktemp -d)
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$asset" --dir "$release"
+            tar -xzf "$release/$asset" -C apps
+          else
+            git clone --quiet --depth 1 --branch "$tag" "https://github.com/$GITHUB_REPOSITORY" "apps/$APP_NAME"
+            composer i --no-dev --no-interaction --working-dir "apps/$APP_NAME"
+          fi
+          grep -o '<version>[^<]*</version>' "apps/$APP_NAME/appinfo/info.xml"
+
+      - name: Install Nextcloud with the release
+        run: |
+          set -euo pipefail
+          mkdir data
+          if [ '${{ matrix.database }}' = 'pgsql' ]; then
+            ./occ maintenance:install --verbose --database=pgsql --database-name=nextcloud --database-host=127.0.0.1 \
+              --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
+          else
+            ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud --admin-user admin --admin-pass admin
+          fi
+          ./occ app:enable --force "$APP_NAME"
+          ./occ config:app:get "$APP_NAME" installed_version
+          # `occ upgrade` would otherwise ask the app store for a newer copy
+          # of the app than the one under test
+          ./occ config:system:set appstoreenabled --value false --type boolean
+
+      - name: Run Nextcloud
+        # several workers: creating an account makes the app fetch its own
+        # avatar over HTTP, which a single-worker server deadlocks on
+        run: PHP_CLI_SERVER_WORKERS=4 php -S localhost:8080 &
+
+      - name: Seed data with the release
+        run: bash upgrade-to/tests/Upgrade/seed.sh
+
+      - name: Swap in the change under test
+        run: |
+          set -euo pipefail
+          rm -rf "apps/$APP_NAME"
+          mv upgrade-to "apps/$APP_NAME"
+          composer i --no-interaction --working-dir "apps/$APP_NAME"
+
+      - name: Upgrade
+        run: |
+          set -euo pipefail
+          php -d memory_limit=1G occ upgrade
+          version=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' "apps/$APP_NAME/appinfo/info.xml" | head -1)
+          # the value is the last line: occ may print a warning about the
+          # PCNTL functions to stdout before it
+          installed=$(./occ config:app:get "$APP_NAME" installed_version | tail -n 1)
+          echo "Upgraded to $installed" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$installed" = "$version"
+
+      - name: The schema matches a fresh install's
+        # the server's own tables are its business; only this app's are checked
+        run: |
+          ./occ db:schema:check -v 2>&1 | tee /tmp/schema-check.txt || true
+          if grep -q "oc_${APP_NAME}_" /tmp/schema-check.txt; then
+            echo "The upgraded schema of the app differs from what a fresh install creates"
+            exit 1
+          fi
+
+      - name: Seeded data reads back
+        run: python3 "apps/$APP_NAME/tests/Upgrade/verify.py"
+
+      - name: PHPUnit integration
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer run test:integration
+
+      - name: Print logs
+        if: always()
+        run: cat data/nextcloud.log || true

@@ -36,6 +36,15 @@ export default defineConfig({
 			include: ['src/**/*.{js,vue}'],
 			exclude: ['src/**/*.test.js', 'src/main.js', 'src/dashboard.js', 'src/oauth.js', 'src/ostatus.js', 'src/profile.js'],
 			reportsDirectory: './coverage/js',
+			reporter: ['text', 'html', 'clover', 'json', 'json-summary'],
+			// the floor `npm run test:coverage` fails under, about a point below
+			// what the suite covers; raise it as coverage grows
+			thresholds: {
+				lines: 86,
+				statements: 86,
+				branches: 80.5,
+				functions: 85,
+			},
 		},
 	},
 })

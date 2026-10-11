@@ -4,7 +4,7 @@
  */
 
 import { expect, test } from '@playwright/test'
-import { login, openApp } from './helpers.mjs'
+import { PASSWORD, USER, apiAs, ensureAccount, login, openApp, postStatus } from './helpers.mjs'
 
 /**
  * The pages a reader spends their time on, and the two failure modes the unit
@@ -17,6 +17,14 @@ import { login, openApp } from './helpers.mjs'
  * fail a PHP test.
  */
 test.describe('reading, in a browser', () => {
+	// My Feed with one of the account's own posts in it, whatever ran before
+	test.beforeAll(async () => {
+		const api = await apiAs(USER, PASSWORD)
+		await ensureAccount(api, USER)
+		await postStatus(api, { status: `Something to read ${Date.now()}` })
+		await api.dispose()
+	})
+
 	test.beforeEach(async ({ page }) => {
 		await login(page)
 	})
@@ -80,14 +88,16 @@ test.describe('reading, in a browser', () => {
 	/** A profile is the page every federated link in the app points at. */
 	test('an account page draws its header and its posts', async ({ page }) => {
 		await openApp(page, '/timeline')
-		const author = page.locator('.social__timeline article .post-author__name, .social__timeline article a[href*="/@"]').first()
-
-		if (await author.count() === 0) {
-			test.skip(true, 'this instance has no posts to open a profile from')
-		}
+		const author = page.locator('.social__timeline article .post-author-wrapper a').first()
+		await expect(author, 'My Feed holds the account\'s own post').toBeVisible()
+		const name = (await author.locator('.post-author').innerText()).trim()
 
 		await author.click()
-		await expect(page.locator('.profile-info, .social__pages').first()).toBeVisible()
+		// a local author's page is their Nextcloud profile, with the app's
+		// section in it; anybody else's is the app's own profile view
+		await expect(page).toHaveURL(/\/(u\/|@)[^/]+$/)
+		await expect(page.getByRole('heading', { name, exact: true }).first()).toBeVisible()
+		await expect(page.locator('article').first()).toBeVisible()
 	})
 
 	/**

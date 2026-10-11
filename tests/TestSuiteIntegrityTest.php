@@ -111,13 +111,14 @@ class TestSuiteIntegrityTest extends TestCase {
 	/**
 	 * Debugging output left in a test prints on every run, and a run that
 	 * always prints something hides the run that prints a real warning. The
-	 * bootstraps are exempt: telling the developer there is no server to run
-	 * against is their job.
+	 * bootstraps and the coverage floor script are exempt: telling the
+	 * developer there is no server to run against, or how a command line is
+	 * spelled, is their job.
 	 */
 	public function testNoTestWritesToStandardError(): void {
 		$found = [];
 		foreach ($this->testLines() as $where => $line) {
-			if (str_contains($line, 'fwrite(' . 'STDERR') && !str_contains($where, '/bootstrap.php:')) {
+			if (str_contains($line, 'fwrite(' . 'STDERR') && !str_contains($where, '/bootstrap.php:') && !str_contains($where, '/coverage-floor.php:')) {
 				$found[] = $where;
 			}
 		}

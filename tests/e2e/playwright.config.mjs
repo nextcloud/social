@@ -4,6 +4,23 @@
  */
 
 import { defineConfig, devices } from '@playwright/test'
+import { BASE_URL } from './helpers.mjs'
+
+/**
+ * The other engines a reader may be using, asked for by name in
+ * E2E_BROWSERS (`webkit`, `firefox`, or `all`), each running the smoke spec
+ * only: what differs between engines is drawing and DOM APIs, and Safari
+ * has already had a bug of its own (no canvas `ctx.filter`). Chromium runs
+ * everything, with or without them.
+ */
+const EXTRA_BROWSERS = {
+	webkit: devices['Desktop Safari'],
+	firefox: devices['Desktop Firefox'],
+}
+const asked = (process.env.E2E_BROWSERS ?? '').split(',').map((name) => name.trim()).filter(Boolean)
+const extraProjects = Object.entries(EXTRA_BROWSERS)
+	.filter(([name]) => asked.includes(name) || asked.includes('all'))
+	.map(([name, device]) => ({ name, use: { ...device }, testMatch: 'smoke.spec.mjs' }))
 
 /**
  * The browser tests drive a real Nextcloud with this app installed. Nothing
@@ -23,12 +40,15 @@ export default defineConfig({
 	expect: { timeout: 15_000 },
 	reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]] : 'list',
 	outputDir: 'test-results',
+	projects: [
+		{ name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+		...extraProjects,
+	],
 	use: {
-		...devices['Desktop Chrome'],
 		// with a trailing slash, and every path in the tests without a leading
 		// one: an instance under a sub-path (`/nextcloud`) keeps it that way,
 		// where an absolute path would resolve against the host and lose it
-		baseURL: (process.env.E2E_BASE_URL ?? 'http://localhost:8080').replace(/\/*$/, '/'),
+		baseURL: BASE_URL,
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 		// a development instance answers slowly on first paint

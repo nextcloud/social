@@ -440,6 +440,13 @@ export default {
 		color: white !important;
 	}
 
+	/* the attachment inside is as tall as its parent, so the wrapper that
+	   carries the filter has to be as tall as the frame, or the picture is
+	   drawn zero pixels high */
+	&__filtered {
+		height: 100%;
+	}
+
 	&__actions {
 		position: absolute;
 		top: 0;
