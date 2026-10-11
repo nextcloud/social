@@ -401,6 +401,24 @@ describe('router base detection', () => {
 		expect(await freshBase()).toBe('/nextcloud/index.php/apps/social')
 	})
 
+	it('keeps index.php where pretty urls work but the app was opened through it', async () => {
+		// a link made by cron or occ carries index.php on any instance; with the
+		// pretty base the address became /apps/social/index.php/apps/social/
+		// and the page stayed empty
+		globalThis._oc_webroot = '/nextcloud'
+		window.OC.config.modRewriteWorking = true
+		window.history.replaceState({}, '', '/nextcloud/index.php/apps/social/@alice')
+
+		expect(await freshBase()).toBe('/nextcloud/index.php/apps/social')
+	})
+
+	it('takes the pretty shape when a path only looks like the other one', async () => {
+		window.OC.config.modRewriteWorking = true
+		window.history.replaceState({}, '', '/index.php/apps/socialist/')
+
+		expect(await freshBase()).toBe('/apps/social')
+	})
+
 	/** News is gone; an address somebody kept for it opens their feed */
 	it('sends the old News address to My Feed', async () => {
 		globalThis.setInitialState('social', 'serverData', { public: false })
