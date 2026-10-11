@@ -239,6 +239,11 @@ class LimitClampTest extends ReaderTestCase {
 			$this->listId = Server::get(ListsRequest::class)->create($list)->getId();
 			$values['id'] = $this->listId;
 		}
+		if (str_ends_with($class, '\\PlaceController')) {
+			// places are never deleted, so each run names its own
+			$place = (new Place())->setName('Itestville ' . bin2hex(random_bytes(4)))->setCountry('DE');
+			$values['id'] = Server::get(PlacesRequest::class)->findOrCreate($place)->getId();
+		}
 		if (str_ends_with($class, '\\CollectionController')) {
 			$collection = new Collection();
 			$collection->setOwnerId($viewer->getId())->setTitle('limits')->setVisibility(Collection::VISIBILITY_PUBLIC);

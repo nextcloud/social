@@ -108,6 +108,10 @@ to stop.
 - `Migration/RowBackfillMigrationsTest` — the upgrade steps that fill rows
   (recipient nids, `media_kind`, `news_kind`, OAuth authorizations moved to
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
+- `Migration/UpgradeFromOldReleasesTest` — the squash and
+  `Version1000Date20261011500100` on tables put back in the shape a release
+  before 0.23 left: duplicate follow pairs removed before the pair is made
+  unique, the indexes the history dropped dropped, a second run a no-op.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
 - `QueryCounter` / `QueryCounterTest` — records every statement the server's

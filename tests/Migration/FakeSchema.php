@@ -58,6 +58,34 @@ class FakeSchema implements ISchemaWrapper {
 		return $this;
 	}
 
+	/**
+	 * A schema holding the tables of a recorded {@see shape()}, as an
+	 * instance that has them would present them to a migration.
+	 *
+	 * @param array<string, array{columns: array, indexes: array, primary: array}> $shape
+	 */
+	public static function fromShape(array $shape): self {
+		$schema = new self();
+		foreach ($shape as $name => $definition) {
+			$table = $schema->createTable($name);
+			foreach ($definition['columns'] as $column => $spec) {
+				$table->addColumn($column, $spec['type'], $spec['options']);
+			}
+			if ($definition['primary'] !== []) {
+				$table->setPrimaryKey($definition['primary']);
+			}
+			foreach ($definition['indexes'] as $index) {
+				if ($index['unique']) {
+					$table->addUniqueIndex($index['columns'], $index['name']);
+				} else {
+					$table->addIndex($index['columns'], $index['name']);
+				}
+			}
+		}
+
+		return $schema;
+	}
+
 	/** @return array<string, FakeTable> every table, keyed and sorted by name */
 	public function tables(): array {
 		$tables = $this->tables;

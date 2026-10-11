@@ -1,18 +1,21 @@
 # SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# The upgrade an administrator runs: the latest published release installed
-# and given data, then replaced by this checkout and upgraded with `occ
-# upgrade`, so the migrations and repair steps run against real rows rather
-# than an empty schema. Afterwards the schema has to match a fresh install's,
-# what was seeded has to read back through the client API
-# (tests/Upgrade/verify.py), and the integration suite has to pass on the
-# upgraded instance.
+# The upgrade an administrator runs: a published release installed and given
+# data, then replaced by this checkout and upgraded with `occ upgrade`, so the
+# migrations and repair steps run against real rows rather than an empty
+# schema. Afterwards the schema has to match a fresh install's, what was
+# seeded has to read back through the client API (tests/Upgrade/verify.py),
+# and the integration suite has to pass on the upgraded instance.
 #
-# "Latest" is whatever GitHub marks as the latest release when the job runs,
-# so a new release moves the starting point without an edit here.
+# Two starting points. "Latest" is whatever GitHub marks as the latest release
+# when the job runs, so a new release moves it without an edit here. 0.10.0 is
+# the oldest release the squashed schema has to bring up to date: its tables
+# predate every step the squash replaced. It runs on Nextcloud up to 34, so
+# the app is upgraded there and Nextcloud to 35 after it, the order an
+# administrator on 34 takes, and the checks run on 35 like the other legs'.
 
-name: Upgrade from the latest release
+name: Upgrade from a release
 
 on:
   pull_request:
@@ -45,12 +48,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        database: ['sqlite', 'pgsql']
+        include:
+          - { from: latest, server: stable35, database: sqlite }
+          - { from: latest, server: stable35, database: pgsql }
+          - { from: v0.10.0, server: stable34, database: sqlite }
+          - { from: v0.10.0, server: stable34, database: pgsql }
+          # the squash adds an autoincrement key to two tables of 0.10.0,
+          # which only MySQL refuses to do wrong
+          - { from: v0.10.0, server: stable34, database: mysql }
 
-    name: Upgrade on ${{ matrix.database }}
+    name: ${{ matrix.from == 'latest' && format('Upgrade on {0}', matrix.database) || format('Upgrade from {0} on {1}', matrix.from, matrix.database) }}
 
     services:
-      # started for both legs; the SQLite one simply does not use it
+      # started for every leg; the others simply do not use them
       postgres:
         image: ghcr.io/nextcloud/continuous-integration-postgres-14:latest
         ports:
@@ -60,6 +70,13 @@ jobs:
           POSTGRES_PASSWORD: rootpassword
           POSTGRES_DB: nextcloud
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 2s --health-retries 5
+      mysql:
+        image: ghcr.io/nextcloud/continuous-integration-mysql-8.4:latest
+        ports:
+          - 4445:3306/tcp
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+        options: --health-cmd="mysqladmin ping" --health-interval 5s --health-timeout 2s --health-retries 10
 
     env:
       APP_NAME: social
@@ -72,7 +89,12 @@ jobs:
         with:
           submodules: true
           repository: nextcloud/server
-          ref: stable35
+          ref: ${{ matrix.server }}
+
+      - name: Checkout viewer
+        # always enabled on Nextcloud 34, and not part of the server repository
+        if: matrix.server == 'stable34'
+        run: git clone --quiet --depth 1 --branch stable34 https://github.com/nextcloud/viewer apps/viewer
 
       - name: Checkout the change under test
         # outside apps/, so the server sees one copy of the app at a time
@@ -84,18 +106,23 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.3'
-          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, pgsql, pdo_pgsql
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, pgsql, pdo_pgsql, mysql, pdo_mysql
           coverage: none
           ini-file: development
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fetch the latest release
+      - name: Fetch the release
         env:
           GH_TOKEN: ${{ github.token }}
+          FROM: ${{ matrix.from }}
         run: |
           set -euo pipefail
-          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if [ "$FROM" = 'latest' ]; then
+            tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          else
+            tag=$FROM
+          fi
           echo "Upgrading from $tag"
           echo "### Upgrade from $tag" >> "$GITHUB_STEP_SUMMARY"
           # the tarball the release workflow attaches is what the app store
@@ -119,6 +146,9 @@ jobs:
           if [ '${{ matrix.database }}' = 'pgsql' ]; then
             ./occ maintenance:install --verbose --database=pgsql --database-name=nextcloud --database-host=127.0.0.1 \
               --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
+          elif [ '${{ matrix.database }}' = 'mysql' ]; then
+            ./occ maintenance:install --verbose --database=mysql --database-name=nextcloud --database-host=127.0.0.1 \
+              --database-port=4445 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
           else
             ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud --admin-user admin --admin-pass admin
           fi
@@ -153,6 +183,23 @@ jobs:
           installed=$(./occ config:app:get "$APP_NAME" installed_version | tail -n 1)
           echo "Upgraded to $installed" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$installed" = "$version"
+
+      - name: Upgrade Nextcloud to 35
+        if: matrix.server == 'stable34'
+        run: |
+          set -euo pipefail
+          # the app and the data stay where they are; only the server's own
+          # files are replaced, as an administrator's update does
+          git fetch --quiet --depth 1 origin stable35
+          git checkout --quiet --force FETCH_HEAD
+          git submodule update --quiet --init --depth 1
+          git -C apps/viewer fetch --quiet --depth 1 origin stable35
+          git -C apps/viewer checkout --quiet --force FETCH_HEAD
+          php -d memory_limit=1G occ upgrade
+          ./occ status
+          pkill -f 'php -S localhost:8080' || true
+          PHP_CLI_SERVER_WORKERS=4 php -S localhost:8080 > /dev/null 2>&1 &
+          sleep 2
 
       - name: The schema matches a fresh install's
         # the server's own tables are its business; only this app's are checked

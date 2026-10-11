@@ -137,12 +137,33 @@ class FakeTable implements ITable {
 
 	public function hasIndex(string $name): bool {
 		foreach ($this->indexes as $index) {
-			if ($index['name'] === $name) {
+			if ($this->indexName($index) === $name) {
 				return true;
 			}
 		}
 
 		return in_array($name, $this->existingIndexes, true);
+	}
+
+	/**
+	 * The name an index has in the database: its own, or for one created
+	 * without a name the one Doctrine generates (`UNIQ_`/`IDX_` and the
+	 * crc32 of the table and column names), here without a table prefix.
+	 *
+	 * @param array{columns: list<string>, name: ?string, unique: bool} $index
+	 * @return non-empty-string
+	 */
+	private function indexName(array $index): string {
+		if ($index['name'] !== null && $index['name'] !== '') {
+			return $index['name'];
+		}
+
+		$hash = implode('', array_map(
+			static fn (string $part): string => dechex(crc32($part)),
+			array_merge([$this->name], $index['columns'])
+		));
+
+		return strtoupper(substr(($index['unique'] ? 'uniq' : 'idx') . '_' . $hash, 0, 30));
 	}
 
 	public function getColumns(): array {
@@ -177,7 +198,7 @@ class FakeTable implements ITable {
 		$this->droppedIndexes[] = $name;
 		$this->indexes = array_values(array_filter(
 			$this->indexes,
-			static fn (array $index): bool => $index['name'] !== $name
+			fn (array $index): bool => $this->indexName($index) !== $name
 		));
 		$this->existingIndexes = array_values(array_filter(
 			$this->existingIndexes,
@@ -204,7 +225,15 @@ class FakeTable implements ITable {
 	}
 
 	public function getIndexes(): array {
-		throw new LogicException('getIndexes() is not part of this double');
+		$indexes = array_map(
+			fn (array $index): FakeIndex => new FakeIndex($this->indexName($index), $index['columns'], $index['unique']),
+			$this->indexes
+		);
+		if ($this->primaryKey !== null) {
+			$indexes[] = new FakeIndex('primary', $this->primaryKey, true, true);
+		}
+
+		return $indexes;
 	}
 
 	public function getIndex(string $name): IIndex {

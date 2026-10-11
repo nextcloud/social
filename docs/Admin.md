@@ -1252,6 +1252,13 @@ and news steps only touch rows that still carry no value, so an upgrade
 interrupted during them picks up where it stopped; the first starts again from
 the beginning.
 
+**From a release before 0.23** (0.10.0 and earlier) the upgrade also removes a
+follow that is recorded twice — once pending and once accepted, which those
+releases allowed — keeping the accepted one, and gives `social_stream_dest` and
+`social_stream_tag` a primary key, which on MySQL/MariaDB rebuilds both tables.
+Those releases run on Nextcloud up to 34, and that is the path the upgrade is
+tested on: upgrade the app on Nextcloud 34 first, then Nextcloud.
+
 Two settings exist for size and are listed above: `search_window_days` bounds
 what a content search scans when it cannot use its word index, and `retention_days` bounds what cached remote
 media costs. Both trade completeness for a bounded cost, and the default of each
