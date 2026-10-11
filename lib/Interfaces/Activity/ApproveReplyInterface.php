@@ -27,9 +27,9 @@ use Psr\Log\LoggerInterface;
  * reply — the reply is already stored and already ours, and nothing about the
  * post it answers changes.
  *
- * **Only about a reply of ours, and only from the server that holds what it
- * answers.** An `ApproveReply` from anywhere else would be a stranger deciding
- * what has been approved on somebody else's post.
+ * **Only about a reply of ours, and only from the author of what it
+ * answers**, on the server that holds it. An `ApproveReply` from anybody else
+ * would be a stranger deciding what has been approved on somebody else's post.
  */
 class ApproveReplyInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	public function __construct(
@@ -39,8 +39,9 @@ class ApproveReplyInterface extends AbstractActivityPubInterface implements IAct
 	}
 
 	/**
-	 * @throws InvalidOriginException the approval does not come from the server
-	 *                                that holds the post the reply answers
+	 * @throws InvalidOriginException the approval does not come from the author
+	 *                                of the post the reply answers, on the server
+	 *                                that holds it
 	 */
 	#[\Override]
 	public function processIncomingRequest(ACore $item): void {
@@ -69,11 +70,44 @@ class ApproveReplyInterface extends AbstractActivityPubInterface implements IAct
 		// reply on somebody else's post
 		$item->checkOrigin($reply->getInReplyTo());
 
+		try {
+			$parent = $this->streamRequest->getStreamById($reply->getInReplyTo());
+		} catch (StreamNotFoundException $e) {
+			// nobody here can be told to be the author of a post that is not here
+			return;
+		}
+
+		if (!in_array($item->getActorId(), self::authorsOf($parent), true)) {
+			throw new InvalidOriginException('a reply is approved by the author of the post it answers');
+		}
+
 		$reply->setReplyState(Stream::REPLY_APPROVED);
 		$this->streamRequest->updateDetails($reply);
 
 		$this->logger->info('a reply of ours was approved', [
 			'reply' => $replyId, 'inReplyTo' => $reply->getInReplyTo(),
 		]);
+	}
+
+	/**
+	 * Who wrote the post: the author it is stored under, and every actor its
+	 * own document names in `attributedTo`. A PeerTube video names its channel
+	 * and the account behind it, and PeerTube approves as the account.
+	 *
+	 * @return list<string>
+	 */
+	private static function authorsOf(Stream $post): array {
+		$authors = [$post->getAttributedTo()];
+
+		$source = json_decode($post->getSource(), true);
+		$named = is_array($source) ? ($source['attributedTo'] ?? []) : [];
+		foreach (is_array($named) ? $named : [$named] as $entry) {
+			$id = is_array($entry) ? ($entry['id'] ?? '') : $entry;
+			if (is_string($id) && $id !== '') {
+				$authors[] = $id;
+			}
+		}
+
+		return array_values(array_filter($authors, static fn (string $id): bool => $id !== ''));
 	}
 }

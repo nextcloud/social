@@ -794,7 +794,11 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   a queue on the other side, and either appeared a day later or never, with
   nothing anywhere to say which. It is kept on the post as
   `Stream::DETAIL_REPLY_POLICY`, and a reply written to such a post carries
-  `DETAIL_REPLY_STATE` — `pending` until the `ApproveReply` arrives. Both are
+  `DETAIL_REPLY_STATE` — `pending` until the `ApproveReply` arrives. The
+  approval is taken only from the author of the post replied to, on its own
+  server: the actor it is stored under or one its own document names in
+  `attributedTo` (PeerTube approves as the account behind the video's
+  channel). One from any other account is refused. Both are
   local, derived facts, which is what the details column is for: neither is a
   property of the wire object, and the second is about somebody else's document.
 - **`Dislike`**, which Mastodon has never had and which therefore had no model
