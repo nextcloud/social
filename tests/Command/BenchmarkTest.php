@@ -23,6 +23,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
+use OCP\DB\IResult;
 use OCP\IDBConnection;
 use OCP\IRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -48,6 +49,9 @@ class BenchmarkTest extends TestCase {
 
 	/** @var list<array{string, int}> */
 	private array $searched = [];
+
+	/** @var list<string> the statements run outside the multi-row inserts */
+	private array $statements = [];
 
 	private function viewer(): Person {
 		$viewer = new Person();
@@ -78,8 +82,15 @@ class BenchmarkTest extends TestCase {
 			return array_fill(0, $limit, new Note());
 		});
 
+		$connection = $this->createStub(IDBConnection::class);
+		$connection->method('executeQuery')->willReturnCallback(function (string $sql): IResult {
+			$this->statements[] = $sql;
+
+			return $this->createStub(IResult::class);
+		});
+
 		$written = &$this->written;
-		$command = new class($streamRequest, $this->createStub(StreamDestRequest::class), $this->createStub(CacheActorsRequest::class), $this->createStub(FollowsRequest::class), $accountService, $this->createStub(ActorsRequest::class), $this->createStub(IDBConnection::class), $this->createStub(IRequest::class), $this->createStub(ConfigService::class), $written, $ms, $database) extends Benchmark {
+		$command = new class($streamRequest, $this->createStub(StreamDestRequest::class), $this->createStub(CacheActorsRequest::class), $this->createStub(FollowsRequest::class), $accountService, $this->createStub(ActorsRequest::class), $connection, $this->createStub(IRequest::class), $this->createStub(ConfigService::class), $written, $ms, $database) extends Benchmark {
 			/** @var array<string, list<array<string, mixed>>> */
 			private array $sink;
 
@@ -253,6 +264,36 @@ class BenchmarkTest extends TestCase {
 				$this->assertSame($columns, array_keys($row), $table . ': one multi-row INSERT needs one column list');
 			}
 		}
+	}
+
+	/** @return array<string, array{string, string}> */
+	public static function databases(): array {
+		return [
+			'PostgreSQL' => ['pgsql', 'ANALYZE "*PREFIX*%s"'],
+			'MySQL' => ['mysql', 'ANALYZE TABLE `*PREFIX*%s`'],
+			'SQLite' => ['sqlite', 'ANALYZE `*PREFIX*%s`'],
+		];
+	}
+
+	/**
+	 * A table that grew by a hundred thousand rows a minute ago still has the
+	 * statistics of the table it was, so a plan made straight after the seed
+	 * is not the plan a live instance gets.
+	 */
+	#[DataProvider('databases')]
+	public function testTheSeededTablesAreAnalysedBeforeAnythingIsTimed(string $database, string $statement): void {
+		$tester = $this->tester(null, $database);
+		$this->assertSame(0, $tester->execute([
+			'--viewer' => 'viewer', '--notes' => '10', '--actors' => '2', '--seed-only' => true, '--force' => true,
+		]));
+
+		$this->assertSame(
+			array_map(static fn (string $table): string => sprintf($statement, $table), Benchmark::SEEDED_TABLES),
+			$this->statements
+		);
+		$this->assertEqualsCanonicalizing(
+			array_keys($this->written), Benchmark::SEEDED_TABLES, 'every table written to is analysed, and only those'
+		);
 	}
 
 	public function testEveryProbeAsksWhatTheWebClientAsks(): void {

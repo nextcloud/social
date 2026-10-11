@@ -107,6 +107,16 @@ class Benchmark extends SocialCommand {
 	/** The word the search probe looks for. */
 	public const PROBED_WORD = 'harbour';
 
+	/** Every table the seed writes to. */
+	public const SEEDED_TABLES = [
+		CoreRequestBuilder::TABLE_CACHE_ACTORS,
+		CoreRequestBuilder::TABLE_FOLLOWS,
+		CoreRequestBuilder::TABLE_STREAM,
+		CoreRequestBuilder::TABLE_STREAM_DEST,
+		CoreRequestBuilder::TABLE_STREAM_TAGS,
+		CoreRequestBuilder::TABLE_SEARCH_TERMS,
+	];
+
 	/** How many seeded posts one round of `--clean` takes with it. */
 	private const CLEAN_PAGE = 1000;
 
@@ -445,14 +455,12 @@ class Benchmark extends SocialCommand {
 	private function viewer(string $username, OutputInterface $output): ?Person {
 		try {
 			if ($username === '') {
-				$actors = $this->actorsRequest->getAll();
-				if ($actors === []) {
+				$actor = $this->actorsRequest->getAny();
+				if ($actor === null) {
 					$output->writeln('<error>no local account to read as; create one first</error>');
-
-					return null;
 				}
 
-				return $actors[0];
+				return $actor;
 			}
 
 			return $this->accountService->getActor($username);
@@ -500,8 +508,38 @@ class Benchmark extends SocialCommand {
 		$ids = $this->seedActors($actors, $output);
 		$this->seedFollows($ids, $follows, $followers, $viewer, $output);
 		$this->seedNotes($ids, $notes, $viewer, $output);
+		$this->analyze();
 
 		$output->writeln(sprintf('seeded in %.1f s.', microtime(true) - $started));
+	}
+
+	/**
+	 * Brings the planner's statistics up to date with what was just written.
+	 *
+	 * A table that grew by a hundred thousand rows in a minute is one whose
+	 * statistics still describe it as it was, until autovacuum or InnoDB's
+	 * sampling gets round to it — and a plan made from those is not the plan
+	 * a live instance gets. Timings taken straight after a seed then depend
+	 * on how soon that happened, which is noise in a number that is compared
+	 * night to night.
+	 */
+	private function analyze(): void {
+		$database = $this->databaseName();
+		foreach (self::SEEDED_TABLES as $table) {
+			$sql = match ($database) {
+				'pgsql' => 'ANALYZE "*PREFIX*' . $table . '"',
+				'mysql' => 'ANALYZE TABLE `*PREFIX*' . $table . '`',
+				'sqlite' => 'ANALYZE `*PREFIX*' . $table . '`',
+				default => '',
+			};
+			if ($sql === '') {
+				return;
+			}
+
+			// MySQL answers ANALYZE TABLE with a result set, the others with none
+			$result = $this->connection->executeQuery($sql);
+			$result->closeCursor();
+		}
 	}
 
 	/**

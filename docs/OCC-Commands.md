@@ -755,7 +755,9 @@ viewer and comes with the notification the inbox would have written; one in four
 carries one of twenty hashtags. The notes' recipient rows (public collection,
 author, the author's followers, and the viewer when mentioned) carry the note's
 nid, as the home timeline's page query reads it, and the hashtag rows and the
-words of the search index are written with them.
+words of the search index are written with them. The tables are then analysed
+(`ANALYZE`), so that the plans timed are the ones a live instance gets rather
+than ones made from the statistics of the tables before the seed.
 
 Seeding writes **multi-row `INSERT`s directly**, not through the model layer: a
 `Note` built and saved one at a time is three statements and a transaction per
@@ -786,7 +788,10 @@ checked before anything is seeded.
 probe's median, rows, limit and verdict, the database, what was seeded, and the
 two switches that decide which query answers (`search_index_ready`,
 `dest_nid_filled`) — and sends the progress lines to stderr, so the output can
-be redirected into a file.
+be redirected into a file. `.github/workflows/perf-nightly.yml` runs it that way
+every night on MySQL and PostgreSQL with 100,000 notes, against the baseline in
+`tests/perf/benchmark-baseline.json`, and keeps each night's report as an
+artifact.
 
 Seeding says how many rows it is about to write and asks before writing any of
 them; under `--no-interaction` it refuses unless `--force` is given, rather than
