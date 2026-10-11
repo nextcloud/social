@@ -185,10 +185,15 @@ class CurlService {
 		if ($url === '') {
 			throw new HostMetaException('Failed to get URL');
 		}
+		$scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+		if (!self::isHttpScheme($scheme)) {
+			throw new HostMetaException('Template is not an http(s) URL');
+		}
+
 		// parse_url() answers false or null for the parts it cannot find, and
 		// all three of these were handed straight to callers typed for strings
 		$host = parse_url($url, PHP_URL_HOST) ?: '';
-		$protocols = [parse_url($url, PHP_URL_SCHEME) ?: ''];
+		$protocols = [$scheme];
 
 		return parse_url($url, PHP_URL_PATH) ?: '';
 	}
@@ -972,17 +977,21 @@ class CurlService {
 		}
 
 		$target = $this->absoluteUrl($from, $location);
-		$scheme = strtolower((string)parse_url($target, PHP_URL_SCHEME));
-		if ($scheme !== 'http' && $scheme !== 'https') {
+		if (!self::isHttpScheme(strtolower((string)parse_url($target, PHP_URL_SCHEME)))) {
 			throw new RequestServerException('redirect to a non-http location: ' . $target);
 		}
 
 		return $target;
 	}
 
+	private static function isHttpScheme(string $scheme): bool {
+		return $scheme === 'http' || $scheme === 'https';
+	}
+
 	/**
-	 * Refuses a URL before it is requested: an instance this one does not
-	 * federate with, or a host that resolves to this network.
+	 * Refuses a URL before it is requested: one that is not http(s), an
+	 * instance this one does not federate with, or a host that resolves to
+	 * this network.
 	 *
 	 * @param array<string, mixed> $clientOptions
 	 *
@@ -991,6 +1000,10 @@ class CurlService {
 	 * @throws SocialAppConfigException
 	 */
 	private function assertReachable(string $url, array $clientOptions, string $onBehalfOf = ''): void {
+		if (!self::isHttpScheme(strtolower((string)parse_url($url, PHP_URL_SCHEME)))) {
+			throw new RequestServerException('not an http(s) URL: ' . $url);
+		}
+
 		$host = (string)parse_url($url, PHP_URL_HOST);
 		$this->fediverseService->authorized($host, $onBehalfOf);
 
