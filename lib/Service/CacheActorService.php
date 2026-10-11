@@ -198,6 +198,127 @@ class CacheActorService {
 	}
 
 	/**
+	 * The actor a key belongs to, for a keyId that is not the actor's id with
+	 * the key in its fragment.
+	 *
+	 * GoToSocial publishes every key at a URL of its own
+	 * (`…/users/alice/main-key`) and answers it with a stub of the actor:
+	 * `publicKey.id` is the keyId, `publicKey.owner` the actor. A bare key
+	 * document (`id` the keyId, `owner` or `controller` the actor) says the
+	 * same. The stub only says where to look, so the binding is checked from
+	 * the other end: the owner has to be on the keyId's host, its own
+	 * document has to be served at the id the stub named, and that document
+	 * has to list this exact keyId among its keys (`publicKey`,
+	 * `assertionMethod`, `verificationMethod`). Only then is it the actor the
+	 * key belongs to — fetched through `getFromId()`, whose key a signature is
+	 * then verified with. A keyId that is itself the actor's id is the actor's
+	 * own document and needs no second look.
+	 *
+	 * @throws InvalidOriginException the key names no owner, or one that does not claim it
+	 * @throws Exception anything `getFromId()` or the fetch raises
+	 */
+	public function getFromKeyId(string $keyId, bool $refresh = false): Person {
+		$document = $this->activityPubDocument($keyId);
+
+		$key = is_array($document['publicKey'] ?? null) && !array_is_list($document['publicKey']) ? $document['publicKey'] : $document;
+		$owner = '';
+		if (($key['id'] ?? '') === $keyId) {
+			$owner = self::ownerOfKey($key);
+		}
+		// a keyId that is the actor's own id, fragment and all left off
+		if ($owner === '' && ($document['id'] ?? '') === $keyId && !isset($document['owner']) && !isset($document['controller'])) {
+			$owner = $keyId;
+		}
+
+		$keyHost = strtolower((string)parse_url($keyId, PHP_URL_HOST));
+		if ($owner === '' || $keyHost === '' || strtolower((string)parse_url($owner, PHP_URL_HOST)) !== $keyHost) {
+			throw new InvalidOriginException(
+				'CacheActorService::getFromKeyId - keyId: ' . $keyId . ' - owner: ' . $owner
+			);
+		}
+
+		if ($owner !== $keyId) {
+			$actorDocument = $this->activityPubDocument($owner);
+			if (($actorDocument['id'] ?? '') !== $owner) {
+				throw new InvalidOriginException(
+					'CacheActorService::getFromKeyId - keyId: ' . $keyId . ' - owner: ' . $owner
+					. ' - serves: ' . (is_string($actorDocument['id'] ?? null) ? $actorDocument['id'] : '')
+				);
+			}
+			if (!in_array($keyId, self::keyIdsOf($actorDocument, $owner), true)) {
+				throw new InvalidOriginException(
+					'CacheActorService::getFromKeyId - keyId: ' . $keyId . ' - not a key of ' . $owner
+				);
+			}
+		}
+
+		return $this->getFromId($owner, $refresh);
+	}
+
+	/**
+	 * A document fetched as ActivityPub, or a refusal when it was not served
+	 * as one.
+	 *
+	 * @return array<string, mixed>
+	 * @throws InvalidOriginException
+	 * @throws Exception anything the fetch raises
+	 */
+	private function activityPubDocument(string $id): array {
+		$document = $this->curlService->retrieveObject($id);
+		if (!CurlService::isActivityPubMediaType($this->get('_contentType', $document))) {
+			throw new InvalidOriginException(
+				'CacheActorService::getFromKeyId - id: ' . $id . ' - contentType: ' . $this->get('_contentType', $document)
+			);
+		}
+
+		return $document;
+	}
+
+	/** Whom a key document says it belongs to: `owner`, or FEP-521a's `controller`. */
+	private static function ownerOfKey(array $key): string {
+		foreach (['owner', 'controller'] as $field) {
+			if (is_string($key[$field] ?? null) && $key[$field] !== '') {
+				return $key[$field];
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * The ids of the keys an actor document lists as its own — one `publicKey`
+	 * or several, and the FEP-521a `assertionMethod` and `verificationMethod`
+	 * entries — leaving out any entry that names another owner.
+	 *
+	 * @param array<string, mixed> $actor
+	 * @return list<string>
+	 */
+	private static function keyIdsOf(array $actor, string $owner): array {
+		$ids = [];
+		foreach (['publicKey', 'assertionMethod', 'verificationMethod'] as $field) {
+			$entries = $actor[$field] ?? [];
+			if (!is_array($entries) || !array_is_list($entries)) {
+				$entries = [$entries];
+			}
+			foreach ($entries as $entry) {
+				if (is_string($entry)) {
+					$ids[] = $entry;
+					continue;
+				}
+				if (!is_array($entry) || !is_string($entry['id'] ?? null)) {
+					continue;
+				}
+				$claimed = self::ownerOfKey($entry);
+				if ($claimed === '' || $claimed === $owner) {
+					$ids[] = $entry['id'];
+				}
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
 	 * Holds a fetched document to being the actor of the URL it came from.
 	 *
 	 * The cached row is keyed by the actor's own `id`, so a document that

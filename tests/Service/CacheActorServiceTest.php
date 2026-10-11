@@ -99,6 +99,109 @@ class CacheActorServiceTest extends TestCase {
 		$this->assertSame($bob, $this->service->getFromId(self::BOB . '#main-key'));
 	}
 
+	private const BOB_KEY = self::BOB . '/main-key';
+
+	/** GoToSocial's answer at a key URL: a stub of the actor, the key on it. */
+	private const GTS_STUB = [
+		'id' => self::BOB,
+		'type' => 'Person',
+		'publicKey' => ['id' => self::BOB_KEY, 'owner' => self::BOB, 'publicKeyPem' => 'PEM'],
+	] + self::ACTIVITY_JSON;
+
+	/** Answers each fetched URL with the document given for it, and fails the test on any other. */
+	private function serving(array $documents): void {
+		$this->curlService->method('retrieveObject')->willReturnCallback(
+			function (string $id) use ($documents): array {
+				$this->assertArrayHasKey($id, $documents, 'fetched ' . $id);
+
+				return $documents[$id];
+			}
+		);
+	}
+
+	/** @return iterable<string, array{0: array<string, mixed>, 1: array<string, mixed>}> the stub, and the owner's own document */
+	public static function keysTheirOwnerClaims(): iterable {
+		yield 'GoToSocial: the stub, and the actor listing the key as its publicKey' => [self::GTS_STUB, self::GTS_STUB];
+		yield 'a bare key document naming its owner' => [
+			['id' => self::BOB_KEY, 'type' => 'CryptographicKey', 'owner' => self::BOB, 'publicKeyPem' => 'PEM'] + self::ACTIVITY_JSON,
+			self::GTS_STUB,
+		];
+		yield 'a Multikey naming its controller, listed under assertionMethod' => [
+			['id' => self::BOB_KEY, 'type' => 'Multikey', 'controller' => self::BOB] + self::ACTIVITY_JSON,
+			['id' => self::BOB, 'type' => 'Person', 'assertionMethod' => [['id' => self::BOB_KEY, 'type' => 'Multikey', 'controller' => self::BOB]]] + self::ACTIVITY_JSON,
+		];
+		yield 'one of several publicKey entries' => [
+			self::GTS_STUB,
+			['id' => self::BOB, 'type' => 'Person', 'publicKey' => [['id' => self::BOB . '#other', 'owner' => self::BOB], ['id' => self::BOB_KEY, 'owner' => self::BOB]]] + self::ACTIVITY_JSON,
+		];
+	}
+
+	/**
+	 * A key at a URL of its own belongs to the actor its document names when
+	 * that actor's own document, served at that actor's id, lists the key.
+	 *
+	 * @param array<string, mixed> $stub
+	 * @param array<string, mixed> $actor
+	 */
+	#[DataProvider('keysTheirOwnerClaims')]
+	public function testGetFromKeyIdAnswersTheOwnerThatListsTheKey(array $stub, array $actor): void {
+		$bob = $this->person(self::BOB);
+		$this->serving([self::BOB_KEY => $stub, self::BOB => $actor]);
+		$this->cacheActorsRequest->method('getFromId')->with(self::BOB)->willReturn($bob);
+
+		$this->assertSame($bob, $this->service->getFromKeyId(self::BOB_KEY));
+	}
+
+	/** @return iterable<string, array{0: array<string, mixed>}> what a key URL and the actor it names answer */
+	public static function keysNobodyClaims(): iterable {
+		yield 'a stub naming an owner on another host' => [[
+			self::BOB_KEY => ['id' => 'https://elsewhere.example/users/eve', 'publicKey' => ['id' => self::BOB_KEY, 'owner' => 'https://elsewhere.example/users/eve']] + self::ACTIVITY_JSON,
+		]];
+		yield 'an owner on the same host whose document does not list the key' => [[
+			self::BOB_KEY => ['id' => 'https://remote.example/users/carol', 'publicKey' => ['id' => self::BOB_KEY, 'owner' => 'https://remote.example/users/carol']] + self::ACTIVITY_JSON,
+			'https://remote.example/users/carol' => ['id' => 'https://remote.example/users/carol', 'type' => 'Person', 'publicKey' => ['id' => 'https://remote.example/users/carol/main-key', 'owner' => 'https://remote.example/users/carol']] + self::ACTIVITY_JSON,
+		]];
+		yield 'an owner whose document lists the key under another id' => [[
+			self::BOB_KEY => self::GTS_STUB,
+			self::BOB => ['id' => 'https://remote.example/users/mallory', 'type' => 'Person', 'publicKey' => ['id' => self::BOB_KEY, 'owner' => 'https://remote.example/users/mallory']] + self::ACTIVITY_JSON,
+		]];
+		yield 'an owner whose document lists the key as somebody else\'s' => [[
+			self::BOB_KEY => self::GTS_STUB,
+			self::BOB => ['id' => self::BOB, 'type' => 'Person', 'publicKey' => ['id' => self::BOB_KEY, 'owner' => 'https://remote.example/users/mallory']] + self::ACTIVITY_JSON,
+		]];
+		yield 'a stub with no owner or controller' => [[
+			self::BOB_KEY => ['id' => self::BOB, 'type' => 'Person', 'publicKey' => ['id' => self::BOB_KEY, 'publicKeyPem' => 'PEM']] + self::ACTIVITY_JSON,
+		]];
+		yield 'a bare key with no owner or controller' => [[
+			self::BOB_KEY => ['id' => self::BOB_KEY, 'type' => 'CryptographicKey', 'publicKeyPem' => 'PEM', 'owner' => ''] + self::ACTIVITY_JSON,
+		]];
+		yield 'a stub for another key' => [[
+			self::BOB_KEY => ['id' => self::BOB, 'publicKey' => ['id' => self::BOB . '#main-key', 'owner' => self::BOB]] + self::ACTIVITY_JSON,
+		]];
+		yield 'a stub not served as ActivityPub' => [[
+			self::BOB_KEY => ['_host' => 'remote.example', '_contentType' => 'application/json'] + self::GTS_STUB,
+		]];
+		yield 'an owner not served as ActivityPub' => [[
+			self::BOB_KEY => self::GTS_STUB,
+			self::BOB => ['_host' => 'remote.example', '_contentType' => 'application/json'] + self::GTS_STUB,
+		]];
+	}
+
+	/**
+	 * Nothing that fails the binding is ever taken as the key's owner: the
+	 * actor cache is not even asked.
+	 *
+	 * @param array<string, array<string, mixed>> $documents
+	 */
+	#[DataProvider('keysNobodyClaims')]
+	public function testGetFromKeyIdRefusesAKeyItsOwnerDoesNotClaim(array $documents): void {
+		$this->serving($documents);
+		$this->cacheActorsRequest->expects($this->never())->method('getFromId');
+
+		$this->expectException(InvalidOriginException::class);
+		$this->service->getFromKeyId(self::BOB_KEY);
+	}
+
 	public function testGetFromIdAsksTheDatabaseOnceForTheSameActor(): void {
 		$bob = $this->person(self::BOB);
 		$this->cacheActorsRequest->expects($this->once())->method('getFromId')->willReturn($bob);

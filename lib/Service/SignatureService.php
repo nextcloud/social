@@ -142,6 +142,16 @@ class SignatureService {
 	/** The shortest interval between two forced refreshes of the same keyId. */
 	public const KEY_REFRESH_INTERVAL = 300;
 
+	/**
+	 * The `DurableCache` namespace of the actors that fragment-less keyIds
+	 * were found to belong to (`CacheActorService::getFromKeyId()`), so a
+	 * known peer's delivery is a database read and not a fetch of its key.
+	 */
+	public const KEY_HOLDER_NAMESPACE = 'social.keyholder';
+
+	/** How long a keyId's owner is remembered: a key does not change hands. */
+	public const KEY_HOLDER_TTL = 2592000; // 30 days
+
 	private CacheActorService $cacheActorService;
 	private CacheActorsRequest $cacheActorsRequest;
 	private ConfigService $configService;
@@ -533,7 +543,6 @@ class SignatureService {
 	): string {
 		$keyId = $signature['params']['keyid'];
 		$origin = $this->getKeyOrigin($keyId);
-		$signer = $this->keyOwner($keyId);
 		// an instance this one does not federate with is refused before its
 		// key is fetched, not after
 		$this->fediverseService->authorized($origin);
@@ -563,6 +572,7 @@ class SignatureService {
 				);
 			}
 		});
+		$signer = $this->keyOwner($keyId);
 
 		return $origin;
 	}
@@ -776,10 +786,10 @@ class SignatureService {
 			// the key lives on the actor's host, and a host this instance does
 			// not federate with is not asked for it
 			$this->fediverseService->authorized($this->getKeyOrigin($actorId));
-			$signature->setPublicKey($this->retrieveKey($actorId));
+			$signature->setPublicKey($this->retrieveKey($actorId, false, true));
 
 			if (!$signature->verify()) {
-				$signature->setPublicKey($this->retrieveKey($actorId, true));
+				$signature->setPublicKey($this->retrieveKey($actorId, true, true));
 				if (!$signature->verify()) {
 					return false;
 				}
@@ -939,7 +949,6 @@ class SignatureService {
 
 		$keyId = $sign['keyId'];
 		$origin = $this->getKeyOrigin($keyId);
-		$signer = $this->keyOwner($keyId);
 		// an instance this one does not federate with is refused before its
 		// key is fetched, not after
 		$this->fediverseService->authorized($origin);
@@ -973,6 +982,7 @@ class SignatureService {
 		$this->verifyWithKey($keyId, function (string $publicKey) use ($sign, $estimated, $signed): void {
 			$this->checkRequestSignatureUsingPublicKey($publicKey, $sign, $estimated, $signed);
 		});
+		$signer = $this->keyOwner($keyId);
 
 		return $origin;
 	}
@@ -1099,15 +1109,17 @@ class SignatureService {
 	 *  - the fetch itself, and a forced refresh, are bounded — in time and in
 	 *    how often the same keyId may ask for one.
 	 *
+	 * @param bool $isActorId `$keyId` is the actor's own id, as an LD signature's check passes it
 	 * @throws SignatureException
 	 * @throws Exception
 	 */
-	private function retrieveKey(string $keyId, bool $refresh = false): string {
+	private function retrieveKey(string $keyId, bool $refresh = false, bool $isActorId = false): string {
 		$id = $this->keyIdWithoutAnchor($keyId);
+		$holder = $isActorId ? '' : $this->knownKeyHolder($keyId);
 
 		if (!$refresh) {
 			try {
-				return $this->cacheActorsRequest->getFromId($id)
+				return $this->cacheActorsRequest->getFromId($holder !== '' ? $holder : $id)
 					->getPublicKey();
 			} catch (CacheActorDoesNotExistException $e) {
 				// not known yet: fall through to the bounded fetch
@@ -1138,7 +1150,11 @@ class SignatureService {
 		try {
 			$actor = $this->configService->withRequestTimeout(
 				self::UNKNOWN_KEY_TIMEOUT,
-				fn (): Person => $this->cacheActorService->getFromId($id, $refresh),
+				fn (): Person => match (true) {
+					$holder !== '' => $this->cacheActorService->getFromId($holder, $refresh),
+					$isActorId || str_contains($keyId, '#') => $this->cacheActorService->getFromId($id, $refresh),
+					default => $this->cacheActorService->getFromKeyId($keyId, $refresh),
+				},
 				self::UNKNOWN_KEY_CONNECT_TIMEOUT
 			);
 		} catch (RequestNetworkException|RequestServerException $e) {
@@ -1153,6 +1169,10 @@ class SignatureService {
 			throw $e;
 		}
 
+		if ($actor->getId() !== $id) {
+			$this->durableCache->set(self::KEY_HOLDER_NAMESPACE, $keyId, $actor->getId(), self::KEY_HOLDER_TTL);
+		}
+
 		if (!$refresh) {
 			// resolved and stored, so the read above will answer from now on;
 			// drop the entry rather than hold off a genuine peer whose first
@@ -1161,6 +1181,18 @@ class SignatureService {
 		}
 
 		return $actor->getPublicKey();
+	}
+
+	/**
+	 * The actor a fragment-less keyId was found to belong to, or ''.
+	 */
+	private function knownKeyHolder(string $keyId): string {
+		if (str_contains($keyId, '#')) {
+			return '';
+		}
+		$holder = $this->durableCache->get(self::KEY_HOLDER_NAMESPACE, $keyId);
+
+		return is_string($holder) ? $holder : '';
 	}
 
 	/**
@@ -1195,9 +1227,14 @@ class SignatureService {
 	 */
 	/**
 	 * The actor a key belongs to: a keyId is that actor's id with the key named
-	 * in the fragment (`…/users/alice#main-key`).
+	 * in the fragment (`…/users/alice#main-key`), or a URL of its own whose
+	 * owner `retrieveKey()` found out (GoToSocial's `…/users/alice/main-key`).
 	 */
 	private function keyOwner(string $keyId): string {
+		$holder = $this->knownKeyHolder($keyId);
+		if ($holder !== '') {
+			return $holder;
+		}
 		$owner = strtok($keyId, '#');
 
 		return ($owner === false) ? '' : rtrim($owner, '/');
