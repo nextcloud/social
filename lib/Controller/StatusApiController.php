@@ -41,6 +41,7 @@ use OCA\Social\Service\ModerationService;
 use OCA\Social\Service\PeerTubeService;
 use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PollService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\PostReviewService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\QuoteService;
@@ -108,6 +109,7 @@ class StatusApiController extends MastodonApiController {
 		private ViewCountService $viewCountService,
 		private TeamService $teamService,
 		private PlaceService $placeService,
+		private PostDecorationService $postDecorationService,
 		private DeliveryService $deliveryService,
 		private ReactionService $reactionService,
 		private ReactionSummaryService $reactionSummaryService,
@@ -169,7 +171,7 @@ class StatusApiController extends MastodonApiController {
 			$idempotencyKey = $this->idempotencyKey();
 			$already = $this->statusForIdempotencyKey($idempotencyKey);
 			if ($already !== null) {
-				return new DataResponse($already, Http::STATUS_OK);
+				return new DataResponse($this->served($already), Http::STATUS_OK);
 			}
 
 			// Use the viewer that was already initialized
@@ -301,7 +303,7 @@ class StatusApiController extends MastodonApiController {
 				'postId' => $activity->getObjectId()
 			]);
 
-			return new DataResponse($item, Http::STATUS_OK);
+			return new DataResponse($this->served($item), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -399,8 +401,6 @@ class StatusApiController extends MastodonApiController {
 			return null;
 		}
 
-		$item->setExportFormat(ACore::FORMAT_LOCAL);
-
 		return $item;
 	}
 
@@ -443,9 +443,8 @@ class StatusApiController extends MastodonApiController {
 				$status->getLanguage() !== '' ? $status->getLanguage() : null,
 				$this->mediaAttributes($fields['media_attributes'] ?? [])
 			);
-			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return new DataResponse($item, Http::STATUS_OK);
+			return new DataResponse($this->served($item), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -502,8 +501,7 @@ class StatusApiController extends MastodonApiController {
 		try {
 			$this->initViewer(false);
 
-			$item = $this->streamService->attachCard($this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid)));
-			$item->setExportFormat(ACore::FORMAT_LOCAL);
+			$item = $this->served($this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid)));
 			// opening a post's own page is the one thing this app counts as
 			// having read it: not an impression in a timeline, which is a post
 			// scrolled past rather than read
@@ -520,6 +518,17 @@ class StatusApiController extends MastodonApiController {
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * One status as a client is served it, dressed the way a timeline dresses
+	 * the same post.
+	 */
+	private function served(Stream $item): Stream {
+		$item->setExportFormat(ACore::FORMAT_LOCAL);
+		$this->postDecorationService->decorate([$item], $this->viewer?->getId() ?? '');
+
+		return $item;
 	}
 
 	/**
@@ -614,7 +623,8 @@ class StatusApiController extends MastodonApiController {
 				throw new StreamNotFoundException('Stream not found');
 			}
 
-			// exported before the delete, while the row is still there to read
+			// exported before the delete, while the row is still there to read;
+			// not dressed, as a redraft takes the text and media and nothing else
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 			$deleted = $item->exportAsLocal();
 
@@ -752,10 +762,8 @@ class StatusApiController extends MastodonApiController {
 			// read back rather than patched in memory, so the count the client
 			// redraws is the one the next reader will be served
 			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
-			$item->setReactions($this->reactionSummaryService->summaryOf($item->getId(), $actor->getId()));
-			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return new DataResponse($item, Http::STATUS_OK);
+			return new DataResponse($this->served($item), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -902,9 +910,7 @@ class StatusApiController extends MastodonApiController {
 				$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			}
 
-			$item->setExportFormat(ACore::FORMAT_LOCAL);
-
-			return new DataResponse($item, Http::STATUS_OK);
+			return new DataResponse($this->served($item), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -1031,9 +1037,8 @@ class StatusApiController extends MastodonApiController {
 					$this->logger->warning('Quote policy not written to Bluesky', ['post' => $item->getId(), 'exception' => $e]);
 				}
 			}
-			$item->setExportFormat(ACore::FORMAT_LOCAL);
 
-			return new DataResponse($item, Http::STATUS_OK);
+			return new DataResponse($this->served($item), Http::STATUS_OK);
 		} catch (InvalidResourceException $e) {
 			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
 		} catch (Throwable $e) {

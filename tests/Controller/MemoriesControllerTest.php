@@ -11,9 +11,9 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\MemoriesController;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Service\LinkPreviewService;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\MemoriesService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IDateTimeZone;
@@ -36,10 +36,12 @@ class MemoriesControllerTest extends TestCase {
 	use ClientApiCallers;
 
 	private MemoriesService&MockObject $memories;
+	private PostDecorationService&MockObject $decoration;
 
 	protected function setUp(): void {
 		$this->setUpCallers();
 		$this->memories = $this->createMock(MemoriesService::class);
+		$this->decoration = $this->createMock(PostDecorationService::class);
 	}
 
 	protected function tearDown(): void {
@@ -130,6 +132,16 @@ class MemoriesControllerTest extends TestCase {
 		$this->assertSame(['posts' => 3], $response->getData());
 	}
 
+	/** A memory is drawn like the same post in a timeline, its reactions marked for the reader. */
+	public function testTheMemoriesAreDressedForTheReader(): void {
+		$this->asToken(['read:statuses'], 'bob');
+		$post = new Note();
+		$this->memories->method('onThisDay')->willReturn([$post]);
+		$this->decoration->expects($this->once())->method('decorate')->with([$post], 'https://cloud.example/users/bob');
+
+		$this->assertSame([$post], $this->controller()->onThisDay()->getData());
+	}
+
 	public function testSwitchingTheRecapChangesOnlyTheCallersSetting(): void {
 		$this->asToken(['write:accounts'], 'bob');
 		$this->memories->expects($this->once())->method('setRecapEnabled')->with('bob', false);
@@ -147,8 +159,7 @@ class MemoriesControllerTest extends TestCase {
 			$this->accountService,
 			$this->clientService,
 			$this->memories,
-			$this->createStub(LinkPreviewService::class),
-			$this->createStub(PlaceService::class),
+			$this->decoration,
 			$this->createStub(IDateTimeZone::class),
 		);
 	}

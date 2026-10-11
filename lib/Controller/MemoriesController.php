@@ -13,9 +13,8 @@ use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
-use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\MemoriesService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -51,8 +50,7 @@ class MemoriesController extends ClientApiController {
 		AccountService $accountService,
 		ClientService $clientService,
 		private MemoriesService $memoriesService,
-		private LinkPreviewService $linkPreviewService,
-		private PlaceService $placeService,
+		private PostDecorationService $postDecorationService,
 		private IDateTimeZone $dateTimeZone,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
@@ -68,10 +66,8 @@ class MemoriesController extends ClientApiController {
 			$this->initViewer(['read:statuses']);
 			$posts = $this->memoriesService->onThisDay($this->viewer(), $this->dateTimeZone->getTimeZone());
 
-			// the same two the timeline attaches; neither is part of the
-			// stored post, and a memory is drawn by the same card
-			$this->linkPreviewService->attachCards($posts);
-			$this->placeService->attachPlaces($posts);
+			// a memory is drawn by the same card as a timeline post
+			$this->postDecorationService->decorate($posts, $this->viewer()->getId());
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (ClientNotFoundException|InsufficientScopeException $e) {

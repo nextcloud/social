@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Db\PlacesRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Place;
 use OCA\Social\Service\PlaceService;
@@ -159,7 +160,7 @@ class PlaceServiceTest extends TestCase {
 		$posts = $this->service->posts(3);
 
 		$this->assertCount(1, $posts);
-		$this->assertSame('Lisbon', $posts[0]->getPlace()?->getName());
+		$this->assertSame(ACore::FORMAT_LOCAL, $posts[0]->getExportFormat());
 	}
 
 	/** A place nobody named is a 404 before any post is read. */

@@ -15,8 +15,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\CollectionService;
-use OCA\Social\Service\LinkPreviewService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -60,8 +59,7 @@ class CollectionController extends ClientApiController {
 		ClientService $clientService,
 		private CacheActorService $cacheActorService,
 		private CollectionService $collectionService,
-		private LinkPreviewService $linkPreviewService,
-		private PlaceService $placeService,
+		private PostDecorationService $postDecorationService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -179,8 +177,7 @@ class CollectionController extends ClientApiController {
 			foreach ($posts as $post) {
 				$post->setExportFormat(ACore::FORMAT_LOCAL);
 			}
-			$this->linkPreviewService->attachCards($posts);
-			$this->placeService->attachPlaces($posts);
+			$this->postDecorationService->decorate($posts, $viewer?->getId() ?? '');
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Throwable $e) {

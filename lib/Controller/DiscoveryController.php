@@ -21,9 +21,8 @@ use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\FollowGraphService;
 use OCA\Social\Service\HashtagService;
-use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PeerTrendService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\ProfileHighlightsService;
 use OCA\Social\Service\StarterPackService;
 use OCA\Social\Service\SuggestionService;
@@ -79,8 +78,7 @@ class DiscoveryController extends ClientApiController {
 		private FollowGraphService $followGraphService,
 		private TrendService $trendService,
 		private FeaturedTagService $featuredTagService,
-		private LinkPreviewService $linkPreviewService,
-		private PlaceService $placeService,
+		private PostDecorationService $postDecorationService,
 		private StarterPackService $starterPackService,
 		private ProfileHighlightsService $profileHighlightsService,
 		private AccountRelationService $accountRelationService,
@@ -383,8 +381,7 @@ class DiscoveryController extends ClientApiController {
 
 			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset);
 			// one query for the whole page, as the timelines do it
-			$this->linkPreviewService->attachCards($statuses);
-			$this->placeService->attachPlaces($statuses);
+			$this->postDecorationService->decorate($statuses, $this->viewer?->getId() ?? '');
 
 			return new DataResponse($statuses, Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -427,8 +424,7 @@ class DiscoveryController extends ClientApiController {
 
 			$media = in_array($media, ['image', 'video', 'audio'], true) ? $media : '';
 			$statuses = $this->trendService->trendingStatuses($period, $limit, $offset, true, $media);
-			$this->linkPreviewService->attachCards($statuses);
-			$this->placeService->attachPlaces($statuses);
+			$this->postDecorationService->decorate($statuses, $this->viewer?->getId() ?? '');
 
 			return new DataResponse($statuses, Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -532,7 +528,7 @@ class DiscoveryController extends ClientApiController {
 
 			$statuses = $this->trendService->linkTimeline($url, $limit, $max_id, $min_id);
 			// one query for the whole page, as the timelines do it
-			$this->linkPreviewService->attachCards($statuses);
+			$this->postDecorationService->decorate($statuses, $this->viewer?->getId() ?? '');
 
 			return new DataResponse($statuses, Http::STATUS_OK);
 		} catch (Throwable $e) {

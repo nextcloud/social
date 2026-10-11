@@ -176,6 +176,12 @@ to stop.
   `Api/ReplyParentVisibilityTest` answers a reply to a post its writer may not
   read exactly as a reply to a missing one, through the client API and the
   post service.
+  `Api/SameStatusEverywhereTest` serves one reacted-to post through the home
+  timeline, `GET /api/v1/statuses/{id}`, its thread, a list, a place, a
+  collection, the trends, a favourite's answer, the photos somebody is in, a
+  portfolio, the archive and the videos to continue, and holds each to the same
+  `reactions` with `me` for the reader, and the single status to its place
+  and tagged people; it caught the single status answering `reactions: []`.
   `Api/SignInTokenRoutesTest` calls the account pages a client app opens —
   memories, statistics, channels, the migration exports, imports and move-in,
   the authorized apps — five ways: a bearer token granted the route's scope,

@@ -17,12 +17,11 @@ use OCA\Social\Service\ArchiveService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
-use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\MediaTagService;
 use OCA\Social\Service\PixelfedConfigService;
 use OCA\Social\Service\PixelfedService;
-use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PortfolioService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
@@ -75,8 +74,7 @@ class PixelfedController extends ClientApiController {
 		private TrendService $trendService,
 		private SuggestionService $suggestionService,
 		private HashtagService $hashtagService,
-		private LinkPreviewService $linkPreviewService,
-		private PlaceService $placeService,
+		private PostDecorationService $postDecorationService,
 		private PixelfedService $pixelfedService,
 		private StoryService $storyService,
 		private StoryInteractionService $storyInteractionService,
@@ -159,7 +157,7 @@ class PixelfedController extends ClientApiController {
 		string $period = HashtagService::PERIOD_DEFAULT,
 	): DataResponse {
 		try {
-			$this->optionalViewer(['read']);
+			$viewer = $this->optionalViewer(['read']);
 
 			$statuses = $this->trendService->trendingStatuses(
 				$period, max(1, min($limit, self::LIMIT)), max(0, $offset), true
@@ -167,8 +165,7 @@ class PixelfedController extends ClientApiController {
 			foreach ($statuses as $status) {
 				$status->setExportFormat(ACore::FORMAT_LOCAL);
 			}
-			$this->linkPreviewService->attachCards($statuses);
-			$this->placeService->attachPlaces($statuses);
+			$this->postDecorationService->decorate($statuses, $viewer?->getId() ?? '');
 
 			return new DataResponse($statuses, Http::STATUS_OK);
 		} catch (Throwable $e) {
@@ -742,6 +739,7 @@ class PixelfedController extends ClientApiController {
 			foreach ($posts as $post) {
 				$post->setExportFormat(ACore::FORMAT_LOCAL);
 			}
+			$this->postDecorationService->decorate($posts, $this->viewer()->getId());
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Throwable $e) {

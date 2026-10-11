@@ -17,8 +17,7 @@ use OCA\Social\Atproto\Reader\StarterPacks;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
-use OCA\Social\Service\LinkPreviewService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -43,8 +42,7 @@ class AtprotoFeedsController extends Controller {
 		private BlueskyFeeds $feeds,
 		private StarterPacks $starterPacks,
 		private BlueskyDiscovery $discovery,
-		private LinkPreviewService $linkPreviewService,
-		private PlaceService $placeService,
+		private PostDecorationService $postDecorationService,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -99,8 +97,7 @@ class AtprotoFeedsController extends Controller {
 	public function timeline(string $feed, int $limit = 20, string $max_id = ''): DataResponse {
 		return $this->answer(function (Person $viewer) use ($feed, $limit, $max_id): array {
 			$posts = $this->feeds->page($viewer, $feed, $max_id, $limit);
-			$this->linkPreviewService->attachCards($posts);
-			$this->placeService->attachPlaces($posts);
+			$this->postDecorationService->decorate($posts, $viewer->getId());
 
 			return $posts;
 		});

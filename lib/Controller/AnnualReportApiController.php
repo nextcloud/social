@@ -18,6 +18,7 @@ use OCA\Social\Service\AnnualReportService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\StreamService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
@@ -48,6 +49,7 @@ class AnnualReportApiController extends MastodonApiController {
 		StreamService $streamService,
 		FollowService $followService,
 		private AnnualReportService $annualReportService,
+		private PostDecorationService $postDecorationService,
 	) {
 		parent::__construct($request, $urlGenerator, $userSession, $logger, $clientService, $accountService, $cacheActorService, $streamService, $followService);
 	}
@@ -198,6 +200,7 @@ class AnnualReportApiController extends MastodonApiController {
 			}
 		}
 
+		$this->postDecorationService->decorate($statuses, $actor->getId());
 		$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
 		return [

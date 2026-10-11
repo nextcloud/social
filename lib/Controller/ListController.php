@@ -24,8 +24,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\Counts\CountService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\GroupListService;
-use OCA\Social\Service\LinkPreviewService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -88,9 +87,8 @@ class ListController extends ClientApiController {
 		private CacheActorService $cacheActorService,
 		ClientService $clientService,
 		private FollowService $followService,
-		private LinkPreviewService $linkPreviewService,
+		private PostDecorationService $postDecorationService,
 		private ListsRequest $listsRequest,
-		private PlaceService $placeService,
 		private GroupListService $groupListService,
 		private ?ContainerInterface $container = null,
 		private ?CountService $counts = null,
@@ -423,8 +421,7 @@ class ListController extends ClientApiController {
 
 			$posts = $this->listsRequest->getTimeline($list, $options);
 			// one query for the whole page, as the home timeline does it
-			$this->linkPreviewService->attachCards($posts);
-			$this->placeService->attachPlaces($posts);
+			$this->postDecorationService->decorate($posts, $this->viewer()->getId());
 			$this->counts?->seen($posts);
 
 			return $this->paged($posts, $options->getLimit());

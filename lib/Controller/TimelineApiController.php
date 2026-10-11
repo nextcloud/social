@@ -24,6 +24,7 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\NotificationInboxService;
 use OCA\Social\Service\NotificationPolicyService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TimelineRevisionService;
@@ -63,6 +64,7 @@ class TimelineApiController extends MastodonApiController {
 		private FilterService $filterService,
 		private NotificationPolicyService $notificationPolicyService,
 		private WatchService $watchService,
+		private PostDecorationService $postDecorationService,
 		private TimelineRevisionService $timelineRevisionService,
 		private NotificationInboxService $notificationInboxService,
 		private RemoteFetchQueue $remoteFetchQueue,
@@ -498,10 +500,10 @@ class TimelineApiController extends MastodonApiController {
 	public function videosContinue(int $limit = 20): DataResponse {
 		try {
 			$this->initViewer(true);
+			$posts = $this->watchService->unfinished($this->viewer, $limit);
+			$this->postDecorationService->decorate($posts, $this->viewer->getId());
 
-			return new DataResponse(
-				$this->watchService->unfinished($this->viewer, $limit), Http::STATUS_OK
-			);
+			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

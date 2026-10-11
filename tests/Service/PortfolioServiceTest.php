@@ -19,7 +19,7 @@ use OCA\Social\Model\Client\Portfolio;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CollectionService;
 use OCA\Social\Service\PortfolioService;
-use OCA\Social\Service\StreamService;
+use OCA\Social\Service\PostDecorationService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
@@ -36,6 +36,7 @@ class PortfolioServiceTest extends TestCase {
 	private StreamRequest|MockObject $streamRequest;
 	private CollectionService|Stub $collectionService;
 	private CacheActorService|Stub $cacheActorService;
+	private PostDecorationService|MockObject $decoration;
 	private PortfolioService $service;
 
 	/** the options every timeline read was asked with */
@@ -48,6 +49,7 @@ class PortfolioServiceTest extends TestCase {
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->collectionService = $this->createStub(CollectionService::class);
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
+		$this->decoration = $this->createMock(PostDecorationService::class);
 
 		$this->streamRequest->method('getTimeline')->willReturnCallback(
 			function (ProbeOptions $options): array {
@@ -62,7 +64,7 @@ class PortfolioServiceTest extends TestCase {
 			$this->streamRequest,
 			$this->collectionService,
 			$this->cacheActorService,
-			$this->createStub(StreamService::class),
+			$this->decoration,
 		);
 	}
 
@@ -90,6 +92,26 @@ class PortfolioServiceTest extends TestCase {
 		$this->streamRequest->expects($this->never())->method('setViewer');
 
 		$this->service->published('alice');
+	}
+
+	/**
+	 * The pictures are drawn like the same posts anywhere else: for nobody on
+	 * the published page, which resolves no reader, and for the owner in
+	 * their preview.
+	 */
+	public function testThePicturesAreDressedForWhoeverTheRouteKnows(): void {
+		$this->cacheActorService->method('getFromAccount')->willReturn($this->person(self::ALICE));
+		$this->portfoliosRequest->method('getByActor')->willReturn($this->portfolio());
+		$readers = [];
+		$this->decoration->expects($this->exactly(2))->method('decorate')
+			->willReturnCallback(static function (array $posts, string $readerId) use (&$readers): void {
+				$readers[] = $readerId;
+			});
+
+		$this->service->published('alice');
+		$this->service->own($this->person(self::ALICE));
+
+		$this->assertSame(['', self::ALICE], $readers);
 	}
 
 	/** A row that exists is a draft until its owner says otherwise. */

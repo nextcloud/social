@@ -49,7 +49,8 @@ class PlaceService {
 	}
 
 	/**
-	 * The public posts taken at a place, newest first, with the place on them.
+	 * The public posts taken at a place, newest first, for the caller to
+	 * dress (`PostDecorationService`), which puts the place on them.
 	 *
 	 * Public only, whoever asks: the place page is a public page, and a
 	 * followers-only post's location is as private as the post.
@@ -64,7 +65,6 @@ class PlaceService {
 		foreach ($posts as $post) {
 			$post->setExportFormat(ACore::FORMAT_LOCAL);
 		}
-		$this->attachPlaces($posts);
 
 		return $posts;
 	}

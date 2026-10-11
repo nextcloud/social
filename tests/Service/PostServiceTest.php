@@ -12,7 +12,6 @@ namespace OCA\Social\Tests\Service;
 use DateTime;
 use OCA\Social\Atproto\Reader\Postgates;
 use OCA\Social\Atproto\Reader\Threadgates;
-use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Events\PostEditedEvent;
 use OCA\Social\Exceptions\AccountMovedException;
@@ -42,9 +41,8 @@ use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\PostService;
-use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\ReplyRuleService;
 use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
@@ -135,9 +133,7 @@ class PostServiceTest extends TestCase {
 			$this->createStub(EmojiService::class),
 			$this->createStub(\OCP\EventDispatcher\IEventDispatcher::class),
 			new NullLogger(),
-			$this->createStub(PlaceService::class),
-			$this->createStub(ReactionSummaryService::class),
-			$this->createStub(MediaTagsRequest::class),
+			$this->createStub(PostDecorationService::class),
 			$this->createStub(AccountService::class),
 			$this->createStub(ChannelService::class)
 		);
