@@ -75,8 +75,8 @@ use Psr\Log\NullLogger;
  */
 #[AllowMockObjectsWithoutExpectations]
 class OutboundFederationWireTest extends TestCase {
-	/** TEST-NET-3: a public address the local-address guard lets through without asking DNS. */
-	private const REMOTE = '203.0.113.10';
+	/** A literal public address the local-address guard lets through without asking DNS; the HTTP client is a double. */
+	private const REMOTE = '1.2.3.4';
 	private const ALICE = 'https://cloud.example.com/index.php/apps/social/users/alice';
 	private const INSTANCE_ACTOR = 'https://cloud.example.com/index.php/apps/social/actor';
 

@@ -52,8 +52,8 @@ class CurlServiceTest extends TestCase {
 	private FediverseService|MockObject $fediverseService;
 	private CurlService|MockObject $service;
 
-	/** TEST-NET-3, so the classifier sees a public address without asking DNS */
-	private const PUBLIC_IP = '203.0.113.10';
+	/** A literal public address, so the classifier answers without asking DNS; the HTTP client is a double and nothing is sent */
+	private const PUBLIC_IP = '1.2.3.4';
 
 	/** @var list<array{method: string, url: string, options: array}> every request handed to the (mocked) transport */
 	private array $requests = [];
@@ -1331,7 +1331,7 @@ class CurlServiceTest extends TestCase {
 	 */
 	public function testAStreamIsAuthorizedOnBehalfOfTheInstanceThatNamedIt(): void {
 		$from = 'https://' . self::PUBLIC_IP . '/video.mp4';
-		$to = 'https://203.0.113.11/video.mp4';
+		$to = 'https://1.2.3.5/video.mp4';
 		$authorized = [];
 		$this->fediverseService->method('authorized')->willReturnCallback(
 			static function (string $host, string $onBehalfOf = '') use (&$authorized): bool {
@@ -1346,7 +1346,7 @@ class CurlServiceTest extends TestCase {
 
 		$this->service()->openStream($from, [], 'peertube.example');
 
-		$this->assertSame([[self::PUBLIC_IP, 'peertube.example'], ['203.0.113.11', 'peertube.example']], $authorized);
+		$this->assertSame([[self::PUBLIC_IP, 'peertube.example'], ['1.2.3.5', 'peertube.example']], $authorized);
 	}
 
 	public function testABatchOfDocumentsNeverAsksALocalHost(): void {
