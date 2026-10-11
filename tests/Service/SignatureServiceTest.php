@@ -31,13 +31,13 @@ use OCA\Social\Service\FediverseService;
 use OCA\Social\Service\HttpSignatureService;
 use OCA\Social\Service\InstanceActorService;
 use OCA\Social\Service\SignatureService;
+use OCA\Social\Tests\Helper\FrozenClock;
 use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCA\Social\Tests\Helper\RsaPssSigner;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
-use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\AppData\IAppDataFactory;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
@@ -74,6 +74,8 @@ class SignatureServiceTest extends TestCase {
 	private SignatureService $service;
 	/** the replay records, on the table an instance without a memcache uses */
 	private InMemoryDurableCacheRequest $seenSignatures;
+	/** the clock both the windows and the replay records read; the wall clock unless a test moves it */
+	private FrozenClock $clock;
 	/** @var array<string, mixed> backing store of the mocked key-attempt cache */
 	private array $keyAttempts = [];
 	/** @var array<string, int> the ttl each cache entry was written with */
@@ -110,6 +112,7 @@ class SignatureServiceTest extends TestCase {
 			->willReturnCallback(fn (int $timeout, callable $action) => $action());
 
 		// in-memory stand-ins for the two distributed caches
+		$this->clock = new FrozenClock(time());
 		$this->seenSignatures = new InMemoryDurableCacheRequest();
 		$this->keyAttempts = [];
 		$this->cacheTtl = [];
@@ -129,6 +132,7 @@ class SignatureServiceTest extends TestCase {
 			new NullLogger(),
 			$this->durableCache(),
 			$this->fediverseService,
+			$this->clock,
 		);
 	}
 
@@ -140,10 +144,7 @@ class SignatureServiceTest extends TestCase {
 	private function durableCache(): DurableCache {
 		$cacheFactory = $this->createStub(ICacheFactory::class);
 		$cacheFactory->method('isAvailable')->willReturn(false);
-		$time = $this->createStub(ITimeFactory::class);
-		$time->method('getTime')->willReturnCallback(static fn (): int => time());
-
-		return new DurableCache($cacheFactory, $this->seenSignatures, $time);
+		return new DurableCache($cacheFactory, $this->seenSignatures, $this->clock);
 	}
 
 	/**
@@ -1864,5 +1865,144 @@ class SignatureServiceTest extends TestCase {
 		$this->expectExceptionMessage('(request-target)');
 
 		$this->service->checkGetRequest($this->incomingGet($headers));
+	}
+
+	/**
+	 * The Date window of a signed request, on its edges, with the clock at
+	 * calendar edges: twelve hours back and one ahead are taken, a second
+	 * further either way is not. An HTTP date names a UTC instant, so the
+	 * night of a leap day or a month end is no different from any other.
+	 *
+	 * @return array<string, array{string, int, string}>
+	 */
+	public static function dateWindowEdges(): array {
+		$moments = [
+			'a leap day' => '2028-02-29T06:00:00Z',
+			'the first of March after one' => '2028-03-01T06:00:00Z',
+			'New Year' => '2027-01-01T00:30:00Z',
+			'the European autumn change' => '2026-10-25T01:30:00Z',
+		];
+		$edges = [];
+		foreach ($moments as $name => $moment) {
+			$edges[$name . ', twelve hours old'] = [$moment, -SignatureService::DATE_PAST, ''];
+			$edges[$name . ', a second older'] = [$moment, -SignatureService::DATE_PAST - 1, 'object is too old'];
+			$edges[$name . ', an hour ahead'] = [$moment, SignatureService::DATE_FUTURE, ''];
+			$edges[$name . ', a second further'] = [$moment, SignatureService::DATE_FUTURE + 1, 'object is from the future'];
+		}
+
+		return $edges;
+	}
+
+	#[DataProvider('dateWindowEdges')]
+	public function testTheDateWindowOfASignedRequestEndsOnTheSecond(string $now, int $offset, string $refusal): void {
+		$this->clock->set(FrozenClock::at($now)->getTime());
+		$body = '{"type":"Follow"}';
+		$headers = $this->signedHeaders($body, self::$privateKey, [
+			'date' => gmdate(SignatureService::DATE_HEADER, $this->clock->getTime() + $offset),
+		]);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame($refusal === '' ? 'remote.example' : $refusal, $this->outcome(fn (): string => $this->service->checkRequest($this->incomingRequest($headers), $body)));
+	}
+
+	/**
+	 * RFC 9421 holds `created` to the same window, and refuses a signature on
+	 * the second after its `expires`, not on that second itself.
+	 *
+	 * @return array<string, array{array<string, int>, string}>
+	 */
+	public static function messageSignatureEdges(): array {
+		return [
+			'created twelve hours ago' => [['created' => -SignatureService::DATE_PAST], ''],
+			'created a second before that' => [['created' => -SignatureService::DATE_PAST - 1], 'signature created is too old'],
+			'created an hour ahead' => [['created' => SignatureService::DATE_FUTURE], ''],
+			'created a second further' => [['created' => SignatureService::DATE_FUTURE + 1], 'signature created is from the future'],
+			'expiring now' => [['created' => -60, 'expires' => 0], ''],
+			'expired a second ago' => [['created' => -60, 'expires' => -1], 'signature has expired'],
+		];
+	}
+
+	/** @param array<string, int> $offsets */
+	#[DataProvider('messageSignatureEdges')]
+	public function testTheWindowOfAnRfc9421SignatureEndsOnTheSecond(array $offsets, string $refusal): void {
+		$this->clock->set(FrozenClock::at('2028-02-29T00:00:00Z')->getTime());
+		$body = '{"type":"Follow"}';
+		$params = array_map(fn (int $offset): int => $this->clock->getTime() + $offset, $offsets);
+		// a Date of now beside it, so it is `created` and `expires` that decide
+		$headers = $this->messageSignedHeaders($body, self::$privateKey, ['date' => gmdate(SignatureService::DATE_HEADER, $this->clock->getTime())], ['@method', '@target-uri', 'content-digest'], $params);
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$this->assertSame($refusal === '' ? 'remote.example' : $refusal, $this->outcome(fn (): string => $this->service->checkRequest($this->incomingRequest($headers), $body)));
+	}
+
+	/**
+	 * A delivery taken in is a replay for as long as its Date is accepted: on
+	 * the next second, on the last second of its twelve hours, and then it is
+	 * refused as too old.
+	 */
+	public function testARequestTakenInIsAReplayForAsLongAsItsDateIsAccepted(): void {
+		$body = '{"type":"Follow"}';
+		$start = $this->clock->getTime();
+		$request = $this->incomingRequest($this->signedHeaders($body, self::$privateKey, ['date' => gmdate(SignatureService::DATE_HEADER, $start)]));
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+		$this->service->checkRequest($request, $body);
+		$this->service->rememberRequest($request);
+
+		foreach ([1, SignatureService::DATE_PAST] as $offset) {
+			$this->clock->set($start + $offset);
+			$this->assertSame('remote.example', $this->service->checkRequest($request, $body), $offset . ' s on, the signature still verifies');
+			$this->assertTrue($this->service->isReplayed($request), $offset . ' s on, it is known as taken in');
+		}
+
+		$this->clock->set($start + SignatureService::DATE_PAST + 1);
+		$this->assertSame('object is too old', $this->outcome(fn (): string => $this->service->checkRequest($request, $body)));
+	}
+
+	/**
+	 * An LD signature's `created`, a day either way of now, on its edges; and
+	 * one accepted is refused again on the next second and on the last second
+	 * of its day, then for being too old.
+	 *
+	 * @return array<string, array{int, bool}>
+	 */
+	public static function ldWindowEdges(): array {
+		return [
+			'a day old' => [-SignatureService::LD_WINDOW, true],
+			'a second older' => [-SignatureService::LD_WINDOW - 1, false],
+			'a day ahead' => [SignatureService::LD_WINDOW, true],
+			'a second further' => [SignatureService::LD_WINDOW + 1, false],
+		];
+	}
+
+	#[DataProvider('ldWindowEdges')]
+	public function testTheWindowOfAnLdSignatureEndsOnTheSecond(int $offset, bool $accepted): void {
+		$this->registerContextCache();
+		$this->clock->set(FrozenClock::at('2026-10-31T23:59:59Z')->getTime());
+		$received = $this->receivedSignedNote(gmdate(SignatureService::DATE_OBJECT, $this->clock->getTime() + $offset));
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey));
+
+		$this->assertSame($accepted, $this->service->checkObject($received));
+	}
+
+	public function testAnAcceptedLdSignatureIsRefusedForTheRestOfItsDay(): void {
+		$this->registerContextCache();
+		$start = $this->clock->getTime();
+		$received = $this->receivedSignedNote(gmdate(SignatureService::DATE_OBJECT, $start));
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey));
+		$this->assertTrue($this->service->checkObject($received));
+
+		foreach ([1, SignatureService::LD_WINDOW, SignatureService::LD_WINDOW + 1] as $offset) {
+			$this->clock->set($start + $offset);
+			$this->assertFalse($this->service->checkObject($received), $offset . ' s on');
+		}
+	}
+
+	/** What a check came to: its answer, or the message it was refused with. */
+	private function outcome(callable $check): string {
+		try {
+			return (string)$check();
+		} catch (\Exception $e) {
+			return $e->getMessage();
+		}
 	}
 }
