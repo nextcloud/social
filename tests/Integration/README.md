@@ -335,6 +335,11 @@ to stop.
   show it on its last second and none does on the second its day is up, when
   the hourly sweep takes it and not before.
 
+- `Db/TrendWindowsTest` — the five trend windows to their edges on a frozen
+  clock: a status trends until its interactions are exactly a window old and
+  a link until the posts sharing it are, while the cron's hashtag count still
+  takes in a post exactly a window old and leaves out one a second older.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
