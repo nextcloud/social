@@ -2,7 +2,7 @@
   - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-# Interop tests (this app talking to a real Mastodon, PeerTube and Pixelfed)
+# Interop tests (this app talking to a real Mastodon, PeerTube, Pixelfed, Loops and GoToSocial)
 
 The unit suite proves this app emits the document it meant to. The integration
 suite proves the database and the migrations hold what it thinks they hold.
@@ -288,6 +288,78 @@ from `url`, so likes and comments on our videos failed there.
 When a run fails, its last step prints our log, our delivery queue and
 uploads, every request through the proxy, Loops' log, failed jobs and queue
 worker, and what Loops' own validators make of our last activities.
+
+## Against GoToSocial
+
+`.github/workflows/interop-gotosocial.yml` is a job of its own, run on every
+pull request, on pushes to master, weekly and on demand. GoToSocial is one
+container with SQLite (the official image, `superseriousbusiness/gotosocial`
+0.22.2, pinned by tag and digest) and is up in seconds, so the job is the
+quickest of the interop jobs. It sits behind the same Caddy and job-made CA as
+the others, and trusts that CA rather than skipping verification; the only
+exception it is given is permission to dial the runner's loopback.
+
+GoToSocial is the strictest common peer, which is the reason for the job:
+
+- every fetch and every delivery has to carry a signature its verifier
+  accepts — Mastodon's `AUTHORIZED_FETCH`, always on — so each test that
+  sees something arrive on either side also proves a signed request passed
+  the other side's verifier;
+- it names its keys `…/users/name/main-key`, a URL of their own, where
+  everybody else uses the actor's id with a `#main-key` fragment;
+- it publishes an `interactionPolicy` on every post, holds the interactions
+  that policy does not let through for its user to approve, and reads ours.
+
+`GoToSocialDeliveryTest` covers what we send: our follow accepted, a follow of
+a locked account waiting for its owner's yes, a public post and one with a
+content warning, a reply threaded under the GoToSocial post, a direct message
+that reaches its addressee and not the public timeline, an edit that arrives as
+an edit, a delete, a favourite and a boost counted and undone; and the
+interaction policies — our "nobody may reply" read by GoToSocial and held to
+by it (its user's reply is refused there), a GoToSocial post that keeps
+replies to its author shown here as not answerable and the reply refused here
+with the reason, the addressee of a GoToSocial direct message allowed to
+answer it (its policy names them) and the answer threaded there, and a
+follower's favourite of a followers-only post, which GoToSocial approves on
+its own (`Accept` with a `LikeAuthorization`) because its policy names the
+followers collection. `GoToSocialInboundTest` covers what GoToSocial sends:
+its follow accepted and its unfollow honoured, a post with a content warning
+on the home timeline, a reply threaded under our post, a direct message that
+stays direct, an edit, a delete, a favourite and a boost counted and notified,
+and a favourite of an open post of ours given without GoToSocial holding it as
+a request.
+
+Not covered, because this app does not do it yet: a reply from a GoToSocial
+follower to a post of ours whose reply rule names our followers. GoToSocial
+reads our `canReply` naming the followers collection as "approval is
+conditional", sends a polite `ReplyRequest` and holds the reply until an
+`Accept` with a `ReplyAuthorization` comes back; this app takes the request
+in and answers nothing, so the reply never leaves GoToSocial. GoToSocial
+renamed `approvedBy`/`LikeApproval`/`ReplyApproval` to
+`likeAuthorization`/`LikeAuthorization`/`ReplyAuthorization` in 0.20 and
+dropped the old names in 0.21; this job runs the new ones.
+
+Its first runs found three defects on this side, all fixed:
+
+- every delivery from GoToSocial was refused with a 401: its `…/main-key`
+  document is a stub whose id is the actor's, which was read as a document
+  claiming somebody else's id;
+- the addressee of a GoToSocial direct message, and a follower of the author
+  of a followers-only post, were refused a reply or a favourite here, because
+  any `automaticApproval` narrower than the public collection read as
+  "nobody", whom it named or not;
+- a direct reply that did not repeat the handle of the person it answers
+  reached GoToSocial and was shown to nobody, because GoToSocial decides who
+  sees a direct message by its `Mention` tags and the reply carried none.
+
+To run it by hand: a GoToSocial reachable over https at `GOTOSOCIAL_BASE_URL`
+(`GOTOSOCIAL_HOST` when the handle's host differs), `GOTOSOCIAL_TOKEN` for its
+`interop` account and optionally `GOTOSOCIAL_TOKEN_GUARDED` for a locked
+`guarded` one — `tests/Interop/gotosocial/token.sh` mints either from an
+email and password — and this app's Nextcloud reachable from it over https;
+then `composer run test:interop -- --filter GoToSocial`. GoToSocial is a single
+Go binary, so outside CI it can run without Docker: `http-client.allow-ips`
+lets it dial a loopback address, and a client of it must send a `User-Agent`.
 
 ## Against Bluesky
 

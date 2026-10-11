@@ -1,0 +1,256 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Interop against a real GoToSocial: this app's activities delivered to it and
+# read back out of its own API, and GoToSocial's delivered here and read back
+# out of ours. See tests/Interop/README.md for what it covers and for what it
+# cannot prove.
+#
+# GoToSocial is the strictest common peer: it signs and demands a signature on
+# every fetch and every delivery (Mastodon's AUTHORIZED_FETCH, always on), it
+# names its keys `…/main-key` rather than `#main-key`, and it holds the
+# interactions its interaction policies do not let through for approval. It
+# is one container with SQLite and starts in seconds, so this runs on every
+# pull request, beside the Mastodon and Pixelfed jobs.
+
+name: Interop against GoToSocial
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+  schedule:
+    # Mondays, early, beside the other interop runs
+    - cron: '37 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interop-gotosocial-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  interop-gotosocial:
+    runs-on: ubuntu-latest
+    name: Nextcloud Social ↔ GoToSocial
+    timeout-minutes: 30
+
+    env:
+      APP_NAME: social
+      # GoToSocial 0.22.2, the official image, pinned by digest: a moved tag
+      # would change what is being tested without a commit here saying so
+      GOTOSOCIAL_IMAGE: docker.io/superseriousbusiness/gotosocial:0.22.2@sha256:43e5dd574c5d5f94238b73e2ce17cf5c778f763cebebf06cc7894623d151c78b
+      GOTOSOCIAL_HOST: gotosocial.test
+      GOTOSOCIAL_BASE_URL: https://gotosocial.test
+      GOTOSOCIAL_PASSWORD: Interop-Test-2026!
+      NEXTCLOUD_URL: https://nextcloud.test
+
+    steps:
+      - name: Checkout server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          repository: nextcloud/server
+          # see e2e.yml: the newest version info.xml claims
+          ref: master
+
+      - name: Checkout app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: apps/social
+
+      - name: Set up php
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+
+      - name: Set up the app's PHP dependencies
+        working-directory: apps/social
+        # without the dev ones, as the app store ships it: the app's autoloader
+        # is prepended to the server's, so a dev-only package the server also
+        # carries (symfony/console) is served in place of the server's own
+        run: composer i --no-dev
+
+      - name: Give both servers a name and a certificate
+        # GoToSocial fetches and delivers over https only, and verifies the
+        # certificate: a CA made here, trusted by the runner, by Nextcloud and
+        # by the GoToSocial container, and thrown away with the job
+        run: |
+          set -euo pipefail
+          echo '127.0.0.1 nextcloud.test gotosocial.test' | sudo tee -a /etc/hosts
+          mkdir -p /tmp/tls && cd /tmp/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj '/CN=Interop CA' \
+            -keyout ca.key -out ca.crt \
+            -addext 'basicConstraints=critical,CA:true' -addext 'keyUsage=critical,keyCertSign,cRLSign'
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=nextcloud.test' -keyout nc.key -out nc.csr
+          printf 'subjectAltName=DNS:nextcloud.test,DNS:gotosocial.test\nextendedKeyUsage=serverAuth\n' > nc.ext
+          openssl x509 -req -in nc.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 \
+            -extfile nc.ext -out nc.crt
+          chmod 644 nc.key
+          sudo cp ca.crt /usr/local/share/ca-certificates/interop-ca.crt
+          sudo update-ca-certificates
+
+      - name: Set up Nextcloud
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud \
+            --admin-user admin --admin-pass admin
+          ./occ app:enable --force social
+          # the second reader here a direct message must not reach
+          OC_PASS='Interop-Test-2026!' ./occ user:add --password-from-env bystander
+          ./occ config:system:set trusted_domains 1 --value localhost:8080
+          ./occ config:system:set trusted_domains 2 --value nextcloud.test
+          ./occ config:system:set overwriteprotocol --value https
+          ./occ config:system:set overwritehost --value nextcloud.test
+          # Nextcloud's own HTTP client keeps its own CA bundle
+          ./occ security:certificates:import /tmp/tls/ca.crt
+          ./occ config:system:set overwrite.cli.url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social cloud_url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social social_url --value "$NEXTCLOUD_URL/index.php/apps/social/"
+          # GoToSocial is on this same runner: Nextcloud's HTTP client has to
+          # be willing to talk to an address it would otherwise call local
+          ./occ config:system:set allow_local_remote_servers --value true --type boolean
+          ./occ log:manage --level=info
+
+      - name: Run Nextcloud
+        # several workers: rendering or fetching anything makes the server ask
+        # itself over HTTP, and a single-worker built-in server deadlocks on that
+        # behind the TLS proxy
+        run: |
+          PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 &
+          cat > /tmp/tls/Caddyfile <<'CADDY'
+          {
+            admin off
+            auto_https disable_redirects
+          }
+          nextcloud.test:443 {
+            tls /tls/nc.crt /tls/nc.key
+            log
+            # what Nextcloud's .htaccess does under Apache: the built-in
+            # server only serves files, and webfinger, nodeinfo and host-meta
+            # are routes of index.php
+            @wellknown path /.well-known/*
+            rewrite @wellknown /index.php{path}
+            reverse_proxy localhost:8080
+          }
+          gotosocial.test:443 {
+            tls /tls/nc.crt /tls/nc.key
+            log
+            reverse_proxy 127.0.0.1:8090
+          }
+          CADDY
+          docker run -d --name proxy --network host -v /tmp/tls:/tls:ro caddy:2 \
+            caddy run --config /tls/Caddyfile --adapter caddyfile
+          for attempt in $(seq 1 30); do
+            # nodeinfo proves the /.well-known rewrite as well as the proxy
+            curl -sf https://nextcloud.test/status.php \
+              && curl -sf https://nextcloud.test/.well-known/nodeinfo && exit 0
+            sleep 2
+          done
+          docker logs proxy
+          exit 1
+
+      - name: Start GoToSocial
+        run: |
+          set -euo pipefail
+          # on the host's network, so both names resolve as the runner's
+          # /etc/hosts says; the host's bundle, which now trusts the job's CA,
+          # in place of the container's own. GoToSocial refuses to dial
+          # loopback unless told, and that one exception is all it is told
+          docker run -d --name gotosocial --network host \
+            -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
+            -e GTS_HOST="$GOTOSOCIAL_HOST" \
+            -e GTS_PROTOCOL=https \
+            -e GTS_BIND_ADDRESS=127.0.0.1 \
+            -e GTS_PORT=8090 \
+            -e GTS_TRUSTED_PROXIES=127.0.0.1/32,::1/128 \
+            -e GTS_DB_TYPE=sqlite \
+            -e GTS_DB_ADDRESS=/gotosocial/storage/sqlite.db \
+            -e GTS_LETSENCRYPT_ENABLED=false \
+            -e GTS_ACCOUNTS_REGISTRATION_OPEN=false \
+            -e GTS_HTTP_CLIENT_ALLOW_IPS=127.0.0.1/32,::1/128 \
+            -e GTS_ADVANCED_RATE_LIMIT_REQUESTS=0 \
+            -e GTS_ADVANCED_THROTTLING_MULTIPLIER=0 \
+            -e GTS_LOG_LEVEL=info \
+            "$GOTOSOCIAL_IMAGE"
+          for attempt in $(seq 1 60); do
+            if curl -sf "$GOTOSOCIAL_BASE_URL/api/v1/instance" > /dev/null; then
+              echo "GoToSocial is up"
+              curl -s "$GOTOSOCIAL_BASE_URL/api/v1/instance" | head -c 400; echo
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "GoToSocial never came up"
+          docker logs gotosocial 2>&1 | tail -60
+          exit 1
+
+      - name: Make the GoToSocial accounts and a token for each
+        run: |
+          set -euo pipefail
+          # `interop` acts in most tests; `guarded` stays locked — as every
+          # GoToSocial account starts — so a follow of it waits for a yes
+          for name in interop guarded; do
+            docker exec gotosocial /gotosocial/gotosocial admin account create \
+              --username "$name" --email "$name@example.com" --password "$GOTOSOCIAL_PASSWORD"
+            docker exec gotosocial /gotosocial/gotosocial admin account confirm --username "$name"
+          done
+          for name in interop guarded; do
+            TOKEN=$(apps/social/tests/Interop/gotosocial/token.sh "$GOTOSOCIAL_BASE_URL" "$name@example.com" "$GOTOSOCIAL_PASSWORD")
+            if [ -z "$TOKEN" ]; then echo "no token for $name"; exit 1; fi
+            echo "::add-mask::$TOKEN"
+            VARIABLE=GOTOSOCIAL_TOKEN
+            if [ "$name" = guarded ]; then VARIABLE=GOTOSOCIAL_TOKEN_GUARDED; fi
+            echo "$VARIABLE=$TOKEN" >> "$GITHUB_ENV"
+            if [ "$name" = interop ]; then
+              curl -sf -X PATCH -H "Authorization: Bearer $TOKEN" -H 'User-Agent: interop' \
+                -d locked=false "$GOTOSOCIAL_BASE_URL/api/v1/accounts/update_credentials" | head -c 300; echo
+            fi
+          done
+
+      - name: Interop tests
+        working-directory: apps/social
+        # the suite needs phpunit; installed only now, once the server is up
+        # and the app enabled with what ships. One class at a time, so each
+        # prints its own failures even if the other hangs.
+        run: |
+          composer i
+          status=0
+          timeout 600 php -d memory_limit=1G vendor/bin/phpunit -c tests/Interop/phpunit.xml --filter GoToSocialDeliveryTest || status=1
+          timeout 600 php -d memory_limit=1G vendor/bin/phpunit -c tests/Interop/phpunit.xml --filter GoToSocialInboundTest || status=1
+          exit $status
+
+      - name: What each side saw, when it went wrong
+        if: failure()
+        run: |
+          echo '--- Nextcloud log, notices and worse ---'
+          python3 -c 'import json,sys
+          for l in open("data/nextcloud.log"):
+              try: d=json.loads(l)
+              except Exception: continue
+              m=d.get("message","")
+              if d.get("level",0)>=1 and "headers already sent" not in m: print(d.get("time"),d.get("level"),d.get("app"),m[:300])' | tail -150 || true
+          echo '--- hosts the circuit breaker held back ---'
+          sqlite3 -header data/nextcloud.db "select * from oc_social_host_breaker" 2>&1 || true
+          echo '--- our delivery queue ---'
+          sqlite3 -header data/nextcloud.db \
+            "select id, token, status, tries, priority, substr(instance,1,90) as instance, substr(activity,1,80) as activity from oc_social_req_queue order by id" 2>&1 | tail -80 || true
+          echo '--- every write through the proxy, and what each side fetched from the other ---'
+          docker logs proxy 2>&1 | python3 -c 'import json,sys,datetime
+          for l in sys.stdin:
+              try: d=json.loads(l)
+              except Exception: continue
+              r=d.get("request")
+              ua=(r or {}).get("headers",{}).get("User-Agent") or [""]
+              if not r or r["method"]=="GET" and "webfinger" not in r["uri"] and not ua[0].startswith(("gotosocial","Aloha")): continue
+              print(datetime.datetime.utcfromtimestamp(d["ts"]).strftime("%H:%M:%S"), d.get("status"), r["method"], r["host"], r["uri"][:90], ua[0][:30])' | tail -200 || true
+          echo '--- GoToSocial, warnings and errors ---'
+          docker logs gotosocial 2>&1 | grep -E 'level=(WARN|ERROR)' | cut -c1-700 | tail -120 || true
+          echo '--- GoToSocial, what it did with what we sent ---'
+          docker logs gotosocial 2>&1 | grep -E 'ProcessFromFediAPI|statusCode=4|statusCode=5' | cut -c1-500 | tail -80 || true
