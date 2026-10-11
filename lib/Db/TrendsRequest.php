@@ -359,6 +359,6 @@ class TrendsRequest extends TrendsRequestBuilder {
 	 * PostgreSQL.
 	 */
 	private function dateOf(int $since): \DateTime {
-		return (new \DateTime())->setTimestamp($since);
+		return new \DateTime('@' . $since);
 	}
 }

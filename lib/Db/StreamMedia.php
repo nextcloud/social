@@ -74,7 +74,7 @@ trait StreamMedia {
 		$qb->select('nid')
 			->from(self::TABLE_STREAM)
 			->setMaxResults(1);
-		$qb->limitToAttributedTo($actorId, true);
+		$qb->andWhere($expr->eq('attributed_to_prim', $qb->createNamedParameter($qb->prim($actorId))));
 		$qb->andWhere($expr->like('attachments', $qb->createNamedParameter(
 			'%"id":"' . $this->dbConnection->escapeLikeParameter($nid) . '"%'
 		)));
@@ -203,8 +203,10 @@ trait StreamMedia {
 				continue;
 			}
 
+			// compared as stored: the rebuilt copy holds objects where the
+			// decoded one holds arrays, so the two are never identical
 			$new = $this->updateAttachmentInList($document, $stored);
-			if ($new === $stored) {
+			if (json_decode((string)json_encode($new, JSON_UNESCAPED_SLASHES), true) === $stored) {
 				continue;
 			}
 

@@ -35,7 +35,7 @@ class AccessBlocksRequest extends CoreRequestBuilder {
 	 */
 	public function save(AccessBlock $block): void {
 		$expires = $block->getExpires() === 0
-			? null : (new DateTime())->setTimestamp($block->getExpires());
+			? null : new DateTime('@' . $block->getExpires());
 
 		$qb = $this->getQueryBuilder();
 		$qb->insert(self::TABLE_ACCESS_BLOCKS)

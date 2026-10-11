@@ -27,8 +27,6 @@ use ReflectionProperty;
 class StreamCarriesUploadTest extends TestCase {
 	/** @var string[] */
 	private array $where = [];
-	/** @var array{0: string, 1: bool}|null */
-	private ?array $author = null;
 	private ?int $max = null;
 
 	private function request(array|false $row): StreamRequest&MockObject {
@@ -43,9 +41,7 @@ class StreamCarriesUploadTest extends TestCase {
 
 			return $qb;
 		});
-		$qb->method('limitToAttributedTo')->willReturnCallback(function (string $actorId, bool $prim): void {
-			$this->author = [$actorId, $prim];
-		});
+		$qb->method('prim')->willReturnCallback(static fn (string $id): string => md5($id));
 		$qb->method('setMaxResults')->willReturnCallback(function (?int $max) use (&$qb): SocialQueryBuilder {
 			$this->max = $max;
 
@@ -72,8 +68,10 @@ class StreamCarriesUploadTest extends TestCase {
 	public function testAPostOfTheAccountThatCarriesTheUploadIsFound(): void {
 		$this->assertTrue($this->request(['nid' => '40'])->carriesUpload('https://cloud.example/users/alice', '7'));
 
-		$this->assertSame(['https://cloud.example/users/alice', true], $this->author);
-		$this->assertSame(['attachments LIKE %"id":"7"%'], $this->where);
+		$this->assertSame([
+			'attributed_to_prim = ' . md5('https://cloud.example/users/alice'),
+			'attachments LIKE %"id":"7"%',
+		], $this->where);
 		$this->assertSame(1, $this->max);
 	}
 

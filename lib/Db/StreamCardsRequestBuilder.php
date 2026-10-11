@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use OCA\Social\Model\StreamCard;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\Traits\TArrayTools;
 
 class StreamCardsRequestBuilder extends CoreRequestBuilder {
@@ -58,7 +59,7 @@ class StreamCardsRequestBuilder extends CoreRequestBuilder {
 
 		$creation = $this->get('creation', $data);
 		if ($creation !== '') {
-			$card->setCreation((int)strtotime($creation));
+			$card->setCreation(DbTime::toTimestamp($creation));
 		}
 
 		return $card;

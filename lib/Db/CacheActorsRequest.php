@@ -131,8 +131,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		try {
 			if ($actor->getCreation() > 0) {
-				$dTime = new DateTime();
-				$dTime->setTimestamp($actor->getCreation());
+				$dTime = new DateTime('@' . $actor->getCreation());
 			} else {
 				$dTime = new DateTime('now');
 			}
@@ -191,8 +190,7 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		try {
 			if ($actor->getCreation() > 0) {
-				$dTime = new DateTime();
-				$dTime->setTimestamp($actor->getCreation());
+				$dTime = new DateTime('@' . $actor->getCreation());
 			} else {
 				$dTime = new DateTime('now');
 			}

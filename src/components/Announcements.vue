@@ -214,7 +214,9 @@ export default {
 		 *
 		 * A whole-day window ends at midnight after its last day, so it is
 		 * written as a date: the time of day is the shape of the bound rather
-		 * than anything the reader needs.
+		 * than anything the reader needs. The server sets that midnight in
+		 * UTC, so the date is UTC's: west of Greenwich it is still the day
+		 * before.
 		 *
 		 * @param {object} announcement one entity
 		 * @return {string} the line to show, or '' when it has no end
@@ -226,7 +228,7 @@ export default {
 
 			return t('social', 'Until {date}', {
 				date: announcement.all_day
-					? fullDate(announcement.ends_at)
+					? fullDate(announcement.ends_at, 'UTC')
 					: fullDateTime(announcement.ends_at),
 			})
 		},

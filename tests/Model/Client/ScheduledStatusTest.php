@@ -109,7 +109,7 @@ class ScheduledStatusTest extends TestCase {
 
 		$this->assertSame(12, $scheduled->getId());
 		$this->assertSame('https://social.example/@alice', $scheduled->getActorId());
-		$this->assertSame((int)strtotime('2025-10-09 07:33:20'), $scheduled->getScheduledAt());
+		$this->assertSame((int)strtotime('2025-10-09 07:33:20 UTC'), $scheduled->getScheduledAt());
 		$this->assertSame('later', $scheduled->paramText());
 		$this->assertSame('unlisted', $scheduled->paramString('visibility'));
 	}

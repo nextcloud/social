@@ -11,6 +11,7 @@ namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -151,7 +152,7 @@ class StoryInteraction implements IQueryRow, JsonSerializable {
 		$this->setSourceId($this->get('source_id', $data));
 
 		$creation = $this->get('creation', $data);
-		$this->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
+		$this->setCreation(DbTime::toTimestamp($creation));
 	}
 
 	#[\Override]

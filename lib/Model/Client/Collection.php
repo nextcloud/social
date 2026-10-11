@@ -13,6 +13,7 @@ use JsonSerializable;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -173,9 +174,9 @@ class Collection implements IQueryRow, JsonSerializable {
 		$this->setDescription($this->get('description', $data));
 		$this->setVisibility($this->get('visibility', $data, self::DEFAULT_VISIBILITY));
 		$creation = $this->get('creation', $data);
-		$this->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
+		$this->setCreation(DbTime::toTimestamp($creation));
 		$updated = $this->get('updated', $data);
-		$this->setUpdated(($updated === '') ? 0 : (int)strtotime($updated));
+		$this->setUpdated(DbTime::toTimestamp($updated));
 		// present only when the read asked for it
 		$this->setSize($this->getInt('size', $data));
 	}

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { fromNow, fullDateTime, shortAgo } from '../../../src/utils/relativeTime.js'
+import { fromNow, fullDate, fullDateTime, shortAgo } from '../../../src/utils/relativeTime.js'
 
 const NOW = new Date('2026-09-08T12:00:00Z')
 const ago = (seconds) => new Date(NOW.getTime() - seconds * 1000).toISOString()
@@ -57,14 +57,31 @@ describe('shortAgo', () => {
 		expect(shortAgo(ago(15 * 86400), now)).toBe('2w')
 	})
 
+	// noon on the 1st in the reader's own zone, which is the zone the date is
+	// written in: noon UTC is already the 2nd east of +12
 	it('gives the date once a post is a month old, and the year once it is not this one', () => {
-		expect(shortAgo(new Date('2026-08-01T12:00:00Z'), now)).toBe('Aug 1')
-		expect(shortAgo(new Date('2025-08-01T12:00:00Z'), now)).toBe('Aug 1, 2025')
+		expect(shortAgo(new Date(2026, 7, 1, 12), now)).toBe('Aug 1')
+		expect(shortAgo(new Date(2025, 7, 1, 12), now)).toBe('Aug 1, 2025')
 	})
 
 	it('says nothing for a date it cannot read, and treats a clock running ahead as now', () => {
 		expect(shortAgo('not a date', now)).toBe('')
 		expect(shortAgo(new Date(now.getTime() + 30000), now)).toBe('now')
+	})
+})
+
+describe('fullDate', () => {
+	it('names the calendar day of the zone it is asked for', () => {
+		// UTC midnight, which is how the server bounds a whole-day window
+		const midnight = '2026-09-22T00:00:00Z'
+
+		expect(fullDate(midnight, 'UTC')).toBe('September 22, 2026')
+		expect(fullDate(midnight, 'Pacific/Kiritimati')).toBe('September 22, 2026')
+		expect(fullDate(midnight, 'America/Los_Angeles')).toBe('September 21, 2026')
+	})
+
+	it('says nothing about a date it cannot read', () => {
+		expect(fullDate('nope', 'UTC')).toBe('')
 	})
 })
 

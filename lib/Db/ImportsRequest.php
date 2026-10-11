@@ -11,6 +11,7 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use OCA\Social\Model\ImportJob;
+use OCA\Social\Tools\DbTime;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
@@ -159,12 +160,6 @@ class ImportsRequest extends CoreRequestBuilder {
 	}
 
 	private function timestampOf(mixed $value): int {
-		if ($value === null || $value === '') {
-			return 0;
-		}
-
-		$time = strtotime((string)$value);
-
-		return ($time === false) ? 0 : $time;
+		return DbTime::toTimestamp($value);
 	}
 }

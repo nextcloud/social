@@ -111,6 +111,12 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 
 		$output->info('filling in the recipient rows\' sort key for ' . $total . ' post(s)');
 
+		// PostgreSQL types a CASE whose branches are all parameters as text,
+		// which it will not write into a bigint column
+		$then = $this->connection->getDatabaseProvider() === IDBConnection::PLATFORM_POSTGRES
+			? 'CAST(? AS BIGINT)'
+			: '?';
+
 		$after = '0';
 		$done = 0;
 		while (true) {
@@ -132,7 +138,7 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 			foreach ($page as $row) {
 				$after = \OCA\Social\Tools\Nid::compare($after, (string)$row['nid']) > 0 ? $after : (string)$row['nid'];
 				$prims[] = (string)$row['id_prim'];
-				$cases .= ' WHEN ? THEN ?';
+				$cases .= ' WHEN ? THEN ' . $then;
 				$values[] = (string)$row['id_prim'];
 				$values[] = (string)$row['nid'];
 			}

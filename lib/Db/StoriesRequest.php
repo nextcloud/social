@@ -82,11 +82,10 @@ class StoriesRequest extends CoreRequestBuilder {
 	 * hold rather than about how a row is written.
 	 */
 	public function save(Story $story): Story {
-		$now = new DateTime('now');
-		$now->setTimestamp(($story->getCreation() > 0) ? $story->getCreation() : $now->getTimestamp());
-		$expires = (new DateTime('now'))->setTimestamp(
+		$now = new DateTime('@' . (($story->getCreation() > 0) ? $story->getCreation() : time()));
+		$expires = new DateTime('@' . (
 			($story->getExpiresAt() > 0) ? $story->getExpiresAt() : $now->getTimestamp() + Story::LIFETIME
-		);
+		));
 
 		$qb = $this->getStoriesInsertSql();
 		$qb->setValue('actor_id', $qb->createNamedParameter($story->getOwnerId()))

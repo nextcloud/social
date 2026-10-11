@@ -26,6 +26,7 @@ use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICacheFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -39,6 +40,8 @@ class StatisticsServiceTest extends TestCase {
 	private FollowsRequest|MockObject $followsRequest;
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	private StatisticsService $service;
+	/** what the service's clock answers; null is the real time */
+	private ?int $now = null;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -51,13 +54,14 @@ class StatisticsServiceTest extends TestCase {
 		$cacheFactory = $this->createStub(ICacheFactory::class);
 		$cacheFactory->method('isAvailable')->willReturn(false);
 		$time = $this->createStub(ITimeFactory::class);
-		$time->method('getTime')->willReturnCallback(static fn (): int => time());
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now ?? time());
 
 		$this->service = new StatisticsService(
 			$this->streamRequest,
 			$this->followsRequest,
 			$this->cacheActorsRequest,
 			new DurableCache($cacheFactory, new InMemoryDurableCacheRequest(), $time),
+			$time,
 		);
 	}
 
@@ -229,16 +233,43 @@ class StatisticsServiceTest extends TestCase {
 		}
 	}
 
-	/** Twelve columns whether or not anything was posted in them. */
-	public function testTheMonthsAreAlwaysTwelveAndAlwaysInOrder(): void {
-		$this->answering([$this->post(1, ['published' => gmdate('Y-m-01\TH:i:s\Z')])]);
+	/**
+	 * Twelve consecutive columns ending with this month, whether or not
+	 * anything was posted in them — on the last day of a long month too,
+	 * where counting back "-N months" from today lands in the same month
+	 * twice and the chart loses columns.
+	 */
+	#[DataProvider('monthEnds')]
+	public function testTheMonthsAreAlwaysTwelveConsecutiveOnesEndingThisMonth(string $today, string $first, string $last): void {
+		$this->now = (int)strtotime($today . 'T12:00:00Z');
+		$this->answering([$this->post(1, ['published' => $last . '-01T08:00:00Z'])]);
 
 		$stats = $this->service->forAccount($this->alice());
 
-		$this->assertCount(12, $stats['by_month']);
-		$this->assertSame(array_keys($stats['by_month']), array_keys($stats['by_month']));
-		$this->assertSame(1, $stats['by_month'][gmdate('Y-m')]);
+		$expected = [];
+		for ($i = 0, [$year, $month] = array_map('intval', explode('-', $first)); $i < 12; $i++) {
+			$expected[] = sprintf('%04d-%02d', $year, $month);
+			[$year, $month] = ($month === 12) ? [$year + 1, 1] : [$year, $month + 1];
+		}
+		$this->assertSame($expected, array_keys($stats['by_month']));
+		$this->assertSame($last, array_key_last($stats['by_month']));
+		$this->assertSame(1, $stats['by_month'][$last]);
+		$this->assertSame($expected, array_keys($stats['activity']['originals']));
 		$this->assertCount(24, $stats['by_hour']);
+	}
+
+	/** @return array<string, array{string, string, string}> today, the first column, the last */
+	public static function monthEnds(): array {
+		return [
+			'end of January' => ['2026-01-31', '2025-02', '2026-01'],
+			'end of February' => ['2026-02-28', '2025-03', '2026-02'],
+			'29th of March' => ['2026-03-29', '2025-04', '2026-03'],
+			'end of March' => ['2026-03-31', '2025-04', '2026-03'],
+			'end of October' => ['2026-10-31', '2025-11', '2026-10'],
+			'end of December' => ['2026-12-31', '2026-01', '2026-12'],
+			'leap day' => ['2028-02-29', '2027-03', '2028-02'],
+			'first of the month' => ['2026-05-01', '2025-06', '2026-05'],
+		];
 	}
 
 	public function testTheHashtagsAreTheMostUsedOnesLowercased(): void {

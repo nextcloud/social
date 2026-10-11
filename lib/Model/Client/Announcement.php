@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
+use OCA\Social\Tools\DbTime;
 
 /**
  * Mastodon's Announcement entity: the instance-wide notice an admin posts and
@@ -283,10 +284,6 @@ class Announcement implements JsonSerializable {
 
 	/** A date column as this model holds one; an empty column is `0`. */
 	private function timestamp(mixed $value): int {
-		if (!is_string($value) || $value === '') {
-			return 0;
-		}
-
-		return (int)strtotime($value);
+		return DbTime::toTimestamp($value);
 	}
 }

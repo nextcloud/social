@@ -1817,7 +1817,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		parent::importFromDatabase($data);
 
 		try {
-			$dTime = new DateTime($this->get('published_time', $data, 'yesterday'));
+			$dTime = new DateTime($this->get('published_time', $data, 'yesterday'), new DateTimeZone('UTC'));
 			$this->setPublishedTime($dTime->getTimestamp());
 		} catch (Exception $e) {
 		}

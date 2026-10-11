@@ -104,7 +104,7 @@ class PendingFollowsPagingTest extends TestCase {
 		]);
 
 		$this->assertSame(self::KEY, $follow->getIdPrim());
-		$this->assertSame((int)strtotime('2026-01-01 12:00:00'), $follow->getCreation());
+		$this->assertSame((int)strtotime('2026-01-01 12:00:00 UTC'), $follow->getCreation());
 	}
 
 	public function testAPageIsBoundedByItsLimit(): void {
@@ -119,7 +119,7 @@ class PendingFollowsPagingTest extends TestCase {
 	 * with rows it has not yet reached: those are decided by the key.
 	 */
 	public function testTheNextPageComparesTheDateAndTheKeyTogether(): void {
-		$time = (new DateTime())->setTimestamp(1767268800)->format('Y-m-d H:i:s');
+		$time = gmdate('Y-m-d H:i:s', 1767268800);
 
 		$this->request()->getPendingByObjectId(self::ALICE, 2, '1767268800-' . self::KEY);
 
@@ -131,7 +131,7 @@ class PendingFollowsPagingTest extends TestCase {
 	}
 
 	public function testThePreviousPageIsReadUpwardsAndHandedBackNewestFirst(): void {
-		$time = (new DateTime())->setTimestamp(1767268800)->format('Y-m-d H:i:s');
+		$time = gmdate('Y-m-d H:i:s', 1767268800);
 		$older = $this->follow('https://remote.example/@bob', 1767268800, str_repeat('1', 32));
 		$newer = $this->follow('https://remote.example/@carol', 1767268800, str_repeat('2', 32));
 		$this->rows = [$older, $newer];

@@ -13,6 +13,7 @@ use DateTime;
 use OCA\Social\Exceptions\QueueStatusException;
 use OCA\Social\Model\RequestQueue;
 use OCA\Social\Service\RequestQueueService;
+use OCA\Social\Tools\DbTime;
 use OCP\DB\Exception;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -190,18 +191,9 @@ class RequestQueueRequest extends RequestQueueRequestBuilder {
 		$data = $cursor->fetch();
 		$cursor->closeCursor();
 
-		$oldest = $data['oldest'] ?? null;
-		if ($oldest === null || $oldest === '') {
-			return 0;
-		}
-
 		// what comes back is whatever shape the database writes a datetime
 		// in, so it is parsed the same way a hydrated row's is
-		try {
-			return (new DateTime((string)$oldest))->getTimestamp();
-		} catch (\Exception $e) {
-			return 0;
-		}
+		return DbTime::toTimestamp($data['oldest'] ?? null);
 	}
 
 	public function countByStatus(): array {

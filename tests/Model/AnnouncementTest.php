@@ -141,10 +141,10 @@ class AnnouncementTest extends TestCase {
 
 		$this->assertSame(7, $announcement->getId());
 		$this->assertSame('Maintenance on Sunday', $announcement->getText());
-		$this->assertSame(strtotime('2023-11-14 22:13:20'), $announcement->getStartsAt());
-		$this->assertSame(strtotime('2023-11-15 22:13:20'), $announcement->getEndsAt());
+		$this->assertSame(strtotime('2023-11-14 22:13:20 UTC'), $announcement->getStartsAt());
+		$this->assertSame(strtotime('2023-11-15 22:13:20 UTC'), $announcement->getEndsAt());
 		$this->assertTrue($announcement->isAllDay());
-		$this->assertSame(strtotime('2023-11-13 22:13:20'), $announcement->getPublishedAt());
+		$this->assertSame(strtotime('2023-11-13 22:13:20 UTC'), $announcement->getPublishedAt());
 	}
 
 	public function testAnAnnouncementNeverEditedWasLastUpdatedWhenItWasWritten(): void {

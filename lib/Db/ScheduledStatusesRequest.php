@@ -208,7 +208,7 @@ class ScheduledStatusesRequest extends ScheduledStatusesRequestBuilder {
 		$at = $cursor->fetchOne();
 		$cursor->closeCursor();
 
-		return ($at === false || $at === null || $at === '') ? null : new DateTime((string)$at);
+		return ($at === false || $at === null || $at === '') ? null : new DateTime((string)$at, new DateTimeZone('UTC'));
 	}
 
 	/** How many posts the account has waiting, against Mastodon's total cap. */

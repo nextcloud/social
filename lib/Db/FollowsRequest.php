@@ -345,8 +345,7 @@ class FollowsRequest extends FollowsRequestBuilder {
 
 	/** A timestamp as the DateTime the date parameters take. */
 	private function dateTime(int $timestamp): DateTime {
-		$date = new DateTime();
-		$date->setTimestamp($timestamp);
+		$date = new DateTime('@' . $timestamp);
 
 		return $date;
 	}

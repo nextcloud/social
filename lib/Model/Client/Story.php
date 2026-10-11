@@ -11,6 +11,7 @@ namespace OCA\Social\Model\Client;
 
 use JsonSerializable;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\DbTime;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Tools\Traits\TArrayTools;
 
@@ -203,9 +204,9 @@ class Story implements IQueryRow, JsonSerializable {
 		$this->setDuration($this->getInt('duration', $data, self::DEFAULT_DURATION));
 
 		$creation = $this->get('creation', $data);
-		$this->setCreation(($creation === '') ? 0 : (int)strtotime($creation));
+		$this->setCreation(DbTime::toTimestamp($creation));
 		$expires = $this->get('expires_at', $data);
-		$this->setExpiresAt(($expires === '') ? 0 : (int)strtotime($expires));
+		$this->setExpiresAt(DbTime::toTimestamp($expires));
 
 		$this->setSourceId($this->get('source_id', $data));
 		// rows written before stories travelled have no `local` column value
