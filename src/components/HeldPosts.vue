@@ -45,7 +45,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
 import Close from 'vue-material-design-icons/Close.vue'
@@ -86,8 +86,8 @@ export default {
 	},
 
 	methods: {
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 		fullDateTime,
 
 		/**
@@ -97,15 +97,15 @@ export default {
 		reasonText(reason) {
 			switch (reason) {
 				case 'first_post':
-					return translate('social', 'Your first post here')
+					return t('social', 'Your first post here')
 				case 'links':
-					return translate('social', 'More links than a post usually carries')
+					return t('social', 'More links than a post usually carries')
 				case 'mentions':
-					return translate('social', 'A lot of mentions')
+					return t('social', 'A lot of mentions')
 				case 'repeat':
-					return translate('social', 'The same as a post already waiting')
+					return t('social', 'The same as a post already waiting')
 				case 'video':
-					return translate('social', 'Videos are looked at before they are published here')
+					return t('social', 'Videos are looked at before they are published here')
 				default:
 					return reason
 			}
@@ -122,7 +122,7 @@ export default {
 				this.posts = Array.isArray(data.held) ? data.held : []
 			} catch (error) {
 				logger.error('Failed to load the held posts', { error })
-				showError(translate('social', 'Could not load the posts waiting to be looked at'))
+				showError(t('social', 'Could not load the posts waiting to be looked at'))
 			} finally {
 				this.loading = false
 			}
@@ -136,7 +136,7 @@ export default {
 				this.posts = this.posts.filter((one) => one.id !== post.id)
 			} catch (error) {
 				logger.error('Failed to withdraw a held post', { error })
-				showError(translate('social', 'Could not take the post back'))
+				showError(t('social', 'Could not take the post back'))
 			} finally {
 				this.withdrawing = this.withdrawing.filter((id) => id !== post.id)
 			}

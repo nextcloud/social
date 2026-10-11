@@ -74,7 +74,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue'
 import ClockEditOutline from 'vue-material-design-icons/ClockEditOutline.vue'
@@ -149,8 +149,8 @@ export default {
 	},
 
 	methods: {
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 		fullDateTime,
 
 		/** @param {object} post a ScheduledStatus */
@@ -217,7 +217,7 @@ export default {
 				this.posts = more ? this.merge(this.posts, page) : page
 			} catch (error) {
 				logger.error('Failed to load the scheduled posts', { error, more })
-				showError(translate('social', 'Could not load your scheduled posts'))
+				showError(t('social', 'Could not load your scheduled posts'))
 			} finally {
 				this.loading = false
 			}
@@ -297,10 +297,10 @@ export default {
 				this.posts = this.place(this.posts.map((one) => (one.id === post.id ? moved : one)), moved)
 				this.editing = null
 				this.newTime = null
-				showSuccess(translate('social', 'Moved to {date}', { date: fullDateTime(moved.scheduled_at) }))
+				showSuccess(t('social', 'Moved to {date}', { date: fullDateTime(moved.scheduled_at) }))
 			} catch (error) {
 				logger.error('Failed to reschedule a post', { error })
-				showError(error?.response?.data?.error || translate('social', 'Could not change the time of the scheduled post'))
+				showError(error?.response?.data?.error || t('social', 'Could not change the time of the scheduled post'))
 			} finally {
 				this.rescheduling = false
 			}
@@ -344,7 +344,7 @@ export default {
 				this.posts = this.posts.filter((one) => one.id !== post.id)
 			} catch (error) {
 				logger.error('Failed to cancel a scheduled post', { error })
-				showError(translate('social', 'Could not cancel the scheduled post'))
+				showError(t('social', 'Could not cancel the scheduled post'))
 			} finally {
 				this.cancelling = this.cancelling.filter((id) => id !== post.id)
 			}

@@ -545,7 +545,7 @@ import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcModal from '@nextcloud/vue/components/NcModal'
 import { generateUrl } from '@nextcloud/router'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import BlueskyBadge from './BlueskyBadge.vue'
 import FollowButton from './FollowButton.vue'
@@ -741,24 +741,24 @@ export default {
 		postsLabel() {
 			const count = Number(this.accountInfo.statuses_count) || 0
 
-			return translatePlural('social', '{count} post', '{count} posts', count, { count: formatCount(count) })
+			return n('social', '{count} post', '{count} posts', count, { count: formatCount(count) })
 		},
 
 		/** @return {string} */
 		followingLabel() {
 			const count = Number(this.accountInfo.following_count) || 0
 
-			return translatePlural('social', '{count} following', '{count} following', count, { count: formatCount(count) })
+			return n('social', '{count} following', '{count} following', count, { count: formatCount(count) })
 		},
 
 		/** @return {string} */
 		followersLabel() {
 			if (this.serverData.hideCounts === true) {
-				return translate('social', 'Followers')
+				return t('social', 'Followers')
 			}
 			const count = Number(this.accountInfo.followers_count) || 0
 
-			return translatePlural('social', '{count} follower', '{count} followers', count, { count: formatCount(count) })
+			return n('social', '{count} follower', '{count} followers', count, { count: formatCount(count) })
 		},
 
 		avatarUrl() {
@@ -815,7 +815,7 @@ export default {
 		 * @return {string}
 		 */
 		verificationRule() {
-			return translate('social', 'A <link rel="me"> in the page\'s <head> does the same, and rel="me noopener" counts as well: the server looks for "me" among the rel words of any anchor or link on the page. The address has to be your own profile address, the one in the line above; a trailing slash or a #fragment makes no difference.')
+			return t('social', 'A <link rel="me"> in the page\'s <head> does the same, and rel="me noopener" counts as well: the server looks for "me" among the rel words of any anchor or link on the page. The address has to be your own profile address, the one in the line above; a trailing slash or a #fragment makes no difference.')
 		},
 
 		/**
@@ -826,7 +826,7 @@ export default {
 		 * @return {string}
 		 */
 		verificationSchedule() {
-			return translate('social', 'This server fetches the page itself, in the background, at most once a day per account, over http or https only, and reads the first part of it. A page it cannot reach is left unverified and asked again later, and a page that stops linking back loses its tick.')
+			return t('social', 'This server fetches the page itself, in the background, at most once a day per account, over http or https only, and reads the first part of it. A page it cannot reach is left unverified and asked again later, and a page that stops linking back loses its tick.')
 		},
 
 		/** @return {string} the bio to show, reduced to markup that is safe to inject */
@@ -896,16 +896,16 @@ export default {
 				return ''
 			}
 			if (names.length === 1) {
-				return translate('social', 'Followed by {name}, who you follow', { name: names[0] })
+				return t('social', 'Followed by {name}, who you follow', { name: names[0] })
 			}
 			if (names.length === 2) {
-				return translate('social', 'Followed by {first} and {second}, who you follow', {
+				return t('social', 'Followed by {first} and {second}, who you follow', {
 					first: names[0],
 					second: names[1],
 				})
 			}
 
-			return translatePlural('social', 'Followed by {first}, {second} and %n other you follow', 'Followed by {first}, {second} and %n others you follow', names.length - 2, { first: names[0], second: names[1] })
+			return n('social', 'Followed by {first}, {second} and %n other you follow', 'Followed by {first}, {second} and %n others you follow', names.length - 2, { first: names[0], second: names[1] })
 		},
 
 		noteChanged() {
@@ -1156,7 +1156,7 @@ export default {
 		 * @return {string} when its link was proved, in words
 		 */
 		fieldVerifiedLabel(row) {
-			return translate('social', 'Verified on {date}', { date: fullDateTime(this.fieldVerifiedAt(row)) })
+			return t('social', 'Verified on {date}', { date: fullDateTime(this.fieldVerifiedAt(row)) })
 		},
 
 		/**
@@ -1186,7 +1186,7 @@ export default {
 				}, SNIPPET_COPIED_MS)
 			} catch (error) {
 				logger.debug('Could not copy the handle', { error })
-				await this.showError(translate('social', 'Could not copy — select the address and copy it yourself'))
+				await this.showError(t('social', 'Could not copy — select the address and copy it yourself'))
 			}
 		},
 
@@ -1200,7 +1200,7 @@ export default {
 				}, SNIPPET_COPIED_MS)
 			} catch (error) {
 				logger.debug('Could not copy the profile link snippet', { error })
-				await this.showError(translate('social', 'Could not copy — select the line and copy it yourself'))
+				await this.showError(t('social', 'Could not copy — select the line and copy it yourself'))
 			}
 		},
 
@@ -1460,8 +1460,8 @@ export default {
 			}
 		},
 
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 	},
 }
 </script>

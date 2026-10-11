@@ -65,7 +65,7 @@
 </template>
 
 <script>
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 
 /** Where the whole story lives, nginx included. */
 const CLIENT_API_DOCS = 'https://github.com/alohasocial/social/blob/master/docs/Admin.md#mastodon-apps-cannot-connect'
@@ -129,7 +129,7 @@ export default {
 			}
 
 			if (last.reason === 'status') {
-				return translate(
+				return t(
 					'social',
 					'This server asked {base}/api/v1/instance and got {status}.',
 					{ base: last.base, status: String(last.status) },
@@ -137,7 +137,7 @@ export default {
 			}
 
 			if (last.reason === 'not-social') {
-				return translate(
+				return t(
 					'social',
 					'This server asked {base}/api/v1/instance and something answered, but not this app — a login page or a catch-all index rather than an instance document.',
 					{ base: last.base },
@@ -145,7 +145,7 @@ export default {
 			}
 
 			if (last.reason === 'unreachable') {
-				return translate(
+				return t(
 					'social',
 					'This server could not reach {base} at all: the connection was refused, the name did not resolve, or the certificate was not accepted.',
 					{ base: last.base },
@@ -156,7 +156,7 @@ export default {
 		},
 
 		clientApiExplanation() {
-			return translate(
+			return t(
 				'social',
 				'A Mastodon app is given a domain and builds {example} from it. None of them can be told the {prefix} prefix these routes live under, so adding this server to an app fails at its first request, with nothing in the log to show for it.',
 				{ example: 'https://' + window.location.host + '/api/v1/instance', prefix: '/index.php/apps/social' },
@@ -164,7 +164,7 @@ export default {
 		},
 
 		addressExplanation() {
-			return translate(
+			return t(
 				'social',
 				'Aloha Social builds every account and post address from {configured}, but this server now reports that it lives at {expected}. Nobody looking for an account here under the address the server advertises will find it.',
 				{ configured: this.addresses.configured, expected: this.addresses.expected },
@@ -173,7 +173,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 	},
 }
 </script>

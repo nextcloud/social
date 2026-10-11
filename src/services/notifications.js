@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { isNewerId } from '../utils/snowflake.js'
 
 /**
@@ -225,7 +225,7 @@ function groupedSummary(notification) {
 
 	let who
 	if (others > 0) {
-		who = translatePlural(
+		who = n(
 			'social',
 			'{first}, {second} and %n other',
 			'{first}, {second} and %n others',
@@ -233,18 +233,18 @@ function groupedSummary(notification) {
 			{ first: named[0], second: named[1] },
 		)
 	} else if (named.length === 2) {
-		who = translate('social', '{first} and {second}', { first: named[0], second: named[1] })
+		who = t('social', '{first} and {second}', { first: named[0], second: named[1] })
 	} else {
 		who = named[0] ?? ''
 	}
 
 	switch (notification.type) {
 		case 'favourite':
-			return translate('social', '{who} liked your post', { who })
+			return t('social', '{who} liked your post', { who })
 		case 'reblog':
-			return translate('social', '{who} boosted your post', { who })
+			return t('social', '{who} boosted your post', { who })
 		case 'follow':
-			return translate('social', '{who} started to follow you', { who })
+			return t('social', '{who} started to follow you', { who })
 		default:
 			return who
 	}
@@ -264,35 +264,35 @@ export function notificationSummary(notification) {
 
 	switch (notification.type) {
 		case 'mention':
-			return translate('social', '{account} mentioned you', { account: notification.account.acct })
+			return t('social', '{account} mentioned you', { account: notification.account.acct })
 		case 'status':
-			return translate('social', '{account} posted a status', { account: notification.account.acct })
+			return t('social', '{account} posted a status', { account: notification.account.acct })
 		case 'reblog':
-			return translate('social', '{account} boosted your post', { account: notification.account.acct })
+			return t('social', '{account} boosted your post', { account: notification.account.acct })
 		case 'follow':
-			return translate('social', '{account} started to follow you', { account: notification.account.acct })
+			return t('social', '{account} started to follow you', { account: notification.account.acct })
 		case 'follow_request':
-			return translate('social', '{account} requested to follow you', { account: notification.account.acct })
+			return t('social', '{account} requested to follow you', { account: notification.account.acct })
 		case 'favourite':
-			return translate('social', '{account} liked your post', { account: notification.account.acct })
+			return t('social', '{account} liked your post', { account: notification.account.acct })
 		case 'poll':
-			return translate('social', '{account} ended the poll', { account: notification.account.acct })
+			return t('social', '{account} ended the poll', { account: notification.account.acct })
 		case 'update':
-			return translate('social', '{account} edited a status', { account: notification.account.acct })
+			return t('social', '{account} edited a status', { account: notification.account.acct })
 		case 'admin.sign_up':
-			return translate('social', '{account} signed up', { account: notification.account.acct })
+			return t('social', '{account} signed up', { account: notification.account.acct })
 		case 'admin.report':
-			return translate('social', '{account} filed a report', { account: notification.account.acct })
+			return t('social', '{account} filed a report', { account: notification.account.acct })
 		case 'bluesky:repost_liked':
-			return translate('social', '{account} liked your boost', { account: notification.account.acct })
+			return t('social', '{account} liked your boost', { account: notification.account.acct })
 		case 'bluesky:repost_reposted':
-			return translate('social', '{account} boosted your boost', { account: notification.account.acct })
+			return t('social', '{account} boosted your boost', { account: notification.account.acct })
 		case 'bluesky:verified':
-			return translate('social', '{account} verified your account on Bluesky', { account: notification.account.acct })
+			return t('social', '{account} verified your account on Bluesky', { account: notification.account.acct })
 		case 'bluesky:unverified':
-			return translate('social', '{account} no longer verifies your account on Bluesky', { account: notification.account.acct })
+			return t('social', '{account} no longer verifies your account on Bluesky', { account: notification.account.acct })
 		case 'bluesky:starterpack_joined':
-			return translate('social', '{account} joined Bluesky with your starter pack', { account: notification.account.acct })
+			return t('social', '{account} joined Bluesky with your starter pack', { account: notification.account.acct })
 		default:
 			return ''
 	}

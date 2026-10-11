@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
@@ -127,7 +127,7 @@ export function useComposerAttachments({ expand, root }) {
 		.map((attachment) => attachment.data?.id)
 		.filter((id) => id !== undefined && id !== null))
 
-	const undescribedWarning = computed(() => translatePlural(
+	const undescribedWarning = computed(() => n(
 		'social',
 		'%n attachment has no description',
 		'%n attachments have no description',
@@ -304,7 +304,7 @@ export function useComposerAttachments({ expand, root }) {
 
 	/** Says that the post is carrying as much as it can. */
 	function announceCeiling() {
-		showError(translatePlural(
+		showError(n(
 			'social',
 			'A post can carry %n attachment',
 			'A post can carry %n attachments',
@@ -329,7 +329,7 @@ export function useComposerAttachments({ expand, root }) {
 			// `@nextcloud/dialogs`, and it is wanted only by somebody who
 			// has just clicked "attach from Files"
 			const { getFilePickerBuilder } = await import('@nextcloud/dialogs')
-			picked = await getFilePickerBuilder(translate('social', 'Pick files to attach'))
+			picked = await getFilePickerBuilder(t('social', 'Pick files to attach'))
 				.setMultiSelect(true)
 				.setMimeTypeFilter(PICKABLE_MEDIA_TYPES)
 				.allowDirectories(false)
@@ -341,7 +341,7 @@ export function useComposerAttachments({ expand, root }) {
 				// nothing. `pick()` resolves with the selection when a
 				// button is pressed, so the callback has nothing to do.
 				.addButton({
-					label: translate('social', 'Attach'),
+					label: t('social', 'Attach'),
 					variant: 'primary',
 					callback: () => {},
 				})
@@ -389,7 +389,7 @@ export function useComposerAttachments({ expand, root }) {
 		}
 
 		uploading.value = true
-		progressLabel.value = translate('social', 'Attaching…')
+		progressLabel.value = t('social', 'Attaching…')
 		const mediaData = await timelineStore.createMediaFromGif({ slug: gif.slug })
 		uploading.value = false
 
@@ -419,7 +419,7 @@ export function useComposerAttachments({ expand, root }) {
 		const accepted = roomFor(paths)
 
 		picking.value = accepted.length > 0
-		progressLabel.value = translate('social', 'Attaching from Files…')
+		progressLabel.value = t('social', 'Attaching from Files…')
 		for (const [index, path] of accepted.entries()) {
 			// the same picture may be picked twice, and the path cannot
 			// tell those two attachments apart
@@ -505,7 +505,7 @@ export function useComposerAttachments({ expand, root }) {
 		}
 
 		uploading.value = true
-		progressLabel.value = translate('social', 'Applying filters…')
+		progressLabel.value = t('social', 'Applying filters…')
 		try {
 			for (const [index, key] of pending.entries()) {
 				uploadProgress.value = index / pending.length
@@ -600,7 +600,7 @@ export function useComposerAttachments({ expand, root }) {
 	 */
 	async function attachFiles(allFiles) {
 		const files = roomFor(allFiles)
-		progressLabel.value = translate('social', 'Uploading…')
+		progressLabel.value = t('social', 'Uploading…')
 		for (const [index, file] of files.entries()) {
 			const url = URL.createObjectURL(file)
 			attachments.value = {
@@ -677,7 +677,7 @@ export function useComposerAttachments({ expand, root }) {
 		if ((file.type || '').startsWith('video/')) {
 			const limit = instanceStore.videoSizeLimit
 			if (limit > 0 && file.size > limit) {
-				showError(translate('social', 'This video is larger than the {size} MB this server takes', {
+				showError(t('social', 'This video is larger than the {size} MB this server takes', {
 					size: Math.floor(limit / 1048576),
 				}))
 
@@ -693,7 +693,7 @@ export function useComposerAttachments({ expand, root }) {
 			return upload
 		}
 
-		showError(translate('social', 'This file is larger than the {size} MB this server takes', {
+		showError(t('social', 'This file is larger than the {size} MB this server takes', {
 			size: Math.floor(limit / 1048576),
 		}))
 

@@ -46,7 +46,7 @@
 <script>
 import PreviewGridItem from './PreviewGridItem.vue'
 import FileUpload from 'vue-material-design-icons/FileUpload.vue'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 
 export default {
 	name: 'PreviewGrid',
@@ -88,7 +88,7 @@ export default {
 
 		/** @return {string} */
 		label() {
-			return this.progressLabel || translate('social', 'Uploading…')
+			return this.progressLabel || t('social', 'Uploading…')
 		},
 	},
 
@@ -97,7 +97,7 @@ export default {
 			this.$emit('deleted', randomKey)
 		},
 
-		t: translate,
+		t,
 	},
 }
 </script>

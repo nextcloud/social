@@ -13,7 +13,7 @@
 
 <script>
 import NcModal from '@nextcloud/vue/components/NcModal'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import ShortcutList from './ShortcutList.vue'
 
 /**
@@ -40,7 +40,7 @@ export default {
 	emits: ['close'],
 
 	methods: {
-		t: translate,
+		t,
 	},
 }
 </script>

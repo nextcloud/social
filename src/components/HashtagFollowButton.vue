@@ -24,7 +24,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { showError } from '../services/toast.js'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import Check from 'vue-material-design-icons/Check.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
@@ -92,20 +92,20 @@ export default {
 		label() {
 			if (this.loading) {
 				return this.following
-					? translate('social', 'Unfollowing …')
-					: translate('social', 'Following …')
+					? t('social', 'Unfollowing …')
+					: t('social', 'Following …')
 			}
 
 			return this.following
-				? translate('social', 'Following')
-				: translate('social', 'Follow')
+				? t('social', 'Following')
+				: t('social', 'Follow')
 		},
 
 		/** @return {string} the label with the hashtag it acts on */
 		ariaLabel() {
 			return this.following
-				? translate('social', 'Unfollow the hashtag #{tag}', { tag: this.tag })
-				: translate('social', 'Follow the hashtag #{tag}', { tag: this.tag })
+				? t('social', 'Unfollow the hashtag #{tag}', { tag: this.tag })
+				: t('social', 'Follow the hashtag #{tag}', { tag: this.tag })
 		},
 	},
 
@@ -183,8 +183,8 @@ export default {
 			} catch (error) {
 				logger.error('Failed to change whether a hashtag is followed', { error, tag, follow })
 				showError(follow
-					? translate('social', 'Could not follow the hashtag #{tag}', { tag })
-					: translate('social', 'Could not unfollow the hashtag #{tag}', { tag }))
+					? t('social', 'Could not follow the hashtag #{tag}', { tag })
+					: t('social', 'Could not unfollow the hashtag #{tag}', { tag }))
 			} finally {
 				this.loading = false
 			}

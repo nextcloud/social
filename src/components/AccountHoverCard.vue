@@ -132,7 +132,7 @@
 import { h } from 'vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { emojifyPlain } from './MessageContent.js'
 import BlueskyBadge from './BlueskyBadge.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
@@ -357,16 +357,16 @@ export default {
 		badges() {
 			const badges = []
 			if (this.followsYou) {
-				badges.push(translate('social', 'Follows you'))
+				badges.push(t('social', 'Follows you'))
 			}
 			if (this.account?.locked === true) {
-				badges.push(translate('social', 'Approves followers'))
+				badges.push(t('social', 'Approves followers'))
 			}
 			if (this.account?.bot === true) {
-				badges.push(translate('social', 'Automated'))
+				badges.push(t('social', 'Automated'))
 			}
 			if (this.isBluesky) {
-				badges.push(translate('social', 'On Bluesky'))
+				badges.push(t('social', 'On Bluesky'))
 			}
 
 			return badges
@@ -389,7 +389,7 @@ export default {
 				return ''
 			}
 
-			return translate('social', 'Joined {date}', {
+			return t('social', 'Joined {date}', {
 				date: date.toLocaleDateString(undefined, { year: 'numeric', month: 'long' }),
 			})
 		},
@@ -442,8 +442,8 @@ export default {
 	},
 
 	methods: {
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 
 		/**
 		 * A pointer arrived. Touch never opens the card: a tap on a mention
