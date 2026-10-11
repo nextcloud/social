@@ -21,6 +21,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\Details;
+use OCA\Social\Security\HtmlSanitizer;
 use OCA\Social\Service\VerificationService;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Traits\TDetails;
@@ -1035,6 +1036,21 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * A remote field as it is served: the name as plain text and the value
+	 * as sanitised HTML, which is what `PropertyValue` and Mastodon's Account
+	 * entity say they are.
+	 *
+	 * @param array{name: string, value: string} $field
+	 * @return array{name: string, value: string}
+	 */
+	private function remoteField(array $field): array {
+		return [
+			'name' => self::withoutMarkup($field['name']),
+			'value' => HtmlSanitizer::sanitize($field['value'], $this->getId()),
+		];
+	}
+
+	/**
 	 * @return array[] the PropertyValue entries of an actor's `attachment`
 	 */
 	private function extractFieldsFromAttachment(array $data): array {
@@ -1481,11 +1497,12 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		if ($this->fields !== []) {
 			$local = $this->isLocal();
 			$data['attachment'] = array_map(
-				static fn (array $field): array => [
-					'type' => 'PropertyValue',
-					'name' => $field['name'],
-					'value' => $local ? self::fieldValueAsHtml($field['value']) : $field['value'],
-				],
+				fn (array $field): array => array_merge(
+					['type' => 'PropertyValue'],
+					$local
+						? ['name' => $field['name'], 'value' => self::fieldValueAsHtml($field['value'])]
+						: $this->remoteField($field)
+				),
 				$this->fields
 			);
 		}
@@ -1611,8 +1628,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		// when the page a field names was last seen linking back with rel="me"
 		// (ProfileLinkVerifier); null until it has, as on Mastodon
 		$verified = $details['fields_verified'] ?? [];
+		$local = $this->isLocal();
 		$fields = array_map(
-			static fn (array $field): array => array_merge($field, [
+			fn (array $field): array => array_merge($local ? $field : $this->remoteField($field), [
 				'verified_at' => (isset($verified[$field['value']]) && is_string($verified[$field['value']])) ? $verified[$field['value']] : null,
 			]),
 			$this->getFields()

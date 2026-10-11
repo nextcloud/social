@@ -1383,15 +1383,42 @@ class PersonTest extends TestCase {
 		], $values);
 	}
 
-	public function testARemoteFieldIsServedAsItArrived(): void {
+	public function testARemoteFieldIsServedAsSanitisedHtml(): void {
 		$person = new Person();
 		$person->setId('https://remote.example/users/bob');
 		$person->setFields([['name' => 'Web', 'value' => '<a href="https://bob.example" rel="me">bob.example</a>']]);
 
 		$this->assertSame(
-			'<a href="https://bob.example" rel="me">bob.example</a>',
+			'<a href="https://bob.example" rel="nofollow noopener noreferrer" target="_blank">bob.example</a>',
 			$person->exportAsActivityPub()['attachment'][0]['value']
 		);
+	}
+
+	/**
+	 * A remote field's name is plain text and its value HTML, as Mastodon's
+	 * Account entity defines them: both come out of either export cleaned,
+	 * and the verdict on a value is still found for it.
+	 */
+	public function testARemoteFieldsNameAndValueAreCleanedOnBothExports(): void {
+		$this->routerThatRefusesAnEmptyUuid();
+		$value = '<a href="https://bob.example" onclick="x()">bob.example</a><script>y()</script><img src="z" onerror="w()">';
+		$person = new Person();
+		$person->setId('https://remote.example/users/bob');
+		$person->setPreferredUsername('bob')->setAccount('bob@remote.example');
+		$person->setFields([['name' => '<b>Web</b>site', 'value' => $value]]);
+		$person->setDetailArray('fields_verified', [$value => '2026-09-14T00:00:00+00:00']);
+
+		$client = $person->exportAsLocal()['fields'][0];
+		$wire = $person->exportAsActivityPub()['attachment'][0];
+
+		foreach (['client' => $client, 'wire' => $wire] as $which => $field) {
+			$this->assertSame('Website', $field['name'], $which);
+			$this->assertStringContainsString('bob.example</a>', $field['value'], $which);
+			foreach (['onclick', '<script', '<img', 'onerror'] as $needle) {
+				$this->assertStringNotContainsString($needle, $field['value'], $which);
+			}
+		}
+		$this->assertSame('2026-09-14T00:00:00+00:00', $client['verified_at']);
 	}
 
 	/**
