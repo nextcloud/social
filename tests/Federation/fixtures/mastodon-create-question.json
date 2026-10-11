@@ -1,0 +1,87 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    {
+      "ostatus": "http://ostatus.org#",
+      "atomUri": "ostatus:atomUri",
+      "inReplyToAtomUri": "ostatus:inReplyToAtomUri",
+      "conversation": "ostatus:conversation",
+      "sensitive": "as:sensitive",
+      "toot": "http://joinmastodon.org/ns#",
+      "votersCount": "toot:votersCount",
+      "quote": "https://w3id.org/fep/044f#quote",
+      "quoteUri": "http://fedibird.com/ns#quoteUri",
+      "_misskey_quote": "https://misskey-hub.net/ns#_misskey_quote",
+      "quoteAuthorization": {
+        "@id": "https://w3id.org/fep/044f#quoteAuthorization",
+        "@type": "@id"
+      },
+      "gts": "https://gotosocial.org/ns#",
+      "interactionPolicy": {
+        "@id": "gts:interactionPolicy",
+        "@type": "@id"
+      },
+      "canQuote": {
+        "@id": "gts:canQuote",
+        "@type": "@id"
+      },
+      "automaticApproval": {
+        "@id": "gts:automaticApproval",
+        "@type": "@id"
+      },
+      "manualApproval": {
+        "@id": "gts:manualApproval",
+        "@type": "@id"
+      }
+    }
+  ],
+  "id": "https://mastodon.example/users/carol/statuses/115000000000000002/activity",
+  "type": "Create",
+  "actor": "https://mastodon.example/users/carol",
+  "published": "2026-04-04T11:00:00Z",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "cc": [
+    "https://mastodon.example/users/carol/followers"
+  ],
+  "object": {
+    "id": "https://mastodon.example/users/carol/statuses/115000000000000002",
+    "type": "Question",
+    "summary": null,
+    "inReplyTo": null,
+    "published": "2026-04-04T11:00:00Z",
+    "url": "https://mastodon.example/@carol/115000000000000002",
+    "attributedTo": "https://mastodon.example/users/carol",
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public"
+    ],
+    "cc": [
+      "https://mastodon.example/users/carol/followers"
+    ],
+    "sensitive": false,
+    "content": "<p>beans or peas?</p>",
+    "endTime": "2099-04-05T11:00:00Z",
+    "votersCount": 1,
+    "oneOf": [
+      {
+        "type": "Note",
+        "name": "beans",
+        "replies": {
+          "type": "Collection",
+          "totalItems": 1
+        }
+      },
+      {
+        "type": "Note",
+        "name": "peas",
+        "replies": {
+          "type": "Collection",
+          "totalItems": 0
+        }
+      }
+    ],
+    "attachment": [],
+    "tag": []
+  }
+}

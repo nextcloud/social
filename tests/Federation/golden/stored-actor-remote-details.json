@@ -1,0 +1,164 @@
+{
+    "account": {
+        "id": "312",
+        "nid": "312",
+        "username": "bob",
+        "acct": "bob@remote.example",
+        "display_name": "Bob",
+        "locked": true,
+        "bot": false,
+        "discoverable": true,
+        "indexable": false,
+        "group": false,
+        "created_at": "2025-01-02T03:04:05.000Z",
+        "note": "<p>grows beans</p>",
+        "url": "https://remote.example/users/bob",
+        "avatar": "https://cloud.example/apps/social/img/social.svg",
+        "avatar_static": "https://cloud.example/apps/social/img/social.svg",
+        "header": "https://remote.example/header.png",
+        "header_static": "https://remote.example/header.png",
+        "avatar_default": true,
+        "header_default": false,
+        "followers_count": 3,
+        "following_count": 4,
+        "statuses_count": 9,
+        "last_status_at": null,
+        "emojis": [],
+        "fields": [
+            {
+                "name": "Web",
+                "value": "<a href=\"https://bob.example\" rel=\"me\">bob.example</a>",
+                "verified_at": null
+            }
+        ],
+        "pronouns": "",
+        "support_link": "",
+        "bluesky": null,
+        "verification": null
+    },
+    "activitypub": {
+        "@context": [
+            "https://www.w3.org/ns/activitystreams",
+            "https://w3id.org/security/v1",
+            {
+                "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+                "sensitive": "as:sensitive",
+                "Hashtag": "as:Hashtag",
+                "movedTo": {
+                    "@id": "as:movedTo",
+                    "@type": "@id"
+                },
+                "alsoKnownAs": {
+                    "@id": "as:alsoKnownAs",
+                    "@type": "@id"
+                },
+                "toot": "http://joinmastodon.org/ns#",
+                "featured": {
+                    "@id": "toot:featured",
+                    "@type": "@id"
+                },
+                "discoverable": "toot:discoverable",
+                "indexable": "toot:indexable",
+                "votersCount": "toot:votersCount",
+                "blurhash": "toot:blurhash",
+                "focalPoint": {
+                    "@container": "@list",
+                    "@id": "toot:focalPoint"
+                },
+                "Emoji": "toot:Emoji",
+                "schema": "http://schema.org#",
+                "PropertyValue": "schema:PropertyValue",
+                "value": "schema:value",
+                "ostatus": "http://ostatus.org#",
+                "conversation": "ostatus:conversation",
+                "fep044f": "https://w3id.org/fep/044f#",
+                "quote": {
+                    "@id": "fep044f:quote",
+                    "@type": "@id"
+                },
+                "quoteAuthorization": {
+                    "@id": "fep044f:quoteAuthorization",
+                    "@type": "@id"
+                },
+                "QuoteRequest": "fep044f:QuoteRequest",
+                "QuoteAuthorization": "fep044f:QuoteAuthorization",
+                "interactingObject": {
+                    "@id": "fep044f:interactingObject",
+                    "@type": "@id"
+                },
+                "interactionTarget": {
+                    "@id": "fep044f:interactionTarget",
+                    "@type": "@id"
+                },
+                "quoteUrl": {
+                    "@id": "as:quoteUrl",
+                    "@type": "@id"
+                },
+                "misskey": "https://misskey-hub.net/ns#",
+                "_misskey_quote": {
+                    "@id": "misskey:_misskey_quote",
+                    "@type": "@id"
+                },
+                "gts": "https://gotosocial.org/ns#",
+                "interactionPolicy": {
+                    "@id": "gts:interactionPolicy",
+                    "@type": "@id"
+                },
+                "canQuote": {
+                    "@id": "gts:canQuote",
+                    "@type": "@id"
+                },
+                "automaticApproval": {
+                    "@id": "gts:automaticApproval",
+                    "@type": "@id"
+                },
+                "manualApproval": {
+                    "@id": "gts:manualApproval",
+                    "@type": "@id"
+                }
+            }
+        ],
+        "id": "https://remote.example/users/bob",
+        "type": "Person",
+        "url": "https://remote.example/@bob",
+        "summary": "<p>grows beans</p>",
+        "aliases": [
+            "https://cloud.example/apps/social/@bob",
+            "https://cloud.example/apps/social/users/bob"
+        ],
+        "preferredUsername": "bob",
+        "name": "Bob",
+        "inbox": "https://remote.example/users/bob/inbox",
+        "outbox": "https://remote.example/users/bob/outbox",
+        "account": "bob@remote.example",
+        "following": "https://remote.example/users/bob/following",
+        "followers": "https://remote.example/users/bob/followers",
+        "endpoints": {
+            "sharedInbox": "https://remote.example/inbox"
+        },
+        "publicKey": {
+            "id": "https://remote.example/users/bob#main-key",
+            "owner": "https://remote.example/users/bob",
+            "publicKeyPem": "<pem>"
+        },
+        "manuallyApprovesFollowers": true,
+        "discoverable": true,
+        "indexable": false,
+        "featured": "https://remote.example/users/bob/collections/featured",
+        "alsoKnownAs": [
+            "https://old.example/users/bob"
+        ],
+        "attachment": [
+            {
+                "type": "PropertyValue",
+                "name": "Web",
+                "value": "<a href=\"https://bob.example\" rel=\"me\">bob.example</a>"
+            }
+        ],
+        "image": {
+            "type": "Image",
+            "mediaType": "image/png",
+            "url": "https://remote.example/header.png"
+        }
+    }
+}

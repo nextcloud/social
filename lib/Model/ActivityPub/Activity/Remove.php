@@ -38,6 +38,20 @@ class Remove extends ACore implements JsonSerializable {
 	}
 
 	/**
+	 * `target` is the collection, and for a pin it is what a peer checks: an
+	 * `Add` or `Remove` that names no collection is dropped by Mastodon,
+	 * which acts on one only when its `target` is the actor's `featured`.
+	 */
+	#[\Override]
+	public function exportAsActivityPub(): array {
+		if ($this->getTarget() !== '') {
+			$this->addEntry('target', $this->getTarget());
+		}
+
+		return parent::exportAsActivityPub();
+	}
+
+	/**
 	 * @return array
 	 */
 	#[\Override]

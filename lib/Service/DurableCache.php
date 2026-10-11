@@ -107,6 +107,14 @@ class DurableCache {
 	}
 
 	/**
+	 * `remove()` from the table whatever memcache there is: what `setShared()`
+	 * wrote.
+	 */
+	public function removeShared(string $namespace, string $key): void {
+		$this->durableCacheRequest->delete($this->rowKey($namespace, $key));
+	}
+
+	/**
 	 * Adds `$step` to a counter and answers what it is now; a missing or
 	 * expired counter starts from zero and lives for `$ttl`.
 	 */

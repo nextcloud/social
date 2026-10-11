@@ -975,6 +975,11 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 			$context[] = self::CONTEXT_EXTENSIONS;
 
 			$this->addEntryArray('@context', $context);
+		} else {
+			// the entries outlive an export: an object serialised on its own
+			// first (a post's stored source) and then inside an activity would
+			// otherwise carry its root context into the activity
+			unset($this->entries['@context']);
 		}
 
 		$this->addEntry('id', $this->getId());

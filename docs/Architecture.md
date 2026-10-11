@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.208
+**App version:** 0.26.209
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -706,6 +706,10 @@ The routes are **session routes with CSRF**, not client-API ones: an archive of 
 **Silencing an instance.** The same middle tier, applied to a whole server. A domain block (`social:fediverse add`, followed by `social:domain:purge`) cuts the instance off in both directions and deletes what it already sent, which also cuts off the local users who deliberately follow somebody there — so the tool was too blunt to reach for and the nuisance stayed. `social:fediverse silence <host>` adds the host to a second list (the `silenced_list` app value, read by `FediverseService::getSilencedAddresses()`) and changes exactly one thing: `StreamRequest::filterSilencedInstances()` drops the instance's posts from the **public**, **global**, **hashtag** and **followed-tag** timelines. Delivery, fetching, webfinger, following, and the home timeline of somebody who already follows the account are untouched — a silence is deliberately not enforced in `authorized()`. The clause is on `s.author_host`: the host itself by `NOT IN`, and everything under it by a `NOT LIKE '%.<host>'` suffix, read the way a domain block reads subdomains — a comparison against a short column rather than a scan of the id's text, but a suffix is still not indexed, which is why it runs only on the timelines that need it and why the list is meant to stay an admin-written handful. A row `Cron\StreamAuthorHosts` has not reached yet is matched by its id as a prefix instead, as it always was. The silenced *accounts* beside it (`ModerationRequest::getActorIdsAt()`) are read through the distributed cache, dropped whenever a moderation decision is written. Nothing is deleted, so `social:fediverse unsilence` brings the posts back — the difference between this and a block, whose purge does not come back.
 
 **Inbox forwarding (ActivityPub §7.1.2).** A reply to a local post arrives from the replier's instance and from nowhere else, so the followers of the local post would never see it: everyone would read a different, shorter thread. `ForwardService::forwardReply()` therefore passes such a reply on to the followers of the post it replies to, and `NoteInterface::activity()` offers it every newly stored note (a re-delivery finds the note already stored and is not offered again, so nobody is sent the same reply twice).
+
+**Edits out of order.** Edits are delivered out of order as readily as anything else, so `NoteInterface` drops an `Update` whose `updated` is earlier than the one already stored, as Mastodon does; an edit without a date, or of a post never edited, is applied as before.
+
+**A Delete that overtakes its Create.** A `Delete` that finds nothing to delete is remembered for six hours in `DurableCache` (`DeleteInterface::EARLY_DELETE_NAMESPACE`), keyed by the object and holding the deleting actor; a `Create` of that object by that same actor in that time is dropped (`DeleteInterface::deletedBeforeArrival()`), as Mastodon drops one, so a late Create cannot put back a post its author already took down.
 
 A reply is forwarded only when all of this holds: it arrived with a **valid linked-data signature** (`SignatureService::ORIGIN_SIGNATURE`), because the recipients must be able to check the author's own signature rather than take our word for it; the post it replies to is **local**, since only the instance holding a post owes its followers the thread; and both the reply and the post are **public or unlisted**, so a private audience is never widened. The body sent is `getSource()` — the document exactly as it arrived, since re-encoding our model of it would drop the signature and change what was signed. Delivery goes through the normal request queue at `PRIORITY_LOW` via `RequestQueueService::generateRequestQueueFromSource()`, so nothing about it holds up the inbox response. The sender's instance and this one are left out of the recipient list.
 
@@ -1490,7 +1494,8 @@ quote's state is `pending`; a failure to even send the request is logged and
 nothing more, because the post is already out.
 
 **Being quoted.** `QuoteRequestInterface::processIncomingRequest()` answers for
-local posts. The policy is `Stream::isQuotable()` — public and unlisted, yes;
+local posts. The request's `instrument` is read as an id whether it arrives as
+one or as the quoting post inlined, which is how Mastodon sends it. The policy is `Stream::isQuotable()` — public and unlisted, yes;
 anything narrower, no — which is the same rule `PinService::pin()` and
 `BoostService::create()` apply, and for the same reason: a quote carries the
 audience of the quoter, so a narrower post would reach readers its author never

@@ -1,0 +1,74 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "vcard": "http://www.w3.org/2006/vcard/ns#",
+      "dfrn": "http://purl.org/macgirvin/dfrn/1.0/",
+      "diaspora": "https://diasporafoundation.org/ns/",
+      "litepub": "http://litepub.social/ns#",
+      "toot": "http://joinmastodon.org/ns#",
+      "featured": {
+        "@id": "toot:featured",
+        "@type": "@id"
+      },
+      "schema": "http://schema.org#",
+      "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+      "sensitive": "as:sensitive",
+      "Hashtag": "as:Hashtag",
+      "directMessage": "litepub:directMessage",
+      "discoverable": "toot:discoverable",
+      "PropertyValue": "schema:PropertyValue",
+      "value": "schema:value"
+    }
+  ],
+  "id": "https://friendica.example/objects/a1b2c3d4-0001-4567-89ab-cdef01234567/Create",
+  "type": "Create",
+  "actor": "https://friendica.example/profile/gina",
+  "published": "2026-04-03T07:00:00Z",
+  "instrument": {
+    "type": "Service",
+    "name": "Friendica 'Yellow Archangel' 2026.04",
+    "url": "https://friendica.example"
+  },
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "cc": [
+    "https://friendica.example/profile/gina/followers"
+  ],
+  "object": {
+    "id": "https://friendica.example/objects/a1b2c3d4-0001-4567-89ab-cdef01234567",
+    "type": "Note",
+    "summary": null,
+    "inReplyTo": null,
+    "diaspora:guid": "a1b2c3d4-0001-4567-89ab-cdef01234567",
+    "published": "2026-04-03T07:00:00Z",
+    "updated": "2026-04-03T07:00:00Z",
+    "attributedTo": "https://friendica.example/profile/gina",
+    "sensitive": false,
+    "context": "https://friendica.example/objects/a1b2c3d4-0001-4567-89ab-cdef01234567#context",
+    "conversation": "https://friendica.example/objects/a1b2c3d4-0001-4567-89ab-cdef01234567#context",
+    "content": "Seedlings are <b>finally</b> up.",
+    "contentMap": {
+      "de": "Seedlings are <b>finally</b> up."
+    },
+    "source": {
+      "content": "Seedlings are [b]finally[/b] up.",
+      "mediaType": "text/bbcode"
+    },
+    "url": "https://friendica.example/display/a1b2c3d4-0001-4567-89ab-cdef01234567",
+    "to": [
+      "https://www.w3.org/ns/activitystreams#Public"
+    ],
+    "cc": [
+      "https://friendica.example/profile/gina/followers"
+    ],
+    "attachment": [],
+    "tag": [],
+    "generator": {
+      "type": "Application",
+      "name": "Friendica"
+    }
+  }
+}

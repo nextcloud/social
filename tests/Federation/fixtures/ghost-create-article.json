@@ -1,0 +1,29 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1"
+  ],
+  "id": "https://ghost.example/.ghost/activitypub/create/0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
+  "type": "Create",
+  "actor": "https://ghost.example/.ghost/activitypub/users/index",
+  "to": "https://www.w3.org/ns/activitystreams#Public",
+  "cc": "https://ghost.example/.ghost/activitypub/followers/index",
+  "object": {
+    "id": "https://ghost.example/.ghost/activitypub/article/0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c",
+    "type": "Article",
+    "attributedTo": "https://ghost.example/.ghost/activitypub/users/index",
+    "name": "Spring planting notes",
+    "content": "<p>It is finally warm enough.</p>",
+    "summary": null,
+    "url": "https://ghost.example/spring-planting-notes/",
+    "image": "https://ghost.example/content/images/2026/04/spring.jpg",
+    "published": "2026-04-05T11:00:00Z",
+    "preview": {
+      "id": "https://ghost.example/.ghost/activitypub/note/0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d",
+      "type": "Note",
+      "content": "It is finally warm enough."
+    },
+    "to": "https://www.w3.org/ns/activitystreams#Public",
+    "cc": "https://ghost.example/.ghost/activitypub/followers/index"
+  }
+}

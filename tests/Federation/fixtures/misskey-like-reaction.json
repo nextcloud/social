@@ -1,0 +1,18 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "misskey": "https://misskey-hub.net/ns#",
+      "_misskey_reaction": "misskey:_misskey_reaction",
+      "toot": "http://joinmastodon.org/ns#",
+      "Emoji": "toot:Emoji"
+    }
+  ],
+  "type": "Like",
+  "id": "https://misskey.example/likes/9fq1aa0001",
+  "actor": "https://misskey.example/users/9fq0a1b2c3",
+  "object": "{{LOCAL_POST}}",
+  "content": "🍅",
+  "_misskey_reaction": "🍅"
+}

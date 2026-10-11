@@ -1,0 +1,42 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    {
+      "RsaSignature2017": "https://w3id.org/security#RsaSignature2017"
+    },
+    {
+      "pt": "https://joinpeertube.org/ns#",
+      "sc": "http://schema.org/",
+      "Dislike": "pt:Dislike",
+      "CacheFile": "pt:CacheFile",
+      "expires": "sc:expires",
+      "size": "sc:size",
+      "fps": "sc:fps",
+      "WatchAction": "sc:WatchAction",
+      "startTimestamp": "sc:startTime",
+      "endTimestamp": "sc:endTime"
+    }
+  ],
+  "id": "https://peertube.example/redundancy/videos/9c9de5e8-0a1b-4c2d-8e3f-123456789abc/720/activity",
+  "type": "Create",
+  "actor": "https://peertube.example/accounts/peertube",
+  "to": [
+    "https://www.w3.org/ns/activitystreams#Public"
+  ],
+  "cc": [],
+  "object": {
+    "id": "https://peertube.example/redundancy/videos/9c9de5e8-0a1b-4c2d-8e3f-123456789abc/720",
+    "type": "CacheFile",
+    "object": "https://video.example/videos/watch/7a7a7a7a-0000-4000-8000-000000000001",
+    "expires": "2026-04-12T10:00:00.000Z",
+    "url": {
+      "type": "Link",
+      "mediaType": "video/mp4",
+      "href": "https://peertube.example/static/redundancy/7a7a-720.mp4",
+      "height": 720,
+      "size": 1048576,
+      "fps": 30
+    }
+  }
+}

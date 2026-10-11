@@ -105,6 +105,19 @@ to stop.
   `QueueRetryTest` and `QueueStatusTest` drive the delivery queue through a
   failure and back out again; `StreamPruneTest` covers the retention guard and
   `--dry-run`.
+- `Federation/InboundCorpusTest` — the inbound fixture corpus (Misskey,
+  GoToSocial, Akkoma, Friendica, Lemmy, Mastodon 4.5 quotes and polls, Block,
+  Flag, account Delete, PeerTube Dislike/View/CacheFile, Threads, WordPress,
+  Ghost, Bridgy Fed) delivered through `ImportService` and the real inbox
+  interfaces, asserting the stored row and the Mastodon entity it is served
+  as; it caught Mastodon's inlined `QuoteRequest.instrument` being dropped.
+  `Federation/InboxTestCase` is the shared delivery harness.
+- `Federation/RedeliveryOrderTest` — the same activity delivered twice leaves
+  the rows of the first delivery and a usable connection; an Update before
+  its Create, two edits in reverse order (caught an older edit overwriting a
+  newer one), a Delete before its Create (caught the late Create resurrecting
+  the post), an Undo{Like} before the Like, and a rotated key arriving in an
+  Update{Person} verifying the next signature.
 
 ## Running
 

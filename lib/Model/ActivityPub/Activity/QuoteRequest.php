@@ -51,7 +51,14 @@ class QuoteRequest extends ACore implements JsonSerializable {
 	public function import(array $data) {
 		parent::import($data);
 
-		$this->setInstrument($this->validate(ACore::AS_ID, 'instrument', $data, ''));
+		// Mastodon inlines the quoting post it sends the request for
+		// (`QuoteRequestWorker` serialises with `allow_post_inlining`), so the
+		// instrument is as often an object as an id; only its id is read, the
+		// rest is the sender's say-so and is fetched from its origin if needed
+		$instrument = $data['instrument'] ?? '';
+		$this->setInstrument($this->validate(
+			ACore::AS_ID, 'instrument', ['instrument' => is_array($instrument) ? ($instrument['id'] ?? '') : $instrument], ''
+		));
 	}
 
 	/**
