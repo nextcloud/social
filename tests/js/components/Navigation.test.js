@@ -969,7 +969,7 @@ describe('Navigation', () => {
 		const style = moreMenu(mountNavigation()).attributes('style') ?? ''
 
 		expect(style).toContain('--social-face')
-		expect(style).toContain('/avatar/alice/64')
+		expect(style).toMatch(/--social-face: url\("[^"]*\/avatar\/alice\/64[^"]*"\)/)
 	})
 
 	/** Their own page is the first thing behind their own face. */
