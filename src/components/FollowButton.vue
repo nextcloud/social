@@ -90,7 +90,7 @@ import Check from 'vue-material-design-icons/Check.vue'
 import CloseOctagon from 'vue-material-design-icons/CloseOctagon.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 import { feel } from '../services/senses.js'
 import { mapStores } from 'pinia'
@@ -161,16 +161,16 @@ export default {
 		words() {
 			if (this.profileAccount?.group) {
 				return {
-					follow: translate('social', 'Subscribe'),
-					following: translate('social', 'Subscribed'),
-					unfollow: translate('social', 'Unsubscribe'),
+					follow: t('social', 'Subscribe'),
+					following: t('social', 'Subscribed'),
+					unfollow: t('social', 'Unsubscribe'),
 				}
 			}
 
 			return {
-				follow: translate('social', 'Follow'),
-				following: translate('social', 'Following'),
-				unfollow: translate('social', 'Unfollow'),
+				follow: t('social', 'Follow'),
+				following: t('social', 'Following'),
+				unfollow: t('social', 'Unfollow'),
 			}
 		},
 
@@ -188,7 +188,7 @@ export default {
 		unfollowButtons() {
 			return [
 				{
-					label: translate('social', 'Cancel'),
+					label: t('social', 'Cancel'),
 					callback: () => {
 						this.confirmUnfollow = false
 					},
@@ -208,7 +208,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 		askToUnfollow() {
 			this.confirmUnfollow = true
 		},

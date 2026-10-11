@@ -31,7 +31,7 @@
 
 <script>
 import { defineAsyncComponent } from 'vue'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import logger from '../../services/logger.js'
 import { datePickerModule, earliestSchedule, isTooSoon } from '../../utils/schedule.js'
@@ -92,7 +92,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 	},
 }
 </script>

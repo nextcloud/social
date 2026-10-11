@@ -329,7 +329,7 @@ import IconAccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted.vue'
 import IconBluesky from 'vue-material-design-icons/ButterflyOutline.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { capacityFrom, chooseEntries, entriesThatFit } from '../utils/explore.js'
 import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
@@ -1019,8 +1019,8 @@ export default {
 			this.$router?.replace?.({ ...this.$route, query })
 		},
 
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 		/**
 		 * What the instance is talking about. The counts are kept by cron, so
 		 * this is one cheap read; a failure leaves the section out rather than
@@ -1101,7 +1101,7 @@ export default {
 		 */
 		titleFor(entry) {
 			if (entry.kind === 'list' && entry.list.nextcloud_group) {
-				return translate(
+				return t(
 					'social',
 					'Everyone in the Nextcloud group {group} who has a Aloha Social account',
 					{ group: entry.list.title },
@@ -1112,11 +1112,11 @@ export default {
 			// things: one is a choice this reader made, the other is what the
 			// instance happens to be busy with
 			if (entry.kind === 'trend') {
-				return translate('social', 'Being posted about on this server right now')
+				return t('social', 'Being posted about on this server right now')
 			}
 
 			if (entry.kind === 'feed' && entry.feed.creator) {
-				return translate('social', 'A Bluesky feed by {creator}', { creator: entry.feed.creator })
+				return t('social', 'A Bluesky feed by {creator}', { creator: entry.feed.creator })
 			}
 
 			return undefined

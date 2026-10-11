@@ -25,7 +25,7 @@
 </template>
 
 <script>
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 
 /** ids have to be unique per document, and one post may show eight pictures */
 let sequence = 0
@@ -72,7 +72,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 	},
 }
 </script>

@@ -24,7 +24,7 @@
 <script>
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import visibilitiesInfo from './VisibilitiesInfos.js'
 import VisibilityIcon from './VisibilityIcon.vue'
 import logger from '../../services/logger.js'
@@ -80,7 +80,7 @@ export default {
 			}
 		},
 
-		t: translate,
+		t,
 	},
 }
 </script>
