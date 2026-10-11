@@ -976,6 +976,9 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->andWhere($expr->gt('s.poll_ends_at', $qb->createNamedParameter($since, IQueryBuilder::PARAM_INT)));
 		$qb->andWhere($expr->lte('s.poll_ends_at', $qb->createNamedParameter($now ?? time(), IQueryBuilder::PARAM_INT)));
 		$qb->limitToType(Question::TYPE);
+		// the stream select is DISTINCT, and MySQL and PostgreSQL order a
+		// DISTINCT read only by what it selects
+		$qb->addSelect('s.poll_ends_at');
 		$qb->orderBy('s.poll_ends_at', 'asc');
 		$qb->addOrderBy('s.nid', 'asc');
 		$qb->setMaxResults(max(1, $limit));
