@@ -121,6 +121,10 @@ to stop.
 - `Migration/RowBackfillMigrationsTest` — the upgrade steps that fill rows
   (recipient nids, `media_kind`, `news_kind`, OAuth authorizations moved to
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
+- `Migration/RepairMemoryTest` — the upgrade steps that walk a table (the
+  recipient-nid backfill, `BackfillRemoteVisibility`, `BackfillStreamPostFields`)
+  run over a table five times as large: the peak memory must not grow with it
+  (`PeakMemory`: within a fifth of the smaller run, or 512 KB).
 - `Migration/ShortKindBackfillTest` — `Version1000Date20261012500100` works out
   the stored videos once (a short, a long one, a landscape one, one without
   meta), leaves a stored answer and every non-video post alone, twice.
@@ -130,6 +134,8 @@ to stop.
   unique, the indexes the history dropped dropped, a second run a no-op.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
+- `PeakMemory` — the peak memory a block reached above what was in use when it
+  began, and the tolerance two runs of a paged step may differ by.
 - `QueryCounter` / `QueryCounterTest` — records every statement the server's
   connection executes during a block (through Doctrine's SQL logger, swapped in
   for the block and put back after), with its parameters; the test proves it
@@ -161,6 +167,9 @@ to stop.
   queue of 0, 200 and 400 deliveries, with only the network edge replaced and
   the clock frozen: a constant cost per pass, two statements per delivery and
   three per batch, and the second batch costing exactly what the first did.
+- `Cron/RunImportMemoryTest` — a blocked-domains import run by `Cron\RunImport`
+  the way cron runs it, over 1,000 lines and then 5,000: nothing is kept per
+  row beyond the list the service reads whole by design.
 - `Api/*` — the Mastodon client API called the way a client calls it: real
   accounts with a bearer token, each controller built by a fresh app
   container, the answer put through `json_encode()` as the JSON responder
