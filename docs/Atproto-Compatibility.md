@@ -1530,7 +1530,10 @@ each for a reason:
   routed address the runner answers on its loopback) and the test treats it
   as evidence when it is there.
 - **Suspension** leaves the identity alone (it can be lifted, and nothing is
-  told); deletion tombstones the DID.
+  told on the firehose); while it stands the repository reads answer
+  `RepoTakendown` and `getRepoStatus` and `listRepos` say `takendown`.
+  Deletion tombstones the DID; the reads of its repository answer
+  `RepoNotFound` and `getRepoStatus` says `deleted`.
 
 ### Phase 2 as built
 
@@ -1935,7 +1938,9 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   first among the rotation keys, so the DID stays theirs; this server's key
   is no longer listed — then `activateAccount` there. Here the identity is
   `moved_away`, announced inactive on the firehose, and nothing more is
-  published; no new identity is made for the account.
+  published; no new identity is made for the account. The repository reads
+  here answer `RepoDeactivated`, and `getRepoStatus` and `listRepos` say
+  `deactivated`, as a Bluesky PDS does for an account that moved off it.
 - **A step that fails stops the move**, and *Try again* starts it from that
   step. The DID moves only once the repository and the blobs are there, and
   a hand-over the directory refused is not left for the PLC repair pass:

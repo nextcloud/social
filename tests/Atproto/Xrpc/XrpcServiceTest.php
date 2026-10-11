@@ -24,10 +24,13 @@ use OCA\Social\Atproto\Xrpc\XrpcBytes;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Atproto\Xrpc\XrpcService;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\ModerationService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -54,6 +57,11 @@ class XrpcServiceTest extends TestCase {
 	private VideoBlobService $videos;
 	private XrpcService $xrpc;
 	private Identity $alice;
+	private bool $suspended = false;
+	/** @var ModerationService&MockObject */
+	private ModerationService $moderation;
+	/** @var AtprotoIdentityRequest&MockObject */
+	private AtprotoIdentityRequest $identityRequest;
 
 	protected function setUp(): void {
 		$this->config = $this->createMock(AtprotoConfig::class);
@@ -68,7 +76,12 @@ class XrpcServiceTest extends TestCase {
 		$configService->method('getAppValue')->willReturn('1.0');
 		$configService->method('getCloudUrl')->willReturn('https://social.test');
 		$this->videos = $this->createMock(VideoBlobService::class);
-		$this->xrpc = new XrpcService($this->config, $this->identities, $this->repositories, $this->repoRequest, $this->blobRequest, $this->pictures, $this->videos, $configService);
+		$this->moderation = $this->createMock(ModerationService::class);
+		$this->moderation->method('isSuspended')->willReturnCallback(fn (string $actorId): bool => $this->suspended && $actorId === 'https://social.test/@alice');
+		$this->moderation->method('suspendedAmong')->willReturnCallback(fn (array $actorIds): array => $this->suspended && in_array('https://social.test/@alice', $actorIds, true) ? ['https://social.test/@alice' => true] : []);
+		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
+		$this->identityRequest->method('getByDids')->willReturnCallback(fn (array $dids): array => in_array(self::DID, $dids, true) ? [self::DID => $this->alice] : []);
+		$this->xrpc = new XrpcService($this->config, $this->identities, $this->repositories, $this->repoRequest, $this->blobRequest, $this->pictures, $this->videos, $configService, $this->moderation, $this->identityRequest);
 
 		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0);
 		$this->identities->method('getByDid')->willReturnCallback(fn (string $did): Identity => $did === self::DID ? $this->alice : throw new AtprotoIdentityNotFoundException());
@@ -122,33 +135,79 @@ class XrpcServiceTest extends TestCase {
 	}
 
 	/**
-	 * Switched off by its owner, the repository is kept and served to
-	 * nobody; its status says why, and the handle does not resolve.
+	 * @return array<string, array{0: string, 1: bool, 2: string, 3: string}> state, suspended, error, status
 	 */
-	public function testARepoSwitchedOffIsNotServedAndSaysSo(): void {
-		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', 'did:key:z', '', Identity::STATE_DEACTIVATED, '', 0);
+	public static function inactiveRepositories(): array {
+		return [
+			'switched off by its owner' => [Identity::STATE_DEACTIVATED, false, 'RepoDeactivated', 'deactivated'],
+			'moved away' => [Identity::STATE_MOVED_AWAY, false, 'RepoDeactivated', 'deactivated'],
+			'suspended by a moderator' => [Identity::STATE_ACTIVE, true, 'RepoTakendown', 'takendown'],
+			'suspended while switched off' => [Identity::STATE_DEACTIVATED, true, 'RepoTakendown', 'takendown'],
+			'deleted' => [Identity::STATE_TOMBSTONED, false, 'RepoNotFound', 'deleted'],
+		];
+	}
+
+	/**
+	 * A repository that is switched off, moved away, taken down or deleted
+	 * is served to nobody, by DID or by handle: every read of it answers
+	 * the error its lexicon names for that state, and the handle does not
+	 * resolve.
+	 */
+	#[DataProvider('inactiveRepositories')]
+	public function testAnInactiveRepositoryIsNotServed(string $state, bool $suspended, string $error, string $status): void {
+		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', 'did:key:z', '', $state, '', 0);
+		$this->suspended = $suspended;
 		$this->repositories->method('getHead')->willReturn(new RepoHead(self::DID, 'bafy', '3kznmn7xqxl22', 3, 0, 0));
 		$this->repositories->expects($this->never())->method('exportCar');
 		$this->repositories->expects($this->never())->method('getRecord');
+		$this->repositories->expects($this->never())->method('listRecords');
+		$this->blobRequest->expects($this->never())->method('get');
+		$this->blobRequest->expects($this->never())->method('list');
+		$this->repoRequest->expects($this->never())->method('getLeaves');
+		$cid = Cid::forRaw('pixels')->toString();
 
 		$refused = [];
 		foreach ([
 			['com.atproto.sync.getRepo', ['did' => self::DID]],
 			['com.atproto.sync.getLatestCommit', ['did' => self::DID]],
-			['com.atproto.repo.getRecord', ['repo' => 'alice.social.test', 'collection' => 'app.bsky.actor.profile', 'rkey' => 'self']],
+			['com.atproto.sync.getRecord', ['did' => self::DID, 'collection' => 'app.bsky.actor.profile', 'rkey' => 'self']],
+			['com.atproto.sync.getBlob', ['did' => self::DID, 'cid' => $cid]],
+			['com.atproto.sync.listBlobs', ['did' => self::DID]],
 			['com.atproto.repo.describeRepo', ['repo' => self::DID]],
-			['com.atproto.identity.resolveHandle', ['handle' => 'alice.social.test']],
+			['com.atproto.repo.getRecord', ['repo' => 'alice.social.test', 'collection' => 'app.bsky.actor.profile', 'rkey' => 'self']],
+			['com.atproto.repo.listRecords', ['repo' => 'alice.social.test', 'collection' => 'app.bsky.feed.post']],
 		] as [$method, $params]) {
 			try {
 				$this->xrpc->query($method, $params);
-				$refused[] = '';
+				$refused[$method] = '';
 			} catch (XrpcException $e) {
-				$refused[] = $e->error;
+				$refused[$method] = $e->error;
 			}
 		}
 
-		$this->assertSame(['RepoDeactivated', 'RepoDeactivated', 'RepoDeactivated', 'RepoDeactivated', 'InvalidRequest'], $refused);
-		$this->assertSame(['did' => self::DID, 'active' => false, 'status' => 'deactivated', 'rev' => '3kznmn7xqxl22'], $this->xrpc->query('com.atproto.sync.getRepoStatus', ['did' => self::DID]));
+		$this->assertSame(array_fill_keys(array_keys($refused), $error), $refused);
+		if (!$suspended) {
+			$this->expectException(XrpcException::class);
+			$this->xrpc->query('com.atproto.identity.resolveHandle', ['handle' => 'alice.social.test']);
+		}
+	}
+
+	/**
+	 * `getRepoStatus` and `listRepos` say why an inactive repository is not
+	 * served, and `getRepoStatus` names a revision only for an active one.
+	 */
+	#[DataProvider('inactiveRepositories')]
+	public function testAnInactiveRepositorySaysWhy(string $state, bool $suspended, string $error, string $status): void {
+		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', 'did:key:z', '', $state, '', 0);
+		$this->suspended = $suspended;
+		$this->repositories->method('getHead')->willReturn(new RepoHead(self::DID, 'bafy', '3kznmn7xqxl22', 3, 0, 0));
+		$this->repoRequest->method('getHeads')->willReturn([new RepoHead(self::DID, 'bafy', '3kznmn7xqxl22', 1, 0, 0)]);
+
+		$this->assertSame(['did' => self::DID, 'active' => false, 'status' => $status], $this->xrpc->query('com.atproto.sync.getRepoStatus', ['did' => self::DID]));
+		$this->assertSame(
+			[['did' => self::DID, 'head' => 'bafy', 'rev' => '3kznmn7xqxl22', 'active' => false, 'status' => $status]],
+			$this->xrpc->query('com.atproto.sync.listRepos', [])['repos'],
+		);
 	}
 
 	public function testGetRecordAnswersTheValueAsJson(): void {
@@ -213,6 +272,30 @@ class XrpcServiceTest extends TestCase {
 		$this->assertArrayNotHasKey('cursor', $answer);
 	}
 
+	/**
+	 * A page of `listRepos` asks for its identities and for which of them
+	 * are suspended once each, however many repositories it lists.
+	 */
+	public function testAPageOfListReposLooksItsAccountsUpOnce(): void {
+		$dids = [self::DID, 'did:plc:z72i7hdynmk6r22z27h6tvur', 'did:plc:vwzwgnygau7ed7b7wt5ux7y2'];
+		$this->repoRequest->method('getHeads')->willReturn(array_map(static fn (string $did): RepoHead => new RepoHead($did, 'bafy', '3kznmn7xqxl22', 1, 0, 0), $dids));
+		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
+		$this->identityRequest->expects($this->once())->method('getByDids')->with($dids)->willReturn(array_combine($dids, array_map(
+			static fn (string $did): Identity => new Identity(1, 'https://social.test/@' . substr($did, -4), $did, substr($did, -4) . '.social.test', '', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0),
+			$dids,
+		)));
+		$this->moderation = $this->createMock(ModerationService::class);
+		$this->moderation->expects($this->once())->method('suspendedAmong')->willReturn(['https://social.test/@x7y2' => true]);
+		$this->moderation->expects($this->never())->method('isSuspended');
+		$this->identities->expects($this->never())->method('getByDid');
+		$configService = $this->createMock(ConfigService::class);
+		$xrpc = new XrpcService($this->config, $this->identities, $this->repositories, $this->repoRequest, $this->blobRequest, $this->pictures, $this->videos, $configService, $this->moderation, $this->identityRequest);
+
+		$repos = $xrpc->query('com.atproto.sync.listRepos', [])['repos'];
+
+		$this->assertSame([true, true, false], array_column($repos, 'active'));
+	}
+
 	public function testSubscribeReposOverPlainHttpAsksForTheUpgrade(): void {
 		try {
 			$this->xrpc->query('com.atproto.sync.subscribeRepos', []);
@@ -251,7 +334,7 @@ class XrpcServiceTest extends TestCase {
 	public function testNothingIsServedWhenBlueskyIsOff(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(false);
-		$xrpc = new XrpcService($config, $this->identities, $this->repositories, $this->repoRequest, $this->blobRequest, $this->pictures, $this->createMock(VideoBlobService::class), $this->createMock(ConfigService::class));
+		$xrpc = new XrpcService($config, $this->identities, $this->repositories, $this->repoRequest, $this->blobRequest, $this->pictures, $this->createMock(VideoBlobService::class), $this->createMock(ConfigService::class), $this->createMock(ModerationService::class), $this->createMock(AtprotoIdentityRequest::class));
 
 		$this->expectException(XrpcException::class);
 		$xrpc->query('com.atproto.server.describeServer', []);

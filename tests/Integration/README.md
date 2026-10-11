@@ -175,6 +175,9 @@ to stop.
   progress and lookup by direction, the PLC operation log in order with what is
   unconfirmed, firehose rows numbered in order with their bytes whole and pruned
   past the window, the instance blocklist and labeler subscriptions added once.
+- `Atproto/ListReposQueryBudgetTest` — `com.atproto.sync.listRepos` asks for a
+  page's identities and suspended accounts at once: a page of fifty costs the
+  queries a page of five does, and a suspended account is listed `takendown`.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`
