@@ -66,6 +66,9 @@ to stop.
   whether the fast page query or the old join answers it: the Loopback row is
   what carries a mention from an account they do not follow, and a set of
   recipient rows built without it drops every one of them.
+- `Db/PublicTimelineAuthorTest` — a page of the public timeline is `limit`
+  posts when its newest posts have no cached author: they are left out where
+  the page is chosen, not after, so they take no place on it.
 - `Db/DurableCacheTableTest` — the table behind `DurableCache` on an instance
   with no memcache: a read ignores an expired row, an insert over an existing
   key is skipped rather than raised, the purge takes only what has expired.

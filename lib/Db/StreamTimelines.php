@@ -1262,6 +1262,9 @@ trait StreamTimelines {
 		$page->selectDestFollowing('sd', '');
 		$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
 		$page->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
+		// the rows are read with their author, so a post without a cached
+		// author is left out here, where it does not take a place on the page
+		$page->joinCacheActors('ca', 's.attributed_to_prim');
 		$page->filterHiddenActors();
 		$this->filterSilencedActors($page);
 
