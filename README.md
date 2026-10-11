@@ -884,6 +884,26 @@ NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
 
 See `tests/Integration/README.md` for what it covers.
 
+**Coverage** is measured in CI on one leg of `phpunit-sqlite.yml` (the newest
+server and PHP): the unit and the integration suite each write a Clover
+report, `tests/coverage-floor.php` merges the two line by line, puts a table
+per directory in the job summary and fails when line coverage of `lib/` drops
+under the floor in `tests/coverage-floor.json`. `vitest.yml` runs
+`npm run test:coverage`, which fails under the thresholds in
+`vitest.config.js`. Both floors sit about a point under what the suites cover;
+raise them as coverage grows.
+
+**Upgrades** are tested by `.github/workflows/upgrade.yml`, on SQLite and
+PostgreSQL: the latest published release is installed and given two accounts,
+posts, a reply, a like, a boost, a follow and a picture (`tests/Upgrade/seed.sh`),
+then replaced by the change under test and upgraded with `occ upgrade`. The
+app's schema has to match a fresh install's, the seeded data has to read back
+through the client API (`tests/Upgrade/verify.py`), and the integration suite
+runs on the upgraded instance.
+
+`dependency-audit.yml` runs `composer audit` and `npm audit --omit=dev` on
+every pull request and weekly.
+
 ### Interop tests
 
 A third PHP suite in `tests/Interop/` delivers this app's activities to a **real
@@ -904,11 +924,12 @@ composer run test:interop
 ```
 
 `.github/workflows/interop.yml` stands the whole thing up — Postgres, Redis,
-Mastodon, PeerTube, a Nextcloud and an account on each side — weekly and on
-demand. Deliberately
-not on every pull request: it depends on a third-party image whose startup this
-repository does not control. See `tests/Interop/README.md`, including what it
-cannot prove.
+Mastodon, PeerTube, a Nextcloud and an account on each side — on every pull
+request and push against Mastodon 4.3, and weekly and on demand against
+Mastodon 4.5 as well, which is the version that writes quote posts. It depends
+on third-party images whose startup this repository does not control, so a red
+run is worth reading for which side failed. See `tests/Interop/README.md`,
+including what it cannot prove.
 
 ### Browser tests
 

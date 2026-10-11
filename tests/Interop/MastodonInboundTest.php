@@ -299,6 +299,22 @@ class MastodonInboundTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The workflow names the Mastodon it starts in `MASTODON_VERSION`, and the
+	 * tests that depend on the version read the instance's own answer: a tag
+	 * that resolved to another release would otherwise turn a leg meant to run
+	 * the quote test into one that quietly skips it.
+	 */
+	public function testTheMastodonIsTheOneTheWorkflowStarted(): void {
+		$expected = ltrim((string)getenv('MASTODON_VERSION'), 'v');
+		if ($expected === '') {
+			$this->markTestSkipped('no MASTODON_VERSION to compare with');
+		}
+
+		$version = (string)($this->mastodon->get('/api/v1/instance')['version'] ?? '');
+		$this->assertStringStartsWith($expected . '.', $version . '.', 'the workflow started Mastodon ' . $expected . ', the instance says ' . $version);
+	}
+
 	public function testAQuoteArrivesAsAQuote(): void {
 		$version = (string)($this->mastodon->get('/api/v1/instance')['version'] ?? '');
 		if (version_compare(preg_replace('/[^0-9.].*$/', '', $version) ?? '', '4.4', '<')) {

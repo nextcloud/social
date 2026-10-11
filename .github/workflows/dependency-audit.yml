@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Known vulnerabilities in the dependencies the lock files pin: every composer
+# package, and the npm packages that are bundled into js/. npm's dev-only
+# packages are left out: they build the bundle and never reach a server.
+#
+# On pull requests and pushes, and weekly: an advisory published today makes a
+# lock file nobody changed vulnerable, and the weekly run is what notices.
+# Both audits read only the lock files, so nothing is installed.
+
+name: Dependency audit
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - stable*
+  workflow_dispatch:
+  schedule:
+    - cron: '29 5 * * 3'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-audit-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  composer:
+    runs-on: ubuntu-latest
+    name: composer audit
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up php8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: 8.3
+          coverage: none
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Audit composer.lock
+        run: composer audit --locked
+
+  npm:
+    runs-on: ubuntu-latest
+    name: npm audit
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Read package.json node and npm engines version
+        uses: skjnldsv/read-package-engines-version-actions@06d6baf7d8f41934ab630e97d9e6c0bc9c9ac5e4 # v3
+        id: versions
+        with:
+          fallbackNode: '^20'
+          fallbackNpm: '^10'
+
+      - name: Set up node ${{ steps.versions.outputs.nodeVersion }}
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: ${{ steps.versions.outputs.nodeVersion }}
+
+      - name: Set up npm ${{ steps.versions.outputs.npmVersion }}
+        run: npm i -g 'npm@${{ steps.versions.outputs.npmVersion }}'
+
+      - name: Audit package-lock.json
+        run: npm audit --omit=dev --audit-level=high

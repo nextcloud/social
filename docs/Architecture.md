@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.213
+**App version:** 0.26.214
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -300,7 +300,7 @@ Two of those deserve a warning.
 
 `Version1000Date20260910000001` costs what it looks like — fifteen index statements, no table touched — on MySQL/MariaDB and PostgreSQL only. SQLite cannot change an index in place: Doctrine implements every one of them as a full table rebuild, so the same migration copies ten tables (`social_stream`, `social_cache_actor`, `social_cache_doc`, `social_follow`, `social_action`, `social_client`, both queues and both stream side tables) out, drops them, recreates them and copies the rows back. Plan the window for a rewrite of nearly the whole schema and for peak disk of about twice what those tables occupy. Nothing is at risk — SQLite DDL is transactional — but an operator sizing the outage from the MySQL figure will be wrong by an order of magnitude.
 
-`Version1000Date20260910000003` exists because the step before it was wrong about the cron. `manageHashtags()` skips a hashtag whose freshly counted trend equals the JSON already stored, which on an instance that has just upgraded is the normal case — so the zeroed counter columns would never have been written, and `getTrending()` reads nothing else. The backfill pages through `social_hashtag` on its primary key, leaves rows already in agreement alone, and is a no-op on a fresh install.
+`Version1000Date20260910000003` exists because the step before it was wrong about the cron. `manageHashtags()` skips a hashtag whose freshly counted trend equals the JSON already stored, which on an instance that has just upgraded is the normal case — so the zeroed counter columns would never have been written, and `getTrending()` reads nothing else. The backfill pages through `social_hashtag` on its primary key, leaves rows already in agreement alone, and is a no-op on a fresh install. `Version1000Date20261009500100` widens `social_hashtag.hashtag` from 63 to 127 characters, the width of `social_stream_tag.hashtag` it is counted from, on instances that created the table at 63: the squashed schema creates it at 127 but adds only missing columns to a table that exists, so an upgrade from 0.24.1 kept 63, and on PostgreSQL and MySQL a tag between the two widths fails the trends pass.
 
 There is no downgrade path, and none is possible: `Version1000Date20260611000001` drops tables outright.
 

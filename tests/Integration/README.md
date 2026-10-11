@@ -185,8 +185,10 @@ to stop.
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
-the supported server versions) via `composer run test:integration`; the workflows
-pick the script up automatically now that it is defined.
+the supported server versions, and MariaDB 10.11 on the newest) via `composer run
+test:integration`, and `upgrade.yml` runs it once more on an instance upgraded
+from the latest release with data in it, so a test has to hold on an instance
+that is not empty.
 
 **Locally**, point the bootstrap at an installed server (the app directory may be
 a symlink into it):

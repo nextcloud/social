@@ -33,8 +33,9 @@ use OCP\Migration\SimpleMigrationStep;
  * anywhere. A table is created only if it is absent and a column added only if
  * it is missing, so the same file brings up an empty database, completes a
  * half-upgraded one, and does nothing at all on an instance that is already
- * current. No instance is left behind by this and there is no floor on the
- * version you may upgrade from.
+ * current. A column that already exists is left as it is: where the history
+ * changed a column after creating it, an instance that created it before the
+ * change needs a step of its own (`Version1000Date20261009500100`).
  *
  * **The name is a sort key, not a date.** Nextcloud runs migrations in version
  * order, and this one has to run before the six that remain — each of those

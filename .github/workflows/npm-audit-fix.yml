@@ -24,7 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branches: ['main', 'master', 'stable30', 'stable29', 'stable28']
+        # releases are tagged from master; the stable* branches left on the
+        # repository predate this app's own release line and are not built
+        branches: ['master']
 
     name: npm-audit-fix-${{ matrix.branches }}
 

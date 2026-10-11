@@ -81,7 +81,28 @@ jobs:
         run: npm ci
 
       - name: Test
-        run: npm test
+        # with coverage: vitest.config.js holds the thresholds this fails under
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          [ -f coverage/js/coverage-summary.json ] || exit 0
+          node -e '
+            const total = require("./coverage/js/coverage-summary.json").total
+            const rows = ["lines", "statements", "branches", "functions"]
+              .map((key) => `| ${key} | ${total[key].pct} % | ${total[key].covered} | ${total[key].total} |`)
+            console.log(["### JS coverage (src/)", "", "| | % | Covered | Of |", "|---|---:|---:|---:|", ...rows].join("\n"))
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: js-coverage
+          path: coverage/js
+          if-no-files-found: ignore
+          retention-days: 14
 
   summary:
     permissions:

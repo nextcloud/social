@@ -31,6 +31,10 @@ jobs:
       # the max server version) with minimal redundancy; branches-max-list
       # tested the newest server only, so the claimed floor went unexercised.
       matrix: ${{ steps.versions.outputs.sparse-matrix }}
+      # the one leg that measures coverage: the newest server, on the newest
+      # PHP the matrix runs it with
+      coverage-server: ${{ steps.coverage.outputs.server }}
+      coverage-php: ${{ steps.coverage.outputs.php }}
     steps:
       - name: Checkout app
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -38,6 +42,18 @@ jobs:
       - name: Get version matrix
         id: versions
         uses: icewind1991/nextcloud-version-matrix@58becf3b4bb6dc6cef677b15e2fd8e7d48c0908f # v1.3.1
+
+      - name: Pick the coverage leg
+        id: coverage
+        env:
+          MATRIX: ${{ steps.versions.outputs.sparse-matrix }}
+          SERVER: ${{ steps.versions.outputs.branches-max }}
+        run: |
+          php=$(echo "$MATRIX" | jq -r --arg server "$SERVER" \
+            '[.include[] | select(."server-versions" == $server) | ."php-versions"] | max_by(split(".") | map(tonumber))')
+          echo "Coverage is measured on PHP $php with Nextcloud $SERVER"
+          echo "server=$SERVER" >> "$GITHUB_OUTPUT"
+          echo "php=$php" >> "$GITHUB_OUTPUT"
 
   changes:
     runs-on: ubuntu-latest
@@ -79,6 +95,9 @@ jobs:
 
     name: SQLite PHP ${{ matrix.php-versions }} Nextcloud ${{ matrix.server-versions }}
 
+    env:
+      COVERAGE: ${{ matrix.server-versions == needs.matrix.outputs.coverage-server && matrix.php-versions == needs.matrix.outputs.coverage-php }}
+
     steps:
       - name: Set app env
         run: |
@@ -116,7 +135,7 @@ jobs:
           php-version: ${{ matrix.php-versions }}
           # https://docs.nextcloud.com/server/stable/admin_manual/installation/source_installation.html#prerequisites-for-manual-installation
           extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
-          coverage: none
+          coverage: ${{ env.COVERAGE == 'true' && 'pcov' || 'none' }}
           ini-file: development
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -153,9 +172,16 @@ jobs:
 
       - name: PHPUnit
         # Only run if phpunit config file exists
-        if: steps.php_check.outputs.skip != 'true' && steps.check_phpunit.outcome == 'success'
+        if: steps.php_check.outputs.skip != 'true' && steps.check_phpunit.outcome == 'success' && env.COVERAGE != 'true'
         working-directory: apps/${{ env.APP_NAME }}
         run: composer run test:unit
+
+      - name: PHPUnit with coverage
+        if: steps.php_check.outputs.skip != 'true' && steps.check_phpunit.outcome == 'success' && env.COVERAGE == 'true'
+        working-directory: apps/${{ env.APP_NAME }}
+        run: |
+          php -d memory_limit=1G -d pcov.directory="$PWD/lib" vendor/bin/phpunit -c tests/phpunit.xml \
+            --coverage-clover coverage/php/unit.xml
 
       - name: Check PHPUnit integration script is defined
         if: steps.php_check.outputs.skip != 'true'
@@ -172,9 +198,34 @@ jobs:
 
       - name: PHPUnit integration
         # Only run if phpunit integration config file exists
-        if: steps.php_check.outputs.skip != 'true' && steps.check_integration.outcome == 'success'
+        if: steps.php_check.outputs.skip != 'true' && steps.check_integration.outcome == 'success' && env.COVERAGE != 'true'
         working-directory: apps/${{ env.APP_NAME }}
         run: composer run test:integration
+
+      - name: PHPUnit integration with coverage
+        if: steps.php_check.outputs.skip != 'true' && steps.check_integration.outcome == 'success' && env.COVERAGE == 'true'
+        working-directory: apps/${{ env.APP_NAME }}
+        # the integration config names no source directory, so it is given here
+        run: |
+          php -d memory_limit=1G -d pcov.directory="$PWD/lib" vendor/bin/phpunit -c tests/Integration/phpunit.xml \
+            --coverage-filter lib --coverage-clover coverage/php/integration.xml
+
+      - name: Coverage floor
+        # PHPUnit cannot merge two runs; tests/coverage-floor.php merges the
+        # two reports line by line, writes the table to the job summary and
+        # fails under the floor in tests/coverage-floor.json
+        if: env.COVERAGE == 'true' && steps.check_phpunit.outcome == 'success' && steps.check_integration.outcome == 'success'
+        working-directory: apps/${{ env.APP_NAME }}
+        run: php tests/coverage-floor.php unit=coverage/php/unit.xml integration=coverage/php/integration.xml
+
+      - name: Upload coverage
+        if: always() && env.COVERAGE == 'true'
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: php-coverage
+          path: apps/${{ env.APP_NAME }}/coverage/php
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Print logs
         # always(), so the log is there to read when a test failed
