@@ -2337,8 +2337,14 @@ who have a 24-hour short up, unseen first, then an *All shorts* tile that opens
 `/shorts`. The bar and the 24-hour part of the stack are drawn from `/api/v1/stories/carousel`. The Shorts
 stack (`VideoShorts.vue`) puts the viewer's followees' active 24-hour shorts
 first — grouped per person, unseen first, each marked *24h* with the hours it
-has left — and then the kept shorts, which are the Videos timeline in the
-chosen scope. One viewer plays both kinds: pictures and text cards advance by
+has left — and then the kept shorts: the timeline of the chosen scope asked
+with `only_short` (store type `shorts`), and For you asked with
+`only_short=true`, which `InterestFeedService` keeps as a ranking of its own
+(`shorts`, on `limitToShort()`, topped up with trending shorts). So the stack
+holds exactly what the server counts as a short — a single video of at most
+three minutes, upright or square (`Stream::shortKindOf()`) — and the Videos
+grid keeps every video; an empty stack says *No shorts here yet* and what a
+short is. One viewer plays both kinds: pictures and text cards advance by
 themselves after their hold time, seeing a 24-hour short calls the story seen
 endpoint, anybody who can see one can react or reply, and its owner sees *Who
 has seen it*, the reactions and replies, and can delete it.

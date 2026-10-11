@@ -169,7 +169,10 @@
 			</div>
 
 			<div v-else-if="shorts.length === 0" class="shorts__empty">
-				<p>{{ t('social', 'No videos here yet.') }}</p>
+				<p>{{ t('social', 'No shorts here yet.') }}</p>
+				<p class="shorts__rule">
+					{{ t('social', 'A short is a video of up to three minutes, upright or square.') }}
+				</p>
 				<NcButton :to="{ name: 'timeline', params: { type: 'videos' } }">
 					{{ t('social', 'Back to Videos') }}
 				</NcButton>
@@ -212,8 +215,10 @@
  * The Videos page is a grid, which is right for choosing and wrong for
  * watching: every video on it is a still until it is clicked, and the thing
  * somebody arriving from TikTok is used to is a stack that plays by itself as
- * it goes past. This is that stack, over the same timeline — no new endpoint,
- * no second idea of what a video is.
+ * it goes past. This is that stack, over the same timelines narrowed to
+ * shorts — `only_short`, a single video of at most three minutes, upright or
+ * square — so the stack, For you's Shorts scope and a client asking the API
+ * share the server's one idea of what a short is.
  *
  * Four rules hold it together:
  *
@@ -540,11 +545,11 @@ export default {
 	methods: {
 		t,
 
-		/** Points the store at the videos of this scope and fetches the first page. */
+		/** Points the store at the shorts of this scope and fetches the first page. */
 		open() {
 			this.shortSignals.leave()
 			this.timelineStore.changeTimelineType({
-				type: 'videos',
+				type: 'shorts',
 				params: { scope: this.watching },
 			})
 			this.allLoaded = false
@@ -1097,6 +1102,13 @@ export default {
 		gap: 12px;
 		block-size: 100%;
 		color: #fff;
+	}
+
+	&__rule {
+		max-inline-size: 32ch;
+		margin: 0;
+		text-align: center;
+		opacity: 0.8;
 	}
 
 	/* top right, over the video, where every short-video app keeps it */

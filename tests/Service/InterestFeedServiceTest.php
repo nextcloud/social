@@ -430,6 +430,15 @@ class InterestFeedServiceTest extends TestCase {
 		$this->assertSame(['image'], $this->trendKinds);
 	}
 
+	/** The Shorts stack's For you is topped up with trending shorts, not trending videos. */
+	public function testANewcomerStillGetsPopularShorts(): void {
+		$popular = $this->nid(60, 1);
+		$this->trending = [['nid' => $popular, 'author' => 'c']];
+
+		$this->assertSame([['nid' => $popular, 'tags' => [], 'reason' => 'popular']], $this->service()->rank($this->viewer(), 'shorts'));
+		$this->assertSame(['short'], $this->trendKinds);
+	}
+
 	public function testANewcomerStillGetsPopularVideos(): void {
 		$popular = $this->nid(60, 1);
 		$this->trending = [['nid' => $popular, 'author' => 'c']];

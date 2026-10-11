@@ -284,7 +284,8 @@ of the switch still shows what the reader chose. One that reads the key can
 draw a quiet mark for readers who left the switch off.
 
 And a timeline filter: `only_short=true` on `timelines/home`, `timelines/public`,
-`timelines/tag/{tag}`, `timelines/list/{id}` and `accounts/{id}/statuses` keeps
+`timelines/tag/{tag}`, `timelines/list/{id}`, `accounts/{id}/statuses` and this
+app's own `timelines/interests` (For you) keeps
 the posts whose only attachment is a video of at most 180 seconds, upright or
 square, by its stored `meta`. Ordering and paging are Mastodon's, and the `Link`
 header carries the parameter on. A client finds out whether a server has it from

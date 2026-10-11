@@ -197,6 +197,9 @@ class InterestsController extends ClientApiController {
 	 * `media` narrows it to `photos` or `videos`, each a ranking of its own;
 	 * Mastodon's `only_media` is the two together, so a phone app asking the
 	 * way it asks every timeline gets the posts with pictures and videos.
+	 * `only_short` is the ranking of short videos, by the rule the other
+	 * timelines' `only_short` applies (`Stream::shortKindOf()`), and wins
+	 * over both.
 	 * Anything else is ignored rather than refused, as the other media
 	 * parameters are: an unknown kind is a client asking for a narrowing this
 	 * instance does not offer, and the whole feed is still an answer.
@@ -212,13 +215,16 @@ class InterestsController extends ClientApiController {
 		int $offset = 0,
 		string $media = '',
 		bool $only_media = false,
+		bool $only_short = false,
 	): DataResponse {
 		try {
 			$this->initViewer(['read:statuses']);
 			$this->assertEnabled();
 
 			$media = in_array($media, ['photos', 'videos'], true) ? $media : '';
-			if ($media === '' && $only_media) {
+			if ($only_short) {
+				$media = 'shorts';
+			} elseif ($media === '' && $only_media) {
 				$media = 'media';
 			}
 

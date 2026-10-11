@@ -67,12 +67,13 @@ trait StreamInterests {
 	 * `$media` narrows them to one kind, on the indexed `media_kind` column the
 	 * Photos and Videos timelines read: `photos` is a post with a picture in
 	 * it, `videos` one that is a video, `media` either (Mastodon's
-	 * `only_media`), and '' every post.
+	 * `only_media`), and '' every post. `shorts` is a short video, on
+	 * `short_kind`, the column `only_short` reads.
 	 *
 	 * @param string[] $tags normalised
 	 * @param string[] $excludeNids the posts the reader hid
 	 * @param string[] $languages empty for every language
-	 * @param string $media '', 'photos', 'videos' or 'media'
+	 * @param string $media '', 'photos', 'videos', 'shorts' or 'media'
 	 *
 	 * @return list<array{nid: string, idPrim: string, tag: string, author: string}>
 	 */
@@ -93,6 +94,8 @@ trait StreamInterests {
 			$qb->limitToMediaType('image');
 		} elseif ($media === 'videos') {
 			$qb->limitToVideo();
+		} elseif ($media === 'shorts') {
+			$qb->limitToShort();
 		} elseif ($media === 'media') {
 			$qb->limitToMedia();
 		}

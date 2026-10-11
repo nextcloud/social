@@ -111,7 +111,7 @@ describe('VideoShorts', () => {
 		vi.unstubAllGlobals()
 	})
 
-	it('asks for the videos timeline at the scope it was given', async () => {
+	it('asks for the shorts timeline at the scope it was given', async () => {
 		const pinia = createPinia()
 		setActivePinia(pinia)
 		const store = useTimelineStore()
@@ -123,7 +123,7 @@ describe('VideoShorts', () => {
 		})
 		await flushPromises()
 
-		expect(store.type).toBe('videos')
+		expect(store.type).toBe('shorts')
 		expect(store.params.scope).toBe('federated')
 	})
 
@@ -478,11 +478,11 @@ describe('VideoShorts', () => {
 		await flushPromises()
 
 		expect(wrapper.text()).toContain('Loading videos')
-		expect(wrapper.text()).not.toContain('No videos here yet.')
+		expect(wrapper.text()).not.toContain('No shorts here yet.')
 	})
 
 	/**
-	 * A failed request is not an empty feed, and "No videos here yet" over a
+	 * A failed request is not an empty feed, and "No shorts here yet" over a
 	 * 500 tells the reader something that is not true.
 	 */
 	it('says the videos could not be loaded, and asks again on request', async () => {
@@ -498,7 +498,7 @@ describe('VideoShorts', () => {
 
 		const alert = wrapper.find('[role="alert"]')
 		expect(alert.text()).toContain('could not be loaded')
-		expect(wrapper.text()).not.toContain('No videos here yet.')
+		expect(wrapper.text()).not.toContain('No shorts here yet.')
 
 		store.fetchTimeline.mockImplementationOnce(async () => {
 			store.addToTimeline([video('1')])
@@ -513,10 +513,17 @@ describe('VideoShorts', () => {
 		expect(wrapper.findAll('.short')).toHaveLength(1)
 	})
 
-	it('says so when there is nothing to watch', async () => {
+	/**
+	 * The feed holds shorts only, so an empty one says there are no shorts —
+	 * there may well be videos — and what a short is, so the reader knows why
+	 * a long or landscape video is not here.
+	 */
+	it('says so when there is nothing to watch, and what counts as a short', async () => {
 		const { wrapper } = await mountShorts([])
 
-		expect(wrapper.text()).toContain('No videos here yet.')
+		expect(wrapper.text()).toContain('No shorts here yet.')
+		expect(wrapper.text()).toContain('A short is a video of up to three minutes, upright or square.')
+		expect(wrapper.text()).not.toContain('No videos here yet.')
 	})
 
 	describe('hearts', () => {
@@ -668,7 +675,7 @@ describe('VideoShorts', () => {
 		it('is where the stack opens once reading has taught it something', async () => {
 			const { store } = await mountShorts(undefined, { serverData: { public: false, interests: { ...ON, profile: true } } })
 
-			expect(store.type).toBe('videos')
+			expect(store.type).toBe('shorts')
 			expect(store.params.scope).toBe('interests')
 		})
 

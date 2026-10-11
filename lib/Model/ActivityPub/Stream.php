@@ -883,7 +883,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	/**
 	 * Whether a post is a short video, from the attachment list it was stored
-	 * with: the one rule `only_short` filters on and `/api/v2/config` states.
+	 * with: the one rule `only_short` filters on, the web app's Shorts stack
+	 * is filled by and `/api/v2/config` states.
 	 *
 	 * A short is a post whose only attachment is a `video` that runs for no
 	 * more than `SHORT_MAX_SECONDS` and is no wider than `SHORT_MAX_ASPECT`.

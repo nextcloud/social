@@ -175,7 +175,7 @@ to stop.
   exclusive, `since_id` the newest page, `min_id` the adjacent one, the
   `Link` cursors — with three pages of rows behind it.
   `Api/OnlyShortTimelineTest` asks `only_short` of home, public, a hashtag,
-  a list and a profile, with three shorts under four other videos and sixty
+  a list, a profile and For you, with three shorts under four other videos and sixty
   newer posts of text: a page of twenty is the three, and paged two at a
   time the `Link` header keeps the filter.
   `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and

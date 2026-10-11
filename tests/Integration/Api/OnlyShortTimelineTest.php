@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Api;
 
 use OCA\Social\Controller\AccountApiController;
+use OCA\Social\Controller\InterestsController;
 use OCA\Social\Controller\ListController;
 use OCA\Social\Controller\TimelineApiController;
 use OCA\Social\Db\StreamRequest;
@@ -19,6 +20,7 @@ use OCA\Social\Model\Client\AttachmentMeta;
 use OCA\Social\Model\Client\AttachmentMetaDim;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\InterestService;
 use OCP\Server;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -40,10 +42,12 @@ class OnlyShortTimelineTest extends ApiTestCase {
 	/** @var string[] ids of the posts this test stored */
 	private array $notes = [];
 	private string $fastPathBefore = '';
+	private string $interestsBefore = '';
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->fastPathBefore = Server::get(ConfigService::class)->getAppValue(ConfigService::SOCIAL_DEST_NID_FILLED);
+		$this->interestsBefore = Server::get(ConfigService::class)->getAppValue(ConfigService::SOCIAL_INTERESTS);
 		// the home timeline's recipient fast path is on, so the narrowed home
 		// timeline has to be the one that leaves it
 		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_DEST_NID_FILLED, '1');
@@ -55,6 +59,7 @@ class OnlyShortTimelineTest extends ApiTestCase {
 		}
 		$this->notes = [];
 		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_DEST_NID_FILLED, $this->fastPathBefore);
+		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_INTERESTS, $this->interestsBefore);
 		parent::tearDown();
 	}
 
@@ -197,5 +202,29 @@ class OnlyShortTimelineTest extends ApiTestCase {
 		$second = $page($links['next']['query']);
 		$this->assertSame([$shorts[2]], $this->uris($second), $route . ': max_id continues with the shorts below');
 		$this->assertArrayNotHasKey('next', $second->links(), $route . ': the last short ends the timeline');
+	}
+
+	/**
+	 * For you, narrowed the same way: a ranking of the posts carrying the
+	 * reader's hashtag, of which only the three shorts are left, paged by
+	 * the `Link` header with `only_short` kept on.
+	 */
+	public function testForYouWithOnlyShortRanksOnlyTheShorts(): void {
+		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_INTERESTS, '1');
+		Server::get(InterestService::class)->add($this->account('alice'), self::TAG);
+		$shorts = $this->seed();
+		$page = fn (array $query): ApiResponse => $this->call(InterestsController::class, 'timeline', [], $query);
+
+		$this->assertSame(
+			$shorts, $this->uris($page(['limit' => 20, 'only_short' => 'true'])),
+			'a page of twenty is the three shorts'
+		);
+
+		$first = $page(['limit' => 2, 'only_short' => 'true']);
+		$this->assertSame(array_slice($shorts, 0, 2), $this->uris($first), 'the first page of two');
+		$next = $first->links()['next']['query'] ?? [];
+		$this->assertSame('true', $next['only_short'] ?? null, 'next keeps only_short');
+
+		$this->assertSame([$shorts[2]], $this->uris($page($next)), 'and goes on in the same ranking');
 	}
 }
