@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Model\Gif;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\GifPackService;
+use OCA\Social\Tests\Helper\EndlessStream;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -189,6 +190,34 @@ class GifPackServiceTest extends TestCase {
 
 		$this->expectException(NotFoundException::class);
 		$this->service->file('noto-1f600');
+	}
+
+	/**
+	 * The answer is read as a stream and no further than one byte past the
+	 * ceiling: a source that never stops sending is refused without its body
+	 * being held.
+	 */
+	public function testAnAnswerPastTheCeilingIsRefusedWithoutBeingReadWhole(): void {
+		$this->folder->method('getFile')->willThrowException(new NotFoundException());
+		$options = [];
+		$response = $this->createStub(IResponse::class);
+		$response->method('getStatusCode')->willReturn(200);
+		$response->method('getBody')->willReturnCallback(static fn () => EndlessStream::open());
+		$this->client->method('get')->willReturnCallback(function (string $url, array $sent) use (&$options, $response) {
+			$options = $sent;
+
+			return $response;
+		});
+		$this->folder->expects($this->never())->method('newFile');
+
+		try {
+			$this->service->file('noto-1f600');
+			$this->fail('an endless answer was stored');
+		} catch (NotFoundException) {
+		}
+
+		$this->assertTrue($options['stream'] ?? false, 'the body is streamed rather than buffered by the client');
+		$this->assertLessThan(9 * 1024 * 1024, EndlessStream::$read);
 	}
 
 	public function testASourceThatRefusesIsNotStored(): void {

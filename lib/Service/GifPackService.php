@@ -242,6 +242,8 @@ class GifPackService {
 			$response = $this->clientService->newClient()->get($url, [
 				'timeout' => self::TIMEOUT,
 				'http_errors' => false,
+				// read as it arrives, so no more than the ceiling is ever held
+				'stream' => true,
 			]);
 
 			if ($response->getStatusCode() !== 200) {
@@ -252,7 +254,7 @@ class GifPackService {
 				return '';
 			}
 
-			$content = (string)$response->getBody();
+			$content = CurlService::readAtMost($response, self::MAX_SIZE);
 		} catch (Throwable $e) {
 			$this->logger->notice('could not reach the emoji pack source', [
 				'url' => $url, 'exception' => $e,
