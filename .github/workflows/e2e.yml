@@ -4,6 +4,11 @@
 # The browser tests: a throwaway Nextcloud with this app installed, driven by
 # Playwright the way a person would drive it. The unit and integration suites
 # cannot see a page that stays empty; this can. See tests/e2e/.
+#
+# A pull request runs the two legs that decide most: both server versions
+# info.xml names at the top, on SQLite, in Chromium. A push to master, the
+# weekly run and a manual run add the slower legs: the oldest server info.xml
+# claims (34), PostgreSQL, and the smoke spec in Firefox.
 
 name: Browser tests
 
@@ -12,6 +17,9 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+  schedule:
+    - cron: '27 4 * * 3'
 
 permissions:
   contents: read
@@ -21,19 +29,44 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  legs:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.legs.outputs.matrix }}
+    steps:
+      # The pages this drives are built from the server's own layout and CSS
+      # variables, which is exactly what a major server version changes, so
+      # one version cannot stand in for another: `master` is Nextcloud 36
+      # until it branches off as stable36, and 34 is the floor info.xml
+      # claims. PostgreSQL is the database most production instances run;
+      # Firefox draws and lays out with an engine of its own.
+      - name: Pick the legs
+        id: legs
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          legs='[
+            {"server": "stable35", "db": "sqlite", "browser": "chromium", "guests": true},
+            {"server": "master", "db": "sqlite", "browser": "chromium"}
+          ]'
+          if [ "$EVENT" != pull_request ]; then
+            legs=$(echo "$legs" | jq '. + [
+              {"server": "stable34", "db": "sqlite", "browser": "chromium"},
+              {"server": "stable35", "db": "pgsql", "browser": "chromium"},
+              {"server": "stable35", "db": "sqlite", "browser": "firefox"}
+            ]')
+          fi
+          echo "matrix=$(echo "$legs" | jq -c '{include: .}')" | tee -a "$GITHUB_OUTPUT"
+
   e2e:
     runs-on: ubuntu-latest
+    needs: legs
 
-    # Both versions info.xml claims. The pages this drives are built from the
-    # server's own layout and CSS variables, which is exactly what a major
-    # server version changes, so a single run cannot stand in for the other:
-    # `master` is Nextcloud 36 until it branches off as stable36.
     strategy:
       fail-fast: false
-      matrix:
-        server-versions: ['stable35', 'master']
+      matrix: ${{ fromJson(needs.legs.outputs.matrix) }}
 
-    name: Playwright against Nextcloud ${{ matrix.server-versions }}
+    name: Playwright against Nextcloud ${{ matrix.server }} on ${{ matrix.db }} in ${{ matrix.browser }}
 
     steps:
       - name: Set app env
@@ -44,7 +77,7 @@ jobs:
         with:
           submodules: true
           repository: nextcloud/server
-          ref: ${{ matrix.server-versions }}
+          ref: ${{ matrix.server }}
 
       - name: Checkout app
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -52,7 +85,7 @@ jobs:
           path: apps/${{ env.APP_NAME }}
 
       - name: Checkout the Guests app for the compatibility run
-        if: matrix.server-versions == 'stable35'
+        if: matrix.guests
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: nextcloud/guests
@@ -63,14 +96,28 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.3'
-          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, pgsql, pdo_pgsql
           coverage: none
           ini-file: development
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Start PostgreSQL
+        # the image phpunit-pgsql.yml uses
+        if: matrix.db == 'pgsql'
+        run: |
+          docker run -d --name db -p 4444:5432 \
+            -e POSTGRES_USER=root -e POSTGRES_PASSWORD=rootpassword -e POSTGRES_DB=nextcloud \
+            ghcr.io/nextcloud/continuous-integration-postgres-14:latest
+          for attempt in $(seq 1 60); do
+            docker exec db pg_isready -U root >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs db
+          exit 1
+
       - name: Set up Guests PHP dependencies
-        if: matrix.server-versions == 'stable35'
+        if: matrix.guests
         working-directory: apps/guests
         run: composer i --no-dev
 
@@ -83,9 +130,9 @@ jobs:
           OC_PASS: Browser-Test-2026!
         run: |
           mkdir data
-          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud --admin-user admin --admin-pass admin
+          ./occ maintenance:install --verbose --database=${{ matrix.db }} --database-name=nextcloud --database-host=127.0.0.1 --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
           ./occ app:enable --force ${{ env.APP_NAME }}
-          if [ "${{ matrix.server-versions }}" = "stable35" ]; then
+          if [ "${{ matrix.guests }}" = "true" ]; then
             ./occ app:enable --force guests
             ./occ config:app:set guests usewhitelist --value yes --type boolean
             # Start without Social allowed; the browser test verifies the real 403,
@@ -144,7 +191,7 @@ jobs:
         working-directory: apps/${{ env.APP_NAME }}
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Browser tests
         working-directory: apps/${{ env.APP_NAME }}
@@ -157,15 +204,17 @@ jobs:
           E2E_USER: bob
           E2E_PASSWORD: Browser-Test-2026!
           E2E_GROUP: design
-          E2E_GUEST: ${{ matrix.server-versions == 'stable35' && 'guest' || '' }}
-        run: npm run test:e2e
+          E2E_GUEST: ${{ matrix.guests && 'guest' || '' }}
+          # another engine runs the smoke spec only (playwright.config.mjs)
+          E2E_BROWSERS: ${{ matrix.browser != 'chromium' && matrix.browser || '' }}
+        run: npm run test:e2e -- --project=${{ matrix.browser }}
 
       - name: Keep the report when something failed
         if: failure()
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
-          # per server version: two jobs uploading one name is an error
-          name: playwright-report-${{ matrix.server-versions }}
+          # per leg: two jobs uploading one name is an error
+          name: playwright-report-${{ matrix.server }}-${{ matrix.db }}-${{ matrix.browser }}
           # relative to the config file, tests/e2e/playwright.config.mjs
           path: |
             apps/${{ env.APP_NAME }}/tests/e2e/playwright-report

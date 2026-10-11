@@ -951,8 +951,9 @@ can read, receive a like and a mention, search for an account and a hashtag,
 make and fill a list, add and remove a keyword filter, read public profiles and
 posts signed out, and use the main pages on a phone-sized screen. Nothing is
 mocked, and the bundle under test is the committed one in `js/`.
-`.github/workflows/e2e.yml` sets up a throwaway server for every pull request;
-against an instance of your own:
+`.github/workflows/e2e.yml` sets up a throwaway server for every pull request,
+on Nextcloud 35 and master; pushes to master and a weekly run add Nextcloud 34,
+PostgreSQL and the smoke spec in Firefox. Against an instance of your own:
 
 ```
 npx playwright install chromium
