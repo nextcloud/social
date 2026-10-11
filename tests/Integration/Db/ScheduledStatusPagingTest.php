@@ -173,6 +173,22 @@ class ScheduledStatusPagingTest extends TestCase {
 	}
 
 	/**
+	 * The caps on waiting posts count them in SQL. With the row's columns
+	 * selected beside the COUNT(*), PostgreSQL and MySQL refused the query
+	 * and scheduling a post failed there; SQLite answered.
+	 */
+	public function testTheWaitingPostsOfAnAccountAreCounted(): void {
+		$this->waiting(10);
+		$this->waiting(20);
+		$this->waiting(24 * 60 + 10);
+		$this->waiting(10, self::OTHER);
+
+		$this->assertSame(3, $this->request->countByActor(self::ACTOR));
+		$this->assertSame(2, $this->request->countByActorBetween(self::ACTOR, self::BASE_TIME, self::BASE_TIME + 86400));
+		$this->assertSame(0, $this->request->countByActor('https://cloud.example.org/sched-paging/users/nobody'));
+	}
+
+	/**
 	 * A cursor naming a row that is gone — published or cancelled between two
 	 * pages, which for a scheduled post is ordinary — still answers, rather
 	 * than returning nothing and stopping a client mid-list.
