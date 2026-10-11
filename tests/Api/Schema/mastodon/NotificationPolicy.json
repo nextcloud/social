@@ -1,0 +1,71 @@
+{
+	"description": "NotificationPolicy, v2 (docs.joinmastodon.org/entities/NotificationPolicy), Mastodon 4.3.",
+	"type": "object",
+	"required": [
+		"for_limited_accounts",
+		"for_new_accounts",
+		"for_not_followers",
+		"for_not_following",
+		"for_private_mentions",
+		"summary"
+	],
+	"properties": {
+		"for_not_following": {
+			"type": "string",
+			"enum": [
+				"accept",
+				"filter",
+				"drop"
+			]
+		},
+		"for_not_followers": {
+			"type": "string",
+			"enum": [
+				"accept",
+				"filter",
+				"drop"
+			]
+		},
+		"for_new_accounts": {
+			"type": "string",
+			"enum": [
+				"accept",
+				"filter",
+				"drop"
+			]
+		},
+		"for_private_mentions": {
+			"type": "string",
+			"enum": [
+				"accept",
+				"filter",
+				"drop"
+			]
+		},
+		"for_limited_accounts": {
+			"type": "string",
+			"enum": [
+				"accept",
+				"filter",
+				"drop"
+			]
+		},
+		"summary": {
+			"type": "object",
+			"required": [
+				"pending_notifications_count",
+				"pending_requests_count"
+			],
+			"properties": {
+				"pending_requests_count": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"pending_notifications_count": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		}
+	}
+}

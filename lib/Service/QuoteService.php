@@ -72,7 +72,7 @@ class QuoteService {
 		// re-snapshotted with it — the same path the quote's approval stamp
 		// takes, and what makes every later delivery of the post say the same
 		// thing this server says
-		$post->setSource(json_encode($post, JSON_UNESCAPED_SLASHES));
+		$post->setSource($post->wireSource());
 		$this->streamRequest->update($post);
 
 		// nothing is federated by the change on its own: `interactionPolicy`
@@ -156,7 +156,7 @@ class QuoteService {
 	private function withdrawLocally(Stream $quoting): void {
 		$quoting->setQuoteAuthorization('');
 		$quoting->setQuoteState(Stream::QUOTE_REVOKED);
-		$quoting->setSource(json_encode($quoting, JSON_UNESCAPED_SLASHES));
+		$quoting->setSource($quoting->wireSource());
 
 		$this->streamRequest->update($quoting);
 		$this->streamRequest->updateDetails($quoting);

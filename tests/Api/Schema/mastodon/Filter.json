@@ -1,0 +1,126 @@
+{
+	"description": "Filter, v2 (docs.joinmastodon.org/entities/Filter). `blur` is Mastodon 4.4's third action.",
+	"type": "object",
+	"required": [
+		"context",
+		"expires_at",
+		"filter_action",
+		"id",
+		"keywords",
+		"statuses",
+		"title"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"title": {
+			"type": "string"
+		},
+		"context": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": [
+					"home",
+					"notifications",
+					"public",
+					"thread",
+					"account"
+				]
+			},
+			"minItems": 1
+		},
+		"expires_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"filter_action": {
+			"type": "string",
+			"enum": [
+				"warn",
+				"hide",
+				"blur"
+			]
+		},
+		"keywords": {
+			"type": "array",
+			"items": {
+				"$ref": "FilterKeyword"
+			}
+		},
+		"statuses": {
+			"type": "array",
+			"items": {
+				"$ref": "FilterStatus"
+			}
+		}
+	},
+	"$defs": {
+		"InResult": {
+			"description": "The filter as a FilterResult carries it: Mastodon leaves the keywords and statuses out there.",
+			"type": "object",
+			"required": [
+				"context",
+				"expires_at",
+				"filter_action",
+				"id",
+				"title"
+			],
+			"properties": {
+				"id": {
+					"type": "string",
+					"format": "id"
+				},
+				"title": {
+					"type": "string"
+				},
+				"context": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"home",
+							"notifications",
+							"public",
+							"thread",
+							"account"
+						]
+					},
+					"minItems": 1
+				},
+				"expires_at": {
+					"type": [
+						"string",
+						"null"
+					],
+					"format": "datetime"
+				},
+				"filter_action": {
+					"type": "string",
+					"enum": [
+						"warn",
+						"hide",
+						"blur"
+					]
+				},
+				"keywords": {
+					"type": "array",
+					"items": {
+						"$ref": "FilterKeyword"
+					}
+				},
+				"statuses": {
+					"type": "array",
+					"items": {
+						"$ref": "FilterStatus"
+					}
+				}
+			}
+		}
+	}
+}

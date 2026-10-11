@@ -44,6 +44,7 @@ use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Nid;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -850,8 +851,9 @@ class AccountApiController extends MastodonApiController {
 		int|string $max_id = 0,
 		int|string $min_id = 0,
 		int|string $since = 0,
+		int|string $since_id = 0,
 	): DataResponse {
-		return $this->followList($account, ProbeOptions::FOLLOWING, $limit, $max_id, $min_id, $since);
+		return $this->followList($account, ProbeOptions::FOLLOWING, $limit, $max_id, $min_id, $this->sinceCursor($since_id, $since));
 	}
 
 	/**
@@ -875,8 +877,9 @@ class AccountApiController extends MastodonApiController {
 		int|string $max_id = 0,
 		int|string $min_id = 0,
 		int|string $since = 0,
+		int|string $since_id = 0,
 	): DataResponse {
-		return $this->followList($account, ProbeOptions::FOLLOWERS, $limit, $max_id, $min_id, $since);
+		return $this->followList($account, ProbeOptions::FOLLOWERS, $limit, $max_id, $min_id, $this->sinceCursor($since_id, $since));
 	}
 
 	private function followList(
@@ -1143,6 +1146,15 @@ class AccountApiController extends MastodonApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/mutes')]
 	public function mutes(int $limit = 40): DataResponse {
 		return $this->listRelatedAccounts(ActorRelation::TYPE_MUTE, $limit);
+	}
+
+	/**
+	 * The `since_id` of a follower or following page. Mastodon's name for
+	 * it is `since_id`, which is what a client sends; these two routes once
+	 * read only `since`, still accepted for a caller that learned that name.
+	 */
+	private function sinceCursor(int|string $sinceId, int|string $since): int|string {
+		return (Nid::compare($sinceId, '0') > 0) ? $sinceId : $since;
 	}
 
 	private function listRelatedAccounts(string $type, int $limit): DataResponse {

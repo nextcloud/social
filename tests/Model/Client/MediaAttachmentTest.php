@@ -410,4 +410,15 @@ class MediaAttachmentTest extends TestCase {
 			(new MediaAttachment())->import(array_merge($this->mastodonAttachment(), ['ai_generated' => true]))->isAiGenerated()
 		);
 	}
+
+	/**
+	 * A Document that named no media type — nothing is known of it until
+	 * the file is fetched — was sent with `type: ""`, which is none of
+	 * Mastodon's five, and a client with a closed enum dropped the status.
+	 */
+	public function testAnAttachmentOfNoKnownKindIsUnknown(): void {
+		$this->assertSame('unknown', (new MediaAttachment())->asLocal()['type']);
+		$this->assertSame('unknown', (new MediaAttachment())->setType('application')->asLocal()['type']);
+		$this->assertSame('video', (new MediaAttachment())->setType('video')->asLocal()['type']);
+	}
 }

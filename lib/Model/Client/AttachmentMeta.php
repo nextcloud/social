@@ -235,8 +235,8 @@ class AttachmentMeta implements JsonSerializable {
 				'length' => $this->getLength(),
 				'duration' => $this->getDuration(),
 				'fps' => $this->getFps(),
-				'original' => $this->getOriginal(),
-				'small' => $this->getSmall(),
+				'original' => self::stated($this->getOriginal()),
+				'small' => self::stated($this->getSmall()),
 				'focus' => $this->getFocus(),
 				'audio_encode' => $this->getAudioEncode(),
 				'audio_bitrate' => $this->getAudioBitrate(),
@@ -245,5 +245,15 @@ class AttachmentMeta implements JsonSerializable {
 				'blurhash' => $this->getBlurHash()
 			]
 		);
+	}
+
+	/**
+	 * A size that states nothing is left out rather than sent: it serialises
+	 * as `[]`, a list where the entity has an object, and a client decoding
+	 * `meta.original` into a struct fails on it — and drops the attachment,
+	 * and the status it is on. An attachment with no copy here has no size.
+	 */
+	private static function stated(?AttachmentMetaDim $dimension): ?AttachmentMetaDim {
+		return ($dimension === null || $dimension->jsonSerialize() === []) ? null : $dimension;
 	}
 }

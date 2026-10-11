@@ -36,6 +36,11 @@ use OCA\Social\Security\HtmlSanitizer;
  */
 class LinkifyService {
 	public const TYPE_URL = 'url';
+	/**
+	 * What a URL counts for against `max_characters`, whatever its length:
+	 * Mastodon's `characters_reserved_per_url`.
+	 */
+	public const URL_LENGTH = 23;
 	public const TYPE_MENTION = 'mention';
 	public const TYPE_HASHTAG = 'hashtag';
 
@@ -107,6 +112,26 @@ class LinkifyService {
 		}
 
 		return $entities;
+	}
+
+	/**
+	 * The length of a post's text as Mastodon counts it against
+	 * `max_characters`: every URL as URL_LENGTH characters, and a mention of
+	 * an account elsewhere as its `@name` alone. A client counts this way
+	 * because the instance says so, and a server counting raw characters
+	 * refused posts the client had shown as fitting.
+	 */
+	public static function countableLength(string $text): int {
+		$length = mb_strlen($text);
+		foreach ((new self())->entitiesIn($text) as $entity) {
+			if ($entity['type'] === self::TYPE_URL) {
+				$length += self::URL_LENGTH - mb_strlen($entity['text']);
+			} elseif ($entity['type'] === self::TYPE_MENTION && ($at = mb_strpos($entity['name'], '@')) !== false) {
+				$length -= mb_strlen($entity['name']) - $at;
+			}
+		}
+
+		return $length;
 	}
 
 	/**

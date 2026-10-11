@@ -158,10 +158,17 @@ class ScheduledStatus implements JsonSerializable, StatusParams {
 	 */
 	#[\Override]
 	public function jsonSerialize(): array {
+		$params = $this->getParams();
+		// an ISO 639 code or null, as on a status: the post is stored with no
+		// language as an empty string, which is neither
+		if (($params['language'] ?? null) === '') {
+			$params['language'] = null;
+		}
+
 		return [
 			'id' => (string)$this->getId(),
 			'scheduled_at' => gmdate('Y-m-d\TH:i:s', $this->getScheduledAt()) . '.000Z',
-			'params' => $this->getParams(),
+			'params' => $params,
 			'media_attachments' => $this->getMediaAttachments(),
 		];
 	}

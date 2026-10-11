@@ -1,0 +1,85 @@
+{
+	"description": "Admin::Report (docs.joinmastodon.org/entities/Admin_Report).",
+	"type": "object",
+	"required": [
+		"account",
+		"action_taken",
+		"action_taken_at",
+		"action_taken_by_account",
+		"assigned_account",
+		"category",
+		"comment",
+		"created_at",
+		"forwarded",
+		"id",
+		"rules",
+		"statuses",
+		"target_account",
+		"updated_at"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"action_taken": {
+			"type": "boolean"
+		},
+		"action_taken_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "datetime"
+		},
+		"category": {
+			"type": "string",
+			"enum": [
+				"spam",
+				"legal",
+				"violation",
+				"other"
+			]
+		},
+		"comment": {
+			"type": "string"
+		},
+		"forwarded": {
+			"type": "boolean"
+		},
+		"created_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"updated_at": {
+			"type": "string",
+			"format": "datetime"
+		},
+		"account": {
+			"$ref": "AdminAccount"
+		},
+		"target_account": {
+			"$ref": "AdminAccount"
+		},
+		"assigned_account": {
+			"$ref": "AdminAccount",
+			"nullable": true
+		},
+		"action_taken_by_account": {
+			"$ref": "AdminAccount",
+			"nullable": true
+		},
+		"statuses": {
+			"type": "array",
+			"items": {
+				"$ref": "Status"
+			}
+		},
+		"rules": {
+			"type": "array",
+			"items": {
+				"$ref": "Rule"
+			}
+		}
+	}
+}

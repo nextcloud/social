@@ -1,0 +1,23 @@
+{
+	"description": "Marker (docs.joinmastodon.org/entities/Marker).",
+	"type": "object",
+	"required": [
+		"last_read_id",
+		"updated_at",
+		"version"
+	],
+	"properties": {
+		"last_read_id": {
+			"type": "string",
+			"format": "id"
+		},
+		"version": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"updated_at": {
+			"type": "string",
+			"format": "datetime"
+		}
+	}
+}

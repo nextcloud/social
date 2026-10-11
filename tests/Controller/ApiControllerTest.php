@@ -669,7 +669,9 @@ class ApiControllerTest extends TestCase {
 	public function testAppsCredentialsForBearerTokenDescribesTheOAuthClient(): void {
 		$this->route = 'social.Api.appsCredentials';
 		$client = new SocialClient();
-		$client->setAppName('Tusky')->setAppWebsite('https://tusky.app')->setAuthUserId('alice');
+		$client->setAppName('Tusky')->setAppWebsite('https://tusky.app')->setAuthUserId('alice')
+			->setAppScopes(['read', 'write'])->setAppRedirectUris(['tusky://oauth']);
+		$client->setAuthScopes(['read']);
 		$this->clientService->method('getFromToken')->with('s3cret')->willReturn($client);
 		$this->userSession->method('getUser')->willReturn(null);
 
@@ -681,7 +683,13 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller('Bearer s3cret')->appsCredentials();
 
 		$this->assertSame(
-			['name' => 'Tusky', 'website' => 'https://tusky.app', 'vapid_key' => ''],
+			[
+				'name' => 'Tusky',
+				'website' => 'https://tusky.app',
+				'scopes' => ['read', 'write'],
+				'redirect_uris' => ['tusky://oauth'],
+				'vapid_key' => '',
+			],
 			$response->getData()
 		);
 	}
@@ -3420,6 +3428,28 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(ProbeOptions::FOLLOWERS, $captured->getProbe());
 		$this->assertSame('https://cloud.example/apps/social/@alice', $captured->getAccountId());
 		$this->assertSame([3, 9, 8, 7], [$captured->getLimit(), $captured->getMaxId(), $captured->getMinId(), $captured->getSince()]);
+	}
+
+	/**
+	 * `since_id` is the name Mastodon gives the cursor, and the one a client
+	 * sends; these two routes read only `since`, so a client asking for the
+	 * followers newer than one it had was answered from the top of the list.
+	 */
+	public function testFollowersAndFollowingTakeMastodonsSinceId(): void {
+		$actor = $this->createStub(Person::class);
+		$this->cacheActorService->method('getFromAccount')->with('alice')->willReturn($actor);
+		$captured = [];
+		$this->cacheActorService->method('probeActors')->willReturnCallback(function (ProbeOptions $o) use (&$captured): array {
+			$captured[] = $o;
+
+			return [];
+		});
+
+		$this->controller()->accountFollowers('alice', since_id: '41');
+		$this->controller()->accountFollowing('alice', since_id: '42');
+		$this->controller()->accountFollowing('alice', since: 43);
+
+		$this->assertSame([41, 42, 43], array_map(static fn (ProbeOptions $o): int|string => $o->getSince(), $captured));
 	}
 
 	public function testAccountFollowingOfBareUsernameIsProbedLocally(): void {

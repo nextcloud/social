@@ -1,0 +1,29 @@
+{
+	"description": "Search, v2 (docs.joinmastodon.org/entities/Search).",
+	"type": "object",
+	"required": [
+		"accounts",
+		"hashtags",
+		"statuses"
+	],
+	"properties": {
+		"accounts": {
+			"type": "array",
+			"items": {
+				"$ref": "Account"
+			}
+		},
+		"statuses": {
+			"type": "array",
+			"items": {
+				"$ref": "Status"
+			}
+		},
+		"hashtags": {
+			"type": "array",
+			"items": {
+				"$ref": "Tag"
+			}
+		}
+	}
+}

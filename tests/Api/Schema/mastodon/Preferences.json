@@ -1,0 +1,51 @@
+{
+	"description": "Preferences (docs.joinmastodon.org/entities/Preferences).",
+	"type": "object",
+	"required": [
+		"posting:default:language",
+		"posting:default:sensitive",
+		"posting:default:visibility",
+		"reading:expand:media",
+		"reading:expand:spoilers"
+	],
+	"properties": {
+		"posting:default:visibility": {
+			"type": "string",
+			"enum": [
+				"public",
+				"unlisted",
+				"private",
+				"direct"
+			]
+		},
+		"posting:default:sensitive": {
+			"type": "boolean"
+		},
+		"posting:default:language": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "language"
+		},
+		"reading:expand:media": {
+			"type": "string",
+			"enum": [
+				"default",
+				"show_all",
+				"hide_all"
+			]
+		},
+		"reading:expand:spoilers": {
+			"type": "boolean"
+		},
+		"posting:default:quote_policy": {
+			"type": "string",
+			"enum": [
+				"public",
+				"followers",
+				"nobody"
+			]
+		}
+	}
+}

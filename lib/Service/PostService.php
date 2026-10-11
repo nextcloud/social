@@ -420,14 +420,15 @@ class PostService {
 	 * that does not read the limit, or reads a different one, had its post
 	 * accepted and federated at whatever length it sent.
 	 *
-	 * Characters, not bytes — `mb_strlen()`, as the bio cap in `AccountService`
-	 * counts — and the spoiler counts towards the same budget, the way Mastodon
-	 * measures a status.
+	 * Characters, not bytes, counted as Mastodon counts them and as the
+	 * instance tells clients to (LinkifyService::countableLength()) — and the
+	 * spoiler counts towards the same budget, the way Mastodon measures a
+	 * status.
 	 *
 	 * @throws InvalidActionException the refusal the client API answers 422 with
 	 */
 	private function assertWithinLength(string $content, string $spoilerText): void {
-		if (mb_strlen($content) + mb_strlen($spoilerText) <= InstanceService::MAX_CHARACTERS) {
+		if (LinkifyService::countableLength($content) + mb_strlen($spoilerText) <= InstanceService::MAX_CHARACTERS) {
 			return;
 		}
 
@@ -615,7 +616,7 @@ class PostService {
 	 * rewrite it the same way or the next re-export federates the old text.
 	 */
 	private function snapshotSource(Stream $stream): void {
-		$stream->setSource(json_encode($stream, JSON_UNESCAPED_SLASHES));
+		$stream->setSource($stream->wireSource());
 	}
 
 	/**

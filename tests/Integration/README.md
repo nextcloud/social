@@ -133,6 +133,23 @@ to stop.
   queue of 0, 200 and 400 deliveries, with only the network edge replaced and
   the clock frozen: a constant cost per pass, two statements per delivery and
   three per batch, and the second batch costing exactly what the first did.
+- `Api/*` — the Mastodon client API called the way a client calls it: real
+  accounts with a bearer token, each controller built by a fresh app
+  container, the answer put through `json_encode()` as the JSON responder
+  does (`ApiTestCase`). `Api/StatusMentionsTest` caught every status written
+  here reaching clients with `mentions: []`; `Api/StoredSourceTest` an edit
+  or a vote storing the client entity where the post's ActivityPub document
+  belongs; `Api/FamiliarFollowersTest` the reader listed among their own
+  familiar followers; `Api/ReactedByTest` every account of `favourited_by`
+  and `reblogged_by` answered as `"id": "0"`, `Api/BoostedAuthorTest` the
+  same of the author of every boosted post and notified-about status. `Api/InstanceConfigurationTest`
+  holds the limits `/api/v2/instance` announces against what a post is
+  held to, and caught URLs counted at their full length where the instance
+  says 23. `Api/MastodonEntitySchemaTest` validates every Mastodon entity
+  the routes answer with against the schemas in `tests/Api/Schema`, by type;
+  `Api/PaginationTest` asks every paged list the same questions — `max_id`
+  exclusive, `since_id` the newest page, `min_id` the adjacent one, the
+  `Link` cursors — with three pages of rows behind it.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

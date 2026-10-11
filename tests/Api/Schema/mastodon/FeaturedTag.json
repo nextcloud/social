@@ -1,0 +1,36 @@
+{
+	"description": "FeaturedTag (docs.joinmastodon.org/entities/FeaturedTag). last_status_at is a calendar date.",
+	"type": "object",
+	"required": [
+		"id",
+		"last_status_at",
+		"name",
+		"statuses_count",
+		"url"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"name": {
+			"type": "string",
+			"minLength": 1
+		},
+		"url": {
+			"type": "string",
+			"format": "url"
+		},
+		"statuses_count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"last_status_at": {
+			"type": [
+				"string",
+				"null"
+			],
+			"format": "date"
+		}
+	}
+}

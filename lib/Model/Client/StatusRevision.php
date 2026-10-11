@@ -206,7 +206,7 @@ class StatusRevision implements JsonSerializable {
 			'content' => $this->getContent(),
 			'spoiler_text' => $this->getSpoilerText(),
 			'sensitive' => $this->isSensitive(),
-			'created_at' => $this->getPublished(),
+			'created_at' => self::clientTime($this->getPublished()),
 			'account' => $account,
 			'poll' => null,
 			'media_attachments' => array_map(
@@ -215,5 +215,21 @@ class StatusRevision implements JsonSerializable {
 			),
 			'emojis' => [],
 		];
+	}
+
+	/**
+	 * When this version was written, as the client API writes every time: UTC
+	 * with milliseconds and `Z`. What is stored is the ActivityPub `published`
+	 * or `updated` as it was written — `+00:00` for a post made here, any ISO
+	 * 8601 spelling for a peer's — and a client that parses Mastodon's form
+	 * fails on the others.
+	 */
+	private static function clientTime(string $stored): string {
+		$time = strtotime($stored);
+		if ($stored === '' || $time === false) {
+			return $stored;
+		}
+
+		return gmdate('Y-m-d\TH:i:s', $time) . '.000Z';
 	}
 }

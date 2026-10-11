@@ -217,6 +217,40 @@ class NoteTest extends TestCase {
 		], $note->getDetails('mentions'));
 	}
 
+	/**
+	 * A mention of an account of this instance names it the way the account
+	 * entity does — `bob`, not `bob@cloud.example` — so a client can match the
+	 * two up.
+	 */
+	public function testALocalAccountIsMentionedWithoutItsDomain(): void {
+		$bob = new Person();
+		$bob->setNid(5)
+			->setPreferredUsername('bob')
+			->setAccount('bob@cloud.example');
+		$bob->setLocal(true);
+
+		$this->assertSame(
+			['id' => '5', 'username' => 'bob', 'url' => 'https://cloud.example/@bob', 'acct' => 'bob'],
+			Note::mentionOf($bob, 'https://cloud.example/@bob')
+		);
+	}
+
+	/** The list a post written here is given as its Mention tags are added: each account once. */
+	public function testAddMentionListsAnAccountOnce(): void {
+		$bob = new Person();
+		$bob->setNid(77)
+			->setPreferredUsername('bob')
+			->setAccount('bob@remote.example');
+		$note = new Note();
+
+		$note->addMention($bob, 'https://remote.example/users/bob');
+		$note->addMention($bob, 'https://remote.example/users/bob');
+
+		$this->assertSame([
+			['id' => '77', 'username' => 'bob', 'url' => 'https://remote.example/users/bob', 'acct' => 'bob@remote.example'],
+		], $note->getDetails('mentions'));
+	}
+
 	public function testFillHashtagsStripsTheHashAndIgnoresOtherTags(): void {
 		$note = new Note();
 		$note->setTags([

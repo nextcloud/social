@@ -1,0 +1,54 @@
+{
+	"description": "Tag (docs.joinmastodon.org/entities/Tag). The history counts are strings of digits on the wire, like the day (a Unix timestamp). following is only sent to an authenticated client.",
+	"type": "object",
+	"required": [
+		"history",
+		"name",
+		"url"
+	],
+	"properties": {
+		"name": {
+			"type": "string",
+			"minLength": 1
+		},
+		"url": {
+			"type": "string",
+			"format": "url"
+		},
+		"history": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"accounts",
+					"day",
+					"uses"
+				],
+				"properties": {
+					"day": {
+						"type": "string",
+						"format": "unix-string"
+					},
+					"uses": {
+						"type": "string",
+						"format": "unix-string"
+					},
+					"accounts": {
+						"type": "string",
+						"format": "unix-string"
+					}
+				}
+			}
+		},
+		"following": {
+			"type": "boolean"
+		},
+		"featuring": {
+			"type": "boolean"
+		},
+		"id": {
+			"type": "string",
+			"format": "id"
+		}
+	}
+}

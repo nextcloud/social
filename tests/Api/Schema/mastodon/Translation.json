@@ -1,0 +1,75 @@
+{
+	"description": "Translation (docs.joinmastodon.org/entities/Translation). poll is documented as optional. provider may be empty: a Nextcloud translation task does not say which service answered it.",
+	"type": "object",
+	"required": [
+		"content",
+		"detected_source_language",
+		"media_attachments",
+		"provider",
+		"spoiler_text"
+	],
+	"properties": {
+		"content": {
+			"type": "string"
+		},
+		"spoiler_text": {
+			"type": "string"
+		},
+		"poll": {
+			"type": [
+				"object",
+				"null"
+			],
+			"required": [
+				"id",
+				"options"
+			],
+			"properties": {
+				"id": {
+					"type": "string",
+					"format": "id"
+				},
+				"options": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [
+							"title"
+						],
+						"properties": {
+							"title": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			}
+		},
+		"media_attachments": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"description",
+					"id"
+				],
+				"properties": {
+					"id": {
+						"type": "string",
+						"format": "id"
+					},
+					"description": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"detected_source_language": {
+			"type": "string",
+			"format": "language"
+		},
+		"provider": {
+			"type": "string"
+		}
+	}
+}

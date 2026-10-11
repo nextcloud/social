@@ -1,0 +1,33 @@
+{
+	"description": "FilterResult (docs.joinmastodon.org/entities/FilterResult).",
+	"type": "object",
+	"required": [
+		"filter",
+		"keyword_matches",
+		"status_matches"
+	],
+	"properties": {
+		"filter": {
+			"$ref": "Filter#/$defs/InResult"
+		},
+		"keyword_matches": {
+			"type": [
+				"array",
+				"null"
+			],
+			"items": {
+				"type": "string"
+			}
+		},
+		"status_matches": {
+			"type": [
+				"array",
+				"null"
+			],
+			"items": {
+				"type": "string",
+				"format": "id"
+			}
+		}
+	}
+}

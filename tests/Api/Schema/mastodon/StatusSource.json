@@ -1,0 +1,21 @@
+{
+	"description": "StatusSource (docs.joinmastodon.org/entities/StatusSource).",
+	"type": "object",
+	"required": [
+		"id",
+		"spoiler_text",
+		"text"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"text": {
+			"type": "string"
+		},
+		"spoiler_text": {
+			"type": "string"
+		}
+	}
+}

@@ -1,0 +1,20 @@
+{
+	"description": "FamiliarFollowers (docs.joinmastodon.org/entities/FamiliarFollowers).",
+	"type": "object",
+	"required": [
+		"accounts",
+		"id"
+	],
+	"properties": {
+		"id": {
+			"type": "string",
+			"format": "id"
+		},
+		"accounts": {
+			"type": "array",
+			"items": {
+				"$ref": "Account"
+			}
+		}
+	}
+}

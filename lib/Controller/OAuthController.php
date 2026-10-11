@@ -230,7 +230,10 @@ class OAuthController extends Controller {
 				// Mastodon sends null, and a client that decodes this field as
 				// a URL fails on the empty string, which is not one.
 				'website' => $client->getAppWebsite() === '' ? null : $client->getAppWebsite(),
-				'scopes' => implode(' ', $client->getAppScopes()),
+				// lists, as Mastodon 4.3 sends them: a client decoding the
+				// answer into `[String]` fails on one space-separated string
+				'scopes' => array_values($client->getAppScopes()),
+				'redirect_uris' => array_values($client->getAppRedirectUris()),
 				'client_id' => $client->getAppClientId(),
 				'client_secret' => $client->getAppClientSecret(),
 				// Mastodon's Application entity always carries these two, and a

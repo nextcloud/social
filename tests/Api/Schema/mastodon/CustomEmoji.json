@@ -1,0 +1,33 @@
+{
+	"description": "CustomEmoji (docs.joinmastodon.org/entities/CustomEmoji). category is documented nullable and optional.",
+	"type": "object",
+	"required": [
+		"shortcode",
+		"static_url",
+		"url",
+		"visible_in_picker"
+	],
+	"properties": {
+		"shortcode": {
+			"type": "string",
+			"minLength": 1
+		},
+		"url": {
+			"type": "string",
+			"format": "url"
+		},
+		"static_url": {
+			"type": "string",
+			"format": "url"
+		},
+		"visible_in_picker": {
+			"type": "boolean"
+		},
+		"category": {
+			"type": [
+				"string",
+				"null"
+			]
+		}
+	}
+}
