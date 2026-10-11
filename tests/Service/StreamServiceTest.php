@@ -759,6 +759,30 @@ class StreamServiceTest extends TestCase {
 		$this->assertNotContains($bob->getId(), $note->getCcArray());
 	}
 
+	/**
+	 * A direct message is seen by whom it mentions: GoToSocial stored a direct
+	 * reply that named its addressee in `to` alone and showed it to nobody. The
+	 * author is tagged once, also when the text mentions them as well.
+	 */
+	public function testADirectReplyMentionsTheAuthorItAnswersOnce(): void {
+		$parentId = 'https://remote.example/notes/parent';
+		$bob = $this->remoteActor();
+		$this->streamRequest->method('getStreamById')->willReturn($this->note($parentId, $bob->getId()));
+		$this->cacheActorService->method('getFromId')->willReturn($bob);
+		$this->cacheActorService->method('getFromAccount')->willReturn($bob);
+
+		$note = new Note();
+		$note->setAttributedTo(self::ACTOR_ID);
+		$note->setVisibility(Stream::TYPE_DIRECT);
+		$mention = [['type' => 'Mention', 'href' => $bob->getId(), 'name' => '@bob@remote.example']];
+
+		$this->service->replyTo($note, $parentId);
+		$this->assertSame($mention, $note->getTags('Mention'));
+
+		$this->service->addRecipient($note, Stream::TYPE_DIRECT, 'bob@remote.example');
+		$this->assertSame($mention, $note->getTags('Mention'));
+	}
+
 	public function testAReplyToOneselfDoesNotNameItsOwnAuthor(): void {
 		$parentId = 'https://social.example/@alice/1';
 		$alice = $this->actor();
