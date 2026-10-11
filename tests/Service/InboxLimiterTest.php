@@ -14,8 +14,8 @@ use OCA\Social\Exceptions\TooManyRequestsException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\InboxLimiter;
+use OCA\Social\Tests\Helper\FrozenClock;
 use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
-use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICacheFactory;
 use OCP\IRequest;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -33,17 +33,17 @@ class InboxLimiterTest extends TestCase {
 	private InboxLimiter $limiter;
 	/** the counters' table */
 	private InMemoryDurableCacheRequest $table;
+	private FrozenClock $clock;
 
 	protected function setUp(): void {
 		$cacheFactory = $this->createStub(ICacheFactory::class);
 		$cacheFactory->method('isAvailable')->willReturn(false);
-		$time = $this->createStub(ITimeFactory::class);
-		$time->method('getTime')->willReturnCallback(static fn (): int => time());
+		$this->clock = new FrozenClock(time());
 		$this->table = new InMemoryDurableCacheRequest();
 
 		$this->configService = $this->createMock(ConfigService::class);
 		$this->limiter = new InboxLimiter(
-			new DurableCache($cacheFactory, $this->table, $time), $this->configService
+			new DurableCache($cacheFactory, $this->table, $this->clock), $this->configService, $this->clock
 		);
 	}
 
@@ -215,5 +215,30 @@ class InboxLimiterTest extends TestCase {
 			$this->limiter->assertAllowed($request);
 		}
 		$this->assertSame([], $this->table->rows, 'disabled limiter never touches the cache');
+	}
+
+	/**
+	 * The throttle's minute, on its last second and the first of the next:
+	 * the delivery over the limit is refused until the minute turns and
+	 * passes on the second it does.
+	 */
+	public function testABucketFillsUntilTheMinuteTurnsAndEmptiesOnIt(): void {
+		$this->limit(2);
+		$request = $this->request('https://remote.example/users/bob#main-key');
+		$minute = (intdiv($this->clock->getTime(), InboxLimiter::WINDOW) + 1) * InboxLimiter::WINDOW;
+		$this->clock->set($minute + InboxLimiter::WINDOW - 1);
+		$this->limiter->assertAllowed($request);
+		$this->limiter->assertAllowed($request);
+		try {
+			$this->limiter->assertAllowed($request);
+			$this->fail('the third delivery of the minute passed');
+		} catch (TooManyRequestsException $e) {
+		}
+
+		$this->clock->set($minute + InboxLimiter::WINDOW);
+		$this->limiter->assertAllowed($request);
+		$this->limiter->assertAllowed($request);
+		$this->expectException(TooManyRequestsException::class);
+		$this->limiter->assertAllowed($request);
 	}
 }

@@ -18,6 +18,7 @@ use OCA\Social\Controller\QueueController;
 use OCA\Social\Controller\StatusApiController;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\RateLimitService;
+use OCA\Social\Tests\Helper\FrozenClock;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\ICache;
@@ -26,6 +27,7 @@ use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -45,6 +47,7 @@ class RateLimitServiceTest extends TestCase {
 	private ICacheFactory|Stub $cacheFactory;
 	private ConfigService|Stub $configService;
 	private RateLimitService $service;
+	private FrozenClock $clock;
 
 	/** the app values, as an administrator would have set them */
 	private array $appValues = [];
@@ -55,6 +58,7 @@ class RateLimitServiceTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		$this->clock = new FrozenClock(time());
 
 		$this->request = $this->createStub(IRequest::class);
 		$this->request->method('getRemoteAddress')->willReturn('198.51.100.7');
@@ -91,7 +95,7 @@ class RateLimitServiceTest extends TestCase {
 
 	private function build(): RateLimitService {
 		return new RateLimitService(
-			$this->request, $this->userSession, $this->cacheFactory, $this->configService
+			$this->request, $this->userSession, $this->cacheFactory, $this->configService, $this->clock
 		);
 	}
 
@@ -193,9 +197,9 @@ class RateLimitServiceTest extends TestCase {
 		$period = 300;
 		$end = $this->service->windowEnd($period);
 
-		$this->assertGreaterThan(time(), $end);
+		$this->assertGreaterThan($this->clock->getTime(), $end);
 		$this->assertSame(0, $end % $period, 'the window ends on a multiple of its own length');
-		$this->assertLessThanOrEqual($period, $end - time());
+		$this->assertLessThanOrEqual($period, $end - $this->clock->getTime());
 	}
 
 	public function testAWindowOfZeroDoesNotDivideByZero(): void {
@@ -302,5 +306,52 @@ class RateLimitServiceTest extends TestCase {
 			),
 			'and the one it contrasts with still declares none'
 		);
+	}
+
+	/**
+	 * The count and the `Reset` it announces, on the last second of a window
+	 * and the first of the next: the budget a client was told comes back on
+	 * that second does, and not a second later.
+	 */
+	public function testABudgetComesBackOnTheSecondItsResetNames(): void {
+		$period = 300;
+		$start = (intdiv($this->clock->getTime(), $period) + 1) * $period;
+		$this->clock->set($start + $period - 1);
+		foreach ([1, 2, 3] as $expected) {
+			$this->assertSame($expected, $this->service->count(RateLimitService::BUCKET_API, $period));
+		}
+		$this->assertSame($start + $period, $this->service->windowEnd($period), 'the reset on the last second');
+
+		$this->clock->set($start + $period);
+		$this->assertSame(0, $this->service->used(RateLimitService::BUCKET_API, $period), 'nothing spent on the second named');
+		$this->assertSame(1, $this->service->count(RateLimitService::BUCKET_API, $period));
+		$this->assertSame($start + 2 * $period, $this->service->windowEnd($period));
+	}
+
+	/**
+	 * The window is cut from the epoch, so a period that divides a day lines
+	 * up with midnight UTC and the turn of each hour — at the end of a leap
+	 * day, a month or a year and on a daylight-saving night alike.
+	 *
+	 * @return array<string, array{string, int}>
+	 */
+	public static function calendarWindows(): array {
+		return [
+			'an hour, at the end of a leap day' => ['2028-02-29T23:59:59Z', 3600],
+			'five minutes, at the end of October' => ['2026-10-31T23:59:59Z', 300],
+			'a day, at New Year' => ['2026-12-31T23:59:59Z', 86400],
+			'an hour, on the European autumn change' => ['2026-10-25T00:59:59Z', 3600],
+		];
+	}
+
+	#[DataProvider('calendarWindows')]
+	public function testAWindowThatDividesADayEndsOnTheTurnOfTheHour(string $lastSecond, int $period): void {
+		$this->clock->set(FrozenClock::at($lastSecond)->getTime());
+		$this->service->count(RateLimitService::BUCKET_API, $period);
+		$this->service->count(RateLimitService::BUCKET_API, $period);
+
+		$this->assertSame($this->clock->getTime() + 1, $this->service->windowEnd($period));
+		$this->clock->advance(1);
+		$this->assertSame(1, $this->service->count(RateLimitService::BUCKET_API, $period));
 	}
 }
