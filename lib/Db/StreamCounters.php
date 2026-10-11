@@ -14,6 +14,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Dislike;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -43,6 +44,45 @@ trait StreamCounters {
 
 		$qb->limitToIdPrim($qb->prim($stream->getId()));
 		$qb->executeStatement();
+	}
+
+	/**
+	 * Stores a note's `mentions` into the `details` the row already has.
+	 *
+	 * Only that key: the rest of the blob is what this instance worked out
+	 * about the post — the origin's counts, a refused quote — and an edit
+	 * read from the wire knows none of it.
+	 */
+	public function updateMentions(Stream $stream): void {
+		if (!$stream instanceof Note) {
+			return;
+		}
+
+		$qb = $this->getQueryBuilder();
+		$prim = $qb->prim($stream->getId());
+		if ($prim === '') {
+			return;
+		}
+
+		$qb->select('details')
+			->from(self::TABLE_STREAM)
+			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter($prim)))
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+		if (!is_array($row)) {
+			return;
+		}
+
+		$details = json_decode((string)($row['details'] ?? ''), true);
+		$details = is_array($details) ? $details : [];
+		$details[Details::MENTIONS] = $stream->getDetails(Details::MENTIONS);
+
+		$update = $this->getStreamUpdateSql();
+		$update->set('details', $update->createNamedParameter(json_encode($details)));
+		$update->limitToIdPrim($prim);
+		$update->executeStatement();
 	}
 
 	/**

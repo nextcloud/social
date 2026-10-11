@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
@@ -98,5 +99,45 @@ class EditedRecipientsTest extends TestCase {
 		);
 		$this->assertContains(self::ORIGINAL_INBOX, $paths);
 		$this->assertContains(self::NEW_INBOX, $paths);
+	}
+
+	/**
+	 * An edit read from the wire carries the mentions of the new text and
+	 * nothing else of `details`: its `mentions` replace the stored ones, and
+	 * what this instance keeps there about the post stays.
+	 */
+	public function testAnEditStoresTheMentionsOfTheNewTextAndKeepsTheRestOfTheDetails(): void {
+		$bob = ['id' => '0', 'username' => 'bob', 'url' => 'https://old.example/users/bob', 'acct' => 'bob@old.example'];
+		$carol = ['id' => '0', 'username' => 'carol', 'url' => 'https://new.example/users/carol', 'acct' => 'carol@new.example'];
+
+		$note = $this->note();
+		$note->setDetailArray(Details::MENTIONS, [$bob]);
+		$note->setDetail(Details::PAGE, self::BASE . '/@author/1');
+		$this->streamRequest->save($note);
+
+		$update = $this->note();
+		$update->setContent('<p>after</p>');
+		$update->setDetailArray(Details::MENTIONS, [$carol]);
+		$this->streamRequest->update($update);
+
+		$reloaded = $this->streamRequest->getStreamById(self::NOTE_ID);
+		$this->assertSame([$carol], $reloaded->getDetails(Details::MENTIONS));
+		$this->assertSame([$carol], $reloaded->getMentions());
+		$this->assertSame(self::BASE . '/@author/1', $reloaded->getDetailsAll()[Details::PAGE] ?? null);
+	}
+
+	private function note(): Note {
+		$note = new Note();
+		$note->setId(self::NOTE_ID)
+			->setAttributedTo(self::AUTHOR)
+			->setTo(ACore::CONTEXT_PUBLIC)
+			->setCcArray([self::FOLLOWERS])
+			->setContent('<p>before</p>')
+			->setPublished(gmdate('Y-m-d\\TH:i:s\\Z'))
+			->setPublishedTime(time())
+			->setVisibility(Stream::TYPE_PUBLIC)
+			->setLocal(false);
+
+		return $note;
 	}
 }

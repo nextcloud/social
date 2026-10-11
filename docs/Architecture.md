@@ -531,6 +531,11 @@ back to `social_stream.instances` and, for a local edit, regenerates
 reloaded post, so a newly mentioned instance is not lost between editing and
 queueing. The followers path is added only when the post's visibility reaches
 followers; this keeps an edit to a direct message from widening its audience.
+The client's `mentions` follow the new text: a name written in is listed, and a
+name taken out leaves the list while keeping its tag and its place in the
+audience, as Mastodon keeps a silent mention. An `Update` from another server
+replaces the stored `mentions` with those of its tags; `update()` writes that
+one key into `details` and leaves the rest of the blob as it was.
 If queue creation fails after the local transaction commits, the Mastodon API
 answers `503` with an explicit message that the post was saved locally; clients
 must not ask the author to submit the edit again merely because remote delivery

@@ -30,6 +30,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\BlockedBy\BlockedByService;
@@ -681,9 +682,13 @@ class PostService {
 	 * Mentions are only added. Addressing cannot be withdrawn — the post has
 	 * already been delivered to everyone it named — so a mention deleted from
 	 * the text keeps its tag, and only a name that is new to the post is
-	 * addressed.
+	 * addressed. It does leave the client's `mentions`, as a mention Mastodon
+	 * finds gone from an edited text is kept only as a silent one.
 	 */
 	private function reapplyEntities(Stream $stream, string $content): void {
+		$linkedBefore = $this->linkifyService->mentionedHrefs(
+			FileCommentsService::plainText($stream->getContent()), $stream->getTags()
+		);
 		$hashtags = [];
 		$mentions = [];
 		foreach ($this->linkifyService->entitiesIn($content) as $entity) {
@@ -717,6 +722,14 @@ class PostService {
 				static fn (string $mention): bool => !isset($named[strtolower($mention)])
 			))
 		);
+
+		$gone = array_diff($linkedBefore, $this->linkifyService->mentionedHrefs($content, $stream->getTags()));
+		if ($stream instanceof Note && $gone !== []) {
+			$stream->setDetailArray(Details::MENTIONS, array_values(array_filter(
+				$stream->getDetails(Details::MENTIONS),
+				static fn (mixed $mention): bool => !is_array($mention) || !in_array($mention['url'] ?? '', $gone, true)
+			)));
+		}
 	}
 
 	/**
