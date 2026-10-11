@@ -95,7 +95,12 @@ class PollLifecycleTest extends ApiTestCase {
 		$refused = $this->vote('carol', $poll->id, 1);
 		$this->assertSame(422, $refused->status, 'a vote on the end time: ' . json_encode($refused->body));
 		$this->sweep();
-		$this->assertSame([$status->id], array_map('strval', array_keys($this->pollNotificationsOf('bob'))), 'the voter is told');
+		$notifications = $this->pollNotificationsOf('bob');
+		$this->assertSame([$status->id], array_map('strval', array_keys($notifications)), 'the voter is told');
+		$announced = $notifications[$status->id]->status->poll;
+		$this->assertNotNull($announced, 'the notification carries the poll');
+		$this->assertTrue($announced->expired);
+		$this->assertSame([1, 0], array_map(static fn (\stdClass $option): int => $option->votes_count, $announced->options));
 
 		$clock->advance(3600);
 		$this->assertSame(422, $this->vote('dave', $poll->id, 1)->status, 'a vote an hour later');

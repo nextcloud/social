@@ -14,6 +14,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -175,6 +176,13 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	}
 
 	/**
+	 * The joined post a row is about: the status of a notification.
+	 *
+	 * A poll is read as one, because its options, counts and end time are
+	 * parsed out of the stored document by `Question` alone; as a plain
+	 * `Stream` it was served with `poll: null`, and the notification that a
+	 * poll has ended reached clients without its results.
+	 *
 	 * @param array $data
 	 * @param string $prefix
 	 *
@@ -197,7 +205,7 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 			throw new InvalidResourceException();
 		}
 
-		$stream = new Stream();
+		$stream = (($new['type'] ?? '') === Question::TYPE) ? new Question() : new Stream();
 		$stream->importFromDatabase($new);
 		$stream->setExportFormat($exportFormat);
 

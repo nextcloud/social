@@ -307,7 +307,8 @@ to stop.
   tells the voter and a later one nobody, and the results stay the ones
   announced; a vote from another server is counted until the end time and
   swallowed on it. It caught a vote taken on the very second the sweep had
-  announced the poll closed.
+  announced the poll closed, and the poll notification's status served with
+  `poll: null`.
 
 ## Running
 
