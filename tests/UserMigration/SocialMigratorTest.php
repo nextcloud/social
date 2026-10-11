@@ -63,6 +63,8 @@ class SocialMigratorTest extends TestCase {
 	private MigrationService|MockObject $migrationService;
 	private CacheActorService|Stub $cacheActorService;
 	private CacheDocumentService|MockObject $cacheDocumentService;
+	/** What the instance stores of any one file, at most */
+	private int $largestFileBytes = 10 * 1024 * 1024;
 	private DocumentService|MockObject $documentService;
 	private BannerService|MockObject $bannerService;
 	private AvatarService|MockObject $avatarService;
@@ -86,6 +88,7 @@ class SocialMigratorTest extends TestCase {
 		$this->migrationService = $this->createMock(MigrationService::class);
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
 		$this->cacheDocumentService = $this->createMock(CacheDocumentService::class);
+		$this->cacheDocumentService->method('largestFileBytes')->willReturnCallback(fn (): int => $this->largestFileBytes);
 		$this->documentService = $this->createMock(DocumentService::class);
 		$this->bannerService = $this->createMock(BannerService::class);
 		$this->avatarService = $this->createMock(AvatarService::class);
@@ -1251,6 +1254,36 @@ class SocialMigratorTest extends TestCase {
 
 		$this->assertSame('BANNER', $banner);
 		$this->assertStringContainsString('already has a picture of its own', $this->output->text());
+	}
+
+	/**
+	 * A file of the archive is copied out no further than the largest file
+	 * this instance stores; one past that stays in the archive.
+	 */
+	public function testAPictureLargerThanThisInstanceStoresIsLeftInTheArchive(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile([
+				'headerFile' => 'media_attachments/header.jpg',
+				'avatarFile' => 'media_attachments/avatar.jpg',
+			]));
+			$a->put('social/media_attachments/header.jpg', 'BANNER');
+			$a->put('social/media_attachments/avatar.jpg', 'PIC');
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->largestFileBytes = 5;
+		$this->bannerService->expects($this->never())->method('setFromTempFile');
+		$avatar = '';
+		$this->avatarService->expects($this->once())
+			->method('restoreFromArchive')
+			->willReturnCallback(function (string $userId, string $tmpPath) use (&$avatar): bool {
+				$avatar = (string)file_get_contents($tmpPath);
+
+				return true;
+			});
+
+		$this->importing($archive);
+
+		$this->assertSame('PIC', $avatar, 'a file within the ceiling is still restored');
 	}
 
 	public function testAnArchiveWithoutProfilePicturesRestoresNone(): void {

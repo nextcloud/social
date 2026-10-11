@@ -31,23 +31,52 @@ use ZipArchive;
 class ZipImportSource implements IImportSource {
 	public const MANIFEST = 'social/export.json';
 
+	/**
+	 * The largest file of the archive read whole: the profile, the lists
+	 * and the posts are text, and 128 MB of it is far more than any account
+	 * writes. Media is read as a stream (`getFileAsStream()`) and bounded
+	 * where it is stored.
+	 */
+	public const MAX_FILE_BYTES = 128 * 1024 * 1024;
+
 	/** @var array<string, int>|null */
 	private ?array $versions = null;
 
 	public function __construct(
 		private ZipArchive $zip,
 		private string $originalUid = '',
+		private int $maxFileBytes = self::MAX_FILE_BYTES,
 	) {
 	}
 
+	/**
+	 * The file, read no further than `MAX_FILE_BYTES`: the size the archive
+	 * states is checked first, and the read is bounded as well, since that
+	 * statement is the archive's own.
+	 */
 	#[\Override]
 	public function getFileContents(string $path): string {
-		$contents = $this->zip->getFromName($path);
+		$stat = $this->zip->statName($path);
+		if ($stat === false) {
+			throw new UserMigrationException($path . ' is not in this archive');
+		}
+		if ((int)$stat['size'] > $this->maxFileBytes) {
+			throw $this->tooLarge($path);
+		}
+
+		$contents = $this->zip->getFromName($path, $this->maxFileBytes + 1);
 		if ($contents === false) {
 			throw new UserMigrationException($path . ' is not in this archive');
 		}
+		if (strlen($contents) > $this->maxFileBytes) {
+			throw $this->tooLarge($path);
+		}
 
 		return $contents;
+	}
+
+	private function tooLarge(string $path): UserMigrationException {
+		return new UserMigrationException($path . ' is larger than the ' . $this->maxFileBytes . ' bytes an archive file may be');
 	}
 
 	#[\Override]

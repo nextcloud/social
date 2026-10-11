@@ -116,6 +116,30 @@ class ZipArchiveTest extends TestCase {
 		}
 	}
 
+	/**
+	 * A file read whole is refused past the ceiling, without being read; one
+	 * at the ceiling is read.
+	 */
+	public function testAFileLargerThanTheCeilingIsRefused(): void {
+		[$zip, $destination] = $this->writing();
+		$destination->addFileContents('social/outbox.json', str_repeat('a', 1025));
+		$destination->addFileContents('social/actor.json', str_repeat('b', 1024));
+		$zip->close();
+
+		$zip = new ZipArchive();
+		$this->assertTrue($zip->open($this->path, ZipArchive::RDONLY) === true);
+		$source = new ZipImportSource($zip, '', 1024);
+		try {
+			$this->assertSame(str_repeat('b', 1024), $source->getFileContents('social/actor.json'));
+
+			$this->expectException(UserMigrationException::class);
+			$this->expectExceptionMessage('social/outbox.json is larger than the 1024 bytes');
+			$source->getFileContents('social/outbox.json');
+		} finally {
+			$zip->close();
+		}
+	}
+
 	public function testTheFolderListingIsOneLevelDeep(): void {
 		[$zip, $destination] = $this->writing();
 		$destination->addFileContents('social/actor.json', '{}');

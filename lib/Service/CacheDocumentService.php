@@ -540,6 +540,11 @@ class CacheDocumentService {
 		}
 	}
 
+	/** The most bytes this instance stores of any one file, whatever its kind. */
+	public function largestFileBytes(): int {
+		return max($this->sizeLimit('video/'), $this->sizeLimit(''));
+	}
+
 	/** How many bytes of one kind of file this instance stores, at most. */
 	private function sizeLimit(string $mime): int {
 		$video = str_starts_with(strtolower($mime), 'video/');
