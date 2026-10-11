@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
 class HashtagTrendsTest extends TestCase {
 	private const BASE = 'https://remote.example/trends';
 	private const AUTHOR = self::BASE . '/users/author';
-	private const TAGS = ['itest-steady', 'itest-spike', 'itest-quiet'];
+	private const TAGS = ['itest-steady', 'itest-spike', 'itest-quiet', 'itest-private'];
 
 	private StreamRequest $streamRequest;
 	private HashtagsRequest $hashtagsRequest;
@@ -64,12 +64,16 @@ class HashtagTrendsTest extends TestCase {
 	}
 
 	/** @param string[] $hashtags */
-	private function note(string $suffix, array $hashtags, int $ago): void {
+	private function note(string $suffix, array $hashtags, int $ago, string $visibility = 'public'): void {
 		$note = new Note();
 		$note->setId(self::BASE . '/notes/' . $suffix);
 		$note->setAttributedTo(self::AUTHOR);
-		$note->setTo('https://www.w3.org/ns/activitystreams#Public');
-		$note->setVisibility('public');
+		if ($visibility === 'public') {
+			$note->setTo('https://www.w3.org/ns/activitystreams#Public');
+		} else {
+			$note->setTo(self::AUTHOR . '/followers');
+		}
+		$note->setVisibility($visibility);
 		$note->setContent(implode(' ', $hashtags));
 		$note->setHashtags($hashtags);
 		$note->setPublishedTime(time() - $ago);
@@ -110,6 +114,24 @@ class HashtagTrendsTest extends TestCase {
 		$this->note('a', ['itest-quiet'], 5 * 86400);
 
 		$this->assertArrayNotHasKey('itest-quiet', $this->streamRequest->countHashtagsSince(time() - 3600));
+	}
+
+	/**
+	 * A search reads `social_hashtag`, which the trends cron fills every few
+	 * minutes; a hashtag just used is given its row when the post is stored,
+	 * with zero counts until the cron reaches it — found, and not trending.
+	 */
+	public function testAHashtagOfAPublicPostCanBeFoundBeforeTheCronHasCountedIt(): void {
+		$this->note('a', ['itest-steady'], 60);
+
+		$this->assertContains('itest-steady', array_column($this->hashtagsRequest->searchHashtags('itest-ste', false), 'hashtag'));
+		$this->assertNotContains('itest-steady', array_column($this->hashtagsRequest->getTrending('1h', 50), 'hashtag'));
+	}
+
+	public function testAHashtagOnlyUsedInAFollowersOnlyPostCannotBeFound(): void {
+		$this->note('a', ['itest-private'], 60, 'followers');
+
+		$this->assertSame([], array_column($this->hashtagsRequest->searchHashtags('itest-private', true), 'hashtag'));
 	}
 
 	public function testTrendingIsOrderedAndCutByTheDatabase(): void {

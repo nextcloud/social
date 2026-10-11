@@ -36,6 +36,46 @@ class StatusMentionsTest extends ApiTestCase {
 		$this->assertEquals($status->mentions, $read->body->mentions, 'and it is stored, not only answered');
 	}
 
+	/**
+	 * An edit is a fresh parse of the text, and `mentions` follows it: a name
+	 * written in is listed, a name taken out is not — Mastodon keeps the
+	 * second only as a silent mention, which the API does not list.
+	 */
+	public function testAnEditThatChangesWhoIsNamedChangesTheMentions(): void {
+		$bob = $this->account('bob');
+		$carol = $this->account('carol');
+		$status = $this->publish('alice', ['status' => 'hello @' . self::PREFIX . 'bob']);
+
+		$edited = $this->call(StatusApiController::class, 'statusUpdate', ['nid' => $status->id], [
+			'status' => 'hello @' . self::PREFIX . 'carol',
+		], 'alice', 'PUT');
+		$this->assertSame(200, $edited->status, json_encode($edited->body) ?: '');
+
+		$read = $this->call(StatusApiController::class, 'statusGet', ['nid' => $status->id], [], 'alice');
+		$this->assertSame(
+			[(string)$carol->getNid()],
+			array_map(static fn (\stdClass $mention): string => $mention->id, $read->body->mentions),
+			'the name written in is listed and the one taken out is not'
+		);
+	}
+
+	public function testAnEditThatAddsANameKeepsTheOnesStillWritten(): void {
+		$bob = $this->account('bob');
+		$carol = $this->account('carol');
+		$status = $this->publish('alice', ['status' => 'hello @' . self::PREFIX . 'bob']);
+
+		$this->call(StatusApiController::class, 'statusUpdate', ['nid' => $status->id], [
+			'status' => 'hello @' . self::PREFIX . 'bob and @' . self::PREFIX . 'carol',
+		], 'alice', 'PUT');
+
+		$read = $this->call(StatusApiController::class, 'statusGet', ['nid' => $status->id], [], 'alice');
+		$ids = array_map(static fn (\stdClass $mention): string => $mention->id, $read->body->mentions);
+		sort($ids);
+		$expected = [(string)$bob->getNid(), (string)$carol->getNid()];
+		sort($expected);
+		$this->assertSame($expected, $ids);
+	}
+
 	public function testAStatusThatMentionsNobodyListsNobody(): void {
 		$status = $this->publish('alice', ['status' => 'nobody named here, not even @nobody-at-all']);
 

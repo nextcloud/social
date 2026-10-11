@@ -163,6 +163,15 @@ class LinkifyServiceTest extends TestCase {
 		);
 	}
 
+	/** The accounts a text links, once each, and only those the tags vouch for. */
+	public function testTheMentionedHrefsAreTheAccountsTheTextLinks(): void {
+		$this->assertSame(
+			[self::BOB],
+			$this->service->mentionedHrefs('@bob@remote.example, @Bob@Remote.Example and @nobody@elsewhere.invalid #Nextcloud', $this->tags())
+		);
+		$this->assertSame([], $this->service->mentionedHrefs('nobody named', $this->tags()));
+	}
+
 	// hashtags
 
 	public function testAHashtagTheTagsVouchForBecomesALink(): void {

@@ -201,7 +201,10 @@ class OAuthControllerTest extends TestCase {
 
 		$this->assertSame(['name' => 'nextcloud-social', 'version' => '0.10.1'], $data['software']);
 		$this->assertSame('Aloha Social', $data['metadata']['nodeName']);
-		$this->assertSame([], $data['usage']);
+		$this->assertSame(
+			'{"users":{}}', json_encode($data['usage']),
+			'an object with the users member the NodeInfo schema requires, not an empty list'
+		);
 		$this->assertFalse($data['openRegistrations']);
 	}
 

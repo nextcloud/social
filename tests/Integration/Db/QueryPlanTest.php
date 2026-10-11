@@ -412,7 +412,7 @@ class QueryPlanTest extends TestCase {
 
 		$this->assertIndexed(
 			$this->capture($this->timeline(ProbeOptions::PUBLIC, $narrowing), '/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]?/'),
-			['s' => null, 'sd' => null], $sorts
+			['s' => null, 'sd' => null, 'ca' => null], $sorts
 		);
 		$this->assertIndexed(
 			$this->capture($this->timeline(ProbeOptions::HOME, $narrowing), '/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/'),

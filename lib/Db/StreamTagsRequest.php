@@ -64,6 +64,36 @@ class StreamTagsRequest extends StreamTagsRequestBuilder {
 				throw $e;
 			}
 		}
+
+		if ($stream->getVisibility() === Stream::TYPE_PUBLIC) {
+			$this->makeSearchable($hashtags);
+		}
+	}
+
+	/**
+	 * Gives each hashtag of a public post a row in `social_hashtag`, which is
+	 * what a hashtag search reads, as soon as the post is stored.
+	 *
+	 * The trends cron fills the counts; a row it has not reached yet has zero
+	 * in every window, which keeps it out of the trends and lets it be found.
+	 * Public posts only, the rule the cron counts by: a tag used only in a
+	 * followers-only post or a direct message is not public knowledge.
+	 *
+	 * @param string[] $hashtags normalised, as `social_stream_tag` holds them
+	 */
+	private function makeSearchable(array $hashtags): void {
+		$values = ['trend' => json_encode(array_fill_keys(array_keys(HashtagsRequest::TREND_COLUMNS), 0))];
+		foreach (HashtagsRequest::TREND_COLUMNS as $column) {
+			$values[$column] = 0;
+		}
+
+		foreach ($hashtags as $hashtag) {
+			if ($hashtag === '' || mb_strlen($hashtag) > HashtagsRequest::HASHTAG_MAX_LENGTH) {
+				continue;
+			}
+
+			$this->dbConnection->insertIgnoreConflict(self::TABLE_HASHTAGS, ['hashtag' => $hashtag] + $values);
+		}
 	}
 
 	/**

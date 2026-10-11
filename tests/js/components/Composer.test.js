@@ -149,9 +149,11 @@ const wrappers = []
  * @param {string} [options.accountPrivacy] `source.privacy` of the signed-in
  *   account, as `verify_credentials` answers it; omitted for an account whose
  *   settings have not arrived
+ * @param {HTMLElement} [options.attachTo] an element in the document, for a
+ *   test about where the focus goes
  * @return {object} the wrapper and the timeline store
  */
-function mountComposer(props = {}, { accountPrivacy } = {}) {
+function mountComposer(props = {}, { accountPrivacy, attachTo } = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
@@ -174,6 +176,7 @@ function mountComposer(props = {}, { accountPrivacy } = {}) {
 	vi.spyOn(store, 'setComposerDisplayStatus')
 	const wrapper = mount(Composer, {
 		props,
+		attachTo,
 		global: {
 			plugins: [pinia],
 			stubs: {
@@ -889,6 +892,32 @@ describe('Composer', () => {
 			await setContent(wrapper, 'half a thought')
 
 			expect(closeButton(wrapper).exists()).toBe(false)
+		})
+	})
+
+	describe('answering a post', () => {
+		/**
+		 * Pressing Reply left the focus on the button, so the first words typed
+		 * went nowhere; the caret goes into the box, after the mentions it was
+		 * given, and a screen reader lands on the labelled textbox.
+		 */
+		it('puts the caret in the box, after the mentions', async () => {
+			const host = document.createElement('div')
+			document.body.appendChild(host)
+			const { wrapper } = mountComposer({}, { attachTo: host })
+
+			eventBus.emit('composer-reply', replyTo(bob))
+			await flushPromises()
+
+			const box = input(wrapper).element
+			expect(document.activeElement).toBe(box)
+			expect(box.getAttribute('role')).toBe('textbox')
+			expect(typed(wrapper)).toContain('bob')
+			const range = window.getSelection().getRangeAt(0)
+			expect(range.collapsed).toBe(true)
+			expect(range.startContainer).toBe(box)
+			expect(range.startOffset).toBe(box.childNodes.length)
+			host.remove()
 		})
 	})
 

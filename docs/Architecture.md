@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.218
+**App version:** 0.26.219
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -186,7 +186,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_cache_doc` | Cached remote and local media attachments. `ai_source` (SMALLINT, default 0) is the machine-generation provenance the picture's metadata stated when it was stored — `1` IPTC's `trainedAlgorithmicMedia`, `2` its `compositeWithTrainedAlgorithmicMedia` — read by `ImageMetadataService::digitalSourceType()` *before* the metadata is stripped, because the stored bytes no longer say it; rows from before the column read as 0 |
 | `social_client` | OAuth 2.0 client registrations |
 | `social_follow` | Follow relationships (actor → object, with accepted flag) |
-| `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`) |
+| `social_hashtag` | Hashtag trend data: a JSON `trend` blob per hashtag, plus one sortable integer column per window (`trend_1h` … `trend_10d`). A row is written with zero counts when a public post first carries the hashtag (`StreamTagsRequest::generateStreamTags()`), so a hashtag search finds it at once; the trends cron fills the counts |
 | `social_instance` | Known federated instances (version, metadata) |
 | `social_req_queue` | Outbound ActivityPub delivery queue, indexed for the drain's own sort on `(status, priority, tries, last)` |
 | `social_host_breaker` | The delivery circuit breaker: one row per peer that failed within the last hour, with its consecutive failures and the moment it is worth asking again, in unix seconds. Read once per drain by `ActivityService` and by `StreamQueueService` (`HostBreaker`), so a row addressed to a dead peer is held back without spending a timeout; cleared when the peer answers, forgotten an hour after its last failure (`Cron\Queue`) |
@@ -531,6 +531,11 @@ back to `social_stream.instances` and, for a local edit, regenerates
 reloaded post, so a newly mentioned instance is not lost between editing and
 queueing. The followers path is added only when the post's visibility reaches
 followers; this keeps an edit to a direct message from widening its audience.
+The client's `mentions` follow the new text: a name written in is listed, and a
+name taken out leaves the list while keeping its tag and its place in the
+audience, as Mastodon keeps a silent mention. An `Update` from another server
+replaces the stored `mentions` with those of its tags; `update()` writes that
+one key into `details` and leaves the rest of the blob as it was.
 If queue creation fails after the local transaction commits, the Mastodon API
 answers `503` with an explicit message that the post was saved locally; clients
 must not ask the author to submit the edit again merely because remote delivery

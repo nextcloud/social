@@ -349,6 +349,8 @@ class StreamRequest extends StreamRequestBuilder {
 			// and its words, for the same reason: an edit that took a word
 			// out left the post answering a search for it
 			$this->searchTermsRequest->reindex($stream);
+			// and the accounts it names, which a client reads from `mentions`
+			$this->updateMentions($stream);
 			$this->linkLocalMedia($stream, true);
 
 			$this->dbConnection->commit();

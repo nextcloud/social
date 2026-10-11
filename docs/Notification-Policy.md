@@ -16,7 +16,7 @@ Negative interactions on social media go with more depressive symptoms. Being re
 | Existing accounts | **Unchanged** (everything accepted) until the person chooses. A one-time notice points them to the setting. |
 | Choices in the web UI | **Allow** / **Hold for review**. *Drop* stays available through the API for Mastodon apps but is not offered in the web UI. |
 | What is held | **Everything a held sender does** — mentions, replies, direct messages, likes, boosts, follows, poll results — waits together. |
-| A "new account" | **Younger than 30 days**, from the account's published creation date (remote accounts included). |
+| A "new account" | **Younger than 30 days**, from the account's published creation date (remote accounts included). An account you follow is never held for being new, nor for being limited, as on Mastodon. |
 | Accept | **Releases what was waiting and always allows that person** from then on, until revoked in Settings. Accepting does not follow them. |
 | Dismiss | Discards what was waiting from that person; they stay held from then on (as before this change). |
 | Finding out someone waits | A **line at the top of Activities**, a mention **in the digest**, and the **count on Activities in the sidebar**. No bell notification. |

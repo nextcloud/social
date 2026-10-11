@@ -260,14 +260,10 @@ Good overall. Two of the four issues this section used to list are fixed in
 Application entity always carries. It now answers with the first registered URI
 and an empty `vapid_key`, because there is no Web Push here to have a key for.
 
-Two remain:
-
-- An Account can still carry `"avatar": ""` — verified against a running
-  instance, where one account out of a search page came back with an empty
-  string — because `Person::exportAsLocal()` falls through to `getAvatar()`
-  when the actor has no cached icon, and that is the stored value, which may be
-  empty. Mastodon declares the field a URL, and a client that decodes it as one
-  fails on the whole account.
+The fourth was an Account carrying `"avatar": ""` when the actor had no cached
+icon and no stored avatar. It is fixed with the account pictures (§ 3.1a):
+`Person::exportAsLocal()` answers the placeholder picture in that case, so
+`avatar` and `avatar_static` are always a URL, as Mastodon declares them.
 One deliberate extension to note: a `Status` carries `delivery: "held"` on
 the author's own copy while its deliveries wait for a video to be converted
 (§ *Held for a video* in Architecture.md), and the key is absent otherwise. A

@@ -589,12 +589,14 @@ class NotificationPolicyService {
 
 		$following = isset($facts['following'][$senderId]);
 
+		// an account the reader follows is neither new nor limited to them,
+		// as Mastodon's NotifyService::FilterCondition has it
 		foreach ([
 			NotificationPolicy::NOT_FOLLOWING => !$following,
 			NotificationPolicy::NOT_FOLLOWERS => !isset($facts['followers'][$senderId]),
-			NotificationPolicy::NEW_ACCOUNTS => $this->isNewAccount($senderCreation),
+			NotificationPolicy::NEW_ACCOUNTS => !$following && $this->isNewAccount($senderCreation),
 			NotificationPolicy::PRIVATE_MENTIONS => $privateMention && (!$following || $directFromNobody),
-			NotificationPolicy::LIMITED_ACCOUNTS => isset($facts['silenced'][$senderId]),
+			NotificationPolicy::LIMITED_ACCOUNTS => !$following && isset($facts['silenced'][$senderId]),
 		] as $key => $applies) {
 			if ($applies && $policy->get($key) !== NotificationPolicy::ACCEPT) {
 				return true;

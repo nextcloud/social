@@ -157,6 +157,26 @@ class LinkifyService {
 	}
 
 	/**
+	 * The accounts the text links to, as the hrefs `toHtml()` gives them.
+	 *
+	 * @param array<int, array<string, string>> $tags the note's `tag` array
+	 * @return list<string>
+	 */
+	public function mentionedHrefs(string $text, array $tags): array {
+		$hrefs = $this->hrefsByName($tags)[self::TYPE_MENTION];
+
+		$linked = [];
+		foreach ($this->entitiesIn($text) as $entity) {
+			$href = ($entity['type'] === self::TYPE_MENTION) ? ($hrefs[mb_strtolower($entity['name'])] ?? '') : '';
+			if ($href !== '') {
+				$linked[$href] = true;
+			}
+		}
+
+		return array_keys($linked);
+	}
+
+	/**
 	 * The href each entity may be linked to, keyed by lower-cased name.
 	 *
 	 * An entity with no entry gets no link: a mention of somebody who could not

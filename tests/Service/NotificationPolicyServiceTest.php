@@ -291,9 +291,9 @@ class NotificationPolicyServiceTest extends TestCase {
 		return [
 			'somebody the reader does not follow' => [NotificationPolicy::NOT_FOLLOWING, 0, false, [], [self::STRANGER]],
 			'somebody who does not follow the reader' => [NotificationPolicy::NOT_FOLLOWERS, 0, false, [self::STRANGER], []],
-			'a new account' => [NotificationPolicy::NEW_ACCOUNTS, 0, false, [self::STRANGER], [self::STRANGER]],
+			'a new account' => [NotificationPolicy::NEW_ACCOUNTS, 0, false, [], [self::STRANGER]],
 			'a private mention from a stranger' => [NotificationPolicy::PRIVATE_MENTIONS, 0, true, [], [self::STRANGER]],
-			'an account this instance limited' => [NotificationPolicy::LIMITED_ACCOUNTS, 0, false, [self::STRANGER], [self::STRANGER]],
+			'an account this instance limited' => [NotificationPolicy::LIMITED_ACCOUNTS, 0, false, [], [self::STRANGER]],
 		];
 	}
 
@@ -319,6 +319,35 @@ class NotificationPolicyServiceTest extends TestCase {
 		$this->service->save('alice', [$key => NotificationPolicy::FILTER]);
 
 		$this->assertTrue($this->service->isHeldFor($this->viewer(), self::STRANGER, $creation, $direct));
+	}
+
+	/** @return array<string, array{string}> */
+	public static function keysAFollowIsExemptFrom(): array {
+		return [
+			'a new account' => [NotificationPolicy::NEW_ACCOUNTS],
+			'an account this instance limited' => [NotificationPolicy::LIMITED_ACCOUNTS],
+		];
+	}
+
+	/**
+	 * Mastodon holds a notification for being from a new or a limited
+	 * account only when the reader does not follow its sender
+	 * (`NotifyService::FilterCondition`, `… && not_following?`): following
+	 * somebody is the reader having already decided about them.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('keysAFollowIsExemptFrom')]
+	public function testAnAccountTheReaderFollowsIsNotHeldForBeingNewOrLimited(string $key): void {
+		$this->withFollows([self::STRANGER], []);
+		$this->silenced = [self::STRANGER];
+		$this->service->save('alice', [$key => NotificationPolicy::DROP]);
+		$creation = time() - 86400;
+
+		$this->assertFalse($this->service->isHeldFor($this->viewer(), self::STRANGER, $creation, false), 'as it is stored');
+		$this->assertCount(
+			1,
+			$this->service->partition($this->viewer(), [$this->from(self::STRANGER, Like::TYPE, $creation)])['shown'],
+			'and on the page'
+		);
 	}
 
 	/** `drop` holds too: what this app drops is held for good, never thrown away unseen. */
