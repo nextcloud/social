@@ -302,8 +302,10 @@ class Lexicon {
 		$accept = $schema['accept'] ?? [];
 		if ($accept !== [] && !in_array('*/*', $accept, true)) {
 			foreach ($accept as $pattern) {
-				// fnmatch() warns on, and matches nothing against, a string past 1024 bytes
-				if (strlen($value['mimeType']) <= self::MAX_MIME_TYPE && fnmatch($pattern, $value['mimeType'])) {
+				// fnmatch() warns on, and matches nothing against, a string past
+				// 1024 bytes, and throws on one with a NUL in it
+				if (strlen($value['mimeType']) <= self::MAX_MIME_TYPE && !str_contains($value['mimeType'], "\0")
+					&& fnmatch($pattern, $value['mimeType'])) {
 					return;
 				}
 			}

@@ -115,6 +115,19 @@ class LexiconTest extends TestCase {
 		]);
 	}
 
+	/**
+	 * A MIME type with a NUL in it, as a fuzzed banner had it: refused as a
+	 * type the field does not accept, where fnmatch() threw a ValueError that
+	 * nothing catches.
+	 */
+	public function testAMimeTypeWithANulInItIsNotAccepted(): void {
+		$this->expectException(LexiconException::class);
+		$this->lexicon->validateRecord([
+			'$type' => 'app.bsky.actor.profile',
+			'banner' => ['$type' => 'blob', 'ref' => Cid::forRaw('a'), 'mimeType' => "image/png\0", 'size' => 10],
+		]);
+	}
+
 	public function testAnUnknownTypeIsRefused(): void {
 		$this->expectException(LexiconException::class);
 		$this->lexicon->validateRecord(['$type' => 'com.example.nothing']);
