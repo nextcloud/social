@@ -135,7 +135,7 @@ import { DEFAULT_RATIO, ratioOf } from './GalleryRatio.js'
 import { nameForTransition, withViewTransition } from '../utils/viewTransition.js'
 
 /** one name per document: only one lightbox is ever open */
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { useServerData } from '../composables/useServerData.js'
 
 const MEDIA_TRANSITION = 'social-media'
@@ -231,7 +231,7 @@ export default {
 
 			return attachment?.description
 				? attachment.description
-				: translate('social', 'Attachment {number} of {total}', {
+				: t('social', 'Attachment {number} of {total}', {
 						number: this.current + 1,
 						total: this.media.length,
 					})
@@ -319,8 +319,8 @@ export default {
 			}
 		},
 
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 		/**
 		 * What opening this attachment will show. The author's own description
 		 * when there is one, because that is the only thing that says what the
@@ -349,8 +349,8 @@ export default {
 
 		openLabel(attachment, index) {
 			return attachment.description
-				? translate('social', 'Open attachment: {description}', { description: attachment.description })
-				: translate('social', 'Open attachment {number}', { number: index + 1 })
+				? t('social', 'Open attachment: {description}', { description: attachment.description })
+				: t('social', 'Open attachment {number}', { number: index + 1 })
 		},
 
 		/**

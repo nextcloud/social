@@ -41,7 +41,7 @@
 </template>
 
 <script>
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -202,7 +202,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 		setupIntersectionObserver() {
 			this.observer = new IntersectionObserver((entries) => {
 				if (entries[0].isIntersecting && !this.allLoaded) {

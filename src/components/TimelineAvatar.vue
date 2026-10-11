@@ -52,7 +52,7 @@
 
 <script>
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import AccountHoverCard from './AccountHoverCard.vue'
 import { originOf } from '../utils/instanceIdentity.js'
 import { localProfileUrl } from '../utils/accountProfileLink.js'
@@ -144,7 +144,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 	},
 }
 </script>

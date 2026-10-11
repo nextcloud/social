@@ -19,7 +19,7 @@
 </template>
 
 <script>
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import { SHORTCUTS } from '../services/shortcuts.js'
 
 /**
@@ -40,7 +40,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 	},
 }
 </script>

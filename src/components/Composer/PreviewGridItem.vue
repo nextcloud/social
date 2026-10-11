@@ -114,7 +114,7 @@ import FilterPicker from './FilterPicker.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import { filterCss } from '../../utils/imageFilters.js'
 import { NUDGE, focusFromPoint, isFocalPoint, nudgeFocus, positionOfFocus } from '../../utils/focalPoint.js'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import { valueOf } from '../../utils/dom.js'
 import MediaAttachment from '../MediaAttachment.vue'
 
@@ -218,7 +218,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 		filterCss,
 		valueOf,
 

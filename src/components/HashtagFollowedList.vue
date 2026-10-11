@@ -51,7 +51,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { showError } from '../services/toast.js'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -92,7 +92,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 		toggle() {
 			this.open = !this.open
 			if (this.open) {
@@ -122,7 +122,7 @@ export default {
 				this.cursor = nextCursor(headers)
 			} catch (error) {
 				logger.error('Failed to load the followed hashtags', { error })
-				showError(translate('social', 'Could not load the hashtags you follow'))
+				showError(t('social', 'Could not load the hashtags you follow'))
 			} finally {
 				this.loading = false
 			}
@@ -150,7 +150,7 @@ export default {
 				this.cursor = nextCursor(headers)
 			} catch (error) {
 				logger.error('Failed to load more of the followed hashtags', { error })
-				showError(translate('social', 'Could not load the hashtags you follow'))
+				showError(t('social', 'Could not load the hashtags you follow'))
 			} finally {
 				this.loadingMore = false
 			}

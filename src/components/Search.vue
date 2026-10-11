@@ -111,7 +111,7 @@ import UserEntry from './UserEntry.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -248,7 +248,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 		searchDebounced() {
 			if (this.debounceTimer !== null) {
 				window.clearTimeout(this.debounceTimer)
@@ -317,7 +317,7 @@ export default {
 			} catch (error) {
 				logger.error('Failed to perform the search', { error })
 				if (sequence === this.requestSequence) {
-					this.error = translate('social', 'The search could not be run. Please try again.')
+					this.error = t('social', 'The search could not be run. Please try again.')
 				}
 			} finally {
 				// the newer request owns `loading` now

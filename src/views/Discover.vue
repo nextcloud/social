@@ -108,10 +108,7 @@
 				     accounts could not be reached: 2 a@b, c@d" -->
 				<div v-if="openPack.unresolved && openPack.unresolved.length" class="discover__unresolved">
 					<p>
-						{{ n('social',
-							'One account could not be reached from this server:',
-							'%n accounts could not be reached from this server:',
-							openPack.unresolved.length) }}
+						{{ unresolvedNotice }}
 						<span class="discover__unresolved-handles">{{ openPack.unresolved.join(', ') }}</span>
 					</p>
 					<p class="discover__unresolved-why">
@@ -340,6 +337,11 @@ export default {
 	},
 
 	computed: {
+		/** @return {string} the heading over the accounts the open pack could not resolve */
+		unresolvedNotice() {
+			return n('social', 'One account could not be reached from this server:', '%n accounts could not be reached from this server:', this.openPack?.unresolved?.length ?? 0)
+		},
+
 		/** @return {boolean} whether this server gives accounts a Bluesky identity */
 		bluesky() {
 			return useSettingsStore().getServerData?.bluesky?.enabled === true

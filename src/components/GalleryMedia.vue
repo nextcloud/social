@@ -27,7 +27,7 @@
 </template>
 
 <script>
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import AltBadge from './AltBadge.vue'
 import MediaAttachment from './MediaAttachment.vue'
 import { ratioOf } from './GalleryRatio.js'
@@ -114,8 +114,8 @@ export default {
 		/** @return {string} what opening this attachment will show */
 		openLabel() {
 			return this.hasDescription
-				? translate('social', 'Open attachment: {description}', { description: this.attachment.description })
-				: translate('social', 'Open attachment {number} of {total}', {
+				? t('social', 'Open attachment: {description}', { description: this.attachment.description })
+				: t('social', 'Open attachment {number} of {total}', {
 						number: this.index + 1,
 						total: this.total,
 					})
@@ -123,7 +123,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 	},
 }
 </script>

@@ -546,7 +546,7 @@ import CreationOutline from 'vue-material-design-icons/CreationOutline.vue'
 import PlacePicker from './PlacePicker.vue'
 import SchedulePicker from './SchedulePicker.vue'
 import { computed, defineAsyncComponent, getCurrentInstance, ref } from 'vue'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { showError, showSuccess } from '../../services/toast.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
@@ -624,12 +624,12 @@ function graphemes(text) {
  */
 function contentWarningPresets() {
 	return [
-		translate('social', 'Spoiler'),
-		translate('social', 'Food'),
-		translate('social', 'Politics'),
-		translate('social', 'Mental health'),
-		translate('social', 'Eye contact'),
-		translate('social', 'Work'),
+		t('social', 'Spoiler'),
+		t('social', 'Food'),
+		t('social', 'Politics'),
+		t('social', 'Mental health'),
+		t('social', 'Eye contact'),
+		t('social', 'Work'),
 	]
 }
 
@@ -947,16 +947,16 @@ export default {
 		 */
 		prompt() {
 			if (this.hasAttachments) {
-				return translate('social', 'Write a caption…')
+				return t('social', 'Write a caption…')
 			}
 			if (this.replyTo !== null) {
-				return translate('social', 'Write a reply…')
+				return t('social', 'Write a reply…')
 			}
 			if (this.quoteOf !== null || this.firstName === '') {
-				return translate('social', 'What would you like to share?')
+				return t('social', 'What would you like to share?')
 			}
 
-			return translate('social', 'Aloha, {name}. What’s new?', { name: this.firstName })
+			return t('social', 'Aloha, {name}. What’s new?', { name: this.firstName })
 		},
 
 		/**
@@ -1004,8 +1004,8 @@ export default {
 
 		charactersLeftLabel() {
 			return this.statusIsTooLong
-				? translatePlural('social', '%n character too many', '%n characters too many', -this.charsLeft)
-				: translatePlural('social', '%n character left', '%n characters left', this.charsLeft)
+				? n('social', '%n character too many', '%n characters too many', -this.charsLeft)
+				: n('social', '%n character left', '%n characters left', this.charsLeft)
 		},
 
 		/**
@@ -1685,7 +1685,7 @@ export default {
 			this.updateStatusContent()
 		},
 
-		n: translatePlural,
+		n,
 		async createPost() {
 			if (!this.canPost || this.loading) {
 				return
@@ -1785,7 +1785,7 @@ export default {
 				// nothing is on any timeline yet, so there is nothing to
 				// refresh and no post to celebrate; what there is to say is
 				// when it will be — the answer is a ScheduledStatus, not a Status
-				showSuccess(translate('social', 'Scheduled for {date}', {
+				showSuccess(t('social', 'Scheduled for {date}', {
 					date: fullDateTime(created.scheduled_at ?? statusData.scheduled_at),
 				}))
 				eventBus.emit('post-scheduled', created)
@@ -1831,7 +1831,7 @@ export default {
 			this.loading = true
 			const file = await renderTextCard(words, this.cardGradient, { width: 1080, height: 1080 })
 			if (file === null) {
-				showError(translate('social', 'This browser could not draw the card'))
+				showError(t('social', 'This browser could not draw the card'))
 				return null
 			}
 

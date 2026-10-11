@@ -81,10 +81,7 @@
 				know which of the two they are looking at.
 			-->
 			<p v-if="quiet.length" class="finder__quiet">
-				{{ n('social',
-					'{names} did not answer. What is above is the rest.',
-					'{names} did not answer. What is above is the rest.',
-					quiet.length, { names: quiet.join(', ') }) }}
+				{{ quietNotice }}
 			</p>
 		</template>
 	</div>
@@ -196,6 +193,11 @@ export default {
 			return this.reports
 				.filter((report) => report.status !== 'ok')
 				.map((report) => report.label || report.host)
+		},
+
+		/** @return {string} who did not answer, for the line under the results */
+		quietNotice() {
+			return n('social', '{names} did not answer. What is above is the rest.', '{names} did not answer. What is above is the rest.', this.quiet.length, { names: this.quiet.join(', ') })
 		},
 
 		/**
