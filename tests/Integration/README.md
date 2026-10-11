@@ -23,6 +23,8 @@ to stop.
 - `Db/ApproveReplyAuthorTest` — an `ApproveReply` moves a pending reply of
   ours to approved only when it comes from the author of the video it
   answers (the account behind the channel, as PeerTube sends it).
+- `Db/ActorCountFloorTest` — an account counter bumped in SQL: a decrement
+  stops at 0, and a counter never counted (`-1`) is moved by no step.
 - `Db/ActorsKeyStorageTest` — private keys land encrypted, read back decrypted,
   legacy plaintext rows stay readable, the EncryptPrivateKeys repair converts
   them idempotently.
