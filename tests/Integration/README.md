@@ -136,6 +136,30 @@ to stop.
   `Version1000Date20261011500100` on tables put back in the shape a release
   before 0.23 left: duplicate follow pairs removed before the pair is made
   unique, the indexes the history dropped dropped, a second run a no-op.
+- `UserMigration/AccountRoundTripTest` — a whole account (posts with an
+  uploaded picture, a content warning and a poll, local and remote follows
+  and followers, lists, a v2 filter, bookmarks, favourites, a profile with
+  fields, banner, avatar and flags, a timed mute, one hiding notifications, a
+  block, a blocked server) out through `SocialMigrator` via
+  `MigrationArchiveService::export()`, into a fresh account and through the
+  posts import, compared view by view through the Mastodon API
+  (`UserMigration/RoundTripTestCase`). What is documented to stay behind is
+  pinned as such: no private key or OAuth token in the archive, the avatar
+  left to core's migrator, followers a record, no post re-created by the
+  account import, a poll back as its text — and so are filters and a list's
+  replies policy, which nothing carries. Caught an export that carried no
+  banner, an archive without the lists and blocked servers its one-file
+  downloads promise, and a banner Update signed with no key.
+- `UserMigration/AccountRoundTripImportTest` — the import half of the above on
+  a second server; skipped unless `SOCIAL_ROUNDTRIP_BUNDLE` names a bundle.
+  See "Two servers" below.
+- `UserMigration/MastodonExportImportTest` — an export shaped after
+  Mastodon's documented format (`UserMigration/MastodonExport`: `outbox.json`,
+  `actor.json`, `likes.json`, `bookmarks.json`, the media, and the six CSV
+  files) through `PostImportService` and the `MigrationService` imports,
+  compared through the API: the boost and the direct message skipped, the
+  reply hung off its parent, a second run a no-op — and `likes.json`,
+  `bookmarks.json` and `actor.json` pinned as read by nothing.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
 - `PeakMemory` — the peak memory a block reached above what was in use when it
@@ -365,3 +389,19 @@ a symlink into it):
 
 All rows the tests create carry unique test-only ids and are removed in
 tearDown, so the suite is safe to run against an instance that holds other data.
+
+**Two servers.** `UserMigration/AccountRoundTripTest` imports on its own server
+by default. To import on a really fresh one, install a second server with the
+app, give it an address of its own (or the first server's accounts look local
+to it) and name it:
+
+    php occ config:app:set social cloud_url --value=http://second.localhost:8081
+    php occ config:app:set social social_url --value=http://second.localhost:8081/apps/social/
+    SOCIAL_ROUNDTRIP_TARGET_ROOT=/var/www/second NEXTCLOUD_ROOT=/var/www/nextcloud \
+        vendor/bin/phpunit -c tests/Integration/phpunit.xml --filter AccountRoundTripTest
+
+The export half then writes a bundle (the archive, the views of the exported
+account, and the accounts and posts the second server would have fetched) and
+runs `AccountRoundTripImportTest` against the second server in a phpunit of its
+own. `SOCIAL_ROUNDTRIP_EXPORT_TO=<dir>` keeps the bundle; the import half runs
+on its own with `SOCIAL_ROUNDTRIP_BUNDLE=<dir> NEXTCLOUD_ROOT=<second server>`.
