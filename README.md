@@ -907,6 +907,13 @@ runs on the upgraded instance.
 `dependency-audit.yml` runs `composer audit` and `npm audit --omit=dev` on
 every pull request and weekly.
 
+**Several open pull requests together** are checked by `stack-check.yml`: it
+merges their heads onto master in the order given (`tests/Stack/merge.sh`),
+stops with the files in conflict if one does not merge, and runs the unit and
+integration suites on the result. Start it from the Actions tab with the
+numbers in merge order, or put the `stack-check` label on the pull requests;
+the header of the workflow says what this adds to GitHub's own merge refs.
+
 ### Interop tests
 
 A third PHP suite in `tests/Interop/` delivers this app's activities to a **real

@@ -1,0 +1,174 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Runs the unit and integration suites on what master will be once several
+# open pull requests have landed, in a given order.
+#
+# What GitHub already covers: every pull request is tested on its merge ref,
+# refs/pull/<n>/merge, which is its head merged into its own base branch.
+# For a pull request stacked on another one's branch, that base already holds
+# everything below it, so the top of a properly stacked chain is tested
+# together with the whole chain -- but against the bottom branch as it was
+# when the chain was built, not against master today.
+#
+# What this adds:
+#   - pull requests that each target master (siblings, not a chain): GitHub
+#     tests each one alone against master, and two that are green alone can
+#     be red together -- a golden file both change, a guard test that does not
+#     know the other's new file, two classes of one name;
+#   - a chain whose bottom is behind master, or several chains at once (a fix
+#     stack and a test stack), merged onto master as it is now;
+#   - the order: the same pull requests merged in another order can conflict
+#     where this one does not, and a conflict is reported with the pull
+#     request that hits it and the earlier ones that touched the same files.
+#
+# Every pull request here ends with a version bump and a rebuilt js/; those
+# conflicts are settled in favour of the later pull request, as by hand, and
+# reported as warnings (tests/Stack/merge.sh).
+#
+# Two ways to start it:
+#   - Actions -> Stack check -> Run workflow, with the pull request numbers in
+#     merge order;
+#   - the `stack-check` label: every open pull request carrying it is merged
+#     in ascending number order, again whenever one of them is pushed to.
+
+name: Stack check
+
+on:
+  workflow_dispatch:
+    inputs:
+      prs:
+        description: 'Pull request numbers in merge order, separated by spaces or commas'
+        required: true
+      base:
+        description: 'Branch to merge them into'
+        required: false
+        default: 'master'
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: stack-check-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'label' }}
+  cancel-in-progress: true
+
+jobs:
+  stack:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.action == 'labeled' && github.event.label.name == 'stack-check')
+      || (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'stack-check'))
+
+    outputs:
+      base: ${{ steps.prs.outputs.base }}
+      prs: ${{ steps.prs.outputs.prs }}
+      server: ${{ steps.versions.outputs.branches-max }}
+
+    steps:
+      - name: Pick the pull requests
+        id: prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_PRS: ${{ inputs.prs }}
+          INPUT_BASE: ${{ inputs.base }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            prs=$(echo "$INPUT_PRS" | tr ',' ' ' | xargs)
+            base=${INPUT_BASE:-master}
+          else
+            prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --label stack-check --state open --limit 100 \
+              --json number --jq 'map(.number) | sort | map(tostring) | join(" ")')
+            base=master
+          fi
+          if [ -z "$prs" ]; then
+            echo "::error::no pull requests to merge"
+            exit 1
+          fi
+          if ! [[ "$prs" =~ ^[0-9]+( [0-9]+)*$ ]]; then
+            echo "::error::'$prs' is not a list of pull request numbers"
+            exit 1
+          fi
+          echo "Merging into $base, in this order: $prs"
+          echo "prs=$prs" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the base
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.prs.outputs.base }}
+
+      - name: Get version matrix
+        id: versions
+        uses: icewind1991/nextcloud-version-matrix@58becf3b4bb6dc6cef677b15e2fd8e7d48c0908f # v1.3.1
+
+  test:
+    runs-on: ubuntu-latest
+    needs: stack
+
+    name: Unit and integration on SQLite, Nextcloud ${{ needs.stack.outputs.server }}
+
+    steps:
+      - name: Set app env
+        run: echo "APP_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Checkout server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          repository: nextcloud/server
+          ref: ${{ needs.stack.outputs.server }}
+
+      - name: Checkout the base
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.stack.outputs.base }}
+          path: apps/${{ env.APP_NAME }}
+          # the merges need the history back to where each pull request
+          # branched off
+          fetch-depth: 0
+
+      - name: Merge the pull requests in order
+        working-directory: apps/${{ env.APP_NAME }}
+        env:
+          PRS: ${{ needs.stack.outputs.prs }}
+        # $PRS unquoted: one argument per pull request
+        run: bash tests/Stack/merge.sh $PRS
+
+      - name: Set up php 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up dependencies
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer i
+
+      - name: PHPUnit
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer run test:unit
+
+      - name: Set up Nextcloud
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud --admin-user admin --admin-pass admin
+          ./occ app:enable --force ${{ env.APP_NAME }}
+
+      - name: Run Nextcloud
+        run: php -S localhost:8080 &
+
+      - name: PHPUnit integration
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer run test:integration
+
+      - name: Print logs
+        if: always()
+        run: cat data/nextcloud.log || true
