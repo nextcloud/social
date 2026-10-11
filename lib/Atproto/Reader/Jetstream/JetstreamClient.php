@@ -208,7 +208,10 @@ class JetstreamClient {
 			$length = unpack('J', substr($buffer, 2, 8))[1];
 			$offset = 10;
 		}
-		if ($length > self::MAX_MESSAGE) {
+		// a 64-bit length with its top bit set unpacks negative, and is no
+		// length at all: read as one, it took nothing off the buffer and the
+		// same frame came back for ever
+		if ($length < 0 || $length > self::MAX_MESSAGE) {
 			throw new AtprotoException('A Jetstream frame too long');
 		}
 		$masked = ($second & 0x80) !== 0;

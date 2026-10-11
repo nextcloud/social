@@ -55,6 +55,18 @@ class JetstreamClientTest extends TestCase {
 		$this->assertNull(JetstreamClient::readFrame($partial), 'not all there yet');
 	}
 
+	/**
+	 * A 64-bit length with the top bit set, as a fuzzed frame had it: refused
+	 * like any frame too long, where it used to be read as a frame that took
+	 * no bytes, so the reader got the same frame back on every call.
+	 */
+	public function testAFrameWhoseLengthHasTheTopBitSetIsRefused(): void {
+		$buffer = (string)base64_decode('gf//////WbsV3Q==');
+
+		$this->expectException(AtprotoException::class);
+		JetstreamClient::readFrame($buffer);
+	}
+
 	public function testMessagesArriveWholePingsAreAnsweredAndACloseEndsIt(): void {
 		[$client, $theirs] = $this->connected();
 		fwrite($theirs, self::serverFrame(0x1, '{"kind":"comm', false) . self::serverFrame(0x9, 'are you there')
