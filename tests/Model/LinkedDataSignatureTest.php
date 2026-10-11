@@ -156,6 +156,19 @@ class LinkedDataSignatureTest extends TestCase {
 		$this->assertSame(['type' => 'Note'], $signature->getObject());
 	}
 
+	/**
+	 * A document with bytes JSON cannot encode, as a fuzzed one had: it is
+	 * not verified, where the encoder's `false` used to reach json_decode()
+	 * and come out of verify() as a TypeError.
+	 */
+	public function testADocumentJsonCannotEncodeIsNotVerified(): void {
+		$signature = new LinkedDataSignature();
+		$signature->import(['object' => "\xff", 'signature' => ['signatureValue' => '=']]);
+		$signature->setPublicKey(self::$publicKey);
+
+		$this->assertFalse($signature->verify());
+	}
+
 	public function testImportRequiresASignatureBlock(): void {
 		$this->expectException(LinkedDataSignatureMissingException::class);
 

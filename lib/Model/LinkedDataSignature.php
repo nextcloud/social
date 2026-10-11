@@ -170,7 +170,9 @@ class LinkedDataSignature implements JsonSerializable {
 			$this->cleanArray($data);
 		}
 
-		$object = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+		// a document JSON cannot hold — bytes that are not UTF-8, nesting past
+		// the encoder's depth — throws here, and is not verified
+		$object = json_decode(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 		$res = jsonld_normalize(
 			$object,
 			[
