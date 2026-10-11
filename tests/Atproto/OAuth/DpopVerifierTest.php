@@ -99,4 +99,35 @@ class DpopVerifierTest extends TestCase {
 		$this->expectExceptionMessage('used before');
 		$this->verifier->verify($proof, 'POST', self::URL);
 	}
+
+	/** No proof at all is refused for being missing, not for being unreadable. */
+	public function testARequestWithoutAProofIsToldOneIsRequired(): void {
+		try {
+			$this->verifier->verify('', 'POST', self::URL);
+			$this->fail('taken');
+		} catch (OAuthException $e) {
+			$this->assertSame('invalid_dpop_proof', $e->error);
+			$this->assertStringContainsString('required', $e->getMessage());
+		}
+	}
+
+	/**
+	 * The address a proof is for is compared with its port: a proof for the
+	 * same host on another port is a proof for another server.
+	 */
+	public function testAProofForTheSameHostOnAnotherPortIsRefused(): void {
+		$nonce = $this->nonce->current();
+		$this->assertNotSame('', $this->verifier->verify(
+			OAuthKit::proof($this->key, 'POST', 'https://social.test:8443/oauth/token', $this->now, $nonce), 'POST', 'https://social.test:8443/oauth/token'
+		), 'a port that matches');
+
+		foreach (['https://social.test:8443/oauth/token', 'https://social.test:443/oauth/token'] as $i => $other) {
+			try {
+				$this->verifier->verify(OAuthKit::proof($this->key, 'POST', $other, $this->now, $nonce), 'POST', $i === 0 ? self::URL : 'https://social.test:8443/oauth/token');
+				$this->fail('a proof for ' . $other . ' was taken');
+			} catch (OAuthException $e) {
+				$this->assertSame('invalid_dpop_proof', $e->error);
+			}
+		}
+	}
 }
