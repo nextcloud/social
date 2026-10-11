@@ -38,7 +38,7 @@
 import NcActions from '@nextcloud/vue/components/NcActions'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import Check from 'vue-material-design-icons/Check.vue'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import { POST_LANGUAGES, languageName, rememberLanguage } from '../../utils/postLanguage.js'
 
 export default {
@@ -85,7 +85,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 
 		/** @param {string} code the language chosen */
 		choose(code) {

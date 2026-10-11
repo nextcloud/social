@@ -101,7 +101,7 @@
 
 <script>
 import { decode } from 'blurhash'
-import { translate, translate as t } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import ImageOff from 'vue-material-design-icons/ImageOff.vue'
@@ -337,23 +337,23 @@ export default {
 			const cacheError = Number(this.attachment?.cache_error ?? 0)
 			if (cacheError > 0) {
 				const reason = {
-					1: translate('social', 'The image exceeds this instance’s media size limit.'),
-					2: translate('social', 'This image type is not allowed by this instance.'),
-					3: translate('social', 'This instance could not access the original image.'),
-					4: translate('social', 'This instance could not read the image.'),
-				}[cacheError] ?? translate('social', 'This instance could not cache the image.')
+					1: t('social', 'The image exceeds this instance’s media size limit.'),
+					2: t('social', 'This image type is not allowed by this instance.'),
+					3: t('social', 'This instance could not access the original image.'),
+					4: t('social', 'This instance could not read the image.'),
+				}[cacheError] ?? t('social', 'This instance could not cache the image.')
 
 				return description ? `${reason} ${description}` : reason
 			}
 			if (this.previewFailed) {
 				return description
-					? translate('social', 'Attachment could not be loaded: {description}', { description })
-					: translate('social', 'Attachment could not be loaded')
+					? t('social', 'Attachment could not be loaded: {description}', { description })
+					: t('social', 'Attachment could not be loaded')
 			}
 
 			return description
-				? translate('social', 'No preview available: {description}', { description })
-				: translate('social', 'No preview available')
+				? t('social', 'No preview available: {description}', { description })
+				: t('social', 'No preview available')
 		},
 	},
 

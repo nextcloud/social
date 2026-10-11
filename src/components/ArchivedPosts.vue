@@ -41,7 +41,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import IconArchiveOutline from 'vue-material-design-icons/ArchiveOutline.vue'
 import logger from '../services/logger.js'
@@ -82,8 +82,8 @@ export default {
 	},
 
 	methods: {
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 		fullDateTime,
 
 		/** @param {object} post a Status */
@@ -116,7 +116,7 @@ export default {
 				this.hasMore = page.length === PAGE_SIZE
 			} catch (error) {
 				logger.error('Failed to load the archived posts', { error })
-				showError(translate('social', 'Could not load your archived posts'))
+				showError(t('social', 'Could not load your archived posts'))
 			} finally {
 				this.loading = false
 			}
@@ -128,10 +128,10 @@ export default {
 			try {
 				await axios.post(generateUrl('apps/social/api/pixelfed/v1/archive/remove/' + post.id))
 				this.posts = this.posts.filter((one) => one.id !== post.id)
-				showSuccess(translate('social', 'It is back on your profile'))
+				showSuccess(t('social', 'It is back on your profile'))
 			} catch (error) {
 				logger.error('Failed to restore a post', { error })
-				showError(translate('social', 'Could not put the post back'))
+				showError(t('social', 'Could not put the post back'))
 			} finally {
 				this.restoring = this.restoring.filter((id) => id !== post.id)
 			}

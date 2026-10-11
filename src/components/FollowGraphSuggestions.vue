@@ -14,8 +14,7 @@
 			description of an empty graph.
 		-->
 		<p v-if="needs > 0" class="graph__hint">
-			{{ n('social', 'Follow one more account and this can look at who they follow.',
-				'Follow {count} more accounts and this can look at who they follow.', needs, { count: needs }) }}
+			{{ needsHint }}
 		</p>
 
 		<template v-else>
@@ -84,7 +83,7 @@
 <script>
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
@@ -141,6 +140,11 @@ export default {
 		youAvatar() {
 			return this.accountStore.currentAccount?.avatar ?? ''
 		},
+
+		/** @return {string} how many more follows it takes, as one plural the extractor finds */
+		needsHint() {
+			return n('social', 'Follow one more account and this can look at who they follow.', 'Follow {count} more accounts and this can look at who they follow.', this.needs, { count: this.needs })
+		},
 	},
 
 	async mounted() {
@@ -150,8 +154,8 @@ export default {
 	},
 
 	methods: {
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 
 		/**
 		 * A follow from the sky is the same follow the list makes, with the
@@ -231,7 +235,7 @@ export default {
 				)
 			}
 
-			return translate('social', 'Followed by {named}', { named })
+			return t('social', 'Followed by {named}', { named })
 		},
 	},
 }

@@ -109,7 +109,7 @@
 import { showError } from '../services/toast.js'
 import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -503,13 +503,13 @@ export default {
 		 */
 		announcement() {
 			if (this.arrived > 0) {
-				return translatePlural('social', '%n new post available', '%n new posts available', this.arrived)
+				return n('social', '%n new post available', '%n new posts available', this.arrived)
 			}
 			if (this.loading) {
-				return translate('social', 'Loading posts')
+				return t('social', 'Loading posts')
 			}
 			if (this.allLoaded && this.timeline.length > 0) {
-				return translate('social', 'You have reached the end')
+				return t('social', 'You have reached the end')
 			}
 
 			return ''
@@ -1433,8 +1433,8 @@ export default {
 				// not allLoaded: that told the observer to stop watching and
 				// showed the reader an empty timeline for a server error
 				this.error = this.timeline.length === 0
-					? translate('social', 'The posts could not be loaded.')
-					: translate('social', 'No more posts could be loaded.')
+					? t('social', 'The posts could not be loaded.')
+					: t('social', 'No more posts could be loaded.')
 			} finally {
 				// the newer request owns `loading` now
 				if (generation === this.generation) {
@@ -1537,8 +1537,8 @@ export default {
 			})
 		},
 
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 		/**
 		 * Catches up on what arrived since the newest post on screen.
 		 *
@@ -1583,7 +1583,7 @@ export default {
 				// endless stream of identical toasts every 30 seconds
 				if (!this.pollFailureReported) {
 					this.pollFailureReported = true
-					showError(translate('social', 'Could not load the newest posts'))
+					showError(t('social', 'Could not load the newest posts'))
 				}
 			}
 		},

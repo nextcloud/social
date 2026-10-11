@@ -73,7 +73,7 @@
 
 <script>
 import { defineAsyncComponent } from 'vue'
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
@@ -240,7 +240,7 @@ export default {
 
 		/** @return {string} */
 		hiddenRepliesText() {
-			return translatePlural(
+			return n(
 				'social',
 				'%n reply is not shown here. It may be from an account you blocked or muted, or from a server this one has not heard from.',
 				'%n replies are not shown here. They may be from accounts you blocked or muted, or from servers this one has not heard from.',
@@ -284,8 +284,8 @@ export default {
 	},
 
 	methods: {
-		t: translate,
-		n: translatePlural,
+		t,
+		n,
 
 		/** The replies the conversation's author hid, shown after all. */
 		async showHiddenReplies() {

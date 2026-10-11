@@ -76,7 +76,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import GalleryMedia from './GalleryMedia.vue'
@@ -123,12 +123,12 @@ export default {
 
 		/** @return {string} */
 		galleryLabel() {
-			return translatePlural('social', 'Gallery of %n image', 'Gallery of %n images', this.attachments.length)
+			return n('social', 'Gallery of %n image', 'Gallery of %n images', this.attachments.length)
 		},
 
 		/** @return {string} */
 		counterLabel() {
-			return translate('social', '{number} of {total}', {
+			return t('social', '{number} of {total}', {
 				number: this.current + 1,
 				total: this.attachments.length,
 			})
@@ -142,7 +142,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 		/**
 		 * @param {number} index which picture to bring on stage
 		 */

@@ -115,7 +115,7 @@
 							</template>
 							{{ followedPacks.includes(pack.id)
 								? t('social', 'Following')
-								: n('social', 'Follow %n account', 'Follow all %n', pack.size) }}
+								: n('social', 'Follow %n account', 'Follow %n accounts', pack.size) }}
 						</NcButton>
 					</li>
 				</ul>

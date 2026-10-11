@@ -165,7 +165,7 @@ import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
 import MessagePlusOutline from 'vue-material-design-icons/MessagePlusOutline.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import TrendingUp from 'vue-material-design-icons/TrendingUp.vue'
-import { translate } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import TimelinePost from './TimelinePost.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import BlueskyBadge from './BlueskyBadge.vue'
@@ -484,7 +484,7 @@ export default {
 	},
 
 	methods: {
-		t: translate,
+		t,
 		isBlueskyAccount,
 
 		toggleConversationMute() {

@@ -31,10 +31,7 @@
 			<template v-else-if="found.length > 0">
 				<PeerTagRows :tags="found" :followed="followed" @changed="onFollowChanged" />
 				<p v-if="quiet.length" class="trending__quiet">
-					{{ n('social',
-						'{names} did not answer. What is above is the rest.',
-						'{names} did not answer. What is above is the rest.',
-						quiet.length, { names: quiet.join(', ') }) }}
+					{{ quietNotice }}
 				</p>
 			</template>
 
@@ -281,6 +278,11 @@ export default {
 			return this.reports
 				.filter((report) => report.status === 'failed')
 				.map((report) => report.label || report.host)
+		},
+
+		/** @return {string} who did not answer, for the line under the results */
+		quietNotice() {
+			return n('social', '{names} did not answer. What is above is the rest.', '{names} did not answer. What is above is the rest.', this.quiet.length, { names: this.quiet.join(', ') })
 		},
 
 		/**

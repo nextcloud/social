@@ -120,7 +120,7 @@ describe('FirstRun', () => {
 		expect(wrapper.findAll('.first-run__person-name').map((el) => el.text())).toEqual(['Bob', 'Carol'])
 		expect(wrapper.text()).not.toContain('Zed')
 		expect(wrapper.find('.first-run__pack-name').text()).toBe('The fediverse')
-		expect(button(wrapper, 'Follow all 4')).toBeDefined()
+		expect(button(wrapper, 'Follow 4 accounts')).toBeDefined()
 	})
 
 	it('follows a colleague from the card and says so', async () => {
@@ -142,7 +142,7 @@ describe('FirstRun', () => {
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
 
-		await button(wrapper, 'Follow all 4').trigger('click')
+		await button(wrapper, 'Follow 4 accounts').trigger('click')
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/starter_packs/fediverse/follow')
@@ -160,7 +160,7 @@ describe('FirstRun', () => {
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
 
-		await button(wrapper, 'Follow all 4').trigger('click')
+		await button(wrapper, 'Follow 4 accounts').trigger('click')
 		await flushPromises()
 
 		expect(showError).toHaveBeenCalled()
