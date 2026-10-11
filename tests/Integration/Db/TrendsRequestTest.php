@@ -31,7 +31,8 @@ class TrendsRequestTest extends TestCase {
 	private const AUTHOR = self::BASE . '/users/author';
 	private const LINK = 'https://example.org/itest-trends/article';
 	private const OTHER_LINK = 'https://example.org/itest-trends/other';
-	private const NOTES = ['busy', 'quiet', 'untouched', 'private', 'picture'];
+	/** every note a test here writes, so that tearDown removes each of them */
+	private const NOTES = ['busy', 'quiet', 'untouched', 'private', 'picture', 'older', 'newer'];
 
 	private TrendsRequest $trends;
 	private StreamRequest $streamRequest;
@@ -70,6 +71,7 @@ class TrendsRequestTest extends TestCase {
 	}
 
 	private function note(string $suffix, bool $public = true, bool $picture = false, int $ago = 0): string {
+		$this->assertContains($suffix, self::NOTES, 'a note tearDown does not know of outlives the test');
 		$note = new Note();
 		$note->setId(self::BASE . '/notes/' . $suffix);
 		$note->setAttributedTo(self::AUTHOR);
