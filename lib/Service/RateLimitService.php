@@ -19,6 +19,7 @@ use OCA\Social\Controller\SocialPubController;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IRequest;
@@ -74,6 +75,7 @@ class RateLimitService {
 		private IUserSession $userSession,
 		private ICacheFactory $cacheFactory,
 		private ConfigService $configService,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 	}
 
@@ -119,7 +121,7 @@ class RateLimitService {
 			return null;
 		}
 
-		$key = implode('/', [$this->identity(), $bucket, (string)intdiv(time(), max(1, $period))]);
+		$key = implode('/', [$this->identity(), $bucket, (string)intdiv($this->now(), max(1, $period))]);
 		$used = (int)$cache->get($key) + 1;
 		$cache->set($key, $used, $period);
 
@@ -171,7 +173,7 @@ class RateLimitService {
 		}
 
 		return (int)$cache->get(
-			implode('/', [$this->identity(), $bucket, (string)intdiv(time(), max(1, $period))])
+			implode('/', [$this->identity(), $bucket, (string)intdiv($this->now(), max(1, $period))])
 		);
 	}
 
@@ -179,7 +181,7 @@ class RateLimitService {
 	public function windowEnd(int $period): int {
 		$period = max(1, $period);
 
-		return (intdiv(time(), $period) + 1) * $period;
+		return (intdiv($this->now(), $period) + 1) * $period;
 	}
 
 	public function signedIn(): bool {
@@ -221,5 +223,9 @@ class RateLimitService {
 		}
 
 		return 'a:' . $this->request->getRemoteAddress();
+	}
+
+	private function now(): int {
+		return $this->timeFactory?->getTime() ?? time();
 	}
 }
