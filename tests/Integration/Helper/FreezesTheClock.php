@@ -65,10 +65,19 @@ trait FreezesTheClock {
 	 * @return T
 	 */
 	protected function clocked(string $class): object {
+		/** @var T */
+		return $this->clockedContainer()->get($class);
+	}
+
+	/**
+	 * A fresh app container that hands out the frozen clock, for services
+	 * that have to share one container — the activity registry and the
+	 * import that dispatches to it.
+	 */
+	protected function clockedContainer(): DIContainer {
 		$container = new DIContainer('social');
 		$this->registerFrozenClock($container);
 
-		/** @var T */
-		return $container->get($class);
+		return $container;
 	}
 }

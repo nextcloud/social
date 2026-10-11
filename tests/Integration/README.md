@@ -310,6 +310,12 @@ to stop.
   announced the poll closed, and the poll notification's status served with
   `poll: null`.
 
+- `Federation/EarlyDeleteExpiryTest` — the six hours a Delete that came
+  before its Create is remembered, on a frozen clock threaded through the
+  activity registry: a Create in the last second of them is dropped, one on
+  the second they end is stored, and a Delete by another account of the same
+  server holds nothing back.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
