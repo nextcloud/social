@@ -69,6 +69,9 @@ to stop.
 - `Db/PublicTimelineAuthorTest` — a page of the public timeline is `limit`
   posts when its newest posts have no cached author: they are left out where
   the page is chosen, not after, so they take no place on it.
+- `Db/MarkedTimelineAuthorTest` — the same for a page of bookmarks or
+  favourites: posts without a cached author are left out where the page is
+  chosen, and the page is `limit` posts.
 - `Db/DurableCacheTableTest` — the table behind `DurableCache` on an instance
   with no memcache: a read ignores an expired row, an insert over an existing
   key is skipped rather than raised, the purge takes only what has expired.

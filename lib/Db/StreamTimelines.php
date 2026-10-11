@@ -881,6 +881,9 @@ trait StreamTimelines {
 			)
 		);
 		$page->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
+		// the rows are read with their author, so a post without a cached
+		// author is left out here, where it does not take a place on the page
+		$page->joinCacheActors('ca', 's.attributed_to_prim');
 
 		$nids = $this->getNidsFromRequest($page);
 		if ($nids === []) {
