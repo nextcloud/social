@@ -190,6 +190,8 @@ class StreamRequest extends StreamRequestBuilder {
 					->setValue('media_kind', $qb->createNamedParameter(
 						Stream::mediaKindOf($encoded, $stream->getSubType())
 					))
+					// and whether it is a short, from the same copies
+					->setValue('short_kind', $qb->createNamedParameter(Stream::shortKindOf($encoded)))
 					// and whether it is news, decided here for the same reason:
 					// the question is one no database can be asked of stored
 					// markup on the way past
@@ -318,6 +320,7 @@ class StreamRequest extends StreamRequestBuilder {
 			$qb->set('media_kind', $qb->createNamedParameter(
 				Stream::mediaKindOf($encoded, $stream->getSubType())
 			));
+			$qb->set('short_kind', $qb->createNamedParameter(Stream::shortKindOf($encoded)));
 			// an edit that took the link out takes the post out of the News
 			// timeline, and one that added a link puts it in: the column is
 			// derived from the content this same statement is rewriting

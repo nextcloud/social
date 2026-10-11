@@ -784,6 +784,7 @@ class AccountApiController extends MastodonApiController {
 		bool $pinned = false,
 		bool $only_media = false,
 		string $media_type = '',
+		bool $only_short = false,
 	): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -820,7 +821,8 @@ class AccountApiController extends MastodonApiController {
 				->setMinId($min_id)
 				->setSince($since_id)
 				->setOnlyMedia($only_media)
-				->setMediaType($media_type);
+				->setMediaType($media_type)
+				->setOnlyShort($only_short);
 
 			$posts = $this->streamService->getTimeline($options);
 			$this->pinService->markPinned($posts, $local->getId());

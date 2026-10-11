@@ -1252,6 +1252,12 @@ and news steps only touch rows that still carry no value, so an upgrade
 interrupted during them picks up where it stopped; the first starts again from
 the beginning.
 
+A fourth, `Version1000Date20261012500100`, records whether each video post is a
+short (for the `only_short` timeline filter). It reads only the posts whose
+media kind is `video`, through an index, 2,000 to a statement, so it costs time
+in proportion to the videos an instance holds rather than to all its posts; run
+again, it finds nothing left to do.
+
 **From a release before 0.23** (0.10.0 and earlier) the upgrade also removes a
 follow that is recorded twice — once pending and once accepted, which those
 releases allowed — keeping the accepted one, and gives `social_stream_dest` and

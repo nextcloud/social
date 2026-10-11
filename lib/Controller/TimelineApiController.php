@@ -98,6 +98,7 @@ class TimelineApiController extends MastodonApiController {
 		bool $only_media = false,
 		bool $only_video = false,
 		bool $only_news = false,
+		bool $only_short = false,
 	): Response {
 		$this->logger->debug('[' . static::class . '] timelines called', [
 			'timeline' => $timeline,
@@ -168,6 +169,7 @@ class TimelineApiController extends MastodonApiController {
 				->setSince($since_id)
 				->setOnlyMedia($only_media)
 				->setOnlyVideo($only_video)
+				->setOnlyShort($only_short)
 				->setOnlyNews($only_news);
 
 			$posts = $this->streamService->getTimeline($options);
@@ -211,6 +213,7 @@ class TimelineApiController extends MastodonApiController {
 		bool $only_media = false,
 		bool $only_video = false,
 		bool $only_news = false,
+		bool $only_short = false,
 	): DataResponse {
 		try {
 			$this->initViewer(true);
@@ -225,6 +228,7 @@ class TimelineApiController extends MastodonApiController {
 				->setLocal($local)
 				->setOnlyMedia($only_media)
 				->setOnlyVideo($only_video)
+				->setOnlyShort($only_short)
 				->setOnlyNews($only_news)
 				->setArgument($hashtag);
 

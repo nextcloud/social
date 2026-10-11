@@ -48,6 +48,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private bool $remote = false;
 	private bool $onlyMedia = false;
 	private bool $onlyVideo = false;
+	private bool $onlyShort = false;
 	private bool $onlyNews = false;
 	private string $mediaType = '';
 	private int|string $minId = 0;
@@ -174,6 +175,24 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 	public function setOnlyVideo(bool $onlyVideo): self {
 		$this->onlyVideo = $onlyVideo;
+
+		return $this;
+	}
+
+	/**
+	 * Whether the caller wants only the posts that are a short video.
+	 *
+	 * This app's own, and narrower than `only_video`: a post whose single
+	 * video is short and upright, by the rule in `Stream::shortKindOf()`.
+	 * It wins over `only_video`, `only_media` and `media_type` when they are
+	 * sent with it, since every short is all of those.
+	 */
+	public function isOnlyShort(): bool {
+		return $this->onlyShort;
+	}
+
+	public function setOnlyShort(bool $onlyShort): self {
+		$this->onlyShort = $onlyShort;
 
 		return $this;
 	}
@@ -399,6 +418,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		$this->setRemote($this->getBool('remote', $arr, $this->isRemote()));
 		$this->setOnlyMedia($this->getBool('only_media', $arr, $this->isOnlyMedia()));
 		$this->setOnlyVideo($this->getBool('only_video', $arr, $this->isOnlyVideo()));
+		$this->setOnlyShort($this->getBool('only_short', $arr, $this->isOnlyShort()));
 		$this->setOnlyNews($this->getBool('only_news', $arr, $this->isOnlyNews()));
 		$this->setMediaType($this->get('media_type', $arr, $this->getMediaType()));
 		$this->setMinId($this->get('min_id', $arr, '0'));
@@ -423,6 +443,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 				'remote' => $this->isRemote(),
 				'only_media' => $this->isOnlyMedia(),
 				'only_video' => $this->isOnlyVideo(),
+				'only_short' => $this->isOnlyShort(),
 				'only_news' => $this->isOnlyNews(),
 				'media_type' => $this->getMediaType(),
 				'min_id' => $this->getMinId(),

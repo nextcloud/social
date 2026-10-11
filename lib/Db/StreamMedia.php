@@ -90,6 +90,8 @@ trait StreamMedia {
 	public function setStoredAttachmentCopies(string $id, string $attachments): void {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('attachments', $qb->createNamedParameter($attachments));
+		// a rebuilt copy may state a duration or a size the old one did not
+		$qb->set('short_kind', $qb->createNamedParameter(Stream::shortKindOf($attachments)));
 		$qb->limitToIdPrim($qb->prim($id));
 
 		$qb->executeStatement();
@@ -141,6 +143,7 @@ trait StreamMedia {
 		$qb = $this->getStreamUpdateSql();
 		$qb->set('attachments', $qb->createNamedParameter($attachments))
 			->set('media_kind', $qb->createNamedParameter(Stream::mediaKindOf($attachments, $subtype)))
+			->set('short_kind', $qb->createNamedParameter(Stream::shortKindOf($attachments)))
 			->where($qb->expr()->eq('attachments', $qb->createNamedParameter('[]')));
 		$qb->limitToIdPrim($qb->prim($id));
 
@@ -160,8 +163,11 @@ trait StreamMedia {
 		}
 
 		$new = $this->updateAttachmentInList($document, $this->getArray('attachments', $data, []));
+		$encoded = (string)json_encode($new, JSON_UNESCAPED_SLASHES);
 		$qb = $this->getStreamUpdateSql();
-		$qb->set('attachments', $qb->createNamedParameter(json_encode($new, JSON_UNESCAPED_SLASHES)));
+		$qb->set('attachments', $qb->createNamedParameter($encoded));
+		// a cached remote video is measured here, and may only now be a short
+		$qb->set('short_kind', $qb->createNamedParameter(Stream::shortKindOf($encoded)));
 		$qb->limitToIdPrim($qb->prim($document->getParentId()));
 
 		$qb->executeStatement();

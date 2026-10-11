@@ -402,6 +402,7 @@ class ListController extends ClientApiController {
 		bool $only_media = false,
 		bool $only_video = false,
 		bool $only_news = false,
+		bool $only_short = false,
 	): DataResponse {
 		try {
 			$this->initViewer(['read:lists']);
@@ -417,6 +418,7 @@ class ListController extends ClientApiController {
 				->setSince($since_id)
 				->setOnlyMedia($only_media)
 				->setOnlyVideo($only_video)
+				->setOnlyShort($only_short)
 				->setOnlyNews($only_news);
 
 			$posts = $this->listsRequest->getTimeline($list, $options);

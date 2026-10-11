@@ -95,6 +95,30 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/** The subtypes that make a post an article in its own right. */
 	public const ARTICLE_SUBTYPES = ['Article', 'Page'];
 
+	/**
+	 * The two values `social_stream.short_kind` holds once a post has been
+	 * looked at: `short` for a short video, `''` for anything else. NULL is
+	 * left on a post stored before the column existed that is not a video:
+	 * the backfill reads only the videos, and NULL is not a short either.
+	 *
+	 * @see self::shortKindOf()
+	 */
+	public const SHORT_KIND_NONE = '';
+	public const SHORT_KIND_SHORT = 'short';
+
+	/**
+	 * The longest a short may run, in seconds: the longest recording the
+	 * short composer offers (`RECORD_LIMITS` in `src/utils/shortVideo.js`),
+	 * and the three minutes YouTube allows a Short.
+	 */
+	public const SHORT_MAX_SECONDS = 180;
+
+	/**
+	 * The widest a short may be, as width divided by height: upright or
+	 * square, never landscape.
+	 */
+	public const SHORT_MAX_ASPECT = 1.0;
+
 	use TDetails;
 
 	public const TYPE = 'Stream';
@@ -855,6 +879,63 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		// cast because `array_key_first()` is nullable and psalm cannot see
 		// that the two returns above have already dealt with an empty list
 		return (string)array_key_first($kinds);
+	}
+
+	/**
+	 * Whether a post is a short video, from the attachment list it was stored
+	 * with: the one rule `only_short` filters on and `/api/v2/config` states.
+	 *
+	 * A short is a post whose only attachment is a `video` that runs for no
+	 * more than `SHORT_MAX_SECONDS` and is no wider than `SHORT_MAX_ASPECT`.
+	 * Both come from the attachment's `meta`: the duration from `duration`,
+	 * the shape from `original` (or the top level) `width` and `height`, or
+	 * `aspect` where no size is stated. A video whose meta does not say both
+	 * is not a short. For a remote video that is the case until this instance
+	 * has cached the file and measured it, which rewrites the stored copy
+	 * (`StreamMedia::updateAttachments()`) and asks again.
+	 *
+	 * Static and taking the raw JSON, for the backfill, as `mediaKindOf()`.
+	 *
+	 * @param string $attachments the stored JSON list
+	 */
+	public static function shortKindOf(string $attachments): string {
+		$decoded = ($attachments === '') ? null : json_decode($attachments, true);
+		if (!is_array($decoded) || count($decoded) !== 1) {
+			return self::SHORT_KIND_NONE;
+		}
+
+		$attachment = reset($decoded);
+		if (!is_array($attachment) || ($attachment['type'] ?? '') !== 'video') {
+			return self::SHORT_KIND_NONE;
+		}
+
+		$meta = is_array($attachment['meta'] ?? null) ? $attachment['meta'] : [];
+		$original = is_array($meta['original'] ?? null) ? $meta['original'] : [];
+
+		$duration = self::positiveNumber($meta['duration'] ?? $original['duration'] ?? null);
+		$width = self::positiveNumber($original['width'] ?? $meta['width'] ?? null);
+		$height = self::positiveNumber($original['height'] ?? $meta['height'] ?? null);
+		$aspect = ($width > 0 && $height > 0)
+			? $width / $height
+			: self::positiveNumber($original['aspect'] ?? $meta['aspect'] ?? null);
+
+		if ($duration <= 0 || $duration > self::SHORT_MAX_SECONDS
+			|| $aspect <= 0 || $aspect > self::SHORT_MAX_ASPECT) {
+			return self::SHORT_KIND_NONE;
+		}
+
+		return self::SHORT_KIND_SHORT;
+	}
+
+	/** A number from decoded JSON, or 0 for anything that is not a positive one. */
+	private static function positiveNumber(mixed $value): float {
+		if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric($value))) {
+			return 0.0;
+		}
+
+		$number = (float)$value;
+
+		return (is_finite($number) && $number > 0) ? $number : 0.0;
 	}
 
 	/**
