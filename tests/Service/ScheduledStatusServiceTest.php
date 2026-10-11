@@ -380,9 +380,9 @@ class ScheduledStatusServiceTest extends TestCase {
 	}
 
 	/**
-	 * `createPost()` raises an InvalidArgumentException for this, which the API
-	 * answers 500 to and the cron answers nothing to at all: from a scheduled
-	 * post it would be a silent drop weeks after the author was told yes.
+	 * `createPost()` would refuse this, and the cron answers nothing at all:
+	 * from a scheduled post it would be a silent drop weeks after the author
+	 * was told yes.
 	 */
 	public function testAPollWithTooFewUsableOptionsIsRefusedNow(): void {
 		$this->scheduledRequest->expects($this->never())->method('save');
@@ -392,6 +392,18 @@ class ScheduledStatusServiceTest extends TestCase {
 		$this->service->schedule(
 			$this->alice(),
 			$this->aStatus(['status' => 'pick one', 'poll' => ['options' => ['yes', '  ']]]),
+			['scheduled_at' => $this->iso(self::NOW + 86400)]
+		);
+	}
+
+	public function testAPollWithMoreOptionsThanAdvertisedIsRefusedNow(): void {
+		$this->scheduledRequest->expects($this->never())->method('save');
+		$this->expectException(InvalidActionException::class);
+		$this->expectExceptionMessage('at most');
+
+		$this->service->schedule(
+			$this->alice(),
+			$this->aStatus(['status' => 'pick one', 'poll' => ['options' => ['a', 'b', 'c', 'd', 'e']]]),
 			['scheduled_at' => $this->iso(self::NOW + 86400)]
 		);
 	}

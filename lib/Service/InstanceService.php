@@ -330,7 +330,7 @@ class InstanceService {
 			],
 			'polls' => [
 				'max_options' => PostService::POLL_MAX_OPTIONS,
-				'max_characters_per_option' => 100,
+				'max_characters_per_option' => PostService::POLL_MAX_CHARACTERS_PER_OPTION,
 				'min_expiration' => PostService::POLL_MIN_EXPIRATION,
 				'max_expiration' => PostService::POLL_MAX_EXPIRATION,
 			],

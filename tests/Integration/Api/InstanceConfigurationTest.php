@@ -61,6 +61,27 @@ class InstanceConfigurationTest extends ApiTestCase {
 		$this->assertGreaterThanOrEqual($polls->min_expiration, $lasts, 'a poll lasts at least min_expiration');
 	}
 
+	/**
+	 * Past the limits a poll is refused, as Mastodon refuses it, rather than
+	 * published with the options that fit: a fifth answer dropped, or an
+	 * answer cut short, is a different question from the one that was asked.
+	 */
+	public function testAPollPastMaxOptionsOrMaxCharactersPerOptionIsRefused(): void {
+		$polls = $this->configuration()->polls;
+		$options = array_map(static fn (int $i): string => 'option ' . $i, range(1, $polls->max_options));
+
+		$tooMany = $this->post(['status' => 'pick one', 'poll' => ['options' => [...$options, 'one more'], 'expires_in' => 3600]]);
+		$this->assertSame(422, $tooMany->status, 'one option more than max_options');
+
+		$tooLong = $this->post(['status' => 'pick one', 'poll' => [
+			'options' => ['short', str_repeat('x', $polls->max_characters_per_option + 1)], 'expires_in' => 3600,
+		]]);
+		$this->assertSame(422, $tooLong->status, 'an option one character longer than max_characters_per_option');
+
+		$tooFew = $this->post(['status' => 'pick one', 'poll' => ['options' => ['alone'], 'expires_in' => 3600]]);
+		$this->assertSame(422, $tooFew->status, 'a single option');
+	}
+
 	public function testAnAccountMayFeatureMaxFeaturedTags(): void {
 		$max = $this->configuration()->accounts->max_featured_tags;
 

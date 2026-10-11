@@ -356,11 +356,9 @@ class ScheduledStatusService {
 	/**
 	 * Refusals `PostService::createPost()` would raise, raised here instead.
 	 *
-	 * The poll check is the one that cannot wait: a poll with fewer than two
-	 * usable options comes out of `createPost()` as an `InvalidArgumentException`,
-	 * which the API maps to a 500 rather than a 422 — and from the cron it is
-	 * not answered at all, it is a post silently dropped weeks after the author
-	 * was told it was accepted.
+	 * The poll check is the one that cannot wait: a poll `createPost()` would
+	 * refuse is, from the cron, not answered at all — it is a post silently
+	 * dropped weeks after the author was told it was accepted.
 	 *
 	 * @param ?array $poll ['options' => string[], …] as the client sent it
 	 *
@@ -377,13 +375,7 @@ class ScheduledStatusService {
 			return;
 		}
 
-		$options = array_filter(
-			array_map('strval', $poll['options']),
-			static fn (string $option): bool => trim($option) !== ''
-		);
-		if (count($options) < 2) {
-			throw new InvalidActionException('a poll needs at least two options');
-		}
+		PostService::pollOptions($poll['options']);
 	}
 
 	/**

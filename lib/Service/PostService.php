@@ -48,7 +48,9 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 class PostService {
+	/** Mastodon's poll limits, which `InstanceService` advertises under `polls` */
 	public const POLL_MAX_OPTIONS = 4;
+	public const POLL_MAX_CHARACTERS_PER_OPTION = 100;
 
 	/**
 	 * How long a poll may run, in seconds, and the shortest it may run for.
@@ -138,13 +140,7 @@ class PostService {
 		$note = new Note();
 		if ($post->hasPoll()) {
 			$poll = $post->getPoll();
-			$options = array_slice(array_values(array_filter(
-				array_map('strval', $poll['options'] ?? []),
-				static fn (string $option): bool => trim($option) !== ''
-			)), 0, self::POLL_MAX_OPTIONS);
-			if (count($options) < 2) {
-				throw new \InvalidArgumentException('a poll needs at least two options');
-			}
+			$options = self::pollOptions($poll['options'] ?? []);
 
 			$note = new Question();
 			$note->setPollData(
@@ -250,6 +246,36 @@ class PostService {
 		$this->eventDispatcher->dispatchTyped(new PostPublishedEvent($note));
 
 		return $activity;
+	}
+
+	/**
+	 * The options of a poll as a client sent them, blank ones left out, or
+	 * the refusal Mastodon answers with a 422: fewer than two, more than
+	 * `POLL_MAX_OPTIONS`, or one longer than `POLL_MAX_CHARACTERS_PER_OPTION`.
+	 *
+	 * @return list<string>
+	 * @throws InvalidActionException
+	 */
+	public static function pollOptions(mixed $options): array {
+		$options = array_values(array_filter(
+			array_map('strval', is_array($options) ? $options : []),
+			static fn (string $option): bool => trim($option) !== ''
+		));
+		if (count($options) < 2) {
+			throw new InvalidActionException('a poll needs at least two options');
+		}
+		if (count($options) > self::POLL_MAX_OPTIONS) {
+			throw new InvalidActionException('a poll may have at most ' . self::POLL_MAX_OPTIONS . ' options');
+		}
+		foreach ($options as $option) {
+			if (mb_strlen($option) > self::POLL_MAX_CHARACTERS_PER_OPTION) {
+				throw new InvalidActionException(
+					'a poll option may not be longer than ' . self::POLL_MAX_CHARACTERS_PER_OPTION . ' characters'
+				);
+			}
+		}
+
+		return $options;
 	}
 
 	/**

@@ -925,12 +925,12 @@ class PostServiceTest extends TestCase {
 		$this->expectCreateActivity($note);
 
 		$post = $this->post('Cats or dogs?');
-		$post->setPoll(['options' => ['Cats', 'Dogs', '  ', 'Birds', 'Fish', 'Too many'], 'expires_in' => 3600, 'multiple' => true]);
+		$post->setPoll(['options' => ['Cats', 'Dogs', '  ', 'Birds', 'Fish'], 'expires_in' => 3600, 'multiple' => true]);
 		$this->service->createPost($post);
 
 		$this->assertInstanceOf(Question::class, $note);
 		$this->assertTrue($note->isMultiple());
-		$this->assertCount(4, $note->getOptions(), 'blank options dropped, capped at four');
+		$this->assertCount(4, $note->getOptions(), 'blank options dropped');
 		$this->assertSame('Cats', $note->getOptions()[0]['title']);
 		$this->assertStringContainsString('anyOf', $note->getSource(), 'the poll snapshot lives in the source');
 	}
@@ -965,15 +965,37 @@ class PostServiceTest extends TestCase {
 		);
 	}
 
-	public function testCreatePostWithASingleOptionPollIsRefused(): void {
+	/**
+	 * Refused as Mastodon refuses them, with a 422, rather than cut down to
+	 * what fits: an option dropped or shortened is a different question.
+	 *
+	 * @return array<string, array{list<string>}>
+	 */
+	public static function refusedPollOptions(): array {
+		return [
+			'a single option' => [['Only one', '  ']],
+			'one option more than max_options' => [['a', 'b', 'c', 'd', 'e']],
+			'an option longer than max_characters_per_option' => [['a', str_repeat('é', PostService::POLL_MAX_CHARACTERS_PER_OPTION + 1)]],
+		];
+	}
+
+	/** @param list<string> $options */
+	#[DataProvider('refusedPollOptions')]
+	public function testAPollOutsideTheAdvertisedLimitsIsRefused(array $options): void {
 		$this->activityService->expects($this->never())->method('createActivity');
 
 		$post = $this->post('broken');
-		$post->setPoll(['options' => ['Only one'], 'expires_in' => 3600]);
+		$post->setPoll(['options' => $options, 'expires_in' => 3600]);
 
-		$this->expectException(\InvalidArgumentException::class);
+		$this->expectException(InvalidActionException::class);
 
 		$this->service->createPost($post);
+	}
+
+	public function testAPollOptionOfMaxCharactersIsKeptWhole(): void {
+		$option = str_repeat('é', PostService::POLL_MAX_CHARACTERS_PER_OPTION);
+
+		$this->assertSame([$option, 'b'], PostService::pollOptions([$option, 'b']));
 	}
 
 	public function testASuspendedAccountCannotPost(): void {
