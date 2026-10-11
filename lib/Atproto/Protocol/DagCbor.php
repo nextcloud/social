@@ -264,6 +264,7 @@ final class DagCbor {
 				return $items;
 			case self::MAJOR_MAP:
 				$map = [];
+				$previous = null;
 				for ($i = 0; $i < $argument; $i++) {
 					$key = self::decodeValue($bytes, $offset, $depth + 1);
 					if (!is_string($key)) {
@@ -272,6 +273,11 @@ final class DagCbor {
 					if (array_key_exists($key, $map)) {
 						throw new InvalidArgumentException('CBOR map repeats a key');
 					}
+					// the order encodeMap() writes, which is the one order DRISL allows
+					if ($previous !== null && (strlen($previous) <=> strlen($key) ?: strcmp($previous, $key)) > 0) {
+						throw new InvalidArgumentException('CBOR map keys out of order');
+					}
+					$previous = $key;
 					$map[$key] = self::decodeValue($bytes, $offset, $depth + 1);
 				}
 

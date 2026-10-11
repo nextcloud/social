@@ -72,6 +72,11 @@ class DagCborTest extends TestCase {
 		yield 'a CID link without the leading zero' => ["\xd8\x2a\x41\x01"];
 		yield 'a non-text map key' => ["\xa1\x01\x01"];
 		yield 'a repeated map key' => ["\xa2\x61a\x01\x61a\x02"];
+		// keys sort by length, then by their bytes
+		yield 'map keys out of order' => ["\xa2\x61b\x01\x61a\x02"];
+		yield 'a longer map key before a shorter one' => ["\xa2\x62aa\x01\x61b\x02"];
+		// as a fuzzed tree entry had it: `t` flipped to `4` after `p`
+		yield 'a tree entry with its keys out of order' => [(string)base64_decode('omFlpGFrVmFwcC5ic2t5LmZlZWQucG9zdC8zbDJhcABhNPZhdlglAAFVEiDKl4ESyhu9yvrCMbOaI9xNp4bv+BR8TnK5gHeFr+5Iu2Fs9g==')];
 		yield 'trailing bytes' => ["\x01\x01"];
 		yield 'a truncated string' => ["\x63ab"];
 		yield 'nothing' => [''];
