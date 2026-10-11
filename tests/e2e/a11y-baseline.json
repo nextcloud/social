@@ -1,0 +1,42 @@
+{
+	"aria-allowed-attr": {
+		"span.account-hover__trigger": [
+			"activities",
+			"direct-messages",
+			"global",
+			"local",
+			"my-feed",
+			"post",
+			"profile",
+			"search"
+		]
+	},
+	"link-in-text-block": {
+		"p.empty-content__description a": [
+			"follow-requests"
+		]
+	},
+	"list": {
+		"ul.app-navigation-list.app-navigation__list": [
+			"activities",
+			"blocking",
+			"bookmarks",
+			"direct-messages",
+			"discover",
+			"follow-requests",
+			"global",
+			"liked-posts",
+			"local",
+			"migration",
+			"my-feed",
+			"photos",
+			"post",
+			"profile",
+			"search",
+			"settings",
+			"shorts",
+			"statistics",
+			"videos"
+		]
+	}
+}

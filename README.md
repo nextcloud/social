@@ -981,6 +981,17 @@ E2E_WEBROOT=/nextcloud E2E_PRETTY_URLS=1 php -S localhost:8080 -t <dir with next
     apps/social/tests/e2e/server/router.php
 ```
 
+`accessibility.spec.mjs` scans every page of the app with
+[axe-core](https://github.com/dequelabs/axe-core) and fails on a serious or
+critical WCAG A/AA violation that `tests/e2e/a11y-baseline.json` does not
+already list; a listed one that is gone is reported in the log so the
+baseline can shrink. After fixing some, or to accept a change, rewrite the
+baseline from what the pages show now:
+
+```
+A11Y_UPDATE_BASELINE=1 E2E_BASE_URL=… E2E_USER=… E2E_PASSWORD=… npm run test:e2e -- accessibility.spec.mjs
+```
+
 ## 🛠️ Contributing
 
 - Contributions welcome — open a pull request and run the build and tests locally
