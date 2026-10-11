@@ -103,6 +103,18 @@ class LexiconTest extends TestCase {
 		]);
 	}
 
+	/**
+	 * Longer than a MIME type can be, as a fuzzed avatar had it: refused as a
+	 * type the field does not accept, where matching it used to warn.
+	 */
+	public function testAMimeTypeLongerThanOneCanBeIsNotAccepted(): void {
+		$this->expectException(LexiconException::class);
+		$this->lexicon->validateRecord([
+			'$type' => 'app.bsky.actor.profile',
+			'avatar' => ['$type' => 'blob', 'ref' => Cid::forRaw('a'), 'mimeType' => 'image/' . str_repeat('a', 2000), 'size' => 10],
+		]);
+	}
+
 	public function testAnUnknownTypeIsRefused(): void {
 		$this->expectException(LexiconException::class);
 		$this->lexicon->validateRecord(['$type' => 'com.example.nothing']);
