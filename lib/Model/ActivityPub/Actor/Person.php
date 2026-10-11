@@ -1110,7 +1110,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		$banner = self::largestImage($data, 'image');
-		$image = $this->get('url', $banner, '');
+		$image = $this->validate(self::AS_URL, 'url', $banner, '');
 		if ($image !== '') {
 			$this->setHeader($image);
 			$this->headerMediaType = $this->validate(self::AS_STRING, 'mediaType', $banner, '');
@@ -1294,7 +1294,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		$source = json_decode($this->getSource(), true);
 		if (is_array($source)) {
 			$banner = self::largestImage($source, 'image');
-			$image = $this->get('url', $banner, '');
+			$image = $this->validate(self::AS_URL, 'url', $banner, '');
 			if ($image !== '') {
 				$this->setHeader($image);
 				$this->headerMediaType = $this->validate(self::AS_STRING, 'mediaType', $banner, '');
