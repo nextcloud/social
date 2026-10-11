@@ -323,6 +323,12 @@ to stop.
   grant across a leap day, a month end and a daylight-saving change — good on
   its last second however much it was used, revoked on the next.
 
+- `Atproto/DpopReplayWindowTest` — a captured DPoP proof walked second by
+  second, with the replay table pruned on each, through the three checks that
+  refuse it again: its stored id until its nonce lapses, the nonce until the
+  end of the window after its own, then its five-minute `iat`; a proof dated a
+  minute ahead keeps its id exactly as long as it is fresh.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
