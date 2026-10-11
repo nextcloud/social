@@ -175,6 +175,24 @@ class StreamTest extends TestCase {
 		$this->assertSame([], $stream->getDetailsAll());
 	}
 
+	/**
+	 * An attachment whose type and url are objects, as a fuzzed post had
+	 * one: it is left out, and the note of why says nothing about either,
+	 * where casting them for the note used to warn.
+	 */
+	public function testAnAttachmentWithAnObjectForItsTypeIsLeftOutQuietly(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://mastodon.social/users/alice/statuses/1',
+			'type' => 'Note',
+			'attachment' => [
+				['type' => ['Document'], 'url' => ['href' => 'https://files.mastodon.social/media/cat.jpg']],
+			],
+		]);
+
+		$this->assertSame([], $stream->getAttachments());
+	}
+
 	public function testImportBuildsMediaAttachmentsThroughTheDocumentAndImageInterfaces(): void {
 		$this->installActivityPub(mocked: [DocumentInterface::class, ImageInterface::class]);
 		$this->apInterface(DocumentInterface::class)->expects($this->once())->method('save')

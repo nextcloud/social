@@ -1059,9 +1059,11 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			if (!is_array($entry) || ($entry['type'] ?? '') !== 'PropertyValue') {
 				continue;
 			}
+			// text, or nothing: an object where a field's name or value
+			// belongs is no name and no value
 			$fields[] = [
-				'name' => (string)($entry['name'] ?? ''),
-				'value' => (string)($entry['value'] ?? '')
+				'name' => $this->get('name', $entry),
+				'value' => $this->get('value', $entry)
 			];
 		}
 

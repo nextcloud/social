@@ -784,6 +784,29 @@ class PersonTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Objects where text and flags belong, as fuzzed actors had them: a
+	 * field's name or value that is an object is no text, and a
+	 * `manuallyApprovesFollowers` that is one is not a yes. Each used to be
+	 * cast and warn "Array to string conversion".
+	 */
+	public function testAnObjectWhereAFieldOrAFlagBelongsReadsAsNothing(): void {
+		$person = new Person();
+		$person->import([
+			'id' => 'https://mastodon.social/users/alice',
+			'type' => 'Person',
+			'preferredUsername' => 'alice',
+			'manuallyApprovesFollowers' => ['ization' => 'htn'],
+			'attachment' => [
+				['type' => 'PropertyValue', 'name' => ['Website'], 'value' => 'https://example.org'],
+				['type' => 'PropertyValue', 'name' => 'Pronouns', 'value' => ['they' => 'them']],
+			],
+		]);
+
+		$this->assertFalse($person->isLocked());
+		$this->assertSame([], $person->getFields(), 'neither entry has both a name and a value');
+	}
+
 	public function testProfileFieldsSurviveTheActorCacheViaTheSource(): void {
 		$person = new Person();
 		$person->importFromDatabase([
