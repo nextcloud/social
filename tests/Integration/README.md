@@ -240,7 +240,14 @@ to stop.
 the supported server versions, and MariaDB 10.11 on the newest) via `composer run
 test:integration`, and `upgrade.yml` runs it once more on an instance upgraded
 from the latest release with data in it, so a test has to hold on an instance
-that is not empty.
+that is not empty. `integration-robustness.yml` runs it three times on one
+database, on SQLite, MySQL and PostgreSQL: once, again on the same database, and
+in random order with a fresh seed, which it prints so the order can be replayed:
+
+    vendor/bin/phpunit -c tests/Integration/phpunit.xml --order-by=random --random-order-seed=<seed>
+
+A test that only passes on a fresh database, after some other test or before
+its own leftovers, fails there.
 
 **Locally**, point the bootstrap at an installed server (the app directory may be
 a symlink into it):
