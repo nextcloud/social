@@ -86,6 +86,11 @@ class Question extends Note implements JsonSerializable {
 	/**
 	 * Whether the poll is over at a moment: the server's clock when none is
 	 * given.
+	 *
+	 * Over *on* its end time, not a second after it: the sweep that tells the
+	 * voters reads every poll whose end time is at or before the moment it
+	 * runs, so a vote still taken on that second would change results that
+	 * have just been announced as final.
 	 */
 	public function isExpired(?int $now = null): bool {
 		if ($this->closed !== '') {
@@ -95,7 +100,7 @@ class Question extends Note implements JsonSerializable {
 			return false;
 		}
 
-		return strtotime($this->endTime) < ($now ?? self::now());
+		return strtotime($this->endTime) <= ($now ?? self::now());
 	}
 
 	public function getVotersCount(): int {

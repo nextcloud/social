@@ -300,6 +300,15 @@ to stop.
   repeats goes out on the instant it names; the daily cap of 25 counts the
   day the posts are for.
 
+- `Api/PollLifecycleTest` — a poll through its end on a frozen clock, today
+  and with the end time on a leap day, a month or year end and after a
+  daylight-saving change: a vote a second before the end is counted, the poll
+  is `expired` and refuses votes on its end time, the sweep on that second
+  tells the voter and a later one nobody, and the results stay the ones
+  announced; a vote from another server is counted until the end time and
+  swallowed on it. It caught a vote taken on the very second the sweep had
+  announced the poll closed.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
