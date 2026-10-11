@@ -30,8 +30,10 @@ use OCA\Social\Service\FollowService;
 use OCA\Social\Service\MediaPurgeService;
 use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
+use OCA\Social\Tests\Helper\FrozenClock;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -86,8 +88,8 @@ class StoryServiceTest extends TestCase {
 		);
 	}
 
-	/** The service with a cache of actors of the test's own choosing. */
-	private function serviceWith(CacheActorService $cacheActorService): StoryService {
+	/** The service with a cache of actors of the test's own choosing, and a clock. */
+	private function serviceWith(CacheActorService $cacheActorService, ?FrozenClock $clock = null): StoryService {
 		$configService = $this->createStub(ConfigService::class);
 		$configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
 		$configService->method('getStorySecret')->willReturn('a-secret-of-this-instances-own');
@@ -104,6 +106,7 @@ class StoryServiceTest extends TestCase {
 			$this->storyInteractionService,
 			$this->mediaPurgeService,
 			new NullLogger(),
+			$clock,
 		);
 	}
 
@@ -553,5 +556,48 @@ class StoryServiceTest extends TestCase {
 		$story->setAttachment($this->document());
 
 		return $story;
+	}
+
+	/**
+	 * What an arriving story may say about its own end, on the edges, with the
+	 * clock at the end of a leap day: one that ends on this second has ended
+	 * and is not kept, one that ends on the next is kept to that second, and
+	 * one that asks for more than a day is held to a day from now exactly.
+	 *
+	 * @return array<string, array{int, int|null}>
+	 */
+	public static function arrivingExpiries(): array {
+		return [
+			'ending now' => [0, null],
+			'ending on the next second' => [1, 1],
+			'ending a day from now' => [ApStory::MAX_LIFETIME, ApStory::MAX_LIFETIME],
+			'asking for two days' => [2 * ApStory::MAX_LIFETIME, ApStory::MAX_LIFETIME],
+		];
+	}
+
+	#[DataProvider('arrivingExpiries')]
+	public function testAnArrivingStoryIsKeptUntilTheSecondItEndsAndNoLongerThanADay(int $endsIn, ?int $keptFor): void {
+		$clock = FrozenClock::at('2028-02-29T23:59:59Z');
+		$this->followService->method('getFollowers')->willReturn([$this->createMock(Follow::class)]);
+		$this->storiesRequest->method('getBySourceId')->willThrowException(new ItemNotFoundException());
+		$saved = null;
+		$this->storiesRequest->method('save')
+			->willReturnCallback(static function (Story $story) use (&$saved): Story {
+				$saved = $story;
+
+				return $story->setId(3);
+			});
+		$story = $this->incoming();
+		$story->setPublished(gmdate('Y-m-d\TH:i:s\Z', $clock->getTime() - 120));
+		$story->setExpiresAt($clock->getTime() + $endsIn);
+		$service = $this->serviceWith($this->createStub(CacheActorService::class), $clock);
+
+		if ($keptFor === null) {
+			$this->expectException(InvalidResourceException::class);
+			$this->expectExceptionMessage('already expired');
+		}
+		$service->receive($story, $this->person(self::BOB));
+
+		$this->assertSame($clock->getTime() + $keptFor, $saved?->getExpiresAt());
 	}
 }

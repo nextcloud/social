@@ -329,6 +329,12 @@ to stop.
   end of the window after its own, then its five-minute `iat`; a proof dated a
   minute ahead keeps its id exactly as long as it is fresh.
 
+- `Db/StoryExpiryTest` — a story through its day on a frozen clock in the
+  past, posted on ordinary days, leap days, month and year ends and before
+  daylight-saving changes: the profile, the bar, the count and opening it all
+  show it on its last second and none does on the second its day is up, when
+  the hourly sweep takes it and not before.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
