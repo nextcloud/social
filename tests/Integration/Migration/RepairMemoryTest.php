@@ -16,6 +16,7 @@ use OCA\Social\Migration\BackfillStreamPostFields;
 use OCA\Social\Migration\Version1000Date20260917000001;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tests\Integration\Helper\RowSeeder;
 use OCA\Social\Tests\Integration\PeakMemory;
@@ -27,7 +28,8 @@ use PHPUnit\Framework\TestCase;
 use ReflectionClassConstant;
 
 /**
- * The upgrade steps that walk a table, run over a table five times as
+ * The upgrade steps that walk a table, and the key rotation behind
+ * `occ social:cache:refresh --rotate-keys`, run over a table five times as
  * large: the peak memory must not grow with it.
  *
  * They run inside `occ upgrade` with the instance in maintenance mode, or
@@ -58,6 +60,9 @@ class RepairMemoryTest extends TestCase {
 	/** @var list<string> */
 	private array $streams = [];
 
+	/** @var list<string> */
+	private array $actors = [];
+
 	private int $sequence = 0;
 
 	protected function setUp(): void {
@@ -86,7 +91,9 @@ class RepairMemoryTest extends TestCase {
 	private function removeSeeded(): void {
 		RowSeeder::deleteIn(CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id', $this->streams);
 		RowSeeder::deleteIn(CoreRequestBuilder::TABLE_STREAM, 'id_prim', $this->streams);
+		RowSeeder::deleteIn(CoreRequestBuilder::TABLE_ACTORS, 'id_prim', $this->actors);
 		$this->streams = [];
+		$this->actors = [];
 	}
 
 	private function resetMarkers(): void {
@@ -137,6 +144,25 @@ class RepairMemoryTest extends TestCase {
 			$rows[] = array_merge(['id' => $id, 'id_prim' => $prim], $columns($i, $prim));
 		}
 		RowSeeder::insertAll(CoreRequestBuilder::TABLE_STREAM, $rows);
+	}
+
+	/** Local accounts with no Nextcloud user behind them, created now. */
+	private function seedLocalActors(int $count): void {
+		$rows = [];
+		for ($i = 0; $i < $count; $i++) {
+			$name = 'repairmemory' . (++$this->sequence);
+			$prim = md5(self::BASE . '/' . $name);
+			$this->actors[] = $prim;
+			$rows[] = [
+				'id' => self::BASE . '/' . $name, 'id_prim' => $prim, 'user_id' => $name,
+				'preferred_username' => $name, 'name' => $name, 'summary' => '',
+				// a key pair's worth of text, which is most of what a row holds
+				'public_key' => str_repeat('k', 450), 'private_key' => str_repeat('p', 1700),
+				'creation' => new \DateTime(), 'deleted' => null, 'fields' => '[]',
+				'also_known_as' => '[]', 'moved_to' => '', 'actor_type' => '',
+			];
+		}
+		RowSeeder::insertAll(CoreRequestBuilder::TABLE_ACTORS, $rows);
 	}
 
 	private function silent(): IOutput {
@@ -198,6 +224,21 @@ class RepairMemoryTest extends TestCase {
 			]),
 			fn () => $step->run($this->silent()),
 			'BackfillStreamPostFields'
+		);
+	}
+
+	/**
+	 * None of these accounts is old enough to have its keys renewed — a key
+	 * pair is a second of CPU each — so what is measured is the walk itself.
+	 */
+	public function testTheBlindKeyRotationHoldsOnePage(): void {
+		$accounts = Server::get(AccountService::class);
+
+		$this->assertFlatOver(
+			1000,
+			fn (int $count) => $this->seedLocalActors($count),
+			fn () => $accounts->blindKeyRotation(),
+			'AccountService::blindKeyRotation()'
 		);
 	}
 }

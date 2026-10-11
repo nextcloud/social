@@ -319,6 +319,56 @@ class ActorsRequest extends ActorsRequestBuilder {
 		return $accounts;
 	}
 
+	/** How many accounts `walk()` reads per query. */
+	public const WALK_PAGE = 100;
+
+	/**
+	 * Every local account, read a page at a time and handed over one by one.
+	 *
+	 * For the walks that have to visit every account and keep nothing — a
+	 * key rotation, an upgrade step — where `getAll()` would hold every
+	 * account as a model at once: a few kilobytes each, so hundreds of
+	 * megabytes on a large instance, inside `occ upgrade`. The page is read
+	 * and its cursor closed before the first account is handed over, so the
+	 * caller may write to the table as it goes. The walk is keyed on the
+	 * stored `id_prim`, not on a hash of the id the model is given, so it
+	 * advances even where the social URL changed since an account was made.
+	 *
+	 * @return iterable<int, Person>
+	 * @throws SocialAppConfigException
+	 */
+	public function walk(int $pageSize = self::WALK_PAGE): iterable {
+		$after = '';
+		while (true) {
+			$qb = $this->getActorsSelectSql();
+			if ($after !== '') {
+				$qb->andWhere($qb->expr()->gt('a.id_prim', $qb->createNamedParameter($after)));
+			}
+			$qb->orderBy('a.id_prim', 'asc');
+			$qb->setMaxResults($pageSize);
+
+			$rows = [];
+			$cursor = $qb->executeQuery();
+			while ($data = $cursor->fetch()) {
+				$rows[] = $data;
+			}
+			$cursor->closeCursor();
+
+			if ($rows === []) {
+				return;
+			}
+
+			$after = (string)$rows[count($rows) - 1]['id_prim'];
+			foreach ($rows as $data) {
+				yield $this->parseActorsSelectSql($data);
+			}
+
+			if (count($rows) < $pageSize || $after === '') {
+				return;
+			}
+		}
+	}
+
 	/**
 	 * @return Person[]
 	 * @throws SocialAppConfigException
