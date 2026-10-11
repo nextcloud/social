@@ -459,7 +459,7 @@ class CurlService {
 			return [];
 		}
 
-		$client = $this->clientService->newClient();
+		$client = $this->parallelClient();
 
 		$answers = array_fill_keys($urls, null);
 		$promises = [];
@@ -491,6 +491,28 @@ class CurlService {
 		}
 
 		return $answers;
+	}
+
+	/**
+	 * A client whose `…Async()` requests are in flight together.
+	 *
+	 * The server's client runs on Guzzle's `CurlHandler` unless handed
+	 * another, and that handler performs each request the moment it is made:
+	 * the promises came back already settled, one after the other, and a
+	 * peer waiting out its timeout held up every request made after it. The
+	 * multi handler is what lets them overlap; where the server's HTTP stack
+	 * has none (a test without one), the default client is used.
+	 */
+	private function parallelClient(): IClient {
+		$multi = 'GuzzleHttp\\Handler\\CurlMultiHandler';
+		if (!class_exists($multi)) {
+			return $this->clientService->newClient();
+		}
+
+		/** @var callable $handler */
+		$handler = new $multi();
+
+		return $this->clientService->newClient($handler);
 	}
 
 	/**
@@ -531,7 +553,7 @@ class CurlService {
 	 * @return array<array-key, Throwable|null> the key of each request => its outcome
 	 */
 	public function sendMany(array $requests): array {
-		$client = $this->clientService->newClient();
+		$client = $this->parallelClient();
 
 		$outcomes = [];
 		$promises = [];

@@ -246,6 +246,11 @@ to stop.
   `QueueRetryTest` and `QueueStatusTest` drive the delivery queue through a
   failure and back out again; `StreamPruneTest` covers the retention guard and
   `--dry-run`.
+- `Federation/DeliveryUnderFaultsTest` — the delivery cron against fake peers
+  that misbehave (`Helper/FaultServer`, a PHP built-in server per peer, each a
+  host name of its own under `.localhost`): a peer that hangs does not hold up
+  the others in its wave — which caught the waves going out one request after
+  another — and costs one timeout however many rows it has.
 - `Federation/InboundCorpusTest` — the inbound fixture corpus (Misskey,
   GoToSocial, Akkoma, Friendica, Lemmy, Mastodon 4.5 quotes and polls, Block,
   Flag, account Delete, PeerTube Dislike/View/CacheFile, Threads, WordPress,

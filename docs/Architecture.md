@@ -1058,8 +1058,13 @@ peers filled the whole pass. It now delivers **several servers at a time**:
 (20) rows, one per host — the hosts with the most rows left first, so a batch
 that holds each host's rows together does not end in waves of a few hosts'
 leftovers — through `CurlService::sendMany()` (the HTTP client's
-async calls, which Guzzle runs on one curl multi handle), and settles every row
-exactly as a single delivery is settled. A settled promise answers Guzzle's
+async calls, on a client `CurlService::parallelClient()` builds with Guzzle's
+`CurlMultiHandler` — the server's client defaults to `CurlHandler`, which
+performs an "async" request the moment it is made, so the waves used to go out
+one request after another and a dead peer's timeout was paid by every request
+behind it in its wave), and settles every row
+exactly as a single delivery is settled. `retrieveJsonMany()` uses the same
+client. A settled promise answers Guzzle's
 PSR-7 response rather than the `IResponse` a synchronous call returns, and
 `CurlService::settledResponse()` reads it as one; taking only an `IResponse` made
 every parallel delivery a "no response", so each was sent again and every
