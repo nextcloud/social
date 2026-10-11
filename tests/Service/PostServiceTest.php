@@ -630,6 +630,37 @@ class PostServiceTest extends TestCase {
 		$this->service->createPost($post);
 	}
 
+	/**
+	 * The parent is read as the reply's author, so one the author may not
+	 * read is refused in the same words as one that is not here, before
+	 * anything is written or sent.
+	 */
+	public function testAReplyToAParentTheAuthorMayNotReadIsRefusedAsNotFound(): void {
+		$parent = new Note();
+		$parent->setId('https://social.test/@bob/followers-only');
+		$parent->setAttributedTo(self::BOB_ID);
+		$parent->setTo(self::BOB_ID . '/followers');
+		$viewers = [];
+		$this->streamRequest->method('setViewer')
+			->willReturnCallback(static function (Person $viewer) use (&$viewers): void {
+				$viewers[] = $viewer->getId();
+			});
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(static fn (string $id, bool $asViewer = false): Stream => $asViewer ? throw new StreamNotFoundException('Stream not found') : $parent);
+		$this->activityService->expects($this->never())->method('createActivity');
+
+		$post = $this->post('I agree');
+		$post->setReplyTo($parent->getId());
+
+		try {
+			$this->service->createPost($post);
+			$this->fail('the reply was posted');
+		} catch (StreamNotFoundException $e) {
+			$this->assertSame(PostService::REPLY_PARENT_NOT_FOUND, $e->getMessage());
+		}
+		$this->assertSame([$post->getActor()->getId()], $viewers, 'read as the author of the reply');
+	}
+
 	public function testAQuoteOfAnAuthorWhoHasBlockedTheQuoterIsRefusedBeforeAnythingIsSent(): void {
 		$quoted = new Note();
 		$quoted->setId('https://bsky.app/profile/did:plc:bob/post/3kpost');

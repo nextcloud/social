@@ -244,6 +244,19 @@ abstract class MastodonApiController extends Controller {
 	}
 
 	/**
+	 * For a route that belongs to this app's own web page: a bearer token is
+	 * refused whatever it was granted, which leaves the signed-in Nextcloud
+	 * session that `currentSession()` accepts only with its CSRF token.
+	 *
+	 * @throws InsufficientScopeException
+	 */
+	protected function requireWebSession(): void {
+		if ($this->bearer !== '') {
+			throw new InsufficientScopeException('this route is only for the Aloha Social web app, signed in to Nextcloud');
+		}
+	}
+
+	/**
 	 * The scope every route of this controller asks a bearer token for, as the
 	 * Mastodon API documents it.
 	 *
@@ -355,7 +368,6 @@ abstract class MastodonApiController extends Controller {
 		'mediaNew' => ['write:media'],
 		'mediaNewV2' => ['write:media'],
 		'mediaUpdate' => ['write:media'],
-		'mediaFromFile' => ['write:media'],
 		'mediaFromGif' => ['write:media'],
 		'reportNew' => ['write:reports'],
 		// `follow` is Mastodon's broad scope over the relationship routes, and

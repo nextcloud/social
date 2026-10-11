@@ -469,7 +469,7 @@ class StreamService {
 			return;
 		}
 
-		$parent ??= $this->streamRequest->getStreamById($replyTo);
+		$parent ??= $this->streamRequest->getStreamById($replyTo, true);
 
 		// what the author said may be done with their post. Sending a reply
 		// their server states it will not take means telling the person who

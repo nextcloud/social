@@ -230,6 +230,10 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 	 * alone — adding one to "unknown" gives a number that looks authoritative
 	 * and is not; the cron's walk will count it properly.
 	 *
+	 * A decrement stops at 0 in the same statement, so no step can write the
+	 * "not counted" marker over a real number. `CASE` rather than `GREATEST`,
+	 * which SQLite does not have.
+	 *
 	 * @param string $column one of `count_followers`, `count_following`, `count_posts`
 	 */
 	public function bumpCount(string $actorId, string $column, int $by): void {
@@ -239,10 +243,12 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
+		$step = abs($by);
+		$moved = ($by > 0)
+			? '`' . $column . '` + ' . $step
+			: 'CASE WHEN `' . $column . '` > ' . $step . ' THEN `' . $column . '` - ' . $step . ' ELSE 0 END';
 		$qb->update(self::TABLE_CACHE_ACTORS)
-			->set($column, $qb->createFunction(
-				'`' . $column . '` + ' . (($by > 0) ? '' : '-') . abs($by)
-			))
+			->set($column, $qb->createFunction($moved))
 			->where($expr->eq('id_prim', $qb->createNamedParameter($qb->prim($actorId))))
 			->andWhere($expr->gte($column, $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT)));
 

@@ -218,7 +218,7 @@ class StatusApiController extends MastodonApiController {
 					$post->setType(PostService::visibilityOfReply($post->getType(), $replyTo));
 				} catch (StreamNotFoundException $e) {
 					$this->refuseHiddenByBlock($author, $status->getInReplyToId());
-					$this->logger->debug('reply to post not found');
+					throw new StreamNotFoundException(PostService::REPLY_PARENT_NOT_FOUND);
 				}
 			}
 

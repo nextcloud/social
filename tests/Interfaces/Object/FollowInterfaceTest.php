@@ -410,11 +410,23 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->handler->processIncomingRequest($this->incomingFollow());
 	}
 
+	/** The stored row the Undo names, as the inbox would find it. */
+	private function stored(Follow $follow, bool $accepted): Follow {
+		$stored = clone $follow;
+		$stored->setAccepted($accepted);
+		$this->followsRequest->method('getById')
+			->willReturnCallback(static fn (string $id): Follow => $id === $stored->getId()
+				? $stored : throw new FollowNotFoundException($id));
+
+		return $stored;
+	}
+
 	public function testUndoRemovesTheFollow(): void {
 		$follow = $this->incomingFollow();
+		$stored = $this->stored($follow, false);
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow);
 
-		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($follow));
+		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($stored));
 		$this->followsRequest->expects($this->never())->method('accepted');
 
 		$this->handler->activity($undo, $follow);
@@ -426,9 +438,7 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 	 */
 	public function testUndoOfAnAcceptedFollowTakesTheFollowerOffTheCount(): void {
 		$follow = $this->incomingFollow();
-		$stored = clone $follow;
-		$stored->setAccepted(true);
-		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$this->stored($follow, true);
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow);
 
 		$this->accountService->expects($this->once())
@@ -441,14 +451,47 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 	/** A follow request that was never accepted was never counted either. */
 	public function testUndoOfAFollowRequestLeavesTheCountAlone(): void {
 		$follow = $this->incomingFollow();
-		$stored = clone $follow;
-		$stored->setAccepted(false);
-		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$this->stored($follow, false);
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', $this->bob->getId(), $follow);
 
 		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->handler->activity($undo, $follow);
+	}
+
+	/**
+	 * Whether the follower was counted and which row goes are read off the
+	 * same stored follow: an Undo naming a follow id that is not stored
+	 * removes nothing and leaves the count alone, even while the same two
+	 * accounts have an accepted follow under another id.
+	 */
+	public function testUndoNamingAFollowThatIsNotStoredChangesNothing(): void {
+		$follow = $this->incomingFollow();
+		$stored = $this->stored($follow, true);
+		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$other = clone $follow;
+		$other->setId(self::REMOTE_URL . '/follows/not-stored');
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/2', $this->bob->getId(), $other);
+
+		$this->followsRequest->expects($this->never())->method('delete');
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->handler->activity($undo, $other);
+	}
+
+	/** A stored follow is only undone by the account that follows. */
+	public function testUndoNamingAnotherAccountsFollowChangesNothing(): void {
+		$carolsFollow = $this->incomingFollow();
+		$carolsFollow->setActorId(self::REMOTE_URL . '/users/carol');
+		$this->stored($carolsFollow, true);
+		$asBob = clone $carolsFollow;
+		$asBob->setActorId($this->bob->getId());
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/3', $this->bob->getId(), $asBob);
+
+		$this->followsRequest->expects($this->never())->method('delete');
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->handler->activity($undo, $asBob);
 	}
 
 	public function testUndoNotComingFromTheFollowersServerIsRefused(): void {

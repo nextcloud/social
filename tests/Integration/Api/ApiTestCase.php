@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Integration\Api;
 
 use OC\AppFramework\DependencyInjection\DIContainer;
 use OC\AppFramework\Http\Request;
+use OC\Security\CSRF\CsrfTokenManager;
 use OCA\Social\AP;
 use OCA\Social\Controller\AccountApiController;
 use OCA\Social\Controller\StatusApiController;
@@ -30,6 +31,7 @@ use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IRequestId;
 use OCP\IUserManager;
+use OCP\IUserSession;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -218,6 +220,8 @@ abstract class ApiTestCase extends TestCase {
 	 * @param array<string, mixed> $route the route's own parameters, which are also the method's
 	 * @param array<string, mixed> $query the query string (GET) or the form body (anything else)
 	 * @param string|null $as the account calling, or null for no token at all
+	 * @param bool $webSession call as the web app does instead: `$as` signed in
+	 *                         to Nextcloud, with the session's CSRF token and no bearer token
 	 */
 	protected function call(
 		string $controller,
@@ -228,13 +232,19 @@ abstract class ApiTestCase extends TestCase {
 		string $verb = 'GET',
 		string $path = '/apps/social/api/test',
 		array $files = [],
+		bool $webSession = false,
 	): ApiResponse {
 		$server = [
 			'REQUEST_METHOD' => $verb,
 			'REQUEST_URI' => '/index.php' . $path . (($query === [] || $verb !== 'GET') ? '' : '?' . http_build_query($query)),
 			'SCRIPT_NAME' => '/index.php',
 		];
-		if ($as !== null) {
+		$session = Server::get(IUserSession::class);
+		if ($webSession && $as !== null) {
+			$this->account($as);
+			$session->setUser(Server::get(IUserManager::class)->get(self::PREFIX . $as));
+			$server['HTTP_REQUESTTOKEN'] = Server::get(CsrfTokenManager::class)->getToken()->getEncryptedValue();
+		} elseif ($as !== null) {
 			$server['HTTP_AUTHORIZATION'] = 'Bearer ' . $this->token($as);
 		}
 		if ($verb !== 'GET') {
@@ -251,6 +261,7 @@ abstract class ApiTestCase extends TestCase {
 			],
 			Server::get(IRequestId::class),
 			Server::get(IConfig::class),
+			$webSession ? Server::get(CsrfTokenManager::class) : null,
 		);
 
 		$instance = $this->controller($controller, $request);
@@ -278,6 +289,9 @@ abstract class ApiTestCase extends TestCase {
 			$response = $instance->$method(...$arguments);
 		} finally {
 			$_FILES = $uploads;
+			if ($webSession) {
+				$session->setUser(null);
+			}
 		}
 		$this->assertInstanceOf(Response::class, $response);
 

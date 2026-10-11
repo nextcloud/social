@@ -33,6 +33,8 @@ use Psr\Log\NullLogger;
 class ApproveReplyInterfaceTest extends TestCase {
 	private const REPLY = 'https://cloud.example/apps/social/@alice/9';
 	private const VIDEO = 'https://peertube.example/videos/watch/6f4c1e1a';
+	private const CHANNEL = 'https://peertube.example/video-channels/bob_channel';
+	private const OWNER = 'https://peertube.example/accounts/bob';
 
 	private StreamRequest|MockObject $streamRequest;
 	private ApproveReplyInterface $handler;
@@ -50,18 +52,54 @@ class ApproveReplyInterfaceTest extends TestCase {
 		return $note;
 	}
 
-	private function approval(string $origin = 'peertube.example', string $objectId = self::REPLY): ApproveReply {
+	/**
+	 * The video, stored with the channel as its author and its own document,
+	 * which names the channel and the account behind it, as PeerTube sends it.
+	 */
+	private function video(): Note {
+		$video = new Note();
+		$video->setId(self::VIDEO)->setAttributedTo(self::CHANNEL);
+		$video->setSource((string)json_encode([
+			'id' => self::VIDEO,
+			'type' => 'Video',
+			'attributedTo' => [
+				['type' => 'Person', 'id' => self::OWNER],
+				['type' => 'Group', 'id' => self::CHANNEL],
+			],
+		]));
+
+		return $video;
+	}
+
+	/** The reply and the video, as the store holds them. */
+	private function stored(?Note $reply = null, ?Note $video = null): Note {
+		$reply ??= $this->reply();
+		$video ??= $this->video();
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(static fn (string $id): Stream => match ($id) {
+				self::REPLY => $reply,
+				self::VIDEO => $video,
+				default => throw new StreamNotFoundException($id),
+			});
+
+		return $reply;
+	}
+
+	private function approval(
+		string $origin = 'peertube.example', string $objectId = self::REPLY, string $actor = self::OWNER,
+	): ApproveReply {
 		$activity = new ApproveReply();
 		$activity->setId('https://peertube.example/approvals/1');
+		$activity->setActorId($actor);
 		$activity->setObjectId($objectId);
 		$activity->setOrigin($origin, SignatureService::ORIGIN_HEADER, time());
 
 		return $activity;
 	}
 
+	/** PeerTube sends the approval as the account the video's channel belongs to. */
 	public function testAnApprovalMovesOurReplyToApproved(): void {
-		$reply = $this->reply();
-		$this->streamRequest->method('getStreamById')->with(self::REPLY)->willReturn($reply);
+		$reply = $this->stored();
 		$this->streamRequest->expects($this->once())->method('updateDetails');
 
 		$this->handler->processIncomingRequest($this->approval());
@@ -69,13 +107,45 @@ class ApproveReplyInterfaceTest extends TestCase {
 		$this->assertSame(Stream::REPLY_APPROVED, $reply->getReplyState());
 	}
 
+	public function testAnApprovalFromTheStoredAuthorOfThePostIsAccepted(): void {
+		$reply = $this->stored();
+
+		$this->handler->processIncomingRequest($this->approval(actor: self::CHANNEL));
+
+		$this->assertSame(Stream::REPLY_APPROVED, $reply->getReplyState());
+	}
+
 	/**
-	 * The approval has to come from the server that holds the post being
-	 * replied to; anybody else saying so is a stranger deciding what has been
-	 * approved on somebody else's post.
+	 * Only the author of the post being replied to approves replies to it:
+	 * another account on the same server is refused, and the reply stays
+	 * pending.
 	 */
+	public function testAnApprovalFromAnotherAccountOnTheSameServerIsRefused(): void {
+		$reply = $this->stored();
+		$this->streamRequest->expects($this->never())->method('updateDetails');
+
+		try {
+			$this->handler->processIncomingRequest($this->approval(actor: 'https://peertube.example/accounts/carol'));
+			$this->fail('an approval from somebody other than the author was accepted');
+		} catch (InvalidOriginException) {
+		}
+
+		$this->assertSame(Stream::REPLY_PENDING, $reply->getReplyState());
+	}
+
+	/** Without the post being replied to, nobody can be told to be its author. */
+	public function testAnApprovalAboutAReplyToAPostThatIsNotHereIsIgnored(): void {
+		$reply = $this->reply(inReplyTo: 'https://peertube.example/videos/watch/gone');
+		$this->stored($reply);
+		$this->streamRequest->expects($this->never())->method('updateDetails');
+
+		$this->handler->processIncomingRequest($this->approval());
+
+		$this->assertSame(Stream::REPLY_PENDING, $reply->getReplyState());
+	}
+
 	public function testAnApprovalFromSomewhereElseIsRefused(): void {
-		$this->streamRequest->method('getStreamById')->willReturn($this->reply());
+		$this->stored();
 
 		$this->expectException(InvalidOriginException::class);
 

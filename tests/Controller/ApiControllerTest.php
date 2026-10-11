@@ -1706,23 +1706,21 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('', $this->postWith(['status' => 'hi'])->getLanguage());
 	}
 
-	public function testStatusNewIgnoresAMissingParent(): void {
+	/**
+	 * A parent the writer may not read is looked up as the writer and is not
+	 * found, so it is answered exactly as a missing one: Mastodon's 404, and
+	 * no post written in its place.
+	 */
+	public function testStatusNewAnswersAParentThatIsNotFoundWithA404(): void {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn(['status' => 'hi', 'in_reply_to_id' => 99]);
 		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException());
-		$activity = $this->createMock(ACore::class);
-		$activity->method('getObjectId')->willReturn('id');
-		$created = null;
-		$this->postService->method('createPost')->willReturnCallback(function (Post $post) use (&$created, $activity): ACore {
-			$created = $post;
+		$this->postService->expects($this->never())->method('createPost');
 
-			return $activity;
-		});
-		$this->streamService->method('getStreamById')->willReturn($this->createStub(Stream::class));
+		$response = $this->controller()->statusNew();
 
-		$this->controller()->statusNew();
-
-		$this->assertSame('', $created->getReplyTo());
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame(['error' => PostService::REPLY_PARENT_NOT_FOUND], $response->getData());
 	}
 
 	public function testAReplyToAPostHiddenByItsAuthorsBlockIsRefusedNotPostedAlone(): void {
@@ -4713,6 +4711,33 @@ class ApiControllerTest extends TestCase {
 		return $this->createMock(
 			interface_exists(IUserFolder::class) ? IUserFolder::class : Folder::class
 		);
+	}
+
+	/**
+	 * The route is the web app's own: a bearer token is refused whatever it
+	 * was granted, before any file is looked at, and the browser's signed-in
+	 * session is what it takes.
+	 */
+	public function testMediaFromFileRefusesABearerTokenWhateverItsScopes(): void {
+		$this->route = 'social.MediaApi.mediaFromFile';
+		$this->bearerFor(['read', 'write', 'follow', 'push']);
+		$this->pathParam = '/Photos/beach.jpg';
+		$this->rootFolder->expects($this->never())->method('getUserFolder');
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->mediaFromFile(),
+			'this route is only for the Aloha Social web app, signed in to Nextcloud'
+		);
+	}
+
+	/** A session without its CSRF token is no signed-in web page. */
+	public function testMediaFromFileRefusesASessionWithoutItsCsrfToken(): void {
+		$this->loggedInAs();
+		$this->csrf = false;
+		$this->pathParam = '/Photos/beach.jpg';
+		$this->rootFolder->expects($this->never())->method('getUserFolder');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller()->mediaFromFile()->getStatus());
 	}
 
 	public function testMediaFromFileAttachesTheViewersOwnFile(): void {

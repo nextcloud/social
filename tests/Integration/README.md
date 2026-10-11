@@ -17,6 +17,14 @@ to stop.
   Request classes and asserts what each timeline returns: home via the follow
   join, direct-message isolation, favourites/bookmarks via the action join,
   hashtags, account visibility and id-based pagination.
+- `Db/UndoFollowCountTest` — an incoming `Undo{Follow}` moves the follower
+  count only when the stored follow it names is the row removed; one naming a
+  follow id that is not stored changes nothing.
+- `Db/ApproveReplyAuthorTest` — an `ApproveReply` moves a pending reply of
+  ours to approved only when it comes from the author of the video it
+  answers (the account behind the channel, as PeerTube sends it).
+- `Db/ActorCountFloorTest` — an account counter bumped in SQL: a decrement
+  stops at 0, and a counter never counted (`-1`) is moved by no step.
 - `Db/ActorsKeyStorageTest` — private keys land encrypted, read back decrypted,
   legacy plaintext rows stay readable, the EncryptPrivateKeys repair converts
   them idempotently.
@@ -150,6 +158,14 @@ to stop.
   `Api/PaginationTest` asks every paged list the same questions — `max_id`
   exclusive, `since_id` the newest page, `min_id` the adjacent one, the
   `Link` cursors — with three pages of rows behind it.
+  `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and
+  `/api/v1/favourites` to what the reader may read now, and a bookmarks
+  import to the posts the importing account may read.
+  `Api/MediaFromFileSessionTest` attaches a Nextcloud file through the web
+  app's session and refuses a bearer token holding every scope.
+  `Api/ReplyParentVisibilityTest` answers a reply to a post its writer may not
+  read exactly as a reply to a missing one, through the client API and the
+  post service.
 - `Atproto/OAuthStorageTest` — OAuth for Bluesky apps: a request approved once
   and its code exchanged once, a refresh token rotated only from the good one
   (the replaced one finds the session to end), one-time DPoP ids taken once by

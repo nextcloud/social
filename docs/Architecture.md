@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.214
+**App version:** 0.26.215
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -412,7 +412,11 @@ so the one thing this app should never ask of the person running it — download
 your own photo, then upload it back — is not required. The path is resolved
 through `IRootFolder::getUserFolder()` and checked against that folder again
 afterwards: the route names a file and returns its contents, which is the shape
-a mistake here would be exploited in, so the boundary is stated twice.
+a mistake here would be exploited in, so the boundary is stated twice. It is
+the web app's alone: `requireWebSession()` refuses a bearer token with a 403
+whatever its scopes, so only the signed-in Nextcloud session, CSRF token and
+all, reaches it — a client allowed to upload media was never allowed to read
+the user's files.
 
 The bytes are **copied, not referenced**. A post keeps the picture it was
 published with, so moving, renaming or deleting the original cannot empty a post
@@ -794,7 +798,11 @@ whole point is a file to play. PeerTube writes four things where an ordinary
   a queue on the other side, and either appeared a day later or never, with
   nothing anywhere to say which. It is kept on the post as
   `Stream::DETAIL_REPLY_POLICY`, and a reply written to such a post carries
-  `DETAIL_REPLY_STATE` — `pending` until the `ApproveReply` arrives. Both are
+  `DETAIL_REPLY_STATE` — `pending` until the `ApproveReply` arrives. The
+  approval is taken only from the author of the post replied to, on its own
+  server: the actor it is stored under or one its own document names in
+  `attributedTo` (PeerTube approves as the account behind the video's
+  channel). One from any other account is refused. Both are
   local, derived facts, which is what the details column is for: neither is a
   property of the wire object, and the second is about somebody else's document.
 - **`Dislike`**, which Mastodon has never had and which therefore had no model
@@ -3329,9 +3337,10 @@ no account either: a Fediverse identity is something a user asks for.
   handle may fetch the remote actor (a signed GET), but no `Block` is federated:
   the account on the other end was already blocked, and was never told about the
   move.
-- bookmarks and favourites are re-marked on the posts this server already has.
-  A post nobody here has seen is skipped rather than fetched from its origin,
-  and a favourite is not re-federated as a `Like`.
+- bookmarks and favourites are re-marked on the posts this server already has
+  and the account may read (looked up as the account). A post nobody here has
+  seen is skipped rather than fetched from its origin, and a favourite is not
+  re-federated as a `Like`.
 - the posts in `outbox.json` are **not** replayed into the timeline. Their ids
   belong to the server they were written on, the threads around them are not
   here, and minting new ids would either publish years of posts to the Fediverse

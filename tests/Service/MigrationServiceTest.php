@@ -748,7 +748,35 @@ class MigrationServiceTest extends TestCase {
 		$this->assertSame([['https://remote.example/users/carol/statuses/1', 'bookmarked', true]], $marked);
 		$this->assertSame(1, $result['bookmarked']);
 		$this->assertSame(1, $result['skipped'], 'a line that is not an address');
-		$this->assertSame(['https://gone.example/statuses/2' => 'not a post this server could fetch'], $result['failed']);
+		$this->assertSame(['https://gone.example/statuses/2' => 'not a post this server could fetch or this account may read'], $result['failed']);
+	}
+
+	/**
+	 * The lookup is the importing account's: the store is told who is reading
+	 * before any address is resolved, and each one is resolved as that reader,
+	 * so a post the account may not read is not found rather than marked.
+	 */
+	public function testImportBookmarksResolvesEachPostAsTheImportingAccount(): void {
+		$alice = $this->alice();
+		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$calls = [];
+		$this->streamRequest->expects($this->once())->method('setViewer')
+			->willReturnCallback(static function (Person $viewer) use (&$calls): void {
+				$calls[] = 'viewer:' . $viewer->getId();
+			});
+		$this->searchService->method('resolveStatus')
+			->willReturnCallback(static function (string $url, bool $asViewer) use (&$calls): ?Stream {
+				$calls[] = 'resolve:' . ($asViewer ? 'as viewer' : 'unscoped');
+
+				return null;
+			});
+		$this->streamActionService->expects($this->never())->method('setActionBool');
+
+		$result = $this->service->importBookmarks('alice', "https://remote.example/users/carol/statuses/1\n");
+
+		$this->assertSame(['viewer:' . self::ALICE, 'resolve:as viewer'], $calls);
+		$this->assertSame(0, $result['bookmarked']);
+		$this->assertArrayHasKey('https://remote.example/users/carol/statuses/1', $result['failed']);
 	}
 
 	public function testImportDomainBlocksBlocksEachDomainOnceAndSkipsTheHeader(): void {

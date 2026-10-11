@@ -998,6 +998,50 @@ class SocialMigratorTest extends TestCase {
 	}
 
 	/**
+	 * A mark is restored only on a post the importing account may read: the
+	 * lookup is made as that account, and a post it may not read is counted
+	 * with the ones this server does not have.
+	 */
+	public function testBookmarksAndFavouritesAreLookedUpAsTheImportingAccount(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile());
+			$a->put('social/bookmarks.csv', "https://remote.example/notes/7\n");
+			$a->put('social/likes.csv', "https://remote.example/notes/9\n");
+		});
+		$alice = $this->alice();
+		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$viewers = [];
+		$this->streamRequest->method('setViewer')
+			->willReturnCallback(static function (Person $viewer) use (&$viewers): void {
+				$viewers[] = $viewer->getId();
+			});
+		$lookups = [];
+		$this->streamRequest->method('getStreamById')
+			->willReturnCallback(function (string $id, bool $asViewer = false) use (&$lookups, &$viewers) {
+				$lookups[] = [$id, $asViewer, $viewers === [] ? '' : end($viewers)];
+				if ($id === 'https://remote.example/notes/9') {
+					throw new StreamNotFoundException($id);
+				}
+
+				return $this->note($id, 1, 'known');
+			});
+		$marks = [];
+		$this->streamActionService->method('setActionBool')
+			->willReturnCallback(function (string $actorId, string $streamId, string $key, bool $value) use (&$marks): void {
+				$marks[] = [$streamId, $key];
+			});
+
+		$this->importing($archive);
+
+		$this->assertSame([
+			['https://remote.example/notes/7', true, $alice->getId()],
+			['https://remote.example/notes/9', true, $alice->getId()],
+		], $lookups, 'each post is looked up as the importing account');
+		$this->assertSame([['https://remote.example/notes/7', StreamAction::BOOKMARKED]], $marks);
+		$this->assertStringContainsString('1 post(s) this server does not have or this account may not read', $this->output->text());
+	}
+
+	/**
 	 * The posts are in the archive because they are the user's, not because
 	 * this server can put them back: their ids belong to the old instance, the
 	 * threads they are part of are not here, and minting new ones would either
