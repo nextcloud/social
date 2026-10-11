@@ -671,6 +671,54 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	}
 
 	/**
+	 * Local video and sound uploads with bytes stored here, a page at a time
+	 * after the nid `$after`, for `occ social:media:strip-metadata`.
+	 *
+	 * @return Document[]
+	 */
+	public function getLocalMediaToStrip(int $limit, int|string $after = '0'): array {
+		$qb = $this->getCacheDocumentsSelectSql();
+		$alias = $qb->getDefaultSelectAlias();
+		$expr = $qb->expr();
+
+		$qb->andWhere($expr->orX(
+			$expr->like($alias . '.media_type', $qb->createNamedParameter('video/%')),
+			$expr->like($alias . '.media_type', $qb->createNamedParameter('audio/%'))
+		));
+		$qb->andWhere($expr->neq($alias . '.account', $qb->createNamedParameter('')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter('')));
+		$qb->andWhere($expr->neq($alias . '.local_copy', $qb->createNamedParameter(Document::COPY_STREAMED)));
+		$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($after)));
+		$qb->orderBy($alias . '.nid', 'asc');
+		$qb->setMaxResults($limit);
+
+		$documents = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$documents[] = $this->parseCacheDocumentsSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $documents;
+	}
+
+	/**
+	 * Points a document at a rewritten copy of the same file, of the same
+	 * type: a new local copy and its size. A ladder built from the old bytes
+	 * is rebuilt from the new ones.
+	 */
+	public function replaceLocalCopy(int|string $nid, string $localCopy, int $size): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_CACHE_DOCUMENTS)
+			->set('local_copy', $qb->createNamedParameter($localCopy))
+			->set('size', $qb->createNamedParameter($size, IQueryBuilder::PARAM_INT))
+			->set('laddered', $qb->createNamedParameter(0, IQueryBuilder::PARAM_INT))
+			->where($qb->expr()->eq('nid', $qb->createNamedParameter($nid)));
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * Local videos that have not been through the transcoder yet.
 	 *
 	 * Narrowed to the ones with bytes here to convert: a streamed document's

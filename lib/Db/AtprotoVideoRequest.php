@@ -45,6 +45,20 @@ class AtprotoVideoRequest extends CoreRequestBuilder {
 		return true;
 	}
 
+	/** Whether a document has been handed to Bluesky's video service, in any state. */
+	public function hasDocument(string $documentId): bool {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id')
+			->from(self::TABLE_ATPROTO_VIDEO)
+			->where($qb->expr()->eq('document_id', $qb->createNamedParameter($documentId)))
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row !== false;
+	}
+
 	public function get(string $postId): ?VideoUpload {
 		$qb = $this->getQueryBuilder();
 		$qb->select('*')->from(self::TABLE_ATPROTO_VIDEO)
