@@ -171,6 +171,15 @@ to stop.
   queue of 0, 200 and 400 deliveries, with only the network edge replaced and
   the clock frozen: a constant cost per pass, two statements per delivery and
   three per batch, and the second batch costing exactly what the first did.
+- `Cron/CacheWorkBudgetTest` — one pass of each `Cron\Cache` step with the
+  network edge replaced (`OfflineContainer`: every server unreachable, the
+  clock frozen) against a backlog three times its batch: the remote-actor and
+  details refreshes (forty batches of fifty), the timeline sync, the sweep,
+  the local-actor refresh, deleted accounts, the prune, the remote counts and
+  the document cache each take at most their batch at a constant cost per
+  item; the trends write only the hashtags that moved.
+- `OfflineContainer` — builds the app's services from their constructors with
+  chosen dependencies replaced at any depth, the rest from the app container.
 - `Cron/RunImportMemoryTest` — a blocked-domains import run by `Cron\RunImport`
   the way cron runs it, over 1,000 lines and then 5,000: nothing is kept per
   row beyond the list the service reads whole by design.
