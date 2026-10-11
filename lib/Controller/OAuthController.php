@@ -132,7 +132,8 @@ class OAuthController extends Controller {
 			$name = 'Aloha Social';
 			$description = '';
 			$version = $this->configService->getAppValue('installed_version');
-			$usage = [];
+			// an object with the one member the schema requires, never `[]`
+			$usage = ['users' => new \stdClass()];
 			$openReg = false;
 		}
 
