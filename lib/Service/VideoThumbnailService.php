@@ -166,6 +166,7 @@ class VideoThumbnailService {
 			'-i', $source,
 			'-frames:v', '1',
 			'-vf', 'scale=\'min(' . self::MAX_WIDTH . ',iw)\':-2',
+			...VideoTranscodeService::WITHOUT_METADATA,
 			'-f', 'image2',
 			'-y', $target,
 		]);

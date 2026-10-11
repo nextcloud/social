@@ -36,7 +36,13 @@ use Throwable;
  * and the converted file replaces the original, which is why an
  * administrator can switch it off; left alone, a server with ffmpeg makes its
  * videos travel and a server without it changes nothing at all. An H.264 MP4
- * is never touched.
+ * is never re-encoded.
+ *
+ * **Nothing it writes keeps the source's metadata.** A phone writes where a
+ * video was recorded into the container, and ffmpeg copies a container's
+ * metadata into whatever it writes unless told not to. Every upload has it
+ * taken off as it is stored, by `withoutMetadata()`, which copies the
+ * streams into a fresh container rather than re-encoding them.
  *
  * **It never runs during a request.** Transcoding a video is minutes, not the
  * seconds a poster frame takes, so the upload finishes as it always did and a
@@ -78,6 +84,34 @@ class VideoTranscodeService {
 	 * makes a decoder spin must not hold a cron worker for ever.
 	 */
 	private const TIMEOUT_SECONDS = 900;
+
+	/** How long a remux gets: it copies the streams, so it is bounded by the disk, not the CPU. */
+	private const REMUX_TIMEOUT_SECONDS = 300;
+
+	/**
+	 * The muxer a stored file of each type is rewritten with when its
+	 * metadata is taken off. A type that is not here is stored as it came.
+	 */
+	public const REMUX_FORMATS = [
+		'video/mp4' => 'mp4',
+		'video/quicktime' => 'mov',
+		'video/webm' => 'webm',
+		'audio/mpeg' => 'mp3',
+		'audio/mp4' => 'mp4',
+		'audio/aac' => 'adts',
+		'audio/ogg' => 'ogg',
+		'audio/opus' => 'ogg',
+		'audio/wav' => 'wav',
+		'audio/x-wav' => 'wav',
+		'audio/flac' => 'flac',
+	];
+
+	/**
+	 * What every ffmpeg that writes a file is told, so that none of the
+	 * source's container metadata — a phone's GPS position and model among
+	 * it — is copied into what it writes.
+	 */
+	public const WITHOUT_METADATA = ['-map_metadata', '-1', '-map_chapters', '-1'];
 
 	/** How long ffprobe gets to read a file's header. */
 	private const PROBE_TIMEOUT_SECONDS = 30;
@@ -242,11 +276,58 @@ class VideoTranscodeService {
 			'-b:a', '128k',
 			// a video with no audio track at all is not an error
 			'-af', 'anull',
+			...self::WITHOUT_METADATA,
 			// the index at the front, so a browser can start playing before
 			// the whole file has arrived
 			'-movflags', '+faststart',
 			'-y', $target,
 		], self::TIMEOUT_SECONDS);
+
+		if (!$ran || !is_file($target) || filesize($target) < 1) {
+			@unlink($target);
+
+			return null;
+		}
+
+		return $target;
+	}
+
+	/**
+	 * The same video or sound file without the metadata its container
+	 * carries — where and with what it was recorded, its title, its chapters —
+	 * and without re-encoding anything: the streams are copied as they are.
+	 *
+	 * The source is left alone, as with `convert()`.
+	 *
+	 * @param string $path a readable path to the file
+	 *
+	 * @return string|null the path of the rewritten file, or null when there
+	 *                     is no ffmpeg, the type is not one it rewrites, or
+	 *                     the rewrite produced nothing
+	 */
+	public function withoutMetadata(string $path, string $mimeType): ?string {
+		$format = self::REMUX_FORMATS[strtolower($mimeType)] ?? null;
+		$ffmpeg = $this->ffmpeg();
+		if ($format === null || $ffmpeg === null || !is_readable($path)) {
+			return null;
+		}
+
+		$target = $this->tempManager->getTemporaryFile();
+		if ($target === false) {
+			return null;
+		}
+
+		$ran = $this->run(array_merge([
+			$ffmpeg,
+			'-nostdin',
+			'-protocol_whitelist', 'file',
+			'-i', $path,
+			...self::WITHOUT_METADATA,
+			'-c', 'copy',
+		], in_array($format, ['mp4', 'mov'], true) ? ['-movflags', '+faststart'] : [], [
+			'-f', $format,
+			'-y', $target,
+		]), self::REMUX_TIMEOUT_SECONDS);
 
 		if (!$ran || !is_file($target) || filesize($target) < 1) {
 			@unlink($target);
