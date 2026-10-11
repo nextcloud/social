@@ -712,7 +712,7 @@ class NotificationService {
 	 * there is one, else the stored one, else nothing.
 	 */
 	private function postOf(SocialAppNotification $notification): ?Stream {
-		$post = $notification->getDetailsAll()[Details::POST] ?? null;
+		$post = $notification->getDetailItem(Details::POST);
 		if ($post instanceof Stream) {
 			return $post;
 		}
@@ -810,7 +810,7 @@ class NotificationService {
 				? $notification->getAttributedTo() : $notification->getActorId();
 		}
 
-		$post = $notification->getDetailsAll()[Details::POST] ?? null;
+		$post = $notification->getDetailItem(Details::POST);
 		if ($post instanceof Stream) {
 			return $post->getAttributedTo();
 		}
