@@ -27,6 +27,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Tests\Api\Schema\SchemaValidator;
+use OCA\Social\Tests\Integration\Helper\FreezesTheClock;
 use OCP\AppFramework\Http\Response;
 use OCP\Authentication\Token\IToken;
 use OCP\IConfig;
@@ -59,6 +60,8 @@ use ReflectionNamedType;
  * instance that holds other data. Their names all start with `apictr-`.
  */
 abstract class ApiTestCase extends TestCase {
+	use FreezesTheClock;
+
 	protected const PREFIX = 'apictr-';
 	private const APP = 'apictr-client';
 	/** every scope a client may ask for; the admin routes still check that the account is an administrator */
@@ -103,6 +106,7 @@ abstract class ApiTestCase extends TestCase {
 		$this->scopedTokens = [];
 		Stream::resetReplyParentCache();
 		Stream::resetQuoteCache();
+		$this->thawClock();
 		// what comes after this test must not resolve the app's services
 		// from a container that hands out this test's last request
 		if ($this->bootContainer !== null) {
@@ -413,6 +417,7 @@ abstract class ApiTestCase extends TestCase {
 	private function controller(string $class, IRequest $request, array $services = []): object {
 		$container = new DIContainer('social');
 		$container->registerService(IRequest::class, static fn (): IRequest => $request);
+		$this->registerFrozenClock($container);
 		foreach ($services as $name => $service) {
 			$container->registerService($name, static fn (): object => $service);
 		}

@@ -281,6 +281,17 @@ to stop.
   the post), an Undo{Like} before the Like, and a rotated key arriving in an
   Update{Person} verifying the next signature.
 
+- `Helper/FreezesTheClock` — puts the server on a `FrozenClock`
+  (`tests/Helper/FrozenClock.php`) that the test moves: registered on the
+  server container and on each fresh app container a service or controller is
+  built by, so the lifecycle tests below stand on the second before an expiry
+  and on the second itself.
+- `Api/TimedMuteExpiryTest` — a timed mute through its expiry: the
+  relationship, `/api/v1/mutes` and the home timeline agree that it holds a
+  second before it runs out and is gone on that second; muting again without
+  a duration makes it permanent; an expiry at a leap day, a month or year end
+  or a daylight-saving change comes back from the database as the same instant.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
