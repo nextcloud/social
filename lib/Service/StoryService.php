@@ -22,6 +22,7 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Story as ApStory;
 use OCA\Social\Model\Client\Story;
 use OCA\Social\Model\InstancePath;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -49,6 +50,7 @@ class StoryService {
 		private StoryInteractionService $storyInteractionService,
 		private MediaPurgeService $mediaPurgeService,
 		private LoggerInterface $logger,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 	}
 
@@ -247,14 +249,15 @@ class StoryService {
 			throw new InvalidResourceException('a story with no picture is nothing to show');
 		}
 
+		$now = $this->timeFactory?->getTime() ?? time();
 		$expires = $object->getExpiresAt();
 		$created = (int)strtotime($object->getPublished());
-		$created = ($created > 0) ? $created : time();
+		$created = ($created > 0) ? $created : $now;
 		if ($expires <= 0) {
 			$expires = $created + ApStory::MAX_LIFETIME;
 		}
-		$expires = min($expires, time() + ApStory::MAX_LIFETIME);
-		if ($expires <= time()) {
+		$expires = min($expires, $now + ApStory::MAX_LIFETIME);
+		if ($expires <= $now) {
 			throw new InvalidResourceException('this story has already expired');
 		}
 
