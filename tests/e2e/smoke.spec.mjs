@@ -252,11 +252,14 @@ test.describe('Aloha Social, in a browser', () => {
 		const explore = page.locator('.navigation__explore').first()
 		await expect(explore).toBeVisible()
 
-		const list = page.locator('.navigation__list').filter({ hasText: group }).first()
-		if (!await list.isVisible()) {
-			// it is open by default, but a previous run may have folded it
-			await explore.getByRole('button').first().click()
+		// it is open by default, but a previous run may have folded it. Its
+		// toggle says which, and is there from the first paint; the lists
+		// arrive later, so their absence would say nothing yet.
+		const toggle = explore.getByRole('button', { name: /^(Collapse|Open) menu$/ })
+		if (await toggle.getAttribute('aria-label') === 'Open menu') {
+			await toggle.click()
 		}
+		const list = page.locator('.navigation__list').filter({ hasText: group }).first()
 		await expect(list).toBeVisible()
 
 		await list.click()
