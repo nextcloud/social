@@ -139,24 +139,31 @@ class DeliveryUnderFaultsTest extends TestCase {
 		}
 	}
 
-	/** @return array<string, array{0: string, 1: int}> how a peer fails, and how many requests one delivery makes of it */
+	/**
+	 * @return array<string, array{0: string, 1: int, 2: int}> how a peer fails,
+	 *                                                         how many requests one delivery makes of it, and how
+	 *                                                         long the peer is then left alone
+	 */
 	public static function failuresThatMayPass(): array {
 		return [
-			'a 500' => ['error', 1],
-			'a 429 with Retry-After' => ['busy', 1],
-			'a 503 with Retry-After' => ['unavailable', 1],
-			'a timeout' => ['slow', 1],
+			'a 500' => ['error', 1, HostBreaker::BASE],
+			'a 429 with Retry-After: 120' => ['busy', 1, 120],
+			'a 503 with Retry-After: 120' => ['unavailable', 1, 120],
+			'a 503 with Retry-After five minutes from now, as a date' => ['dated', 1, 300],
+			'a 429 with Retry-After a week, held for the hour at most' => ['week', 1, HostBreaker::MAX],
+			'a timeout' => ['slow', 1, HostBreaker::BASE],
 			// the first answer, then each hop the single-request path follows
-			'a redirect loop' => ['loop', 7],
+			'a redirect loop' => ['loop', 7, HostBreaker::BASE],
 		];
 	}
 
 	/**
 	 * A failure that may pass keeps the row, spends one of its tries, and
-	 * leaves the peer alone for the breaker's first interval.
+	 * leaves the peer alone for the breaker's first interval — or for as long
+	 * as the peer's `Retry-After` asked, up to the breaker's ceiling.
 	 */
 	#[DataProvider('failuresThatMayPass')]
-	public function testAFailureThatMayPassIsRetriedAndThePeerLeftAlone(string $behaviour, int $requests): void {
+	public function testAFailureThatMayPassIsRetriedAndThePeerLeftAlone(string $behaviour, int $requests, int $held): void {
 		$this->queue($behaviour, $this->name, 'only');
 
 		$this->pass();
@@ -168,7 +175,8 @@ class DeliveryUnderFaultsTest extends TestCase {
 		$breaker = $this->breaker($behaviour);
 		$this->assertNotNull($breaker, 'the failing peer is not left alone');
 		$this->assertSame(1, $breaker['strikes']);
-		$this->assertSame(HostBreaker::BASE, $breaker['open_until'] - $breaker['last_failure']);
+		// a date is read against the clock, which may tick between the two
+		$this->assertEqualsWithDelta($held, $breaker['open_until'] - $breaker['last_failure'], ($behaviour === 'dated') ? 2 : 0);
 	}
 
 	/**

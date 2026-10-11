@@ -494,6 +494,24 @@ class CurlService {
 	}
 
 	/**
+	 * How long an answer asks to be left alone, in seconds: `Retry-After` as
+	 * a number of seconds or as an HTTP date (RFC 9110 §10.2.3), 0 where it
+	 * says nothing usable. Capping is the breaker's business.
+	 */
+	public static function retryAfter(IResponse $response): int {
+		$value = trim($response->getHeader('Retry-After'));
+		if ($value === '') {
+			return 0;
+		}
+		if (preg_match('/^\d{1,10}$/', $value) === 1) {
+			return (int)$value;
+		}
+		$date = SignatureService::parseHttpDate($value);
+
+		return ($date === null) ? 0 : max(0, $date - time());
+	}
+
+	/**
 	 * A client whose `…Async()` requests are in flight together.
 	 *
 	 * The server's client runs on Guzzle's `CurlHandler` unless handed
@@ -606,7 +624,8 @@ class CurlService {
 
 			$this->body($response);
 			if ($response->getStatusCode() >= 300) {
-				return new RequestContentException($request['url'], $response->getStatusCode());
+				return (new RequestContentException($request['url'], $response->getStatusCode()))
+					->setRetryAfter(self::retryAfter($response));
 			}
 
 			return null;
@@ -773,7 +792,7 @@ class CurlService {
 
 		$status = $response->getStatusCode();
 		if ($status >= 300) {
-			throw new RequestContentException($url, $status);
+			throw (new RequestContentException($url, $status))->setRetryAfter(self::retryAfter($response));
 		}
 
 		$stream = $response->getBody();
@@ -956,7 +975,7 @@ class CurlService {
 			$location = $this->redirectTarget($response, $url);
 			if ($location === '') {
 				if ($statusCode >= 300 && !$acceptErrors) {
-					throw new RequestContentException($url, $statusCode);
+					throw (new RequestContentException($url, $statusCode))->setRetryAfter(self::retryAfter($response));
 				}
 
 				return $body;

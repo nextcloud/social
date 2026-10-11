@@ -34,7 +34,7 @@ class HostBreaker {
 	/** The ceiling on that, and how long a strike counts. */
 	public const MAX = 3600;
 
-	/** The hosts this drain has found to be failing itself. */
+	/** @var array<string, int> the hosts this drain has found to be failing itself, and until when */
 	private array $failing = [];
 
 	/**
@@ -66,8 +66,8 @@ class HostBreaker {
 	 * to be held back until then.
 	 */
 	public function openUntil(string $host): int {
-		if (in_array($host, $this->failing, true)) {
-			return time() + self::BASE;
+		if (isset($this->failing[$host])) {
+			return $this->failing[$host];
 		}
 
 		$until = $this->state()[$host]['open_until'] ?? 0;
@@ -81,16 +81,21 @@ class HostBreaker {
 	 * The backoff is what stops a permanently dead instance from being
 	 * rediscovered every minute for ever; a host that answers again clears it,
 	 * so a peer that was merely restarting is not held at arm's length.
+	 *
+	 * A peer that said how long to leave it alone (`Retry-After` on a 429 or
+	 * 503) is left alone at least that long, but never longer than MAX: an
+	 * answer saying "a week" must not take a peer out of federation for one.
+	 *
+	 * @param int $atLeast the seconds the peer asked for, 0 where it did not
 	 */
-	public function open(string $host): void {
-		$this->failing[] = $host;
-
+	public function open(string $host, int $atLeast = 0): void {
 		$now = time();
 		$state = $this->state();
 		$strikes = (($state[$host]['last_failure'] ?? 0) > $now - self::MAX)
 			? $state[$host]['strikes'] + 1
 			: 1;
-		$for = min(self::MAX, self::BASE * (int)(2 ** min(6, $strikes - 1)));
+		$for = min(self::MAX, max(self::BASE * (int)(2 ** min(6, $strikes - 1)), $atLeast));
+		$this->failing[$host] = $now + $for;
 
 		$this->state[$host] = ['strikes' => $strikes, 'open_until' => $now + $for, 'last_failure' => $now];
 		try {

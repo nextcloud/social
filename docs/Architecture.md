@@ -1103,6 +1103,12 @@ that holds nothing, so there it was per-pass still. It is in the database now
 (`social_host_breaker`, `HostBreakerRequest`), shared between the cron, the
 async worker and every `social:worker` process, with the wait doubling per
 consecutive failure up to an hour and clearing the moment the host answers. A
+peer that answers a delivery 429 or 503 with `Retry-After` — seconds, or an
+HTTP date (`CurlService::retryAfter()`, carried on the
+`RequestContentException`) — is left alone at least as long as it asked, and
+never longer than that same hour (`HostBreaker::MAX`), so an answer asking for a
+week does not take a peer out of federation for one; the strike counts as any
+other. A
 drain reads the failing hosts once, when it starts (`manageInit()` forgets the
 copy), and looks every row's host up in that before it spends a timeout on it;
 a healthy host costs no write at all, and one that fails costs one. The logic

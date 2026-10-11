@@ -252,7 +252,8 @@ to stop.
   the others in its wave — which caught the waves going out one request after
   another — and costs one timeout however many rows it has; a 500, a 429 or
   503 with `Retry-After`, a timeout and a redirect loop each keep the row and
-  open the breaker; the retries follow the documented schedule (16 s, 31 s,
+  open the breaker, for as long as `Retry-After` asked (seconds or a date) up
+  to the breaker's hour; the retries follow the documented schedule (16 s, 31 s,
   96 s) while the breaker doubles (60, 120, 240 s) and lets go once the peer
   answers; across a mix of failing peers every row is acknowledged exactly
   once; and an answer cut off mid-body is sent again.

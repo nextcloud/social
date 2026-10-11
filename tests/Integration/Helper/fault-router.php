@@ -35,8 +35,8 @@ $answer = match ($behaviour) {
 	'slow' => 0,
 	'ok' => 202,
 	'error' => 500,
-	'busy' => 429,
-	'unavailable', 'flaky' => 503,
+	'busy', 'week' => 429,
+	'unavailable', 'flaky', 'dated' => 503,
 	'reset' => 200,
 	'loop' => 302,
 	default => 404,
@@ -60,6 +60,17 @@ switch ($behaviour) {
 	case 'busy':
 	case 'unavailable':
 		header('Retry-After: 120');
+		http_response_code($answer);
+		break;
+
+	case 'dated':
+		// the HTTP-date form, five minutes from now
+		header('Retry-After: ' . gmdate('D, d M Y H:i:s \\G\\M\\T', time() + 300));
+		http_response_code($answer);
+		break;
+
+	case 'week':
+		header('Retry-After: 604800');
 		http_response_code($answer);
 		break;
 
