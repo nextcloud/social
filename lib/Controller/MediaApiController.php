@@ -180,6 +180,11 @@ class MediaApiController extends MastodonApiController {
 	 *
 	 * The path is resolved inside the viewer's own user folder and nowhere
 	 * else, so a share they can read is fair game and everything else is a 404.
+	 *
+	 * For the web app only: the signed-in Nextcloud session, with its CSRF
+	 * token. A bearer token is a 403 whatever its scopes, because reading any
+	 * of the user's files is more than a client allowed to upload media was
+	 * granted.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
@@ -188,6 +193,7 @@ class MediaApiController extends MastodonApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/media/from-file')]
 	public function mediaFromFile(): DataResponse {
 		try {
+			$this->requireWebSession();
 			$this->initViewer(true);
 
 			$input = $this->convertInput(file_get_contents('php://input'));

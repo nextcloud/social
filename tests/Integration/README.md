@@ -159,6 +159,8 @@ to stop.
   `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and
   `/api/v1/favourites` to what the reader may read now, and a bookmarks
   import to the posts the importing account may read.
+  `Api/MediaFromFileSessionTest` attaches a Nextcloud file through the web
+  app's session and refuses a bearer token holding every scope.
   `Api/ReplyParentVisibilityTest` answers a reply to a post its writer may not
   read exactly as a reply to a missing one, through the client API and the
   post service.

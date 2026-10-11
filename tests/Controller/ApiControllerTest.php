@@ -4713,6 +4713,33 @@ class ApiControllerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The route is the web app's own: a bearer token is refused whatever it
+	 * was granted, before any file is looked at, and the browser's signed-in
+	 * session is what it takes.
+	 */
+	public function testMediaFromFileRefusesABearerTokenWhateverItsScopes(): void {
+		$this->route = 'social.MediaApi.mediaFromFile';
+		$this->bearerFor(['read', 'write', 'follow', 'push']);
+		$this->pathParam = '/Photos/beach.jpg';
+		$this->rootFolder->expects($this->never())->method('getUserFolder');
+
+		$this->assertInsufficientScope(
+			$this->controller('Bearer s3cret')->mediaFromFile(),
+			'this route is only for the Aloha Social web app, signed in to Nextcloud'
+		);
+	}
+
+	/** A session without its CSRF token is no signed-in web page. */
+	public function testMediaFromFileRefusesASessionWithoutItsCsrfToken(): void {
+		$this->loggedInAs();
+		$this->csrf = false;
+		$this->pathParam = '/Photos/beach.jpg';
+		$this->rootFolder->expects($this->never())->method('getUserFolder');
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller()->mediaFromFile()->getStatus());
+	}
+
 	public function testMediaFromFileAttachesTheViewersOwnFile(): void {
 		$this->loggedInAs();
 		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');

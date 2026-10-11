@@ -412,7 +412,11 @@ so the one thing this app should never ask of the person running it — download
 your own photo, then upload it back — is not required. The path is resolved
 through `IRootFolder::getUserFolder()` and checked against that folder again
 afterwards: the route names a file and returns its contents, which is the shape
-a mistake here would be exploited in, so the boundary is stated twice.
+a mistake here would be exploited in, so the boundary is stated twice. It is
+the web app's alone: `requireWebSession()` refuses a bearer token with a 403
+whatever its scopes, so only the signed-in Nextcloud session, CSRF token and
+all, reaches it — a client allowed to upload media was never allowed to read
+the user's files.
 
 The bytes are **copied, not referenced**. A post keeps the picture it was
 published with, so moving, renaming or deleting the original cannot empty a post

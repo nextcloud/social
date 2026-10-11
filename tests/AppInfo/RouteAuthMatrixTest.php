@@ -38,7 +38,8 @@ use ReflectionMethod;
  * same way for every route they carry: a bearer token, or a session that
  * passes its CSRF check. Everything else that waives either check is named
  * below with the reason it may, so a new public or CSRF-exempt route outside
- * those bases fails here until somebody has said why it is safe.
+ * those bases fails here until somebody has said why it is safe. So is every
+ * API route that refuses bearer tokens and takes the web app's session only.
  */
 class RouteAuthMatrixTest extends TestCase {
 	/** @var list<class-string> the bases that authenticate every route in code */
@@ -159,6 +160,15 @@ class RouteAuthMatrixTest extends TestCase {
 		'AdminApiController::measures' => 'Mastodon POST /api/v1/admin/measures is a query',
 		'AdminApiController::dimensions' => 'Mastodon POST /api/v1/admin/dimensions is a query',
 		'AdminApiController::retention' => 'Mastodon POST /api/v1/admin/retention is a query',
+	];
+
+	/**
+	 * @var array<string, string> API routes for the web app's signed-in
+	 *                            session only, refusing every bearer token
+	 *                            through `requireWebSession()`, and why
+	 */
+	private const WEB_SESSION_ONLY = [
+		'MediaApiController::mediaFromFile' => 'copies any of the user\'s own files, more than a client allowed to upload media was granted',
 	];
 
 	/** @var array<string, string> the broad scopes that permit a state-changing client-API route */
@@ -357,6 +367,32 @@ class RouteAuthMatrixTest extends TestCase {
 			[], array_keys(array_diff_key(self::CLIENT_ROUTES_FOR_ANY_TOKEN, $anyToken)),
 			'allowlisted routes that now ask for a scope: drop them from the list'
 		);
+	}
+
+	/**
+	 * A route a bearer token may not use at all says so with
+	 * `requireWebSession()`, and is named here with the reason: a new one
+	 * fails until somebody has said why, and a listed one that stops calling
+	 * it fails too.
+	 */
+	public function testEveryWebSessionOnlyRouteIsNamedAndRefusesBearerTokens(): void {
+		$found = [];
+		foreach (self::routes() as [$method]) {
+			if (!self::onApiBase($method)) {
+				continue;
+			}
+
+			foreach (self::thisCalls(self::classMethods($method->getDeclaringClass())[$method->getName()]) as $call) {
+				if ($call->name->toString() === 'requireWebSession') {
+					$found[self::key($method)] = true;
+				}
+			}
+		}
+
+		ksort($found);
+		$listed = self::WEB_SESSION_ONLY;
+		ksort($listed);
+		$this->assertSame(array_keys($listed), array_keys($found), 'routes refusing bearer tokens, against the list of them');
 	}
 
 	/**
