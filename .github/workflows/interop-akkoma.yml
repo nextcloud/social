@@ -1,0 +1,273 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Interop against a real Akkoma (Pleroma's fork): follows both ways, posts,
+# replies, favourites and an emoji reaction, boosts and deletes, read back out
+# of each side's Mastodon-compatible API. See tests/Interop/README.md for what
+# it covers and for what it cannot prove.
+#
+# Weekly and by hand only. Akkoma publishes no image of its own: its Docker
+# setup is a toolchain container the source is compiled in, which is what
+# this does, from a release tag pinned by commit — several minutes of Elixir
+# before the first request.
+
+name: Interop against Akkoma
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays, early, beside the other interop runs
+    - cron: '27 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interop-akkoma-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  interop-akkoma:
+    runs-on: ubuntu-latest
+    name: Nextcloud Social ↔ Akkoma
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    env:
+      APP_NAME: social
+      # Akkoma v3.20.1, and the commit that tag names: a moved tag would change
+      # what is being tested without a commit here saying so
+      AKKOMA_TAG: v3.20.1
+      AKKOMA_COMMIT: 98dd958886a8b0ef65d5bd827aba3789f1dc5116
+      # the toolchain Akkoma's own Dockerfile builds on at that tag
+      AKKOMA_TOOLCHAIN: hexpm/elixir:1.15.4-erlang-26.0.2-alpine-3.18.2
+      AKKOMA_BASE_URL: https://akkoma.test
+      AKKOMA_PASSWORD: Interop-Test-2026!
+      NEXTCLOUD_URL: https://nextcloud.test
+
+    steps:
+      - name: Checkout server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          repository: nextcloud/server
+          # see e2e.yml: the newest version info.xml claims
+          ref: master
+
+      - name: Checkout app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: apps/social
+
+      - name: Set up php
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+
+      - name: Set up the app's PHP dependencies
+        working-directory: apps/social
+        # without the dev ones, as the app store ships it: the app's autoloader
+        # is prepended to the server's, so a dev-only package the server also
+        # carries (symfony/console) is served in place of the server's own
+        run: composer i --no-dev
+
+      - name: Build Akkoma
+        # first, because it is the slow part and needs nothing else
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$AKKOMA_TAG" https://akkoma.dev/AkkomaGang/akkoma.git /tmp/akkoma
+          if [ "$(git -C /tmp/akkoma rev-parse HEAD)" != "$AKKOMA_COMMIT" ]; then
+            echo "$AKKOMA_TAG is no longer $AKKOMA_COMMIT"
+            exit 1
+          fi
+          cat > /tmp/akkoma.Dockerfile <<DOCKER
+          FROM ${AKKOMA_TOOLCHAIN}
+          RUN apk add --no-cache git gcc g++ musl-dev make cmake file-dev exiftool ffmpeg imagemagick libmagic ncurses postgresql-client ca-certificates
+          ENV MIX_ENV=prod MIX_HOME=/opt/mix HEX_HOME=/opt/hex ERL_EPMD_ADDRESS=127.0.0.1
+          RUN mix local.hex --force && mix local.rebar --force
+          WORKDIR /akkoma
+          DOCKER
+          docker build -t akkoma-toolchain -f /tmp/akkoma.Dockerfile /tmp
+          docker run --rm --network host -v /tmp/akkoma:/akkoma akkoma-toolchain \
+            sh -c 'mix deps.get && mix compile'
+
+      - name: Give both servers a name and a certificate
+        run: |
+          set -euo pipefail
+          echo '127.0.0.1 nextcloud.test akkoma.test' | sudo tee -a /etc/hosts
+          mkdir -p /tmp/tls && cd /tmp/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj '/CN=Interop CA' \
+            -keyout ca.key -out ca.crt \
+            -addext 'basicConstraints=critical,CA:true' -addext 'keyUsage=critical,keyCertSign,cRLSign'
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=nextcloud.test' -keyout nc.key -out nc.csr
+          printf 'subjectAltName=DNS:nextcloud.test,DNS:akkoma.test\nextendedKeyUsage=serverAuth\n' > nc.ext
+          openssl x509 -req -in nc.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 \
+            -extfile nc.ext -out nc.crt
+          chmod 644 nc.key
+          sudo cp ca.crt /usr/local/share/ca-certificates/interop-ca.crt
+          sudo update-ca-certificates
+
+      - name: Set up Nextcloud
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud \
+            --admin-user admin --admin-pass admin
+          ./occ app:enable --force social
+          ./occ config:system:set trusted_domains 1 --value localhost:8080
+          ./occ config:system:set trusted_domains 2 --value nextcloud.test
+          ./occ config:system:set overwriteprotocol --value https
+          ./occ config:system:set overwritehost --value nextcloud.test
+          # Nextcloud's own HTTP client keeps its own CA bundle
+          ./occ security:certificates:import /tmp/tls/ca.crt
+          ./occ config:system:set overwrite.cli.url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social cloud_url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social social_url --value "$NEXTCLOUD_URL/index.php/apps/social/"
+          ./occ config:system:set allow_local_remote_servers --value true --type boolean
+          ./occ log:manage --level=info
+
+      - name: Run Nextcloud
+        run: |
+          PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 &
+          cat > /tmp/tls/Caddyfile <<'CADDY'
+          {
+            admin off
+            auto_https disable_redirects
+          }
+          nextcloud.test:443 {
+            tls /tls/nc.crt /tls/nc.key
+            log
+            @wellknown path /.well-known/*
+            rewrite @wellknown /index.php{path}
+            reverse_proxy localhost:8080
+          }
+          akkoma.test:443 {
+            tls /tls/nc.crt /tls/nc.key
+            log
+            reverse_proxy 127.0.0.1:4000
+          }
+          CADDY
+          docker run -d --name proxy --network host -v /tmp/tls:/tls:ro caddy:2 \
+            caddy run --config /tls/Caddyfile --adapter caddyfile
+          for attempt in $(seq 1 30); do
+            curl -sf https://nextcloud.test/status.php \
+              && curl -sf https://nextcloud.test/.well-known/nodeinfo && exit 0
+            sleep 2
+          done
+          docker logs proxy
+          exit 1
+
+      - name: Configure and start Akkoma
+        run: |
+          set -euo pipefail
+          AK="docker run --rm --network host -v /tmp/akkoma:/akkoma akkoma-toolchain"
+          $AK mix pleroma.instance gen --force \
+            --output config/prod.secret.exs --output-psql config/setup_db.psql \
+            --domain akkoma.test --media-url "$AKKOMA_BASE_URL/media" --instance-name Akkoma \
+            --admin-email admin@example.com --notify-email admin@example.com \
+            --dbhost 127.0.0.1 --dbname akkoma --dbuser akkoma --dbpass akkoma \
+            --rum n --indexable n --db-configurable n \
+            --uploads-dir /akkoma/uploads --static-dir /akkoma/instance/static \
+            --listen-ip 127.0.0.1 --listen-port 4000 \
+            --strip-uploads-metadata n --read-uploads-description y --anonymize-uploads n
+          # the suite asks a lot of one account in little time; the limits
+          # are a production protection this job has nothing to protect with.
+          # The toolchain container wrote the file as root.
+          sudo tee -a /tmp/akkoma/config/prod.secret.exs > /dev/null <<'EXS'
+
+          config :pleroma, :rate_limit,
+            authentication: nil,
+            timeline: nil,
+            search: nil,
+            app_account_creation: nil,
+            relations_actions: nil,
+            relation_id_action: nil,
+            statuses_actions: nil,
+            status_id_action: nil,
+            password_reset: nil,
+            account_confirmation_resend: nil,
+            ap_routes: nil
+          EXS
+          PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -f /tmp/akkoma/config/setup_db.psql
+          $AK mix ecto.migrate
+          $AK mix pleroma.user new interop interop@example.com --password "$AKKOMA_PASSWORD" --admin -y
+          # the host's bundle, which now trusts the job's CA: Erlang reads the
+          # system store (`:public_key.cacerts_get/0`)
+          docker run -d --name akkoma --network host \
+            -v /tmp/akkoma:/akkoma \
+            -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro \
+            akkoma-toolchain elixir --erl "+sbwt none +sbwtdcpu none +sbwtdio none" -S mix phx.server
+          for attempt in $(seq 1 90); do
+            if curl -sf "$AKKOMA_BASE_URL/api/v1/instance" > /dev/null; then
+              echo "Akkoma is up"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Akkoma never came up"
+          docker logs akkoma 2>&1 | tail -80
+          exit 1
+
+      - name: Make a token for the Akkoma account
+        run: |
+          set -euo pipefail
+          APP=$(curl -sf -H 'Content-Type: application/json' \
+            -d '{"client_name": "interop", "redirect_uris": "urn:ietf:wg:oauth:2.0:oob", "scopes": "read write follow"}' \
+            "$AKKOMA_BASE_URL/api/v1/apps")
+          CLIENT_ID=$(printf '%s' "$APP" | python3 -c 'import json, sys; print(json.load(sys.stdin)["client_id"])')
+          CLIENT_SECRET=$(printf '%s' "$APP" | python3 -c 'import json, sys; print(json.load(sys.stdin)["client_secret"])')
+          # Pleroma's password grant: no browser needed
+          TOKEN=$(curl -sf -H 'Content-Type: application/json' \
+            -d "{\"grant_type\": \"password\", \"username\": \"interop\", \"password\": \"$AKKOMA_PASSWORD\", \"client_id\": \"$CLIENT_ID\", \"client_secret\": \"$CLIENT_SECRET\", \"scope\": \"read write follow\"}" \
+            "$AKKOMA_BASE_URL/oauth/token" | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])')
+          if [ -z "$TOKEN" ]; then echo "no token"; exit 1; fi
+          echo "::add-mask::$TOKEN"
+          echo "AKKOMA_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          curl -sf -H "Authorization: Bearer $TOKEN" "$AKKOMA_BASE_URL/api/v1/accounts/verify_credentials" | head -c 300; echo
+
+      - name: Interop tests
+        working-directory: apps/social
+        run: |
+          composer i
+          timeout 1500 php -d memory_limit=1G vendor/bin/phpunit -c tests/Interop/phpunit.xml --filter AkkomaTest
+
+      - name: What each side saw, when it went wrong
+        if: failure()
+        run: |
+          echo '--- Nextcloud log, notices and worse ---'
+          python3 -c 'import json,sys
+          for l in open("data/nextcloud.log"):
+              try: d=json.loads(l)
+              except Exception: continue
+              m=d.get("message","")
+              if d.get("level",0)>=1 and "headers already sent" not in m: print(d.get("time"),d.get("level"),d.get("app"),m[:300])' | tail -150 || true
+          echo '--- hosts the circuit breaker held back ---'
+          sqlite3 -header data/nextcloud.db "select * from oc_social_host_breaker" 2>&1 || true
+          echo '--- our delivery queue ---'
+          sqlite3 -header data/nextcloud.db \
+            "select id, token, status, tries, priority, substr(instance,1,90) as instance, substr(activity,1,80) as activity from oc_social_req_queue order by id" 2>&1 | tail -80 || true
+          echo '--- every write through the proxy ---'
+          docker logs proxy 2>&1 | python3 -c 'import json,sys,datetime
+          for l in sys.stdin:
+              try: d=json.loads(l)
+              except Exception: continue
+              r=d.get("request")
+              if not r or r["method"]=="GET" and "webfinger" not in r["uri"]: continue
+              print(datetime.datetime.utcfromtimestamp(d["ts"]).strftime("%H:%M:%S"), d.get("status"), r["method"], r["host"], r["uri"][:90], (r.get("headers",{}).get("User-Agent") or [""])[0][:30])' | tail -200 || true
+          echo '--- Akkoma, its failures ---'
+          docker logs akkoma 2>&1 | grep -i -E "error|warn|fail|refus|invalid|reject" | cut -c1-600 | tail -150 || true

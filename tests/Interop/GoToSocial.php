@@ -119,19 +119,6 @@ class GoToSocial extends ClientApi {
 		return 'Bearer ' . $this->token;
 	}
 
-	/**
-	 * An empty body is sent as `{}`: GoToSocial decodes every JSON body into
-	 * an object and refuses the `[]` an empty PHP array encodes to.
-	 */
-	#[\Override]
-	protected function request(string $method, string $url, ?array $body = null): array {
-		if ($body === []) {
-			return $this->exchange($method, $url, '{}', array_merge($this->headers(), ['Content-Type: application/json']));
-		}
-
-		return parent::request($method, $url, $body);
-	}
-
 	/** GoToSocial answers a request without a `User-Agent` with a 418. */
 	#[\Override]
 	protected function headers(): array {

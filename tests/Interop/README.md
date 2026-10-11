@@ -2,7 +2,7 @@
   - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-# Interop tests (this app talking to a real Mastodon, PeerTube, Pixelfed, Loops and GoToSocial)
+# Interop tests (this app talking to a real Mastodon, PeerTube, Pixelfed, Loops, GoToSocial, Misskey and Akkoma)
 
 The unit suite proves this app emits the document it meant to. The integration
 suite proves the database and the migrations hold what it thinks they hold.
@@ -360,6 +360,41 @@ email and password — and this app's Nextcloud reachable from it over https;
 then `composer run test:interop -- --filter GoToSocial`. GoToSocial is a single
 Go binary, so outside CI it can run without Docker: `http-client.allow-ips`
 lets it dial a loopback address, and a client of it must send a `User-Agent`.
+
+## Against Misskey and Akkoma, weekly
+
+`interop-misskey.yml` and `interop-akkoma.yml` run weekly and by hand only:
+both peers are heavy to stand up. Misskey (the official image, 2026.10.0,
+pinned by digest) is Node with PostgreSQL and Redis, and its first start runs
+every migration it has; Akkoma publishes no image, so its release tag
+(v3.20.1, checked against the commit it names) is compiled in the Elixir
+toolchain its own Dockerfile builds on. Both sit behind the same Caddy and
+job-made CA as the other jobs, and each is given exactly one exception — the
+runner's loopback — where it would otherwise refuse a private address
+(`allowedPrivateNetworks` on Misskey; Akkoma has no such refusal).
+
+The set is smaller than for Mastodon or GoToSocial, the things everybody
+does, both ways: follows, a post, a reply threaded under the post it
+answers, a favourite (on Misskey a reaction, which arrives here as a
+favourite or as that reaction; on Akkoma also an `EmojiReact`), a boost (a
+renote on Misskey) and a delete. `MisskeyTest` reads Misskey through its own
+API (`Misskey`, a `POST /api/<endpoint>` with the token as `i`), since it has
+no Mastodon API; `AkkomaTest` reads Akkoma through its Mastodon-compatible
+one.
+
+Neither job has run anywhere but in CI: both were written against each
+project's documented setup and source, and their first runs are where any
+mistake in that setup shows. `AkkomaTest`'s harness was checked against
+GoToSocial's Mastodon-compatible API, where everything but the Pleroma-only
+emoji reaction passes; `MisskeyTest` has no stand-in. Sharkey keeps Misskey's API and federation code, so
+`MisskeyTest` can run against it unchanged as a second leg once a current
+Sharkey image is pinned; its registry had none from 2026 when this was
+written.
+
+To run either by hand: `MISSKEY_BASE_URL` and `MISSKEY_TOKEN` (the `token` that
+`/api/admin/accounts/create` answers), or `AKKOMA_BASE_URL` and `AKKOMA_TOKEN`
+(Pleroma's password grant at `/oauth/token` mints one), then
+`composer run test:interop -- --filter MisskeyTest` or `--filter AkkomaTest`.
 
 ## Against Bluesky
 
