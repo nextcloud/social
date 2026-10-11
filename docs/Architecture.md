@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.209
+**App version:** 0.26.210
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -1029,7 +1029,9 @@ after another with a 30-second timeout each inside a 300-second budget: about a
 thousand deliveries an hour at best and **ten** at worst, since ten unresponsive
 peers filled the whole pass. It now delivers **several servers at a time**:
 `ActivityService::manageRequests()` sends a batch in waves of up to `PARALLEL`
-(20) rows, one per host, through `CurlService::sendMany()` (the HTTP client's
+(20) rows, one per host — the hosts with the most rows left first, so a batch
+that holds each host's rows together does not end in waves of a few hosts'
+leftovers — through `CurlService::sendMany()` (the HTTP client's
 async calls, which Guzzle runs on one curl multi handle), and settles every row
 exactly as a single delivery is settled. A settled promise answers Guzzle's
 PSR-7 response rather than the `IResponse` a synchronous call returns, and

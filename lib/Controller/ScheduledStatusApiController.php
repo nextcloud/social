@@ -34,6 +34,9 @@ use Throwable;
  * `POST /api/v1/statuses` with a `scheduled_at`, on StatusApiController.
  */
 class ScheduledStatusApiController extends MastodonApiController {
+	/** The largest page of waiting posts, as Mastodon documents it. */
+	private const MAX_LIMIT = 40;
+
 	public function __construct(
 		IRequest $request,
 		IURLGenerator $urlGenerator,
@@ -68,6 +71,7 @@ class ScheduledStatusApiController extends MastodonApiController {
 		try {
 			$this->initViewer(true);
 			$actor = $this->accountService->getActorFromUserId($this->currentSession());
+			$limit = max(1, min(self::MAX_LIMIT, $limit));
 
 			return new DataResponse(
 				$this->scheduledStatusService->getAll($actor, $limit, $max_id, $min_id, $since_id),

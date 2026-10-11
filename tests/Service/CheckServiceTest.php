@@ -15,7 +15,6 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
-use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
@@ -743,29 +742,39 @@ class CheckServiceTest extends TestCase {
 		$this->assertSame('https://cloud.example', $this->service->derivedCloudAddress());
 	}
 
-	private function follow(string $id, string $actorId, string $objectId): Follow {
-		$follow = new Follow();
-		$follow->setId($id);
-		$follow->setActorId($actorId);
-		$follow->setObjectId($objectId);
+	/** @return array{id: string, actor_id: string, object_id: string} */
+	private function follow(string $id, string $actorId, string $objectId): array {
+		return ['id' => $id, 'actor_id' => $actorId, 'object_id' => $objectId];
+	}
 
-		return $follow;
+	/**
+	 * The cached actors among `$ids`, as `getFromIds()` answers: keyed by id,
+	 * the unknown ones absent.
+	 *
+	 * @param string[] $ids
+	 *
+	 * @return array<string, Person>
+	 */
+	private static function cachedUnlessGone(array $ids): array {
+		$cached = [];
+		foreach ($ids as $id) {
+			if (!str_starts_with($id, 'https://gone.example/')) {
+				$cached[$id] = new Person();
+			}
+		}
+
+		return $cached;
 	}
 
 	public function testRemoveInvalidFollowsDropsFollowsWithAnUnknownActorOrObject(): void {
 		$known = 'https://cloud.example.com/apps/social/@alice';
-		$this->followRequest->method('getAll')->willReturn([
-			$this->follow('f1', $known, 'https://remote.example/users/bob'),
-			$this->follow('f2', $known, 'https://gone.example/users/x'),
-			$this->follow('f3', 'https://gone.example/users/y', $known),
+		$this->followRequest->method('getKeyPage')->willReturn([
+			'p1' => $this->follow('f1', $known, 'https://remote.example/users/bob'),
+			'p2' => $this->follow('f2', $known, 'https://gone.example/users/x'),
+			'p3' => $this->follow('f3', 'https://gone.example/users/y', $known),
 		]);
-		$this->cacheActorsRequest->method('getFromId')->willReturnCallback(function (string $id) {
-			if (str_starts_with($id, 'https://gone.example/')) {
-				throw new CacheActorDoesNotExistException();
-			}
-
-			return new Person();
-		});
+		$this->cacheActorsRequest->method('getFromIds')
+			->willReturnCallback(static fn (array $ids): array => self::cachedUnlessGone($ids));
 		$deleted = [];
 		$this->followRequest->expects($this->exactly(2))
 			->method('deleteById')
@@ -779,29 +788,53 @@ class CheckServiceTest extends TestCase {
 	}
 
 	public function testRemoveInvalidNotesDropsNotesFromUnknownAuthors(): void {
-		$valid = new Note();
-		$valid->setId('https://remote.example/notes/1');
-		$valid->setAttributedTo('https://remote.example/users/bob');
-		$orphan = new Note();
-		$orphan->setId('https://gone.example/notes/2');
-		$orphan->setAttributedTo('https://gone.example/users/x');
-		$this->streamRequest->method('getAll')->with(Note::TYPE)->willReturn([$valid, $orphan]);
-		$this->cacheActorsRequest->method('getFromId')->willReturnCallback(function (string $id) {
-			if ($id === 'https://gone.example/users/x') {
-				throw new CacheActorDoesNotExistException();
-			}
-
-			return new Person();
-		});
+		$this->streamRequest->method('getAuthorPage')->with(Note::TYPE)->willReturn([
+			'p1' => ['id' => 'https://remote.example/notes/1', 'attributed_to' => 'https://remote.example/users/bob'],
+			'p2' => ['id' => 'https://gone.example/notes/2', 'attributed_to' => 'https://gone.example/users/x'],
+		]);
+		$this->cacheActorsRequest->method('getFromIds')
+			->willReturnCallback(static fn (array $ids): array => self::cachedUnlessGone($ids));
 		$this->streamRequest->expects($this->once())->method('deleteById')->with('https://gone.example/notes/2', Note::TYPE);
 		$this->miscService->expects($this->once())->method('log')->with('removeInvalidNotes removed 1 entries', 1);
 
 		$this->assertSame(1, $this->service->removeInvalidNotes());
 	}
 
+	/**
+	 * A page at a time from where the last one ended, with the authors of a
+	 * whole page looked up at once: two queries a page, never the table in
+	 * memory and never a query per post.
+	 */
+	public function testRemoveInvalidNotesWalksTheTableAPageAtATime(): void {
+		$full = [];
+		for ($i = 0; $i < CheckService::REPAIR_PAGE; $i++) {
+			$full[sprintf('a%04d', $i)] = ['id' => 'https://remote.example/notes/' . $i, 'attributed_to' => 'https://remote.example/users/bob'];
+		}
+		$last = ['b0000' => ['id' => 'https://gone.example/notes/last', 'attributed_to' => 'https://gone.example/users/x']];
+		$asked = [];
+		$this->streamRequest->expects($this->exactly(2))->method('getAuthorPage')
+			->willReturnCallback(function (string $type, int $limit, string $after) use (&$asked, $full, $last): array {
+				$asked[] = [$limit, $after];
+
+				return $after === '' ? $full : $last;
+			});
+		$lookups = 0;
+		$this->cacheActorsRequest->method('getFromIds')
+			->willReturnCallback(static function (array $ids) use (&$lookups): array {
+				$lookups++;
+
+				return self::cachedUnlessGone($ids);
+			});
+		$this->streamRequest->expects($this->once())->method('deleteById')->with('https://gone.example/notes/last', Note::TYPE);
+
+		$this->assertSame(1, $this->service->removeInvalidNotes());
+		$this->assertSame([[CheckService::REPAIR_PAGE, ''], [CheckService::REPAIR_PAGE, sprintf('a%04d', CheckService::REPAIR_PAGE - 1)]], $asked);
+		$this->assertSame(2, $lookups, 'one lookup of the cached authors a page');
+	}
+
 	public function testCheckInstallationStatusRunsRepairsAndLoopbackFollows(): void {
-		$this->followRequest->method('getAll')->willReturn([]);
-		$this->streamRequest->method('getAll')->willReturn([]);
+		$this->followRequest->method('getKeyPage')->willReturn([]);
+		$this->streamRequest->method('getAuthorPage')->willReturn([]);
 		$alice = $this->createStub(IUser::class);
 		$alice->method('getUID')->willReturn('alice');
 		$bob = $this->createStub(IUser::class);
@@ -823,8 +856,8 @@ class CheckServiceTest extends TestCase {
 	}
 
 	public function testLightInstallationStatusSkipsTheRepairs(): void {
-		$this->followRequest->expects($this->never())->method('getAll');
-		$this->streamRequest->expects($this->never())->method('getAll');
+		$this->followRequest->expects($this->never())->method('getKeyPage');
+		$this->streamRequest->expects($this->never())->method('getAuthorPage');
 		$this->userManager->method('search')->willReturn([]);
 
 		$this->assertSame([], $this->service->checkInstallationStatus(true));

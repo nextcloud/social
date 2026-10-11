@@ -40,6 +40,12 @@ to stop.
 - `Db/OnlyMediaTimelineTest` — the predicate behind the Photos view: posts with
   attachments are kept and all three spellings of "no media" (NULL, `''`, `'[]'`)
   are dropped, and a post carrying several pictures is still one post.
+- `Db/OnlyMediaTimelineTest`, `Db/OnlyVideoTimelineTest`,
+  `Db/MediaTypeTimelineTest` also seed media at a realistic ratio
+  (`Db/MediaUnderText`: three pictures and two videos under sixty newer posts
+  of text) and page the Photos and Videos views of home, public and a profile
+  — a page of twenty, then two at a time on `max_id` — with the home fast path
+  on and off: a narrowing applied after the page was chosen finds nothing.
 - `Db/FollowedTagsTest` — the followed-hashtag table and the second half of the
   home timeline: the unique index that makes following twice a no-op, paging on
   the row id, a 127-character multi-byte tag, and the join itself — a public
@@ -96,6 +102,37 @@ to stop.
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
+- `QueryCounter` / `QueryCounterTest` — records every statement the server's
+  connection executes during a block (through Doctrine's SQL logger, swapped in
+  for the block and put back after), with its parameters; the test proves it
+  counts what the server's own counter counts.
+- `Api/QueryBudgetTest` — query budgets per page of the client API, driven
+  through the controllers as a signed-in reader (`Api/ReaderTestCase`): home (fast
+  and join path), public, notifications, an account's statuses, a status and
+  its thread, search, and a byte range of a media file. A page of twenty must
+  cost what a page of five costs (no query per post) and stay within today's
+  count plus two.
+- `Api/LimitClampTest` — every `GET` route taking `int $limit`, found by
+  reflection, asked for 500 (the most Nextcloud's dispatcher lets through),
+  100000 and -1: each `LIMIT` that reaches the SQL must be one a request at
+  the route's documented maximum, at 1 or at its default also produced. A
+  route whose page is not read by a query is listed with what bounds it.
+- `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
+  method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
+  join path), Photos and Videos on home, public and a profile, an account's
+  statuses, notifications, the delivery queue's standby read, follower
+  inboxes and the handle lookup. SQLite: every guarded table is searched
+  through an index, never scanned. MySQL: a key and no full read, no filesort
+  or temporary table unless the query is listed as one that sorts.
+  PostgreSQL: no `Seq Scan` on a guarded table. MySQL and PostgreSQL are
+  seeded to ~2,000 posts and `ANALYZE`d first.
+- `Db/RepairWalkTest` — the repairs `occ social:check:install` runs, over 1,200
+  notes and 600 follows: orphans removed, the rest kept, statements bounded by
+  two a page plus the deletes, and the peak memory under 4 MB.
+- `Cron/QueueWorkBudgetTest` — one pass of the delivery cron over a real
+  queue of 0, 200 and 400 deliveries, with only the network edge replaced and
+  the clock frozen: a constant cost per pass, two statements per delivery and
+  three per batch, and the second batch costing exactly what the first did.
 - `Command/*` — the occ commands, driven through Symfony's `CommandTester` with
   each command built by the real container, so a constructor these tests cannot
   satisfy is one occ cannot satisfy either. `ResetTest` and `CheckInstallTest`

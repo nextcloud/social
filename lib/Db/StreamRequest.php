@@ -380,18 +380,38 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * @param string $type
+	 * One page of the posts of a type with their authors, in key order: what a
+	 * maintenance walk compares, and nothing else of the row.
 	 *
-	 * @return Stream[]
+	 * Archived posts are left out, as every other read leaves them out.
+	 *
+	 * @return array<string, array{id: string, attributed_to: string}> keyed
+	 *                                                                 by id_prim
 	 */
-	public function getAll(string $type = ''): array {
-		$qb = $this->getStreamSelectSql();
-
-		if ($type !== '') {
-			$qb->limitToType($type);
+	public function getAuthorPage(string $type, int $limit, string $afterPrim = ''): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('s.id_prim', 's.id', 's.attributed_to')
+			->from(self::TABLE_STREAM, 's');
+		$qb->setDefaultSelectAlias('s');
+		$this->hideArchived($qb, false);
+		$qb->limitToType($type);
+		if ($afterPrim !== '') {
+			$qb->andWhere($qb->expr()->gt('s.id_prim', $qb->createNamedParameter($afterPrim)));
 		}
+		$qb->orderBy('s.id_prim', 'asc');
+		$qb->setMaxResults($limit);
 
-		return $this->getStreamsFromRequest($qb);
+		$page = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$page[(string)$data['id_prim']] = [
+				'id' => (string)$data['id'],
+				'attributed_to' => (string)$data['attributed_to'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $page;
 	}
 
 	/**

@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -164,6 +165,55 @@ describe('the shared framework chunk', () => {
 
 	it('boots the dashboard widget when it is served first', async () => {
 		expect(await boot(['social-framework.js', 'social-dashboard.js'])).toBeGreaterThan(0)
+	})
+})
+
+/**
+ * What a reader downloads, compressed as the web server sends it.
+ *
+ * The ceilings above are on raw bytes, and the one on an entry is relative to
+ * the framework chunk — so it loosens as the framework grows, and nothing held
+ * the framework itself. These are absolute and gzipped: the framework is paid
+ * on the first visit to any page, the app's entry on every visit to the app.
+ * Each sits about ten percent above what the build produces today; one that
+ * is reached is a decision to make (a dependency to lazy-load, a chunk to
+ * split), and if it is the right one, the number here moves with a reason.
+ */
+describe('the compressed size of what a page downloads', () => {
+	const KB = 1024
+	const CEILINGS = [
+		// 218 KB when this was written; every page of the app loads it first
+		['social-framework.js', 240 * KB],
+		// 92 KB, up from 71 in September
+		['social-social.js', 105 * KB],
+		// 175 KB, loaded when a video is played
+		['social-hls.js', 193 * KB],
+		// 90 KB, the administration page
+		['social-adminSettings.js', 100 * KB],
+		// 74 KB, the personal settings page
+		['social-settings.js', 82 * KB],
+		// 130 KB, loaded when the composer's emoji button is pressed
+		['social-emoji-picker.js', 144 * KB],
+	]
+
+	function gzipped(name) {
+		return gzipSync(readFileSync(join(JS, name))).length
+	}
+
+	it.each(CEILINGS)('%s stays under its ceiling', (name, ceiling) => {
+		expect(existsSync(join(JS, name)), `${name} is missing; run the build`).toBe(true)
+
+		const size = gzipped(name)
+		expect(size, `${name} is ${Math.round(size / KB)} KB gzipped`).toBeLessThan(ceiling)
+	})
+
+	it('all of js/ together stays under its ceiling', () => {
+		// 1,999 KB across every entry and lazy chunk
+		const total = readdirSync(JS)
+			.filter((entry) => entry.endsWith('.js'))
+			.reduce((sum, entry) => sum + gzipped(entry), 0)
+
+		expect(total, `js/ is ${Math.round(total / KB)} KB gzipped`).toBeLessThan(2200 * KB)
 	})
 })
 

@@ -134,12 +134,35 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * @return Follow[]
+	 * One page of every follow, in key order: its id and the two accounts it
+	 * joins, which is all a maintenance walk compares. Not built into a
+	 * `Follow` each, which looks up the actor of every row.
+	 *
+	 * @return array<string, array{id: string, actor_id: string, object_id: string}>
+	 *                                                                               keyed by id_prim
 	 */
-	public function getAll(): array {
-		$qb = $this->getFollowsSelectSql();
+	public function getKeyPage(int $limit, string $afterPrim = ''): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('f.id_prim', 'f.id', 'f.actor_id', 'f.object_id')
+			->from(self::TABLE_FOLLOWS, 'f');
+		if ($afterPrim !== '') {
+			$qb->andWhere($qb->expr()->gt('f.id_prim', $qb->createNamedParameter($afterPrim)));
+		}
+		$qb->orderBy('f.id_prim', 'asc');
+		$qb->setMaxResults($limit);
 
-		return $this->getFollowsFromRequest($qb);
+		$page = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$page[(string)$data['id_prim']] = [
+				'id' => (string)$data['id'],
+				'actor_id' => (string)$data['actor_id'],
+				'object_id' => (string)$data['object_id'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $page;
 	}
 
 	/**
@@ -463,15 +486,6 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * Where a post has to be delivered for the followers of an actor to see
-	 * it: one row per distinct inbox, resolved in the database.
-	 *
-	 * The fan-out only ever needed the inboxes, and there are as many of those
-	 * as there are instances involved — not as many as there are followers.
-	 *
-	 * @return string[] the shared inbox where there is one, the personal inbox otherwise
-	 */
-	/**
 	 * The accounts that follow `$targetId` and are also followed by
 	 * `$viewerId` — Mastodon's "familiar followers".
 	 *
@@ -511,6 +525,18 @@ class FollowsRequest extends FollowsRequestBuilder {
 		return $ids;
 	}
 
+	/**
+	 * Where a post has to be delivered for the followers of an actor to see
+	 * it: one row per distinct inbox, resolved in the database.
+	 *
+	 * The fan-out only ever needed the inboxes, and there are as many of those
+	 * as there are instances involved — not as many as there are followers.
+	 * The rows are distinct pairs, so a follower without a shared inbox still
+	 * brings one row each; they are told apart by key, which costs the same
+	 * however many there are.
+	 *
+	 * @return string[] the shared inbox where there is one, the personal inbox otherwise
+	 */
 	public function getFollowerInboxes(string $actorId): array {
 		$qb = $this->getQueryBuilder();
 		$expr = $qb->expr();
@@ -530,13 +556,13 @@ class FollowsRequest extends FollowsRequestBuilder {
 			if ($inbox === '') {
 				$inbox = (string)($data['inbox'] ?? '');
 			}
-			if ($inbox !== '' && !in_array($inbox, $inboxes, true)) {
-				$inboxes[] = $inbox;
+			if ($inbox !== '') {
+				$inboxes[$inbox] = $inbox;
 			}
 		}
 		$cursor->closeCursor();
 
-		return $inboxes;
+		return array_values($inboxes);
 	}
 
 	/**

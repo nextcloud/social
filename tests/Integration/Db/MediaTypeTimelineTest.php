@@ -16,7 +16,9 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Service\ConfigService;
 use OCP\Server;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -28,22 +30,28 @@ use PHPUnit\Framework\TestCase;
  * query builder and matches the wrong rows where the SQL actually runs.
  */
 class MediaTypeTimelineTest extends TestCase {
+	use MediaUnderText;
+
 	private const BASE = 'https://cloud.example.org/mediatype';
 	private const AUTHOR = self::BASE . '/users/author';
 
 	private const SUFFIXES = ['picture', 'film', 'sound', 'words', 'both'];
 
 	private StreamRequest $streamRequest;
+	private string $fastPathBefore = '';
 	private CacheActorsRequest $cacheActorsRequest;
 
 	protected function setUp(): void {
 		parent::setUp();
 		$this->streamRequest = Server::get(StreamRequest::class);
+		$this->fastPathBefore = Server::get(ConfigService::class)->getAppValue(ConfigService::SOCIAL_DEST_NID_FILLED);
 		$this->cacheActorsRequest = Server::get(CacheActorsRequest::class);
 		$this->cleanup();
 	}
 
 	protected function tearDown(): void {
+		$this->removeMediaUnderText();
+		$this->useHomeFastPath($this->fastPathBefore === '1');
 		$this->cleanup();
 		parent::tearDown();
 	}
@@ -177,5 +185,28 @@ class MediaTypeTimelineTest extends TestCase {
 		$this->note('words', [], 'my "type":"video" impression of a JSON column');
 
 		$this->assertSame([], $this->profile('video'));
+	}
+
+	/**
+	 * A profile's Photos and Videos tabs, on an account whose last sixty
+	 * posts are text: three pictures and two videos further down.
+	 */
+	#[DataProvider('homeFastPath')]
+	public function testAProfilesTabsFindTheMediaUnderSixtyNewerPostsOfText(bool $fast): void {
+		$this->useHomeFastPath($fast);
+		$seeded = $this->seedMediaUnderText(self::BASE, $this->author());
+
+		foreach (['image' => $seeded['photos'], 'video' => $seeded['videos']] as $mediaType => $expected) {
+			$this->assertFoundUnderText(
+				self::BASE, $expected,
+				static function (ProbeOptions $options) use ($mediaType): void {
+					$options->setProbe(ProbeOptions::ACCOUNT)
+						->setAccountId(self::AUTHOR)
+						->setOnlyMedia(true)
+						->setMediaType($mediaType);
+				},
+				'profile ' . $mediaType
+			);
+		}
 	}
 }

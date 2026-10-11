@@ -1619,6 +1619,33 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame($entity, $response->getData());
 	}
 
+	/** @return array<string, array{int, int}> */
+	public static function scheduledStatusLimits(): array {
+		return [
+			'a page inside the range' => [25, 25],
+			'the most the dispatcher lets through' => [500, 40],
+			'more than that, from a direct caller' => [100000, 40],
+			'zero' => [0, 1],
+			'negative, which SQLite reads as no limit at all' => [-1, 1],
+		];
+	}
+
+	/**
+	 * The limit reached `setMaxResults()` as the client sent it: every other
+	 * paged route clamps it to the page it documents, this one did not.
+	 */
+	#[DataProvider('scheduledStatusLimits')]
+	public function testTheScheduledStatusesPageIsClampedToMastodonsForty(int $asked, int $read): void {
+		$this->loggedInAs();
+		$this->scheduledStatusService->expects($this->once())->method('getAll')
+			->with($this->anything(), $read)
+			->willReturn([]);
+
+		$response = $this->controller()->scheduledStatuses($asked);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+	}
+
 	/**
 	 * A post a rule holds is stored as a request and never reaches
 	 * `social_stream`, so there is no row for a timeline to find. The client
@@ -3566,6 +3593,48 @@ class ApiControllerTest extends TestCase {
 		$this->request->method('getRequestUri')->willReturn($uri);
 		$this->urlGenerator->method('getAbsoluteURL')
 			->willReturnCallback(static fn (string $path): string => 'https://cloud.example' . $path);
+	}
+
+	/**
+	 * The head of the home timeline is what every client polls, and it is
+	 * asked for with no cursor at all: Nextcloud then hands the action the
+	 * parameters' defaults, the integer `0`. The tag — and with it the `304`
+	 * that spares the page query — has to be offered for that request, not
+	 * only for one that spells out `max_id=0`.
+	 */
+	public function testTheHeadOfTheHomeTimelineIsTaggedWhenNoCursorIsSent(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		$this->streamRequest->method('newestHomeNid')->willReturn('55');
+		$this->timelineRevisionService->method('of')->willReturn(3);
+		$this->captureTimelineOptions($this->pageOfStreams(55, 50));
+
+		$response = $this->controller()->timelines('home');
+
+		$this->assertSame('"h55-20-3"', $response->getHeaders()['ETag'] ?? null);
+	}
+
+	public function testAPollHoldingTheCurrentTagIsAnsweredWithoutReadingThePage(): void {
+		$this->loggedInAs();
+		$this->streamRequest->method('newestHomeNid')->willReturn('55');
+		$this->timelineRevisionService->method('of')->willReturn(3);
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$response = $this->controllerWithHeaders('', ['If-None-Match' => '"h55-20-3"'])->timelines('home');
+
+		$this->assertSame(Http::STATUS_NOT_MODIFIED, $response->getStatus());
+	}
+
+	/** A page reached with a cursor is history: a client asks for it once. */
+	public function testAPageBelowTheHeadIsNotTagged(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/timelines/home');
+		$this->streamRequest->expects($this->never())->method('newestHomeNid');
+		$this->captureTimelineOptions($this->pageOfStreams(40, 30));
+
+		$response = $this->controller()->timelines('home', false, 20, '41');
+
+		$this->assertArrayNotHasKey('ETag', $response->getHeaders());
 	}
 
 	/**
