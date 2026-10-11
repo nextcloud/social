@@ -968,7 +968,18 @@ account is in, for the list test; without it that test is skipped outside CI.
 The hashtag search test needs a hashtag the cron has counted; the workflow
 seeds `#alohasearch` with `occ social:note:create` and `occ social:cache:refresh`.
 `E2E_BROWSERS=webkit,firefox` (or `all`) also runs the smoke spec in those
-engines, once they are installed.
+engines, once they are installed. `E2E_IGNORE_HTTPS_ERRORS=1` accepts a
+certificate nobody vouches for, as on a test instance with one of its own.
+
+The weekly run also sets the server up the ways production does and the
+built-in server alone does not: under a sub-path (`/nextcloud`), with pretty
+URLs, and over HTTPS behind a proxy. `tests/e2e/server/router.php` gives PHP's
+built-in server the first two:
+
+```
+E2E_WEBROOT=/nextcloud E2E_PRETTY_URLS=1 php -S localhost:8080 -t <dir with nextcloud in it> \
+    apps/social/tests/e2e/server/router.php
+```
 
 ## 🛠️ Contributing
 
