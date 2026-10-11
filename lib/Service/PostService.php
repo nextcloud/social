@@ -59,6 +59,9 @@ class PostService {
 	public const POLL_MIN_EXPIRATION = 300;
 	public const POLL_MAX_EXPIRATION = 2629746;
 
+	/** Mastodon's words for a reply whose parent is missing or not readable by its author. */
+	public const REPLY_PARENT_NOT_FOUND = 'The post you are trying to reply to does not appear to exist.';
+
 	/**
 	 * The languages whose region subtag names a different written language,
 	 * and which Mastodon therefore offers as post languages of their own.
@@ -295,12 +298,23 @@ class PostService {
 		return $service instanceof Postgates ? $service : null;
 	}
 
+	/**
+	 * The post being replied to, read as the reply's author: a post they may
+	 * not read is not found, in the same words as one that is not here.
+	 *
+	 * @throws StreamNotFoundException
+	 */
 	private function replyParent(Post $post): ?Stream {
 		if ($post->getReplyTo() === '') {
 			return null;
 		}
 
-		return $this->streamService->getStreamById($post->getReplyTo());
+		$this->streamService->setViewer($post->getActor());
+		try {
+			return $this->streamService->getStreamById($post->getReplyTo(), true);
+		} catch (StreamNotFoundException) {
+			throw new StreamNotFoundException(self::REPLY_PARENT_NOT_FOUND);
+		}
 	}
 
 	/**

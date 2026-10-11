@@ -1706,23 +1706,21 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('', $this->postWith(['status' => 'hi'])->getLanguage());
 	}
 
-	public function testStatusNewIgnoresAMissingParent(): void {
+	/**
+	 * A parent the writer may not read is looked up as the writer and is not
+	 * found, so it is answered exactly as a missing one: Mastodon's 404, and
+	 * no post written in its place.
+	 */
+	public function testStatusNewAnswersAParentThatIsNotFoundWithA404(): void {
 		$this->loggedInAs();
 		$this->request->method('getParams')->willReturn(['status' => 'hi', 'in_reply_to_id' => 99]);
 		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException());
-		$activity = $this->createMock(ACore::class);
-		$activity->method('getObjectId')->willReturn('id');
-		$created = null;
-		$this->postService->method('createPost')->willReturnCallback(function (Post $post) use (&$created, $activity): ACore {
-			$created = $post;
+		$this->postService->expects($this->never())->method('createPost');
 
-			return $activity;
-		});
-		$this->streamService->method('getStreamById')->willReturn($this->createStub(Stream::class));
+		$response = $this->controller()->statusNew();
 
-		$this->controller()->statusNew();
-
-		$this->assertSame('', $created->getReplyTo());
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame(['error' => PostService::REPLY_PARENT_NOT_FOUND], $response->getData());
 	}
 
 	public function testAReplyToAPostHiddenByItsAuthorsBlockIsRefusedNotPostedAlone(): void {

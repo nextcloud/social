@@ -153,6 +153,9 @@ to stop.
   `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and
   `/api/v1/favourites` to what the reader may read now, and a bookmarks
   import to the posts the importing account may read.
+  `Api/ReplyParentVisibilityTest` answers a reply to a post its writer may not
+  read exactly as a reply to a missing one, through the client API and the
+  post service.
 - `Atproto/OAuthStorageTest` — OAuth for Bluesky apps: a request approved once
   and its code exchanged once, a refresh token rotated only from the good one
   (the replaced one finds the session to end), one-time DPoP ids taken once by
