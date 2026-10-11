@@ -84,10 +84,11 @@ class CacheFeaturedCollections implements IRepairStep {
 			return;
 		}
 
-		$actors = $this->actorsRequest->getAll();
+		// walked, not loaded: what is refreshed is read back from the table
+		// anyway, so holding every account as a model at once bought nothing
 		$refreshed = 0;
-		$output->startProgress(count($actors));
-		foreach ($actors as $actor) {
+		$output->startProgress($total);
+		foreach ($this->actorsRequest->walk() as $actor) {
 			try {
 				$this->accountService->cacheLocalActorByUsername($actor->getPreferredUsername());
 				$refreshed++;

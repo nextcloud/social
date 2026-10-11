@@ -122,10 +122,10 @@ to stop.
   (recipient nids, `media_kind`, `news_kind`, OAuth authorizations moved to
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
 - `Migration/RepairMemoryTest` — the upgrade steps that walk a table (the
-  recipient-nid backfill, `BackfillRemoteVisibility`, `BackfillStreamPostFields`)
-  and the blind key rotation run over a table five times as large: the peak
-  memory must not grow with it (`PeakMemory`: within a fifth of the smaller
-  run, or 512 KB).
+  recipient-nid backfill, `BackfillRemoteVisibility`, `BackfillStreamPostFields`,
+  `CacheFeaturedCollections`) and the blind key rotation run over a table five
+  times as large: the peak memory must not grow with it (`PeakMemory`: within
+  a fifth of the smaller run, or 512 KB).
 - `Db/ActorsWalkTest` — `ActorsRequest::walk()` visits every local account
   once across pages while each is written to, keyed on the stored `id_prim`
   even where the social URL changed since the accounts were made.

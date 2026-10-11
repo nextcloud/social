@@ -13,6 +13,7 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Migration\BackfillRemoteVisibility;
 use OCA\Social\Migration\BackfillStreamPostFields;
+use OCA\Social\Migration\CacheFeaturedCollections;
 use OCA\Social\Migration\Version1000Date20260917000001;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -51,6 +52,7 @@ class RepairMemoryTest extends TestCase {
 	private const MARKERS = [
 		'migration_remote_visibility_backfilled',
 		'migration_stream_post_fields_backfilled',
+		'migration_local_actor_cache',
 		ConfigService::SOCIAL_DEST_NID_FILLED,
 	];
 
@@ -224,6 +226,24 @@ class RepairMemoryTest extends TestCase {
 			]),
 			fn () => $step->run($this->silent()),
 			'BackfillStreamPostFields'
+		);
+	}
+
+	/**
+	 * Up to its inline limit of 500 accounts the step refreshes them during
+	 * the upgrade; above it, it leaves the job to `occ social:cache:refresh`
+	 * and reads nothing. The limit counts every local account on the
+	 * instance, so this stays well below it: 80 accounts, most of the walk's
+	 * page of 100, against 400.
+	 */
+	public function testTheLocalActorCacheRefreshHoldsOnePage(): void {
+		$step = Server::get(CacheFeaturedCollections::class);
+
+		$this->assertFlatOver(
+			80,
+			fn (int $count) => $this->seedLocalActors($count),
+			fn () => $step->run($this->silent()),
+			'CacheFeaturedCollections'
 		);
 	}
 
