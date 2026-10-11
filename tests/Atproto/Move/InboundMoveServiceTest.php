@@ -51,6 +51,7 @@ use OCP\Security\Bruteforce\IThrottler;
 use OCP\Security\ICrypto;
 use OCP\Security\ISecureRandom;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -74,6 +75,8 @@ class InboundMoveServiceTest extends TestCase {
 	private PrivateKey $rotation;
 	private Identity $current;
 	private string $picture = 'a picture, byte for byte';
+	/** what the stored document's bytes turned out to be */
+	private string $sniffed = 'image/png';
 	/** @var array<string, string> path => record bytes the repository holds */
 	private array $records = [];
 	/** @var IdentityService&MockObject */
@@ -135,6 +138,7 @@ class InboundMoveServiceTest extends TestCase {
 			$this->assertSame($this->picture, file_get_contents($path), 'stored as it came');
 			$document = new Document();
 			$document->setId('https://social.test/documents/local/9');
+			$document->setMimeType($this->sniffed);
 
 			return $document;
 		});
@@ -316,12 +320,41 @@ class InboundMoveServiceTest extends TestCase {
 		$this->assertSame($cid, $missing['blobs'][0]['cid']);
 		$this->assertStringStartsWith('at://' . self::DID . '/app.bsky.feed.post/', $missing['blobs'][0]['recordUri']);
 
-		$uploaded = $this->moves->upload($this->file($this->picture), $auth, 'image/png');
+		$uploaded = $this->moves->upload($this->file($this->picture), $auth);
 
 		$this->assertSame(['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/png', 'size' => strlen($this->picture)], $uploaded['blob']);
 		$this->assertSame([], $this->moves->query('com.atproto.repo.listMissingBlobs', [], $auth)['blobs']);
 		$status = $this->moves->query('com.atproto.server.checkAccountStatus', [], $auth);
 		$this->assertSame([false, false, 1, 1], [$status['activated'], $status['validDid'], $status['expectedBlobs'], $status['importedBlobs']]);
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: string}> what the bytes are, what is kept
+	 */
+	public static function blobTypes(): array {
+		return [
+			'a picture' => ['image/png', 'image/png'],
+			'a video' => ['video/mp4', 'video/mp4'],
+			'a text file' => ['text/plain', 'application/octet-stream'],
+			'a PDF' => ['application/pdf', 'application/octet-stream'],
+		];
+	}
+
+	/**
+	 * A blob is kept with the media type its bytes are, a picture, a video
+	 * or a sound as itself and anything else as opaque bytes, whatever
+	 * type the upload declared.
+	 */
+	#[DataProvider('blobTypes')]
+	public function testABlobKeepsTheTypeOfItsBytes(string $sniffed, string $kept): void {
+		$this->sniffed = $sniffed;
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+
+		$uploaded = $this->moves->upload($this->file($this->picture), $auth);
+
+		$this->assertSame($kept, $uploaded['blob']['mimeType']);
+		$this->assertSame($kept, $this->stored[Cid::forRaw($this->picture)->toString()]->mime);
 	}
 
 	public function testTheAccountTakesTheDidOnlyOnceTheDirectoryPointsHere(): void {
@@ -346,7 +379,7 @@ class InboundMoveServiceTest extends TestCase {
 		$this->moves->run($this->rows[1]);
 		$this->assertSame(Move::DONE, $this->rows[1]->state);
 		$this->assertTrue($this->moves->query('com.atproto.server.checkAccountStatus', [], $auth)['validDid'], 'still answered once the move is done');
-		$this->moves->upload($this->file($this->picture), $auth, 'image/png');
+		$this->moves->upload($this->file($this->picture), $auth);
 	}
 
 	public function testOnlyAnOperationPointingHereIsSent(): void {

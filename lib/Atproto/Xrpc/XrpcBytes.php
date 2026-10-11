@@ -18,6 +18,7 @@ final class XrpcBytes {
 	/**
 	 * @param resource|null $stream the bytes as a stream, `$bytes` left empty
 	 * @param int $length the stream's length, -1 when not known
+	 * @param array<string, string> $headers further headers the answer carries
 	 */
 	public function __construct(
 		public readonly string $bytes,
@@ -25,6 +26,7 @@ final class XrpcBytes {
 		public readonly int $status = 200,
 		public readonly mixed $stream = null,
 		public readonly int $length = -1,
+		public readonly array $headers = [],
 	) {
 	}
 }

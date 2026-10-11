@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Xrpc;
 
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -190,6 +191,11 @@ class XrpcService {
 		return new XrpcBytes(Car::encode([Cid::parse($head->commitCid)], $blocks), 'application/vnd.ipld.car');
 	}
 
+	/**
+	 * A blob, served from this instance's origin as bytes a browser neither
+	 * runs nor sniffs: sandboxed, and a download unless it is a picture, a
+	 * video or a sound.
+	 */
 	private function getBlob(string $did, string $cid): XrpcBytes {
 		$identity = $this->repoIdentity($did);
 		if (!Cid::isValid($cid)) {
@@ -199,14 +205,19 @@ class XrpcService {
 		if ($blob === null) {
 			throw new XrpcException(404, 'BlobNotFound', 'Blob not found');
 		}
+		$type = BlobRef::servableType($blob->mime);
+		$headers = ['Content-Security-Policy' => "default-src 'none'; sandbox", 'X-Content-Type-Options' => 'nosniff'];
+		if ($type === BlobRef::OPAQUE_TYPE) {
+			$headers['Content-Disposition'] = 'attachment';
+		}
 		try {
 			if (str_starts_with($blob->mime, 'video/')) {
 				$opened = $this->videos->open($blob);
 
-				return new XrpcBytes('', $blob->mime, 200, $opened['stream'], $opened['size']);
+				return new XrpcBytes('', $type, 200, $opened['stream'], $opened['size'], $headers);
 			}
 
-			return new XrpcBytes($this->pictures->read($blob), $blob->mime);
+			return new XrpcBytes($this->pictures->read($blob), $type, 200, null, -1, $headers);
 		} catch (AtprotoException) {
 			throw new XrpcException(404, 'BlobNotFound', 'Blob not found');
 		}

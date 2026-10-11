@@ -345,8 +345,14 @@ previous commit as the repository's head: the `social_atproto_repo` row
 A picture or video that a record references is a **blob**: uploaded (§8.4)
 or imported (§13), it is the app's own stored file (`social_cache_doc`,
 through `DocumentService`) with a `social_atproto_blob` row giving its CID
-(SHA-256 of the bytes, `raw` multicodec), MIME type and size. `getBlob`
-streams it; `listBlobs` lists them per repository; a blob no record refers
+(SHA-256 of the bytes, `raw` multicodec), MIME type and size. The MIME
+type is the one the bytes are, never the one an upload declared, and
+anything but a picture, a video or a sound is kept as
+`application/octet-stream`. `getBlob` streams it with
+`Content-Security-Policy: default-src 'none'; sandbox` and
+`X-Content-Type-Options: nosniff`, and anything but a picture, a video or
+a sound as `application/octet-stream` with `Content-Disposition:
+attachment`; `listBlobs` lists them per repository; a blob no record refers
 to is deleted by the ordinary document retention. Limits are Bluesky's:
 pictures ≤ 2,000,000 bytes (re-encoded to fit, §8.4), at most four per
 post; a video is one mp4 ≤ 100,000,000 bytes and three minutes, made into

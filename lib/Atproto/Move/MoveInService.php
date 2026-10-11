@@ -300,7 +300,7 @@ class MoveInService {
 				} finally {
 					@unlink($path);
 				}
-				$this->blobs->put(new BlobRef($move->did, Cid::parse($cid), $document->getId(), $document->getMimeType(), strlen($blob['bytes'])));
+				$this->blobs->put(new BlobRef($move->did, Cid::parse($cid), $document->getId(), BlobRef::servableType($document->getMimeType()), strlen($blob['bytes'])));
 				$this->repoRequest->addBlobBytes($move->did, strlen($blob['bytes']));
 				$copied++;
 			}
