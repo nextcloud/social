@@ -504,12 +504,13 @@ keeping the same domain.
 The archive half has moved since this was written, in one direction. An account
 can now take its data out and put it back: `SocialMigrator` — driven by
 `occ user:export`, by Nextcloud's account migration, and by the Migration page's
-two buttons — writes the profile, the follows and followers as CSV, the
-bookmarks and favourites as URLs, the account's **own posts as an ActivityPub
+two buttons — writes the profile, the follows and followers, the lists and
+the blocked domains as CSV, the bookmarks and favourites as URLs, the account's **own posts as an ActivityPub
 `OrderedCollection`**, and **the files of those posts**, under
 `media_attachments/` in the layout Mastodon's own archive uses, with each
 attachment's `url` rewritten to point into the archive. What comes back on import
-is the profile, the follows, the relations, the marks, the banner and the files
+is the profile, the follows, the relations, the lists, the blocked domains,
+the marks, the banner and the files
 of the posts this server still has. That import counts the posts and does not
 write them, and the key pair is deliberately never carried. Posts are brought
 over separately: **Settings → Migration → Bring your posts with you** and

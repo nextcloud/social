@@ -49,8 +49,9 @@ use Throwable;
  *
  * What travels is what the account *is* and what it *chose*: the actor's
  * profile and flags, who it follows and who follows it, what it blocks and
- * mutes, what it wrote — with the pictures and videos on it, and the banner
- * over it — and what it kept (bookmarks and favourites). The lists of accounts
+ * mutes, its lists and the servers it blocks, what it wrote — with the
+ * pictures and videos on it, and the banner over it — and what it kept
+ * (bookmarks and favourites). The lists of accounts
  * are written in the shape Mastodon exports them, and the files under
  * `media_attachments/` in the layout Mastodon's own archive uses, so the archive
  * is useful outside Nextcloud too — `following_accounts.csv` is the file
@@ -115,6 +116,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	private const PATH_FOLLOWERS = self::PATH_ROOT . 'followers.csv';
 	private const PATH_BLOCKS = self::PATH_ROOT . 'blocked_accounts.csv';
 	private const PATH_MUTES = self::PATH_ROOT . 'muted_accounts.csv';
+	private const PATH_LISTS = self::PATH_ROOT . 'lists.csv';
+	private const PATH_DOMAIN_BLOCKS = self::PATH_ROOT . 'blocked_domains.csv';
 	private const PATH_BOOKMARKS = self::PATH_ROOT . 'bookmarks.csv';
 	private const PATH_LIKES = self::PATH_ROOT . 'likes.csv';
 	private const PATH_OUTBOX = self::PATH_ROOT . 'outbox.json';
@@ -295,6 +298,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$this->exportActor($actor, $exportDestination, $output);
 		$this->exportFollows($actor, $exportDestination, $output);
 		$this->exportRelations($actor, $exportDestination, $output);
+		$this->exportLists($user->getUID(), $exportDestination, $output);
 		$this->exportMarks($actor, $exportDestination, $output);
 		$this->exportInterests($actor, $exportDestination, $output);
 		$this->exportOutbox($actor, $exportDestination, $output);
@@ -512,6 +516,27 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			$this->warnOnCap($mutes, 'mutes', $output);
 		} catch (Throwable $e) {
 			throw new SocialMigratorException('Could not export the Social blocks and mutes', 0, $e);
+		}
+	}
+
+	/**
+	 * The lists and the blocked servers, as the two files Mastodon writes
+	 * them to — `lists.csv` and `blocked_domains.csv` — written by the same
+	 * code as the one-file downloads of the Migration page, so the archive
+	 * and those downloads cannot disagree about either.
+	 */
+	private function exportLists(string $userId, IExportDestination $exportDestination, OutputInterface $output): void {
+		try {
+			foreach ([
+				'lists' => self::PATH_LISTS,
+				'domain_blocks' => self::PATH_DOMAIN_BLOCKS,
+			] as $kind => $path) {
+				$csv = $this->migrationService->exportCsv($userId, $kind)[1] ?? '';
+				$exportDestination->addFileContents($path, $csv);
+				$output->writeln('Exported ' . substr_count($csv, "\n") . ' line(s) to ' . $path . '…');
+			}
+		} catch (Throwable $e) {
+			throw new SocialMigratorException('Could not export the Social lists and blocked domains', 0, $e);
 		}
 	}
 
@@ -891,6 +916,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$this->importActor($userId, $importSource, $output);
 		$this->importFollows($userId, $importSource, $output);
 		$this->importRelations($actor, $importSource, $output);
+		$this->importLists($userId, $importSource, $output);
 		$this->importMarks($actor, $importSource, $output);
 		$this->importInterests($actor, $importSource, $output);
 		$this->importOutbox($actor, $importSource, $output);
@@ -1027,6 +1053,41 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		);
 		foreach ($result['failed'] as $handle => $reason) {
 			$output->writeln('  - ' . $handle . ': ' . $reason);
+		}
+	}
+
+	/**
+	 * The lists and the blocked servers, through the imports the Migration
+	 * page runs for the same two files. After the follows, because a list
+	 * holds only accounts this one follows; and neither federates anything.
+	 */
+	private function importLists(string $userId, IImportSource $importSource, OutputInterface $output): void {
+		$lists = $this->optionalFile($importSource, self::PATH_LISTS, $output);
+		if ($lists !== null) {
+			try {
+				$result = $this->migrationService->importLists($userId, $lists);
+				$output->writeln(
+					'Restored ' . $result['lists'] . ' list(s) with ' . $result['added'] . ' member(s) from '
+					. self::PATH_LISTS . '; skipped ' . $result['skipped'] . ', failed ' . count($result['failed']) . '…'
+				);
+			} catch (Throwable $e) {
+				$this->logger->warning('could not import the lists', ['userId' => $userId, 'exception' => $e]);
+				$output->writeln('<error>Could not import the lists: ' . $e->getMessage() . '</error>');
+			}
+		}
+
+		$domains = $this->optionalFile($importSource, self::PATH_DOMAIN_BLOCKS, $output);
+		if ($domains !== null) {
+			try {
+				$result = $this->migrationService->importDomainBlocks($userId, $domains);
+				$output->writeln(
+					'Restored ' . $result['blocked'] . ' blocked server(s) from ' . self::PATH_DOMAIN_BLOCKS
+					. '; failed ' . count($result['failed']) . '…'
+				);
+			} catch (Throwable $e) {
+				$this->logger->warning('could not import the blocked domains', ['userId' => $userId, 'exception' => $e]);
+				$output->writeln('<error>Could not import the blocked domains: ' . $e->getMessage() . '</error>');
+			}
 		}
 	}
 
@@ -1641,6 +1702,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			self::PATH_FOLLOWERS,
 			self::PATH_BLOCKS,
 			self::PATH_MUTES,
+			self::PATH_LISTS,
+			self::PATH_DOMAIN_BLOCKS,
 			self::PATH_BOOKMARKS,
 			self::PATH_LIKES,
 			self::PATH_OUTBOX,
