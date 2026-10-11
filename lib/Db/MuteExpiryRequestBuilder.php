@@ -12,9 +12,11 @@ namespace OCA\Social\Db;
 use DateTime;
 use DateTimeZone;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\DB\QueryBuilder\ICompositeExpression;
 use OCP\DB\QueryBuilder\IExpressionBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\Server;
 
 /**
  * Class MuteExpiryRequestBuilder
@@ -60,8 +62,8 @@ class MuteExpiryRequestBuilder extends CoreRequestBuilder {
 	 * @param string $announceAlias the alias the boosted row is joined under; a
 	 *                              boost's own author is the booster, and both
 	 *                              can be muted. Empty to skip that half.
-	 * @param int|null $now the moment the read happens, for a test that needs
-	 *                      to place one either side of an expiry
+	 * @param int|null $now the moment the read happens; the server's clock
+	 *                      when not given
 	 */
 	public static function joinExpiredMutes(
 		SocialCoreQueryBuilder $qb, string $announceAlias = 'hd_o', ?int $now = null,
@@ -78,7 +80,7 @@ class MuteExpiryRequestBuilder extends CoreRequestBuilder {
 			$authors[] = $expr->eq(self::ALIAS . '.object_id_prim', $author);
 		}
 
-		$expired = (new DateTime('@' . ($now ?? time())))
+		$expired = (new DateTime('@' . ($now ?? Server::get(ITimeFactory::class)->getTime())))
 			->setTimezone(new DateTimeZone(date_default_timezone_get()));
 
 		$qb->leftJoin(
