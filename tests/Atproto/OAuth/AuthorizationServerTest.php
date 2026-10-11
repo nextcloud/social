@@ -476,4 +476,88 @@ class AuthorizationServerTest extends TestCase {
 			$this->assertStringContainsString('ended', $e->getMessage());
 		}
 	}
+
+	/**
+	 * Each lifetime of a Bluesky app's sign-in, on its last second and on the
+	 * one after: the pushed request (five minutes), the code (five minutes
+	 * from consent), the access token (fifteen minutes) and a public client's
+	 * session (two weeks), whose last refresh hands out a token that ends with
+	 * it rather than two weeks later.
+	 */
+	public function testARequestIsApprovedOnItsLastSecondAndNotTheNext(): void {
+		$pushedAt = $this->now;
+		[$onTime] = $this->pushed();
+		[$late] = $this->pushed();
+
+		$this->now = $pushedAt + 300;
+		$this->assertStringStartsWith(self::REDIRECT . '?', $this->server->approve(self::CLIENT, $onTime, 'alice'));
+
+		$this->now++;
+		$this->expectException(OAuthException::class);
+		$this->expectExceptionMessage('has expired');
+		$this->server->approve(self::CLIENT, $late, 'alice');
+	}
+
+	public function testACodeIsExchangedOnItsLastSecondAndNotTheNext(): void {
+		$codes = [];
+		foreach (['on time', 'late'] as $which) {
+			[$requestUri, $verifier] = $this->pushed();
+			parse_str((string)parse_url($this->server->approve(self::CLIENT, $requestUri, 'alice'), PHP_URL_QUERY), $callback);
+			$codes[$which] = [$callback['code'], $verifier];
+		}
+		$approvedAt = $this->now;
+		$exchange = fn (array $code): array => $this->server->token([
+			'grant_type' => 'authorization_code', 'client_id' => self::CLIENT, 'code' => $code[0],
+			'code_verifier' => $code[1], 'redirect_uri' => self::REDIRECT,
+		], $this->proof(self::ISSUER . '/oauth/token'));
+
+		$this->now = $approvedAt + 300;
+		$this->assertSame(self::DID, $exchange($codes['on time'])['sub']);
+
+		$this->now++;
+		try {
+			$exchange($codes['late']);
+			$this->fail('a code was exchanged a second after its lifetime');
+		} catch (OAuthException $e) {
+			$this->assertSame('invalid_grant', $e->error);
+		}
+	}
+
+	public function testAnAccessTokenActsOnItsLastSecondAndNotTheNext(): void {
+		$issuedAt = $this->now;
+		$tokens = $this->signedIn();
+		$url = self::ISSUER . '/xrpc/app.bsky.feed.getTimeline';
+
+		$this->now = $issuedAt + AuthorizationServer::ACCESS_LIFETIME;
+		$this->assertSame('alice', $this->server->authenticate('DPoP ' . $tokens['access_token'], $this->proof($url, 'GET', $tokens['access_token']), 'GET', $url)->userId);
+
+		$this->now++;
+		try {
+			$this->server->authenticate('DPoP ' . $tokens['access_token'], $this->proof($url, 'GET', $tokens['access_token']), 'GET', $url);
+			$this->fail('an access token acted a second after it expired');
+		} catch (OAuthException $e) {
+			$this->assertSame(401, $e->status);
+			$this->assertSame('The token has expired', $e->getMessage());
+		}
+	}
+
+	public function testAPublicClientRefreshesOnTheLastSecondOfItsSessionAndTheTokenEndsWithIt(): void {
+		$signedInAt = $this->now;
+		$tokens = $this->signedIn();
+		$refresh = fn (string $token): array => $this->server->token([
+			'grant_type' => 'refresh_token', 'client_id' => self::CLIENT, 'refresh_token' => $token,
+		], $this->proof(self::ISSUER . '/oauth/token'));
+
+		$this->now = $signedInAt + 14 * 86400;
+		$last = $refresh($tokens['refresh_token']);
+		$this->assertSame(self::DID, $last['sub'], 'refreshed on the last second of the session');
+
+		$this->now++;
+		try {
+			$refresh($last['refresh_token']);
+			$this->fail('the session outlived its two weeks');
+		} catch (OAuthException $e) {
+			$this->assertSame('invalid_grant', $e->error);
+		}
+	}
 }
