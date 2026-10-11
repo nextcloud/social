@@ -292,6 +292,14 @@ to stop.
   a duration makes it permanent; an expiry at a leap day, a month or year end
   or a daylight-saving change comes back from the database as the same instant.
 
+- `Api/ScheduledPostLifecycleTest` — a post scheduled through
+  `POST /api/v1/statuses` and the cron's runs around it: still waiting a
+  second before it is due, published on that second, not again on the next
+  run; `scheduled_at` written with and without an offset at a leap day, a
+  month and year end and in the hours a daylight-saving change skips or
+  repeats goes out on the instant it names; the daily cap of 25 counts the
+  day the posts are for.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
