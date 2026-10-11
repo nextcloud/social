@@ -14,7 +14,8 @@ use InvalidArgumentException;
 /**
  * The leaves of a repository's Merkle Search Tree, read from its blocks:
  * every record path with the CID of its record, in key order. What a CAR
- * file of another PDS holds, when a repository moves here.
+ * file of another PDS holds, when a repository moves here; untrusted, so a
+ * tree whose keys, read in order, do not strictly ascend is refused.
  */
 final class MstReader {
 	private const MAX_DEPTH = 64;
@@ -26,7 +27,8 @@ final class MstReader {
 	 */
 	public static function leaves(Cid $root, array $blocks): array {
 		$leaves = [];
-		self::walk($root, $blocks, $leaves, 0);
+		$last = null;
+		self::walk($root, $blocks, $leaves, $last, 0);
 
 		return $leaves;
 	}
@@ -34,8 +36,9 @@ final class MstReader {
 	/**
 	 * @param array<string, string> $blocks
 	 * @param array<string, Cid> $leaves
+	 * @param string|null $last the key read before, null before the first
 	 */
-	private static function walk(Cid $cid, array $blocks, array &$leaves, int $depth): void {
+	private static function walk(Cid $cid, array $blocks, array &$leaves, ?string &$last, int $depth): void {
 		if ($depth > self::MAX_DEPTH) {
 			throw new InvalidArgumentException('The tree is deeper than a repository can be');
 		}
@@ -48,7 +51,7 @@ final class MstReader {
 			throw new InvalidArgumentException('Not a tree node: ' . $cid->toString());
 		}
 		if (($node['l'] ?? null) instanceof Cid) {
-			self::walk($node['l'], $blocks, $leaves, $depth + 1);
+			self::walk($node['l'], $blocks, $leaves, $last, $depth + 1);
 		}
 		$previous = '';
 		foreach ($node['e'] as $entry) {
@@ -62,10 +65,14 @@ final class MstReader {
 			if (!Mst::isValidKey($key)) {
 				throw new InvalidArgumentException('Not a record path: ' . $key);
 			}
+			if ($last !== null && strcmp($key, $last) <= 0) {
+				throw new InvalidArgumentException('Tree keys out of order: ' . $key . ' after ' . $last);
+			}
 			$leaves[$key] = $value;
+			$last = $key;
 			$previous = $key;
 			if (($entry['t'] ?? null) instanceof Cid) {
-				self::walk($entry['t'], $blocks, $leaves, $depth + 1);
+				self::walk($entry['t'], $blocks, $leaves, $last, $depth + 1);
 			}
 		}
 	}
