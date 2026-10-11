@@ -247,7 +247,10 @@ in random order with a fresh seed, which it prints so the order can be replayed:
     vendor/bin/phpunit -c tests/Integration/phpunit.xml --order-by=random --random-order-seed=<seed>
 
 A test that only passes on a fresh database, after some other test or before
-its own leftovers, fails there.
+its own leftovers, fails there. Two more legs do the same on SQLite with a
+memcache — APCu as `memcache.local`, and Redis as `memcache.distributed` and
+`memcache.locking` — because code that caches takes other paths on a server
+that has one.
 
 **Locally**, point the bootstrap at an installed server (the app directory may be
 a symlink into it):

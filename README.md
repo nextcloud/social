@@ -884,7 +884,8 @@ NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
 
 See `tests/Integration/README.md` for what it covers.
 `integration-robustness.yml` runs it twice on the same database and once in
-random order (the seed is in the job summary), on all three databases.
+random order (the seed is in the job summary), on all three databases, and
+on SQLite with APCu and with Redis as the server's memcache.
 
 **Coverage** is measured in CI on one leg of `phpunit-sqlite.yml` (the newest
 server and PHP): the unit and the integration suite each write a Clover
