@@ -472,7 +472,7 @@ class StreamService {
 		// their server states it will not take means telling the person who
 		// wrote it that it went out — and it did, and nothing will ever show
 		// it. Refused here, before anything is written or addressed.
-		if (!$parent->allowsInteraction(Stream::INTERACTION_REPLY)) {
+		if (!$parent->allowsInteraction(Stream::INTERACTION_REPLY, $note->getAttributedTo())) {
 			throw new InvalidActionException(
 				'the author of this post does not allow replies to it'
 			);

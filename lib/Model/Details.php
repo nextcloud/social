@@ -72,6 +72,13 @@ final class Details {
 	public const POLICIES = 'policies';
 
 	/**
+	 * Whom a narrower-than-public policy names, as `interaction => [ids]`:
+	 * the actors and the author's collections listed in its
+	 * `automaticApproval`, which are a "yes" for those they name.
+	 */
+	public const POLICY_GRANTEES = 'policy_grantees';
+
+	/**
 	 * Whether this post may be quoted, and whether a quote was let through.
 	 *
 	 * `quote` and `quoteAuthorization` are properties of the stored wire object

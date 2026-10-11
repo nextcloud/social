@@ -144,7 +144,7 @@ class ActionService {
 	 *
 	 * @throws InvalidActionException
 	 */
-	private function assertAllowedByAuthor(Stream $post, string $action): void {
+	private function assertAllowedByAuthor(Stream $post, string $action, string $actorId): void {
 		$interaction = match ($action) {
 			self::FAVOURITE => Stream::INTERACTION_LIKE,
 			self::REBLOG => Stream::INTERACTION_BOOST,
@@ -153,7 +153,7 @@ class ActionService {
 
 		// taking one back is always allowed: the author's policy is about what
 		// may be sent, and an Undo is how this instance stops having sent it
-		if ($interaction === '' || $post->allowsInteraction($interaction)) {
+		if ($interaction === '' || $post->allowsInteraction($interaction, $actorId)) {
 			return;
 		}
 
@@ -169,7 +169,7 @@ class ActionService {
 		}
 
 		$post = $this->streamService->getStreamByNid($nid);
-		$this->assertAllowedByAuthor($post, $action);
+		$this->assertAllowedByAuthor($post, $action, $actor->getId());
 
 		switch ($action) {
 			case self::FAVOURITE:

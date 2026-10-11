@@ -14,6 +14,7 @@ use DateTimeZone;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
+use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceEntryException;
@@ -508,6 +509,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	/** @var array<string, bool> whether the reader follows an author, for this request */
 	private static array $followChecks = [];
+
+	/** @var array<string, array{0: string, 1: string}> an author's followers and following collections, for this request */
+	private static array $authorCollections = [];
 
 	/**
 	 * How deep the export currently is inside a chain of quotes. A quote of a
@@ -1700,16 +1704,36 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	private function importInteractionPolicies(array $data): void {
 		$policies = [];
+		$grantees = [];
 		foreach (self::INTERACTION_CLAUSES as $interaction => $clause) {
 			$policy = self::policyOf($data, $clause);
 			if ($policy !== '') {
 				$policies[$interaction] = $policy;
+			}
+			if ($policy === self::QUOTE_POLICY_NOBODY) {
+				$grantees[$interaction] = self::granteesOf($data, $clause);
 			}
 		}
 
 		if ($policies !== []) {
 			$this->setDetailArray(Details::POLICIES, $policies);
 		}
+		if ($grantees !== []) {
+			$this->setDetailArray(Details::POLICY_GRANTEES, $grantees);
+		}
+	}
+
+	/**
+	 * The ids one clause's `automaticApproval` names.
+	 *
+	 * @param array<string, mixed> $data the wire object
+	 * @return string[]
+	 */
+	private static function granteesOf(array $data, string $clause): array {
+		$automatic = $data['interactionPolicy'][$clause]['automaticApproval'] ?? [];
+		$automatic = is_array($automatic) ? $automatic : [$automatic];
+
+		return array_values(array_filter($automatic, static fn ($id): bool => is_string($id) && $id !== ''));
 	}
 
 	/**
@@ -2437,6 +2461,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	public static function resetQuoteCache(): void {
 		self::$quotedStatuses = [];
 		self::$quoteDepth = 0;
+		self::$followChecks = [];
+		self::$authorCollections = [];
 	}
 
 	/**
@@ -2804,10 +2830,11 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * the author's server afterwards, which is the worst of both: the reader
 	 * is told their reply went out, and it did, and nothing ever shows it.
 	 *
-	 * `automaticApproval` naming the public collection is the only "yes" this
-	 * app acts on, for the reason set out above `quotePolicyOf()`:
-	 * `manualApproval` means the author's server decides case by case, and
-	 * nothing here can wait for that answer.
+	 * `automaticApproval` naming the public collection is the only blanket
+	 * "yes", for the reason set out above `quotePolicyOf()`: `manualApproval`
+	 * means the author's server decides case by case, and nothing here can
+	 * wait for that answer. Whom a narrower list names is kept beside it
+	 * (`granteesOf()`) and decided per reader by `allowsInteraction()`.
 	 *
 	 * @param array<string, mixed> $data the wire object
 	 * @param string $clause `canReply`, `canAnnounce`, `canLike` or `canQuote`
@@ -2849,19 +2876,73 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * Whether this instance should offer an interaction at all.
+	 * Whether this instance should offer an interaction at all, to one reader.
 	 *
 	 * True where the author said nothing — which is every post from every
 	 * server that does not publish policies, and has to stay the default — and
 	 * true for anything local, where the policy is this instance's to apply
 	 * when the interaction arrives rather than something to refuse in advance.
+	 *
+	 * A policy narrower than public is still a "yes" for whom it names: the
+	 * reader by id, the author's followers collection when the reader follows
+	 * the author, the author's following collection when the author follows
+	 * the reader. GoToSocial writes every direct message's and followers-only
+	 * post's policy that way, and lets anybody a post mentions reply to it
+	 * whatever its policy says; it approves those interactions on its own
+	 * when they arrive.
+	 *
+	 * @param string|null $viewerId the reader's actor id; the reader the
+	 *                              stream reads were scoped for when null
 	 */
-	public function allowsInteraction(string $interaction): bool {
-		if ($this->isLocal()) {
+	public function allowsInteraction(string $interaction, ?string $viewerId = null): bool {
+		if ($this->isLocal() || $this->getInteractionPolicy($interaction) !== self::QUOTE_POLICY_NOBODY) {
 			return true;
 		}
 
-		return $this->getInteractionPolicy($interaction) !== self::QUOTE_POLICY_NOBODY;
+		$viewerId ??= self::currentViewerId();
+		$author = $this->getAttributedTo();
+		if ($viewerId === '' || $author === '') {
+			return false;
+		}
+		if ($viewerId === $author
+			|| ($interaction === self::INTERACTION_REPLY && in_array($viewerId, $this->addressed(), true))) {
+			return true;
+		}
+
+		$grantees = $this->getDetailsAll()[Details::POLICY_GRANTEES][$interaction] ?? [];
+		$grantees = is_array($grantees) ? $grantees : [];
+		if (in_array($viewerId, $grantees, true)) {
+			return true;
+		}
+
+		[$followers, $following] = $this->authorCollections();
+
+		return ($followers !== '' && in_array($followers, $grantees, true) && self::viewerFollows($viewerId, $author))
+			|| ($following !== '' && in_array($following, $grantees, true) && self::viewerFollows($author, $viewerId));
+	}
+
+	/**
+	 * The author's followers and following collections, from the actor the
+	 * post was read with or else from the actor cache.
+	 *
+	 * @return array{0: string, 1: string}
+	 */
+	private function authorCollections(): array {
+		$authorId = $this->getAttributedTo();
+		if (array_key_exists($authorId, self::$authorCollections)) {
+			return self::$authorCollections[$authorId];
+		}
+
+		$author = $this->hasActor() ? $this->getActor() : null;
+		if ($author === null || $author->getId() !== $authorId) {
+			try {
+				$author = Server::get(CacheActorsRequest::class)->getFromId($authorId);
+			} catch (\Throwable $e) {
+				return ['', ''];
+			}
+		}
+
+		return self::$authorCollections[$authorId] = [$author->getFollowers(), $author->getFollowing()];
 	}
 
 	/**
