@@ -269,6 +269,7 @@ class SocialMigratorTest extends TestCase {
 	/** The actor exists and every collection around it is empty. */
 	private function anAccountWithNothingInIt(): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->accountService->method('getCachedLocalActor')->willReturn($this->alice());
 		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
 		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
 		$this->actorRelationRequest->method('getByActor')->willReturn([]);
@@ -668,10 +669,18 @@ class SocialMigratorTest extends TestCase {
 	 * the Nextcloud account's — core's migrator carries that one — so it is
 	 * not copied a second time.
 	 */
+	/**
+	 * The banner is written to the cached copy of the account, which is what
+	 * every reader of the profile is served; the account's own row never
+	 * holds it, so an export that read only that row carried no banner.
+	 */
 	public function testTheProfileBannerTravelsAndTheNextcloudAvatarDoesNot(): void {
-		$alice = $this->alice();
-		$alice->setHeader(self::MEDIA);
-		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$stored = $this->alice();
+		$stored->setAvatar('')->setHeader('');
+		$cached = $this->alice();
+		$cached->setHeader(self::MEDIA);
+		$this->accountService->method('getActorFromUserId')->willReturn($stored);
+		$this->accountService->method('getCachedLocalActor')->with('alice')->willReturn($cached);
 		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
 		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
 		$this->actorRelationRequest->method('getByActor')->willReturn([]);
@@ -683,6 +692,7 @@ class SocialMigratorTest extends TestCase {
 		$this->assertSame('BANNER', $archive->contents('social/media_attachments/header.jpg'));
 		$actor = json_decode($archive->contents('social/actor.json'), true, 512, JSON_THROW_ON_ERROR);
 		$this->assertSame('media_attachments/header.jpg', $actor['headerFile']);
+		$this->assertSame(self::MEDIA, $actor['header']);
 		$this->assertArrayNotHasKey(
 			'avatarFile',
 			$actor,

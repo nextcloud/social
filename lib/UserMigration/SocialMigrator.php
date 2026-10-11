@@ -335,6 +335,10 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 * this app's own — the picture of a local account is the Nextcloud
 	 * account's, which core's own migrator carries and which this would only
 	 * duplicate.
+	 *
+	 * The pictures are read off the cached copy of the account: that is the
+	 * row `BannerService` writes the banner to and every reader of the
+	 * profile is served from, and `social_actor` never holds it.
 	 */
 	private function exportActor(
 		Person $actor,
@@ -343,11 +347,12 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	): void {
 		$output->writeln('Exporting the Aloha Social actor in ' . self::PATH_ACTOR . '…');
 
-		$avatarFile = $this->exportProfileImage($actor->getAvatar(), 'avatar', $exportDestination);
+		$pictures = $this->profilePictures($actor);
+		$avatarFile = $this->exportProfileImage($pictures->getAvatar(), 'avatar', $exportDestination);
 		// `getHeader()` falls back to the avatar when there is no banner, which
 		// would put the same file in the archive twice under two names
-		$headerFile = ($actor->getHeader() === $actor->getAvatar())
-			? '' : $this->exportProfileImage($actor->getHeader(), 'header', $exportDestination);
+		$headerFile = ($pictures->getHeader() === $pictures->getAvatar())
+			? '' : $this->exportProfileImage($pictures->getHeader(), 'header', $exportDestination);
 		foreach (['avatar' => $avatarFile, 'banner' => $headerFile] as $what => $path) {
 			if ($path !== '') {
 				$output->writeln('Exported the ' . $what . ' to ' . self::PATH_ROOT . $path . '…');
@@ -372,8 +377,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				'sensitive' => $actor->isSensitive(),
 				'privacy' => $actor->getPrivacy(),
 				'language' => $actor->getLanguage(),
-				'avatar' => $actor->getAvatar(),
-				'header' => $actor->getHeader(),
+				'avatar' => $pictures->getAvatar(),
+				'header' => $pictures->getHeader(),
 				'alsoKnownAs' => $actor->getAlsoKnownAs(),
 				'movedTo' => $actor->getMovedTo(),
 				// the public half only; see the class comment
@@ -382,6 +387,22 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			], JSON_THROW_ON_ERROR));
 		} catch (Throwable $e) {
 			throw new SocialMigratorException('Could not export the Social actor', 0, $e);
+		}
+	}
+
+	/**
+	 * The cached copy of a local account, which carries its pictures, or the
+	 * account itself where there is none to read.
+	 */
+	private function profilePictures(Person $actor): Person {
+		try {
+			return $this->accountService->getCachedLocalActor($actor->getPreferredUsername());
+		} catch (Throwable $e) {
+			$this->logger->notice('cannot read the cached copy of an account for its export', [
+				'actor' => $actor->getId(), 'exception' => $e,
+			]);
+
+			return $actor;
 		}
 	}
 
