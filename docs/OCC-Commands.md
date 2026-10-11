@@ -1021,6 +1021,44 @@ original goes. A video ffmpeg cannot read is recorded as tried and left alone
 rather than retried for ever, and one that is already an H.264 MP4 is passed
 over without being re-encoded into a second generation of loss.
 
+### `social:media:strip-metadata`
+
+Take the container metadata — where and with what it was recorded, its title,
+its chapters — off the video and sound files that were uploaded before uploads
+lost it on the way in, or while the server had no ffmpeg.
+
+```
+php occ social:media:strip-metadata [--dry-run] [--limit LIMIT]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--dry-run` | none | Print the files that would be rewritten, and those left because they are on Bluesky, and change nothing |
+| `--limit` | required | Stop after this many files. `0`, the default, means all of them |
+
+Each local upload is read back and remuxed with ffmpeg (`-c copy -map_metadata -1
+-map_chapters -1`): the streams are copied into a fresh container of the same
+kind, nothing is re-encoded. The documents are walked fifty at a time, one line
+per file, and the run ends with how many were rewritten, already clean, left
+because they are published on Bluesky, had no stored file, or could not be
+rewritten.
+
+A rewritten file is stored under a new name and the old one deleted, with the
+document's size updated and the posts carrying it pointed at the new copy —
+a stored file is served as immutable by its name, so changing the bytes under
+the same one would leave the old ones in every cache that holds them. A video's
+ladder (`social:media:ladder`) is rebuilt from the new copy. A file ffmpeg
+cannot rewrite, or whose rewrite is the same bytes, is left exactly as it is,
+and the first is logged.
+
+**A file published on Bluesky is left as it is**: a blob in a Bluesky repository
+is named by the hash of its bytes (its CID), and so is a video handed to
+Bluesky's video service, so rewriting it would break the record that names it.
+The output counts these.
+
+Exits 1 without doing anything if ffmpeg is not on the server. A run over a
+file that is already clean changes nothing, so it can be repeated.
+
 ### `social:media:usage`
 
 Report what the app's media occupies on disk, split into what was uploaded here

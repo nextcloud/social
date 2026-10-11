@@ -166,8 +166,8 @@
 									class="lists-settings__result"
 									:disabled="busy"
 									@click="add(list, hit)">
-									<span>{{ hit.name || hit.preferredUsername }}</span>
-									<span class="lists-settings__member-acct">@{{ hit.account }}</span>
+									<span>{{ hit.display_name || hit.username }}</span>
+									<span class="lists-settings__member-acct">@{{ hit.acct }}</span>
 								</button>
 							</li>
 						</ul>
@@ -559,7 +559,7 @@ export default {
 
 		/**
 		 * @param {object} list the list
-		 * @param {object} hit a search result: an actor, whose `id` is its URL
+		 * @param {object} hit a search result: a Mastodon Account entity
 		 */
 		async add(list, hit) {
 			if (this.busy) {
@@ -580,7 +580,7 @@ export default {
 				// their terms; the server's wording is Mastodon's "Record not found"
 				showError(error?.response?.status === 404
 					? t('social', 'You can only add people you follow to a list')
-					: (error?.response?.data?.error || t('social', 'Could not add {account} to the list', { account: hit.account })))
+					: (error?.response?.data?.error || t('social', 'Could not add {account} to the list', { account: hit.acct })))
 			} finally {
 				this.busy = false
 			}

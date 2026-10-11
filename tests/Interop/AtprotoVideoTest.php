@@ -18,6 +18,8 @@ use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Db\AtprotoVideoRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Service\CacheDocumentService;
+use OCA\Social\Service\DocumentService;
 use OCA\Social\Tests\Interop\Bluesky\AppClient;
 use OCA\Social\Tests\Interop\Bluesky\DevNetwork;
 use OCP\Server;
@@ -74,7 +76,10 @@ class AtprotoVideoTest extends TestCase {
 		// the service stored the video here, and it is served under its CID
 		$served = AppClient::at((string)getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test')->blob($identity->did, $row->blobCid);
 		$this->assertSame($row->blobCid, Cid::forRaw($served)->toString());
-		$this->assertSame(hash_file('sha256', $this->video), hash('sha256', $served), 'the video as it was posted');
+		// the stored copy, which has lost the upload's container metadata on the way in
+		$document = Server::get(DocumentService::class)->getDocumentById($row->documentId);
+		$stored = Server::get(CacheDocumentService::class)->getFromUuid($document->getLocalCopy())->getContent();
+		$this->assertSame(hash('sha256', $stored), hash('sha256', $served), 'the video as it was stored');
 
 		$onAppView = $this->network->await(function () use ($identity, $words): ?array {
 			foreach ($this->network->authorFeed($identity->did) as $item) {

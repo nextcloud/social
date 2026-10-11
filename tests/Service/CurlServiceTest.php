@@ -52,8 +52,8 @@ class CurlServiceTest extends TestCase {
 	private FediverseService|MockObject $fediverseService;
 	private CurlService|MockObject $service;
 
-	/** TEST-NET-3, so the classifier sees a public address without asking DNS */
-	private const PUBLIC_IP = '203.0.113.10';
+	/** A literal public address, so the classifier answers without asking DNS; the HTTP client is a double and nothing is sent */
+	private const PUBLIC_IP = '1.2.3.4';
 
 	/** @var list<array{method: string, url: string, options: array}> every request handed to the (mocked) transport */
 	private array $requests = [];
@@ -1331,7 +1331,7 @@ class CurlServiceTest extends TestCase {
 	 */
 	public function testAStreamIsAuthorizedOnBehalfOfTheInstanceThatNamedIt(): void {
 		$from = 'https://' . self::PUBLIC_IP . '/video.mp4';
-		$to = 'https://203.0.113.11/video.mp4';
+		$to = 'https://1.2.3.5/video.mp4';
 		$authorized = [];
 		$this->fediverseService->method('authorized')->willReturnCallback(
 			static function (string $host, string $onBehalfOf = '') use (&$authorized): bool {
@@ -1346,7 +1346,7 @@ class CurlServiceTest extends TestCase {
 
 		$this->service()->openStream($from, [], 'peertube.example');
 
-		$this->assertSame([[self::PUBLIC_IP, 'peertube.example'], ['203.0.113.11', 'peertube.example']], $authorized);
+		$this->assertSame([[self::PUBLIC_IP, 'peertube.example'], ['1.2.3.5', 'peertube.example']], $authorized);
 	}
 
 	public function testABatchOfDocumentsNeverAsksALocalHost(): void {
@@ -1361,5 +1361,88 @@ class CurlServiceTest extends TestCase {
 			'https://127.0.0.1/users/bob/following' => null,
 			'https://169.254.169.254/latest/meta-data/' => null,
 		], $answers);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function nonHttpUrlProvider(): array {
+		return [
+			'gopher' => ['gopher://' . self::PUBLIC_IP . ':70/_x'],
+			'dict' => ['dict://' . self::PUBLIC_IP . ':2628/d:x'],
+			'ftp' => ['ftp://' . self::PUBLIC_IP . '/file'],
+			'file with a host' => ['file://' . self::PUBLIC_IP . '/etc/passwd'],
+			'no scheme' => ['//' . self::PUBLIC_IP . '/users/bob'],
+		];
+	}
+
+	/**
+	 * Only http(s) goes out: the scheme is checked with the host, before the
+	 * server's HTTP client is handed the URL, on every entry point.
+	 */
+	#[DataProvider('nonHttpUrlProvider')]
+	public function testANonHttpUrlIsRefusedBeforeASingleRequestIsSent(string $url): void {
+		$this->client->expects($this->never())->method('request');
+
+		$this->expectException(RequestServerException::class);
+		$this->service()->doRequest('get', $url);
+	}
+
+	#[DataProvider('nonHttpUrlProvider')]
+	public function testANonHttpUrlIsRefusedBeforeAStreamIsOpened(string $url): void {
+		$this->client->expects($this->never())->method('get');
+
+		$this->expectException(RequestServerException::class);
+		$this->service()->openStream($url);
+	}
+
+	#[DataProvider('nonHttpUrlProvider')]
+	public function testANonHttpUrlInABatchIsNotAsked(string $url): void {
+		$this->client->expects($this->never())->method('getAsync');
+
+		$this->assertSame([$url => null], $this->service()->retrieveJsonMany([$url]));
+	}
+
+	#[DataProvider('nonHttpUrlProvider')]
+	public function testADeliveryToANonHttpUrlIsNotSent(string $url): void {
+		$this->client->expects($this->never())->method('postAsync');
+		$delivery = $this->delivery('/inbox');
+		$delivery['url'] = $url;
+
+		$outcomes = $this->service()->sendMany(['a' => $delivery]);
+
+		$this->assertInstanceOf(RequestServerException::class, $outcomes['a']);
+	}
+
+	/**
+	 * A host-meta template is the peer's word for where WebFinger lives; one
+	 * that is not http(s) is not adopted, and the host and schemes asked for
+	 * stay as they were.
+	 */
+	public function testHostMetaRefusesATemplateThatIsNotHttp(): void {
+		$service = $this->serviceAnsweringWith(fn () => $this->hostMetaJson('gopher://wf.mastodon.example/wf?resource={uri}'));
+		$host = 'mastodon.example';
+		$protocols = ['https', 'http'];
+
+		try {
+			$service->hostMeta($host, $protocols);
+			$this->fail('a gopher template was adopted');
+		} catch (HostMetaException) {
+		}
+
+		$this->assertSame('mastodon.example', $host);
+		$this->assertSame(['https', 'http'], $protocols);
+	}
+
+	public function testWebfingerFallsBackToTheDefaultPathWhenTheTemplateIsNotHttp(): void {
+		$service = $this->serviceAnsweringWith(fn (string $method, array $urls) => str_contains($urls[0], 'host-meta')
+			? $this->hostMetaJson('gopher://wf.mastodon.example/wf?resource={uri}')
+			: $this->jrd());
+		$account = 'bob@mastodon.example';
+
+		$service->webfingerAccount($account);
+
+		$this->assertSame([
+			'https://mastodon.example/.well-known/webfinger?resource=acct%3Abob%40mastodon.example',
+			'http://mastodon.example/.well-known/webfinger?resource=acct%3Abob%40mastodon.example',
+		], $this->requests[1]['urls']);
 	}
 }

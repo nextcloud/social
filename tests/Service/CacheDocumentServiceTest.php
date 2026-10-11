@@ -579,6 +579,53 @@ class CacheDocumentServiceTest extends TestCase {
 		}
 	}
 
+	/** @return array<string, array{string, string}> */
+	public static function mediaWithMetadata(): array {
+		return [
+			'an H.264 MP4' => ["\x00\x00\x00\x20ftypisom\x00\x00\x02\x00isomiso2avc1mp41" . str_repeat("\x00", 4096), 'video/mp4'],
+			'an MP3' => ["ID3\x04\x00\x00\x00\x00\x00\x00" . str_repeat("\xFF\xFB\x90\x00" . str_repeat("\x00", 413), 8), 'audio/mpeg'],
+		];
+	}
+
+	/**
+	 * A video or a sound file is stored as ffmpeg rewrote it without its
+	 * container metadata, whatever its codec; everything after the store
+	 * — the codec probe, the poster — reads that copy, and the rewritten
+	 * temporary file does not outlive the upload.
+	 */
+	#[DataProvider('mediaWithMetadata')]
+	public function testMediaIsStoredWithoutItsContainerMetadata(string $bytes, string $mime): void {
+		$tmp = tempnam(sys_get_temp_dir(), 'social-test-');
+		file_put_contents($tmp, $bytes);
+		$stripped = tempnam(sys_get_temp_dir(), 'social-test-');
+		file_put_contents($stripped, 'the same streams in a fresh container');
+		try {
+			$written = [];
+			$this->captureWrites($written);
+			$this->videoTranscodeService->expects($this->once())->method('withoutMetadata')
+				->with($tmp, $mime)->willReturn($stripped);
+			$posterOf = [];
+			$this->videoThumbnailService->method('poster')->willReturnCallback(function (string $path) use (&$posterOf): ?array {
+				$posterOf[] = $path;
+
+				return null;
+			});
+			$document = new Document();
+
+			$this->service->saveFromTempToCache($document, $tmp);
+
+			$this->assertSame(($mime === 'video/mp4') ? [$stripped] : [], $posterOf);
+
+			$this->assertSame($mime, $document->getMediaType());
+			$this->assertSame('the same streams in a fresh container', reset($written)[$document->getLocalCopy()]);
+			$this->assertSame(strlen('the same streams in a fresh container'), $document->getSizeBytes());
+			$this->assertFileDoesNotExist($stripped);
+		} finally {
+			@unlink($tmp);
+			@unlink($stripped);
+		}
+	}
+
 	/**
 	 * An upload is the one moment the bytes are on disk here anyway: an MP4
 	 * found to be H.264 then is recorded as needing nothing, so the post it

@@ -554,6 +554,7 @@ import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
 import VerifiedCheck from './VerifiedCheck.vue'
+import { cssUrl } from '../utils/cssUrl.js'
 import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { formatCount } from '../utils/number.js'
 import { fieldLink, profileFields } from '../utils/profileFields.js'
@@ -1449,7 +1450,7 @@ export default {
 				return
 			}
 			if (url) {
-				el.style.backgroundImage = `url(${url})`
+				el.style.backgroundImage = cssUrl(url)
 				el.style.backgroundSize = 'cover'
 				el.style.backgroundPosition = 'center 0%'
 				el.style.backgroundRepeat = 'no-repeat'

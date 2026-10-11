@@ -27,7 +27,7 @@
         "fields": [
             {
                 "name": "Web",
-                "value": "<a href=\"https://bob.example\" rel=\"me\">bob.example</a>",
+                "value": "<a href=\"https://bob.example\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">bob.example</a>",
                 "verified_at": null
             }
         ],
@@ -152,7 +152,7 @@
             {
                 "type": "PropertyValue",
                 "name": "Web",
-                "value": "<a href=\"https://bob.example\" rel=\"me\">bob.example</a>"
+                "value": "<a href=\"https://bob.example\" rel=\"nofollow noopener noreferrer\" target=\"_blank\">bob.example</a>"
             }
         ],
         "image": {

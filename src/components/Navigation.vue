@@ -188,7 +188,7 @@
 				     and the cog itself is hidden. -->
 				<NcAppNavigationSettings
 					class="navigation__more"
-					:style="{ '--social-face': `url(${avatarUrl})`, '--entry-total': moreCount }"
+					:style="{ '--social-face': faceImage, '--entry-total': moreCount }"
 					:name="profileName">
 					<!-- `--entry-index`, with `--entry-total` above, is what
 					     staggers the opening: the bottom row pops first and the
@@ -330,6 +330,7 @@ import IconFormatListBulleted from 'vue-material-design-icons/FormatListBulleted
 import IconBluesky from 'vue-material-design-icons/ButterflyOutline.vue'
 import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
+import { cssUrl } from '../utils/cssUrl.js'
 import { capacityFrom, chooseEntries, entriesThatFit } from '../utils/explore.js'
 import { listen } from '@nextcloud/notify_push'
 import axios from '@nextcloud/axios'
@@ -599,6 +600,11 @@ export default {
 		 */
 		avatarUrl() {
 			return ownAvatarUrl(64)
+		},
+
+		/** the reader's picture as the CSS value the menu's icon is drawn with */
+		faceImage() {
+			return cssUrl(this.avatarUrl)
 		},
 
 		currentAccount() {

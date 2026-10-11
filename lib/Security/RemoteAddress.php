@@ -15,49 +15,119 @@ namespace OCA\Social\Security;
  * Federation talks to arbitrary hosts on the public internet, so the app cannot
  * use an allowlist — but it must not be steered at the instance's own network.
  * Unless an administrator has opted in (`allow_local_remote_servers`), a host that
- * is, or resolves to, a private, loopback, link-local or otherwise reserved
- * address is refused. `169.254.169.254`, the cloud metadata endpoint, is reserved
- * and therefore covered.
+ * is, or resolves to, anything but a globally reachable unicast address
+ * (private, loopback, link-local, shared, reserved, documentation, multicast,
+ * or an IPv6 address wrapping one of those) is refused. `169.254.169.254` and
+ * `100.100.100.200`, cloud metadata endpoints, are covered.
  *
  * The classifier is pure so it can be tested without a network; the DNS lookups it
  * performs for a hostname are the only side effect.
  */
 final class RemoteAddress {
 	/**
-	 * Whether a literal IP address is in a private or reserved range.
+	 * IPv4 blocks of IANA's special-purpose address registry that are not
+	 * globally reachable, plus multicast and the reserved 240/4 (which holds
+	 * 255.255.255.255).
+	 */
+	private const IPV4_NON_PUBLIC = [
+		'0.0.0.0/8',       // "this network"
+		'10.0.0.0/8',      // private
+		'100.64.0.0/10',   // shared address space (carrier-grade NAT)
+		'127.0.0.0/8',     // loopback
+		'169.254.0.0/16',  // link-local, cloud metadata
+		'172.16.0.0/12',   // private
+		'192.0.0.0/24',    // IETF protocol assignments
+		'192.0.2.0/24',    // documentation
+		'192.88.99.0/24',  // deprecated 6to4 relay anycast
+		'192.168.0.0/16',  // private
+		'198.18.0.0/15',   // benchmarking
+		'198.51.100.0/24', // documentation
+		'203.0.113.0/24',  // documentation
+		'224.0.0.0/4',     // multicast
+		'240.0.0.0/4',     // reserved, limited broadcast
+	];
+
+	/**
+	 * Special-purpose IPv6 blocks inside 2000::/3 that are not globally
+	 * reachable. Everything outside 2000::/3 — unspecified, loopback, unique
+	 * local, link-local, site-local, multicast, discard-only, IPv4-compatible —
+	 * is not global unicast at all and is refused as such.
+	 */
+	private const IPV6_NON_PUBLIC = [
+		'2001::/23',      // IETF protocol assignments, Teredo
+		'2001:db8::/32',  // documentation
+		'3fff::/20',      // documentation
+	];
+
+	/**
+	 * Whether a literal IP address is anything but a globally reachable
+	 * unicast address: private, loopback, link-local, shared, reserved,
+	 * documentation, multicast and the like.
 	 */
 	public static function isLocalIp(string $ip): bool {
 		if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
 			return false;
 		}
 
-		// An IPv6 address that only wraps an IPv4 one is classified by the
-		// address it wraps: IPv4-mapped (::ffff:a.b.c.d — PHP's range flags
-		// only learned these in later PHP versions, so never rely on them)
-		// and NAT64 (64:ff9b::/96, delivered to the embedded address by a
-		// translating network).
 		$packed = inet_pton($ip);
-		if ($packed !== false && strlen($packed) === 16) {
-			$hex = bin2hex($packed);
-			if (str_starts_with($hex, '00000000000000000000ffff')
-				|| str_starts_with($hex, '0064ff9b0000000000000000')) {
-				return self::isLocalIp(inet_ntop(substr($packed, 12)));
-			}
-		}
-
-		// A public address survives both flags; anything private or reserved
-		// (10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, ::1, fc00::/7, fe80::/10,
-		// 0/8, 240/4, …) is filtered out and returns false here.
-		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+		if ($packed === false) {
 			return true;
 		}
 
-		// Multicast is not covered by the reserved-range flag; reject it too.
-		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
-			return (int)explode('.', $ip)[0] >= 224;
+		if (strlen($packed) === 4) {
+			return self::inAny($packed, self::IPV4_NON_PUBLIC);
 		}
 
-		return str_starts_with(strtolower($ip), 'ff');
+		// An IPv6 address that only wraps an IPv4 one is classified by the
+		// address it wraps: IPv4-mapped (::ffff:a.b.c.d), SIIT
+		// (::ffff:0:a.b.c.d), NAT64 (64:ff9b::/96, delivered to the embedded
+		// address by a translating network) and 6to4 (2002:aabb:ccdd::/48).
+		$hex = bin2hex($packed);
+		if (str_starts_with($hex, '00000000000000000000ffff')
+			|| str_starts_with($hex, '0000000000000000ffff0000')
+			|| str_starts_with($hex, '0064ff9b0000000000000000')) {
+			return self::isLocalIp((string)inet_ntop(substr($packed, 12)));
+		}
+		if (str_starts_with($hex, '2002')) {
+			return self::isLocalIp((string)inet_ntop(substr($packed, 2, 4)));
+		}
+
+		return !self::inCidr($packed, '2000::/3') || self::inAny($packed, self::IPV6_NON_PUBLIC);
+	}
+
+	/** @param list<string> $cidrs */
+	private static function inAny(string $packed, array $cidrs): bool {
+		foreach ($cidrs as $cidr) {
+			if (self::inCidr($packed, $cidr)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/** Whether a packed address lies in a block of the same family. */
+	private static function inCidr(string $packed, string $cidr): bool {
+		[$network, $bits] = explode('/', $cidr);
+		$prefix = (string)inet_pton($network);
+		if (strlen($prefix) !== strlen($packed)) {
+			return false;
+		}
+
+		$bits = (int)$bits;
+		$whole = intdiv($bits, 8);
+		if (substr($packed, 0, $whole) !== substr($prefix, 0, $whole)) {
+			return false;
+		}
+
+		$rest = $bits % 8;
+		if ($rest === 0) {
+			return true;
+		}
+
+		$mask = (0xff << (8 - $rest)) & 0xff;
+
+		return (ord($packed[$whole]) & $mask) === (ord($prefix[$whole]) & $mask);
 	}
 
 	/**

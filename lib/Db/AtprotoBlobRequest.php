@@ -65,6 +65,20 @@ class AtprotoBlobRequest extends CoreRequestBuilder {
 		return $row === false ? null : $this->blob($row);
 	}
 
+	/** Whether a document is a blob in any repository, whose CID names its bytes. */
+	public function hasDocument(string $documentId): bool {
+		$qb = $this->getQueryBuilder();
+		$qb->select('cid')
+			->from(self::TABLE_ATPROTO_BLOB)
+			->where($qb->expr()->eq('document_id_prim', $qb->createNamedParameter(md5($documentId))))
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row !== false;
+	}
+
 	/**
 	 * @param string $cursor the CID to continue after, '' for the start
 	 * @return BlobRef[] by CID, the page `listBlobs` answers

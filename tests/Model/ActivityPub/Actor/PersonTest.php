@@ -202,6 +202,59 @@ class PersonTest extends TestCase {
 		$this->assertSame('', $person->getHeader());
 	}
 
+	/** @return array<string, array{string}> */
+	public static function bannerUrlsThatAreNotHttp(): array {
+		return [
+			'javascript' => ['javascript:alert(1)'],
+			'data' => ['data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='],
+			'relative' => ['/media/header.jpg'],
+			'ftp' => ['ftp://files.example/header.jpg'],
+		];
+	}
+
+	/**
+	 * A remote banner is drawn as a picture by every client: only an http(s)
+	 * address is kept, anything else leaves the account without a banner.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider('bannerUrlsThatAreNotHttp')]
+	public function testABannerThatIsNotAnHttpUrlIsDropped(string $url): void {
+		$person = new Person();
+		$actor = $this->mastodonActor();
+		$actor['image']['url'] = $url;
+
+		$person->import($actor);
+
+		$this->assertSame('', $person->getHeader());
+		$this->assertArrayNotHasKey('image', $person->exportAsActivityPub());
+	}
+
+	/** The same holds for a banner read back out of a cached actor's source document. */
+	#[\PHPUnit\Framework\Attributes\DataProvider('bannerUrlsThatAreNotHttp')]
+	public function testACachedBannerThatIsNotAnHttpUrlIsDropped(string $url): void {
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => json_encode(['image' => ['type' => 'Image', 'url' => $url]]),
+		]);
+
+		$this->assertSame('', $person->getHeader());
+	}
+
+	public function testAnHttpBannerIsKept(): void {
+		$person = new Person();
+		$person->import($this->mastodonActor());
+
+		$this->assertSame('https://files.mastodon.social/accounts/headers/001/original/header.jpg', $person->getHeader());
+
+		$cached = new Person();
+		$cached->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'source' => json_encode(['image' => ['type' => 'Image', 'url' => 'http://plain.example/header.png']]),
+		]);
+		$this->assertSame('http://plain.example/header.png', $cached->getHeader());
+	}
+
 	/**
 	 * The header used to fall back to the avatar, and the cached copy of a
 	 * local actor handed that fallback back as if it were a banner: every
@@ -1330,15 +1383,42 @@ class PersonTest extends TestCase {
 		], $values);
 	}
 
-	public function testARemoteFieldIsServedAsItArrived(): void {
+	public function testARemoteFieldIsServedAsSanitisedHtml(): void {
 		$person = new Person();
 		$person->setId('https://remote.example/users/bob');
 		$person->setFields([['name' => 'Web', 'value' => '<a href="https://bob.example" rel="me">bob.example</a>']]);
 
 		$this->assertSame(
-			'<a href="https://bob.example" rel="me">bob.example</a>',
+			'<a href="https://bob.example" rel="nofollow noopener noreferrer" target="_blank">bob.example</a>',
 			$person->exportAsActivityPub()['attachment'][0]['value']
 		);
+	}
+
+	/**
+	 * A remote field's name is plain text and its value HTML, as Mastodon's
+	 * Account entity defines them: both come out of either export cleaned,
+	 * and the verdict on a value is still found for it.
+	 */
+	public function testARemoteFieldsNameAndValueAreCleanedOnBothExports(): void {
+		$this->routerThatRefusesAnEmptyUuid();
+		$value = '<a href="https://bob.example" onclick="x()">bob.example</a><script>y()</script><img src="z" onerror="w()">';
+		$person = new Person();
+		$person->setId('https://remote.example/users/bob');
+		$person->setPreferredUsername('bob')->setAccount('bob@remote.example');
+		$person->setFields([['name' => '<b>Web</b>site', 'value' => $value]]);
+		$person->setDetailArray('fields_verified', [$value => '2026-09-14T00:00:00+00:00']);
+
+		$client = $person->exportAsLocal()['fields'][0];
+		$wire = $person->exportAsActivityPub()['attachment'][0];
+
+		foreach (['client' => $client, 'wire' => $wire] as $which => $field) {
+			$this->assertSame('Website', $field['name'], $which);
+			$this->assertStringContainsString('bob.example</a>', $field['value'], $which);
+			foreach (['onclick', '<script', '<img', 'onerror'] as $needle) {
+				$this->assertStringNotContainsString($needle, $field['value'], $which);
+			}
+		}
+		$this->assertSame('2026-09-14T00:00:00+00:00', $client['verified_at']);
 	}
 
 	/**

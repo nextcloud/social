@@ -351,7 +351,14 @@ Chrome and Firefox do not play HEVC. Aloha Social converts such videos to H.264 
 MP4 (`video_transcode`, on by default) — **but only where ffmpeg is installed**.
 Install it from the distribution's packages (`apt install ffmpeg`,
 `dnf install ffmpeg`, …); ffprobe comes with it, and is what tells an H.264
-MP4, which is never touched, from an HEVC one. Nextcloud looks for both on the
+MP4, which is never re-encoded, from an HEVC one. ffmpeg is also what takes
+the container metadata — where and with what a video or a recording was made,
+its title, its chapters — off every video and sound file as it is stored, by
+copying its streams into a fresh container (whatever `video_transcode` says);
+without ffmpeg such a file is stored as it was uploaded. Files stored before
+that are rewritten the same way by `occ social:media:strip-metadata` (except
+those published on Bluesky, whose bytes a CID names). Pictures have their
+metadata taken off by PHP alone. Nextcloud looks for both on the
 `PATH` of the PHP process and in the directories `binary_search_paths` in
 `config.php` names, only where PHP's `exec` is not disabled, and remembers the
 answer for five minutes.

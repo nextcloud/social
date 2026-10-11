@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Security\HtmlSanitizer;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\TestCase;
@@ -276,9 +277,11 @@ class NoteTest extends TestCase {
 		$this->assertSame(
 			[ACore::CONTEXT_ACTIVITYSTREAMS, ACore::CONTEXT_EXTENSIONS], $export['@context']
 		);
-		foreach (['id', 'type', 'url', 'to', 'cc', 'published', 'summary', 'content', 'attributedTo', 'inReplyTo', 'sensitive', 'conversation', 'tag'] as $key) {
+		foreach (['id', 'type', 'url', 'to', 'cc', 'published', 'summary', 'attributedTo', 'inReplyTo', 'sensitive', 'conversation', 'tag'] as $key) {
 			$this->assertSame($source[$key], $export[$key], $key . ' survives the round trip');
 		}
+		// the content is the sanitised form of what arrived
+		$this->assertSame(HtmlSanitizer::sanitize($source['content'], $source['id']), $export['content']);
 		$this->assertArrayNotHasKey('actor', $export);
 		$this->assertArrayNotHasKey('object', $export);
 	}

@@ -188,15 +188,15 @@ describe('ListsSettings', () => {
 		expect(limit).toBeLessThanOrEqual(500)
 	})
 
-	it('adds somebody the search found, by their actor id', async () => {
+	it('adds somebody the search found, by their account id', async () => {
 		const wrapper = await mountLists([list('1', 'Book club')])
 		axios.get.mockResolvedValue({ data: [] })
 		await rowFor(wrapper, 'Book club').findAll('button').find((b) => b.text() === 'Members').trigger('click')
 		await flushPromises()
 
-		// the search answers as the global account search does: actors, whose
-		// `id` is the URL the list route wants
-		axios.get.mockResolvedValue({ data: { result: { accounts: [{ id: bob.id, account: bob.acct, name: 'Bob' }] } } })
+		// the search answers as the global account search does: Mastodon
+		// Account entities, whose `id` the list route takes
+		axios.get.mockResolvedValue({ data: { result: { accounts: [bob] } } })
 		await wrapper.findAll('input').at(-1).setValue('bob')
 		await vi.waitUntil(() => wrapper.find('.lists-settings__result').exists(), { timeout: 5000 })
 
@@ -226,7 +226,7 @@ describe('ListsSettings', () => {
 				return calls.at(-1)
 			}
 		}
-		const found = (name) => ({ data: { result: { accounts: [{ id: `https://remote.example/users/${name}`, account: `${name}@remote.example`, name }] } } })
+		const found = (name) => ({ data: { result: { accounts: [{ id: `id-${name}`, username: name, acct: `${name}@remote.example`, display_name: name }] } } })
 
 		it('keeps the newer answer when an older search fails last', async () => {
 			const wrapper = await mountLists([list('1', 'Book club')])

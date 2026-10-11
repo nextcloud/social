@@ -240,6 +240,7 @@ class VideoLadderService {
 			'-force_key_frames', 'expr:gte(t,n_forced*' . self::SEGMENT_SECONDS . ')',
 			'-c:a', 'aac',
 			'-b:a', ($height <= 480) ? self::AUDIO_BITRATE['small'] : self::AUDIO_BITRATE['large'],
+			...VideoTranscodeService::WITHOUT_METADATA,
 			'-f', 'hls',
 			'-hls_time', (string)self::SEGMENT_SECONDS,
 			'-hls_playlist_type', 'vod',

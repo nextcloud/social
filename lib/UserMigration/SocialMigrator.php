@@ -1548,8 +1548,12 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	 *
 	 * Everything that stores media here takes a path rather than a string, on
 	 * purpose — a video is never held whole — so the import has to hand it one.
+	 * No more is copied than the largest file this instance stores
+	 * (`CacheDocumentService::largestFileBytes()`); a file past that is left
+	 * in the archive, since it would be refused when stored anyway.
 	 *
 	 * @return string|null the path, or null when the archive has no such file
+	 *                     or it is too large to store
 	 */
 	private function fileFromArchive(IImportSource $importSource, string $path): ?string {
 		if (!$this->pathExists($importSource, $path)) {
@@ -1570,8 +1574,9 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				return null;
 			}
 
+			$max = $this->cacheDocumentService->largestFileBytes();
 			try {
-				stream_copy_to_stream($source, $target);
+				$copied = stream_copy_to_stream($source, $target, $max + 1);
 			} finally {
 				fclose($source);
 				fclose($target);
@@ -1579,6 +1584,15 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		} catch (Throwable $e) {
 			$this->logger->warning('cannot read a media file of the archive', [
 				'path' => $path, 'exception' => $e,
+			]);
+
+			return null;
+		}
+
+		if ($copied === false || $copied > $max) {
+			@unlink($tmpPath);
+			$this->logger->warning('a media file of the archive is larger than this instance stores', [
+				'path' => $path, 'limit' => $max,
 			]);
 
 			return null;

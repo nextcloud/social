@@ -290,8 +290,16 @@ describe('ProfileInfo', () => {
 	it('paints an existing header image onto the banner on first render', async () => {
 		const wrapper = mountProfile('bob@remote.example')
 		await nextTick()
-		expect(bannerOf(wrapper).element.style.backgroundImage).toContain('https://remote.example/media/bob-header.png')
+		expect(bannerOf(wrapper).element.style.backgroundImage).toBe('url("https://remote.example/media/bob-header.png")')
 		expect(bannerOf(wrapper).element.style.backgroundSize).toBe('cover')
+	})
+
+	/** The address is a quoted CSS string, so nothing in it can end the `url()`. */
+	it('quotes and escapes the header address it paints', async () => {
+		const wrapper = mountProfile('carol')
+		accountStore.addAccount({ actorId: carol.url, data: { header: 'https://cloud.example.org/a"b).png' } })
+		await nextTick()
+		expect(bannerOf(wrapper).element.style.backgroundImage).toBe('url("https://cloud.example.org/a\\"b).png")')
 	})
 
 	it('paints the header image onto the banner when it changes and clears it when removed', async () => {

@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\AttachmentMeta;
 use OCA\Social\Model\Client\AttachmentMetaDim;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCA\Social\Security\HtmlSanitizer;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -442,7 +443,7 @@ class PeerTubeService {
 	 * `PollService::handleIncomingVote`), and giving it a second meaning is how
 	 * a post would end up counted as a vote.
 	 *
-	 * The description is passed through as html, as every other object's
+	 * The description is read as html and sanitised, as every other object's
 	 * `content` is -- *unless* the object says it is not, which PeerTube does:
 	 * it declares `text/markdown` in the object's own `mediaType` and sends the
 	 * description raw. That is then escaped and its blank lines become
@@ -465,7 +466,7 @@ class PeerTubeService {
 		}
 
 		if (!in_array((string)($data['mediaType'] ?? ''), ['text/markdown', 'text/plain'], true)) {
-			return $content . $description;
+			return $content . HtmlSanitizer::sanitize($description, (string)($data['id'] ?? ''));
 		}
 
 		foreach (preg_split('/\R{2,}/', $description) as $paragraph) {

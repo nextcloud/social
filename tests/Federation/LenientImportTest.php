@@ -216,7 +216,7 @@ class LenientImportTest extends TestCase {
 
 		$this->assertInstanceOf(Note::class, $linked);
 		$this->assertInstanceOf(Note::class, $unsafe);
-		$this->assertSame('<p><a href="https://news.example/story">story</a></p>', $linked->getContent());
+		$this->assertSame('<p><a href="https://news.example/story" rel="nofollow noopener noreferrer" target="_blank">story</a></p>', $linked->getContent());
 		$this->assertSame('<p>body</p>', $unsafe->getContent());
 	}
 	public function testADisplayNameWithALessThanSignIsKeptWhole(): void {

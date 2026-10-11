@@ -214,6 +214,58 @@ class CacheDocumentsRequestTest extends TestCase {
 		$this->assertSame(['webm', 'poster'], $this->ours($this->documents->getVideosToLadder(100, $after)));
 	}
 
+	/**
+	 * `occ social:media:strip-metadata` walks the local video and sound
+	 * uploads with bytes here, and a rewritten copy brings its size along
+	 * and sends the video back to the ladder.
+	 */
+	public function testTheMetadataWalkSeesLocalVideoAndSoundWithBytes(): void {
+		$video = $this->document('video', ['account' => self::ACCOUNT, 'mediaType' => 'video/mp4', 'localCopy' => 'uuid-video', 'size' => 100]);
+		$this->document('sound', ['account' => self::ACCOUNT, 'mediaType' => 'audio/mpeg', 'localCopy' => 'uuid-sound']);
+		$this->document('picture', ['account' => self::ACCOUNT, 'mediaType' => 'image/png', 'localCopy' => 'uuid-picture']);
+		$this->document('remote', ['mediaType' => 'video/mp4', 'localCopy' => 'uuid-remote']);
+		$this->document('streamed', ['account' => self::ACCOUNT, 'mediaType' => 'video/mp4', 'localCopy' => Document::COPY_STREAMED]);
+		$this->document('nothing', ['account' => self::ACCOUNT, 'mediaType' => 'video/mp4']);
+		$after = (string)((int)$video->getNid() - 1);
+
+		$this->assertSame(['video', 'sound'], $this->ours($this->documents->getLocalMediaToStrip(100, $after)));
+		$this->assertSame(['video'], $this->ours($this->documents->getLocalMediaToStrip(1, $after)), 'a page at a time');
+		$this->assertSame(['sound'], $this->ours($this->documents->getLocalMediaToStrip(100, $video->getNid())), 'after the nid given');
+
+		$this->documents->setLaddered($video->getNid(), 1);
+		$this->documents->replaceLocalCopy($video->getNid(), 'uuid-video-clean', 90);
+
+		$again = $this->documents->getByUrl(self::BASE . '/files/video');
+		$this->assertSame('uuid-video-clean', $again->getLocalCopy());
+		$this->assertSame(90, $again->getSizeBytes());
+		$this->assertSame(0, $again->getLaddered());
+		$this->assertSame('video/mp4', $again->getMediaType());
+	}
+
+	/** A document is known to be a Bluesky blob, or handed to the video service, from either table. */
+	public function testADocumentPublishedOnBlueskyIsRecognised(): void {
+		$did = 'did:plc:itestcachedocsblob000000';
+		$blobs = Server::get(\OCA\Social\Db\AtprotoBlobRequest::class);
+		$videos = Server::get(\OCA\Social\Db\AtprotoVideoRequest::class);
+		try {
+			$this->assertFalse($blobs->hasDocument(self::BASE . '/documents/blob'));
+			$this->assertFalse($videos->hasDocument(self::BASE . '/documents/upload'));
+
+			$blobs->put(new \OCA\Social\Atproto\Model\BlobRef(
+				$did, \OCA\Social\Atproto\Protocol\Cid::forRawDigest(hash('sha256', 'bytes', true)),
+				self::BASE . '/documents/blob', 'video/mp4', 5
+			));
+			$videos->add(self::BASE . '/notes/upload', $did, self::BASE . '/documents/upload');
+
+			$this->assertTrue($blobs->hasDocument(self::BASE . '/documents/blob'));
+			$this->assertTrue($videos->hasDocument(self::BASE . '/documents/upload'));
+			$this->assertFalse($blobs->hasDocument(self::BASE . '/documents/upload'));
+		} finally {
+			$blobs->deleteByDid($did);
+			$videos->removeByDid($did);
+		}
+	}
+
 	public function testTheUsagePageWalksEveryDocumentByNid(): void {
 		$first = $this->document('a', ['localCopy' => 'uuid-a', 'size' => 10]);
 		$this->document('b');

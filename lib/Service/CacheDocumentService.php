@@ -540,6 +540,11 @@ class CacheDocumentService {
 		}
 	}
 
+	/** The most bytes this instance stores of any one file, whatever its kind. */
+	public function largestFileBytes(): int {
+		return max($this->sizeLimit('video/'), $this->sizeLimit(''));
+	}
+
 	/** How many bytes of one kind of file this instance stores, at most. */
 	private function sizeLimit(string $mime): int {
 		$video = str_starts_with(strtolower($mime), 'video/');
@@ -555,8 +560,9 @@ class CacheDocumentService {
 	}
 
 	/**
-	 * A video or a sound file: copied without ever being held whole, and given
-	 * a poster frame if the server can make one.
+	 * A video or a sound file: copied without ever being held whole, without
+	 * the metadata its container carries, and given a poster frame if the
+	 * server can make one.
 	 *
 	 * Images go the other way on purpose -- they are read into a string because
 	 * the metadata stripping, the HEIC conversion and the resize all work on
@@ -572,6 +578,22 @@ class CacheDocumentService {
 	 * this one is derived from bytes already here and has nothing else to be.
 	 */
 	private function saveMediaFromTemp(Document $document, string $tmpPath, string $mime): void {
+		$stripped = $this->videoTranscodeService->withoutMetadata($tmpPath, $mime);
+		try {
+			$this->saveMediaFileFromTemp($document, $stripped ?? $tmpPath, $mime);
+		} finally {
+			if ($stripped !== null) {
+				@unlink($stripped);
+			}
+		}
+	}
+
+	/**
+	 * `saveMediaFromTemp()` for the file that is kept: the upload rewritten
+	 * without its container metadata where ffmpeg could do that, the upload
+	 * itself where it could not.
+	 */
+	private function saveMediaFileFromTemp(Document $document, string $tmpPath, string $mime): void {
 		$document->setMediaType($mime);
 		$document->setMimeType($mime);
 
