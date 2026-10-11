@@ -23,15 +23,15 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../TActivityPubMocks.php';
 
 /**
- * Remote HTML is stored as it arrived and made safe on the way out of the
- * database.
+ * Remote HTML is made safe on the way into the model and again on the way
+ * out of the database.
  *
- * `Note::import()` keeps a remote `content` and `summary` verbatim; it is
- * `importFromDatabase()` that runs them through `HtmlSanitizer` and the
- * plain-text filter. Every client and every peer is served from a row read
- * back that way, so that read is the one place standing between a hostile
- * post and a reader's browser. These tests hand a row full of it to each
- * export a post or an account goes out through.
+ * `Note::import()` runs a remote `content` through `HtmlSanitizer`, so an
+ * object exported before it is ever stored is as safe as a stored one;
+ * `importFromDatabase()` runs `content` through it and `summary` through the
+ * plain-text filter, so a row written under older rules is served under the
+ * current ones. These tests hand a row full of markup to each export a post
+ * or an account goes out through.
  */
 class SanitiseOnReadTest extends TestCase {
 	use TActivityPubMocks;
@@ -90,20 +90,41 @@ class SanitiseOnReadTest extends TestCase {
 	}
 
 	/**
-	 * What `import()` keeps is the remote text as sent: the sanitising on the
-	 * way out of the database is not a second line behind one on the way in.
+	 * A post taken in from a peer is sanitised as it is imported, so the
+	 * in-memory object — exported for an edit, a notification or a search
+	 * that resolved it — is safe before it is ever stored. The plain-text
+	 * summary is kept as sent and escaped by whatever renders it.
 	 */
-	public function testAPostTakenInFromAPeerIsStoredAsItArrived(): void {
-		$note = new Note();
-		$note->import([
+	#[DataProvider('postTypes')]
+	public function testAPostTakenInFromAPeerIsSanitisedOnImport(string $class): void {
+		$post = new $class();
+		$post->import([
 			'id' => 'https://remote.example/notes/1',
-			'type' => 'Note',
+			'type' => ($class === Question::class) ? 'Question' : 'Note',
 			'content' => self::HOSTILE_HTML,
 			'summary' => self::HOSTILE_TEXT,
 		]);
 
-		$this->assertSame(self::HOSTILE_HTML, $note->getContent());
-		$this->assertSame(self::HOSTILE_TEXT, $note->getSummary());
+		self::assertSafeHtml($post->getContent());
+		$this->assertStringContainsString('hello', $post->getContent());
+		self::assertSafeHtml($post->exportAsLocal()['content']);
+		$this->assertSame(self::HOSTILE_TEXT, $post->getSummary());
+	}
+
+	/** Sanitising on import and again on read leaves the text as it was after the first pass. */
+	public function testAPostSanitisedOnImportIsUnchangedWhenReadBack(): void {
+		$note = new Note();
+		$note->import([
+			'id' => 'https://remote.example/notes/1',
+			'type' => 'Note',
+			'content' => '<p>a &amp; b &lt; c <a href="https://remote.example/@bob" class="u-url mention">@<span>bob</span></a></p>',
+		]);
+
+		$read = new Note();
+		$read->importFromDatabase(['id' => 'https://remote.example/notes/1', 'type' => 'Note', 'content' => $note->getContent()]);
+
+		$this->assertSame($note->getContent(), $read->getContent());
+		$this->assertStringContainsString('a &amp; b &lt; c', $read->getContent());
 	}
 
 	public function testARemoteAccountReadBackIsServedSanitisedToClients(): void {

@@ -225,6 +225,25 @@ class InteropRegressionTest extends TestCase {
 	}
 
 	/**
+	 * A video whose description is not declared markdown is read as html,
+	 * and sanitised on the way in like any other remote `content`.
+	 */
+	public function testAVideoDescriptionInHtmlArrivesSanitised(): void {
+		$data = $this->fixture('peertube-create-video');
+		unset($data['object']['mediaType']);
+		$data['object']['content'] = '<p onclick="x()">A talk<script>y()</script> <a href="javascript:z()">here</a></p>';
+
+		/** @var Note $video */
+		$video = AP::instance()->getItemFromData($data)->getObject();
+
+		$this->assertStringContainsString('The state of the Fediverse', $video->getContent());
+		$this->assertStringContainsString('A talk', $video->getContent());
+		foreach (['onclick', '<script', 'javascript:'] as $needle) {
+			$this->assertStringNotContainsString($needle, $video->getContent());
+		}
+	}
+
+	/**
 	 * PeerTube sends `url` as a list -- the watch page, one link per transcoded
 	 * resolution, the HLS playlist, a torrent and a magnet URI -- and the video
 	 * itself is in there rather than in `attachment`, where every other server

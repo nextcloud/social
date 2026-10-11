@@ -315,17 +315,18 @@ class PeerTubeServiceTest extends TestCase {
 
 	/**
 	 * And the other way round: escaping html shows somebody their own tags.
-	 *
-	 * Passed through here and stored as sent, like any remote `content`; it
-	 * is sanitised on the way out of the database, which
-	 * `SanitiseOnReadTest` pins.
+	 * Read as html, it is sanitised like any remote `content`.
 	 */
-	public function testADescriptionThatIsNotDeclaredMarkdownIsPassedThrough(): void {
+	public function testADescriptionThatIsNotDeclaredMarkdownIsSanitisedHtml(): void {
 		$data = $this->video();
 		unset($data['mediaType']);
-		$data['content'] = '<p>real html</p>';
+		$data['content'] = '<p>real html</p><script>alert(1)</script><p onclick="x()">more</p>';
 
-		$this->assertStringEndsWith('<p>real html</p>', $this->service->content($data));
+		$content = $this->service->content($data);
+
+		$this->assertStringEndsWith('<p>real html</p><p>more</p>', $content);
+		$this->assertStringNotContainsString('<script', $content);
+		$this->assertStringNotContainsString('onclick', $content);
 	}
 
 	public function testATitlelessVideoGetsNoEmptyParagraph(): void {

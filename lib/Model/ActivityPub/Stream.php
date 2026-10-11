@@ -1579,7 +1579,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		$this->setSensitive($this->getBool('sensitive', $data, false));
 		$this->setObjectId($this->get('object', $data, ''));
 		$this->setConversation($this->validate(self::AS_ID, 'conversation', $data, ''));
-		$this->setContent($this->get('content', $data, ''));
+		$this->setContent($this->validate(self::AS_CONTENT, 'content', $data, ''));
 		$this->setLanguage(self::languageOf($data));
 		$this->setUpdated($this->validate(self::AS_DATE, 'updated', $data, ''));
 		$this->importAttachments(self::listOf('attachment', $data));
