@@ -132,7 +132,7 @@ class PeerTubeService {
 
 			// PeerTube states it; an instance that does not is taken at its
 			// word that `icon` is a picture, which is all the field can be
-			$mediaType = is_array($icon) ? (string)($icon['mediaType'] ?? 'image/jpeg') : 'image/jpeg';
+			$mediaType = is_array($icon) ? self::text($icon['mediaType'] ?? 'image/jpeg') : 'image/jpeg';
 			if (!str_starts_with($mediaType, 'image/')) {
 				continue;
 			}
@@ -195,7 +195,7 @@ class PeerTubeService {
 		// an audience that is stated and is not everybody: the ones left out
 		// are the ones who have to be approved, and from here that is us
 		foreach ($this->asList($data['canReply']) as $who) {
-			$id = is_array($who) ? (string)($who['id'] ?? '') : (string)$who;
+			$id = is_array($who) ? self::text($who['id'] ?? '') : self::text($who);
 			if ($id === ACore::CONTEXT_PUBLIC) {
 				return false;
 			}
@@ -214,7 +214,7 @@ class PeerTubeService {
 	 * @return int 0 when it says nothing usable
 	 */
 	public function duration(array $data): int {
-		$duration = trim((string)($data['duration'] ?? ''));
+		$duration = trim(self::text($data['duration'] ?? ''));
 		if ($duration === '') {
 			return 0;
 		}
@@ -258,8 +258,8 @@ class PeerTubeService {
 			'category' => $this->labelOf($data['category'] ?? null),
 			'licence' => $this->labelOf($data['licence'] ?? null),
 			'language' => $this->labelOf($data['language'] ?? null),
-			'support' => trim((string)($data['support'] ?? '')),
-			'originally_published_at' => trim((string)($data['originallyPublishedAt'] ?? '')),
+			'support' => trim(self::text($data['support'] ?? '')),
+			'originally_published_at' => trim(self::text($data['originallyPublishedAt'] ?? '')),
 		], static fn (string $value): bool => $value !== '');
 
 		$duration = $this->duration($data);
@@ -308,7 +308,7 @@ class PeerTubeService {
 		}
 
 		if (is_array($value)) {
-			return trim((string)($value['label'] ?? $value['identifier'] ?? ''));
+			return trim(self::text($value['label'] ?? $value['identifier'] ?? ''));
 		}
 
 		return '';
@@ -334,7 +334,7 @@ class PeerTubeService {
 				continue;
 			}
 
-			$title = trim((string)($part['name'] ?? ''));
+			$title = trim(self::text($part['name'] ?? ''));
 			$start = $part['startOffset'] ?? null;
 			if ($title === '' || !is_numeric($start)) {
 				continue;
@@ -360,8 +360,8 @@ class PeerTubeService {
 	private function captions(array $data): array {
 		$languages = [];
 		foreach ($this->asList($data['subtitleLanguage'] ?? null) as $entry) {
-			$id = is_array($entry) ? (string)($entry['identifier'] ?? $entry['id'] ?? '') : (string)$entry;
-			$url = is_array($entry) ? (string)($entry['url'] ?? '') : '';
+			$id = is_array($entry) ? self::text($entry['identifier'] ?? $entry['id'] ?? '') : self::text($entry);
+			$url = is_array($entry) ? self::text($entry['url'] ?? '') : '';
 			if ($id !== '' && $url !== '' && $this->isHttp($url)) {
 				$languages[] = ['language' => mb_substr($id, 0, 15), 'url' => $url];
 			}
@@ -414,7 +414,7 @@ class PeerTubeService {
 				return $actor;
 			}
 
-			$id = (string)($actor['id'] ?? '');
+			$id = self::text($actor['id'] ?? '');
 			if ($id === '' || !$this->isHttp($id)) {
 				continue;
 			}
@@ -460,13 +460,13 @@ class PeerTubeService {
 			$content = '<p>' . $this->linkedTitle($data) . '</p>';
 		}
 
-		$description = trim((string)($data['content'] ?? ''));
+		$description = trim(self::text($data['content'] ?? ''));
 		if ($description === '') {
 			return $content;
 		}
 
-		if (!in_array((string)($data['mediaType'] ?? ''), ['text/markdown', 'text/plain'], true)) {
-			return $content . HtmlSanitizer::sanitize($description, (string)($data['id'] ?? ''));
+		if (!in_array(self::text($data['mediaType'] ?? ''), ['text/markdown', 'text/plain'], true)) {
+			return $content . HtmlSanitizer::sanitize($description, self::text($data['id'] ?? ''));
 		}
 
 		foreach (preg_split('/\R{2,}/', $description) as $paragraph) {
@@ -539,7 +539,7 @@ class PeerTubeService {
 	}
 
 	private function title(array $data): string {
-		return trim((string)($data['name'] ?? ''));
+		return trim(self::text($data['name'] ?? ''));
 	}
 
 	/**
@@ -574,6 +574,15 @@ class PeerTubeService {
 		}
 
 		return $best ?? $fallback;
+	}
+
+	/**
+	 * A remote field as text: what is not a scalar — an object or a list
+	 * where a string belongs — is no text at all, rather than "Array" and a
+	 * warning.
+	 */
+	private static function text(mixed $value): string {
+		return is_scalar($value) ? (string)$value : '';
 	}
 
 	/**
@@ -616,7 +625,7 @@ class PeerTubeService {
 				$links = array_merge($links, $this->links($link, 'tag', $depth + 1));
 			}
 
-			$href = (string)($link['href'] ?? $link['url'] ?? '');
+			$href = self::text($link['href'] ?? $link['url'] ?? '');
 			if ($href === '' || !$this->isHttp($href)) {
 				continue;
 			}
@@ -630,14 +639,14 @@ class PeerTubeService {
 
 			$links[] = [
 				'href' => $href,
-				'mediaType' => (string)($link['mediaType'] ?? ''),
+				'mediaType' => self::text($link['mediaType'] ?? ''),
 				'width' => (int)($link['width'] ?? 0),
 				'height' => (int)($link['height'] ?? 0),
 				// a caption link says which language it is in, and nothing
 				// else in the list has one
 				'language' => is_array($link['language'] ?? null)
-					? (string)($link['language']['identifier'] ?? '')
-					: (string)($link['language'] ?? ''),
+					? self::text($link['language']['identifier'] ?? '')
+					: self::text($link['language'] ?? ''),
 			];
 		}
 
@@ -686,7 +695,7 @@ class PeerTubeService {
 				return $entry;
 			}
 
-			$href = (string)($entry['href'] ?? $entry['url'] ?? '');
+			$href = self::text($entry['href'] ?? $entry['url'] ?? '');
 			if ($href !== '') {
 				return $href;
 			}

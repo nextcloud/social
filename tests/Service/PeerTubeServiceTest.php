@@ -145,6 +145,26 @@ class PeerTubeServiceTest extends TestCase {
 		$this->assertSame('https://peertube.example/w/6f4c1e1a', $this->service->watchUrl($data));
 	}
 
+	/**
+	 * Objects where PeerTube writes strings, as a fuzzed `Video` had them: the
+	 * fields read as no text, where each cast used to warn and read "Array".
+	 * The link with an object for its type is passed over, the playable file
+	 * after it still found.
+	 */
+	public function testAFieldThatIsAnObjectWhereTextBelongsReadsAsNoText(): void {
+		$data = $this->video([
+			'name' => ['en' => 'a title'],
+			'duration' => ['PT1M'],
+			'content' => ['canReply' => null],
+		]);
+		$data['url'][1]['mediaType'] = ['canReply' => null];
+		$data['url'][2]['language'] = ['identifier' => ['en']];
+
+		$this->assertSame('', $this->service->content($data));
+		$this->assertSame(0, $this->service->duration($data));
+		$this->assertSame('https://peertube.example/static/720.mp4', $this->service->source($data)?->getUrl());
+	}
+
 	public function testAVideoWithNothingPlayableProducesNoSource(): void {
 		$data = $this->video();
 		$data['url'] = [
