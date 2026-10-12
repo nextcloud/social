@@ -79,7 +79,11 @@ class QueryBudgetTest extends ReaderTestCase {
 		bool $shortPageReadsOn = false,
 	): void {
 		$seed(5);
-		$this->assertSame(Http::STATUS_OK, $request()->getStatus(), $what);
+		// rendered like the counted requests, so what a service reads once and
+		// keeps for the rest of the process is read here whatever ran before
+		$warm = $request();
+		$this->assertSame(Http::STATUS_OK, $warm->getStatus(), $what);
+		self::render($warm);
 		$small = QueryCounter::record(static fn (): string => self::render($request()));
 
 		$seed(35);
