@@ -18,6 +18,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\AccountService;
@@ -242,6 +243,28 @@ abstract class ReaderTestCase extends TestCase {
 		$this->streams[] = $note->getId();
 
 		return $note;
+	}
+
+	/**
+	 * `$booster`'s public boost of `$post`, a second newer than the post
+	 * before it, stored as an inbound one is.
+	 */
+	protected function boost(Person $booster, Note $post): Announce {
+		$this->sequence++;
+		$published = time() + $this->sequence;
+
+		$boost = new Announce();
+		$boost->setId(static::REMOTE . '/boosts/' . static::class . '/' . $this->sequence . '-' . bin2hex(random_bytes(3)));
+		$boost->setAttributedTo($booster->getId());
+		$boost->setTo(ACore::CONTEXT_PUBLIC);
+		$boost->setCcArray([$booster->getFollowers()]);
+		$boost->setObjectId($post->getId());
+		$boost->setPublishedTime($published);
+		$boost->setPublished(gmdate('Y-m-d\TH:i:s\Z', $published));
+		Server::get(StreamRequest::class)->save($boost);
+		$this->streams[] = $boost->getId();
+
+		return $boost;
 	}
 
 	/**

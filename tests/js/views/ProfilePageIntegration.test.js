@@ -4,8 +4,10 @@
  */
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import ProfilePageIntegration from '../../../src/views/ProfilePageIntegration.vue'
+import { useTimelineStore } from '../../../src/store/timeline.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -40,6 +42,7 @@ function mountSection(userId) {
 
 describe('ProfilePageIntegration', () => {
 	beforeEach(() => {
+		setActivePinia(createPinia())
 		get = vi.spyOn(axios, 'get').mockImplementation(async (url) => ({
 			data: url.endsWith('/timelines/home') ? homeStatuses : url.endsWith('/statuses') ? statuses : bob,
 		}))
@@ -102,6 +105,18 @@ describe('ProfilePageIntegration', () => {
 		await wrapper.findAll('.feed-switcher button').find((button) => button.text() === 'Global').trigger('click')
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/timelines/public', { params: { limit: 20, local: false } })
+	})
+
+	it('keeps the post a boost on the profile repeats where its card reads it', async () => {
+		const boosted = { id: '7', content: '<p>passed on</p>', account: { ...bob, acct: 'carol' }, reblog: null }
+		const boost = { id: '8', content: '', account: bob, reblog: boosted }
+		get.mockImplementation(async (url) => ({ data: url.endsWith('/statuses') ? [boost, ...statuses] : bob }))
+
+		const wrapper = mountSection('bob')
+		await flushPromises()
+
+		expect(wrapper.findAllComponents(ProfileStatusCardStub).map((entry) => entry.props('status').id)).toEqual(['8', '1', '2'])
+		expect(useTimelineStore().getStatus('7')).toEqual(boosted)
 	})
 
 	it('does not contact the server without a user id', () => {

@@ -187,6 +187,27 @@ class QueryBudgetTest extends ReaderTestCase {
 		);
 	}
 
+	/**
+	 * An account's statuses that are all boosts, each of a post by an author
+	 * of its own: the boosted post and its author are read with the page,
+	 * not once per boost.
+	 */
+	public function testAnAccountsBoostsCostTheSameForAPageOfFiveAndAPageOfTwenty(): void {
+		$booster = $this->remoteActor('booster');
+		$boosts = 0;
+
+		$this->assertFlatCostWithin(
+			'account boosts', 12,
+			function (int $count) use (&$boosts, $booster): void {
+				for ($i = 0; $i < $count; $i++, $boosts++) {
+					$this->boost($booster, $this->post($this->remoteActor('boosted' . $boosts), 'boosted post ' . $boosts));
+				}
+			},
+			fn (): Response => $this->controller(AccountApiController::class)->accountStatuses((string)$booster->getNid()),
+			static fn (array $page): int => count(array_filter($page, static fn (array $status): bool => ($status['reblog'] ?? null) !== null)),
+		);
+	}
+
 	public function testAnAccountsStatusesCostTheSameForAPageOfFiveAndAPageOfTwenty(): void {
 		$author = $this->remoteActor('profile');
 		$posts = 0;

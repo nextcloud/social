@@ -3381,6 +3381,53 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('', $probe->getMediaType());
 	}
 
+	/**
+	 * The account's boosts are on the page unless the client leaves them out,
+	 * or narrows the page to something a boost cannot be: a boost carries no
+	 * attachments of its own.
+	 */
+	public function testAccountStatusesAsksForTheBoostsUnlessExcludedOrNarrowed(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$options = $this->captureTimelineOptions([]);
+
+		$this->controller()->accountStatuses('bob@remote.example');
+		$this->assertTrue($options()->isWithBoosts(), 'by default');
+
+		$this->controller()->accountStatuses('bob@remote.example', exclude_reblogs: true);
+		$this->assertFalse($options()->isWithBoosts(), 'exclude_reblogs');
+
+		$this->controller()->accountStatuses('bob@remote.example', only_media: true);
+		$this->assertFalse($options()->isWithBoosts(), 'only_media');
+
+		$this->controller()->accountStatuses('bob@remote.example', media_type: 'image');
+		$this->assertFalse($options()->isWithBoosts(), 'media_type');
+
+		$this->controller()->accountStatuses('bob@remote.example', only_short: true);
+		$this->assertFalse($options()->isWithBoosts(), 'only_short');
+
+		$this->controller()->accountStatuses('bob@remote.example', tagged: 'cats');
+		$this->assertFalse($options()->isWithBoosts(), 'tagged');
+	}
+
+	/** Mastodon's `exclude_replies` and `tagged` reach the page query. */
+	public function testAccountStatusesPassesExcludeRepliesAndTaggedOn(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$options = $this->captureTimelineOptions([]);
+
+		$this->controller()->accountStatuses('bob@remote.example');
+		$this->assertFalse($options()->isExcludeReplies());
+		$this->assertSame('', $options()->getTagged());
+
+		$this->controller()->accountStatuses('bob@remote.example', exclude_replies: true, tagged: 'cats');
+		$this->assertTrue($options()->isExcludeReplies());
+		$this->assertSame('cats', $options()->getTagged());
+		$this->assertFalse($options()->isWithBoosts(), 'a hashtag page has no boosts');
+	}
+
 	public function testAccountStatusesFlagsThePinnedPostsOfThePage(): void {
 		$actor = $this->createStub(Person::class);
 		$actor->method('getId')->willReturn('https://remote.example/users/bob');

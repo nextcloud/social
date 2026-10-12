@@ -214,6 +214,19 @@ export default {
 					return
 				}
 				const page = Array.isArray(data) ? data : []
+				if (page.length > 0) {
+					// a boost's card draws the boosted post from the store, as
+					// every timeline entry does; the store arrives with the
+					// post renderer, which a page with posts loads anyway
+					const { useTimelineStore } = await import('../store/timeline.js')
+					const timelineStore = useTimelineStore()
+					for (const status of page) {
+						timelineStore.addToStatuses(status)
+					}
+					if (request !== this.feedRequest || feed !== this.activeFeed) {
+						return
+					}
+				}
 				const seen = new Set(this.feedTimeline.map((status) => String(status.id)))
 				this.feedTimeline = maxId
 					? [...this.feedTimeline, ...page.filter((status) => !seen.has(String(status.id)))]
