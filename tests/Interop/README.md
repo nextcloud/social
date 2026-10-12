@@ -63,7 +63,7 @@ description; a hashtag post on that tag's timeline; a profile change (name,
 bio, avatar) refreshing the copy held here; an unfollow ending the follow
 here; and a block ending both follows. A quote is written only by Mastodon 4.4
 and later, so against the 4.3 that pull requests run that test skips and says
-why; the weekly run adds Mastodon 4.5, where it runs. The workflow names the
+why; the nightly run adds Mastodon 4.5, where it runs. The workflow names the
 version it started in `MASTODON_VERSION`, and
 `testTheMastodonIsTheOneTheWorkflowStarted` fails if the instance reports
 another one, so a leg cannot quietly turn into one that skips the quote test.
@@ -148,7 +148,7 @@ Its later runs, with the inbound and client-API tests, found these:
 ## What it cannot prove
 
 It runs against **one** version of PeerTube and two of Mastodon (4.3 on every
-run, 4.5 weekly), on **one host**, with a certificate authority made for the
+run, 4.5 nightly), on **one host**, with a certificate authority made for the
 job. So it says nothing about instances running `AUTHORIZED_FETCH`, about
 Mastodon or PeerTube versions other than the ones the workflow pins, or about
 what a public certificate chain would change.
@@ -202,8 +202,10 @@ holds from us, the last `Update` run through Mastodon's own processing, the
 last `Create` sent to PeerTube, and PeerTube's validator refusals, which it
 logs only at debug level.
 
-It runs on **every pull request** and every push to master, weekly to catch
-the other end moving, and by hand from the Actions tab. It depends on
+It runs every night, which also catches the other end moving, by hand from
+the Actions tab, and on a pull request that touches the federation code
+(`interop-pr.yml` lists the paths) or carries the `interop` or the `full-ci`
+label (`labelled-ci.yml`). It depends on
 third-party images whose startup this repository does not control, so a red
 run is worth reading for which side failed before blaming the change under
 review; a newer push to the same pull request cancels the run still going for
@@ -212,8 +214,9 @@ the old one. One run takes about twenty minutes.
 ## Against Pixelfed
 
 `.github/workflows/interop-pixelfed.yml` is a job of its own, so it runs
-beside the Mastodon one rather than after it, and it runs on **every pull
-request** as well as on pushes to master, weekly and on demand. It stands up
+beside the Mastodon one rather than after it, and it runs when that one
+does: nightly, on demand, and on a pull request that touches the federation
+code or carries the `interop` or the `full-ci` label. It stands up
 the official Pixelfed image (`ghcr.io/pixelfed/pixelfed`, pinned by tag and
 digest) with MySQL, Redis and a second container running Horizon — every
 delivery, fetch and fan-out on Pixelfed is a queued job, so without Horizon
@@ -266,8 +269,9 @@ and our delivery queue.
 
 ## Against Loops
 
-`.github/workflows/interop-loops.yml` is a job of its own, run on every pull
-request, on pushes to master, weekly and on demand. It builds Loops
+`.github/workflows/interop-loops.yml` is a job of its own, run nightly, on
+demand, and on a pull request that touches the federation code or carries the
+`interop` or the `full-ci` label. It builds Loops
 (v1.0.0-beta.14) from its own repository with its queue workers and its
 federation switch on, behind the same Caddy and job-made CA as the other jobs;
 the test video is made with ffmpeg in the job.
@@ -291,8 +295,9 @@ worker, and what Loops' own validators make of our last activities.
 
 ## Against GoToSocial
 
-`.github/workflows/interop-gotosocial.yml` is a job of its own, run on every
-pull request, on pushes to master, weekly and on demand. GoToSocial is one
+`.github/workflows/interop-gotosocial.yml` is a job of its own, run nightly,
+on demand, and on a pull request that touches the federation code or carries
+the `interop` or the `full-ci` label. GoToSocial is one
 container with SQLite (the official image, `superseriousbusiness/gotosocial`
 0.22.2, pinned by tag and digest) and is up in seconds, so the job is the
 quickest of the interop jobs. It sits behind the same Caddy and job-made CA as

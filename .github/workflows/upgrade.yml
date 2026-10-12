@@ -14,25 +14,16 @@
 # predate every step the squash replaced. It runs on Nextcloud up to 34, so
 # the app is upgraded there and Nextcloud to 35 after it, the order an
 # administrator on 34 takes, and the checks run on 35 like the other legs'.
+#
+# Nightly, by hand, and on a pull request labelled `full-ci` (labelled-ci.yml).
 
 name: Upgrade from a release
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/upgrade.yml'
-      - 'appinfo/**'
-      - 'lib/**'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'tests/Integration/**'
-      - 'tests/Upgrade/**'
-  push:
-    branches:
-      - master
-  workflow_dispatch:
   schedule:
-    - cron: '11 5 * * 2'
+    - cron: '29 2 * * *'
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
