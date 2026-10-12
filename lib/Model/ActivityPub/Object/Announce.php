@@ -59,6 +59,12 @@ class Announce extends Stream implements JsonSerializable {
 
 		$object = $this->getObject();
 		if ($object instanceof Stream) {
+			// the viewer's action read with a boost is their action on the
+			// boosted status, which is where `reblogged` and `favourited` belong
+			$action = $this->getAction();
+			if (!$object->hasAction() && $action !== null && $action->getStreamId() === $object->getId()) {
+				$object->setAction($action);
+			}
 			$result['reblog'] = $object->exportAsLocal();
 		}
 

@@ -184,6 +184,10 @@ to stop.
   100000 and -1: each `LIMIT` that reaches the SQL must be one a request at
   the route's documented maximum, at 1 or at its default also produced. A
   route whose page is not read by a query is listed with what bounds it.
+- `Api/BoostByIdTest` — a boost asked for by its own id carries the boosted
+  status in `reblog`, decorated for the reader as on a timeline, where the
+  reader's favourite now shows on the boosted status too; a boost of a status
+  the reader may not see is a 404.
 - `Api/ClientApiCorsTest` — the client API as a browser client of another
   origin meets it, through the real dispatcher and every middleware the app
   registers: a bearer call, an anonymous read and a refusal readable from any
