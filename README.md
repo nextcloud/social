@@ -1025,6 +1025,11 @@ label is put on and again on every push:
   changes the schema, a query, a dependency or the CI itself;
 - `interop` runs the interop jobs on a pull request whose paths would not.
 
+**A red night opens an issue.** `nightly-failure.yml` opens one issue per
+failing scheduled workflow, titled "Nightly: *workflow* failing" and labelled
+`nightly-failure`, with a link to the run and the jobs that failed; a night
+that fails again updates it, and the first green scheduled run closes it.
+
 ## 🛠️ Contributing
 
 - Contributions welcome — open a pull request and run the build and tests locally
