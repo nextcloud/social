@@ -463,7 +463,7 @@ The app is an ActivityPub **Server** that both produces and consumes ActivityPub
 
 Each Nextcloud user that has been given a Aloha Social account gets a Person actor:
 
-- **ID:** the configured social URL plus `@username`, e.g. `https://cloud.tld/apps/social/@username`
+- **ID:** the configured social URL plus `@username`, e.g. `https://cloud.tld/apps/social/@username`. It is derived on every read, while the `social_actor` row keeps the `id_prim` of the id it was made under, so after the social URL changes the two differ: the model carries the stored prim (`Person::getStoredIdPrim()`), every write to the row is keyed on it (`ActorsRequest::limitToRow()`), and the walks that page the table by `id_prim` — the local actor refresh, the profile-link check and `walk()` — carry on from it (`ActorsRequest::rowPrimOf()`)
 - **Keys:** RSA 2048-bit key pair, generated per actor by `SignatureService::generateKeys()`
 - **Endpoints:** `/@{user}/inbox`, the shared `/inbox`, `/@{user}/outbox`, `/@{user}/followers`, `/@{user}/following`, `/@{user}/collections/featured`
 - **Profile fields:** `attachment` entries of type `PropertyValue`. A local value is stored as typed and served as the HTML the wire expects: escaped, and an address on its own linked with `rel="me"` the way Mastodon's own fields are, since Mastodon verifies a remote field only from a link in it. A remote actor's fields are served, to clients and on the wire, with the name as plain text and the value as sanitised HTML

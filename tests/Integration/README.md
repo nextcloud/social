@@ -131,6 +131,9 @@ to stop.
 - `Db/ActorsWalkTest` — `ActorsRequest::walk()` visits every local account
   once across pages while each is written to, keyed on the stored `id_prim`
   even where the social URL changed since the accounts were made.
+- `Db/ActorsRowIdentityTest` — accounts stored under an earlier social URL:
+  a key rotation and a profile write land on the account's row and on no
+  other, and the paged walk carries on from the prim the row is stored under.
 - `Migration/BannerParentBackfillTest` — `Version1000Date20261012507100` hangs
   a banner stored without a parent off the account its handle names, leaves an
   upload and a banner of a handle no actor has alone, twice.

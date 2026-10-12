@@ -199,6 +199,7 @@ class ProfileLinkVerifierTest extends TestCase {
 			$this->pages['https://site' . $i . '.example/'] = '<a rel="me" href="https://cloud.example/apps/social/@u' . $i . '">x</a>';
 			$account = new Person();
 			$account->setId('https://cloud.example/apps/social/@u' . $i);
+			$account->setStoredIdPrim(md5('https://old.example/apps/social/@u' . $i));
 			$account->setFields([['name' => 'Web', 'value' => 'https://site' . $i . '.example/']]);
 			$accounts[] = $account;
 		}
@@ -215,7 +216,9 @@ class ProfileLinkVerifierTest extends TestCase {
 			->willReturn($accounts);
 
 		$this->assertSame(2, $this->verifier->verifyLocalActors(2));
-		$this->assertSame(md5('https://cloud.example/apps/social/@u1'), $stored['profile_link_cursor']);
+		// the row's own prim, which an account made under an earlier social URL
+		// does not share with the id it is read back with
+		$this->assertSame(md5('https://old.example/apps/social/@u1'), $stored['profile_link_cursor']);
 	}
 
 	public function testTheWalkStartsOverAtTheEndOfTheTable(): void {
