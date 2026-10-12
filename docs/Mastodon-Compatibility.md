@@ -651,6 +651,13 @@ client renders it as a link and a reader on another Nextcloud gets a file card.
 Nothing a browser would execute is accepted: HTML and SVG are refused `422`, and
 everything served carries `X-Content-Type-Options: nosniff`.
 
+A client signed in with this app's OAuth token reaches everything that is
+Social's own data. A route that reads or writes the person's **Nextcloud files**
+— today only `POST /api/v1/media/from-file` — takes the Nextcloud session
+instead: a Nextcloud app password over Basic with `OCS-APIRequest: true`, which
+a client offering a Files browser holds already for WebDAV. The rule and the
+current list are in [API.md, "Which credentials a route takes"](API.md#which-credentials-a-route-takes).
+
 And in the other direction, Mastodon has no equivalent for: dashboard
 widgets, profile-page integration, posting a picture straight from Nextcloud
 Files, Aloha Social data in `occ user:export`, and occ commands as an admin

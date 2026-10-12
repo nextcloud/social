@@ -16,10 +16,12 @@ use OCP\IUserManager;
 use OCP\Server;
 
 /**
- * `POST /api/v1/media/from-file` is the web app's own route: it attaches one
- * of the signed-in user's files, which the composer's file picker sends with
- * the Nextcloud session and its CSRF token. A bearer token is refused with a
- * 403 whatever it was granted — the test token holds every scope there is.
+ * `POST /api/v1/media/from-file` attaches one of the user's own files, so it
+ * takes the Nextcloud session, never a Social token (docs/API.md, "Which
+ * credentials a route takes"): the web app's, with its CSRF token, or a
+ * client's Nextcloud app password over Basic with `OCS-APIRequest: true`.
+ * A bearer token is refused with a 403 whatever it was granted — the test
+ * token holds every scope there is.
  */
 class MediaFromFileSessionTest extends ApiTestCase {
 	private const FILE = 'apictr-from-file.png';
@@ -57,10 +59,11 @@ class MediaFromFileSessionTest extends ApiTestCase {
 		Server::get(IRootFolder::class)->getUserFolder(self::PREFIX . $name)->newFile(self::FILE, $png);
 	}
 
-	private function attach(string $as, bool $webSession): ApiResponse {
+	/** @param array<string, string> $headers */
+	private function attach(string $as, bool $webSession, bool $appPassword = false, array $headers = []): ApiResponse {
 		return $this->call(
 			MediaApiController::class, 'mediaFromFile', [], ['path' => '/' . self::FILE], $as, 'POST',
-			webSession: $webSession
+			webSession: $webSession, appPassword: $appPassword, headers: $headers
 		);
 	}
 
@@ -71,6 +74,27 @@ class MediaFromFileSessionTest extends ApiTestCase {
 
 		$this->assertSame(200, $response->status, json_encode($response->body) ?: '');
 		$this->assertSame('image', $response->body->type);
+	}
+
+	public function testAClientAttachesAFileWithANextcloudAppPassword(): void {
+		$this->pictureIn('alice');
+
+		$response = $this->attach('alice', false, true);
+
+		$this->assertSame(200, $response->status, json_encode($response->body) ?: '');
+		$this->assertSame('image', $response->body->type);
+	}
+
+	/**
+	 * Without `OCS-APIRequest: true` Nextcloud holds the request to the CSRF
+	 * check, which a client cannot pass, and it is answered as nobody's.
+	 */
+	public function testAnAppPasswordWithoutTheOcsHeaderIsNotSignedIn(): void {
+		$this->pictureIn('alice');
+
+		$response = $this->attach('alice', false, true, ['OCS-APIRequest' => '']);
+
+		$this->assertSame(401, $response->status, json_encode($response->body) ?: '');
 	}
 
 	/** Refused before any file is looked at: the path need not name one. */
