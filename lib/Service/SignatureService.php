@@ -73,6 +73,14 @@ class SignatureService {
 	 */
 	public const LD_WINDOW = 86400; // 24h
 
+	/**
+	 * How much longer than its acceptance window a signature is remembered.
+	 * A request dated at the window's future edge is still accepted on the
+	 * last second of the window's whole width after it was taken in; a
+	 * memory that lapsed on that second would let it through again.
+	 */
+	public const REPLAY_MARGIN = 60;
+
 	/** The `DurableCache` namespace of the LD signatures already accepted. */
 	public const LD_SEEN_NAMESPACE = 'social.ldsig';
 
@@ -301,11 +309,14 @@ class SignatureService {
 	}
 
 	/**
-	 * Records a signed request as taken in, for as long as its date would
-	 * still be accepted.
+	 * Records a signed request as taken in, for longer than its date (or
+	 * `created`) could still be accepted.
 	 */
 	public function rememberRequest(IRequest $request): void {
-		$this->durableCache->set(self::REQUEST_SEEN_NAMESPACE, $this->requestKey($request), 1, self::DATE_PAST + self::DATE_FUTURE);
+		$this->durableCache->set(
+			self::REQUEST_SEEN_NAMESPACE, $this->requestKey($request), 1,
+			self::DATE_PAST + self::DATE_FUTURE + self::REPLAY_MARGIN
+		);
 	}
 
 	private function requestKey(IRequest $request): string {
@@ -828,7 +839,7 @@ class SignatureService {
 
 				return false;
 			}
-			$this->durableCache->set(self::LD_SEEN_NAMESPACE, $seenKey, 1, self::LD_WINDOW * 2);
+			$this->durableCache->set(self::LD_SEEN_NAMESPACE, $seenKey, 1, self::LD_WINDOW * 2 + self::REPLAY_MARGIN);
 
 			$object->setOrigin(
 				$this->getKeyOrigin($actorId), SignatureService::ORIGIN_SIGNATURE, $time

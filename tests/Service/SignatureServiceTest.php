@@ -1997,6 +1997,67 @@ class SignatureServiceTest extends TestCase {
 		}
 	}
 
+	/**
+	 * A request dated an hour ahead is accepted until twelve hours after that
+	 * date: thirteen hours after it was taken in. On that last second it is
+	 * still known as taken in, and on the next it is too old.
+	 */
+	public function testARequestDatedAtTheFutureEdgeIsAReplayOnTheLastSecondItIsAccepted(): void {
+		$body = '{"type":"Follow"}';
+		$start = $this->clock->getTime();
+		$request = $this->incomingRequest($this->signedHeaders($body, self::$privateKey, [
+			'date' => gmdate(SignatureService::DATE_HEADER, $start + SignatureService::DATE_FUTURE),
+		]));
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+		$this->service->checkRequest($request, $body);
+		$this->service->rememberRequest($request);
+
+		$this->clock->set($start + SignatureService::DATE_FUTURE + SignatureService::DATE_PAST);
+		$this->assertSame('remote.example', $this->service->checkRequest($request, $body), 'its Date is still inside the window');
+		$this->assertTrue($this->service->isReplayed($request), 'and it is still known as taken in');
+
+		$this->clock->advance(1);
+		$this->assertSame('object is too old', $this->outcome(fn (): string => $this->service->checkRequest($request, $body)));
+	}
+
+	/** The same edge for an RFC 9421 signature whose `created` is an hour ahead and that sends no Date. */
+	public function testAnRfc9421RequestCreatedAtTheFutureEdgeIsAReplayOnTheLastSecondItIsAccepted(): void {
+		$body = '{"type":"Follow"}';
+		$start = $this->clock->getTime();
+		$request = $this->incomingRequest($this->messageSignedHeaders(
+			$body, self::$privateKey, ['date' => ''], ['@method', '@target-uri', 'content-digest'],
+			['created' => $start + SignatureService::DATE_FUTURE]
+		));
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+		$this->service->checkRequest($request, $body);
+		$this->service->rememberRequest($request);
+
+		$this->clock->set($start + SignatureService::DATE_FUTURE + SignatureService::DATE_PAST);
+		$this->assertSame('remote.example', $this->service->checkRequest($request, $body), 'its created is still inside the window');
+		$this->assertTrue($this->service->isReplayed($request), 'and it is still known as taken in');
+
+		$this->clock->advance(1);
+		$this->assertSame('signature created is too old', $this->outcome(fn (): string => $this->service->checkRequest($request, $body)));
+	}
+
+	/**
+	 * An LD signature created a day ahead is inside its window until a day
+	 * after that: two days after it was accepted. It is refused on that last
+	 * second as a replay, and after it as too old.
+	 */
+	public function testAnLdSignatureCreatedAtTheFutureEdgeIsRefusedOnTheLastSecondOfItsWindow(): void {
+		$this->registerContextCache();
+		$start = $this->clock->getTime();
+		$received = $this->receivedSignedNote(gmdate(SignatureService::DATE_OBJECT, $start + SignatureService::LD_WINDOW));
+		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::LOCAL_ACTOR, self::$publicKey));
+		$this->assertTrue($this->service->checkObject($received));
+
+		foreach ([2 * SignatureService::LD_WINDOW, 2 * SignatureService::LD_WINDOW + 1] as $offset) {
+			$this->clock->set($start + $offset);
+			$this->assertFalse($this->service->checkObject($received), $offset . ' s on');
+		}
+	}
+
 	/** What a check came to: its answer, or the message it was refused with. */
 	private function outcome(callable $check): string {
 		try {
