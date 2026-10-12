@@ -28,6 +28,7 @@ use OCA\Social\Tests\Integration\Helper\FaultServer;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Config\IUserConfig;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\Http\Client\IClientService;
 use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IDBConnection;
@@ -119,10 +120,13 @@ class DeliveryUnderFaultsTest extends TestCase {
 		$this->pass();
 		$took = microtime(true) - $started;
 
+		$inParallel = $this->clientTakesAHandler();
 		for ($i = 1; $i <= 6; $i++) {
 			$hits = self::$server->hitsOn('ok', $this->name . $i);
 			$this->assertCount(1, $hits, 'a peer that answers was not delivered to exactly once');
-			$this->assertLessThan(self::TIMEOUT, $hits[0]['at'] - $started, 'a peer that answers waited for the one that hangs');
+			if ($inParallel) {
+				$this->assertLessThan(self::TIMEOUT, $hits[0]['at'] - $started, 'a peer that answers waited for the one that hangs');
+			}
 			$this->assertSame(RequestQueue::STATUS_SUCCESS, $this->row('ok-' . $i)['status']);
 		}
 
@@ -454,5 +458,14 @@ class DeliveryUnderFaultsTest extends TestCase {
 		Server::get(HostBreakerRequest::class)->open(
 			$this->host($behaviour), $state['strikes'], $state['open_until'] - $seconds, $state['last_failure'] - $seconds
 		);
+	}
+
+	/**
+	 * Whether the server's client service takes the handler that lets a
+	 * wave's requests overlap: Nextcloud 34's `newClient()` takes none, and
+	 * there a wave goes out one request after another.
+	 */
+	private function clientTakesAHandler(): bool {
+		return (new ReflectionMethod(Server::get(IClientService::class), 'newClient'))->getNumberOfParameters() > 0;
 	}
 }
