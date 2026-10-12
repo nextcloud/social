@@ -113,6 +113,8 @@ class PixelfedConfigService {
 				'places' => true,
 				'hashtags' => true,
 				'video' => true,
+				// the timelines take `only_short`, by the rule in `limits`
+				'shorts' => true,
 				'polls' => true,
 				'bookmarks' => true,
 				'mobile_apis' => true,
@@ -130,6 +132,11 @@ class PixelfedConfigService {
 				'max_altext_length' => self::MAX_ALTTEXT_LENGTH,
 				'story_length' => Story::MAX_PER_ACTOR,
 				'story_lifetime' => Story::LIFETIME,
+				// what `only_short` counts as a short: a single video no
+				// longer than this many seconds, and no wider than this
+				// width-to-height ratio
+				'short_max_duration' => Stream::SHORT_MAX_SECONDS,
+				'short_max_aspect_ratio' => Stream::SHORT_MAX_ASPECT,
 			],
 			'activitypub' => [
 				'enabled' => true,

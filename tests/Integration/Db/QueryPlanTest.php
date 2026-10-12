@@ -395,13 +395,16 @@ class QueryPlanTest extends TestCase {
 		return [
 			'Photos' => [['setOnlyMedia' => true]],
 			'Videos' => [['setOnlyVideo' => true]],
+			// `(short_kind, nid)`, one column and no fallback
+			'Shorts' => [['setOnlyShort' => true]],
 		];
 	}
 
 	/**
 	 * Photos and Videos: the `OR` that keeps a row the `media_kind` backfill
 	 * has not reached is exactly the shape that makes a planner give up on an
-	 * index, so each timeline that can be narrowed is asked.
+	 * index, so each timeline that can be narrowed is asked. Shorts are asked
+	 * the same, over their own column.
 	 *
 	 * @param array<string, mixed> $narrowing
 	 */

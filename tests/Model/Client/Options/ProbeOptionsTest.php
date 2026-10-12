@@ -37,6 +37,7 @@ class ProbeOptionsTest extends TestCase {
 			'local' => 'true',
 			'remote' => '0',
 			'only_media' => '1',
+			'only_short' => 'true',
 			'min_id' => '10',
 			'max_id' => '99',
 			'since' => '5',
@@ -47,6 +48,7 @@ class ProbeOptionsTest extends TestCase {
 		$this->assertTrue($options->isLocal());
 		$this->assertFalse($options->isRemote());
 		$this->assertTrue($options->isOnlyMedia());
+		$this->assertTrue($options->isOnlyShort());
 		$this->assertSame(10, $options->getMinId());
 		$this->assertSame(99, $options->getMaxId());
 		$this->assertSame(5, $options->getSince());
@@ -143,6 +145,7 @@ class ProbeOptionsTest extends TestCase {
 			'remote' => false,
 			'only_media' => false,
 			'only_video' => false,
+			'only_short' => false,
 			'only_news' => false,
 			'media_type' => '',
 			'min_id' => 0,

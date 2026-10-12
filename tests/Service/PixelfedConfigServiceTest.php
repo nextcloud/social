@@ -85,6 +85,19 @@ class PixelfedConfigServiceTest extends TestCase {
 	}
 
 	/**
+	 * A client learns that the timelines take `only_short` here, and what the
+	 * server counts as a short: the thresholds `Stream::shortKindOf()` applies,
+	 * not a copy of them.
+	 */
+	public function testTheShortsFilterIsAdvertisedWithTheRuleTheServerKeeps(): void {
+		$config = $this->service->config();
+
+		$this->assertTrue($config['features']['shorts']);
+		$this->assertSame(Stream::SHORT_MAX_SECONDS, $config['limits']['short_max_duration']);
+		$this->assertSame(Stream::SHORT_MAX_ASPECT, $config['limits']['short_max_aspect_ratio']);
+	}
+
+	/**
 	 * Pixelfed counts the upload ceiling in kilobytes, which is the one place
 	 * its shape differs from Mastodon's bytes. Reporting bytes here would have
 	 * the app believe it may send a thousand times what it may.

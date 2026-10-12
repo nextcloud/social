@@ -2,8 +2,10 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { clampTrim, fileTypeFor, filmstripTimes, formatTime, isTrimmed, knownDuration, MIN_LENGTH, recorderMimeType, trimVideo } from '../../../src/utils/shortVideo.js'
+import { clampTrim, fileTypeFor, filmstripTimes, formatTime, isTrimmed, knownDuration, MIN_LENGTH, RECORD_LIMITS, recorderMimeType, trimVideo } from '../../../src/utils/shortVideo.js'
 
 describe('formatTime', () => {
 	it('writes minutes and two-digit seconds', () => {
@@ -120,5 +122,30 @@ describe('knownDuration', () => {
 
 		expect(await measured).toBe(0)
 		vi.useRealTimers()
+	})
+})
+
+/**
+ * The server decides what a short is (`Stream::shortKindOf()`, which
+ * `only_short` filters on), and the composer decides how long a short can be
+ * recorded. Read from the PHP source rather than restated, so the two cannot
+ * drift: a short recorded to the composer's longest limit is still a short.
+ */
+describe('the composer and the server agree on what a short is', () => {
+	// vitest runs from the project root
+	const stream = readFileSync(resolve(process.cwd(), 'lib/Model/ActivityPub/Stream.php'), 'utf8')
+	const constant = (name) => Number(stream.match(new RegExp(`const ${name} = ([0-9.]+);`))?.[1])
+
+	it('offers no recording longer than the longest short', () => {
+		expect(constant('SHORT_MAX_SECONDS')).toBe(180)
+		expect(Math.max(...RECORD_LIMITS)).toBe(constant('SHORT_MAX_SECONDS'))
+	})
+
+	it('counts the frame the composer asks the camera for as a short', () => {
+		const dialog = readFileSync(resolve(process.cwd(), 'src/components/ShortComposerDialog.vue'), 'utf8')
+		const [, width, height] = dialog.match(/width: \{ ideal: (\d+) \}, height: \{ ideal: (\d+) \}/) ?? []
+
+		expect(constant('SHORT_MAX_ASPECT')).toBe(1)
+		expect(Number(width) / Number(height)).toBeLessThanOrEqual(constant('SHORT_MAX_ASPECT'))
 	})
 })

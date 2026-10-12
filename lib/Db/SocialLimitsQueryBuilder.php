@@ -604,6 +604,24 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Limit to posts that are a short video.
+	 *
+	 * One indexed column, `(short_kind, nid)`, like `limitToNews()` and for
+	 * the same reason without a fallback: whether a video is short is read out
+	 * of the attachment's meta in PHP (`Stream::shortKindOf()`), which no
+	 * database can be asked across the three this app runs on.
+	 */
+	public function limitToShort(): self {
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->andWhere($this->expr()->eq(
+			$pf . '.short_kind', $this->createNamedParameter(Stream::SHORT_KIND_SHORT)
+		));
+
+		return $this;
+	}
+
+	/**
 	 * Limit to posts that are news: an article, or a post linking to one.
 	 *
 	 * One indexed column, unlike its media siblings, and with no `LIKE`

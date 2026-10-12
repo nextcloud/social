@@ -1259,6 +1259,11 @@ describe('timeline store actions', () => {
 			['videos', {}, `${API}/timelines/home`, { limit: 15, only_media: true, only_video: true }],
 			['videos', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, local: true, only_video: true }],
 			['videos', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true, only_video: true }],
+			// the Shorts stack: the same three feeds narrowed to shorts, by the
+			// server's rule rather than one of the web app's own
+			['shorts', {}, `${API}/timelines/home`, { limit: 15, only_media: true, only_short: true }],
+			['shorts', { scope: 'timeline' }, `${API}/timelines/public`, { limit: 15, only_media: true, local: true, only_short: true }],
+			['shorts', { scope: 'federated' }, `${API}/timelines/public`, { limit: 15, only_media: true, only_short: true }],
 			// everything said here about one article. The link rides in the
 			// query, not the path: a URL inside a path segment has to survive
 			// two rounds of encoding and one web server's idea of a slash.
@@ -1270,6 +1275,7 @@ describe('timeline store actions', () => {
 			['interests', { media: 'podcasts' }, `${API}/timelines/interests`, { limit: 15 }],
 			['photos', { scope: 'interests' }, `${API}/timelines/interests`, { limit: 15, media: 'photos' }],
 			['videos', { scope: 'interests' }, `${API}/timelines/interests`, { limit: 15, media: 'videos' }],
+			['shorts', { scope: 'interests' }, `${API}/timelines/interests`, { limit: 15, only_short: true }],
 			['bluesky', { feed: 'at://did:plc:bob/app.bsky.feed.generator/cats' }, `${API}/timelines/bluesky`, { limit: 15, feed: 'at://did:plc:bob/app.bsky.feed.generator/cats' }],
 		])('requests the %s timeline from its endpoint and appends the result', async (type, params, url, query) => {
 			await store.changeTimelineType({ type, params })
@@ -1304,6 +1310,32 @@ describe('timeline store actions', () => {
 			expect(photos.only_video).toBeUndefined()
 			expect(videos.only_video).toBe(true)
 			expect(videos.media_type).toBeUndefined()
+		})
+
+		/**
+		 * The Shorts stack used to read the Videos timeline and play every
+		 * video in it, long and landscape ones included. It asks for shorts
+		 * now, and the Videos grid still asks for every video.
+		 */
+		it('asks Shorts for shorts and Videos for every video', async () => {
+			await store.changeTimelineType({ type: 'shorts', params: {} })
+			await store.fetchTimeline()
+			const shorts = axios.get.mock.calls[0][1].params
+
+			axios.get.mockClear()
+			await store.changeTimelineType({ type: 'videos', params: {} })
+			await store.fetchTimeline()
+			const videos = axios.get.mock.calls[0][1].params
+
+			expect(shorts.only_short).toBe(true)
+			expect(shorts.only_video).toBeUndefined()
+			expect(videos.only_video).toBe(true)
+			expect(videos.only_short).toBeUndefined()
+		})
+
+		it('counts the For you scope of Shorts as a ranking', () => {
+			expect(isRanked({ type: 'shorts', params: { scope: 'interests' } })).toBe(true)
+			expect(isRanked({ type: 'shorts', params: { scope: 'home' } })).toBe(false)
 		})
 
 		it('asks for every kind of notification when nothing is filtered', async () => {

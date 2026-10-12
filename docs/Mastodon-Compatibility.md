@@ -283,6 +283,15 @@ notification page, lists included — so a Mastodon client that knows nothing
 of the switch still shows what the reader chose. One that reads the key can
 draw a quiet mark for readers who left the switch off.
 
+And a timeline filter: `only_short=true` on `timelines/home`, `timelines/public`,
+`timelines/tag/{tag}`, `timelines/list/{id}`, `accounts/{id}/statuses` and this
+app's own `timelines/interests` (For you) keeps
+the posts whose only attachment is a video of at most 180 seconds, upright or
+square, by its stored `meta`. Ordering and paging are Mastodon's, and the `Link`
+header carries the parameter on. A client finds out whether a server has it from
+`/api/v2/config`, which says `features.shorts: true` and gives the two
+thresholds under `limits`, so no client has to keep a copy of the rule.
+
 A second extension lives beside the notifications: `GET`/`PATCH
 /api/v1/social/notification_delivery`, and the `notifications:delivery` key
 `/api/v1/preferences` echoes. Mastodon has nothing to compare it with — its

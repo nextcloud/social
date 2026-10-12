@@ -218,7 +218,8 @@ trait StreamTimelines {
 	}
 
 	/**
-	 * Applies `only_media` and `only_video` when the caller asked for them.
+	 * Applies `only_media`, `only_video` and `only_short` when the caller
+	 * asked for them.
 	 *
 	 * The first has been parsed off the request since the hashtag timeline
 	 * gained it and was never applied to a query, so `only_media=true` quietly
@@ -233,8 +234,18 @@ trait StreamTimelines {
 	 * `media_type` is narrower still and names the kind, which is what a
 	 * profile's Photos and Videos tabs ask; `media_type=video` is the same
 	 * question `only_video` asks and is answered by the same predicate.
+	 *
+	 * `only_short` is the narrowest, a stored column the write fills in
+	 * (`Stream::shortKindOf()`), and decides whatever else was sent.
 	 */
 	private function filterMedia(SocialQueryBuilder $qb, ProbeOptions $options): void {
+		// the narrowest: every short is a video, and every video is media
+		if ($options->isOnlyShort()) {
+			$qb->limitToShort();
+
+			return;
+		}
+
 		// `media_type=video` and `only_video` are the same question, so they
 		// are one predicate: a profile's Videos tab and the Videos timeline
 		// cannot come to disagree about whether a PeerTube `Video` is a video.
@@ -351,7 +362,7 @@ trait StreamTimelines {
 		// which has the predicate *in* the query and finds them wherever they
 		// are. They are also read far less often than the home timeline, which
 		// is what makes that the right trade rather than a concession.
-		if ($options->isOnlyMedia() || $options->isOnlyVideo()
+		if ($options->isOnlyMedia() || $options->isOnlyVideo() || $options->isOnlyShort()
 			|| $options->getMediaType() !== '' || $options->isOnlyNews()) {
 			return null;
 		}

@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.221
+**App version:** 0.26.222
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -976,7 +976,8 @@ has the predicate in the query; they are read far less often than the home
 timeline, and with `media_kind` indexed they are now faster than the fast path
 was anyway. News is the same shape of question over `news_kind` and takes the
 same path, for the same reason and with more of it: an article is rarer than a
-photograph. The old query is kept as the fallback for an instance whose
+photograph. A short (`only_short`, over `short_kind`) is rarer again, and
+takes it too. The old query is kept as the fallback for an instance whose
 backfill has not finished, and is slower and always correct.
 
 **Counters are added to, not counted.** The three on an account lived only in
@@ -1022,7 +1023,17 @@ and read through `(news_kind, nid)`; a row the backfill has not reached is simpl
 not news yet, which is the one place this differs from `media_kind` and is a
 deliberate trade — every new post is classified from the moment the column
 exists, so the top of the page, which is the end a reader looks at, is right
-immediately. And a content search reads a word index, `social_search_term`:
+immediately. `social_stream.short_kind` is the third column of the kind: whether
+a post is a short video — its only attachment a `video` of at most
+`Stream::SHORT_MAX_SECONDS` (180), no wider than `SHORT_MAX_ASPECT` (1, upright
+or square), both from the attachment's meta — decided by `Stream::shortKindOf()`
+wherever the attachment copies are written (the post stored, edited, its copies
+rebuilt, a remote video cached and measured) and read through
+`(short_kind, nid)` by `only_short`. NULL is left on a post stored before the
+column existed that is not a video: `Version1000Date20261012500100` reads only
+the `media_kind = 'video'` rows. The same two thresholds are what `/api/v2/config`
+announces, and the short composer's longest recording is pinned to the first by
+a test, so a short made here is never too long to be one. And a content search reads a word index, `social_search_term`:
 one row per (word, post), written with the post, rewritten with an edit
 (`SearchTermsRequest::reindex()` writes only the words that changed) and
 deleted with it. A word is an equality on (term, nid), read newest-first and
@@ -2326,8 +2337,14 @@ who have a 24-hour short up, unseen first, then an *All shorts* tile that opens
 `/shorts`. The bar and the 24-hour part of the stack are drawn from `/api/v1/stories/carousel`. The Shorts
 stack (`VideoShorts.vue`) puts the viewer's followees' active 24-hour shorts
 first — grouped per person, unseen first, each marked *24h* with the hours it
-has left — and then the kept shorts, which are the Videos timeline in the
-chosen scope. One viewer plays both kinds: pictures and text cards advance by
+has left — and then the kept shorts: the timeline of the chosen scope asked
+with `only_short` (store type `shorts`), and For you asked with
+`only_short=true`, which `InterestFeedService` keeps as a ranking of its own
+(`shorts`, on `limitToShort()`, topped up with trending shorts). So the stack
+holds exactly what the server counts as a short — a single video of at most
+three minutes, upright or square (`Stream::shortKindOf()`) — and the Videos
+grid keeps every video; an empty stack says *No shorts here yet* and what a
+short is. One viewer plays both kinds: pictures and text cards advance by
 themselves after their hold time, seeing a 24-hour short calls the story seen
 endpoint, anybody who can see one can react or reply, and its owner sees *Who
 has seen it*, the reactions and replies, and can delete it.

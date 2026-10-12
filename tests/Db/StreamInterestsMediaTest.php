@@ -45,5 +45,6 @@ class StreamInterestsMediaTest extends TestCase {
 		$this->assertMatchesRegularExpression("/'photos'\) \{\s+\\\$qb->limitToMediaType\('image'\);/", $body);
 		$this->assertMatchesRegularExpression("/'videos'\) \{\s+\\\$qb->limitToVideo\(\);/", $body);
 		$this->assertMatchesRegularExpression("/'media'\) \{\s+\\\$qb->limitToMedia\(\);/", $body);
+		$this->assertMatchesRegularExpression("/'shorts'\) \{\s+\\\$qb->limitToShort\(\);/", $body);
 	}
 }

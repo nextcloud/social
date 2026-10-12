@@ -77,6 +77,9 @@ class IndexCoverageTest extends TestCase {
 		yield 'Photos and Videos: the posts carrying one kind of media, newest first' => [
 			'social_stream', ['media_kind', 'nid'],
 		];
+		yield 'only_short: the posts that are a short video, newest first' => [
+			'social_stream', ['short_kind', 'nid'],
+		];
 		yield 'the News view: the posts that are articles, newest first' => [
 			'social_stream', ['news_kind', 'nid'],
 		];

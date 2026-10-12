@@ -179,8 +179,8 @@ function pruneIndex(state) {
 
 /**
  * Whether the list is a ranking rather than a timeline: For you, whole or as
- * the For you scope of Photos and Videos, and a Bluesky feed or list, whose
- * order is the feed's own.
+ * the For you scope of Photos, Videos and Shorts, and a Bluesky feed or list,
+ * whose order is the feed's own.
  *
  * @param {{type: string, params?: {scope?: string}}} state the store state, or anything with its type and params
  * @return {boolean}
@@ -188,7 +188,7 @@ function pruneIndex(state) {
 export function isRanked(state) {
 	return state.type === 'interests'
 		|| state.type === 'bluesky'
-		|| (['photos', 'videos'].includes(state.type) && state.params?.scope === 'interests')
+		|| (['photos', 'videos', 'shorts'].includes(state.type) && state.params?.scope === 'interests')
 }
 
 /**
@@ -285,6 +285,7 @@ function timelineRequest(list, params) {
 			break
 		case 'photos':
 		case 'videos':
+		case 'shorts':
 		// a timeline with the text-only posts left out: what people
 		// showed rather than what they said. Which people is the scope
 		// the switcher sets — the ones you follow by default, this
@@ -294,7 +295,11 @@ function timelineRequest(list, params) {
 		// and asks nothing about attachments: the server narrows it.
 			if (list.params.scope === 'interests') {
 				url = generateUrl('apps/social/api/v1/timelines/interests')
-				params.media = list.type
+				if (list.type === 'shorts') {
+					params.only_short = true
+				} else {
+					params.media = list.type
+				}
 				break
 			}
 			if (list.params.scope === 'timeline' || list.params.scope === 'federated') {
@@ -314,7 +319,12 @@ function timelineRequest(list, params) {
 			// been upgraded yet still answers with media rather than
 			// with everything.
 			params.only_media = true
-			if (list.type === 'videos') {
+			if (list.type === 'shorts') {
+				// the Shorts stack: a single video of at most three minutes,
+				// upright or square, by the rule the server keeps
+				// (`Stream::shortKindOf()`) rather than a copy of it here
+				params.only_short = true
+			} else if (list.type === 'videos') {
 				params.only_video = true
 			} else {
 				// a post carrying both is `mixed` and is in both pages,

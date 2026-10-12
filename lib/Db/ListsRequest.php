@@ -455,7 +455,9 @@ class ListsRequest extends ListsRequestBuilder {
 
 		$page->filterType(SocialAppNotification::TYPE);
 		$page->paginate($options);
-		if ($options->isOnlyVideo()) {
+		if ($options->isOnlyShort()) {
+			$page->limitToShort();
+		} elseif ($options->isOnlyVideo()) {
 			$page->limitToVideo();
 		} elseif ($options->isOnlyMedia()) {
 			$page->limitToMedia();

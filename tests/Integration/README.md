@@ -54,6 +54,9 @@ to stop.
   of text) and page the Photos and Videos views of home, public and a profile
   — a page of twenty, then two at a time on `max_id` — with the home fast path
   on and off: a narrowing applied after the page was chosen finds nothing.
+- `Db/ShortKindWriteTest` — `short_kind` written wherever the attachment
+  copies are: a stored post, an edit, rebuilt copies, and a remote video that
+  only becomes a short once caching has measured it.
 - `Db/FollowedTagsTest` — the followed-hashtag table and the second half of the
   home timeline: the unique index that makes following twice a no-op, paging on
   the row id, a 127-character multi-byte tag, and the join itself — a public
@@ -114,6 +117,9 @@ to stop.
 - `Migration/RowBackfillMigrationsTest` — the upgrade steps that fill rows
   (recipient nids, `media_kind`, `news_kind`, OAuth authorizations moved to
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
+- `Migration/ShortKindBackfillTest` — `Version1000Date20261012500100` works out
+  the stored videos once (a short, a long one, a landscape one, one without
+  meta), leaves a stored answer and every non-video post alone, twice.
 - `Migration/UpgradeFromOldReleasesTest` — the squash and
   `Version1000Date20261011500100` on tables put back in the shape a release
   before 0.23 left: duplicate follow pairs removed before the pair is made
@@ -168,6 +174,10 @@ to stop.
   `Api/PaginationTest` asks every paged list the same questions — `max_id`
   exclusive, `since_id` the newest page, `min_id` the adjacent one, the
   `Link` cursors — with three pages of rows behind it.
+  `Api/OnlyShortTimelineTest` asks `only_short` of home, public, a hashtag,
+  a list, a profile and For you, with three shorts under four other videos and sixty
+  newer posts of text: a page of twenty is the three, and paged two at a
+  time the `Link` header keeps the filter.
   `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and
   `/api/v1/favourites` to what the reader may read now, and a bookmarks
   import to the posts the importing account may read.

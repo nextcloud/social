@@ -37,8 +37,8 @@ use OCP\ICacheFactory;
  * post in the ranking. Refreshing — a request with no cursor — ranks afresh.
  *
  * The same ranking also comes narrowed to one kind of post, for the Photos
- * and Videos pages and the Shorts stack: `photos`, `videos`, or `media` for
- * either. Each is a ranking of its own, kept under its own key, so paging
+ * and Videos pages and the Shorts stack: `photos`, `videos`, `shorts` (the
+ * short videos `only_short` keeps), or `media` for pictures and videos. Each is a ranking of its own, kept under its own key, so paging
  * one never lands in another. Pictures and videos carry fewer hashtags than
  * text and are rarer, so those rankings look twice as far back. Where a
  * ranking of any kind is still shorter than `POPULAR_FILL` the rest is what
@@ -61,13 +61,13 @@ class InterestFeedService {
 	public const RELATED_TAGS = 5;
 
 	/** The kinds a ranking can be narrowed to; '' is every post. */
-	public const MEDIA = ['', 'photos', 'videos', 'media'];
+	public const MEDIA = ['', 'photos', 'videos', 'shorts', 'media'];
 	/** How much further back a narrowed ranking looks. */
 	public const MEDIA_WINDOW_FACTOR = 2;
 	/** A ranking shorter than this is filled from what is trending. */
 	public const POPULAR_FILL = TrendService::MAX_LIMIT;
 	/** What `TrendService` is asked for, by kind. */
-	private const TREND_KIND = ['photos' => 'image', 'videos' => 'video', 'media' => ''];
+	private const TREND_KIND = ['photos' => 'image', 'videos' => 'video', 'shorts' => 'short', 'media' => ''];
 
 	private ?ICache $cache = null;
 

@@ -207,6 +207,24 @@ class InterestsControllerTest extends TestCase {
 		];
 	}
 
+	/** `only_short` is the ranking of short videos, whatever else was sent. */
+	public function testOnlyShortIsTheRankingOfShorts(): void {
+		$this->feedService->expects($this->once())->method('page')
+			->with($this->isInstanceOf(Person::class), 20, '0', 0, 'shorts')
+			->willReturn([]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->timeline(20, 0, 0, 'videos', true, true)->getStatus());
+	}
+
+	/** The name the ranking is kept under is not a `media` a client may send. */
+	public function testShortsIsNotAMediaParameter(): void {
+		$this->feedService->expects($this->once())->method('page')
+			->with($this->isInstanceOf(Person::class), 20, '0', 0, '')
+			->willReturn([]);
+
+		$this->controller()->timeline(20, 0, 0, 'shorts');
+	}
+
 	#[DataProvider('mediaParams')]
 	public function testTheFeedIsNarrowedOnlyToTheKindsItOffers(string $media, bool $onlyMedia, string $expected): void {
 		$this->feedService->expects($this->once())->method('page')

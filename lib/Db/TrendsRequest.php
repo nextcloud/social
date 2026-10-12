@@ -79,6 +79,8 @@ class TrendsRequest extends TrendsRequestBuilder {
 		// carrying `Video` in `subtype` and no file this instance can see.
 		if ($mediaType === 'video') {
 			$qb->limitToVideo();
+		} elseif ($mediaType === 'short') {
+			$qb->limitToShort();
 		} elseif ($mediaType !== '') {
 			$qb->limitToMediaType($mediaType);
 		}
@@ -131,6 +133,8 @@ class TrendsRequest extends TrendsRequestBuilder {
 
 		if ($mediaType === 'video') {
 			$qb->limitToVideo();
+		} elseif ($mediaType === 'short') {
+			$qb->limitToShort();
 		} elseif ($mediaType !== '') {
 			$qb->limitToMediaType($mediaType);
 		}

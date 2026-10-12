@@ -294,7 +294,13 @@ The sidebar is the map:
   only by its poster's followers (see **Shorts that last 24 hours** below).
   The 24-hour shorts of the people you follow come first, grouped by person
   and the ones you have not seen before the rest, each marked **24h** with the
-  hours it has left; then come the kept ones, which are the Videos timeline.
+  hours it has left; then come the kept ones. **What counts as a short:** a
+  post with a single video of **at most 3 minutes** that is **upright or
+  square** — a landscape video, a longer one, or a post with several videos
+  stays on the Videos page instead. A video from another server counts once
+  this server knows how long it is and how it is shaped, which it learns
+  from the other server or by measuring the file when it keeps a copy. Where
+  there are no shorts yet, Shorts says so.
   The switch in the top corner picks whose videos (**My Feed**, **For you**,
   **Local** or **Global**); it opens on For you once your reading has taught
   it something, and on My Feed before that. It plays
@@ -409,8 +415,8 @@ something to show on the first day; until it has learned a little, it also
 shows what is trending here, and says so.
 
 **Photos, videos and Shorts.** Photos, Videos and Shorts have a **For you**
-of their own: the same hashtags, narrowed to posts with a picture, or to
-videos, and looking back twice as far, because such posts are rarer. Where
+of their own: the same hashtags, narrowed to posts with a picture, to
+videos, or to shorts, and looking back twice as far, because such posts are rarer. Where
 that finds fewer than about forty, the rest is what is popular here in the
 same kind right now — the posts Explore's Pictures and Videos tabs show —
 and those say *Popular right now* rather than naming a hashtag they did not
