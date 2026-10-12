@@ -225,6 +225,16 @@ to stop.
   CSRF token, and a Nextcloud app password signed in by Nextcloud with
   `OCS-APIRequest: true`; and a token revoking its own authorization but not
   another app's, which the session still may.
+  `Api/VisibilityMatrixTest` asks every read path — the client API's
+  statuses, timelines, search, notifications, marks and conversations, the
+  ActivityPub object and collections signed and unsigned, RSS, oEmbed, the
+  browser page, the unified search and reference providers and the dashboard
+  widgets — what it shows of a public, unlisted, followers-only and direct
+  post, a quote and a boost of a followers-only one, to the author, a follower,
+  a pending follower, a mentioned account, a stranger, nobody, an account the
+  author blocked and one that muted the author, against the one table in
+  `Api/VisibilityMatrix`. The unit suite's `AppInfo/VisibilityMatrixRoutesTest`
+  fails for a route that serves posts and is not in that table.
 - `Atproto/OAuthStorageTest` — OAuth for Bluesky apps: a request approved once
   and its code exchanged once, a refresh token rotated only from the good one
   (the replaced one finds the session to end), one-time DPoP ids taken once by

@@ -690,6 +690,29 @@ class CurlServiceTest extends TestCase {
 		$this->service()->doRequest('get', $from);
 	}
 
+	/**
+	 * A local address is refused when the request options say nothing about
+	 * one, not only when they say no: being allowed to reach this server's
+	 * own network has to be asked for.
+	 */
+	public function testALocalAddressIsRefusedWhenTheOptionsSayNothingAboutIt(): void {
+		$this->configService = $this->createStub(ConfigService::class);
+		$this->configService->method('getAppValue')->willReturnCallback(
+			static fn (string $key): string => ($key === ConfigService::SOCIAL_MAX_SIZE) ? '10' : ''
+		);
+		$this->configService->method('requestOptions')->willReturn(['timeout' => 5]);
+		$this->configService->method('activityPubHeaders')->willReturn([]);
+		$asked = $this->answerPerUrl([]);
+
+		try {
+			$this->service()->doRequest('get', 'https://127.0.0.1/users/bob');
+			$this->fail('a request to a local address was sent');
+		} catch (RequestServerException $e) {
+			$this->assertStringContainsString('local address', $e->getMessage());
+		}
+		$this->assertSame([], $asked());
+	}
+
 	public function testARedirectLoopIsGivenUpOn(): void {
 		$url = 'https://' . self::PUBLIC_IP . '/@bob';
 		$this->answerPerUrl([$url => $this->redirect($url)]);

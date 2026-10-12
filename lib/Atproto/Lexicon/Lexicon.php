@@ -26,6 +26,9 @@ use OCA\Social\Atproto\Protocol\Tid;
 class Lexicon {
 	private const DIRECTORY = __DIR__ . '/../lexicons';
 
+	/** a type and a subtype of at most 127 characters each (RFC 6838 §4.2), and the slash */
+	private const MAX_MIME_TYPE = 255;
+
 	/** @var array<string, array> loaded documents by NSID */
 	private array $documents = [];
 
@@ -299,7 +302,10 @@ class Lexicon {
 		$accept = $schema['accept'] ?? [];
 		if ($accept !== [] && !in_array('*/*', $accept, true)) {
 			foreach ($accept as $pattern) {
-				if (fnmatch($pattern, $value['mimeType'])) {
+				// fnmatch() warns on, and matches nothing against, a string past
+				// 1024 bytes, and throws on one with a NUL in it
+				if (strlen($value['mimeType']) <= self::MAX_MIME_TYPE && !str_contains($value['mimeType'], "\0")
+					&& fnmatch($pattern, $value['mimeType'])) {
 					return;
 				}
 			}

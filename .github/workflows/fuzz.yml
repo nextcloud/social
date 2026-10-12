@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The parsers that read what other servers send — ActivityPub documents, HTTP
+# and Linked Data signatures, DAG-CBOR, CAR files, repository trees, WebSocket
+# frames, Lexicon records — are fuzzed by tests/Fuzz/FuzzTest.php. The unit
+# suite runs a few hundred inputs per parser from a fixed seed; nightly, the
+# same targets get many more inputs from a seed of their own. A finding names
+# the seed and the input, so FUZZ_SEED and FUZZ_ITERATIONS replay it locally.
+
+name: Fuzzing
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'Seed to replay (empty for a new one)'
+        required: false
+        default: ''
+      iterations:
+        description: 'Inputs per parser'
+        required: false
+        default: '20000'
+  schedule:
+    - cron: '17 2 * * *'
+  # the `full-ci` label (labelled-ci.yml)
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    name: Fuzz the parsers
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up php8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: 8.3
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up dependencies
+        run: composer i
+
+      - name: Choose the seed
+        id: seed
+        env:
+          REPLAY: ${{ github.event.inputs.seed }}
+        run: |
+          if [ -n "$REPLAY" ]; then
+            seed="$REPLAY"
+          else
+            seed=$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')
+          fi
+          echo "seed=$seed" >> "$GITHUB_OUTPUT"
+          echo "Fuzzing with FUZZ_SEED=$seed" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Fuzz
+        env:
+          FUZZ_SEED: ${{ steps.seed.outputs.seed }}
+          FUZZ_ITERATIONS: ${{ github.event.inputs.iterations || '20000' }}
+          FUZZ_TRACE: ${{ runner.temp }}/fuzz-last-input.bin
+        run: php -d memory_limit=2G vendor/bin/phpunit -c tests/phpunit.xml tests/Fuzz
+
+      - name: Keep the input that was running when PHP died
+        if: failure()
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: fuzz-last-input-${{ steps.seed.outputs.seed }}
+          path: ${{ runner.temp }}/fuzz-last-input.bin
+          if-no-files-found: ignore
+          retention-days: 14

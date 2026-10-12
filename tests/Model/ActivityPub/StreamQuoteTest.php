@@ -304,6 +304,51 @@ class StreamQuoteTest extends TestCase {
 		$this->assertNull($quote['quoted_status']);
 	}
 
+	/**
+	 * The quoted post a request looked up is remembered for the rest of it,
+	 * by reader: a second reader in the same process is asked about afresh,
+	 * and does not get the post because the first one could see it.
+	 */
+	public function testAQuotedPostOneReaderMaySeeIsNotHandedToTheNext(): void {
+		$viewer = 'https://social.example/users/follower';
+		$streamRequest = $this->createStub(StreamRequest::class);
+		$streamRequest->method('getViewerId')->willReturnCallback(static function () use (&$viewer): string {
+			return $viewer;
+		});
+		$streamRequest->method('getStreamById')->willReturnCallback(function () use (&$viewer): Stream {
+			if ($viewer === 'https://social.example/users/follower') {
+				return $this->storedQuoted();
+			}
+
+			throw new StreamNotFoundException();
+		});
+		\OC::$server->register(StreamRequest::class, $streamRequest);
+
+		$this->assertSame('11', $this->approved()->exportAsLocal()['quote']['quoted_status']['id'] ?? null, 'the follower sees it');
+
+		$viewer = 'https://social.example/users/stranger';
+		$this->assertNull($this->approved()->exportAsLocal()['quote']['quoted_status'], 'the stranger does not');
+	}
+
+	/**
+	 * One quote resolved does not stop the next one from being resolved:
+	 * the guard against a quote of a quote is undone once a lookup is over.
+	 */
+	public function testEveryQuoteOfAPageIsResolved(): void {
+		$viewer = '';
+		$streamRequest = $this->createStub(StreamRequest::class);
+		$streamRequest->method('getViewerId')->willReturnCallback(static function () use (&$viewer): string {
+			return $viewer;
+		});
+		$streamRequest->method('getStreamById')->willReturnCallback(fn (): Stream => $this->storedQuoted());
+		\OC::$server->register(StreamRequest::class, $streamRequest);
+
+		foreach (['reader-1', 'reader-2', 'reader-3'] as $reader) {
+			$viewer = $reader;
+			$this->assertSame('11', $this->approved()->exportAsLocal()['quote']['quoted_status']['id'] ?? null, $reader);
+		}
+	}
+
 	/** A refusal that was recorded is what the client is told, post or no post. */
 	public function testARejectedQuoteIsExportedAsRejectedWithoutThePost(): void {
 		$this->holdingTheQuoted();

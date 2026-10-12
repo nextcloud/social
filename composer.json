@@ -2,7 +2,7 @@
 	"name": "nextcloud/social",
 	"description": "Social app",
 	"license": "AGPL-3.0-or-later",
-	"version": "0.26.232",
+	"version": "0.26.233",
 	"minimum-stability": "stable",
 	"authors": [
 		{
@@ -17,7 +17,10 @@
 		},
 		"optimize-autoloader": true,
 		"classmap-authoritative": true,
-		"autoloader-suffix": "Social"
+		"autoloader-suffix": "Social",
+		"allow-plugins": {
+			"infection/extension-installer": true
+		}
 	},
 	"autoload": {
 		"psr-4": {
@@ -43,7 +46,8 @@
 		"nextcloud/coding-standard": "^1.0.0",
 		"nextcloud/ocp": "dev-master",
 		"vimeo/psalm": "^6.17",
-		"symfony/console": "^6.4 || ^7.4"
+		"symfony/console": "^6.4 || ^7.4",
+		"infection/infection": "^0.35"
 	},
 	"scripts": {
 		"lint": "find . -name \\*.php -not -path './vendor/*' -not -path './build/*' -print0 | xargs -0 -n1 php -l",
@@ -55,7 +59,11 @@
 		"psalm:fix": "psalm --alter --issues=InvalidReturnType,InvalidNullableReturnType,MissingParamType,InvalidFalsableReturnType",
 		"test:unit": "@php -d memory_limit=512M vendor/bin/phpunit -c tests/phpunit.xml",
 		"test:integration": "vendor/bin/phpunit -c tests/Integration/phpunit.xml",
-		"test:interop": "vendor/bin/phpunit -c tests/Interop/phpunit.xml"
+		"test:interop": "vendor/bin/phpunit -c tests/Interop/phpunit.xml",
+		"test:mutation": [
+			"Composer\\Config::disableProcessTimeout",
+			"@php -d memory_limit=2G vendor/bin/infection --threads=max --no-progress lib/Service/SignatureService.php lib/Service/HttpSignatureService.php lib/Service/HttpMessageSignatureParser.php lib/Db/SocialLimitsQueryBuilder.php lib/Model/ActivityPub/Stream.php lib/Atproto/OAuth/AuthorizationServer.php lib/Atproto/OAuth/DpopVerifier.php lib/Atproto/AppView/ServiceAuth.php lib/Service/ActorCascadeService.php lib/Security/RemoteAddress.php lib/Service/CurlService.php"
+		]
 	},
 	"repositories": [
 		{

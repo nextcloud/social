@@ -123,6 +123,10 @@ trait TArrayTools {
 			return $arr[$k];
 		}
 
+		if (!is_scalar($arr[$k])) {
+			return $default;
+		}
+
 		$sk = (string)$arr[$k];
 		if ($sk === '1' || strtolower($sk) === 'true') {
 			return true;

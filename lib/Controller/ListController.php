@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\Atproto\Publisher\BlueskyLists;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -92,6 +93,7 @@ class ListController extends ClientApiController {
 		private GroupListService $groupListService,
 		private ?ContainerInterface $container = null,
 		private ?CountService $counts = null,
+		private ?StreamRequest $streamRequest = null,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -409,6 +411,10 @@ class ListController extends ClientApiController {
 			$list = $this->ownedList($id);
 
 			$this->listsRequest->setViewer($this->viewer);
+			// what a status reads while it is exported — the post it quotes,
+			// its reply parent, the reader's say in its interaction policy —
+			// is read through the stream request, as this reader
+			$this->streamRequest?->setViewer($this->viewer);
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);

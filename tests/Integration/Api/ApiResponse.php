@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Api;
 
 use OCA\Social\Tests\Api\Schema\SchemaValidator;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Response;
@@ -23,6 +24,8 @@ final class ApiResponse {
 	public readonly mixed $body;
 	/** @var array<string, string> */
 	public readonly array $headers;
+	/** the body as it goes onto the wire, for a JSON, RSS or other data response */
+	public readonly string $raw;
 
 	public function __construct(Response $response) {
 		$this->status = $response->getStatus();
@@ -34,6 +37,11 @@ final class ApiResponse {
 			default => null,
 		};
 		$this->body = SchemaValidator::wire($data);
+		$this->raw = match (true) {
+			$response instanceof DataResponse => (string)json_encode($data),
+			$response instanceof JSONResponse, $response instanceof DataDisplayResponse => $response->render(),
+			default => '',
+		};
 	}
 
 	/**

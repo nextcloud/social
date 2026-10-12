@@ -32,13 +32,20 @@ use OCP\Files\SimpleFS\ISimpleFolder;
 use OCP\ITempManager;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\WithoutErrorHandler;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
+/**
+ * Grouped as `libpng-stderr`: the pictures it decodes make libpng print
+ * a warning to the process's standard error, below PHP, and Infection stops
+ * its initial run at the first byte there (infection.json5 leaves it out).
+ */
 #[AllowMockObjectsWithoutExpectations]
+#[Group('libpng-stderr')]
 class CacheDocumentServiceTest extends TestCase {
 	private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
 

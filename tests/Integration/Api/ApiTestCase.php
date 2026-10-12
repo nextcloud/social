@@ -270,6 +270,8 @@ abstract class ApiTestCase extends TestCase {
 	 * @param bool $appPassword call as a client holding a Nextcloud app password of `$as`'s
 	 *                          does: Basic auth, which Nextcloud signs in, and
 	 *                          `OCS-APIRequest: true` in place of a CSRF token
+	 * @param array<string, string> $headers further request headers, e.g. `['Accept' => 'application/activity+json']`
+	 * @param array<class-string, object> $services services the controller is built with in place of the container's
 	 */
 	protected function call(
 		string $controller,
@@ -283,6 +285,8 @@ abstract class ApiTestCase extends TestCase {
 		bool $webSession = false,
 		?string $bearer = null,
 		bool $appPassword = false,
+		array $headers = [],
+		array $services = [],
 	): ApiResponse {
 		$server = [
 			'REQUEST_METHOD' => $verb,
@@ -308,6 +312,9 @@ abstract class ApiTestCase extends TestCase {
 		if ($verb !== 'GET') {
 			$server['CONTENT_TYPE'] = 'application/x-www-form-urlencoded';
 		}
+		foreach ($headers as $name => $value) {
+			$server['HTTP_' . strtoupper(str_replace('-', '_', $name))] = $value;
+		}
 
 		$request = new Request(
 			[
@@ -329,7 +336,7 @@ abstract class ApiTestCase extends TestCase {
 			);
 		}
 
-		$instance = $this->controller($controller, $request);
+		$instance = $this->controller($controller, $request, $services);
 
 		// the method's own arguments, the way the dispatcher fills them: from
 		// the route first, then the query, then the declared default
@@ -401,10 +408,14 @@ abstract class ApiTestCase extends TestCase {
 	 * one the server booted with back.
 	 *
 	 * @param class-string $class
+	 * @param array<class-string, object> $services
 	 */
-	private function controller(string $class, IRequest $request): object {
+	private function controller(string $class, IRequest $request, array $services = []): object {
 		$container = new DIContainer('social');
 		$container->registerService(IRequest::class, static fn (): IRequest => $request);
+		foreach ($services as $name => $service) {
+			$container->registerService($name, static fn (): object => $service);
+		}
 
 		$controller = $container->get($class);
 		$this->assertInstanceOf($class, $controller);

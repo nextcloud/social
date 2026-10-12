@@ -1,0 +1,105 @@
+// SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// Mutation testing of the code that decides who is who and who may read what:
+// signature verification, the viewer's audience in queries and in the post
+// model, the atproto OAuth server, DPoP and service auth, the cascade that
+// removes an account's traces, the address classifier and the outbound
+// request guard. The files are named on the command line (`composer run
+// test:mutation`, and the nightly workflow), and this file narrows three
+// large classes to the methods that matter here: every other method of
+// Stream, SocialLimitsQueryBuilder and CurlService is in global-ignore. A
+// method added to one of them is mutated until it is listed there.
+{
+	"$schema": "vendor/infection/infection/resources/schema.json",
+	"source": {
+		"directories": ["lib"],
+	},
+	"phpUnit": {
+		"configDir": "tests",
+	},
+	// the OCP interfaces the app's classes implement, which Infection reads
+	// while it mutates them, come from the unit suite's own autoloader
+	"bootstrap": "tests/bootstrap.php",
+	"initialTestsPhpOptions": "-d memory_limit=2G",
+	// a test whose pictures make libpng write to stderr, which Infection
+	// takes for a failing suite; it covers none of the code mutated here
+	"testFrameworkExtraArgs": "--exclude-group=libpng-stderr",
+	"tmpDir": "build/infection/tmp",
+	"timeout": 60,
+	"logs": {
+		"text": "build/infection/infection.log",
+		"summary": "build/infection/summary.log",
+		"json": "build/infection/infection.json",
+		"html": "build/infection/infection.html",
+		"github": true,
+	},
+	// measured at 75.3 (1980 mutants) when this was set: two points of room
+	// for what a run varies by, and a drop below is a test that stopped testing
+	"minMsi": 73,
+	"minCoveredMsi": 73,
+	"mutators": {
+		"@default": true,
+		"global-ignore": [
+			// the post model, but for who may see, quote and answer a post
+			"OCA\\Social\\Model\\ActivityPub\\Stream::__construct", "OCA\\Social\\Model\\ActivityPub\\Stream::addCacheItem", "OCA\\Social\\Model\\ActivityPub\\Stream::addDetachedQuote", "OCA\\Social\\Model\\ActivityPub\\Stream::addDetail",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::asWireDocument", "OCA\\Social\\Model\\ActivityPub\\Stream::cleanArray", "OCA\\Social\\Model\\ActivityPub\\Stream::convertPublished", "OCA\\Social\\Model\\ActivityPub\\Stream::currentViewerId",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::editedAt", "OCA\\Social\\Model\\ActivityPub\\Stream::exportAiGenerated", "OCA\\Social\\Model\\ActivityPub\\Stream::exportAllowedInteractions", "OCA\\Social\\Model\\ActivityPub\\Stream::exportAsActivityPub",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::exportAsLocal", "OCA\\Social\\Model\\ActivityPub\\Stream::exportAsNotification", "OCA\\Social\\Model\\ActivityPub\\Stream::exportBluesky", "OCA\\Social\\Model\\ActivityPub\\Stream::exportInteractionPolicy",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::exportLanguageMaps", "OCA\\Social\\Model\\ActivityPub\\Stream::exportMentionsAsLocal", "OCA\\Social\\Model\\ActivityPub\\Stream::exportPageAsActivityPub", "OCA\\Social\\Model\\ActivityPub\\Stream::exportQuoteApproval",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::exportQuoteAsActivityPub", "OCA\\Social\\Model\\ActivityPub\\Stream::exportRepliesAsActivityPub", "OCA\\Social\\Model\\ActivityPub\\Stream::exportReplyApproval", "OCA\\Social\\Model\\ActivityPub\\Stream::exportTagsAsLocal",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::firstLinkIn", "OCA\\Social\\Model\\ActivityPub\\Stream::getAction", "OCA\\Social\\Model\\ActivityPub\\Stream::getActivityId", "OCA\\Social\\Model\\ActivityPub\\Stream::getAttachments",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getAttributedTo", "OCA\\Social\\Model\\ActivityPub\\Stream::getCache", "OCA\\Social\\Model\\ActivityPub\\Stream::getCard", "OCA\\Social\\Model\\ActivityPub\\Stream::getContent",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getConversation", "OCA\\Social\\Model\\ActivityPub\\Stream::getCountsAt", "OCA\\Social\\Model\\ActivityPub\\Stream::getDetachedQuotes", "OCA\\Social\\Model\\ActivityPub\\Stream::getDetailInt",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getDetails", "OCA\\Social\\Model\\ActivityPub\\Stream::getDetailsAll", "OCA\\Social\\Model\\ActivityPub\\Stream::getEmojis", "OCA\\Social\\Model\\ActivityPub\\Stream::getHashtags",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getHiddenReplies", "OCA\\Social\\Model\\ActivityPub\\Stream::getInReplyTo", "OCA\\Social\\Model\\ActivityPub\\Stream::getInterest", "OCA\\Social\\Model\\ActivityPub\\Stream::getLanguage",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getMentions", "OCA\\Social\\Model\\ActivityPub\\Stream::getPlace", "OCA\\Social\\Model\\ActivityPub\\Stream::getPlaceId", "OCA\\Social\\Model\\ActivityPub\\Stream::getPublishedTime",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getQuote", "OCA\\Social\\Model\\ActivityPub\\Stream::getQuoteAuthorization", "OCA\\Social\\Model\\ActivityPub\\Stream::getQuotePolicy", "OCA\\Social\\Model\\ActivityPub\\Stream::getQuoteState",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getReactions", "OCA\\Social\\Model\\ActivityPub\\Stream::getReplyListMembers", "OCA\\Social\\Model\\ActivityPub\\Stream::getReplyPolicy", "OCA\\Social\\Model\\ActivityPub\\Stream::getReplyRule",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getReplyRuleParts", "OCA\\Social\\Model\\ActivityPub\\Stream::getReplyState", "OCA\\Social\\Model\\ActivityPub\\Stream::getSpoilerText", "OCA\\Social\\Model\\ActivityPub\\Stream::getTaggedPeople",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::getTimeline", "OCA\\Social\\Model\\ActivityPub\\Stream::getUpdated", "OCA\\Social\\Model\\ActivityPub\\Stream::getVideoMeta", "OCA\\Social\\Model\\ActivityPub\\Stream::getViewCount",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::hasAction", "OCA\\Social\\Model\\ActivityPub\\Stream::hasCache", "OCA\\Social\\Model\\ActivityPub\\Stream::hashtagUrl", "OCA\\Social\\Model\\ActivityPub\\Stream::import",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::importAttachments", "OCA\\Social\\Model\\ActivityPub\\Stream::importFromDatabase", "OCA\\Social\\Model\\ActivityPub\\Stream::importFromLocal", "OCA\\Social\\Model\\ActivityPub\\Stream::importInteractionPolicies",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::isArchived", "OCA\\Social\\Model\\ActivityPub\\Stream::isBlueskyPost", "OCA\\Social\\Model\\ActivityPub\\Stream::isDeliveryHeld", "OCA\\Social\\Model\\ActivityPub\\Stream::isExternalLink",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::isFilterDuplicate", "OCA\\Social\\Model\\ActivityPub\\Stream::isMutedConversation", "OCA\\Social\\Model\\ActivityPub\\Stream::isPinned", "OCA\\Social\\Model\\ActivityPub\\Stream::isSensitive",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::isVideo", "OCA\\Social\\Model\\ActivityPub\\Stream::jsonSerialize", "OCA\\Social\\Model\\ActivityPub\\Stream::languageOf", "OCA\\Social\\Model\\ActivityPub\\Stream::lookupDeliveryHeld",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::lookupParent", "OCA\\Social\\Model\\ActivityPub\\Stream::mediaKindOf", "OCA\\Social\\Model\\ActivityPub\\Stream::newsKindOf", "OCA\\Social\\Model\\ActivityPub\\Stream::normalizeLanguage",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::normalizeReplyRule", "OCA\\Social\\Model\\ActivityPub\\Stream::notificationTypeOfSubType", "OCA\\Social\\Model\\ActivityPub\\Stream::overlayCounters", "OCA\\Social\\Model\\ActivityPub\\Stream::pageUrl",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::quoteIdOf", "OCA\\Social\\Model\\ActivityPub\\Stream::removeDetail", "OCA\\Social\\Model\\ActivityPub\\Stream::replyApproval", "OCA\\Social\\Model\\ActivityPub\\Stream::resetQuoteCache",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::resetReplyParentCache", "OCA\\Social\\Model\\ActivityPub\\Stream::resolveInReplyTo", "OCA\\Social\\Model\\ActivityPub\\Stream::setAction", "OCA\\Social\\Model\\ActivityPub\\Stream::setActivityId",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setArchived", "OCA\\Social\\Model\\ActivityPub\\Stream::setAttachments", "OCA\\Social\\Model\\ActivityPub\\Stream::setAttributedTo", "OCA\\Social\\Model\\ActivityPub\\Stream::setCache",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setCard", "OCA\\Social\\Model\\ActivityPub\\Stream::setContent", "OCA\\Social\\Model\\ActivityPub\\Stream::setConversation", "OCA\\Social\\Model\\ActivityPub\\Stream::setCountsAt",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setDeliveryHeld", "OCA\\Social\\Model\\ActivityPub\\Stream::setDetail", "OCA\\Social\\Model\\ActivityPub\\Stream::setDetailArray", "OCA\\Social\\Model\\ActivityPub\\Stream::setDetailBool",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setDetailInt", "OCA\\Social\\Model\\ActivityPub\\Stream::setDetailItem", "OCA\\Social\\Model\\ActivityPub\\Stream::setDetailsAll", "OCA\\Social\\Model\\ActivityPub\\Stream::setEmojis",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setFilterDuplicate", "OCA\\Social\\Model\\ActivityPub\\Stream::setHiddenReplies", "OCA\\Social\\Model\\ActivityPub\\Stream::setInReplyTo", "OCA\\Social\\Model\\ActivityPub\\Stream::setInterest",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setLanguage", "OCA\\Social\\Model\\ActivityPub\\Stream::setMentions", "OCA\\Social\\Model\\ActivityPub\\Stream::setMutedConversation", "OCA\\Social\\Model\\ActivityPub\\Stream::setPinned",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setPlace", "OCA\\Social\\Model\\ActivityPub\\Stream::setPlaceId", "OCA\\Social\\Model\\ActivityPub\\Stream::setPublishedTime", "OCA\\Social\\Model\\ActivityPub\\Stream::setQuote",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setQuoteAuthorization", "OCA\\Social\\Model\\ActivityPub\\Stream::setQuotePolicy", "OCA\\Social\\Model\\ActivityPub\\Stream::setQuoteState", "OCA\\Social\\Model\\ActivityPub\\Stream::setReactions",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setReplyListMembers", "OCA\\Social\\Model\\ActivityPub\\Stream::setReplyPolicy", "OCA\\Social\\Model\\ActivityPub\\Stream::setReplyRule", "OCA\\Social\\Model\\ActivityPub\\Stream::setReplyState",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setSensitive", "OCA\\Social\\Model\\ActivityPub\\Stream::setSpoilerText", "OCA\\Social\\Model\\ActivityPub\\Stream::setTaggedPeople", "OCA\\Social\\Model\\ActivityPub\\Stream::setTimeline",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::setUpdated", "OCA\\Social\\Model\\ActivityPub\\Stream::setVideoMeta", "OCA\\Social\\Model\\ActivityPub\\Stream::setViewCount", "OCA\\Social\\Model\\ActivityPub\\Stream::statedCount",
+			"OCA\\Social\\Model\\ActivityPub\\Stream::subTypesOfNotificationTypes", "OCA\\Social\\Model\\ActivityPub\\Stream::updatedFromRow", "OCA\\Social\\Model\\ActivityPub\\Stream::wireSource",
+			// the query builder, but for the viewer's audience
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::filterType", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitPaginate", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitResults", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToAccepted",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToAccount", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToActivityId", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToActorId", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToActorIdPrim",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToAddress", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToAppClientId", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToAttributedTo", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToCaching",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToFollowId", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToFollowedTags", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToHashtag", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToIdPrim",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToInReplyTo", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToLocal", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToMedia", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToMediaType",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToNews", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToObjectId", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToObjectIdPrim", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToParentId",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToPreferredUsername", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToStatus", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToStatusTypes", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToStreamIdPrim",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToSubType", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToSubTypes", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToToken", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToType",
+			"OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToUrl", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::limitToVideo", "OCA\\Social\\Db\\SocialLimitsQueryBuilder::paginate",
+			// the HTTP client, but for the guard on where a request may go
+			"OCA\\Social\\Service\\CurlService::__construct", "OCA\\Social\\Service\\CurlService::asyncWithToken", "OCA\\Social\\Service\\CurlService::cleanArray", "OCA\\Social\\Service\\CurlService::decodeOrFollow",
+			"OCA\\Social\\Service\\CurlService::doRequest", "OCA\\Social\\Service\\CurlService::doRequestOverUrls", "OCA\\Social\\Service\\CurlService::extractArray", "OCA\\Social\\Service\\CurlService::get",
+			"OCA\\Social\\Service\\CurlService::getArray", "OCA\\Social\\Service\\CurlService::getBool", "OCA\\Social\\Service\\CurlService::getFloat", "OCA\\Social\\Service\\CurlService::getInt",
+			"OCA\\Social\\Service\\CurlService::handleHost", "OCA\\Social\\Service\\CurlService::hostMeta", "OCA\\Social\\Service\\CurlService::isActivityPubMediaType", "OCA\\Social\\Service\\CurlService::mergeHeaders",
+			"OCA\\Social\\Service\\CurlService::mergeOptions", "OCA\\Social\\Service\\CurlService::mustContains", "OCA\\Social\\Service\\CurlService::openStream", "OCA\\Social\\Service\\CurlService::refusedTheSignature",
+			"OCA\\Social\\Service\\CurlService::retrieveAccount", "OCA\\Social\\Service\\CurlService::retrieveJson", "OCA\\Social\\Service\\CurlService::retrieveJsonFromFirstReachable", "OCA\\Social\\Service\\CurlService::retrieveJsonMany",
+			"OCA\\Social\\Service\\CurlService::retrieveObject", "OCA\\Social\\Service\\CurlService::retrieveObjectsMany", "OCA\\Social\\Service\\CurlService::send", "OCA\\Social\\Service\\CurlService::sendMany",
+			"OCA\\Social\\Service\\CurlService::settledOutcome", "OCA\\Social\\Service\\CurlService::settledResponse", "OCA\\Social\\Service\\CurlService::userAgent", "OCA\\Social\\Service\\CurlService::webfingerAccount",
+			"OCA\\Social\\Service\\CurlService::withBeginSlash", "OCA\\Social\\Service\\CurlService::withEndSlash", "OCA\\Social\\Service\\CurlService::withoutBeginAt", "OCA\\Social\\Service\\CurlService::withoutBeginSlash",
+			"OCA\\Social\\Service\\CurlService::withoutEndSlash",
+		],
+	},
+}

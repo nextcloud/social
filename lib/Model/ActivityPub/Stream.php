@@ -1843,8 +1843,8 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 				// having at all
 				$dropped[] = [
 					'reason' => 'unreadable',
-					'type' => (string)($item['type'] ?? ''),
-					'url' => (string)($item['url'] ?? $item['href'] ?? ''),
+					'type' => $this->get('type', $item),
+					'url' => $this->get('url', $item, $this->get('href', $item)),
 					'error' => $e->getMessage(),
 				];
 				continue;

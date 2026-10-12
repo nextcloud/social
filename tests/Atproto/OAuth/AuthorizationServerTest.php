@@ -14,6 +14,7 @@ use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Model\OAuthSession;
 use OCA\Social\Atproto\OAuth\AuthorizationServer;
 use OCA\Social\Atproto\OAuth\ClientAuthenticator;
 use OCA\Social\Atproto\OAuth\ClientMetadataService;
@@ -417,6 +418,62 @@ class AuthorizationServerTest extends TestCase {
 				$this->assertSame(401, $e->status);
 				$this->assertStringContainsString($i === 0 ? 'ended' : 'deactivated', $e->getMessage());
 			}
+		}
+	}
+
+	/**
+	 * A code is good until the moment it expires and not after: one exchanged
+	 * a second late, by the same client with the right verifier and key, is
+	 * not a session.
+	 */
+	public function testACodeIsGoodUntilItExpiresAndNotASecondLonger(): void {
+		foreach ([300 => true, 301 => false] as $age => $good) {
+			[$requestUri, $verifier] = $this->pushed();
+			parse_str((string)parse_url($this->server->approve(self::CLIENT, $requestUri, 'alice'), PHP_URL_QUERY), $callback);
+			$approved = $this->now;
+			$this->now += $age;
+			try {
+				$tokens = $this->server->token([
+					'grant_type' => 'authorization_code', 'client_id' => self::CLIENT, 'code' => $callback['code'],
+					'code_verifier' => $verifier, 'redirect_uri' => self::REDIRECT,
+				], $this->proof(self::ISSUER . '/oauth/token'));
+				$this->assertTrue($good, 'a code ' . $age . ' s old was exchanged');
+				$this->assertArrayHasKey('access_token', $tokens);
+			} catch (OAuthException $e) {
+				$this->assertFalse($good, 'a code ' . $age . ' s old was refused: ' . $e->getMessage());
+				$this->assertSame('invalid_grant', $e->error);
+			}
+			$this->now = $approved;
+		}
+	}
+
+	/**
+	 * A session that has a lifetime ends with it, whatever the access token
+	 * says: a token minted before the end is refused after it, and taken up
+	 * to the second the session ends.
+	 */
+	public function testATokenOfASessionPastItsEndIsRefusedThoughTheTokenIsStillGood(): void {
+		$url = self::ISSUER . '/xrpc/app.bsky.feed.getTimeline';
+		$tokens = $this->signedIn();
+		$ending = function (int $expires): void {
+			$session = array_values($this->store->sessions)[0];
+			$this->store->sessions[$session->sessionId] = new OAuthSession(
+				$session->id, $session->sessionId, $session->userId, $session->did, $session->clientId,
+				$session->clientAuth, $session->scope, $session->dpopJkt, $session->refreshHash,
+				$session->refreshExpires, $expires, $session->creation, $session->lastUsed,
+			);
+		};
+
+		$ending($this->now);
+		$this->assertSame(self::DID, $this->server->authenticate('DPoP ' . $tokens['access_token'], $this->proof($url, 'GET', $tokens['access_token']), 'GET', $url)->identity->did);
+
+		$ending($this->now - 1);
+		try {
+			$this->server->authenticate('DPoP ' . $tokens['access_token'], $this->proof($url, 'GET', $tokens['access_token']), 'GET', $url);
+			$this->fail('the session acted past its end');
+		} catch (OAuthException $e) {
+			$this->assertSame(401, $e->status);
+			$this->assertStringContainsString('ended', $e->getMessage());
 		}
 	}
 }
