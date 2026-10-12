@@ -5,22 +5,19 @@
 # package, and the npm packages that are bundled into js/. npm's dev-only
 # packages are left out: they build the bundle and never reach a server.
 #
-# On pull requests and pushes, and weekly: an advisory published today makes a
-# lock file nobody changed vulnerable, and the weekly run is what notices.
-# Both audits read only the lock files, so nothing is installed.
+# Nightly, by hand, and on a pull request labelled `full-ci`
+# (labelled-ci.yml): an advisory published today makes a lock file nobody
+# changed vulnerable, so the nightly run is what notices, whether or not a
+# pull request touched a lock file. Both audits read only the lock files, so
+# nothing is installed.
 
 name: Dependency audit
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - master
-      - stable*
   workflow_dispatch:
+  workflow_call:
   schedule:
-    - cron: '29 5 * * 3'
+    - cron: '47 2 * * *'
 
 permissions:
   contents: read

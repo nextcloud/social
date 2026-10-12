@@ -14,28 +14,25 @@
 
 name: l10n
 
+# A push to master extracts and pushes the source strings, as before. The
+# extraction is checked nightly, by hand and on a pull request labelled
+# `full-ci` (labelled-ci.yml) rather than on every pull request.
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/l10n.yml'
-      - '.l10nignore'
-      - '.tx/**'
-      - 'l10n/**'
-      - 'lib/**'
-      - 'src/**'
-      - 'templates/**'
-      - 'appinfo/info.xml'
   push:
     branches:
       - main
       - master
+  schedule:
+    - cron: '43 2 * * *'
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: l10n-${{ github.head_ref || github.ref }}
+  # per event, so a push cannot replace a pending nightly run
+  group: l10n-${{ github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

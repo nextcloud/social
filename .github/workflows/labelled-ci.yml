@@ -1,0 +1,133 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# What a pull request does not run on its own, run on it when it carries a
+# label, as soon as the label is put on and again on every push:
+#
+#   - `full-ci`: everything the nightly run tests -- the whole PHP x Nextcloud
+#     matrix with MySQL and MariaDB, the robustness and upgrade legs, every
+#     browser-test leg but the weekly install shapes, PHP lint under every
+#     PHP, the l10n extraction, the dependency audit, all interop jobs (with
+#     the newest Mastodon, Misskey and Akkoma), the benchmark, the far time
+#     zones, fuzzing and mutation testing. For a pull request that changes the
+#     schema, a query, a dependency or the CI itself.
+#   - `interop`: the interop jobs, on a pull request whose paths would not
+#     start them (interop-pr.yml).
+#
+# Each job calls the workflow that runs it nightly, so a leg is defined in one
+# place. The checks show up as `<job> / <leg>` beside the pull request's own.
+# Another label being put on starts a run that does nothing and leaves a run
+# in progress alone.
+
+name: Labelled CI
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+permissions:
+  contents: read
+  # the phpunit-* workflows read the pull request's files for their paths filter
+  pull-requests: read
+
+concurrency:
+  group: labelled-ci-${{ github.event.action == 'labeled' && !(github.event.label.name == 'full-ci' || (github.event.label.name == 'interop' && !contains(github.event.pull_request.labels.*.name, 'full-ci'))) && github.run_id || github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  phpunit-sqlite:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/phpunit-sqlite.yml
+
+  phpunit-pgsql:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/phpunit-pgsql.yml
+
+  phpunit-mysql:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/phpunit-mysql.yml
+
+  integration-robustness:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/integration-robustness.yml
+
+  upgrade:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/upgrade.yml
+
+  e2e:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/e2e.yml
+
+  lint-php:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/lint-php.yml
+
+  l10n:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/l10n.yml
+
+  dependency-audit:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/dependency-audit.yml
+
+  perf:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/perf-nightly.yml
+
+  far-time-zones:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/far-time-zones.yml
+
+  fuzz:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/fuzz.yml
+
+  mutation:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/mutation.yml
+
+  # the interop jobs run for either label
+  mastodon:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop.yml
+    with:
+      full: true
+
+  bluesky:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-atproto.yml
+
+  loops:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-loops.yml
+
+  pixelfed:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-pixelfed.yml
+
+  gotosocial:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-gotosocial.yml
+
+  misskey:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-misskey.yml
+
+  akkoma:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-akkoma.yml
