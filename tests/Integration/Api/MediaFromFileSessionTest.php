@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Api;
 
+use OC\Files\SetupManager;
 use OCA\Social\Controller\MediaApiController;
 use OCP\Files\IRootFolder;
+use OCP\IUserManager;
 use OCP\Server;
 
 /**
@@ -32,9 +34,21 @@ class MediaFromFileSessionTest extends ApiTestCase {
 		parent::tearDown();
 	}
 
-	/** A real picture in the account's own files. */
+	/**
+	 * A real picture in the account's own files.
+	 *
+	 * The account may have been deleted and made again since this process
+	 * first set its files up, which leaves the old home mounted: its files
+	 * are set up afresh before the picture is written.
+	 */
 	private function pictureIn(string $name): void {
 		$this->account($name);
+		$user = Server::get(IUserManager::class)->get(self::PREFIX . $name);
+		$this->assertNotNull($user);
+		$setup = Server::get(SetupManager::class);
+		$setup->tearDown();
+		$setup->setupForUser($user);
+
 		$image = imagecreatetruecolor(40, 20);
 		ob_start();
 		imagepng($image);
