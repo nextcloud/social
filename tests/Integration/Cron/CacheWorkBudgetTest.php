@@ -177,6 +177,17 @@ class CacheWorkBudgetTest extends TestCase {
 		return $ids;
 	}
 
+	/** The local accounts the instance had before this test seeded any. */
+	private function localAccountsAlreadyHere(): int {
+		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'n'))->from(CoreRequestBuilder::TABLE_ACTORS);
+		$cursor = $qb->executeQuery();
+		$count = (int)$cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return $count;
+	}
+
 	/**
 	 * `$count` local accounts with no Nextcloud user behind them, their ids
 	 * what this instance would have given them.
@@ -365,14 +376,17 @@ class CacheWorkBudgetTest extends TestCase {
 		Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_LOCAL_ACTOR_CURSOR, '');
 		$batch = (int)(new ReflectionClassConstant(AccountService::class, 'LOCAL_ACTOR_BATCH'))->getValue();
 		$pages = (int)(new ReflectionClassConstant(AccountService::class, 'LOCAL_ACTOR_PAGES'))->getValue();
+		$own = $this->localAccountsAlreadyHere();
 		$this->seedLocalActors(3 * $batch * $pages);
 
 		$run = $this->step('manageCacheLocalActors');
 
 		$this->assertLessThanOrEqual($pages, count($run->matching('/ORDER BY "?`?a"?`?\."?`?id_prim/')), 'at most its pages');
 		// the account, its moderation level and the user behind it, three
-		// reads for the name, and a read a page: 10,022 today
-		$this->assertWithinBudget($run, $batch * $pages, 5, 2 * $pages + 10);
+		// reads for the name, and a read a page: 10,022 today; an account the
+		// instance already had has a user, a picture and counts, and is
+		// refreshed whole (about twenty statements)
+		$this->assertWithinBudget($run, $batch * $pages, 5, 2 * $pages + 10 + 25 * $own);
 	}
 
 	/** A batch of the accounts past their grace period, one delete each. */
