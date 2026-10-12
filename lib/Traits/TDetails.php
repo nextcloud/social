@@ -22,6 +22,9 @@ trait TDetails {
 	/** @var array */
 	private array $details = [];
 
+	/** @var array<string, Item> handed along with the object, never stored */
+	private array $detailItems = [];
+
 	/**
 	 * @return array
 	 */
@@ -69,11 +72,21 @@ trait TDetails {
 	}
 
 	/**
+	 * A whole object handed along with this one for the rest of the request:
+	 * the post a notification is about, for the push and the mail sent in
+	 * the same request. Not a detail: `getDetailsAll()` leaves it out, so it
+	 * is neither written to `details` nor exported. A notification read from
+	 * the database has no item and finds the post by its object id.
+	 *
 	 * @param string $detail
 	 * @param Item $value
 	 */
 	public function setDetailItem(string $detail, Item $value) {
-		$this->details[$detail] = $value;
+		$this->detailItems[$detail] = $value;
+	}
+
+	public function getDetailItem(string $detail): ?Item {
+		return $this->detailItems[$detail] ?? null;
 	}
 
 	/**
