@@ -52,6 +52,12 @@ class SearchHydrationTest extends TestCase {
 	 */
 	private const JOINS_FOLLOWS = '/JOIN\s+["`]?\w*social_follow["`]?\s/i';
 
+	/**
+	 * The viewer's follows as `limitToViewer()` reads them, under the alias
+	 * `f`: probed in an `EXISTS` beside the public and direct branches.
+	 */
+	private const READS_VIEWER_FOLLOWS = '/(JOIN|FROM)\s+["`]?\w*social_follow["`]?\s+["`]?f["`]?\s/i';
+
 	/** @var string[] */
 	private array $notes = [];
 
@@ -164,12 +170,12 @@ class SearchHydrationTest extends TestCase {
 			. 'follow and the public one — not the followers-only post of a stranger'
 		);
 
-		$follows = $run->matching(self::JOINS_FOLLOWS);
+		$follows = $run->matching(self::READS_VIEWER_FOLLOWS);
 		$this->assertNotEmpty($follows, 'the visibility is still decided against the follows: ' . $run->summary());
 		foreach ($follows as $query) {
 			$this->assertSame(
 				['nid'], array_values(array_diff(self::selected($query['sql']), ['published_time'])),
-				'a statement joining the follows selects the nid, and nothing wider: ' . $query['sql']
+				'a statement reading the follows selects the nid, and nothing wider: ' . $query['sql']
 			);
 		}
 

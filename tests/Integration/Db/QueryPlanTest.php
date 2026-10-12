@@ -66,6 +66,7 @@ class QueryPlanTest extends TestCase {
 	private const BASE = 'https://cloud.example.org/queryplan';
 	private const REMOTE = 'https://remote.example/queryplan';
 	private const FOLLOWED = 3;
+	private const TAG = 'qptag';
 
 	private static string $platform = '';
 	private static ?Person $viewer = null;
@@ -107,8 +108,8 @@ class QueryPlanTest extends TestCase {
 		if ($volume) {
 			foreach ([
 				CoreRequestBuilder::TABLE_STREAM, CoreRequestBuilder::TABLE_STREAM_DEST,
-				CoreRequestBuilder::TABLE_FOLLOWS, CoreRequestBuilder::TABLE_CACHE_ACTORS,
-				CoreRequestBuilder::TABLE_REQUEST_QUEUE,
+				CoreRequestBuilder::TABLE_STREAM_TAGS, CoreRequestBuilder::TABLE_FOLLOWS,
+				CoreRequestBuilder::TABLE_CACHE_ACTORS, CoreRequestBuilder::TABLE_REQUEST_QUEUE,
 			] as $table) {
 				$name = '*PREFIX*' . $table;
 				// MySQL answers ANALYZE TABLE with a result set, which has to be read
@@ -121,12 +122,18 @@ class QueryPlanTest extends TestCase {
 	public static function tearDownAfterClass(): void {
 		$connection = Server::get(IDBConnection::class);
 		foreach (array_chunk(array_map('md5', self::$streams), 500) as $prims) {
-			foreach ([[CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id'], [CoreRequestBuilder::TABLE_STREAM, 'id_prim']] as [$table, $column]) {
+			foreach ([
+				[CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id'], [CoreRequestBuilder::TABLE_STREAM_TAGS, 'stream_id'],
+				[CoreRequestBuilder::TABLE_STREAM, 'id_prim'],
+			] as [$table, $column]) {
 				$qb = $connection->getQueryBuilder();
 				$qb->delete($table)->where($qb->expr()->in($column, $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
 				$qb->executeStatement();
 			}
 		}
+		$qb = $connection->getQueryBuilder();
+		$qb->delete(CoreRequestBuilder::TABLE_HASHTAGS)->where($qb->expr()->eq('hashtag', $qb->createNamedParameter(self::TAG)));
+		$qb->executeStatement();
 		$follows = Server::get(FollowsRequest::class);
 		$cache = Server::get(CacheActorsRequest::class);
 		foreach (self::$actors as $id) {
@@ -157,8 +164,9 @@ class QueryPlanTest extends TestCase {
 
 	/**
 	 * A local viewer following three of `$authors` remote accounts, each with
-	 * `$posts` public posts of which one in ten carries a picture and one in
-	 * twenty-five a video; `$followers` remote followers of the viewer; and
+	 * `$posts` public posts of which one in ten carries a picture, one in
+	 * twenty-five a video and one in four the hashtag `TAG`; `$followers`
+	 * remote followers of the viewer; and
 	 * `$queued` deliveries, most of them long given up on, as a queue that has
 	 * been running for a while holds them.
 	 */
@@ -190,6 +198,9 @@ class QueryPlanTest extends TestCase {
 					$media->setType($kind);
 					$media->setUrl(self::REMOTE . '/media/' . $a . '-' . $p);
 					$note->setAttachments([$media]);
+				}
+				if ($p % 4 === 0) {
+					$note->setHashtags([self::TAG]);
 				}
 				$streamRequest->save($note);
 				self::$streams[] = $note->getId();
@@ -356,6 +367,60 @@ class QueryPlanTest extends TestCase {
 	}
 
 	/**
+	 * `$alias` is read only inside a subquery of the statement, never as one
+	 * of the tables its rows are joined from.
+	 *
+	 * @param array{sql: string, params: array, types: array} $query
+	 */
+	private function assertReadOnlyInASubquery(array $query, string $alias): void {
+		$connection = QueryCounter::doctrineConnection();
+		$prefix = match (self::$platform) {
+			'sqlite' => 'EXPLAIN QUERY PLAN ',
+			'mysql' => 'EXPLAIN ',
+			'pgsql' => 'EXPLAIN (FORMAT JSON) ',
+		};
+		$rows = $connection->executeQuery($prefix . $query['sql'], $query['params'], $query['types'])
+			->fetchAllAssociative();
+		$plan = $query['sql'] . "\n" . json_encode($rows, JSON_PRETTY_PRINT);
+
+		$found = 0;
+		if (self::$platform === 'mysql') {
+			foreach ($rows as $row) {
+				if (($row['table'] ?? '') === $alias) {
+					$found++;
+					$this->assertStringContainsString('SUBQUERY', (string)$row['select_type'], $alias . ' is joined: ' . $plan);
+				}
+			}
+		} elseif (self::$platform === 'sqlite') {
+			$byId = array_column($rows, null, 'id');
+			foreach ($rows as $row) {
+				if (preg_match('/^(SEARCH|SCAN) ' . preg_quote($alias, '/') . '\b/', (string)$row['detail']) !== 1) {
+					continue;
+				}
+				$found++;
+				$inSubquery = false;
+				for ($parent = $byId[$row['parent']] ?? null; $parent !== null; $parent = $byId[$parent['parent']] ?? null) {
+					$inSubquery = $inSubquery || str_contains((string)$parent['detail'], 'SUBQUERY');
+				}
+				$this->assertTrue($inSubquery, $alias . ' is joined: ' . $plan);
+			}
+		} else {
+			$walk = function (array $node, bool $inSubplan) use (&$walk, &$found, $alias, $plan): void {
+				$inSubplan = $inSubplan || in_array($node['Parent Relationship'] ?? '', ['SubPlan', 'InitPlan'], true);
+				if (($node['Alias'] ?? '') === $alias) {
+					$found++;
+					$this->assertTrue($inSubplan, $alias . ' is joined: ' . $plan);
+				}
+				foreach ($node['Plans'] ?? [] as $child) {
+					$walk($child, $inSubplan);
+				}
+			};
+			$walk(json_decode((string)reset($rows[0]), true)[0]['Plan'], false);
+		}
+		$this->assertGreaterThan(0, $found, $alias . ' does not appear in the plan: ' . $plan);
+	}
+
+	/**
 	 * The home page off the recipient rows: one index range per collection
 	 * followed, read from `social_sd_atn` without touching the table.
 	 */
@@ -440,6 +505,27 @@ class QueryPlanTest extends TestCase {
 			$query, ['s' => null, 'sd' => null],
 			'the DISTINCT over the visibility join'
 		);
+	}
+
+	/**
+	 * The hashtag page: driven from the tag, every table reached through an
+	 * index, and the viewer's follows probed per recipient row rather than
+	 * joined. Joined, they repeat each candidate row once per account the
+	 * viewer follows before the public branch of the visibility rule admits
+	 * it — what made this page read 1.1 million rows on MySQL for 1,250
+	 * tagged posts and a viewer following 300 accounts.
+	 */
+	public function testTheHashtagPageProbesTheFollowsInsteadOfJoiningThem(): void {
+		$query = $this->capture(
+			$this->timeline(ProbeOptions::HASHTAG, ['setArgument' => self::TAG]),
+			'/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]? FROM .*social_stream_tag/'
+		);
+
+		$this->assertIndexed(
+			$query, ['st' => null, 's' => null, 'sd' => null, 'f' => null],
+			'the DISTINCT over the recipient rows, then the sort by nid'
+		);
+		$this->assertReadOnlyInASubquery($query, 'f');
 	}
 
 	public function testTheNotificationPageIsReadThroughTheRecipientIndex(): void {

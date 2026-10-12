@@ -129,6 +129,26 @@ account following 300, about 0.6 s on PostgreSQL at any instance size
 the nid and the posts read by primary key afterwards
 (`tests/Integration/Db/SearchHydrationTest.php`).
 
+The page queries kept a smaller copy of the same multiplication. Wherever the
+visibility rule has more than one branch — public, addressed to the viewer, or
+from an account the viewer follows (`limitToViewer()` with `$allowPublic` or
+`$allowDirect`) — the viewer's follows were a `LEFT JOIN` beside the recipient
+rows, so each candidate row was repeated once per account followed before the
+public branch admitted it, and the `DISTINCT` folded the copies back.
+PostgreSQL's plan stopped once it had a page; MySQL's built every copy first:
+the hashtag page read 1.13 million rows to keep the 1,250 tagged posts, about
+0.6–1.1 s at 100,000 notes and 300 follows. The follow is now a correlated
+`EXISTS` per recipient row (`exprStreamDestFollowed()`): one lookup in
+`social_f_foa` on MySQL, one hashed read of the viewer's follows on PostgreSQL.
+Measured with `occ social:benchmark --actors=2000 --notes=100000 --follows=300`,
+page of 20, the slower of two medians, MySQL 8.4 / PostgreSQL 14: hashtag
+560 → 20 ms / 35 → 25 ms, account 13 → 5 ms / 29 → 19 ms, search 60 → 21 ms /
+66 → 41 ms. The home and
+list timelines, where the follow is the only branch, keep the join: there it
+drives the read and matches each recipient row at most once, and they filter
+on the follow's `type`. `QueryPlanTest` asserts the hashtag page reads the
+follows only inside a subquery.
+
 ### Lookups that cannot use an index
 
 `DomainBlocksRequestBuilder::filterDomainBlocked()` is no longer one of them:

@@ -203,7 +203,8 @@ to stop.
 - `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
   method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
   join path), Photos and Videos on home, public and a profile, an account's
-  statuses, notifications, the delivery queue's standby read, follower
+  statuses, the hashtag page (whose follows must be probed in a subquery,
+  not joined), notifications, the delivery queue's standby read, follower
   inboxes and the handle lookup. SQLite: every guarded table is searched
   through an index, never scanned. MySQL: a key and no full read, no filesort
   or temporary table unless the query is listed as one that sorts.
