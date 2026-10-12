@@ -295,8 +295,9 @@ worker, and what Loops' own validators make of our last activities.
 
 ## Against GoToSocial
 
-`.github/workflows/interop-gotosocial.yml` is a job of its own, run on every
-pull request, on pushes to master, weekly and on demand. GoToSocial is one
+`.github/workflows/interop-gotosocial.yml` is a job of its own, run nightly,
+on demand, and on a pull request that touches the federation code or carries
+the `interop` or the `full-ci` label. GoToSocial is one
 container with SQLite (the official image, `superseriousbusiness/gotosocial`
 0.22.2, pinned by tag and digest) and is up in seconds, so the job is the
 quickest of the interop jobs. It sits behind the same Caddy and job-made CA as

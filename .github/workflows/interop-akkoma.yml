@@ -18,6 +18,8 @@ on:
   schedule:
     # Mondays, early, beside the other interop runs
     - cron: '27 5 * * 1'
+  # the `full-ci` and the `interop` label (labelled-ci.yml)
+  workflow_call:
 
 permissions:
   contents: read
