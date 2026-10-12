@@ -8,6 +8,9 @@
 
 name: PHPUnit PostgreSQL
 
+# A pull request and a push run one leg: the newest stable server on the
+# newest PHP. The nightly run, a manual run and the `full-ci` label
+# (labelled-ci.yml) run the whole matrix.
 on:
   pull_request:
   push:
@@ -15,12 +18,23 @@ on:
       - main
       - master
       - stable*
+  schedule:
+    - cron: '7 2 * * *'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      full:
+        description: 'Run the whole matrix'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: phpunit-pgsql-${{ github.head_ref || github.ref }}
+  # per event, so a push cannot replace a pending nightly run, and apart from
+  # the pull request's own run when labelled-ci.yml calls this one
+  group: phpunit-pgsql-${{ inputs.full && 'full' || github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -30,7 +44,7 @@ jobs:
       # sparse-matrix covers the whole range info.xml claims (both the min and
       # the max server version) with minimal redundancy; branches-max-list
       # tested the newest server only, so the claimed floor went unexercised.
-      matrix: ${{ steps.versions.outputs.sparse-matrix }}
+      matrix: ${{ steps.legs.outputs.matrix }}
     steps:
       - name: Checkout app
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -39,8 +53,25 @@ jobs:
         id: versions
         uses: icewind1991/nextcloud-version-matrix@58becf3b4bb6dc6cef677b15e2fd8e7d48c0908f # v1.3.1
 
+      - name: Pick the legs
+        id: legs
+        env:
+          MATRIX: ${{ steps.versions.outputs.sparse-matrix }}
+          FULL: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.full == true }}
+        run: |
+          if [ "$FULL" = true ]; then
+            matrix=$(echo "$MATRIX" | jq -c .)
+          else
+            matrix=$(echo "$MATRIX" | jq -c --argjson extra '[]' -f .github/scripts/pull-request-legs.jq)
+          fi
+          echo "$matrix" | jq .
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   changes:
     runs-on: ubuntu-latest
+    # the scheduled and the manual run test everything; the filter has no
+    # pull request or push to compare with there
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     permissions:
       contents: read
       pull-requests: read
@@ -72,7 +103,8 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: [changes, matrix]
-    if: needs.changes.outputs.src != 'false'
+    # !cancelled(): `changes` is skipped on the scheduled and the manual run
+    if: ${{ !cancelled() && needs.matrix.result == 'success' && needs.changes.outputs.src != 'false' }}
 
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}

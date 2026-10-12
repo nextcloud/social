@@ -23,6 +23,8 @@ on:
         default: '20000'
   schedule:
     - cron: '17 2 * * *'
+  # the `full-ci` label (labelled-ci.yml)
+  workflow_call:
 
 permissions:
   contents: read

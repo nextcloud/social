@@ -52,7 +52,14 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: stack-check-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'label' }}
+  # Per pull request: a push to one pull request replaces only that pull
+  # request's earlier run, never another's. A label other than `stack-check`
+  # being put on starts a run of its own that does nothing, so it cannot
+  # cancel the stack check in progress on the same pull request either.
+  group: >-
+    stack-check-${{ (github.event_name == 'workflow_dispatch'
+    || (github.event.action == 'labeled' && github.event.label.name != 'stack-check'))
+    && github.run_id || github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
