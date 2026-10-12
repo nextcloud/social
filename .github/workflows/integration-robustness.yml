@@ -27,21 +27,15 @@
 #
 # One server version and one PHP: what is under test is the tests' isolation
 # from each other and the server's caches, which do not change with either.
+#
+# Nightly, by hand, and on a pull request labelled `full-ci` (labelled-ci.yml).
 
 name: Integration robustness
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/integration-robustness.yml'
-      - 'appinfo/**'
-      - 'lib/**'
-      - 'tests/Integration/**'
-      - 'composer.json'
-      - 'composer.lock'
-  push:
-    branches:
-      - master
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_call:
   workflow_dispatch:
     inputs:
       seed:

@@ -5,28 +5,30 @@
 # PeerTube, read back out of each one's own API. See tests/Interop/README.md for
 # why, and for what this cannot prove.
 #
-# On every pull request and every push to master, as well as weekly and by
-# hand. It stands up four containers and depends on third-party images whose
+# Nightly and by hand; on a pull request when it touches the federation code
+# (interop-pr.yml), or carries the `interop` or the `full-ci` label
+# (labelled-ci.yml). It stands up four containers and depends on third-party images whose
 # startup this repository does not control, so a red run is worth reading for
 # which side failed before blaming the change under review: the last step
 # prints what each side saw. A newer push to the same pull request cancels the
 # run still going for the old one.
 #
-# Pull requests and pushes run against Mastodon 4.3. The weekly and the manual
-# run add the newest Mastodon, which writes quote posts (4.3 cannot, so the
+# Pull requests run against Mastodon 4.3. The nightly, the manual and a
+# labelled run add the newest Mastodon, which writes quote posts (4.3 cannot, so the
 # quote test skips there) and is where a change on Mastodon's side shows first.
 
 name: Interop against Mastodon and PeerTube
 
 on:
-  pull_request:
-  push:
-    branches:
-      - master
+  workflow_call:
+    inputs:
+      full:
+        description: 'Add the newest Mastodon'
+        type: boolean
+        default: false
   workflow_dispatch:
   schedule:
-    # Mondays, early: a week is the right cadence for "has the other end moved"
-    - cron: '17 4 * * 1'
+    - cron: '51 2 * * *'
 
 permissions:
   contents: read
@@ -41,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mastodon: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["v4.3", "v4.5"]' || '["v4.3"]') }}
+        mastodon: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.full) && '["v4.3", "v4.5"]' || '["v4.3"]') }}
     # the 4.3 leg keeps the name it had before there was a matrix, so a check
     # required by that name still finds it
     name: ${{ matrix.mastodon == 'v4.3' && 'Nextcloud Social ↔ Mastodon, PeerTube' || format('Nextcloud Social ↔ Mastodon {0}, PeerTube', matrix.mastodon) }}

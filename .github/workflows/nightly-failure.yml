@@ -1,0 +1,107 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# A red scheduled run has nobody watching its pull request, so it gets an
+# issue: one per workflow, titled "Nightly: <workflow> failing" and labelled
+# `nightly-failure`, with a link to the run and the jobs that failed. A night
+# that fails again updates it and comments; the first green scheduled run of
+# that workflow closes it. Cancelled and skipped runs change nothing, and
+# neither do pull request, push and manual runs of the same workflows.
+#
+# workflow_run starts only from the copy of this file on the default branch;
+# a workflow missing from the list below is not watched. Names not yet on the
+# default branch are listed so that they are watched once they land.
+
+name: Nightly failure issues
+
+on:
+  workflow_run:
+    workflows:
+      - Browser tests
+      - Dependency audit
+      - Fuzzing
+      - Integration robustness
+      - Interop against Akkoma
+      - Interop against Bluesky
+      - Interop against GoToSocial
+      - Interop against Loops
+      - Interop against Mastodon and PeerTube
+      - Interop against Misskey
+      - Interop against Pixelfed
+      - l10n
+      - Lint php
+      - Mutation testing
+      - Nightly performance
+      - PHPUnit MySQL
+      - PHPUnit PostgreSQL
+      - PHPUnit SQLite
+      - Unit tests in far time zones
+      - Upgrade from a release
+    types: [completed]
+    branches: [master]
+
+permissions: {}
+
+concurrency:
+  # one workflow's issue is written by one run at a time
+  group: nightly-failure-${{ github.event.workflow_run.workflow_id }}
+  cancel-in-progress: false
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'schedule'
+      && contains(fromJSON('["success", "failure", "timed_out"]'), github.event.workflow_run.conclusion)
+
+    permissions:
+      # the failed jobs of the run
+      actions: read
+      # find, open, edit, comment on and close the issue, and create its label
+      issues: write
+
+    name: ${{ github.event.workflow_run.name }} ${{ github.event.workflow_run.conclusion }}
+
+    steps:
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          title="Nightly: $WORKFLOW failing"
+          issue=$(gh issue list --repo "$REPO" --label nightly-failure --state open --limit 100 --json number,title \
+            | jq -r --arg title "$title" 'map(select(.title == $title)) | first | .number // empty')
+
+          if [ "$CONCLUSION" = success ]; then
+            if [ -n "$issue" ]; then
+              gh issue close "$issue" --repo "$REPO" --comment "Green again in the scheduled run $RUN_URL (${SHA:0:9})."
+            fi
+            exit 0
+          fi
+
+          failed=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out") | "- [\(.name)](\(.html_url))"')
+          body=$(printf '%s\n' \
+            "The scheduled run of **$WORKFLOW** on \`master\` failed." \
+            "" \
+            "Last failing run: $RUN_URL (commit ${SHA:0:9}, $CONCLUSION)" \
+            "" \
+            "Failing jobs:" \
+            "${failed:-- (none reported; read the run)}" \
+            "" \
+            "This issue is updated by \`.github/workflows/nightly-failure.yml\` on every failing night and closed by the first green scheduled run.")
+
+          if [ -z "$issue" ]; then
+            gh label create nightly-failure --repo "$REPO" --force \
+              --color B60205 --description 'A scheduled workflow on master is failing'
+            gh issue create --repo "$REPO" --title "$title" --label nightly-failure --body "$body"
+          else
+            gh issue edit "$issue" --repo "$REPO" --body "$body"
+            gh issue comment "$issue" --repo "$REPO" --body "Failed again: $RUN_URL (${SHA:0:9})"$'\n\n'"$failed"
+          fi
