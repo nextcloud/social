@@ -95,6 +95,8 @@ to stop.
   their account, and another user's rows untouched. A schema guard fails when
   a table with an account-like column is neither cascaded nor listed as kept
   or as a known gap.
+- `Db/BannerCascadeTest` — deleting a Nextcloud user takes their profile
+  banner with it: the document row, its file and its resized copy.
 - `Db/StreamMediaTest` — a post's stored attachment copies and the
   `social_stream_media` links: paging by nid, `carriesUpload()` (which failed
   on every database until this test ran it), relinking on a rewrite, remote
@@ -129,6 +131,12 @@ to stop.
 - `Db/ActorsWalkTest` — `ActorsRequest::walk()` visits every local account
   once across pages while each is written to, keyed on the stored `id_prim`
   even where the social URL changed since the accounts were made.
+- `Db/ActorsRowIdentityTest` — accounts stored under an earlier social URL:
+  a key rotation and a profile write land on the account's row and on no
+  other, and the paged walk carries on from the prim the row is stored under.
+- `Migration/BannerParentBackfillTest` — `Version1000Date20261012507100` hangs
+  a banner stored without a parent off the account its handle names, leaves an
+  upload and a banner of a handle no actor has alone, twice.
 - `Migration/ShortKindBackfillTest` — `Version1000Date20261012500100` works out
   the stored videos once (a short, a long one, a landscape one, one without
   meta), leaves a stored answer and every non-video post alone, twice.
@@ -179,10 +187,24 @@ to stop.
   100000 and -1: each `LIMIT` that reaches the SQL must be one a request at
   the route's documented maximum, at 1 or at its default also produced. A
   route whose page is not read by a query is listed with what bounds it.
+- `Api/BoostByIdTest` — a boost asked for by its own id carries the boosted
+  status in `reblog`, decorated for the reader as on a timeline, where the
+  reader's favourite now shows on the boosted status too; a boost of a status
+  the reader may not see is a 404.
+- `Api/OnlyNewsListTimelineTest` — `only_news` on a list timeline: three
+  posts that link somewhere under forty newer text posts are the page of
+  twenty, newest first, and paging two at a time keeps `only_news` in `Link`.
+- `Api/ClientApiCorsTest` — the client API as a browser client of another
+  origin meets it, through the real dispatcher and every middleware the app
+  registers: a bearer call, an anonymous read and a refusal readable from any
+  origin, the preflight answered without credentials, a web-app route outside
+  the API bases closed, and a session cookie from another origin without its
+  CSRF token answered 401 while the web app's own call still signs in.
 - `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
   method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
   join path), Photos and Videos on home, public and a profile, an account's
-  statuses, notifications, the delivery queue's standby read, follower
+  statuses, the hashtag page (whose follows must be probed in a subquery,
+  not joined), notifications, the delivery queue's standby read, follower
   inboxes and the handle lookup. SQLite: every guarded table is searched
   through an index, never scanned. MySQL: a key and no full read, no filesort
   or temporary table unless the query is listed as one that sorts.

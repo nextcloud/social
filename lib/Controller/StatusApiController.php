@@ -501,7 +501,13 @@ class StatusApiController extends MastodonApiController {
 		try {
 			$this->initViewer(false);
 
-			$item = $this->served($this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid)));
+			$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
+			// a boost is served with what it boosts, and one of a status the
+			// viewer may not see is no status of theirs, as on Mastodon
+			if ($item->getType() === Announce::TYPE && !($item->getObject() instanceof Stream)) {
+				throw new StreamNotFoundException();
+			}
+			$item = $this->served($item);
 			// opening a post's own page is the one thing this app counts as
 			// having read it: not an impression in a timeline, which is a post
 			// scrolled past rather than read

@@ -432,7 +432,10 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 
 	/**
 	 * @param string $aliasDest
-	 * @param string $aliasFollowing
+	 * @param string $aliasFollowing the alias of `social_follow`: joined to the
+	 *                               request when the follow is the only branch,
+	 *                               which is when a caller may constrain on it,
+	 *                               and inside an `EXISTS` otherwise
 	 * @param bool $allowPublic
 	 * @param bool $allowDirect
 	 * @param string $publicSubType which recipient row counts as public: '' for
@@ -458,15 +461,23 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		}
 
 		$this->selectDestFollowing($aliasDest, '');
-		$this->leftJoinFollowing($aliasFollowing);
 		$expr = $this->expr();
 		$actor = $this->getViewer();
 
-		$conditions = [
-			$this->exprInnerJoinStreamDestFollowing(
-				$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
-			)
-		];
+		if ($allowPublic || $allowDirect) {
+			// the follow is one branch of several, and a joined follows table
+			// would repeat each candidate row once per account followed
+			$conditions = [$this->exprStreamDestFollowed($actor->getId(), $aliasDest, $aliasFollowing)];
+		} else {
+			// the follow is the only way in: the join drives from the viewer's
+			// follows, and the caller constrains on the follow's columns
+			$this->leftJoinFollowing($aliasFollowing);
+			$conditions = [
+				$this->exprInnerJoinStreamDestFollowing(
+					$actor->getId(), 'recipient', 'id_prim', $aliasDest, $aliasFollowing
+				)
+			];
+		}
 
 		if ($allowPublic) {
 			$conditions[] = $this->exprLimitToDest(ACore::CONTEXT_PUBLIC, 'recipient', $publicSubType, $aliasDest);

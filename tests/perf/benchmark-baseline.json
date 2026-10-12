@@ -13,12 +13,12 @@
 		"photos@50": 139.0,
 		"videos@20": 80.9,
 		"videos@50": 74.9,
-		"hashtag@20": 49.8,
-		"hashtag@50": 94.4,
-		"account@20": 37.3,
-		"account@50": 53.7,
-		"search@20": 130.3,
-		"search@50": 191.6
+		"hashtag@20": 24.9,
+		"hashtag@50": 28.5,
+		"account@20": 19.3,
+		"account@50": 24.4,
+		"search@20": 40.8,
+		"search@50": 57.9
 	},
 	"mysql": {
 		"home@20": 35.3,
@@ -33,11 +33,11 @@
 		"photos@50": 197.1,
 		"videos@20": 56.9,
 		"videos@50": 69.1,
-		"hashtag@20": 1124.8,
-		"hashtag@50": 1240.4,
-		"account@20": 25.2,
-		"account@50": 54.8,
-		"search@20": 109.7,
-		"search@50": 256.5
+		"hashtag@20": 20.3,
+		"hashtag@50": 25.1,
+		"account@20": 5.4,
+		"account@50": 10.4,
+		"search@20": 20.5,
+		"search@50": 48.6
 	}
 }

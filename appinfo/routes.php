@@ -40,13 +40,36 @@ namespace OCA\Social\AppInfo;
  * those carry more segments and cannot match a one-segment path, so they stay
  * as attributes.
  *
+ * `/api/{path}` is the client API's catch-all for a browser client of
+ * another origin: the CORS preflight (`OPTIONS`) of any of its addresses and,
+ * for every other verb, a 404 that carries the CORS headers, so the client
+ * reads that an endpoint is missing instead of seeing a network error. They
+ * come after every route of the app, so they only answer what no route takes.
+ * They leave out the three addresses whose route ends in a slash, written
+ * without it (`$trailingSlashRoutes`): the server matches the address as
+ * sent and tries again with a slash only when no route matched its path at
+ * all, whatever the verb, so a catch-all matching `/api/v1/timelines/public`
+ * would have kept that retry from reaching `/api/v1/timelines/{timeline}/`.
+ * `ClientApiCorsTest` walks every client-API route against the server's
+ * router to keep the list right.
+ *
  * Routes that only have to beat routes of their own controller need nothing
  * special: within one class the attributes are read in method-declaration
  * order.
  */
+// the timelines with a route of their own are reached without the retry
+$trailingSlashRoutes = ['v1/favourites', 'v1/instance', 'v1/timelines/(?!bluesky$|interests$|link$)[^/]+'];
+$unmatched = ['path' => '(?!(?:' . implode('|', $trailingSlashRoutes) . ')$).+'];
+
 return [
 	'routes' => [
 		['name' => 'AccountApi#accountGet', 'url' => '/api/v1/accounts/{id}', 'verb' => 'GET', 'requirements' => ['id' => '.+']],
 		['name' => 'ActivityPub#displayPost', 'url' => '/@{username}/{token}', 'verb' => 'GET'],
+		['name' => 'ClientApiPreflight#preflight', 'url' => '/api/{path}', 'verb' => 'OPTIONS', 'requirements' => $unmatched],
+		['name' => 'ClientApiPreflight#notFound', 'url' => '/api/{path}', 'verb' => 'GET', 'requirements' => $unmatched, 'postfix' => 'get'],
+		['name' => 'ClientApiPreflight#notFound', 'url' => '/api/{path}', 'verb' => 'POST', 'requirements' => $unmatched, 'postfix' => 'post'],
+		['name' => 'ClientApiPreflight#notFound', 'url' => '/api/{path}', 'verb' => 'PUT', 'requirements' => $unmatched, 'postfix' => 'put'],
+		['name' => 'ClientApiPreflight#notFound', 'url' => '/api/{path}', 'verb' => 'PATCH', 'requirements' => $unmatched, 'postfix' => 'patch'],
+		['name' => 'ClientApiPreflight#notFound', 'url' => '/api/{path}', 'verb' => 'DELETE', 'requirements' => $unmatched, 'postfix' => 'delete'],
 	]
 ];

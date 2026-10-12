@@ -59,6 +59,9 @@ class BannerService {
 		// the actor document, which every server that has heard of this account
 		// may read
 		$image->setPublic(true);
+		// hung off the account, so that deleting the account takes it along
+		// with the rest of what hangs off it (`ActorCascadeService`)
+		$image->setParentId($actor->getId());
 
 		$this->cacheDocumentService->saveFromTempToCache($image, $tmpPath);
 		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));

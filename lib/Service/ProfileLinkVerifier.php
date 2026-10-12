@@ -178,7 +178,7 @@ class ProfileLinkVerifier {
 			}
 
 			foreach ($batch as $actor) {
-				$after = md5($actor->getId());
+				$after = ActorsRequest::rowPrimOf($actor);
 				if ($this->verifyLocal($actor)) {
 					$checked++;
 				}

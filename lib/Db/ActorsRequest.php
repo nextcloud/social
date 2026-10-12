@@ -57,7 +57,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb->set('avatar_version', $qb->createNamedParameter($actor->getAvatarVersion()))
 			->set('summary', $qb->createNamedParameter($actor->getSummary()))
 			->set('name', $qb->createNamedParameter($actor->getName()));
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -68,7 +68,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateFields(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('fields', $qb->createNamedParameter(json_encode($actor->getFields())));
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -79,7 +79,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateSummary(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('summary', $qb->createNamedParameter($actor->getSummary()));
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -90,7 +90,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateLocked(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('locked', $qb->createNamedParameter($actor->isLocked() ? 1 : 0));
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -106,7 +106,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$qb->set('discoverable', $qb->createNamedParameter($actor->isDiscoverable() ? 1 : 0))
 			->set('indexable', $qb->createNamedParameter($actor->isIndexable() ? 1 : 0))
 			->set('bot', $qb->createNamedParameter($actor->isBot() ? 1 : 0));
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -119,7 +119,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateAlsoKnownAs(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('also_known_as', $qb->createNamedParameter(json_encode($actor->getAlsoKnownAs())));
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -130,7 +130,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 	public function updateMovedTo(Person $actor): void {
 		$qb = $this->getActorsUpdateSql();
 		$qb->set('moved_to', $qb->createNamedParameter($actor->getMovedTo()));
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -148,7 +148,7 @@ class ActorsRequest extends ActorsRequestBuilder {
 		} catch (Exception $e) {
 		}
 
-		$this->limitToIdPrimString($qb, $actor->getId());
+		$this->limitToRow($qb, $actor);
 
 		$qb->executeStatement();
 	}
@@ -427,5 +427,30 @@ class ActorsRequest extends ActorsRequestBuilder {
 		$cursor->closeCursor();
 
 		return $accounts;
+	}
+
+	/**
+	 * The `id_prim` an account's row is stored under: the one it was read
+	 * with, or the md5 of its id for a model not read from the table.
+	 */
+	public static function rowPrimOf(Person $actor): string {
+		$stored = $actor->getStoredIdPrim();
+
+		return ($stored !== '') ? $stored : md5($actor->getId());
+	}
+
+	/**
+	 * Narrows to the account's own row. By the stored `id_prim` where the
+	 * model was read from the table: its id is derived from the social URL of
+	 * today, and an account made under another one is stored under that.
+	 */
+	private function limitToRow(SocialQueryBuilder $qb, Person $actor): void {
+		if ($actor->getStoredIdPrim() !== '') {
+			$qb->limitToDBField('id_prim', $actor->getStoredIdPrim());
+
+			return;
+		}
+
+		$this->limitToIdPrimString($qb, $actor->getId());
 	}
 }

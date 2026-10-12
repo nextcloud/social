@@ -615,4 +615,40 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 
 		return $andX;
 	}
+
+	/**
+	 * A recipient row of the post that is the followers collection of an
+	 * account `$actorId` follows, the follow accepted: the condition of
+	 * exprInnerJoinStreamDestFollowing() with the follow probed by a correlated
+	 * `EXISTS` instead of joined.
+	 *
+	 * For a request where the follow is one way among others for a post to
+	 * qualify — public, addressed to the viewer — joined, the follows repeat
+	 * every candidate row once per account the viewer follows before the
+	 * other branches are tested: a hashtag page of 1,250 posts, read by a
+	 * viewer following 300 accounts, went through 1.1 million rows on MySQL to
+	 * be deduplicated back to 1,250. Probed, it is one index lookup per
+	 * recipient row, and the follows table is not in the request.
+	 *
+	 * @param string $aliasFollowing the alias of `social_follow` inside the probe
+	 * @param string $alias the stream alias, the default select alias when ''
+	 */
+	public function exprStreamDestFollowed(
+		string $actorId, string $aliasDest = 'sd', string $aliasFollowing = 'f', string $alias = '',
+	): ICompositeExpression {
+		$expr = $this->expr();
+		$pf = (($alias === '') ? $this->getDefaultSelectAlias() : $alias) . '.';
+		$follows = $this->getTableName(CoreRequestBuilder::TABLE_FOLLOWS);
+		$viewer = $this->createNamedParameter($this->prim($actorId));
+
+		return $expr->andX(
+			$expr->eq($aliasDest . '.stream_id', $pf . 'id_prim'),
+			$expr->eq($aliasDest . '.type', $this->createNamedParameter('recipient')),
+			'EXISTS (SELECT 1 FROM ' . $follows . ' ' . $aliasFollowing
+			. ' WHERE ' . $aliasFollowing . '.follow_id_prim = ' . $aliasDest . '.actor_id'
+			. ' AND ' . $aliasFollowing . '.actor_id_prim = ' . (string)$viewer
+			// quoted literal: `accepted` is a boolean column on PostgreSQL, an int elsewhere
+			. ' AND ' . $aliasFollowing . ".accepted = '1')"
+		);
+	}
 }

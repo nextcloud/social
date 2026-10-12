@@ -454,6 +454,10 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 	}
 
+	/**
+	 * One post by its nid. Read as the viewer, a boost comes with the status
+	 * it boosts when the viewer may see that one too, as on a timeline.
+	 */
 	public function getStreamByNid(int|string $nid, bool $asViewer = true): Stream {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$qb->limitToNid($nid);
@@ -462,6 +466,7 @@ class StreamRequest extends StreamRequestBuilder {
 		if ($asViewer) {
 			$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
 			$qb->leftJoinStreamAction('sa');
+			$qb->leftJoinObjectStatus();
 		}
 
 		return $this->getStreamFromRequest($qb);

@@ -94,6 +94,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	private int $headerVersion = -1;
 	private string $viewerLink = '';
 
+	/**
+	 * The `id_prim` of a local account's row, as stored. It is the md5 of the
+	 * id the row was made under, which is not the id read back once the
+	 * social URL has changed.
+	 */
+	private string $storedIdPrim = '';
+
 	/** @var string[] */
 	private array $alsoKnownAs = [];
 
@@ -608,6 +615,16 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return false;
+	}
+
+	public function getStoredIdPrim(): string {
+		return $this->storedIdPrim;
+	}
+
+	public function setStoredIdPrim(string $storedIdPrim): self {
+		$this->storedIdPrim = $storedIdPrim;
+
+		return $this;
 	}
 
 	public function storedActorType(): string {

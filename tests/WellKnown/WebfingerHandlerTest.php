@@ -144,6 +144,14 @@ class WebfingerHandlerTest extends TestCase {
 		], $this->jsonOf($response));
 	}
 
+	/** A browser client of any origin reads it, as it reads the documents it links to. */
+	public function testNodeinfoIsOpenToAnyOrigin(): void {
+		$headers = $this->handler->handle('nodeinfo', $this->context, null)->toHttpResponse()->getHeaders();
+
+		$this->assertSame('*', $headers['Access-Control-Allow-Origin'] ?? null);
+		$this->assertArrayNotHasKey('Access-Control-Allow-Credentials', $headers);
+	}
+
 	/**
 	 * Oldest first, and not by accident: a consumer that reads the document
 	 * properly takes the highest version it understands, and one that naively
