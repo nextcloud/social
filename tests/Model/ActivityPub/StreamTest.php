@@ -175,6 +175,19 @@ class StreamTest extends TestCase {
 		$this->assertSame([], $stream->getDetailsAll());
 	}
 
+	public function testAnObjectHandedAlongIsNotADetailAndIsNotStored(): void {
+		$post = new Note();
+		$post->setId('https://a.example/notes/1');
+		$notification = new Stream();
+		$notification->setDetailArray(Details::MENTIONS, []);
+
+		$notification->setDetailItem(Details::POST, $post);
+
+		$this->assertSame($post, $notification->getDetailItem(Details::POST));
+		$this->assertNull($notification->getDetailItem(Details::ACTOR));
+		$this->assertSame([Details::MENTIONS => []], $notification->getDetailsAll());
+	}
+
 	public function testImportBuildsMediaAttachmentsThroughTheDocumentAndImageInterfaces(): void {
 		$this->installActivityPub(mocked: [DocumentInterface::class, ImageInterface::class]);
 		$this->apInterface(DocumentInterface::class)->expects($this->once())->method('save')

@@ -55,10 +55,21 @@ class CacheItemTest extends TestCase {
 		$this->assertSame([
 			'url' => 'https://a.example/1',
 			'content' => '{"a":1}',
-			'object' => ['a' => 1],
 			'status' => 200,
 			'error' => 1,
 			'creation' => 1714564800,
 		], $item->jsonSerialize());
+	}
+
+	public function testTheStoredFormHoldsTheObjectOnceAndReadsItBack(): void {
+		$item = new CacheItem('https://a.example/1');
+		$item->setContent('{"type":"Note","content":"hi"}');
+
+		$stored = json_decode(json_encode($item), true);
+		$this->assertArrayNotHasKey('object', $stored);
+
+		$read = new CacheItem('');
+		$read->import($stored);
+		$this->assertSame(['type' => 'Note', 'content' => 'hi'], $read->getObject());
 	}
 }
