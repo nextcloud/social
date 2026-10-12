@@ -235,6 +235,15 @@ not page at all.
   `to_array`/`cc`/`bcc` duplicate `social_stream_dest`. That is the cost of the
   arrangement, and it is paid knowingly — the side tables exist *because* the
   JSON is unqueryable.
+- What those columns hold is kept to what is read back. A cached post is
+  stored once, as the JSON in its `cache` item's `content`, and decoded when
+  it is asked for (`CacheItem::getObject()`); it used to be written a second
+  time beside it, decoded. A notification's `details` hold its own details
+  and no copy of the post or actor it is about, which the notification finds
+  by its ids; the copy handed along to the push and mail of the same request
+  stays in memory (`TDetails::setDetailItem()`). Each was most of its row: a
+  boost of a short post stored about 20 KB, a notification 5 to 7 KB.
+  `Cron\CompactStoredCopies` rewrites the rows stored before.
 - Five post fields used to be readable only by `json_decode`ing `source` once
   per timeline row: `tag`, `language`, `updated`, `quote` and
   `quoteAuthorization`. `Version1000Date20260912000007` gave each a column, so

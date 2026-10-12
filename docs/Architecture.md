@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.228
+**App version:** 0.26.234
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -50,7 +50,7 @@ social/
 │   │   └── Application.php     # Bootstrap, integration registration
 │   ├── Command/                # occ CLI commands (+ ExtendedBase, a shared base that registers no command of its own)
 │   ├── Controller/             # HTTP entry points (ActivityPub, Mastodon-ish API, local API, OAuth, OStatus, navigation, queue, config, moderation, public pages)
-│   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts, NotificationDigests, ExpiredStories, InterestHides; DomainPurge, ActorCleanup, TranscodeBeforeDelivery and StreamAuthorHosts are queued with an argument)
+│   ├── Cron/                   # Background jobs (Cache, Queue, ScheduledPosts, NotificationDigests, ExpiredStories, InterestHides; DomainPurge, ActorCleanup, TranscodeBeforeDelivery, StreamAuthorHosts and CompactStoredCopies are queued with an argument)
 │   ├── Dashboard/              # Nextcloud Dashboard widgets
 │   ├── Db/                     # Query-builder based repositories (`*Request` + `*RequestBuilder` pairs), on the public `IQueryBuilder`
 │   ├── Exceptions/             # Custom exceptions
@@ -3243,6 +3243,7 @@ $context->registerEventListener(PostPublishedEvent::class, MyListener::class);
 | Background Jobs | `Cron\ResolveActor` | queued by `RemoteFetchQueue::resolveActors()` | Fetches and caches one remote actor a page named and did not have, with the actor id as its argument; not in `appinfo/info.xml`, for the same reason as `Cron\DomainPurge`. A failure is logged and dropped: the next page that names the actor queues it again |
 | Background Jobs | `Cron\DomainPurge` | queued by `FediverseService::addAddress()` | Queued with a domain when one is added to the deny list, never registered in `appinfo/info.xml` — a job listed there is added once at install time with no argument, and this one is meaningless without a domain. Runs 10 batches of `DomainPurgeService` per pass and re-queues itself while anything of the domain is left |
 | Background Jobs | `Cron\SearchIndex` | queued by `Version1000Date20261008000401` | Adds the posts stored before `social_search_term` existed to it, 500 at a time in nid order for up to a minute per run, from the cursor in the `search_index_cursor` app setting; re-queues itself until a chunk comes back short, then sets `search_index_ready` and the search stops scanning. Not in `appinfo/info.xml`: it is a one-off |
+| Background Jobs | `Cron\CompactStoredCopies` | queued by `Version1000Date20261012000100` | Takes out of the rows stored before it the copies nothing reads back: the decoded `object` beside each `cache` item's `content`, and the whole post or actor in a notification's `details`. One walk of `social_stream` by nid, 500 rows a page and 40 pages a run, re-queued with the nid it reached until a page comes back short. Not in `appinfo/info.xml`: it is a one-off |
 | Background Jobs | `Cron\InterestHides` | `appinfo/info.xml` | Daily: forgets the "less like this" hides older than twice the For you window (the reach of a photo or video ranking), which can no longer keep anything out of the feed |
 | Background Jobs | `Cron\ExpiredStories` | `appinfo/info.xml` | Hourly: deletes the stories (24-hour shorts) whose day is up, at most 500 per run. The read filter on `expires_at` is the other half of the guarantee; this is what stops the rows and pictures outliving it |
 | Background Jobs | `Cron\ScheduledPosts` | `appinfo/info.xml` | 5-minute interval: publishes the scheduled posts whose time has come, at most 50 per run. Shorter than the other two jobs on purpose — a post may be published up to one cron period late, and a period longer than the five minutes' notice the API demands would promise a precision the app cannot keep |
