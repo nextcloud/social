@@ -3406,6 +3406,26 @@ class ApiControllerTest extends TestCase {
 
 		$this->controller()->accountStatuses('bob@remote.example', only_short: true);
 		$this->assertFalse($options()->isWithBoosts(), 'only_short');
+
+		$this->controller()->accountStatuses('bob@remote.example', tagged: 'cats');
+		$this->assertFalse($options()->isWithBoosts(), 'tagged');
+	}
+
+	/** Mastodon's `exclude_replies` and `tagged` reach the page query. */
+	public function testAccountStatusesPassesExcludeRepliesAndTaggedOn(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn('https://remote.example/users/bob');
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$options = $this->captureTimelineOptions([]);
+
+		$this->controller()->accountStatuses('bob@remote.example');
+		$this->assertFalse($options()->isExcludeReplies());
+		$this->assertSame('', $options()->getTagged());
+
+		$this->controller()->accountStatuses('bob@remote.example', exclude_replies: true, tagged: 'cats');
+		$this->assertTrue($options()->isExcludeReplies());
+		$this->assertSame('cats', $options()->getTagged());
+		$this->assertFalse($options()->isWithBoosts(), 'a hashtag page has no boosts');
 	}
 
 	public function testAccountStatusesFlagsThePinnedPostsOfThePage(): void {

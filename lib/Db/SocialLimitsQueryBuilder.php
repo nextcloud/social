@@ -54,6 +54,26 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
+	 * Leaves out the replies to other accounts' posts and keeps the posts that
+	 * answer their author's own, a thread, as Mastodon's `exclude_replies`
+	 * does. A reply whose parent is not stored here counts as one to somebody
+	 * else, since nothing says it is not.
+	 */
+	public function filterRepliesToOthers(): self {
+		$expr = $this->expr();
+		$pf = $this->getDefaultSelectAlias();
+
+		$this->leftJoin($pf, CoreRequestBuilder::TABLE_STREAM, 'rp', $expr->eq('rp.id_prim', $pf . '.in_reply_to_prim'));
+		$this->andWhere($expr->orX(
+			$expr->isNull($pf . '.in_reply_to_prim'),
+			$expr->eq($pf . '.in_reply_to_prim', $this->createNamedParameter('')),
+			$expr->eq('rp.attributed_to_prim', $pf . '.attributed_to_prim')
+		));
+
+		return $this;
+	}
+
+	/**
 	 * Limit the request to the ActivityId
 	 *
 	 * @param string $activityId

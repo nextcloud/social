@@ -64,6 +64,8 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private array $excludeTypes = [];
 	private string $accountId = '';
 	private bool $withBoosts = false;
+	private bool $excludeReplies = false;
+	private string $tagged = '';
 
 	public function __construct(?IRequest $request = null) {
 		if ($request !== null) {
@@ -421,6 +423,32 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 
 	public function setWithBoosts(bool $withBoosts): self {
 		$this->withBoosts = $withBoosts;
+
+		return $this;
+	}
+
+	/**
+	 * Whether an account's timeline leaves out its replies to other accounts,
+	 * keeping the ones to its own posts (a thread), as Mastodon's
+	 * `exclude_replies` does.
+	 */
+	public function isExcludeReplies(): bool {
+		return $this->excludeReplies;
+	}
+
+	public function setExcludeReplies(bool $excludeReplies): self {
+		$this->excludeReplies = $excludeReplies;
+
+		return $this;
+	}
+
+	/** The hashtag an account's timeline is limited to, `''` for none: Mastodon's `tagged`. */
+	public function getTagged(): string {
+		return $this->tagged;
+	}
+
+	public function setTagged(string $tagged): self {
+		$this->tagged = $tagged;
 
 		return $this;
 	}

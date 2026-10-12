@@ -770,6 +770,8 @@ class AccountApiController extends MastodonApiController {
 	 * query cannot find one: a page narrowed to media, a kind or a hashtag
 	 * asks about the status itself, and a boost carries no attachments and no
 	 * tags of its own. A boost of a post the reader may not see is left out.
+	 * `exclude_replies` leaves out replies to other accounts and keeps the
+	 * account's threads; `tagged` keeps the posts carrying that hashtag.
 	 *
 	 * @param string $account
 	 * @param int $limit
@@ -795,6 +797,8 @@ class AccountApiController extends MastodonApiController {
 		string $media_type = '',
 		bool $only_short = false,
 		bool $exclude_reblogs = false,
+		bool $exclude_replies = false,
+		string $tagged = '',
 	): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -832,12 +836,13 @@ class AccountApiController extends MastodonApiController {
 				->setSince($since_id)
 				->setOnlyMedia($only_media)
 				->setMediaType($media_type)
-				->setOnlyShort($only_short);
+				->setOnlyShort($only_short)
+				->setExcludeReplies($exclude_replies)
+				->setTagged($tagged);
 			$options->setWithBoosts(
 				!$exclude_reblogs
 				&& !$options->isOnlyMedia() && !$options->isOnlyVideo() && !$options->isOnlyShort()
-				&& !$options->isOnlyNews() && $options->getMediaType() === ''
-				&& (string)$this->request->getParam('tagged', '') === ''
+				&& !$options->isOnlyNews() && $options->getMediaType() === '' && $tagged === ''
 			);
 
 			$posts = $this->streamService->getTimeline($options);

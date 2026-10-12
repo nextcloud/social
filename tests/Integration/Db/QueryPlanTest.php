@@ -495,23 +495,26 @@ class QueryPlanTest extends TestCase {
 		);
 	}
 
-	/** @return array<string, array{bool}> */
+	/** @return array<string, array{array<string, mixed>}> */
 	public static function accountPages(): array {
 		return [
-			'posts only, as the outbox and an export read it' => [false],
-			'posts and boosts, as accounts/{id}/statuses reads it' => [true],
+			'posts only, as the outbox and an export read it' => [[]],
+			'posts and boosts, as accounts/{id}/statuses reads it' => [['setWithBoosts' => true]],
+			'without replies to others' => [['setWithBoosts' => true, 'setExcludeReplies' => true]],
+			'one hashtag' => [['setTagged' => 'tag0']],
 		];
 	}
 
+	/** @param array<string, mixed> $narrowing */
 	#[DataProvider('accountPages')]
-	public function testAnAccountsStatusesAreReadThroughTheAuthorIndex(bool $withBoosts): void {
+	public function testAnAccountsStatusesAreReadThroughTheAuthorIndex(array $narrowing): void {
 		$query = $this->capture(
-			$this->timeline(ProbeOptions::ACCOUNT, ['setAccountId' => self::REMOTE . '/users/author0', 'setWithBoosts' => $withBoosts]),
+			$this->timeline(ProbeOptions::ACCOUNT, ['setAccountId' => self::REMOTE . '/users/author0'] + $narrowing),
 			'/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/'
 		);
 
 		$this->assertIndexed(
-			$query, ['s' => null, 'sd' => null],
+			$query, ['s' => null, 'sd' => null] + (isset($narrowing['setExcludeReplies']) ? ['rp' => null] : []) + (isset($narrowing['setTagged']) ? ['st' => null] : []),
 			'the DISTINCT over the visibility join'
 		);
 	}

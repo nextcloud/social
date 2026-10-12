@@ -198,6 +198,11 @@ to stop.
   narrowed to media leave the boosts out; a boost of a post the reader may
   not see is left out; and paging two at a time on `max_id` walks boosts and
   posts together, each once.
+- `Api/AccountStatusesNarrowingTest` — `exclude_replies` on an account's
+  statuses keeps its threads and boosts and leaves out its replies to other
+  accounts; `tagged` keeps its posts with the hashtag, with or without `#`
+  and in any case, and no boosts; both a page of twenty and two at a time on
+  `max_id`.
 - `Api/OnlyNewsListTimelineTest` — `only_news` on a list timeline: three
   posts that link somewhere under forty newer text posts are the page of
   twenty, newest first, and paging two at a time keeps `only_news` in `Link`.
