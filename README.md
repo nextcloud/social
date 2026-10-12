@@ -1025,9 +1025,9 @@ UTC, where a version-specific failure is found the next morning.
   ESLint, Stylelint, the Node build check, Vitest, REUSE, `info.xml` lint and
   the fixup-commit check;
 - the browser tests on Nextcloud 35, SQLite, Chromium (about four minutes);
-- the interop jobs (Mastodon and PeerTube, Bluesky, Loops, Pixelfed) only when
-  the pull request touches the federation code: the paths are listed in
-  `interop-pr.yml`.
+- the interop jobs (Mastodon and PeerTube, Bluesky, Loops, Pixelfed,
+  GoToSocial) only when the pull request touches the federation code: the
+  paths are listed in `interop-pr.yml`.
 
 **Every night** (and by hand from the Actions tab):
 
@@ -1040,8 +1040,9 @@ UTC, where a version-specific failure is found the next morning.
   (the install shapes stay weekly);
 - PHP lint under every PHP of the matrix, the l10n extraction, the dependency
   audit, and all interop jobs, Mastodon 4.5 included;
-- as before: the benchmark (`perf-nightly.yml`); weekly: the far time zones
-  and the l10n pull.
+- as before: the benchmark (`perf-nightly.yml`), fuzzing and mutation
+  testing; weekly: Misskey and Akkoma interop, the far time zones and the
+  l10n pull.
 
 **Labels** bring the night onto a pull request (`labelled-ci.yml`), when the
 label is put on and again on every push:

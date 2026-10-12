@@ -10,20 +10,17 @@
 # every fetch and every delivery (Mastodon's AUTHORIZED_FETCH, always on), it
 # names its keys `…/main-key` rather than `#main-key`, and it holds the
 # interactions its interaction policies do not let through for approval. It
-# is one container with SQLite and starts in seconds, so this runs on every
-# pull request, beside the Mastodon and Pixelfed jobs.
+# is one container with SQLite and starts in seconds. Nightly and by hand; on
+# a pull request when it touches the federation code (interop-pr.yml), or
+# carries the `interop` or the `full-ci` label (labelled-ci.yml).
 
 name: Interop against GoToSocial
 
 on:
-  pull_request:
-  push:
-    branches:
-      - master
+  workflow_call:
   workflow_dispatch:
   schedule:
-    # Mondays, early, beside the other interop runs
-    - cron: '37 4 * * 1'
+    - cron: '59 2 * * *'
 
 permissions:
   contents: read

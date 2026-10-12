@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # The interop jobs on a pull request that touches what they exercise. Each one
-# stands up another project's server and takes five to seven minutes of a
+# stands up another project's server and takes up to seven minutes of a
 # runner, so a pull request that cannot change what that server sees does not
 # run them; all of them run nightly regardless, and the `interop` label runs
 # them on any pull request (labelled-ci.yml).
@@ -14,7 +14,8 @@
 # queue, the PeerTube, Pixelfed and video federation, the JSON-LD contexts,
 # the routes, the dependencies, and the interop tests and workflows
 # themselves. When in doubt a path belongs here: a missed one shows the next
-# morning, a needless one costs four runners.
+# morning, a needless one costs five runners. Misskey and Akkoma stay weekly
+# and run on a pull request only with a label.
 
 name: Interop on federation changes
 
@@ -98,3 +99,7 @@ jobs:
   pixelfed:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') }}
     uses: ./.github/workflows/interop-pixelfed.yml
+
+  gotosocial:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+    uses: ./.github/workflows/interop-gotosocial.yml

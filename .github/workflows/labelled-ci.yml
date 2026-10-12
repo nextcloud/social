@@ -8,8 +8,9 @@
 #     matrix with MySQL and MariaDB, the robustness and upgrade legs, every
 #     browser-test leg but the weekly install shapes, PHP lint under every
 #     PHP, the l10n extraction, the dependency audit, all interop jobs (with
-#     the newest Mastodon), the benchmark and the far time zones. For a pull
-#     request that changes the schema, a query, a dependency or the CI itself.
+#     the newest Mastodon, Misskey and Akkoma), the benchmark, the far time
+#     zones, fuzzing and mutation testing. For a pull request that changes the
+#     schema, a query, a dependency or the CI itself.
 #   - `interop`: the interop jobs, on a pull request whose paths would not
 #     start them (interop-pr.yml).
 #
@@ -78,6 +79,14 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
     uses: ./.github/workflows/far-time-zones.yml
 
+  fuzz:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/fuzz.yml
+
+  mutation:
+    if: contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci')
+    uses: ./.github/workflows/mutation.yml
+
   # the interop jobs run for either label
   mastodon:
     if: >-
@@ -104,3 +113,21 @@ jobs:
       (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
       || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
     uses: ./.github/workflows/interop-pixelfed.yml
+
+  gotosocial:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-gotosocial.yml
+
+  misskey:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-misskey.yml
+
+  akkoma:
+    if: >-
+      (contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'full-ci'))
+      || (contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') && (github.event.action != 'labeled' || github.event.label.name == 'interop'))
+    uses: ./.github/workflows/interop-akkoma.yml
