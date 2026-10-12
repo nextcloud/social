@@ -140,10 +140,10 @@ final class Details {
 	public const FIELDS_VERIFIED = 'fields_verified';
 	public const FIELDS_CHECKED = 'fields_checked';
 
-	/** The post a notification is about, as a serialised item. */
+	/** The post a notification is about, handed along in memory and never stored. */
 	public const POST = 'post';
 
-	/** The actor a notification is about, as a serialised item. */
+	/** The actor a notification is about, handed along in memory and never stored. */
 	public const ACTOR = 'actor';
 
 	/**
