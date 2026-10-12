@@ -7,19 +7,17 @@
 # for what it cannot prove.
 #
 # A job of its own, beside interop.yml, so the two run in parallel and neither
-# waits for the other's peer to boot.
+# waits for the other's peer to boot. Nightly and by hand; on a pull request
+# when it touches the federation code (interop-pr.yml), or carries the
+# `interop` or the `full-ci` label (labelled-ci.yml).
 
 name: Interop against Pixelfed
 
 on:
-  pull_request:
-  push:
-    branches:
-      - master
+  workflow_call:
   workflow_dispatch:
   schedule:
-    # Mondays, early, beside the Mastodon run
-    - cron: '47 4 * * 1'
+    - cron: '1 3 * * *'
 
 permissions:
   contents: read

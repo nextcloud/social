@@ -411,11 +411,13 @@ to stop.
 
 ## Running
 
-**CI** runs the suite in every `phpunit-*` job (SQLite, MySQL, PostgreSQL across
-the supported server versions, and MariaDB 10.11 on the newest) via `composer run
-test:integration`, and `upgrade.yml` runs it once more on an instance upgraded
+**CI** runs the suite in every `phpunit-*` job via `composer run
+test:integration`: on a pull request on SQLite and PostgreSQL with the newest
+stable server (and SQLite on master for coverage), and every night on SQLite,
+MySQL and PostgreSQL across the supported server versions, and MariaDB 10.11 on
+the newest. Every night `upgrade.yml` runs it once more on an instance upgraded
 from the latest release with data in it, so a test has to hold on an instance
-that is not empty. `integration-robustness.yml` runs it three times on one
+that is not empty, and `integration-robustness.yml` runs it three times on one
 database, on SQLite, MySQL and PostgreSQL: once, again on the same database, and
 in random order with a fresh seed, which it prints so the order can be replayed:
 

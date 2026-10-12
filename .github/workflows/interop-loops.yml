@@ -10,18 +10,18 @@
 # MySQL and a Redis as services, Horizon for its queues (federation in both
 # directions is queue-driven) and the distribution's ffmpeg for its video
 # pipeline.
+#
+# Nightly and by hand; on a pull request when it touches the federation code
+# (interop-pr.yml), or carries the `interop` or the `full-ci` label
+# (labelled-ci.yml).
 
 name: Interop against Loops
 
 on:
-  pull_request:
-  push:
-    branches:
-      - master
+  workflow_call:
   workflow_dispatch:
   schedule:
-    # Tuesdays, early: a week is the right cadence for "has the other end moved"
-    - cron: '41 4 * * 2'
+    - cron: '57 2 * * *'
 
 permissions:
   contents: read
