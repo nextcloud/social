@@ -16,6 +16,8 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '41 3 * * *'
+  # the `full-ci` label (labelled-ci.yml)
+  workflow_call:
 
 permissions:
   contents: read
