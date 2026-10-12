@@ -184,6 +184,12 @@ to stop.
   100000 and -1: each `LIMIT` that reaches the SQL must be one a request at
   the route's documented maximum, at 1 or at its default also produced. A
   route whose page is not read by a query is listed with what bounds it.
+- `Api/ClientApiCorsTest` — the client API as a browser client of another
+  origin meets it, through the real dispatcher and every middleware the app
+  registers: a bearer call, an anonymous read and a refusal readable from any
+  origin, the preflight answered without credentials, a web-app route outside
+  the API bases closed, and a session cookie from another origin without its
+  CSRF token answered 401 while the web app's own call still signs in.
 - `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
   method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
   join path), Photos and Videos on home, public and a profile, an account's

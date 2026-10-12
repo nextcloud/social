@@ -4,7 +4,7 @@
  */
 
 import { expect, request, test } from '@playwright/test'
-import { APP, BASE_URL, PASSWORD, USER, apiAs, ensureAccount, postStatus } from './helpers.mjs'
+import { APP, BASE_URL, PASSWORD, USER, apiAs, ensureAccount, login, postStatus } from './helpers.mjs'
 
 /**
  * The response headers a browser enforces, read off the real server.
@@ -14,7 +14,8 @@ import { APP, BASE_URL, PASSWORD, USER, apiAs, ensureAccount, postStatus } from 
  * markup. A browser must never sniff a type past the one stated, least of all
  * for a file somebody else uploaded. Cross-origin reads are opened where a
  * browser client of another origin needs them — the atproto XRPC surface and
- * its well-known documents — and nowhere a session cookie would be honoured.
+ * its well-known documents, and the Mastodon client API a bearer token reaches
+ * — never with credentials, and a session cookie from elsewhere signs nobody in.
  * A stored file is served so that it cannot become a page on this origin: a
  * picture, a video or a sound, or a sandboxed download.
  *
@@ -148,7 +149,7 @@ test.describe('response headers', () => {
 		await api.dispose()
 	})
 
-	test('cross-origin reads are open on the XRPC surface and nowhere a session counts', async () => {
+	test('cross-origin reads are open on the XRPC surface and the client API, and nowhere a session counts', async () => {
 		const anonymous = await client(false)
 		const origin = { Origin: 'https://elsewhere.example' }
 
@@ -162,10 +163,33 @@ test.describe('response headers', () => {
 		expect(preflight.headers()['access-control-allow-origin']).toBe('*')
 		expect(preflight.headers()['access-control-allow-headers'] ?? '').toMatch(/DPoP/)
 
+		// what Elk or Phanpy calls from a page of its own origin
+		const open = [
+			['the public timeline', await anonymous.get(`${APP}/api/v1/timelines/public`, { headers: origin })],
+			['the instance', await anonymous.get(`${APP}/api/v2/instance`, { headers: origin })],
+			['a refused bearer token', await anonymous.get(`${APP}/api/v1/accounts/verify_credentials`, { headers: { ...origin, Authorization: 'Bearer not-a-token' } })],
+			['the token endpoint', await anonymous.post(`${APP}/oauth/token`, { headers: origin, data: { grant_type: 'authorization_code' } })],
+			['an endpoint this server does not have', await anonymous.get(`${APP}/api/v1/no_such_endpoint`, { headers: origin })],
+		]
+		for (const [name, response] of open) {
+			expect(response.headers()['access-control-allow-origin'], `${name} is read by browser clients of any origin`).toBe('*')
+		}
+		expect(open[0][1].headers()['access-control-expose-headers'] ?? '', 'a client reads the next page and its budget').toMatch(/Link/)
+		expect(open[0][1].status(), 'the public timeline, without the trailing slash its route has').toBe(200)
+		expect(open[4][1].status(), 'a missing endpoint is a 404, not a 405').toBe(404)
+		const apiPreflight = await anonymous.fetch(`${APP}/api/v1/statuses`, {
+			method: 'OPTIONS',
+			headers: { ...origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type, idempotency-key' },
+		})
+		expect(apiPreflight.status(), 'the client API preflight is answered').toBe(204)
+		expect(apiPreflight.headers()['access-control-allow-origin']).toBe('*')
+		expect(apiPreflight.headers()['access-control-allow-headers'] ?? '').toMatch(/Authorization/)
+		expect(apiPreflight.headers()['access-control-allow-headers'] ?? '').not.toMatch(/OCS-APIRequest|requesttoken/i)
+
 		const closed = [
 			['a page', `${APP}/@${USER}`],
 			['the app', `${APP}/`],
-			['the client API', `${APP}/api/v1/timelines/public`],
+			['a web-app session route', `${APP}/api/v1/global/tags/search?search=x`],
 			['an ActivityPub actor', `${APP}/users/${USER}`],
 			['the RSS feed', `${APP}/@${USER}.rss`],
 		]
@@ -176,10 +200,20 @@ test.describe('response headers', () => {
 
 		// '*' is never combined with credentials, which is what would let
 		// another site read a signed-in answer
-		for (const response of [xrpc, preflight]) {
+		for (const response of [xrpc, preflight, apiPreflight, ...open.map(([, each]) => each)]) {
 			expect(response.headers()['access-control-allow-credentials']).toBeUndefined()
 		}
 		await anonymous.dispose()
+	})
+
+	test('a session cookie sent from another origin without the CSRF token signs nobody in', async ({ page }) => {
+		await login(page)
+		// every cookie of the signed-in browser, and no request token
+		const response = await page.request.get(`${APP}/api/v1/accounts/verify_credentials`, {
+			headers: { Origin: 'https://elsewhere.example' },
+		})
+		expect(response.status(), 'the session does not count without its CSRF token').toBe(401)
+		expect(response.headers()['access-control-allow-credentials']).toBeUndefined()
 	})
 
 	test('an uploaded file is served as a picture, a video or a sound, or as a sandboxed download', async () => {

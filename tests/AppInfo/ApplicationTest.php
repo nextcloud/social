@@ -41,6 +41,7 @@ use OCA\Social\Listeners\UserAccountListener;
 use OCA\Social\Listeners\UserDeletedListener;
 use OCA\Social\Middleware\AccessBlockMiddleware;
 use OCA\Social\Middleware\ApiRateLimitMiddleware;
+use OCA\Social\Middleware\ClientApiCorsMiddleware;
 use OCA\Social\Middleware\ExternalScopeMiddleware;
 use OCA\Social\Middleware\HideCountsMiddleware;
 use OCA\Social\Middleware\RateLimitHeadersMiddleware;
@@ -217,6 +218,7 @@ class ApplicationTest extends TestCase {
 				RateLimitHeadersMiddleware::class,
 				ApiRateLimitMiddleware::class,
 				HideCountsMiddleware::class,
+				ClientApiCorsMiddleware::class,
 				ExternalScopeMiddleware::class,
 			],
 			$registered
@@ -244,6 +246,7 @@ class ApplicationTest extends TestCase {
 			RateLimitHeadersMiddleware::class => false,
 			ApiRateLimitMiddleware::class => false,
 			HideCountsMiddleware::class => false,
+			ClientApiCorsMiddleware::class => false,
 			ExternalScopeMiddleware::class => true,
 		], $global);
 	}

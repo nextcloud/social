@@ -106,6 +106,16 @@ Overview whether they are in place, and an administrator opening the app sees
 the same warning with the rules to paste until they are. Where they are not,
 nothing else in this section is reachable by a stock client.
 
+A client that runs in a browser — Elk, Phanpy, Pinafore — needs one thing
+more: it is served from its own origin, and a browser lets it read an answer
+from this one only when the answer says so. Mastodon says
+`Access-Control-Allow-Origin: *` on `/api/*` and the OAuth token endpoints,
+and answers the preflight; so does this app, for every route that takes a
+bearer token, NodeInfo included (`ClientApiCorsMiddleware`, `OPTIONS
+/api/{path}`; see [API.md](API.md#authentication)). Never with credentials:
+the web app's own session routes stay same-origin, and a request carrying the
+session cookie is still held to Nextcloud's CSRF check.
+
 ### 3.1a Fixed — account pictures
 
 Fixed in #2468: a local account that had never set a picture was sent with
