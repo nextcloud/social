@@ -8,6 +8,9 @@
 
 name: PHPUnit SQLite
 
+# A pull request and a push run two legs: the newest stable server and the
+# coverage leg (below), each on the newest PHP. The nightly run, a manual run
+# and the `full-ci` label (labelled-ci.yml) run the whole matrix.
 on:
   pull_request:
   push:
@@ -15,12 +18,23 @@ on:
       - main
       - master
       - stable*
+  schedule:
+    - cron: '3 2 * * *'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      full:
+        description: 'Run the whole matrix'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: phpunit-sqlite-${{ github.head_ref || github.ref }}
+  # per event, so a push cannot replace a pending nightly run, and apart from
+  # the pull request's own run when labelled-ci.yml calls this one
+  group: phpunit-sqlite-${{ inputs.full && 'full' || github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -30,7 +44,7 @@ jobs:
       # sparse-matrix covers the whole range info.xml claims (both the min and
       # the max server version) with minimal redundancy; branches-max-list
       # tested the newest server only, so the claimed floor went unexercised.
-      matrix: ${{ steps.versions.outputs.sparse-matrix }}
+      matrix: ${{ steps.legs.outputs.matrix }}
       # the one leg that measures coverage: the newest server, on the newest
       # PHP the matrix runs it with
       coverage-server: ${{ steps.coverage.outputs.server }}
@@ -55,8 +69,28 @@ jobs:
           echo "server=$SERVER" >> "$GITHUB_OUTPUT"
           echo "php=$php" >> "$GITHUB_OUTPUT"
 
+      - name: Pick the legs
+        id: legs
+        env:
+          MATRIX: ${{ steps.versions.outputs.sparse-matrix }}
+          FULL: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.full == true }}
+          COVERAGE_SERVER: ${{ steps.coverage.outputs.server }}
+        run: |
+          if [ "$FULL" = true ]; then
+            matrix=$(echo "$MATRIX" | jq -c .)
+          else
+            # the newest stable server, and the coverage leg
+            extra=$(jq -nc --arg server "$COVERAGE_SERVER" '[$server]')
+            matrix=$(echo "$MATRIX" | jq -c --argjson extra "$extra" -f .github/scripts/pull-request-legs.jq)
+          fi
+          echo "$matrix" | jq .
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   changes:
     runs-on: ubuntu-latest
+    # the scheduled and the manual run test everything; the filter has no
+    # pull request or push to compare with there
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     permissions:
       contents: read
       pull-requests: read
@@ -88,7 +122,8 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: [changes, matrix]
-    if: needs.changes.outputs.src != 'false'
+    # !cancelled(): `changes` is skipped on the scheduled and the manual run
+    if: ${{ !cancelled() && needs.matrix.result == 'success' && needs.changes.outputs.src != 'false' }}
 
     strategy:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
