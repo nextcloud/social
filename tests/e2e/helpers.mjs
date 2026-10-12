@@ -27,6 +27,14 @@ export const BYSTANDER_PASSWORD = process.env.E2E_BYSTANDER_PASSWORD ?? 'Browser
 /** With a trailing slash, as playwright.config.mjs explains. */
 export const BASE_URL = (process.env.E2E_BASE_URL ?? 'http://localhost:8080').replace(/\/*$/, '/')
 
+/**
+ * Whether to accept a certificate nobody vouches for, as an instance served
+ * over HTTPS with a certificate made for the run has (E2E_IGNORE_HTTPS_ERRORS=1).
+ * The browser's contexts take it from playwright.config.mjs; an API context
+ * made with `request.newContext()` has to be given it.
+ */
+export const IGNORE_HTTPS_ERRORS = process.env.E2E_IGNORE_HTTPS_ERRORS === '1'
+
 /** Where the app lives, whether or not the instance has pretty URLs. */
 export const APP = 'index.php/apps/social'
 
@@ -104,6 +112,7 @@ export function navEntry(page, name) {
 export async function apiAs(user, password) {
 	return request.newContext({
 		baseURL: BASE_URL,
+		ignoreHTTPSErrors: IGNORE_HTTPS_ERRORS,
 		httpCredentials: { username: user, password, send: 'always' },
 		extraHTTPHeaders: { 'OCS-APIREQUEST': 'true' },
 	})

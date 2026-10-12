@@ -4,7 +4,7 @@
  */
 
 import { defineConfig, devices } from '@playwright/test'
-import { BASE_URL } from './helpers.mjs'
+import { BASE_URL, IGNORE_HTTPS_ERRORS } from './helpers.mjs'
 
 /**
  * The other engines a reader may be using, asked for by name in
@@ -49,6 +49,7 @@ export default defineConfig({
 		// one: an instance under a sub-path (`/nextcloud`) keeps it that way,
 		// where an absolute path would resolve against the host and lose it
 		baseURL: BASE_URL,
+		ignoreHTTPSErrors: IGNORE_HTTPS_ERRORS,
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 		// a development instance answers slowly on first paint

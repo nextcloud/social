@@ -9,6 +9,7 @@ import {
 	BASE_URL,
 	BYSTANDER,
 	BYSTANDER_PASSWORD,
+	IGNORE_HTTPS_ERRORS,
 	OTHER_PASSWORD,
 	OTHER_USER,
 	PASSWORD,
@@ -132,7 +133,7 @@ test.describe('other people, in a browser', () => {
 		await bystander.dispose()
 
 		// and neither has the internet: no session, no message
-		const anonymous = await request.newContext({ baseURL: BASE_URL })
+		const anonymous = await request.newContext({ baseURL: BASE_URL, ignoreHTTPSErrors: IGNORE_HTTPS_ERRORS })
 		expect((await anonymous.get(`${APP}/api/v1/statuses/${id}`)).status()).toBe(404)
 		expect((await anonymous.get(`${APP}/@${USER}/${id}`)).status()).toBe(404)
 		await anonymous.dispose()

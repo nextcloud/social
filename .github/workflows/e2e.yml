@@ -4,6 +4,18 @@
 # The browser tests: a throwaway Nextcloud with this app installed, driven by
 # Playwright the way a person would drive it. The unit and integration suites
 # cannot see a page that stays empty; this can. See tests/e2e/.
+#
+# A pull request runs the two legs that decide most: both server versions
+# info.xml names at the top, on SQLite, in Chromium. A push to master, the
+# weekly run and a manual run add the slower legs: the oldest server info.xml
+# claims (34), PostgreSQL, and the smoke spec in Firefox.
+#
+# The weekly and the manual run also try the install shapes production has
+# and the built-in server on its own does not: Nextcloud under a sub-path
+# (/nextcloud), pretty URLs (no index.php in the links), and HTTPS behind a
+# proxy. tests/e2e/server/router.php gives PHP's built-in server the first
+# two, the way Nextcloud's .htaccess and an administrator's rewrites do;
+# Caddy in a container, with a certificate made for the run, gives the third.
 
 name: Browser tests
 
@@ -12,6 +24,9 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+  schedule:
+    - cron: '27 4 * * 3'
 
 permissions:
   contents: read
@@ -21,30 +36,83 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  legs:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.legs.outputs.matrix }}
+    steps:
+      # The pages this drives are built from the server's own layout and CSS
+      # variables, which is exactly what a major server version changes, so
+      # one version cannot stand in for another: `master` is Nextcloud 36
+      # until it branches off as stable36, and 34 is the floor info.xml
+      # claims. PostgreSQL is the database most production instances run;
+      # Firefox draws and lays out with an engine of its own.
+      - name: Pick the legs
+        id: legs
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          legs='[
+            {"server": "stable35", "db": "sqlite", "browser": "chromium", "guests": true},
+            {"server": "master", "db": "sqlite", "browser": "chromium"}
+          ]'
+          if [ "$EVENT" != pull_request ]; then
+            legs=$(echo "$legs" | jq '. + [
+              {"server": "stable34", "db": "sqlite", "browser": "chromium"},
+              {"server": "stable35", "db": "pgsql", "browser": "chromium"},
+              {"server": "stable35", "db": "sqlite", "browser": "firefox"}
+            ]')
+          fi
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then
+            legs=$(echo "$legs" | jq '. + [
+              {"server": "stable35", "db": "sqlite", "browser": "chromium", "webroot": "/nextcloud"},
+              {"server": "stable35", "db": "sqlite", "browser": "chromium", "pretty": true},
+              {"server": "stable35", "db": "sqlite", "browser": "chromium", "https": true},
+              {"server": "stable35", "db": "sqlite", "browser": "chromium", "webroot": "/nextcloud", "pretty": true, "https": true}
+            ]')
+          fi
+          echo "matrix=$(echo "$legs" | jq -c '{include: .}')" | tee -a "$GITHUB_OUTPUT"
+
   e2e:
     runs-on: ubuntu-latest
+    needs: legs
 
-    # Both versions info.xml claims. The pages this drives are built from the
-    # server's own layout and CSS variables, which is exactly what a major
-    # server version changes, so a single run cannot stand in for the other:
-    # `master` is Nextcloud 36 until it branches off as stable36.
     strategy:
       fail-fast: false
-      matrix:
-        server-versions: ['stable35', 'master']
+      matrix: ${{ fromJson(needs.legs.outputs.matrix) }}
 
-    name: Playwright against Nextcloud ${{ matrix.server-versions }}
+    name: >-
+      Playwright against Nextcloud ${{ matrix.server }} on ${{ matrix.db }} in ${{ matrix.browser }}${{
+      matrix.webroot && format(', under {0}', matrix.webroot) || '' }}${{
+      matrix.pretty && ', pretty URLs' || '' }}${{ matrix.https && ', HTTPS' || '' }}
+
+    env:
+      E2E_WEBROOT: ${{ matrix.webroot }}
+      E2E_PRETTY_URLS: ${{ matrix.pretty && '1' || '' }}
+      E2E_HTTPS: ${{ matrix.https && '1' || '' }}
 
     steps:
       - name: Set app env
         run: echo "APP_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Work out the address
+        # where this leg's Nextcloud answers, and where the app says it lives
+        run: |
+          if [ -n "$E2E_HTTPS" ]; then host=localhost:8443; scheme=https; else host=localhost:8080; scheme=http; fi
+          base="$scheme://$host$E2E_WEBROOT"
+          if [ -n "$E2E_PRETTY_URLS" ]; then app="$base/apps/social/"; else app="$base/index.php/apps/social/"; fi
+          {
+            echo "E2E_HOST=$host"
+            echo "E2E_BASE_URL=$base"
+            echo "E2E_SOCIAL_URL=$app"
+          } | tee -a "$GITHUB_ENV"
 
       - name: Checkout server
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: true
           repository: nextcloud/server
-          ref: ${{ matrix.server-versions }}
+          ref: ${{ matrix.server }}
 
       - name: Checkout app
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -52,7 +120,7 @@ jobs:
           path: apps/${{ env.APP_NAME }}
 
       - name: Checkout the Guests app for the compatibility run
-        if: matrix.server-versions == 'stable35'
+        if: matrix.guests
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: nextcloud/guests
@@ -63,14 +131,28 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.3'
-          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, pgsql, pdo_pgsql
           coverage: none
           ini-file: development
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Start PostgreSQL
+        # the image phpunit-pgsql.yml uses
+        if: matrix.db == 'pgsql'
+        run: |
+          docker run -d --name db -p 4444:5432 \
+            -e POSTGRES_USER=root -e POSTGRES_PASSWORD=rootpassword -e POSTGRES_DB=nextcloud \
+            ghcr.io/nextcloud/continuous-integration-postgres-14:latest
+          for attempt in $(seq 1 60); do
+            docker exec db pg_isready -U root >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs db
+          exit 1
+
       - name: Set up Guests PHP dependencies
-        if: matrix.server-versions == 'stable35'
+        if: matrix.guests
         working-directory: apps/guests
         run: composer i --no-dev
 
@@ -83,9 +165,9 @@ jobs:
           OC_PASS: Browser-Test-2026!
         run: |
           mkdir data
-          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud --admin-user admin --admin-pass admin
+          ./occ maintenance:install --verbose --database=${{ matrix.db }} --database-name=nextcloud --database-host=127.0.0.1 --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
           ./occ app:enable --force ${{ env.APP_NAME }}
-          if [ "${{ matrix.server-versions }}" = "stable35" ]; then
+          if [ "${{ matrix.guests }}" = "true" ]; then
             ./occ app:enable --force guests
             ./occ config:app:set guests usewhitelist --value yes --type boolean
             # Start without Social allowed; the browser test verifies the real 403,
@@ -101,13 +183,16 @@ jobs:
           # a Nextcloud group becomes a Social list only where an administrator
           # has chosen it; the smoke test walks that list, so it is chosen here
           ./occ config:app:set social group_lists --value '["design"]'
-          ./occ config:system:set trusted_domains 1 --value localhost:8080
-          ./occ config:system:set overwrite.cli.url --value http://localhost:8080
+          ./occ config:system:set trusted_domains 1 --value "$E2E_HOST"
+          ./occ config:system:set overwrite.cli.url --value "$E2E_BASE_URL"
           # the app's own idea of where it lives; the setup page writes these on
           # a real instance, and everything from actor creation to a timeline
           # read throws without them (tests/Integration/bootstrap.php does the same)
-          ./occ config:app:set social cloud_url --value http://localhost:8080
-          ./occ config:app:set social social_url --value http://localhost:8080/index.php/apps/social/
+          ./occ config:app:set social cloud_url --value "$E2E_BASE_URL"
+          ./occ config:app:set social social_url --value "$E2E_SOCIAL_URL"
+          if [ -n "$E2E_HTTPS" ]; then
+            ./occ config:system:set overwriteprotocol --value https
+          fi
           # the instance has to be allowed to talk to itself: with the built-in
           # server it is `localhost`, which the HTTP client refuses by default
           ./occ config:system:set allow_local_remote_servers --value true --type boolean
@@ -122,7 +207,59 @@ jobs:
         # server fetch its own avatar route over HTTP, and a single-worker
         # built-in server deadlocks on that until the ten-second timeout, so
         # every page came out as a 500
-        run: PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 &
+        run: |
+          if [ -z "$E2E_WEBROOT$E2E_PRETTY_URLS" ]; then
+            PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 &
+            exit 0
+          fi
+          # under a sub-path the document root is a directory that has the
+          # server in it under that name
+          docroot=$PWD
+          if [ -n "$E2E_WEBROOT" ]; then
+            docroot=$RUNNER_TEMP/docroot
+            mkdir -p "$(dirname "$docroot$E2E_WEBROOT")"
+            ln -s "$PWD" "$docroot$E2E_WEBROOT"
+          fi
+          PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 -t "$docroot" "$PWD/apps/$APP_NAME/tests/e2e/server/router.php" &
+
+      - name: Serve it over HTTPS
+        # Caddy in front of the built-in server, as in interop.yml, with a CA
+        # made here and thrown away with the job. Nextcloud fetches its own
+        # pages (the avatar route) with its own CA bundle, so the CA goes in
+        # there; the browser is told to accept the certificate instead
+        # (E2E_IGNORE_HTTPS_ERRORS).
+        if: matrix.https
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/tls && cd /tmp/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj '/CN=Browser test CA' \
+            -keyout ca.key -out ca.crt \
+            -addext 'basicConstraints=critical,CA:true' -addext 'keyUsage=critical,keyCertSign,cRLSign'
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=localhost' -keyout nc.key -out nc.csr
+          printf 'subjectAltName=DNS:localhost\nextendedKeyUsage=serverAuth\n' > nc.ext
+          openssl x509 -req -in nc.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 \
+            -extfile nc.ext -out nc.crt
+          chmod 644 nc.key
+          cd "$GITHUB_WORKSPACE"
+          ./occ security:certificates:import /tmp/tls/ca.crt
+          cat > /tmp/tls/Caddyfile <<'CADDY'
+          {
+            admin off
+            auto_https disable_redirects
+          }
+          localhost:8443 {
+            tls /tls/nc.crt /tls/nc.key
+            reverse_proxy localhost:8080
+          }
+          CADDY
+          docker run -d --name proxy --network host -v /tmp/tls:/tls:ro caddy:2 \
+            caddy run --config /tls/Caddyfile --adapter caddyfile
+          for attempt in $(seq 1 30); do
+            curl -sf --cacert /tmp/tls/ca.crt "$E2E_BASE_URL/status.php" && exit 0
+            sleep 2
+          done
+          docker logs proxy
+          exit 1
 
       - name: Read package.json node and npm engines version
         uses: skjnldsv/read-package-engines-version-actions@06d6baf7d8f41934ab630e97d9e6c0bc9c9ac5e4 # v3
@@ -144,12 +281,12 @@ jobs:
         working-directory: apps/${{ env.APP_NAME }}
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Browser tests
         working-directory: apps/${{ env.APP_NAME }}
         env:
-          E2E_BASE_URL: http://localhost:8080
+          E2E_IGNORE_HTTPS_ERRORS: ${{ matrix.https && '1' || '' }}
           # not the admin: for an admin the app first runs its setup check, and
           # the WebFinger probe cannot pass behind PHP's built-in server (no
           # .well-known rewrite), so the admin would see the setup page and no
@@ -157,15 +294,17 @@ jobs:
           E2E_USER: bob
           E2E_PASSWORD: Browser-Test-2026!
           E2E_GROUP: design
-          E2E_GUEST: ${{ matrix.server-versions == 'stable35' && 'guest' || '' }}
-        run: npm run test:e2e
+          E2E_GUEST: ${{ matrix.guests && 'guest' || '' }}
+          # another engine runs the smoke spec only (playwright.config.mjs)
+          E2E_BROWSERS: ${{ matrix.browser != 'chromium' && matrix.browser || '' }}
+        run: npm run test:e2e -- --project=${{ matrix.browser }}
 
       - name: Keep the report when something failed
         if: failure()
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         with:
-          # per server version: two jobs uploading one name is an error
-          name: playwright-report-${{ matrix.server-versions }}
+          # per leg: two jobs uploading one name is an error
+          name: playwright-report-${{ strategy.job-index }}-${{ matrix.server }}-${{ matrix.db }}-${{ matrix.browser }}
           # relative to the config file, tests/e2e/playwright.config.mjs
           path: |
             apps/${{ env.APP_NAME }}/tests/e2e/playwright-report

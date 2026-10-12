@@ -883,6 +883,9 @@ NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
 ```
 
 See `tests/Integration/README.md` for what it covers.
+`integration-robustness.yml` runs it twice on the same database and once in
+random order (the seed is in the job summary), on all three databases, and
+on SQLite with APCu and with Redis as the server's memcache.
 
 **Coverage** is measured in CI on one leg of `phpunit-sqlite.yml` (the newest
 server and PHP): the unit and the integration suite each write a Clover
@@ -903,6 +906,13 @@ runs on the upgraded instance.
 
 `dependency-audit.yml` runs `composer audit` and `npm audit --omit=dev` on
 every pull request and weekly.
+
+**Several open pull requests together** are checked by `stack-check.yml`: it
+merges their heads onto master in the order given (`tests/Stack/merge.sh`),
+stops with the files in conflict if one does not merge, and runs the unit and
+integration suites on the result. Start it from the Actions tab with the
+numbers in merge order, or put the `stack-check` label on the pull requests;
+the header of the workflow says what this adds to GitHub's own merge refs.
 
 ### Interop tests
 
@@ -941,8 +951,9 @@ can read, receive a like and a mention, search for an account and a hashtag,
 make and fill a list, add and remove a keyword filter, read public profiles and
 posts signed out, and use the main pages on a phone-sized screen. Nothing is
 mocked, and the bundle under test is the committed one in `js/`.
-`.github/workflows/e2e.yml` sets up a throwaway server for every pull request;
-against an instance of your own:
+`.github/workflows/e2e.yml` sets up a throwaway server for every pull request,
+on Nextcloud 35 and master; pushes to master and a weekly run add Nextcloud 34,
+PostgreSQL and the smoke spec in Firefox. Against an instance of your own:
 
 ```
 npx playwright install chromium
@@ -957,7 +968,18 @@ account is in, for the list test; without it that test is skipped outside CI.
 The hashtag search test needs a hashtag the cron has counted; the workflow
 seeds `#alohasearch` with `occ social:note:create` and `occ social:cache:refresh`.
 `E2E_BROWSERS=webkit,firefox` (or `all`) also runs the smoke spec in those
-engines, once they are installed.
+engines, once they are installed. `E2E_IGNORE_HTTPS_ERRORS=1` accepts a
+certificate nobody vouches for, as on a test instance with one of its own.
+
+The weekly run also sets the server up the ways production does and the
+built-in server alone does not: under a sub-path (`/nextcloud`), with pretty
+URLs, and over HTTPS behind a proxy. `tests/e2e/server/router.php` gives PHP's
+built-in server the first two:
+
+```
+E2E_WEBROOT=/nextcloud E2E_PRETTY_URLS=1 php -S localhost:8080 -t <dir with nextcloud in it> \
+    apps/social/tests/e2e/server/router.php
+```
 
 ## 🛠️ Contributing
 

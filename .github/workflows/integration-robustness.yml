@@ -1,0 +1,213 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The phpunit-* workflows run the integration suite once, on a database
+# installed a minute earlier, in file order. A test that only passes there --
+# one that leans on a row an earlier test left behind, or that breaks on the
+# rows its own previous run left -- is green in them and red on the next
+# developer's instance. Here the suite runs three times on one database, on
+# each of the three the app supports:
+#
+#   1. once, as the phpunit-* workflows do;
+#   2. again on the same database, now full of what the first run wrote;
+#   3. in random order, with a new seed each time. The seed is printed as a
+#      notice and in the job summary; `workflow_dispatch` with that seed runs
+#      the same order again, and so does
+#      `composer run test:integration -- --order-by=random --random-order-seed=<seed>`
+#      on a local instance.
+#
+# Two more legs run the same on SQLite with a memcache, because a server
+# with one takes other paths: DurableCache::remove() once skipped its shared
+# table whenever a memcache was there, and no leg without one could see it.
+#   - APCu as memcache.local. In the CLI it lives as long as the PHPUnit
+#     process, so the second run starts with an empty cache.
+#   - Redis as memcache.distributed and memcache.locking, in a container. It
+#     outlives the process, so the second run starts with what the first one
+#     cached, as a long-running instance does.
+#
+# One server version and one PHP: what is under test is the tests' isolation
+# from each other and the server's caches, which do not change with either.
+
+name: Integration robustness
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/integration-robustness.yml'
+      - 'appinfo/**'
+      - 'lib/**'
+      - 'tests/Integration/**'
+      - 'composer.json'
+      - 'composer.lock'
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'Random-order seed to replay (empty: a new one)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-robustness-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.versions.outputs.branches-max }}
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Get version matrix
+        id: versions
+        uses: icewind1991/nextcloud-version-matrix@58becf3b4bb6dc6cef677b15e2fd8e7d48c0908f # v1.3.1
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: matrix
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - db: sqlite
+          - db: pgsql
+          - db: mysql
+          - db: sqlite
+            cache: apcu
+          - db: sqlite
+            cache: redis
+
+    name: ${{ matrix.db }}${{ matrix.cache && format(' with {0}', matrix.cache) || '' }}, twice and in random order
+
+    steps:
+      - name: Set app env
+        run: echo "APP_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Checkout server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          repository: nextcloud/server
+          ref: ${{ needs.matrix.outputs.server }}
+
+      - name: Checkout app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: apps/${{ env.APP_NAME }}
+
+      - name: Start the database
+        # a container per leg rather than a `services:` entry, so a leg starts
+        # only the database it uses; the same images as phpunit-pgsql.yml and
+        # phpunit-mysql.yml
+        if: matrix.db != 'sqlite'
+        run: |
+          if [ "${{ matrix.db }}" = pgsql ]; then
+            docker run -d --name db -p 4444:5432 \
+              -e POSTGRES_USER=root -e POSTGRES_PASSWORD=rootpassword -e POSTGRES_DB=nextcloud \
+              ghcr.io/nextcloud/continuous-integration-postgres-14:latest
+            ready='pg_isready -U root'
+          else
+            docker run -d --name db -p 4444:3306 -e MYSQL_ROOT_PASSWORD=rootpassword \
+              ghcr.io/nextcloud/continuous-integration-mysql-8.4:latest
+            ready='mysqladmin ping -h 127.0.0.1 -uroot -prootpassword --silent'
+          fi
+          for attempt in $(seq 1 60); do
+            docker exec db sh -c "$ready" >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs db
+          exit 1
+
+      - name: Start Redis
+        # the image interop.yml uses
+        if: matrix.cache == 'redis'
+        run: |
+          docker run -d --name redis -p 6379:6379 redis:7
+          for attempt in $(seq 1 30); do
+            docker exec redis redis-cli ping 2>/dev/null | grep -q PONG && exit 0
+            sleep 1
+          done
+          docker logs redis
+          exit 1
+
+      - name: Set up php 8.3
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite, pgsql, pdo_pgsql, mysql, pdo_mysql, apcu, redis
+          coverage: none
+          ini-file: development
+          # without it APCu is switched off in the CLI, where PHPUnit runs
+          ini-values: apc.enable_cli=1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up dependencies
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer i
+
+      - name: Set up Nextcloud
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=${{ matrix.db }} --database-name=nextcloud --database-host=127.0.0.1 --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
+          ./occ app:enable --force ${{ env.APP_NAME }}
+
+      - name: Configure the memcache
+        if: matrix.cache
+        run: |
+          if [ "${{ matrix.cache }}" = apcu ]; then
+            ./occ config:system:set memcache.local --value '\OC\Memcache\APCu'
+          else
+            ./occ config:system:set redis host --value 127.0.0.1
+            ./occ config:system:set redis port --value 6379 --type integer
+            ./occ config:system:set memcache.distributed --value '\OC\Memcache\Redis'
+            ./occ config:system:set memcache.locking --value '\OC\Memcache\Redis'
+          fi
+          # a server that cannot use the cache it is given falls back to none
+          # without a word, and this leg would test nothing
+          php -r 'require "lib/base.php";
+            $factory = \OCP\Server::get(\OCP\ICacheFactory::class);
+            $local = get_class($factory->createLocal("probe"));
+            $distributed = get_class($factory->createDistributed("probe"));
+            echo "local: $local, distributed: $distributed\n";
+            exit(str_ends_with($argv[1] === "apcu" ? $local : $distributed, $argv[1] === "apcu" ? "APCu" : "Redis") ? 0 : 1);' \
+            "${{ matrix.cache }}"
+
+      - name: Run Nextcloud
+        run: php -S localhost:8080 &
+
+      - name: Integration, first run
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer run test:integration
+
+      - name: Integration, again on the same database
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer run test:integration
+
+      - name: Integration in random order
+        working-directory: apps/${{ env.APP_NAME }}
+        env:
+          SEED: ${{ inputs.seed }}
+        run: |
+          # $RANDOM is 15 bits; two of them give a seed PHPUnit takes as is
+          seed="${SEED:-$(( (RANDOM << 15) | RANDOM ))}"
+          echo "::notice title=Random order seed (${{ matrix.db }})::$seed"
+          {
+            echo "### ${{ matrix.db }}: random order seed \`$seed\`"
+            echo
+            echo "Replay: run this workflow with seed \`$seed\`, or locally"
+            echo "\`composer run test:integration -- --order-by=random --random-order-seed=$seed\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          composer run test:integration -- --order-by=random --random-order-seed="$seed"
+
+      - name: Print logs
+        if: always()
+        run: cat data/nextcloud.log

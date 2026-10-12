@@ -48,9 +48,20 @@ const VideoShorts = () => import(/* webpackChunkName: "shorts" */'./views/VideoS
  * up at `/nextcloud/apps/social/nextcloud/index.php/apps/social/`, and a
  * reload of that 404s.
  *
+ * An instance with pretty URLs still answers at `/index.php/apps/social/`, and
+ * links made without the web server, by cron and occ, point there; opened at
+ * such a link the app takes that shape, or the page stays empty at
+ * `/apps/social/index.php/apps/social/`.
+ *
  * @return {string} the base path, without a trailing slash
  */
 function getBase() {
+	const withIndex = generateUrl('/apps/social', {}, { noRewrite: true }).replace(/\/+$/, '')
+	const path = window.location.pathname
+	if (path === withIndex || path.startsWith(withIndex + '/')) {
+		return withIndex
+	}
+
 	return generateUrl('/apps/social').replace(/\/+$/, '')
 }
 
