@@ -4777,7 +4777,7 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertInsufficientScope(
 			$this->controller('Bearer s3cret')->mediaFromFile(),
-			'this route is only for the Aloha Social web app, signed in to Nextcloud'
+			'this route takes the Nextcloud session: the web app signed in to Nextcloud, or a Nextcloud app password sent with OCS-APIRequest: true'
 		);
 	}
 

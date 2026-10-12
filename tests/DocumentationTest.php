@@ -110,6 +110,46 @@ class DocumentationTest extends TestCase {
 		);
 	}
 
+	/**
+	 * The routes docs/API.md tells clients to call with the Nextcloud session
+	 * are the routes that refuse every bearer token, which RouteAuthMatrixTest
+	 * finds in the code and lists in `WEB_SESSION_ONLY`: a client builds its
+	 * choice of credentials from that table, so a route missing from it fails
+	 * with a 403 the client was not told about.
+	 */
+	public function testTheNextcloudSessionRoutesInTheDocsAreTheRoutesThatRefuseBearerTokens(): void {
+		$listed = (new \ReflectionClassConstant(AppInfo\RouteAuthMatrixTest::class, 'WEB_SESSION_ONLY'))->getValue();
+		$this->assertIsArray($listed);
+
+		$refusing = [];
+		foreach (array_keys($listed) as $route) {
+			[$controller, $method] = explode('::', $route);
+			$attributes = (new \ReflectionMethod('OCA\\Social\\Controller\\' . $controller, $method))
+				->getAttributes(Route::class, ReflectionAttribute::IS_INSTANCEOF);
+			$this->assertNotEmpty($attributes, $route . ' has no route attribute.');
+			foreach ($attributes as $attribute) {
+				$definition = $attribute->newInstance()->toArray();
+				$refusing[] = strtoupper((string)($definition['verb'] ?? 'GET')) . ' ' . $this->normalisePath((string)$definition['url']);
+			}
+		}
+
+		$section = $this->read('docs/API.md');
+		$start = strpos($section, "\n### Which credentials a route takes\n");
+		$this->assertNotFalse($start, 'docs/API.md has no section "Which credentials a route takes".');
+		$section = substr($section, $start + 1);
+		$end = preg_match('/\n#{2,3} /', $section, $match, PREG_OFFSET_CAPTURE) === 1 ? $match[0][1] : strlen($section);
+		preg_match_all('/^\|\s*([A-Z]+)\s*\|\s*`(\/[^`]*)`/m', substr($section, 0, $end), $rows, PREG_SET_ORDER);
+		$documented = array_map(fn (array $row): string => $row[1] . ' ' . $this->normalisePath($row[2]), $rows);
+
+		$this->assertNotEmpty($refusing, 'WEB_SESSION_ONLY names no route: the table would be checked against nothing.');
+		$this->assertSame(
+			$this->normalise($refusing),
+			$this->normalise($documented),
+			'The Nextcloud-session routes in docs/API.md ("Which credentials a route takes")'
+			. ' differ from WEB_SESSION_ONLY in tests/AppInfo/RouteAuthMatrixTest.php.'
+		);
+	}
+
 	public function testDocumentedPathsAreRealRoutes(): void {
 		$routes = $this->routeUrls();
 		$documented = $this->documentedPaths();

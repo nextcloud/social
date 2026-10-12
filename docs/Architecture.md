@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.237
+**App version:** 0.26.238
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -415,10 +415,12 @@ your own photo, then upload it back — is not required. The path is resolved
 through `IRootFolder::getUserFolder()` and checked against that folder again
 afterwards: the route names a file and returns its contents, which is the shape
 a mistake here would be exploited in, so the boundary is stated twice. It is
-the web app's alone: `requireWebSession()` refuses a bearer token with a 403
-whatever its scopes, so only the signed-in Nextcloud session, CSRF token and
-all, reaches it — a client allowed to upload media was never allowed to read
-the user's files.
+a Nextcloud-session route: `requireWebSession()` refuses a bearer token with a
+403 whatever its scopes, so only the Nextcloud session reaches it — the web
+app's, CSRF token and all, or a client's Nextcloud app password with
+`OCS-APIRequest: true`. A client allowed to upload media was never allowed to
+read the user's files; the rule for every such route is in API.md, "Which
+credentials a route takes".
 
 The bytes are **copied, not referenced**. A post keeps the picture it was
 published with, so moving, renaming or deleting the original cannot empty a post
