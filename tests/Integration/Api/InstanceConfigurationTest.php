@@ -48,6 +48,24 @@ class InstanceConfigurationTest extends ApiTestCase {
 		$this->assertSame(422, $this->post(['status' => 'a' . $withUrl])->status, 'and one character more does not fit');
 	}
 
+	/**
+	 * The post of issue #2594, as written: 4950 characters, a space and a
+	 * link of 80 characters. By the advertised count it is 4974 of 5000, and
+	 * the server takes it, where counting the link as written made it 5031
+	 * and refused it.
+	 */
+	public function testAPostWithALongLinkThatFitsByTheAdvertisedCountIsTaken(): void {
+		$statuses = $this->configuration()->statuses;
+		$this->assertSame(5000, $statuses->max_characters);
+		$this->assertSame(23, $statuses->characters_reserved_per_url);
+
+		$status = str_repeat('x', 4950) . ' https://example.com/' . str_repeat('a', 60);
+		$post = $this->post(['status' => $status]);
+
+		$this->assertSame(200, $post->status, json_encode($post->body) ?: '');
+		$this->assertStringContainsString('https://example.com/' . str_repeat('a', 60), $post->body->content, 'the link is kept whole');
+	}
+
 	public function testAPollMayHaveMaxOptionsAndEndNoSoonerThanMinExpiration(): void {
 		$polls = $this->configuration()->polls;
 		$options = array_map(static fn (int $i): string => str_repeat((string)$i, $polls->max_characters_per_option), range(1, $polls->max_options));

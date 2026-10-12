@@ -284,6 +284,9 @@ to stop.
   to the login with the address to come back to, a signed-in reader gets the
   page, the public pages stay public, and every read those pages make of the
   reader's own data refuses somebody not signed in.
+  `Api/PlaceKeptTest` posts with a `place_id` the search route handed out,
+  of a place known without coordinates, and finds the place on the answer
+  and on the post read back.
   `Api/SignInTokenRoutesTest` calls the account pages a client app opens —
   memories, statistics, channels, the migration exports, imports and move-in,
   the authorized apps — five ways: a bearer token granted the route's scope,
