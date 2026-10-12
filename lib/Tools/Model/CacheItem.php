@@ -159,6 +159,11 @@ class CacheItem implements JsonSerializable {
 	}
 
 	/**
+	 * What is stored in `social_stream.cache`, and read back by `import()`.
+	 *
+	 * Only `content` is stored: the object is `content` decoded, and
+	 * `getObject()` decodes it when it is asked for.
+	 *
 	 * @return array
 	 */
 	#[\Override]
@@ -166,7 +171,6 @@ class CacheItem implements JsonSerializable {
 		return [
 			'url' => $this->getUrl(),
 			'content' => $this->getContent(),
-			'object' => $this->getObject(),
 			'status' => $this->getStatus(),
 			'error' => $this->getError(),
 			'creation' => $this->getCreation()
