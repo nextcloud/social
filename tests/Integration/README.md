@@ -188,6 +188,9 @@ to stop.
   status in `reblog`, decorated for the reader as on a timeline, where the
   reader's favourite now shows on the boosted status too; a boost of a status
   the reader may not see is a 404.
+- `Api/OnlyNewsListTimelineTest` — `only_news` on a list timeline: three
+  posts that link somewhere under forty newer text posts are the page of
+  twenty, newest first, and paging two at a time keeps `only_news` in `Link`.
 - `Api/ClientApiCorsTest` — the client API as a browser client of another
   origin meets it, through the real dispatcher and every middleware the app
   registers: a bearer call, an anonymous read and a refusal readable from any
