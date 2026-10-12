@@ -851,10 +851,29 @@ class AccountServiceTest extends TestCase {
 	}
 
 	public function testBlindKeyRotationWithoutActorsDoesNothing(): void {
-		$this->actorsRequest->method('getAll')->willReturn([]);
+		$this->actorsRequest->method('walk')->willReturn([]);
 		$this->signatureService->expects($this->never())->method('generateKeys');
 
 		$this->assertSame(0, $this->service->blindKeyRotation());
+	}
+
+	/**
+	 * The accounts come from the paged walk, never from `getAll()`, which
+	 * holds every account at once; only the ones past the key's lifespan get
+	 * a new pair.
+	 */
+	public function testBlindKeyRotationRenewsTheOldKeysItWalksPast(): void {
+		$old = $this->alice();
+		$old->setCreation(time() - (AccountService::KEY_PAIR_LIFESPAN + 1) * 86400);
+		$new = new Person();
+		$new->setId(self::ALICE . '-new');
+		$new->setCreation(time());
+		$this->actorsRequest->expects($this->never())->method('getAll');
+		$this->actorsRequest->method('walk')->willReturn([$old, $new]);
+		$this->signatureService->expects($this->once())->method('generateKeys')->with($old);
+		$this->actorsRequest->expects($this->once())->method('refreshKeys')->with($old);
+
+		$this->assertSame(1, $this->service->blindKeyRotation());
 	}
 
 	/**

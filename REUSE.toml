@@ -88,6 +88,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
+# the timings the nightly benchmark is held to, which JSON cannot annotate
+[[annotations]]
+path = "tests/perf/benchmark-baseline.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
 # the schemas the migration history produced, which carry no comment syntax
 [[annotations]]
 path = ["tests/Migration/schema.json", "tests/Migration/schema-*.json"]

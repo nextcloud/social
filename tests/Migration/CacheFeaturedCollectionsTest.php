@@ -62,6 +62,7 @@ class CacheFeaturedCollectionsTest extends TestCase {
 		// out of memory before the guard is reached
 		$connection = new FakeConnection([[['total' => 501]]]);
 		$this->actorsRequest->expects($this->never())->method('getAll');
+		$this->actorsRequest->expects($this->never())->method('walk');
 		$this->accountService->expects($this->never())->method('cacheLocalActorByUsername');
 
 		$warnings = [];
@@ -83,9 +84,14 @@ class CacheFeaturedCollectionsTest extends TestCase {
 		$this->assertSame('social_actor', $connection->queries[0]->table);
 	}
 
+	/**
+	 * Walked a page at a time rather than loaded: `getAll()` holds every
+	 * account as a model at once, inside `occ upgrade`.
+	 */
 	public function testASmallInstanceIsRefreshedInline(): void {
 		$connection = new FakeConnection([[['total' => 2]]]);
-		$this->actorsRequest->method('getAll')->willReturn([
+		$this->actorsRequest->expects($this->never())->method('getAll');
+		$this->actorsRequest->method('walk')->willReturn([
 			$this->actor('alice'), $this->actor('bob'),
 		]);
 
@@ -103,7 +109,7 @@ class CacheFeaturedCollectionsTest extends TestCase {
 
 	public function testAnActorThatCannotBeRefreshedDoesNotStopTheOthers(): void {
 		$connection = new FakeConnection([[['total' => 2]]]);
-		$this->actorsRequest->method('getAll')->willReturn([
+		$this->actorsRequest->method('walk')->willReturn([
 			$this->actor('broken'), $this->actor('bob'),
 		]);
 		$this->accountService->method('cacheLocalActorByUsername')->willReturnCallback(
@@ -130,7 +136,7 @@ class CacheFeaturedCollectionsTest extends TestCase {
 	public function testTheMarkerKeepsItFromRunningTwice(): void {
 		$connection = new FakeConnection([[['total' => 2]]]);
 		$this->configService->method('getAppValueInt')->willReturn(2);
-		$this->actorsRequest->expects($this->never())->method('getAll');
+		$this->actorsRequest->expects($this->never())->method('walk');
 
 		$this->step($connection)->run($this->output);
 

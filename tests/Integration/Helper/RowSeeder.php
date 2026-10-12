@@ -61,6 +61,44 @@ final class RowSeeder {
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Many rows, in one transaction: a commit per row is an fsync per row on
+	 * SQLite, which makes thousands of them minutes.
+	 *
+	 * @param iterable<array<string, mixed>> $rows
+	 */
+	public static function insertAll(string $table, iterable $rows): void {
+		$connection = Server::get(IDBConnection::class);
+		$connection->beginTransaction();
+		try {
+			foreach ($rows as $values) {
+				self::insert($table, $values);
+			}
+			$connection->commit();
+		} catch (\Throwable $e) {
+			$connection->rollBack();
+
+			throw $e;
+		}
+	}
+
+	/**
+	 * Deletes the rows whose `$column` is one of `$values`, a thousand at a
+	 * time.
+	 *
+	 * @param list<int|string> $values
+	 */
+	public static function deleteIn(string $table, string $column, array $values): void {
+		foreach (array_chunk($values, 1000) as $chunk) {
+			$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+			$qb->delete($table)->where($qb->expr()->in(
+				$column,
+				$qb->createNamedParameter($chunk, is_int($chunk[0]) ? IQueryBuilder::PARAM_INT_ARRAY : IQueryBuilder::PARAM_STR_ARRAY)
+			));
+			$qb->executeStatement();
+		}
+	}
+
 	/** @param array<string, mixed> $where column => value, all of them */
 	public static function count(string $table, array $where): int {
 		$qb = Server::get(IDBConnection::class)->getQueryBuilder();

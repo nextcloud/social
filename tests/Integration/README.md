@@ -107,6 +107,10 @@ to stop.
   viewer-filtered reply list.
 - `Db/TimelineValidatorsTest` — the newest-nid probes a timeline's entity tag
   is built from, and the unread notification badge.
+- `Db/SearchHydrationTest` — a content search, through the word index and
+  through the scan, finds what the viewer may see and not a stranger's
+  followers-only post, and chooses those posts over the nid: no statement that
+  reads the posts' columns joins the viewer's follows.
 - `Db/SearchTermsRequestTest` / `Db/StreamTagsRequestTest` — the word index
   (index, edit, whole words and prefixes, backfill) and the hashtag rows.
 - `Db/StreamStatisticsTest` — the grouped queries behind the statistics page
@@ -117,6 +121,14 @@ to stop.
 - `Migration/RowBackfillMigrationsTest` — the upgrade steps that fill rows
   (recipient nids, `media_kind`, `news_kind`, OAuth authorizations moved to
   `social_client_auth`) run on rows in their pre-upgrade shape, twice.
+- `Migration/RepairMemoryTest` — the upgrade steps that walk a table (the
+  recipient-nid backfill, `BackfillRemoteVisibility`, `BackfillStreamPostFields`,
+  `CacheFeaturedCollections`) and the blind key rotation run over a table five
+  times as large: the peak memory must not grow with it (`PeakMemory`: within
+  a fifth of the smaller run, or 512 KB).
+- `Db/ActorsWalkTest` — `ActorsRequest::walk()` visits every local account
+  once across pages while each is written to, keyed on the stored `id_prim`
+  even where the social URL changed since the accounts were made.
 - `Migration/ShortKindBackfillTest` — `Version1000Date20261012500100` works out
   the stored videos once (a short, a long one, a landscape one, one without
   meta), leaves a stored answer and every non-video post alone, twice.
@@ -126,6 +138,8 @@ to stop.
   unique, the indexes the history dropped dropped, a second run a no-op.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
+- `PeakMemory` — the peak memory a block reached above what was in use when it
+  began, and the tolerance two runs of a paged step may differ by.
 - `QueryCounter` / `QueryCounterTest` — records every statement the server's
   connection executes during a block (through Doctrine's SQL logger, swapped in
   for the block and put back after), with its parameters; the test proves it
@@ -157,6 +171,18 @@ to stop.
   queue of 0, 200 and 400 deliveries, with only the network edge replaced and
   the clock frozen: a constant cost per pass, two statements per delivery and
   three per batch, and the second batch costing exactly what the first did.
+- `Cron/CacheWorkBudgetTest` — one pass of each `Cron\Cache` step with the
+  network edge replaced (`OfflineContainer`: every server unreachable, the
+  clock frozen) against a backlog three times its batch: the remote-actor and
+  details refreshes (forty batches of fifty), the timeline sync, the sweep,
+  the local-actor refresh, deleted accounts, the prune, the remote counts and
+  the document cache each take at most their batch at a constant cost per
+  item; the trends write only the hashtags that moved.
+- `OfflineContainer` — builds the app's services from their constructors with
+  chosen dependencies replaced at any depth, the rest from the app container.
+- `Cron/RunImportMemoryTest` — a blocked-domains import run by `Cron\RunImport`
+  the way cron runs it, over 1,000 lines and then 5,000: nothing is kept per
+  row beyond the list the service reads whole by design.
 - `Api/*` — the Mastodon client API called the way a client calls it: real
   accounts with a bearer token, each controller built by a fresh app
   container, the answer put through `json_encode()` as the JSON responder

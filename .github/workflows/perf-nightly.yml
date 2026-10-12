@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# A query's cost cannot be judged on the dozen rows a test seeds. Every night
+# this seeds an instance the size of a small community — 100,000 notes by
+# 2,000 accounts, 300 of them followed — with `occ social:benchmark` on MySQL
+# and on PostgreSQL, times the timelines, the search and the notifications,
+# and fails when a probe is over its limit: the larger of a fixed ceiling and
+# three times its entry in tests/perf/benchmark-baseline.json. The JSON report
+# is kept as an artifact, so the numbers can be followed from night to night.
+# See docs/OCC-Commands.md, `social:benchmark`.
+
+name: Nightly performance
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'Notes to seed'
+        default: '100000'
+      baseline-factor:
+        description: 'How many times its baseline a probe may take'
+        default: '3'
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NOTES: ${{ github.event.inputs.notes || '100000' }}
+  BASELINE_FACTOR: ${{ github.event.inputs.baseline-factor || '3' }}
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - database: mysql
+            image: ghcr.io/nextcloud/continuous-integration-mysql-8.4:latest
+            port: 3306
+            health: --health-cmd="mysqladmin ping" --health-interval 5s --health-timeout 2s --health-retries 10
+            extensions: mysql, pdo_mysql
+          - database: pgsql
+            image: ghcr.io/nextcloud/continuous-integration-postgres-14:latest
+            port: 5432
+            health: --health-cmd pg_isready --health-interval 5s --health-timeout 2s --health-retries 5
+            extensions: pgsql, pdo_pgsql
+
+    name: Benchmark on ${{ matrix.database }}
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        ports:
+          - 4444:${{ matrix.port }}/tcp
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: rootpassword
+          POSTGRES_DB: nextcloud
+        options: ${{ matrix.health }}
+
+    steps:
+      - name: Set app env
+        run: echo "APP_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Checkout server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          repository: nextcloud/server
+          ref: stable35
+
+      - name: Checkout app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: apps/${{ env.APP_NAME }}
+
+      - name: Set up php
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, ${{ matrix.extensions }}
+          coverage: none
+          ini-file: production
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up the app's PHP dependencies
+        working-directory: apps/${{ env.APP_NAME }}
+        run: composer i --no-dev
+
+      - name: Set up Nextcloud
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=${{ matrix.database }} --database-name=nextcloud --database-host=127.0.0.1 --database-port=4444 --database-user=root --database-pass=rootpassword --admin-user admin --admin-pass admin
+          ./occ app:enable --force ${{ env.APP_NAME }}
+          # the app's own idea of where it lives; actor creation throws without it
+          ./occ config:app:set social cloud_url --value http://localhost:8080
+          ./occ config:app:set social social_url --value http://localhost:8080/index.php/apps/social/
+          ./occ social:account:create admin
+          # what an upgraded instance runs on once its backfills are done: the
+          # search through the word index and the home timeline's fast page.
+          # True here as well, because the seed writes the index words and the
+          # recipient rows' nids itself, and there is nothing else to backfill.
+          ./occ config:app:set social search_index_ready --value 1
+          ./occ config:app:set social dest_nid_filled --value 1
+
+      - name: Seed
+        run: |
+          php -d memory_limit=1G ./occ social:benchmark --viewer=admin \
+            --actors=2000 --notes=$NOTES --follows=300 \
+            --seed-only --force --no-interaction
+
+      - name: Time
+        # a probe over its limit fails this step only after the report is
+        # written; the steps below still run, so the numbers of a failing
+        # night are kept too
+        run: |
+          php -d memory_limit=1G ./occ social:benchmark --viewer=admin --time-only --runs=5 \
+            --output=json_pretty \
+            --baseline=apps/${{ env.APP_NAME }}/tests/perf/benchmark-baseline.json \
+            --baseline-factor=$BASELINE_FACTOR \
+            --fail-over=250 --threshold=home@20=150 \
+            > benchmark-${{ matrix.database }}.json
+
+      - name: Every probe read something
+        # a probe answering nothing is fast and measures nothing: the seed or
+        # the probe is broken. `direct` is the one the seed leaves empty.
+        if: always()
+        run: |
+          empty=$(jq -r '.probes | to_entries[] | select(.value.probe != "direct" and .value.rows == 0) | .key' benchmark-${{ matrix.database }}.json)
+          if [ -n "$empty" ]; then
+            echo "::error::these probes found no rows: $empty"
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### social:benchmark on ${{ matrix.database }}, $NOTES notes"
+            echo
+            echo '| probe | ms | rows | limit ms | |'
+            echo '|---|---:|---:|---:|---|'
+            jq -r '.probes | to_entries[] | "| \(.key) | \(.value.ms) | \(.value.rows) | \(.value.limit_ms // "–") | \(if .value.over then "**over**" else "" end) |"' benchmark-${{ matrix.database }}.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: benchmark-${{ matrix.database }}
+          path: benchmark-${{ matrix.database }}.json
+          retention-days: 90
+
+      - name: Print logs
+        if: failure()
+        run: cat data/nextcloud.log

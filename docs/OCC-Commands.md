@@ -723,20 +723,41 @@ and with what spread of attempt counts, and asks before it changes anything.
 Seeds a plausible amount of content and times the queries behind the timelines, because a query's cost cannot be judged on the couple of dozen rows a development instance holds. **For development instances only** — it writes thousands of rows.
 
 ```
-php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--viewer=USER]
-                         [--seed-only] [--time-only] [--clean] [-f|--force]
+php occ social:benchmark [--actors=200] [--notes=5000] [--follows=150] [--followers=0] [--viewer=USER]
+                         [--seed-only] [--time-only] [--runs=3] [--output=json|json_pretty]
+                         [--fail-over=MS] [--threshold=PROBE[@LIMIT]=MS ...]
+                         [--baseline=FILE] [--baseline-factor=3] [--clean] [-f|--force]
 ```
 
 | Option | Value | Description |
 |--------|-------|-------------|
 | `--actors` | int (200) | Remote actors to seed |
-| `--notes` | int (5000) | Public notes to seed, spread over the preceding weeks |
+| `--notes` | int (5000) | Public notes to seed, five seconds apart going back from now |
 | `--follows` | int (150) | How many of those actors the viewer follows, which is what the home timeline joins through |
 | `--followers` | int (0) | How many of those actors follow the viewer **back**, which is what delivery reads: one queue row per distinct inbox when the viewer posts. An instance seeded without it measures reads and says nothing about writes |
-| `--viewer` | username | The local account the timelines are read as; the first local actor by default |
+| `--viewer` | username | The local account the timelines are read as; the first local actor by default. It needs a Social account (`social:account:create`) |
 | `--seed-only` | none | Write the rows without timing anything |
 | `--time-only` | none | Time what is already seeded |
+| `--runs` | int (3) | Timed runs of each probe after one warm-up run; the median is reported |
+| `--fail-over` | ms | A ceiling for every probe that has no `--threshold` of its own |
+| `--threshold` | `PROBE=MS` or `PROBE@LIMIT=MS` | A ceiling for one probe, at every page size or at one (`home=150`, `home@20=120`). Repeatable |
+| `--baseline` | file | A JSON file of earlier timings, keyed by database (`pgsql`, `mysql`, `sqlite`) and then by `probe@limit`; other top-level keys are ignored, so the file can say how it was measured |
+| `--baseline-factor` | number (3) | How many times its baseline entry a probe may take |
 | `--clean` | none | Delete everything the command wrote and nothing else |
+| `-f`, `--force` | none | Seed without asking (required with `--no-interaction`) |
+
+**What is seeded.** Every note is public, by one of the seeded actors in turn,
+and says one of thirteen topic words. One note in ten carries a picture and one
+in twenty-five a video — the share of media a real timeline has, so that the
+Photos and Videos probes measure a page narrowed out of mostly text rather than
+an empty answer or the home timeline again. One note in twenty mentions the
+viewer and comes with the notification the inbox would have written; one in four
+carries one of twenty hashtags. The notes' recipient rows (public collection,
+author, the author's followers, and the viewer when mentioned) carry the note's
+nid, as the home timeline's page query reads it, and the hashtag rows and the
+words of the search index are written with them. The tables are then analysed
+(`ANALYZE`), so that the plans timed are the ones a live instance gets rather
+than ones made from the statistics of the tables before the seed.
 
 Seeding writes **multi-row `INSERT`s directly**, not through the model layer: a
 `Note` built and saved one at a time is three statements and a transaction per
@@ -747,14 +768,37 @@ collections), because a query plan is only worth measuring against rows the
 planner sees the way it sees real data. The cost is that a column added to
 `social_stream` later is one this command forgets to write; that is the right
 trade for a development-only command and would be the wrong one anywhere else.
-| `-f`, `--force` | none | Seed without asking (required with `--no-interaction`) |
+
+**What is timed.** Nine probes, each at a page of 20 and of 50 (the largest
+page a client may ask for): `home`, `public`, `direct`, `notifications`,
+`photos` and `videos` (the home timeline narrowed as the web client's Photos
+and Videos pages narrow it), `hashtag` (the probed tag, `benchtag0`), `account`
+(the first seeded actor's profile) and `search` (the word `harbour`). Each is
+read once to warm the caches and then `--runs` times; the median is the number.
+
+**Limits.** A probe's ceiling is its `--threshold`, else `--fail-over`; its
+baseline allowance is `--baseline-factor` times its `--baseline` entry. It is
+held to the larger of the two, so a two-millisecond baseline does not fail on a
+shared runner's noise and a probe that was always slower than its ceiling only
+fails when it gets that much slower again. A probe with neither has no limit.
+Any probe over its limit makes the command exit 1 and name it. Every option is
+checked before anything is seeded.
+
+`--output=json` (or `json_pretty`) prints one JSON document on stdout — each
+probe's median, rows, limit and verdict, the database, what was seeded, and the
+two switches that decide which query answers (`search_index_ready`,
+`dest_nid_filled`) — and sends the progress lines to stderr, so the output can
+be redirected into a file. `.github/workflows/perf-nightly.yml` runs it that way
+every night on MySQL and PostgreSQL with 100,000 notes, against the baseline in
+`tests/perf/benchmark-baseline.json`, and keeps each night's report as an
+artifact.
 
 Seeding says how many rows it is about to write and asks before writing any of
 them; under `--no-interaction` it refuses unless `--force` is given, rather than
 seeding a production database because nobody was there to say no. `--clean` and
 `--time-only` write nothing and do not ask.
 
-Every row it writes carries `benchmark.invalid` in its id, which is what `--clean` matches on. The reported time is the second run of each query, so it measures a served request rather than a cold cache.
+Every row it writes carries `benchmark.invalid` in its id, which is what `--clean` matches on.
 
 ---
 
@@ -1497,7 +1541,7 @@ The app files themselves are not removed, and the app is not disabled.
 | Code | Meaning |
 |------|---------|
 | 0 | Success, and also a confirmation prompt answered with "no" |
-| 1 | A refusal to act non-interactively without `--force` (`social:reset`, `social:check:install --index`, `social:benchmark`, `social:queue:retry`), a failed flush or uninstall in `social:reset`, `social:reset` while external users exist, streams `social:check:install --index` could not parse, a setup check that `social:check:install` reports as an error, `social:account:following` handled failure, or an uncaught exception in any command |
+| 1 | A refusal to act non-interactively without `--force` (`social:reset`, `social:check:install --index`, `social:benchmark`, `social:queue:retry`), a `social:benchmark` probe over its limit or an invalid limit option, a failed flush or uninstall in `social:reset`, `social:reset` while external users exist, streams `social:check:install --index` could not parse, a setup check that `social:check:install` reports as an error, `social:account:following` handled failure, or an uncaught exception in any command |
 
 ---
 

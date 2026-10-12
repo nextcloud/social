@@ -1444,13 +1444,15 @@ class AccountService {
 	}
 
 	/**
-	 * @return int
+	 * Renews the key pair of every local account older than
+	 * `KEY_PAIR_LIFESPAN` days, walking the accounts a page at a time.
+	 *
+	 * @return int how many key pairs were renewed
 	 * @throws Exception
 	 */
 	public function blindKeyRotation(): int {
-		$update = $this->actorsRequest->getAll();
 		$count = 0;
-		foreach ($update as $actor) {
+		foreach ($this->actorsRequest->walk() as $actor) {
 			try {
 				if ($actor->getCreation() < (time() - (self::KEY_PAIR_LIFESPAN * 3600 * 24))) {
 					$this->signatureService->generateKeys($actor);

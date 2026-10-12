@@ -265,7 +265,12 @@ class ImportQueueService {
 		try {
 			$this->folder()->newFile($name, $stream);
 		} finally {
-			fclose($stream);
+			// the server's file_put_contents closes a stream it was handed,
+			// and fclose() on a closed stream is a TypeError
+			/** @psalm-suppress RedundantCondition the server closes it, which psalm cannot see */
+			if (is_resource($stream)) {
+				fclose($stream);
+			}
 		}
 
 		return $name;

@@ -47,6 +47,9 @@ class ImportQueueServiceTest extends TestCase {
 
 	/** @var array<string, string> the kept uploads, by name */
 	private array $kept = [];
+
+	/** Whether appdata closes a stream it is handed, as the server's file_put_contents() does. */
+	private bool $closesStreams = false;
 	/** @var string[] the uploads deleted again */
 	private array $deleted = [];
 	/** @var ImportJob[] every state the row was written in */
@@ -67,6 +70,9 @@ class ImportQueueServiceTest extends TestCase {
 		$this->appData->method('getFolder')->willReturn($this->folder);
 		$this->folder->method('newFile')->willReturnCallback(function (string $name, $content): ISimpleFile {
 			$this->kept[$name] = is_resource($content) ? (string)stream_get_contents($content) : (string)$content;
+			if ($this->closesStreams && is_resource($content)) {
+				fclose($content);
+			}
 
 			return $this->file($name);
 		});
@@ -138,6 +144,24 @@ class ImportQueueServiceTest extends TestCase {
 		$this->assertSame(ImportJob::STATUS_QUEUED, $job->getStatus());
 		$this->assertStringEndsWith('.csv', $job->getFile());
 		$this->assertSame("Account address\nbob@remote.example\n", $this->kept[$job->getFile()]);
+		@unlink($path);
+	}
+
+	/**
+	 * Nextcloud's `View::file_put_contents()` closes the stream it copies
+	 * from, and `fclose()` on a closed stream is a TypeError in PHP 8: every
+	 * import of a file was answered with a 400 naming fclose(), after the
+	 * upload had been kept.
+	 */
+	public function testAnUploadIsQueuedWhenAppdataClosesTheStream(): void {
+		$this->closesStreams = true;
+		$path = $this->upload("example.org\n");
+		$this->importsRequest->method('hasActive')->willReturn(false);
+		$this->jobList->expects($this->once())->method('add');
+
+		$job = $this->service->queue('alice', ImportJob::KIND_DOMAIN_BLOCKS, $path, []);
+
+		$this->assertSame("example.org\n", $this->kept[$job->getFile()]);
 		@unlink($path);
 	}
 
