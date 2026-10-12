@@ -32,7 +32,7 @@
 						<IconRefresh :size="20" />
 					</template>
 				</NcButton>
-				<NcButton variant="tertiary" :href="exportUrl" :download="exportName">
+				<NcButton variant="tertiary" :disabled="downloading" @click="download">
 					<template #icon>
 						<IconDownload :size="20" />
 					</template>
@@ -791,6 +791,7 @@ import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import { getCanonicalLocale, n, t } from '@nextcloud/l10n'
 import { seriesStyle } from '../utils/tagColour.js'
 import logger from '../services/logger.js'
+import { showError } from '../services/toast.js'
 
 /**
  * A `YYYY-MM` key from the server, named as a month.
@@ -877,6 +878,7 @@ export default {
 			days: 0,
 			/** @type {object|null} */
 			stats: null,
+			downloading: false,
 		}
 	},
 
@@ -1627,6 +1629,33 @@ export default {
 				this.error = t('social', 'Could not work out your statistics.')
 			} finally {
 				this.loading = false
+			}
+		},
+
+		/**
+		 * The figures as a file, fetched through the API client rather than
+		 * followed as a link: the route asks a signed-in session for its CSRF
+		 * token, which a plain link does not send.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async download() {
+			this.downloading = true
+			try {
+				const response = await axios.get(this.exportUrl, { responseType: 'blob' })
+				const url = URL.createObjectURL(response.data)
+				const link = document.createElement('a')
+				link.href = url
+				link.download = this.exportName
+				document.body.appendChild(link)
+				link.click()
+				link.remove()
+				URL.revokeObjectURL(url)
+			} catch (error) {
+				logger.error('could not download the statistics', { error })
+				showError(t('social', 'Could not download your statistics'))
+			} finally {
+				this.downloading = false
 			}
 		},
 

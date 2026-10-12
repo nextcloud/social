@@ -8,8 +8,10 @@ import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 
 import Statistics from '../../../src/views/Statistics.vue'
+import { showError } from '../../../src/services/toast.js'
 
 vi.mock('@nextcloud/axios', () => ({ default: { get: vi.fn() } }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
@@ -765,17 +767,46 @@ describe('Statistics', () => {
 		expect(axios.get.mock.calls[1][1].params).toEqual({ days: 0, fresh: true })
 	})
 
+	/**
+	 * Fetched through the API client, which sends the session's CSRF token
+	 * the route asks for, rather than followed as a link, which would not.
+	 */
 	it('offers the numbers as a file, for the window on screen', async () => {
 		axios.get.mockResolvedValue({ data: answer() })
+		let savedAs = ''
+		vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function saved() {
+			savedAs = this.getAttribute('download')
+		})
+		URL.createObjectURL = vi.fn(() => 'blob:statistics')
+		URL.revokeObjectURL = vi.fn()
 
 		const wrapper = mountPage()
 		await flushPromises()
 		await wrapper.findAll('.stats__windows .switcher__option')[1].trigger('click')
 		await flushPromises()
 
-		const download = wrapper.find('.stats__actions a')
-		expect(download.attributes('href')).toContain('/apps/social/api/v1/statistics/export?days=30')
-		expect(download.attributes('download')).toBe('alice-statistics.csv')
+		axios.get.mockResolvedValue({ data: new Blob(['section,name,value']) })
+		await wrapper.findAll('.stats__actions button')[1].trigger('click')
+		await flushPromises()
+
+		const [url, options] = axios.get.mock.calls.at(-1)
+		expect(url).toContain('/apps/social/api/v1/statistics/export?days=30')
+		expect(options).toEqual({ responseType: 'blob' })
+		expect(savedAs).toBe('alice-statistics.csv')
+		expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:statistics')
+	})
+
+	it('says so when the file could not be fetched', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		axios.get.mockRejectedValue(new Error('rate limited'))
+		await wrapper.findAll('.stats__actions button')[1].trigger('click')
+		await flushPromises()
+
+		expect(showError).toHaveBeenCalledWith('Could not download your statistics')
 	})
 
 	it('names who talks with the account, and who among them is a stranger', async () => {

@@ -846,6 +846,7 @@ OC.L10N.register(
     "Boosts of other people" : "Boosts anderer",
     "Counted over your {count} most recent posts, which is as far back as this page goes." : "Berechnet anhand deiner {count} neuesten Beiträge. Weiter reichen die Daten auf dieser Seite nicht zurück.",
     "Could not work out your statistics." : "Deine Statistiken konnten nicht berechnet werden.",
+    "Could not download your statistics" : "Deine Statistiken konnten nicht heruntergeladen werden",
     "new" : "neu",
     "_post_::_posts_" : ["Beitrag","Beiträge"],
     "_{days} day. Directly comparable._::_{days} days. Directly comparable._" : ["{days} Tag. Direkt vergleichbar.","{days} Tage. Direkt vergleichbar."],

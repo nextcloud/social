@@ -129,6 +129,16 @@ class RouteAuthMatrixTest extends TestCase {
 		'AnnouncementController::adminIndex' => 'admin page route, the server checks the admin setting',
 		'AnnouncementController::adminCreate' => 'admin page route, the server checks the admin setting',
 		'AnnouncementController::adminDelete' => 'admin page route, the server checks the admin setting',
+		'MigrationController::moveInFinishCallback' => 'session route the browser lands on after the old server\'s consent page',
+		'MigrationController::moveStatus' => 'session route, the server requires a Nextcloud login',
+		'MigrationController::moveOut' => 'session route behind Nextcloud\'s password confirmation, which a token cannot give',
+		'MigrationController::undoMove' => 'session route behind Nextcloud\'s password confirmation, which a token cannot give',
+		'MigrationController::switchPeople' => 'switch wizard session route, the server requires a Nextcloud login',
+		'MigrationController::switchFind' => 'switch wizard session route, the server requires a Nextcloud login',
+		'MigrationController::switchAnnouncement' => 'switch wizard session route, the server requires a Nextcloud login',
+		'MigrationController::aliases' => 'session route, the server requires a Nextcloud login',
+		'MigrationController::aliasAdd' => 'session route, the server requires a Nextcloud login',
+		'MigrationController::aliasRemove' => 'session route, the server requires a Nextcloud login',
 		'DiscoveryController::starterPacks' => 'public starter packs, no viewer involved',
 		'DiscoveryController::starterPack' => 'one public starter pack, no viewer involved',
 		'PeerTubeApiController::config' => 'PeerTube server configuration, public by protocol',
@@ -408,6 +418,23 @@ class RouteAuthMatrixTest extends TestCase {
 		$this->assertSame([['write:accounts']], self::scopeSets($add, $takers));
 		$this->assertSame([['write:notifications']], self::scopeSets($accept, $takers));
 		$this->assertSame([['write:accounts'], ['read']], self::scopeSets($settings, $takers));
+	}
+
+	/**
+	 * Through two helpers, and through every arm of a `match`: an import
+	 * reaches `initViewer()` by way of `queueUpload()` and `caller()`, and a
+	 * CSV export asks for the scope of the list it names.
+	 */
+	public function testTheScopeWalkReadsTheMigrationHelpersAndEveryArmOfAMatch(): void {
+		$takers = ['initViewer' => 0, 'optionalViewer' => 0];
+		$migration = 'OCA\\Social\\Controller\\MigrationController';
+
+		$this->assertSame([['write']], self::scopeSets(new ReflectionMethod($migration, 'importFollows'), $takers));
+		$this->assertSame([['read']], self::scopeSets(new ReflectionMethod($migration, 'export'), $takers));
+		$this->assertSame(
+			[['read:follows'], ['read:blocks'], ['read:mutes'], ['read:lists'], ['read:bookmarks'], ['read']],
+			self::scopeSets(new ReflectionMethod($migration, 'exportCsv'), $takers)
+		);
 	}
 
 	/** @param list<string> $scopes */

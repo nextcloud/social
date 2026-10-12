@@ -9,63 +9,69 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Exceptions\ClientNotFoundException;
+use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ClientService;
 use OCA\Social\Service\NetworkGrowthService;
 use OCA\Social\Service\NetworkStatsService;
 use OCA\Social\Service\StatisticsService;
-use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
-use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
+use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
  * The reader's own numbers.
  *
- * A session route rather than a client-API one, for the same reason the
- * migration routes are: it is for the person sitting in front of the browser,
- * and an account's whole history of engagement is not something a third-party
- * token should be handed. It is also only ever about the caller — there is no
- * account parameter, so there is nothing to point at somebody else.
+ * Client-API routes, so the Statistics page reaches them with its session and
+ * a mobile client with the token it signed in with. Both ask for
+ * `read:statuses`: the figures are counted from the caller's own posts, all of
+ * them, and the account block beside them (handle, follower and following
+ * counts) is what every status entity carries about its author anyway. It is
+ * only ever about the caller — there is no account parameter, so there is
+ * nothing to point at somebody else.
  *
  * Rate limited because the answer is a walk over the account's posts rather
  * than a lookup, and a reload loop should not be able to spend that repeatedly.
  */
-class StatisticsController extends Controller {
+class StatisticsController extends ClientApiController {
 	public function __construct(
 		IRequest $request,
-		private ?string $userId,
-		private AccountService $accountService,
+		IUserSession $userSession,
+		LoggerInterface $logger,
+		AccountService $accountService,
+		ClientService $clientService,
 		private StatisticsService $statisticsService,
 		private NetworkStatsService $networkStatsService,
 		private NetworkGrowthService $networkGrowthService,
-		private LoggerInterface $logger,
 	) {
-		parent::__construct('social', $request);
+		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
 
 	/**
 	 * @param int $days the window, one of `StatisticsService::WINDOWS`
 	 * @param bool $fresh count again rather than read the cached answer
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 90, period: 3600)]
 	#[UserRateLimit(limit: 90, period: 3600)]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statistics')]
 	public function statistics(int $days = 0, bool $fresh = false): DataResponse {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
-		}
-
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$this->initViewer(['read:statuses']);
 
-			$statistics = $this->statisticsService->cachedForAccount($actor, $days, $fresh);
+			$statistics = $this->statisticsService->cachedForAccount($this->viewer(), $days, $fresh);
 			// the size of the place all this went out to, which nothing
 			// counted here can say. Null when it is switched off or the
 			// survey did not answer, and the page leaves the section out
@@ -80,9 +86,11 @@ class StatisticsController extends Controller {
 			$statistics['software'] = $this->networkStatsService->software();
 
 			return new DataResponse($statistics, Http::STATUS_OK);
+		} catch (ClientNotFoundException|InsufficientScopeException $e) {
+			return $this->error($e);
 		} catch (Throwable $e) {
 			$this->logger->warning('could not build the statistics', [
-				'userId' => $this->userId, 'exception' => $e,
+				'userId' => $this->viewer?->getUserId(), 'exception' => $e,
 			]);
 
 			return new DataResponse(
@@ -102,17 +110,17 @@ class StatisticsController extends Controller {
 	 * @param int $days the window, one of `StatisticsService::WINDOWS`
 	 * @param string $format `csv` or `json`
 	 */
-	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 30, period: 3600)]
 	#[UserRateLimit(limit: 30, period: 3600)]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statistics/export')]
 	public function export(int $days = 0, string $format = 'csv'): Response {
-		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
-		}
-
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId);
-			$statistics = $this->statisticsService->cachedForAccount($actor, $days);
+			$this->initViewer(['read:statuses']);
+			$statistics = $this->statisticsService->cachedForAccount($this->viewer(), $days);
+		} catch (ClientNotFoundException|InsufficientScopeException $e) {
+			return $this->error($e);
 		} catch (Throwable $e) {
 			$this->logger->warning('could not build the statistics', ['exception' => $e]);
 

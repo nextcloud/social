@@ -176,6 +176,13 @@ to stop.
   `Api/ReplyParentVisibilityTest` answers a reply to a post its writer may not
   read exactly as a reply to a missing one, through the client API and the
   post service.
+  `Api/SignInTokenRoutesTest` calls the account pages a client app opens —
+  memories, statistics, channels, the migration exports, imports and move-in,
+  the authorized apps — five ways: a bearer token granted the route's scope,
+  one granted another (403), nobody (401), the web page's session with its
+  CSRF token, and a Nextcloud app password signed in by Nextcloud with
+  `OCS-APIRequest: true`; and a token revoking its own authorization but not
+  another app's, which the session still may.
 - `Atproto/OAuthStorageTest` — OAuth for Bluesky apps: a request approved once
   and its code exchanged once, a refresh token rotated only from the good one
   (the replaced one finds the session to end), one-time DPoP ids taken once by
