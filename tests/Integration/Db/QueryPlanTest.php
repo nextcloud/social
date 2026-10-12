@@ -370,6 +370,13 @@ class QueryPlanTest extends TestCase {
 	 * `$alias` is read only inside a subquery of the statement, never as one
 	 * of the tables its rows are joined from.
 	 *
+	 * MySQL and MariaDB may run the subquery per row (DEPENDENT SUBQUERY),
+	 * once (SUBQUERY), once into a temporary table that is probed
+	 * (MATERIALIZED), or as a semi-join that takes at most one of its rows
+	 * per outer row (FirstMatch, LooseScan): none repeats the outer rows.
+	 * A plain join, or a semi-join that does and weeds the duplicates out
+	 * afterwards (Start/End temporary), is refused.
+	 *
 	 * @param array{sql: string, params: array, types: array} $query
 	 */
 	private function assertReadOnlyInASubquery(array $query, string $alias): void {
@@ -388,7 +395,10 @@ class QueryPlanTest extends TestCase {
 			foreach ($rows as $row) {
 				if (($row['table'] ?? '') === $alias) {
 					$found++;
-					$this->assertStringContainsString('SUBQUERY', (string)$row['select_type'], $alias . ' is joined: ' . $plan);
+					$selectType = (string)$row['select_type'];
+					$apart = str_contains($selectType, 'SUBQUERY') || $selectType === 'MATERIALIZED'
+						|| preg_match('/\\b(FirstMatch|LooseScan)\\b/', (string)($row['Extra'] ?? '')) === 1;
+					$this->assertTrue($apart, $alias . ' is joined: ' . $plan);
 				}
 			}
 		} elseif (self::$platform === 'sqlite') {
