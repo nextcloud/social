@@ -264,6 +264,12 @@ to stop.
   portfolio, the archive and the videos to continue, and holds each to the same
   `reactions` with `me` for the reader, and the single status to its place
   and tagged people; it caught the single status answering `reactions: []`.
+  `Api/SignedInPagesTest` sends the reader's own pages — settings,
+  statistics, migration, moving in, follow requests, blocks, and their own
+  timelines — through Nextcloud's dispatcher and middleware: a visitor is sent
+  to the login with the address to come back to, a signed-in reader gets the
+  page, the public pages stay public, and every read those pages make of the
+  reader's own data refuses somebody not signed in.
   `Api/SignInTokenRoutesTest` calls the account pages a client app opens —
   memories, statistics, channels, the migration exports, imports and move-in,
   the authorized apps — five ways: a bearer token granted the route's scope,

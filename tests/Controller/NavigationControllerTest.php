@@ -23,8 +23,10 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DocumentService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
@@ -271,6 +273,81 @@ class NavigationControllerTest extends TestCase {
 		$this->assertTrue($this->serverData()['public']);
 	}
 
+	/** @return iterable<string, array{string}> */
+	public static function signedInTimelines(): iterable {
+		yield 'notifications' => ['notifications'];
+		yield 'direct messages' => ['direct'];
+		yield 'favourites' => ['favourites'];
+		yield 'bookmarks' => ['bookmarks'];
+		yield 'a list' => ['list/12'];
+		yield 'For you' => ['interests'];
+	}
+
+	/**
+	 * A timeline that is the reader's own has nothing in it for a visitor,
+	 * who is sent to Nextcloud's login with the address to come back to.
+	 */
+	#[DataProvider('signedInTimelines')]
+	public function testAVisitorAskingForTheirOwnTimelineIsSentToTheLogin(string $path): void {
+		$this->request->method('getRequestUri')->willReturn('/index.php/apps/social/timeline/' . $path);
+		$this->urlGenerator->method('linkToRoute')
+			->willReturnCallback(static fn (string $route, array $parameters = []): string => '/' . $route . '?' . http_build_query($parameters));
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$response = $this->controller(null)->timeline($path);
+
+		$this->assertInstanceOf(RedirectResponse::class, $response);
+		$this->assertSame(
+			'/core.login.showLoginForm?' . http_build_query(['redirect_url' => '/index.php/apps/social/timeline/' . $path]),
+			$response->getRedirectURL()
+		);
+		$this->assertSame([], $this->states, 'no page state is handed out');
+	}
+
+	#[DataProvider('signedInTimelines')]
+	public function testASignedInReaderGetsTheirOwnTimeline(string $path): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->existingActor();
+
+		$response = $this->controller()->timeline($path);
+
+		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertNotInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertSame('main', $response->getTemplateName());
+	}
+
+	/** @return iterable<string, array{string}> */
+	public static function publicTimelines(): iterable {
+		yield 'this instance' => ['timeline'];
+		yield 'everywhere' => ['federated'];
+		yield 'a hashtag' => ['tags/cats'];
+		yield 'photos' => ['photos'];
+		yield 'home, which the page itself turns into this instance\'s' => ['home'];
+	}
+
+	#[DataProvider('publicTimelines')]
+	public function testAVisitorStillReadsThePublicTimelines(string $path): void {
+		\OC::$server->register(IInitialStateService::class, $this->createStub(IInitialStateService::class));
+
+		$response = $this->controller(null)->timeline($path);
+
+		$this->assertInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertTrue($this->serverData()['public']);
+	}
+
+	public function testThePersonalPagesAreThePageOfASignedInReader(): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->existingActor();
+
+		$response = $this->controller()->personal();
+
+		$this->assertNotInstanceOf(PublicTemplateResponse::class, $response);
+		$this->assertSame('main', $response->getTemplateName());
+		$this->assertFalse($this->serverData()['public']);
+	}
+
 	public function testNavigateAsksBeforeCreatingAnAccount(): void {
 		$this->systemValues([]);
 		$this->configuredCloud();
@@ -437,35 +514,64 @@ class NavigationControllerTest extends TestCase {
 	 * @return iterable<string, array{string}>
 	 */
 	public static function clientSidePaths(): iterable {
-		yield 'follow requests' => ['/follow_requests'];
-		yield 'blocked' => ['/blocked'];
-		yield 'discover' => ['/discover'];
-		yield 'migration' => ['/migration'];
-		yield 'statistics' => ['/statistics'];
-		yield 'settings' => ['/settings'];
-		yield 'shorts' => ['/shorts'];
-		yield 'the earlier address of shorts' => ['/reels'];
-		yield 'search' => ['/search'];
-		yield 'search with a term' => ['/search/{term}'];
+		yield 'follow requests' => ['/follow_requests', 'personal'];
+		yield 'blocked' => ['/blocked', 'personal'];
+		yield 'discover' => ['/discover', 'navigate'];
+		yield 'migration' => ['/migration', 'personal'];
+		yield 'moving in' => ['/switch', 'personal'];
+		yield 'statistics' => ['/statistics', 'personal'];
+		yield 'settings' => ['/settings', 'personal'];
+		yield 'shorts' => ['/shorts', 'navigate'];
+		yield 'the earlier address of shorts' => ['/reels', 'navigate'];
+		yield 'search' => ['/search', 'navigate'];
+		yield 'search with a term' => ['/search/{term}', 'navigate'];
 	}
 
 	#[DataProvider('clientSidePaths')]
-	public function testTheServerAnswersEveryPathTheClientSideRouterOwns(string $path): void {
-		$routes = $this->routesOf('navigate');
+	public function testTheServerAnswersEveryPathTheClientSideRouterOwns(string $path, string $method): void {
+		$routes = $this->routesOf($method);
 
-		$this->assertContains($path, array_keys($routes), $path . ' is not a route of navigate()');
+		$this->assertContains($path, array_keys($routes), $path . ' is not a route of ' . $method . '()');
 		$this->assertSame('GET', $routes[$path]->getVerb());
+	}
+
+	/**
+	 * Settings, statistics, moving an account, follow requests and blocks are
+	 * the reader's own: their route is no public page, so Nextcloud sends a
+	 * visitor to its login before the page is built. The app's other pages
+	 * stay public, for a visitor reading this instance's public posts.
+	 */
+	public function testThePersonalPagesAreNoPublicPagesAndTheOthersAre(): void {
+		$personal = new \ReflectionMethod(NavigationController::class, 'personal');
+		$this->assertSame([], $personal->getAttributes(PublicPage::class), 'personal() is a public page');
+		$this->assertSame(
+			['/blocked', '/follow_requests', '/migration', '/settings', '/statistics', '/switch'],
+			self::sorted(array_keys($this->routesOf('personal')))
+		);
+
+		foreach (['navigate', 'timeline'] as $method) {
+			$this->assertNotSame([], (new \ReflectionMethod(NavigationController::class, $method))->getAttributes(PublicPage::class), $method);
+		}
+	}
+
+	/** @param string[] $values */
+	private static function sorted(array $values): array {
+		sort($values);
+
+		return $values;
 	}
 
 	public function testEveryRouteOfNavigateHasANameOfItsOwn(): void {
 		// a route is keyed by controller, method and postfix: two without one
 		// would leave only the last registered
-		$postfixes = array_map(
-			static fn (FrontpageRoute $route): string => (string)$route->getPostfix(),
-			array_values($this->routesOf('navigate'))
-		);
+		foreach (['navigate', 'personal'] as $method) {
+			$postfixes = array_map(
+				static fn (FrontpageRoute $route): string => (string)$route->getPostfix(),
+				array_values($this->routesOf($method))
+			);
 
-		$this->assertSame(count($postfixes), count(array_unique($postfixes)));
+			$this->assertSame(count($postfixes), count(array_unique($postfixes)), $method);
+		}
 	}
 
 	/** @return array<string, FrontpageRoute> the routes of a method, by url */

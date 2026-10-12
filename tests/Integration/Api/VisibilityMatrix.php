@@ -115,6 +115,7 @@ final class VisibilityMatrix {
 		'TimelineApiController::timelines' => 'home',
 		'NavigationController::navigate' => 'app_first_page',
 		'NavigationController::timeline' => 'app_first_page',
+		'NavigationController::personal' => 'app_first_page',
 		'TimelineApiController::tag' => 'tag',
 		'ListController::timeline' => 'list',
 		'ApiController::searchV2' => 'search_statuses',

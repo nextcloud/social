@@ -148,7 +148,7 @@ class SocialFollowRequestsWidgetTest extends TestCase {
 		$carol->method('getAccount')->willReturn('carol@remote.example');
 		$this->followService->method('getPendingRequests')->willReturn([$bob, $carol]);
 		$this->urlGenerator->method('linkToRoute')
-			->with('social.navigation.navigatefollowrequests')
+			->with('social.navigation.personalfollowrequests')
 			->willReturn('/apps/social/follow_requests');
 
 		$items = $this->widget->getItemsV2('alice');

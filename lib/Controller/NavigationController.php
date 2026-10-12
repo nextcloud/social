@@ -40,6 +40,7 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\FileDisplayResponse;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -60,6 +61,12 @@ use Psr\Log\LoggerInterface;
 class NavigationController extends Controller {
 	/** How many posts the page is handed before it asks for any. */
 	private const FIRST_PAGE = 15;
+
+	/**
+	 * The timelines under `/timeline/` that are the reader's own: there is
+	 * nothing in them for somebody who is not signed in.
+	 */
+	private const SIGNED_IN_TIMELINES = ['notifications', 'direct', 'favourites', 'bookmarks', 'list', 'interests'];
 
 	use TArrayTools;
 	use TNCDataResponse;
@@ -109,24 +116,17 @@ class NavigationController extends Controller {
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[PublicPage]
-	// The client-side router owns `/follow_requests`, `/blocked`, `/discover`,
-	// `/migration`, `/statistics`, `/settings`, `/search`, `/shorts` and
-	// `/switch`; the server has to answer them too, or reloading or bookmarking
-	// one of those pages is a 404 — and a page nobody can link to is one
-	// nobody can be sent.
+	// The client-side router owns `/discover`, `/search` and `/shorts`; the
+	// server has to answer them too, or reloading or bookmarking one of those
+	// pages is a 404 — and a page nobody can link to is one nobody can be
+	// sent. The pages that are the reader's own are personal()'s.
 	// `postfix` keeps the route names apart: a route is keyed by controller,
 	// method and postfix, so several routes on one method without it would
 	// leave only the last. The profile and post pages, `/@{username}` and
 	// `/@{username}/{token}`, are ActivityPub urls first and are answered by
 	// `ActivityPubController`, which hands a browser to `SocialPubController`.
 	#[FrontpageRoute(verb: 'GET', url: '/')]
-	#[FrontpageRoute(verb: 'GET', url: '/follow_requests', postfix: 'followrequests')]
-	#[FrontpageRoute(verb: 'GET', url: '/blocked', postfix: 'blocked')]
 	#[FrontpageRoute(verb: 'GET', url: '/discover', postfix: 'discover')]
-	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
-	#[FrontpageRoute(verb: 'GET', url: '/switch', postfix: 'switch')]
-	#[FrontpageRoute(verb: 'GET', url: '/statistics', postfix: 'statistics')]
-	#[FrontpageRoute(verb: 'GET', url: '/settings', postfix: 'settings')]
 	#[FrontpageRoute(verb: 'GET', url: '/shorts', postfix: 'shorts')]
 	// the Shorts stack's earlier address, kept for old links and bookmarks;
 	// the client router sends it on to `/shorts`
@@ -308,6 +308,28 @@ class NavigationController extends Controller {
 	}
 
 	/**
+	 * The pages that are the reader's own: their settings, their statistics,
+	 * moving their account, the people asking to follow them and the ones they
+	 * blocked. The same app page as navigate(), for a signed-in reader only —
+	 * not a public page, so Nextcloud sends anybody else to its login, with
+	 * this address to come back to.
+	 *
+	 * @throws UrlCloudException
+	 * @throws SocialAppConfigException
+	 */
+	#[NoCSRFRequired]
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/settings', postfix: 'settings')]
+	#[FrontpageRoute(verb: 'GET', url: '/statistics', postfix: 'statistics')]
+	#[FrontpageRoute(verb: 'GET', url: '/migration', postfix: 'migration')]
+	#[FrontpageRoute(verb: 'GET', url: '/switch', postfix: 'switch')]
+	#[FrontpageRoute(verb: 'GET', url: '/follow_requests', postfix: 'followrequests')]
+	#[FrontpageRoute(verb: 'GET', url: '/blocked', postfix: 'blocked')]
+	public function personal(): TemplateResponse {
+		return $this->navigate();
+	}
+
+	/**
 	 * The reader's own account, handed to the page instead of waited for.
 	 *
 	 * The app used to ask for it from `beforeMount()`, so every load spent a
@@ -439,7 +461,15 @@ class NavigationController extends Controller {
 	#[NoAdminRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/timeline/{path}', requirements: ['path' => '.+'], defaults: ['path' => ''])]
-	public function timeline(string $path = ''): TemplateResponse {
+	public function timeline(string $path = ''): TemplateResponse|RedirectResponse {
+		// one route for every timeline, so the ones that are the reader's own
+		// send a visitor to the login here rather than by the route
+		if ($this->userId === null && in_array(explode('/', trim($path, '/'))[0], self::SIGNED_IN_TIMELINES, true)) {
+			return new RedirectResponse($this->urlGenerator->linkToRoute('core.login.showLoginForm', [
+				'redirect_url' => $this->request->getRequestUri(),
+			]));
+		}
+
 		return $this->navigate();
 	}
 

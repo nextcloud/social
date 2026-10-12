@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.235
+**App version:** 0.26.236
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -144,7 +144,7 @@ before it — or by one in another controller, whose order is not defined.
 A route's name is derived, not written: the controller's short name without the
 `Controller` suffix, then `#`, then the method. Two routes on one method
 therefore share a name unless one carries a `postfix`, and the later one wins —
-which is what `NavigationController::navigate()` uses `postfix` for.
+which is what `NavigationController::navigate()` and `personal()` use `postfix` for.
 
 ---
 
