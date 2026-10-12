@@ -178,7 +178,7 @@ to stop.
   counts what the server's own counter counts.
 - `Api/QueryBudgetTest` — query budgets per page of the client API, driven
   through the controllers as a signed-in reader (`Api/ReaderTestCase`): home (fast
-  and join path), public, notifications, an account's statuses, a status and
+  and join path), public, notifications, an account's statuses and its boosts, a status and
   its thread, search, and a byte range of a media file. A page of twenty must
   cost what a page of five costs (no query per post) and stay within today's
   count plus two.
@@ -191,6 +191,13 @@ to stop.
   status in `reblog`, decorated for the reader as on a timeline, where the
   reader's favourite now shows on the boosted status too; a boost of a status
   the reader may not see is a 404.
+- `Api/AccountBoostsTest` — `GET /api/v1/accounts/{id}/statuses` lists the
+  account's boosts beside its posts, each with the boosted post in `reblog`,
+  to a follower, the boosted author, the booster and nobody; an account whose
+  only status is a boost is not an empty list; `exclude_reblogs` and a page
+  narrowed to media leave the boosts out; a boost of a post the reader may
+  not see is left out; and paging two at a time on `max_id` walks boosts and
+  posts together, each once.
 - `Api/OnlyNewsListTimelineTest` — `only_news` on a list timeline: three
   posts that link somewhere under forty newer text posts are the page of
   twenty, newest first, and paging two at a time keeps `only_news` in `Link`.

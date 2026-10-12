@@ -36,16 +36,18 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	}
 
 	/**
-	 * Limit to the types that are statuses to a reader: Notes and polls.
+	 * Limit to the types that are statuses to a reader: Notes and polls, and
+	 * with `$withBoosts` the boosts, which a reader is shown as statuses too.
 	 */
-	public function limitToStatusTypes(string $alias = ''): self {
+	public function limitToStatusTypes(string $alias = '', bool $withBoosts = false): self {
 		$pf = ($alias === '') ? $this->getDefaultSelectAlias() . '.' : $alias . '.';
+		$types = [Note::TYPE, Question::TYPE];
+		if ($withBoosts) {
+			$types[] = Announce::TYPE;
+		}
 		$this->andWhere($this->expr()->in(
 			$pf . 'type',
-			$this->createNamedParameter(
-				[Note::TYPE, Question::TYPE],
-				IQueryBuilder::PARAM_STR_ARRAY
-			)
+			$this->createNamedParameter($types, IQueryBuilder::PARAM_STR_ARRAY)
 		));
 
 		return $this;

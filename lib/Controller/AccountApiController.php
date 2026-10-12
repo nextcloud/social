@@ -16,8 +16,10 @@ use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\UploadFailedException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\Options\ProbeOptions;
@@ -761,6 +763,13 @@ class AccountApiController extends MastodonApiController {
 	}
 
 	/**
+	 * The statuses of an account: its posts and, as on Mastodon, its boosts,
+	 * each a status whose `reblog` is the post it repeats.
+	 *
+	 * Boosts are left out with `exclude_reblogs`, and wherever Mastodon's own
+	 * query cannot find one: a page narrowed to media, a kind or a hashtag
+	 * asks about the status itself, and a boost carries no attachments and no
+	 * tags of its own. A boost of a post the reader may not see is left out.
 	 *
 	 * @param string $account
 	 * @param int $limit
@@ -785,6 +794,7 @@ class AccountApiController extends MastodonApiController {
 		bool $only_media = false,
 		string $media_type = '',
 		bool $only_short = false,
+		bool $exclude_reblogs = false,
 	): DataResponse {
 		try {
 			$this->initViewer(false);
@@ -823,14 +833,26 @@ class AccountApiController extends MastodonApiController {
 				->setOnlyMedia($only_media)
 				->setMediaType($media_type)
 				->setOnlyShort($only_short);
+			$options->setWithBoosts(
+				!$exclude_reblogs
+				&& !$options->isOnlyMedia() && !$options->isOnlyVideo() && !$options->isOnlyShort()
+				&& !$options->isOnlyNews() && $options->getMediaType() === ''
+				&& (string)$this->request->getParam('tagged', '') === ''
+			);
 
 			$posts = $this->streamService->getTimeline($options);
 			$this->pinService->markPinned($posts, $local->getId());
+			// the post a boost repeats is read only when the reader may see it
+			$shown = array_values(array_filter(
+				$posts,
+				static fn (mixed $post): bool => !($post instanceof Announce) || $post->getObject() instanceof Stream
+			));
 
 			return $this->paged(
-				$this->filterService->apply($posts, Filter::CONTEXT_ACCOUNT, $this->viewer),
+				$this->filterService->apply($shown, Filter::CONTEXT_ACCOUNT, $this->viewer),
 				$options->getLimit(),
-				$posts
+				$posts,
+				$this->streamService->lastTimelineRowCount()
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);

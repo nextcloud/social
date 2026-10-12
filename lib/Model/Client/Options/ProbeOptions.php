@@ -63,6 +63,7 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	private array $types = [];
 	private array $excludeTypes = [];
 	private string $accountId = '';
+	private bool $withBoosts = false;
 
 	public function __construct(?IRequest $request = null) {
 		if ($request !== null) {
@@ -406,6 +407,22 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	 */
 	public function getAccountId(): string {
 		return $this->accountId;
+	}
+
+	/**
+	 * Whether an account's timeline lists its boosts beside its posts, as
+	 * Mastodon's `accounts/{id}/statuses` does. Off unless the caller asks:
+	 * every other reader of the account probe — the outbox, an export, the
+	 * statistics — is about what the account wrote.
+	 */
+	public function isWithBoosts(): bool {
+		return $this->withBoosts;
+	}
+
+	public function setWithBoosts(bool $withBoosts): self {
+		$this->withBoosts = $withBoosts;
+
+		return $this;
 	}
 
 	/**

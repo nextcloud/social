@@ -817,6 +817,11 @@ trait StreamTimelines {
 	 * reader behind it can match one post more than once and has to be
 	 * `DISTINCT`. The anonymous page matches only the public row and does not.
 	 *
+	 * With `withBoosts` the account's boosts are on the page too, by when they
+	 * were made, under the same rule: a boost is addressed like a post. Whether
+	 * the reader may see the post a boost repeats is decided where the rows
+	 * are read, which joins it only when they may.
+	 *
 	 * @return string[]
 	 */
 	protected function accountTimelineNids(ProbeOptions $options): array {
@@ -824,7 +829,7 @@ trait StreamTimelines {
 		$accountIsViewer = ($this->viewer !== null && $this->viewer->getId() === $actorId);
 		$page = $this->getStreamNidsSelectSql($this->viewer !== null);
 
-		$page->limitToStatusTypes();
+		$page->limitToStatusTypes('', $options->isWithBoosts());
 		$page->paginate($options);
 		$this->filterKind($page, $options);
 		$page->limitToAttributedTo($actorId, true);

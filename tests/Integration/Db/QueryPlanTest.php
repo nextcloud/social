@@ -495,9 +495,18 @@ class QueryPlanTest extends TestCase {
 		);
 	}
 
-	public function testAnAccountsStatusesAreReadThroughTheAuthorIndex(): void {
+	/** @return array<string, array{bool}> */
+	public static function accountPages(): array {
+		return [
+			'posts only, as the outbox and an export read it' => [false],
+			'posts and boosts, as accounts/{id}/statuses reads it' => [true],
+		];
+	}
+
+	#[DataProvider('accountPages')]
+	public function testAnAccountsStatusesAreReadThroughTheAuthorIndex(bool $withBoosts): void {
 		$query = $this->capture(
-			$this->timeline(ProbeOptions::ACCOUNT, ['setAccountId' => self::REMOTE . '/users/author0']),
+			$this->timeline(ProbeOptions::ACCOUNT, ['setAccountId' => self::REMOTE . '/users/author0', 'setWithBoosts' => $withBoosts]),
 			'/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/'
 		);
 

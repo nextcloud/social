@@ -341,6 +341,7 @@ own unified search. No external search engine to run.
 ![A profile](img/readme/profile.jpg)
 
 - **Posts, Photos and Videos** as three tabs, each one a question asked of the server.
+  Posts has the account's boosts among its posts, as on Mastodon.
 - **A banner, a bio and four metadata fields**, federated the way Mastodon does it and
   edited in **Edit profile** on your own profile.
 - **Verified links.** A profile field naming a web page gets the tick when that page
