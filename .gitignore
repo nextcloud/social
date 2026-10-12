@@ -26,6 +26,9 @@ RELEASE.md
 translationfiles/
 translationtool.phar
 specialVueFakeDummyForL10nScript.js
+# the pseudo-locale tests/e2e/pseudo-locale.mjs writes for the browser tests
+l10n/en_XA.js
+l10n/en_XA.json
 
 # test artefacts
 tests/.phpunit.result.cache

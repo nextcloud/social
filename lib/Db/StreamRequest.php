@@ -454,6 +454,10 @@ class StreamRequest extends StreamRequestBuilder {
 		}
 	}
 
+	/**
+	 * One post by its nid. Read as the viewer, a boost comes with the status
+	 * it boosts when the viewer may see that one too, as on a timeline.
+	 */
 	public function getStreamByNid(int|string $nid, bool $asViewer = true): Stream {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$qb->limitToNid($nid);
@@ -462,6 +466,7 @@ class StreamRequest extends StreamRequestBuilder {
 		if ($asViewer) {
 			$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
 			$qb->leftJoinStreamAction('sa');
+			$qb->leftJoinObjectStatus();
 		}
 
 		return $this->getStreamFromRequest($qb);
@@ -966,14 +971,19 @@ class StreamRequest extends StreamRequestBuilder {
 	 * window is found however long ago it was published and however many
 	 * other polls there are, and only those rows are read.
 	 *
+	 * @param int|null $now the end of the window; the wall clock when not given
+	 *
 	 * @return Question[]
 	 */
-	public function getPollsClosedSince(int $since, int $limit = 50): array {
+	public function getPollsClosedSince(int $since, int $limit = 50, ?int $now = null): array {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$expr = $qb->expr();
 		$qb->andWhere($expr->gt('s.poll_ends_at', $qb->createNamedParameter($since, IQueryBuilder::PARAM_INT)));
-		$qb->andWhere($expr->lte('s.poll_ends_at', $qb->createNamedParameter(time(), IQueryBuilder::PARAM_INT)));
+		$qb->andWhere($expr->lte('s.poll_ends_at', $qb->createNamedParameter($now ?? time(), IQueryBuilder::PARAM_INT)));
 		$qb->limitToType(Question::TYPE);
+		// the stream select is DISTINCT, and MySQL and PostgreSQL order a
+		// DISTINCT read only by what it selects
+		$qb->addSelect('s.poll_ends_at');
 		$qb->orderBy('s.poll_ends_at', 'asc');
 		$qb->addOrderBy('s.nid', 'asc');
 		$qb->setMaxResults(max(1, $limit));

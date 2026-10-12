@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Tools\Exceptions\DateTimeException;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
 
 class HashtagService {
@@ -36,6 +37,7 @@ class HashtagService {
 		private StreamRequest $streamRequest,
 		private IURLGenerator $urlGenerator,
 		private TrendReviewService $trendReviewService,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 	}
 
@@ -63,7 +65,7 @@ class HashtagService {
 		$current = $this->hashtagsRequest->getWithAnyTrend();
 
 		// all five windows in one read of the widest: they are the same rows
-		$time = time();
+		$time = $this->timeFactory?->getTime() ?? time();
 		$hashtags = $this->streamRequest->countHashtagsInWindows([
 			'1h' => $time - self::TREND_1H,
 			'12h' => $time - self::TREND_12H,

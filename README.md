@@ -982,6 +982,30 @@ E2E_WEBROOT=/nextcloud E2E_PRETTY_URLS=1 php -S localhost:8080 -t <dir with next
     apps/social/tests/e2e/server/router.php
 ```
 
+`accessibility.spec.mjs` scans every page of the app with
+[axe-core](https://github.com/dequelabs/axe-core) and fails on a serious or
+critical WCAG A/AA violation that `tests/e2e/a11y-baseline.json` does not
+already list; a listed one that is gone is reported in the log so the
+baseline can shrink. After fixing some, or to accept a change, rewrite the
+baseline from what the pages show now:
+
+```
+A11Y_UPDATE_BASELINE=1 E2E_BASE_URL=… E2E_USER=… E2E_PASSWORD=… npm run test:e2e -- accessibility.spec.mjs
+```
+
+`pseudo-locale.spec.mjs` reads the app in `en_XA`, a pseudo-locale that
+`tests/e2e/pseudo-locale.mjs` writes from the strings in the source: each one
+accented, a third longer and in brackets (`[Šéţţîñĝš ~]`). It fails on plain
+English inside the app, which is text that never went through `t()` or `n()`,
+and on pages that no longer fit, on a desktop and on a phone. The workflow runs
+it weekly and on demand; by hand:
+
+```
+node tests/e2e/pseudo-locale.mjs        # writes l10n/en_XA.json and .js
+occ user:setting alice core lang en_XA
+E2E_PSEUDO_LOCALE=1 E2E_BASE_URL=… E2E_USER=alice E2E_PASSWORD=… npm run test:e2e -- pseudo-locale.spec.mjs
+```
+
 ### What CI runs, and when
 
 A pull request runs a fast core, about 30 jobs and 40 runner minutes, so

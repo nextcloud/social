@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Helper;
 
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
 use Psr\Container\ContainerInterface;
@@ -39,8 +40,8 @@ class TestContainer implements ContainerInterface {
 
 	/**
 	 * Back to the defaults: a silent logger, a session with nobody in it, a
-	 * URL generator whose addresses follow from what was asked, and a php.ini
-	 * with no upload limits.
+	 * URL generator whose addresses follow from what was asked, a php.ini
+	 * with no upload limits and the wall clock.
 	 *
 	 * The session is a default rather than something each test registers
 	 * because `Response::getHeaders()` resolves one on every render from
@@ -52,6 +53,7 @@ class TestContainer implements ContainerInterface {
 			IUserSession::class => new AnonymousUserSession(),
 			IURLGenerator::class => new PredictableUrlGenerator(),
 			PhpIni::SERVICE => new PhpIni(),
+			ITimeFactory::class => new SystemClock(),
 		];
 	}
 

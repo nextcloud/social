@@ -105,6 +105,7 @@ class ActorsRequestBuilder extends CoreRequestBuilder {
 		$actor = new Person();
 		$actor->importFromDatabase($data);
 		$actor->setPrivateKey($this->keyCipher->open($actor->getPrivateKey()));
+		$actor->setStoredIdPrim((string)($data['id_prim'] ?? ''));
 		$actor->setId($root . '@' . $actor->getPreferredUsername());
 		// The type follows the `bot` flag rather than being fixed here: an
 		// account marked automated is served as a `Service`, and that is the

@@ -36,6 +36,9 @@ final class JrdResponse implements IResponse {
 	/** @var mixed[] */
 	private array $links = [];
 
+	/** @var array<string, string> */
+	private array $headers = [];
+
 	/**
 	 * @param string $subject https://tools.ietf.org/html/rfc7033#section-4.4.1
 	 *
@@ -44,6 +47,13 @@ final class JrdResponse implements IResponse {
 	public function __construct(string $subject = '', int $httpCode = Http::STATUS_OK) {
 		$this->subject = $subject;
 		$this->httpCode = $httpCode;
+	}
+
+	/** A header the HTTP answer carries. */
+	public function addHeader(string $name, string $value): self {
+		$this->headers[$name] = $value;
+
+		return $this;
 	}
 
 	/**
@@ -157,7 +167,12 @@ final class JrdResponse implements IResponse {
 			]
 		);
 
-		return (empty($data)) ? new DataResponse('', $this->httpCode) : new JSONResponse($data, $this->httpCode);
+		$response = (empty($data)) ? new DataResponse('', $this->httpCode) : new JSONResponse($data, $this->httpCode);
+		foreach ($this->headers as $name => $value) {
+			$response->addHeader($name, $value);
+		}
+
+		return $response;
 	}
 
 	/**

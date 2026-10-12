@@ -13,6 +13,7 @@ use OCA\Social\Db\TrendsRequest;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\TrendingLink;
 use OCA\Social\Model\StreamCard;
+use OCP\AppFramework\Utility\ITimeFactory;
 
 /**
  * Trending statuses and trending links.
@@ -46,6 +47,7 @@ class TrendService {
 	public function __construct(
 		private TrendReviewService $trendReviewService,
 		private TrendsRequest $trendsRequest,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 	}
 
@@ -170,7 +172,9 @@ class TrendService {
 	 * `HashtagService::getTrending()` does with the same parameter.
 	 */
 	private function since(string $period): int {
-		return time() - (self::WINDOWS[$period] ?? self::WINDOWS[HashtagService::PERIOD_DEFAULT]);
+		$now = $this->timeFactory?->getTime() ?? time();
+
+		return $now - (self::WINDOWS[$period] ?? self::WINDOWS[HashtagService::PERIOD_DEFAULT]);
 	}
 
 	private function limit(int $limit): int {

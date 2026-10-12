@@ -269,6 +269,7 @@ class SocialMigratorTest extends TestCase {
 	/** The actor exists and every collection around it is empty. */
 	private function anAccountWithNothingInIt(): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->accountService->method('getCachedLocalActor')->willReturn($this->alice());
 		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
 		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
 		$this->actorRelationRequest->method('getByActor')->willReturn([]);
@@ -305,14 +306,34 @@ class SocialMigratorTest extends TestCase {
 		$this->assertSame([
 			'social/actor.json',
 			'social/blocked_accounts.csv',
+			'social/blocked_domains.csv',
 			'social/bookmarks.csv',
 			'social/followers.csv',
 			'social/following_accounts.csv',
 			'social/interests.json',
 			'social/likes.csv',
+			'social/lists.csv',
 			'social/muted_accounts.csv',
 			'social/outbox.json',
 		], $this->export()->paths());
+	}
+
+	/**
+	 * The lists and the blocked servers are the files the Migration page's
+	 * one-file downloads write, so the archive holds what those hold.
+	 */
+	public function testTheListsAndTheBlockedDomainsAreTheFilesOfTheOneFileDownloads(): void {
+		$this->anAccountWithNothingInIt();
+		$this->migrationService->method('exportCsv')
+			->willReturnCallback(static fn (string $userId, string $kind): array => match ($kind) {
+				'lists' => ['lists.csv', "Friends,carol@remote.example\n"],
+				'domain_blocks' => ['blocked_domains.csv', "spam.example\n"],
+			});
+
+		$archive = $this->export();
+
+		$this->assertSame("Friends,carol@remote.example\n", $archive->contents('social/lists.csv'));
+		$this->assertSame("spam.example\n", $archive->contents('social/blocked_domains.csv'));
 	}
 
 	public function testTheActorFileCarriesTheIdentityAndTheProfile(): void {
@@ -648,10 +669,18 @@ class SocialMigratorTest extends TestCase {
 	 * the Nextcloud account's — core's migrator carries that one — so it is
 	 * not copied a second time.
 	 */
+	/**
+	 * The banner is written to the cached copy of the account, which is what
+	 * every reader of the profile is served; the account's own row never
+	 * holds it, so an export that read only that row carried no banner.
+	 */
 	public function testTheProfileBannerTravelsAndTheNextcloudAvatarDoesNot(): void {
-		$alice = $this->alice();
-		$alice->setHeader(self::MEDIA);
-		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$stored = $this->alice();
+		$stored->setAvatar('')->setHeader('');
+		$cached = $this->alice();
+		$cached->setHeader(self::MEDIA);
+		$this->accountService->method('getActorFromUserId')->willReturn($stored);
+		$this->accountService->method('getCachedLocalActor')->with('alice')->willReturn($cached);
 		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
 		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
 		$this->actorRelationRequest->method('getByActor')->willReturn([]);
@@ -663,6 +692,7 @@ class SocialMigratorTest extends TestCase {
 		$this->assertSame('BANNER', $archive->contents('social/media_attachments/header.jpg'));
 		$actor = json_decode($archive->contents('social/actor.json'), true, 512, JSON_THROW_ON_ERROR);
 		$this->assertSame('media_attachments/header.jpg', $actor['headerFile']);
+		$this->assertSame(self::MEDIA, $actor['header']);
 		$this->assertArrayNotHasKey(
 			'avatarFile',
 			$actor,
@@ -882,6 +912,65 @@ class SocialMigratorTest extends TestCase {
 		$this->migrationService->expects($this->never())->method('importFollows');
 
 		$this->importing($archive);
+	}
+
+	/**
+	 * The lists after the follows, because a list holds only accounts this
+	 * one follows, and both through the imports the Migration page runs.
+	 */
+	public function testTheListsAndTheBlockedDomainsAreRestoredAfterTheFollows(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile());
+			$a->put('social/following_accounts.csv', "carol@remote.example\n");
+			$a->put('social/lists.csv', "Friends,carol@remote.example\n");
+			$a->put('social/blocked_domains.csv', "spam.example\n");
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$calls = [];
+		$this->migrationService->method('importFollows')
+			->willReturnCallback(function (string $userId, string $csv) use (&$calls): array {
+				$calls[] = ['follows', $userId, $csv];
+
+				return ['followed' => 1, 'skipped' => 0, 'failed' => []];
+			});
+		$this->migrationService->method('importLists')
+			->willReturnCallback(function (string $userId, string $csv) use (&$calls): array {
+				$calls[] = ['lists', $userId, $csv];
+
+				return ['lists' => 1, 'added' => 1, 'skipped' => 0, 'failed' => []];
+			});
+		$this->migrationService->method('importDomainBlocks')
+			->willReturnCallback(function (string $userId, string $csv) use (&$calls): array {
+				$calls[] = ['domains', $userId, $csv];
+
+				return ['blocked' => 1, 'skipped' => 0, 'failed' => []];
+			});
+
+		$this->importing($archive);
+
+		$this->assertSame([
+			['follows', 'alice', "carol@remote.example\n"],
+			['lists', 'alice', "Friends,carol@remote.example\n"],
+			['domains', 'alice', "spam.example\n"],
+		], $calls);
+		$this->assertStringContainsString('Restored 1 list(s) with 1 member(s)', $this->output->text());
+		$this->assertStringContainsString('Restored 1 blocked server(s)', $this->output->text());
+	}
+
+	public function testAListImportThatFailsDoesNotStopTheRestOfTheImport(): void {
+		$archive = $this->archiveOf(function (MigrationArchive $a): void {
+			$a->put('social/actor.json', $this->actorFile());
+			$a->put('social/lists.csv', "Friends,carol@remote.example\n");
+			$a->put('social/bookmarks.csv', "https://remote.example/1\n");
+		});
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->migrationService->method('importLists')->willThrowException(new \RuntimeException('database is gone'));
+		$this->streamRequest->expects($this->once())->method('getStreamById')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->importing($archive);
+
+		$this->assertStringContainsString('Could not import the lists: database is gone', $this->output->text());
 	}
 
 	public function testBlocksAndMutesAreRestoredLocallyWithoutTellingAnybody(): void {
@@ -1345,6 +1434,8 @@ class SocialMigratorTest extends TestCase {
 		$this->cacheActorService->method('getFromId')->willReturn($this->person(self::DAVE, 'dave@other.example'));
 		$this->cacheActorService->method('getFromAccount')->willReturn($this->person(self::DAVE, 'dave@other.example'));
 		$this->streamRequest->method('getTimeline')->willReturn([]);
+		$this->migrationService->method('importLists')->willReturn(['lists' => 0, 'added' => 0, 'skipped' => 0, 'failed' => []]);
+		$this->migrationService->method('importDomainBlocks')->willReturn(['blocked' => 0, 'skipped' => 0, 'failed' => []]);
 
 		$archive = $this->export();
 		$archive->setVersion('social', $this->migrator->getVersion());

@@ -462,6 +462,10 @@ class ListsRequest extends ListsRequestBuilder {
 		} elseif ($options->isOnlyMedia()) {
 			$page->limitToMedia();
 		}
+		// independent of the media filters, as on every other timeline
+		if ($options->isOnlyNews()) {
+			$page->limitToNews();
+		}
 		$page->limitToViewer('sd', 'f', false);
 		// as on the home timeline: an account whose boosts the reader turned
 		// off is here to be read, not to be a relay

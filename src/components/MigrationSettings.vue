@@ -501,6 +501,7 @@
 						{{ t('social', 'This cannot be taken back: it federates to every server that knows you. You will be asked for your password.') }}
 					</p>
 					<NcButton
+						class="migration__move-out-button"
 						variant="error"
 						:disabled="moveOutBusy || moveTarget.trim() === '' || moveConfirm.trim() === ''"
 						@click="moveOut">
@@ -1496,6 +1497,17 @@ export default {
 .migration__move-out-field {
 	flex: 1;
 	min-width: 220px;
+}
+
+/* the longest label on the page: a button sizes itself to its text and
+   never wraps it, so on a phone, or in a longer language, it ran past the
+   card and the page scrolled sideways */
+.migration__move-out-button {
+	max-width: 100%;
+
+	:deep(.button-vue__text) {
+		white-space: normal;
+	}
 }
 
 .migration__imports {

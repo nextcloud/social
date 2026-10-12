@@ -229,7 +229,9 @@ class WebfingerHandler implements IHandler {
 	 * @return IResponse|null
 	 */
 	private function handleNodeInfo(): ?IResponse {
+		// read by browser clients of any origin, as the documents it links to
 		$response = new JrdResponse();
+		$response->addHeader('Access-Control-Allow-Origin', '*');
 
 		// Every schema the controller serves, oldest first. Oldest first on
 		// purpose: a consumer that reads this properly takes the highest

@@ -805,6 +805,8 @@ class AccountServiceTest extends TestCase {
 				// always another page, so only the deadline can stop it
 				$actor = $this->alice();
 				$actor->setId('https://cloud.example/@a' . count($pages));
+				// stored under the id it was made with, before the social URL changed
+				$actor->setStoredIdPrim(md5('https://old.example/@a' . count($pages)));
 
 				return [$actor];
 			}
@@ -818,9 +820,9 @@ class AccountServiceTest extends TestCase {
 		$this->assertCount(1, $pages, 'the pass stopped at its deadline');
 		$this->assertSame('', $pages[0], 'and it began where the last one left off');
 		$this->assertSame(
-			md5('https://cloud.example/@a1'),
+			md5('https://old.example/@a1'),
 			$this->appValues[ConfigService::SOCIAL_LOCAL_ACTOR_CURSOR] ?? null,
-			'the cursor is where the next pass carries on from'
+			'the cursor is where the next pass carries on from: the row\'s own prim'
 		);
 	}
 

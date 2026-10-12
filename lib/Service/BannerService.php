@@ -59,6 +59,9 @@ class BannerService {
 		// the actor document, which every server that has heard of this account
 		// may read
 		$image->setPublic(true);
+		// hung off the account, so that deleting the account takes it along
+		// with the rest of what hangs off it (`ActorCascadeService`)
+		$image->setParentId($actor->getId());
 
 		$this->cacheDocumentService->saveFromTempToCache($image, $tmpPath);
 		$image->setUrl($image->getMediaUrl($this->urlGenerator, $image->getMimeType()));
@@ -72,7 +75,7 @@ class BannerService {
 		$this->actorService->cacheLocalActor($cached);
 
 		$this->forget($previous, $actor->getPreferredUsername());
-		$this->announce($cached);
+		$this->announce($actor, $cached);
 		$this->accountService->queueBlueskyProfile($actor);
 
 		return $image;
@@ -107,7 +110,7 @@ class BannerService {
 
 		// an actor whose header is gone here but not on the servers that follow
 		// it is a profile that still has a banner everywhere else
-		$this->announce($cached);
+		$this->announce($actor, $cached);
 		$this->accountService->queueBlueskyProfile($actor);
 	}
 
@@ -142,14 +145,17 @@ class BannerService {
 	 * the failure is worth a line in the log — but not worth losing the banner
 	 * over: it is stored either way, and a remote server picks it up the next
 	 * time it refreshes the actor.
+	 *
+	 * Signed by the account's own row, which holds its key; the cached copy
+	 * that is sent holds none.
 	 */
-	private function announce(Person $cached): void {
+	private function announce(Person $actor, Person $cached): void {
 		try {
 			$update = clone $cached;
 			$update->addInstancePath(new InstancePath(
 				$cached->getId(), InstancePath::TYPE_FOLLOWERS, InstancePath::PRIORITY_LOW
 			));
-			$this->activityService->updateActivity($cached, $update);
+			$this->activityService->updateActivity($actor, $update);
 		} catch (\Exception $e) {
 			$this->logger->warning('could not federate a banner change', [
 				'actor' => $cached->getId(),

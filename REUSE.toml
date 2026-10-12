@@ -71,6 +71,14 @@ SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
+# The accessibility violations the browser tests already know of, written by
+# tests/e2e/accessibility.spec.mjs.
+path = "tests/e2e/a11y-baseline.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Nextcloud GmbH and Nextcloud contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
 # Public did:plc audit logs and DID documents of three organisation accounts,
 # fetched from plc.directory on 2026-10-09: directory data, signed by the
 # accounts' own keys, not authored here. See

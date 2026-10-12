@@ -172,3 +172,52 @@ export async function postStatus(api, status) {
 
 	return response.json()
 }
+
+/**
+ * Every page the sidebar leads to, and the account pages around them, each
+ * with an element it draws once it is there: the pages a check that walks
+ * the whole app walks. A post page needs a post, so it is not in here.
+ *
+ * @param {string} profile the handle whose profile page to include
+ * @return {{name: string, path: string, marker: string}[]}
+ */
+export function appPages(profile = OTHER_USER) {
+	return [
+		{ name: 'my-feed', path: '/timeline', marker: '.social__timeline' },
+		{ name: 'local', path: '/timeline/timeline', marker: '.social__timeline' },
+		{ name: 'global', path: '/timeline/federated', marker: '.social__timeline' },
+		{ name: 'photos', path: '/timeline/photos', marker: '.social__wrapper' },
+		{ name: 'videos', path: '/timeline/videos', marker: '.social__wrapper' },
+		{ name: 'shorts', path: '/shorts', marker: '.shorts' },
+		{ name: 'activities', path: '/timeline/notifications', marker: '.social__wrapper' },
+		{ name: 'direct-messages', path: '/timeline/direct', marker: '.direct-messages' },
+		{ name: 'discover', path: '/discover', marker: '.discover' },
+		{ name: 'profile', path: `/@${profile}`, marker: '.user-profile' },
+		{ name: 'follow-requests', path: '/follow_requests', marker: '.social__follow-requests' },
+		{ name: 'liked-posts', path: '/timeline/favourites', marker: '.social__wrapper' },
+		{ name: 'bookmarks', path: '/timeline/bookmarks', marker: '.social__wrapper' },
+		{ name: 'statistics', path: '/statistics', marker: '.stats' },
+		{ name: 'blocking', path: '/blocked', marker: '.social__blocked' },
+		{ name: 'migration', path: '/migration', marker: '.social__migration' },
+		{ name: 'settings', path: '/settings', marker: '.settings' },
+		{ name: 'search', path: '/search/alohasearch', marker: '.social__wrapper' },
+	]
+}
+
+/**
+ * Opens one of `appPages()` and waits until it has stopped loading: its
+ * marker drawn, the requests it made answered and no spinner left in the
+ * app's content, so what is checked next is the page and not its skeleton.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {{path: string, marker: string}} target
+ */
+export async function openAppPage(page, target) {
+	await openApp(page, target.path)
+	await expect(page.locator(target.marker).first(), `${target.path} drew its content`).toBeVisible()
+	// a page that polls never goes quiet for long; what it loaded first has
+	// arrived by then either way
+	await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+	await expect(page.locator('.social__pages .loading-icon, .social__pages .icon-loading'), `${target.path} finished loading`)
+		.toHaveCount(0, { timeout: 15_000 })
+}

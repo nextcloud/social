@@ -161,11 +161,15 @@ class ClientAuthRequest extends ClientRequestBuilder {
 		}
 	}
 
-	/** Keeps a token in use from ageing out, at most once a refresh window. */
-	public function touch(int $id): void {
+	/**
+	 * Keeps a token in use from ageing out, at most once a refresh window.
+	 *
+	 * @param int|null $now the moment of use; the wall clock when not given
+	 */
+	public function touch(int $id, ?int $now = null): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_CLIENT_AUTH)
-			->set('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
+			->set('last_update', $qb->createNamedParameter(new DateTime('@' . ($now ?? time())), IQueryBuilder::PARAM_DATE))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
 
 		$qb->executeStatement();
@@ -208,10 +212,13 @@ class ClientAuthRequest extends ClientRequestBuilder {
 	 * old sweep got wrong: it deleted the whole `social_client` row, so an
 	 * idle token took the app's registration with it and the client had to
 	 * register again.
+	 *
+	 * @param int|null $now the moment the TTL is counted back from; the wall
+	 *                      clock when not given
 	 */
-	public function deprecate(): void {
+	public function deprecate(?int $now = null): void {
 		$qb = $this->getQueryBuilder();
-		$date = new DateTime('@' . (time() - ClientService::TIME_TOKEN_TTL));
+		$date = new DateTime('@' . (($now ?? time()) - ClientService::TIME_TOKEN_TTL));
 
 		$qb->delete(self::TABLE_CLIENT_AUTH)
 			->where($qb->expr()->lt('last_update', $qb->createNamedParameter($date, IQueryBuilder::PARAM_DATE)));

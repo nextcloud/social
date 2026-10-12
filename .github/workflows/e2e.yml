@@ -17,6 +17,11 @@
 # proxy. tests/e2e/server/router.php gives PHP's built-in server the first
 # two, the way Nextcloud's .htaccess and an administrator's rewrites do;
 # Caddy in a container, with a certificate made for the run, gives the third.
+# They also read the app in the en_XA pseudo-locale on both top server
+# versions: tests/e2e/pseudo-locale.mjs writes it at test time (every string
+# accented, a third longer and bracketed), which shows text that skips t()
+# and layouts that only fit English. That leg runs its one spec in place of
+# the suite.
 
 name: Browser tests
 
@@ -35,7 +40,8 @@ on:
   schedule:
     # nightly, but on Wednesdays, when the weekly run below has every leg
     - cron: '33 2 * * 0,1,2,4,5,6'
-    # weekly: WEEKLY in the legs job names this one
+    # weekly, and by hand: the install shapes and the en_XA pseudo-locale
+    # (below); WEEKLY in the legs job names this one
     - cron: '27 4 * * 3'
 
 permissions:
@@ -83,7 +89,9 @@ jobs:
               {"server": "stable35", "db": "sqlite", "browser": "chromium", "webroot": "/nextcloud"},
               {"server": "stable35", "db": "sqlite", "browser": "chromium", "pretty": true},
               {"server": "stable35", "db": "sqlite", "browser": "chromium", "https": true},
-              {"server": "stable35", "db": "sqlite", "browser": "chromium", "webroot": "/nextcloud", "pretty": true, "https": true}
+              {"server": "stable35", "db": "sqlite", "browser": "chromium", "webroot": "/nextcloud", "pretty": true, "https": true},
+              {"server": "stable35", "db": "sqlite", "browser": "chromium", "locale": "en_XA"},
+              {"server": "master", "db": "sqlite", "browser": "chromium", "locale": "en_XA"}
             ]')
           fi
           echo "matrix=$(echo "$legs" | jq -c '{include: .}')" | tee -a "$GITHUB_OUTPUT"
@@ -99,7 +107,8 @@ jobs:
     name: >-
       Playwright against Nextcloud ${{ matrix.server }} on ${{ matrix.db }} in ${{ matrix.browser }}${{
       matrix.webroot && format(', under {0}', matrix.webroot) || '' }}${{
-      matrix.pretty && ', pretty URLs' || '' }}${{ matrix.https && ', HTTPS' || '' }}
+      matrix.pretty && ', pretty URLs' || '' }}${{ matrix.https && ', HTTPS' || '' }}${{
+      matrix.locale && format(', in {0}', matrix.locale) || '' }}
 
     env:
       E2E_WEBROOT: ${{ matrix.webroot }}
@@ -151,6 +160,10 @@ jobs:
           ini-file: development
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install ffmpeg
+        # shorts.spec.mjs makes its videos with ffmpeg, and the server measures them with ffprobe
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
 
       - name: Start PostgreSQL
         # the image phpunit-pgsql.yml uses
@@ -298,7 +311,14 @@ jobs:
           npm ci
           npx playwright install --with-deps ${{ matrix.browser }}
 
+      - name: Install the pseudo-locale and make it the test account's language
+        if: matrix.locale == 'en_XA'
+        run: |
+          node apps/${{ env.APP_NAME }}/tests/e2e/pseudo-locale.mjs
+          ./occ user:setting bob core lang en_XA
+
       - name: Browser tests
+        if: matrix.locale != 'en_XA'
         working-directory: apps/${{ env.APP_NAME }}
         env:
           E2E_IGNORE_HTTPS_ERRORS: ${{ matrix.https && '1' || '' }}
@@ -313,6 +333,15 @@ jobs:
           # another engine runs the smoke spec only (playwright.config.mjs)
           E2E_BROWSERS: ${{ matrix.browser != 'chromium' && matrix.browser || '' }}
         run: npm run test:e2e -- --project=${{ matrix.browser }}
+
+      - name: Browser tests in the pseudo-locale
+        if: matrix.locale == 'en_XA'
+        working-directory: apps/${{ env.APP_NAME }}
+        env:
+          E2E_USER: bob
+          E2E_PASSWORD: Browser-Test-2026!
+          E2E_PSEUDO_LOCALE: '1'
+        run: npm run test:e2e -- pseudo-locale.spec.mjs
 
       - name: Keep the report when something failed
         if: failure()

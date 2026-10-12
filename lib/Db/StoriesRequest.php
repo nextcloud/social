@@ -12,9 +12,15 @@ namespace OCA\Social\Db;
 use DateTime;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\Client\Story;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Traits\TArrayTools;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
+use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
 
 /**
  * Stories, and who has seen them.
@@ -29,6 +35,17 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  */
 class StoriesRequest extends CoreRequestBuilder {
 	use TArrayTools;
+
+	public function __construct(
+		IDBConnection $connection,
+		LoggerInterface $logger,
+		IURLGenerator $urlGenerator,
+		ConfigService $configService,
+		MiscService $miscService,
+		private ?ITimeFactory $timeFactory = null,
+	) {
+		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
+	}
 
 	private function getStoriesInsertSql(): SocialQueryBuilder {
 		$qb = $this->getQueryBuilder();
@@ -82,7 +99,7 @@ class StoriesRequest extends CoreRequestBuilder {
 	 * hold rather than about how a row is written.
 	 */
 	public function save(Story $story): Story {
-		$now = new DateTime('@' . (($story->getCreation() > 0) ? $story->getCreation() : time()));
+		$now = ($story->getCreation() > 0) ? new DateTime('@' . $story->getCreation()) : $this->now();
 		$expires = new DateTime('@' . (
 			($story->getExpiresAt() > 0) ? $story->getExpiresAt() : $now->getTimestamp() + Story::LIFETIME
 		));
@@ -229,7 +246,7 @@ class StoriesRequest extends CoreRequestBuilder {
 		$qb->selectAlias($qb->func()->count('*'), 'live')
 			->from(self::TABLE_STORIES, 'st')
 			->where($qb->expr()->eq('st.actor_id_prim', $qb->createNamedParameter(md5($actorId))))
-			->andWhere($qb->expr()->gt('st.expires_at', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)));
+			->andWhere($qb->expr()->gt('st.expires_at', $qb->createNamedParameter($this->now(), IQueryBuilder::PARAM_DATE)));
 
 		$cursor = $qb->executeQuery();
 		$data = $cursor->fetch();
@@ -295,7 +312,7 @@ class StoriesRequest extends CoreRequestBuilder {
 	public function getExpired(int $limit = 500): array {
 		$qb = $this->getStoriesSelectSql();
 		$qb->andWhere(
-			$qb->expr()->lte('st.expires_at', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
+			$qb->expr()->lte('st.expires_at', $qb->createNamedParameter($this->now(), IQueryBuilder::PARAM_DATE))
 		);
 		$qb->setMaxResults($limit);
 
@@ -332,7 +349,7 @@ class StoriesRequest extends CoreRequestBuilder {
 		$qb->insert(self::TABLE_STORY_VIEWS)
 			->setValue('story_id', $qb->createNamedParameter($storyId))
 			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($viewerId)))
-			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+			->setValue('creation', $qb->createNamedParameter($this->now(), IQueryBuilder::PARAM_DATE));
 
 		try {
 			$qb->executeStatement();
@@ -434,7 +451,12 @@ class StoriesRequest extends CoreRequestBuilder {
 	/** The filter every read carries: a story whose day is up is not there. */
 	private function limitToLive(SocialQueryBuilder $qb): void {
 		$qb->andWhere(
-			$qb->expr()->gt('st.expires_at', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
+			$qb->expr()->gt('st.expires_at', $qb->createNamedParameter($this->now(), IQueryBuilder::PARAM_DATE))
 		);
+	}
+
+	/** The moment of the read or write, as the columns are compared and written in. */
+	private function now(): DateTime {
+		return new DateTime('@' . ($this->timeFactory?->getTime() ?? time()));
 	}
 }

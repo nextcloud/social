@@ -22,6 +22,7 @@ use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\GroupListService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\MediaUsageService;
 use OCA\Social\Service\PollService;
 use OCA\Social\Service\ProfileLinkVerifier;
 use OCA\Social\Service\StreamPruneService;
@@ -30,6 +31,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
 use OCP\BackgroundJob\TimedJob;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -485,5 +487,45 @@ class CacheTest extends TestCase {
 
 		$steps = (new \ReflectionMethod(Cache::class, 'steps'))->invoke($this->job, time() + 60);
 		$this->assertSame(count($steps), $forgotten);
+	}
+
+	/**
+	 * The media usage is measured once a day inside the twelve-minute pass:
+	 * a pass a second short of a day since the last measurement leaves it,
+	 * the pass on the second the day is up measures again.
+	 *
+	 * @return array<string, array{int, bool}>
+	 */
+	public static function sinceTheLastMeasurement(): array {
+		return [
+			'a second short of a day' => [Cache::MEDIA_USAGE_EVERY - 1, false],
+			'a day to the second' => [Cache::MEDIA_USAGE_EVERY, true],
+			'never measured' => [self::NOW, true],
+		];
+	}
+
+	#[DataProvider('sinceTheLastMeasurement')]
+	public function testTheMediaUsageIsMeasuredOnTheSecondADayHasPassed(int $ago, bool $measured): void {
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
+		$usage = $this->createMock(MediaUsageService::class);
+		$usage->method('lastMeasured')->willReturn(['measured' => self::NOW - $ago]);
+		$usage->expects($measured ? $this->once() : $this->never())->method('measureAndStore')->willReturn([]);
+
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(self::NOW);
+		$job = new Cache(
+			$time,
+			$this->accountService,
+			$this->cacheActorService,
+			$this->documentService,
+			$this->hashtagService,
+			$this->streamService,
+			$this->streamPruneService,
+			$this->cacheActorsRequest,
+			$this->pollService,
+			$this->logger,
+			mediaUsageService: $usage,
+		);
+		$job->start($this->jobList);
 	}
 }

@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Exceptions\PayloadTooLargeException;
 use OCA\Social\Exceptions\TooManyRequestsException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IRequest;
 
 /**
@@ -63,6 +64,7 @@ class InboxLimiter {
 	public function __construct(
 		private DurableCache $cache,
 		private ConfigService $configService,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 	}
 
@@ -108,7 +110,7 @@ class InboxLimiter {
 	}
 
 	private function window(): int {
-		return (int)floor(time() / self::WINDOW);
+		return intdiv($this->timeFactory?->getTime() ?? time(), self::WINDOW);
 	}
 
 	/**

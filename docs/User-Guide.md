@@ -926,7 +926,7 @@ hand, it is picked up as one.
 - **Export and migration.** The whole move, in order, is one page:
   [Moving.md](Moving.md). **Settings → Migration** has these sections.
   **Export** downloads a zip of your profile, follows, followers, blocks,
-  mutes, bookmarks, likes and every post you wrote — your private key is
+  mutes, lists, blocked domains, bookmarks, likes and every post you wrote — your private key is
   deliberately not in it. **Import** reads such an archive (or a Nextcloud
   account export) back in without deleting anything; posts in it are listed,
   not published again. The third section imports the follows from another

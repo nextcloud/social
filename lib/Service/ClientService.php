@@ -18,6 +18,7 @@ use OCA\Social\Exceptions\InvalidGrantException;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Security\SecretHasher;
 use OCA\Social\Tools\Traits\TStringTools;
+use OCP\AppFramework\Utility\ITimeFactory;
 
 /**
  * Class ClientService
@@ -78,6 +79,7 @@ class ClientService {
 		SecretHasher $secretHasher,
 		private ClientAuthRequest $clientAuthRequest,
 		private ConfigService $configService,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 		$this->clientRequest = $clientRequest;
 		$this->secretHasher = $secretHasher;
@@ -220,7 +222,7 @@ class ClientService {
 
 		// authorize() stamps last_update at the authorization moment
 		if ($authorized->getLastUpdate() > 0
-			&& $authorized->getLastUpdate() + self::TIME_CODE_TTL < time()) {
+			&& $authorized->getLastUpdate() + self::TIME_CODE_TTL < $this->now()) {
 			throw new ClientException('code expired');
 		}
 
@@ -299,12 +301,13 @@ class ClientService {
 	public function getFromToken(string $token): SocialClient {
 		$client = $this->clientAuthRequest->getByToken($token);
 
-		if ($client->getLastUpdate() + self::TIME_TOKEN_TTL < time()) {
+		$now = $this->now();
+		if ($client->getLastUpdate() + self::TIME_TOKEN_TTL < $now) {
 			try {
 				// only the authorization goes: the app registration is the
 				// instance's, and taking it with an idle token made the client
 				// register itself all over again
-				$this->clientAuthRequest->deprecate();
+				$this->clientAuthRequest->deprecate($now);
 			} catch (Exception $e) {
 			}
 
@@ -314,7 +317,7 @@ class ClientService {
 		// The sliding TTL above is about a token nobody uses; this is about one
 		// somebody does. Without it a token copied off a device lived as long
 		// as whoever held the copy kept using it.
-		if ($this->expiredByAge($client)) {
+		if ($this->expiredByAge($client, $now)) {
 			$this->clientAuthRequest->revoke($client->getAuthId());
 
 			throw new ClientNotFoundException('the access_token has expired');
@@ -325,8 +328,8 @@ class ClientService {
 		// The old inverted comparison only refreshed *recently written* rows, so
 		// any token idle for five minutes stopped refreshing and died a year
 		// after its first burst of use, no matter how actively it was used since.
-		if ($client->getLastUpdate() + self::TIME_TOKEN_REFRESH < time()) {
-			$this->clientAuthRequest->touch($client->getAuthId());
+		if ($client->getLastUpdate() + self::TIME_TOKEN_REFRESH < $now) {
+			$this->clientAuthRequest->touch($client->getAuthId(), $now);
 		}
 
 		return $client;
@@ -343,9 +346,10 @@ class ClientService {
 	 * @return int how many unused registrations were removed
 	 */
 	public function sweep(): int {
-		$this->clientAuthRequest->deprecate();
+		$now = $this->now();
+		$this->clientAuthRequest->deprecate($now);
 
-		return $this->clientRequest->deleteNeverAuthorized(time() - self::TIME_UNUSED_APP_TTL);
+		return $this->clientRequest->deleteNeverAuthorized($now - self::TIME_UNUSED_APP_TTL);
 	}
 
 	/**
@@ -362,10 +366,10 @@ class ClientService {
 		return $client->getAuthCreation() + $days * 86400;
 	}
 
-	private function expiredByAge(SocialClient $client): bool {
+	private function expiredByAge(SocialClient $client, int $now): bool {
 		$expiresAt = $this->expiresAt($client);
 
-		return $expiresAt > 0 && $expiresAt < time();
+		return $expiresAt > 0 && $expiresAt < $now;
 	}
 
 	/**
@@ -421,5 +425,9 @@ class ClientService {
 		// it and the scopes granted with it live on the row it names — the
 		// code checked by exchangeCode(), the scopes enforced per request by
 		// each controller's checkTokenScope().
+	}
+
+	private function now(): int {
+		return $this->timeFactory?->getTime() ?? time();
 	}
 }

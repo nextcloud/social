@@ -11,6 +11,8 @@ namespace OCA\Social\Model\ActivityPub\Object;
 
 use JsonSerializable;
 use OCA\Social\Model\StreamAction;
+use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Server;
 
 /**
  * An ActivityPub poll, the way Mastodon federates it: a Note-like object
@@ -81,7 +83,16 @@ class Question extends Note implements JsonSerializable {
 		return ($time === null) ? null : gmdate('Y-m-d\TH:i:s', $time) . '.000Z';
 	}
 
-	public function isExpired(): bool {
+	/**
+	 * Whether the poll is over at a moment: the server's clock when none is
+	 * given.
+	 *
+	 * Over *on* its end time, not a second after it: the sweep that tells the
+	 * voters reads every poll whose end time is at or before the moment it
+	 * runs, so a vote still taken on that second would change results that
+	 * have just been announced as final.
+	 */
+	public function isExpired(?int $now = null): bool {
 		if ($this->closed !== '') {
 			return true;
 		}
@@ -89,7 +100,7 @@ class Question extends Note implements JsonSerializable {
 			return false;
 		}
 
-		return strtotime($this->endTime) < time();
+		return strtotime($this->endTime) <= ($now ?? self::now());
 	}
 
 	public function getVotersCount(): int {
@@ -101,13 +112,13 @@ class Question extends Note implements JsonSerializable {
 	 *
 	 * @param string[] $optionTitles
 	 */
-	public function setPollData(array $optionTitles, bool $multiple, int $expiresInSeconds): self {
+	public function setPollData(array $optionTitles, bool $multiple, int $expiresInSeconds, ?int $now = null): self {
 		$this->options = array_map(
 			static fn (string $title): array => ['title' => $title, 'votes_count' => 0],
 			array_values($optionTitles)
 		);
 		$this->multiple = $multiple;
-		$this->endTime = gmdate('Y-m-d\TH:i:s\Z', time() + $expiresInSeconds);
+		$this->endTime = gmdate('Y-m-d\TH:i:s\Z', ($now ?? self::now()) + $expiresInSeconds);
 		$this->votersCount = 0;
 
 		return $this;
@@ -241,5 +252,9 @@ class Question extends Note implements JsonSerializable {
 		];
 
 		return $result;
+	}
+
+	private static function now(): int {
+		return Server::get(ITimeFactory::class)->getTime();
 	}
 }

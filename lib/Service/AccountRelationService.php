@@ -19,6 +19,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Relationship;
+use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Container\ContainerInterface;
 
 /**
@@ -91,6 +92,7 @@ class AccountRelationService {
 		private DomainBlockService $domainBlockService,
 		private RelationshipService $relationshipService,
 		private ?ContainerInterface $container = null,
+		private ?ITimeFactory $timeFactory = null,
 	) {
 	}
 
@@ -383,7 +385,7 @@ class AccountRelationService {
 	 * a mute that used to be timed.
 	 */
 	public function setMuteExpiry(Person $viewer, Person $target, int $duration, ?int $now = null): int {
-		$expiresAt = self::expiryOf($duration, $now);
+		$expiresAt = self::expiryOf($duration, $now ?? $this->now());
 		if ($expiresAt === 0) {
 			$this->muteExpiryRequest->delete($viewer->getId(), $target->getId());
 
@@ -444,7 +446,7 @@ class AccountRelationService {
 	public function isMuteExpired(string $viewerId, string $actorId, ?int $now = null): bool {
 		$expiresAt = $this->muteExpiryRequest->getExpiry($viewerId, $actorId);
 
-		return $expiresAt !== 0 && $expiresAt <= ($now ?? time());
+		return $expiresAt !== 0 && $expiresAt <= ($now ?? $this->now());
 	}
 
 	/**
@@ -465,7 +467,7 @@ class AccountRelationService {
 		$expiries = $this->muteExpiryRequest->getExpiries(
 			$viewer->getId(), array_map(static fn (Person $account): string => $account->getId(), $accounts)
 		);
-		$now ??= time();
+		$now ??= $this->now();
 
 		return array_values(
 			array_filter($accounts, static function (Person $account) use ($expiries, $now): bool {
@@ -507,7 +509,7 @@ class AccountRelationService {
 		$actorIds = array_keys($relationships);
 		$notes = $this->accountNotesRequest->getNotes($viewerId, $actorIds);
 		$expiries = $this->muteExpiryRequest->getExpiries($viewerId, $actorIds);
-		$now ??= time();
+		$now ??= $this->now();
 
 		foreach ($relationships as $actorId => $relationship) {
 			$relationship->setDomainBlocking($this->domainBlockService->isBlocking($viewerId, $actorId));
@@ -533,7 +535,7 @@ class AccountRelationService {
 		$expiresAt = $relationship->isMuting()
 			? $this->muteExpiryRequest->getExpiry($viewerId, $actorId)
 			: 0;
-		if ($expiresAt !== 0 && $expiresAt <= ($now ?? time())) {
+		if ($expiresAt !== 0 && $expiresAt <= ($now ?? $this->now())) {
 			$relationship->setMuting(false)
 				->setMutingNotifications(false);
 			$expiresAt = 0;
@@ -541,5 +543,9 @@ class AccountRelationService {
 		$relationship->setMuteExpiresAt($expiresAt);
 
 		return $relationship;
+	}
+
+	private function now(): int {
+		return $this->timeFactory?->getTime() ?? time();
 	}
 }

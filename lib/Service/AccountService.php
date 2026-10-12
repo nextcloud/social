@@ -1423,9 +1423,8 @@ class AccountService {
 			}
 
 			foreach ($batch as $item) {
-				// the column the page is ordered by; the model carries the id
-				// and the prim is its md5, as everywhere else in this app
-				$after = md5($item->getId());
+				// the column the page is ordered by, as the row stores it
+				$after = ActorsRequest::rowPrimOf($item);
 				try {
 					$this->cacheLocalActorByUsername($item->getPreferredUsername());
 				} catch (Exception $e) {

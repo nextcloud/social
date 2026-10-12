@@ -95,6 +95,8 @@ to stop.
   their account, and another user's rows untouched. A schema guard fails when
   a table with an account-like column is neither cascaded nor listed as kept
   or as a known gap.
+- `Db/BannerCascadeTest` — deleting a Nextcloud user takes their profile
+  banner with it: the document row, its file and its resized copy.
 - `Db/StreamMediaTest` — a post's stored attachment copies and the
   `social_stream_media` links: paging by nid, `carriesUpload()` (which failed
   on every database until this test ran it), relinking on a rewrite, remote
@@ -129,6 +131,12 @@ to stop.
 - `Db/ActorsWalkTest` — `ActorsRequest::walk()` visits every local account
   once across pages while each is written to, keyed on the stored `id_prim`
   even where the social URL changed since the accounts were made.
+- `Db/ActorsRowIdentityTest` — accounts stored under an earlier social URL:
+  a key rotation and a profile write land on the account's row and on no
+  other, and the paged walk carries on from the prim the row is stored under.
+- `Migration/BannerParentBackfillTest` — `Version1000Date20261012507100` hangs
+  a banner stored without a parent off the account its handle names, leaves an
+  upload and a banner of a handle no actor has alone, twice.
 - `Migration/ShortKindBackfillTest` — `Version1000Date20261012500100` works out
   the stored videos once (a short, a long one, a landscape one, one without
   meta), leaves a stored answer and every non-video post alone, twice.
@@ -136,6 +144,30 @@ to stop.
   `Version1000Date20261011500100` on tables put back in the shape a release
   before 0.23 left: duplicate follow pairs removed before the pair is made
   unique, the indexes the history dropped dropped, a second run a no-op.
+- `UserMigration/AccountRoundTripTest` — a whole account (posts with an
+  uploaded picture, a content warning and a poll, local and remote follows
+  and followers, lists, a v2 filter, bookmarks, favourites, a profile with
+  fields, banner, avatar and flags, a timed mute, one hiding notifications, a
+  block, a blocked server) out through `SocialMigrator` via
+  `MigrationArchiveService::export()`, into a fresh account and through the
+  posts import, compared view by view through the Mastodon API
+  (`UserMigration/RoundTripTestCase`). What is documented to stay behind is
+  pinned as such: no private key or OAuth token in the archive, the avatar
+  left to core's migrator, followers a record, no post re-created by the
+  account import, a poll back as its text — and so are filters and a list's
+  replies policy, which nothing carries. Caught an export that carried no
+  banner, an archive without the lists and blocked servers its one-file
+  downloads promise, and a banner Update signed with no key.
+- `UserMigration/AccountRoundTripImportTest` — the import half of the above on
+  a second server; skipped unless `SOCIAL_ROUNDTRIP_BUNDLE` names a bundle.
+  See "Two servers" below.
+- `UserMigration/MastodonExportImportTest` — an export shaped after
+  Mastodon's documented format (`UserMigration/MastodonExport`: `outbox.json`,
+  `actor.json`, `likes.json`, `bookmarks.json`, the media, and the six CSV
+  files) through `PostImportService` and the `MigrationService` imports,
+  compared through the API: the boost and the direct message skipped, the
+  reply hung off its parent, a second run a no-op — and `likes.json`,
+  `bookmarks.json` and `actor.json` pinned as read by nothing.
 - `Helper/RowSeeder` — writes a row into any of the app's tables from the
   installed schema, filling what a test does not name.
 - `PeakMemory` — the peak memory a block reached above what was in use when it
@@ -155,10 +187,24 @@ to stop.
   100000 and -1: each `LIMIT` that reaches the SQL must be one a request at
   the route's documented maximum, at 1 or at its default also produced. A
   route whose page is not read by a query is listed with what bounds it.
+- `Api/BoostByIdTest` — a boost asked for by its own id carries the boosted
+  status in `reblog`, decorated for the reader as on a timeline, where the
+  reader's favourite now shows on the boosted status too; a boost of a status
+  the reader may not see is a 404.
+- `Api/OnlyNewsListTimelineTest` — `only_news` on a list timeline: three
+  posts that link somewhere under forty newer text posts are the page of
+  twenty, newest first, and paging two at a time keeps `only_news` in `Link`.
+- `Api/ClientApiCorsTest` — the client API as a browser client of another
+  origin meets it, through the real dispatcher and every middleware the app
+  registers: a bearer call, an anonymous read and a refusal readable from any
+  origin, the preflight answered without credentials, a web-app route outside
+  the API bases closed, and a session cookie from another origin without its
+  CSRF token answered 401 while the web app's own call still signs in.
 - `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
   method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
   join path), Photos and Videos on home, public and a profile, an account's
-  statuses, notifications, the delivery queue's standby read, follower
+  statuses, the hashtag page (whose follows must be probed in a subquery,
+  not joined), notifications, the delivery queue's standby read, follower
   inboxes and the handle lookup. SQLite: every guarded table is searched
   through an index, never scanned. MySQL: a key and no full read, no filesort
   or temporary table unless the query is listed as one that sorts.
@@ -281,6 +327,65 @@ to stop.
   the post), an Undo{Like} before the Like, and a rotated key arriving in an
   Update{Person} verifying the next signature.
 
+- `Helper/FreezesTheClock` — puts the server on a `FrozenClock`
+  (`tests/Helper/FrozenClock.php`) that the test moves: registered on the
+  server container and on each fresh app container a service or controller is
+  built by, so the lifecycle tests below stand on the second before an expiry
+  and on the second itself.
+- `Api/TimedMuteExpiryTest` — a timed mute through its expiry: the
+  relationship, `/api/v1/mutes` and the home timeline agree that it holds a
+  second before it runs out and is gone on that second; muting again without
+  a duration makes it permanent; an expiry at a leap day, a month or year end
+  or a daylight-saving change comes back from the database as the same instant.
+
+- `Api/ScheduledPostLifecycleTest` — a post scheduled through
+  `POST /api/v1/statuses` and the cron's runs around it: still waiting a
+  second before it is due, published on that second, not again on the next
+  run; `scheduled_at` written with and without an offset at a leap day, a
+  month and year end and in the hours a daylight-saving change skips or
+  repeats goes out on the instant it names; the daily cap of 25 counts the
+  day the posts are for.
+
+- `Api/PollLifecycleTest` — a poll through its end on a frozen clock, today
+  and with the end time on a leap day, a month or year end and after a
+  daylight-saving change: a vote a second before the end is counted, the poll
+  is `expired` and refuses votes on its end time, the sweep on that second
+  tells the voter and a later one nobody, and the results stay the ones
+  announced; a vote from another server is counted until the end time and
+  swallowed on it. It caught a vote taken on the very second the sweep had
+  announced the poll closed, and the poll notification's status served with
+  `poll: null`.
+
+- `Federation/EarlyDeleteExpiryTest` — the six hours a Delete that came
+  before its Create is remembered, on a frozen clock threaded through the
+  activity registry: a Create in the last second of them is dropped, one on
+  the second they end is stored, and a Delete by another account of the same
+  server holds nothing back.
+
+- `Db/TokenExpiryTest` — the client API's OAuth lifetimes to the second on a
+  frozen clock: a code exchanged on its six-hundredth second and refused on
+  the next, a token idle exactly `TIME_TOKEN_TTL` still accepted and one idle
+  a second longer refused and swept, and `token_max_days` counted from the
+  grant across a leap day, a month end and a daylight-saving change — good on
+  its last second however much it was used, revoked on the next.
+
+- `Atproto/DpopReplayWindowTest` — a captured DPoP proof walked second by
+  second, with the replay table pruned on each, through the three checks that
+  refuse it again: its stored id until its nonce lapses, the nonce until the
+  end of the window after its own, then its five-minute `iat`; a proof dated a
+  minute ahead keeps its id exactly as long as it is fresh.
+
+- `Db/StoryExpiryTest` — a story through its day on a frozen clock in the
+  past, posted on ordinary days, leap days, month and year ends and before
+  daylight-saving changes: the profile, the bar, the count and opening it all
+  show it on its last second and none does on the second its day is up, when
+  the hourly sweep takes it and not before.
+
+- `Db/TrendWindowsTest` — the five trend windows to their edges on a frozen
+  clock: a status trends until its interactions are exactly a window old and
+  a link until the posts sharing it are, while the cron's hashtag count still
+  takes in a post exactly a window old and leaves out one a second older.
+
 ## Running
 
 **CI** runs the suite in every `phpunit-*` job via `composer run
@@ -308,3 +413,19 @@ a symlink into it):
 
 All rows the tests create carry unique test-only ids and are removed in
 tearDown, so the suite is safe to run against an instance that holds other data.
+
+**Two servers.** `UserMigration/AccountRoundTripTest` imports on its own server
+by default. To import on a really fresh one, install a second server with the
+app, give it an address of its own (or the first server's accounts look local
+to it) and name it:
+
+    php occ config:app:set social cloud_url --value=http://second.localhost:8081
+    php occ config:app:set social social_url --value=http://second.localhost:8081/apps/social/
+    SOCIAL_ROUNDTRIP_TARGET_ROOT=/var/www/second NEXTCLOUD_ROOT=/var/www/nextcloud \
+        vendor/bin/phpunit -c tests/Integration/phpunit.xml --filter AccountRoundTripTest
+
+The export half then writes a bundle (the archive, the views of the exported
+account, and the accounts and posts the second server would have fetched) and
+runs `AccountRoundTripImportTest` against the second server in a phpunit of its
+own. `SOCIAL_ROUNDTRIP_EXPORT_TO=<dir>` keeps the bundle; the import half runs
+on its own with `SOCIAL_ROUNDTRIP_BUNDLE=<dir> NEXTCLOUD_ROOT=<second server>`.
