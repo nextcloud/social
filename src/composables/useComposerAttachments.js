@@ -732,21 +732,30 @@ export function useComposerAttachments({ expand, root }) {
 		}
 	}
 
+	/** @type {Set<Promise<void>>} descriptions still being saved since their field was left */
+	const savingDescriptions = new Set()
+
 	/**
-	 * Sends whatever descriptions were written, once, as the post goes.
+	 * Sends whatever descriptions were written, once, as the post goes, and
+	 * waits for those still on their way from a field just left.
 	 *
 	 * Saving per keystroke would be a request per letter; saving here means
 	 * the description travels with the post that carries the picture.
+	 * Leaving the field for the Post button sends its description a moment
+	 * before the post, and a post created first has the picture without it.
 	 */
 	async function saveDescriptions() {
 		const described = Object.values(attachments.value).filter((attachment) => attachment.data?.id
 			&& (attachment.description || '').trim() !== ''
 			&& (attachment.description || '').trim() !== attachment.saved)
 
-		await Promise.all(described.map((attachment) => timelineStore.describeMedia({
-			id: attachment.data.id,
-			description: attachment.description.trim(),
-		})))
+		await Promise.all([
+			...savingDescriptions,
+			...described.map((attachment) => timelineStore.describeMedia({
+				id: attachment.data.id,
+				description: attachment.description.trim(),
+			})),
+		])
 	}
 
 	/**
@@ -769,7 +778,13 @@ export function useComposerAttachments({ expand, root }) {
 			[key]: { ...attachment, description, saved: text },
 		}
 
-		await timelineStore.describeMedia({ id: attachment.data.id, description: text })
+		const saving = timelineStore.describeMedia({ id: attachment.data.id, description: text })
+		savingDescriptions.add(saving)
+		try {
+			await saving
+		} finally {
+			savingDescriptions.delete(saving)
+		}
 	}
 
 	/**
