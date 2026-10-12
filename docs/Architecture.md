@@ -3582,8 +3582,9 @@ hold on either.
   `IUserFolder` and PHPUnit checks a stubbed return value against the declared
   type.
 - **CI runs both servers.** The version matrix is derived from `info.xml`, so
-  the PHPUnit workflows install the app on each supported server and run the
-  integration suite there, and the browser tests run twice, once per version.
+  the nightly PHPUnit run installs the app on each supported server and runs
+  the integration suite there (a pull request runs the newest stable server
+  and, for coverage, master), and the nightly browser tests run on both.
 - **Deprecations are treated as breakage.** 36 logs
   `Calling IQueryBuilder::orX without parameters is deprecated and will throw
   soon`; the conditions that are assembled in a loop (`limitToQueueDue()`,

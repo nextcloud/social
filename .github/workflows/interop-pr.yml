@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The interop jobs on a pull request that touches what they exercise. Each one
+# stands up another project's server and takes five to seven minutes of a
+# runner, so a pull request that cannot change what that server sees does not
+# run them; all of them run nightly regardless, and the `interop` label runs
+# them on any pull request (labelled-ci.yml).
+#
+# The paths are the federation layer as these jobs drive it: the activity
+# handlers and models, the ActivityPub, OStatus, WebFinger and atproto
+# endpoints, the signer, the HTTP client, the delivery and stream queues and
+# their cron jobs, the services that build an activity and hand it to the
+# queue, the PeerTube, Pixelfed and video federation, the JSON-LD contexts,
+# the routes, the dependencies, and the interop tests and workflows
+# themselves. When in doubt a path belongs here: a missed one shows the next
+# morning, a needless one costs four runners.
+
+name: Interop on federation changes
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/interop*.yml'
+      - 'appinfo/routes.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'context/**'
+      - 'lib/AP.php'
+      - 'lib/Atproto/**'
+      - 'lib/Controller/ActivityPub*'
+      - 'lib/Controller/Atproto*'
+      - 'lib/Controller/OStatus*'
+      - 'lib/Controller/PeerTube*'
+      - 'lib/Controller/Pixelfed*'
+      - 'lib/Controller/SocialPub*'
+      - 'lib/Cron/Atproto*'
+      - 'lib/Cron/Queue*'
+      - 'lib/Interfaces/**'
+      - 'lib/Model/ActivityPub/**'
+      - 'lib/Model/LinkedDataSignature.php'
+      - 'lib/Model/RequestQueue.php'
+      - 'lib/Model/StreamQueue.php'
+      - 'lib/Security/AsyncRequestSigner.php'
+      - 'lib/Security/RemoteAddress.php'
+      - 'lib/Service/*Import*'
+      - 'lib/Service/*Signature*'
+      - 'lib/Service/AccountService.php'
+      - 'lib/Service/ActivityService.php'
+      - 'lib/Service/ActorService.php'
+      - 'lib/Service/AuthorizedFetchService.php'
+      - 'lib/Service/BoostService.php'
+      - 'lib/Service/CacheActorService.php'
+      - 'lib/Service/CacheDocumentService.php'
+      - 'lib/Service/CurlService.php'
+      - 'lib/Service/DeliveryService.php'
+      - 'lib/Service/FollowService.php'
+      - 'lib/Service/ForwardService.php'
+      - 'lib/Service/InboxLimiter.php'
+      - 'lib/Service/InstanceActorService.php'
+      - 'lib/Service/LikeService.php'
+      - 'lib/Service/MigrationService.php'
+      - 'lib/Service/PeerTube*'
+      - 'lib/Service/Pixelfed*'
+      - 'lib/Service/PollService.php'
+      - 'lib/Service/PostService.php'
+      - 'lib/Service/QuoteService.php'
+      - 'lib/Service/RemoteFetchQueue.php'
+      - 'lib/Service/RequestQueueService.php'
+      - 'lib/Service/StreamQueueService.php'
+      - 'lib/Service/Video*'
+      - 'lib/Tools/Http/**'
+      - 'lib/WellKnown/**'
+      - 'tests/Interop/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interop-pr-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  # A pull request with the `interop` or the `full-ci` label runs these from
+  # labelled-ci.yml instead, so they do not run twice.
+  mastodon:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+    uses: ./.github/workflows/interop.yml
+
+  bluesky:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+    uses: ./.github/workflows/interop-atproto.yml
+
+  loops:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+    uses: ./.github/workflows/interop-loops.yml
+
+  pixelfed:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'interop') && !contains(github.event.pull_request.labels.*.name, 'full-ci') }}
+    uses: ./.github/workflows/interop-pixelfed.yml

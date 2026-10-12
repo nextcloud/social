@@ -5,10 +5,11 @@
 # Playwright the way a person would drive it. The unit and integration suites
 # cannot see a page that stays empty; this can. See tests/e2e/.
 #
-# A pull request runs the two legs that decide most: both server versions
-# info.xml names at the top, on SQLite, in Chromium. A push to master, the
-# weekly run and a manual run add the slower legs: the oldest server info.xml
-# claims (34), PostgreSQL, and the smoke spec in Firefox.
+# A pull request and a push to master run one leg, about four minutes: the
+# newest stable server on SQLite in Chromium, with the Guests app. The nightly
+# run, a manual run and the `full-ci` label (labelled-ci.yml) add Nextcloud
+# master, the oldest server info.xml claims (34), PostgreSQL, and the smoke
+# spec in Firefox.
 #
 # The weekly and the manual run also try the install shapes production has
 # and the built-in server on its own does not: Nextcloud under a sub-path
@@ -25,14 +26,25 @@ on:
     branches:
       - master
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      full:
+        description: 'Add the nightly legs'
+        type: boolean
+        default: true
   schedule:
+    # nightly, but on Wednesdays, when the weekly run below has every leg
+    - cron: '33 2 * * 0,1,2,4,5,6'
+    # weekly: WEEKLY in the legs job names this one
     - cron: '27 4 * * 3'
 
 permissions:
   contents: read
 
 concurrency:
-  group: e2e-${{ github.head_ref || github.ref }}
+  # per event, so a push cannot replace a pending nightly run, and apart from
+  # the pull request's own run when labelled-ci.yml calls this one
+  group: e2e-${{ inputs.full && 'full' || github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -51,19 +63,22 @@ jobs:
         id: legs
         env:
           EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          WEEKLY: '27 4 * * 3'
+          FULL: ${{ inputs.full == true }}
         run: |
           legs='[
-            {"server": "stable35", "db": "sqlite", "browser": "chromium", "guests": true},
-            {"server": "master", "db": "sqlite", "browser": "chromium"}
+            {"server": "stable35", "db": "sqlite", "browser": "chromium", "guests": true}
           ]'
-          if [ "$EVENT" != pull_request ]; then
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$FULL" = true ]; then
             legs=$(echo "$legs" | jq '. + [
+              {"server": "master", "db": "sqlite", "browser": "chromium"},
               {"server": "stable34", "db": "sqlite", "browser": "chromium"},
               {"server": "stable35", "db": "pgsql", "browser": "chromium"},
               {"server": "stable35", "db": "sqlite", "browser": "firefox"}
             ]')
           fi
-          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then
+          if [ "$SCHEDULE" = "$WEEKLY" ] || [ "$EVENT" = workflow_dispatch ]; then
             legs=$(echo "$legs" | jq '. + [
               {"server": "stable35", "db": "sqlite", "browser": "chromium", "webroot": "/nextcloud"},
               {"server": "stable35", "db": "sqlite", "browser": "chromium", "pretty": true},

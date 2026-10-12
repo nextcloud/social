@@ -875,17 +875,17 @@ given a `FakeTable` that records the schema they ask for rather than building it
 
 A second PHP suite in `tests/Integration/` runs against a real Nextcloud and
 database — migrations, query SQL and storage boundaries the mocks cannot reach.
-CI runs it on SQLite, MySQL and PostgreSQL; locally, point it at an installed
-server:
+CI runs it on SQLite and PostgreSQL for every pull request, and on MySQL and
+MariaDB as well every night; locally, point it at an installed server:
 
 ```bash
 NEXTCLOUD_ROOT=/path/to/nextcloud composer run test:integration
 ```
 
 See `tests/Integration/README.md` for what it covers.
-`integration-robustness.yml` runs it twice on the same database and once in
-random order (the seed is in the job summary), on all three databases, and
-on SQLite with APCu and with Redis as the server's memcache.
+Every night, `integration-robustness.yml` runs it twice on the same database
+and once in random order (the seed is in the job summary), on all three
+databases, and on SQLite with APCu and with Redis as the server's memcache.
 
 **Coverage** is measured in CI on one leg of `phpunit-sqlite.yml` (the newest
 server and PHP): the unit and the integration suite each write a Clover
@@ -896,16 +896,16 @@ under the floor in `tests/coverage-floor.json`. `vitest.yml` runs
 `vitest.config.js`. Both floors sit about a point under what the suites cover;
 raise them as coverage grows.
 
-**Upgrades** are tested by `.github/workflows/upgrade.yml`, on SQLite and
-PostgreSQL: the latest published release is installed and given two accounts,
+**Upgrades** are tested every night by `.github/workflows/upgrade.yml`, on
+SQLite, PostgreSQL and MySQL: the latest published release is installed and given two accounts,
 posts, a reply, a like, a boost, a follow and a picture (`tests/Upgrade/seed.sh`),
 then replaced by the change under test and upgraded with `occ upgrade`. The
 app's schema has to match a fresh install's, the seeded data has to read back
 through the client API (`tests/Upgrade/verify.py`), and the integration suite
 runs on the upgraded instance.
 
-`dependency-audit.yml` runs `composer audit` and `npm audit --omit=dev` on
-every pull request and weekly.
+`dependency-audit.yml` runs `composer audit` and `npm audit --omit=dev` every
+night.
 
 **Several open pull requests together** are checked by `stack-check.yml`: it
 merges their heads onto master in the order given (`tests/Stack/merge.sh`),
@@ -934,9 +934,10 @@ composer run test:interop
 ```
 
 `.github/workflows/interop.yml` stands the whole thing up — Postgres, Redis,
-Mastodon, PeerTube, a Nextcloud and an account on each side — on every pull
-request and push against Mastodon 4.3, and weekly and on demand against
-Mastodon 4.5 as well, which is the version that writes quote posts. It depends
+Mastodon, PeerTube, a Nextcloud and an account on each side — every night and
+on demand against Mastodon 4.3 and 4.5, which is the version that writes quote
+posts, and against 4.3 on a pull request that touches the federation code
+(see *What CI runs, and when* below). It depends
 on third-party images whose startup this repository does not control, so a red
 run is worth reading for which side failed. See `tests/Interop/README.md`,
 including what it cannot prove.
@@ -952,8 +953,8 @@ make and fill a list, add and remove a keyword filter, read public profiles and
 posts signed out, and use the main pages on a phone-sized screen. Nothing is
 mocked, and the bundle under test is the committed one in `js/`.
 `.github/workflows/e2e.yml` sets up a throwaway server for every pull request,
-on Nextcloud 35 and master; pushes to master and a weekly run add Nextcloud 34,
-PostgreSQL and the smoke spec in Firefox. Against an instance of your own:
+on Nextcloud 35; the nightly run adds Nextcloud master and 34, PostgreSQL and
+the smoke spec in Firefox. Against an instance of your own:
 
 ```
 npx playwright install chromium
@@ -980,6 +981,49 @@ built-in server the first two:
 E2E_WEBROOT=/nextcloud E2E_PRETTY_URLS=1 php -S localhost:8080 -t <dir with nextcloud in it> \
     apps/social/tests/e2e/server/router.php
 ```
+
+### What CI runs, and when
+
+A pull request runs a fast core, about 30 jobs and 40 runner minutes, so
+that it is green within minutes rather than hours: it used to start 70 jobs
+and some 320 runner minutes, which the runner pool queued for about three
+hours. Everything else runs every night on master, between 02:00 and 03:00
+UTC, where a version-specific failure is found the next morning.
+
+**On every pull request** (and every push to master):
+
+- PHPUnit, unit and integration suites: SQLite and PostgreSQL on the newest
+  stable Nextcloud, plus the SQLite coverage leg on Nextcloud master, all on
+  the newest PHP (`.github/scripts/pull-request-legs.jq` picks them from the
+  version matrix);
+- PHP lint under the oldest PHP `info.xml` claims, Psalm, php-cs-fixer,
+  ESLint, Stylelint, the Node build check, Vitest, REUSE, `info.xml` lint and
+  the fixup-commit check;
+- the browser tests on Nextcloud 35, SQLite, Chromium (about four minutes);
+- the interop jobs (Mastodon and PeerTube, Bluesky, Loops, Pixelfed) only when
+  the pull request touches the federation code: the paths are listed in
+  `interop-pr.yml`.
+
+**Every night** (and by hand from the Actions tab):
+
+- PHPUnit across the whole PHP × Nextcloud matrix `info.xml` allows, with
+  Nextcloud 34 and master, on SQLite, PostgreSQL, MySQL and MariaDB;
+- `integration-robustness.yml`: the integration suite twice on one database
+  and in random order, and with APCu and Redis as memcache;
+- `upgrade.yml`: every upgrade leg, from the latest release and from 0.10.0;
+- the browser tests on Nextcloud master and 34, on PostgreSQL and in Firefox
+  (the install shapes stay weekly);
+- PHP lint under every PHP of the matrix, the l10n extraction, the dependency
+  audit, and all interop jobs, Mastodon 4.5 included;
+- as before: the benchmark (`perf-nightly.yml`); weekly: the far time zones
+  and the l10n pull.
+
+**Labels** bring the night onto a pull request (`labelled-ci.yml`), when the
+label is put on and again on every push:
+
+- `full-ci` runs everything the nightly run does, for a pull request that
+  changes the schema, a query, a dependency or the CI itself;
+- `interop` runs the interop jobs on a pull request whose paths would not.
 
 ## 🛠️ Contributing
 

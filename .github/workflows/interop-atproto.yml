@@ -8,19 +8,17 @@
 # docs/Atproto-Compatibility.md §17.2.
 #
 # A job of its own, beside the Fediverse interop jobs, so it waits for none
-# of their peers.
+# of their peers. Nightly and by hand; on a pull request when it touches the
+# federation code (interop-pr.yml), or carries the `interop` or the `full-ci`
+# label (labelled-ci.yml).
 
 name: Interop against Bluesky
 
 on:
-  pull_request:
-  push:
-    branches:
-      - master
+  workflow_call:
   workflow_dispatch:
   schedule:
-    # Tuesdays, early, beside the other interop runs
-    - cron: '23 4 * * 2'
+    - cron: '53 2 * * *'
 
 permissions:
   contents: read
