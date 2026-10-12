@@ -8,6 +8,9 @@
 
 name: Lint php
 
+# A pull request and a push lint under the oldest PHP info.xml claims, the one
+# that refuses syntax the app may not use yet. The nightly run, a manual run
+# and the `full-ci` label (labelled-ci.yml) lint under every PHP of the matrix.
 on:
   pull_request:
   push:
@@ -15,25 +18,50 @@ on:
       - main
       - master
       - stable*
+  schedule:
+    - cron: '39 2 * * *'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      full:
+        description: 'Lint under every PHP of the matrix'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: lint-php-${{ github.head_ref || github.ref }}
+  # per event, so a push cannot replace a pending nightly run, and apart from
+  # the pull request's own run when labelled-ci.yml calls this one
+  group: lint-php-${{ inputs.full && 'full' || github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   matrix:
     runs-on: ubuntu-latest
     outputs:
-      php-versions: ${{ steps.versions.outputs.php-versions }}
+      php-versions: ${{ steps.php.outputs.php-versions }}
     steps:
       - name: Checkout app
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Get version matrix
         id: versions
         uses: icewind1991/nextcloud-version-matrix@58becf3b4bb6dc6cef677b15e2fd8e7d48c0908f # v1.0.0
+      - name: Pick the PHP versions
+        id: php
+        env:
+          VERSIONS: ${{ steps.versions.outputs.php-versions }}
+          FULL: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || inputs.full == true }}
+        run: |
+          if [ "$FULL" = true ]; then
+            versions=$(echo "$VERSIONS" | jq -c .)
+          else
+            min=$(grep -oP 'php min-version="\K[^"]+' appinfo/info.xml)
+            versions=$(jq -nc --arg php "$min" '[$php]')
+          fi
+          echo "Linting under PHP $versions"
+          echo "php-versions=$versions" >> "$GITHUB_OUTPUT"
 
   php-lint:
     runs-on: ubuntu-latest
