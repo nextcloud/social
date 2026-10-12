@@ -322,7 +322,7 @@ class MigrationController extends ClientApiController {
 			}
 		}
 
-		return new RedirectResponse($this->urlGenerator->linkToRoute('social.Navigation.navigatemigration'));
+		return new RedirectResponse($this->urlGenerator->linkToRoute('social.Navigation.personalmigration'));
 	}
 
 	#[NoAdminRequired]

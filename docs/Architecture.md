@@ -144,7 +144,7 @@ before it — or by one in another controller, whose order is not defined.
 A route's name is derived, not written: the controller's short name without the
 `Controller` suffix, then `#`, then the method. Two routes on one method
 therefore share a name unless one carries a `postfix`, and the later one wins —
-which is what `NavigationController::navigate()` uses `postfix` for.
+which is what `NavigationController::navigate()` and `personal()` use `postfix` for.
 
 ---
 

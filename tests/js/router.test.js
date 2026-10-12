@@ -5,7 +5,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import router from '../../src/router.js'
+import router, { loginUrl, needsSignIn } from '../../src/router.js'
 import eventBus from '../../src/services/eventBus.js'
 
 // The views are lazy-loaded chunks; navigation would otherwise pull in the
@@ -356,6 +356,109 @@ describe('router navigation', () => {
 		expect(router.currentRoute.value.params.type).toBe('timeline')
 		expect(router.currentRoute.value.redirectedFrom.path).toBe('/timeline')
 		document.getElementById('initial-state-social-serverData')?.remove()
+	})
+})
+
+describe('the reader\'s own pages', () => {
+	const ownPages = [
+		'/settings',
+		'/statistics',
+		'/migration',
+		'/switch',
+		'/follow_requests',
+		'/blocked',
+		'/timeline/notifications',
+		'/timeline/direct',
+		'/timeline/favourites',
+		'/timeline/bookmarks',
+		'/timeline/interests',
+		'/timeline/list/4',
+	]
+	const publicPages = [
+		'/timeline/timeline',
+		'/timeline/federated',
+		'/timeline/tags/nextcloud',
+		'/@alice',
+		'/@alice/12345',
+		'/discover',
+		'/search/nextcloud',
+		'/shorts',
+		'/collections/9',
+		'/places/4',
+		'/starter-pack/alice/3k',
+	]
+
+	it.each(ownPages)('counts %s as the reader\'s own', (path) => {
+		expect(needsSignIn(router.resolve(path))).toBe(true)
+	})
+
+	it.each(publicPages)('leaves %s to visitors', (path) => {
+		expect(needsSignIn(router.resolve(path))).toBe(false)
+	})
+
+	it('sends a visitor to the login, to come back to the page asked for', () => {
+		expect(loginUrl(router.resolve('/settings?tab=1#lists'), '/index.php/apps/social'))
+			.toBe('/index.php/login?redirect_url=' + encodeURIComponent('/index.php/apps/social/settings?tab=1#lists'))
+	})
+
+	describe('navigating to one', () => {
+		const realLocation = window.location
+		let assign
+
+		/** A router of its own, for a page whose reader is or is not signed in. */
+		const routerFor = async (isPublic) => {
+			// @nextcloud/initial-state keeps what it read once for the page
+			window._nc_initial_state?.clear()
+			globalThis.setInitialState('social', 'serverData', { public: isPublic })
+			assign = vi.fn()
+			Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign } })
+			vi.resetModules()
+			const { default: instance } = await import('../../src/router.js')
+			await instance.push('/timeline/timeline')
+
+			return instance
+		}
+
+		afterEach(() => {
+			Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
+			document.getElementById('initial-state-social-serverData')?.remove()
+			window._nc_initial_state?.clear()
+		})
+
+		it.each(['/settings', '/timeline/notifications', '/timeline/list/4'])('takes a visitor from %s to the login and stays put', async (path) => {
+			const instance = await routerFor(true)
+
+			await instance.push(path)
+
+			expect(assign).toHaveBeenCalledWith('/index.php/login?redirect_url=' + encodeURIComponent('/index.php/apps/social' + path))
+			expect(instance.currentRoute.value.path).toBe('/timeline/timeline')
+		})
+
+		it('follows the old address of the held senders to the Blocking page, and so to the login', async () => {
+			const instance = await routerFor(true)
+
+			await instance.push('/filtered')
+
+			expect(assign).toHaveBeenCalledWith('/index.php/login?redirect_url=' + encodeURIComponent('/index.php/apps/social/blocked'))
+		})
+
+		it('lets a visitor go on to a public page', async () => {
+			const instance = await routerFor(true)
+
+			await instance.push('/@alice')
+
+			expect(assign).not.toHaveBeenCalled()
+			expect(instance.currentRoute.value.name).toBe('profile')
+		})
+
+		it('lets a signed-in reader open their settings', async () => {
+			const instance = await routerFor(false)
+
+			await instance.push('/settings')
+
+			expect(assign).not.toHaveBeenCalled()
+			expect(instance.currentRoute.value.name).toBe('settings')
+		})
 	})
 })
 

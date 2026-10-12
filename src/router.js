@@ -82,6 +82,41 @@ export function redirectGuestHome(to, isPublic) {
 }
 
 /**
+ * The timelines that are the reader's own, which hold nothing for a visitor.
+ * A list's timeline is one too, under its own route name.
+ */
+const SIGNED_IN_TIMELINES = ['notifications', 'direct', 'favourites', 'bookmarks', 'interests']
+
+/**
+ * Whether a page is the signed-in reader's own: their settings, statistics,
+ * moving their account, follow requests, blocks, and the timelines that are
+ * theirs. The server sends a visitor who loads one of these to the login
+ * itself; this answers for a navigation inside the page.
+ *
+ * @param {object} to target route
+ * @return {boolean}
+ */
+export function needsSignIn(to) {
+	if (to.matched.some((record) => record.meta?.signedIn === true)) {
+		return true
+	}
+
+	return to.name === 'list'
+		|| (to.name === 'timeline' && SIGNED_IN_TIMELINES.includes(String(to.params.type ?? '')))
+}
+
+/**
+ * Nextcloud's login, which brings the reader back to `to` once signed in.
+ *
+ * @param {object} to target route
+ * @param {string} base the path the app is served from
+ * @return {string}
+ */
+export function loginUrl(to, base) {
+	return generateUrl('/login') + '?redirect_url=' + encodeURIComponent(base + to.fullPath)
+}
+
+/**
  * How long a restored scroll offset waits for the page to be drawn before it is
  * applied anyway. Long enough for a list to come back from the store and for a
  * page of posts to arrive over a slow connection; short enough that a view that
@@ -337,6 +372,7 @@ const router = createRouter({
 				default: FollowRequests,
 			},
 			name: 'follow-requests',
+			meta: { signedIn: true },
 		},
 		{
 			path: '/blocked',
@@ -344,6 +380,7 @@ const router = createRouter({
 				default: BlockedAccounts,
 			},
 			name: 'blocked-accounts',
+			meta: { signedIn: true },
 		},
 		{
 			// The held senders are a card on the Blocking page now. The path
@@ -362,6 +399,7 @@ const router = createRouter({
 				default: Migration,
 			},
 			name: 'migration',
+			meta: { signedIn: true },
 		},
 		{
 			path: '/settings',
@@ -369,6 +407,7 @@ const router = createRouter({
 				default: Settings,
 			},
 			name: 'settings',
+			meta: { signedIn: true },
 		},
 		{
 			// the same videos as `/timeline/videos`, watched rather than
@@ -401,6 +440,7 @@ const router = createRouter({
 				default: SwitchWizard,
 			},
 			name: 'switch',
+			meta: { signedIn: true },
 		},
 		{
 			path: '/statistics',
@@ -408,6 +448,7 @@ const router = createRouter({
 				default: Statistics,
 			},
 			name: 'statistics',
+			meta: { signedIn: true },
 		},
 		{
 			path: '/search/:term?',
@@ -440,6 +481,13 @@ const router = createRouter({
 // next view and the offset of the one being left is gone
 router.beforeEach((to, from) => {
 	remember(from.fullPath)
+
+	// a visitor has nothing on the reader's own pages; Nextcloud's login
+	// brings them back here once they have signed in
+	if (needsSignIn(to) && loadState('social', 'serverData', { public: false }).public === true) {
+		window.location.assign(loginUrl(to, router.options.history.base))
+		return false
+	}
 })
 
 export default router

@@ -177,6 +177,6 @@ class SocialFollowRequestsWidget implements IAPIWidgetV2, IIconWidget, IButtonWi
 	 * registered as strtolower($app.$controller.$action.$postfix).
 	 */
 	private function getRequestsUrl(): string {
-		return $this->urlGenerator->linkToRoute('social.navigation.navigatefollowrequests');
+		return $this->urlGenerator->linkToRoute('social.navigation.personalfollowrequests');
 	}
 }

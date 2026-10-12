@@ -443,13 +443,13 @@ class MigrationControllerTest extends TestCase {
 
 		$response = $this->controller()->moveInFinishCallback('the-code', 'the-state');
 		$this->assertInstanceOf(RedirectResponse::class, $response);
-		$this->assertSame('/social.Navigation.navigatemigration', $response->getRedirectURL());
+		$this->assertSame('/social.Navigation.personalmigration', $response->getRedirectURL());
 
 		// a refusal is the service's to record; the person still lands on the page
 		$this->moveFinishService = $this->createMock(MoveFinishService::class);
 		$this->moveFinishService->method('finish')->willThrowException(new InvalidResourceException('this is not the move that was started'));
 		$response = $this->controller()->moveInFinishCallback('the-code', 'wrong');
-		$this->assertSame('/social.Navigation.navigatemigration', $response->getRedirectURL());
+		$this->assertSame('/social.Navigation.personalmigration', $response->getRedirectURL());
 	}
 
 	public function testTheFinishStatusIsAnsweredAsTheServiceKeepsIt(): void {
