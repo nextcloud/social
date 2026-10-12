@@ -1062,7 +1062,8 @@ async calls, on a client `CurlService::parallelClient()` builds with Guzzle's
 `CurlMultiHandler` — the server's client defaults to `CurlHandler`, which
 performs an "async" request the moment it is made, so the waves used to go out
 one request after another and a dead peer's timeout was paid by every request
-behind it in its wave), and settles every row
+behind it in its wave; Nextcloud 34's `IClientService::newClient()` takes no
+handler, so on 34 they still do), and settles every row
 exactly as a single delivery is settled. `retrieveJsonMany()` uses the same
 client. A settled promise answers Guzzle's
 PSR-7 response rather than the `IResponse` a synchronous call returns, and
