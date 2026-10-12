@@ -104,6 +104,32 @@ describe('useComposerAttachments', () => {
 		expect(attachments.isVideoPost.value).toBe(false)
 	})
 
+	it('lets the post wait for a description whose field was just left', async () => {
+		const store = useTimelineStore()
+		let saved
+		store.describeMedia = vi.fn(() => new Promise((resolve) => {
+			saved = resolve
+		}))
+		const { attachments } = mountAttachments()
+		attachments.restoreMedia([{ id: '1', description: 'a dog', url: 'https://cloud.example/1.jpg' }])
+		const [key] = Object.keys(attachments.attachments.value)
+
+		attachments.commitDescription({ key, description: 'a dog on a beach' })
+		let ready = false
+		const posting = attachments.saveDescriptions().then(() => {
+			ready = true
+		})
+		await new Promise((resolve) => setTimeout(resolve, 0))
+
+		expect(store.describeMedia).toHaveBeenCalledTimes(1)
+		expect(store.describeMedia).toHaveBeenCalledWith({ id: '1', description: 'a dog on a beach' })
+		expect(ready).toBe(false)
+
+		saved()
+		await posting
+		expect(ready).toBe(true)
+	})
+
 	describe('filters', () => {
 		/**
 		 * One attached picture, uploaded as id 1, with the store's uploads

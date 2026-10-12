@@ -519,7 +519,9 @@ class CurlService {
 	 * the promises came back already settled, one after the other, and a
 	 * peer waiting out its timeout held up every request made after it. The
 	 * multi handler is what lets them overlap; where the server's HTTP stack
-	 * has none (a test without one), the default client is used.
+	 * has none (a test without one), the default client is used. Nextcloud
+	 * 34's `newClient()` takes no handler and ignores this one, so there the
+	 * requests still go out one after another.
 	 */
 	private function parallelClient(): IClient {
 		$multi = 'GuzzleHttp\\Handler\\CurlMultiHandler';
