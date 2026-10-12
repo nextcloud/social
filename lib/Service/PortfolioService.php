@@ -43,7 +43,7 @@ class PortfolioService {
 		private StreamRequest $streamRequest,
 		private CollectionService $collectionService,
 		private CacheActorService $cacheActorService,
-		private StreamService $streamService,
+		private PostDecorationService $postDecorationService,
 	) {
 	}
 
@@ -68,7 +68,7 @@ class PortfolioService {
 		// among the rest, and none of those would have been on the published
 		// page — a preview that shows a photograph which will not appear is
 		// worse than no preview. Found on devel.
-		$portfolio->setPosts($this->postsFor($portfolio, null));
+		$portfolio->setPosts($this->postsFor($portfolio, null, $owner->getId()));
 
 		return $portfolio;
 	}
@@ -97,7 +97,7 @@ class PortfolioService {
 		$portfolio->setAuthor($this->authorOf($owner->getId()));
 		// deliberately with no viewer: what a portfolio shows is what the
 		// whole internet may see, whoever happens to be reading it
-		$portfolio->setPosts($this->postsFor($portfolio, null));
+		$portfolio->setPosts($this->postsFor($portfolio, null, ''));
 
 		return $portfolio;
 	}
@@ -142,7 +142,7 @@ class PortfolioService {
 
 		$saved = $this->portfoliosRequest->save($portfolio);
 		$saved->setAuthor($this->authorOf($owner->getId()));
-		$saved->setPosts($this->postsFor($saved, null));
+		$saved->setPosts($this->postsFor($saved, null, $owner->getId()));
 
 		return $saved;
 	}
@@ -162,13 +162,25 @@ class PortfolioService {
 	 * it answers "no".
 	 *
 	 * @param Person|null $viewer who to read the posts as
+	 * @param string $readerId whose reactions are marked `me`, '' for nobody
 	 *
 	 * @return array
 	 */
-	private function postsFor(Portfolio $portfolio, ?Person $viewer): array {
-		if ($portfolio->getSource() === Portfolio::SOURCE_COLLECTION) {
-			return $this->fromCollection($portfolio, $viewer);
-		}
+	private function postsFor(Portfolio $portfolio, ?Person $viewer, string $readerId): array {
+		$posts = ($portfolio->getSource() === Portfolio::SOURCE_COLLECTION)
+			? $this->fromCollection($portfolio, $viewer)
+			: $this->recent($portfolio, $viewer);
+		$this->postDecorationService->decorate($posts, $readerId);
+
+		return $posts;
+	}
+
+	/**
+	 * The owner's newest public pictures.
+	 *
+	 * @return array
+	 */
+	private function recent(Portfolio $portfolio, ?Person $viewer): array {
 
 		$options = new ProbeOptions();
 		$options->setProbe(ProbeOptions::ACCOUNT)
@@ -189,10 +201,7 @@ class PortfolioService {
 			$this->streamRequest->resetViewer();
 		}
 
-		$posts = $this->streamRequest->getTimeline($options);
-		$this->streamService->attachTaggedPeople($posts);
-
-		return $posts;
+		return $this->streamRequest->getTimeline($options);
 	}
 
 	/**
@@ -207,7 +216,12 @@ class PortfolioService {
 			return [];
 		}
 
-		return $this->collectionService->posts($collection, Portfolio::MAX_POSTS);
+		$posts = $this->collectionService->posts($collection, Portfolio::MAX_POSTS);
+		foreach ($posts as $post) {
+			$post->setExportFormat(ACore::FORMAT_LOCAL);
+		}
+
+		return $posts;
 	}
 
 	private function authorOf(string $actorId): ?Person {

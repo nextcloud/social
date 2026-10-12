@@ -21,6 +21,7 @@ use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MediaTagService;
 use OCA\Social\Service\NotificationService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\StreamService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -40,6 +41,7 @@ class MediaTagServiceTest extends TestCase {
 
 	private MediaTagsRequest|MockObject $mediaTagsRequest;
 	private StreamService|MockObject $streamService;
+	private PostDecorationService|MockObject $decoration;
 	private CacheActorService|Stub $cacheActorService;
 	private NotificationService|MockObject $notificationService;
 	private ActivityService|MockObject $activityService;
@@ -51,6 +53,7 @@ class MediaTagServiceTest extends TestCase {
 
 		$this->mediaTagsRequest = $this->createMock(MediaTagsRequest::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$this->decoration = $this->createMock(PostDecorationService::class);
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
 		$this->notificationService = $this->createMock(NotificationService::class);
 		$this->activityService = $this->createMock(ActivityService::class);
@@ -60,6 +63,7 @@ class MediaTagServiceTest extends TestCase {
 			$this->mediaTagsRequest,
 			$this->streamRequest,
 			$this->streamService,
+			$this->decoration,
 			$this->cacheActorService,
 			$this->activityService,
 			$this->notificationService,
@@ -298,6 +302,16 @@ class MediaTagServiceTest extends TestCase {
 
 		$this->assertCount(1, $page['posts']);
 		$this->assertSame('60', $page['next']);
+	}
+
+	/** The photographs are drawn like the same posts anywhere else, for the reader. */
+	public function testThePhotosAreDressedForTheReader(): void {
+		$post = $this->post();
+		$this->mediaTagsRequest->method('streamsFor')->willReturn([80]);
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->decoration->expects($this->once())->method('decorate')->with([$post], self::ALICE);
+
+		$this->service->photosOf($this->person(self::ALICE), self::BOB, 20);
 	}
 
 	public function testAPageThatReadFewerRowsThanItAskedForIsTheLast(): void {

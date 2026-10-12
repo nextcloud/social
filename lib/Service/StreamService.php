@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
-use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Events\PostDeletedEvent;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -80,9 +79,7 @@ class StreamService {
 		private EmojiService $emojiService,
 		private IEventDispatcher $eventDispatcher,
 		private LoggerInterface $logger,
-		private PlaceService $placeService,
-		private ReactionSummaryService $reactionSummaryService,
-		private MediaTagsRequest $mediaTagsRequest,
+		private PostDecorationService $postDecorationService,
 		private AccountService $accountService,
 		private ChannelService $channelService,
 		private ?RemoteFetchQueue $remoteFetchQueue = null,
@@ -94,8 +91,8 @@ class StreamService {
 	 * @param Person $viewer
 	 */
 	public function setViewer(Person $viewer) {
-		// kept here as well as handed down: the reaction bars this service
-		// attaches have to say whether the reader is one of the people in them
+		// kept here as well as handed down: the reaction bars on the posts
+		// this service serves say whether the reader is one of the people in them
 		$this->viewer = $viewer;
 		$this->streamRequest->setViewer($viewer);
 	}
@@ -681,26 +678,16 @@ class StreamService {
 			'hidden' => $hiddenCount,
 		];
 		// the post itself as well: it is drawn with the thread — the open
-		// direct message is rendered from it — and leaving it out of the batch
-		// meant the one post the reader actually opened was the only one
-		// without its link preview
-		$this->attachCardsToPosts(array_merge($context['ancestors'], [$post], $context['descendants']));
+		// direct message is rendered from it
+		$thread = array_merge($context['ancestors'], [$post], $context['descendants']);
+		$this->postDecorationService->decorate($thread, $this->viewerId());
 		// counts being asked for are more of the thread on its way, which the
 		// web app reads again a little later
-		if ($this->countService?->seen(array_merge($context['ancestors'], [$post], $context['descendants'])) === true) {
+		if ($this->countService?->seen($thread) === true) {
 			$context['filling'] = true;
 		}
 
 		return $context;
-	}
-
-	/**
-	 * Attach saved website preview cards to a batch of locally rendered statuses.
-	 *
-	 * @param Stream[] $posts
-	 */
-	public function attachCardsToPosts(array $posts): void {
-		$this->linkPreviewService->attachCards($posts);
 	}
 
 	/**
@@ -746,10 +733,7 @@ class StreamService {
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
 			// one query each for the whole page, and only for pages a client
 			// reads -- none of them is part of the wire object
-			$this->linkPreviewService->attachCards($posts);
-			$this->placeService->attachPlaces($posts);
-			$this->reactionSummaryService->attachReactions($posts, $this->viewer?->getId() ?? '');
-			$this->attachTaggedPeople($posts);
+			$this->postDecorationService->decorate($posts, $this->viewerId());
 			// what the remote posts on the page count now, asked in the background
 			$this->countService?->seen($posts);
 		}
@@ -770,69 +754,15 @@ class StreamService {
 	public function visiblePosts(array $nids): array {
 		$posts = $this->streamRequest->getVisibleByNids($nids);
 		$list = array_values($posts);
-		$this->linkPreviewService->attachCards($list);
-		$this->placeService->attachPlaces($list);
-		$this->reactionSummaryService->attachReactions($list, $this->viewer?->getId() ?? '');
-		$this->attachTaggedPeople($list);
+		$this->postDecorationService->decorate($list, $this->viewerId());
 		$this->countService?->seen($list);
 
 		return $posts;
 	}
 
-	/**
-	 * The people named in each post's pictures.
-	 *
-	 * Read here rather than in `MediaTagService`, which owns the writing side:
-	 * that service names people *through* this one — it addresses them and
-	 * re-sends the post — and a service that both of them depended on would be
-	 * a circle. This is the same read every other page attachment above is: one
-	 * query for the whole page, and only for a page a client reads, because a
-	 * name under a photograph is not part of the wire object. On the wire the
-	 * names are `Mention` tags, which is where a peer looks for them.
-	 *
-	 * The people are read from the actor cache only, in one query: a page is
-	 * being built, and fetching an uncached person from their server here
-	 * held the whole timeline for that server's timeout. Somebody not cached
-	 * is left out of this page and fetched in the background
-	 * (`RemoteFetchQueue`), so the next page that shows the picture names them.
-	 *
-	 * @param Stream[] $posts
-	 */
-	public function attachTaggedPeople(array $posts): void {
-		$nids = [];
-		foreach ($posts as $post) {
-			if ($post->getNid() > 0) {
-				$nids[] = (string)$post->getNid();
-			}
-		}
-
-		$tags = $this->mediaTagsRequest->forStreams($nids);
-		if ($tags === []) {
-			return;
-		}
-
-		$wanted = [];
-		foreach ($posts as $post) {
-			foreach ($tags[$post->getNid()] ?? [] as $actorId) {
-				$wanted[$actorId] = $actorId;
-			}
-		}
-
-		$people = $this->cacheActorService->getCachedFromIds(array_values($wanted));
-		foreach ($people as $person) {
-			$person->setExportFormat(ACore::FORMAT_LOCAL);
-		}
-		$this->remoteFetchQueue?->resolveActors(array_values(array_diff_key($wanted, $people)));
-
-		foreach ($posts as $post) {
-			$named = [];
-			foreach ($tags[$post->getNid()] ?? [] as $actorId) {
-				if (isset($people[$actorId])) {
-					$named[] = $people[$actorId];
-				}
-			}
-			$post->setTaggedPeople($named);
-		}
+	/** The reader's actor id, or '' for an anonymous read. */
+	private function viewerId(): string {
+		return $this->viewer?->getId() ?? '';
 	}
 
 	/**

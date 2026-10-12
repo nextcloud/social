@@ -201,7 +201,8 @@ class QueryBudgetTest extends ReaderTestCase {
 
 	/**
 	 * Opening a post is two requests — the status, then its thread — and the
-	 * thread's replies each have their own author.
+	 * thread's replies each have their own author. Each request reads the
+	 * cards, reactions and people in the pictures of what it serves once.
 	 */
 	public function testAStatusAndItsContextCostTheSameWithFiveRepliesAndWithForty(): void {
 		$root = $this->post($this->remoteActor('thread'), 'the post everyone answers');
@@ -209,7 +210,7 @@ class QueryBudgetTest extends ReaderTestCase {
 		$replies = 0;
 
 		$this->assertFlatCostWithin(
-			'status and context', 15,
+			'status and context', 17,
 			function (int $count) use (&$replies, $root): void {
 				for ($i = 0; $i < $count; $i++, $replies++) {
 					$this->post(

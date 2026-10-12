@@ -19,8 +19,7 @@ use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\AccountService;
-use OCA\Social\Service\LinkPreviewService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IUser;
@@ -34,7 +33,7 @@ use Psr\Log\NullLogger;
 #[AllowMockObjectsWithoutExpectations]
 class AtprotoFeedsControllerTest extends TestCase {
 	private BlueskyFeeds&MockObject $feeds;
-	private LinkPreviewService&MockObject $cards;
+	private PostDecorationService&MockObject $cards;
 	private StarterPacks&MockObject $packs;
 	private BlueskyDiscovery&MockObject $discovery;
 	private bool $enabled = true;
@@ -48,16 +47,16 @@ class AtprotoFeedsControllerTest extends TestCase {
 		$config = $this->createStub(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
 		$accounts = $this->createStub(AccountService::class);
-		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
+		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice')->setId('https://cloud.example/users/alice'));
 
 		return new AtprotoFeedsController(
-			$this->createStub(IRequest::class), $session, $config, $accounts, $this->feeds, $this->packs, $this->discovery, $this->cards, $this->createStub(PlaceService::class), new NullLogger(),
+			$this->createStub(IRequest::class), $session, $config, $accounts, $this->feeds, $this->packs, $this->discovery, $this->cards, new NullLogger(),
 		);
 	}
 
 	protected function setUp(): void {
 		$this->feeds = $this->createMock(BlueskyFeeds::class);
-		$this->cards = $this->createMock(LinkPreviewService::class);
+		$this->cards = $this->createMock(PostDecorationService::class);
 		$this->packs = $this->createMock(StarterPacks::class);
 		$this->discovery = $this->createMock(BlueskyDiscovery::class);
 	}
@@ -111,7 +110,7 @@ class AtprotoFeedsControllerTest extends TestCase {
 	public function testAPageIsTheFeedsPostsWithTheirCards(): void {
 		$post = new Note();
 		$this->feeds->expects($this->once())->method('page')->with($this->anything(), 'at://did:plc:bob/app.bsky.graph.list/3kl', '77', 10)->willReturn([$post]);
-		$this->cards->expects($this->once())->method('attachCards')->with([$post]);
+		$this->cards->expects($this->once())->method('decorate')->with([$post], 'https://cloud.example/users/alice');
 
 		$this->assertSame([$post], $this->controller()->timeline('at://did:plc:bob/app.bsky.graph.list/3kl', 10, '77')->getData());
 	}

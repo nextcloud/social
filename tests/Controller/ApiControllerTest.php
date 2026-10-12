@@ -197,6 +197,7 @@ class ApiControllerTest extends TestCase {
 	private DeliveryService|MockObject $deliveryService;
 	private ReactionService|Stub $reactionService;
 	private ReactionSummaryService|Stub $reactionSummaryService;
+	private \OCA\Social\Service\PostDecorationService|MockObject $postDecorationService;
 	private GifService|Stub $gifService;
 	private FileCommentsService|MockObject $fileCommentsService;
 	private NotificationService|Stub $notificationService;
@@ -345,6 +346,7 @@ class ApiControllerTest extends TestCase {
 		$this->deliveryService = $this->createMock(DeliveryService::class);
 		$this->reactionService = $this->createStub(ReactionService::class);
 		$this->reactionSummaryService = $this->createStub(ReactionSummaryService::class);
+		$this->postDecorationService = $this->createMock(\OCA\Social\Service\PostDecorationService::class);
 		$this->gifService = $this->createStub(GifService::class);
 		$this->fileCommentsService = $this->createMock(FileCommentsService::class);
 		$this->notificationService = $this->createStub(NotificationService::class);
@@ -472,6 +474,7 @@ class ApiControllerTest extends TestCase {
 			'deliveryService' => $this->deliveryService,
 			'reactionService' => $this->reactionService,
 			'reactionSummaryService' => $this->reactionSummaryService,
+			'postDecorationService' => $this->postDecorationService,
 			'gifService' => $this->gifService,
 			'fileCommentsService' => $this->fileCommentsService,
 			'notificationService' => $this->notificationService,
@@ -1376,8 +1379,8 @@ class ApiControllerTest extends TestCase {
 		$this->userSession->method('getUser')->willReturn(null);
 		$item = $this->createMock(Stream::class);
 		$this->streamService->method('getStreamByNid')->with(42)->willReturn($item);
-		// a single status carries its link preview too
-		$this->streamService->expects($this->once())->method('attachCard')->with($item)->willReturn($item);
+		// a single status is dressed as a timeline dresses it, for nobody in particular
+		$this->postDecorationService->expects($this->once())->method('decorate')->with([$item], '');
 		$item->expects($this->once())->method('setExportFormat')->with(ACore::FORMAT_LOCAL);
 
 		$response = $this->controller()->statusGet(42);
@@ -1390,7 +1393,6 @@ class ApiControllerTest extends TestCase {
 		$this->userSession->method('getUser')->willReturn(null);
 		$item = $this->createMock(Stream::class);
 		$this->streamService->method('getStreamByNid')->willReturn($item);
-		$this->streamService->method('attachCard')->willReturn($item);
 		$this->counts->expects($this->once())->method('seen')->with([$item])->willReturn(true);
 
 		$response = $this->controller()->statusGet(42);
@@ -1403,7 +1405,6 @@ class ApiControllerTest extends TestCase {
 		$this->userSession->method('getUser')->willReturn(null);
 		$item = $this->createMock(Stream::class);
 		$this->streamService->method('getStreamByNid')->willReturn($item);
-		$this->streamService->method('attachCard')->willReturn($item);
 		$this->counts->method('seen')->willReturn(false);
 
 		$this->assertArrayNotHasKey('X-Social-Filling', $this->controller()->statusGet(42)->getHeaders());
@@ -2731,6 +2732,9 @@ class ApiControllerTest extends TestCase {
 		]);
 		$best = $this->createStub(Stream::class);
 		$this->streamService->method('getStreamByNid')->with(9)->willReturn($best);
+		// drawn like the same post anywhere else, for its author
+		$this->postDecorationService->expects($this->once())->method('decorate')
+			->with([$best], 'https://cloud.example/apps/social/@alice');
 
 		$data = $this->controller()->annualReports()->getData();
 

@@ -21,12 +21,11 @@ use OCA\Social\Service\ArchiveService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\HashtagService;
-use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\MediaTagService;
 use OCA\Social\Service\PixelfedConfigService;
 use OCA\Social\Service\PixelfedService;
-use OCA\Social\Service\PlaceService;
 use OCA\Social\Service\PortfolioService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\StoryInteractionService;
 use OCA\Social\Service\StoryService;
 use OCA\Social\Service\SuggestionService;
@@ -70,6 +69,7 @@ class PixelfedControllerTest extends TestCase {
 	private StoryInteractionService|Stub $storyInteractionService;
 	private MediaTagService|MockObject $mediaTagService;
 	private ArchiveService|Stub|null $archiveService = null;
+	private PostDecorationService|Stub|null $decoration = null;
 	private CacheActorService|Stub|null $cacheActorService = null;
 
 	private bool $hasSession = true;
@@ -175,8 +175,7 @@ class PixelfedControllerTest extends TestCase {
 			$this->trendService,
 			$this->suggestionService,
 			$this->hashtagService,
-			$this->createStub(LinkPreviewService::class),
-			$this->createStub(PlaceService::class),
+			$this->createStub(PostDecorationService::class),
 			$this->pixelfedService,
 			$this->storyService,
 			$this->storyInteractionService,

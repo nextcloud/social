@@ -38,6 +38,7 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\StreamService;
@@ -127,9 +128,7 @@ class StreamServiceTest extends TestCase {
 			$this->emojiService,
 			$this->createStub(\OCP\EventDispatcher\IEventDispatcher::class),
 			$this->logger,
-			$this->createStub(PlaceService::class),
-			$this->createStub(ReactionSummaryService::class),
-			$this->createStub(MediaTagsRequest::class),
+			$this->decoration(),
 			$this->accountService,
 			$this->channelService
 		);
@@ -689,9 +688,7 @@ class StreamServiceTest extends TestCase {
 			$this->emojiService,
 			$this->createStub(\OCP\EventDispatcher\IEventDispatcher::class),
 			new NullLogger(),
-			$this->createStub(PlaceService::class),
-			$this->createStub(ReactionSummaryService::class),
-			$this->createStub(MediaTagsRequest::class),
+			$this->decoration(),
 			$this->createStub(AccountService::class),
 			$this->createStub(ChannelService::class)
 		);
@@ -1011,9 +1008,7 @@ class StreamServiceTest extends TestCase {
 			$this->emojiService,
 			$this->createStub(\OCP\EventDispatcher\IEventDispatcher::class),
 			$this->logger,
-			$this->createStub(PlaceService::class),
-			$this->createStub(ReactionSummaryService::class),
-			$this->createStub(MediaTagsRequest::class),
+			$this->decoration(),
 			$this->accountService,
 			$this->channelService,
 			null,
@@ -1941,41 +1936,22 @@ class StreamServiceTest extends TestCase {
 			$this->emojiService,
 			$this->createStub(\OCP\EventDispatcher\IEventDispatcher::class),
 			new NullLogger(),
-			$this->createStub(PlaceService::class),
-			$this->createStub(ReactionSummaryService::class),
-			$mediaTagsRequest,
+			$this->decoration($mediaTagsRequest, $remoteFetchQueue),
 			$this->accountService,
 			$this->channelService,
 			$remoteFetchQueue
 		);
 	}
 
-	/**
-	 * The people named in a page's pictures come out of the actor cache in
-	 * one query; somebody not cached is left off this page and fetched in the
-	 * background, never over HTTP while the page is being built.
-	 */
-	public function testTaggedPeopleAreReadFromTheCacheAndMissesAreQueued(): void {
-		$bob = new Person();
-		$bob->setId('https://remote.example/users/bob');
-		$mediaTags = $this->createStub(MediaTagsRequest::class);
-		$mediaTags->method('forStreams')->willReturn([
-			7 => ['https://remote.example/users/bob', 'https://gone.example/users/carol'],
-			8 => ['https://remote.example/users/bob'],
-		]);
-		$this->cacheActorService->expects($this->never())->method('getFromId');
-		$this->cacheActorService->expects($this->once())->method('getCachedFromIds')
-			->with(['https://remote.example/users/bob', 'https://gone.example/users/carol'])
-			->willReturn(['https://remote.example/users/bob' => $bob]);
-		$queue = $this->createMock(RemoteFetchQueue::class);
-		$queue->expects($this->once())->method('resolveActors')->with(['https://gone.example/users/carol']);
-		$first = (new Note())->setNid(7);
-		$second = (new Note())->setNid(8);
-
-		$this->serviceWithTags($mediaTags, $queue)->attachTaggedPeople([$first, $second]);
-
-		$this->assertSame([$bob], $first->getTaggedPeople());
-		$this->assertSame([$bob], $second->getTaggedPeople());
-		$this->assertSame(ACore::FORMAT_LOCAL, $bob->getExportFormat());
+	/** The real decoration over the link preview mock, so the cards a page asks for are seen. */
+	private function decoration(?MediaTagsRequest $mediaTagsRequest = null, ?RemoteFetchQueue $remoteFetchQueue = null): PostDecorationService {
+		return new PostDecorationService(
+			$this->linkPreviewService,
+			$this->createStub(PlaceService::class),
+			$this->createStub(ReactionSummaryService::class),
+			$mediaTagsRequest ?? $this->createStub(MediaTagsRequest::class),
+			$this->cacheActorService,
+			$remoteFetchQueue ?? $this->createStub(RemoteFetchQueue::class),
+		);
 	}
 }

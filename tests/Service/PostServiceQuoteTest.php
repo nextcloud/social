@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
-use OCA\Social\Db\MediaTagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -31,9 +30,8 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\ModerationService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\PostService;
-use OCA\Social\Service\ReactionSummaryService;
 use OCA\Social\Service\StatusRevisionService;
 use OCA\Social\Service\StreamService;
 use OCP\IURLGenerator;
@@ -87,9 +85,7 @@ class PostServiceQuoteTest extends TestCase {
 			$this->createStub(EmojiService::class),
 			$this->createStub(\OCP\EventDispatcher\IEventDispatcher::class),
 			new NullLogger(),
-			$this->createStub(PlaceService::class),
-			$this->createStub(ReactionSummaryService::class),
-			$this->createStub(MediaTagsRequest::class),
+			$this->createStub(PostDecorationService::class),
 			$this->createStub(AccountService::class),
 			$this->createStub(ChannelService::class)
 		);

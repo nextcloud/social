@@ -12,8 +12,8 @@ namespace OCA\Social\Controller;
 use OCA\Social\Db\PlacesRequest;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
-use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -45,7 +45,7 @@ class PlaceController extends ClientApiController {
 		AccountService $accountService,
 		ClientService $clientService,
 		private PlaceService $placeService,
-		private LinkPreviewService $linkPreviewService,
+		private PostDecorationService $postDecorationService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -91,10 +91,10 @@ class PlaceController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/places/{id}/statuses', requirements: ['id' => '\\d+'])]
 	public function statuses(int $id, int $limit = 20, int|string $max_id = 0): DataResponse {
 		try {
-			$this->optionalViewer(['read']);
+			$viewer = $this->optionalViewer(['read']);
 
 			$posts = $this->placeService->posts($id, $limit, $max_id);
-			$this->linkPreviewService->attachCards($posts);
+			$this->postDecorationService->decorate($posts, $viewer?->getId() ?? '');
 
 			return new DataResponse($posts, Http::STATUS_OK);
 		} catch (Throwable $e) {

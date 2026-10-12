@@ -29,9 +29,8 @@ use OCA\Social\Service\DirectoryService;
 use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\FediverseDirectoryService;
 use OCA\Social\Service\FollowGraphService;
-use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PeerTrendService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\ProfileHighlightsService;
 use OCA\Social\Service\StarterPackService;
 use OCA\Social\Service\SuggestionService;
@@ -81,7 +80,7 @@ class DiscoveryControllerTest extends TestCase {
 	private FollowGraphService|Stub $followGraphService;
 	private TrendService|Stub $trendService;
 	private FeaturedTagService|Stub $featuredTagService;
-	private LinkPreviewService|Stub $linkPreviewService;
+	private PostDecorationService|Stub $postDecorationService;
 	private StarterPackService|Stub $starterPackService;
 	private ProfileHighlightsService|Stub $profileHighlightsService;
 	private AccountRelationService|MockObject $accountRelationService;
@@ -228,8 +227,8 @@ class DiscoveryControllerTest extends TestCase {
 		$this->fediverseDirectoryService = $this->createStub(FediverseDirectoryService::class);
 		$this->peerTrendService = $this->createStub(PeerTrendService::class);
 
-		$this->linkPreviewService = $this->createStub(LinkPreviewService::class);
-		$this->linkPreviewService->method('attachCards')
+		$this->postDecorationService = $this->createStub(PostDecorationService::class);
+		$this->postDecorationService->method('decorate')
 			->willReturnCallback(function (): void {
 				$this->cardsAttached = true;
 			});
@@ -255,8 +254,7 @@ class DiscoveryControllerTest extends TestCase {
 			$this->followGraphService,
 			$this->trendService,
 			$this->featuredTagService,
-			$this->linkPreviewService,
-			$this->createStub(PlaceService::class),
+			$this->postDecorationService,
 			$this->starterPackService,
 			$this->profileHighlightsService,
 			$this->accountRelationService,

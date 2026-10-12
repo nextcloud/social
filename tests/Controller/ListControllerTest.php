@@ -26,8 +26,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\Counts\CountService;
 use OCA\Social\Service\FollowService;
 use OCA\Social\Service\GroupListService;
-use OCA\Social\Service\LinkPreviewService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Tests\Mock\TCacheActorServiceMock;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -63,7 +62,7 @@ class ListControllerTest extends TestCase {
 	private CacheActorService|MockObject $cacheActorService;
 	private ClientService|Stub $clientService;
 	private FollowService|Stub $followService;
-	private LinkPreviewService|Stub $linkPreviewService;
+	private PostDecorationService|Stub $postDecorationService;
 	private ListsRequest|Stub $listsRequest;
 	private GroupListService|MockObject $groupListService;
 	private IUserSession|Stub $userSession;
@@ -107,7 +106,7 @@ class ListControllerTest extends TestCase {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->person(self::VIEWER, 1));
 
 		$this->clientService = $this->createStub(ClientService::class);
-		$this->linkPreviewService = $this->createStub(LinkPreviewService::class);
+		$this->postDecorationService = $this->createStub(PostDecorationService::class);
 
 		$this->cacheActorService = $this->cacheActorServiceMock();
 		$this->cacheActorService->method('getFromNids')
@@ -268,9 +267,8 @@ class ListControllerTest extends TestCase {
 			$this->cacheActorService,
 			$this->clientService,
 			$this->followService,
-			$this->linkPreviewService,
+			$this->postDecorationService,
 			$this->listsRequest,
-			$this->createStub(PlaceService::class),
 			$this->groupListService,
 			$blueskyLists === null ? null : $this->containerWith($blueskyLists),
 			$counts,

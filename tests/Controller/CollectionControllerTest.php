@@ -16,8 +16,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\CollectionService;
-use OCA\Social\Service\LinkPreviewService;
-use OCA\Social\Service\PlaceService;
+use OCA\Social\Service\PostDecorationService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
 use OCP\IUser;
@@ -70,8 +69,7 @@ class CollectionControllerTest extends TestCase {
 			$this->createStub(ClientService::class),
 			$this->createStub(CacheActorService::class),
 			$this->collectionService,
-			$this->createStub(LinkPreviewService::class),
-			$this->createStub(PlaceService::class),
+			$this->createStub(PostDecorationService::class),
 		);
 	}
 

@@ -53,6 +53,7 @@ class MediaTagService {
 		private MediaTagsRequest $mediaTagsRequest,
 		private StreamRequest $streamRequest,
 		private StreamService $streamService,
+		private PostDecorationService $postDecorationService,
 		private CacheActorService $cacheActorService,
 		private ActivityService $activityService,
 		private NotificationService $notificationService,
@@ -199,7 +200,7 @@ class MediaTagService {
 			$posts[] = $post;
 		}
 
-		$this->streamService->attachTaggedPeople($posts);
+		$this->postDecorationService->decorate($posts, $viewer->getId());
 
 		return [
 			'posts' => $posts,
