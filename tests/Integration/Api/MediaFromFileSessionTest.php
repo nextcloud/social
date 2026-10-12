@@ -102,6 +102,6 @@ class MediaFromFileSessionTest extends ApiTestCase {
 		$response = $this->attach('alice', false);
 
 		$this->assertSame(403, $response->status, json_encode($response->body) ?: '');
-		$this->assertSame('this route is only for the Aloha Social web app, signed in to Nextcloud', $response->body->error);
+		$this->assertSame('this route takes the Nextcloud session: the web app signed in to Nextcloud, or a Nextcloud app password sent with OCS-APIRequest: true', $response->body->error);
 	}
 }

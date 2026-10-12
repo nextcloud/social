@@ -244,15 +244,16 @@ abstract class MastodonApiController extends Controller {
 	}
 
 	/**
-	 * For a route that belongs to this app's own web page: a bearer token is
-	 * refused whatever it was granted, which leaves the signed-in Nextcloud
-	 * session that `currentSession()` accepts only with its CSRF token.
+	 * For a route that takes the Nextcloud session (docs/API.md, "Which
+	 * credentials a route takes"): a bearer token is refused whatever it was
+	 * granted, which leaves the session `currentSession()` accepts — the web
+	 * app's with its CSRF token, or an app password with `OCS-APIRequest`.
 	 *
 	 * @throws InsufficientScopeException
 	 */
 	protected function requireWebSession(): void {
 		if ($this->bearer !== '') {
-			throw new InsufficientScopeException('this route is only for the Aloha Social web app, signed in to Nextcloud');
+			throw new InsufficientScopeException('this route takes the Nextcloud session: the web app signed in to Nextcloud, or a Nextcloud app password sent with OCS-APIRequest: true');
 		}
 	}
 
