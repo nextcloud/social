@@ -1103,22 +1103,20 @@ class AccountService {
 				// the actor already carries alone rather than publishing it
 				return;
 			}
-
-			$displayName = $displayNameProperty->getValue();
 		} catch (Exception $e) {
 			// The property could not be read at all, which is not the same as
-			// the user having asked for privacy: fall back to the display name
-			// the rest of Nextcloud already shows.
+			// the user having asked for privacy: publish the name.
 			$this->logger->warning(
-				'could not read the account of a local actor, falling back to its display name',
+				'could not read the account of a local actor, publishing its display name',
 				['userId' => $actor->getUserId(), 'exception' => $e]
 			);
-			$displayName = $user->getDisplayName();
 		}
 
-		if ($displayName !== '') {
-			$actor->setName($displayName);
-		}
+		// The name is the user backend's, as everywhere else in Nextcloud. The
+		// property's value is only a copy, written by core's listener for
+		// UserChangedEvent, which runs after the apps' listeners and not at
+		// all once one of them throws; it can lag behind the stored name.
+		$actor->setName($user->getDisplayName());
 	}
 
 	/**
