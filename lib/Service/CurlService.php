@@ -459,7 +459,7 @@ class CurlService {
 			return [];
 		}
 
-		$client = $this->clientService->newClient();
+		$client = $this->parallelClient();
 
 		$answers = array_fill_keys($urls, null);
 		$promises = [];
@@ -491,6 +491,48 @@ class CurlService {
 		}
 
 		return $answers;
+	}
+
+	/**
+	 * How long an answer asks to be left alone, in seconds: `Retry-After` as
+	 * a number of seconds or as an HTTP date (RFC 9110 §10.2.3), 0 where it
+	 * says nothing usable. Capping is the breaker's business.
+	 */
+	public static function retryAfter(IResponse $response): int {
+		$value = trim($response->getHeader('Retry-After'));
+		if ($value === '') {
+			return 0;
+		}
+		if (preg_match('/^\d{1,10}$/', $value) === 1) {
+			return (int)$value;
+		}
+		$date = SignatureService::parseHttpDate($value);
+
+		return ($date === null) ? 0 : max(0, $date - time());
+	}
+
+	/**
+	 * A client whose `…Async()` requests are in flight together.
+	 *
+	 * The server's client runs on Guzzle's `CurlHandler` unless handed
+	 * another, and that handler performs each request the moment it is made:
+	 * the promises came back already settled, one after the other, and a
+	 * peer waiting out its timeout held up every request made after it. The
+	 * multi handler is what lets them overlap; where the server's HTTP stack
+	 * has none (a test without one), the default client is used. Nextcloud
+	 * 34's `newClient()` takes no handler and ignores this one, so there the
+	 * requests still go out one after another.
+	 */
+	private function parallelClient(): IClient {
+		$multi = 'GuzzleHttp\\Handler\\CurlMultiHandler';
+		if (!class_exists($multi)) {
+			return $this->clientService->newClient();
+		}
+
+		/** @var callable $handler */
+		$handler = new $multi();
+
+		return $this->clientService->newClient($handler);
 	}
 
 	/**
@@ -531,7 +573,7 @@ class CurlService {
 	 * @return array<array-key, Throwable|null> the key of each request => its outcome
 	 */
 	public function sendMany(array $requests): array {
-		$client = $this->clientService->newClient();
+		$client = $this->parallelClient();
 
 		$outcomes = [];
 		$promises = [];
@@ -584,7 +626,8 @@ class CurlService {
 
 			$this->body($response);
 			if ($response->getStatusCode() >= 300) {
-				return new RequestContentException($request['url'], $response->getStatusCode());
+				return (new RequestContentException($request['url'], $response->getStatusCode()))
+					->setRetryAfter(self::retryAfter($response));
 			}
 
 			return null;
@@ -751,7 +794,7 @@ class CurlService {
 
 		$status = $response->getStatusCode();
 		if ($status >= 300) {
-			throw new RequestContentException($url, $status);
+			throw (new RequestContentException($url, $status))->setRetryAfter(self::retryAfter($response));
 		}
 
 		$stream = $response->getBody();
@@ -934,7 +977,7 @@ class CurlService {
 			$location = $this->redirectTarget($response, $url);
 			if ($location === '') {
 				if ($statusCode >= 300 && !$acceptErrors) {
-					throw new RequestContentException($url, $statusCode);
+					throw (new RequestContentException($url, $statusCode))->setRetryAfter(self::retryAfter($response));
 				}
 
 				return $body;

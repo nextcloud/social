@@ -1,0 +1,20 @@
+{
+    "implementation": "Lemmy 0.19",
+    "shapedAfter": "LemmyNet/lemmy 0.19.20: src/lib.rs (http_signature_compat(true)); LemmyNet/activitypub-federation-rust 0.7.0-beta.12: src/http_signatures.rs (sign_request, test_sign), src/activity_sending.rs (generate_request_headers), src/protocol/public_key.rs (main_key_id)",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://lemmy.example/u/gina",
+    "keyId": "https://lemmy.example/u/gina#main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvukylN9n9woxJqZZ+TBS\n/TaY0QJjVJ//JZO8qte11tVElgMpNqelCR/Ud1P0yWRYwKp2Uh0k8oxstDTh3mho\nUBZI3VWBAFP3cd+fok0tq/JB+mLn1gx5AWn3HNr3UKhbuSf8hNmUnOJbirA8Sooo\nDzPJO1vESNQ+3zV9Gg6irwEQppCHghmPIShYPI75YJDFIzAd/St/dg7r1pGzLlCF\n3cKAwOUkPCNd2cyNZaHlCNrKLCpgpug8t4SqUXeMLQ+hnGEnlMvpAwQSgkjxyjfm\nvihYy6revZKBsPoqMj1yWVRdrF3oLjiguwgZ0Lra9g+Aoc2llw3oc+mZVnYPzWxc\nEQIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "Content-Type": "application/activity+json",
+        "Host": "cloud.example.com",
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Digest": "SHA-256=4gGPsgv3MRxmcxLk1O8empe9I4iQMqnmQLzPTXmDKjU=",
+        "User-Agent": "Lemmy/0.19.20; +https://lemmy.example",
+        "Signature": "keyId=\"https://lemmy.example/u/gina#main-key\",algorithm=\"hs2019\",headers=\"(request-target) content-type date digest host\",signature=\"Y0VWbkW64+3X5LNY/jh0lWU6UIh+O65guqswLJTyFlXmoSIqqjI/+tOv2S4dVLMjgoGl9H/f379pfBm7RGYm/UAdSckrZOk0d7c0oaJrZoe2mxqZ8CHTWBMFYZ9qfGal6OqPA6STE5zl+bJU7ichTgLrhoMFGIwmZSYOQMcKV3VT49RfFbP9etOAIa+okE3Papzyo7fF03KfxFS+Y1RYZH89wZSlgx+IJgSMfM7lPx+kHJU9k6CCDaKuPqND2FGN05cptmJgP8ONQ25bErS1xRm6ssi6EGZ0mGhtpJBRjb6/VzftOtR0/D5DAhKDOE18+bPdjS0dmimtOHRTQ741SA==\""
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://lemmy.example/activities/follow/3d0b5c1e-7a2f-4e98-b6c4-1f2e3d4c5b6a\",\"type\":\"Follow\",\"actor\":\"https://lemmy.example/u/gina\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}

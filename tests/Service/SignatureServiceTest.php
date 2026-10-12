@@ -1161,6 +1161,78 @@ class SignatureServiceTest extends TestCase {
 		$this->assertSame('remote.example', $this->service->checkRequest($this->incomingRequest($headers), $body));
 	}
 
+	/**
+	 * GoToSocial names its keys `…/users/bob/main-key`, a URL of their own,
+	 * not the actor's id with a fragment. The key is found through the actor
+	 * that document names, the signature speaks for that actor, and once
+	 * found the owner is remembered: the next delivery reads the actor and
+	 * does not fetch the key document again.
+	 */
+	public function testAGoToSocialKeyIdSpeaksForTheActorItBelongsTo(): void {
+		$keyId = self::REMOTE_ACTOR . '/main-key';
+		$body = '{"type":"Follow"}';
+		$this->cacheActorService->expects($this->once())->method('getFromKeyId')
+			->with($keyId, false)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+
+		$signer = '';
+		$time = 0;
+		$origin = $this->service->checkRequest(
+			$this->incomingRequest($this->signedHeaders($body, self::$privateKey, [], keyId: $keyId)), $body, $time, $signer
+		);
+
+		$this->assertSame('remote.example', $origin);
+		$this->assertSame(self::REMOTE_ACTOR, $signer);
+
+		$cached = $this->createMock(CacheActorsRequest::class);
+		$cached->method('getFromId')->with(self::REMOTE_ACTOR)
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$publicKey));
+		$this->replaceLocalActorCache($cached);
+		$signer = '';
+		$this->service->checkRequest(
+			$this->incomingRequest($this->signedHeaders($body, self::$privateKey, [], keyId: $keyId)), $body, $time, $signer
+		);
+		$this->assertSame(self::REMOTE_ACTOR, $signer);
+	}
+
+	/**
+	 * A key whose owner could not be bound to it leaves nothing behind: no
+	 * owner remembered for the keyId, so no later delivery naming it is read
+	 * as that actor's.
+	 */
+	public function testAKeyIdWhoseOwnerIsRefusedIsNotRemembered(): void {
+		$keyId = self::REMOTE_ACTOR . '/main-key';
+		$body = '{"type":"Follow"}';
+		$this->cacheActorService->method('getFromKeyId')
+			->willThrowException(new InvalidOriginException('not a key of ' . self::REMOTE_ACTOR));
+
+		$signer = '';
+		try {
+			$time = 0;
+			$this->service->checkRequest(
+				$this->incomingRequest($this->signedHeaders($body, self::$privateKey, [], keyId: $keyId)), $body, $time, $signer
+			);
+			$this->fail('a key nobody claims verified a delivery');
+		} catch (SignatureException|InvalidOriginException $e) {
+		}
+
+		$this->assertSame('', $signer);
+		$this->assertSame([], $this->seenSignatures->rows, 'something was remembered about a key that was refused');
+	}
+
+	/** A key whose holder's own document carries another key does not verify. */
+	public function testAGoToSocialKeyIdIsVerifiedWithTheKeyItsOwnerPublishes(): void {
+		$keyId = self::REMOTE_ACTOR . '/main-key';
+		$body = '{"type":"Follow"}';
+		$this->cacheActorService->method('getFromKeyId')
+			->willReturn($this->person(self::REMOTE_ACTOR, self::$otherPublicKey));
+
+		$this->expectException(SignatureException::class);
+		$this->service->checkRequest(
+			$this->incomingRequest($this->signedHeaders($body, self::$privateKey, [], keyId: $keyId)), $body
+		);
+	}
+
 	public function testTheFetchOfAnUnknownKeyIsTimeBounded(): void {
 		$body = '{"type":"Follow"}';
 		$headers = $this->signedHeaders($body, self::$privateKey);

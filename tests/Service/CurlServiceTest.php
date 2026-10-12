@@ -533,6 +533,65 @@ class CurlServiceTest extends TestCase {
 		return $response;
 	}
 
+	/**
+	 * @return iterable<string, array{0: string, 1: int, 2: int}> a `Retry-After` (`@+300` an HTTP date that far
+	 *                                                            from when the test runs), and the seconds it means, with the slack a date needs
+	 */
+	public static function retryAfters(): iterable {
+		yield 'seconds' => ['120', 120, 0];
+		yield 'an HTTP date' => ['@+300', 300, 2];
+		yield 'a date already past' => ['@-300', 0, 0];
+		yield 'none' => ['', 0, 0];
+		yield 'not a number or a date' => ['soon', 0, 0];
+		yield 'a negative number' => ['-5', 0, 0];
+	}
+
+	/** RFC 9110 §10.2.3: a number of seconds, or an HTTP date. */
+	#[DataProvider('retryAfters')]
+	public function testRetryAfterIsReadAsSecondsOrADate(string $header, int $seconds, int $slack): void {
+		if (str_starts_with($header, '@')) {
+			$header = gmdate('D, d M Y H:i:s \\G\\M\\T', time() + (int)substr($header, 1));
+		}
+		$response = $this->createStub(IResponse::class);
+		$response->method('getHeader')->willReturnCallback(
+			static fn (string $name): string => (strtolower($name) === 'retry-after') ? $header : ''
+		);
+
+		$this->assertEqualsWithDelta($seconds, CurlService::retryAfter($response), $slack);
+	}
+
+	/** A 429's Retry-After travels with the refusal, for the breaker to read. */
+	public function testARefusalCarriesThePeersRetryAfter(): void {
+		$response = $this->createStub(IResponse::class);
+		$response->method('getStatusCode')->willReturn(429);
+		$response->method('getHeader')->willReturnCallback(
+			static fn (string $name): string => (strtolower($name) === 'retry-after') ? '90' : ''
+		);
+		$response->method('getBody')->willReturnCallback(static function () {
+			$stream = fopen('php://memory', 'r+');
+			rewind($stream);
+
+			return $stream;
+		});
+		$this->configService = $this->createStub(ConfigService::class);
+		$this->configService->method('getAppValue')->willReturn('10');
+		$this->configService->method('requestOptions')->willReturn([
+			'timeout' => 10,
+			'connect_timeout' => 10,
+			'nextcloud' => ['allow_local_address' => true],
+		]);
+		$this->configService->method('activityPubHeaders')->willReturn([]);
+		$this->client->method('request')->willReturn($response);
+
+		try {
+			$this->service()->doRequest('post', 'http://localhost/inbox');
+			$this->fail('a 429 was taken as an answer');
+		} catch (RequestContentException $e) {
+			$this->assertSame(429, $e->getCode());
+			$this->assertSame(90, $e->getRetryAfter());
+		}
+	}
+
 	/** Captures what the client was asked to send. */
 	private function captureRequest(IResponse $response): callable {
 		$captured = null;

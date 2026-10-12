@@ -686,7 +686,7 @@ class ActivityService {
 					. $url . ' - ' . $failure->getMessage()
 				);
 				$this->requestQueueService->endRequest($queue, false);
-				$this->holdHost($host, $live);
+				$this->holdHost($host, $live, $failure->getRetryAfter());
 
 				return;
 			}
@@ -733,12 +733,12 @@ class ActivityService {
 	 * on the strength of that put every other path off it too — for up to an
 	 * hour, of which only a success anywhere clears the strike.
 	 */
-	private function holdHost(string $host, bool $live): void {
+	private function holdHost(string $host, bool $live, int $retryAfter = 0): void {
 		if ($live) {
 			return;
 		}
 
-		$this->breaker()->open($host);
+		$this->breaker()->open($host, $retryAfter);
 	}
 
 	/** // ====> instanceService

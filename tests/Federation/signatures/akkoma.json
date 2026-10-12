@@ -1,0 +1,21 @@
+{
+    "implementation": "Akkoma 3.20 / Pleroma",
+    "shapedAfter": "AkkomaGang/akkoma v3.20.1: lib/pleroma/http/middleware/httpsignature.ex, lib/pleroma/user/signing_key.ex (local_key_id); AkkomaGang/http_signatures a4791e3: lib/http_signatures/http_signatures.ex (do_sign)",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://akkoma.example/users/frank",
+    "keyId": "https://akkoma.example/users/frank#main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArluBEVLKAvPl6BJauhWo\nCPpew5pyXLQW5by+q/JU4WdrrDFISzPapgjKJwR9uUzThUefkpiKaq12QBYOdAdT\nI/1g/u2jwsv+yhrkem36vUMPFWRhbgDKSvFwmonHmHybEp0T/KpisCV21NHob4+d\nOBxxTOv5+ipBjiRsnW39gUTKTISn0jOcN4n1+WhMwBfG4za0D6X4ejQ1XsIHnfCh\n4DAn8rN21+hizAMA85noh1JlrKDiAVp0gGWUpHGHJJ/NXSGfzSg3Y7t85YAfQCcE\nLLHMPZXgWUi2z5BHJgHWF25D7Vu+2oKcv6KyM6OIOgsjzXgz0msvFSH0ItH2QzgG\nwQIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "Content-Type": "application/activity+json",
+        "User-Agent": "Akkoma 3.20.1; https://akkoma.example <admin@akkoma.example>",
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Digest": "SHA-256=aeIuu0G+Ji0Hup1pzjNdon8sOP7ikuTFnCl3ZUqWENo=",
+        "Content-Length": "257",
+        "Host": "cloud.example.com",
+        "Signature": "keyId=\"https://akkoma.example/users/frank#main-key\",algorithm=\"rsa-sha256\",headers=\"(request-target) content-length date digest host\",signature=\"hufQGCaPaXYAZ/Kd4Ljoq5KmyzCeF6DGEbqQDv/jLKzEm43SsBTH2Hc7r+p1LNToN+L95nLkBheZOOKnOB76Z5jWnhZev6zAKsM8wTPAREwvGsQQ5yY3Rsr2UgiWJzwNOde8GmgqEM99bEEL2Se7lzCf6wp6H69On4m+TNjImIHIp3zrg+Mqz+AoBMPTbv1cAmmU3c1e2gupxKl3lXl4HYQ1du4p0fQFCreMBzLdbKlTeKTiuZbulsoF1u6X+Rxdn7k2+R6EnCNjzo7btamZy8z8a3ETtMw2loquEUM7nKUuTDJPQ3gwSOklzSOHCeEr9Ov+czIfv97YknU9zrPzEg==\""
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://akkoma.example/activities/7f3e2d1c-0b9a-4876-a5d4-c3b2a1908f7e\",\"type\":\"Follow\",\"actor\":\"https://akkoma.example/users/frank\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}

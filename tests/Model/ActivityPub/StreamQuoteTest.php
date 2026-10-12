@@ -10,10 +10,13 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model\ActivityPub;
 
 use OCA\Social\AP;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
@@ -606,6 +609,91 @@ class StreamQuoteTest extends TestCase {
 
 		$this->assertFalse($stream->allowsInteraction(Stream::INTERACTION_LIKE));
 		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_BOOST));
+	}
+
+	/**
+	 * GoToSocial's direct message as it arrives: every clause names the author
+	 * and the account it is written to, nobody else.
+	 */
+	private function gtsDirectMessage(): Stream {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://gts.example/users/bob/statuses/01DM',
+			'type' => 'Note',
+			'attributedTo' => 'https://gts.example/users/bob',
+			'to' => ['https://cloud.example/users/alice'],
+			'interactionPolicy' => [
+				'canLike' => ['automaticApproval' => ['https://gts.example/users/bob', 'https://cloud.example/users/alice']],
+				'canReply' => ['automaticApproval' => ['https://gts.example/users/bob', 'https://cloud.example/users/alice']],
+				'canAnnounce' => ['automaticApproval' => ['https://gts.example/users/bob']],
+			],
+		]);
+
+		return $stream;
+	}
+
+	/**
+	 * Being named in `automaticApproval` is permission: the addressee of a
+	 * GoToSocial direct message may answer it and favourite it, and nobody
+	 * else may.
+	 */
+	public function testAnAccountThePolicyNamesMayDoWhatItNamesThemFor(): void {
+		$stream = $this->gtsDirectMessage();
+
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_REPLY, 'https://cloud.example/users/alice'));
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_LIKE, 'https://cloud.example/users/alice'));
+		$this->assertFalse($stream->allowsInteraction(Stream::INTERACTION_BOOST, 'https://cloud.example/users/alice'));
+		$this->assertFalse($stream->allowsInteraction(Stream::INTERACTION_REPLY, 'https://cloud.example/users/carol'));
+		$this->assertFalse($stream->allowsInteraction(Stream::INTERACTION_REPLY, ''));
+	}
+
+	/** GoToSocial lets anybody a post mentions reply to it, whatever its policy. */
+	public function testAMentionedAccountMayReplyWhateverThePolicyNames(): void {
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://gts.example/users/bob/statuses/02',
+			'type' => 'Note',
+			'attributedTo' => 'https://gts.example/users/bob',
+			'to' => [ACore::CONTEXT_PUBLIC],
+			'cc' => ['https://cloud.example/users/alice'],
+			'interactionPolicy' => ['canReply' => ['automaticApproval' => ['https://gts.example/users/bob']]],
+		]);
+
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_REPLY, 'https://cloud.example/users/alice'));
+		$this->assertFalse($stream->allowsInteraction(Stream::INTERACTION_REPLY, 'https://cloud.example/users/carol'));
+	}
+
+	/**
+	 * A followers-only post's policy names the author's followers collection:
+	 * a reader who follows the author may, one who does not may not.
+	 */
+	public function testTheAuthorsFollowersCollectionLetsItsFollowersIn(): void {
+		$author = new Person();
+		$author->setId('https://gts.example/users/dora');
+		$author->setFollowers('https://gts.example/users/dora/followers');
+		$stream = new Stream();
+		$stream->import([
+			'id' => 'https://gts.example/users/dora/statuses/03',
+			'type' => 'Note',
+			'attributedTo' => 'https://gts.example/users/dora',
+			'to' => ['https://gts.example/users/dora/followers'],
+			'interactionPolicy' => [
+				'canLike' => ['automaticApproval' => ['https://gts.example/users/dora', 'https://gts.example/users/dora/followers']],
+			],
+		]);
+		$stream->setActor($author);
+		$follows = $this->createStub(FollowsRequest::class);
+		$follows->method('getByPersons')->willReturnCallback(static function (string $follower, string $followed): Follow {
+			if ($follower !== 'https://cloud.example/users/follower') {
+				throw new FollowNotFoundException();
+			}
+
+			return (new Follow())->setAccepted(true);
+		});
+		\OC::$server->register(FollowsRequest::class, $follows);
+
+		$this->assertTrue($stream->allowsInteraction(Stream::INTERACTION_LIKE, 'https://cloud.example/users/follower'));
+		$this->assertFalse($stream->allowsInteraction(Stream::INTERACTION_LIKE, 'https://cloud.example/users/stranger'));
 	}
 
 	/**

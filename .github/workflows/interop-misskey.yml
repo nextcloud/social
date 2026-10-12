@@ -1,0 +1,260 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Interop against a real Misskey: follows both ways, posts, replies,
+# reactions, renotes and deletes, read back out of each side's own API. See
+# tests/Interop/README.md for what it covers and for what it cannot prove.
+#
+# Weekly and by hand only: Misskey is a Node application with PostgreSQL and
+# Redis whose first start runs every migration it has, which is minutes,
+# not seconds — too slow and too heavy to stand in front of every pull
+# request.
+
+name: Interop against Misskey
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays, early, beside the other interop runs
+    - cron: '7 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interop-misskey-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  interop-misskey:
+    runs-on: ubuntu-latest
+    name: Nextcloud Social ↔ Misskey
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: misskey
+          POSTGRES_PASSWORD: misskey
+          POSTGRES_DB: misskey
+        options: >-
+          --health-cmd "pg_isready -U misskey"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 6379:6379
+
+    env:
+      APP_NAME: social
+      # Misskey 2026.10.0, the official image, pinned by digest: a moved tag
+      # would change what is being tested without a commit here saying so
+      MISSKEY_IMAGE: docker.io/misskey/misskey:2026.10.0@sha256:399a176e8e0e0a84829e8b7f27d2140bcd463ef58bdfb5bf1ce91b12567bd66f
+      MISSKEY_BASE_URL: https://misskey.test
+      MISSKEY_PASSWORD: Interop-Test-2026!
+      NEXTCLOUD_URL: https://nextcloud.test
+
+    steps:
+      - name: Checkout server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          repository: nextcloud/server
+          # see e2e.yml: the newest version info.xml claims
+          ref: master
+
+      - name: Checkout app
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: apps/social
+
+      - name: Set up php
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: bz2, ctype, curl, dom, fileinfo, gd, iconv, intl, json, libxml, mbstring, openssl, pcntl, posix, session, simplexml, xmlreader, xmlwriter, zip, zlib, sqlite, pdo_sqlite
+          coverage: none
+          ini-file: development
+
+      - name: Set up the app's PHP dependencies
+        working-directory: apps/social
+        # without the dev ones, as the app store ships it: the app's autoloader
+        # is prepended to the server's, so a dev-only package the server also
+        # carries (symfony/console) is served in place of the server's own
+        run: composer i --no-dev
+
+      - name: Give both servers a name and a certificate
+        # Misskey fetches and delivers over https only: a CA made here, trusted
+        # by the runner, by Nextcloud and by Misskey's Node, and thrown away
+        # with the job
+        run: |
+          set -euo pipefail
+          echo '127.0.0.1 nextcloud.test misskey.test' | sudo tee -a /etc/hosts
+          mkdir -p /tmp/tls && cd /tmp/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj '/CN=Interop CA' \
+            -keyout ca.key -out ca.crt \
+            -addext 'basicConstraints=critical,CA:true' -addext 'keyUsage=critical,keyCertSign,cRLSign'
+          openssl req -newkey rsa:2048 -nodes -subj '/CN=nextcloud.test' -keyout nc.key -out nc.csr
+          printf 'subjectAltName=DNS:nextcloud.test,DNS:misskey.test\nextendedKeyUsage=serverAuth\n' > nc.ext
+          openssl x509 -req -in nc.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 2 \
+            -extfile nc.ext -out nc.crt
+          chmod 644 nc.key ca.crt
+          sudo cp ca.crt /usr/local/share/ca-certificates/interop-ca.crt
+          sudo update-ca-certificates
+
+      - name: Set up Nextcloud
+        run: |
+          mkdir data
+          ./occ maintenance:install --verbose --database=sqlite --database-name=nextcloud \
+            --admin-user admin --admin-pass admin
+          ./occ app:enable --force social
+          ./occ config:system:set trusted_domains 1 --value localhost:8080
+          ./occ config:system:set trusted_domains 2 --value nextcloud.test
+          ./occ config:system:set overwriteprotocol --value https
+          ./occ config:system:set overwritehost --value nextcloud.test
+          # Nextcloud's own HTTP client keeps its own CA bundle
+          ./occ security:certificates:import /tmp/tls/ca.crt
+          ./occ config:system:set overwrite.cli.url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social cloud_url --value "$NEXTCLOUD_URL"
+          ./occ config:app:set social social_url --value "$NEXTCLOUD_URL/index.php/apps/social/"
+          ./occ config:system:set allow_local_remote_servers --value true --type boolean
+          ./occ log:manage --level=info
+
+      - name: Run Nextcloud
+        run: |
+          PHP_CLI_SERVER_WORKERS=8 php -S localhost:8080 &
+          cat > /tmp/tls/Caddyfile <<'CADDY'
+          {
+            admin off
+            auto_https disable_redirects
+          }
+          nextcloud.test:443 {
+            tls /tls/nc.crt /tls/nc.key
+            log
+            @wellknown path /.well-known/*
+            rewrite @wellknown /index.php{path}
+            reverse_proxy localhost:8080
+          }
+          misskey.test:443 {
+            tls /tls/nc.crt /tls/nc.key
+            log
+            reverse_proxy 127.0.0.1:3000
+          }
+          CADDY
+          docker run -d --name proxy --network host -v /tmp/tls:/tls:ro caddy:2 \
+            caddy run --config /tls/Caddyfile --adapter caddyfile
+          for attempt in $(seq 1 30); do
+            curl -sf https://nextcloud.test/status.php \
+              && curl -sf https://nextcloud.test/.well-known/nodeinfo && exit 0
+            sleep 2
+          done
+          docker logs proxy
+          exit 1
+
+      - name: Start Misskey
+        run: |
+          set -euo pipefail
+          SETUP_PASSWORD=$(openssl rand -hex 16)
+          echo "MISSKEY_SETUP_PASSWORD=$SETUP_PASSWORD" >> "$GITHUB_ENV"
+          mkdir -p /tmp/misskey
+          # the runner's loopback is the one private network Misskey is told
+          # it may reach; it refuses every other one, as it should
+          cat > /tmp/misskey/default.yml <<YML
+          url: ${MISSKEY_BASE_URL}/
+          port: 3000
+          db:
+            host: 127.0.0.1
+            port: 5432
+            db: misskey
+            user: misskey
+            pass: misskey
+          dbReplications: false
+          redis:
+            host: 127.0.0.1
+            port: 6379
+          fulltextSearch:
+            provider: sqlLike
+          id: 'aidx'
+          setupPassword: ${SETUP_PASSWORD}
+          allowedPrivateNetworks:
+            - '127.0.0.1/32'
+            - '::1/128'
+          YML
+          chmod 644 /tmp/misskey/default.yml
+          # on the host's network, so both names resolve as the runner's
+          # /etc/hosts says; Node trusts the job's CA through NODE_EXTRA_CA_CERTS
+          docker run -d --name misskey --network host \
+            -e NODE_EXTRA_CA_CERTS=/tls/ca.crt \
+            -v /tmp/tls:/tls:ro \
+            -v /tmp/misskey/default.yml:/misskey/.config/default.yml:ro \
+            "$MISSKEY_IMAGE"
+
+      - name: Wait for Misskey
+        run: |
+          for attempt in $(seq 1 120); do
+            if curl -sf -X POST -H 'Content-Type: application/json' -d '{}' "$MISSKEY_BASE_URL/api/meta" > /dev/null; then
+              echo "Misskey is up"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Misskey never came up"
+          docker logs misskey 2>&1 | tail -80
+          exit 1
+
+      - name: Make the Misskey account and its token
+        run: |
+          set -euo pipefail
+          # the first account of an instance is its administrator, and the
+          # setup password is what lets a script make it
+          ANSWER=$(curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{\"username\": \"interop\", \"password\": \"$MISSKEY_PASSWORD\", \"setupPassword\": \"$MISSKEY_SETUP_PASSWORD\"}" \
+            "$MISSKEY_BASE_URL/api/admin/accounts/create")
+          TOKEN=$(printf '%s' "$ANSWER" | python3 -c 'import json, sys; print(json.load(sys.stdin)["token"])')
+          if [ -z "$TOKEN" ]; then echo "no token"; exit 1; fi
+          echo "::add-mask::$TOKEN"
+          echo "MISSKEY_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          curl -sf -X POST -H 'Content-Type: application/json' -d "{\"i\": \"$TOKEN\"}" "$MISSKEY_BASE_URL/api/i" | head -c 300; echo
+
+      - name: Interop tests
+        working-directory: apps/social
+        run: |
+          composer i
+          timeout 1500 php -d memory_limit=1G vendor/bin/phpunit -c tests/Interop/phpunit.xml --filter MisskeyTest
+
+      - name: What each side saw, when it went wrong
+        if: failure()
+        run: |
+          echo '--- Nextcloud log, notices and worse ---'
+          python3 -c 'import json,sys
+          for l in open("data/nextcloud.log"):
+              try: d=json.loads(l)
+              except Exception: continue
+              m=d.get("message","")
+              if d.get("level",0)>=1 and "headers already sent" not in m: print(d.get("time"),d.get("level"),d.get("app"),m[:300])' | tail -150 || true
+          echo '--- hosts the circuit breaker held back ---'
+          sqlite3 -header data/nextcloud.db "select * from oc_social_host_breaker" 2>&1 || true
+          echo '--- our delivery queue ---'
+          sqlite3 -header data/nextcloud.db \
+            "select id, token, status, tries, priority, substr(instance,1,90) as instance, substr(activity,1,80) as activity from oc_social_req_queue order by id" 2>&1 | tail -80 || true
+          echo '--- every write through the proxy ---'
+          docker logs proxy 2>&1 | python3 -c 'import json,sys,datetime
+          for l in sys.stdin:
+              try: d=json.loads(l)
+              except Exception: continue
+              r=d.get("request")
+              if not r or r["method"]=="GET" and "webfinger" not in r["uri"]: continue
+              print(datetime.datetime.utcfromtimestamp(d["ts"]).strftime("%H:%M:%S"), d.get("status"), r["method"], r["host"], r["uri"][:90], (r.get("headers",{}).get("User-Agent") or [""])[0][:30])' | tail -200 || true
+          echo '--- Misskey, its failures ---'
+          docker logs misskey 2>&1 | grep -i -E "error|warn|fail|refus|invalid|reject" | cut -c1-600 | tail -150 || true

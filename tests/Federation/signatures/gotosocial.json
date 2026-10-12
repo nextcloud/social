@@ -1,0 +1,20 @@
+{
+    "implementation": "GoToSocial 0.22",
+    "shapedAfter": "superseriousbusiness/gotosocial v0.22.2: internal/transport/signing.go (postHeaders), vendor/code.superseriousbusiness.org/httpsig/signing.go (setSignatureHeader), docs/federation/http_signatures.md",
+    "signedAt": 1791742040,
+    "method": "POST",
+    "host": "cloud.example.com",
+    "path": "/index.php/apps/social/inbox",
+    "actor": "https://gts.example/users/erin",
+    "keyId": "https://gts.example/users/erin/main-key",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuH92Ib1AueoEE9KdiMKK\npIjACRuSk+B4AkKE0HYBk+muPuXtCSoTLHBZkZoMakE2idTjbxofzQwJgdmPvNRZ\nqVYL4vEusijQM+NPvMJZdSCFkj3R7apYu0q+TXYKLfAlntWz5InBjaOJqHntobT6\nT7tYTYATXWTGSMNWX6sL6yKd3h/oEfx4nHfFDpQb9GOXPqhLDXsdl48F+1c/HcgN\nEREPvMRkRqnGUs/mFTL99iRhAVZt8aq679tlG6AIZ3vOkd9o5CPLlXYUq66tkiv2\nkzE8UAPjeOYL6xXycA4NI2rdWj5p0EX/s1uoeFd1CR32cZuqeH+IkWQpmahhXwh4\n+QIDAQAB\n-----END PUBLIC KEY-----\n",
+    "headers": {
+        "Host": "cloud.example.com",
+        "Date": "Sun, 11 Oct 2026 18:07:20 GMT",
+        "Content-Type": "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
+        "Digest": "SHA-256=al2QdAabRkeBCOdJbLJMMJL4is4pYJm0gUJv5Q8+AGE=",
+        "User-Agent": "gotosocial/0.22.2 (+https://gts.example)",
+        "Signature": "keyId=\"https://gts.example/users/erin/main-key\",algorithm=\"hs2019\",headers=\"(request-target) host date digest\",signature=\"RIJc1f/1XDmrrbghVNyRB/3e5Jpp2jH4IkCFgVZ98Ihf9BUREYL2qCAM8rP6P1YJDJZUVUhbTCf8yJ6uXe0YL9Yp7LytzGlvLIAg1NmdJUgy6TXJZsGT81dLEPYsGFbw0KcZwF29Lt0n/a5w1ZHatGshVHcXImd1tgKM600AIi1HkL97r04KzCDqyZKK63O/XkFcMHs4G7BR2Kl55e+mbaubBfkTpeUFA5rSSbOjc6hF6tlx2u8c33yGtkwpvNxBbNJPw8F2uBhQrOwyZzmndM+vbuH2ivhbIJ1pO5IXle9c0MwzXwXBWXWOD0pVWJvOVluHu5N7KtTGhRh6rQkXew==\""
+    },
+    "body": "{\"@context\":\"https://www.w3.org/ns/activitystreams\",\"id\":\"https://gts.example/users/erin/follow/01J0GTS0000000000000000002\",\"type\":\"Follow\",\"actor\":\"https://gts.example/users/erin\",\"object\":\"https://cloud.example.com/index.php/apps/social/@alice\"}"
+}

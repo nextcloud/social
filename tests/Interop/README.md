@@ -2,7 +2,7 @@
   - SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
-# Interop tests (this app talking to a real Mastodon, PeerTube and Pixelfed)
+# Interop tests (this app talking to a real Mastodon, PeerTube, Pixelfed, Loops, GoToSocial, Misskey and Akkoma)
 
 The unit suite proves this app emits the document it meant to. The integration
 suite proves the database and the migrations hold what it thinks they hold.
@@ -288,6 +288,113 @@ from `url`, so likes and comments on our videos failed there.
 When a run fails, its last step prints our log, our delivery queue and
 uploads, every request through the proxy, Loops' log, failed jobs and queue
 worker, and what Loops' own validators make of our last activities.
+
+## Against GoToSocial
+
+`.github/workflows/interop-gotosocial.yml` is a job of its own, run on every
+pull request, on pushes to master, weekly and on demand. GoToSocial is one
+container with SQLite (the official image, `superseriousbusiness/gotosocial`
+0.22.2, pinned by tag and digest) and is up in seconds, so the job is the
+quickest of the interop jobs. It sits behind the same Caddy and job-made CA as
+the others, and trusts that CA rather than skipping verification; the only
+exception it is given is permission to dial the runner's loopback.
+
+GoToSocial is the strictest common peer, which is the reason for the job:
+
+- every fetch and every delivery has to carry a signature its verifier
+  accepts — Mastodon's `AUTHORIZED_FETCH`, always on — so each test that
+  sees something arrive on either side also proves a signed request passed
+  the other side's verifier;
+- it names its keys `…/users/name/main-key`, a URL of their own, where
+  everybody else uses the actor's id with a `#main-key` fragment;
+- it publishes an `interactionPolicy` on every post, holds the interactions
+  that policy does not let through for its user to approve, and reads ours.
+
+`GoToSocialDeliveryTest` covers what we send: our follow accepted, a follow of
+a locked account waiting for its owner's yes, a public post and one with a
+content warning, a reply threaded under the GoToSocial post, a direct message
+that reaches its addressee and not the public timeline, an edit that arrives as
+an edit, a delete, a favourite and a boost counted and undone; and the
+interaction policies — our "nobody may reply" read by GoToSocial and held to
+by it (its user's reply is refused there), a GoToSocial post that keeps
+replies to its author shown here as not answerable and the reply refused here
+with the reason, the addressee of a GoToSocial direct message allowed to
+answer it (its policy names them) and the answer threaded there, and a
+follower's favourite of a followers-only post, which GoToSocial approves on
+its own (`Accept` with a `LikeAuthorization`) because its policy names the
+followers collection. `GoToSocialInboundTest` covers what GoToSocial sends:
+its follow accepted and its unfollow honoured, a post with a content warning
+on the home timeline, a reply threaded under our post, a direct message that
+stays direct, an edit, a delete, a favourite and a boost counted and notified,
+and a favourite of an open post of ours given without GoToSocial holding it as
+a request.
+
+Not covered, because this app does not do it yet: a reply from a GoToSocial
+follower to a post of ours whose reply rule names our followers. GoToSocial
+reads our `canReply` naming the followers collection as "approval is
+conditional", sends a polite `ReplyRequest` and holds the reply until an
+`Accept` with a `ReplyAuthorization` comes back; this app takes the request
+in and answers nothing, so the reply never leaves GoToSocial. GoToSocial
+renamed `approvedBy`/`LikeApproval`/`ReplyApproval` to
+`likeAuthorization`/`LikeAuthorization`/`ReplyAuthorization` in 0.20 and
+dropped the old names in 0.21; this job runs the new ones.
+
+Its first runs found three defects on this side, all fixed:
+
+- every delivery from GoToSocial was refused with a 401: its `…/main-key`
+  document is a stub whose id is the actor's, which was read as a document
+  claiming somebody else's id;
+- the addressee of a GoToSocial direct message, and a follower of the author
+  of a followers-only post, were refused a reply or a favourite here, because
+  any `automaticApproval` narrower than the public collection read as
+  "nobody", whom it named or not;
+- a direct reply that did not repeat the handle of the person it answers
+  reached GoToSocial and was shown to nobody, because GoToSocial decides who
+  sees a direct message by its `Mention` tags and the reply carried none.
+
+To run it by hand: a GoToSocial reachable over https at `GOTOSOCIAL_BASE_URL`
+(`GOTOSOCIAL_HOST` when the handle's host differs), `GOTOSOCIAL_TOKEN` for its
+`interop` account and optionally `GOTOSOCIAL_TOKEN_GUARDED` for a locked
+`guarded` one — `tests/Interop/gotosocial/token.sh` mints either from an
+email and password — and this app's Nextcloud reachable from it over https;
+then `composer run test:interop -- --filter GoToSocial`. GoToSocial is a single
+Go binary, so outside CI it can run without Docker: `http-client.allow-ips`
+lets it dial a loopback address, and a client of it must send a `User-Agent`.
+
+## Against Misskey and Akkoma, weekly
+
+`interop-misskey.yml` and `interop-akkoma.yml` run weekly and by hand only:
+both peers are heavy to stand up. Misskey (the official image, 2026.10.0,
+pinned by digest) is Node with PostgreSQL and Redis, and its first start runs
+every migration it has; Akkoma publishes no image, so its release tag
+(v3.20.1, checked against the commit it names) is compiled in the Elixir
+toolchain its own Dockerfile builds on. Both sit behind the same Caddy and
+job-made CA as the other jobs, and each is given exactly one exception — the
+runner's loopback — where it would otherwise refuse a private address
+(`allowedPrivateNetworks` on Misskey; Akkoma has no such refusal).
+
+The set is smaller than for Mastodon or GoToSocial, the things everybody
+does, both ways: follows, a post, a reply threaded under the post it
+answers, a favourite (on Misskey a reaction, which arrives here as a
+favourite or as that reaction; on Akkoma also an `EmojiReact`), a boost (a
+renote on Misskey) and a delete. `MisskeyTest` reads Misskey through its own
+API (`Misskey`, a `POST /api/<endpoint>` with the token as `i`), since it has
+no Mastodon API; `AkkomaTest` reads Akkoma through its Mastodon-compatible
+one.
+
+Neither job has run anywhere but in CI: both were written against each
+project's documented setup and source, and their first runs are where any
+mistake in that setup shows. `AkkomaTest`'s harness was checked against
+GoToSocial's Mastodon-compatible API, where everything but the Pleroma-only
+emoji reaction passes; `MisskeyTest` has no stand-in. Sharkey keeps Misskey's API and federation code, so
+`MisskeyTest` can run against it unchanged as a second leg once a current
+Sharkey image is pinned; its registry had none from 2026 when this was
+written.
+
+To run either by hand: `MISSKEY_BASE_URL` and `MISSKEY_TOKEN` (the `token` that
+`/api/admin/accounts/create` answers), or `AKKOMA_BASE_URL` and `AKKOMA_TOKEN`
+(Pleroma's password grant at `/oauth/token` mints one), then
+`composer run test:interop -- --filter MisskeyTest` or `--filter AkkomaTest`.
 
 ## Against Bluesky
 

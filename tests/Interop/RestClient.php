@@ -147,7 +147,9 @@ abstract class RestClient {
 		$payload = null;
 		if ($body !== null) {
 			$headers[] = 'Content-Type: application/json';
-			$payload = (string)json_encode($body, JSON_UNESCAPED_SLASHES);
+			// an empty body is the object `{}`, not the `[]` an empty array
+			// encodes to: GoToSocial refuses an array where it expects one
+			$payload = ($body === []) ? '{}' : (string)json_encode($body, JSON_UNESCAPED_SLASHES);
 		}
 
 		return $this->exchange($method, $url, $payload, $headers);

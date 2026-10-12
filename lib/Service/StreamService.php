@@ -346,18 +346,7 @@ class StreamService {
 			$stream->addCc($actor->getId());
 		}
 
-		$stream->addTag(
-			[
-				'type' => 'Mention',
-				'href' => $actor->getId(),
-				'name' => '@' . $account
-			]
-		);
-		// and the client's `mentions`, which a client links handles from and
-		// fills a reply with
-		if ($stream instanceof Note) {
-			$stream->addMention($actor, $actor->getId());
-		}
+		$this->tagMention($stream, $actor, $account);
 
 		// the addressing and the tag stand whatever happens next: they are what
 		// renders the mention here and what tells every recipient who it names
@@ -472,7 +461,7 @@ class StreamService {
 		// their server states it will not take means telling the person who
 		// wrote it that it went out — and it did, and nothing will ever show
 		// it. Refused here, before anything is written or addressed.
-		if (!$parent->allowsInteraction(Stream::INTERACTION_REPLY)) {
+		if (!$parent->allowsInteraction(Stream::INTERACTION_REPLY, $note->getAttributedTo())) {
 			throw new InvalidActionException(
 				'the author of this post does not allow replies to it'
 			);
@@ -488,6 +477,10 @@ class StreamService {
 		if ($author->getId() !== $note->getAttributedTo()) {
 			if ($note->getVisibility() === Stream::TYPE_DIRECT) {
 				$note->addToArray($author->getId());
+				// a direct message is seen by whom it mentions, not by whom it
+				// is addressed to: GoToSocial stores a direct reply that names
+				// its addressee in `to` alone and shows it to nobody
+				$this->tagMention($note, $author, $author->getAccount());
 			} else {
 				$note->addCc($author->getId());
 			}
@@ -522,6 +515,23 @@ class StreamService {
 		$note->addInstancePath(
 			new InstancePath($inbox, InstancePath::TYPE_INBOX, InstancePath::PRIORITY_HIGH)
 		);
+	}
+
+	/**
+	 * Tags an actor as mentioned, once, and lists it in the client's
+	 * `mentions`, which a client links handles from and fills a reply with.
+	 */
+	private function tagMention(Stream $stream, Person $actor, string $account): void {
+		foreach ($stream->getTags('Mention') as $tag) {
+			if (($tag['href'] ?? '') === $actor->getId()) {
+				return;
+			}
+		}
+
+		$stream->addTag(['type' => 'Mention', 'href' => $actor->getId(), 'name' => '@' . $account]);
+		if ($stream instanceof Note) {
+			$stream->addMention($actor, $actor->getId());
+		}
 	}
 
 	/**
