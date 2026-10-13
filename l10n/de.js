@@ -3,6 +3,7 @@ OC.L10N.register(
     {
     "Aloha Social" : "Aloha Social",
     "{account} mentioned you" : "{account} hat dich erwähnt",
+    "{account} sent you a private message" : "{account} hat dir eine private Nachricht geschickt",
     "{account} favourited your post" : "{account} gefällt dein Beitrag",
     "{account} boosted your post" : "{account} hat deinen Beitrag geteilt",
     "{account} followed you" : "{account} folgt dir jetzt",
@@ -2711,6 +2712,7 @@ OC.L10N.register(
     "Unlike" : "Gefällt mir nicht",
     "Tap for sound" : "Für Ton tippen",
     "Open the post" : "Beitrag öffnen",
+    "Open the conversation" : "Unterhaltung öffnen",
     "Loading videos …" : "Videos werden geladen …",
     "The videos could not be loaded." : "Videos konnten nicht geladen werden.",
     "No shorts here yet." : "Hier gibt es noch keine Shorts.",

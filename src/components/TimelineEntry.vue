@@ -38,7 +38,8 @@
 				<Repeat v-if="notification.type === 'reblog'" :size="16" />
 				<AccountPlusOutline v-if="notification.type === 'follow'" :size="16" />
 				<AccountQuestion v-if="notification.type === 'follow_request'" :size="16" />
-				<At v-if="notification.type === 'mention'" :size="16" />
+				<Lock v-if="isDirectMessage" :size="16" />
+				<At v-else-if="notification.type === 'mention'" :size="16" />
 				<MessageOutline v-if="notification.type === 'status'" :size="16" />
 				<MessagePlusOutline v-if="notification.type === 'update'" :size="16" />
 				<Poll v-if="notification.type === 'poll'" :size="16" />
@@ -124,6 +125,16 @@
 			<span class="interest-reason__text">{{ interest.text }}</span>
 		</span>
 		<UserEntry v-if="isNotification && notificationIsAboutAnAccount" :displayFollowButton="false" :item="item.account" />
+		<!-- a private message is not laid out in full beside the public
+		     mentions: its first words, and the way to the conversation -->
+		<div v-else-if="isDirectMessage" class="notification__direct">
+			<p class="notification__direct-preview">
+				{{ directPreview }}
+			</p>
+			<router-link class="notification__direct-open" :to="{ name: 'timeline', params: { type: 'direct' } }">
+				{{ t('social', 'Open the conversation') }}
+			</router-link>
+		</div>
 		<template v-else>
 			<div v-if="entryContent" class="wrapper">
 				<TimelineAvatar
@@ -159,6 +170,7 @@ import Heart from 'vue-material-design-icons/Heart.vue'
 import AccountPlusOutline from 'vue-material-design-icons/AccountPlusOutline.vue'
 import AccountQuestion from 'vue-material-design-icons/AccountQuestion.vue'
 import At from 'vue-material-design-icons/At.vue'
+import Lock from 'vue-material-design-icons/Lock.vue'
 import Poll from 'vue-material-design-icons/Poll.vue'
 import CheckDecagram from 'vue-material-design-icons/CheckDecagram.vue'
 import MessageOutline from 'vue-material-design-icons/MessageOutline.vue'
@@ -173,7 +185,11 @@ import { isBlueskyAccount } from '../utils/accountLocality.js'
 import TimelineAvatar from './TimelineAvatar.vue'
 import UserEntry from './UserEntry.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
-import { GROUP_FACES, notificationSummary } from '../services/notifications.js'
+import { GROUP_FACES, isDirectMessage, notificationSummary } from '../services/notifications.js'
+import { htmlToPlainText } from '../utils/plainText.js'
+
+/** how much of a private message an Activities card shows: about one line */
+const DIRECT_PREVIEW_LENGTH = 120
 import { interestReason } from '../utils/interestReason.js'
 import { onTick } from '../services/clock.js'
 import { isPhone, onPhoneChange } from '../services/phone.js'
@@ -220,6 +236,7 @@ export default {
 		AccountPlusOutline,
 		AccountQuestion,
 		At,
+		Lock,
 		Poll,
 		CheckDecagram,
 		MessageOutline,
@@ -438,6 +455,24 @@ export default {
 		/** @return {import('../types/Mastodon.js').Status} */
 		status() {
 			return /** @type {import('../types/Mastodon.js').Status} */ (this.item)
+		},
+
+		/** @return {boolean} whether this card is a direct message, which reaches the bell as a mention */
+		isDirectMessage() {
+			return this.isNotification && isDirectMessage(this.notification)
+		},
+
+		/**
+		 * The first words of a private message: the content warning where
+		 * there is one, else the text, cut where a line of the card ends.
+		 *
+		 * @return {string}
+		 */
+		directPreview() {
+			const status = this.entryContent
+			const text = (status?.spoiler_text || htmlToPlainText(status?.content ?? '')).replace(/\s+/g, ' ').trim()
+
+			return text.length > DIRECT_PREVIEW_LENGTH ? text.slice(0, DIRECT_PREVIEW_LENGTH).trimEnd() + '…' : text
 		},
 
 		/** @return {boolean} */
@@ -734,6 +769,35 @@ export default {
 		}
 
 		a:hover {
+			text-decoration: underline;
+		}
+	}
+
+	&__direct {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 4px 12px;
+		margin-inline-start: 32px;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__direct-preview {
+		margin: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 100%;
+	}
+
+	&__direct-open {
+		flex-shrink: 0;
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-primary-element);
+
+		&:hover,
+		&:focus-visible {
 			text-decoration: underline;
 		}
 	}

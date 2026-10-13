@@ -5,16 +5,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import {
-	FILTER_KEY,
-	NOTIFICATION_TYPES,
-	excludeTypesFor,
-	groupNotifications,
-	newestIdOf,
-	notificationSummary,
-	rememberFilter,
-	rememberedFilter,
-} from '../../../src/services/notifications.js'
+import { FILTER_KEY, NOTIFICATION_TYPES, excludeTypesFor, groupNotifications, isDirectMessage, newestIdOf, notificationSummary, rememberFilter, rememberedFilter } from '../../../src/services/notifications.js'
 
 function notification(type, acct = 'bob@remote.tld') {
 	return {
@@ -60,6 +51,15 @@ describe('notificationSummary', () => {
 
 	it('uses the full handle of the acting account, local or remote', () => {
 		expect(notificationSummary(notification('mention', 'alice'))).toBe('alice mentioned you')
+	})
+
+	it('says a mention in a direct message is a private message', () => {
+		const direct = { ...notification('mention'), status: { id: '9', visibility: 'direct', content: 'psst' } }
+
+		expect(isDirectMessage(direct)).toBe(true)
+		expect(notificationSummary(direct)).toBe('bob@remote.tld sent you a private message')
+		expect(isDirectMessage({ ...direct, status: { ...direct.status, visibility: 'public' } })).toBe(false)
+		expect(isDirectMessage({ ...direct, type: 'favourite' })).toBe(false)
 	})
 
 	it('returns an empty summary for unknown notification types', () => {

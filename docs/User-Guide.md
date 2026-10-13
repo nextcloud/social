@@ -343,7 +343,10 @@ The sidebar is the map:
   down its edge, and a **New** heading separates them from **Earlier** where
   the page holds both. Each activity is a row like a post in My Feed: who did
   what and how long ago (*3h*, *2w*), with the post or account it is about
-  underneath.
+  underneath. A private message is not laid out there beside the public
+  mentions: its row says *sent you a private message* with a lock, shows its
+  first words (or its content warning), and **Open the conversation** takes
+  you to Direct messages.
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.

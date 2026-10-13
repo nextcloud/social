@@ -368,6 +368,44 @@ describe('TimelineEntry', () => {
 		})
 	})
 
+	describe('a private message', () => {
+		const direct = (extra = {}) => notification('mention', {
+			status: { ...post, id: 'dm1', visibility: 'direct', content: '<p>@alice psst, this is between us</p>', ...extra },
+		})
+
+		it('is said to be one, with a lock, and shows its first words rather than the post', () => {
+			const { wrapper } = mountEntry(direct(), { type: 'notifications' })
+
+			const header = wrapper.find('.notification__header')
+			expect(header.find('.notification__summary').text()).toBe('bob@remote.example sent you a private message')
+			expect(header.find('.notification__summary .material-design-icon').classes()).toContain('lock-icon')
+			expect(header.find('.at-icon').exists()).toBe(false)
+			expect(wrapper.findComponent(TimelinePostStub).exists()).toBe(false)
+			expect(wrapper.find('.notification__direct-preview').text()).toBe('@alice psst, this is between us')
+			const open = wrapper.find('.notification__direct').findComponent(RouterLinkStub)
+			expect(open.text()).toBe('Open the conversation')
+			expect(open.props('to')).toEqual({ name: 'timeline', params: { type: 'direct' } })
+		})
+
+		it('cuts a long message to about a line, and shows a content warning instead of the text', () => {
+			const long = 'word '.repeat(60).trim()
+			const { wrapper } = mountEntry(direct({ content: `<p>${long}</p>` }), { type: 'notifications' })
+			const preview = wrapper.find('.notification__direct-preview').text()
+			expect(preview.length).toBeLessThanOrEqual(121)
+			expect(preview.endsWith('…')).toBe(true)
+
+			const warned = mountEntry(direct({ spoiler_text: 'about Friday' }), { type: 'notifications' }).wrapper
+			expect(warned.find('.notification__direct-preview').text()).toBe('about Friday')
+		})
+
+		it('leaves a public mention as a mention', () => {
+			const { wrapper } = mountEntry(notification('mention'), { type: 'notifications' })
+
+			expect(wrapper.find('.notification__direct').exists()).toBe(false)
+			expect(wrapper.findComponent(TimelinePostStub).exists()).toBe(true)
+		})
+	})
+
 	describe('a notification about an account', () => {
 		it.each([
 			['follow', 'account-plus-outline-icon', 'bob@remote.example started to follow you'],
