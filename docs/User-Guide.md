@@ -1130,7 +1130,10 @@ modifier key is held.
 | `?` | Show these shortcuts |
 
 `Enter` on a focused button or link still presses it — the shortcut only
-applies where nothing else claims the key.
+applies where nothing else claims the key. Nextcloud's own **Skip to main
+content**, the first Tab stop on every page and visible only while it has the
+focus, jumps past the sidebar into the page; each page carries one top-level
+heading to jump to.
 
 ## What the web client does not do yet
 

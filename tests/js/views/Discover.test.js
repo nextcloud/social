@@ -4,6 +4,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import Discover from '../../../src/views/Discover.vue'
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
@@ -64,6 +66,13 @@ describe('Discover', () => {
 		post.mockReset()
 		showError.mockReset()
 		showSuccess.mockReset()
+	})
+
+	it('is headed by its one h1', () => {
+		const wrapper = mount(Discover, { shallow: true, global: { plugins: [createPinia()] } })
+
+		expect(wrapper.find('h1').text()).toBe('Discover')
+		expect(wrapper.findAll('h1')).toHaveLength(1)
 	})
 
 	describe('tabs', () => {

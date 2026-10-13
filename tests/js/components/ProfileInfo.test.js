@@ -206,7 +206,7 @@ describe('ProfileInfo', () => {
 
 	it('shows the name, the delivered avatar and the counters of a remote account', () => {
 		const wrapper = mountProfile('bob@remote.example')
-		expect(wrapper.find('h2').text()).toBe('Bob')
+		expect(wrapper.find('h1').text()).toBe('Bob')
 		const avatar = wrapper.findComponent(NcAvatarStub)
 		expect(avatar.props('url')).toBe('https://remote.example/media/bob.png')
 		expect(avatar.props('user')).toBeUndefined()
@@ -256,7 +256,7 @@ describe('ProfileInfo', () => {
 		const avatar = wrapper.findComponent(NcAvatarStub)
 		expect(avatar.props('user')).toBe('carol')
 		expect(avatar.props('url')).toBeUndefined()
-		expect(wrapper.find('h2').text()).toBe('carol')
+		expect(wrapper.find('h1').text()).toBe('carol')
 	})
 
 	it('hands the uid to the follow button and does not offer the public follow flow', () => {
@@ -554,7 +554,7 @@ describe('ProfileInfo', () => {
 			await flushPromises()
 
 			expect(post).toHaveBeenCalledWith('/index.php/apps/social/moderation/verifications', { account: bob.url })
-			expect(wrapper.find('h2 .verified-badge').attributes('title')).toBe('Verified by Example Inc')
+			expect(wrapper.find('h1 .verified-badge').attributes('title')).toBe('Verified by Example Inc')
 			expect(menuItems(wrapper)).toContain('Remove verification')
 			expect(showSuccess).toHaveBeenCalledWith('The account is verified')
 		})
@@ -570,7 +570,7 @@ describe('ProfileInfo', () => {
 			await flushPromises()
 
 			expect(remove).toHaveBeenCalledWith('/index.php/apps/social/moderation/verifications', { data: { account: bob.url } })
-			expect(wrapper.find('h2 .verified-badge').exists()).toBe(false)
+			expect(wrapper.find('h1 .verified-badge').exists()).toBe(false)
 			expect(menuItems(wrapper)).toContain('Verify account')
 		})
 
@@ -584,7 +584,7 @@ describe('ProfileInfo', () => {
 			await flushPromises()
 
 			expect(showError).toHaveBeenCalledWith('Could not verify the account')
-			expect(wrapper.find('h2 .verified-badge').exists()).toBe(false)
+			expect(wrapper.find('h1 .verified-badge').exists()).toBe(false)
 		})
 	})
 
@@ -894,7 +894,7 @@ describe('ProfileInfo', () => {
 			expect(note.text()).toContain('Hi there')
 			// a bio and a name written right to left read that way
 			expect(note.attributes('dir')).toBe('auto')
-			expect(mountProfile('bob@remote.example').find('h2').attributes('dir')).toBe('auto')
+			expect(mountProfile('bob@remote.example').find('h1').attributes('dir')).toBe('auto')
 			expect(note.html()).not.toContain('alert(1)')
 			expect(note.find('a').attributes('href')).toBe('https://example.org')
 		})

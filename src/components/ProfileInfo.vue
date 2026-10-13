@@ -43,7 +43,7 @@
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
-			<h2 dir="auto">
+			<h1 dir="auto">
 				{{ displayName }}
 				<BlueskyBadge v-if="isBluesky" />
 				<VerifiedBadge :account="accountInfo" />
@@ -51,7 +51,7 @@
 				     every other network puts it; it is still a profile field and
 				     still federates as one -->
 				<span v-if="pronouns" class="user-profile__pronouns">{{ pronouns }}</span>
-			</h2>
+			</h1>
 			<!-- the addresses this account answers to, each with a way to take
 			     it along. One account, two networks: the Bluesky handle is the
 			     same person and leads to where that network shows them -->
@@ -1610,7 +1610,7 @@ export default {
 		}
 	}
 
-	h2 {
+	h1 {
 		margin-top: 28px;
 		font-size: 26px;
 		font-weight: 700;
