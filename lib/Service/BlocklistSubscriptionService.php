@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use InvalidArgumentException;
-use OCP\Http\Client\IClientService;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -71,7 +70,7 @@ class BlocklistSubscriptionService {
 	public function __construct(
 		private ConfigService $configService,
 		private BlocklistImportService $importService,
-		private IClientService $clientService,
+		private CurlService $curl,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -182,14 +181,11 @@ class BlocklistSubscriptionService {
 		}
 
 		try {
-			$response = $this->clientService->newClient()->get($url, [
-				'timeout' => self::TIMEOUT,
-				'headers' => ['Accept' => 'application/json, text/csv, text/plain'],
-				'stream' => true,
-			]);
+			$stream = $this->curl->openStream($url, ['Accept' => 'application/json, text/csv, text/plain'], '', self::TIMEOUT)['stream'];
 			// one byte past the ceiling at most, which is enough for parse()
 			// to refuse the list as too large without it all being in memory
-			$body = CurlService::readAtMost($response, BlocklistImportService::MAX_BYTES);
+			$body = (string)stream_get_contents($stream, BlocklistImportService::MAX_BYTES + 1);
+			fclose($stream);
 		} catch (Throwable $e) {
 			$this->logger->notice('could not read a subscribed block list', [
 				'source' => $id, 'url' => $url, 'exception' => $e,

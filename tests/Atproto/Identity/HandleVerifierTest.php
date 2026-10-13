@@ -12,9 +12,7 @@ namespace OCA\Social\Tests\Atproto\Identity;
 use OCA\Social\Atproto\Identity\DnsLookup;
 use OCA\Social\Atproto\Identity\HandleVerifier;
 use OCA\Social\Atproto\Service\AtprotoConfig;
-use OCP\Http\Client\IClient;
-use OCP\Http\Client\IClientService;
-use OCP\Http\Client\IResponse;
+use OCA\Social\Service\CurlService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -36,22 +34,18 @@ class HandleVerifierTest extends TestCase {
 		$config->method('handleHost')->willReturn('social.test');
 		$dns = $this->createMock(DnsLookup::class);
 		$dns->method('txt')->willReturnCallback(fn (string $name): array => $this->txt[$name] ?? []);
-		$client = $this->createMock(IClient::class);
-		$client->method('get')->willReturnCallback(function (string $url, array $options): IResponse {
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('doRequest')->willReturnCallback(function (string $method, string $url, array $options, &$contentType = null, &$status = null): string {
 			$this->fetched[] = $url;
-			$this->assertFalse($options['allow_redirects'], 'the file is read where the handle is, not where it sends');
+			$this->assertSame(0, $options['max_redirects'], 'the file is read where the handle is, not where it sends');
 			if (!isset($this->https[$url])) {
 				throw new RuntimeException('unreachable');
 			}
-			$response = $this->createMock(IResponse::class);
-			$response->method('getStatusCode')->willReturn($this->https[$url][0]);
-			$response->method('getBody')->willReturn($this->https[$url][1]);
+			$status = $this->https[$url][0];
 
-			return $response;
+			return $this->https[$url][1];
 		});
-		$clients = $this->createMock(IClientService::class);
-		$clients->method('newClient')->willReturn($client);
-		$this->verifier = new HandleVerifier($config, $dns, $clients);
+		$this->verifier = new HandleVerifier($config, $dns, $curl);
 	}
 
 	public function testATxtRecordNamesTheDid(): void {

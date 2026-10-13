@@ -764,8 +764,8 @@ class CurlService {
 	 *                           not the host serving it — see
 	 *                           {@see FediverseService::authorized()}
 	 */
-	public function openStream(string $url, array $headers = [], string $onBehalfOf = ''): array {
-		$clientOptions = $this->clientOptions('get', ['json_headers' => false, 'headers' => $headers]);
+	public function openStream(string $url, array $headers = [], string $onBehalfOf = '', int $timeout = ConfigService::DEFAULT_REQUEST_TIMEOUT): array {
+		$clientOptions = $this->clientOptions('get', ['json_headers' => false, 'headers' => $headers, 'timeout' => $timeout]);
 		$clientOptions['allow_redirects'] = false;
 		$client = $this->clientService->newClient();
 
@@ -829,7 +829,7 @@ class CurlService {
 	 * differ only in their scheme.
 	 *
 	 * @param string[] $urls
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string|resource, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool, verify?: bool, max_redirects?: int, federation?: bool} $options
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -878,9 +878,12 @@ class CurlService {
 	 *
 	 * Redirects are followed by `send()` rather than by the client, so that the
 	 * federation checks run on every hop -- see `redirectTarget()` -- and each
-	 * hop is pinned to the addresses it was checked against.
+	 * hop is pinned to the addresses it was checked against. `max_redirects`
+	 * caps how many are followed, 0 for none; `federation` false skips the
+	 * instance access list for a URL this app ships rather than one somebody
+	 * wrote, the address guard still applies.
 	 *
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string|resource, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool, verify?: bool, max_redirects?: int, federation?: bool} $options
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -905,6 +908,15 @@ class CurlService {
 		}
 		if ($options['accept_errors'] ?? false) {
 			$clientOptions['social']['accept_errors'] = true;
+		}
+		if (isset($options['max_redirects'])) {
+			$clientOptions['social']['max_redirects'] = $options['max_redirects'];
+		}
+		if (($options['federation'] ?? true) === false) {
+			$clientOptions['social']['federation'] = false;
+		}
+		if (isset($options['verify'])) {
+			$clientOptions['verify'] = $options['verify'];
 		}
 
 		if (($options['body'] ?? '') !== '' && strtolower($method) !== 'get') {
@@ -956,11 +968,13 @@ class CurlService {
 	): string {
 		$clientOptions['allow_redirects'] = false;
 		$acceptErrors = (bool)($clientOptions['social']['accept_errors'] ?? false);
+		$maxRedirects = (int)($clientOptions['social']['max_redirects'] ?? self::MAX_REDIRECTS);
+		$federation = (bool)($clientOptions['social']['federation'] ?? true);
 		unset($clientOptions['social']);
 		$requested = $url;
 
-		for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
-			$hopOptions = $this->pinReachable($url, $clientOptions);
+		for ($hop = 0; $hop <= $maxRedirects; $hop++) {
+			$hopOptions = $this->pinReachable($url, $clientOptions, '', $federation);
 
 			try {
 				$response = $client->request(strtolower($method), $url, $hopOptions);
@@ -1057,14 +1071,16 @@ class CurlService {
 	 * @throws UnauthorizedFediverseException
 	 * @throws SocialAppConfigException
 	 */
-	private function pinReachable(string $url, array $clientOptions, string $onBehalfOf = ''): array {
+	private function pinReachable(string $url, array $clientOptions, string $onBehalfOf = '', bool $federation = true): array {
 		$scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
 		if (!self::isHttpScheme($scheme)) {
 			throw new RequestServerException('not an http(s) URL: ' . $url);
 		}
 
 		$host = (string)parse_url($url, PHP_URL_HOST);
-		$this->fediverseService->authorized($host, $onBehalfOf);
+		if ($federation) {
+			$this->fediverseService->authorized($host, $onBehalfOf);
+		}
 
 		if ($clientOptions['nextcloud']['allow_local_address'] ?? false) {
 			return $clientOptions;

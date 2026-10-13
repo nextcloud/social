@@ -25,7 +25,6 @@ use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\Http\Client\IClientService;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -63,7 +62,6 @@ class VideoUploadService {
 		private DocumentService $documents,
 		private CacheDocumentService $cache,
 		private CurlService $curl,
-		private IClientService $clientService,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 	) {
@@ -170,7 +168,9 @@ class VideoUploadService {
 				$this->identities->signingKey($identity), $identity->did, $this->config->serviceDid(),
 				ServiceAuthGrant::UPLOAD, ServiceAuthGrant::MAX_LIFETIME
 			);
-			$response = $this->clientService->newClient()->post(
+			$status = 0;
+			$raw = $this->curl->doRequest(
+				'post',
 				$this->config->videoService() . '/xrpc/app.bsky.video.uploadVideo?' . http_build_query([
 					'did' => $identity->did,
 					'name' => self::fileName($document),
@@ -184,11 +184,13 @@ class VideoUploadService {
 						'Accept' => 'application/json',
 					],
 					'timeout' => 600,
-					'http_errors' => false,
-				]
+					'json_headers' => false,
+					'accept_errors' => true,
+				],
+				$contentType,
+				$status
 			);
-			$answer = json_decode((string)$response->getBody(), true);
-			$status = $response->getStatusCode();
+			$answer = json_decode($raw, true);
 		} catch (Throwable $e) {
 			$this->logger->notice('Video not sent to Bluesky\'s video service', ['post' => $upload->postId, 'exception' => $e]);
 			$answer = null;

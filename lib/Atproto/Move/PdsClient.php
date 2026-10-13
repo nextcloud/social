@@ -10,7 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Move;
 
 use OCA\Social\Exceptions\AtprotoException;
-use OCP\Http\Client\IClientService;
+use OCA\Social\Service\CurlService;
+use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCP\IConfig;
 use Throwable;
 
@@ -18,12 +19,13 @@ use Throwable;
  * XRPC calls to another PDS, the one an account moves to or from: JSON in
  * and out, or bytes in (a repository, a blob). The other PDS is the person's
  * choice and gets the same care as any address a user types: https, and
- * Nextcloud's refusal of local addresses — unless the server is one set up
- * to talk to local ones, as a development network is.
+ * every request goes out through `CurlService`, with its refusal of local
+ * addresses — unless the server is one set up to talk to local ones, as a
+ * development network is.
  */
 class PdsClient {
 	public function __construct(
-		private IClientService $clientService,
+		private CurlService $curl,
 		private IConfig $systemConfig,
 	) {
 	}
@@ -61,7 +63,7 @@ class PdsClient {
 		if ($token !== '') {
 			$headers['Authorization'] = 'Bearer ' . $token;
 		}
-		$options = ['headers' => $headers, 'timeout' => 600, 'http_errors' => false];
+		$options = ['headers' => $headers, 'timeout' => 600, 'json_headers' => false, 'accept_errors' => true];
 		if ($json !== null) {
 			$options['headers']['Content-Type'] = 'application/json';
 			// a procedure's input is an object, and an empty PHP array encodes as []
@@ -71,15 +73,14 @@ class PdsClient {
 			$options['body'] = $bytes;
 		}
 		$url = $pds . '/xrpc/' . $method . ($query === [] ? '' : '?' . http_build_query($query));
+		$status = 0;
 		try {
-			$client = $this->clientService->newClient();
-			$response = $verb === 'GET' ? $client->get($url, $options) : $client->post($url, $options);
-			$body = json_decode((string)$response->getBody(), true);
+			$body = json_decode($this->curl->doRequest($verb === 'GET' ? 'get' : 'post', $url, $options, $contentType, $status), true);
 		} catch (Throwable $e) {
 			throw new AtprotoException('The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), 0, $e);
 		}
 
-		return ['status' => $response->getStatusCode(), 'body' => is_array($body) ? $body : []];
+		return ['status' => (int)$status, 'body' => is_array($body) ? $body : []];
 	}
 
 	/**
@@ -91,16 +92,24 @@ class PdsClient {
 	public function bytes(string $pds, string $method, array $query, string $token = ''): array {
 		$headers = $token === '' ? [] : ['Authorization' => 'Bearer ' . $token];
 		try {
-			$response = $this->clientService->newClient()->get($pds . '/xrpc/' . $method . '?' . http_build_query($query), [
-				'headers' => $headers,
-				'timeout' => 600,
-				'http_errors' => false,
-			]);
+			// a stream rather than a document: a repository is not held to the
+			// download ceiling
+			$answer = $this->curl->openStream($pds . '/xrpc/' . $method . '?' . http_build_query($query), $headers, '', 600);
+		} catch (RequestContentException $e) {
+			return ['status' => $e->getCode(), 'bytes' => '', 'type' => ''];
 		} catch (Throwable $e) {
 			throw new AtprotoException('The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), 0, $e);
 		}
+		$bytes = (string)stream_get_contents($answer['stream']);
+		fclose($answer['stream']);
+		$type = '';
+		foreach ($answer['headers'] as $name => $values) {
+			if (strtolower($name) === 'content-type') {
+				$type = (string)($values[0] ?? '');
+			}
+		}
 
-		return ['status' => $response->getStatusCode(), 'bytes' => (string)$response->getBody(), 'type' => $response->getHeader('Content-Type')];
+		return ['status' => $answer['status'], 'bytes' => $bytes, 'type' => $type];
 	}
 
 	/**
