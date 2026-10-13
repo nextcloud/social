@@ -13,7 +13,7 @@
 					<span class="post-author">
 						<DisplayName :text="item.display_name" :emojis="item.emojis" />
 					</span>
-					<span class="user-description">{{ item.acct }}</span>
+					<span class="user-description">{{ handle }}</span>
 				</a>
 				<router-link v-else-if="!serverData.public" :to="{ name: 'profile', params: { account: item.acct }}">
 					<span class="post-author">
@@ -22,7 +22,7 @@
 						<VerifiedBadge :account="item" />
 					</span>
 					<span class="user-description">
-						{{ item.acct }}
+						{{ handle }}
 					</span>
 				</router-link>
 				<!-- `url`, not `id`: for an account `id` is the numeric row id,
@@ -38,7 +38,7 @@
 						<VerifiedBadge :account="item" />
 					</span>
 					<span class="user-description">
-						{{ item.acct }}
+						{{ handle }}
 					</span>
 				</a>
 				<!-- Sanitized: the bio is remote HTML, see sanitizeHtml.js -->
@@ -62,7 +62,7 @@ import { useAccountStore } from '../store/account.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
 import { localProfileUrl } from '../utils/accountProfileLink.js'
-import { isBlueskyAccount, isLocalAccount } from '../utils/accountLocality.js'
+import { isBlueskyAccount, isLocalAccount, qualifiedHandle } from '../utils/accountLocality.js'
 
 export default {
 	name: 'UserEntry',
@@ -87,10 +87,10 @@ export default {
 	},
 
 	setup() {
-		const { serverData } = useServerData()
+		const { serverData, hostname } = useServerData()
 		const { currentUser } = useCurrentUser()
 
-		return { serverData, currentUser }
+		return { serverData, hostname, currentUser }
 	},
 
 	data() {
@@ -101,6 +101,18 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore),
+		/**
+		 * The handle under the name, written in full: a local account's
+		 * `acct` is the bare username, which told the reader nothing about
+		 * where the account is, and read as a different thing from the
+		 * `@user@host` the profile page shows for the same account.
+		 *
+		 * @return {string}
+		 */
+		handle() {
+			return qualifiedHandle(this.item, this.hostname)
+		},
+
 		isLocal() {
 			return Boolean(this.item?.acct && isLocalAccount(this.item) && this.item.username)
 		},

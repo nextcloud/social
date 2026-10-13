@@ -549,7 +549,7 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import BlueskyBadge from './BlueskyBadge.vue'
 import FollowButton from './FollowButton.vue'
-import { isBlueskyAccount } from '../utils/accountLocality.js'
+import { isBlueskyAccount, qualifiedHandle } from '../utils/accountLocality.js'
 import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
@@ -715,7 +715,7 @@ export default {
 		 * @return {string}
 		 */
 		fediverseHandle() {
-			return '@' + (this.isLocal ? this.accountInfo.username + '@' + this.hostname : this.accountInfo.acct)
+			return qualifiedHandle(this.accountInfo, this.hostname)
 		},
 
 		/**
