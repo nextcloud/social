@@ -33,7 +33,8 @@ function mountSetup(serverData = {}) {
 const handleInput = (wrapper) => wrapper.find('#account-setup-handle')
 const createButton = (wrapper) => wrapper.findAll('button').find((b) => b.text() === 'Create account')
 const linkButton = (wrapper) => wrapper.findAll('button').find((b) => b.text() === 'Link account')
-const linkModeButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().trim() === 'Link an existing account')
+const createModeButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().includes('Create a new account'))
+const linkModeButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().includes('Link an existing account'))
 
 describe('AccountSetup', () => {
 	afterEach(() => {
@@ -44,7 +45,7 @@ describe('AccountSetup', () => {
 		const wrapper = mountSetup()
 
 		expect(handleInput(wrapper).element.value).toBe('alice')
-		expect(wrapper.find('.account-setup__address').text()).toBe('Your address will be @alice@cloud.example.org')
+		expect(wrapper.find('.account-setup__address').text()).toBe('@alice@cloud.example.org')
 		expect(createButton(wrapper).text()).toBe('Create account')
 		// nothing has been created: the page says so before anything else
 		expect(wrapper.text()).toContain('Welcome to Aloha Social')
@@ -55,8 +56,8 @@ describe('AccountSetup', () => {
 		const wrapper = mountSetup()
 
 		await handleInput(wrapper).setValue('ali_ce')
-		expect(wrapper.find('.account-setup__address').text()).toBe('Your address will be @ali_ce@cloud.example.org')
-		await wrapper.find('form.account-setup__choice').trigger('submit')
+		expect(wrapper.find('.account-setup__address').text()).toBe('@ali_ce@cloud.example.org')
+		await wrapper.find('form.account-setup__form').trigger('submit')
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/account/create', { username: 'ali_ce' })
@@ -68,7 +69,7 @@ describe('AccountSetup', () => {
 		axios.post.mockRejectedValue({ response: { data: { status: -1, error: 'that handle is taken' } } })
 		const wrapper = mountSetup()
 
-		await wrapper.find('form.account-setup__choice').trigger('submit')
+		await wrapper.find('form.account-setup__form').trigger('submit')
 		await flushPromises()
 
 		expect(wrapper.find('.account-setup__error').text()).toBe('that handle is taken')
@@ -83,7 +84,7 @@ describe('AccountSetup', () => {
 		await linkModeButton(wrapper).trigger('click')
 		expect(wrapper.find('#account-setup-linked').element.value).toBe('alice@mastodon.social')
 		expect(linkButton(wrapper).attributes('disabled')).toBeUndefined()
-		await wrapper.find('form.account-setup__choice--secondary').trigger('submit')
+		await wrapper.find('form.account-setup__form').trigger('submit')
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledTimes(1)
@@ -103,5 +104,33 @@ describe('AccountSetup', () => {
 		expect(wrapper.find('#account-setup-handle').exists()).toBe(false)
 		expect(wrapper.find('#account-setup-linked').exists()).toBe(true)
 		expect(wrapper.text()).toContain('This only shows your existing account on your Nextcloud profile')
+	})
+
+	it('leaves a refusal behind when the answer changes', async () => {
+		axios.post.mockRejectedValue({ response: { data: { error: 'that handle is taken' } } })
+		const wrapper = mountSetup()
+
+		await wrapper.find('form.account-setup__form').trigger('submit')
+		await flushPromises()
+		expect(wrapper.find('.account-setup__error').text()).toBe('that handle is taken')
+
+		await linkModeButton(wrapper).trigger('click')
+		await createModeButton(wrapper).trigger('click')
+		expect(wrapper.find('.account-setup__error').exists()).toBe(false)
+	})
+
+	it('holds the choice still while a form is talking to the server', async () => {
+		let release
+		axios.post.mockReturnValue(new Promise((resolve) => {
+			release = resolve
+		}))
+		const wrapper = mountSetup()
+
+		await wrapper.find('form.account-setup__form').trigger('submit')
+		expect(linkModeButton(wrapper).attributes('disabled')).toBeDefined()
+
+		release({ data: { result: { account: { id: '1', acct: 'alice' } } } })
+		await flushPromises()
+		expect(linkModeButton(wrapper).attributes('disabled')).toBeUndefined()
 	})
 })

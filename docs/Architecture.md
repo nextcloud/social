@@ -2097,7 +2097,7 @@ Each store is installed per Pinia instance rather than per module registration, 
 
 `profile.followers` and `profile.following` render the same `ProfileFollowers` component; it decides what to load from the route.
 
-Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAuth2Authorize.vue` (mounted by the OAuth entry on `#social-oauth2`), `ProfilePageIntegration.vue` (registered by the profile entry as the `social-profile-section` custom element), and `OStatus.vue` (unreachable, per the table above).
+Views outside the router: `AccountSetup.vue` (the question `App.vue`'s first branch asks while the reader has no account: two answers, one on screen at a time — create an account here, with the handle they choose and the address it would make drawn as they type it, or name the handle they already have, which only publishes it on their profile and creates nothing. Creating is the default; the page reloads with `?welcome=1` once one of the two is answered, which is where `FirstRun` takes over), `Dashboard.vue` (mounted by the dashboard entry), `OAuth2Authorize.vue` (mounted by the OAuth entry on `#social-oauth2`), `ProfilePageIntegration.vue` (registered by the profile entry as the `social-profile-section` custom element), and `OStatus.vue` (unreachable, per the table above).
 
 The Nextcloud Profile page's classic script queue runs Aloha Social's `profile.js`
 before the Profile app's module entry. The latter creates

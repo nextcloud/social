@@ -5,26 +5,32 @@
 <template>
 	<div class="account-setup social__wrapper">
 		<section class="account-setup__card" :aria-label="t('social', 'Your account on the fediverse')">
-			<p class="account-setup__eyebrow">
-				{{ t('social', 'Welcome to Aloha Social') }}
-			</p>
+			<span class="account-setup__logo" aria-hidden="true" />
 			<h1 class="account-setup__title">
-				{{ t('social', 'Create your federated profile') }}
+				{{ t('social', 'Welcome to Aloha Social') }}
 			</h1>
 			<p class="account-setup__lead">
-				{{ t('social', 'Start with a new account here, or add your existing Fediverse handle to your Nextcloud profile.') }}
+				{{ t('social', 'You do not have an account here yet. Create one, or show an account you already have on your profile.') }}
 			</p>
 
-			<div class="account-setup__mode-picker" role="group" :aria-label="t('social', 'How do you want to continue?')">
+			<!-- the two answers, one at a time: the question is which of them,
+			     not two forms to read past each other -->
+			<div class="account-setup__modes" role="group" :aria-label="t('social', 'How do you want to continue?')">
 				<button
 					type="button"
 					class="account-setup__mode"
 					:class="{ 'account-setup__mode--active': mode === 'create' }"
 					:aria-pressed="mode === 'create'"
-					@click="mode = 'create'">
-					<IconAccountPlus :size="20" />
-					<span>
-						{{ t('social', 'Create a new account') }}
+					:disabled="busy !== ''"
+					@click="choose('create')">
+					<IconAccountPlus class="account-setup__mode-icon" :size="20" />
+					<span class="account-setup__mode-text">
+						<span class="account-setup__mode-title">
+							{{ t('social', 'Create a new account') }}
+						</span>
+						<span class="account-setup__mode-desc">
+							{{ t('social', 'Your own address, on this server.') }}
+						</span>
 					</span>
 				</button>
 				<button
@@ -32,21 +38,24 @@
 					class="account-setup__mode"
 					:class="{ 'account-setup__mode--active': mode === 'link' }"
 					:aria-pressed="mode === 'link'"
-					@click="mode = 'link'">
-					<IconLinkVariant :size="20" />
-					<span>
-						{{ t('social', 'Link an existing account') }}
+					:disabled="busy !== ''"
+					@click="choose('link')">
+					<IconLinkVariant class="account-setup__mode-icon" :size="20" />
+					<span class="account-setup__mode-text">
+						<span class="account-setup__mode-title">
+							{{ t('social', 'Link an existing account') }}
+						</span>
+						<span class="account-setup__mode-desc">
+							{{ t('social', 'An account on Mastodon or another server.') }}
+						</span>
 					</span>
 				</button>
 			</div>
 
-			<form v-if="mode === 'create'" class="account-setup__choice" @submit.prevent="create">
+			<form v-if="mode === 'create'" class="account-setup__form" @submit.prevent="create">
 				<h2 class="account-setup__heading">
-					{{ t('social', 'Create your account here') }}
+					{{ t('social', 'Choose your username') }}
 				</h2>
-				<p class="account-setup__hint">
-					{{ t('social', 'This creates a new account for posting from this Nextcloud.') }}
-				</p>
 				<label class="account-setup__label" for="account-setup-handle">
 					{{ t('social', 'Username') }}
 				</label>
@@ -59,13 +68,17 @@
 					spellcheck="false"
 					maxlength="64"
 					pattern="[A-Za-z0-9_]+([A-Za-z0-9_.\-]*[A-Za-z0-9_])?"
+					aria-describedby="account-setup-address"
+					:aria-invalid="createError !== ''"
 					:disabled="busy !== ''"
 					required>
-				<p class="account-setup__address" role="status">
-					{{ t('social', 'Your address will be @{handle}@{host}', { handle: handle || '…', host: hostname }) }}
+				<!-- the address as it is typed, not on the way out: the choice
+				     is permanent, so it is worth seeing before it is made -->
+				<p id="account-setup-address" class="account-setup__address">
+					@{{ handle || '…' }}@{{ hostname }}
 				</p>
 				<p class="account-setup__hint">
-					{{ t('social', 'Use letters, numbers, underscores, dots, and dashes. Your username cannot be changed later.') }}
+					{{ t('social', 'This is your address on the fediverse — letters, numbers, underscores, dots and dashes. It cannot be changed later.') }}
 				</p>
 				<p v-if="createError" class="account-setup__error" role="alert">
 					{{ createError }}
@@ -79,9 +92,9 @@
 				</NcButton>
 			</form>
 
-			<form v-else class="account-setup__choice account-setup__choice--secondary" @submit.prevent="link">
+			<form v-else class="account-setup__form" @submit.prevent="link">
 				<h2 class="account-setup__heading">
-					{{ t('social', 'Link your existing Fediverse account') }}
+					{{ t('social', 'Your existing account') }}
 				</h2>
 				<p class="account-setup__hint">
 					{{ t('social', 'This only shows your existing account on your Nextcloud profile so others can find it. You will not post from that external account here.') }}
@@ -93,10 +106,11 @@
 					id="account-setup-linked"
 					v-model.trim="linked"
 					type="text"
-					class="account-setup__input account-setup__input--wide"
+					class="account-setup__input"
 					autocomplete="off"
 					spellcheck="false"
 					placeholder="you@mastodon.social"
+					:aria-invalid="linkError !== ''"
 					:disabled="busy !== ''">
 				<p v-if="linkError" class="account-setup__error" role="alert">
 					{{ linkError }}
@@ -122,10 +136,13 @@
  *
  * The actor used to be created on the first click of the app icon, with a
  * handle derived from the user id and no way to say "I already have one on
- * mastodon.social". This asks. Two answers: an account here, with the handle
- * they choose (the address cannot be changed afterwards, so it is chosen
- * first), or the account they already have, named on their Nextcloud profile
- * so their colleagues find it -- and nothing created here.
+ * mastodon.social". This asks, and shows one answer at a time -- creating is
+ * first, because that is what most people want, and linking is a choice of its
+ * own rather than a second form to read past. An account here is made with the
+ * handle they choose (the address cannot be changed afterwards, so it is chosen
+ * first, and the address it would make is drawn as it is typed); an account
+ * they already have is only named on their Nextcloud profile, where their
+ * colleagues find it -- and nothing is created here.
  */
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -160,6 +177,7 @@ export default {
 			handle: serverData.suggestedHandle ?? '',
 			linked: serverData.linkedHandle ?? '',
 			linkedNow: '',
+			/** which of the two answers is on screen */
 			mode: 'create',
 			/** which of the two forms is talking to the server: 'create', 'link' or '' */
 			busy: '',
@@ -169,6 +187,22 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * Shows the other answer, and takes the complaint it left behind with
+		 * it: a refusal from one is not news about the other.
+		 *
+		 * The buttons stay dead while a form is talking to the server -- the
+		 * answer the request belongs to would otherwise disappear under the
+		 * reader while it is still on its way.
+		 *
+		 * @param {'create'|'link'} mode which answer to show
+		 */
+		choose(mode) {
+			this.mode = mode
+			this.createError = ''
+			this.linkError = ''
+		},
+
 		async create() {
 			this.busy = 'create'
 			this.createError = ''
@@ -209,25 +243,29 @@ export default {
 
 	&__card {
 		width: 100%;
-		max-width: 720px;
+		max-width: 600px;
 		padding: 32px;
 		background: var(--color-main-background);
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 16px);
 	}
 
-	&__eyebrow {
-		margin: 0 0 8px;
-		font-size: 13px;
-		font-weight: 700;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		color: var(--color-primary-element);
+	/* the app's own mark, drawn on the current colour like the sidebar's */
+	&__logo {
+		display: block;
+		width: 48px;
+		height: 48px;
+		margin: 0 0 16px;
+		background-image: url('../../img/social-dark.svg');
+		background-repeat: no-repeat;
+		background-position: center;
+		background-size: contain;
+		filter: var(--background-invert-if-dark);
 	}
 
 	&__title {
 		margin: 0 0 8px;
-		font-size: 30px;
+		font-size: 28px;
 		font-weight: 700;
 		line-height: 1.25;
 		text-wrap: balance;
@@ -236,26 +274,26 @@ export default {
 	&__lead {
 		margin: 0 0 24px;
 		line-height: 1.6;
+		text-wrap: pretty;
 	}
 
-	&__mode-picker {
+	&__modes {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-		gap: 16px;
-		margin-bottom: 16px;
+		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+		gap: 12px;
 	}
 
 	&__mode {
 		display: flex;
-		gap: 8px;
-		align-items: center;
-		padding: 14px 16px;
+		gap: 12px;
+		align-items: flex-start;
+		padding: 16px;
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 12px);
 		background: var(--color-main-background);
-		font-weight: 600;
-		text-align: left;
+		text-align: start;
 		color: var(--color-main-text);
+		transition: border-color .15s ease, background-color .15s ease;
 
 		&:hover {
 			background: var(--color-background-hover);
@@ -269,20 +307,46 @@ export default {
 		&--active {
 			border-color: var(--color-primary-element);
 			background: var(--color-background-hover);
+
+			.account-setup__mode-icon {
+				color: var(--color-primary-element);
+			}
 		}
 	}
 
-	&__choice {
+	&__mode-icon {
+		flex: 0 0 auto;
+		margin-top: 2px;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__mode-text {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 2px;
+		min-width: 0;
+	}
+
+	&__mode-title {
+		font-weight: 600;
+	}
+
+	&__mode-desc {
+		font-size: 13px;
+		font-weight: 400;
+		line-height: 1.4;
+		color: var(--color-text-maxcontrast);
+		text-wrap: pretty;
+	}
+
+	&__form {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-top: 20px;
 		padding: 20px;
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 12px);
-
-		&--secondary {
-			background: var(--color-background-hover);
-		}
 	}
 
 	&__heading {
@@ -297,35 +361,23 @@ export default {
 		color: var(--color-text-maxcontrast);
 	}
 
-	&__handle {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		font-variant-numeric: tabular-nums;
-	}
-
-	&__at,
-	&__host {
-		color: var(--color-text-maxcontrast);
-		white-space: nowrap;
-	}
-
 	&__input {
 		width: 100%;
 		min-width: 0;
 		margin: 0;
-
-		&--wide {
-			width: 100%;
-		}
 	}
 
+	/* the address the username would make, in the shape FirstRun shows the
+	   one an account has */
 	&__address {
 		margin: 0;
-		font-size: 14px;
-		font-weight: 600;
-		color: var(--color-main-text);
-		word-break: break-word;
+		padding: 10px 14px;
+		border-radius: var(--border-radius-element, 8px);
+		background: var(--color-primary-element-light);
+		color: var(--color-primary-element-light-text);
+		font-size: 16px;
+		font-weight: 700;
+		overflow-wrap: anywhere;
 	}
 
 	&__hint {
@@ -333,6 +385,7 @@ export default {
 		font-size: 13px;
 		line-height: 1.5;
 		color: var(--color-text-maxcontrast);
+		text-wrap: pretty;
 	}
 
 	&__error {
@@ -345,6 +398,14 @@ export default {
 		color: var(--color-success-text);
 	}
 
+	/* the chosen answer changing tint is the only movement on this page, and
+	   it is one a reader who asked their system for less does without */
+	@media (prefers-reduced-motion: reduce) {
+		&__mode {
+			transition: none;
+		}
+	}
+
 	@media (max-width: 767px) {
 		padding: 16px 8px;
 
@@ -353,7 +414,7 @@ export default {
 		}
 
 		&__title {
-			font-size: 26px;
+			font-size: 24px;
 		}
 	}
 }
