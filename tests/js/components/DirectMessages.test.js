@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
 import { createPinia, setActivePinia } from 'pinia'
 import DirectMessages from '../../../src/components/DirectMessages.vue'
+import { useNotificationsStore } from '../../../src/store/notifications.js'
 import { shortAgo } from '../../../src/utils/relativeTime.js'
 
 const bob = { id: 'https://remote.example/users/bob', acct: 'bob@remote.example', display_name: 'Bob' }
@@ -201,6 +202,46 @@ describe('DirectMessages', () => {
 		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
 		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
 		expect(wrapper.find('.direct-messages__message-form textarea').exists()).toBe(true)
+	})
+
+	/**
+	 * The badge in the sidebar is the notifications store's count. Opening
+	 * the one unread chat marked it read on the server and left the store
+	 * alone, so the "1" stayed until the next poll.
+	 */
+	it('brings the sidebar badge down once the conversation is read', async () => {
+		const notificationsStore = useNotificationsStore()
+		notificationsStore.setUnreadDirectMessages(1)
+		get.mockImplementation(async (url) => {
+			if (url.endsWith('/conversations')) {
+				return { data: [structuredClone(conversation)] }
+			}
+			if (url.endsWith('/conversations/unread_count')) {
+				return { data: { count: 0 } }
+			}
+			return { data: context }
+		})
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.setProps({ selectedConversationId: '10' })
+		await flushPromises()
+
+		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/unread_count')
+		expect(notificationsStore.unreadDirectMessages).toBe(0)
+	})
+
+	it('leaves the badge where it was when the read marker could not be written', async () => {
+		const notificationsStore = useNotificationsStore()
+		notificationsStore.setUnreadDirectMessages(1)
+		post.mockRejectedValue(new Error('offline'))
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.setProps({ selectedConversationId: '10' })
+		await flushPromises()
+
+		expect(get).not.toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/unread_count')
+		expect(notificationsStore.unreadDirectMessages).toBe(1)
 	})
 
 	it('dates a conversation the way the feed dates a post', async () => {

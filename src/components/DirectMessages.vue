@@ -414,6 +414,7 @@ import EmptyContent from './EmptyContent.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSwitcher from './TimelineSwitcher.vue'
 import { useAccountStore } from '../store/account.js'
+import { useNotificationsStore } from '../store/notifications.js'
 import { fullDateTime, shortAgo } from '../utils/relativeTime.js'
 import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
@@ -956,6 +957,10 @@ export default {
 					try {
 						await axios.post(generateUrl(`apps/social/api/v1/conversations/${encodeURIComponent(id)}/read`))
 						conversation.unread = false
+						// the sidebar badge is the server's count, read again
+						// rather than guessed at: it stayed up until the next
+						// poll after the one unread chat had been opened
+						useNotificationsStore().fetchUnreadDirectMessages()
 					} catch (error) {
 						logger.error('Failed to mark direct message conversation as read', { error, conversationId: id })
 					}
