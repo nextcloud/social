@@ -19,7 +19,7 @@ on:
       - master
       - stable*
   schedule:
-    - cron: '39 2 * * *'
+    - cron: '39 21 * * *'
   workflow_dispatch:
   workflow_call:
     inputs:

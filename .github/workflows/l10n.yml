@@ -23,7 +23,7 @@ on:
       - main
       - master
   schedule:
-    - cron: '43 2 * * *'
+    - cron: '43 21 * * *'
   workflow_call:
   workflow_dispatch:
 

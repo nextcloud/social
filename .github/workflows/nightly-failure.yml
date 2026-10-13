@@ -11,6 +11,12 @@
 # workflow_run starts only from the copy of this file on the default branch;
 # a workflow missing from the list below is not watched. Names not yet on the
 # default branch are listed so that they are watched once they land.
+#
+# The nightly crons are at 21:xx–22:xx UTC rather than in the small hours
+# because GitHub starts this repository's scheduled runs five to eight hours
+# late (a cron at 02:xx has fired between 07:00 and 10:30 UTC): from the
+# evening slot the runs, and the issues this file opens, are in before the
+# European morning instead of landing in the middle of a working day.
 
 name: Nightly failure issues
 

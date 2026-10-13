@@ -22,7 +22,7 @@ on:
         required: false
         default: '20000'
   schedule:
-    - cron: '17 2 * * *'
+    - cron: '17 21 * * *'
   # the `full-ci` label (labelled-ci.yml)
   workflow_call:
 

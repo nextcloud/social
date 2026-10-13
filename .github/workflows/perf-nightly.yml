@@ -22,7 +22,7 @@ on:
         description: 'How many times its baseline a probe may take'
         default: '3'
   schedule:
-    - cron: '17 2 * * *'
+    - cron: '19 21 * * *'
   # the `full-ci` label (labelled-ci.yml), with the defaults above
   workflow_call:
 

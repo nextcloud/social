@@ -15,7 +15,7 @@ name: Mutation testing
 on:
   workflow_dispatch:
   schedule:
-    - cron: '41 3 * * *'
+    - cron: '41 22 * * *'
   # the `full-ci` label (labelled-ci.yml)
   workflow_call:
 

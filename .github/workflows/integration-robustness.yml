@@ -34,7 +34,7 @@ name: Integration robustness
 
 on:
   schedule:
-    - cron: '23 2 * * *'
+    - cron: '23 21 * * *'
   workflow_call:
   workflow_dispatch:
     inputs:
