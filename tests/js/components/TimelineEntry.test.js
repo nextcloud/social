@@ -512,6 +512,21 @@ describe('the floating controls', () => {
 })
 
 /**
+ * A long column is laid out a screen at a time: a card off screen keeps a
+ * placeholder of about its height until it scrolls near, and its real size
+ * once it has been drawn.
+ */
+describe('the column off screen', () => {
+	const source = readFileSync(resolve(process.cwd(), 'src/components/TimelineEntry.vue'), 'utf8')
+	const entryBlock = source.slice(source.indexOf('\n.timeline-entry {'), source.indexOf('&--reply'))
+
+	it('is skipped until it scrolls near, with a placeholder of a card\'s height', () => {
+		expect(entryBlock).toMatch(/content-visibility: auto;/)
+		expect(entryBlock).toMatch(/contain-intrinsic-size: auto \d+px;/)
+	})
+})
+
+/**
  * A direct message is drawn as an entry too, inside a bubble DirectMessages
  * draws. The feed's row rules (no padding, no background, a hairline, a hover
  * tint) are more specific than the bubble's, so they must not reach it.

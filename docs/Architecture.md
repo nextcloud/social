@@ -2582,6 +2582,13 @@ instead: `TimelineList` emits `timeline:rendered` on the event bus once its
 entries are on the page, and the router waits for that, or for two seconds,
 whichever comes first — a view that never says anything still scrolls. The offset restored is the content column's, not the window's: a Nextcloud app is given a fixed viewport and the column scrolls inside it, so the position Vue Router remembers is always zero and applying it moved nothing. A `beforeEach` guard records `#app-content-vue`'s `scrollTop` for the view being left, at most ten views deep.
 
+A long column is laid out a screen at a time: `.timeline-entry` has
+`content-visibility: auto` with `contain-intrinsic-size: auto 320px`, so a card
+off screen keeps a placeholder of about its height until it scrolls near, and
+its real size once it has been drawn. The sentinel below the list and the
+restored offset above are unaffected — the placeholders have boxes — and the
+restored offset lands where it was recorded.
+
 The "N new posts" pill that polling puts up is sticky, and so is the box the
 reader writes in: same stacking context, and the composer both taller and above.
 The pill only appears once the reader is a screen or so down, which is exactly
