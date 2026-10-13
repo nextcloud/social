@@ -38,13 +38,12 @@ class Mastodon extends ClientApi {
 	 * here, and `guarded` is locked.
 	 */
 	public static function fromEnvironment(string $tokenVariable = 'MASTODON_TOKEN', string $username = 'interop'): ?self {
-		$base = (string)getenv('MASTODON_BASE_URL');
-		$token = (string)getenv($tokenVariable);
-		if ($base === '' || $token === '') {
+		$values = Environment::values('Mastodon', 'MASTODON_BASE_URL', $tokenVariable);
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($base, $token, $username);
+		return new self($values['MASTODON_BASE_URL'], $values[$tokenVariable], $username);
 	}
 
 	/** The Mastodon host, as it appears in a handle. */

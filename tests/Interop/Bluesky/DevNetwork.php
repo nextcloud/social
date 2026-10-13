@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interop\Bluesky;
 
+use OCA\Social\Tests\Interop\Environment;
 use RuntimeException;
 
 /**
@@ -38,14 +39,22 @@ final class DevNetwork {
 	/** the DID of the network's feed generator, which serves what `serveFeed()` gave it */
 	public string $feedGenDid = '';
 
-	/** null when the job did not start the network */
+	/**
+	 * null when the job did not start the network; in CI, where it does, an
+	 * exception instead (`Environment`), so a job that lost the network fails
+	 * rather than skips every test
+	 */
 	public static function fromEnvironment(): ?self {
-		$file = (string)getenv('ATPROTO_NETWORK_FILE');
-		if ($file === '' || !is_file($file)) {
+		$file = Environment::file('Bluesky development network', 'ATPROTO_NETWORK_FILE');
+		if ($file === null) {
 			return null;
 		}
 		$addresses = json_decode((string)file_get_contents($file), true);
 		if (!is_array($addresses)) {
+			if (Environment::isCi(getenv('CI'))) {
+				throw new RuntimeException('ATPROTO_NETWORK_FILE ' . $file . ' does not hold the network\'s addresses as JSON');
+			}
+
 			return null;
 		}
 

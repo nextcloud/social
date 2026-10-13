@@ -157,7 +157,12 @@ what a public certificate chain would change.
 
 Every test **skips with a reason** when `MASTODON_BASE_URL` and
 `MASTODON_TOKEN` are unset, so running the suite without a Mastodon is a pass
-that says so rather than a failure.
+that says so rather than a failure. **In CI it fails instead**: where the `CI`
+variable is set (GitHub Actions sets `CI=true`), the workflow has set every
+variable its job needs, so a missing one is a broken job, and a skip there
+would be a green run that asserted nothing. `Environment.php` makes that
+decision for every peer's `fromEnvironment()`, so a local run with `CI=1`
+in the environment fails the same way — unset it, or set the variables.
 
 ```
 MASTODON_BASE_URL=https://mastodon.test MASTODON_HOST=mastodon.test \

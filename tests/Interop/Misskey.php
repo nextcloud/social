@@ -29,13 +29,12 @@ class Misskey extends RestClient {
 
 	/** Whether this suite has a Misskey to talk to at all. */
 	public static function fromEnvironment(): ?self {
-		$base = (string)getenv('MISSKEY_BASE_URL');
-		$token = (string)getenv('MISSKEY_TOKEN');
-		if ($base === '' || $token === '') {
+		$values = Environment::values('Misskey', 'MISSKEY_BASE_URL', 'MISSKEY_TOKEN');
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($base, $token);
+		return new self($values['MISSKEY_BASE_URL'], $values['MISSKEY_TOKEN']);
 	}
 
 	#[\Override]

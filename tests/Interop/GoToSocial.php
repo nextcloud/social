@@ -37,13 +37,12 @@ class GoToSocial extends ClientApi {
 	 * GoToSocial account is until its owner says otherwise.
 	 */
 	public static function fromEnvironment(string $tokenVariable = 'GOTOSOCIAL_TOKEN', string $username = 'interop'): ?self {
-		$base = (string)getenv('GOTOSOCIAL_BASE_URL');
-		$token = (string)getenv($tokenVariable);
-		if ($base === '' || $token === '') {
+		$values = Environment::values('GoToSocial', 'GOTOSOCIAL_BASE_URL', $tokenVariable);
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($base, $token, $username);
+		return new self($values['GOTOSOCIAL_BASE_URL'], $values[$tokenVariable], $username);
 	}
 
 	/** The GoToSocial host, as it appears in a handle. */

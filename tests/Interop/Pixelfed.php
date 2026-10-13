@@ -32,13 +32,12 @@ class Pixelfed extends ApiClient {
 
 	/** Whether this suite has a Pixelfed to talk to at all. */
 	public static function fromEnvironment(): ?self {
-		$base = (string)getenv('PIXELFED_BASE_URL');
-		$token = (string)getenv('PIXELFED_TOKEN');
-		if ($base === '' || $token === '') {
+		$values = Environment::values('Pixelfed', 'PIXELFED_BASE_URL', 'PIXELFED_TOKEN');
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($base, $token);
+		return new self($values['PIXELFED_BASE_URL'], $values['PIXELFED_TOKEN']);
 	}
 
 	protected function authHeaders(): array {
