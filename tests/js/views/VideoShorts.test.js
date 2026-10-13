@@ -373,6 +373,43 @@ describe('VideoShorts', () => {
 		expect(store.fetchTimeline).toHaveBeenCalledTimes(2)
 	})
 
+	/**
+	 * A page still in flight when the scope changes is dropped by the store
+	 * and comes back empty. Read as the end of the new scope, it left the
+	 * stack black until the reader switched again.
+	 */
+	it('still asks for the new scope when the previous one\'s page was dropped', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		const store = useTimelineStore()
+		let answerHome
+		store.fetchTimeline = vi.fn()
+			.mockImplementationOnce(() => new Promise((resolve) => {
+				answerHome = resolve
+			}))
+			.mockImplementation(async () => {
+				store.addToTimeline([video('7')])
+
+				return [video('7')]
+			})
+		const wrapper = mount(VideoShorts, {
+			props: { scope: 'home' },
+			global: { plugins: [pinia], stubs: { NcButton: true, RouterLink: RouterLinkStub } },
+		})
+		await flushPromises()
+
+		await wrapper.setProps({ scope: 'federated' })
+		await flushPromises()
+		// the home page settles after the switch, and the store has dropped it
+		answerHome([])
+		await flushPromises()
+
+		expect(wrapper.vm.allLoaded).toBe(false)
+		expect(wrapper.vm.loading).toBe(false)
+		expect(wrapper.findAll('article.short')).toHaveLength(1)
+		expect(wrapper.find('.shorts__empty').exists()).toBe(false)
+	})
+
 	it('pauses and resumes with the space bar', async () => {
 		const { wrapper } = await mountShorts()
 		const first = wrapper.findAll('video')[0].element
