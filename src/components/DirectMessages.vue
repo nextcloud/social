@@ -431,6 +431,19 @@ const SEARCH_FROM = 9
 /** How tall the message box grows before it scrolls, in pixels. */
 const MESSAGE_BOX_MAX = 112
 
+/** How many of a chat's threads, newest first, are read into the message lane. */
+const THREADS_SHOWN = 8
+
+/**
+ * @param {object|null|undefined} status a message
+ * @return {number} when it was written, for sorting; 0 when it does not say
+ */
+function writtenAt(status) {
+	const time = new Date(status?.created_at ?? '').getTime()
+
+	return Number.isNaN(time) ? 0 : time
+}
+
 /**
  * A handle at the very start of a message, as the composer writes one.
  *
@@ -549,15 +562,49 @@ export default {
 	},
 
 	computed: {
+		/**
+		 * The inbox as the reader sees it: one chat per set of people.
+		 *
+		 * The server answers one conversation per thread, as Mastodon does —
+		 * a direct message that is not a reply starts a new one — so two
+		 * messages to the same person a day apart were two rows "Bob". The
+		 * threads between one set of participants are folded into one chat
+		 * here: it carries the newest thread's id, its newest message, and is
+		 * unread while any of its threads is. Opening it reads every thread.
+		 *
+		 * @return {object[]} newest first, each with its `threads`
+		 */
+		chats() {
+			const chats = new Map()
+			for (const conversation of this.conversations) {
+				const key = this.participantsKey(conversation)
+				const chat = chats.get(key)
+				if (chat === undefined) {
+					chats.set(key, { ...conversation, unread: Boolean(conversation.unread), threads: [conversation] })
+					continue
+				}
+
+				chat.threads.push(conversation)
+				chat.unread = chat.unread || Boolean(conversation.unread)
+				if (writtenAt(conversation.last_status) > writtenAt(chat.last_status)) {
+					chat.id = conversation.id
+					chat.last_status = conversation.last_status
+					chat.accounts = conversation.accounts
+				}
+			}
+
+			return [...chats.values()]
+		},
+
 		filteredConversations() {
 			const query = this.searchQuery.trim().toLocaleLowerCase()
-			return this.conversations.filter((conversation) => (this.filterMode !== 'unread' || conversation.unread)
+			return this.chats.filter((conversation) => (this.filterMode !== 'unread' || conversation.unread)
 				&& (!query || this.conversationName(conversation).toLocaleLowerCase().includes(query)
 					|| this.preview(conversation.last_status, conversation).toLocaleLowerCase().includes(query)))
 		},
 
 		unreadCount() {
-			return this.conversations.filter((conversation) => conversation.unread).length
+			return this.chats.filter((conversation) => conversation.unread).length
 		},
 
 		/** @return {object[]} All and Unread, as the feed's switcher takes them */
@@ -607,8 +654,15 @@ export default {
 			}
 		},
 
+		/**
+		 * The chat the route names, by any of its threads: the route keeps
+		 * the id it was opened with, and the chat's own id moves on when a
+		 * new thread with the same people arrives.
+		 *
+		 * @return {object|null}
+		 */
 		activeConversation() {
-			return this.conversations.find((conversation) => String(conversation.id) === this.selectedConversationId) ?? null
+			return this.chatOf(this.selectedConversationId)
 		},
 
 		hasRecipientQuery() {
@@ -661,6 +715,12 @@ export default {
 			].filter((group) => group.accounts.length > 0)
 		},
 
+		/**
+		 * Every message of the chat, oldest first: the threads' own newest
+		 * messages and what their contexts brought, as one lane.
+		 *
+		 * @return {object[]}
+		 */
 		messages() {
 			if (!this.activeConversation?.last_status) {
 				return []
@@ -668,14 +728,14 @@ export default {
 
 			const ordered = [
 				...(this.thread.ancestors ?? []),
-				this.activeConversation.last_status,
+				...this.activeConversation.threads.map((thread) => thread.last_status).filter(Boolean),
 				...(this.thread.descendants ?? []),
 			]
 			const unique = new Map()
 			for (const message of ordered) {
 				unique.set(String(message.id), message)
 			}
-			return [...unique.values()]
+			return [...unique.values()].sort((left, right) => writtenAt(left) - writtenAt(right))
 		},
 
 		threadLabel() {
@@ -934,8 +994,8 @@ export default {
 		},
 
 		/**
-		 * The same conversation twice is one row; two conversations with the
-		 * same person are two.
+		 * The same conversation twice is one; two with the same person stay
+		 * two here and become one chat in `chats`.
 		 *
 		 * The key used to be the peer, so a second thread with somebody was
 		 * dropped on the floor — unreachable from the inbox, however many
@@ -995,13 +1055,42 @@ export default {
 			}
 		},
 
+		/**
+		 * What tells one chat from another: who is in it, whichever thread.
+		 *
+		 * @param {object} conversation a conversation the server sent
+		 * @return {string}
+		 */
+		participantsKey(conversation) {
+			const handles = (conversation?.accounts ?? [])
+				.filter((account) => !this.isOwnAccount(account))
+				.map((account) => String(account.acct || account.id || '').toLocaleLowerCase())
+				.filter(Boolean)
+				.sort()
+
+			// a row that names nobody can only be itself
+			return handles.length > 0 ? handles.join(' ') : `id:${String(conversation?.id)}`
+		},
+
+		/**
+		 * @param {string} id a conversation id the server handed out
+		 * @return {object|null} the chat that thread belongs to
+		 */
+		chatOf(id) {
+			if (id === '') {
+				return null
+			}
+
+			return this.chats.find((chat) => chat.threads.some((thread) => String(thread.id) === id)) ?? null
+		},
+
 		startConversation(account, event) {
 			event?.preventDefault?.()
 			// a handle is not case-sensitive, and the filtering beside this
 			// lowercases one — so `Bob@remote.example` opened a second chat
 			// beside the one with `bob@remote.example`
 			const wanted = String(account.acct ?? '').toLocaleLowerCase()
-			const existing = this.conversations.find((conversation) => (conversation.accounts ?? []).some((candidate) => (candidate.id && account.id && String(candidate.id) === String(account.id))
+			const existing = this.chats.find((conversation) => (conversation.accounts ?? []).some((candidate) => (candidate.id && account.id && String(candidate.id) === String(account.id))
 				|| (wanted !== '' && String(candidate.acct ?? '').toLocaleLowerCase() === wanted)))
 			if (existing) {
 				this.selectConversation(String(existing.id))
@@ -1036,7 +1125,7 @@ export default {
 				this.messageText = ''
 				await this.refreshConversations()
 				if (newRecipient) {
-					const conversation = this.conversations.find((item) => (item.accounts ?? []).some((candidate) => candidate.acct === recipient.acct || (candidate.id && recipient.id && String(candidate.id) === String(recipient.id))))
+					const conversation = this.chats.find((item) => (item.accounts ?? []).some((candidate) => candidate.acct === recipient.acct || (candidate.id && recipient.id && String(candidate.id) === String(recipient.id))))
 					this.newRecipient = null
 					this.newMessageOpen = false
 					if (conversation) {
@@ -1060,9 +1149,11 @@ export default {
 		 *                        not an opening
 		 */
 		async loadThread(id, quiet = false) {
-			const conversation = this.conversations.find((item) => String(item.id) === id)
+			const threads = (this.chatOf(id)?.threads ?? [])
+				.filter((thread) => thread.last_status?.id)
+				.slice(0, THREADS_SHOWN)
 			const request = ++this.threadRequest
-			if (!conversation?.last_status?.id) {
+			if (threads.length === 0) {
 				this.thread = { ancestors: [], descendants: [] }
 				this.loadingThread = false
 				this.threadError = false
@@ -1074,26 +1165,35 @@ export default {
 				this.threadError = false
 			}
 			try {
-				const statusId = encodeURIComponent(String(conversation.last_status.id))
-				const { data } = await axios.get(generateUrl(`apps/social/api/v1/statuses/${statusId}/context`))
+				const contexts = await Promise.all(threads.map((thread) => {
+					const statusId = encodeURIComponent(String(thread.last_status.id))
+
+					return axios.get(generateUrl(`apps/social/api/v1/statuses/${statusId}/context`))
+				}))
 				if (request !== this.threadRequest || id !== this.selectedConversationId) {
 					return
 				}
 				this.thread = {
-					ancestors: Array.isArray(data?.ancestors) ? data.ancestors : [],
-					descendants: Array.isArray(data?.descendants) ? data.descendants : [],
+					ancestors: contexts.flatMap(({ data }) => (Array.isArray(data?.ancestors) ? data.ancestors : [])),
+					descendants: contexts.flatMap(({ data }) => (Array.isArray(data?.descendants) ? data.descendants : [])),
 				}
-				if (conversation.unread) {
+				// every thread the chat folds, each on its own: the server
+				// counts and marks them one by one, as Mastodon does
+				let marked = false
+				for (const thread of threads.filter((candidate) => candidate.unread)) {
 					try {
-						await axios.post(generateUrl(`apps/social/api/v1/conversations/${encodeURIComponent(id)}/read`))
-						conversation.unread = false
-						// the sidebar badge is the server's count, read again
-						// rather than guessed at: it stayed up until the next
-						// poll after the one unread chat had been opened
-						useNotificationsStore().fetchUnreadDirectMessages()
+						await axios.post(generateUrl(`apps/social/api/v1/conversations/${encodeURIComponent(String(thread.id))}/read`))
+						thread.unread = false
+						marked = true
 					} catch (error) {
-						logger.error('Failed to mark direct message conversation as read', { error, conversationId: id })
+						logger.error('Failed to mark direct message conversation as read', { error, conversationId: thread.id })
 					}
+				}
+				if (marked) {
+					// the sidebar badge is the server's count, read again
+					// rather than guessed at: it stayed up until the next
+					// poll after the one unread chat had been opened
+					useNotificationsStore().fetchUnreadDirectMessages()
 				}
 			} catch (error) {
 				if (request === this.threadRequest) {
@@ -1290,20 +1390,29 @@ export default {
 			return unique.map((acct) => `@${acct}`).join(' ')
 		},
 
-		async removeConversation(conversation) {
-			const id = String(conversation.id)
-			this.removingConversationId = id
+		/**
+		 * Dismisses a chat: every thread of it, as the server knows them.
+		 *
+		 * @param {object} chat the row, with its `threads`
+		 */
+		async removeConversation(chat) {
+			this.removingConversationId = String(chat.id)
 			this.removeError = false
+			const removed = []
 			try {
-				await axios.delete(generateUrl(`/apps/social/api/v1/conversations/${encodeURIComponent(id)}`))
-				this.conversations = this.conversations.filter((item) => String(item.id) !== id)
-				if (this.selectedConversationId === id) {
-					this.$emit('select', '')
+				for (const thread of chat.threads) {
+					const id = String(thread.id)
+					await axios.delete(generateUrl(`/apps/social/api/v1/conversations/${encodeURIComponent(id)}`))
+					removed.push(id)
 				}
 			} catch (error) {
-				logger.error('Could not remove direct message conversation', { error, id })
+				logger.error('Could not remove direct message conversation', { error, id: chat.id })
 				this.removeError = true
 			} finally {
+				this.conversations = this.conversations.filter((item) => !removed.includes(String(item.id)))
+				if (removed.includes(this.selectedConversationId)) {
+					this.$emit('select', '')
+				}
 				this.removingConversationId = ''
 			}
 		},

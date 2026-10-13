@@ -350,7 +350,10 @@ The sidebar is the map:
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.
-- **Direct messages** — private conversations, one chat per person. **New
+- **Direct messages** — private conversations, one chat per person: every
+  message between you and the same people is in that one chat, however it
+  was started (other apps may list such messages as separate
+  conversations). **New
   message** first offers people from your existing chats and the accounts you
   follow. Search by name, `@handle` or profile link to find somebody else:
   the people you know — accounts you follow and people from your chats — are

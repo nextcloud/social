@@ -2141,14 +2141,27 @@ falls back to English.
 the selected thread. The list calls the Mastodon-compatible
 `GET /api/v1/conversations` route (40 newest conversations per request), shows
 the latest status as a plain-text preview, and marks unread conversations.
+The server answers one conversation per thread, as Mastodon's own
+`AccountConversation` does (unique per conversation *and* participant set), so
+a direct message that is not a reply starts a new conversation there and in
+every other client. The pane folds the rows between one set of participants
+into one chat (`chats`, keyed by the sorted handles of everybody but the
+reader): the chat carries the newest thread's id and message, is unread while
+any of its threads is, and its row action dismisses every thread. The server
+and the client API are left as they are — the Bluesky chat bridge and
+third-party clients rely on a conversation being a thread.
 The selected conversation is stored in the `conversation` query parameter on
-the direct timeline route, so opening or refreshing a link restores the thread.
-Selecting a row loads the latest status context from
-`GET /api/v1/statuses/{nid}/context`; ancestors and descendants are combined
-with that latest status and de-duplicated by status id before rendering through
-`TimelineEntry`. A successful thread load attempts
-`POST /api/v1/conversations/{id}/read`; failure to persist the read marker is
-logged without hiding the already loaded messages.
+the direct timeline route, so opening or refreshing a link restores the chat;
+the route keeps the thread id it was opened with and the chat is found by any
+of its threads (`chatOf()`), so it stays open when a new thread with the same
+person arrives. Opening a chat loads the context of each of its threads'
+newest messages (up to eight, newest first) from
+`GET /api/v1/statuses/{nid}/context`; ancestors, the threads' newest messages
+and descendants are combined, de-duplicated by status id and ordered by
+`created_at` before rendering through `TimelineEntry`. A successful load
+attempts `POST /api/v1/conversations/{id}/read` for each unread thread;
+failure to persist a read marker is logged without hiding the already loaded
+messages.
 
 Starting a conversation searches `GET /api/v1/global/accounts/search` and selects exactly one account. If that person already has a conversation in the loaded inbox, that thread is opened; duplicate API rows for the same account are collapsed to the newest row. Otherwise the right pane becomes a normal chat: it shows the selected person and a compact message field, with no audience selector, post toolbar or multi-recipient composer. `sendMessage()` always posts with `visibility: direct` to `POST /api/v1/statuses`, prepending the selected account's `@acct` mention internally because Aloha Social's ActivityPub delivery derives direct recipients from mentions. The person using the chat does not need to type that mention. Replies include the last status id as `in_reply_to_id`; successful sends clear the field, refresh the inbox and open the conversation returned for that peer. Failed sends retain the draft and display an error. The pane keeps itself current the way `TimelineList` does: it subscribes to `onTimelinePush()` and, with notify_push, re-reads every five minutes as a safety net, without it every 30 seconds; a hidden tab asks for nothing and catches up when it is looked at again (at once if a push arrived meanwhile, otherwise once it has been away a poll interval). A refresh (`refreshConversations()`) lays the first page over the rows on screen — the page's rows first, every older row the reader paged to after them, and the cursor kept once they have paged — and re-reads the open chat quietly (`loadThread(id, true)`), so nothing on screen is replaced by "Loading…" and the thread is scrolled to its end only when a message came or went. A reply that arrives in the open chat is marked read like one the reader opened; after a read marker is written the pane re-reads `GET /api/v1/conversations/unread_count`, which is the sidebar badge. The direct route removes the reading-column padding and announcement strip. The panes share one flat app-content surface with only a divider. The page reuses the feed's parts rather than stock list and form components: conversations and recipient results are feed-style rows (40px face, bold name, preview line, `shortAgo()` age, hover tint, hairline between rows) with **Remove conversation** in an `NcActions` menu shown on hover or focus (always on touch); **All / Unread** is `TimelineSwitcher`; the search field appears from nine conversations; empty states are `EmptyContent` with the `no-messages` illustration, whose action without a route is emitted as `action`. Incoming and outgoing messages retain `TimelineEntry` for content and attachments, with `type="direct"`, which adds `timeline-entry--direct` so the feed's list-row rules in `TimelineEntry.vue` leave the bubble alone; their post headers are hidden and the chat layout supplies date breaks and message times. A time is drawn under the last message of a run (same author, same day) and beside the others on hover. Outgoing bubbles mix the author's `--account-hue` (set on the post, so the reader's own colour) into the page background; incoming ones use the hover grey. The thread, the recipient picker and the message field keep to the feed's 616px column. The message field is the composer's pill with the reader's face, an auto-growing textarea, a send button that appears once something is written, and Ctrl/Cmd+Enter to send. The peer appears in the thread header with their handle, so each bubble does not repeat the author. At narrow widths the list and chat become separate views with a back arrow. Older conversations are appended a page at a time from the `Link` header's cursor.
 
