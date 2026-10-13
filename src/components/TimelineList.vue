@@ -1221,15 +1221,30 @@ export default {
 
 		setupIntersectionObserver() {
 			this.observer = new IntersectionObserver((entries) => {
-				if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
+				if (entries[0].isIntersecting && !this.loading && !this.allLoaded && this.error === null) {
 					this.infiniteHandler()
 				}
 			}, { rootMargin: '200px' })
-			this.$nextTick(() => {
-				if (this.$refs.sentinel) {
-					this.observer.observe(this.$refs.sentinel)
-				}
-			})
+			this.$nextTick(() => this.watchSentinel())
+		},
+
+		/** Lets the sentinel below the list ask for the next page. */
+		watchSentinel() {
+			if (this.observer && this.$refs.sentinel) {
+				this.observer.observe(this.$refs.sentinel)
+			}
+		},
+
+		/**
+		 * Stops the sentinel asking. After a failed page the error block and
+		 * the wave trade places above the sentinel, and every reflow was an
+		 * intersection: a list whose request kept failing asked for it again
+		 * as fast as the server could refuse.
+		 */
+		unwatchSentinel() {
+			if (this.observer && this.$refs.sentinel) {
+				this.observer.unobserve(this.$refs.sentinel)
+			}
 		},
 
 		/**
@@ -1374,13 +1389,15 @@ export default {
 			clearTimeout(this.seenTimer)
 			this.seenTimer = -1
 			this.ensureMarker()
+			this.watchSentinel()
 			this.loadFirstPage()
 		},
 
-		/** What the retry button does. */
+		/** What the retry button does: the one thing that re-arms the sentinel after a failure. */
 		retry() {
 			this.error = null
 			this.allLoaded = false
+			this.watchSentinel()
 			this.infiniteHandler()
 		},
 
@@ -1435,6 +1452,7 @@ export default {
 				this.error = this.timeline.length === 0
 					? t('social', 'The posts could not be loaded.')
 					: t('social', 'No more posts could be loaded.')
+				this.unwatchSentinel()
 			} finally {
 				// the newer request owns `loading` now
 				if (generation === this.generation) {

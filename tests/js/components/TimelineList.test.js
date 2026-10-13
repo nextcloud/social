@@ -873,14 +873,46 @@ describe('TimelineList', () => {
 			expect(wrapper.find('.timeline-error').attributes('role')).toBe('alert')
 		})
 
-		it('keeps paging alive after a failure', async () => {
-			const { dispatch } = mountList({ responses: [new Error('network'), new Error('network')] })
+		it('stops the sentinel asking after a failure, until the retry is pressed', async () => {
+			const { wrapper, dispatch } = mountList({ responses: [new Error('network'), new Error('network'), [status('20')]] })
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			// the error block and the wave trade places above the sentinel,
+			// and every reflow was an intersection: a list whose request
+			// kept failing asked again as fast as the server could refuse
+			const sentinel = wrapper.find('.list-sentinel').element
+			expect(observer().unobserve).toHaveBeenCalledWith(sentinel)
+			await intersect()
+			await intersect()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			// the retry is the one thing that re-arms it, and a failure there
+			// takes it down again; paging is alive once a page has come back
+			observer().observe.mockClear()
+			await wrapper.find('.timeline-error button').trigger('click')
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
+			expect(observer().observe).toHaveBeenCalledWith(sentinel)
+			expect(observer().unobserve).toHaveBeenCalledTimes(2)
+
+			await wrapper.find('.timeline-error button').trigger('click')
+			await flushPromises()
+			expect(wrapper.find('.timeline-error').exists()).toBe(false)
+			await intersect()
+			expect(dispatch).toHaveBeenCalledTimes(4)
+		})
+
+		it('watches the sentinel again for a list switched to after a failure', async () => {
+			const { dispatch, store } = mountList({ responses: [new Error('network')] })
+			await flushPromises()
+			observer().observe.mockClear()
+			dispatch.mockResolvedValue([status('9')])
+
+			store.$patch(showing('["federated","",{}]'))
 			await flushPromises()
 
-			// allLoaded used to be set here, which stopped the observer from
-			// ever firing again: infinite scroll was dead until a reload
-			await intersect()
-			await flushPromises()
+			expect(observer().observe).toHaveBeenCalled()
 			expect(dispatch).toHaveBeenCalledTimes(2)
 		})
 
