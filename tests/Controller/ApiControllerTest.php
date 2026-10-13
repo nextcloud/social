@@ -1206,6 +1206,29 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame($role, $response->getData()['role']);
 	}
 
+	/**
+	 * Mastodon's public `roles` lists the account's highlighted roles, as
+	 * `{id, name, color}`; the one role this app knows is in it when it is
+	 * highlighted, and the list is empty for everybody else.
+	 */
+	public function testVerifyCredentialsListsAHighlightedRoleAmongThePublicRoles(): void {
+		$this->loggedInAs();
+		$this->adminApiService->method('credentialRole')
+			->willReturn(['id' => '3', 'name' => 'Admin', 'color' => '', 'permissions' => '8388607', 'highlighted' => true]);
+
+		$data = $this->controller()->verifyCredentials()->getData();
+
+		$this->assertSame([['id' => '3', 'name' => 'Admin', 'color' => '']], $data['roles']);
+	}
+
+	public function testVerifyCredentialsListsNoPublicRoleForAnOrdinaryAccount(): void {
+		$this->loggedInAs();
+		$this->adminApiService->method('credentialRole')
+			->willReturn(['id' => '-99', 'name' => '', 'color' => '', 'permissions' => '65536', 'highlighted' => false]);
+
+		$this->assertSame([], $this->controller()->verifyCredentials()->getData()['roles']);
+	}
+
 	/** update_credentials answers a CredentialAccount too, role included. */
 	public function testUpdateCredentialsCarriesTheViewersRole(): void {
 		$this->loggedInAs();
@@ -4121,9 +4144,9 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->statusDelete(7);
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		// Mastodon answers with the status that went, which is what
-		// "delete & redraft" puts back in the composer
-		$this->assertSame(['id' => '7'], $response->getData());
+		// Mastodon answers with the status that went, its source as `text`,
+		// which is what "delete & redraft" puts back in the composer
+		$this->assertSame(['id' => '7', 'text' => ''], $response->getData());
 	}
 
 	public function testStatusDeleteOfSomebodyElsesPostIsA404AndDeletesNothing(): void {

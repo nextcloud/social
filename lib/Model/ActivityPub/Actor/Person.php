@@ -1688,8 +1688,10 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				'following_count' => $this->getInt('count.following', $details),
 				'statuses_count' => $this->getInt('count.post', $details),
 				// null, not '', while nothing was posted: a date-or-null field in Mastodon's entity
-				'last_status_at' => $this->get('last_post_creation', $details) !== ''
-					? $this->get('last_post_creation', $details) : null,
+				'last_status_at' => self::lastStatusDate($this->get('last_post_creation', $details)),
+				// Mastodon's public roles, always a list; the credentials
+				// routes put the account's own highlighted role in it
+				'roles' => [],
 				'emojis' => $this->getEmojis(),
 				'fields' => $fields,
 				// the two rows this app draws rather than tabulates: beside the
@@ -1712,6 +1714,21 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return array_merge(parent::exportAsLocal(), $result);
+	}
+
+	/**
+	 * Mastodon's `last_status_at` is a calendar date (`YYYY-MM-DD`), never a
+	 * time: a client shows it as it comes, and Tusky put a full timestamp in
+	 * the profile header. A stored value that carries a time -- written
+	 * before the detail was a date -- is cut to its date; one that is not a
+	 * date at all, or empty, is null.
+	 */
+	public static function lastStatusDate(string $stored): ?string {
+		if (preg_match('/^\d{4}-\d{2}-\d{2}/', $stored, $date) !== 1) {
+			return null;
+		}
+
+		return $date[0];
 	}
 
 	/**

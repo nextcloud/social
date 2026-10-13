@@ -108,7 +108,7 @@ class ApiContractTest extends TestCase {
 		// of its hashtags, or a picture's stated provenance. A label the post
 		// carries, always a bool, and the key a client draws its mark from.
 		$expected = [
-			'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited',
+			'application', 'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited', 'filtered', 'text',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote', 'quotes_count',
 			'quote_approval', 'reply_approval', 'reply_policy', 'interaction_policy', 'video', 'hidden_by_author', 'can_hide',
@@ -258,7 +258,7 @@ class ApiContractTest extends TestCase {
 			'acct', 'avatar', 'avatar_default', 'avatar_static', 'bluesky', 'bot', 'created_at', 'discoverable',
 			'display_name', 'emojis', 'fields', 'followers_count', 'following_count',
 			'group', 'header', 'header_default', 'header_static', 'id', 'indexable', 'last_status_at', 'locked',
-			'nid', 'note', 'pronouns', 'statuses_count', 'support_link', 'url', 'username', 'verification',
+			'nid', 'note', 'pronouns', 'roles', 'statuses_count', 'support_link', 'url', 'username', 'verification',
 		];
 		$actual = array_keys($account);
 		sort($expected);

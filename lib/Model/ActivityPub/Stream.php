@@ -2383,6 +2383,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// rule here is that a client never has to test for a missing one
 			'poll' => null,
 			'uri' => $this->getId(),
+			// the three Mastodon always sends and this entity has no value
+			// for: which app wrote the post is not recorded, so `application`
+			// is null as on every remote post; `filtered` is empty until
+			// `FilterService` has looked at the page; `text` is the source,
+			// which only `/statuses/{id}/source` and a delete answer. Sent
+			// as constants rather than left out because masto.js types
+			// `filtered` as required and Elk and Phanpy read its length
+			'application' => null,
+			'filtered' => [],
+			'text' => null,
 			// the page a person can open, which is not always the id. Loops
 			// posts are `.../ap/users/1/video/3268…` with a `url` of
 			// `loops.video/v/i9co_4TqPk`, and Pixelfed and PeerTube do the

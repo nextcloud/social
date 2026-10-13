@@ -1,8 +1,9 @@
 {
-	"description": "Mastodon's Status entity (docs.joinmastodon.org/entities/Status), as an authenticated client sees it: favourited, reblogged, muted, bookmarked and pinned are then always present. application, text and filtered are documented as optional and are only typed when present.",
+	"description": "Mastodon's Status entity (docs.joinmastodon.org/entities/Status), as an authenticated client sees it: favourited, reblogged, muted, bookmarked and pinned are then always present. application (null or {name, website}), text (null unless the source) and filtered ([] until a filter matched) are documented as optional and always sent here, so a client never reads undefined.",
 	"type": "object",
 	"required": [
 		"account",
+		"application",
 		"bookmarked",
 		"card",
 		"content",
@@ -11,6 +12,7 @@
 		"emojis",
 		"favourited",
 		"favourites_count",
+		"filtered",
 		"id",
 		"in_reply_to_account_id",
 		"in_reply_to_id",
@@ -27,6 +29,7 @@
 		"sensitive",
 		"spoiler_text",
 		"tags",
+		"text",
 		"uri",
 		"url",
 		"visibility"
@@ -164,7 +167,8 @@
 			"type": "boolean"
 		},
 		"application": {
-			"$ref": "Status#/$defs/Application"
+			"$ref": "Status#/$defs/Application",
+			"nullable": true
 		},
 		"text": {
 			"type": [

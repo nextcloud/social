@@ -273,6 +273,17 @@ Good overall. Two of the four issues this section used to list are fixed in
   the model no longer has it to leak.
 - **`poll` was absent rather than `null`** on non-poll statuses, against the
   app's own rule that a client should never have to test for a missing key.
+- **`application`, `filtered` and `text` were absent** from every Status.
+  Mastodon always sends them (`application: null|{name, website}`, `filtered:
+  []`, `text: null`); masto.js types `filtered` as required and Elk and Phanpy
+  read `status.filtered.length`. All three are always sent now — `application`
+  is null, as on every remote post, because which app wrote a post is not
+  recorded; `text` carries the source on a delete, as Mastodon's does.
+- **`roles` was absent and `last_status_at` could be a timestamp** on the
+  Account entity. `roles: []` is always sent (the credentials routes list the
+  account's own highlighted role in it, as `{id, name, color}`), and
+  `last_status_at` is the `YYYY-MM-DD` date Mastodon sends — Tusky showed the
+  timestamp raw in the profile header.
 
 `POST /api/v1/apps` was the third: it omitted `redirect_uri`, which Mastodon's
 Application entity always carries. It now answers with the first registered URI

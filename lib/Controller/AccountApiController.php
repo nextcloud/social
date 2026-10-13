@@ -417,6 +417,11 @@ class AccountApiController extends MastodonApiController {
 		}
 
 		$data['role'] = $this->adminApiService->credentialRole($this->currentSession());
+		// Mastodon lists the account's highlighted roles, without their
+		// permissions, as its public `roles`; the one role here is one of
+		// those or nobody's
+		$data['roles'] = ($data['role']['highlighted'] ?? false)
+			? [array_intersect_key($data['role'], ['id' => true, 'name' => true, 'color' => true])] : [];
 		$data['bluesky'] = $this->blueskyOf($account);
 
 		if (($data['last_status_at'] ?? null) === '') {

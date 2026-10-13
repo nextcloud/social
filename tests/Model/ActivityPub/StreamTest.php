@@ -133,6 +133,21 @@ class StreamTest extends TestCase {
 		$this->assertSame('CW: cats', $stream->exportAsLocal()['spoiler_text']);
 	}
 
+	/**
+	 * Mastodon always sends the three; masto.js types `filtered` as required
+	 * and Elk and Phanpy read its length, so they are constants here rather
+	 * than absent keys.
+	 */
+	public function testAStatusAlwaysCarriesApplicationFilteredAndText(): void {
+		$status = (new Stream())->setNid('1790166469240117859')->exportAsLocal();
+
+		$this->assertArrayHasKey('application', $status);
+		$this->assertNull($status['application']);
+		$this->assertSame([], $status['filtered']);
+		$this->assertArrayHasKey('text', $status);
+		$this->assertNull($status['text']);
+	}
+
 	public function testLocalStatusKeepsItsNidAsAStringForJavaScriptClients(): void {
 		$nid = '1790166469240117859';
 		$status = (new Stream())->setNid($nid)->exportAsLocal();
