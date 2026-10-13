@@ -669,9 +669,13 @@ there within minutes of the relay indexing the commit.
 ### 9.3 Polling (D12)
 
 `Cron\AtprotoSync` (a `TimedJob`, every two minutes) takes the watches due
-(`next_sync <= now`), at most `SYNC_BATCH` per pass and at most the
+(`next_sync <= now`), at most `SYNC_BATCH` per pass, at most the
 instance-wide `atproto_sync_ceiling` (default 200 requests per pass; the
-admin page shows how far behind the slowest watch is), and asks the public
+admin page shows how far behind the slowest watch is) and within the pass's
+wall-clock budget (`AtprotoSync::MAX_DURATION`, 90 seconds for its three
+steps — feeds, notifications, direct messages — each checking the clock
+between accounts, so a slow AppView ends the pass and what is still due is
+read on the next one), and asks the public
 AppView `app.bsky.feed.getAuthorFeed` for each (`filter=posts_with_replies`,
 `limit=50`, the stored cursor): new posts are stored, the cursor advanced,
 `next_sync` set by backoff — one interval after a page with posts, doubling

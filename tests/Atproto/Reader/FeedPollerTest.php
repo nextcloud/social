@@ -209,6 +209,24 @@ class FeedPollerTest extends TestCase {
 		$this->assertSame(['watches' => 2, 'stored' => 2, 'requests' => 2], $poller->poll());
 	}
 
+	/** The clock is checked between watches, so a slow AppView ends the pass at the deadline. */
+	public function testAPassStopsAtItsDeadline(): void {
+		$now = self::NOW;
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(static function () use (&$now): int {
+			return $now;
+		});
+		$poller = new FeedPoller($this->config, $this->watches, $this->appView, $this->store, $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $time, new NullLogger());
+		$this->watches->method('getDue')->willReturn([$this->watch(), $this->watch('did:plc:two'), $this->watch('did:plc:three')]);
+		$this->appView->expects($this->exactly(2))->method('query')->willReturnCallback(static function () use (&$now): array {
+			$now += 20;
+
+			return ['feed' => []];
+		});
+
+		$this->assertSame(['watches' => 2, 'stored' => 0, 'requests' => 2], $poller->poll(FeedPoller::BATCH, self::NOW + 30));
+	}
+
 	public function testABlockedAuthorsWatchIsDroppedUnread(): void {
 		$blocklist = $this->createMock(Blocklist::class);
 		$blocklist->method('isBlockedDid')->willReturn(true);

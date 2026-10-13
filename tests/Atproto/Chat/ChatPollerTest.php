@@ -34,6 +34,12 @@ class ChatPollerTest extends TestCase {
 	private const NOW = 1790000000;
 	private const TABLE = CoreRequestBuilder::TABLE_ATPROTO_CHAT_CURSOR;
 
+	private int $now = self::NOW;
+	/** how far the clock moves each time an account's read ends */
+	private int $tick = 0;
+	/** @var Watch[] the cursors due */
+	private array $due = [];
+
 	private string $chat = 'https://api.bsky.chat';
 	/** @var array<string, array> answers by method */
 	private array $answers = [];
@@ -70,14 +76,17 @@ class ChatPollerTest extends TestCase {
 			return $this->answers[$method] ?? throw new AtprotoException('chat service down');
 		});
 		$cursors = $this->createMock(AtprotoWatchRequest::class);
+		$cursors->method('getDue')->willReturnCallback(fn (): array => $this->due);
 		$cursors->method('synced')->willReturnCallback(function (string $did, string $cursor, int $now, int $next, string $table): void {
 			$this->synced[] = [$did, $cursor, $next - $now, $table];
+			$this->now += $this->tick;
 		});
 		$cursors->method('remove')->willReturnCallback(function (string $did): void {
 			$this->removed[] = $did;
 		});
 		$cursors->method('failed')->willReturnCallback(function (string $did, string $error, int $next, string $table): void {
 			$this->failed[] = [$did, $next - self::NOW, $table];
+			$this->now += $this->tick;
 		});
 		$store = $this->createMock(ChatStore::class);
 		$store->method('received')->willReturnCallback(function (Identity $identity, string $convo, array $message, array $members = []): bool {
@@ -102,7 +111,7 @@ class ChatPollerTest extends TestCase {
 			$this->declared[] = $identity->did;
 		});
 		$time = $this->createStub(ITimeFactory::class);
-		$time->method('getTime')->willReturn(self::NOW);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 
 		return new ChatPoller($config, $identities, $cursors, $appView, $store, $time, new NullLogger(), $declaration);
 	}
@@ -203,6 +212,15 @@ class ChatPollerTest extends TestCase {
 		$this->assertSame(0, $this->poller()->pollAccount(self::cursor('3k005')));
 		$this->assertSame([], $this->synced);
 		$this->assertSame([self::ALICE, ChatPoller::INTERVAL * 2, self::TABLE], $this->failed[0]);
+	}
+
+	/** The clock is checked between accounts, so a slow chat service ends the pass at the deadline. */
+	public function testAPassStopsAtItsDeadline(): void {
+		$this->due = [self::cursor(''), self::cursor(''), self::cursor('')];
+		$this->tick = 20;
+
+		$this->assertSame(2, $this->poller()->poll(ChatPoller::BATCH, self::NOW + 30)['accounts'], 'the third account waits for the next pass');
+		$this->assertSame(3, $this->poller()->poll(ChatPoller::BATCH)['accounts'], 'without a deadline every due account is read');
 	}
 
 	public function testNothingIsReadWithoutAChatService(): void {

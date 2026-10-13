@@ -68,6 +68,7 @@ class NotificationPollerTest extends TestCase {
 	private Identity $alice;
 	/** @var ACore[] */
 	private array $imported = [];
+	private int $now = self::NOW;
 
 	protected function setUp(): void {
 		$ap = $this->createMock(AP::class);
@@ -111,7 +112,7 @@ class NotificationPollerTest extends TestCase {
 			$this->imported[] = $a;
 		});
 		$time = $this->createMock(ITimeFactory::class);
-		$time->method('getTime')->willReturn(self::NOW);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 		$this->notifications = $this->createMock(NotificationService::class);
 		$this->poller = new NotificationPoller($config, $this->identities, $this->cursors, $this->appView, $this->store, new LocalRecordResolver($identityRequest, $records), new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $import, $this->notifications, $time, new NullLogger());
 	}
@@ -208,6 +209,19 @@ class NotificationPollerTest extends TestCase {
 		$this->cursors->expects($this->once())->method('synced')->with(self::LOCAL, '', self::NOW, self::NOW + NotificationPoller::INTERVAL, self::TABLE);
 
 		$this->assertSame(['accounts' => 1, 'handled' => 0, 'requests' => 1], $this->poller->poll());
+	}
+
+	/** The clock is checked between accounts, so a slow AppView ends the pass at the deadline. */
+	public function testAPassStopsAtItsDeadline(): void {
+		$cursor = static fn (string $did): Watch => new Watch($did, 'x', '', 0, self::NOW, 0, '', 0);
+		$this->cursors->method('getDue')->willReturn([$cursor(self::LOCAL), $cursor('did:plc:two'), $cursor('did:plc:three')]);
+		$this->appView->expects($this->exactly(2))->method('queryAs')->willReturnCallback(function (): array {
+			$this->now += 20;
+
+			return ['notifications' => []];
+		});
+
+		$this->assertSame(['accounts' => 2, 'handled' => 0, 'requests' => 2], $this->poller->poll(NotificationPoller::BATCH, self::NOW + 30));
 	}
 
 	public function testADeactivatedIdentityLosesItsCursor(): void {

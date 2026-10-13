@@ -71,9 +71,10 @@ class ChatPoller {
 	}
 
 	/**
+	 * @param int $deadline the wall clock past which no further account is read, 0 for none
 	 * @return array{accounts: int, handled: int}
 	 */
-	public function poll(int $limit = self::BATCH): array {
+	public function poll(int $limit = self::BATCH, int $deadline = 0): array {
 		$result = ['accounts' => 0, 'handled' => 0];
 		if (!$this->isOn()) {
 			return $result;
@@ -81,7 +82,7 @@ class ChatPoller {
 		$this->enrol();
 		$ceiling = $this->config->syncCeiling();
 		foreach ($this->cursors->getDue($this->time->getTime(), $limit, self::TABLE) as $cursor) {
-			if ($result['accounts'] >= $ceiling) {
+			if ($result['accounts'] >= $ceiling || ($deadline > 0 && $this->time->getTime() >= $deadline)) {
 				break;
 			}
 			$result['accounts']++;

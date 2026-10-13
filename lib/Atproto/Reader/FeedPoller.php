@@ -59,16 +59,17 @@ class FeedPoller {
 	}
 
 	/**
+	 * @param int $deadline the wall clock past which no further watch is read, 0 for none
 	 * @return array{watches: int, stored: int, requests: int}
 	 */
-	public function poll(int $limit = self::BATCH): array {
+	public function poll(int $limit = self::BATCH, int $deadline = 0): array {
 		$result = ['watches' => 0, 'stored' => 0, 'requests' => 0];
 		if (!$this->config->isEnabled()) {
 			return $result;
 		}
 		$ceiling = $this->config->syncCeiling();
 		foreach ($this->watches->getDue($this->time->getTime(), $limit) as $watch) {
-			if ($result['requests'] >= $ceiling) {
+			if ($result['requests'] >= $ceiling || ($deadline > 0 && $this->time->getTime() >= $deadline)) {
 				break;
 			}
 			$result['watches']++;
