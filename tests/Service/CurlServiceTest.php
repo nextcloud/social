@@ -20,6 +20,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Security\AsyncRequestSigner;
+use OCA\Social\Security\RemoteAddress;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\FediverseService;
@@ -88,6 +89,7 @@ class CurlServiceTest extends TestCase {
 
 	protected function tearDown(): void {
 		AP::set(null);
+		RemoteAddress::resolveWith(null);
 	}
 
 	/**
@@ -708,7 +710,7 @@ class CurlServiceTest extends TestCase {
 			$this->service()->doRequest('get', 'https://127.0.0.1/users/bob');
 			$this->fail('a request to a local address was sent');
 		} catch (RequestServerException $e) {
-			$this->assertStringContainsString('local address', $e->getMessage());
+			$this->assertStringContainsString('public address', $e->getMessage());
 		}
 		$this->assertSame([], $asked());
 	}
@@ -720,6 +722,157 @@ class CurlServiceTest extends TestCase {
 		$this->expectException(RequestServerException::class);
 
 		$this->service()->doRequest('get', $url);
+	}
+
+	// --- the addresses a request is pinned to
+
+	/**
+	 * The guard resolves the host and checks every address; the request is
+	 * then sent to exactly those, so what the client resolves on its own
+	 * cannot differ from what was checked.
+	 */
+	public function testARequestIsPinnedToTheAddressesTheGuardChecked(): void {
+		RemoteAddress::resolveWith(static fn (string $host): array => ['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946']);
+		$sent = $this->captureRequest($this->answer('{}'));
+
+		$this->service()->doRequest('get', 'https://mastodon.example/users/bob');
+
+		$this->assertSame(
+			['mastodon.example:443:93.184.216.34,2606:2800:220:1:248:1893:25c8:1946'],
+			$sent()['options']['curl'][CURLOPT_RESOLVE]
+		);
+		$this->assertSame(CURL_HTTP_VERSION_2TLS, $sent()['options']['curl'][CURLOPT_HTTP_VERSION]);
+	}
+
+	public function testThePinNamesThePortOfTheUrl(): void {
+		RemoteAddress::resolveWith(static fn (): array => ['93.184.216.34']);
+		$sent = $this->captureRequest($this->answer('{}'));
+
+		$this->service()->doRequest('get', 'http://mastodon.example:8080/users/bob');
+
+		$this->assertSame(['mastodon.example:8080:93.184.216.34'], $sent()['options']['curl'][CURLOPT_RESOLVE]);
+	}
+
+	public function testALiteralAddressNeedsNoPin(): void {
+		$sent = $this->captureRequest($this->answer('{}'));
+
+		$this->service()->doRequest('get', 'https://' . self::PUBLIC_IP . '/users/bob');
+
+		$this->assertArrayNotHasKey('curl', $sent()['options']);
+	}
+
+	public function testAHostThatResolvesToNothingIsRefusedBeforeAnythingIsSent(): void {
+		RemoteAddress::resolveWith(static fn (): array => []);
+		$asked = $this->answerPerUrl([]);
+
+		try {
+			$this->service()->doRequest('get', 'https://gone.example/users/bob');
+			$this->fail('a request to an unresolvable host was sent');
+		} catch (RequestServerException $e) {
+			$this->assertStringContainsString('public address', $e->getMessage());
+		}
+		$this->assertSame([], $asked());
+	}
+
+	public function testAHostWithOneLocalAddressAmongPublicOnesIsRefused(): void {
+		RemoteAddress::resolveWith(static fn (): array => ['93.184.216.34', '10.0.0.5']);
+		$asked = $this->answerPerUrl([]);
+
+		$this->expectException(RequestServerException::class);
+
+		try {
+			$this->service()->doRequest('get', 'https://mixed.example/users/bob');
+		} finally {
+			$this->assertSame([], $asked());
+		}
+	}
+
+	/** Each hop is resolved, checked and pinned on its own. */
+	public function testARedirectHopIsPinnedToItsOwnAddresses(): void {
+		RemoteAddress::resolveWith(static fn (string $host): array => match ($host) {
+			'a.example' => ['93.184.216.34'],
+			'b.example' => ['198.41.0.4'],
+			default => [],
+		});
+		$from = 'https://a.example/@bob';
+		$to = 'https://b.example/users/bob';
+		$pins = [];
+		$this->client->method('request')->willReturnCallback(
+			function (string $method, string $url, array $options) use ($from, $to, &$pins): IResponse {
+				$pins[$url] = $options['curl'][CURLOPT_RESOLVE] ?? null;
+
+				return ($url === $from) ? $this->redirect($to) : $this->answer('{"id":"bob"}');
+			}
+		);
+
+		$this->assertSame('{"id":"bob"}', $this->service()->doRequest('get', $from));
+		$this->assertSame([
+			$from => ['a.example:443:93.184.216.34'],
+			$to => ['b.example:443:198.41.0.4'],
+		], $pins);
+	}
+
+	public function testARedirectToAHostWithALocalAddressIsRefused(): void {
+		RemoteAddress::resolveWith(static fn (string $host): array => match ($host) {
+			'a.example' => ['93.184.216.34'],
+			default => ['169.254.169.254'],
+		});
+		$from = 'https://a.example/@bob';
+		$asked = $this->answerPerUrl([$from => $this->redirect('https://inside.example/users/bob')]);
+
+		$this->expectException(RequestServerException::class);
+
+		try {
+			$this->service()->doRequest('get', $from);
+		} finally {
+			$this->assertSame([$from], $asked(), 'the hop is never requested');
+		}
+	}
+
+	public function testAStreamIsPinnedOnEveryHop(): void {
+		RemoteAddress::resolveWith(static fn (string $host): array => match ($host) {
+			'a.example' => ['93.184.216.34'],
+			'b.example' => ['198.41.0.4'],
+			default => [],
+		});
+		$from = 'https://a.example/media/1';
+		$to = 'https://b.example/media/1';
+		$pins = [];
+		$this->client->method('get')->willReturnCallback(
+			function (string $url, array $options) use ($from, $to, &$pins): IResponse {
+				$pins[$url] = $options['curl'][CURLOPT_RESOLVE] ?? null;
+
+				return ($url === $from) ? $this->redirect($to) : $this->answer('bytes', 200, 'image/png');
+			}
+		);
+
+		$this->service()->openStream($from);
+
+		$this->assertSame([
+			$from => ['a.example:443:93.184.216.34'],
+			$to => ['b.example:443:198.41.0.4'],
+		], $pins);
+	}
+
+	public function testABatchIsPinnedPerUrl(): void {
+		RemoteAddress::resolveWith(static fn (string $host): array => match ($host) {
+			'a.example' => ['93.184.216.34'],
+			default => [],
+		});
+		$pins = [];
+		$this->client->method('getAsync')->willReturnCallback(
+			function (string $url, array $options) use (&$pins) {
+				$pins[$url] = $options['curl'][CURLOPT_RESOLVE] ?? null;
+
+				return $this->promiseOf($this->answer('{"id":"x"}'));
+			}
+		);
+
+		$answers = $this->service()->retrieveJsonMany(['https://a.example/x', 'https://gone.example/x']);
+
+		$this->assertSame(['https://a.example/x' => ['a.example:443:93.184.216.34']], $pins, 'the unresolvable one is never asked');
+		$this->assertSame(['id' => 'x'], $answers['https://a.example/x']);
+		$this->assertNull($answers['https://gone.example/x']);
 	}
 
 	/**

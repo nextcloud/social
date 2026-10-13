@@ -52,7 +52,9 @@ See [*the delivery job has not run*](#the-delivery-job-has-not-run).
 **Outbound HTTP.** The server must be able to reach the rest of the fediverse
 over HTTPS. Requests to local and private addresses are refused unless
 Nextcloud's `allow_local_remote_servers` is on, which is a development setting
-and not one to carry into production.
+and not one to carry into production. A host is resolved once, every address
+it answers with is checked, and the request — and each redirect it follows —
+is sent to exactly those addresses.
 
 ---
 
