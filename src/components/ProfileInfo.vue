@@ -43,7 +43,7 @@
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
-			<h2>
+			<h1 dir="auto">
 				{{ displayName }}
 				<BlueskyBadge v-if="isBluesky" />
 				<VerifiedBadge :account="accountInfo" />
@@ -51,7 +51,7 @@
 				     every other network puts it; it is still a profile field and
 				     still federates as one -->
 				<span v-if="pronouns" class="user-profile__pronouns">{{ pronouns }}</span>
-			</h2>
+			</h1>
 			<!-- the addresses this account answers to, each with a way to take
 			     it along. One account, two networks: the Bluesky handle is the
 			     same person and leads to where that network shows them -->
@@ -295,8 +295,10 @@
 				</form>
 			</details>
 			<!-- Sanitized: a bio is HTML, remote ones from anywhere, see sanitizeHtml.js -->
-			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div v-if="note" class="user-profile__note" v-html="note" />
+			<template v-if="note">
+				<!-- eslint-disable-next-line vue/no-v-html -->
+				<div class="user-profile__note" dir="auto" v-html="note" />
+			</template>
 			<!-- the hashtags this account pins to itself: a claim it makes
 			     about what it is about, so it sits with the bio rather than
 			     among the numbers -->
@@ -362,12 +364,17 @@
 				<IconHeartOutline :size="20" />
 				{{ t('social', 'Support this account') }}
 			</a>
+			<!-- labelled by its own heading rather than `name`: NcModal draws a
+			     name into the page header, above the mask, where it sat over
+			     Nextcloud's search box -->
 			<NcModal
 				v-if="showProfileModal"
-				:name="t('social', 'Edit profile')"
+				labelId="social-profile-editor-title"
 				@close="showProfileModal = false">
 				<div class="user-profile__fields-modal">
-					<h3>{{ t('social', 'Edit profile') }}</h3>
+					<h3 id="social-profile-editor-title">
+						{{ t('social', 'Edit profile') }}
+					</h3>
 					<div class="user-profile__banner-edit">
 						<span class="user-profile__banner-edit-label">{{ t('social', 'Banner') }}</span>
 						<NcButton :disabled="loading" @click="openFilePicker">
@@ -550,6 +557,7 @@ import axios from '@nextcloud/axios'
 import BlueskyBadge from './BlueskyBadge.vue'
 import FollowButton from './FollowButton.vue'
 import { isBlueskyAccount, qualifiedHandle } from '../utils/accountLocality.js'
+import { focusedElement, returnFocusTo } from '../utils/focus.js'
 import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
@@ -656,6 +664,8 @@ export default {
 			/** a verification being made or taken back */
 			verifying: false,
 			showProfileModal: false,
+			/** the Edit profile button, which the focus goes back to when the dialog closes */
+			profileOpener: null,
 			/** the editor reads the profile before it opens; this is that read */
 			openingProfile: false,
 			fieldRows: [],
@@ -930,6 +940,14 @@ export default {
 	},
 
 	watch: {
+		// the modal's own trap returns the focus to the button, but only when
+		// the modal is closed from inside it; a save closes it from here
+		showProfileModal(open) {
+			if (!open) {
+				this.$nextTick(() => returnFocusTo(this.profileOpener))
+			}
+		},
+
 		/** another account, another answer */
 		highlightsAccountId() {
 			this.readFamiliar()
@@ -1234,6 +1252,7 @@ export default {
 			}
 
 			this.openingProfile = true
+			this.profileOpener = focusedElement()
 			let source = null
 			// the verdicts are on the entity's own `fields`, never on
 			// `source.fields`, which is the editable copy and carries no
@@ -1591,7 +1610,7 @@ export default {
 		}
 	}
 
-	h2 {
+	h1 {
 		margin-top: 28px;
 		font-size: 26px;
 		font-weight: 700;

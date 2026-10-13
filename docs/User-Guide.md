@@ -125,6 +125,9 @@ you by first name: "Aloha, Frank. What’s new?" A post may be up to
 across a failed post, a reload or a navigation, so nothing is lost to a
 network hiccup. A reply keeps its own draft, under the post it answers, so
 starting one does not take the place of a post you were still writing.
+**Ctrl+Enter** (**⌘+Enter** on a Mac) sends; once the post is out the box
+folds back to a single line. **Escape** folds an empty box away too, and asks
+first when there are words in it — they are kept either way.
 
 - **Visibility** is chosen with the globe menu next to the post button. The
   choice decides who receives the post on the fediverse, not only who sees it
@@ -275,6 +278,11 @@ of everything public that was taken there. Release the pin and the post has
 no place.
 
 ## Reading
+
+The browser tab names the page you are on — the feed, the account, the author
+of the post, *Settings* — in front of the app's name, so the history and a
+screen reader can tell the pages apart. A link to a page that does not exist
+says *Page not found* and offers the way back to your feed.
 
 The sidebar is the map:
 
@@ -1122,7 +1130,10 @@ modifier key is held.
 | `?` | Show these shortcuts |
 
 `Enter` on a focused button or link still presses it — the shortcut only
-applies where nothing else claims the key.
+applies where nothing else claims the key. Nextcloud's own **Skip to main
+content**, the first Tab stop on every page and visible only while it has the
+focus, jumps past the sidebar into the page; each page carries one top-level
+heading to jump to.
 
 ## What the web client does not do yet
 

@@ -13,6 +13,7 @@ import { useSettingsStore } from '../../../src/store/settings.js'
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
+	document.title = 'Aloha - Nextcloud'
 })
 
 const ProfileInfoStub = { name: 'ProfileInfo', props: ['uid'], template: '<section class="profile-info-stub" />' }
@@ -118,6 +119,14 @@ describe('Profile', () => {
 		expect(wrapper.classes()).not.toContain('icon-loading')
 		expect(wrapper.findComponent(ProfileInfoStub).props('uid')).toBe('bob@remote.example')
 		expect(wrapper.findComponent(RouterViewStub).props('name')).toBe('details')
+	})
+
+	it('names the tab after the account: the handle until it arrives, then its name', async () => {
+		mountProfile({ name: 'profile', params: { account: 'bob@remote.example' } })
+		expect(document.title).toBe('bob@remote.example - Aloha - Nextcloud')
+
+		await flushPromises()
+		expect(document.title).toBe('Bob - Aloha - Nextcloud')
 	})
 
 	it('completes a bare local uid with the instance host before asking the server', async () => {

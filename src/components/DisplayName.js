@@ -23,6 +23,6 @@ export default {
 		},
 	},
 	render() {
-		return h('span', { class: 'display-name' }, emojifyPlain(h, this.text, this.emojis))
+		return h('span', { class: 'display-name', dir: 'auto' }, emojifyPlain(h, this.text, this.emojis))
 	},
 }
