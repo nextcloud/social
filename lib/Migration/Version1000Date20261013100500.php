@@ -51,6 +51,16 @@ class Version1000Date20261013100500 extends SimpleMigrationStep {
 	 */
 	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
+		$this->fill($output);
+	}
+
+	/**
+	 * The backfill and the two flags, apart from the migration: a fresh
+	 * install runs migrations schema-only, so `MarkStreamColumnsFilled`
+	 * calls this on install, where the tables are empty and both flags go
+	 * up at once.
+	 */
+	public function fill(IOutput $output): void {
 		$filled = 0;
 		while (true) {
 			$qb = $this->connection->getQueryBuilder();

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Migration;
 
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Migration\MarkStreamColumnsFilled;
 use OCA\Social\Migration\Version1000Date20260912000010;
 use OCA\Social\Migration\Version1000Date20260917000001;
 use OCA\Social\Migration\Version1000Date20260917000003;
@@ -173,6 +174,45 @@ class RowBackfillMigrationsTest extends TestCase {
 			);
 		} finally {
 			Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, $flagBefore);
+		}
+	}
+
+	/**
+	 * Nextcloud installs an app with its migrations schema-only, so the
+	 * install step is what raises both flags there: on tables with nothing
+	 * left to fill, both go up.
+	 */
+	public function testTheInstallStepRaisesBothFlagsWhereNothingIsLeftToFill(): void {
+		$config = Server::get(IAppConfig::class);
+		$before = [
+			ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED => $config->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0'),
+			ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED => $config->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
+		];
+		$blank = $this->stream(['archived' => null, 'media_kind' => 'image']);
+		foreach ($before as $key => $value) {
+			$config->setValueString('social', $key, '0');
+		}
+
+		try {
+			$qb = $this->connection->getQueryBuilder();
+			$qb->select($qb->func()->count('*'))->from(CoreRequestBuilder::TABLE_STREAM)->where($qb->expr()->isNull('media_kind'));
+			$result = $qb->executeQuery();
+			$withoutKind = (int)$result->fetchOne();
+			$result->closeCursor();
+
+			Server::get(MarkStreamColumnsFilled::class)->run($this->createStub(IOutput::class));
+
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $blank, 'archived' => false]));
+			$this->assertSame('1', $config->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0'));
+			$this->assertSame(
+				$withoutKind === 0 ? '1' : '0',
+				$config->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
+				'up exactly when no post is without a kind'
+			);
+		} finally {
+			foreach ($before as $key => $value) {
+				$config->setValueString('social', $key, $value);
+			}
 		}
 	}
 
