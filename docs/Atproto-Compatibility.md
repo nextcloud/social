@@ -726,9 +726,12 @@ one Jetstream v2 keeps wire-frozen for v1 consumers), asking for
 names the watched DIDs — at most 10,000, Jetstream's limit; an empty list
 would be the whole network, so with no watches there is no connection. The
 list is read again every minute and re-sent when it changed. The cursor
-(`time_us`) is kept every second (`atproto_jetstream_cursor`) and a
-reconnect starts five seconds before it; a lost connection is retried with
-backoff up to a minute. The client (`JetstreamClient`) is this app's own,
+(`time_us`) is kept in `atproto_jetstream_cursor` every five seconds or
+every 200 events, whichever comes first, and on a lost connection and on
+stopping — a kept cursor is an app-config write, which invalidates the
+config cache of every request on the host — and a reconnect starts five
+seconds before it, which covers what was not kept yet; a lost connection
+is retried with backoff up to a minute. The client (`JetstreamClient`) is this app's own,
 on PHP streams: no compression is asked for, so every message is JSON.
 
 What an event does (`JetstreamEvents`): a post or a repost created by a
