@@ -441,7 +441,8 @@ checks, and the card refuses to switch Bluesky on while one fails:
   Apache needs `mod_proxy_wstunnel` for the first of them; nginx the
   `Upgrade`/`Connection` headers the shipped block sets.
 - **The firehose daemon.** `occ social:atproto:serve` is a long-running process
-  that serves the event stream relays subscribe to. Under systemd:
+  that serves the event stream relays subscribe to. It holds at most 256
+  connections, 8 from one address, and answers 503 past that. Under systemd:
 
   ```
   [Unit]

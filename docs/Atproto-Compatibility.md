@@ -1420,7 +1420,8 @@ only from the AppView CDN or the author's PDS endpoint and only as the MIME
 types the record declares, and text is escaped on render as every remote
 post is. The firehose daemon accepts connections but reads nothing from
 them beyond the `cursor` query; a slow consumer is dropped after a bounded
-buffer, as the reference relay does to a slow PDS.
+buffer, as the reference relay does to a slow PDS, and a connection past
+the ceiling (256 in all, 8 from one address) is answered 503 and closed.
 
 ### 16.5 What is published
 
