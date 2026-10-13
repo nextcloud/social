@@ -5,87 +5,113 @@
 <template>
 	<div class="account-setup social__wrapper">
 		<section class="account-setup__card" :aria-label="t('social', 'Your account on the fediverse')">
+			<p class="account-setup__eyebrow">
+				{{ t('social', 'Welcome to Aloha Social') }}
+			</p>
 			<h1 class="account-setup__title">
-				{{ t('social', 'Join the fediverse from your Nextcloud') }}
+				{{ t('social', 'Create your federated profile') }}
 			</h1>
 			<p class="account-setup__lead">
-				{{ t('social', 'Aloha Social connects this Nextcloud to Mastodon, Pixelfed, PeerTube and every other server that speaks ActivityPub. Nothing has been created for you yet: an account here is a public identity with a key pair of its own, so it is yours to ask for.') }}
+				{{ t('social', 'Start with a new account here, or add your existing Fediverse handle to your Nextcloud profile.') }}
 			</p>
 
-			<div class="account-setup__choices">
-				<!-- 1. an account here -->
-				<form class="account-setup__choice" @submit.prevent="create">
-					<h2 class="account-setup__heading">
-						{{ t('social', 'Create my account here') }}
-					</h2>
-					<label class="account-setup__label" for="account-setup-handle">
-						{{ t('social', 'Your handle') }}
-					</label>
-					<div class="account-setup__handle">
-						<span class="account-setup__at" aria-hidden="true">@</span>
-						<input
-							id="account-setup-handle"
-							v-model.trim="handle"
-							type="text"
-							class="account-setup__input"
-							autocomplete="off"
-							spellcheck="false"
-							maxlength="64"
-							pattern="[A-Za-z0-9_]+([A-Za-z0-9_.\-]*[A-Za-z0-9_])?"
-							:disabled="busy !== ''"
-							required>
-						<span class="account-setup__host">@{{ hostname }}</span>
-					</div>
-					<p class="account-setup__hint">
-						{{ t('social', 'Letters, digits and underscore, with dot and dash inside. This is your address on the fediverse and it cannot be changed later.') }}
-					</p>
-					<p v-if="createError" class="account-setup__error" role="alert">
-						{{ createError }}
-					</p>
-					<NcButton type="submit" variant="primary" :disabled="busy !== '' || handle === ''">
-						<template #icon>
-							<NcLoadingIcon v-if="busy === 'create'" :size="20" />
-							<IconAccountPlus v-else :size="20" />
-						</template>
-						{{ t('social', 'Create @{handle}@{host}', { handle: handle || '…', host: hostname }) }}
-					</NcButton>
-				</form>
-
-				<!-- 2. an account elsewhere -->
-				<form class="account-setup__choice account-setup__choice--secondary" @submit.prevent="link">
-					<h2 class="account-setup__heading">
-						{{ t('social', 'I already have one somewhere else') }}
-					</h2>
-					<p class="account-setup__hint">
-						{{ t('social', 'On Mastodon, say. Name it and it goes on your Nextcloud profile, where the people here can find and follow it. Nothing is created here; you can still make an account later.') }}
-					</p>
-					<label class="account-setup__label" for="account-setup-linked">
-						{{ t('social', 'Your account') }}
-					</label>
-					<input
-						id="account-setup-linked"
-						v-model.trim="linked"
-						type="text"
-						class="account-setup__input account-setup__input--wide"
-						autocomplete="off"
-						spellcheck="false"
-						placeholder="you@mastodon.social"
-						:disabled="busy !== ''">
-					<p v-if="linkError" class="account-setup__error" role="alert">
-						{{ linkError }}
-					</p>
-					<p v-if="linkedNow" class="account-setup__done" role="status">
-						{{ t('social', 'Your profile now says you are @{handle}. The people on this Nextcloud will see it on Discover.', { handle: linkedNow }) }}
-					</p>
-					<NcButton type="submit" variant="secondary" :disabled="busy !== '' || linked === ''">
-						<template #icon>
-							<NcLoadingIcon v-if="busy === 'link'" :size="20" />
-							<IconLinkVariant v-else :size="20" />
-						</template>
-						{{ t('social', 'Put it on my profile') }}
-					</NcButton>
-				</form>
+			<div class="account-setup__mode-picker" role="group" :aria-label="t('social', 'How do you want to continue?')">
+				<button
+					type="button"
+					class="account-setup__mode"
+					:class="{ 'account-setup__mode--active': mode === 'create' }"
+					:aria-pressed="mode === 'create'"
+					@click="mode = 'create'">
+					<IconAccountPlus :size="20" />
+					<span>
+						{{ t('social', 'Create a new account') }}
+					</span>
+				</button>
+				<button
+					type="button"
+					class="account-setup__mode"
+					:class="{ 'account-setup__mode--active': mode === 'link' }"
+					:aria-pressed="mode === 'link'"
+					@click="mode = 'link'">
+					<IconLinkVariant :size="20" />
+					<span>
+						{{ t('social', 'Link an existing account') }}
+					</span>
+				</button>
 			</div>
+
+			<form v-if="mode === 'create'" class="account-setup__choice" @submit.prevent="create">
+				<h2 class="account-setup__heading">
+					{{ t('social', 'Create your account here') }}
+				</h2>
+				<p class="account-setup__hint">
+					{{ t('social', 'This creates a new account for posting from this Nextcloud.') }}
+				</p>
+				<label class="account-setup__label" for="account-setup-handle">
+					{{ t('social', 'Username') }}
+				</label>
+				<input
+					id="account-setup-handle"
+					v-model.trim="handle"
+					type="text"
+					class="account-setup__input"
+					autocomplete="off"
+					spellcheck="false"
+					maxlength="64"
+					pattern="[A-Za-z0-9_]+([A-Za-z0-9_.\-]*[A-Za-z0-9_])?"
+					:disabled="busy !== ''"
+					required>
+				<p class="account-setup__address" role="status">
+					{{ t('social', 'Your address will be @{handle}@{host}', { handle: handle || '…', host: hostname }) }}
+				</p>
+				<p class="account-setup__hint">
+					{{ t('social', 'Use letters, numbers, underscores, dots, and dashes. Your username cannot be changed later.') }}
+				</p>
+				<p v-if="createError" class="account-setup__error" role="alert">
+					{{ createError }}
+				</p>
+				<NcButton type="submit" variant="primary" :disabled="busy !== '' || handle === ''">
+					<template #icon>
+						<NcLoadingIcon v-if="busy === 'create'" :size="20" />
+						<IconAccountPlus v-else :size="20" />
+					</template>
+					{{ t('social', 'Create account') }}
+				</NcButton>
+			</form>
+
+			<form v-else class="account-setup__choice account-setup__choice--secondary" @submit.prevent="link">
+				<h2 class="account-setup__heading">
+					{{ t('social', 'Link your existing Fediverse account') }}
+				</h2>
+				<p class="account-setup__hint">
+					{{ t('social', 'This only shows your existing account on your Nextcloud profile so others can find it. You will not post from that external account here.') }}
+				</p>
+				<label class="account-setup__label" for="account-setup-linked">
+					{{ t('social', 'Fediverse handle') }}
+				</label>
+				<input
+					id="account-setup-linked"
+					v-model.trim="linked"
+					type="text"
+					class="account-setup__input account-setup__input--wide"
+					autocomplete="off"
+					spellcheck="false"
+					placeholder="you@mastodon.social"
+					:disabled="busy !== ''">
+				<p v-if="linkError" class="account-setup__error" role="alert">
+					{{ linkError }}
+				</p>
+				<p v-if="linkedNow" class="account-setup__done" role="status">
+					{{ t('social', 'Your profile now says you are @{handle}. The people on this Nextcloud will see it on Discover.', { handle: linkedNow }) }}
+				</p>
+				<NcButton type="submit" variant="secondary" :disabled="busy !== '' || linked === ''">
+					<template #icon>
+						<NcLoadingIcon v-if="busy === 'link'" :size="20" />
+						<IconLinkVariant v-else :size="20" />
+					</template>
+					{{ t('social', 'Link account') }}
+				</NcButton>
+			</form>
 		</section>
 	</div>
 </template>
@@ -134,6 +160,7 @@ export default {
 			handle: serverData.suggestedHandle ?? '',
 			linked: serverData.linkedHandle ?? '',
 			linkedNow: '',
+			mode: 'create',
 			/** which of the two forms is talking to the server: 'create', 'link' or '' */
 			busy: '',
 			createError: '',
@@ -189,9 +216,18 @@ export default {
 		border-radius: var(--border-radius-large, 16px);
 	}
 
+	&__eyebrow {
+		margin: 0 0 8px;
+		font-size: 13px;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		color: var(--color-primary-element);
+	}
+
 	&__title {
 		margin: 0 0 8px;
-		font-size: 24px;
+		font-size: 30px;
 		font-weight: 700;
 		line-height: 1.25;
 		text-wrap: balance;
@@ -202,10 +238,38 @@ export default {
 		line-height: 1.6;
 	}
 
-	&__choices {
+	&__mode-picker {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 		gap: 16px;
+		margin-bottom: 16px;
+	}
+
+	&__mode {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		padding: 14px 16px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 12px);
+		background: var(--color-main-background);
+		font-weight: 600;
+		text-align: left;
+		color: var(--color-main-text);
+
+		&:hover {
+			background: var(--color-background-hover);
+		}
+
+		&:focus-visible {
+			outline: 2px solid var(--color-primary-element);
+			outline-offset: 2px;
+		}
+
+		&--active {
+			border-color: var(--color-primary-element);
+			background: var(--color-background-hover);
+		}
 	}
 
 	&__choice {
@@ -247,13 +311,21 @@ export default {
 	}
 
 	&__input {
-		flex: 1;
+		width: 100%;
 		min-width: 0;
 		margin: 0;
 
 		&--wide {
 			width: 100%;
 		}
+	}
+
+	&__address {
+		margin: 0;
+		font-size: 14px;
+		font-weight: 600;
+		color: var(--color-main-text);
+		word-break: break-word;
 	}
 
 	&__hint {
@@ -271,6 +343,18 @@ export default {
 	&__done {
 		margin: 0;
 		color: var(--color-success-text);
+	}
+
+	@media (max-width: 767px) {
+		padding: 16px 8px;
+
+		&__card {
+			padding: 20px;
+		}
+
+		&__title {
+			font-size: 26px;
+		}
 	}
 }
 </style>

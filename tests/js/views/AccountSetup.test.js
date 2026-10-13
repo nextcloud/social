@@ -31,8 +31,9 @@ function mountSetup(serverData = {}) {
 }
 
 const handleInput = (wrapper) => wrapper.find('#account-setup-handle')
-const createButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().startsWith('Create @'))
-const linkButton = (wrapper) => wrapper.findAll('button').find((b) => b.text() === 'Put it on my profile')
+const createButton = (wrapper) => wrapper.findAll('button').find((b) => b.text() === 'Create account')
+const linkButton = (wrapper) => wrapper.findAll('button').find((b) => b.text() === 'Link account')
+const linkModeButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().trim() === 'Link an existing account')
 
 describe('AccountSetup', () => {
 	afterEach(() => {
@@ -43,10 +44,10 @@ describe('AccountSetup', () => {
 		const wrapper = mountSetup()
 
 		expect(handleInput(wrapper).element.value).toBe('alice')
-		expect(wrapper.find('.account-setup__host').text()).toBe('@cloud.example.org')
-		expect(createButton(wrapper).text()).toBe('Create @alice@cloud.example.org')
+		expect(wrapper.find('.account-setup__address').text()).toBe('Your address will be @alice@cloud.example.org')
+		expect(createButton(wrapper).text()).toBe('Create account')
 		// nothing has been created: the page says so before anything else
-		expect(wrapper.text()).toContain('Nothing has been created for you yet')
+		expect(wrapper.text()).toContain('Welcome to Aloha Social')
 	})
 
 	it('creates the account with the handle that was typed and says so', async () => {
@@ -54,7 +55,7 @@ describe('AccountSetup', () => {
 		const wrapper = mountSetup()
 
 		await handleInput(wrapper).setValue('ali_ce')
-		expect(createButton(wrapper).text()).toBe('Create @ali_ce@cloud.example.org')
+		expect(wrapper.find('.account-setup__address').text()).toBe('Your address will be @ali_ce@cloud.example.org')
 		await wrapper.find('form.account-setup__choice').trigger('submit')
 		await flushPromises()
 
@@ -79,6 +80,7 @@ describe('AccountSetup', () => {
 		axios.post.mockResolvedValue({ data: { status: 1, result: { handle: 'alice@mastodon.social' } } })
 		const wrapper = mountSetup({ linkedHandle: 'alice@mastodon.social' })
 
+		await linkModeButton(wrapper).trigger('click')
 		expect(wrapper.find('#account-setup-linked').element.value).toBe('alice@mastodon.social')
 		expect(linkButton(wrapper).attributes('disabled')).toBeUndefined()
 		await wrapper.find('form.account-setup__choice--secondary').trigger('submit')
@@ -89,5 +91,17 @@ describe('AccountSetup', () => {
 		expect(wrapper.find('.account-setup__done').text()).toContain('@alice@mastodon.social')
 		expect(wrapper.emitted('linked')[0]).toEqual(['alice@mastodon.social'])
 		expect(wrapper.emitted('created')).toBeUndefined()
+	})
+
+	it('keeps the create path as default and only shows linking form once selected', async () => {
+		const wrapper = mountSetup()
+
+		expect(wrapper.find('#account-setup-handle').exists()).toBe(true)
+		expect(wrapper.find('#account-setup-linked').exists()).toBe(false)
+		expect(wrapper.text()).not.toContain('This only shows your existing account on your Nextcloud profile')
+		await linkModeButton(wrapper).trigger('click')
+		expect(wrapper.find('#account-setup-handle').exists()).toBe(false)
+		expect(wrapper.find('#account-setup-linked').exists()).toBe(true)
+		expect(wrapper.text()).toContain('This only shows your existing account on your Nextcloud profile')
 	})
 })
