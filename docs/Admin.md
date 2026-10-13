@@ -110,6 +110,11 @@ words into the content search; a post that keeps failing is passed over rather
 than holding every post after it back, and this check counts what was passed
 over. See [Posts the index repairs skipped](#posts-the-index-repairs-skipped).
 
+**Aloha Social: table growth.** A warning when retention is off and the post
+tables have grown past the size where that starts to cost: more than a million
+posts, or about thirty million words in the search index. See
+[The post tables keep growing](#the-post-tables-keep-growing).
+
 ### Mastodon apps cannot connect
 
 A Mastodon app is given a domain and builds `https://<domain>/api/v1/...` from
@@ -354,6 +359,28 @@ search_index_cursor` has the search backfill start again from the first post
 on the next cron run. Reset the counters with `occ config:app:delete social
 index_skipped` and `occ config:app:delete social search_index_skipped` once
 the posts are dealt with.
+
+### The post tables keep growing
+
+Retention is off unless an administrator turns it on (`retention_days`, `0` by
+default), and that default is deliberate: deleting what other servers sent is a
+decision about the instance, not a tuning knob. Without it, `social_stream`,
+its recipient rows (`social_stream_dest`, one per recipient), its hashtag rows,
+its words (`social_search_term`) and the cached attachments grow with
+everything the instance has ever received. The check counts the posts up to a
+million (it stops counting there) and reads the word index's highest id, and
+warns past either.
+
+```bash
+occ config:app:set social retention_days --value 180   # remote posts nobody here touched, after 180 days
+occ social:stream:prune --dry-run                      # what the next pass would remove
+```
+
+Retention never touches a local post, a direct message, a post somebody here
+liked, boosted, bookmarked or replied to, a post a local post boosts or replies
+to, or anything by an account somebody here follows. The cron pass removes up to
+5,000 posts a run; `occ social:stream:prune` removes all of them at once. Their
+cached media goes with them, and the orphaned-media sweep takes what is left.
 
 ### No memory cache
 

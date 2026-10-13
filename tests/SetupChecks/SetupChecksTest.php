@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\SetupChecks;
 use OCA\Social\Cron\Queue;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\SearchTermsRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
@@ -28,6 +29,7 @@ use OCA\Social\SetupChecks\MemcacheConfigured;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
 use OCA\Social\SetupChecks\ReachableByStrictPeers;
+use OCA\Social\SetupChecks\RetentionBoundsTheTables;
 use OCA\Social\SetupChecks\UploadLimitsAgree;
 use OCA\Social\SetupChecks\VideoConverter;
 use OCA\Social\SetupChecks\WebFingerReachable;
@@ -350,6 +352,53 @@ class SetupChecksTest extends TestCase {
 		$this->assertStringContainsString('2 deliveries were given up on', $description);
 	}
 
+	// Social: table growth
+
+	private function growth(int $retentionDays, int $posts, int $terms): RetentionBoundsTheTables {
+		$config = $this->createStub(ConfigService::class);
+		$config->method('getAppValueInt')->willReturnCallback(
+			static fn (string $key): int => ($key === ConfigService::SOCIAL_RETENTION_DAYS) ? $retentionDays : 0
+		);
+		$streams = $this->createStub(StreamRequest::class);
+		$streams->method('countPostsUpTo')->willReturnCallback(
+			static fn (int $cap): int => min($posts, $cap)
+		);
+		$searchTerms = $this->createStub(SearchTermsRequest::class);
+		$searchTerms->method('approximateCount')->willReturn($terms);
+
+		return new RetentionBoundsTheTables($this->l10n, $config, $streams, $searchTerms);
+	}
+
+	public function testRetentionThatIsOnIsQuietWhateverTheSize(): void {
+		$result = $this->growth(180, RetentionBoundsTheTables::POSTS + 1, RetentionBoundsTheTables::TERMS + 1)->run();
+
+		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	public function testASmallInstanceWithoutRetentionIsQuiet(): void {
+		$this->assertSame(SetupResult::SUCCESS, $this->growth(0, 5000, 100000)->run()->getSeverity());
+	}
+
+	/**
+	 * Nothing bounds the posts, their recipient rows or their words by
+	 * default; the default stays, and an instance that has grown past the
+	 * size where that starts to cost is told how to bound them.
+	 */
+	public function testALargeInstanceWithoutRetentionIsWarnedAndToldWhere(): void {
+		$result = $this->growth(0, RetentionBoundsTheTables::POSTS + 10, 1000)->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('retention_days', $description);
+		$this->assertSame(RetentionBoundsTheTables::DOC, $result->getLinkToDoc());
+	}
+
+	public function testAWordIndexPastItsSizeIsWarnedAboutToo(): void {
+		$result = $this->growth(0, 1000, RetentionBoundsTheTables::TERMS + 1)->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+	}
+
 	// Social: index repairs
 
 	private function repairs(int $timelines, int $search): IndexRepairsComplete {
@@ -409,6 +458,7 @@ class SetupChecksTest extends TestCase {
 			VideoConverter::DOC,
 			BlueskyReady::DOC,
 			IndexRepairsComplete::DOC,
+			RetentionBoundsTheTables::DOC,
 		] as $link) {
 			$this->assertStringStartsWith(Docs::ADMIN_GUIDE . '#', $link);
 			$anchor = substr($link, strlen(Docs::ADMIN_GUIDE) + 1);

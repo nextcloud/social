@@ -208,6 +208,21 @@ class SearchTermsRequest extends CoreRequestBuilder {
 		return $nids;
 	}
 
+	/**
+	 * Roughly how many rows the word index holds: its highest id, which
+	 * only overstates it by what was deleted, and costs one index probe
+	 * where a count would read the table.
+	 */
+	public function approximateCount(): int {
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->max('id'))->from(self::TABLE_SEARCH_TERMS);
+		$cursor = $qb->executeQuery();
+		$max = $cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return (int)$max;
+	}
+
 	/** Whether every stored post is in the index, so a search may rely on it alone. */
 	public function isReady(): bool {
 		return $this->configService->getAppValue(self::READY) === '1';

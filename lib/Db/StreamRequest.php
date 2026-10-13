@@ -580,6 +580,29 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * How many posts are stored, counted no further than `$cap`: the setup
+	 * check asks whether the table is past a size, and a full `COUNT(*)` of
+	 * the largest table would cost more the larger it is.
+	 */
+	public function countPostsUpTo(int $cap): int {
+		$page = $this->getQueryBuilder();
+		$page->select('nid')
+			->from(self::TABLE_STREAM)
+			->setMaxResults(max(1, $cap));
+
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'posts'))
+			->from($qb->createFunction('(' . $page->getSQL() . ')'), 'capped');
+		$qb->setParameters($page->getParameters(), $page->getParameterTypes());
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($data === false) ? 0 : (int)$data['posts'];
+	}
+
+	/**
 	 * The streams of one repair page, by nid, in one query — the same
 	 * projection `getStream()` reads, without the joins a timeline adds, so a
 	 * stream whose author is not cached is still returned.
