@@ -107,6 +107,22 @@ import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.v
 import ImageOff from 'vue-material-design-icons/ImageOff.vue'
 import logger from '../services/logger.js'
 
+/**
+ * The address the element is pointed at: the still of a picture, the file
+ * of anything that plays. '' when there is nothing to load.
+ *
+ * @param {object|null|undefined} attachment the attachment
+ * @return {string}
+ */
+function sourceOf(attachment) {
+	if (!attachment) {
+		return ''
+	}
+	const plays = attachment.type === 'video' || attachment.type === 'audio'
+
+	return String((plays ? attachment.url : attachment.preview_url) ?? '')
+}
+
 export default {
 	name: 'MediaAttachment',
 	components: {
@@ -358,7 +374,21 @@ export default {
 	},
 
 	watch: {
-		attachment() {
+		/**
+		 * A status refreshed from the server replaces its attachment objects
+		 * without changing what they point at. The element keeps its `src` and
+		 * fires no second `load`, so starting over here left every picture in
+		 * the feed hidden behind its blurhash with the spinner on top.
+		 *
+		 * @param {object|null} now the attachment as it is
+		 * @param {object|null} before the attachment it replaced
+		 */
+		attachment(now, before) {
+			if (now?.id === before?.id && sourceOf(now) === sourceOf(before)) {
+				this.readPreviewState()
+				return
+			}
+
 			this.previewLoaded = false
 			this.previewFailed = false
 			this.drawBlurhash()
@@ -486,6 +516,17 @@ export default {
 		onPreviewError() {
 			this.previewFailed = true
 			this.previewLoaded = false
+		},
+
+		/**
+		 * Takes the loaded state from the picture itself, for a `load` that
+		 * has already fired or that the browser answered from its cache.
+		 */
+		readPreviewState() {
+			const image = /** @type {HTMLImageElement|null} */ (this.$el?.querySelector?.('img.attachment__preview') ?? null)
+			if (image !== null && image.complete && image.naturalWidth > 0) {
+				this.previewLoaded = true
+			}
 		},
 
 		drawBlurhash() {

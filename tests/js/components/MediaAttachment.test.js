@@ -161,6 +161,45 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('.loading-icon').exists()).toBe(false)
 	})
 
+	// the timeline's follow-up fetch replaces every status object, and with
+	// it every attachment object, while the element keeps the same src
+
+	it('keeps a loaded picture on screen when the status it belongs to is refreshed', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+		await wrapper.find('img').trigger('load')
+		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
+
+		// no second load event: the browser has nothing new to load
+		await wrapper.setProps({ attachment: { ...attachment } })
+
+		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
+		expect(wrapper.find('canvas.attachment__blurhash').classes()).toContain('attachment__blurhash--hidden')
+		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+	})
+
+	it('reads the loaded state off a picture whose load it did not hear', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+		const image = wrapper.find('img').element
+		Object.defineProperty(image, 'complete', { value: true, configurable: true })
+		Object.defineProperty(image, 'naturalWidth', { value: 800, configurable: true })
+		expect(wrapper.find('img.attachment__preview').classes()).not.toContain('attachment__preview--shown')
+
+		await wrapper.setProps({ attachment: { ...attachment } })
+
+		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
+		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+	})
+
+	it('starts over when the preview itself changes', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+		await wrapper.find('img').trigger('load')
+
+		await wrapper.setProps({ attachment: { ...attachment, preview_url: 'https://cloud.example.org/media/other.jpg' } })
+
+		expect(wrapper.find('img.attachment__preview').classes()).not.toContain('attachment__preview--shown')
+		expect(wrapper.find('.loading-icon').exists()).toBe(true)
+	})
+
 	it('shows only a spinner while the attachment is still uploading', () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment: null } })
 		expect(wrapper.find('img').exists()).toBe(false)
