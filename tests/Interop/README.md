@@ -387,7 +387,11 @@ every migration it has; Akkoma publishes no image, so its release tag
 toolchain its own Dockerfile builds on. Both sit behind the same Caddy and
 job-made CA as the other jobs, and each is given exactly one exception — the
 runner's loopback — where it would otherwise refuse a private address
-(`allowedPrivateNetworks` on Misskey; Akkoma has no such refusal).
+(`allowedPrivateNetworks` on Misskey; Akkoma has no such refusal). A new
+Misskey federates with nobody until its administrator switches it on
+(`federation` is `none` by default, and its WebFinger answers 403 to
+everyone until then), so the workflow sets `federation: all` through
+`admin/update-meta` right after making the account, and reads it back.
 
 The set is smaller than for Mastodon or GoToSocial, the things everybody
 does, both ways: follows, a post, a reply threaded under the post it
