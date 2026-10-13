@@ -228,6 +228,10 @@ to stop.
   origin, the preflight answered without credentials, a web-app route outside
   the API bases closed, and a session cookie from another origin without its
   CSRF token answered 401 while the web app's own call still signs in.
+- `Db/DetailsCompareAndSwapTest` — the compare-and-swap an edit's `mentions`
+  are written with: a `details` blob still as it was read is replaced, one
+  changed in between (or NULL against `{}`) is left alone, and the mentions
+  are set on top of what another writer stored.
 - `Db/PublicPagePlanAtScaleTest` — slow, only with `SOCIAL_BENCHMARK=1`, on
   MySQL/MariaDB and PostgreSQL: seeds 50,000 posts with `occ social:benchmark`
   and asserts the page query of the public timeline and of its Photos

@@ -52,18 +52,47 @@ trait StreamCounters {
 	 * Only that key: the rest of the blob is what this instance worked out
 	 * about the post — the origin's counts, a refused quote — and an edit
 	 * read from the wire knows none of it.
+	 *
+	 * A read, a change and a write, so the write is made only if the blob is
+	 * still the one that was read (`replaceDetails()`); when another write
+	 * came in between, the blob is read again and the key set on that, once.
+	 * Two writers that each put back the whole blob they read would lose the
+	 * other's change — a quote refused, a mention.
 	 */
 	public function updateMentions(Stream $stream): void {
 		if (!$stream instanceof Note) {
 			return;
 		}
 
-		$qb = $this->getQueryBuilder();
-		$prim = $qb->prim($stream->getId());
+		$prim = $this->getQueryBuilder()->prim($stream->getId());
 		if ($prim === '') {
 			return;
 		}
 
+		for ($attempt = 0; $attempt < 2; $attempt++) {
+			$stored = $this->storedDetails($prim);
+			if ($stored === false) {
+				return;
+			}
+
+			$details = json_decode((string)$stored, true);
+			$details = is_array($details) ? $details : [];
+			$details[Details::MENTIONS] = $stream->getDetails(Details::MENTIONS);
+			$blob = (string)json_encode($details);
+			if ($blob === $stored || $this->replaceDetails($prim, $stored, $blob)) {
+				return;
+			}
+		}
+
+		$this->logger->info('the mentions of a post were not stored: its details kept changing', ['stream' => $stream->getId()]);
+	}
+
+	/**
+	 * The `details` blob of a post as stored: null for none, false where the
+	 * post is not there.
+	 */
+	protected function storedDetails(string $prim): string|null|false {
+		$qb = $this->getQueryBuilder();
 		$qb->select('details')
 			->from(self::TABLE_STREAM)
 			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter($prim)))
@@ -71,18 +100,30 @@ trait StreamCounters {
 		$cursor = $qb->executeQuery();
 		$row = $cursor->fetch();
 		$cursor->closeCursor();
+
 		if (!is_array($row)) {
-			return;
+			return false;
 		}
 
-		$details = json_decode((string)($row['details'] ?? ''), true);
-		$details = is_array($details) ? $details : [];
-		$details[Details::MENTIONS] = $stream->getDetails(Details::MENTIONS);
+		return ($row['details'] === null) ? null : (string)$row['details'];
+	}
 
+	/**
+	 * Writes `$blob` as a post's `details` only if they are still `$expected`,
+	 * and says whether it did: a compare-and-swap in one statement, which
+	 * every database this app runs on answers atomically.
+	 */
+	protected function replaceDetails(string $prim, ?string $expected, string $blob): bool {
 		$update = $this->getStreamUpdateSql();
-		$update->set('details', $update->createNamedParameter(json_encode($details)));
+		$update->set('details', $update->createNamedParameter($blob));
 		$update->limitToIdPrim($prim);
-		$update->executeStatement();
+		$update->andWhere(
+			($expected === null)
+				? $update->expr()->isNull('details')
+				: $update->expr()->eq('details', $update->createNamedParameter($expected))
+		);
+
+		return $update->executeStatement() > 0;
 	}
 
 	/**

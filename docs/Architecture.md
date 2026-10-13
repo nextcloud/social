@@ -2985,6 +2985,14 @@ a column at zero adds no key the blob did not have. The JSON keys are no longer
 written by the counter writers and go stale; nothing reads them past the overlay.
 The upgrade fills the columns from the JSON in pages of `nid`.
 
+The `mentions` an edit carries still go into the blob, and that write is a
+compare-and-swap rather than a column: `StreamRequest::updateMentions()` reads
+`details`, sets the one key, and writes the result with `UPDATE … WHERE
+details = <what was read>` (`IS NULL` for none), the one form every supported
+database answers atomically without a JSON function of its own. A write that
+finds the blob changed in between reads it again and sets the key on that,
+once; a second loss is logged and the mentions wait for the next edit.
+
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`
 works out `postRoute`, which is `null` for exactly one post: the one whose page
