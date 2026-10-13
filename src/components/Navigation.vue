@@ -258,13 +258,20 @@
 	<!-- `closeOnClickOutside` is a boolean prop with no default, so the dialog
 	     ignored a click on the dimmed page around it and only the X closed it.
 	     Nothing is lost by closing: the draft is saved on every keystroke and
-	     restored the next time the composer opens. -->
+	     restored the next time the composer opens.
+
+	     Both dialogs are labelled by a heading of their own rather than by
+	     `name`: NcModal draws a name into the page header, above the mask,
+	     where it sat over Nextcloud's search box -->
 	<NcModal
 		v-if="showComposer"
 		closeOnClickOutside
-		:name="t('social', 'New post')"
+		labelId="social-new-post-title"
 		@close="showComposer = false">
 		<div class="modal-composer">
+			<h2 id="social-new-post-title" class="modal-composer__title">
+				{{ t('social', 'New post') }}
+			</h2>
 			<!-- the box emptied and the modal stayed open, which reads as if
 			     nothing had been sent -->
 			<Composer
@@ -277,9 +284,12 @@
 
 	<NcModal
 		v-if="showErrors"
-		:name="t('social', 'Errors')"
+		labelId="social-errors-title"
 		@close="showErrors = false">
 		<div class="modal-errors">
+			<h2 id="social-errors-title" class="modal-errors__heading">
+				{{ t('social', 'Errors') }}
+			</h2>
 			<div v-for="error in appErrors" :key="error.id" class="modal-errors__item">
 				<div class="modal-errors__title">
 					{{ error.title }}
@@ -1796,11 +1806,16 @@ export default {
  * hard against the dialog's edge. The dialog owns the inset now, which is
  * what the Errors dialog beside it has always done.
  *
- * Less at the top than the sides: the dialog's own header and its rule
- * already separate the composer from the name above it.
+ * Less at the top than the sides: the dialog's own heading sits in it.
  */
 .modal-composer {
 	padding: 12px 18px 18px;
+
+	&__title {
+		margin: 0 0 12px;
+		font-size: 20px;
+		font-weight: 700;
+	}
 }
 
 /* a phone has less to spare, and the dialog is the whole screen */
@@ -1817,6 +1832,12 @@ export default {
 
 .modal-errors {
 	padding: calc(var(--default-grid-baseline) * 4);
+
+	&__heading {
+		margin: 0 0 calc(var(--default-grid-baseline) * 2);
+		font-size: 20px;
+		font-weight: 700;
+	}
 
 	&__item {
 		padding: calc(var(--default-grid-baseline) * 2) 0;

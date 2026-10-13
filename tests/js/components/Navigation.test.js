@@ -49,7 +49,7 @@ const stubs = {
 	NcActionButton: { emits: ['click'], template: '<button class="nav-caption__action" @click="$emit(\'click\')"><slot /></button>' },
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" :data-size="size" />' },
-	NcModal: { props: { name: String, closeOnClickOutside: Boolean }, emits: ['close'], template: '<div class="modal-stub" :data-name="name" :data-closes-on-outside-click="closeOnClickOutside ? \'yes\' : \'no\'"><slot /></div>' },
+	NcModal: { props: { name: String, labelId: String, closeOnClickOutside: Boolean }, emits: ['close'], template: '<div class="modal-stub" :data-name="name" :data-label-id="labelId" :data-closes-on-outside-click="closeOnClickOutside ? \'yes\' : \'no\'"><slot /></div>' },
 	Composer: { props: ['initialPaths'], emits: ['posted'], template: '<div class="composer-stub" :data-paths="JSON.stringify(initialPaths)" @click="$emit(\'posted\')" />' },
 }
 
@@ -159,7 +159,7 @@ describe('Navigation', () => {
 		it('opens the New post dialog with the files already handed to the composer', async () => {
 			const wrapper = await arriving(['/Photos/beach.jpg', '/Videos/talk.mp4'])
 
-			const dialog = wrapper.find('.modal-stub[data-name="New post"]')
+			const dialog = wrapper.find('.modal-stub[data-label-id="social-new-post-title"]')
 			expect(dialog.exists()).toBe(true)
 			expect(JSON.parse(dialog.find('.composer-stub').attributes('data-paths'))).toEqual(['/Photos/beach.jpg', '/Videos/talk.mp4'])
 		})
@@ -180,7 +180,7 @@ describe('Navigation', () => {
 			const wrapper = await arriving(['/Photos/beach.jpg'])
 
 			await wrapper.find('.composer-stub').trigger('click')
-			expect(wrapper.find('.modal-stub[data-name="New post"]').exists()).toBe(false)
+			expect(wrapper.find('.modal-stub[data-label-id="social-new-post-title"]').exists()).toBe(false)
 			await wrapper.find('.navigation__compose').trigger('click')
 			expect(JSON.parse(wrapper.find('.composer-stub').attributes('data-paths'))).toEqual([])
 		})
@@ -191,12 +191,25 @@ describe('Navigation', () => {
 			// draft is saved as it is typed and restored on the next open.
 			const wrapper = await arriving(['/Photos/beach.jpg'])
 
-			expect(wrapper.find('.modal-stub[data-name="New post"]').attributes('data-closes-on-outside-click'))
+			expect(wrapper.find('.modal-stub[data-label-id="social-new-post-title"]').attributes('data-closes-on-outside-click'))
 				.toBe('yes')
 		})
 
+		/**
+		 * NcModal draws `name` into the page header, above the mask, where it
+		 * sat over Nextcloud's search box. The dialog is labelled by a heading
+		 * of its own instead.
+		 */
+		it('titles itself inside the dialog, not in the page header', async () => {
+			const wrapper = await arriving(['/Photos/beach.jpg'])
+			const modal = wrapper.find('.modal-stub[data-label-id="social-new-post-title"]')
+
+			expect(modal.attributes('data-name')).toBeUndefined()
+			expect(modal.find('h2#social-new-post-title').text()).toBe('New post')
+		})
+
 		it('opens nothing without files on the address', () => {
-			expect(mountNavigation().find('.modal-stub[data-name="New post"]').exists()).toBe(false)
+			expect(mountNavigation().find('.modal-stub[data-label-id="social-new-post-title"]').exists()).toBe(false)
 			expect(router.replace).not.toHaveBeenCalled()
 		})
 	})
@@ -1313,7 +1326,7 @@ describe('Navigation', () => {
 		expect(wrapper.find('.modal-stub').exists()).toBe(false)
 		await wrapper.find('.navigation__compose').trigger('click')
 		const modal = wrapper.find('.modal-stub')
-		expect(modal.attributes('data-name')).toBe('New post')
+		expect(modal.attributes('data-label-id')).toBe('social-new-post-title')
 		expect(modal.find('.composer-stub').exists()).toBe(true)
 	})
 
@@ -1357,7 +1370,7 @@ describe('Navigation', () => {
 			const wrapper = mountNavigation()
 			await item(wrapper, 'Errors').trigger('click')
 
-			const modal = wrapper.find('.modal-stub[data-name="Errors"]')
+			const modal = wrapper.find('.modal-stub[data-label-id="social-errors-title"]')
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Account lookup failed', 'Post failed'])
 			expect(modal.findAll('.modal-errors__message').map((message) => message.text())).toEqual(['Could not load bob', 'Server unreachable'])
 
@@ -1367,6 +1380,15 @@ describe('Navigation', () => {
 			await nextTick()
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Post failed'])
 			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('1')
+		})
+
+		it('titles the dialog inside it, not in the page header', async () => {
+			const wrapper = mountNavigation()
+			await item(wrapper, 'Errors').trigger('click')
+			const modal = wrapper.find('.modal-stub[data-label-id="social-errors-title"]')
+
+			expect(modal.attributes('data-name')).toBeUndefined()
+			expect(modal.find('h2#social-errors-title').text()).toBe('Errors')
 		})
 
 		it('offers "Dismiss all" only for several errors and clears them all', async () => {
