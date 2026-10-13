@@ -435,6 +435,27 @@ describe('DirectMessages', () => {
 		expect(wrapper.vm.messageForDisplay({ ...message, visibility: 'public' }).content).toContain('@bob')
 	})
 
+	/**
+	 * A message from the other side opens with the reader's own handle, so
+	 * every preview in the inbox began "@alice …". The row already says whose
+	 * chat it is; the handle is routing, and the preview starts at the words.
+	 * The bubble keeps it: there it is part of what was said.
+	 */
+	it('leaves the reader\'s own handle out of a preview, not out of the message', async () => {
+		const toAlice = (content) => ({ id: '30', visibility: 'direct', content, created_at: '2026-09-23T12:00:00Z', account: bob })
+		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), last_status: toAlice('<p><span class="h-card"><a href="http://localhost/index.php/apps/social/@alice">@<span>alice</span></a></span> hey, private</p>') }] })
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__preview').text()).toBe('hey, private')
+		expect(wrapper.vm.preview(toAlice('<p>@alice hey, private</p>'), conversation)).toBe('hey, private')
+		expect(wrapper.vm.preview(toAlice(`<p>@alice@${window.location.host} hey, private</p>`), conversation)).toBe('hey, private')
+		expect(wrapper.vm.preview(toAlice('<p>@bob@remote.example hey</p>'), conversation)).toBe('hey')
+		// somebody else's handle is what the message is about
+		expect(wrapper.vm.preview(toAlice('<p>@carol hey</p>'), conversation)).toBe('@carol hey')
+		expect(wrapper.vm.messageForDisplay(toAlice('<p>@alice hey, private</p>')).content).toBe('<p>@alice hey, private</p>')
+	})
+
 	it('removes recipient routing mentions returned as ordinary links or plain text', async () => {
 		const wrapper = mountMessages('10')
 		await flushPromises()

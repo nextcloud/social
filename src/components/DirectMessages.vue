@@ -625,6 +625,23 @@ export default {
 			return useAccountStore().currentAccount ?? null
 		},
 
+		/**
+		 * The reader, in the shape `isProtocolRecipient()` compares a mention
+		 * against — before the account store has them, by their user id and
+		 * this server.
+		 *
+		 * @return {object|null}
+		 */
+		readerAsRecipient() {
+			if (this.ownAccount) {
+				return this.ownAccount
+			}
+
+			return this.currentUserId === ''
+				? null
+				: { acct: this.currentUserId, username: this.currentUserId, url: `${window.location.origin}/` }
+		},
+
 		/** @return {object} the inbox with nothing in it, where it is the whole page */
 		inboxEmpty() {
 			return {
@@ -1230,8 +1247,15 @@ export default {
 			// preview asked for without one would otherwise keep the routing
 			// handle it is there to leave out
 			const peer = this.conversationPeer(conversation ?? this.activeConversation)
+			let content = this.withoutProtocolRecipient(status, peer)
+			if (content === (status?.content ?? '')) {
+				// a message from the other side opens with the reader's own
+				// handle, which is routing too: the row already says whose
+				// chat this is, so the line under the name starts at the words
+				content = this.withoutProtocolRecipient(status, this.readerAsRecipient)
+			}
 
-			return htmlToPlainText(this.withoutProtocolRecipient(status, peer)).replace(/\s+/g, ' ').trim()
+			return htmlToPlainText(content).replace(/\s+/g, ' ').trim()
 		},
 
 		/**
@@ -1326,6 +1350,12 @@ export default {
 			const handles = [recipient.acct, recipient.username, recipient.preferred_username]
 				.filter(Boolean)
 				.map((value) => String(value).replace(/^@/, '').toLocaleLowerCase())
+			// an account of this server is named by its bare username in the
+			// API and by `user@host` on the wire; both are the same handle
+			const home = hostOf(recipient.url ?? recipient.id ?? '')
+			if (home !== '') {
+				handles.push(...handles.filter((handle) => !handle.includes('@')).map((handle) => `${handle}@${home}`))
+			}
 			const asked = String(mention).replace(/^@/, '').toLocaleLowerCase()
 			if (handles.includes(asked)) {
 				return true
@@ -1335,8 +1365,7 @@ export default {
 			// writes one — counts only where the link beside it points at the
 			// peer's own server. `includes()` was matching `bob` anywhere in
 			// the href, so a message to bobby lost its mention of bob.
-			const sameServer = hostOf(href) !== ''
-				&& hostOf(href) === hostOf(recipient.url ?? recipient.id ?? '')
+			const sameServer = hostOf(href) !== '' && hostOf(href) === home
 			const locals = handles.map((handle) => handle.split('@')[0]).filter(Boolean)
 			if (sameServer && locals.includes(asked)) {
 				return true
