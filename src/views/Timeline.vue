@@ -39,7 +39,7 @@
 				{{ heading }}
 			</h1>
 			<HashtagFollowButton
-				v-if="type === 'tags'"
+				v-if="type === 'tags' && !followedTagsOnly"
 				:tag="String($route.params.tag)"
 				@changed="onHashtagFollowChanged" />
 		</div>
@@ -139,7 +139,7 @@
 			:selectedConversationId="String($route.query.conversation ?? '')"
 			@select="selectConversation" />
 		<TimelineList
-			v-else
+			v-else-if="!followedTagsOnly"
 			:type="type"
 			:listTitle="listTitle"
 			:display="display" />
@@ -276,14 +276,25 @@ export default {
 		 * @return {object|null} custom properties, or null off a tag page
 		 */
 		tagStyle() {
-			return this.type === 'tags' ? tagStyle(String(this.$route.params.tag)) : null
+			return this.type === 'tags' && !this.followedTagsOnly ? tagStyle(String(this.$route.params.tag)) : null
+		},
+
+		/**
+		 * `/timeline/tags` with no tag after it: the page Explore and the
+		 * switch-in wizard link to for the hashtags the reader follows. It has
+		 * no timeline of its own, only the list.
+		 *
+		 * @return {boolean}
+		 */
+		followedTagsOnly() {
+			return this.type === 'tags' && !this.$route.params.tag
 		},
 
 		/** What this timeline is, in the words the sidebar uses for it. */
 		heading() {
 			switch (this.type) {
 				case 'tags':
-					return '#' + this.$route.params.tag
+					return this.followedTagsOnly ? t('social', 'Followed hashtags') : '#' + this.$route.params.tag
 				case 'list':
 					// the sidebar knows the title; the page asks for it itself
 					// so that a link opened cold has a heading too

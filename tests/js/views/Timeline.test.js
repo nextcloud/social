@@ -623,6 +623,24 @@ describe('Timeline', () => {
 			expect(wrapper.findComponent(HashtagFollowedList).exists()).toBe(false)
 		})
 
+		/**
+		 * The address Explore and the switch-in wizard link to for the
+		 * hashtags the reader follows. It used to be headed "#undefined",
+		 * with a button to follow that.
+		 */
+		it('is the list of followed hashtags when no tag is named', async () => {
+			axios.get.mockResolvedValue({ data: [tag('nextcloud', true)] })
+			const wrapper = mountTimeline({ name: 'timeline', params: { type: 'tags' } })
+			await flushPromises()
+
+			expect(wrapper.find('h1').text()).toBe('Followed hashtags')
+			expect(wrapper.find('h1').classes('hidden-visually')).toBe(false)
+			expect(wrapper.findComponent(HashtagFollowButton).exists()).toBe(false)
+			expect(wrapper.findComponent(HashtagFollowedList).exists()).toBe(true)
+			expect(wrapper.find('.timeline-list-stub').exists()).toBe(false)
+			expect(wrapper.find('.timeline-heading-row').attributes('style')).toBeUndefined()
+		})
+
 		// nothing behind these routes answers without a viewer
 		it('offers neither control to a reader who is not logged in', async () => {
 			makeStore({ public: true })
