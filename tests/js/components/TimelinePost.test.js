@@ -1245,6 +1245,29 @@ describe('TimelinePost', () => {
 			expect(accountStore.blockAccount).toHaveBeenCalledWith({ id: bob.id })
 		})
 
+		/**
+		 * The dialog's own focus trap returns the focus to the menu item that
+		 * opened it, which the menu has taken away by then, so the focus
+		 * landed on the page body.
+		 */
+		it('gives the focus back to the menu button once the dialog closes', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+			const menuButton = document.createElement('button')
+			const inside = document.createElement('button')
+			document.body.append(menuButton, inside)
+			menuButton.focus()
+			wrapper.findComponent({ name: 'PostMenu' }).vm.$emit('update:open', true)
+
+			await menuItem(wrapper, 'Block bob@remote.example').trigger('click')
+			inside.focus()
+			await wrapper.find('.nc-dialog__button--0').trigger('click')
+			await flushPromises()
+
+			expect(document.activeElement).toBe(menuButton)
+			menuButton.remove()
+			inside.remove()
+		})
+
 		it('leaves the confirmation up when the block was refused', async () => {
 			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
 			const accountStore = useAccountStore()
@@ -1264,6 +1287,24 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost()
 			expect(menuItem(wrapper, 'Edit')).toBeDefined()
 			expect(menuItem(wrapper, 'Delete')).toBeDefined()
+		})
+
+		it('gives the focus back to the menu button once the edit form is left', async () => {
+			const { wrapper } = mountPost()
+			const menuButton = document.createElement('button')
+			const inside = document.createElement('button')
+			document.body.append(menuButton, inside)
+			menuButton.focus()
+			wrapper.findComponent({ name: 'PostMenu' }).vm.$emit('update:open', true)
+
+			await menuItem(wrapper, 'Edit').trigger('click')
+			inside.focus()
+			await wrapper.findAll('button').find((button) => button.text() === 'Cancel').trigger('click')
+			await flushPromises()
+
+			expect(document.activeElement).toBe(menuButton)
+			menuButton.remove()
+			inside.remove()
 		})
 
 		it('lets the report dialog close itself, which needs a two-way binding', async () => {

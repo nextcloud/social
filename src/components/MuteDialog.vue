@@ -41,6 +41,7 @@ import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
 import { isTracking } from '../services/interests.js'
 import { contextFor, signalNow } from '../services/interestTracker.js'
+import { focusedElement, returnFocusTo } from '../utils/focus.js'
 
 /**
  * How long each choice lasts, in seconds; 0 is Mastodon's "until I say
@@ -111,6 +112,8 @@ export default {
 			/** a string, because that is what a radio's value is */
 			duration: '0',
 			muting: false,
+			/** what had the focus when the dialog opened, to give it back to */
+			opener: null,
 		}
 	},
 
@@ -141,13 +144,24 @@ export default {
 
 	watch: {
 		// a dialog opened again asks afresh: the last answer was about
-		// somebody else
+		// somebody else. Closed, it gives the focus back to the menu button
+		// it was opened from: its own trap would return it to the menu item,
+		// which the menu has taken away by then
 		open(open) {
 			if (open) {
 				this.notifications = true
 				this.duration = '0'
+				this.opener = focusedElement()
+			} else {
+				this.$nextTick(() => returnFocusTo(this.opener))
 			}
 		},
+	},
+
+	created() {
+		if (this.open) {
+			this.opener = focusedElement()
+		}
 	},
 
 	methods: {

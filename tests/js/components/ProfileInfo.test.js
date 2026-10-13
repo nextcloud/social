@@ -119,9 +119,10 @@ function makeStore(serverData = {}) {
 	return pinia
 }
 
-function mountProfile(uid) {
+function mountProfile(uid, { attachTo } = {}) {
 	return mount(ProfileInfo, {
 		props: { uid },
+		attachTo,
 		global: {
 			plugins: [pinia],
 			stubs: {
@@ -701,6 +702,24 @@ describe('ProfileInfo', () => {
 			expect(wrapper.find('.modal-stub').exists()).toBe(false)
 			expect(showSuccess).toHaveBeenCalledWith('Profile saved')
 			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
+		})
+
+		it('gives the focus back to the Edit profile button once the dialog is saved', async () => {
+			vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
+			spyOnAccountActions(alice)
+			const wrapper = mountProfile('alice', { attachTo: document.body })
+			await flushPromises()
+			buttonByText(wrapper, 'Edit profile').element.focus()
+
+			const modal = await openProfileEditor(wrapper)
+			// the modal's own trap moved the focus into it
+			modal.find('input[type="url"]').element.focus()
+			await buttonByText(modal, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.modal-stub').exists()).toBe(false)
+			expect(document.activeElement).toBe(buttonByText(wrapper, 'Edit profile').element)
+			wrapper.unmount()
 		})
 
 		it('drops half-filled rows and can clear every field', async () => {

@@ -129,6 +129,25 @@ describe('MuteDialog', () => {
 		expect(wrapper.emitted('update:open')).toBeUndefined()
 	})
 
+	it('gives the focus back to what opened it once it closes', async () => {
+		const opener = document.createElement('button')
+		document.body.appendChild(opener)
+		opener.focus()
+		const { wrapper } = mountDialog()
+		// the dialog's own trap moved the focus into it
+		const inside = document.createElement('button')
+		document.body.appendChild(inside)
+		inside.focus()
+
+		await confirm(wrapper)
+		await wrapper.setProps({ open: false })
+		await flushPromises()
+
+		expect(document.activeElement).toBe(opener)
+		opener.remove()
+		inside.remove()
+	})
+
 	/** The last answer was about somebody else. */
 	it('asks afresh each time it opens', async () => {
 		const { wrapper } = mountDialog()

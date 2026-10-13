@@ -550,6 +550,7 @@ import axios from '@nextcloud/axios'
 import BlueskyBadge from './BlueskyBadge.vue'
 import FollowButton from './FollowButton.vue'
 import { isBlueskyAccount, qualifiedHandle } from '../utils/accountLocality.js'
+import { focusedElement, returnFocusTo } from '../utils/focus.js'
 import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
@@ -656,6 +657,8 @@ export default {
 			/** a verification being made or taken back */
 			verifying: false,
 			showProfileModal: false,
+			/** the Edit profile button, which the focus goes back to when the dialog closes */
+			profileOpener: null,
 			/** the editor reads the profile before it opens; this is that read */
 			openingProfile: false,
 			fieldRows: [],
@@ -930,6 +933,14 @@ export default {
 	},
 
 	watch: {
+		// the modal's own trap returns the focus to the button, but only when
+		// the modal is closed from inside it; a save closes it from here
+		showProfileModal(open) {
+			if (!open) {
+				this.$nextTick(() => returnFocusTo(this.profileOpener))
+			}
+		},
+
 		/** another account, another answer */
 		highlightsAccountId() {
 			this.readFamiliar()
@@ -1234,6 +1245,7 @@ export default {
 			}
 
 			this.openingProfile = true
+			this.profileOpener = focusedElement()
 			let source = null
 			// the verdicts are on the entity's own `fields`, never on
 			// `source.fields`, which is the editable copy and carries no
