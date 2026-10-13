@@ -54,6 +54,12 @@ use Psr\Log\LoggerInterface;
  * @package OCA\Social\Service
  */
 class AccountService {
+	/**
+	 * How long a refused write of the handle into the Nextcloud profile is
+	 * left alone, in seconds; see publishHandleOnProfile().
+	 */
+	public const HANDLE_PUBLISH_RETRY = 86400;
+
 	/** How many local accounts one page of the refresh walk carries. */
 	private const LOCAL_ACTOR_BATCH = 200;
 
@@ -893,8 +899,6 @@ class AccountService {
 				return;
 			}
 
-			$this->publishHandleOnProfile($actor);
-
 			// Whose channel this is, which PeerTube demands before it will
 			// take a video the channel owns: it fetches the `Group` and looks
 			// for a `Person` here, refusing the video outright when there is
@@ -928,6 +932,10 @@ class AccountService {
 			// is carried over by ActorService::cacheLocalActor().
 			$this->addLocalActorDetailCount($actor);
 			$this->actorService->cacheLocalActor($actor);
+
+			// once the copy that answers WebFinger is written: Nextcloud
+			// verifies the field through it before storing the handle
+			$this->publishHandleOnProfile($actor);
 		} catch (ActorDoesNotExistException $e) {
 			// every caller has an account in hand and passes its handle, so
 			// there is no ordinary case for this: swallowing it in silence hid
@@ -1169,6 +1177,16 @@ class AccountService {
 	 * Writing the account fires `UserUpdatedEvent`, whose listener calls back
 	 * into the cache refresh this runs from. That second pass finds the field
 	 * filled and writes nothing, so the loop is one bounce long and then stops.
+	 *
+	 * Nextcloud verifies the field before it stores it: a WebFinger request
+	 * to the handle's host over https, logged as an error when it fails. On
+	 * a server whose address is plain http that can never succeed, so it is
+	 * not tried; and a failure — a server that cannot reach its own public
+	 * address, say — is left alone for `HANDLE_PUBLISH_RETRY` rather than
+	 * tried again on every profile save and every cron pass. The refused
+	 * value is taken back off the account: it would otherwise stay on core's
+	 * in-memory copy and fail every later write to the account in this
+	 * process, the display name's included.
 	 */
 	private function publishHandleOnProfile(Person $actor): void {
 		$user = $this->userManager->get($actor->getUserId());
@@ -1176,20 +1194,42 @@ class AccountService {
 			return;
 		}
 
+		$userId = $actor->getUserId();
+		$failedAt = (int)$this->configService->getUserValue(ConfigService::USER_HANDLE_PUBLISH_FAILED, $userId);
+		if ($failedAt > 0 && time() - $failedAt < self::HANDLE_PUBLISH_RETRY) {
+			return;
+		}
+
+		$property = null;
+		$previous = '';
 		try {
+			if (!str_starts_with((string)$this->configService->getCloudUrl(true), 'https://')) {
+				$this->logger->debug('the handle is not published on the Nextcloud profile: the profile check needs https', [
+					'userId' => $userId,
+				]);
+
+				return;
+			}
+
 			$account = $this->accountManager->getAccount($user);
 			$property = $account->getProperty(IAccountManager::PROPERTY_FEDIVERSE);
-			if (trim($property->getValue()) !== '') {
+			$previous = $property->getValue();
+			if (trim($previous) !== '') {
 				return;
 			}
 
 			$property->setValue($actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress());
 			$this->accountManager->updateAccount($account);
+			if ($failedAt > 0) {
+				$this->configService->setValueForUser($userId, ConfigService::USER_HANDLE_PUBLISH_FAILED, '');
+			}
 		} catch (Exception $e) {
 			// a profile that cannot be written is a profile that stays as it
 			// was; the actor is fine either way
+			$property?->setValue($previous);
+			$this->configService->setValueForUser($userId, ConfigService::USER_HANDLE_PUBLISH_FAILED, (string)time());
 			$this->logger->debug('could not publish the handle on the Nextcloud profile', [
-				'userId' => $actor->getUserId(), 'exception' => $e->getMessage(),
+				'userId' => $userId, 'exception' => $e->getMessage(),
 			]);
 		}
 	}

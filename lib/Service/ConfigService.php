@@ -462,6 +462,8 @@ class ConfigService {
 	public const USER_EXTERNAL_SIGNUP_NOTICE_VERSION = 'external_signup_notice_version';
 	public const USER_EXTERNAL_SIGNUP_NOTICE_ACCEPTED = 'external_signup_notice_accepted';
 	public const USER_EXTERNAL_SIGNUP_NOTICE_SNAPSHOT = 'external_signup_notice_snapshot';
+	/** when writing the handle into the profile's `fediverse` field last failed, as a unix time */
+	public const USER_HANDLE_PUBLISH_FAILED = 'handle_publish_failed';
 
 	/**
 	 * Bluesky (`Atproto\Service\AtprotoConfig`): whether this instance is a
