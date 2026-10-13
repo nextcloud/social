@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service\Counts;
 
 use OCA\Social\Atproto\Reader\BlueskyCountSource;
+use OCA\Social\Atproto\Reader\BlueskyPublishedCountSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Announce;
@@ -90,9 +91,34 @@ class CountServiceTest extends TestCase {
 
 	public function testOnlyRemotePostsThatAreNotDirectMessagesAreEverDue(): void {
 		$service = $this->service();
-		$this->assertFalse($service->isDue($this->post('https://here.example/1', 3600, null, true), self::NOW));
+		$this->assertFalse($service->isDue($this->post('https://here.example/1', 3600, null, true), self::NOW), 'a local post no source counts');
 		$this->assertFalse($service->isDue($this->post('https://r.example/1', 3600, null, false, Stream::TYPE_DIRECT), self::NOW));
 		$this->assertFalse($service->isDue($this->post('', 3600, null), self::NOW));
+	}
+
+	public function testALocalPostOnAnotherNetworkIsDueOnItsIntervalToo(): void {
+		$published = $this->createMock(CountSource::class);
+		$published->method('supports')->willReturnCallback(static fn (Stream $p): bool => $p->isLocal() && $p->getId() === 'https://here.example/on-bluesky');
+		$this->sources[BlueskyPublishedCountSource::class] = $published;
+		$service = $this->service();
+
+		$this->assertTrue($service->isDue($this->post('https://here.example/on-bluesky', 3600, null, true), self::NOW));
+		$this->assertFalse($service->isDue($this->post('https://here.example/on-bluesky', 3600, 600, true), self::NOW), 'asked ten minutes ago');
+		$this->assertFalse($service->isDue($this->post('https://here.example/here-only', 3600, null, true), self::NOW));
+		$this->assertFalse($service->isDue($this->post('https://here.example/on-bluesky', 3600, null, true, Stream::TYPE_DIRECT), self::NOW));
+	}
+
+	public function testALocalPostOnBlueskyGoesToItsOwnSource(): void {
+		$mine = $this->post('https://here.example/1', 60, null, true);
+		$published = $this->createMock(CountSource::class);
+		$published->method('supports')->willReturnCallback(static fn (Stream $p): bool => $p === $mine);
+		$published->expects($this->once())->method('refresh')->with([$mine])->willReturn(1);
+		$bluesky = $this->createMock(CountSource::class);
+		$bluesky->method('supports')->willReturn(false);
+		$bluesky->expects($this->never())->method('refresh');
+		$this->sources = [BlueskyCountSource::class => $bluesky, BlueskyPublishedCountSource::class => $published];
+
+		$this->assertSame(['asked' => 1, 'answered' => 1], $this->service()->refreshPosts([$mine]));
 	}
 
 	public function testAPageQueuesItsDuePostsWithTheirIntervals(): void {

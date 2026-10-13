@@ -74,7 +74,7 @@ class BlueskyCountSource implements CountSource {
 	}
 
 	/** A count the view states, null where it states none. */
-	private static function count(array $view, string $key): ?int {
+	public static function count(array $view, string $key): ?int {
 		$count = $view[$key] ?? null;
 
 		return is_int($count) && $count >= 0 && $count <= Stream::REMOTE_COUNT_CEILING ? $count : null;

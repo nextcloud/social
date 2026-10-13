@@ -30,7 +30,10 @@ use Psr\Log\LoggerInterface;
  * The posts somebody looks at are asked about as they are seen
  * (`Counts\CountService::seen()`); this is the pass over the rest: the posts
  * whose last answer has fallen due, a bounded batch of them, each asked of
- * its own network (`CountService::refreshPosts()`). A post is stamped
+ * its own network (`CountService::refreshPosts()`), and the same for this
+ * instance's own posts of the last week that are on Bluesky too, whose likes
+ * and reposts there reach this server only as notifications that may be
+ * missed (`Atproto\Reader\BlueskyPublishedCountSource`). A post is stamped
  * whether or not the answer arrived, so a host that is gone is asked once per
  * interval rather than on every pass, and whatever was already stored stands
  * where the answer cannot be trusted.
@@ -45,8 +48,19 @@ class RemoteCountService {
 	 */
 	public const TTL = 7200;
 
-	/** Posts asked per pass, when the caller sets no deadline of its own. */
+	/**
+	 * Posts asked per pass, when the caller sets no deadline of its own: this
+	 * many remote posts, and as many of this instance's own posts that are on
+	 * Bluesky too.
+	 */
 	public const BATCH = 50;
+
+	/**
+	 * How long one of this instance's own posts on Bluesky is asked about by
+	 * this pass, in seconds. Most of what a post collects comes in its first
+	 * days; after that it is asked about when somebody looks at it.
+	 */
+	public const PUBLISHED_WINDOW = 7 * 86400;
 
 	/** Posts handed over at once; the deadline is checked between them. */
 	public const PARALLEL = 20;
@@ -60,8 +74,8 @@ class RemoteCountService {
 	}
 
 	/**
-	 * @param bool $force ask every remote post now, whatever was last said
-	 * @param int $limit how many posts to ask; 0 is every one that is due
+	 * @param bool $force ask every post now, whatever was last said
+	 * @param int $limit how many posts of each kind to ask; 0 is every one that is due
 	 * @param ?int $deadline wall clock past which this run stops asking
 	 *
 	 * @return array{asked: int, answered: int} the posts whose schedule was
@@ -73,7 +87,12 @@ class RemoteCountService {
 			$due->sub(new DateInterval('PT' . intdiv(self::TTL, 60) . 'M'));
 		}
 
-		$posts = $this->streamRequest->getRemoteStreamsDueForCounts($due, $limit);
+		$since = new DateTime('now');
+		$since->sub(new DateInterval('PT' . intdiv(self::PUBLISHED_WINDOW, 3600) . 'H'));
+		$posts = [
+			...$this->streamRequest->getRemoteStreamsDueForCounts($due, $limit),
+			...$this->streamRequest->getPublishedStreamsDueForCounts($due, $since, $limit),
+		];
 
 		$asked = 0;
 		$answered = 0;

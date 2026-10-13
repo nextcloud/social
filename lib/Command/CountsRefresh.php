@@ -39,12 +39,13 @@ class CountsRefresh extends SocialCommand {
 			)
 			->addOption(
 				'force', 'f', InputOption::VALUE_NONE,
-				'ask about every remote post rather than only those not asked for in the last '
+				'ask about every post rather than only those not asked for in the last '
 				. intdiv(RemoteCountService::TTL, 3600) . ' hours'
 			)
 			->addOption(
 				'limit', 'l', InputOption::VALUE_REQUIRED,
-				'how many posts to ask about (0 is all that are due); default 0, since this '
+				'how many remote posts, and as many local posts on Bluesky, to ask about '
+				. '(0 is all that are due); default 0, since this '
 				. 'is the run that catches up — the cron takes ' . RemoteCountService::BATCH
 				. ' a pass'
 			);

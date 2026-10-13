@@ -30,6 +30,14 @@ use OCP\AppFramework\Utility\ITimeFactory;
  * where it was. Nothing else is touched: no notification, no action.
  */
 class CountWriter {
+	/** each counter a network states, and the `details` key holding its half */
+	private const REMOTE = [
+		Details::LIKES => Details::REMOTE_LIKES,
+		Details::BOOSTS => Details::REMOTE_BOOSTS,
+		Details::REPLIES => Details::REMOTE_REPLIES,
+		Details::QUOTES => Details::REMOTE_QUOTES,
+	];
+
 	public function __construct(
 		private StreamRequest $streams,
 		private ActionsRequest $actions,
@@ -65,6 +73,41 @@ class CountWriter {
 		// add what is counted here to them, in the statement that writes them
 		$this->streams->updateDetails($post, $this->now());
 		$this->streams->recount($post, Details::LIKES, Details::BOOSTS, Details::REPLIES, Details::QUOTES);
+
+		return true;
+	}
+
+	/**
+	 * Stores the totals another network states for one of this instance's
+	 * own posts.
+	 *
+	 * Its totals take in part of what is held here — what came from that
+	 * network, and what local accounts also wrote there — and none of the
+	 * rest. So the half kept is only what it states beyond that part, and
+	 * the totals add everything held here to it: a post whose every
+	 * interaction arrived here shows what it showed before. A count the
+	 * network does not state keeps the half already stored.
+	 *
+	 * @param array<string, ?int> $stated counter => the network's total, null where it stated none
+	 * @param array<string, int> $alsoThere counter => how much of what is held here the network counts too
+	 * @return bool whether the post is still stored here
+	 */
+	public function writeBeyond(string $postId, array $stated, array $alsoThere): bool {
+		try {
+			$post = $this->streams->getStreamById($postId);
+		} catch (StreamNotFoundException) {
+			return false;
+		}
+
+		foreach (self::REMOTE as $total => $remote) {
+			$count = $stated[$total] ?? null;
+			if ($count !== null) {
+				$post->setDetailInt($remote, max($count - ($alsoThere[$total] ?? 0), 0));
+			}
+		}
+
+		$this->streams->updateDetails($post, $this->now());
+		$this->streams->recount($post, ...array_keys(self::REMOTE));
 
 		return true;
 	}

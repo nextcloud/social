@@ -1753,15 +1753,19 @@ people look at are asked for again, one concept with a source per network
 - `Atproto\Reader\BlueskyCountSource` asks the AppView's `getPosts`, 25
   posts a call (`PostStore::postViews()`), for `likeCount`, `repostCount`,
   `replyCount` and `quoteCount`; a post it no longer has is deleted as
-  `DeletionSweep` deletes it.
+  `DeletionSweep` deletes it;
+- `Atproto\Reader\BlueskyPublishedCountSource` does the same for a post of
+  this server's own that is also a record on Bluesky (see **A local post's
+  counts on Bluesky** below).
 
 `CountService::seen()` is called with what a page serves — a status
 (`StatusApiController::statusGet()`), a conversation
 (`StreamService::getContextByNid()`) and every timeline page a client reads
 (`StreamService::getTimeline()` in the local format, `visiblePosts()`, the
 list timeline) — and does no network I/O: a boost stands for the post it
-boosts, local posts and direct messages are skipped, and a remote post is
-due when its `counts_at` is older than a quarter of an hour while the post
+boosts, direct messages are skipped, and so is a local post unless a source
+supports it (one that goes to Bluesky, `Publisher::goesToBluesky()`), and a
+post is due when its `counts_at` is older than a quarter of an hour while the post
 is less than a day old, six hours after that. The due ones are handed to
 `RemoteFetchQueue::refreshCounts()`, which stamps each post in the durable
 cache for its interval (so a post is queued at most once per interval
@@ -1772,7 +1776,11 @@ the ones no longer due and hands the rest to the network each lives on
 all the same. The cron's pass over the posts nobody looked at
 (`RemoteCountService`, every two hours, fifty a pass) goes through the same
 `refreshPosts()`, so a Bluesky post there is asked of the AppView rather
-than fetched as an ActivityPub document from bsky.app.
+than fetched as an ActivityPub document from bsky.app. The same pass takes
+up to fifty more of this server's own posts of the last seven days that have
+a Bluesky record (`StreamRequest::getPublishedStreamsDueForCounts()`, a join
+on `social_atproto_record`); an older one is asked about when somebody looks
+at it.
 
 `CountWriter` stores an answer: the origin's total less what is counted here
 into `remote_likes`, `remote_boosts` and `remote_replies`, `counts_at` set,
@@ -1781,6 +1789,46 @@ columns** below), so every reader — the client and Mastodon APIs alike —
 sees the new numbers. No notification is made and no action is touched.
 The last-asked time is the `counts_at` column the cron's pass already kept,
 not a new table; `Stream::getCountsAt()` carries it to `seen()` with the row.
+
+#### A local post's counts on Bluesky
+
+A post of this server's own that went to Bluesky is a record in its
+author's repository, and a like, repost, reply or quote of it there is a
+record in somebody else's. A PDS is never told of those; this server hears
+of them only through the author's notifications (`NotificationPoller`), and
+one that poll misses — downtime, a gap longer than its page, the request
+ceiling — is never counted. So `BlueskyPublishedCountSource` reads the
+record's `likeCount`, `repostCount`, `replyCount` and `quoteCount` from
+`getPosts`, 25 records a call, and keeps only what the AppView counts that
+this server does not hold.
+
+The AppView's totals overlap what is held here, and only part of it.
+`AtprotoRepoRequest::countHeldOnBluesky()` counts that part in one query:
+the likes and boosts in `social_action` whose actor is a bsky.app account
+(what `NotificationPoller` took in), the replies and quotes in
+`social_stream` whose id is a bsky.app post, and the likes, boosts, replies
+and quotes of local accounts that have a record in their repository here
+(`local_id_prim` = the action's or post's `id_prim`, the collection matching
+— `InteractionPublisher` writes a like or boost there, `Publisher` a reply
+or quote). A like from the Fediverse, or by a local account not on Bluesky,
+is in neither. `CountWriter::writeBeyond()` stores `max(stated − that part,
+0)` as `remote_likes`, `remote_boosts`, `remote_replies` and
+`remote_quotes`, and `recount()` adds everything held here, as for any
+post. A post whose notifications all arrived therefore has nothing beyond,
+and shows exactly what it showed before; one the poll missed a like of shows
+it one higher, in the columns, in the `details` copy the Mastodon and
+client APIs read and on the statistics page, which sums those. The floor at
+zero takes care of a like the AppView has not indexed yet, and of a like
+undone on Bluesky that is still held here. A count the AppView does not
+state keeps the half already stored. No `atproto` block is written on a
+local post, and nothing is notified: the people behind those likes are
+unknown here.
+
+An author whose presence on Bluesky is switched off
+(`IdentityService::activeForActor()` is null), or whose identity is not the
+repository the record is in, is not asked about; the post is stamped and
+keeps what it has. So is a post without a record, or one the AppView does
+not return.
 
 Quotes are a fifth counter beside the four: `count_quotes`, recounted
 (`StreamRequest::recountQuotes()`) where a reply's parent is — a quoting post

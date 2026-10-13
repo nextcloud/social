@@ -866,7 +866,9 @@ does.
 ### `social:counts:refresh`
 
 Ask where each remote post lives — its own server, or the AppView for a post
-read from Bluesky — what its counts are right now, and store what it says.
+read from Bluesky — what its counts are right now, and store what it says. Local
+posts of the last seven days that went to Bluesky are asked about too, for the
+likes and reposts there whose notification never arrived.
 
 ```
 php occ social:counts:refresh [-f|--force] [-l|--limit LIMIT]
@@ -874,8 +876,8 @@ php occ social:counts:refresh [-f|--force] [-l|--limit LIMIT]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `-f`, `--force` | none | Ask about every remote post rather than only those not asked about in the last `RemoteCountService::TTL` (7200) seconds |
-| `-l`, `--limit` | required | Stop after this many posts. `0`, the default, means all that are due, which is what a backfill wants |
+| `-f`, `--force` | none | Ask about every post rather than only those not asked about in the last `RemoteCountService::TTL` (7200) seconds |
+| `-l`, `--limit` | required | Stop after this many remote posts, and as many local posts on Bluesky. `0`, the default, means all that are due, which is what a backfill wants |
 
 A post's counts were a snapshot of the moment it was imported and nothing ever
 looked again, so a status sitting at two likes an hour ago still reads as two.

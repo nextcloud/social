@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use OCA\Social\Atproto\Publisher\RecordMapper;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Dislike;
@@ -316,6 +317,35 @@ trait StreamCounters {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToLocal(false);
 		$qb->limitToDBFieldDateTime('counts_at', $due, true);
+		$qb->orderBy('s.published_time', 'asc');
+
+		if ($limit > 0) {
+			$qb->setMaxResults($limit);
+		}
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * This instance's own posts that are records on Bluesky too, published
+	 * since `$since`, whose counts were last asked of the AppView before
+	 * `$due` or never: what the AppView counts of them that no notification
+	 * brought (`BlueskyPublishedCountSource`). Oldest first, as above.
+	 *
+	 * @param int $limit 0 is every post that is due
+	 *
+	 * @return Stream[]
+	 */
+	public function getPublishedStreamsDueForCounts(DateTime $due, DateTime $since, int $limit = 0): array {
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToLocal(true);
+		$qb->andWhere($qb->expr()->gte('s.published_time', $qb->createNamedParameter($since, IQueryBuilder::PARAM_DATE)));
+		$qb->limitToDBFieldDateTime('counts_at', $due, true);
+		$qb->innerJoin('s', self::TABLE_ATPROTO_RECORD, 'rec', $qb->expr()->andX(
+			$qb->expr()->eq('rec.local_id_prim', 's.id_prim'),
+			$qb->expr()->eq('rec.collection', $qb->createNamedParameter(RecordMapper::POST))
+		));
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->orderBy('s.published_time', 'asc');
 
 		if ($limit > 0) {

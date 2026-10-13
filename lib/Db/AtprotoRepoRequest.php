@@ -14,6 +14,11 @@ use Generator;
 use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
+use OCA\Social\Atproto\Publisher\RecordMapper;
+use OCA\Social\Atproto\Reader\BlueskyIds;
+use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\Details;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
@@ -235,6 +240,58 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 		$result->closeCursor();
 
 		return $records;
+	}
+
+	/**
+	 * How much of what is held here of a post Bluesky counts too, by
+	 * counter: what came from Bluesky — a like or repost by a bsky.app
+	 * account, a reply or quote that is a bsky.app post — and what a local
+	 * account wrote there as well, a like, boost, reply or quote that has a
+	 * record in its repository here. The rest — from the Fediverse, or by a
+	 * local account that is not on Bluesky — the AppView never saw.
+	 *
+	 * @return array{likes: int, boosts: int, replies: int, quotes: int}
+	 */
+	public function countHeldOnBluesky(string $postId): array {
+		$held = [Details::LIKES => 0, Details::BOOSTS => 0, Details::REPLIES => 0, Details::QUOTES => 0];
+		if (!str_starts_with($postId, 'http')) {
+			return $held;
+		}
+
+		$prim = md5($postId);
+		$fromBluesky = $this->dbConnection->escapeLikeParameter(BlueskyIds::actorId('')) . '%';
+		$counted = [
+			Details::LIKES => [self::TABLE_ACTIONS, 'object_id_prim', 'actor_id', Like::TYPE, RecordMapper::LIKE],
+			Details::BOOSTS => [self::TABLE_ACTIONS, 'object_id_prim', 'actor_id', Announce::TYPE, RecordMapper::REPOST],
+			Details::REPLIES => [self::TABLE_STREAM, 'in_reply_to_prim', 'id', '', RecordMapper::POST],
+			Details::QUOTES => [self::TABLE_STREAM, 'quote_prim', 'id', '', RecordMapper::POST],
+		];
+		$selects = [];
+		$params = [];
+		foreach ($counted as $counter => [$table, $on, $origin, $type, $collection]) {
+			$sql = 'SELECT COUNT(*) FROM `*PREFIX*' . $table . '` `h` WHERE `h`.`' . $on . '` = ?';
+			$params[] = $prim;
+			if ($type !== '') {
+				$sql .= ' AND `h`.`type` = ?';
+				$params[] = $type;
+			}
+			$sql .= ' AND (`h`.`' . $origin . '` LIKE ? OR EXISTS (SELECT 1 FROM `*PREFIX*' . self::TABLE_ATPROTO_RECORD . '` `r`'
+				. ' WHERE `r`.`local_id_prim` = `h`.`id_prim` AND `r`.`collection` = ?))';
+			$params[] = $fromBluesky;
+			$params[] = $collection;
+			$selects[] = '(' . $sql . ') AS `' . $counter . '`';
+		}
+
+		// `*PREFIX*` and the backticks are what the connection rewrites for
+		// the platform
+		$result = $this->dbConnection->executeQuery('SELECT ' . implode(', ', $selects), $params);
+		$row = $result->fetch();
+		$result->closeCursor();
+		foreach (array_keys($held) as $counter) {
+			$held[$counter] = max(0, (int)(is_array($row) ? ($row[$counter] ?? 0) : 0));
+		}
+
+		return $held;
 	}
 
 	/**
