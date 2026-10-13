@@ -384,7 +384,12 @@ to stop.
   (`tests/Helper/FrozenClock.php`) that the test moves: registered on the
   server container and on each fresh app container a service or controller is
   built by, so the lifecycle tests below stand on the second before an expiry
-  and on the second itself.
+  and on the second itself. The server container gets a `Helper/ServerClock`
+  around it, which thawing switches back to the real time.
+- `Helper/FreezesTheClockTest` — a service the boot container handed out
+  before the freeze and first used during it is back on the real clock once
+  the test thaws it (caught a frozen January clock leaking into later tests in
+  random order: a story stamped then, an LD signature judged against it).
 - `Api/TimedMuteExpiryTest` — a timed mute through its expiry: the
   relationship, `/api/v1/mutes` and the home timeline agree that it holds a
   second before it runs out and is gone on that second; muting again without

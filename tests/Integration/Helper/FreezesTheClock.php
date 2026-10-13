@@ -22,15 +22,25 @@ use OCP\AppFramework\Utility\ITimeFactory;
  * each service built through `clocked()`, so a service that took its clock
  * in the constructor gets this one instead of the one it was booted with.
  * `thawClock()` puts the server's own clock back and must run in tearDown.
+ *
+ * The server container gets a `ServerClock` around the frozen one rather
+ * than the frozen one itself: a service of the boot container first used
+ * during the test takes it, and is back on the real time once it is thawed.
  */
 trait FreezesTheClock {
 	private ?FrozenClock $frozenClock = null;
+	private ?ServerClock $serverClock = null;
 	private ?DIContainer $clockBootContainer = null;
 
 	protected function freezeClock(FrozenClock $clock): FrozenClock {
 		$this->frozenClock = $clock;
 		$this->clockBootContainer ??= \OC::$server->getRegisteredAppContainer('social');
-		\OC::$server->registerService(ITimeFactory::class, static fn (): ITimeFactory => $clock);
+		if ($this->serverClock === null) {
+			$serverClock = $this->serverClock = new ServerClock($clock);
+			\OC::$server->registerService(ITimeFactory::class, static fn (): ITimeFactory => $serverClock);
+		} else {
+			$this->serverClock->stopAt($clock);
+		}
 
 		return $clock;
 	}
@@ -40,6 +50,8 @@ trait FreezesTheClock {
 			return;
 		}
 
+		$this->serverClock?->thaw();
+		$this->serverClock = null;
 		\OC::$server->registerAlias(ITimeFactory::class, TimeFactory::class);
 		if ($this->clockBootContainer !== null) {
 			\OC::$server->registerAppContainer('social', $this->clockBootContainer);
