@@ -13,9 +13,10 @@ const ME = { acct: 'alice' }
 const NcActions = { name: 'NcActions', emits: ['update:open'], template: '<div><slot /></div>' }
 const NcActionButton = {
 	name: 'NcActionButton',
-	props: ['disabled', 'icon'],
+	// `closeAfterClick` is written as a bare attribute, which is only true for a Boolean prop
+	props: { disabled: Boolean, icon: String, closeAfterClick: Boolean },
 	emits: ['click'],
-	template: '<button class="action" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+	template: '<button class="action" :disabled="disabled" :data-closes="closeAfterClick ? \'yes\' : \'no\'" @click="$emit(\'click\')"><slot /></button>',
 }
 const NcActionLink = {
 	name: 'NcActionLink',
@@ -195,6 +196,20 @@ describe('the post menu', () => {
 	 * A quote and a boost both put the post in front of the reader's own
 	 * audience, so both are only for a post that was already everybody's.
 	 */
+	/**
+	 * Every item either opens something else -- a dialog, the edit form, the
+	 * composer -- or acts at once. A menu left floating over the edit form it
+	 * just opened covered Save and Cancel, and one left open behind the delete
+	 * confirmation was still there when the dialog closed.
+	 */
+	it('closes itself after any item is chosen', () => {
+		for (const wrapper of [mountMenu(), mountMenu(MINE), mountMenu({ in_reply_to_id: '9', can_hide: true, tags: [{ name: 'x' }] }, { canTranslate: true })]) {
+			// the link to the original instance closes the menu by leaving the page
+			const stayingOpen = wrapper.findAll('button.action').filter((one) => one.attributes('data-closes') !== 'yes')
+			expect(stayingOpen.map((one) => one.text())).toEqual([])
+		}
+	})
+
 	describe('what may be passed on', () => {
 		it('offers a quote only for a post anybody may see', () => {
 			expect(items(mountMenu({ visibility: 'unlisted' }))).toContain('Quote')
