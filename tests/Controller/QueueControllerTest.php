@@ -17,6 +17,7 @@ use OCA\Social\Security\AsyncRequestSigner;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\RequestQueueService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IRequest;
 use OCP\Security\ICrypto;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -41,7 +42,9 @@ class QueueControllerTest extends TestCase {
 		$crypto = $this->createStub(ICrypto::class);
 		$crypto->method('calculateHMAC')
 			->willReturnCallback(static fn (string $message): string => hash_hmac('sha512', $message, 'secret', true));
-		$this->signer = new AsyncRequestSigner($crypto);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(static fn (): int => time());
+		$this->signer = new AsyncRequestSigner($crypto, $time);
 		$request = $this->createStub(IRequest::class);
 		$request->method('getHeader')->willReturnCallback(
 			fn (string $name): string => $name === AsyncRequestSigner::HEADER ? $this->signature : ''

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Security;
 
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Security\ICrypto;
 
 /**
@@ -16,24 +17,43 @@ use OCP\Security\ICrypto;
  *
  * The route has to be public — the server calls itself over HTTP, with no
  * session — and a token is enough to have it spend up to a minute and a half
- * of a PHP worker delivering. Tokens are random, but they are written to the
- * log on every failed delivery. So the call carries an HMAC of the token under
- * the instance secret, which nothing outside `config.php` can produce, and a
- * request without a valid one is refused before the queue is read.
+ * of a PHP worker delivering. So the call carries an HMAC of the token and
+ * the time it was made under the instance secret, which nothing outside
+ * `config.php` can produce, and a request without a valid one, or one made
+ * more than MAX_AGE ago, is refused before the queue is read.
+ *
+ * The header reads `<unix time>.<hex HMAC>`.
  */
 class AsyncRequestSigner {
 	public const HEADER = 'X-Social-Async-Signature';
+	/** how long a signature is good for, in seconds, either way of the clock */
+	public const MAX_AGE = 300;
 
 	public function __construct(
 		private ICrypto $crypto,
+		private ITimeFactory $time,
 	) {
 	}
 
 	public function sign(string $token): string {
-		return bin2hex($this->crypto->calculateHMAC('social-async-request:' . $token));
+		$at = $this->time->getTime();
+
+		return $at . '.' . $this->mac($token, $at);
 	}
 
 	public function verify(string $token, string $signature): bool {
-		return $token !== '' && $signature !== '' && hash_equals($this->sign($token), $signature);
+		if ($token === '' || !str_contains($signature, '.')) {
+			return false;
+		}
+		[$at, $mac] = explode('.', $signature, 2);
+		if ($at === '' || !ctype_digit($at) || abs($this->time->getTime() - (int)$at) > self::MAX_AGE) {
+			return false;
+		}
+
+		return hash_equals($this->mac($token, (int)$at), $mac);
+	}
+
+	private function mac(string $token, int $at): string {
+		return bin2hex($this->crypto->calculateHMAC('social-async-request:' . $at . ':' . $token));
 	}
 }

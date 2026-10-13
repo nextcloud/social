@@ -32,6 +32,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultNotJsonException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Http\Client\IClient;
 use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
@@ -893,6 +894,25 @@ class CurlServiceTest extends TestCase {
 		$this->assertTrue($sent()['options']['nextcloud']['allow_local_address']);
 	}
 
+	/** A failed self-call is logged with a fingerprint of the token, not the token. */
+	public function testAFailedSelfCallLogsOnlyAFingerprintOfTheToken(): void {
+		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		$this->configService->method('getCloudHost')->willReturn('cloud.example');
+		$this->client->method('request')->willThrowException(new Exception('refused'));
+		$logged = null;
+		$logger = $this->createMock(\Psr\Log\LoggerInterface::class);
+		$logger->method('error')->willReturnCallback(static function (string $message, array $context) use (&$logged): void {
+			$logged = $context;
+		});
+		$service = new CurlService($this->configService, $this->fediverseService, $this->clientService,
+			$this->httpSignatureService, $logger, $this->signer());
+
+		$service->asyncWithToken('tok-1');
+
+		$this->assertSame(substr(hash('sha256', 'tok-1'), 0, 8), $logged['token']);
+		$this->assertStringNotContainsString('tok-1', json_encode($logged['token']));
+	}
+
 	/** The route refuses a call this server did not sign. */
 	public function testTheSelfCallCarriesItsSignature(): void {
 		$this->configService->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
@@ -910,7 +930,10 @@ class CurlServiceTest extends TestCase {
 		$crypto->method('calculateHMAC')
 			->willReturnCallback(static fn (string $message): string => hash_hmac('sha512', $message, 'secret', true));
 
-		return new AsyncRequestSigner($crypto);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1760000000);
+
+		return new AsyncRequestSigner($crypto, $time);
 	}
 
 	private function service(): CurlService {
