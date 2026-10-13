@@ -127,10 +127,13 @@ class XrpcService {
 		return ['did' => $identity->did];
 	}
 
+	/**
+	 * The whole repository, written out as it is read.
+	 */
 	private function getRepo(string $did): XrpcBytes {
 		$identity = $this->repoIdentity($did);
 		try {
-			return new XrpcBytes($this->repositories->exportCar($identity->did), 'application/vnd.ipld.car');
+			return new XrpcBytes('', 'application/vnd.ipld.car', 200, null, -1, [], $this->repositories->streamCar($identity->did));
 		} catch (AtprotoException) {
 			throw new XrpcException(404, 'RepoNotFound', 'Repository has no commits yet');
 		}

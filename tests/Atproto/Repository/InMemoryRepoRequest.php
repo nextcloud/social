@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Repository;
 
+use Generator;
 use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -97,9 +98,9 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	}
 
 	#[\Override]
-	public function eachRecordBytes(string $did, callable $each): void {
+	public function recordBytes(string $did): Generator {
 		foreach ($this->records[$did] ?? [] as $record) {
-			$each($record->cid, $record->bytes, $record->collection . '/' . $record->rkey);
+			yield [$record->cid, $record->bytes, $record->collection . '/' . $record->rkey];
 		}
 	}
 
@@ -138,10 +139,10 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	}
 
 	#[\Override]
-	public function eachBlock(string $did, callable $each, string $kind = ''): void {
+	public function blocks(string $did, string $kind = ''): Generator {
 		foreach ($this->blocks[$did] ?? [] as $cid => $block) {
 			if ($kind === '' || $block['kind'] === $kind) {
-				$each(Cid::parse((string)$cid), $block['kind'], $block['bytes']);
+				yield [Cid::parse((string)$cid), $block['kind'], $block['bytes']];
 			}
 		}
 	}

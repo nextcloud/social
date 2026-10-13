@@ -394,7 +394,9 @@ apps today.
 relay and other PDSes need, and the account surface a Bluesky app logging
 in here needs:
 
-`com.atproto.sync.getRepo`, `getLatestCommit`, `getRecord`, `getBlob`,
+`com.atproto.sync.getRepo` (the CAR written out as the repository is
+read, a page of rows at a time, so a repository larger than a request's
+memory is served), `getLatestCommit`, `getRecord`, `getBlob`,
 `listBlobs`, `listRepos`, `getRepoStatus`, `subscribeRepos` (§7);
 `com.atproto.identity.resolveHandle`, `updateHandle` (custom handles, later),
 `getRecommendedDidCredentials`, `signPlcOperation`, `submitPlcOperation`,

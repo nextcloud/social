@@ -24,10 +24,12 @@ use OCA\Social\Controller\AtprotoXrpcController;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
+use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Response\StreamedRemoteResponse;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ModerationService;
 use OCP\AppFramework\Http\DataDisplayResponse;
+use OCP\AppFramework\Http\IOutput;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IRequest;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -112,14 +114,27 @@ class AtprotoXrpcControllerTest extends TestCase {
 	}
 
 	/**
-	 * A CAR is not a blob: it keeps the answer it had.
+	 * A CAR is not a blob: it keeps the answer it had, written out in
+	 * pieces as the repository is read.
 	 */
 	public function testARepositoryCarIsNotGivenTheBlobHeaders(): void {
 		$response = $this->controller(['did' => self::DID])->query('com.atproto.sync.getRepo');
 
+		$this->assertInstanceOf(StreamedPiecesResponse::class, $response);
 		$headers = $response->getHeaders();
 		$this->assertSame('application/vnd.ipld.car', $headers['Content-Type']);
 		$this->assertNotSame(self::SANDBOX, $headers['Content-Security-Policy']);
+		$output = $this->createMock(IOutput::class);
+		$written = '';
+		$output->method('setOutput')->willReturnCallback(static function (string $piece) use (&$written): void {
+			$written .= $piece;
+		});
+		$level = ob_get_level();
+		$response->callback($output);
+		while (ob_get_level() < $level) {
+			ob_start();
+		}
+		$this->assertSame('CAR', $written);
 	}
 
 	/**
@@ -131,7 +146,10 @@ class AtprotoXrpcControllerTest extends TestCase {
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('getByDid')->willReturn(new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0));
 		$repositories = $this->createMock(RepositoryService::class);
-		$repositories->method('exportCar')->willReturn('CAR');
+		$repositories->method('streamCar')->willReturnCallback(static function (): \Generator {
+			yield 'CA';
+			yield 'R';
+		});
 		$blobs = $this->createMock(AtprotoBlobRequest::class);
 		$blobs->method('get')->willReturnCallback(fn (): ?BlobRef => $this->blob);
 		$pictures = $this->createMock(PictureService::class);

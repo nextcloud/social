@@ -328,6 +328,10 @@ to stop.
   seeds a repository of twenty thousand records and prints what one commit
   costs against reading every record and rebuilding the tree, asserting the
   commit is the cheaper of the two.
+- `Atproto/RepoExportMemoryTest` — `com.atproto.sync.getRepo` writes the CAR
+  out as the repository is read, a page of rows at a time: the peak over
+  3,000 records of 4 KB is the peak over 600, and the pieces joined decode
+  to the blocks the one-string export has.
 - `Atproto/ListReposQueryBudgetTest` — `com.atproto.sync.listRepos` asks for a
   page's identities and suspended accounts at once: a page of fifty costs the
   queries a page of five does, and a suspended account is listed `takendown`.

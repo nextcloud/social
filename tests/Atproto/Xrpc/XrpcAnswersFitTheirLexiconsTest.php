@@ -206,7 +206,7 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 		$this->assertInstanceOf(XrpcBytes::class, $car);
 		$this->assertSame('application/vnd.ipld.car', $car->contentType);
 
-		$decoded = Car::decode($car->bytes);
+		$decoded = Car::decode(implode('', iterator_to_array($car->pieces ?? [], false)));
 		$this->assertCount(1, $decoded['roots']);
 		$this->assertSame($latest['cid'], $decoded['roots'][0]->toString());
 		$commit = Commit::fromBytes($decoded['blocks'][$latest['cid']]);

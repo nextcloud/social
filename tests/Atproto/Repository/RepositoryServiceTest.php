@@ -131,6 +131,32 @@ class RepositoryServiceTest extends TestCase {
 		$this->assertEqualsCanonicalizing($expected, array_keys($car['blocks']));
 	}
 
+	/**
+	 * The CAR in pieces is the CAR the encoder makes of the same blocks,
+	 * byte for byte, the commit first; a piece holds many blocks.
+	 */
+	public function testTheCarInPiecesIsTheEncodersCar(): void {
+		$writes = [];
+		for ($i = 0; $i < 150; $i++) {
+			$writes[] = RepoWrite::create('app.bsky.feed.like', ['createdAt' => sprintf('2026-10-08T10:%02d:%02d.000Z', intdiv($i, 60), $i % 60)] + self::like(), '', '3kznmn7xq' . str_pad(base_convert((string)$i, 10, 32), 4, '0', STR_PAD_LEFT));
+		}
+		$result = $this->service->write(self::DID, $this->key, $writes);
+
+		$pieces = iterator_to_array($this->service->streamCar(self::DID), false);
+		$car = implode('', $pieces);
+
+		$blocks = [$result->commitCid->toString() => (string)$this->store->getBlock(self::DID, $result->commitCid->toString())];
+		foreach ($this->store->blocks(self::DID, AtprotoRepoRequest::BLOCK_MST) as [$cid, , $bytes]) {
+			$blocks[$cid->toString()] = $bytes;
+		}
+		foreach ($this->store->recordBytes(self::DID) as [$cid, $bytes]) {
+			$blocks[$cid->toString()] = $bytes;
+		}
+		$this->assertSame(Car::encode([$result->commitCid], $blocks), $car);
+		$this->assertLessThan(count($blocks), count($pieces), 'blocks are gathered into pieces');
+		$this->assertCount(count($blocks), Car::decode($car)['blocks']);
+	}
+
 	public function testARecordThatDoesNotFitItsLexiconIsNeverSigned(): void {
 		$this->expectException(AtprotoException::class);
 		$this->expectExceptionMessage('does not fit its lexicon');

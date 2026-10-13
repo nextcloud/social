@@ -16,6 +16,7 @@ use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\Xrpc\XrpcBytes;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Atproto\Xrpc\XrpcService;
+use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Response\StreamedRemoteResponse;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -190,6 +191,12 @@ class AtprotoXrpcController extends Controller {
 	}
 
 	private function answer(array|XrpcBytes $result): Response {
+		if ($result instanceof XrpcBytes && $result->pieces !== null) {
+			$response = new StreamedPiecesResponse($result->pieces, $result->status, $result->headers + ['Content-Type' => $result->contentType, 'X-Content-Type-Options' => 'nosniff']);
+			$response->cacheFor(60, false, true);
+
+			return $this->cors($response);
+		}
 		if ($result instanceof XrpcBytes && is_resource($result->stream)) {
 			$headers = ['Content-Type' => $result->contentType, 'X-Content-Type-Options' => 'nosniff'];
 			if ($result->length >= 0) {

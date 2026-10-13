@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Repository;
 
+use Generator;
 use InvalidArgumentException;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Crypto\PublicKey;
@@ -46,6 +47,8 @@ use Throwable;
 class RepositoryService {
 	/** what one commit may change: the firehose caps `ops` at 200 */
 	public const MAX_WRITES = 200;
+	/** how much of a CAR is handed out at once when a repository is streamed */
+	private const PIECE = 65536;
 
 	public function __construct(
 		private AtprotoRepoRequest $repoRequest,
@@ -263,32 +266,58 @@ class RepositoryService {
 	}
 
 	/**
-	 * The whole repository as a CAR: the commit first, then the tree, then
-	 * the records. What a relay backfills from.
+	 * The whole repository as a CAR, in pieces: the header, then the commit,
+	 * the tree and the records as they are read, so a large repository is
+	 * never whole in memory. What a relay backfills from.
 	 *
+	 * @return Generator<int, string> the CAR's bytes, in order
 	 * @throws AtprotoException when there is no repository
 	 */
-	public function exportCar(string $did): string {
+	public function streamCar(string $did): Generator {
 		$head = $this->repoRequest->getHead($did);
 		if ($head === null) {
 			throw new AtprotoException('No repository for ' . $did);
 		}
-		$blocks = [];
 		$commitBytes = $this->repoRequest->getBlock($did, $head->commitCid);
 		if ($commitBytes === null) {
 			throw new AtprotoException('The head commit of ' . $did . ' is missing');
 		}
-		$blocks[$head->commitCid] = $commitBytes;
-		$this->repoRequest->eachBlock($did, static function (Cid $cid, string $kind, string $bytes) use (&$blocks): void {
-			if ($kind === AtprotoRepoRequest::BLOCK_MST) {
-				$blocks[$cid->toString()] = $bytes;
-			}
-		});
-		$this->repoRequest->eachRecordBytes($did, static function (Cid $cid, string $bytes) use (&$blocks): void {
-			$blocks[$cid->toString()] = $bytes;
-		});
 
-		return Car::encode([Cid::parse($head->commitCid)], $blocks);
+		return $this->carPieces($did, Cid::parse($head->commitCid), $commitBytes);
+	}
+
+	/**
+	 * The whole repository as one CAR string, for a request body.
+	 *
+	 * @throws AtprotoException when there is no repository
+	 */
+	public function exportCar(string $did): string {
+		return implode('', iterator_to_array($this->streamCar($did), false));
+	}
+
+	/**
+	 * @return Generator<int, string> pieces of about PIECE bytes
+	 */
+	private function carPieces(string $did, Cid $commitCid, string $commitBytes): Generator {
+		yield Car::header([$commitCid]) . Car::block($commitCid, $commitBytes);
+		$piece = '';
+		foreach ($this->repoRequest->blocks($did, AtprotoRepoRequest::BLOCK_MST) as [$cid, , $bytes]) {
+			$piece .= Car::block($cid, $bytes);
+			if (strlen($piece) >= self::PIECE) {
+				yield $piece;
+				$piece = '';
+			}
+		}
+		foreach ($this->repoRequest->recordBytes($did) as [$cid, $bytes]) {
+			$piece .= Car::block($cid, $bytes);
+			if (strlen($piece) >= self::PIECE) {
+				yield $piece;
+				$piece = '';
+			}
+		}
+		if ($piece !== '') {
+			yield $piece;
+		}
 	}
 
 	/**
