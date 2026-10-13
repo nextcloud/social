@@ -317,6 +317,15 @@ class AtprotoIdentityRequest extends CoreRequestBuilder {
 		return $keys;
 	}
 
+	/** the private half sealed again, the key itself unchanged */
+	public function resealInstanceKey(int $id, string $sealedPrivateKey): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_ATPROTO_INSTANCE_KEY)
+			->set('private_key', $qb->createNamedParameter($sealedPrivateKey))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		$qb->executeStatement();
+	}
+
 	public function retireInstanceKey(int $id): void {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_ATPROTO_INSTANCE_KEY)

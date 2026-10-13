@@ -639,6 +639,30 @@ directory operation, paced so the directory's limits are respected; one the
 directory does not confirm is resent by the maintenance job, a pending
 identity's behind its genesis.
 
+### `social:atproto:keys:reseal`
+
+Every Bluesky key — the instance rotation keys, the retired ones included, the
+service key and each account's signing key — sealed again under the instance
+secret in use, for after `config.php`'s `secret` changed.
+
+```
+php occ social:atproto:keys:reseal
+OC_OLD_SECRET=... php occ social:atproto:keys:reseal --old-secret-from-env
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--old-secret-from-env` | none | Read the previous instance secret from the `OC_OLD_SECRET` environment variable |
+
+Without the option it counts the keys that do not open with the current secret
+and exits 1 when there are any; the Bluesky card and the setup check report the
+same count. With it, each key that does not open is opened with the previous
+secret and stored sealed with the current one — the same key, so every DID stays
+as it is — and a key neither secret opens is counted as failed and left alone.
+The previous secret is read from the environment only, never from the command
+line, so it stays out of the shell history and the process list. Keys of
+tombstoned and moved-away identities sign nothing any more and are not touched.
+
 ### `social:queue:process`
 
 Process both queues once: the outbound request queue (federation delivery) and the

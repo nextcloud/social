@@ -555,7 +555,12 @@ account's daily limit — goes out as a link to the post here. Set
 service keys are stored sealed with the instance secret, like actor keys. They
 are the identities: a DID whose keys are lost can no longer be updated, and the
 person's recovery phrase (Settings → Apps and account → Bluesky) is their own way back. Back
-up the database *and* `config.php`'s `secret` together. After a restore from an
+up the database *and* `config.php`'s `secret` together. If the secret changes,
+no key opens any more and nothing can be signed; the Bluesky card and the
+setup check then say how many keys cannot be opened, and
+`OC_OLD_SECRET=<previous secret> php occ social:atproto:keys:reseal
+--old-secret-from-env` seals every key again under the new secret while the
+old one is still known. Without the old secret, the keys are lost. After a restore from an
 older backup the firehose sequence goes backwards; run `php occ
 social:atproto:crawl` and the relays re-read every repository.
 `php occ social:atproto:rotate-key` replaces the instance rotation key; the old

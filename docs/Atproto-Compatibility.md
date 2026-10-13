@@ -1430,8 +1430,9 @@ identity switched off is listed with its state and left off; `--list`),
 `social:atproto:resolve <handle|did>`, `social:atproto:repo <user>`
 (head, record counts, `--verify` recomputes the MST and compares),
 `social:atproto:block <host|did>` / `--unblock`, `social:atproto:crawl`
-(`requestCrawl` now), `social:atproto:rotate-key`. Each documented in
-OCC-Commands.md with the usual shape.
+(`requestCrawl` now), `social:atproto:rotate-key`,
+`social:atproto:keys:reseal` (§16.3). Each documented in OCC-Commands.md
+with the usual shape.
 
 ### 14.4 Configuration
 
@@ -1507,12 +1508,21 @@ A proxied call is counted against the user's rate limit.
 ### 16.3 Rotation
 
 The instance rotation key is rotated by the administrator (`occ
-social:atproto:rotate-key`, admin page): a PLC operation per identity
-(queued, rate-limited by the PLC's limits — *verify*), the old key kept
-for the 72-hour window and then deleted. An account's signing key is
-rotated when its sealing secret changes (Nextcloud's `secret` rotation) —
-the setup check notices the seal no longer opens and the repair re-signs
-the repository with a fresh key and a PLC update.
+social:atproto:rotate-key`, admin page): a PLC operation per active or
+pending identity (queued, paced, resent by the maintenance job), the old
+key kept for the 72-hour window and then deleted.
+
+A change of Nextcloud's `secret` is not a key rotation: no sealed key
+opens any more, so nothing can be signed, and the keys are not replaced
+— they are the DIDs. The status checks (`AtprotoStatusService`, the
+Bluesky card, the setup check) count the keys that do not open, and
+`occ social:atproto:keys:reseal` (`KeySealService`) opens each with the
+previous secret, read from `OC_OLD_SECRET`, and stores it sealed with the
+current one; the instance keys, retired ones included, and the signing
+keys of every identity that still signs. A key neither secret opens is
+reported and left as it is: without the previous secret, the only way
+back is the person's recovery phrase (§4.4), which this app does not yet
+take back.
 
 ### 16.4 Input
 
