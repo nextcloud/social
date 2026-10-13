@@ -20,6 +20,7 @@ use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcException;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Service\CurlService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IConfig;
@@ -52,7 +53,7 @@ class AppViewProxyTest extends TestCase {
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturn(1760000000);
 		$this->curl = $this->createMock(CurlService::class);
-		$this->proxy = new AppViewProxy($config, $identities, new ServiceAuth($time), $this->curl, new NullLogger());
+		$this->proxy = new AppViewProxy($config, $identities, new ServiceAuth($time, $this->createStub(AtprotoOAuthRequest::class)), $this->curl, new NullLogger());
 		$this->session = new ClientSession('alice', new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', 'sealed', '', '', Identity::STATE_ACTIVE, '', 0), 'jti');
 	}
 

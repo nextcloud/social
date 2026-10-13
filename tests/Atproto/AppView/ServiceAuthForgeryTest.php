@@ -13,6 +13,7 @@ use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Protocol\Encoding;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -38,7 +39,7 @@ class ServiceAuthForgeryTest extends TestCase {
 		self::$key ??= PrivateKey::generate(Curve::K256);
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturn(self::NOW);
-		$this->auth = new ServiceAuth($time);
+		$this->auth = new ServiceAuth($time, $this->replay());
 	}
 
 	public function testTheGenuineTokenIsTaken(): void {
@@ -83,6 +84,22 @@ class ServiceAuthForgeryTest extends TestCase {
 	#[DataProvider('forgeries')]
 	public function testAForgedTokenIsRefused(string $token): void {
 		$this->assertFalse($this->auth->verify($token, self::$key->publicKey(), self::AUD, self::LXM));
+	}
+
+	/** A replay record that remembers what it was given, as the table does. */
+	private function replay(): AtprotoOAuthRequest {
+		$seen = [];
+		$replay = $this->createStub(AtprotoOAuthRequest::class);
+		$replay->method('firstUse')->willReturnCallback(static function (string $hash) use (&$seen): bool {
+			if (isset($seen[$hash])) {
+				return false;
+			}
+			$seen[$hash] = true;
+
+			return true;
+		});
+
+		return $replay;
 	}
 
 	private static function claims(): array {

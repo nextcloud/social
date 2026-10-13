@@ -103,6 +103,9 @@ class ServiceAuthGrant {
 		if (!$valid || !isset($identity, $userId) || $userId === '') {
 			throw new XrpcException(401, 'InvalidToken', 'Token could not be verified');
 		}
+		if (!$this->serviceAuth->firstUse($claims)) {
+			throw new XrpcException(401, 'InvalidToken', 'Token was used before');
+		}
 		if (!$identity->isActive()) {
 			throw new XrpcException(400, 'AccountDeactivated', 'This account is deactivated');
 		}

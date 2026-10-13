@@ -1388,7 +1388,10 @@ normalisation) with `gmp`; interop vectors pin the signature format.
 ### 16.2 Service auth and the proxy
 
 Service-auth JWTs are short-lived (60 s), bound to `lxm` (the method) and
-`aud`, signed per request; the AppView proxy forwards only `app.bsky.*`,
+`aud`, signed per request; one that arrives here (`createAccount` of a
+move, the video service's `uploadBlob`) is taken once — its `jti` is
+recorded for the token's lifetime, a token without one or dated more than
+a minute ahead is refused. The AppView proxy forwards only `app.bsky.*`,
 strips `Authorization` from the client and adds its own, passes
 `atproto-accept-labelers` and `atproto-proxy` through, and limits the body.
 A proxied call is counted against the user's rate limit.

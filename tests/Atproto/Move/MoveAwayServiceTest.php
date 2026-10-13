@@ -28,6 +28,7 @@ use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
@@ -109,7 +110,7 @@ class MoveAwayServiceTest extends TestCase {
 			$this->queued[] = [$job, $argument];
 		});
 		$this->moves = new MoveAwayService(
-			$pds, new ServiceAuth($time), $this->identities, $repositories, $blobs, $pictures, $this->createMock(VideoBlobService::class),
+			$pds, new ServiceAuth($time, $this->createStub(AtprotoOAuthRequest::class)), $this->identities, $repositories, $blobs, $pictures, $this->createMock(VideoBlobService::class),
 			$preferences, $request, $crypto, $jobs, new NullLogger(),
 		);
 		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['did' => self::PDS_DID, 'availableUserDomains' => ['.pds.example.com'], 'inviteCodeRequired' => false]]];

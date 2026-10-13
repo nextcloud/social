@@ -12,6 +12,7 @@ namespace OCA\Social\Atproto\AppView;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Crypto\PublicKey;
 use OCA\Social\Atproto\Protocol\Encoding;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Throwable;
 
@@ -20,13 +21,17 @@ use Throwable;
  * answers a request as one of its users. Signed with the user's signing
  * key, addressed to one service and valid for one method, for a minute
  * unless asked for longer, as `com.atproto.server.getServiceAuth` hands out.
- * The same tokens arrive here too, from an account another PDS holds.
+ * The same tokens arrive here too, from an account another PDS holds, and
+ * each is taken once: its `jti` is recorded for the token's lifetime.
  */
 class ServiceAuth {
 	public const LIFETIME = 60;
+	/** what a clock may be off by, between this server and the one that signed a token */
+	public const SKEW = 60;
 
 	public function __construct(
 		private ITimeFactory $time,
+		private AtprotoOAuthRequest $replay,
 	) {
 	}
 
@@ -63,8 +68,8 @@ class ServiceAuth {
 
 	/**
 	 * Whether a token is good: signed with $key, addressed to $audience,
-	 * for $method, and unexpired. Either form of S is taken, as a JOSE
-	 * signature may come in either.
+	 * for $method, unexpired, and presented for the first time. Either form
+	 * of S is taken, as a JOSE signature may come in either.
 	 */
 	public function verify(string $token, PublicKey $key, string $audience, string $method): bool {
 		$decoded = self::decode($token);
@@ -79,7 +84,30 @@ class ServiceAuth {
 			return false;
 		}
 
-		return $key->verify($signed, $signature, false);
+		return $key->verify($signed, $signature, false) && $this->firstUse($claims);
+	}
+
+	/**
+	 * Records a token's use and refuses a second one: a token presented
+	 * before, one without an id, or one dated further in the future than a
+	 * clock may be off by. For a verifier to call once the signature is good,
+	 * so that a forgery records nothing.
+	 *
+	 * @param array<string, mixed> $claims
+	 * @return bool whether this is the token's first use
+	 */
+	public function firstUse(array $claims): bool {
+		$jti = $claims['jti'] ?? '';
+		if (!is_string($jti) || $jti === '' || strlen($jti) > 256) {
+			return false;
+		}
+		$now = $this->time->getTime();
+		if (is_int($claims['iat'] ?? null) && $claims['iat'] > $now + self::SKEW) {
+			return false;
+		}
+		$exp = max((int)($claims['exp'] ?? 0), $now);
+
+		return $this->replay->firstUse(hash('sha256', 'svc|' . (string)($claims['iss'] ?? '') . '|' . $jti), $exp + self::SKEW);
 	}
 
 	/**

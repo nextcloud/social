@@ -22,6 +22,7 @@ use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Publisher\VideoUploadService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Db\AtprotoVideoRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -144,7 +145,7 @@ class VideoUploadServiceTest extends TestCase {
 		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 
 		$this->uploads = new VideoUploadService(
-			$config, $this->videoRequest, $blobRequest, $identities, new ServiceAuth($time), $documents, $cache,
+			$config, $this->videoRequest, $blobRequest, $identities, new ServiceAuth($time, $this->createStub(AtprotoOAuthRequest::class)), $documents, $cache,
 			$curl, $time, new NullLogger(),
 		);
 	}
