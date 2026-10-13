@@ -14,8 +14,11 @@ use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Tests\Integration\Helper\RowSeeder;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
@@ -43,6 +46,10 @@ class StreamStatisticsTest extends TestCase {
 	private int $second;
 	/** @var string[] prims of the boosts */
 	private array $boosts = [];
+	/** @var string[] prims of the likes */
+	private array $likes = [];
+	/** @var string[] prims of the notifications */
+	private array $notifications = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -70,6 +77,7 @@ class StreamStatisticsTest extends TestCase {
 		$this->boost(self::BOB, 'a1');
 		$this->boost(self::BOB, 'a1');
 		$this->boost(self::CAROL, 'a2');
+		$this->like(self::BOB, 'a1');
 	}
 
 	protected function tearDown(): void {
@@ -82,6 +90,9 @@ class StreamStatisticsTest extends TestCase {
 			$this->streamRequest->deleteById($this->id($suffix));
 		}
 		$this->streamRequest->deleteByPrims($this->boosts);
+		$this->streamRequest->deleteByPrims($this->notifications);
+		RowSeeder::deleteIn(CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id', $this->notifications);
+		RowSeeder::deleteIn(CoreRequestBuilder::TABLE_ACTIONS, 'id_prim', $this->likes);
 		$this->cacheActorsRequest->deleteCacheById(self::BOB);
 	}
 
@@ -115,6 +126,30 @@ class StreamStatisticsTest extends TestCase {
 			'attributed_to' => $actor, 'attributed_to_prim' => md5($actor),
 			'object_id' => $this->id($of), 'object_id_prim' => md5($this->id($of)),
 			'published_time' => new \DateTime('@' . $this->second),
+		]);
+	}
+
+	private function like(string $actor, string $of): void {
+		$id = $actor . '/likes/' . bin2hex(random_bytes(4));
+		$this->likes[] = md5($id);
+		RowSeeder::insert(CoreRequestBuilder::TABLE_ACTIONS, [
+			'id' => $id, 'id_prim' => md5($id), 'type' => Like::TYPE,
+			'actor_id' => $actor, 'actor_id_prim' => md5($actor),
+			'object_id' => $this->id($of), 'object_id_prim' => md5($this->id($of)),
+		]);
+	}
+
+	/** A notification of one kind raised by an account for a recipient. */
+	private function notification(string $recipient, string $from, string $subType, int $offset): void {
+		$id = $from . '/notification+' . $subType . '/' . bin2hex(random_bytes(4));
+		$this->notifications[] = md5($id);
+		RowSeeder::insert(CoreRequestBuilder::TABLE_STREAM, [
+			'id' => $id, 'id_prim' => md5($id), 'type' => SocialAppNotification::TYPE, 'subtype' => $subType,
+			'local' => true, 'attributed_to' => $from, 'attributed_to_prim' => md5($from),
+			'published_time' => new \DateTime('@' . ($this->second + $offset)),
+		]);
+		RowSeeder::insert(CoreRequestBuilder::TABLE_STREAM_DEST, [
+			'stream_id' => md5($id), 'actor_id' => md5($recipient), 'type' => 'notif', 'subtype' => '',
 		]);
 	}
 
@@ -181,5 +216,30 @@ class StreamStatisticsTest extends TestCase {
 		);
 		$this->assertSame([], $this->streamRequest->boostersOf(['not-a-url']));
 		$this->assertSame([], $this->streamRequest->boostersOf([]));
+	}
+
+	/** Every like, boost and reply once for whoever made it. */
+	public function testTheReactionsToPostsAreCountedByWhoMadeThem(): void {
+		$reactions = $this->streamRequest->reactionsOf([$this->id('a1'), $this->id('a2'), $this->id('a3')]);
+		ksort($reactions);
+
+		// Bob: two boosts and a like of a1, replies b2 and b3; Carol: the
+		// boost of a2 and the reply c1; Alice's own reply a5 to a1
+		$this->assertSame([self::ALICE => 1, self::BOB => 5, self::CAROL => 2], $reactions);
+		$this->assertSame([], $this->streamRequest->reactionsOf([]));
+	}
+
+	/** Each account once, the account's own notifications only, from a moment on. */
+	public function testTheAccountsThatRaisedOneKindOfNotificationAreCountedOnce(): void {
+		$kind = Stream::SUBTYPE_BLUESKY_STARTER_PACK;
+		$this->notification(self::ALICE, self::BOB, $kind, 0);
+		$this->notification(self::ALICE, self::BOB, $kind, 1);
+		$this->notification(self::ALICE, self::CAROL, $kind, 5);
+		$this->notification(self::BOB, self::CAROL, $kind, 5);
+		$this->notification(self::ALICE, self::CAROL, 'Something else', 5);
+
+		$this->assertSame(2, $this->streamRequest->countNotifiersOf(self::ALICE, $kind));
+		$this->assertSame(1, $this->streamRequest->countNotifiersOf(self::ALICE, $kind, $this->second + 3));
+		$this->assertSame(1, $this->streamRequest->countNotifiersOf(self::BOB, $kind));
 	}
 }

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Atproto\Reader\BlueskyStatistics;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -21,6 +22,7 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\DurableCache;
+use OCA\Social\Service\Statistics\StatisticsSource;
 use OCA\Social\Service\StatisticsService;
 use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -29,6 +31,7 @@ use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 
 #[AllowMockObjectsWithoutExpectations]
 class StatisticsServiceTest extends TestCase {
@@ -89,6 +92,7 @@ class StatisticsServiceTest extends TestCase {
 		$post->setDetailInt('likes', $values['likes'] ?? 0);
 		$post->setDetailInt('boosts', $values['boosts'] ?? 0);
 		$post->setDetailInt('replies', $values['replies'] ?? 0);
+		$post->setDetailInt('quotes', $values['quotes'] ?? 0);
 		$post->setHashtags($values['hashtags'] ?? []);
 		if ($values['media'] ?? false) {
 			$post->setAttachments([new MediaAttachment()]);
@@ -400,6 +404,145 @@ class StatisticsServiceTest extends TestCase {
 		$this->assertSame(3, $stats['audience']['by_month'][gmdate('Y-m')]);
 	}
 
+	/**
+	 * A service whose other network holds the accounts named here: their
+	 * server, and the posts that went out on it.
+	 *
+	 * @param array<string, string> $homes host by actor id
+	 * @param array{network: string, posts: int}|null $reached
+	 */
+	private function withNetwork(array $homes, ?array $reached = null): StatisticsService {
+		$source = new class($homes, $reached) implements StatisticsSource {
+			/** @var list<list<string>> */
+			public array $asked = [];
+
+			public function __construct(
+				private array $homes,
+				private ?array $reached,
+			) {
+			}
+
+			public function homeServers(array $actorIds): array {
+				return array_intersect_key($this->homes, array_flip($actorIds));
+			}
+
+			public function reached(Person $actor, array $postIds): ?array {
+				$this->asked[] = $postIds;
+
+				return $this->reached;
+			}
+		};
+		$container = $this->createStub(ContainerInterface::class);
+		$container->method('get')->willReturnCallback(
+			static fn (string $class): ?object => $class === BlueskyStatistics::class ? $source : null
+		);
+		$cacheFactory = $this->createStub(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now ?? time());
+
+		return new StatisticsService(
+			$this->streamRequest,
+			$this->followsRequest,
+			$this->cacheActorsRequest,
+			new DurableCache($cacheFactory, new InMemoryDurableCacheRequest(), $time),
+			$time,
+			$container,
+		);
+	}
+
+	public function testAQuoteIsEngagementLikeTheOtherThree(): void {
+		$this->answering([
+			$this->post(2, ['likes' => 1, 'quotes' => 2]),
+			$this->post(1, ['boosts' => 1]),
+		]);
+
+		$stats = $this->service->forAccount($this->alice());
+
+		$this->assertSame(2, $stats['engagement']['quotes']);
+		$this->assertSame(1.0, $stats['engagement']['quotes_per_post']);
+		$this->assertSame(4, $stats['rates']['total']);
+		$this->assertSame(3, $stats['best'][0]['score']);
+		$this->assertSame(2, $stats['best'][0]['quotes']);
+	}
+
+	/**
+	 * A follower on another network is on the server that network says it
+	 * lives on, not on the host its id happens to name.
+	 */
+	public function testAFollowerIsOnTheServerItsNetworkSaysItLivesOn(): void {
+		$this->followsRequest->method('countFollowers')->willReturn(3);
+		$this->followsRequest->method('getFollowerOrigins')->willReturn([
+			['actor_id' => 'https://bsky.app/profile/did:plc:aaa', 'creation' => gmdate('Y-m-d H:i:s')],
+			['actor_id' => 'https://bsky.app/profile/did:plc:bbb', 'creation' => gmdate('Y-m-d H:i:s')],
+			['actor_id' => self::BOB, 'creation' => gmdate('Y-m-d H:i:s')],
+		]);
+		$this->answering([]);
+		$service = $this->withNetwork([
+			'https://bsky.app/profile/did:plc:aaa' => 'bsky.social',
+			'https://bsky.app/profile/did:plc:bbb' => 'bsky.social',
+		]);
+
+		$stats = $service->forAccount($this->alice());
+
+		$this->assertSame(
+			[['host' => 'bsky.social', 'count' => 2], ['host' => 'remote.example', 'count' => 1]],
+			$stats['audience']['instances']
+		);
+	}
+
+	public function testTheEngagementIsListedByTheServersOfWhoeverMadeIt(): void {
+		$this->answering([$this->post(2), $this->post(1)]);
+		$this->streamRequest->method('reactionsOf')
+			->with([self::ALICE . '/2', self::ALICE . '/1'])
+			->willReturn([
+				self::BOB => 3,
+				self::CAROL => 1,
+				'https://bsky.app/profile/did:plc:aaa' => 2,
+				'https://cloud.example/apps/social/@dave' => 2,
+				// the account answering itself is a thread, not an audience
+				self::ALICE => 5,
+			]);
+		$service = $this->withNetwork(['https://bsky.app/profile/did:plc:aaa' => 'bsky.social']);
+
+		$sources = $service->forAccount($this->alice())['engagement_sources'];
+
+		$this->assertSame(
+			[
+				['host' => 'remote.example', 'count' => 4],
+				['host' => 'bsky.social', 'count' => 2],
+				['host' => 'cloud.example', 'count' => 2],
+			],
+			$sources['servers']
+		);
+		$this->assertSame(8, $sources['counted']);
+		$this->assertSame(25.0, $sources['local_share']);
+	}
+
+	public function testANetworkThatCarriedSomeOfThePostsIsNamedWithHowMany(): void {
+		$this->answering([$this->post(2), $this->post(1)]);
+
+		$reached = $this->withNetwork([], ['network' => 'Bluesky', 'posts' => 1])->forAccount($this->alice())['reach'];
+		$none = $this->withNetwork([], ['network' => 'Bluesky', 'posts' => 0])->forAccount($this->alice())['reach'];
+		$off = $this->withNetwork([], null)->forAccount($this->alice())['reach'];
+
+		$this->assertSame([['network' => 'Bluesky', 'posts' => 1]], $reached['networks']);
+		$this->assertSame([], $none['networks']);
+		$this->assertSame([], $off['networks']);
+	}
+
+	public function testTheStarterPackJoinsAreCountedOverTheWindow(): void {
+		$this->now = strtotime('2026-10-14T12:00:00Z');
+		$this->answering([]);
+		$this->streamRequest->expects($this->once())->method('countNotifiersOf')
+			->with(self::ALICE, Stream::SUBTYPE_BLUESKY_STARTER_PACK, $this->now - 30 * 86400)
+			->willReturn(4);
+
+		$stats = $this->service->forAccount($this->alice(), 30);
+
+		$this->assertSame(4, $stats['audience']['starter_pack_joins']);
+	}
+
 	/** The walk stops, and says that it did. */
 	public function testTheWalkIsBoundedAndTheAnswerSaysSo(): void {
 		// newest first, which is the order a timeline answers in and the order
@@ -567,7 +710,7 @@ class StatisticsServiceTest extends TestCase {
 		$this->assertNotContains('0', array_column($timeline, 'id'));
 		// what the list draws a row out of
 		$this->assertSame(
-			['id', 'url', 'published_at', 'excerpt', 'likes', 'boosts', 'replies', 'score', 'media', 'visibility', 'reach'],
+			['id', 'url', 'published_at', 'excerpt', 'likes', 'boosts', 'replies', 'quotes', 'score', 'media', 'visibility', 'reach'],
 			array_keys($timeline[0])
 		);
 	}

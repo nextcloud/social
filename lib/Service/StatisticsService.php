@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Reader\BlueskyStatistics;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -18,8 +19,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Details;
+use OCA\Social\Service\Statistics\StatisticsSource;
 use OCA\Social\Tools\DbTime;
 use OCP\AppFramework\Utility\ITimeFactory;
+use Psr\Container\ContainerInterface;
 
 /**
  * What an account has done here, and what came back.
@@ -123,6 +126,7 @@ class StatisticsService {
 		private CacheActorsRequest $cacheActorsRequest,
 		private DurableCache $cache,
 		private ITimeFactory $timeFactory,
+		private ?ContainerInterface $container = null,
 	) {
 	}
 
@@ -186,7 +190,9 @@ class StatisticsService {
 			'with_media' => 0,
 			'sensitive' => 0,
 		];
-		$engagement = ['likes' => 0, 'boosts' => 0, 'replies' => 0];
+		$engagement = ['likes' => 0, 'boosts' => 0, 'replies' => 0, 'quotes' => 0];
+		/** the posts the account wrote that were counted, for who answered them */
+		$writtenIds = [];
 		$visibility = [
 			Stream::TYPE_PUBLIC => 0,
 			Stream::TYPE_UNLISTED => 0,
@@ -325,16 +331,21 @@ class StatisticsService {
 				$visibility[$scope]++;
 			}
 
+			$writtenIds[] = $post->getId();
 			$likes = $post->getDetailInt(Details::LIKES);
 			$boosts = $post->getDetailInt(Details::BOOSTS);
 			$replies = $post->getDetailInt(Details::REPLIES);
+			$quotes = $post->getDetailInt(Details::QUOTES);
 			$engagement['likes'] += $likes;
 			$engagement['boosts'] += $boosts;
 			$engagement['replies'] += $replies;
+			$engagement['quotes'] += $quotes;
 
 			// one post's engagement: what an agency means by the word, and
-			// what every rate below is built out of
-			$score = $likes + $boosts + $replies;
+			// what every rate below is built out of. A quote is somebody
+			// passing the post on with words of their own, which is a boost
+			// and a reply at once, and counts once like either
+			$score = $likes + $boosts + $replies + $quotes;
 			$scores[] = $score;
 			if ($score === 0) {
 				$silent++;
@@ -374,6 +385,7 @@ class StatisticsService {
 				'likes' => $likes,
 				'boosts' => $boosts,
 				'replies' => $replies,
+				'quotes' => $quotes,
 				'score' => $score,
 			];
 			$best[] = $row;
@@ -396,7 +408,10 @@ class StatisticsService {
 		$written = $posts['originals'] + $posts['replies'];
 		$followers = $this->followsRequest->countFollowers($actor->getId());
 		$audience = $this->audience($actor, $followers);
-		$total = $engagement['likes'] + $engagement['boosts'] + $engagement['replies'];
+		$audience['starter_pack_joins'] = $this->streamRequest->countNotifiersOf(
+			$actor->getId(), Stream::SUBTYPE_BLUESKY_STARTER_PACK, $since
+		);
+		$total = $engagement['likes'] + $engagement['boosts'] + $engagement['replies'] + $engagement['quotes'];
 		$reach = $this->withReach($recent, $followers);
 
 		return [
@@ -417,7 +432,9 @@ class StatisticsService {
 				'likes_per_post' => $this->ratio($engagement['likes'], $written),
 				'boosts_per_post' => $this->ratio($engagement['boosts'], $written),
 				'replies_per_post' => $this->ratio($engagement['replies'], $written),
+				'quotes_per_post' => $this->ratio($engagement['quotes'], $written),
 			]),
+			'engagement_sources' => $this->engagementSources($actor, $writtenIds),
 			'visibility' => $visibility,
 			'rates' => [
 				// the four an agency reports on, under the names they report
@@ -463,6 +480,9 @@ class StatisticsService {
 				// than instead of it, because a post written before the
 				// instance paths were stored has none and would read as zero
 				'instances' => count($deliveredTo),
+				// the networks a post goes out on without an instance to
+				// deliver it to, which an instance path cannot record
+				'networks' => $this->networksReached($actor, $writtenIds),
 			],
 			// what the account did, rather than what came back
 			'activity' => $activity,
@@ -987,6 +1007,7 @@ class StatisticsService {
 		$local = 0;
 		$rows = $this->followsRequest->getFollowerOrigins($actor->getId(), self::MAX_FOLLOWERS);
 		$here = parse_url($actor->getId(), PHP_URL_HOST);
+		$homes = $this->homeServers(array_map(static fn (array $row): string => (string)$row['actor_id'], $rows));
 
 		foreach ($rows as $row) {
 			$month = ($row['creation'] === '') ? '' : gmdate('Y-m', DbTime::toTimestamp($row['creation']));
@@ -994,8 +1015,8 @@ class StatisticsService {
 				$byMonth[$month]++;
 			}
 
-			$host = parse_url($row['actor_id'], PHP_URL_HOST);
-			if (!is_string($host) || $host === '') {
+			$host = $homes[(string)$row['actor_id']] ?? '';
+			if ($host === '') {
 				continue;
 			}
 			if ($host === $here) {
@@ -1096,5 +1117,105 @@ class StatisticsService {
 		}
 
 		return mb_substr($text, 0, 89) . '…';
+	}
+	/**
+	 * Where the likes, boosts and replies to these posts came from: the
+	 * servers of the accounts that made them, the most frequent first, and
+	 * the share made by accounts on this server. The account's own replies
+	 * to itself are a thread it wrote, not an answer, and are left out.
+	 *
+	 * @param list<string> $postIds
+	 *
+	 * @return array{servers: list<array{host: string, count: int}>, local_share: float, counted: int}
+	 */
+	private function engagementSources(Person $actor, array $postIds): array {
+		$reactions = $this->streamRequest->reactionsOf($postIds);
+		$homes = $this->homeServers(array_keys($reactions));
+		$here = parse_url($actor->getId(), PHP_URL_HOST);
+
+		$hosts = [];
+		$local = 0;
+		$counted = 0;
+		foreach ($reactions as $actorId => $count) {
+			$host = $homes[(string)$actorId] ?? '';
+			if ($host === '' || (string)$actorId === $actor->getId()) {
+				continue;
+			}
+			$counted += $count;
+			if ($host === $here) {
+				$local += $count;
+			}
+			$hosts[$host] = ($hosts[$host] ?? 0) + $count;
+		}
+
+		arsort($hosts);
+		$servers = [];
+		foreach (array_slice($hosts, 0, self::TOP_HASHTAGS, true) as $host => $count) {
+			$servers[] = ['host' => (string)$host, 'count' => $count];
+		}
+
+		return [
+			'servers' => $servers,
+			'local_share' => ($counted < 1) ? 0.0 : round((float)$local / (float)$counted * 100.0, 1),
+			'counted' => $counted,
+		];
+	}
+
+	/**
+	 * The networks the account's posts also went out on, each with how many
+	 * of the counted posts did.
+	 *
+	 * @param list<string> $postIds
+	 *
+	 * @return list<array{network: string, posts: int}>
+	 */
+	private function networksReached(Person $actor, array $postIds): array {
+		if ($postIds === []) {
+			return [];
+		}
+
+		$networks = [];
+		foreach ($this->sources() as $source) {
+			$reached = $source->reached($actor, $postIds);
+			if ($reached !== null && $reached['posts'] > 0) {
+				$networks[] = $reached;
+			}
+		}
+
+		return $networks;
+	}
+
+	/**
+	 * The server each account lives on: the host of its id, unless a network
+	 * that holds the account knows better.
+	 *
+	 * @param list<string> $actorIds
+	 *
+	 * @return array<string, string> host by actor id; '' where there is none
+	 */
+	private function homeServers(array $actorIds): array {
+		$homes = [];
+		foreach ($actorIds as $actorId) {
+			$host = parse_url($actorId, PHP_URL_HOST);
+			$homes[$actorId] = is_string($host) ? strtolower($host) : '';
+		}
+		foreach ($this->sources() as $source) {
+			$homes = array_merge($homes, $source->homeServers(array_values(array_unique($actorIds))));
+		}
+
+		return $homes;
+	}
+
+	/** @return list<StatisticsSource> */
+	private function sources(): array {
+		$sources = [];
+		foreach ([BlueskyStatistics::class] as $class) {
+			$source = $this->container?->get($class);
+			if ($source instanceof StatisticsSource) {
+				$sources[] = $source;
+			}
+		}
+
+		return $sources;
 	}
 }

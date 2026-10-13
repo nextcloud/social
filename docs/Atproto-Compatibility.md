@@ -1167,6 +1167,18 @@ account the person does not follow, `for_new_accounts` reads the DID
 document's creation time (the first PLC operation's `createdAt`) as the
 account age, and the requests inbox shows the sender with the badge.
 
+The **statistics page** counts all of this as it counts the fediverse's:
+a Bluesky like, repost or reply is engagement like any other, and a
+Bluesky follower is a follower (`Atproto\Reader\BlueskyStatistics`, a
+`Service\Statistics\StatisticsSource`). Two things differ and are taken
+from Bluesky's side. The server a Bluesky account is on is its PDS, as its
+DID document names it; Bluesky's own `*.bsky.network` hosts are shown as one
+`bsky.social`, and so is an account whose DID document was never read. A
+post that also went out on Bluesky is counted from its author's repository
+(a `app.bsky.feed.post` record carrying the post's id), because it is never
+delivered to an instance and has no instance path. `starterpack-joined`
+notifications are counted as the followers a starter pack brought.
+
 ### 10.1 Direct messages
 
 A conversation with somebody on Bluesky is a conversation in **Messages**

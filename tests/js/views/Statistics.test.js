@@ -414,6 +414,73 @@ describe('Statistics', () => {
 		expect(wrapper.findAll('.stats__bars--followers .stats__bar')).toHaveLength(2)
 	})
 
+	it('counts quotes beside the likes, boosts and replies', async () => {
+		const base = answer()
+		axios.get.mockResolvedValue({ data: answer({ engagement: { ...base.engagement, quotes: 7, quotes_per_post: 0.5 } }) })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const shown = text(wrapper)
+		expect(shown).toContain('quotes received')
+		expect(shown).toContain('0.5 per post')
+	})
+
+	it('says where the engagement comes from, who came through a starter pack, and where else the posts went', async () => {
+		const base = answer()
+		axios.get.mockResolvedValue({
+			data: answer({
+				audience: { ...base.audience, starter_pack_joins: 3 },
+				engagement_sources: {
+					servers: [{ host: 'bsky.social', count: 12 }, { host: 'remote.example', count: 4 }],
+					local_share: 10,
+					counted: 16,
+				},
+				reach: { ...base.reach, networks: [{ network: 'Bluesky', posts: 9 }] },
+			}),
+		})
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const shown = text(wrapper)
+		expect(shown).toContain('Where the engagement comes from')
+		expect(shown).toContain('bsky.social')
+		expect(shown).toContain('10% came from accounts on this server')
+		expect(shown).toContain('3 people followed you after joining through one of your starter packs')
+		expect(shown).toContain('9 of these posts also went out on Bluesky')
+	})
+
+	it('says the survey of the network leaves out a network the posts also went out on', async () => {
+		const base = answer()
+		const network = { peers: 2, servers: 42809, accounts: 1, active: 1, measured: '', source: 'FediDB', source_url: 'https://fedidb.org' }
+		axios.get.mockResolvedValue({ data: answer({ network, reach: { ...base.reach, networks: [{ network: 'Bluesky', posts: 9 }] } }) })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(text(wrapper)).toContain('These figures are for the fediverse only. Bluesky publishes no count of its accounts')
+
+		axios.get.mockResolvedValue({ data: answer({ network }) })
+		const alone = mountPage()
+		await flushPromises()
+
+		expect(text(alone)).not.toContain('fediverse only')
+	})
+
+	it('says nothing of other networks or starter packs when there is nothing to say', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+
+		const wrapper = mountPage()
+		await flushPromises()
+
+		const shown = text(wrapper)
+		expect(shown).not.toContain('Where the engagement comes from')
+		expect(shown).not.toContain('starter pack')
+		expect(shown).not.toContain('also went out on')
+		expect(shown).not.toContain('fediverse only')
+	})
+
 	it('puts the two windows side by side, each figure against the one before it', async () => {
 		axios.get.mockResolvedValue({ data: answer() })
 

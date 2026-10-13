@@ -215,6 +215,17 @@ class StatisticsController extends ClientApiController {
 			}
 		}
 
+		foreach ($statistics['audience']['instances'] ?? [] as $server) {
+			$rows[] = ['followers by server', (string)($server['host'] ?? ''), $server['count'] ?? 0];
+		}
+		$rows[] = ['audience', 'starter pack joins', $statistics['audience']['starter_pack_joins'] ?? 0];
+		foreach ($statistics['engagement_sources']['servers'] ?? [] as $server) {
+			$rows[] = ['engagement by server', (string)($server['host'] ?? ''), $server['count'] ?? 0];
+		}
+		foreach ($statistics['reach']['networks'] ?? [] as $network) {
+			$rows[] = ['posts also on', (string)($network['network'] ?? ''), $network['posts'] ?? 0];
+		}
+
 		foreach ($rows as $row) {
 			fputcsv($handle, $row, ',', '"', '');
 		}
