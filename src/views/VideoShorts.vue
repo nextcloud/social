@@ -268,6 +268,13 @@ import { isRanked, useTimelineStore } from '../store/timeline.js'
 import { hasInterestsFeed, isTracking } from '../services/interests.js'
 import { createShortSignals } from '../services/shortSignals.js'
 import { interestReason } from '../utils/interestReason.js'
+
+/**
+ * What a clip must have gathered — likes, boosts and views together — before
+ * "Popular right now" or "Trending here" is said of it. Below this the slide
+ * carries the author line alone.
+ */
+const POPULARITY_FLOOR = 10
 import { oldestId } from '../utils/snowflake.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 import logger from '../services/logger.js'
@@ -659,11 +666,33 @@ export default {
 		},
 
 		/**
+		 * Why For you showed a slide, as the chip over a post says it — except
+		 * that popularity is only claimed of a clip that has some: For you
+		 * fills a short ranking with what is trending in the same kind, and
+		 * on a small server that is a clip nobody has touched yet.
+		 *
 		 * @param {object} status a slide's post
 		 * @return {{text: string, label: string}|null} why For you showed it
 		 */
 		reasonOf(status) {
-			return interestReason(status?.interest)
+			const reason = interestReason(status?.interest)
+			if (reason === null) {
+				return null
+			}
+			if (['popular', 'trending'].includes(status.interest?.reason) && this.interactionsOf(status) < POPULARITY_FLOOR) {
+				return null
+			}
+
+			return reason
+		},
+
+		/**
+		 * @param {object} status a post
+		 * @return {number} its likes, boosts and views together; a count the
+		 *         server does not send (views on somebody else's post) is 0
+		 */
+		interactionsOf(status) {
+			return (Number(status.favourites_count) || 0) + (Number(status.reblogs_count) || 0) + (Number(status.view_count) || 0)
 		},
 
 		setSlide(el, index) {

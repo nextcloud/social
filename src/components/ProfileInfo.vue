@@ -549,7 +549,7 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import BlueskyBadge from './BlueskyBadge.vue'
 import FollowButton from './FollowButton.vue'
-import { isBlueskyAccount } from '../utils/accountLocality.js'
+import { isBlueskyAccount, qualifiedHandle } from '../utils/accountLocality.js'
 import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
@@ -715,7 +715,7 @@ export default {
 		 * @return {string}
 		 */
 		fediverseHandle() {
-			return '@' + (this.isLocal ? this.accountInfo.username + '@' + this.hostname : this.accountInfo.acct)
+			return qualifiedHandle(this.accountInfo, this.hostname)
 		},
 
 		/**
@@ -752,9 +752,15 @@ export default {
 			return n('social', '{count} following', '{count} following', count, { count: formatCount(count) })
 		},
 
-		/** @return {string} */
+		/**
+		 * A reader who hides the numbers is not shown other people's follower
+		 * count; their own is theirs to know, as Statistics and the followers
+		 * list already tell it.
+		 *
+		 * @return {string}
+		 */
 		followersLabel() {
-			if (this.serverData.hideCounts === true) {
+			if (this.serverData.hideCounts === true && !this.isOwnProfile) {
 				return t('social', 'Followers')
 			}
 			const count = Number(this.accountInfo.followers_count) || 0

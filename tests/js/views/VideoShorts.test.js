@@ -737,7 +737,7 @@ describe('VideoShorts', () => {
 		})
 
 		it('says why a video is there, as the chip over a post does', async () => {
-			const { wrapper } = await mountShorts([video('1'), { ...video('2'), interest: { tags: [], reason: 'popular' } }], {
+			const { wrapper } = await mountShorts([video('1'), { ...video('2'), favourites_count: 7, reblogs_count: 3, interest: { tags: [], reason: 'popular' } }], {
 				props: { scope: 'interests' },
 				serverData: { public: false, interests: ON },
 			})
@@ -745,6 +745,26 @@ describe('VideoShorts', () => {
 			const reasons = wrapper.findAll('.short__reason')
 			expect(reasons).toHaveLength(1)
 			expect(reasons[0].text()).toBe('Popular right now')
+		})
+
+		/**
+		 * For you fills a short ranking with what trends in the same kind,
+		 * which on a small server is a clip nobody has touched: calling that
+		 * popular, or trending, is the page talking to itself.
+		 */
+		it('claims popularity only of a clip that has some', async () => {
+			const { wrapper } = await mountShorts([
+				{ ...video('1'), favourites_count: 0, reblogs_count: 0, view_count: 1, interest: { tags: [], reason: 'popular' } },
+				{ ...video('2'), favourites_count: 0, interest: { tags: ['shorts'], reason: 'trending' } },
+				{ ...video('3'), favourites_count: 0, interest: { tags: ['skate'], reason: 'followed' } },
+				{ ...video('4'), favourites_count: 2, reblogs_count: 1, view_count: 9, interest: { tags: ['shorts'], reason: 'trending' } },
+			], {
+				props: { scope: 'interests' },
+				serverData: { public: false, interests: ON },
+			})
+
+			const reasons = wrapper.findAll('.short__reason').map((reason) => reason.text())
+			expect(reasons).toEqual(['Because you follow #skate', 'Trending here: #shorts'])
 		})
 
 		it('reports what the reader watched when they move on, under shorts', async () => {

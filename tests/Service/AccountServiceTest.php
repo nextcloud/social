@@ -179,6 +179,8 @@ class AccountServiceTest extends TestCase {
 	/** @var string[] every value written to the fediverse field */
 	private array $fediverseWrites = [];
 	private int $accountUpdates = 0;
+	/** whether the account manager refuses the next updateAccount(), as core does to a handle it could not verify */
+	private bool $accountUpdateRefused = false;
 	/** the display name the user backend holds; '' for none, when Nextcloud shows the user id */
 	private string $displayName = '';
 	/** the scope of the profile picture; a stock Nextcloud federates it */
@@ -220,6 +222,9 @@ class AccountServiceTest extends TestCase {
 		$this->accountManager->method('updateAccount')
 			->willReturnCallback(function (): void {
 				$this->accountUpdates++;
+				if ($this->accountUpdateRefused) {
+					throw new \InvalidArgumentException(IAccountManager::PROPERTY_FEDIVERSE);
+				}
 			});
 	}
 
@@ -961,6 +966,7 @@ class AccountServiceTest extends TestCase {
 		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
 		$this->userManager->method('get')->willReturn($this->user('alice'));
 		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
 		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
 		$this->documentService->method('cacheLocalAvatarByUsername')
 			->willThrowException(new ItemUnknownException());
@@ -979,6 +985,7 @@ class AccountServiceTest extends TestCase {
 		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
 		$this->userManager->method('get')->willReturn($this->user('alice'));
 		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
 		$this->fediverseField = ['value' => 'alice@mastodon.social', 'scope' => IAccountManager::SCOPE_LOCAL];
 		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
 		$this->documentService->method('cacheLocalAvatarByUsername')
@@ -993,6 +1000,99 @@ class AccountServiceTest extends TestCase {
 	}
 
 	/**
+	 * Nextcloud verifies the handle through WebFinger before it stores it, so
+	 * the write comes after the cached copy that answers WebFinger is written.
+	 */
+	public function testTheHandleIsPublishedOnceTheActorIsCached(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->documentService->method('cacheLocalAvatarByUsername')
+			->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+		$this->actorService->expects($this->once())->method('cacheLocalActor')
+			->willReturnCallback(function (): void {
+				$this->assertSame([], $this->fediverseWrites, 'the actor is cached before the handle is written');
+			});
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame(['alice@cloud.example'], $this->fediverseWrites);
+	}
+
+	/**
+	 * The verification Nextcloud runs is a WebFinger request over https: on a
+	 * server whose address is plain http it can never pass, and every attempt
+	 * is an error in the log.
+	 */
+	public function testTheHandleIsNotPublishedOverPlainHttp(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->configService->method('getCloudUrl')->willReturn('http://cloud.example');
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->documentService->method('cacheLocalAvatarByUsername')
+			->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame([], $this->fediverseWrites);
+		$this->assertSame(0, $this->accountUpdates);
+	}
+
+	/**
+	 * A refused write stays on core's in-memory account otherwise, and fails
+	 * every later write to it in the process; and it is not tried again on
+	 * the next profile save, which would be the next error in the log.
+	 */
+	public function testARefusedHandleIsTakenBackOffTheAccountAndNotRetriedAtOnce(): void {
+		$alice = $this->alice();
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
+		$userValues = [];
+		$this->configService->method('getUserValue')->willReturnCallback(
+			function (string $key, string $userId) use (&$userValues): string {
+				return $userValues[$userId . '/' . $key] ?? '';
+			}
+		);
+		$this->configService->method('setValueForUser')->willReturnCallback(
+			function (string $userId, string $key, string $value) use (&$userValues): void {
+				$userValues[$userId . '/' . $key] = $value;
+			}
+		);
+		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
+		$this->documentService->method('cacheLocalAvatarByUsername')
+			->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')
+			->willThrowException(new StreamNotFoundException());
+		$this->accountUpdateRefused = true;
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame(['alice@cloud.example', ''], $this->fediverseWrites, 'written, then taken back');
+		$this->assertSame('', $this->fediverseField['value']);
+		$this->assertEqualsWithDelta(time(), (int)$userValues['alice/' . ConfigService::USER_HANDLE_PUBLISH_FAILED], 5);
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame(1, $this->accountUpdates, 'not tried again within the day');
+
+		$userValues['alice/' . ConfigService::USER_HANDLE_PUBLISH_FAILED] = (string)(time() - AccountService::HANDLE_PUBLISH_RETRY - 1);
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame(2, $this->accountUpdates, 'tried again once the day is over');
+	}
+
+	/**
 	 * The second pass -- the write fires UserUpdatedEvent, whose listener runs
 	 * this again -- finds the field filled and writes nothing.
 	 */
@@ -1001,6 +1101,7 @@ class AccountServiceTest extends TestCase {
 		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
 		$this->userManager->method('get')->willReturn($this->user('alice'));
 		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->configService->method('getCloudUrl')->willReturn('https://cloud.example');
 		$this->withDisplayName('Alice', IAccountManager::SCOPE_FEDERATED);
 		$this->documentService->method('cacheLocalAvatarByUsername')
 			->willThrowException(new ItemUnknownException());

@@ -343,7 +343,10 @@ The sidebar is the map:
   down its edge, and a **New** heading separates them from **Earlier** where
   the page holds both. Each activity is a row like a post in My Feed: who did
   what and how long ago (*3h*, *2w*), with the post or account it is about
-  underneath.
+  underneath. A private message is not laid out there beside the public
+  mentions: its row says *sent you a private message* with a lock, shows its
+  first words (or its content warning), and **Open the conversation** takes
+  you to Direct messages.
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.
@@ -420,7 +423,9 @@ videos, or to shorts, and looking back twice as far, because such posts are rare
 that finds fewer than about forty, the rest is what is popular here in the
 same kind right now — the posts Explore's Pictures and Videos tabs show —
 and those say *Popular right now* rather than naming a hashtag they did not
-match. In Shorts, what counts is how much of each video you watch: all of it,
+match. A short says so, or *Trending here*, only once the clip has gathered
+about ten likes, boosts and views between them; one nobody has touched yet
+carries the author line alone. In Shorts, what counts is how much of each video you watch: all of it,
 or most, counts for a lot, half of it for a little, and swiping it away within
 about two seconds counts against its hashtags. In the Photos and Videos grids,
 opening a post counts.
@@ -822,14 +827,16 @@ table as they always did — and if you already wrote a row called "Pronouns" by
 hand, it is picked up as one.
 
 
-- **Likes and followers.** You are not shown how many likes, dislikes, boosts,
-  replies or followers anything has — not on your posts, not on anybody else's, not on
-  any profile. A number next to a post is a score, and a score is pressure.
+- **Likes and followers.** You are not shown how many likes, dislikes, boosts
+  or replies anything has — not on your posts, not on anybody else's — and
+  other people's profiles show **Followers** without a number. A number next
+  to a post is a score, and a score is pressure.
   **Settings → Reading → Likes and followers → Show the numbers** brings them back. It
   belongs to your account, so your phone apps follow it too: they are sent
-  zero for each of those numbers while they are hidden. Who liked or boosted a
-  post is still there to look at, and so is every reply; following and post
-  counts are not hidden.
+  zero for each of a post's numbers while they are hidden. Who liked or boosted a
+  post is still there to look at, and so is every reply; your own follower
+  count, following and post counts are not hidden — your profile, Statistics
+  and your phone apps all tell you how many people follow you.
 - **Sound and touch.** **Settings → Reading → Sound and touch** has three switches:
   **Play sounds** (a tick on a like, a breath of air when a post goes out, a
   chime when a direct message arrives; off until you turn it on, with

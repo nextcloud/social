@@ -133,7 +133,8 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   Every post says why it is there, and **Less like this** in its menu takes it out.
   **Photos**, **Videos** and **Shorts** offer it too, narrowed to pictures or videos
   and looking back two weeks; where that is too little, the rest is what is popular
-  in the same kind right now, marked *Popular right now*. Shorts opens on it once
+  in the same kind right now, marked *Popular right now* (a short only once it has
+  gathered a few likes, boosts and views). Shorts opens on it once
   your reading has taught it something, and learns from how much of each video you
   watch.
   **Settings → For you** draws the list as a cloud — the bigger the hashtag, the

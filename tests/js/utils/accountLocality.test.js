@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { isBlueskyAccount, isBlueskyHandle, isLocalAccount } from '../../../src/utils/accountLocality.js'
+import { isBlueskyAccount, isBlueskyHandle, isLocalAccount, qualifiedHandle } from '../../../src/utils/accountLocality.js'
 
 const local = { acct: 'alice', username: 'alice', bluesky: null }
 const localOnBluesky = { acct: 'alice', username: 'alice', bluesky: { handle: 'alice.cloud.example', did: 'did:plc:a', url: 'https://bsky.app/profile/alice.cloud.example', native: false, active: true } }
@@ -51,5 +51,18 @@ describe('isBlueskyHandle', () => {
 		expect(isBlueskyHandle('bob@remote.example')).toBe(false)
 		expect(isBlueskyHandle('')).toBe(false)
 		expect(isBlueskyHandle(undefined)).toBe(false)
+	})
+})
+
+describe('qualifiedHandle', () => {
+	it('writes a local account with this host, as Mastodon sends its acct bare', () => {
+		expect(qualifiedHandle(local, 'cloud.example')).toBe('@alice@cloud.example')
+		expect(qualifiedHandle(localOnBluesky, 'cloud.example')).toBe('@alice@cloud.example')
+	})
+
+	it('writes everybody else as their acct', () => {
+		expect(qualifiedHandle(remote, 'cloud.example')).toBe('@bob@remote.example')
+		expect(qualifiedHandle(bluesky, 'cloud.example')).toBe('@carol.bsky.social')
+		expect(qualifiedHandle(null, 'cloud.example')).toBe('')
 	})
 })

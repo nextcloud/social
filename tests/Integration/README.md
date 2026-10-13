@@ -191,6 +191,19 @@ to stop.
   status in `reblog`, decorated for the reader as on a timeline, where the
   reader's favourite now shows on the boosted status too; a boost of a status
   the reader may not see is a 404.
+- `Service/AvatarChangeFederationTest` — a new profile picture reaches the
+  followers as an Update{Person} whose icon address nobody has seen yet, also
+  after another process (`Helper/rename-elsewhere.php`, a rename that makes
+  Nextcloud draw the initials again) moved the picture's version where this
+  process's copy of the account's settings could not see it.
+- `Api/FollowerCountsTest` — a new account's follower count moves from its
+  first follow (its first cached row carries the counters rather than "never
+  counted"), and a reader who hides the numbers is still sent every account's
+  real `followers_count` through the real dispatcher and middlewares while a
+  status's numbers are 0.
+- `Api/PollInteractionsTest` — a poll is liked, boosted and taken back
+  through `POST /api/v1/statuses/{id}/{act}` like any status, and the answer
+  carries the reader's flags.
 - `Api/AccountBoostsTest` — `GET /api/v1/accounts/{id}/statuses` lists the
   account's boosts beside its posts, each with the boosted post in `reblog`,
   to a follower, the boosted author, the booster and nobody; an account whose

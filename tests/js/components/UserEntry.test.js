@@ -97,7 +97,7 @@ describe('UserEntry', () => {
 	it('shows the names and links a local account to its profile', () => {
 		const wrapper = mountEntry(local)
 		expect(wrapper.find('.post-author').text()).toBe('Carol')
-		expect(wrapper.find('.user-description').text()).toBe('carol')
+		expect(wrapper.find('.user-description').text()).toBe('@carol@cloud.example.org')
 		expect(wrapper.find('.user-details a').attributes('href')).toBe('/index.php/u/carol')
 		expect(wrapper.find('a[target="_blank"]').exists()).toBe(false)
 	})
@@ -125,6 +125,7 @@ describe('UserEntry', () => {
 		expect(wrapper.findComponent(NcAvatarStub).props('url')).toBe('https://remote.example/media/bob.png')
 		expect(wrapper.findComponent(NcAvatarStub).props('user')).toBeUndefined()
 		expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({ name: 'profile', params: { account: 'bob@remote.example' } })
+		expect(wrapper.find('.user-description').text()).toBe('@bob@remote.example')
 	})
 
 	/** A Bluesky handle has no @ either, so the entity has to say where it lives. */

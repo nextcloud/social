@@ -84,15 +84,15 @@ class HideCountsMiddlewareTest extends TestCase {
 		$out = self::encoded($this->after(TimelineApiController::class, new JSONResponse([self::post()])));
 
 		$this->assertSame(0, $out[0]['favourites_count']);
-		$this->assertSame(0, $out[0]['account']['followers_count']);
+		$this->assertSame(40, $out[0]['account']['followers_count']);
 	}
 
-	public function testTheReaderWhoHidesTheNumbersIsSentNone(): void {
+	public function testTheReaderWhoHidesTheNumbersIsSentNoneOnAStatusAndTheRealFollowerCount(): void {
 		$out = self::encoded($this->after(TimelineApiController::class, new DataResponse([self::post()])));
 
 		$this->assertSame(0, $out[0]['favourites_count']);
 		$this->assertSame(0, $out[0]['reblogs_count']);
-		$this->assertSame(0, $out[0]['account']['followers_count']);
+		$this->assertSame(40, $out[0]['account']['followers_count'], 'an account\'s numbers are never replaced by 0');
 	}
 
 	/** Every family of client-API controller, the web app's own routes included. */

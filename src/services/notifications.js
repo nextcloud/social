@@ -251,6 +251,19 @@ function groupedSummary(notification) {
 }
 
 /**
+ * A direct message reaches the bell as the mention it carries: Mastodon has
+ * no notification kind of its own for one, and the status says `direct`.
+ * Activities shows it as a private message rather than as a mention beside
+ * the public ones.
+ *
+ * @param {import("../types/Mastodon").Notification} notification a notification
+ * @return {boolean}
+ */
+export function isDirectMessage(notification) {
+	return notification?.type === 'mention' && notification.status?.visibility === 'direct'
+}
+
+/**
  * @param {import("../types/Mastodon").Notification} notification a notification,
  * or a card from groupNotifications() — which carries the extra `accounts`
  * this reads, and is otherwise shaped exactly like one
@@ -264,6 +277,10 @@ export function notificationSummary(notification) {
 
 	switch (notification.type) {
 		case 'mention':
+			if (isDirectMessage(notification)) {
+				return t('social', '{account} sent you a private message', { account: notification.account.acct })
+			}
+
 			return t('social', '{account} mentioned you', { account: notification.account.acct })
 		case 'status':
 			return t('social', '{account} posted a status', { account: notification.account.acct })

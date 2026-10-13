@@ -47,3 +47,25 @@ export function isBlueskyHandle(handle) {
 
 	return text !== '' && !text.includes('@') && text.includes('.')
 }
+
+/**
+ * The handle as somebody on another server would write it: `@user@host`
+ * for an account here — whose `acct` is the bare username, as Mastodon
+ * sends a local account's — and `@` before `acct` for everybody else, a
+ * remote account's `user@host` or a Bluesky account's domain.
+ *
+ * @param {Partial<import('../types/Mastodon.js').Account>|null|undefined} account an Account entity
+ * @param {string} hostname this server's host
+ * @return {string}
+ */
+export function qualifiedHandle(account, hostname) {
+	if (!account) {
+		return ''
+	}
+	const acct = String(account.acct ?? '')
+	if (isLocalAccount(account)) {
+		return '@' + (account.username || acct) + '@' + hostname
+	}
+
+	return '@' + acct
+}

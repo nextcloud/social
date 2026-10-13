@@ -22,7 +22,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Like;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
@@ -76,12 +75,12 @@ class LikeService {
 		]);
 
 		$note = $this->streamService->getStreamById($postId, true);
-		if ($note->getType() !== Note::TYPE) {
-			$this->logger->warning('LikeService::create - stream is not a Note', [
+		if (!Stream::isStatusType($note->getType())) {
+			$this->logger->warning('LikeService::create - stream is not a status', [
 				'postId' => $postId,
 				'type' => $note->getType(),
 			]);
-			throw new StreamNotFoundException('Stream is not a Note');
+			throw new StreamNotFoundException('Stream is not a status');
 		}
 
 		$this->logger->info('LikeService::create - note found', [
@@ -128,8 +127,8 @@ class LikeService {
 	 */
 	public function recordWithoutSending(Person $actor, string $postId, string $published): ACore {
 		$note = $this->streamService->getStreamById($postId, true);
-		if ($note->getType() !== Note::TYPE) {
-			throw new StreamNotFoundException('Stream is not a Note');
+		if (!Stream::isStatusType($note->getType())) {
+			throw new StreamNotFoundException('Stream is not a status');
 		}
 
 		/** @var Like $like */
@@ -160,8 +159,8 @@ class LikeService {
 		$undo->setActor($actor);
 
 		$note = $this->streamService->getStreamById($postId, true);
-		if ($note->getType() !== Note::TYPE) {
-			throw new StreamNotFoundException('Stream is not a Note');
+		if (!Stream::isStatusType($note->getType())) {
+			throw new StreamNotFoundException('Stream is not a status');
 		}
 
 		try {

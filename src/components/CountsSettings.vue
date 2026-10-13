@@ -13,8 +13,8 @@
 		</NcCheckboxRadioSwitch>
 		<p class="counts-settings__hint">
 			{{ hidden
-				? t('social', 'Hidden: no likes, dislikes, boosts, replies or followers are counted for you — on your posts, on anybody else\'s, on profiles, and in your phone apps. Who liked a post is still there to look at.')
-				: t('social', 'Shown: posts and profiles say how many likes, dislikes, boosts, replies and followers they have, here and in your phone apps.') }}
+				? t('social', 'Hidden: no likes, dislikes, boosts or replies are counted for you — on your posts, on anybody else\'s, and in your phone apps — and other people\'s profiles show no follower number. Who liked a post is still there to look at, and so is your own follower count.')
+				: t('social', 'Shown: posts say how many likes, dislikes, boosts and replies they have, and profiles how many followers, here and in your phone apps.') }}
 		</p>
 	</div>
 </template>

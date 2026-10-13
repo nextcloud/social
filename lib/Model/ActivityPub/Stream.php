@@ -27,6 +27,8 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Mention;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Client\Place;
 use OCA\Social\Model\Details;
@@ -144,6 +146,17 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public const LIKES_PATH = '/likes';
 	public const DISLIKES_PATH = '/dislikes';
+
+	/**
+	 * The types a reader is shown as statuses, and may like, boost or
+	 * bookmark: a note and a poll. The same list as a query is
+	 * `SocialLimitsQueryBuilder::limitToStatusTypes()`.
+	 */
+	public const STATUS_TYPES = [Note::TYPE, Question::TYPE];
+
+	public static function isStatusType(string $type): bool {
+		return in_array($type, self::STATUS_TYPES, true);
+	}
 
 	/**
 	 * The states Mastodon's Quote entity can be in. A quote is `accepted` once

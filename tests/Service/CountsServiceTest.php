@@ -65,7 +65,7 @@ class CountsServiceTest extends TestCase {
 		$this->assertSame(0, $out->replies_count, 'a busy thread is attention too, and the reader asked not to be shown it');
 		$this->assertSame(0, $out->quotes_count);
 		$this->assertNull($out->dislikes_count, 'null is what says "not a video"');
-		$this->assertSame(0, $out->account->followers_count);
+		$this->assertSame(900, $out->account->followers_count, 'a follower count describes the account; a client told 0 shows it as a fact');
 		$this->assertSame(80, $out->account->following_count);
 		$this->assertSame(50, $out->account->statuses_count);
 	}
@@ -81,14 +81,14 @@ class CountsServiceTest extends TestCase {
 
 		$out = $this->service->strip($page);
 
-		$this->assertSame(0, $out[0]->account->followers_count);
+		$this->assertSame(5, $out[0]->account->followers_count);
 		$this->assertSame(0, $out[0]->status->favourites_count);
 		$this->assertSame(0, $out[0]->status->reblog->favourites_count);
 		$this->assertSame(0, $out[0]->status->reblog->dislikes_count, 'a video\'s dislikes are a score too');
 		$this->assertSame(0, $out[0]->status->quote->quoted_status->reblogs_count);
 	}
 
-	/** Only an account has `acct` beside `followers_count`; a statistic named alike is left alone. */
+	/** A status is an object with `favourites_count` beside `reblogs_count`; a statistic named alike is left alone. */
 	public function testANumberThatIsNotOnAnEntityIsLeftAlone(): void {
 		$out = $this->service->strip($this->decoded(['followers_count' => 10, 'favourites_count' => 3, 'empty' => new \stdClass()]));
 
