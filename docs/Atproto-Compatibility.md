@@ -338,7 +338,12 @@ over the DAG-CBOR of the unsigned commit). One commit per write, written in
 the same database transaction as the record and the blocks, and one
 firehose event per commit (§7). A write that fails half-way leaves the
 previous commit as the repository's head: the `social_atproto_repo` row
-(§15) holds the head CID and `rev`, and it is updated last.
+(§15) holds the head CID and `rev`, and it is updated last. The
+transaction begins by reading that row with a row lock (`SELECT … FOR
+UPDATE`; SQLite, which has one writer at a time anyway, without the
+clause), so two commits of one repository that start together run one
+after the other and the second builds on the first's head rather than
+forking the tree.
 
 ### 5.4 Blobs
 

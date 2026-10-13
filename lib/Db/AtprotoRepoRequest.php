@@ -14,6 +14,7 @@ use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
 
 /**
  * A repository as stored: its head, its records and its blocks.
@@ -32,6 +33,29 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 		$qb->select('did', 'commit_cid', 'rev', 'record_count', 'blob_bytes', 'updated')
 			->from(self::TABLE_ATPROTO_REPO)
 			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)));
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row === false ? null : $this->head($row);
+	}
+
+	/**
+	 * The head, read with a row lock that lasts until the transaction ends:
+	 * a second commit of the same repository waits here and then reads the
+	 * head this one leaves. There is no row to lock before the first commit;
+	 * two first commits race to the unique index on `did`, and one fails.
+	 * SQLite has no row locks and refuses the clause; its one writer at a
+	 * time serialises the commits by itself.
+	 */
+	public function lockHead(string $did): ?RepoHead {
+		$qb = $this->getQueryBuilder();
+		$qb->select('did', 'commit_cid', 'rev', 'record_count', 'blob_bytes', 'updated')
+			->from(self::TABLE_ATPROTO_REPO)
+			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)));
+		if ($this->dbConnection->getDatabaseProvider() !== IDBConnection::PLATFORM_SQLITE) {
+			$qb->forUpdate();
+		}
 		$cursor = $qb->executeQuery();
 		$row = $cursor->fetch();
 		$cursor->closeCursor();

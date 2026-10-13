@@ -35,6 +35,11 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	}
 
 	#[\Override]
+	public function lockHead(string $did): ?RepoHead {
+		return $this->getHead($did);
+	}
+
+	#[\Override]
 	public function getHeads(int $limit = 500, int $offset = 0): array {
 		return array_slice(array_values($this->heads), $offset, $limit);
 	}

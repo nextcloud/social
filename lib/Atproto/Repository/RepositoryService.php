@@ -35,7 +35,9 @@ use Throwable;
  * them, the commit is signed, the changed blocks are stored and the old
  * ones dropped, the head moves, and one firehose frame is appended — all in
  * one database transaction, so a failure half-way leaves the previous
- * commit as the repository. The lexicon is checked before anything is
+ * commit as the repository. The transaction starts by locking the head
+ * row, so two commits of one repository run one after the other and the
+ * second builds on the first. The lexicon is checked before anything is
  * signed; nothing that does not fit reaches a relay.
  */
 class RepositoryService {
@@ -87,7 +89,7 @@ class RepositoryService {
 	 * @param RepoWrite[] $writes
 	 */
 	private function commit(string $did, PrivateKey $signingKey, array $writes): CommitResult {
-		$head = $this->repoRequest->getHead($did);
+		$head = $this->repoRequest->lockHead($did);
 		$leaves = $this->repoRequest->getLeaves($did);
 		$oldMstCids = array_fill_keys($this->repoRequest->getBlockCids($did, AtprotoRepoRequest::BLOCK_MST), true);
 		$oldCommitCids = $this->repoRequest->getBlockCids($did, AtprotoRepoRequest::BLOCK_COMMIT);

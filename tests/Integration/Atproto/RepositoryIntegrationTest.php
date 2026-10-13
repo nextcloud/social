@@ -96,6 +96,34 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertCount(1, $this->repoRequest->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_COMMIT));
 	}
 
+	/**
+	 * The head row is read with a row lock at the start of a commit, which
+	 * the database must accept in a transaction: the lock holds the second
+	 * commit of a repository until the first is through, and a commit made
+	 * after the locked read still chains on the head it read.
+	 */
+	public function testTheHeadIsLockedForTheLengthOfACommit(): void {
+		$first = $this->repositories->write(self::DID, $this->key, [
+			RepoWrite::create('app.bsky.actor.profile', ['$type' => 'app.bsky.actor.profile', 'displayName' => 'Integration'], self::ACTOR, 'self'),
+		]);
+		$connection = Server::get(\OCP\IDBConnection::class);
+
+		$connection->beginTransaction();
+		try {
+			$locked = $this->repoRequest->lockHead(self::DID);
+			$this->assertSame($first->commitCid->toString(), $locked?->commitCid, 'the locked read is the head');
+			$this->assertNull($this->repoRequest->lockHead('did:plc:integrationtest00000001'), 'nothing to lock before the first commit');
+		} finally {
+			$connection->rollBack();
+		}
+
+		$second = $this->repositories->write(self::DID, $this->key, [
+			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'after the lock', 'createdAt' => '2026-10-08T10:00:00.000Z'], self::ACTOR . '/2'),
+		]);
+		$this->assertSame($second->commitCid->toString(), $this->repositories->getHead(self::DID)?->commitCid);
+		$this->assertSame([], $this->repositories->verify(self::DID, $this->key->publicKey()));
+	}
+
 	public function testAnIdentityRowRoundTrips(): void {
 		$this->identityRequest->create(self::ACTOR, self::DID, 'atproto-integration.nextcloud.test', 'sealed', 'did:key:zQ3sh', '');
 
