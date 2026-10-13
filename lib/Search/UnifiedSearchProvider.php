@@ -100,7 +100,9 @@ class UnifiedSearchProvider implements IProvider {
 		// answer with the same first page for ever.
 		$reach = $offset + $limit + 1;
 		$result = array_merge(
-			$this->convertAccounts($this->searchService->searchUri($search)),
+			// cache-only: the search bar asks once per debounced prefix of
+			// what is typed, and every prefix of a URL is another URL
+			$this->convertAccounts($this->searchService->searchUri($search, false)),
 			$this->convertAccounts($this->searchService->searchAccounts($search, $reach)),
 			$this->convertHashtags($this->searchService->searchHashtags($search, $reach)),
 			$this->convertStreams($this->searchService->searchStreamContent($search, $reach))

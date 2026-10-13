@@ -11,8 +11,10 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyActorService;
 use OCA\Social\Atproto\Reader\BlueskySearch;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -43,6 +45,7 @@ class SearchService {
 		private LoggerInterface $logger,
 		private CurlService $curlService,
 		private ?BlueskySearch $bluesky = null,
+		private ?RemoteFetchQueue $remoteFetchQueue = null,
 	) {
 	}
 
@@ -198,14 +201,41 @@ class SearchService {
 		return false;
 	}
 
-	public function searchUri(string $search): array {
+	/**
+	 * The actor at the address searched for, when the search is one.
+	 *
+	 * @param bool $retrieve whether an actor this instance does not hold is
+	 *                       fetched now; without, it is answered from the
+	 *                       cache and an unknown one is queued for
+	 *                       `Cron\ResolveActor`, so a search repeated a moment
+	 *                       later finds it
+	 *
+	 * @return Person[]
+	 */
+	public function searchUri(string $search, bool $retrieve = true): array {
 		$type = $this->getTypeFromSearch($search);
 
-		if ($search !== '' && $type & self::SEARCH_URI) {
+		if ($search === '' || !($type & self::SEARCH_URI)) {
+			return [];
+		}
+
+		if (!$retrieve) {
 			try {
-				return [$this->cacheActorService->getFromId($search)];
-			} catch (Exception $e) {
+				$actor = $this->cacheActorService->getCachedFromId($search);
+			} catch (CacheActorDoesNotExistException $e) {
+				$this->remoteFetchQueue?->resolveActors([$search]);
+
+				return [];
 			}
+
+			// a Bluesky account its labels limit is kept and not offered, as
+			// in `CacheActorService::searchCachedAccounts()`
+			return BlueskyActorService::isLimited($actor) ? [] : [$actor];
+		}
+
+		try {
+			return [$this->cacheActorService->getFromId($search)];
+		} catch (Exception $e) {
 		}
 
 		return [];

@@ -481,6 +481,30 @@ class CacheActorServiceTest extends TestCase {
 		$this->assertSame($landing, $this->service->getFromId(self::MASTODON_45_URL));
 	}
 
+	/** The lookup unified search makes: the row an alias names, and never a fetch. */
+	public function testACacheOnlyLookupFollowsARememberedAddressAndNeverFetches(): void {
+		$aliases = $this->durableCache();
+		$aliases->set(CacheActorService::ALIAS_NAMESPACE, self::MASTODON_45_URL, self::MASTODON_45_ID, CacheActorService::ALIAS_TTL);
+		$this->service = new CacheActorService(
+			$this->actorsRequest, $this->cacheActorsRequest, $this->curlService, $this->configService, new NullLogger(),
+			durableCache: $aliases,
+		);
+		$landing = $this->person(self::MASTODON_45_ID, 'landing');
+		$this->cacheActorsRequest->method('getFromId')->willReturnCallback(
+			static function (string $id) use ($landing): Person {
+				if ($id === self::MASTODON_45_ID) {
+					return $landing;
+				}
+				throw new CacheActorDoesNotExistException();
+			}
+		);
+		$this->curlService->expects($this->never())->method('retrieveObject');
+
+		$this->assertSame($landing, $this->service->getCachedFromId(self::MASTODON_45_URL . '#main-key'));
+		$this->expectException(CacheActorDoesNotExistException::class);
+		$this->service->getCachedFromId(self::BOB);
+	}
+
 	/** The id a document claims has to answer with that id, served as ActivityPub. */
 	#[DataProvider('idsNotServedAsClaimed')]
 	public function testAnIdOfTheHostNotServedAsClaimedIsRefused(array $servedAtTheId): void {
@@ -550,6 +574,71 @@ class CacheActorServiceTest extends TestCase {
 
 		$this->expectException(RequestContentException::class);
 		$this->service->getFromId(self::BOB);
+	}
+
+	private function serviceWithMisses(DurableCache $cache): CacheActorService {
+		return new CacheActorService(
+			$this->actorsRequest, $this->cacheActorsRequest, $this->curlService, $this->configService, new NullLogger(),
+			durableCache: $cache,
+		);
+	}
+
+	/**
+	 * An author whose cached row is gone is asked for by every like, boost
+	 * and reply of their post; a fetch that failed is remembered for ten
+	 * minutes so it is one connect attempt, not one per click.
+	 */
+	public function testAFetchThatFailedIsNotRepeatedWhileItIsRemembered(): void {
+		$service = $this->serviceWithMisses($this->durableCache());
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->curlService->expects($this->once())->method('retrieveObject')
+			->willThrowException(new RequestNetworkException('connect timed out'));
+
+		try {
+			$service->getFromId(self::BOB);
+			$this->fail('the first lookup fails as it always did');
+		} catch (RequestNetworkException) {
+		}
+
+		$this->expectException(CacheActorDoesNotExistException::class);
+		$service->getFromId(self::BOB . '#main-key');
+	}
+
+	public function testTheMissIsRememberedForTenMinutes(): void {
+		$cache = $this->createMock(DurableCache::class);
+		$cache->method('get')->willReturn(null);
+		$cache->expects($this->once())->method('set')
+			->with(CacheActorService::MISS_NAMESPACE, md5(self::BOB), 1, CacheActorService::MISS_SECONDS);
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->curlService->method('retrieveObject')->willThrowException(new RequestContentException('gone', 410));
+
+		$this->assertSame(600, CacheActorService::MISS_SECONDS);
+		$this->expectException(RequestContentException::class);
+		$this->serviceWithMisses($cache)->getFromId(self::BOB);
+	}
+
+	/** a refresh is somebody asking for the network on purpose */
+	public function testARefreshIsNotAnsweredFromTheRememberedMiss(): void {
+		$cache = $this->durableCache();
+		$cache->set(CacheActorService::MISS_NAMESPACE, md5(self::BOB), 1, CacheActorService::MISS_SECONDS);
+		$data = [
+			'id' => self::BOB, 'type' => 'Person', 'preferredUsername' => 'bob',
+			'_host' => 'remote.example', '_contentType' => 'application/activity+json',
+		];
+		$this->curlService->expects($this->once())->method('retrieveObject')->with(self::BOB)->willReturn($data);
+		$this->ap->method('getItemFromData')->willReturn($this->person(self::BOB));
+
+		$this->assertSame(self::BOB, $this->serviceWithMisses($cache)->getFromId(self::BOB, true)->getId());
+	}
+
+	public function testACachedActorIsAnsweredWhateverWasRemembered(): void {
+		$cache = $this->durableCache();
+		$cache->set(CacheActorService::MISS_NAMESPACE, md5(self::BOB), 1, CacheActorService::MISS_SECONDS);
+		$bob = $this->person(self::BOB);
+		$this->cacheActorsRequest->method('getFromId')->willReturn($bob);
+		$this->curlService->expects($this->never())->method('retrieveObject');
+
+		$this->assertSame($bob, $this->serviceWithMisses($cache)->getFromId(self::BOB));
 	}
 
 	/** @return array<string, array{string}> */
