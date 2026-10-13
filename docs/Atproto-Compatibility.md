@@ -685,12 +685,18 @@ themselves can arrive.
 A Bluesky post is a stream row of type `Note` with id `at://…/app.bsky.feed.post/…`
 (`id_prim` as for any id), `url` the `https://bsky.app/profile/<handle>/post/<rkey>`
 link, `attributed_to` the cached actor, `content` rebuilt from text and
-facets (links and mentions as anchors, hashtags as hashtag links), pictures
+facets (links and mentions as anchors, hashtags as hashtag links; a
+mention's `Mention` tag is named by the `@handle` the text shows, the DID
+only in its target, and a reply to a local post names its author by their
+handle), pictures
 as `social_cache_doc` rows pointing at the AppView's CDN URL with the
 blob's CID and alt text, a quote as `quoted_id`, an embedded custom feed,
 list or starter pack as a link to its bsky.app page with a card made from
 what the AppView says of it — its name, description, creator and picture,
-no page read (`PostMapper::cardOf()`) — a reply as `in_reply_to`,
+no page read (`PostMapper::cardOf()`); the card's provider line and the
+link that stands in for a video not yet playable say what the thing is
+("Feed by @…", "List", "Starter pack", "Video"), not which network it is
+on — a reply as `in_reply_to`,
 labels as `summary` (content warning) or `sensitive` per §12.1, `published`
 from `indexedAt`, `local` false, and `details.atproto` with the CID and
 the like/repost/reply counts the AppView reported. It goes through

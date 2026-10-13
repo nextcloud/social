@@ -50,8 +50,8 @@ class PostMapperTest extends TestCase {
 		$list = ['$type' => 'app.bsky.graph.defs#listView', 'uri' => 'at://' . self::OTHER . '/app.bsky.graph.list/3kl', 'name' => 'Friends', 'purpose' => 'app.bsky.graph.defs#curatelist', 'creator' => $creator];
 		$pack = ['$type' => 'app.bsky.graph.defs#starterPackViewBasic', 'uri' => 'at://' . self::OTHER . '/app.bsky.graph.starterpack/3ks', 'record' => ['name' => 'Start here', 'description' => 'Good people'], 'creator' => $creator];
 
-		$this->assertSame(['url' => 'https://bsky.app/profile/bob.test/lists/3kl', 'title' => 'Friends', 'description' => '', 'image' => '', 'provider' => 'Bluesky list by @bob.test'], PostMapper::cardOf($record($list)));
-		$this->assertSame(['url' => 'https://bsky.app/starter-pack/bob.test/3ks', 'title' => 'Start here', 'description' => 'Good people', 'image' => 'https://cdn.bsky.app/img/avatar/plain/bob@jpeg', 'provider' => 'Bluesky starter pack by @bob.test'],
+		$this->assertSame(['url' => 'https://bsky.app/profile/bob.test/lists/3kl', 'title' => 'Friends', 'description' => '', 'image' => '', 'provider' => 'List by @bob.test'], PostMapper::cardOf($record($list)));
+		$this->assertSame(['url' => 'https://bsky.app/starter-pack/bob.test/3ks', 'title' => 'Start here', 'description' => 'Good people', 'image' => 'https://cdn.bsky.app/img/avatar/plain/bob@jpeg', 'provider' => 'Starter pack by @bob.test'],
 			PostMapper::cardOf(['$type' => 'app.bsky.embed.recordWithMedia#view', 'record' => $record($pack), 'media' => ['$type' => 'app.bsky.embed.images#view', 'images' => []]]), 'beside pictures');
 		$this->assertNull(PostMapper::cardOf($record(['$type' => 'app.bsky.embed.record#viewRecord', 'uri' => 'at://' . self::OTHER . '/app.bsky.feed.post/3kp'])), 'a quoted post is a quote');
 
@@ -169,7 +169,7 @@ class PostMapperTest extends TestCase {
 		$pending = $mapper->note($this->postView(['embed' => ['$type' => 'app.bsky.embed.video#view', 'cid' => 'bafkrei']]));
 		$this->assertSame('Note', $pending['type'], 'no playlist yet: a link to the post');
 		$this->assertStringContainsString('<a href="https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22"', $pending['content']);
-		$this->assertStringContainsString('Video on Bluesky', $pending['content']);
+		$this->assertStringContainsString('target="_blank">Video</a>', $pending['content'], 'named for what it is, not where it is');
 	}
 
 	public function testAVideoPostIsAFederatedVideoStreamedFromItsPlaylist(): void {
@@ -181,7 +181,7 @@ class PostMapperTest extends TestCase {
 		$video = $mapper->note($this->postView(['embed' => $view]));
 
 		$this->assertSame('Video', $video['type']);
-		$this->assertStringNotContainsString('Video on Bluesky', $video['content']);
+		$this->assertStringNotContainsString('>Video</a>', $video['content']);
 		$this->assertSame([
 			['type' => 'Link', 'mediaType' => 'text/html', 'href' => 'https://bsky.app/profile/alice.bsky.social/post/3kznmn7xqxl22'],
 			['type' => 'Link', 'mediaType' => 'application/x-mpegURL', 'href' => $playlist, 'width' => 720, 'height' => 1280],
@@ -222,7 +222,23 @@ class PostMapperTest extends TestCase {
 		$note = (new PostMapper(new LocalRecordResolver($identities, $records)))->note($this->postView());
 
 		$this->assertSame('https://social.test/@alice/7', $note['inReplyTo'], 'the parent is the local post');
-		$this->assertContains(['type' => 'Mention', 'href' => 'https://social.test/@alice', 'name' => '@' . self::OTHER], $note['tag']);
+		$this->assertContains(['type' => 'Mention', 'href' => 'https://social.test/@alice', 'name' => '@alice.social.test'], $note['tag'], 'named by the handle, not the DID');
+	}
+
+	/** The record carries a mention's DID alone; the handle is what the text shows at the facet. */
+	public function testAMentionIsNamedByTheHandleTheTextShowsAndTheDidStaysInTheTarget(): void {
+		$view = $this->postView();
+		$view['record']['text'] = 'hi @bob.bsky.social and @did:plc:z72i7hdynmk6r22z27h6tvur too';
+		$view['record']['facets'] = [
+			['index' => ['byteStart' => 3, 'byteEnd' => 19], 'features' => [['$type' => 'app.bsky.richtext.facet#mention', 'did' => self::OTHER]]],
+			['index' => ['byteStart' => 100, 'byteEnd' => 120], 'features' => [['$type' => 'app.bsky.richtext.facet#mention', 'did' => 'did:plc:elsewhere']]],
+		];
+
+		$tags = (new PostMapper($this->resolver()))->note($view)['tag'];
+
+		$this->assertContains(['type' => 'Mention', 'href' => 'https://bsky.app/profile/' . self::OTHER, 'name' => '@bob.bsky.social'], $tags);
+		$this->assertContains(['type' => 'Mention', 'href' => 'https://bsky.app/profile/did:plc:elsewhere', 'name' => '@did:plc:elsewhere'], $tags, 'a facet past the text falls back to the DID');
+		$this->assertStringNotContainsString(self::OTHER, implode(' ', array_column($tags, 'name')));
 	}
 
 	public function testTheHashtagsBesideTheTextAreThePostsTooOnce(): void {
