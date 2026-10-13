@@ -2011,6 +2011,16 @@ describe('Composer', () => {
 			expect(postedStatus(store)).toMatchObject({ status: 'Hello' })
 		})
 
+		// the Mac's own send key, which is what every other client there binds
+		it('posts on Cmd+Enter too', async () => {
+			const { wrapper, store } = mountComposer()
+			await setContent(wrapper, 'Aloha')
+
+			await input(wrapper).trigger('keyup', { key: 'Enter', metaKey: true })
+			await flushPromises()
+			expect(postedStatus(store)).toMatchObject({ status: 'Aloha' })
+		})
+
 		it('tells the rest of the app what went out', async () => {
 			const { wrapper } = mountComposer()
 			const published = vi.fn()

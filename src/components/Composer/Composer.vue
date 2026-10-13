@@ -1691,8 +1691,13 @@ export default {
 			this.updateStatusContent()
 		},
 
+		/**
+		 * Enter is a new line; with Ctrl, or Cmd on a Mac, it sends.
+		 *
+		 * @param {KeyboardEvent} event the key press
+		 */
 		keyup(event) {
-			if (event.ctrlKey) {
+			if (event.ctrlKey || event.metaKey) {
 				this.createPost()
 			}
 		},
