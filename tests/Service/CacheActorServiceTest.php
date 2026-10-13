@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\ActorMapper;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -514,7 +515,11 @@ class CacheActorServiceTest extends TestCase {
 	public function testDelegatingLookups(): void {
 		$bob = $this->person(self::BOB);
 		$options = new ProbeOptions();
-		$this->cacheActorsRequest->expects($this->once())->method('searchAccounts')->with('bo')->willReturn([$bob]);
+		// a Bluesky account its labels limit, or one Bluesky switched off, is
+		// kept here and not offered
+		$limited = $this->person('https://bsky.app/profile/did:plc:off', 'off.bsky.social');
+		$limited->setDetailArray(ActorMapper::DETAIL, ['limited' => true, 'status' => 'deactivated']);
+		$this->cacheActorsRequest->expects($this->once())->method('searchAccounts')->with('bo')->willReturn([$limited, $bob]);
 		$this->cacheActorsRequest->expects($this->once())->method('getFromNids')->with([1, 2])->willReturn([$bob]);
 		$this->cacheActorsRequest->expects($this->once())->method('probeActors')->with($this->identicalTo($options))->willReturn([$bob]);
 		$this->cacheActorsRequest->expects($this->once())->method('setViewer')->with($this->identicalTo($bob));

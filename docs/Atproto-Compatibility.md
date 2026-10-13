@@ -733,7 +733,11 @@ the boost the repost is, is still not here; then the watch is made due for
 the poller's next pass (`AtprotoWatchRequest::wake()`). A deleted post is
 deleted here at once (`PostStore::delete()`); a changed profile, or an
 `#identity` event, reads the account again and keeps the new handle. A
-block of a local account is recorded (§12.4).
+block of a local account is recorded (§12.4). An `account` event — which
+Jetstream sends for a wanted DID whatever the collections asked for — is
+acted on at once (`AccountStatus`, §9.5): `active: false` with
+`deactivated` or `suspended` hides the account, `takendown` or `deleted`
+purges it, `active: true` restores it.
 Interactions *on* local accounts by anybody else (likes, replies, follows)
 are not in a DID-filtered stream; they keep arriving through the
 notification poller (§10). The poller keeps running beside the listener,
@@ -811,6 +815,26 @@ A `delete` op from Jetstream, or a post gone from the author feed on the
 next poll (the AppView answers 404 for `getPosts` of it — checked for the
 last page's ids once a day, bounded), becomes a `Delete` through the same
 import path, as a remote `Delete` would. Bluesky has no edits.
+
+An account Bluesky stops serving (`Reader\AccountStatus`): Jetstream's
+`account` event says so at once (§9.4), and the feed poller concludes the
+same when the AppView refuses `getAuthorFeed` with `AccountDeactivated`,
+`AccountTakedown`, `RepoNotFound`, `RepoDeactivated`, `RepoSuspended` or
+`RepoTakendown` three reads in a row (`FeedPoller::STATUS_AFTER`, with the
+ordinary failure backoff between them — a single refusal is not acted on).
+A *deactivated* or *suspended* account comes back, so its mirror is hidden
+and kept: the cached actor is marked (`details.atproto.status`, and
+`limited`, so no interaction of it is stored and account search does not
+offer it) and its posts and boosts lose their `social_stream_dest` rows,
+which takes them out of every timeline and viewer-limited read while the
+rows themselves stay. The watch keeps being tried with backoff, and when
+the feed answers again — or Jetstream says `active: true` — the mark is
+lifted, the recipient rows are written back and the feed is read on the
+next pass. A *deleted* or *taken-down* account is gone: the actor, its
+posts, boosts, follows and everything else it left go through the cascade a
+remote `Delete` of an actor goes through (`PersonInterface::delete()`), and
+the watch is removed. Older posts are covered as well as recent ones; the
+deletion sweep above only ever re-asked about the last week's.
 
 ### 9.6 Feeds and lists
 
@@ -1092,7 +1116,8 @@ actor is refreshed:
 | `!no-unauthenticated` (self, on the profile or a post) | the post and any boost of it are followers-only here: not served to anonymous readers, not in the public timelines or search, not federated to the public (§9.3) |
 | `!hide` (service) | the post is not stored; the account's posts are not fetched while the label stands |
 | `spam`, `impersonation`, `scam`, `misleading`, other service labels | a content warning naming the label; the account's profile shows it |
-| account-level `!hide` / takedown | the cached actor is marked limited: no posts fetched, interactions not announced |
+| account-level `!hide` / takedown | the cached actor is marked limited: no posts fetched, interactions not announced, not offered by account search |
+| account deactivated, suspended, taken down or deleted on Bluesky | hidden and kept, or purged, as §9.5 says |
 
 A labeler's label value definitions (`app.bsky.labeler.service` record,
 `policies.labelValueDefinitions`) are read once per labeler and cached, so

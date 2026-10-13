@@ -124,10 +124,19 @@ class BlueskyActorService {
 	}
 
 	/**
-	 * Whether the account's labels keep its posts out: `!hide` or a takedown.
+	 * Whether the account's posts are kept out: its labels say `!hide` or a
+	 * takedown, or Bluesky no longer serves it (`AccountStatus`).
 	 */
 	public static function isLimited(Person $actor): bool {
 		return (bool)($actor->getDetails(ActorMapper::DETAIL)['limited'] ?? false);
+	}
+
+	/**
+	 * What Bluesky last said of the account when it stopped serving it —
+	 * `deactivated`, `suspended` — or '' while it is active.
+	 */
+	public static function status(Person $actor): string {
+		return (string)($actor->getDetails(ActorMapper::DETAIL)['status'] ?? '');
 	}
 
 	private function pdsOf(string $did): string {

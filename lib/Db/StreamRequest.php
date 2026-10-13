@@ -389,6 +389,30 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * Everything one author put in the stream — posts and boosts alike, as the
+	 * rows are — newest first, a page at a time below a nid.
+	 *
+	 * @param int|string $beforeNid the nid the page starts below, 0 for the newest
+	 *
+	 * @return Stream[]
+	 */
+	public function getByAuthor(string $actorId, int $limit, int|string $beforeNid = 0): array {
+		if ($actorId === '' || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToAttributedTo($actorId, true);
+		if ((int)$beforeNid > 0) {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter((string)$beforeNid)));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
 	 * One page of the posts of a type with their authors, in key order: what a
 	 * maintenance walk compares, and nothing else of the row.
 	 *
