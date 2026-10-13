@@ -822,14 +822,16 @@ table as they always did — and if you already wrote a row called "Pronouns" by
 hand, it is picked up as one.
 
 
-- **Likes and followers.** You are not shown how many likes, dislikes, boosts,
-  replies or followers anything has — not on your posts, not on anybody else's, not on
-  any profile. A number next to a post is a score, and a score is pressure.
+- **Likes and followers.** You are not shown how many likes, dislikes, boosts
+  or replies anything has — not on your posts, not on anybody else's — and
+  other people's profiles show **Followers** without a number. A number next
+  to a post is a score, and a score is pressure.
   **Settings → Reading → Likes and followers → Show the numbers** brings them back. It
   belongs to your account, so your phone apps follow it too: they are sent
-  zero for each of those numbers while they are hidden. Who liked or boosted a
-  post is still there to look at, and so is every reply; following and post
-  counts are not hidden.
+  zero for each of a post's numbers while they are hidden. Who liked or boosted a
+  post is still there to look at, and so is every reply; your own follower
+  count, following and post counts are not hidden — your profile, Statistics
+  and your phone apps all tell you how many people follow you.
 - **Sound and touch.** **Settings → Reading → Sound and touch** has three switches:
   **Play sounds** (a tick on a like, a breath of air when a post goes out, a
   chime when a direct message arrives; off until you turn it on, with

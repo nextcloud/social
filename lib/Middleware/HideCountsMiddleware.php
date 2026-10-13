@@ -24,12 +24,13 @@ use OCP\IUserSession;
 use Throwable;
 
 /**
- * Takes the like, dislike, boost and follower numbers out of every client
- * API answer for a reader who has them hidden (`CountsService`).
+ * Takes the like, dislike, boost and reply numbers out of every client API
+ * answer for a reader who has them hidden (`CountsService`); an account's
+ * follower count stays.
  *
  * In one place rather than in each route, because the numbers ride on every
- * status and every account the API hands out — timelines, threads, single
- * posts, profiles, notifications, search, conversations — and a route that
+ * status the API hands out — timelines, threads, single posts, profiles,
+ * notifications, search, conversations — and a route that
  * was forgotten would be the one that shows them. The client APIs only: the
  * ActivityPub documents and the rest are answered to other servers, not to
  * this reader.

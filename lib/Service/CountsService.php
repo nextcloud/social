@@ -13,15 +13,18 @@ use stdClass;
 
 /**
  * Whether a reader is shown how many likes, dislikes, boosts and followers
- * things have — and, when not, the numbers taken out of what they are sent.
+ * things have — and, when not, the status numbers taken out of what they
+ * are sent.
  *
  * Hidden unless the reader turned them back on: a number next to a post is
  * a score, and a score is pressure. The switch is stored the other way round
  * (`show_counts`), so every account starts hidden without a migration.
  *
- * Replies, following and post counts are not hidden: a reply count says
- * there is a conversation, the other two describe the account rather than
- * rank it.
+ * Follower, following and post counts are sent as they are: they describe
+ * the account rather than rank a post, a reader's own follower count is
+ * theirs to know, and a client that is told 0 shows "0 followers" as a fact.
+ * The web app leaves other people's follower number off their profile for a
+ * reader who hides the numbers (`serverData.hideCounts`).
  */
 class CountsService {
 	/** The per-user switch: `'1'` shows the numbers, anything else hides them. */
@@ -65,9 +68,9 @@ class CountsService {
 	}
 
 	/**
-	 * A response body with the numbers taken out, wherever they are: a status
-	 * at any depth (a boost's `reblog`, a quote, a notification's `status`),
-	 * an account at any depth (a status's author, a follow notification).
+	 * A response body with the status numbers taken out, wherever they are:
+	 * a status at any depth (a boost's `reblog`, a quote, a notification's
+	 * `status`). An account's numbers are left as they are.
 	 *
 	 * Set to 0 rather than removed: the Mastodon entities declare them, and a
 	 * client that decodes into a typed struct fails on a missing field. A
@@ -95,10 +98,6 @@ class CountsService {
 				}
 			}
 		}
-		if (property_exists($data, 'followers_count') && property_exists($data, 'acct')) {
-			$data->followers_count = 0;
-		}
-
 		foreach (get_object_vars($data) as $key => $value) {
 			if (is_array($value) || $value instanceof stdClass) {
 				$data->{$key} = $this->strip($value);

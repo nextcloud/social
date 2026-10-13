@@ -752,9 +752,15 @@ export default {
 			return n('social', '{count} following', '{count} following', count, { count: formatCount(count) })
 		},
 
-		/** @return {string} */
+		/**
+		 * A reader who hides the numbers is not shown other people's follower
+		 * count; their own is theirs to know, as Statistics and the followers
+		 * list already tell it.
+		 *
+		 * @return {string}
+		 */
 		followersLabel() {
-			if (this.serverData.hideCounts === true) {
+			if (this.serverData.hideCounts === true && !this.isOwnProfile) {
 				return t('social', 'Followers')
 			}
 			const count = Number(this.accountInfo.followers_count) || 0
