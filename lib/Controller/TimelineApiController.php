@@ -117,9 +117,8 @@ class TimelineApiController extends MastodonApiController {
 			// so it still needs a viewer. A token that *was* presented still has
 			// to be a good one: a client whose token has been revoked has to
 			// learn that, not quietly get the anonymous view instead.
-			$this->initViewer(
-				$this->bearer !== '' || strtolower($timeline) !== ProbeOptions::PUBLIC
-			);
+			$public = strtolower($timeline) === ProbeOptions::PUBLIC;
+			$this->initViewer($this->bearer !== '' || !$public, $public);
 			$this->logger->debug('[' . static::class . '] Viewer initialized', [
 				'viewerId' => $this->viewer?->getId()
 			]);

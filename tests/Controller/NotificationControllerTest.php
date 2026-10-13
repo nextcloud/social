@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
+use OCA\Social\Controller\MastodonApiController;
 use OCA\Social\Controller\NotificationController;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -440,6 +441,22 @@ class NotificationControllerTest extends TestCase {
 		$this->controller()->indexV2();
 
 		$this->assertSame([], $this->options?->getExcludeTypes());
+	}
+
+	/** An app token (the `client_credentials` grant) names no account, and these are somebody's. */
+	public function testAnAppTokenIsNobodyHere(): void {
+		$this->timeline([]);
+		$this->headers['Authorization'] = 'Bearer token-1';
+		$client = $this->createStub(SocialClient::class);
+		$client->method('getAuthUserId')->willReturn('');
+		$client->method('getAuthScopes')->willReturn(['read']);
+		$this->clientService->method('getFromToken')->willReturn($client);
+
+		$response = $this->controller()->indexV2();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => MastodonApiController::APP_TOKEN_NAMES_NOBODY], $response->getData());
+		$this->assertNull($this->options, 'nothing was asked of the database');
 	}
 
 	public function testTheGroupedListGroupsFavouritesOfOnePost(): void {

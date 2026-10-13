@@ -3752,6 +3752,43 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([], $options()->getExcludeTypes());
 	}
 
+	// an app token: the `client_credentials` grant, bound to no account
+
+	private function appToken(): void {
+		$client = new SocialClient();
+		$client->setAppName('Tusky')->setAuthUserId('')->setAuthScopes(['read']);
+		$this->clientService->method('getFromToken')->with('s3cret')->willReturn($client);
+		$this->accountService->expects($this->never())->method('getActorFromUserId');
+	}
+
+	public function testAnAppTokenReadsWhatAnybodyMayRead(): void {
+		$this->route = 'social.TimelineApi.timelines';
+		$this->appToken();
+		$this->captureTimelineOptions([]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller('Bearer s3cret')->timelines('public')->getStatus());
+	}
+
+	public function testAnAppTokenIsNobodyOnARouteThatActsForAnAccount(): void {
+		$this->route = 'social.Api.verifyCredentials';
+		$this->appToken();
+
+		$response = $this->controller('Bearer s3cret')->verifyCredentials();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => MastodonApiController::APP_TOKEN_NAMES_NOBODY], $response->getData());
+	}
+
+	public function testAnAppTokenIsNobodyOnARouteThatReadsTheSessionItself(): void {
+		$this->route = 'social.Api.preferences';
+		$this->appToken();
+
+		$response = $this->controller('Bearer s3cret')->preferences();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => MastodonApiController::APP_TOKEN_NAMES_NOBODY], $response->getData());
+	}
+
 	public function testNotificationsRequireAViewer(): void {
 		$this->assertUnauthorized($this->controller()->notifications());
 	}

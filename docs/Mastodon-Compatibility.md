@@ -163,6 +163,14 @@ register again; it now deletes authorizations. And a code is spent in the same
 statement that writes the token, so two requests arriving together cannot both
 exchange it.
 
+**The `client_credentials` grant** issues an app token now — bound to no
+account, granted `read`, one per app — which Mastodon's Android and iOS apps
+take in their sign-up flow and `Mastodon.py`-based tools probe `/api/v1/instance`
+with; it used to answer 400. A route that acts for an account answers such a
+token 401, as Mastodon does. The `/oauth/token` error bodies carry RFC 6749's
+names (`invalid_request`, `unsupported_grant_type`, `invalid_grant`,
+`invalid_client`) with a readable `error_description`.
+
 ### 3.3 The endpoint surface is now broad and mostly real
 
 I opened the controller method behind each route rather than trusting the route
