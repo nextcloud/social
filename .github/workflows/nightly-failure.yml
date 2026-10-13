@@ -35,6 +35,7 @@ on:
       - Interop against Misskey
       - Interop against Pixelfed
       - l10n
+      - l10n sync
       - Lint php
       - Mutation testing
       - Nightly performance
