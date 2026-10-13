@@ -320,15 +320,24 @@ its collection, rkey, CID, DAG-CBOR bytes, and the Social id it came from
 (`local_id`, so a post maps to its record in O(1) in both directions) — and
 `social_atproto_block` — the content-addressed blocks of the MST and the
 commits, keyed by CID, because the sync endpoints and the firehose serve
-blocks, not rows. The MST is **recomputed in memory from the record table**
-when a commit is made, then its new or changed nodes are written to the
-block table and the unreferenced ones of the previous commit deleted — the
-simplest correct implementation, and a repository of ten thousand records
-rebuilds in well under a second in PHP; if a measurement says otherwise the
-`MST` class gets an incremental path, behind the same interface. The MST
-rules (fanout 4, key depth from the leading zero bits of the SHA-256 of the
-key, two hash bits per level, 32-byte CID v1 `dag-cbor` SHA-256) are pinned
-by the interop test vectors (§17.1).
+blocks, not rows. A commit **edits the stored MST in place**
+(`MstEditor`): it reads the nodes on the path from the root to each key it
+writes, rewrites them, writes the new nodes to the block table and deletes
+the ones they replace; every other node is kept by its CID and never read,
+so a commit costs the depth of the tree, not the size of the repository.
+The edits are the reference implementation's (split around a new key,
+merge around a removed one, trim an emptied root), and the tree they leave
+is, node for node, the one `Mst::build()` makes from the record table —
+pinned by random sequences of commits in the tests. The whole tree is
+still built from the records when a repository is imported (§13), when
+`occ social:atproto:repo --verify` checks it, and by the next commit after
+a stored node is found missing or malformed, which stores that tree in
+place of what was there. The MST rules (fanout 4, key depth from the
+leading zero bits of the SHA-256 of the key, two hash bits per level,
+32-byte CID v1 `dag-cbor` SHA-256) are pinned by the interop test vectors
+(§17.1). `tests/Integration/Atproto/CommitBenchmarkTest` (run with
+`SOCIAL_BENCHMARK=1`) prints what one commit costs on twenty thousand
+records next to what a rebuild of the tree costs.
 
 ### 5.3 Commits
 
@@ -338,7 +347,12 @@ over the DAG-CBOR of the unsigned commit). One commit per write, written in
 the same database transaction as the record and the blocks, and one
 firehose event per commit (§7). A write that fails half-way leaves the
 previous commit as the repository's head: the `social_atproto_repo` row
-(§15) holds the head CID and `rev`, and it is updated last.
+(§15) holds the head CID and `rev`, and it is updated last. The
+transaction begins by reading that row with a row lock (`SELECT … FOR
+UPDATE`; SQLite, which has one writer at a time anyway, without the
+clause), so two commits of one repository that start together run one
+after the other and the second builds on the first's head rather than
+forking the tree.
 
 ### 5.4 Blobs
 
@@ -380,8 +394,13 @@ apps today.
 relay and other PDSes need, and the account surface a Bluesky app logging
 in here needs:
 
-`com.atproto.sync.getRepo`, `getLatestCommit`, `getRecord`, `getBlob`,
-`listBlobs`, `listRepos`, `getRepoStatus`, `subscribeRepos` (§7);
+`com.atproto.sync.getRepo` (the CAR written out as the repository is
+read, a page of rows at a time, so a repository larger than a request's
+memory is served), `getLatestCommit`, `getRecord`, `getBlocks` (blocks by
+CID — tree nodes, commits, records — as a CAR with no roots; one CID the
+repository does not have refuses the request with `BlockNotFound`),
+`getBlob`, `listBlobs`, `listRepos`, `getRepoStatus`, `subscribeRepos`
+(§7);
 `com.atproto.identity.resolveHandle`, `updateHandle` (custom handles, later),
 `getRecommendedDidCredentials`, `signPlcOperation`, `submitPlcOperation`,
 `requestPlcOperationSignature` (§13); `com.atproto.server.describeServer`,
@@ -452,7 +471,18 @@ The daemon reads new events by polling the event table (every 250 ms when
 idle, immediately after a write it was told about through a Redis/APCu
 notice where available) — the web request writes the row, the daemon
 serves it; no shared memory, no second code path. `--once` drains and exits
-for tests; `--max-seconds` as `social:worker` has. systemd unit and the
+for tests; `--max-seconds` as `social:worker` has.
+
+A frame's `seq` is the row's auto-increment id, taken when the row is
+inserted inside the commit's transaction and visible when that transaction
+commits, so a lower number can appear after a higher one is already
+there (two writes of different repositories overlapping). The daemon
+never serves past a number that is not there yet: it holds the later
+frames back and waits up to two seconds (`FirehoseDaemon::GAP_GRACE`,
+as the reference PDS sequencer does) for the missing one, then serves
+them in order. A number that is still missing after that is a write that
+rolled back; the daemon logs it at info level and goes on, and a frame
+with that number that turns up later is served by replay only. systemd unit and the
 Docker variant are documented in Admin.md; the setup check "firehose
 reachable" connects to the public URL and reads an `#info` frame.
 
@@ -639,9 +669,13 @@ there within minutes of the relay indexing the commit.
 ### 9.3 Polling (D12)
 
 `Cron\AtprotoSync` (a `TimedJob`, every two minutes) takes the watches due
-(`next_sync <= now`), at most `SYNC_BATCH` per pass and at most the
+(`next_sync <= now`), at most `SYNC_BATCH` per pass, at most the
 instance-wide `atproto_sync_ceiling` (default 200 requests per pass; the
-admin page shows how far behind the slowest watch is), and asks the public
+admin page shows how far behind the slowest watch is) and within the pass's
+wall-clock budget (`AtprotoSync::MAX_DURATION`, 90 seconds for its three
+steps — feeds, notifications, direct messages — each checking the clock
+between accounts, so a slow AppView ends the pass and what is still due is
+read on the next one), and asks the public
 AppView `app.bsky.feed.getAuthorFeed` for each (`filter=posts_with_replies`,
 `limit=50`, the stored cursor): new posts are stored, the cursor advanced,
 `next_sync` set by backoff — one interval after a page with posts, doubling
@@ -655,12 +689,18 @@ themselves can arrive.
 A Bluesky post is a stream row of type `Note` with id `at://…/app.bsky.feed.post/…`
 (`id_prim` as for any id), `url` the `https://bsky.app/profile/<handle>/post/<rkey>`
 link, `attributed_to` the cached actor, `content` rebuilt from text and
-facets (links and mentions as anchors, hashtags as hashtag links), pictures
+facets (links and mentions as anchors, hashtags as hashtag links; a
+mention's `Mention` tag is named by the `@handle` the text shows, the DID
+only in its target, and a reply to a local post names its author by their
+handle), pictures
 as `social_cache_doc` rows pointing at the AppView's CDN URL with the
 blob's CID and alt text, a quote as `quoted_id`, an embedded custom feed,
 list or starter pack as a link to its bsky.app page with a card made from
 what the AppView says of it — its name, description, creator and picture,
-no page read (`PostMapper::cardOf()`) — a reply as `in_reply_to`,
+no page read (`PostMapper::cardOf()`); the card's provider line and the
+link that stands in for a video not yet playable say what the thing is
+("Feed by @…", "List", "Starter pack", "Video"), not which network it is
+on — a reply as `in_reply_to`,
 labels as `summary` (content warning) or `sensitive` per §12.1, `published`
 from `indexedAt`, `local` false, and `details.atproto` with the CID and
 the like/repost/reply counts the AppView reported. It goes through
@@ -668,6 +708,17 @@ the like/repost/reply counts the AppView reported. It goes through
 side effect of an arriving post — recipients, `social_stream_dest`,
 notifications, filters, interests — happens the way it happens for
 ActivityPub; nothing downstream knows a Bluesky post from any other.
+
+A post is addressed to the public with the author's followers collection in
+`cc`, which is what the home timeline joins on. An author who asked apps not
+to show them to logged-out people — the `!no-unauthenticated` self-label on
+the profile, or on one post — has that post, and any boost of it, addressed
+to the followers collection alone: followers-only here, so the visibility
+layer every read goes through keeps it out of anonymous pages, the public
+timelines, search and the hashtag views, and what this server federates on
+is not addressed to the public. Followers-only rather than unlisted because
+unlisted is still served to anybody with the link, which is what the label
+asks apps not to do (`PostMapper::isLoggedInOnly()`).
 
 ### 9.4 Jetstream (optional)
 
@@ -679,9 +730,12 @@ one Jetstream v2 keeps wire-frozen for v1 consumers), asking for
 names the watched DIDs — at most 10,000, Jetstream's limit; an empty list
 would be the whole network, so with no watches there is no connection. The
 list is read again every minute and re-sent when it changed. The cursor
-(`time_us`) is kept every second (`atproto_jetstream_cursor`) and a
-reconnect starts five seconds before it; a lost connection is retried with
-backoff up to a minute. The client (`JetstreamClient`) is this app's own,
+(`time_us`) is kept in `atproto_jetstream_cursor` every five seconds or
+every 200 events, whichever comes first, and on a lost connection and on
+stopping — a kept cursor is an app-config write, which invalidates the
+config cache of every request on the host — and a reconnect starts five
+seconds before it, which covers what was not kept yet; a lost connection
+is retried with backoff up to a minute. The client (`JetstreamClient`) is this app's own,
 on PHP streams: no compression is asked for, so every message is JSON.
 
 What an event does (`JetstreamEvents`): a post or a repost created by a
@@ -692,7 +746,11 @@ the boost the repost is, is still not here; then the watch is made due for
 the poller's next pass (`AtprotoWatchRequest::wake()`). A deleted post is
 deleted here at once (`PostStore::delete()`); a changed profile, or an
 `#identity` event, reads the account again and keeps the new handle. A
-block of a local account is recorded (§12.4).
+block of a local account is recorded (§12.4). An `account` event — which
+Jetstream sends for a wanted DID whatever the collections asked for — is
+acted on at once (`AccountStatus`, §9.5): `active: false` with
+`deactivated` or `suspended` hides the account, `takendown` or `deleted`
+purges it, `active: true` restores it.
 Interactions *on* local accounts by anybody else (likes, replies, follows)
 are not in a DID-filtered stream; they keep arriving through the
 notification poller (§10). The poller keeps running beside the listener,
@@ -770,6 +828,26 @@ A `delete` op from Jetstream, or a post gone from the author feed on the
 next poll (the AppView answers 404 for `getPosts` of it — checked for the
 last page's ids once a day, bounded), becomes a `Delete` through the same
 import path, as a remote `Delete` would. Bluesky has no edits.
+
+An account Bluesky stops serving (`Reader\AccountStatus`): Jetstream's
+`account` event says so at once (§9.4), and the feed poller concludes the
+same when the AppView refuses `getAuthorFeed` with `AccountDeactivated`,
+`AccountTakedown`, `RepoNotFound`, `RepoDeactivated`, `RepoSuspended` or
+`RepoTakendown` three reads in a row (`FeedPoller::STATUS_AFTER`, with the
+ordinary failure backoff between them — a single refusal is not acted on).
+A *deactivated* or *suspended* account comes back, so its mirror is hidden
+and kept: the cached actor is marked (`details.atproto.status`, and
+`limited`, so no interaction of it is stored and account search does not
+offer it) and its posts and boosts lose their `social_stream_dest` rows,
+which takes them out of every timeline and viewer-limited read while the
+rows themselves stay. The watch keeps being tried with backoff, and when
+the feed answers again — or Jetstream says `active: true` — the mark is
+lifted, the recipient rows are written back and the feed is read on the
+next pass. A *deleted* or *taken-down* account is gone: the actor, its
+posts, boosts, follows and everything else it left go through the cascade a
+remote `Delete` of an actor goes through (`PersonInterface::delete()`), and
+the watch is removed. Older posts are covered as well as recent ones; the
+deletion sweep above only ever re-asked about the last week's.
 
 ### 9.6 Feeds and lists
 
@@ -1048,9 +1126,11 @@ actor is refreshed:
 |---|---|
 | `porn`, `sexual`, `nudity`, `graphic-media` | `sensitive: true` on the post's pictures, and a content warning naming the label when the post had none |
 | `!warn` (self or service) | content warning (the post's own text prefix is kept) |
+| `!no-unauthenticated` (self, on the profile or a post) | the post and any boost of it are followers-only here: not served to anonymous readers, not in the public timelines or search, not federated to the public (§9.3) |
 | `!hide` (service) | the post is not stored; the account's posts are not fetched while the label stands |
 | `spam`, `impersonation`, `scam`, `misleading`, other service labels | a content warning naming the label; the account's profile shows it |
-| account-level `!hide` / takedown | the cached actor is marked limited: no posts fetched, interactions not announced |
+| account-level `!hide` / takedown | the cached actor is marked limited: no posts fetched, interactions not announced, not offered by account search |
+| account deactivated, suspended, taken down or deleted on Bluesky | hidden and kept, or purged, as §9.5 says |
 
 A labeler's label value definitions (`app.bsky.labeler.service` record,
 `policies.labelValueDefinitions`) are read once per labeler and cached, so
@@ -1388,7 +1468,10 @@ normalisation) with `gmp`; interop vectors pin the signature format.
 ### 16.2 Service auth and the proxy
 
 Service-auth JWTs are short-lived (60 s), bound to `lxm` (the method) and
-`aud`, signed per request; the AppView proxy forwards only `app.bsky.*`,
+`aud`, signed per request; one that arrives here (`createAccount` of a
+move, the video service's `uploadBlob`) is taken once — its `jti` is
+recorded for the token's lifetime, a token without one or dated more than
+a minute ahead is refused. The AppView proxy forwards only `app.bsky.*`,
 strips `Authorization` from the client and adds its own, passes
 `atproto-accept-labelers` and `atproto-proxy` through, and limits the body.
 A proxied call is counted against the user's rate limit.
@@ -1420,7 +1503,8 @@ only from the AppView CDN or the author's PDS endpoint and only as the MIME
 types the record declares, and text is escaped on render as every remote
 post is. The firehose daemon accepts connections but reads nothing from
 them beyond the `cursor` query; a slow consumer is dropped after a bounded
-buffer, as the reference relay does to a slow PDS.
+buffer, as the reference relay does to a slow PDS, and a connection past
+the ceiling (256 in all, 8 from one address) is answered 503 and closed.
 
 ### 16.5 What is published
 
@@ -1871,8 +1955,9 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
 - **Granular permissions** (atproto.com/specs/permission) are granted and
   held to: `repo:` records of a collection and an action, `rpc:` methods at
   a service (the AppView's `#bsky_appview` unless `atproto-proxy` names
-  another), `blob:` uploads of a type, `account:email`, `identity:`, and
-  `include:` permission sets. A set is resolved as Lexicon resolution
+  another), `blob:` uploads of a type (matched against what the bytes
+  are, not the `Content-Type` the app sent), `account:email`, `identity:`,
+  and `include:` permission sets. A set is resolved as Lexicon resolution
   says — the `_lexicon` TXT record of its authority, then the
   `com.atproto.lexicon.schema` record of that DID — kept a day at most, and
   only its `repo` and `rpc` permissions within its own namespace are taken;

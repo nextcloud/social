@@ -2888,6 +2888,13 @@
     "Could not follow that" : "Das Abo konnte nicht hinzugefügt werden.",
     "Could not unfollow that" : "Das Abo konnte nicht beendet werden.",
     "That file could not be read" : "Die Datei konnte nicht gelesen werden.",
+    "Close the composer?" : "Editor schließen?",
+    "What you have written is kept, and is back in the box the next time you open it." : "Dein Text bleibt erhalten und steht beim nächsten Öffnen wieder im Feld.",
+    "Page not found" : "Seite nicht gefunden",
+    "There is nothing at this address. The link may be wrong, or what it pointed to has moved." : "Unter dieser Adresse gibt es nichts. Der Link ist vielleicht falsch, oder das Ziel wurde verschoben.",
+    "Back to my feed" : "Zurück zu meinem Feed",
+    "Post by {name}" : "Beitrag von {name}",
+    "_%n unread_::_%n unread_" : ["%n ungelesen", "%n ungelesen"],
     "_%n entry_::_%n entries_" : ["%n Eintrag", "%n Einträge"]
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

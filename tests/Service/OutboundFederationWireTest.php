@@ -37,6 +37,7 @@ use OCA\Social\Service\SignatureService;
 use OCA\Social\Service\VideoThumbnailService;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Config\IUserConfig;
 use OCP\Files\IAppData;
 use OCP\Http\Client\IClient;
@@ -164,7 +165,7 @@ class OutboundFederationWireTest extends TestCase {
 			$clientService,
 			$this->httpSignatureService(),
 			new NullLogger(),
-			new AsyncRequestSigner($this->createStub(ICrypto::class)),
+			new AsyncRequestSigner($this->createStub(ICrypto::class), $this->createStub(ITimeFactory::class)),
 		);
 	}
 

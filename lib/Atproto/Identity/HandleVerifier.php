@@ -11,7 +11,7 @@ namespace OCA\Social\Atproto\Identity;
 
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Service\AtprotoConfig;
-use OCP\Http\Client\IClientService;
+use OCA\Social\Service\CurlService;
 use Throwable;
 
 /**
@@ -27,7 +27,7 @@ class HandleVerifier {
 	public function __construct(
 		private AtprotoConfig $config,
 		private DnsLookup $dns,
-		private IClientService $clientService,
+		private CurlService $curl,
 	) {
 	}
 
@@ -64,17 +64,15 @@ class HandleVerifier {
 			}
 		}
 		try {
-			$response = $this->clientService->newClient()->get('https://' . $handle . '/.well-known/atproto-did', [
+			// read where the handle is, not where it sends: no redirect is followed
+			$status = 0;
+			$raw = $this->curl->doRequest('get', 'https://' . $handle . '/.well-known/atproto-did', [
 				'timeout' => 10,
-				'allow_redirects' => false,
-				'http_errors' => false,
-				'stream' => true,
-			]);
-			$body = '';
-			if ($response->getStatusCode() === 200) {
-				$raw = $response->getBody();
-				$body = is_resource($raw) ? (string)stream_get_contents($raw, self::MAX_BODY) : substr((string)$raw, 0, self::MAX_BODY);
-			}
+				'json_headers' => false,
+				'accept_errors' => true,
+				'max_redirects' => 0,
+			], $contentType, $status);
+			$body = $status === 200 ? substr($raw, 0, self::MAX_BODY) : '';
 		} catch (Throwable) {
 			$body = '';
 		}

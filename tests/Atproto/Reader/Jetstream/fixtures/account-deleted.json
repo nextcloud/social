@@ -1,0 +1,12 @@
+{
+  "did": "did:plc:bob",
+  "time_us": 1760000000000000,
+  "kind": "account",
+  "account": {
+    "active": false,
+    "did": "did:plc:bob",
+    "seq": 1004,
+    "status": "deleted",
+    "time": "2026-10-13T10:00:00.000Z"
+  }
+}

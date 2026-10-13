@@ -39,6 +39,7 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoClientRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -107,7 +108,7 @@ class InboundMoveServiceTest extends TestCase {
 			$this->createMock(AtprotoClientRequest::class), $this->createMock(ActorsRequest::class), $this->createMock(IUserManager::class),
 			$this->createMock(IThrottler::class), $time,
 		);
-		$this->serviceAuth = new ServiceAuth($time);
+		$this->serviceAuth = new ServiceAuth($time, $this->replay());
 		$plc = $this->createMock(PlcClient::class);
 		$plc->method('data')->willReturnCallback(fn (): array => $this->plcState);
 		$this->identities = $this->createMock(IdentityService::class);
@@ -418,5 +419,21 @@ class InboundMoveServiceTest extends TestCase {
 
 		$this->expectException(InvalidArgumentException::class);
 		$this->moves->invite('alice', 'alice.bsky.social');
+	}
+
+	/** A replay record that remembers what it was given, as the table does. */
+	private function replay(): AtprotoOAuthRequest {
+		$seen = [];
+		$replay = $this->createStub(AtprotoOAuthRequest::class);
+		$replay->method('firstUse')->willReturnCallback(static function (string $hash) use (&$seen): bool {
+			if (isset($seen[$hash])) {
+				return false;
+			}
+			$seen[$hash] = true;
+
+			return true;
+		});
+
+		return $replay;
 	}
 }

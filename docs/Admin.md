@@ -52,7 +52,9 @@ See [*the delivery job has not run*](#the-delivery-job-has-not-run).
 **Outbound HTTP.** The server must be able to reach the rest of the fediverse
 over HTTPS. Requests to local and private addresses are refused unless
 Nextcloud's `allow_local_remote_servers` is on, which is a development setting
-and not one to carry into production.
+and not one to carry into production. A host is resolved once, every address
+it answers with is checked, and the request — and each redirect it follows —
+is sent to exactly those addresses.
 
 ---
 
@@ -439,7 +441,8 @@ checks, and the card refuses to switch Bluesky on while one fails:
   Apache needs `mod_proxy_wstunnel` for the first of them; nginx the
   `Upgrade`/`Connection` headers the shipped block sets.
 - **The firehose daemon.** `occ social:atproto:serve` is a long-running process
-  that serves the event stream relays subscribe to. Under systemd:
+  that serves the event stream relays subscribe to. It holds at most 256
+  connections, 8 from one address, and answers 503 past that. Under systemd:
 
   ```
   [Unit]

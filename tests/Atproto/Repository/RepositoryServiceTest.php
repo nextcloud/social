@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Lexicon\Lexicon;
 use OCA\Social\Atproto\Model\Event;
 use OCA\Social\Atproto\Protocol\Car;
+use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
 use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Mst;
@@ -130,6 +131,32 @@ class RepositoryServiceTest extends TestCase {
 		$this->assertEqualsCanonicalizing($expected, array_keys($car['blocks']));
 	}
 
+	/**
+	 * The CAR in pieces is the CAR the encoder makes of the same blocks,
+	 * byte for byte, the commit first; a piece holds many blocks.
+	 */
+	public function testTheCarInPiecesIsTheEncodersCar(): void {
+		$writes = [];
+		for ($i = 0; $i < 150; $i++) {
+			$writes[] = RepoWrite::create('app.bsky.feed.like', ['createdAt' => sprintf('2026-10-08T10:%02d:%02d.000Z', intdiv($i, 60), $i % 60)] + self::like(), '', '3kznmn7xq' . str_pad(base_convert((string)$i, 10, 32), 4, '0', STR_PAD_LEFT));
+		}
+		$result = $this->service->write(self::DID, $this->key, $writes);
+
+		$pieces = iterator_to_array($this->service->streamCar(self::DID), false);
+		$car = implode('', $pieces);
+
+		$blocks = [$result->commitCid->toString() => (string)$this->store->getBlock(self::DID, $result->commitCid->toString())];
+		foreach ($this->store->blocks(self::DID, AtprotoRepoRequest::BLOCK_MST) as [$cid, , $bytes]) {
+			$blocks[$cid->toString()] = $bytes;
+		}
+		foreach ($this->store->recordBytes(self::DID) as [$cid, $bytes]) {
+			$blocks[$cid->toString()] = $bytes;
+		}
+		$this->assertSame(Car::encode([$result->commitCid], $blocks), $car);
+		$this->assertLessThan(count($blocks), count($pieces), 'blocks are gathered into pieces');
+		$this->assertCount(count($blocks), Car::decode($car)['blocks']);
+	}
+
 	public function testARecordThatDoesNotFitItsLexiconIsNeverSigned(): void {
 		$this->expectException(AtprotoException::class);
 		$this->expectExceptionMessage('does not fit its lexicon');
@@ -143,11 +170,62 @@ class RepositoryServiceTest extends TestCase {
 		$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('again'), '', '3kznmn7xqxl22')]);
 	}
 
+	/**
+	 * A commit rewrites the nodes on the way to its keys and keeps the rest
+	 * by CID: with a thousand records, one more reads and writes a handful
+	 * of nodes, not the tree.
+	 */
+	public function testACommitTouchesThePathToItsRecordsOnly(): void {
+		$writes = [];
+		for ($i = 0; $i < 1000; $i++) {
+			$writes[] = RepoWrite::create('app.bsky.feed.like', self::like(), '', '3kznmn7xq' . str_pad(base_convert((string)$i, 10, 32), 4, '0', STR_PAD_LEFT));
+		}
+		foreach (array_chunk($writes, RepositoryService::MAX_WRITES) as $chunk) {
+			$this->service->write(self::DID, $this->key, $chunk);
+		}
+		$nodes = count($this->store->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_MST));
+		$this->assertGreaterThan(200, $nodes);
+		$this->frames = [];
+		$this->store->leafReads = 0;
+
+		$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
+
+		$this->assertSame(0, $this->store->leafReads, 'the records were not read whole');
+		$car = Car::decode($this->frames[0]['body']['blocks']->value);
+		$this->assertLessThan(20, count($car['blocks']), 'the commit, the record and the nodes on its path');
+		$this->assertSame([], $this->service->verify(self::DID, $this->key->publicKey()));
+		$this->assertSame(1001, $this->store->getHead(self::DID)?->recordCount);
+	}
+
+	/**
+	 * A stored node that is gone or is not a node: the next commit builds
+	 * the tree from the records again, and what is stored is that tree.
+	 */
+	public function testACommitOverADamagedTreeMakesItWholeAgain(): void {
+		$this->service->write(self::DID, $this->key, [
+			RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22'),
+			RepoWrite::create('app.bsky.feed.post', self::post('two'), '', '3kznmn7xqxl23'),
+		]);
+		$this->store->deleteBlocks(self::DID, [$this->store->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_MST)[0]]);
+		$stray = DagCbor::encode(['e' => [], 'l' => null, 'stray' => true]);
+		$this->store->putBlocks(self::DID, AtprotoRepoRequest::BLOCK_MST, [Cid::forDagCbor($stray)->toString() => $stray]);
+		$this->assertNotSame([], $this->service->verify(self::DID, $this->key->publicKey()));
+
+		$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('three'), '', '3kznmn7xqxl24')]);
+
+		$this->assertSame([], $this->service->verify(self::DID, $this->key->publicKey()), 'exactly the live tree is stored');
+		$this->assertSame(3, $this->store->getHead(self::DID)?->recordCount);
+	}
+
 	public function testVerifyNoticesATamperedHead(): void {
 		$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
 		$other = PrivateKey::generate(Curve::K256);
 
 		$this->assertContains('the head commit is not signed by the signing key', $this->service->verify(self::DID, $other->publicKey()));
+	}
+
+	private static function like(): array {
+		return ['$type' => 'app.bsky.feed.like', 'subject' => ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kznmn7xqxl22', 'cid' => 'bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454'], 'createdAt' => '2026-10-08T10:00:00.000Z'];
 	}
 
 	private static function post(string $text): array {

@@ -179,6 +179,15 @@ describe('Statistics', () => {
 		document.body.innerHTML = ''
 	})
 
+	it('is headed by its one h1', async () => {
+		axios.get.mockResolvedValue({ data: answer() })
+		const wrapper = mountPage()
+		await flushPromises()
+
+		expect(wrapper.find('h1').text()).toBe('Statistics')
+		expect(wrapper.findAll('h1')).toHaveLength(1)
+	})
+
 	it('asks the server once and shows what came back', async () => {
 		axios.get.mockResolvedValue({ data: answer() })
 

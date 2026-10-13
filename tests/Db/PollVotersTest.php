@@ -10,11 +10,14 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Db;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Db\SocialQueryBuilder;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCP\DB\IResult;
+use OCP\IDBConnection;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
+use ReflectionProperty;
 
 /**
  * How the voters of a poll are found: by the indexed `poll_prim` each vote
@@ -38,6 +41,16 @@ class PollVotersTest extends TestCase {
 			->onlyMethods(['getQueryBuilder'])
 			->getMock();
 		$request->method('getQueryBuilder')->willReturnCallback(fn (): SocialQueryBuilder => $this->queryBuilder());
+
+		// the insert goes through the connection, as a row the database may
+		// already hold; what it is handed is what the row is written with
+		$connection = $this->createStub(IDBConnection::class);
+		$connection->method('insertIgnoreConflict')->willReturnCallback(function (string $table, array $values): int {
+			$this->values = $values;
+
+			return 1;
+		});
+		(new ReflectionProperty(CoreRequestBuilder::class, 'dbConnection'))->setValue($request, $connection);
 
 		return $request;
 	}

@@ -41,8 +41,9 @@ const RouterLinkStub = {
 }
 const NcModalStub = {
 	name: 'NcModal',
+	props: ['name', 'labelId'],
 	emits: ['close'],
-	template: '<div class="modal-stub"><slot /></div>',
+	template: '<div class="modal-stub" :data-name="name" :data-label-id="labelId"><slot /></div>',
 }
 // NcActions only renders its entries inside a popover once opened; these
 // stand-ins render them inline so the menu content can be asserted.
@@ -119,9 +120,10 @@ function makeStore(serverData = {}) {
 	return pinia
 }
 
-function mountProfile(uid) {
+function mountProfile(uid, { attachTo } = {}) {
 	return mount(ProfileInfo, {
 		props: { uid },
+		attachTo,
 		global: {
 			plugins: [pinia],
 			stubs: {
@@ -204,7 +206,7 @@ describe('ProfileInfo', () => {
 
 	it('shows the name, the delivered avatar and the counters of a remote account', () => {
 		const wrapper = mountProfile('bob@remote.example')
-		expect(wrapper.find('h2').text()).toBe('Bob')
+		expect(wrapper.find('h1').text()).toBe('Bob')
 		const avatar = wrapper.findComponent(NcAvatarStub)
 		expect(avatar.props('url')).toBe('https://remote.example/media/bob.png')
 		expect(avatar.props('user')).toBeUndefined()
@@ -254,7 +256,7 @@ describe('ProfileInfo', () => {
 		const avatar = wrapper.findComponent(NcAvatarStub)
 		expect(avatar.props('user')).toBe('carol')
 		expect(avatar.props('url')).toBeUndefined()
-		expect(wrapper.find('h2').text()).toBe('carol')
+		expect(wrapper.find('h1').text()).toBe('carol')
 	})
 
 	it('hands the uid to the follow button and does not offer the public follow flow', () => {
@@ -552,7 +554,7 @@ describe('ProfileInfo', () => {
 			await flushPromises()
 
 			expect(post).toHaveBeenCalledWith('/index.php/apps/social/moderation/verifications', { account: bob.url })
-			expect(wrapper.find('h2 .verified-badge').attributes('title')).toBe('Verified by Example Inc')
+			expect(wrapper.find('h1 .verified-badge').attributes('title')).toBe('Verified by Example Inc')
 			expect(menuItems(wrapper)).toContain('Remove verification')
 			expect(showSuccess).toHaveBeenCalledWith('The account is verified')
 		})
@@ -568,7 +570,7 @@ describe('ProfileInfo', () => {
 			await flushPromises()
 
 			expect(remove).toHaveBeenCalledWith('/index.php/apps/social/moderation/verifications', { data: { account: bob.url } })
-			expect(wrapper.find('h2 .verified-badge').exists()).toBe(false)
+			expect(wrapper.find('h1 .verified-badge').exists()).toBe(false)
 			expect(menuItems(wrapper)).toContain('Verify account')
 		})
 
@@ -582,7 +584,7 @@ describe('ProfileInfo', () => {
 			await flushPromises()
 
 			expect(showError).toHaveBeenCalledWith('Could not verify the account')
-			expect(wrapper.find('h2 .verified-badge').exists()).toBe(false)
+			expect(wrapper.find('h1 .verified-badge').exists()).toBe(false)
 		})
 	})
 
@@ -701,6 +703,24 @@ describe('ProfileInfo', () => {
 			expect(wrapper.find('.modal-stub').exists()).toBe(false)
 			expect(showSuccess).toHaveBeenCalledWith('Profile saved')
 			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
+		})
+
+		it('gives the focus back to the Edit profile button once the dialog is saved', async () => {
+			vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
+			spyOnAccountActions(alice)
+			const wrapper = mountProfile('alice', { attachTo: document.body })
+			await flushPromises()
+			buttonByText(wrapper, 'Edit profile').element.focus()
+
+			const modal = await openProfileEditor(wrapper)
+			// the modal's own trap moved the focus into it
+			modal.find('input[type="url"]').element.focus()
+			await buttonByText(modal, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(wrapper.find('.modal-stub').exists()).toBe(false)
+			expect(document.activeElement).toBe(buttonByText(wrapper, 'Edit profile').element)
+			wrapper.unmount()
 		})
 
 		it('drops half-filled rows and can clear every field', async () => {
@@ -872,6 +892,9 @@ describe('ProfileInfo', () => {
 
 			const note = mountProfile('bob@remote.example').find('.user-profile__note')
 			expect(note.text()).toContain('Hi there')
+			// a bio and a name written right to left read that way
+			expect(note.attributes('dir')).toBe('auto')
+			expect(mountProfile('bob@remote.example').find('h1').attributes('dir')).toBe('auto')
 			expect(note.html()).not.toContain('alert(1)')
 			expect(note.find('a').attributes('href')).toBe('https://example.org')
 		})
@@ -1122,6 +1145,10 @@ describe('ProfileInfo', () => {
 			await openProfileEditor(wrapper)
 			const modal = wrapper.find('.modal-stub')
 			expect(modal.find('h3').text()).toBe('Edit profile')
+			// its own heading names the dialog: a `name` is drawn into the
+			// page header, above the mask, where it covered the search box
+			expect(modal.attributes('data-name')).toBeUndefined()
+			expect(modal.attributes('data-label-id')).toBe(modal.find('h3').attributes('id'))
 			const apply = buttonByText(modal, 'Apply')
 			expect(apply.attributes('disabled')).toBeDefined()
 

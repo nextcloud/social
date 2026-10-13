@@ -414,11 +414,13 @@ import EmptyContent from './EmptyContent.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSwitcher from './TimelineSwitcher.vue'
 import { useAccountStore } from '../store/account.js'
+import { useNotificationsStore } from '../store/notifications.js'
 import { fullDateTime, shortAgo } from '../utils/relativeTime.js'
 import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 import { isLocalAccount } from '../utils/accountLocality.js'
 import logger from '../services/logger.js'
+import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 
 /** How many conversations one request asks for. */
 const PAGE_SIZE = 40
@@ -428,6 +430,19 @@ const SEARCH_FROM = 9
 
 /** How tall the message box grows before it scrolls, in pixels. */
 const MESSAGE_BOX_MAX = 112
+
+/** How many of a chat's threads, newest first, are read into the message lane. */
+const THREADS_SHOWN = 8
+
+/**
+ * @param {object|null|undefined} status a message
+ * @return {number} when it was written, for sorting; 0 when it does not say
+ */
+function writtenAt(status) {
+	const time = new Date(status?.created_at ?? '').getTime()
+
+	return Number.isNaN(time) ? 0 : time
+}
 
 /**
  * A handle at the very start of a message, as the composer writes one.
@@ -507,7 +522,16 @@ export default {
 			conversations: [],
 			/** the `max_id` of the next page, '' once the server says there is none */
 			cursor: '',
+			/** whether the reader has gone past the first page */
+			paged: false,
 			loadingMore: false,
+			listRequest: 0,
+			intervalId: -1,
+			pollEvery: 30000,
+			/** when the tab was last hidden, so returning can catch up */
+			hiddenSince: 0,
+			/** whether the server said something arrived while the tab was hidden */
+			missed: false,
 			searchQuery: '',
 			filterMode: 'all',
 			currentUserId: window.OC?.getCurrentUser?.()?.uid ?? '',
@@ -538,15 +562,49 @@ export default {
 	},
 
 	computed: {
+		/**
+		 * The inbox as the reader sees it: one chat per set of people.
+		 *
+		 * The server answers one conversation per thread, as Mastodon does —
+		 * a direct message that is not a reply starts a new one — so two
+		 * messages to the same person a day apart were two rows "Bob". The
+		 * threads between one set of participants are folded into one chat
+		 * here: it carries the newest thread's id, its newest message, and is
+		 * unread while any of its threads is. Opening it reads every thread.
+		 *
+		 * @return {object[]} newest first, each with its `threads`
+		 */
+		chats() {
+			const chats = new Map()
+			for (const conversation of this.conversations) {
+				const key = this.participantsKey(conversation)
+				const chat = chats.get(key)
+				if (chat === undefined) {
+					chats.set(key, { ...conversation, unread: Boolean(conversation.unread), threads: [conversation] })
+					continue
+				}
+
+				chat.threads.push(conversation)
+				chat.unread = chat.unread || Boolean(conversation.unread)
+				if (writtenAt(conversation.last_status) > writtenAt(chat.last_status)) {
+					chat.id = conversation.id
+					chat.last_status = conversation.last_status
+					chat.accounts = conversation.accounts
+				}
+			}
+
+			return [...chats.values()]
+		},
+
 		filteredConversations() {
 			const query = this.searchQuery.trim().toLocaleLowerCase()
-			return this.conversations.filter((conversation) => (this.filterMode !== 'unread' || conversation.unread)
+			return this.chats.filter((conversation) => (this.filterMode !== 'unread' || conversation.unread)
 				&& (!query || this.conversationName(conversation).toLocaleLowerCase().includes(query)
 					|| this.preview(conversation.last_status, conversation).toLocaleLowerCase().includes(query)))
 		},
 
 		unreadCount() {
-			return this.conversations.filter((conversation) => conversation.unread).length
+			return this.chats.filter((conversation) => conversation.unread).length
 		},
 
 		/** @return {object[]} All and Unread, as the feed's switcher takes them */
@@ -565,6 +623,23 @@ export default {
 		/** @return {object|null} the reader's own account, for the face beside the message box */
 		ownAccount() {
 			return useAccountStore().currentAccount ?? null
+		},
+
+		/**
+		 * The reader, in the shape `isProtocolRecipient()` compares a mention
+		 * against — before the account store has them, by their user id and
+		 * this server.
+		 *
+		 * @return {object|null}
+		 */
+		readerAsRecipient() {
+			if (this.ownAccount) {
+				return this.ownAccount
+			}
+
+			return this.currentUserId === ''
+				? null
+				: { acct: this.currentUserId, username: this.currentUserId, url: `${window.location.origin}/` }
 		},
 
 		/** @return {object} the inbox with nothing in it, where it is the whole page */
@@ -596,8 +671,15 @@ export default {
 			}
 		},
 
+		/**
+		 * The chat the route names, by any of its threads: the route keeps
+		 * the id it was opened with, and the chat's own id moves on when a
+		 * new thread with the same people arrives.
+		 *
+		 * @return {object|null}
+		 */
 		activeConversation() {
-			return this.conversations.find((conversation) => String(conversation.id) === this.selectedConversationId) ?? null
+			return this.chatOf(this.selectedConversationId)
 		},
 
 		hasRecipientQuery() {
@@ -650,6 +732,12 @@ export default {
 			].filter((group) => group.accounts.length > 0)
 		},
 
+		/**
+		 * Every message of the chat, oldest first: the threads' own newest
+		 * messages and what their contexts brought, as one lane.
+		 *
+		 * @return {object[]}
+		 */
 		messages() {
 			if (!this.activeConversation?.last_status) {
 				return []
@@ -657,14 +745,14 @@ export default {
 
 			const ordered = [
 				...(this.thread.ancestors ?? []),
-				this.activeConversation.last_status,
+				...this.activeConversation.threads.map((thread) => thread.last_status).filter(Boolean),
 				...(this.thread.descendants ?? []),
 			]
 			const unique = new Map()
 			for (const message of ordered) {
 				unique.set(String(message.id), message)
 			}
-			return [...unique.values()]
+			return [...unique.values()].sort((left, right) => writtenAt(left) - writtenAt(right))
 		},
 
 		threadLabel() {
@@ -719,7 +807,14 @@ export default {
 			}
 		},
 
-		messages() {
+		messages(now, before) {
+			// only when a message came or went: a refresh that found nothing
+			// new rebuilds the same list, and must not pull a reader who
+			// scrolled up back to the bottom
+			const ids = (list) => list.map((message) => String(message.id)).join(' ')
+			if (ids(now) === ids(before)) {
+				return
+			}
 			this.$nextTick(() => {
 				const thread = /** @type {HTMLElement|undefined} */ (this.$refs.threadContainer)
 				if (thread) {
@@ -734,6 +829,19 @@ export default {
 		if (this.selectedConversationId !== '') {
 			await this.loadThread(this.selectedConversationId)
 		}
+		// with notify_push the server says when a direct message arrives;
+		// polling remains as a slow safety net. Without it, poll every 30
+		// seconds, as the feed does.
+		const hasPush = onTimelinePush(this.onPushed)
+		this.pollEvery = (hasPush ? 300 : 30) * 1000
+		this.intervalId = window.setInterval(() => this.pollIfVisible(), this.pollEvery)
+		document.addEventListener('visibilitychange', this.pollOnReturn)
+	},
+
+	unmounted() {
+		offTimelinePush(this.onPushed)
+		document.removeEventListener('visibilitychange', this.pollOnReturn)
+		clearInterval(this.intervalId)
 	},
 
 	methods: {
@@ -790,6 +898,7 @@ export default {
 			if (more) {
 				params.max_id = this.cursor
 			}
+			const request = ++this.listRequest
 
 			try {
 				const { data, headers } = await axios.get(
@@ -798,6 +907,7 @@ export default {
 				)
 				const page = Array.isArray(data) ? data : []
 				this.cursor = nextCursor(headers)
+				this.paged = more
 				this.conversations = this.uniqueConversations(more ? [...this.conversations, ...page] : page)
 			} catch (error) {
 				if (!more) {
@@ -805,14 +915,104 @@ export default {
 				}
 				logger.error('Failed to load direct message conversations', { error, more })
 			} finally {
-				this.loadingList = false
-				this.loadingMore = false
+				if (request === this.listRequest) {
+					this.loadingList = false
+					this.loadingMore = false
+				}
 			}
 		},
 
 		/**
-		 * The same conversation twice is one row; two conversations with the
-		 * same person are two.
+		 * The first page again, laid over what is on screen.
+		 *
+		 * The rows the page brings are put first — they are the newest — and
+		 * every row already loaded that the page did not bring stays after
+		 * them, so a reader who paged keeps the older conversations. The
+		 * cursor is kept once the reader has paged: a fresh first page only
+		 * knows where its own second page starts.
+		 */
+		async refreshConversations() {
+			if (this.loadingList || this.loadingMore) {
+				return
+			}
+			if (this.listError) {
+				await this.loadConversations()
+
+				return
+			}
+
+			const request = ++this.listRequest
+			try {
+				const { data, headers } = await axios.get(
+					generateUrl('apps/social/api/v1/conversations'),
+					{ params: { limit: PAGE_SIZE } },
+				)
+				if (request !== this.listRequest) {
+					return
+				}
+				const page = Array.isArray(data) ? data : []
+				if (!this.paged) {
+					this.cursor = nextCursor(headers)
+				}
+				this.conversations = this.uniqueConversations([...page, ...this.conversations])
+			} catch (error) {
+				logger.error('Failed to refresh direct message conversations', { error })
+			}
+		},
+
+		/** The inbox and the open chat, as they are now. */
+		async refresh() {
+			await this.refreshConversations()
+			if (this.selectedConversationId !== '') {
+				await this.loadThread(this.selectedConversationId, true)
+			}
+		},
+
+		pollIfVisible() {
+			if (document.visibilityState === 'hidden') {
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+
+			this.refresh()
+		},
+
+		/**
+		 * What the server's push event runs. A hidden tab does not fetch —
+		 * opening the chat is what marks it read, and a reader who is not
+		 * looking has not read anything — but remembers that something came.
+		 */
+		onPushed() {
+			if (document.visibilityState === 'hidden') {
+				this.missed = true
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+
+			this.refresh()
+		},
+
+		/** Catches up once, on the way back to a tab that was left. */
+		pollOnReturn() {
+			if (document.visibilityState === 'hidden') {
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+			if (document.visibilityState !== 'visible' || this.hiddenSince === 0) {
+				return
+			}
+
+			const away = Date.now() - this.hiddenSince
+			this.hiddenSince = 0
+			if (this.missed || away >= this.pollEvery) {
+				this.missed = false
+				this.refresh()
+			}
+		},
+
+		/**
+		 * The same conversation twice is one; two with the same person stay
+		 * two here and become one chat in `chats`.
 		 *
 		 * The key used to be the peer, so a second thread with somebody was
 		 * dropped on the floor — unreachable from the inbox, however many
@@ -872,13 +1072,42 @@ export default {
 			}
 		},
 
+		/**
+		 * What tells one chat from another: who is in it, whichever thread.
+		 *
+		 * @param {object} conversation a conversation the server sent
+		 * @return {string}
+		 */
+		participantsKey(conversation) {
+			const handles = (conversation?.accounts ?? [])
+				.filter((account) => !this.isOwnAccount(account))
+				.map((account) => String(account.acct || account.id || '').toLocaleLowerCase())
+				.filter(Boolean)
+				.sort()
+
+			// a row that names nobody can only be itself
+			return handles.length > 0 ? handles.join(' ') : `id:${String(conversation?.id)}`
+		},
+
+		/**
+		 * @param {string} id a conversation id the server handed out
+		 * @return {object|null} the chat that thread belongs to
+		 */
+		chatOf(id) {
+			if (id === '') {
+				return null
+			}
+
+			return this.chats.find((chat) => chat.threads.some((thread) => String(thread.id) === id)) ?? null
+		},
+
 		startConversation(account, event) {
 			event?.preventDefault?.()
 			// a handle is not case-sensitive, and the filtering beside this
 			// lowercases one — so `Bob@remote.example` opened a second chat
 			// beside the one with `bob@remote.example`
 			const wanted = String(account.acct ?? '').toLocaleLowerCase()
-			const existing = this.conversations.find((conversation) => (conversation.accounts ?? []).some((candidate) => (candidate.id && account.id && String(candidate.id) === String(account.id))
+			const existing = this.chats.find((conversation) => (conversation.accounts ?? []).some((candidate) => (candidate.id && account.id && String(candidate.id) === String(account.id))
 				|| (wanted !== '' && String(candidate.acct ?? '').toLocaleLowerCase() === wanted)))
 			if (existing) {
 				this.selectConversation(String(existing.id))
@@ -911,16 +1140,16 @@ export default {
 					...(replyTo ? { in_reply_to_id: replyTo } : {}),
 				})
 				this.messageText = ''
-				await this.loadConversations()
+				await this.refreshConversations()
 				if (newRecipient) {
-					const conversation = this.conversations.find((item) => (item.accounts ?? []).some((candidate) => candidate.acct === recipient.acct || (candidate.id && recipient.id && String(candidate.id) === String(recipient.id))))
+					const conversation = this.chats.find((item) => (item.accounts ?? []).some((candidate) => candidate.acct === recipient.acct || (candidate.id && recipient.id && String(candidate.id) === String(recipient.id))))
 					this.newRecipient = null
 					this.newMessageOpen = false
 					if (conversation) {
 						this.$emit('select', String(conversation.id))
 					}
 				} else if (this.selectedConversationId) {
-					await this.loadThread(this.selectedConversationId)
+					await this.loadThread(this.selectedConversationId, true)
 				}
 			} catch (error) {
 				this.sendError = true
@@ -930,39 +1159,62 @@ export default {
 			}
 		},
 
-		async loadThread(id) {
-			const conversation = this.conversations.find((item) => String(item.id) === id)
+		/**
+		 * @param {string} id the conversation to show
+		 * @param {boolean} quiet whether the messages already on screen stay
+		 *                        there while the request runs — a refresh,
+		 *                        not an opening
+		 */
+		async loadThread(id, quiet = false) {
+			const threads = (this.chatOf(id)?.threads ?? [])
+				.filter((thread) => thread.last_status?.id)
+				.slice(0, THREADS_SHOWN)
 			const request = ++this.threadRequest
-			if (!conversation?.last_status?.id) {
+			if (threads.length === 0) {
 				this.thread = { ancestors: [], descendants: [] }
 				this.loadingThread = false
 				this.threadError = false
 				return
 			}
 
-			this.loadingThread = true
-			this.threadError = false
+			if (!quiet) {
+				this.loadingThread = true
+				this.threadError = false
+			}
 			try {
-				const statusId = encodeURIComponent(String(conversation.last_status.id))
-				const { data } = await axios.get(generateUrl(`apps/social/api/v1/statuses/${statusId}/context`))
+				const contexts = await Promise.all(threads.map((thread) => {
+					const statusId = encodeURIComponent(String(thread.last_status.id))
+
+					return axios.get(generateUrl(`apps/social/api/v1/statuses/${statusId}/context`))
+				}))
 				if (request !== this.threadRequest || id !== this.selectedConversationId) {
 					return
 				}
 				this.thread = {
-					ancestors: Array.isArray(data?.ancestors) ? data.ancestors : [],
-					descendants: Array.isArray(data?.descendants) ? data.descendants : [],
+					ancestors: contexts.flatMap(({ data }) => (Array.isArray(data?.ancestors) ? data.ancestors : [])),
+					descendants: contexts.flatMap(({ data }) => (Array.isArray(data?.descendants) ? data.descendants : [])),
 				}
-				if (conversation.unread) {
+				// every thread the chat folds, each on its own: the server
+				// counts and marks them one by one, as Mastodon does
+				let marked = false
+				for (const thread of threads.filter((candidate) => candidate.unread)) {
 					try {
-						await axios.post(generateUrl(`apps/social/api/v1/conversations/${encodeURIComponent(id)}/read`))
-						conversation.unread = false
+						await axios.post(generateUrl(`apps/social/api/v1/conversations/${encodeURIComponent(String(thread.id))}/read`))
+						thread.unread = false
+						marked = true
 					} catch (error) {
-						logger.error('Failed to mark direct message conversation as read', { error, conversationId: id })
+						logger.error('Failed to mark direct message conversation as read', { error, conversationId: thread.id })
 					}
+				}
+				if (marked) {
+					// the sidebar badge is the server's count, read again
+					// rather than guessed at: it stayed up until the next
+					// poll after the one unread chat had been opened
+					useNotificationsStore().fetchUnreadDirectMessages()
 				}
 			} catch (error) {
 				if (request === this.threadRequest) {
-					this.threadError = true
+					this.threadError = !quiet
 					logger.error('Failed to load direct message conversation', { error, conversationId: id })
 				}
 			} finally {
@@ -995,8 +1247,15 @@ export default {
 			// preview asked for without one would otherwise keep the routing
 			// handle it is there to leave out
 			const peer = this.conversationPeer(conversation ?? this.activeConversation)
+			let content = this.withoutProtocolRecipient(status, peer)
+			if (content === (status?.content ?? '')) {
+				// a message from the other side opens with the reader's own
+				// handle, which is routing too: the row already says whose
+				// chat this is, so the line under the name starts at the words
+				content = this.withoutProtocolRecipient(status, this.readerAsRecipient)
+			}
 
-			return htmlToPlainText(this.withoutProtocolRecipient(status, peer)).replace(/\s+/g, ' ').trim()
+			return htmlToPlainText(content).replace(/\s+/g, ' ').trim()
 		},
 
 		/**
@@ -1091,6 +1350,12 @@ export default {
 			const handles = [recipient.acct, recipient.username, recipient.preferred_username]
 				.filter(Boolean)
 				.map((value) => String(value).replace(/^@/, '').toLocaleLowerCase())
+			// an account of this server is named by its bare username in the
+			// API and by `user@host` on the wire; both are the same handle
+			const home = hostOf(recipient.url ?? recipient.id ?? '')
+			if (home !== '') {
+				handles.push(...handles.filter((handle) => !handle.includes('@')).map((handle) => `${handle}@${home}`))
+			}
 			const asked = String(mention).replace(/^@/, '').toLocaleLowerCase()
 			if (handles.includes(asked)) {
 				return true
@@ -1100,8 +1365,7 @@ export default {
 			// writes one — counts only where the link beside it points at the
 			// peer's own server. `includes()` was matching `bob` anywhere in
 			// the href, so a message to bobby lost its mention of bob.
-			const sameServer = hostOf(href) !== ''
-				&& hostOf(href) === hostOf(recipient.url ?? recipient.id ?? '')
+			const sameServer = hostOf(href) !== '' && hostOf(href) === home
 			const locals = handles.map((handle) => handle.split('@')[0]).filter(Boolean)
 			if (sameServer && locals.includes(asked)) {
 				return true
@@ -1155,20 +1419,29 @@ export default {
 			return unique.map((acct) => `@${acct}`).join(' ')
 		},
 
-		async removeConversation(conversation) {
-			const id = String(conversation.id)
-			this.removingConversationId = id
+		/**
+		 * Dismisses a chat: every thread of it, as the server knows them.
+		 *
+		 * @param {object} chat the row, with its `threads`
+		 */
+		async removeConversation(chat) {
+			this.removingConversationId = String(chat.id)
 			this.removeError = false
+			const removed = []
 			try {
-				await axios.delete(generateUrl(`/apps/social/api/v1/conversations/${encodeURIComponent(id)}`))
-				this.conversations = this.conversations.filter((item) => String(item.id) !== id)
-				if (this.selectedConversationId === id) {
-					this.$emit('select', '')
+				for (const thread of chat.threads) {
+					const id = String(thread.id)
+					await axios.delete(generateUrl(`/apps/social/api/v1/conversations/${encodeURIComponent(id)}`))
+					removed.push(id)
 				}
 			} catch (error) {
-				logger.error('Could not remove direct message conversation', { error, id })
+				logger.error('Could not remove direct message conversation', { error, id: chat.id })
 				this.removeError = true
 			} finally {
+				this.conversations = this.conversations.filter((item) => !removed.includes(String(item.id)))
+				if (removed.includes(this.selectedConversationId)) {
+					this.$emit('select', '')
+				}
 				this.removingConversationId = ''
 			}
 		},

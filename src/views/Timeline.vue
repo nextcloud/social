@@ -39,7 +39,7 @@
 				{{ heading }}
 			</h1>
 			<HashtagFollowButton
-				v-if="type === 'tags'"
+				v-if="type === 'tags' && !followedTagsOnly"
 				:tag="String($route.params.tag)"
 				@changed="onHashtagFollowChanged" />
 		</div>
@@ -139,7 +139,7 @@
 			:selectedConversationId="String($route.query.conversation ?? '')"
 			@select="selectConversation" />
 		<TimelineList
-			v-else
+			v-else-if="!followedTagsOnly"
 			:type="type"
 			:listTitle="listTitle"
 			:display="display" />
@@ -188,6 +188,7 @@ import { rememberFilter, rememberedFilter } from './../services/notifications.js
 import { hasInterestsFeed, isTracking } from './../services/interests.js'
 import { fetchSavedFeeds, uriOf } from './../services/blueskyFeeds.js'
 import { contextFor } from './../services/interestTracker.js'
+import { setPageTitle } from './../services/pageTitle.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useNotificationsStore } from '../store/notifications.js'
@@ -275,14 +276,25 @@ export default {
 		 * @return {object|null} custom properties, or null off a tag page
 		 */
 		tagStyle() {
-			return this.type === 'tags' ? tagStyle(String(this.$route.params.tag)) : null
+			return this.type === 'tags' && !this.followedTagsOnly ? tagStyle(String(this.$route.params.tag)) : null
+		},
+
+		/**
+		 * `/timeline/tags` with no tag after it: the page Explore and the
+		 * switch-in wizard link to for the hashtags the reader follows. It has
+		 * no timeline of its own, only the list.
+		 *
+		 * @return {boolean}
+		 */
+		followedTagsOnly() {
+			return this.type === 'tags' && !this.$route.params.tag
 		},
 
 		/** What this timeline is, in the words the sidebar uses for it. */
 		heading() {
 			switch (this.type) {
 				case 'tags':
-					return '#' + this.$route.params.tag
+					return this.followedTagsOnly ? t('social', 'Followed hashtags') : '#' + this.$route.params.tag
 				case 'list':
 					// the sidebar knows the title; the page asks for it itself
 					// so that a link opened cold has a heading too
@@ -619,6 +631,14 @@ export default {
 	},
 
 	watch: {
+		// the tab, the history and a screen reader name the page by its heading
+		heading: {
+			immediate: true,
+			handler(heading) {
+				setPageTitle(heading)
+			},
+		},
+
 		// the router-view is no longer keyed on the full path, so switching
 		// from Home to Global reuses this view: without this the store would
 		// keep serving the previous timeline

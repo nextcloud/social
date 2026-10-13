@@ -727,11 +727,19 @@ class OAuthController extends Controller {
 			$response->throttle(['action' => 'socialOauthToken']);
 
 			return $response;
-		} catch (Exception $e) {
+		} catch (ClientException $e) {
+			// the app's own refusals -- a wrong secret, an unknown redirect_uri,
+			// an expired code, a bad verifier -- are a credential guess too
 			$response = new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 			$response->throttle(['action' => 'socialOauthToken']);
 
 			return $response;
+		} catch (Exception $e) {
+			// anything else is this server's failure, and its message is for
+			// the log rather than for an anonymous caller
+			$this->logger->error('OAuth token exchange failed', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'server_error'], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 

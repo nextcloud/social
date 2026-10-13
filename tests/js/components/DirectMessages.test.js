@@ -9,9 +9,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
 import { createPinia, setActivePinia } from 'pinia'
 import DirectMessages from '../../../src/components/DirectMessages.vue'
+import { useNotificationsStore } from '../../../src/store/notifications.js'
+import { offTimelinePush, onTimelinePush } from '../../../src/services/timelinePush.js'
 import { shortAgo } from '../../../src/utils/relativeTime.js'
 
+vi.mock('../../../src/services/timelinePush.js', () => ({
+	onTimelinePush: vi.fn(() => false),
+	offTimelinePush: vi.fn(),
+}))
+
 const bob = { id: 'https://remote.example/users/bob', acct: 'bob@remote.example', display_name: 'Bob' }
+const carol = { id: 'https://remote.example/users/carol', acct: 'carol@remote.example', display_name: 'Carol' }
 const latest = { id: '11', content: '<p>Latest reply</p>', created_at: '2026-09-23T12:00:00Z', account: bob }
 const conversation = { id: '10', unread: true, accounts: [bob], last_status: latest }
 const context = {
@@ -27,11 +35,17 @@ const stubs = {
 	TimelineEntry: { props: ['item', 'type', 'hideAuthor', 'hideAvatar'], template: '<article class="message-stub" :data-id="item.id" :data-hide-author="hideAuthor" :data-hide-avatar="hideAvatar">{{ item.content }}</article>' },
 }
 
+/** every pane mounted by a test, taken down after it so none keeps polling */
+const mounted = []
+
 function mountMessages(selectedConversationId = '') {
-	return mount(DirectMessages, {
+	const wrapper = mount(DirectMessages, {
 		props: { selectedConversationId },
 		global: { stubs },
 	})
+	mounted.push(wrapper)
+
+	return wrapper
 }
 
 /** Run the recipient search now, cancelling the debounced watcher request. */
@@ -47,6 +61,9 @@ describe('DirectMessages', () => {
 
 	beforeEach(() => {
 		setActivePinia(createPinia())
+		onTimelinePush.mockClear()
+		onTimelinePush.mockReturnValue(false)
+		offTimelinePush.mockClear()
 		get = vi.spyOn(axios, 'get').mockImplementation(async (url) => {
 			if (url.endsWith('/conversations')) {
 				return { data: [structuredClone(conversation)] }
@@ -58,6 +75,7 @@ describe('DirectMessages', () => {
 	})
 
 	afterEach(() => {
+		mounted.splice(0).forEach((wrapper) => wrapper.unmount())
 		vi.restoreAllMocks()
 	})
 
@@ -94,7 +112,7 @@ describe('DirectMessages', () => {
 		expect(wrapper.find('.direct-messages__message-form label').exists()).toBe(false)
 	})
 
-	it('offers Send only once something is written, and sends with Ctrl+Enter', async () => {
+	it('offers Send only once something is written, and sends with Ctrl+Enter or Cmd+Enter', async () => {
 		const wrapper = mountMessages('10')
 		await flushPromises()
 		const send = () => wrapper.find('.direct-messages__send')
@@ -112,6 +130,13 @@ describe('DirectMessages', () => {
 			visibility: 'direct',
 			in_reply_to_id: '11',
 		})
+
+		// the Mac's own shortcut for "send"
+		post.mockClear()
+		await wrapper.find('.direct-messages__message-form textarea').setValue('Again')
+		await wrapper.find('.direct-messages__message-form textarea').trigger('keydown.enter', { metaKey: true })
+		await flushPromises()
+		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses', expect.objectContaining({ status: '@bob@remote.example Again' }))
 	})
 
 	it('opens a recipient search with no social visibility controls', async () => {
@@ -201,6 +226,46 @@ describe('DirectMessages', () => {
 		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
 		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
 		expect(wrapper.find('.direct-messages__message-form textarea').exists()).toBe(true)
+	})
+
+	/**
+	 * The badge in the sidebar is the notifications store's count. Opening
+	 * the one unread chat marked it read on the server and left the store
+	 * alone, so the "1" stayed until the next poll.
+	 */
+	it('brings the sidebar badge down once the conversation is read', async () => {
+		const notificationsStore = useNotificationsStore()
+		notificationsStore.setUnreadDirectMessages(1)
+		get.mockImplementation(async (url) => {
+			if (url.endsWith('/conversations')) {
+				return { data: [structuredClone(conversation)] }
+			}
+			if (url.endsWith('/conversations/unread_count')) {
+				return { data: { count: 0 } }
+			}
+			return { data: context }
+		})
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.setProps({ selectedConversationId: '10' })
+		await flushPromises()
+
+		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/unread_count')
+		expect(notificationsStore.unreadDirectMessages).toBe(0)
+	})
+
+	it('leaves the badge where it was when the read marker could not be written', async () => {
+		const notificationsStore = useNotificationsStore()
+		notificationsStore.setUnreadDirectMessages(1)
+		post.mockRejectedValue(new Error('offline'))
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.setProps({ selectedConversationId: '10' })
+		await flushPromises()
+
+		expect(get).not.toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/unread_count')
+		expect(notificationsStore.unreadDirectMessages).toBe(1)
 	})
 
 	it('dates a conversation the way the feed dates a post', async () => {
@@ -377,6 +442,27 @@ describe('DirectMessages', () => {
 		expect(wrapper.vm.messageForDisplay({ ...message, visibility: 'public' }).content).toContain('@bob')
 	})
 
+	/**
+	 * A message from the other side opens with the reader's own handle, so
+	 * every preview in the inbox began "@alice …". The row already says whose
+	 * chat it is; the handle is routing, and the preview starts at the words.
+	 * The bubble keeps it: there it is part of what was said.
+	 */
+	it('leaves the reader\'s own handle out of a preview, not out of the message', async () => {
+		const toAlice = (content) => ({ id: '30', visibility: 'direct', content, created_at: '2026-09-23T12:00:00Z', account: bob })
+		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), last_status: toAlice('<p><span class="h-card"><a href="http://localhost/index.php/apps/social/@alice">@<span>alice</span></a></span> hey, private</p>') }] })
+		const wrapper = mountMessages()
+		await flushPromises()
+
+		expect(wrapper.find('.direct-messages__preview').text()).toBe('hey, private')
+		expect(wrapper.vm.preview(toAlice('<p>@alice hey, private</p>'), conversation)).toBe('hey, private')
+		expect(wrapper.vm.preview(toAlice(`<p>@alice@${window.location.host} hey, private</p>`), conversation)).toBe('hey, private')
+		expect(wrapper.vm.preview(toAlice('<p>@bob@remote.example hey</p>'), conversation)).toBe('hey')
+		// somebody else's handle is what the message is about
+		expect(wrapper.vm.preview(toAlice('<p>@carol hey</p>'), conversation)).toBe('@carol hey')
+		expect(wrapper.vm.messageForDisplay(toAlice('<p>@alice hey, private</p>')).content).toBe('<p>@alice hey, private</p>')
+	})
+
 	it('removes recipient routing mentions returned as ordinary links or plain text', async () => {
 		const wrapper = mountMessages('10')
 		await flushPromises()
@@ -551,33 +637,74 @@ describe('DirectMessages', () => {
 	// defines one by its thread root and hands that root's id back. Rows used
 	// to be keyed by the other participant instead, so a second exchange with
 	// somebody was dropped on the floor — unreachable, unread and all.
-	it('keeps a second conversation with the same person as its own row', async () => {
+	/**
+	 * The server answers one conversation per thread, as Mastodon does, so a
+	 * message that was not a reply started a second row "Bob" under the
+	 * first. The inbox folds the threads between the same people into one
+	 * chat, which is the newest of them and unread while any of them is.
+	 */
+	it('folds two threads with the same person into one chat', async () => {
+		const second = { id: '21', content: '<p>Second thread</p>', created_at: '2026-09-24T09:00:00Z', account: bob }
 		get.mockResolvedValueOnce({ data: [
-			structuredClone(conversation),
-			{ ...structuredClone(conversation), id: '11' },
+			{ ...structuredClone(conversation), id: '11', unread: true, last_status: second },
+			{ ...structuredClone(conversation), unread: false },
 		] })
 		const wrapper = mountMessages()
 		await flushPromises()
 
-		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(2)
+		expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(1)
+		expect(wrapper.find('.direct-messages__preview').text()).toBe('Second thread')
+		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(true)
+		expect(wrapper.find('.direct-messages__filters').text()).toContain('Unread (1)')
+		await wrapper.find('.direct-messages__conversation').trigger('click')
+		expect(wrapper.emitted('select').at(-1)).toEqual(['11'])
 	})
 
-	it('keeps an unread second thread with the same person reachable', async () => {
-		get.mockResolvedValueOnce({ data: [
+	it('shows every thread of a chat as one lane and reads each unread one', async () => {
+		const second = { id: '21', content: '<p>Second thread</p>', created_at: '2026-09-24T09:00:00Z', account: bob }
+		const rows = [
+			{ ...structuredClone(conversation), id: '11', unread: true, last_status: second },
 			{ ...structuredClone(conversation), unread: false },
-			{ ...structuredClone(conversation), id: '11', unread: true },
-		] })
-		const wrapper = mountMessages()
+		]
+		get.mockImplementation(async (url) => {
+			if (url.endsWith('/conversations')) {
+				return { data: structuredClone(rows) }
+			}
+			if (url.includes('/statuses/21/')) {
+				return { data: { ancestors: [], descendants: [{ id: '22', content: '<p>Reply in the second</p>', created_at: '2026-09-24T09:05:00Z', account: { acct: 'alice', username: 'alice' } }] } }
+			}
+			return { data: context }
+		})
+		const wrapper = mountMessages('11')
 		await flushPromises()
 
-		await wrapper.findAll('.direct-messages__conversation')[1].trigger('click')
-		expect(wrapper.emitted('select').at(-1)).toEqual(['11'])
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/21/context')
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses/11/context')
+		expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-id'))).toEqual(['9', '11', '12', '21', '22'])
+		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/11/read')
+		expect(post).not.toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
+		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
+	})
+
+	it('removes every thread of a chat with the row action', async () => {
+		get.mockResolvedValueOnce({ data: [
+			{ ...structuredClone(conversation), id: '11' },
+			structuredClone(conversation),
+		] })
+		const wrapper = mountMessages('10')
+		await flushPromises()
+		await wrapper.find('.direct-messages__row-menu button').trigger('click')
+		await flushPromises()
+
+		expect(remove).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/11')
+		expect(remove).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10')
+		expect(wrapper.find('.direct-messages__conversation').exists()).toBe(false)
+		expect(wrapper.emitted('select').at(-1)).toEqual([''])
 	})
 
 	// Group threads collided the same way, on whichever member happened to be
 	// listed first.
 	it('keeps group conversations sharing their first participant apart', async () => {
-		const carol = { id: 'https://remote.example/users/carol', acct: 'carol@remote.example', display_name: 'Carol' }
 		get.mockResolvedValueOnce({ data: [
 			{ ...structuredClone(conversation), id: '20', accounts: [bob, carol] },
 			{ ...structuredClone(conversation), id: '21', accounts: [bob] },
@@ -650,7 +777,7 @@ describe('DirectMessages', () => {
 		const older = wrapper.find('.direct-messages__more button')
 		expect(older.text()).toContain('Load older conversations')
 
-		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), id: '7' }] })
+		get.mockResolvedValueOnce({ data: [{ ...structuredClone(conversation), id: '7', accounts: [carol] }] })
 		await older.trigger('click')
 		await flushPromises()
 
@@ -721,7 +848,7 @@ describe('DirectMessages', () => {
 	})
 
 	it('clears an old thread error when opening an empty conversation', async () => {
-		const emptyConversation = { id: '20', unread: false, accounts: [bob], last_status: null }
+		const emptyConversation = { id: '20', unread: false, accounts: [carol], last_status: null }
 		get.mockImplementation(async (url) => {
 			if (url.endsWith('/conversations')) {
 				return { data: [structuredClone(conversation), emptyConversation] }
@@ -755,6 +882,197 @@ describe('DirectMessages', () => {
 			'/index.php/apps/social/api/v1/accounts/search',
 			{ params: { q: 'https://remote.example/@bob', limit: 8, resolve: true, following: true } },
 		)
+	})
+
+	/**
+	 * Nothing re-read the inbox or the open chat on its own: the sidebar
+	 * badge went up while the conversation on screen stayed as it was, and a
+	 * reply appeared only after re-selecting the chat or reloading the page.
+	 */
+	describe('keeping up', () => {
+		const listCalls = () => get.mock.calls.filter(([url]) => url.endsWith('/conversations'))
+		const contextCalls = () => get.mock.calls.filter(([url]) => url.includes('/context'))
+		const setVisibility = (state) => {
+			Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
+			document.dispatchEvent(new Event('visibilitychange'))
+		}
+
+		beforeEach(() => {
+			// only the poll: the recipient search debounces with a timeout
+			vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+		})
+
+		afterEach(() => {
+			setVisibility('visible')
+			vi.useRealTimers()
+		})
+
+		it('reads the inbox and the open chat again every 30 seconds without push', async () => {
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			get.mockClear()
+
+			vi.advanceTimersByTime(30 * 1000)
+			// a refresh, not an opening: nothing on screen is replaced by "Loading…"
+			expect(wrapper.vm.loadingList).toBe(false)
+			expect(wrapper.vm.loadingThread).toBe(false)
+			await flushPromises()
+
+			expect(listCalls()).toHaveLength(1)
+			expect(contextCalls()).toHaveLength(1)
+		})
+
+		it('shows a reply that arrived in the open chat and marks it read', async () => {
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			post.mockClear()
+			const reply = { id: '13', content: '<p>And another</p>', created_at: '2026-09-23T12:20:00Z', account: bob }
+			get.mockImplementation(async (url) => {
+				if (url.endsWith('/conversations')) {
+					return { data: [{ ...structuredClone(conversation), unread: true, last_status: reply }] }
+				}
+				return { data: { ancestors: [...context.ancestors, latest, ...context.descendants], descendants: [] } }
+			})
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-id'))).toEqual(['9', '11', '12', '13'])
+			expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
+			expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
+		})
+
+		it('listens for pushed events and slows the poll down to five minutes', async () => {
+			onTimelinePush.mockReturnValueOnce(true)
+			const wrapper = mountMessages()
+			await flushPromises()
+			get.mockClear()
+			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function))
+
+			onTimelinePush.mock.calls.at(-1)[0]()
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+
+			vi.advanceTimersByTime(270 * 1000)
+			await flushPromises()
+			expect(listCalls()).toHaveLength(2)
+
+			wrapper.unmount()
+			expect(offTimelinePush).toHaveBeenCalledWith(onTimelinePush.mock.calls.at(-1)[0])
+		})
+
+		it('does not ask while the tab is hidden, and catches up on the way back', async () => {
+			mountMessages()
+			await flushPromises()
+			get.mockClear()
+
+			setVisibility('hidden')
+			vi.advanceTimersByTime(31 * 1000)
+			await flushPromises()
+			expect(listCalls()).toHaveLength(0)
+
+			setVisibility('visible')
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+		})
+
+		it('reads a message pushed to a hidden tab as soon as the tab is back', async () => {
+			onTimelinePush.mockReturnValueOnce(true)
+			mountMessages()
+			await flushPromises()
+			get.mockClear()
+
+			setVisibility('hidden')
+			onTimelinePush.mock.calls.at(-1)[0]()
+			await flushPromises()
+			expect(listCalls()).toHaveLength(0)
+
+			// back well inside the five-minute poll
+			vi.advanceTimersByTime(10 * 1000)
+			setVisibility('visible')
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+		})
+
+		// sending used to read the first page afresh, so a reader who had
+		// paged lost the older rows with every message they wrote
+		it('keeps the older rows and their cursor when the inbox is read again', async () => {
+			const older = { ...structuredClone(conversation), id: '7', accounts: [{ ...bob, id: 'friend', acct: 'carol@remote.example', display_name: 'Carol' }] }
+			get.mockImplementation(async (url, { params } = {}) => {
+				if (url.endsWith('/conversations')) {
+					return params?.max_id === '99'
+						? { data: [older], headers: { link: '</index.php/apps/social/api/v1/conversations?limit=40&max_id=50>; rel="next"' } }
+						: { data: [structuredClone(conversation)], headers: { link: '</index.php/apps/social/api/v1/conversations?limit=40&max_id=99>; rel="next"' } }
+				}
+				return { data: context }
+			})
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			await wrapper.find('.direct-messages__more button').trigger('click')
+			await flushPromises()
+			expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(2)
+
+			await wrapper.find('.direct-messages__message-form textarea').setValue('Hello')
+			await wrapper.find('.direct-messages__message-form').trigger('submit')
+			await flushPromises()
+			expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses', expect.objectContaining({ visibility: 'direct' }))
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(wrapper.findAll('.direct-messages__name').map((name) => name.text())).toEqual(['Bob', 'Carol'])
+			expect(wrapper.vm.cursor).toBe('50')
+			expect(wrapper.find('.direct-messages__more').exists()).toBe(true)
+		})
+
+		it('keeps the open chat open when a new thread with the same person arrives', async () => {
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			const second = { id: '21', content: '<p>Second thread</p>', created_at: '2026-09-24T09:00:00Z', account: bob }
+			get.mockImplementation(async (url) => {
+				if (url.endsWith('/conversations')) {
+					return { data: [{ ...structuredClone(conversation), id: '11', unread: true, last_status: second }, { ...structuredClone(conversation), unread: false }] }
+				}
+				if (url.includes('/statuses/21/')) {
+					return { data: { ancestors: [], descendants: [] } }
+				}
+				return { data: context }
+			})
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(1)
+			expect(wrapper.find('.direct-messages__thread-heading h2').text()).toBe('Bob')
+			expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-id'))).toEqual(['9', '11', '12', '21'])
+			expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/11/read')
+		})
+
+		it('does not pull a reader who scrolled up back to the bottom when nothing arrived', async () => {
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			const thread = wrapper.find('.direct-messages__thread').element
+			let scrollTop = 0
+			Object.defineProperty(thread, 'scrollTop', {
+				get: () => scrollTop,
+				set: (value) => {
+					scrollTop = value
+				},
+				configurable: true,
+			})
+			Object.defineProperty(thread, 'scrollHeight', { value: 900, configurable: true })
+			scrollTop = 120
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			await wrapper.vm.$nextTick()
+
+			expect(scrollTop).toBe(120)
+		})
 	})
 
 	it('keeps failed read markers from hiding a loaded thread', async () => {

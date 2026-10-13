@@ -22,9 +22,9 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\MiscService;
 use OCP\Http\Client\IClient;
-use OCP\Http\Client\IClientService;
 use OCP\Http\Client\IResponse;
 use OCP\ICache;
 use OCP\ICacheFactory;
@@ -55,7 +55,7 @@ class CheckServiceTest extends TestCase {
 	private ConfigService|Stub $configService;
 	private CheckService $service;
 	private ICacheFactory|MockObject $cacheFactory;
-	private IClientService|MockObject $clientService;
+	private CurlService|MockObject $curl;
 
 	protected function setUp(): void {
 		$this->userManager = $this->createMock(IUserManager::class);
@@ -64,8 +64,24 @@ class CheckServiceTest extends TestCase {
 		$cacheFactory->method('createDistributed')->willReturn($this->cache);
 		$this->config = $this->createStub(IConfig::class);
 		$this->client = $this->createMock(IClient::class);
-		$clientService = $this->createMock(IClientService::class);
-		$clientService->method('newClient')->willReturn($this->client);
+		// every probe goes out through the app's own client; what it is
+		// asked, and with which guard options, is recorded on the transport
+		// double the test configures
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('doRequest')->willReturnCallback(
+			function (string $method, string $url, array $options, &$contentType = null, &$status = null): string {
+				$this->assertSame('get', $method);
+				$this->assertTrue($options['accept_errors'], 'the status is the probe\'s to judge');
+				$response = $this->client->get($url, [
+					'nextcloud' => ['allow_local_address' => $options['allow_local_address'] ?? false],
+					'verify' => $options['verify'] ?? true,
+				]);
+				$status = $response->getStatusCode();
+				$contentType = '';
+
+				return (string)$response->getBody();
+			}
+		);
 		$this->request = $this->createStub(IRequest::class);
 		$this->urlGenerator = $this->createStub(IURLGenerator::class);
 		$this->followRequest = $this->createMock(FollowsRequest::class);
@@ -80,7 +96,7 @@ class CheckServiceTest extends TestCase {
 		$this->miscService = $this->createMock(MiscService::class);
 		$this->configService = $this->createStub(ConfigService::class);
 		$this->cacheFactory = $cacheFactory;
-		$this->clientService = $clientService;
+		$this->curl = $curl;
 
 		$this->buildService();
 	}
@@ -104,7 +120,7 @@ class CheckServiceTest extends TestCase {
 			'alice',
 			$this->cacheFactory,
 			$this->config,
-			$this->clientService,
+			$this->curl,
 			$this->request,
 			$this->urlGenerator,
 			$this->followRequest,
@@ -142,7 +158,7 @@ class CheckServiceTest extends TestCase {
 			'alice',
 			$factory,
 			$this->config,
-			$this->createStub(IClientService::class),
+			$this->createStub(CurlService::class),
 			$this->request,
 			$this->urlGenerator,
 			$this->followRequest,

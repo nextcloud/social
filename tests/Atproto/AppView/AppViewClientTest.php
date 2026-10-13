@@ -14,6 +14,7 @@ use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Exceptions\AppViewNotFoundException;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Service\CurlService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -59,5 +60,26 @@ class AppViewClientTest extends TestCase {
 		$this->assertSame([], $client->procedureAs('did:plc:alice', PrivateKey::generate(Curve::K256), 'app.bsky.graph.muteActorList', ['list' => 'at://did:plc:bob/app.bsky.graph.list/3k']));
 		$this->expectException(AtprotoException::class);
 		$client->query('app.bsky.actor.getProfile', ['actor' => 'did:plc:bob']);
+	}
+
+	/** An account the AppView no longer serves is not there, and the refusal says why. */
+	public function testAnAccountNoLongerServedIsNotFoundWithTheErrorNamed(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appView')->willReturn('https://public.api.bsky.app');
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('doRequest')->willReturnCallback(static function (string $verb, string $url, array $options, &$contentType, &$status): string {
+			$status = 400;
+
+			return '{"error":"AccountDeactivated","message":"Account is deactivated"}';
+		});
+		$client = new AppViewClient($config, $this->createMock(ServiceAuth::class), $curl, new NullLogger());
+
+		try {
+			$client->query('app.bsky.feed.getAuthorFeed', ['actor' => 'did:plc:bob']);
+			$this->fail('answered');
+		} catch (AppViewNotFoundException $e) {
+			$this->assertSame('AccountDeactivated', $e->error);
+			$this->assertSame('app.bsky.feed.getAuthorFeed: Account is deactivated', $e->getMessage());
+		}
 	}
 }

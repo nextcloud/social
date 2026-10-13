@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\AppView;
 
 use OCA\Social\Atproto\Crypto\PrivateKey;
+use OCA\Social\Atproto\Reader\AccountStatus;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AppViewNotFoundException;
 use OCA\Social\Exceptions\AtprotoException;
@@ -142,9 +143,12 @@ class AppViewClient {
 		$message = is_array($decoded) ? (string)($decoded['message'] ?? '') : substr(trim($answer), 0, 200);
 		$notFound = $status === 404
 			|| in_array($error, ['NotFound', 'AccountNotFound', 'ActorNotFound', 'ProfileNotFound', 'RecordNotFound', 'BlockedActor', 'BlockedByActor'], true)
-			|| ($error === 'InvalidRequest' && str_contains(strtolower($message), 'not found'));
+			|| ($error === 'InvalidRequest' && str_contains(strtolower($message), 'not found'))
+			// an account the AppView knows and no longer serves, named so the
+			// caller can tell a deactivation from a takedown (AccountStatus)
+			|| isset(AccountStatus::ERRORS[$error]);
 		if ($notFound) {
-			throw new AppViewNotFoundException($method . ': ' . ($message !== '' ? $message : $error));
+			throw new AppViewNotFoundException($method . ': ' . ($message !== '' ? $message : $error), $error);
 		}
 		$this->logger->notice('AppView refused a query', ['method' => $method, 'status' => $status, 'error' => $error, 'message' => $message]);
 

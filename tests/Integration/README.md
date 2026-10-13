@@ -20,6 +20,9 @@ to stop.
 - `Db/UndoFollowCountTest` — an incoming `Undo{Follow}` moves the follower
   count only when the stored follow it names is the row removed; one naming a
   follow id that is not stored changes nothing.
+- `Db/RejectFollowCountTest` — an incoming `Reject{Follow}` removes the stored
+  follow it names and moves the counts back that the request and its
+  acceptance moved; one naming a follow id that is not stored changes nothing.
 - `Db/ApproveReplyAuthorTest` — an `ApproveReply` moves a pending reply of
   ours to approved only when it comes from the author of the video it
   answers (the account behind the channel, as PeerTube sends it).
@@ -326,6 +329,14 @@ to stop.
   progress and lookup by direction, the PLC operation log in order with what is
   unconfirmed, firehose rows numbered in order with their bytes whole and pruned
   past the window, the instance blocklist and labeler subscriptions added once.
+- `Atproto/CommitBenchmarkTest` — skipped unless `SOCIAL_BENCHMARK` is set:
+  seeds a repository of twenty thousand records and prints what one commit
+  costs against reading every record and rebuilding the tree, asserting the
+  commit is the cheaper of the two.
+- `Atproto/RepoExportMemoryTest` — `com.atproto.sync.getRepo` writes the CAR
+  out as the repository is read, a page of rows at a time: the peak over
+  3,000 records of 4 KB is the peak over 600, and the pieces joined decode
+  to the blocks the one-string export has.
 - `Atproto/ListReposQueryBudgetTest` — `com.atproto.sync.listRepos` asks for a
   page's identities and suspended accounts at once: a page of fifty costs the
   queries a page of five does, and a suspended account is listed `takendown`.
@@ -362,6 +373,12 @@ to stop.
   newer one), a Delete before its Create (caught the late Create resurrecting
   the post), an Undo{Like} before the Like, and a rotated key arriving in an
   Update{Person} verifying the next signature.
+- `Federation/OverlappingRedeliveryTest` — a Follow, Like, Announce and Create
+  delivered again while the first copy is still being handled, replayed by
+  making the second delivery's lookups miss the way the first copy's did: one
+  row, counted once, no exception (the UNIQUE violation this used to raise
+  was a 500 and a third delivery), the Accept sent again, and a usable
+  connection afterwards. Worth running on PostgreSQL and MySQL too.
 
 - `Helper/FreezesTheClock` — puts the server on a `FrozenClock`
   (`tests/Helper/FrozenClock.php`) that the test moves: registered on the
@@ -405,6 +422,16 @@ to stop.
   grant across a leap day, a month end and a daylight-saving change — good on
   its last second however much it was used, revoked on the next.
 
+- `Atproto/LoggedInOnlyPostTest` — a Bluesky post whose author carries the
+  `!no-unauthenticated` self-label, stored through `PostStore`: followers-only
+  in the stream, not addressed to the public, refused to an anonymous reader
+  and to a stranger by the viewer-limited read, and read by a follower on
+  their home timeline.
+- `Atproto/AccountStatusTest` — a Bluesky account switched off, back and
+  gone, against the real tables: deactivation takes the recipient rows the
+  viewer-limited read joins on and leaves the post and the marked actor,
+  reactivation writes the rows back and makes the watch due, a deletion takes
+  the post, the cached actor and the watch.
 - `Atproto/DpopReplayWindowTest` — a captured DPoP proof walked second by
   second, with the replay table pruned on each, through the three checks that
   refuse it again: its stored id until its nonce lapses, the nonce until the

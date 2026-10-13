@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Repository;
 
+use Generator;
 use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -25,6 +26,8 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	public array $records = [];
 	/** @var array<string, array<string, array{kind: string, bytes: string}>> did => cid => block */
 	public array $blocks = [];
+	/** how often every record's path was read: what a commit must not need */
+	public int $leafReads = 0;
 
 	public function __construct() {
 	}
@@ -32,6 +35,11 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	#[\Override]
 	public function getHead(string $did): ?RepoHead {
 		return $this->heads[$did] ?? null;
+	}
+
+	#[\Override]
+	public function lockHead(string $did): ?RepoHead {
+		return $this->getHead($did);
 	}
 
 	#[\Override]
@@ -50,6 +58,7 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 
 	#[\Override]
 	public function getLeaves(string $did): array {
+		$this->leafReads++;
 		$leaves = [];
 		foreach ($this->records[$did] ?? [] as $path => $record) {
 			$leaves[$path] = $record->cid;
@@ -89,9 +98,9 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	}
 
 	#[\Override]
-	public function eachRecordBytes(string $did, callable $each): void {
+	public function recordBytes(string $did): Generator {
 		foreach ($this->records[$did] ?? [] as $record) {
-			$each($record->cid, $record->bytes, $record->collection . '/' . $record->rkey);
+			yield [$record->cid, $record->bytes, $record->collection . '/' . $record->rkey];
 		}
 	}
 
@@ -130,10 +139,27 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	}
 
 	#[\Override]
-	public function eachBlock(string $did, callable $each, string $kind = ''): void {
+	public function getBlocks(string $did, array $cids): array {
+		$found = [];
+		foreach ($cids as $cid) {
+			if (isset($this->blocks[$did][$cid])) {
+				$found[$cid] = $this->blocks[$did][$cid]['bytes'];
+			}
+			foreach ($this->records[$did] ?? [] as $record) {
+				if ($record->cid->toString() === $cid) {
+					$found[$cid] = $record->bytes;
+				}
+			}
+		}
+
+		return $found;
+	}
+
+	#[\Override]
+	public function blocks(string $did, string $kind = ''): Generator {
 		foreach ($this->blocks[$did] ?? [] as $cid => $block) {
 			if ($kind === '' || $block['kind'] === $kind) {
-				$each(Cid::parse((string)$cid), $block['kind'], $block['bytes']);
+				yield [Cid::parse((string)$cid), $block['kind'], $block['bytes']];
 			}
 		}
 	}

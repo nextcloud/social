@@ -26,7 +26,6 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Tools\Traits\TArrayTools;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\AppFramework\Http;
-use OCP\Http\Client\IClientService;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IConfig;
@@ -76,7 +75,7 @@ class CheckService {
 		?string $userId,
 		ICacheFactory $cacheFactory,
 		private IConfig $config,
-		private IClientService $clientService,
+		private CurlService $curl,
 		private IRequest $request,
 		private IURLGenerator $urlGenerator,
 		private FollowsRequest $followRequest,
@@ -534,13 +533,13 @@ class CheckService {
 				return false;
 			}
 
-			$options = [];
-			$options['nextcloud']['allow_local_address'] = $this->isConfiguredBase($base);
-			$options['verify'] = $this->config->getSystemValue('social.checkssl', true);
-
-			$response = $this->clientService->newClient()
-				->get(rtrim($base, '/') . '/api/v1/instance', $options);
-			$status = $response->getStatusCode();
+			$status = 0;
+			$raw = $this->curl->doRequest('get', rtrim($base, '/') . '/api/v1/instance', [
+				'allow_local_address' => $this->isConfiguredBase($base),
+				'verify' => (bool)$this->config->getSystemValue('social.checkssl', true),
+				'json_headers' => false,
+				'accept_errors' => true,
+			], $contentType, $status);
 			if ($status !== Http::STATUS_OK) {
 				// 404 is the interesting one, and the reason this is recorded
 				// at all: it is what both a missing rule and a rule pointing at
@@ -550,7 +549,6 @@ class CheckService {
 				return false;
 			}
 
-			$raw = (string)$response->getBody();
 			$body = json_decode($raw, true);
 			if (!is_array($body) || !array_key_exists('uri', $body)) {
 				// something answered, and it was not this app: a login page, a
@@ -659,12 +657,14 @@ class CheckService {
 			}
 
 			$url = $base . '/.well-known/webfinger?resource=acct:' . $username . '@' . parse_url($base, PHP_URL_HOST);
-			$options['nextcloud']['allow_local_address'] = $this->isConfiguredBase($base);
-			$options['verify'] = $this->config->getSystemValue('social.checkssl', true);
-
-			$response = $this->clientService->newClient()
-				->get($url, $options);
-			if ($response->getStatusCode() === Http::STATUS_OK) {
+			$status = 0;
+			$this->curl->doRequest('get', $url, [
+				'allow_local_address' => $this->isConfiguredBase($base),
+				'verify' => (bool)$this->config->getSystemValue('social.checkssl', true),
+				'json_headers' => false,
+				'accept_errors' => true,
+			], $contentType, $status);
+			if ($status === Http::STATUS_OK) {
 				$this->cache->set(self::CACHE_PREFIX . 'wellknown', 'true', 3600);
 
 				return true;

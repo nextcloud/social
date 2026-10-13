@@ -13,11 +13,9 @@ use InvalidArgumentException;
 use OCA\Social\Service\BlocklistImportService;
 use OCA\Social\Service\BlocklistSubscriptionService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\FediverseService;
 use OCA\Social\Tests\Helper\EndlessStream;
-use OCP\Http\Client\IClient;
-use OCP\Http\Client\IClientService;
-use OCP\Http\Client\IResponse;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
@@ -29,7 +27,7 @@ use RuntimeException;
 class BlocklistSubscriptionServiceTest extends TestCase {
 	private ConfigService|Stub $configService;
 	private FediverseService|MockObject $fediverseService;
-	private IClient|Stub $client;
+	private CurlService|Stub $curl;
 	private BlocklistSubscriptionService $service;
 	private string $stored = '[]';
 
@@ -45,22 +43,21 @@ class BlocklistSubscriptionServiceTest extends TestCase {
 		$this->fediverseService = $this->createMock(FediverseService::class);
 		$this->fediverseService->method('getAccessType')->willReturn('all_but');
 
-		$this->client = $this->createStub(IClient::class);
-		$clientService = $this->createStub(IClientService::class);
-		$clientService->method('newClient')->willReturn($this->client);
+		$this->curl = $this->createStub(CurlService::class);
 
 		$this->service = new BlocklistSubscriptionService(
 			$this->configService,
 			new BlocklistImportService($this->fediverseService),
-			$clientService,
+			$this->curl,
 			new NullLogger(),
 		);
 	}
 
 	private function answers(string $body): void {
-		$response = $this->createStub(IResponse::class);
-		$response->method('getBody')->willReturn($body);
-		$this->client->method('get')->willReturn($response);
+		$stream = fopen('php://memory', 'r+');
+		fwrite($stream, $body);
+		rewind($stream);
+		$this->curl->method('openStream')->willReturn(['stream' => $stream, 'status' => 200, 'headers' => []]);
 	}
 
 	/**
@@ -158,7 +155,7 @@ class BlocklistSubscriptionServiceTest extends TestCase {
 	 * at a server that never did. That answer has to be one they can read.
 	 */
 	public function testAServerThatPublishesNothingSaysSo(): void {
-		$this->client->method('get')->willThrowException(new RuntimeException('404'));
+		$this->curl->method('openStream')->willThrowException(new RuntimeException('404'));
 		$this->fediverseService->expects($this->never())->method('addAddresses');
 
 		$result = $this->service->fetch('mastodon.social');
@@ -195,19 +192,20 @@ class BlocklistSubscriptionServiceTest extends TestCase {
 	 * refused as too large, rather than buffered whole first.
 	 */
 	public function testAListLargerThanTheCeilingIsRefusedWithoutReadingItAll(): void {
-		$options = [];
-		$response = $this->createMock(IResponse::class);
-		$response->method('getBody')->willReturn(EndlessStream::open());
-		$this->client->method('get')->willReturnCallback(function (string $url, array $sent) use ($response, &$options): IResponse {
-			$options = $sent;
+		$asked = [];
+		$this->curl->method('openStream')->willReturnCallback(static function (string $url, array $headers, string $onBehalfOf, int $timeout) use (&$asked): array {
+			$asked = ['url' => $url, 'headers' => $headers, 'timeout' => $timeout];
 
-			return $response;
+			return ['stream' => EndlessStream::open(), 'status' => 200, 'headers' => []];
 		});
 		$this->fediverseService->expects($this->never())->method('addAddresses');
 
 		$result = $this->service->fetch('mastodon.social');
 
-		$this->assertTrue($options['stream'] ?? false);
+		// the app's own client: the instance access list, the address guard
+		// and every redirect hop checked, before a single byte is read
+		$this->assertSame('https://mastodon.social/api/v1/instance/domain_blocks', $asked['url']);
+		$this->assertSame('application/json, text/csv, text/plain', $asked['headers']['Accept']);
 		$this->assertStringContainsString('larger than', (string)($result['error'] ?? ''));
 		$this->assertLessThan(BlocklistImportService::MAX_BYTES + 1024 * 1024, EndlessStream::$read);
 	}

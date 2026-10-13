@@ -64,8 +64,10 @@ class PostImportServiceTest extends TestCase {
 
 		$this->streamRequest = $this->createStub(StreamRequest::class);
 		$this->streamRequest->method('save')
-			->willReturnCallback(function (Stream $stream): void {
+			->willReturnCallback(function (Stream $stream): bool {
 				$this->written[] = $stream;
+
+				return true;
 			});
 		$this->streamRequest->method('getStream')
 			->willReturnCallback(function (string $prim): Stream {

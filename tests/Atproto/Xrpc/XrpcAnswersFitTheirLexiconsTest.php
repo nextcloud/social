@@ -34,6 +34,7 @@ use OCA\Social\Atproto\Xrpc\XrpcService;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoEventRequest;
 use OCA\Social\Db\AtprotoIdentityRequest;
+use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ModerationService;
@@ -206,7 +207,7 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 		$this->assertInstanceOf(XrpcBytes::class, $car);
 		$this->assertSame('application/vnd.ipld.car', $car->contentType);
 
-		$decoded = Car::decode($car->bytes);
+		$decoded = Car::decode(implode('', iterator_to_array($car->pieces ?? [], false)));
 		$this->assertCount(1, $decoded['roots']);
 		$this->assertSame($latest['cid'], $decoded['roots'][0]->toString());
 		$commit = Commit::fromBytes($decoded['blocks'][$latest['cid']]);
@@ -238,6 +239,32 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 	}
 
 	/**
+	 * `getBlocks` is the blocks asked for and nothing else — a tree node, the
+	 * commit, a record — as a CAR with no roots.
+	 */
+	public function testGetBlocksIsTheBlocksAskedForWithNoRoots(): void {
+		$head = $this->repositories->getHead(self::ALICE);
+		$this->assertNotNull($head);
+		$record = $this->repositories->getRecord(self::ALICE, 'app.bsky.feed.post', '3kznmn7xqxl23');
+		$this->assertNotNull($record);
+		$node = $this->store->getBlockCids(self::ALICE, AtprotoRepoRequest::BLOCK_MST)[0];
+
+		$car = $this->xrpc->query('com.atproto.sync.getBlocks', ['did' => self::ALICE, 'cids' => [$node, $head->commitCid, $record->cid->toString()]]);
+		$this->assertInstanceOf(XrpcBytes::class, $car);
+		$this->assertSame('application/vnd.ipld.car', $car->contentType);
+
+		$decoded = Car::decode($car->bytes);
+		$this->assertSame([], $decoded['roots']);
+		$this->assertEqualsCanonicalizing([$node, $head->commitCid, $record->cid->toString()], array_keys($decoded['blocks']));
+		$this->assertSame($record->bytes, $decoded['blocks'][$record->cid->toString()]);
+		$this->assertSame($head->rev, Commit::fromBytes($decoded['blocks'][$head->commitCid])->rev);
+
+		$one = $this->xrpc->query('com.atproto.sync.getBlocks', ['did' => self::ALICE, 'cids' => $node]);
+		$this->assertInstanceOf(XrpcBytes::class, $one);
+		$this->assertSame([$node], array_keys(Car::decode($one->bytes)['blocks']), 'one CID, given as a string');
+	}
+
+	/**
 	 * A record of another application with an empty object in it, as an
 	 * account moving here brings it: served with the object an object,
 	 * not turned into a list, and with the CID of the bytes as they were.
@@ -264,6 +291,10 @@ class XrpcAnswersFitTheirLexiconsTest extends TestCase {
 			'listBlobs of an unknown DID' => ['com.atproto.sync.listBlobs', ['did' => 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa'], 404],
 			'getBlob that is not there' => ['com.atproto.sync.getBlob', ['did' => self::ALICE, 'cid' => 'bafkreibme22gw2h7y2h7tg2fhqotaqjucnbc24deqo72b6mkl2egezxhvy'], 404],
 			'getBlob of something not a CID' => ['com.atproto.sync.getBlob', ['did' => self::ALICE, 'cid' => 'nope'], 400],
+			'getBlocks with one the repository does not have' => ['com.atproto.sync.getBlocks', ['did' => self::ALICE, 'cids' => ['bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm']], 404],
+			'getBlocks of something not a CID' => ['com.atproto.sync.getBlocks', ['did' => self::ALICE, 'cids' => ['nope']], 400],
+			'getBlocks without cids' => ['com.atproto.sync.getBlocks', ['did' => self::ALICE], 400],
+			'getBlocks of a deactivated account' => ['com.atproto.sync.getBlocks', ['did' => self::BOB, 'cids' => ['bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm']], 400],
 			'getRecord that is not there' => ['com.atproto.repo.getRecord', ['repo' => self::ALICE, 'collection' => 'app.bsky.feed.post', 'rkey' => '3kznmn7xqxl2z'], 404],
 			'sync.getRecord that is not there' => ['com.atproto.sync.getRecord', ['did' => self::ALICE, 'collection' => 'app.bsky.feed.post', 'rkey' => '3kznmn7xqxl2z'], 404],
 			'getRecord of a path that is not one' => ['com.atproto.repo.getRecord', ['repo' => self::ALICE, 'collection' => 'app.bsky.feed.post', 'rkey' => '../..'], 400],

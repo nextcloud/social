@@ -12,7 +12,9 @@
 			'new-post--posted': justPosted,
 		}"
 		data-id=""
-		@focusin="expand"
+		tabindex="-1"
+		@focusin="onFocusIn"
+		@keydown.esc="onEscape"
 		@dragenter="handleDragEnter"
 		@dragover="handleDragOver"
 		@dragleave="handleDragLeave"
@@ -134,6 +136,7 @@
 						v-model="spoilerText"
 						type="text"
 						class="content-warning"
+						dir="auto"
 						maxlength="200"
 						:aria-label="t('social', 'Content warning')"
 						:placeholder="t('social', 'Content warning, e.g. what the post is about')">
@@ -187,6 +190,7 @@
 				class="message"
 				role="textbox"
 				aria-multiline="true"
+				dir="auto"
 				:aria-label="prompt"
 				:aria-describedby="statusIsTooLong ? 'composer-length' : undefined"
 				:placeholder="prompt"
@@ -522,6 +526,17 @@
 				<CameraOutline :size="22" />
 			</template>
 		</NcButton>
+		<!-- Escape on a box with words in it: what is in the box is kept
+		     either way, and the question is only so that a key pressed to
+		     dismiss something else does not fold the composer away mid-sentence -->
+		<NcDialog
+			v-model:open="confirmingClose"
+			:name="t('social', 'Close the composer?')"
+			:buttons="closeButtons">
+			<p class="new-post__close-hint">
+				{{ t('social', 'What you have written is kept, and is back in the box the next time you open it.') }}
+			</p>
+		</NcDialog>
 	</div>
 </template>
 
@@ -537,6 +552,7 @@ import FileGifBox from 'vue-material-design-icons/FileGifBox.vue'
 import Paperclip from 'vue-material-design-icons/Paperclip.vue'
 import NcAvatar from '@nextcloud/vue/components/NcAvatar'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
@@ -662,6 +678,7 @@ export default {
 		}),
 
 		NcButton,
+		NcDialog,
 		NcLoadingIcon,
 		ActorAvatar,
 		Paperclip,
@@ -878,6 +895,8 @@ export default {
 			videoLicence: '',
 			/** whether the "how this will read" pane is open */
 			showPreview: false,
+			/** whether Escape is being asked about, the box holding words */
+			confirmingClose: false,
 			/** whether the shared picture library is open */
 			showGifs: false,
 			spoilerText: '',
@@ -1093,6 +1112,27 @@ export default {
 		 */
 		closable() {
 			return this.expanded && !this.startExpanded
+		},
+
+		/** @return {import('../../types/Nextcloud.js').DialogButton[]} */
+		closeButtons() {
+			return [
+				{
+					label: t('social', 'Cancel'),
+					callback: () => {
+						this.confirmingClose = false
+						this.$nextTick(() => this.focusInput({ atEnd: true }))
+					},
+				},
+				{
+					label: t('social', 'Close'),
+					variant: 'primary',
+					callback: () => {
+						this.confirmingClose = false
+						this.closeAndLeave()
+					},
+				},
+			]
 		},
 
 		/**
@@ -1356,6 +1396,50 @@ export default {
 		 * that, because a stray click must not close a box somebody is writing
 		 * in. This is that click made deliberate.
 		 */
+		/**
+		 * A click or the caret anywhere in the box opens it. Not the box's own
+		 * edge, which is where focus is parked after a post so that the box
+		 * can fold away without the reader being dropped onto the page body.
+		 *
+		 * @param {FocusEvent} event where the focus landed
+		 */
+		onFocusIn(event) {
+			if (event.target !== this.$el) {
+				this.expand()
+			}
+		},
+
+		/**
+		 * Escape folds an empty box away and asks about one with words in it.
+		 * Not in the New post dialog, which closes on Escape itself, and not
+		 * while the mention list or a picker is taking the key.
+		 *
+		 * @param {KeyboardEvent} event the key press
+		 */
+		onEscape(event) {
+			if (this.startExpanded || !this.expanded || event.defaultPrevented || this.tribute?.isActive) {
+				return
+			}
+			event.stopPropagation()
+
+			if (this.statusIsEmpty && Object.keys(this.attachments).length === 0) {
+				this.closeAndLeave()
+				return
+			}
+			// the caret leaves the box before the dialog opens: the dialog's
+			// focus trap gives the focus back to whatever had it, and back in
+			// the box it would open the box again after Close. Cancel puts
+			// the caret back itself
+			this.inputElement()?.blur()
+			this.confirmingClose = true
+		},
+
+		/** Closes the box and parks the focus on its edge rather than on nothing. */
+		closeAndLeave() {
+			this.close()
+			this.$el.focus?.()
+		},
+
 		close() {
 			this.closedByHand = true
 			this.openedByHand = false
@@ -1691,8 +1775,13 @@ export default {
 			this.updateStatusContent()
 		},
 
+		/**
+		 * Enter is a new line; with Ctrl, or Cmd on a Mac, it sends.
+		 *
+		 * @param {KeyboardEvent} event the key press
+		 */
 		keyup(event) {
-			if (event.ctrlKey) {
+			if (event.ctrlKey || event.metaKey) {
 				this.createPost()
 			}
 		},
@@ -1787,12 +1876,15 @@ export default {
 
 			this.replyTo = this.inReplyTo
 			this.quoteOf = null
-			if (this.inReplyTo !== null) {
-				// back to a line under the post, as it was before the reader
-				// clicked into it
-				this.openedByHand = this.startExpanded
-			}
+			// back to a line, as it was before the reader clicked into it; an
+			// open and empty box over the first posts read as if nothing had
+			// happened. The focus goes with it: left on the box it would open
+			// again, and dropped it lands on the page body
+			this.openedByHand = this.startExpanded
 			this.clearComposer()
+			if (!this.startExpanded) {
+				this.$el.focus?.()
+			}
 			// the sidebar's modal has no other way of knowing: it cleared the
 			// box and stayed open, which reads as if nothing had happened
 			this.$emit('posted')
@@ -2073,6 +2165,10 @@ $composer-duration: 220ms;
 			z-index: 1;
 		}
 	}
+}
+
+.new-post__close-hint {
+	color: var(--color-text-maxcontrast);
 }
 
 // Closed: a portrait and a line to write on. Everything else is still in the

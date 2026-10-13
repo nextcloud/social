@@ -23,7 +23,8 @@ use Throwable;
  * an empty list would be the whole network. What arrives is handed to
  * `JetstreamEvents`; the poller keeps running beside it, so the listener
  * being down costs latency and nothing else. Where it got to is kept every
- * second and picked up again, a few seconds early, after a restart.
+ * few seconds, on a lost connection and on stopping, and picked up again,
+ * a few seconds early, after a restart.
  */
 class JetstreamListener {
 	/** how many accounts one connection asks for, Jetstream's limit */
@@ -32,6 +33,14 @@ class JetstreamListener {
 	private const REFRESH = 60;
 	/** how far back a reconnect starts, in microseconds */
 	private const REWIND = 5000000;
+	/**
+	 * how long, and how many events, the cursor may run ahead of the kept
+	 * one: a kept value is an app-config write, which invalidates the
+	 * config cache of every request on the host; the rewind on a
+	 * reconnect covers what was not kept yet
+	 */
+	public const KEEP_EVERY = 5;
+	public const KEEP_EVENTS = 200;
 	private const READ_TIMEOUT = 0.5;
 	private const MAX_BACKOFF = 60;
 
@@ -68,6 +77,8 @@ class JetstreamListener {
 		$refreshed = 0;
 		$cursor = (int)$this->configService->getAppValue(ConfigService::ATPROTO_JETSTREAM_CURSOR);
 		$kept = $cursor;
+		$keptAt = $started;
+		$unkept = 0;
 		$lastEvent = 0;
 		$backoff = 1;
 		$retryAt = 0;
@@ -119,11 +130,13 @@ class JetstreamListener {
 				}
 			}
 
+			$lost = false;
 			try {
 				$messages = $this->client->read(self::READ_TIMEOUT);
 			} catch (Throwable $e) {
 				$say('Jetstream connection lost: ' . $e->getMessage());
 				$messages = [];
+				$lost = true;
 			}
 			foreach ($messages as $message) {
 				$event = json_decode($message, true);
@@ -132,14 +145,17 @@ class JetstreamListener {
 				}
 				$cursor = max($cursor, (int)($event['time_us'] ?? 0));
 				$lastEvent = $this->time->getTime();
+				$unkept++;
 				$this->events->handle($event);
 			}
 			$this->events->due();
 
 			$now = $this->time->getTime();
-			if ($cursor !== $kept) {
+			if ($cursor !== $kept && ($lost || $unkept >= self::KEEP_EVENTS || $now - $keptAt >= self::KEEP_EVERY)) {
 				$this->configService->setAppValue(ConfigService::ATPROTO_JETSTREAM_CURSOR, (string)$cursor);
 				$kept = $cursor;
+				$keptAt = $now;
+				$unkept = 0;
 			}
 			if ($now - $reported >= 15) {
 				$this->report($started, $lastEvent, $cursor, $this->client->isConnected(), count($dids));
@@ -151,6 +167,9 @@ class JetstreamListener {
 		}
 
 		$this->client->close();
+		if ($cursor !== $kept) {
+			$this->configService->setAppValue(ConfigService::ATPROTO_JETSTREAM_CURSOR, (string)$cursor);
+		}
 		$this->report($started, $lastEvent, $cursor, false, count($dids), false);
 		$say('Jetstream listener stopped');
 

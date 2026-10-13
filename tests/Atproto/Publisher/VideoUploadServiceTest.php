@@ -22,6 +22,7 @@ use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Publisher\VideoUploadService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Db\AtprotoVideoRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
@@ -33,9 +34,6 @@ use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DocumentService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Files\SimpleFS\ISimpleFile;
-use OCP\Http\Client\IClient;
-use OCP\Http\Client\IClientService;
-use OCP\Http\Client\IResponse;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -135,24 +133,20 @@ class VideoUploadServiceTest extends TestCase {
 
 			return $this->answers[$method] ?? [];
 		});
-		$client = $this->createMock(IClient::class);
-		$client->method('post')->willReturnCallback(function (string $url, array $options): IResponse {
+		$curl->method('doRequest')->willReturnCallback(function (string $method, string $url, array $options, &$contentType = null, &$status = null): string {
+			$this->assertSame('post', $method);
 			$this->sent[] = ['url' => $url, 'options' => $options];
-			$response = $this->createMock(IResponse::class);
-			$response->method('getStatusCode')->willReturn($this->uploadAnswer[0]);
-			$response->method('getBody')->willReturn((string)json_encode($this->uploadAnswer[1]));
+			$status = $this->uploadAnswer[0];
 
-			return $response;
+			return (string)json_encode($this->uploadAnswer[1]);
 		});
-		$clients = $this->createMock(IClientService::class);
-		$clients->method('newClient')->willReturn($client);
 
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 
 		$this->uploads = new VideoUploadService(
-			$config, $this->videoRequest, $blobRequest, $identities, new ServiceAuth($time), $documents, $cache,
-			$curl, $clients, $time, new NullLogger(),
+			$config, $this->videoRequest, $blobRequest, $identities, new ServiceAuth($time, $this->createStub(AtprotoOAuthRequest::class)), $documents, $cache,
+			$curl, $time, new NullLogger(),
 		);
 	}
 

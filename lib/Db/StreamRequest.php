@@ -165,7 +165,11 @@ class StreamRequest extends StreamRequestBuilder {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
 
-	public function save(Stream $stream): void {
+	/**
+	 * @return bool whether the row was written: false when it was already
+	 *              there, or could not be stored
+	 */
+	public function save(Stream $stream): bool {
 		$this->applyForcedSensitive($stream);
 
 		for ($attempt = 1; ; $attempt++) {
@@ -224,14 +228,14 @@ class StreamRequest extends StreamRequestBuilder {
 					throw $t;
 				}
 
-				return;
+				return true;
 			} catch (DBException $e) {
 				if ($e->getReason() !== DBException::REASON_CONSTRAINT_VIOLATION) {
 					$this->logger->error("Couldn't save stream: " . $e->getMessage(), [
 						'exception' => $e,
 					]);
 
-					return;
+					return false;
 				}
 
 				// Two different constraints reach here and they want opposite
@@ -251,7 +255,7 @@ class StreamRequest extends StreamRequestBuilder {
 						);
 					}
 
-					return;
+					return false;
 				}
 
 				// force saveStream() to draw a fresh one
@@ -382,6 +386,30 @@ class StreamRequest extends StreamRequestBuilder {
 		$qb->limitToIdPrim($qb->prim($itemId));
 
 		$qb->executeStatement();
+	}
+
+	/**
+	 * Everything one author put in the stream — posts and boosts alike, as the
+	 * rows are — newest first, a page at a time below a nid.
+	 *
+	 * @param int|string $beforeNid the nid the page starts below, 0 for the newest
+	 *
+	 * @return Stream[]
+	 */
+	public function getByAuthor(string $actorId, int $limit, int|string $beforeNid = 0): array {
+		if ($actorId === '' || $limit < 1) {
+			return [];
+		}
+
+		$qb = $this->getStreamSelectSql();
+		$qb->limitToAttributedTo($actorId, true);
+		if ((int)$beforeNid > 0) {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter((string)$beforeNid)));
+		}
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->getStreamsFromRequest($qb);
 	}
 
 	/**

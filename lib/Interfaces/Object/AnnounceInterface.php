@@ -184,7 +184,12 @@ class AnnounceInterface extends AbstractActivityPubInterface implements IActivit
 		try {
 			$this->actionsRequest->getActionFromItem($item);
 		} catch (ActionDoesNotExistException $e) {
-			$this->actionsRequest->save($item);
+			// a redelivery overlapping the first copy passes the lookups
+			// above and is refused by the database instead: the first copy
+			// counts and notifies
+			if (!$this->actionsRequest->save($item)) {
+				return;
+			}
 		}
 
 		$this->updateDetails($post);

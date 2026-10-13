@@ -26,6 +26,7 @@ vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSucce
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
+	document.title = 'Aloha - Nextcloud'
 })
 
 const ComposerStub = {
@@ -294,6 +295,23 @@ describe('Timeline', () => {
 		// every view has a heading now; only the two that always showed one stay visible
 		expect(title.text()).toBe(heading)
 		expect(title.classes('hidden-visually')).toBe(!visible)
+	})
+
+	it('names the tab after the heading, and again when the heading changes', async () => {
+		const route = reactive({ name: 'timeline', params: { type: 'notifications' }, query: {} })
+		// mounted on the reactive route itself, so that a param change reaches the view
+		mount(Timeline, {
+			global: {
+				plugins: [pinia],
+				mocks: { $route: route, $router: { replace: vi.fn() } },
+				stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, ShortsBar: ShortsBarStub, NotificationRequests: NotificationRequestsStub },
+			},
+		})
+		expect(document.title).toBe('Activities - Aloha - Nextcloud')
+
+		route.params = { type: 'bookmarks' }
+		await nextTick()
+		expect(document.title).toBe('Bookmarks - Aloha - Nextcloud')
 	})
 
 	it('loads a list timeline by its id and heads it with the title the server gives', async () => {
@@ -603,6 +621,24 @@ describe('Timeline', () => {
 
 			expect(wrapper.findComponent(HashtagFollowButton).exists()).toBe(false)
 			expect(wrapper.findComponent(HashtagFollowedList).exists()).toBe(false)
+		})
+
+		/**
+		 * The address Explore and the switch-in wizard link to for the
+		 * hashtags the reader follows. It used to be headed "#undefined",
+		 * with a button to follow that.
+		 */
+		it('is the list of followed hashtags when no tag is named', async () => {
+			axios.get.mockResolvedValue({ data: [tag('nextcloud', true)] })
+			const wrapper = mountTimeline({ name: 'timeline', params: { type: 'tags' } })
+			await flushPromises()
+
+			expect(wrapper.find('h1').text()).toBe('Followed hashtags')
+			expect(wrapper.find('h1').classes('hidden-visually')).toBe(false)
+			expect(wrapper.findComponent(HashtagFollowButton).exists()).toBe(false)
+			expect(wrapper.findComponent(HashtagFollowedList).exists()).toBe(true)
+			expect(wrapper.find('.timeline-list-stub').exists()).toBe(false)
+			expect(wrapper.find('.timeline-heading-row').attributes('style')).toBeUndefined()
 		})
 
 		// nothing behind these routes answers without a viewer

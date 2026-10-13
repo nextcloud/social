@@ -18,9 +18,9 @@ namespace OCA\Social\Atproto\Protocol;
  * against the previous entry. The root is the node of the highest layer
  * present; an empty tree is one node with no entries.
  *
- * Rebuilt from scratch on every commit rather than edited in place: with a
- * few thousand records that is milliseconds, and one construction is one
- * thing to get right. Pinned by the interop vectors.
+ * Built whole when a repository is imported or checked; a commit edits
+ * the stored tree in place through MstEditor, which leaves the same nodes
+ * this would build. Pinned by the interop vectors.
  */
 final class Mst {
 	/**

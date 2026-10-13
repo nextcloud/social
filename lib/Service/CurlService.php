@@ -368,7 +368,9 @@ class CurlService {
 			]);
 		} catch (RequestResultNotJsonException $e) {
 		} catch (Exception $e) {
-			$this->logger->error('Cannot initiate AsyncWithToken', ['token' => $token, 'exception' => $e]);
+			// the token names a queue the route will deliver; the log gets a
+			// fingerprint of it, enough to match a row, not enough to call
+			$this->logger->error('Cannot initiate AsyncWithToken', ['token' => substr(hash('sha256', $token), 0, 8), 'exception' => $e]);
 		}
 	}
 
@@ -470,7 +472,7 @@ class CurlService {
 			$clientOptions['allow_redirects'] = false;
 
 			try {
-				$this->assertReachable($url, $clientOptions);
+				$clientOptions = $this->pinReachable($url, $clientOptions);
 				$promises[$url] = $client->getAsync($url, $clientOptions);
 			} catch (Throwable $e) {
 				// blocked, local, or a client that cannot do this at all: the
@@ -583,7 +585,7 @@ class CurlService {
 			$clientOptions['allow_redirects'] = false;
 
 			try {
-				$this->assertReachable($request['url'], $clientOptions);
+				$clientOptions = $this->pinReachable($request['url'], $clientOptions);
 				$promises[$key] = match ($method) {
 					'post' => $client->postAsync($request['url'], $clientOptions),
 					'put' => $client->putAsync($request['url'], $clientOptions),
@@ -764,17 +766,17 @@ class CurlService {
 	 *                           not the host serving it — see
 	 *                           {@see FediverseService::authorized()}
 	 */
-	public function openStream(string $url, array $headers = [], string $onBehalfOf = ''): array {
-		$clientOptions = $this->clientOptions('get', ['json_headers' => false, 'headers' => $headers]);
+	public function openStream(string $url, array $headers = [], string $onBehalfOf = '', int $timeout = ConfigService::DEFAULT_REQUEST_TIMEOUT): array {
+		$clientOptions = $this->clientOptions('get', ['json_headers' => false, 'headers' => $headers, 'timeout' => $timeout]);
 		$clientOptions['allow_redirects'] = false;
 		$client = $this->clientService->newClient();
 
 		$response = null;
 		for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
-			$this->assertReachable($url, $clientOptions, $onBehalfOf);
+			$hopOptions = $this->pinReachable($url, $clientOptions, $onBehalfOf);
 
 			try {
-				$response = $client->get($url, $clientOptions);
+				$response = $client->get($url, $hopOptions);
 			} catch (Exception $e) {
 				throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
 			}
@@ -829,7 +831,7 @@ class CurlService {
 	 * differ only in their scheme.
 	 *
 	 * @param string[] $urls
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string|resource, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool, verify?: bool, max_redirects?: int, federation?: bool} $options
 	 *
 	 * @throws RequestContentException
 	 * @throws RequestNetworkException
@@ -877,9 +879,13 @@ class CurlService {
 	 *   request this app makes to itself (see `asyncWithToken()`).
 	 *
 	 * Redirects are followed by `send()` rather than by the client, so that the
-	 * federation checks run on every hop -- see `redirectTarget()`.
+	 * federation checks run on every hop -- see `redirectTarget()` -- and each
+	 * hop is pinned to the addresses it was checked against. `max_redirects`
+	 * caps how many are followed, 0 for none; `federation` false skips the
+	 * instance access list for a URL this app ships rather than one somebody
+	 * wrote, the address guard still applies.
 	 *
-	 * @param array{headers?: array<string, string>, body?: string, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool} $options
+	 * @param array{headers?: array<string, string>, body?: string|resource, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool, verify?: bool, max_redirects?: int, federation?: bool} $options
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -904,6 +910,15 @@ class CurlService {
 		}
 		if ($options['accept_errors'] ?? false) {
 			$clientOptions['social']['accept_errors'] = true;
+		}
+		if (isset($options['max_redirects'])) {
+			$clientOptions['social']['max_redirects'] = $options['max_redirects'];
+		}
+		if (($options['federation'] ?? true) === false) {
+			$clientOptions['social']['federation'] = false;
+		}
+		if (isset($options['verify'])) {
+			$clientOptions['verify'] = $options['verify'];
 		}
 
 		if (($options['body'] ?? '') !== '' && strtolower($method) !== 'get') {
@@ -955,14 +970,16 @@ class CurlService {
 	): string {
 		$clientOptions['allow_redirects'] = false;
 		$acceptErrors = (bool)($clientOptions['social']['accept_errors'] ?? false);
+		$maxRedirects = (int)($clientOptions['social']['max_redirects'] ?? self::MAX_REDIRECTS);
+		$federation = (bool)($clientOptions['social']['federation'] ?? true);
 		unset($clientOptions['social']);
 		$requested = $url;
 
-		for ($hop = 0; $hop <= self::MAX_REDIRECTS; $hop++) {
-			$this->assertReachable($url, $clientOptions);
+		for ($hop = 0; $hop <= $maxRedirects; $hop++) {
+			$hopOptions = $this->pinReachable($url, $clientOptions, '', $federation);
 
 			try {
-				$response = $client->request(strtolower($method), $url, $clientOptions);
+				$response = $client->request(strtolower($method), $url, $hopOptions);
 			} catch (Exception $e) {
 				throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
 			}
@@ -1032,27 +1049,60 @@ class CurlService {
 	}
 
 	/**
-	 * Refuses a URL before it is requested: one that is not http(s), an
+	 * Refuses a URL before it is requested — one that is not http(s), an
 	 * instance this one does not federate with, or a host that resolves to
-	 * this network.
+	 * this network — and pins the request to the addresses that passed.
+	 *
+	 * The guard resolves the host itself; without the pin the client would
+	 * resolve it a second time and could be answered differently. So the
+	 * options handed back carry a `CURLOPT_RESOLVE` entry for the host and
+	 * port of this one URL, built from the very set the guard checked, and
+	 * every redirect hop is pinned afresh. A literal address needs no pin.
+	 * The entry replaces the client's own `curl` defaults wholesale, which
+	 * is why the HTTP/2 preference is restated.
+	 *
+	 * Where the options allow a local address nothing is checked or pinned:
+	 * that is the one request this app makes to itself, and the server's
+	 * client has been told the same.
 	 *
 	 * @param array<string, mixed> $clientOptions
+	 *
+	 * @return array<string, mixed> the options the request is sent with
 	 *
 	 * @throws RequestServerException
 	 * @throws UnauthorizedFediverseException
 	 * @throws SocialAppConfigException
 	 */
-	private function assertReachable(string $url, array $clientOptions, string $onBehalfOf = ''): void {
-		if (!self::isHttpScheme(strtolower((string)parse_url($url, PHP_URL_SCHEME)))) {
+	private function pinReachable(string $url, array $clientOptions, string $onBehalfOf = '', bool $federation = true): array {
+		$scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+		if (!self::isHttpScheme($scheme)) {
 			throw new RequestServerException('not an http(s) URL: ' . $url);
 		}
 
 		$host = (string)parse_url($url, PHP_URL_HOST);
-		$this->fediverseService->authorized($host, $onBehalfOf);
-
-		if (!($clientOptions['nextcloud']['allow_local_address'] ?? false) && RemoteAddress::isLocalHost($host)) {
-			throw new RequestServerException('host resolves to a local address: ' . $host);
+		if ($federation) {
+			$this->fediverseService->authorized($host, $onBehalfOf);
 		}
+
+		if ($clientOptions['nextcloud']['allow_local_address'] ?? false) {
+			return $clientOptions;
+		}
+
+		$addresses = RemoteAddress::reachableAddresses($host);
+		if ($addresses === []) {
+			throw new RequestServerException('host does not resolve to a public address: ' . $host);
+		}
+		if (filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) !== false) {
+			return $clientOptions;
+		}
+
+		$port = parse_url($url, PHP_URL_PORT) ?: ($scheme === 'https' ? 443 : 80);
+		$clientOptions['curl'] = [
+			CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_2TLS,
+			CURLOPT_RESOLVE => [$host . ':' . $port . ':' . implode(',', $addresses)],
+		];
+
+		return $clientOptions;
 	}
 
 	/**

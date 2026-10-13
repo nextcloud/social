@@ -28,6 +28,7 @@ use OCA\Social\Controller\AtprotoAccountController;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
@@ -65,6 +66,19 @@ class AtprotoAccountControllerTest extends TestCase {
 			$this->createStub(CustomHandleService::class), $this->createStub(MoveAwayService::class), $this->createStub(MoveInService::class),
 			$this->createStub(InboundMoveService::class), $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
 		);
+	}
+
+	/**
+	 * Starting a move waits for the other server in the request, so the
+	 * route is held to a few tries an hour, read the way the server reads it.
+	 */
+	public function testStartingAMoveIsRateLimitedPerUser(): void {
+		$attributes = (new \ReflectionMethod(AtprotoAccountController::class, 'moveAway'))->getAttributes(UserRateLimit::class);
+
+		$this->assertCount(1, $attributes);
+		$limit = $attributes[0]->newInstance();
+		$this->assertSame(3, $limit->getLimit());
+		$this->assertSame(3600, $limit->getPeriod());
 	}
 
 	private static function identity(string $state): Identity {

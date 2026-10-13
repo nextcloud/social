@@ -128,6 +128,7 @@
 				v-model="editSpoiler"
 				type="text"
 				class="post-edit-warning"
+				dir="auto"
 				maxlength="200"
 				:aria-label="t('social', 'Content warning')"
 				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
@@ -135,6 +136,7 @@
 				ref="editInput"
 				v-model="editContent"
 				class="post-edit-textarea"
+				dir="auto"
 				:maxlength="maxLength"
 				:aria-describedby="editIsTooLong ? `post-edit-count-${item.id}` : undefined"
 				:placeholder="t('social', 'Edit your post')"
@@ -193,7 +195,7 @@
 		  happened anyway.
 		-->
 		<div v-else-if="hasSpoiler" class="post-warning">
-			<p class="post-warning__text">
+			<p class="post-warning__text" dir="auto">
 				{{ item.spoiler_text }}
 			</p>
 			<NcButton
@@ -318,7 +320,7 @@
 						:translated="translation !== null"
 						:archiving="archiving"
 						:interests="serverData.interests"
-						@update:open="menuOpen = $event"
+						@update:open="onMenuToggle"
 						@quote="quote"
 						@edit="editPost"
 						@archive="toggleArchive"
@@ -557,6 +559,7 @@ import VerifiedBadge from './VerifiedBadge.vue'
 import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import { mapStores } from 'pinia'
+import { focusedElement, returnFocusTo } from '../utils/focus.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 import { defaultLanguage, languageName } from '../utils/postLanguage.js'
 import { useAccountStore } from '../store/account.js'
@@ -688,6 +691,8 @@ export default {
 			editSpoiler: '',
 			showReportDialog: false,
 			showMuteDialog: false,
+			/** the menu's own button, which the focus goes back to after a dialog */
+			menuOpener: null,
 			showCollectionDialog: false,
 			showBlockDialog: false,
 			showDeleteDialog: false,
@@ -962,6 +967,14 @@ export default {
 			return allowedByAuthor(this.item, 'like')
 		},
 
+		/**
+		 * @return {boolean} whether one of the dialogs the menu opens, or the
+		 * edit form, is on screen
+		 */
+		dialogOpen() {
+			return this.showBlockDialog || this.showReportDialog || this.showDeleteDialog || this.isEditing
+		},
+
 		/** @return {import('../types/Nextcloud.js').DialogButton[]} */
 		blockButtons() {
 			return [
@@ -1176,6 +1189,15 @@ export default {
 	},
 
 	watch: {
+		// a closed dialog's focus trap gives the focus back to the menu item
+		// that opened it, which the menu has taken away by then; the menu's
+		// button is what is still there
+		dialogOpen(open) {
+			if (!open) {
+				this.$nextTick(() => returnFocusTo(this.menuOpener))
+			}
+		},
+
 		// a vote cast elsewhere (or reloaded from the server) has to reach the
 		// copy this component renders, or navigating back shows the poll unvoted
 		'item.poll': function(poll) {
@@ -1492,6 +1514,16 @@ export default {
 		async boost() {
 			const undo = this.isBoosted
 			await this.act('boost', undo ? 'postUnBoost' : 'postBoost', !undo)
+		},
+
+		/**
+		 * @param {boolean} open whether the menu was opened or closed
+		 */
+		onMenuToggle(open) {
+			this.menuOpen = open
+			if (open) {
+				this.menuOpener = focusedElement()
+			}
 		},
 
 		editPost() {

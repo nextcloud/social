@@ -122,6 +122,56 @@ class WebSocketBoundsTest extends TestCase {
 	 * length with it set is not a frame to read but one too long, as any
 	 * other length past the limit is.
 	 */
+	/**
+	 * Past the ceiling on connections a new one is answered 503 and closed
+	 * before anything of it is read; the ones already held go on.
+	 */
+	public function testPastTheSubscriberCapAConnectionIsRefused(): void {
+		$this->server?->shutdown();
+		$this->server = new WebSocketServer($this->bind, 2, 8);
+		$first = $this->connect(WebSocketServer::PATH);
+		$second = $this->connect(WebSocketServer::PATH);
+		$this->assertCount(2, $this->pump());
+
+		$third = stream_socket_client('tcp://' . $this->bind, $errno, $error, 2);
+		$this->pump();
+
+		$this->assertStringStartsWith('HTTP/1.1 503', $this->read($third));
+		$this->assertCount(2, $this->server->subscribers(), 'the two already there are kept');
+		fclose($first);
+		fclose($second);
+	}
+
+	public function testOneAddressIsHeldToItsOwnShareOfConnections(): void {
+		$this->server?->shutdown();
+		$this->server = new WebSocketServer($this->bind, 256, 1);
+		$first = $this->connect(WebSocketServer::PATH);
+		$this->assertCount(1, $this->pump());
+
+		$second = stream_socket_client('tcp://' . $this->bind, $errno, $error, 2);
+		$this->pump();
+
+		$this->assertStringStartsWith('HTTP/1.1 503', $this->read($second));
+		$this->assertCount(1, $this->server->subscribers());
+		$this->assertSame('127.0.0.1', $this->server->subscribers()[0]->address);
+		fclose($first);
+	}
+
+	/** A connection that ended frees its place. */
+	public function testAClosedConnectionFreesItsPlace(): void {
+		$this->server?->shutdown();
+		$this->server = new WebSocketServer($this->bind, 1, 8);
+		$first = $this->connect(WebSocketServer::PATH);
+		$this->assertCount(1, $this->pump());
+		fclose($first);
+		$this->pump();
+		$this->assertSame([], $this->server->subscribers());
+
+		$second = $this->connect(WebSocketServer::PATH);
+		$this->assertCount(1, $this->pump());
+		fclose($second);
+	}
+
 	public function testALengthWithItsTopBitSetIsTooLong(): void {
 		$buffer = "\x89\x7f" . str_repeat("\xff", 8) . 'abcdefghij';
 

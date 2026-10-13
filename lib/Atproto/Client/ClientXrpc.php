@@ -212,7 +212,9 @@ class ClientXrpc {
 	 * `com.atproto.repo.uploadBlob`, from a file the body was copied to: by a
 	 * signed-in app, or by Bluesky's video service with a token the account
 	 * signed for it (`getServiceAuth`). A video may weigh up to Bluesky's
-	 * limit for one; anything else is held to a picture's.
+	 * limit for one; anything else is held to a picture's. What the file
+	 * is, for the app's `blob:` permission as for the size, is read from
+	 * its bytes rather than from the `Content-Type` the app sent.
 	 *
 	 * @param array<string, string> $headers lower-cased names
 	 * @throws XrpcException
@@ -224,15 +226,15 @@ class ClientXrpc {
 		if ($this->inbound->owns((string)($headers['authorization'] ?? ''))) {
 			return $this->inbound->upload($path, (string)$headers['authorization']);
 		}
+		$size = (int)filesize($path);
+		$sniffed = (string)mime_content_type($path);
 		$session = $this->grants->uploader((string)($headers['authorization'] ?? ''));
 		if ($session === null) {
 			$session = $this->signedIn($headers, self::UPLOAD, 'POST');
-			self::assertAllowed($session->permissions()->mayUpload((string)($headers['content-type'] ?? '')), 'upload files of this type');
+			self::assertAllowed($session->permissions()->mayUpload($sniffed), 'upload files of this type');
 		} else {
 			$this->assertNotSuspended($session);
 		}
-		$size = (int)filesize($path);
-		$sniffed = (string)mime_content_type($path);
 		if ($size > (str_starts_with($sniffed, 'video/') ? self::MAX_UPLOAD : self::MAX_BLOB)) {
 			throw new XrpcException(413, 'BlobTooLarge', 'This file is too large');
 		}
