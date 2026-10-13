@@ -423,7 +423,9 @@ videos, or to shorts, and looking back twice as far, because such posts are rare
 that finds fewer than about forty, the rest is what is popular here in the
 same kind right now — the posts Explore's Pictures and Videos tabs show —
 and those say *Popular right now* rather than naming a hashtag they did not
-match. In Shorts, what counts is how much of each video you watch: all of it,
+match. A short says so, or *Trending here*, only once the clip has gathered
+about ten likes, boosts and views between them; one nobody has touched yet
+carries the author line alone. In Shorts, what counts is how much of each video you watch: all of it,
 or most, counts for a lot, half of it for a little, and swiping it away within
 about two seconds counts against its hashtags. In the Photos and Videos grids,
 opening a post counts.
