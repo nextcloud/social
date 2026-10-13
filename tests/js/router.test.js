@@ -22,6 +22,9 @@ vi.mock('../../src/views/PlacePage.vue', () => ({ default: { name: 'PlacePage', 
 vi.mock('../../src/views/VideoShorts.vue', () => ({ default: { name: 'VideoShorts', render: () => null } }))
 vi.mock('../../src/views/NotFound.vue', () => ({ default: { name: 'NotFound', render: () => null } }))
 
+// what the server renders the page with; every page's title ends with it
+document.title = 'Aloha - Nextcloud'
+
 describe('router', () => {
 	it('is served under the app path and uses the "active" link class', () => {
 		expect(router.options.history.base).toBe('/index.php/apps/social')
@@ -304,6 +307,27 @@ describe('an address that names nothing', () => {
 		for (const path of ['/timeline', '/timeline/notifications', '/@alice', '/@alice/followers', '/settings', '/discover', '/shorts', '/search/x']) {
 			expect(router.resolve(path).name).not.toBe('not-found')
 		}
+	})
+})
+
+describe('the page title', () => {
+	it('names the page, in front of the title the server set', async () => {
+		await router.push('/settings')
+		expect(document.title).toBe('Settings - Aloha - Nextcloud')
+
+		await router.push('/discover')
+		expect(document.title).toBe('Discover - Aloha - Nextcloud')
+
+		await router.push('/nothing/here')
+		expect(document.title).toBe('Page not found - Aloha - Nextcloud')
+	})
+
+	it('leaves a page that names itself alone', async () => {
+		await router.push('/statistics')
+		await router.push('/timeline/notifications')
+
+		// the view sets it once mounted; the router must not clear it on the way
+		expect(document.title).toBe('Statistics - Aloha - Nextcloud')
 	})
 })
 

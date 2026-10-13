@@ -26,6 +26,7 @@ vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSucce
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
+	document.title = 'Aloha - Nextcloud'
 })
 
 const ComposerStub = {
@@ -294,6 +295,23 @@ describe('Timeline', () => {
 		// every view has a heading now; only the two that always showed one stay visible
 		expect(title.text()).toBe(heading)
 		expect(title.classes('hidden-visually')).toBe(!visible)
+	})
+
+	it('names the tab after the heading, and again when the heading changes', async () => {
+		const route = reactive({ name: 'timeline', params: { type: 'notifications' }, query: {} })
+		// mounted on the reactive route itself, so that a param change reaches the view
+		mount(Timeline, {
+			global: {
+				plugins: [pinia],
+				mocks: { $route: route, $router: { replace: vi.fn() } },
+				stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, ShortsBar: ShortsBarStub, NotificationRequests: NotificationRequestsStub },
+			},
+		})
+		expect(document.title).toBe('Activities - Aloha - Nextcloud')
+
+		route.params = { type: 'bookmarks' }
+		await nextTick()
+		expect(document.title).toBe('Bookmarks - Aloha - Nextcloud')
 	})
 
 	it('loads a list timeline by its id and heads it with the title the server gives', async () => {

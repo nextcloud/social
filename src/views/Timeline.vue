@@ -188,6 +188,7 @@ import { rememberFilter, rememberedFilter } from './../services/notifications.js
 import { hasInterestsFeed, isTracking } from './../services/interests.js'
 import { fetchSavedFeeds, uriOf } from './../services/blueskyFeeds.js'
 import { contextFor } from './../services/interestTracker.js'
+import { setPageTitle } from './../services/pageTitle.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useNotificationsStore } from '../store/notifications.js'
@@ -619,6 +620,14 @@ export default {
 	},
 
 	watch: {
+		// the tab, the history and a screen reader name the page by its heading
+		heading: {
+			immediate: true,
+			handler(heading) {
+				setPageTitle(heading)
+			},
+		},
+
 		// the router-view is no longer keyed on the full path, so switching
 		// from Home to Global reuses this view: without this the store would
 		// keep serving the previous timeline

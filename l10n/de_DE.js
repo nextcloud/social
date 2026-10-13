@@ -2892,6 +2892,7 @@ OC.L10N.register(
     "Page not found" : "Seite nicht gefunden",
     "There is nothing at this address. The link may be wrong, or what it pointed to has moved." : "Unter dieser Adresse gibt es nichts. Der Link ist vielleicht falsch, oder das Ziel wurde verschoben.",
     "Back to my feed" : "Zurück zu meinem Feed",
+    "Post by {name}" : "Beitrag von {name}",
     "_%n entry_::_%n entries_" : ["%n Eintrag","%n Einträge"]
 },
 "nplurals=2; plural=(n != 1);");

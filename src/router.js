@@ -8,6 +8,7 @@ import { generateUrl } from '@nextcloud/router'
 import { loadState } from '@nextcloud/initial-state'
 
 import eventBus from './services/eventBus.js'
+import { setPageTitle, titleForRoute } from './services/pageTitle.js'
 import { scroller } from './utils/scroller.js'
 
 const Timeline = () => import('./views/Timeline.vue')
@@ -497,6 +498,15 @@ router.beforeEach((to, from) => {
 	if (needsSignIn(to) && loadState('social', 'serverData', { public: false }).public === true) {
 		window.location.assign(loginUrl(to, router.options.history.base))
 		return false
+	}
+})
+
+// the pages known by name alone; a feed, a profile or a post names itself
+// once what it shows has arrived
+router.afterEach((to) => {
+	const title = titleForRoute(to)
+	if (title !== null) {
+		setPageTitle(title)
 	}
 })
 

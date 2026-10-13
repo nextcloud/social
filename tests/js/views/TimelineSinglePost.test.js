@@ -20,6 +20,7 @@ vi.mock('../../../src/services/interestTracker.js', async (importOriginal) => ({
 }))
 
 vi.hoisted(() => {
+	document.title = 'Aloha - Nextcloud'
 	document.head.dataset.user = 'alice'
 	document.head.dataset.userDisplayname = 'Alice'
 })
@@ -159,6 +160,13 @@ describe('TimelineSinglePost', () => {
 		})
 		expect(store.type).toBe('single-post')
 		expect(store.params.singlePost).toBe('123')
+	})
+
+	it('names the tab after the author of the post', () => {
+		store.addToStatuses(status)
+		mountView()
+
+		expect(document.title).toBe('Post by bob@remote.example - Aloha - Nextcloud')
 	})
 
 	it('prefers the already loaded post over the server-rendered copy', () => {

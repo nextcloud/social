@@ -279,8 +279,10 @@ no place.
 
 ## Reading
 
-A link to a page that does not exist says *Page not found* and offers the way
-back to your feed.
+The browser tab names the page you are on — the feed, the account, the author
+of the post, *Settings* — in front of the app's name, so the history and a
+screen reader can tell the pages apart. A link to a page that does not exist
+says *Page not found* and offers the way back to your feed.
 
 The sidebar is the map:
 

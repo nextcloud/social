@@ -90,6 +90,7 @@ const VideoHeader = defineAsyncComponent(() => import(/* webpackChunkName: "watc
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
+import { setPageTitle } from '../services/pageTitle.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -251,6 +252,16 @@ export default {
 
 	watch: {
 		'$route.params.id': 'load',
+
+		// the author names the page: a post has no title of its own
+		singlePost: {
+			immediate: true,
+			handler(post) {
+				const author = post?.account?.display_name || post?.account?.acct || ''
+				setPageTitle(author === '' ? t('social', 'Post') : t('social', 'Post by {name}', { name: author }))
+			},
+		},
+
 		parentsTimeline(_, previousValue) {
 			// beforeMount() resets the timeline, so this fires during the first render's
 			// pre-flush, before the template refs exist.
