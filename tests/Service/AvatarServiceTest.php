@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\MultipartBodyService;
+use OCP\Config\IUserConfig;
 use OCP\IAvatar;
 use OCP\IAvatarManager;
 use OCP\IUser;
@@ -52,6 +53,8 @@ class AvatarServiceTest extends TestCase {
 	private array $files = [];
 	/** @var string[] the paths the request is taken to have uploaded */
 	private array $uploaded = [];
+	/** @var string[] what happened to core's picture, in order: a settings reload, a set, a remove */
+	private array $pictureEvents = [];
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -60,9 +63,11 @@ class AvatarServiceTest extends TestCase {
 		$this->avatar->method('isCustomAvatar')->willReturnCallback(fn (): bool => $this->custom);
 		$this->avatar->method('set')->willReturnCallback(function ($data): void {
 			$this->stored = (string)$data;
+			$this->pictureEvents[] = 'set';
 		});
 		$this->avatar->method('remove')->willReturnCallback(function (): void {
 			$this->removed = true;
+			$this->pictureEvents[] = 'remove';
 		});
 
 		$this->avatarManager = $this->createStub(IAvatarManager::class);
@@ -97,8 +102,13 @@ class AvatarServiceTest extends TestCase {
 		$multipartBodyService->method('isUpload')
 			->willReturnCallback(fn (string $path): bool => in_array($path, $this->uploaded, true));
 
+		$userConfig = $this->createStub(IUserConfig::class);
+		$userConfig->method('clearCache')->willReturnCallback(function (string $userId, bool $reload): void {
+			$this->pictureEvents[] = 'reload ' . $userId . ($reload ? ' from the database' : '');
+		});
+
 		return new AvatarService(
-			$this->avatarManager, $this->userManager, $this->accountService, new NullLogger(), $multipartBodyService
+			$this->avatarManager, $this->userManager, $this->accountService, new NullLogger(), $multipartBodyService, $userConfig
 		);
 	}
 
@@ -262,6 +272,20 @@ class AvatarServiceTest extends TestCase {
 		$this->expectException(InvalidActionException::class);
 		$this->expectExceptionMessage('could not be stored');
 		$service->restoreFromArchive(self::USER, $this->png());
+	}
+
+	/**
+	 * The picture's address is numbered from this process's copy of the
+	 * account's settings; another process may have moved the number since.
+	 */
+	public function testThePictureVersionIsReadFromTheDatabaseBeforeThePictureChanges(): void {
+		$this->service->setFromFile(self::USER, $this->png());
+		$this->assertSame(['reload ' . self::USER . ' from the database', 'set'], $this->pictureEvents);
+
+		$this->pictureEvents = [];
+		$this->custom = true;
+		$this->service->remove(self::USER);
+		$this->assertSame(['reload ' . self::USER . ' from the database', 'remove'], $this->pictureEvents);
 	}
 
 	public function testRemovingAPictureLeavesTheGeneratedInitials(): void {
