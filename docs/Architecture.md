@@ -211,7 +211,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_stream_dest` | Stream visibility targets (who sees what) |
 | `social_stream_queue` | Inbound stream processing queue |
 | `social_stream_tag` | Stream-to-hashtag mapping: one row per (post, tag), the tag in the form `FollowedTagsRequest::normalise()` gives it, so every reader compares it as it stands |
-| `social_search_term` | The content search's word index: one row per (word, post), the word as `SearchTerms` normalises it, unique on (term, nid) — the index every search reads newest-first — indexed on (head, nid) for a search that ends in a word beginning, and on `stream_id_prim` for the edit and the delete |
+| `social_search_term` | The content search's word index: one row per (word, post) except the function words in `SearchTerms::STOP_WORDS`, the word as `SearchTerms` normalises it, unique on (term, nid) — the index every search reads newest-first — indexed on (head, nid) for a search that ends in a word beginning, and on `stream_id_prim` for the edit and the delete |
 | `social_stream_media` | Which cached documents each of this instance's own posts carries: one row per (document nid, post `stream_id_prim`), the pair the primary key, with the post indexed on its own. Written when a local post is stored, and rewritten by an edit or by a stored-copy rewrite that swaps a document; a remote post is not linked when it is stored. A finished transcode finds the posts to rewrite here rather than by `LIKE` on `attachments`, and the post's rows go with it in `deleteRelatedTo()` |
 | `social_actor_relation` | Blocks and mutes: one row per (local actor, target actor, `block`/`mute`/`blocked_by`) |
 | `social_report` | Moderation reports, local and federated `Flag` activities, with a `resolved` flag |
@@ -1096,6 +1096,15 @@ it can, in nid order — and stays bounded by `search_window_days`, because a he
 as common as `the` holds nearly every post. Until `Cron\SearchIndex`
 has walked every post stored before the table existed, the search is the old
 `ILIKE` over that window.
+
+The English and German function words (`SearchTerms::STOP_WORDS`, 188 of
+them: `the`, `and`, `of`, `der`, `und`, `nicht` …) are not written: each is
+in nearly every post, so each was a row per post that no search narrows on, and
+with nothing bounding the posts by default the word table was the one growing
+fastest. Beside other words a function word asks nothing of the index — `the
+zebra` is a lookup of `zebra` — and a query made of nothing else (`to be or not
+to be`) is answered by the same bounded `ILIKE` scan, so it still finds what it
+did. An edit takes the function words out of a post indexed before the list.
 
 ## Delivering at scale
 

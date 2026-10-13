@@ -50,17 +50,46 @@ final class SearchTerms {
 	public const MIN_PREFIX = 3;
 
 	/**
+	 * English and German function words: in nearly every post, so each is a
+	 * row per post in `social_search_term` that no search narrows on. They
+	 * are not stored; a search made of nothing else is answered by the
+	 * bounded scan instead (`StreamSearch::searchContent()`).
+	 */
+	public const STOP_WORDS = [
+		'the', 'be', 'to', 'of', 'and', 'in', 'that', 'have', 'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you',
+		'do', 'at', 'this', 'but', 'his', 'by', 'from', 'they', 'we', 'her', 'she', 'or', 'an', 'will', 'my',
+		'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if', 'about', 'who', 'which', 'me', 'when',
+		'can', 'no', 'just', 'him', 'into', 'your', 'some', 'could', 'them', 'than', 'then', 'its', 'our', 'these',
+		'also', 'is', 'are', 'was', 'were', 'been', 'has', 'had', 'am', 'us', 'those', 'how', 'any', 'did', 'does',
+		'very', 'more', 'most', 'other', 'such', 'only', 'own', 'same', 'too', 'should', 'here', 'where', 'why',
+		'because', 'while', 'each', 'both', 'few', 'through', 'over', 'under', 'again', 'once', 'off', 'nor',
+		'being', 'having', 'doing', 'until', 'against', 'between', 'during', 'before', 'after', 'above', 'below',
+		'down', 'der', 'die', 'das', 'und', 'ist', 'nicht', 'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr', 'ein',
+		'eine', 'einen', 'einem', 'einer', 'eines', 'den', 'dem', 'des', 'zu', 'mit', 'auf', 'für', 'von', 'im',
+		'auch', 'sich', 'dass', 'wie', 'aber', 'als', 'bei', 'nach', 'noch', 'nur', 'oder', 'wenn', 'wird', 'sind',
+		'war', 'hat', 'haben', 'kann', 'mich', 'mir', 'dir', 'dich', 'uns', 'euch', 'man', 'aus', 'um', 'über',
+		'vor', 'durch', 'doch', 'schon', 'hier', 'sehr', 'mein', 'dein', 'sein', 'ja', 'zum', 'zur', 'vom', 'beim',
+		'ins', 'ob', 'weil', 'diese', 'dieser', 'dieses', 'wo',
+	];
+
+	/** @var array<string, true>|null STOP_WORDS as a set */
+	private static ?array $stopSet = null;
+
+	/**
 	 * The distinct words of a post's stored markup, in the order they first
-	 * appear.
+	 * appear: what it is indexed under, so without the function words unless
+	 * `$withStopWords` asks for the words as written.
 	 *
 	 * @return list<string>
 	 */
-	public static function ofHtml(string $html): array {
+	public static function ofHtml(string $html, bool $withStopWords = false): array {
 		// a tag separates what is either side of it: `<p>one</p><p>two</p>`
 		// is two words, and without the space the flattener makes it one
 		$text = ACore::withoutMarkup(str_replace('<', ' <', $html));
 
-		return self::ofText(html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8'), self::MAX_PER_POST);
+		return self::ofText(
+			html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8'), self::MAX_PER_POST, $withStopWords
+		);
 	}
 
 	/**
@@ -68,13 +97,13 @@ final class SearchTerms {
 	 *
 	 * @return list<string>
 	 */
-	public static function ofText(string $text, int $max = self::MAX_PER_POST): array {
+	public static function ofText(string $text, int $max = self::MAX_PER_POST, bool $withStopWords = true): array {
 		$text = mb_strtolower(mb_scrub($text, 'UTF-8'), 'UTF-8');
 		$words = preg_split('/[^\p{L}\p{N}\p{M}]+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
 
 		$terms = [];
 		foreach (($words === false) ? [] : $words as $word) {
-			if (mb_strlen($word, 'UTF-8') < self::MIN_LENGTH) {
+			if (mb_strlen($word, 'UTF-8') < self::MIN_LENGTH || (!$withStopWords && self::isStopWord($word))) {
 				continue;
 			}
 
@@ -85,6 +114,13 @@ final class SearchTerms {
 		}
 
 		return array_map('strval', array_keys($terms));
+	}
+
+	/** Whether a normalised word is one of STOP_WORDS, which the index does not hold. */
+	public static function isStopWord(string $word): bool {
+		self::$stopSet ??= array_fill_keys(self::STOP_WORDS, true);
+
+		return isset(self::$stopSet[$word]);
 	}
 
 	/**

@@ -142,6 +142,33 @@ class StreamWordSearchTest extends TestCase {
 		$request->searchContent('zebra', 20, 0, '', 5);
 	}
 
+	/**
+	 * Function words are not in the index, so a query of nothing else is
+	 * answered by the bounded scan, as before the index — not with nothing.
+	 */
+	public function testAQueryOfFunctionWordsAloneIsAnsweredByTheScan(): void {
+		$request = $this->request();
+		$this->terms->expects($this->never())->method('candidateNids');
+		$request->expects($this->once())->method('scanContent')
+			->with('to be or not to be', 20, 0, '', 0, 0)
+			->willReturn([]);
+
+		$request->searchContent('to be or not to be', 20);
+	}
+
+	/** beside a word the index holds, a function word asks nothing of it */
+	public function testAFunctionWordBesideOthersIsLeftToTheirLookup(): void {
+		$request = $this->request();
+		$request->expects($this->never())->method('scanContent');
+		$this->terms->expects($this->once())->method('candidateNids')
+			->with(['zebra'], '', 0, 0, '0', '', 100)
+			->willReturn(['9']);
+
+		$request->searchContent('the zebra and', 20);
+
+		$this->assertSame([[['9'], '']], $this->hydrated, 'a function word as the beginning is not checked either');
+	}
+
 	public function testAQueryWithNothingSearchableReadsNothing(): void {
 		$request = $this->request();
 		$this->terms->expects($this->never())->method('candidateNids');

@@ -10,11 +10,15 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Db;
 
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Db\SearchTermsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\ConfigService;
+use OCP\IDBConnection;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -114,6 +118,40 @@ class StreamContentSearchTest extends TestCase {
 
 		$this->assertSame([self::BASE . '/notes/public'], $this->found('zebra', self::AUTHOR));
 		$this->assertSame([], $this->found('zebra', self::OTHER), 'nothing of somebody who wrote none of it');
+	}
+
+	/**
+	 * Function words are not written to the word index — each would be a
+	 * row per post — and a search for nothing but them is still answered,
+	 * by the bounded scan; beside other words they are left out of the
+	 * lookup.
+	 */
+	public function testFunctionWordsAreNotIndexedAndAreStillFound(): void {
+		$config = Server::get(ConfigService::class);
+		$ready = (string)$config->getAppValue(SearchTermsRequest::READY);
+		$config->setAppValue(SearchTermsRequest::READY, '1');
+
+		try {
+			$this->note('public', '<p>the Zebra crossed the road</p>', ACore::CONTEXT_PUBLIC);
+			$this->note('unrelated', '<p>nothing to see</p>', ACore::CONTEXT_PUBLIC);
+
+			$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+			$qb->select('term')->from(CoreRequestBuilder::TABLE_SEARCH_TERMS)
+				->where($qb->expr()->eq('stream_id_prim', $qb->createNamedParameter(md5(self::BASE . '/notes/public'))))
+				->orderBy('term', 'asc');
+			$result = $qb->executeQuery();
+			$terms = [];
+			while (($term = $result->fetchOne()) !== false) {
+				$terms[] = (string)$term;
+			}
+			$result->closeCursor();
+			$this->assertSame(['crossed', 'road', 'zebra'], $terms);
+
+			$this->assertSame([self::BASE . '/notes/public'], $this->found('the zebra'));
+			$this->assertSame([self::BASE . '/notes/public'], $this->found('THE'), 'by the scan');
+		} finally {
+			$config->setAppValue(SearchTermsRequest::READY, $ready);
+		}
 	}
 
 	public function testATooShortTermReturnsNothing(): void {
