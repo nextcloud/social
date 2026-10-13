@@ -112,7 +112,7 @@ describe('DirectMessages', () => {
 		expect(wrapper.find('.direct-messages__message-form label').exists()).toBe(false)
 	})
 
-	it('offers Send only once something is written, and sends with Ctrl+Enter', async () => {
+	it('offers Send only once something is written, and sends with Ctrl+Enter or Cmd+Enter', async () => {
 		const wrapper = mountMessages('10')
 		await flushPromises()
 		const send = () => wrapper.find('.direct-messages__send')
@@ -130,6 +130,13 @@ describe('DirectMessages', () => {
 			visibility: 'direct',
 			in_reply_to_id: '11',
 		})
+
+		// the Mac's own shortcut for "send"
+		post.mockClear()
+		await wrapper.find('.direct-messages__message-form textarea').setValue('Again')
+		await wrapper.find('.direct-messages__message-form textarea').trigger('keydown.enter', { metaKey: true })
+		await flushPromises()
+		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses', expect.objectContaining({ status: '@bob@remote.example Again' }))
 	})
 
 	it('opens a recipient search with no social visibility controls', async () => {
