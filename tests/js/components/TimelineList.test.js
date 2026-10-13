@@ -1643,6 +1643,24 @@ describe('TimelineList', () => {
 			expect(store.markHomeRead).toHaveBeenCalledWith('30')
 		})
 
+		it('remembers the place of the list being left, not of the one arriving', async () => {
+			// Local was fetched ahead and is put back at the switch: by the
+			// time the switch is noticed the store already holds it, and its
+			// newest post was written as seen under its own key — so the line
+			// it was about to be drawn against was never drawn
+			const LOCAL = 'social:seen:["timeline","",{}]'
+			window.localStorage.setItem(LOCAL, JSON.stringify({ id: '10', at: 1 }))
+			const { wrapper, store } = mountList({ timeline: posts })
+			await flushPromises()
+
+			store.$patch({ restored: true, ...showing('["timeline","",{}]') })
+			await flushPromises()
+
+			expect(lineBefore(wrapper)).toBe('10')
+			expect(JSON.parse(window.localStorage.getItem(LOCAL)).id).toBe('10')
+			expect(JSON.parse(window.localStorage.getItem(PLACE)).id).toBe('30')
+		})
+
 		it('asks the server nothing on the other timelines', async () => {
 			const { store } = mountList({
 				timeline: posts,

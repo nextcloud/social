@@ -2291,7 +2291,10 @@ until the server has answered, and as the fallback for an account whose server
 marker is empty; whichever of the two is further along wins. The other
 timelines keep the per-browser line, because Mastodon's marker vocabulary has
 `home` and `notifications` only, and a marker no app would sync is not worth a
-request.
+request. The browser's copy is written when the reader leaves a list — on a
+switch, under the key of the list being *left* and with the newest post it
+showed, since by then the store already holds the next list, which may be one
+fetched ahead that nobody has looked at yet.
 
 **What the server's limits are, and who asks.** `MAX_LENGTH` and
 `MAX_ATTACHMENTS` were hard-coded in `Composer.vue`, `TimelinePost.vue` and
