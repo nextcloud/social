@@ -213,17 +213,19 @@ describe('the administration page', () => {
 		const wrapper = await mountPage({ ...STATE, bluesky })
 		await openGroup(wrapper, 'Federation')
 
-		expect(sectionHeadings(wrapper)).toEqual(['Allowed and blocked servers', 'Block lists', 'Relays', 'Bluesky', 'Deliveries'])
+		expect(sectionHeadings(wrapper)).toEqual(['Allowed and blocked servers', 'Block lists', 'Relays', 'Bluesky', 'Bluesky figures', 'Deliveries'])
 		expect(wrapper.findComponent({ name: 'BlueskySection' }).props('settings')).toEqual(bluesky)
 		expect(wrapper.find('#bluesky').exists()).toBe(true)
 
 		const delegate = await mountPage({ ...STATE, bluesky, server: null })
 		await openGroup(delegate, 'Federation')
 		expect(sectionHeadings(delegate)).not.toContain('Bluesky')
+		expect(sectionHeadings(delegate)).not.toContain('Bluesky figures')
 
 		const without = await mountPage(STATE)
 		await openGroup(without, 'Federation')
 		expect(sectionHeadings(without)).not.toContain('Bluesky')
+		expect(sectionHeadings(without)).not.toContain('Bluesky figures')
 	})
 
 	/** Who may have an account here is an administrator's decision; a delegate is sent none of it. */

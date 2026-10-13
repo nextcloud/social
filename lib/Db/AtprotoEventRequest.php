@@ -72,6 +72,20 @@ class AtprotoEventRequest extends CoreRequestBuilder {
 		return $seq;
 	}
 
+	/** when the newest event was made, 0 when there is none */
+	public function latestTime(): int {
+		$qb = $this->getQueryBuilder();
+		$qb->select('time')
+			->from(self::TABLE_ATPROTO_EVENT)
+			->orderBy('seq', 'desc')
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$time = (int)$cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return $time;
+	}
+
 	/** the oldest sequence number still held, 0 when there is none */
 	public function oldestSeq(): int {
 		$qb = $this->getQueryBuilder();

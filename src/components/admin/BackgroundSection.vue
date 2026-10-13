@@ -41,6 +41,7 @@
 <script>
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
+import { duration } from '../../utils/duration.js'
 
 /**
  * Whether the work that happens away from a request is happening.
@@ -107,23 +108,7 @@ export default {
 			return t('social', '{duration} ago', { duration: this.duration(since) })
 		},
 
-		/**
-		 * @param {number} seconds a length of time
-		 * @return {string} it in the largest unit that still says something
-		 */
-		duration(seconds) {
-			if (seconds >= 86400) {
-				return n('social', '%n day', '%n days', Math.round(seconds / 86400))
-			}
-			if (seconds >= 3600) {
-				return n('social', '%n hour', '%n hours', Math.round(seconds / 3600))
-			}
-			if (seconds >= 60) {
-				return n('social', '%n minute', '%n minutes', Math.round(seconds / 60))
-			}
-
-			return n('social', '%n second', '%n seconds', seconds)
-		},
+		duration,
 	},
 }
 </script>

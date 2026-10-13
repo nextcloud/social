@@ -318,6 +318,103 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 	}
 
 	/**
+	 * The records and blob bytes of every repository together, summed from
+	 * the heads: one row per local account, not one per record.
+	 *
+	 * @return array{records: int, blob_bytes: int}
+	 */
+	public function sumHeads(): array {
+		$qb = $this->getQueryBuilder();
+		$qb->selectAlias($qb->func()->sum('record_count'), 'records')
+			->selectAlias($qb->func()->sum('blob_bytes'), 'blob_bytes')
+			->from(self::TABLE_ATPROTO_REPO);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ['records' => (int)($row['records'] ?? 0), 'blob_bytes' => (int)($row['blob_bytes'] ?? 0)];
+	}
+
+	/**
+	 * How many records of a collection that were written here, rather than
+	 * brought by a moving repository, are younger than `$since`.
+	 *
+	 * The table has no index on `creation`, so the count is not filtered by
+	 * it: every record is inserted with the time of its insert, which makes
+	 * the ids rise with `creation`, and the first id of the window is found
+	 * by a binary search over the primary key. The count then reads only the
+	 * rows of the window, by primary key.
+	 */
+	public function countRecordsWrittenSince(string $collection, int $since): int {
+		$from = $this->firstRecordIdSince($since);
+		if ($from === 0) {
+			return 0;
+		}
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->count('id', 'n'))
+			->from(self::TABLE_ATPROTO_RECORD)
+			->where($qb->expr()->gte('id', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('collection', $qb->createNamedParameter($collection)))
+			->andWhere($qb->expr()->neq('local_id_prim', $qb->createNamedParameter('')));
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return (int)($row['n'] ?? 0);
+	}
+
+	/**
+	 * The lowest record id created at or after `$since`, 0 when there is
+	 * none; a few dozen primary-key lookups however large the table is.
+	 */
+	public function firstRecordIdSince(int $since): int {
+		$low = 1;
+		$high = $this->lastRecordId() + 1;
+		while ($low < $high) {
+			$middle = intdiv($low + $high, 2);
+			$found = $this->recordAtOrAfter($middle);
+			if ($found === null || $found['creation'] >= $since) {
+				$high = $middle;
+			} else {
+				$low = $found['id'] + 1;
+			}
+		}
+		$found = $this->recordAtOrAfter($low);
+
+		return ($found !== null && $found['creation'] >= $since) ? $found['id'] : 0;
+	}
+
+	/** the highest record id, 0 for an empty table */
+	public function lastRecordId(): int {
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->max('id'))->from(self::TABLE_ATPROTO_RECORD);
+		$cursor = $qb->executeQuery();
+		$id = (int)$cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return $id;
+	}
+
+	/**
+	 * The first record from an id on, by primary key.
+	 *
+	 * @return array{id: int, creation: int}|null
+	 */
+	public function recordAtOrAfter(int $id): ?array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id', 'creation')
+			->from(self::TABLE_ATPROTO_RECORD)
+			->where($qb->expr()->gte('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)))
+			->orderBy('id', 'asc')
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row === false ? null : ['id' => (int)$row['id'], 'creation' => AtprotoIdentityRequest::time($row['creation'])];
+	}
+
+	/**
 	 * Names the Social object a record stands for, as a record that moved
 	 * here learns it when its follow is made here.
 	 */
