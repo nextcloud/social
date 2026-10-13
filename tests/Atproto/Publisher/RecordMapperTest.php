@@ -504,6 +504,20 @@ class RecordMapperTest extends TestCase {
 		$this->lexicon->validateRecord($record);
 	}
 
+	/**
+	 * A profile record has no facets, so a mention in the bio can only be
+	 * its text: `@bob` stays `@bob`, `@bob@host` stays whole, whether the
+	 * bio is the plain text a local account keeps or the HTML a remote one
+	 * arrived with.
+	 */
+	public function testAMentionInTheBioIsKeptAsItsText(): void {
+		$this->author->setDescription('Ask @bob or @alice@remote.example about <b>tags</b>');
+		$this->assertSame('Ask @bob or @alice@remote.example about tags', $this->mapper->profile($this->author, $this->identity)['description']);
+
+		$this->author->setDescription('<p>Ask <span class="h-card"><a href="https://social.test/@bob" class="u-url mention">@<span>bob</span></a></span> or <a href="https://bsky.app/profile/' . self::OTHER . '" class="u-url mention">@carol.bsky.social</a></p>');
+		$this->assertSame('Ask @bob or @carol.bsky.social', $this->mapper->profile($this->author, $this->identity)['description']);
+	}
+
 	/** A verification of the account names the name the profile carries, or it does not hold. */
 	public function testTheProfilesDisplayNameIsTheNameTheAccountFederates(): void {
 		$this->author->setName('Alice Liddell');
