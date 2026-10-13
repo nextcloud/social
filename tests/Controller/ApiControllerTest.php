@@ -42,6 +42,7 @@ use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Model\Report;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Response\RangedFileResponse;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
@@ -3596,14 +3597,54 @@ class ApiControllerTest extends TestCase {
 
 	public function testFavouritesProbeTheFavouritesTimeline(): void {
 		$this->loggedInAs();
-		$options = $this->captureTimelineOptions(['fav']);
+		$fav = $this->createStub(Stream::class);
+		$fav->method('getNid')->willReturn(30);
+		$options = $this->captureTimelineOptions([$fav]);
 
 		$response = $this->controller()->favourites(4, 30, 20, 10);
 
-		$this->assertSame(['fav'], $response->getData());
+		$this->assertSame([$fav], $response->getData());
 		$probe = $options();
 		$this->assertSame(ProbeOptions::FAVOURITES, $probe->getProbe());
 		$this->assertSame([4, 30, 20, 10], [$probe->getLimit(), $probe->getMaxId(), $probe->getMinId(), $probe->getSince()]);
+	}
+
+	/**
+	 * The list is ordered by when each post was marked, so its cursors name
+	 * the mark and not the post: a client that follows `next` with the
+	 * post's id would be handed the page below that post, which is a
+	 * different list.
+	 */
+	public function testAFavouritesPageIsPagedOnTheMarksOwnId(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/favourites?limit=1');
+		$action = new StreamAction();
+		$action->importFromDatabase(['liked' => '1', 'liked_nid' => '1760000000000123456']);
+		$fav = $this->createStub(Stream::class);
+		$fav->method('getNid')->willReturn(30);
+		$fav->method('getAction')->willReturn($action);
+		$this->captureTimelineOptions([$fav]);
+
+		$link = $this->controller()->favourites(1)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('max_id=1760000000000123456>; rel="next"', $link);
+		$this->assertStringContainsString('min_id=1760000000000123456>; rel="prev"', $link);
+		$this->assertStringNotContainsString('max_id=30>', $link);
+	}
+
+	public function testABookmarksPageIsPagedOnTheMarksOwnId(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/bookmarks?limit=1');
+		$action = new StreamAction();
+		$action->importFromDatabase(['bookmarked' => '1', 'bookmarked_nid' => '1760000000000654321']);
+		$mark = $this->createStub(Stream::class);
+		$mark->method('getNid')->willReturn(30);
+		$mark->method('getAction')->willReturn($action);
+		$this->captureTimelineOptions([$mark]);
+
+		$link = $this->controller()->bookmarks(1)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('max_id=1760000000000654321>; rel="next"', $link);
 	}
 
 	public function testFavouritesRequireAViewer(): void {

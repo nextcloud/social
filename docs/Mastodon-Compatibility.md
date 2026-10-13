@@ -343,6 +343,13 @@ takes `reblogs` as well as `notify`, a "no" is stored as a row in
 boosts as a predicate of the query rather than by filtering a page after it was
 read.
 
+**Favourites and bookmarks are ordered by when they were marked**, as
+Mastodon orders them, and paged on the mark's own id
+(`social_stream_act.liked_nid` / `bookmarked_nid`): a post from last month
+favourited today is first, and the `Link` cursors name the favourite rather than
+the post. Ordered by the post's id, as they were, a post older than the first
+page's `max_id` was never reached by "load more".
+
 ### 3.7 Profile editing
 
 Fixed in #2126. `update_credentials` used to accept `header` and

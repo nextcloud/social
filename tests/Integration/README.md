@@ -281,6 +281,8 @@ to stop.
   `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and
   `/api/v1/favourites` to what the reader may read now, and a bookmarks
   import to the posts the importing account may read.
+  `Api/MarkOrderTest` lists favourites and bookmarks in the order they were
+  marked — an old post marked today first — and pages them on the mark.
   `Api/MediaFromFileSessionTest` attaches a Nextcloud file through the web
   app's session and through a Nextcloud app password with `OCS-APIRequest:
   true`, and refuses a bearer token holding every scope and an app password

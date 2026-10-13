@@ -84,6 +84,9 @@ class StreamActionTest extends TestCase {
 				StreamAction::BOOKMARKED => true,
 				// PeerTube's other counter, absent from this row and so false
 				StreamAction::DISLIKED => false,
+				// when each mark was set; '0' on a row from before they were dated
+				StreamAction::LIKED_NID => '0',
+				StreamAction::BOOKMARKED_NID => '0',
 			],
 			$action->getValues()
 		);
@@ -100,5 +103,20 @@ class StreamActionTest extends TestCase {
 			'streamId' => 'stream',
 			'values' => [StreamAction::BOOSTED => true],
 		], $action->jsonSerialize());
+	}
+
+	public function testImportFromDatabaseReadsWhenEachMarkWasSet(): void {
+		$action = new StreamAction();
+
+		$action->importFromDatabase([
+			'liked' => '1',
+			'liked_nid' => '1760000000000123456',
+			'bookmarked' => '0',
+			'bookmarked_nid' => 0,
+		]);
+
+		// as decimal strings: a mark id is on a post nid's scale, above PHP_INT_MAX on 32-bit
+		$this->assertSame('1760000000000123456', $action->getValue(StreamAction::LIKED_NID));
+		$this->assertSame('0', $action->getValue(StreamAction::BOOKMARKED_NID));
 	}
 }

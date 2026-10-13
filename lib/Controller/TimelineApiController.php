@@ -15,6 +15,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -283,11 +284,34 @@ class TimelineApiController extends MastodonApiController {
 			$posts = $this->streamService->getTimeline($options);
 
 			return $this->paged(
-				$this->filterService->apply($posts, '', $this->viewer), $options->getLimit(), $posts
+				$this->filterService->apply($posts, '', $this->viewer),
+				$options->getLimit(),
+				$this->markCursors($posts, StreamAction::LIKED_NID)
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * The `Link` cursors of a favourites or bookmarks page: the id of each
+	 * mark, which is what the list is ordered and cut on, in place of the
+	 * post's. A client treats the cursor as opaque, as Mastodon's is the
+	 * favourite's own id there too.
+	 *
+	 * @param Stream[] $posts
+	 *
+	 * @return array<array{id: string}>
+	 */
+	private function markCursors(array $posts, string $mark): array {
+		return array_map(
+			static function (Stream $post) use ($mark): array {
+				$action = $post->getAction();
+
+				return ['id' => ($action !== null && $action->hasValue($mark)) ? $action->getValue($mark) : '0'];
+			},
+			$posts
+		);
 	}
 
 	#[NoCSRFRequired]
@@ -315,7 +339,9 @@ class TimelineApiController extends MastodonApiController {
 			// not a filter context in Mastodon either: the statuses carry an
 			// empty `filtered`, because its absence is read as an answer
 			return $this->paged(
-				$this->filterService->apply($posts, '', $this->viewer), $options->getLimit(), $posts
+				$this->filterService->apply($posts, '', $this->viewer),
+				$options->getLimit(),
+				$this->markCursors($posts, StreamAction::BOOKMARKED_NID)
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);
