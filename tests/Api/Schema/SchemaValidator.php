@@ -245,6 +245,10 @@ final class SchemaValidator {
 				return preg_match('/^[1-9]\d*$/', $value) === 1;
 			case 'unix-string':
 				return preg_match('/^\d+$/', $value) === 1;
+			case 'websocket-url':
+				// Mastodon's streaming address, which is a `wss://` one
+				return in_array(strtolower((string)parse_url($value, PHP_URL_SCHEME)), ['ws', 'wss'], true)
+					&& (string)parse_url($value, PHP_URL_HOST) !== '';
 			case 'url':
 				$scheme = strtolower((string)parse_url($value, PHP_URL_SCHEME));
 

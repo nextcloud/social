@@ -36,9 +36,14 @@ class MoveInboundTest extends TestCase {
 		}
 	}
 
+	/** The id Mastodon serves for `leaver`: `/users/<name>` before 4.5, `/ap/users/<number>` since. */
+	private function leaverId(): string {
+		return Server::get(CacheActorService::class)
+			->getFromAccount(self::LEAVER . '@' . (string)getenv('MASTODON_HOST'))->getId();
+	}
+
 	public function testTheFollowerHereNowFollowsTheArrivalAndTheLeaverSaysWhereItWent(): void {
-		$host = (string)getenv('MASTODON_HOST');
-		$leaverId = 'https://' . $host . '/users/' . self::LEAVER;
+		$leaverId = $this->leaverId();
 		$accountService = Server::get(AccountService::class);
 		$follower = $accountService->getActorFromUserId(self::FOLLOWER);
 		$arrival = $accountService->getActorFromUserId(self::ARRIVAL);
@@ -62,8 +67,7 @@ class MoveInboundTest extends TestCase {
 	}
 
 	public function testTheLeaverIsRecordedAsMoved(): void {
-		$host = (string)getenv('MASTODON_HOST');
-		$leaver = Server::get(CacheActorService::class)->getFromId('https://' . $host . '/users/' . self::LEAVER);
+		$leaver = Server::get(CacheActorService::class)->getFromId($this->leaverId());
 		$arrival = Server::get(AccountService::class)->getActorFromUserId(self::ARRIVAL);
 
 		$this->assertSame($arrival->getId(), $leaver->getMovedTo());

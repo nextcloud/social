@@ -417,6 +417,11 @@ class AccountApiController extends MastodonApiController {
 		}
 
 		$data['role'] = $this->adminApiService->credentialRole($this->currentSession());
+		// Mastodon lists the account's highlighted roles, without their
+		// permissions, as its public `roles`; the one role here is one of
+		// those or nobody's
+		$data['roles'] = ($data['role']['highlighted'] ?? false)
+			? [array_intersect_key($data['role'], ['id' => true, 'name' => true, 'color' => true])] : [];
 		$data['bluesky'] = $this->blueskyOf($account);
 
 		if (($data['last_status_at'] ?? null) === '') {
@@ -550,10 +555,10 @@ class AccountApiController extends MastodonApiController {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/preferences')]
-	public function preferencesUpdate(string $expandMedia = ''): DataResponse {
+	public function preferencesUpdate(string $expand_media = ''): DataResponse {
 		try {
 			$userId = $this->currentSession();
-			if (!$this->sensitiveMediaService->choose($userId, $expandMedia)) {
+			if (!$this->sensitiveMediaService->choose($userId, $expand_media)) {
 				return new DataResponse(
 					['error' => 'expand_media must be show_all, default, hide_all, or empty'],
 					Http::STATUS_UNPROCESSABLE_ENTITY

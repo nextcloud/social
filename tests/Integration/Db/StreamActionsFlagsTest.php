@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Integration\Db;
 use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\StreamActionService;
+use OCA\Social\Tools\Nid;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -102,5 +103,30 @@ class StreamActionsFlagsTest extends TestCase {
 
 		$this->assertSame(self::ACTOR, $action->getActorId());
 		$this->assertSame(self::STREAM, $action->getStreamId());
+	}
+
+	/**
+	 * A like and a bookmark carry the moment they were set, in the column
+	 * the favourites and bookmarks lists are ordered and paged by; it is
+	 * cleared with the flag and left alone by a like set again.
+	 */
+	public function testEachMarkIsDatedWhenItIsSetAndUndatedWhenItIsCleared(): void {
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, true);
+		$liked = $this->values()[StreamAction::LIKED_NID];
+		$this->assertSame(19, strlen($liked), 'on the scale of a post nid');
+		$this->assertSame('0', $this->values()[StreamAction::BOOKMARKED_NID], 'the bookmark is not set');
+
+		// the marks are dated to the millisecond
+		usleep(2000);
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::BOOKMARKED, true);
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, true);
+		$values = $this->values();
+		$this->assertSame($liked, $values[StreamAction::LIKED_NID], 'liking again keeps the date');
+		$this->assertGreaterThanOrEqual(0, Nid::compare($values[StreamAction::BOOKMARKED_NID], $liked), 'the bookmark is dated after the like');
+
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, false);
+		$values = $this->values();
+		$this->assertSame('0', $values[StreamAction::LIKED_NID], 'unliking clears the date');
+		$this->assertNotSame('0', $values[StreamAction::BOOKMARKED_NID], 'and leaves the bookmark dated');
 	}
 }

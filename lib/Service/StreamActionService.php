@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\Nid;
 
 /**
  * Class StreamActionService
@@ -57,8 +58,34 @@ class StreamActionService {
 	 */
 	public function setActionBool(string $actorId, string $streamId, string $key, bool $value): void {
 		$action = $this->loadAction($actorId, $streamId);
+		$this->dateMark($action, $key, $value);
 		$action->updateValueBool($key, $value);
 		$this->saveAction($action);
+	}
+
+	/**
+	 * A like or a bookmark carries the moment it was set, as an id the
+	 * favourites and bookmarks lists are ordered and paged by: minted when
+	 * the flag goes from clear to set, cleared with it, and left alone when
+	 * the flag is set to the value it already has -- liking a post twice
+	 * does not move it to the top of the list.
+	 */
+	private function dateMark(StreamAction $action, string $key, bool $value): void {
+		$mark = match ($key) {
+			StreamAction::LIKED => StreamAction::LIKED_NID,
+			StreamAction::BOOKMARKED => StreamAction::BOOKMARKED_NID,
+			default => '',
+		};
+		if ($mark === '') {
+			return;
+		}
+
+		$set = $action->hasValue($key) && $action->getValueBool($key);
+		if ($set === $value) {
+			return;
+		}
+
+		$action->updateValue($mark, $value ? Nid::now() : '0');
 	}
 
 	/**

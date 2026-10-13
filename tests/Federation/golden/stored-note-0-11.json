@@ -51,6 +51,9 @@
         "reactions": [],
         "poll": null,
         "uri": "https://remote.example/users/bob/statuses/109000000000000001",
+        "application": null,
+        "filtered": [],
+        "text": null,
         "url": "https://remote.example/users/bob/statuses/109000000000000001",
         "reblog": null,
         "media_attachments": [
@@ -105,6 +108,7 @@
             "following_count": 4,
             "statuses_count": 9,
             "last_status_at": null,
+            "roles": [],
             "emojis": [],
             "fields": [
                 {

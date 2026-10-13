@@ -42,6 +42,7 @@ use OCA\Social\Model\Instance;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Relationship;
 use OCA\Social\Model\Report;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Response\RangedFileResponse;
 use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\AccountService;
@@ -1203,6 +1204,29 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame($role, $response->getData()['role']);
+	}
+
+	/**
+	 * Mastodon's public `roles` lists the account's highlighted roles, as
+	 * `{id, name, color}`; the one role this app knows is in it when it is
+	 * highlighted, and the list is empty for everybody else.
+	 */
+	public function testVerifyCredentialsListsAHighlightedRoleAmongThePublicRoles(): void {
+		$this->loggedInAs();
+		$this->adminApiService->method('credentialRole')
+			->willReturn(['id' => '3', 'name' => 'Admin', 'color' => '', 'permissions' => '8388607', 'highlighted' => true]);
+
+		$data = $this->controller()->verifyCredentials()->getData();
+
+		$this->assertSame([['id' => '3', 'name' => 'Admin', 'color' => '']], $data['roles']);
+	}
+
+	public function testVerifyCredentialsListsNoPublicRoleForAnOrdinaryAccount(): void {
+		$this->loggedInAs();
+		$this->adminApiService->method('credentialRole')
+			->willReturn(['id' => '-99', 'name' => '', 'color' => '', 'permissions' => '65536', 'highlighted' => false]);
+
+		$this->assertSame([], $this->controller()->verifyCredentials()->getData()['roles']);
 	}
 
 	/** update_credentials answers a CredentialAccount too, role included. */
@@ -3596,14 +3620,54 @@ class ApiControllerTest extends TestCase {
 
 	public function testFavouritesProbeTheFavouritesTimeline(): void {
 		$this->loggedInAs();
-		$options = $this->captureTimelineOptions(['fav']);
+		$fav = $this->createStub(Stream::class);
+		$fav->method('getNid')->willReturn(30);
+		$options = $this->captureTimelineOptions([$fav]);
 
 		$response = $this->controller()->favourites(4, 30, 20, 10);
 
-		$this->assertSame(['fav'], $response->getData());
+		$this->assertSame([$fav], $response->getData());
 		$probe = $options();
 		$this->assertSame(ProbeOptions::FAVOURITES, $probe->getProbe());
 		$this->assertSame([4, 30, 20, 10], [$probe->getLimit(), $probe->getMaxId(), $probe->getMinId(), $probe->getSince()]);
+	}
+
+	/**
+	 * The list is ordered by when each post was marked, so its cursors name
+	 * the mark and not the post: a client that follows `next` with the
+	 * post's id would be handed the page below that post, which is a
+	 * different list.
+	 */
+	public function testAFavouritesPageIsPagedOnTheMarksOwnId(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/favourites?limit=1');
+		$action = new StreamAction();
+		$action->importFromDatabase(['liked' => '1', 'liked_nid' => '1760000000000123456']);
+		$fav = $this->createStub(Stream::class);
+		$fav->method('getNid')->willReturn(30);
+		$fav->method('getAction')->willReturn($action);
+		$this->captureTimelineOptions([$fav]);
+
+		$link = $this->controller()->favourites(1)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('max_id=1760000000000123456>; rel="next"', $link);
+		$this->assertStringContainsString('min_id=1760000000000123456>; rel="prev"', $link);
+		$this->assertStringNotContainsString('max_id=30>', $link);
+	}
+
+	public function testABookmarksPageIsPagedOnTheMarksOwnId(): void {
+		$this->loggedInAs();
+		$this->requestUri('/api/v1/bookmarks?limit=1');
+		$action = new StreamAction();
+		$action->importFromDatabase(['bookmarked' => '1', 'bookmarked_nid' => '1760000000000654321']);
+		$mark = $this->createStub(Stream::class);
+		$mark->method('getNid')->willReturn(30);
+		$mark->method('getAction')->willReturn($action);
+		$this->captureTimelineOptions([$mark]);
+
+		$link = $this->controller()->bookmarks(1)->getHeaders()['Link'] ?? '';
+
+		$this->assertStringContainsString('max_id=1760000000000654321>; rel="next"', $link);
 	}
 
 	public function testFavouritesRequireAViewer(): void {
@@ -3613,6 +3677,9 @@ class ApiControllerTest extends TestCase {
 	public function testNotificationsForwardTypeFilters(): void {
 		$this->loggedInAs();
 		$options = $this->captureTimelineOptions();
+		$sender = $this->createStub(Person::class);
+		$sender->method('getId')->willReturn('https://x/acct');
+		$this->cacheActorService->method('getCachedFromIds')->with(['https://x/acct'])->willReturn([$sender]);
 
 		$this->controller()->notifications(10, 0, 0, 0, ['mention', 'follow'], ['reblog'], 'https://x/acct');
 
@@ -3622,6 +3689,127 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(['reblog'], $probe->getExcludeTypes());
 		$this->assertSame('https://x/acct', $probe->getAccountId());
 		$this->assertSame(10, $probe->getLimit());
+	}
+
+	/**
+	 * Mastodon's `account_id` -- the parameter is bound by name, so it has
+	 * to carry that name -- narrows the page to what one account caused,
+	 * resolved from the numeric id a client holds to the actor.
+	 */
+	public function testNotificationsFromOneAccountAreAskedForByItsId(): void {
+		$this->loggedInAs();
+		$options = $this->captureTimelineOptions();
+		$sender = $this->createStub(Person::class);
+		$sender->method('getId')->willReturn('https://cloud.example/users/42');
+		$this->cacheActorService->method('getFromNids')->with([42])->willReturn([$sender]);
+
+		$this->controller()->notifications(account_id: '42');
+
+		$this->assertSame('https://cloud.example/users/42', $options()->getAccountId());
+	}
+
+	public function testNotificationsFromAnAccountNobodyHoldsAreNone(): void {
+		$this->loggedInAs();
+		$this->cacheActorService->method('getFromNids')->willReturn([]);
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$response = $this->controller()->notifications(account_id: '42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $response->getData());
+	}
+
+	public function testThePreferencesWriteIsBoundByTheNameTheClientSends(): void {
+		$this->loggedInAs();
+		$chosen = null;
+		$this->sensitiveMediaService->method('choose')->willReturnCallback(
+			function (string $userId, string $policy) use (&$chosen): bool {
+				$chosen = $policy;
+
+				return true;
+			}
+		);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->preferencesUpdate(expand_media: 'show_all')->getStatus());
+		$this->assertSame('show_all', $chosen);
+	}
+
+	/**
+	 * The types Mastodon does not define -- a story reaction, a photo tag,
+	 * what only Bluesky tells -- reach the web app, and a client that named
+	 * them; another client's page is cut without them in the query, so it
+	 * stays full.
+	 */
+	public function testAClientGetsOnlyTheNotificationTypesMastodonDefines(): void {
+		$this->route = 'social.TimelineApi.notifications';
+		$this->bearerFor(['read']);
+		$options = $this->captureTimelineOptions();
+
+		$this->controller('Bearer s3cret')->notifications(exclude_types: ['reblog']);
+
+		$this->assertSame(
+			array_merge(['reblog'], Stream::FIRST_PARTY_NOTIFICATION_TYPES),
+			$options()->getExcludeTypes()
+		);
+	}
+
+	public function testAClientThatNamesAFirstPartyTypeGetsIt(): void {
+		$this->route = 'social.TimelineApi.notifications';
+		$this->bearerFor(['read']);
+		$options = $this->captureTimelineOptions();
+
+		$this->controller('Bearer s3cret')->notifications(types: ['mention', 'tagged']);
+
+		$probe = $options();
+		$this->assertSame(['mention', 'tagged'], $probe->getTypes());
+		$this->assertNotContains('tagged', $probe->getExcludeTypes());
+		$this->assertContains('story:react', $probe->getExcludeTypes());
+	}
+
+	public function testTheWebAppGetsEveryNotificationType(): void {
+		$this->loggedInAs();
+		$options = $this->captureTimelineOptions();
+
+		$this->controller()->notifications();
+
+		$this->assertSame([], $options()->getExcludeTypes());
+	}
+
+	// an app token: the `client_credentials` grant, bound to no account
+
+	private function appToken(): void {
+		$client = new SocialClient();
+		$client->setAppName('Tusky')->setAuthUserId('')->setAuthScopes(['read']);
+		$this->clientService->method('getFromToken')->with('s3cret')->willReturn($client);
+		$this->accountService->expects($this->never())->method('getActorFromUserId');
+	}
+
+	public function testAnAppTokenReadsWhatAnybodyMayRead(): void {
+		$this->route = 'social.TimelineApi.timelines';
+		$this->appToken();
+		$this->captureTimelineOptions([]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller('Bearer s3cret')->timelines('public')->getStatus());
+	}
+
+	public function testAnAppTokenIsNobodyOnARouteThatActsForAnAccount(): void {
+		$this->route = 'social.Api.verifyCredentials';
+		$this->appToken();
+
+		$response = $this->controller('Bearer s3cret')->verifyCredentials();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => MastodonApiController::APP_TOKEN_NAMES_NOBODY], $response->getData());
+	}
+
+	public function testAnAppTokenIsNobodyOnARouteThatReadsTheSessionItself(): void {
+		$this->route = 'social.Api.preferences';
+		$this->appToken();
+
+		$response = $this->controller('Bearer s3cret')->preferences();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => MastodonApiController::APP_TOKEN_NAMES_NOBODY], $response->getData());
 	}
 
 	public function testNotificationsRequireAViewer(): void {
@@ -3956,9 +4144,9 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->statusDelete(7);
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-		// Mastodon answers with the status that went, which is what
-		// "delete & redraft" puts back in the composer
-		$this->assertSame(['id' => '7'], $response->getData());
+		// Mastodon answers with the status that went, its source as `text`,
+		// which is what "delete & redraft" puts back in the composer
+		$this->assertSame(['id' => '7', 'text' => ''], $response->getData());
 	}
 
 	public function testStatusDeleteOfSomebodyElsesPostIsA404AndDeletesNothing(): void {

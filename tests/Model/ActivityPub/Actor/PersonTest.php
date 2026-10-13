@@ -77,6 +77,33 @@ class PersonTest extends TestCase {
 		];
 	}
 
+	/** Mastodon's `roles` is always a list; the model knows no role, so an empty one. */
+	public function testAnAccountCarriesAnEmptyListOfRoles(): void {
+		$person = new Person();
+		$person->setPreferredUsername('alice')->setId('https://cloud.example/users/alice');
+
+		$this->assertSame([], $person->exportAsLocal()['roles']);
+	}
+
+	/**
+	 * `last_status_at` is a calendar date in Mastodon's entity, which is what
+	 * a client shows as it comes: a value stored with a time is cut to its
+	 * date, and nothing is null.
+	 */
+	public function testLastStatusAtIsADate(): void {
+		$this->assertSame('2026-10-13', Person::lastStatusDate('2026-10-13'));
+		$this->assertSame('2026-10-13', Person::lastStatusDate('2026-10-13T09:12:04Z'));
+		$this->assertSame('2026-10-13', Person::lastStatusDate('2026-10-13 09:12:04'));
+		$this->assertNull(Person::lastStatusDate(''));
+		$this->assertNull(Person::lastStatusDate('yesterday'));
+
+		$person = new Person();
+		$person->setPreferredUsername('alice')->setId('https://cloud.example/users/alice');
+		$person->setDetail('last_post_creation', '2026-10-13T09:12:04Z');
+
+		$this->assertSame('2026-10-13', $person->exportAsLocal()['last_status_at']);
+	}
+
 	public function testConstructorSetsTheType(): void {
 		$this->assertSame('Person', (new Person())->getType());
 	}
@@ -940,6 +967,24 @@ class PersonTest extends TestCase {
 		]);
 
 		$this->assertSame(1546300800, $person->getDeleted(), 'the stored time, not the current one');
+	}
+
+	/**
+	 * The columns are written in UTC; read in another zone, a cached actor's
+	 * `created_at` moved by that zone's offset.
+	 */
+	public function testImportFromDatabaseReadsTheStoredTimesAsUtcWhateverTheZone(): void {
+		date_default_timezone_set('America/Los_Angeles');
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'creation' => '2019-01-01 00:00:00',
+			'deleted' => '2019-01-02 00:00:00',
+		]);
+
+		$this->assertSame(1546300800, $person->getCreation());
+		$this->assertSame(1546387200, $person->getDeleted());
 	}
 
 	// --- discoverable / indexable ---------------------------------------

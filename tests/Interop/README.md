@@ -83,7 +83,13 @@ and follows it from `admin`; the workflow then has Mastodon deliver a `Move`
 signed by `leaver` to that inbox, and the last test reads whether the follow was
 re-pointed at `arrival` and `leaver` is recorded as moved. The inbound half is
 three steps in the workflow rather than one test, because the `Move` has to be
-sent by Mastodon between what this side prepares and what it asserts.
+sent by Mastodon between what this side prepares and what it asserts. The
+tests take Mastodon's id for an account from the handle, since it differs by
+version — `/users/<name>` on 4.3, `/ap/users/<number>` on 4.5 — and
+`MoveOutboundTest` names `landing` by its `/users/` URL on purpose: on 4.5
+that URL answers with the numeric id, which is the case
+`CacheActorService::getFromId()` resolves by fetching the actor at the id it
+claims.
 
 Covered for **moving in from the handle alone** (`MoveInFromMastodonTest`):
 our `puller` names Mastodon's `interop` as its old account, and the same
@@ -381,7 +387,11 @@ every migration it has; Akkoma publishes no image, so its release tag
 toolchain its own Dockerfile builds on. Both sit behind the same Caddy and
 job-made CA as the other jobs, and each is given exactly one exception — the
 runner's loopback — where it would otherwise refuse a private address
-(`allowedPrivateNetworks` on Misskey; Akkoma has no such refusal).
+(`allowedPrivateNetworks` on Misskey; Akkoma has no such refusal). A new
+Misskey federates with nobody until its administrator switches it on
+(`federation` is `none` by default, and its WebFinger answers 403 to
+everyone until then), so the workflow sets `federation: all` through
+`admin/update-meta` right after making the account, and reads it back.
 
 The set is smaller than for Mastodon or GoToSocial, the things everybody
 does, both ways: follows, a post, a reply threaded under the post it

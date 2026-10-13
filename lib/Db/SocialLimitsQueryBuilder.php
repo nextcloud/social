@@ -359,26 +359,30 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 * sorted the lot in a temporary table to keep twenty.
 	 *
 	 * @param string $alias the table whose nid pages; '' for the post's
+	 * @param string $column the id column of that table the page is cut and
+	 *                       ordered on, where it is not its `nid` -- the
+	 *                       favourites list pages on the mark's own id
 	 */
-	public function paginate(ProbeOptions $options, string $alias = '') {
+	public function paginate(ProbeOptions $options, string $alias = '', string $column = 'nid') {
 		$expr = $this->expr();
 		$pf = ($alias === '') ? $this->getDefaultSelectAlias() : $alias;
+		$field = $pf . '.' . $column;
 
 		if ($options->getSince() > 0) {
-			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getSince())));
+			$this->andWhere($expr->gt($field, $this->createNamedParameter($options->getSince())));
 		}
 
 		if ($options->getMaxId() > 0) {
-			$this->andWhere($expr->lt($pf . '.nid', $this->createNamedParameter($options->getMaxId())));
+			$this->andWhere($expr->lt($field, $this->createNamedParameter($options->getMaxId())));
 		}
 
 		if ($options->getMinId() > 0) {
 			$options->setInverted(true);
-			$this->andWhere($expr->gt($pf . '.nid', $this->createNamedParameter($options->getMinId())));
+			$this->andWhere($expr->gt($field, $this->createNamedParameter($options->getMinId())));
 		}
 
 		$this->setMaxResults($options->getLimit());
-		$this->orderBy($pf . '.nid', ($options->isInverted()) ? 'asc' : 'desc');
+		$this->orderBy($field, ($options->isInverted()) ? 'asc' : 'desc');
 	}
 
 	/**

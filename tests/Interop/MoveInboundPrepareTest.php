@@ -43,7 +43,10 @@ class MoveInboundPrepareTest extends TestCase {
 
 	public function testTheArrivalNamesTheLeaverAndSomebodyHereFollowsIt(): void {
 		$host = (string)getenv('MASTODON_HOST');
-		$leaverId = 'https://' . $host . '/users/' . self::LEAVER;
+		// the id Mastodon serves for the handle: `/users/<name>` before 4.5,
+		// `/ap/users/<number>` since
+		$leaverId = Server::get(CacheActorService::class)->getFromAccount(self::LEAVER . '@' . $host)->getId();
+		$this->assertStringStartsWith('https://' . $host . '/', $leaverId);
 
 		$accountService = Server::get(AccountService::class);
 		$arrival = $accountService->getActorFromUserId(self::ARRIVAL, true);
