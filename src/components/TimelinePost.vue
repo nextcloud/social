@@ -669,6 +669,13 @@ export default {
 			celebrate: '',
 			/** which action the server refused, so the button can say so */
 			refused: '',
+			/**
+			 * the actions with a request on its way, so a second press
+			 * while it is pending is ignored
+			 *
+			 * @type {Set<string>}
+			 */
+			acting: new Set(),
 			/** whether j/k has this post, so l/b/r act on the right one */
 			hasKeyboardFocus: false,
 			/** whether the overflow menu is open, which holds the action row open with it */
@@ -1688,6 +1695,26 @@ export default {
 		 * @param {boolean} celebrating whether this is the doing, not the undoing
 		 */
 		async act(name, action, celebrating) {
+			// a second press while the first is on its way: ignored rather
+			// than sent, or the two raced for one button and whichever answer
+			// came last was the state
+			if (this.acting.has(name)) {
+				return
+			}
+			this.acting.add(name)
+			try {
+				await this.send(name, action, celebrating)
+			} finally {
+				this.acting.delete(name)
+			}
+		},
+
+		/**
+		 * @param {string} name 'like' or 'boost', the class hook
+		 * @param {string} action the store action to dispatch
+		 * @param {boolean} celebrating whether this is the doing, not the undoing
+		 */
+		async send(name, action, celebrating) {
 			if (celebrating) {
 				this.celebrate = name
 				// heard and felt as well as seen, where the reader allows it

@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.239
+**App version:** 0.26.240
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -451,7 +451,7 @@ copy in app storage; the original stays where it was, untouched.
 - **FederationHealthService** — What the outbound queue looks like to an administrator: which instances deliveries are failing against, so an instance that has quietly stopped receiving anything is distinguishable from one nobody posted to. Both states, not one: what is still being retried (`getFailing()`, STANDBY with at least one failure) and what has been **given up on** (`getAbandoned()`, `STATUS_ABANDONED`), each grouped per host. The second was reported nowhere — a request on its fifteenth attempt was counted as failing and the moment it was abandoned it left every count, so the queue looked healthiest exactly when a peer had been lost for good. The abandoned figures reach back `RequestQueueService::RETENTION_SECONDS` (seven days), which is how long a finished row is kept; `occ social:queue:status`, the admin settings and the dashboard widget all read this one summary, and `occ social:queue:retry --instance HOST` is what acts on it
 - **TestService** — Backs the WebFinger probe of `occ social:check:install`
 - **DurableCache** — Short-lived state that has to hold on an instance with no memcache. `ICacheFactory::createDistributed()` hands such an instance a `NullCache`, which forgets every write: a counter kept there reads zero for ever and a list of what was already accepted is always empty. This is the distributed cache when `isAvailable()` says there is one and the `social_durable_cache` table when there is not, behind the part of `ICache` a counter or a replay record needs, with the namespace passed on each call: `get($ns, $key)` (null for a miss), `set($ns, $key, $value, $ttl)`, `inc($ns, $key, $ttl, $step = 1)` (returns the new count; the TTL is set when the counter is created and never extended) and `remove($ns, $key)`. Values are anything `json_encode()` round-trips; a TTL of 0 is `ICache::DEFAULT_TTL`, never forever. On the table `inc()` is read-then-write, which is fine for a ceiling and wrong for anything that must be unique. APCu configured as `memcache.local` counts as a memcache and is not shared with cron or `occ`, so state a background job writes for a web request does not belong here. Used by `InboxLimiter` (namespace `social.inbox`), `SignatureService`'s LD-signature and signed-request replay records (`social.ldsig`, `social.httpsig`), the `Idempotency-Key` record of `POST /api/v1/statuses` (`social_idempotency`) and `StatisticsService`'s computed pages (`social/statistics`); the `MemcacheConfigured` setup check says which of the other caches are off without one
-- **PushService** — on a new stream, resolves the local audience through `DetailsService` (home + direct viewers) and pushes a `social_timeline` custom event per user through the notify_push app when it is installed; without notify_push every call is a cheap no-op and web clients keep polling. The web client listens via `@nextcloud/notify_push` and drops its 30-second poll to a 5-minute safety net when push is available
+- **PushService** — on a new stream, resolves the local audience through `DetailsService` (home + direct viewers) and pushes a `social_timeline` custom event per user through the notify_push app when it is installed; without notify_push every call is a cheap no-op and web clients keep polling. The web client listens via `@nextcloud/notify_push` and drops its 30-second poll to a 5-minute safety net when push is available. While the poll's requests fail the wait between attempts doubles — 60 s, 120 s, 240 s, then five minutes — and the first answer puts it back; a page request still on its way when the reader switches lists is cancelled (`AbortController`) rather than answered and thrown away
 
 ---
 
@@ -2291,7 +2291,10 @@ until the server has answered, and as the fallback for an account whose server
 marker is empty; whichever of the two is further along wins. The other
 timelines keep the per-browser line, because Mastodon's marker vocabulary has
 `home` and `notifications` only, and a marker no app would sync is not worth a
-request.
+request. The browser's copy is written when the reader leaves a list — on a
+switch, under the key of the list being *left* and with the newest post it
+showed, since by then the store already holds the next list, which may be one
+fetched ahead that nobody has looked at yet.
 
 **What the server's limits are, and who asks.** `MAX_LENGTH` and
 `MAX_ATTACHMENTS` were hard-coded in `Composer.vue`, `TimelinePost.vue` and
@@ -2578,6 +2581,13 @@ offset to the bottom of what was there. `scrollBehavior` returns a promise
 instead: `TimelineList` emits `timeline:rendered` on the event bus once its
 entries are on the page, and the router waits for that, or for two seconds,
 whichever comes first — a view that never says anything still scrolls. The offset restored is the content column's, not the window's: a Nextcloud app is given a fixed viewport and the column scrolls inside it, so the position Vue Router remembers is always zero and applying it moved nothing. A `beforeEach` guard records `#app-content-vue`'s `scrollTop` for the view being left, at most ten views deep.
+
+A long column is laid out a screen at a time: `.timeline-entry` has
+`content-visibility: auto` with `contain-intrinsic-size: auto 320px`, so a card
+off screen keeps a placeholder of about its height until it scrolls near, and
+its real size once it has been drawn. The sentinel below the list and the
+restored offset above are unaffected — the placeholders have boxes — and the
+restored offset lands where it was recorded.
 
 The "N new posts" pill that polling puts up is sticky, and so is the box the
 reader writes in: same stacking context, and the composer both taller and above.
@@ -3125,7 +3135,9 @@ every place the text still leads.
 `GalleryRatio.js` reserves each picture's box from `meta.original` before it
 loads, clamped between 3:4 and 16:9, so a photo timeline does not jump under the
 reader's thumb as images arrive; `MediaAttachment.vue` paints the `blurhash`
-into that box meanwhile. `GalleryMedia.vue` carries the ALT badge — the
+into that box meanwhile — decoded into a 32-pixel bitmap in the preview's
+ratio that the box scales up, since a hash holds a few colour components and
+not a picture. `GalleryMedia.vue` carries the ALT badge — the
 description is what the picture *is*, and a reader who cannot see it is not the
 only one who wants it — and sets the `alt` attribute from the same value.
 

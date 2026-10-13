@@ -107,6 +107,41 @@ import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.v
 import ImageOff from 'vue-material-design-icons/ImageOff.vue'
 import logger from '../services/logger.js'
 
+/**
+ * The address the element is pointed at: the still of a picture, the file
+ * of anything that plays. '' when there is nothing to load.
+ *
+ * @param {object|null|undefined} attachment the attachment
+ * @return {string}
+ */
+function sourceOf(attachment) {
+	if (!attachment) {
+		return ''
+	}
+	const plays = attachment.type === 'video' || attachment.type === 'audio'
+
+	return String((plays ? attachment.url : attachment.preview_url) ?? '')
+}
+
+/** How many pixels the long side of a blurhash placeholder is drawn at. */
+const BLURHASH_PX = 32
+
+/**
+ * The bitmap a blurhash is decoded into: `BLURHASH_PX` on the long side, the
+ * short side in the preview's own ratio, never under a pixel.
+ *
+ * @param {{width: number, height: number}} small the preview's size
+ * @return {{width: number, height: number}}
+ */
+function blurhashSize(small) {
+	const scale = BLURHASH_PX / Math.max(small.width, small.height, 1)
+
+	return {
+		width: Math.max(1, Math.round(small.width * scale)),
+		height: Math.max(1, Math.round(small.height * scale)),
+	}
+}
+
 export default {
 	name: 'MediaAttachment',
 	components: {
@@ -358,7 +393,21 @@ export default {
 	},
 
 	watch: {
-		attachment() {
+		/**
+		 * A status refreshed from the server replaces its attachment objects
+		 * without changing what they point at. The element keeps its `src` and
+		 * fires no second `load`, so starting over here left every picture in
+		 * the feed hidden behind its blurhash with the spinner on top.
+		 *
+		 * @param {object|null} now the attachment as it is
+		 * @param {object|null} before the attachment it replaced
+		 */
+		attachment(now, before) {
+			if (now?.id === before?.id && sourceOf(now) === sourceOf(before)) {
+				this.readPreviewState()
+				return
+			}
+
 			this.previewLoaded = false
 			this.previewFailed = false
 			this.drawBlurhash()
@@ -488,6 +537,17 @@ export default {
 			this.previewLoaded = false
 		},
 
+		/**
+		 * Takes the loaded state from the picture itself, for a `load` that
+		 * has already fired or that the browser answered from its cache.
+		 */
+		readPreviewState() {
+			const image = /** @type {HTMLImageElement|null} */ (this.$el?.querySelector?.('img.attachment__preview') ?? null)
+			if (image !== null && image.complete && image.naturalWidth > 0) {
+				this.previewLoaded = true
+			}
+		},
+
 		drawBlurhash() {
 			if (this.isAv || this.attachment?.meta?.small?.width === undefined) {
 				return
@@ -506,9 +566,17 @@ export default {
 			}
 
 			try {
-				const ctx = /** @type {HTMLCanvasElement} */ (this.$refs.canvas).getContext('2d')
-				const imageData = ctx.createImageData(this.attachment.meta.small.width, this.attachment.meta.small.height)
-				const pixels = decode(blurhash, this.attachment.meta.small.width, this.attachment.meta.small.height)
+				const canvas = /** @type {HTMLCanvasElement} */ (this.$refs.canvas)
+				// a hash holds a few colour components, not a picture: decoding
+				// it at the preview's size was work spent on pixels the frame
+				// then scaled, and a bitmap left at the element's default
+				// 300×150 showed a corner of them stretched over the frame
+				const { width, height } = blurhashSize(this.attachment.meta.small)
+				canvas.width = width
+				canvas.height = height
+				const ctx = canvas.getContext('2d')
+				const imageData = ctx.createImageData(width, height)
+				const pixels = decode(blurhash, width, height)
 				imageData.data.set(pixels)
 				ctx.putImageData(imageData, 0, 0)
 			} catch (error) {

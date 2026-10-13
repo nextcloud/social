@@ -873,14 +873,46 @@ describe('TimelineList', () => {
 			expect(wrapper.find('.timeline-error').attributes('role')).toBe('alert')
 		})
 
-		it('keeps paging alive after a failure', async () => {
-			const { dispatch } = mountList({ responses: [new Error('network'), new Error('network')] })
+		it('stops the sentinel asking after a failure, until the retry is pressed', async () => {
+			const { wrapper, dispatch } = mountList({ responses: [new Error('network'), new Error('network'), [status('20')]] })
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			// the error block and the wave trade places above the sentinel,
+			// and every reflow was an intersection: a list whose request
+			// kept failing asked again as fast as the server could refuse
+			const sentinel = wrapper.find('.list-sentinel').element
+			expect(observer().unobserve).toHaveBeenCalledWith(sentinel)
+			await intersect()
+			await intersect()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			// the retry is the one thing that re-arms it, and a failure there
+			// takes it down again; paging is alive once a page has come back
+			observer().observe.mockClear()
+			await wrapper.find('.timeline-error button').trigger('click')
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
+			expect(observer().observe).toHaveBeenCalledWith(sentinel)
+			expect(observer().unobserve).toHaveBeenCalledTimes(2)
+
+			await wrapper.find('.timeline-error button').trigger('click')
+			await flushPromises()
+			expect(wrapper.find('.timeline-error').exists()).toBe(false)
+			await intersect()
+			expect(dispatch).toHaveBeenCalledTimes(4)
+		})
+
+		it('watches the sentinel again for a list switched to after a failure', async () => {
+			const { dispatch, store } = mountList({ responses: [new Error('network')] })
+			await flushPromises()
+			observer().observe.mockClear()
+			dispatch.mockResolvedValue([status('9')])
+
+			store.$patch(showing('["federated","",{}]'))
 			await flushPromises()
 
-			// allLoaded used to be set here, which stopped the observer from
-			// ever firing again: infinite scroll was dead until a reload
-			await intersect()
-			await flushPromises()
+			expect(observer().observe).toHaveBeenCalled()
 			expect(dispatch).toHaveBeenCalledTimes(2)
 		})
 
@@ -1108,6 +1140,46 @@ describe('TimelineList', () => {
 			expect(dispatch).toHaveBeenCalledWith({ min_id: '50' })
 		})
 
+		it('does not ask for a first page beside the one still loading', async () => {
+			// with nothing on screen the poll had no cursor, so it asked for
+			// a cursor-less first page beside the real one and counted the
+			// answer as posts that had arrived
+			let finishFirst
+			const { dispatch, store } = mountList({
+				responses: [new Promise((resolve) => {
+					finishFirst = resolve
+				})],
+			})
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			// a push event, and coming back to the tab, go the same way
+			onTimelinePush.mock.calls[0][0]()
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			finishFirst([status('30')])
+			store.$patch({ statuses: { 30: status('30') }, timeline: ['30'] })
+			await flushPromises()
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
+			expect(dispatch).toHaveBeenLastCalledWith({ min_id: '30' })
+		})
+
+		it('leaves an empty list that failed to the retry button', async () => {
+			const { dispatch } = mountList({ responses: [new Error('network')] })
+			await flushPromises()
+			dispatch.mockClear()
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(dispatch).not.toHaveBeenCalled()
+		})
+
 		it('does not poll for ancestors', async () => {
 			const { dispatch } = mountList({ parents: [status('5')], props: { showParents: true } })
 			await flushPromises()
@@ -1136,7 +1208,7 @@ describe('TimelineList', () => {
 			dispatch.mockReset()
 			dispatch.mockRejectedValue(new Error('down'))
 
-			for (let tick = 0; tick < 4; tick++) {
+			for (let tick = 0; tick < 20; tick++) {
 				vi.advanceTimersByTime(30 * 1000)
 				await flushPromises()
 			}
@@ -1157,14 +1229,47 @@ describe('TimelineList', () => {
 			await flushPromises()
 			expect(showError).toHaveBeenCalledTimes(1)
 
+			// the next attempt waits a minute after a failure
 			dispatch.mockResolvedValueOnce([])
-			vi.advanceTimersByTime(30 * 1000)
+			vi.advanceTimersByTime(60 * 1000)
 			await flushPromises()
 
 			dispatch.mockRejectedValueOnce(new Error('down again'))
 			vi.advanceTimersByTime(30 * 1000)
 			await flushPromises()
 			expect(showError).toHaveBeenCalledTimes(2)
+		})
+
+		it('backs off while the server keeps refusing, and comes back once it answers', async () => {
+			const { dispatch } = mountList({ timeline: [status('30')], responses: [[]] })
+			await flushPromises()
+			dispatch.mockReset()
+			dispatch.mockRejectedValue(new Error('down'))
+
+			// a server that is down was asked every 30 seconds for as long as
+			// the tab was open; the wait now doubles to a five-minute ceiling
+			const calls = []
+			for (let tick = 1; tick <= 40; tick++) {
+				vi.advanceTimersByTime(30 * 1000)
+				await flushPromises()
+				if (dispatch.mock.calls.length > calls.length) {
+					calls.push(tick * 30)
+				}
+			}
+			expect(calls).toEqual([30, 90, 210, 450, 750, 1050])
+
+			// an answer puts the usual pace back: the next attempt is five
+			// minutes after the last failure, the one after it 30 seconds later
+			dispatch.mockReset()
+			dispatch.mockResolvedValue([])
+			for (let tick = 0; tick < 5; tick++) {
+				vi.advanceTimersByTime(30 * 1000)
+				await flushPromises()
+			}
+			expect(dispatch).toHaveBeenCalledTimes(1)
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
 		})
 
 		it('stops catching up after ten pages, however the server answers', async () => {
@@ -1609,6 +1714,24 @@ describe('TimelineList', () => {
 			await vi.advanceTimersByTimeAsync(2000)
 
 			expect(store.markHomeRead).toHaveBeenCalledWith('30')
+		})
+
+		it('remembers the place of the list being left, not of the one arriving', async () => {
+			// Local was fetched ahead and is put back at the switch: by the
+			// time the switch is noticed the store already holds it, and its
+			// newest post was written as seen under its own key — so the line
+			// it was about to be drawn against was never drawn
+			const LOCAL = 'social:seen:["timeline","",{}]'
+			window.localStorage.setItem(LOCAL, JSON.stringify({ id: '10', at: 1 }))
+			const { wrapper, store } = mountList({ timeline: posts })
+			await flushPromises()
+
+			store.$patch({ restored: true, ...showing('["timeline","",{}]') })
+			await flushPromises()
+
+			expect(lineBefore(wrapper)).toBe('10')
+			expect(JSON.parse(window.localStorage.getItem(LOCAL)).id).toBe('10')
+			expect(JSON.parse(window.localStorage.getItem(PLACE)).id).toBe('30')
 		})
 
 		it('asks the server nothing on the other timelines', async () => {

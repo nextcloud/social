@@ -30,6 +30,49 @@ const PREFETCH_FRESH = 3 * 60 * 1000
 /** The identities being fetched ahead right now, so none is asked for twice. */
 const prefetching = new Set()
 
+/**
+ * The page requests on their way, by the identity they were asked for, so a
+ * switch can cancel the ones for the list being left rather than let them run
+ * to the end and throw the answer away.
+ *
+ * @type {Map<string, Set<AbortController>>}
+ */
+const inFlight = new Map()
+
+/**
+ * @param {string} identity the list a request is for
+ * @return {AbortController} the controller, registered under that list
+ */
+function startRequest(identity) {
+	const controller = new AbortController()
+	if (!inFlight.has(identity)) {
+		inFlight.set(identity, new Set())
+	}
+	inFlight.get(identity).add(controller)
+
+	return controller
+}
+
+/**
+ * @param {string} identity the list a request was for
+ * @param {AbortController} controller its controller
+ */
+function endRequest(identity, controller) {
+	const controllers = inFlight.get(identity)
+	controllers?.delete(controller)
+	if (controllers?.size === 0) {
+		inFlight.delete(identity)
+	}
+}
+
+/** @param {string} identity the list whose page requests are cancelled */
+function abortRequests(identity) {
+	for (const controller of inFlight.get(identity) ?? []) {
+		controller.abort()
+	}
+	inFlight.delete(identity)
+}
+
 import logger from '../services/logger.js'
 import { isNewerId, newerId } from '../utils/snowflake.js'
 import { isBlockedBy } from '../utils/blockedBy.js'
@@ -96,6 +139,7 @@ function rememberCelebrated() {
  * @property {boolean} firstPostCelebrated whether this session has celebrated already
  * @property {string} arrivedId the post this reader has just published, while it makes its entrance
  * @property {string} homeReadUpTo the server's `home` read marker as last read or reported; '0' until known
+ * @property {Object<string, true>} acting the like, boost and bookmark requests in flight, by `id:kind`
  */
 
 /**
@@ -452,6 +496,15 @@ export const useTimelineStore = defineStore('timeline', {
 		 * the position every Mastodon client shares. '0' until known.
 		 */
 		homeReadUpTo: '0',
+		/**
+		 * The like, boost and bookmark requests on their way, by `id:kind`.
+		 * A second press while the first is pending is ignored: two requests
+		 * racing for one button left the count a step off and whichever
+		 * answer came last as the state.
+		 *
+		 * @type {Object<string, true>}
+		 */
+		acting: {},
 	}),
 
 	getters: {
@@ -461,6 +514,13 @@ export const useTimelineStore = defineStore('timeline', {
 		 */
 		wasFilled(state) {
 			return (identity) => state.filled[identity] === true
+		},
+		/**
+		 * @param {TimelineState} state the store state
+		 * @return {(statusId: string, kind: string) => boolean} whether that request is still on its way
+		 */
+		isActing(state) {
+			return (statusId, kind) => state.acting[`${statusId}:${kind}`] === true
 		},
 		/**
 		 * @param {TimelineState} state the store state
@@ -791,6 +851,31 @@ export const useTimelineStore = defineStore('timeline', {
 			this.firstPostCelebration = true
 			this.firstPostCelebrated = true
 		},
+		/**
+		 * Claims a like, boost or bookmark request for a post.
+		 *
+		 * @param {string} statusId the post
+		 * @param {string} kind 'like', 'boost' or 'bookmark'
+		 * @return {boolean} false when one is already on its way
+		 */
+		startActing(statusId, kind) {
+			const key = `${statusId}:${kind}`
+			if (this.acting[key] === true) {
+				return false
+			}
+			this.acting = { ...this.acting, [key]: true }
+
+			return true
+		},
+		/**
+		 * @param {string} statusId the post
+		 * @param {string} kind 'like', 'boost' or 'bookmark'
+		 */
+		stopActing(statusId, kind) {
+			const rest = { ...this.acting }
+			delete rest[`${statusId}:${kind}`]
+			this.acting = rest
+		},
 		likeStatus({ status }) {
 			const known = this.statuses[status.id]
 			if (known !== undefined) {
@@ -1002,6 +1087,10 @@ export const useTimelineStore = defineStore('timeline', {
 			if (this.getTimelineIdentity === left.identity) {
 				return
 			}
+
+			// a page still on its way for the list being left would be dropped
+			// on arrival; cancelled, it costs the server nothing more either
+			abortRequests(left.identity)
 
 			const wanted = this.getTimelineIdentity
 			const held = this.remembered.find((entry) => entry.identity === wanted) ?? null
@@ -1306,7 +1395,20 @@ export const useTimelineStore = defineStore('timeline', {
 				return null
 			}
 		},
+		/**
+		 * Each of the four below answers the updated status, nothing when the
+		 * server refused and the change was rolled back, and null when a
+		 * request for the same post was still on its way and this one was
+		 * ignored.
+		 *
+		 * @param {object} root0 the status to like
+		 * @param {import('../types/Mastodon.js').Status} root0.status that status
+		 * @return {Promise<object|null|undefined>}
+		 */
 		async postLike({ status }) {
+			if (!this.startActing(status.id, 'like')) {
+				return null
+			}
 			try {
 				this.likeStatus({ status })
 				const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/favourite`))
@@ -1317,6 +1419,8 @@ export const useTimelineStore = defineStore('timeline', {
 				this.unlikeStatus({ status })
 				showError(t('social', 'Could not like the post'))
 				logger.error('Failed to like status', { error })
+			} finally {
+				this.stopActing(status.id, 'like')
 			}
 		},
 		/**
@@ -1358,6 +1462,9 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 
 		async postUnlike({ status }) {
+			if (!this.startActing(status.id, 'like')) {
+				return null
+			}
 			try {
 				if (this.type === 'favourites') {
 					// off this list, not gone: the home timeline behind it
@@ -1381,9 +1488,14 @@ export const useTimelineStore = defineStore('timeline', {
 				}
 				showError(t('social', 'Could not remove the like'))
 				logger.error('Failed to unlike status', { error })
+			} finally {
+				this.stopActing(status.id, 'like')
 			}
 		},
 		async postBoost({ status }) {
+			if (!this.startActing(status.id, 'boost')) {
+				return null
+			}
 			try {
 				this.boostStatus({ status })
 				const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/reblog`))
@@ -1394,9 +1506,14 @@ export const useTimelineStore = defineStore('timeline', {
 				this.unboostStatus({ status })
 				showError(t('social', 'Could not boost the post'))
 				logger.error('Failed to create a boost status', { error })
+			} finally {
+				this.stopActing(status.id, 'boost')
 			}
 		},
 		async postUnBoost({ status }) {
+			if (!this.startActing(status.id, 'boost')) {
+				return null
+			}
 			try {
 				this.unboostStatus({ status })
 				const response = await axios.post(generateUrl(`apps/social/api/v1/statuses/${status.id}/unreblog`))
@@ -1407,6 +1524,8 @@ export const useTimelineStore = defineStore('timeline', {
 				this.boostStatus({ status })
 				showError(t('social', 'Could not undo the boost'))
 				logger.error('Failed to delete the boost', { error })
+			} finally {
+				this.stopActing(status.id, 'boost')
 			}
 		},
 		/**
@@ -1443,6 +1562,9 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 
 		async postBookmark({ status, bookmarked }) {
+			if (!this.startActing(status.id, 'bookmark')) {
+				return null
+			}
 			// the flag flips first so the button answers at once, and is put back
 			// if the server refuses
 			this.bookmarkStatus({ status, bookmarked })
@@ -1463,6 +1585,8 @@ export const useTimelineStore = defineStore('timeline', {
 					? t('social', 'Could not bookmark the post')
 					: t('social', 'Could not remove the bookmark'))
 				logger.error('Failed to change the bookmark', { error })
+			} finally {
+				this.stopActing(status.id, 'bookmark')
 			}
 		},
 		async postPin({ status, pinned }) {
@@ -1514,10 +1638,16 @@ export const useTimelineStore = defineStore('timeline', {
 			// the reader has moved on is dropped instead of being committed under
 			// the new heading
 			const identity = this.getTimelineIdentity
-			const request = axios.get(url, { params })
+			const controller = startRequest(identity)
+			const request = axios.get(url, { params, signal: controller.signal })
 			// the sidebar's own requests wait for the first of these
 			noteTimelineRequest(request)
-			const response = await request
+			let response
+			try {
+				response = await request
+			} finally {
+				endRequest(identity, controller)
+			}
 
 			if (this.getTimelineIdentity !== identity) {
 				logger.debug('Dropped a page that belongs to a timeline no longer on screen', { identity })

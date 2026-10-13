@@ -351,6 +351,13 @@ export default {
 			/** the last page asked for could not be fetched */
 			failed: false,
 			allLoaded: false,
+			/**
+			 * Which scope the page in flight belongs to. A page the store
+			 * dropped because the scope changed under it comes back empty,
+			 * and read as the end of the new scope it left the stack black
+			 * for good.
+			 */
+			generation: 0,
 			slides: [],
 			/** tells onVisible which slide is on screen */
 			observer: null,
@@ -552,6 +559,10 @@ export default {
 				type: 'shorts',
 				params: { scope: this.watching },
 			})
+			// whatever is still in flight belongs to the scope being left
+			this.generation += 1
+			this.loading = false
+			this.failed = false
 			this.allLoaded = false
 			this.playing = 0
 			this.load()
@@ -1039,6 +1050,7 @@ export default {
 
 			this.loading = true
 			this.failed = false
+			const generation = this.generation
 			const params = {}
 			const ids = this.timelineStore.getTimeline.map((status) => status.id)
 			// a ranking pages from where it ended, not from its oldest post
@@ -1049,12 +1061,21 @@ export default {
 
 			try {
 				const page = await this.timelineStore.fetchTimeline(params)
+				if (generation !== this.generation) {
+					return
+				}
 				this.allLoaded = Array.isArray(page) ? page.length === 0 : true
 			} catch (error) {
+				if (generation !== this.generation) {
+					return
+				}
 				logger.error('Could not load more videos', { error })
 				this.failed = true
 			} finally {
-				this.loading = false
+				// the newer request owns `loading` now
+				if (generation === this.generation) {
+					this.loading = false
+				}
 			}
 		},
 	},

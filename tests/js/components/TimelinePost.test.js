@@ -1156,6 +1156,25 @@ describe('TimelinePost', () => {
 			expect(undoing.wrapper.find('.post-action__burst').exists()).toBe(false)
 		})
 
+		it('sends one request for a double press, and another once it has settled', async () => {
+			let answer
+			const dispatch = vi.fn().mockReturnValueOnce(new Promise((resolve) => {
+				answer = resolve
+			})).mockResolvedValue(makeItem())
+			const { wrapper } = mountPost({ dispatch })
+
+			await actionButton(wrapper, 'Like').trigger('click')
+			await actionButton(wrapper, 'Like').trigger('click')
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			answer(makeItem())
+			await flushPromises()
+			await actionButton(wrapper, 'Like').trigger('click')
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
+		})
+
 		it('says so when the server refuses, instead of flipping back in silence', async () => {
 			// the store reports its own error and resolves undefined
 			const { wrapper } = mountPost({ dispatch: vi.fn().mockResolvedValue(undefined) })

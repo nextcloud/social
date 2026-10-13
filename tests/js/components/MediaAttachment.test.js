@@ -134,15 +134,28 @@ describe('MediaAttachment', () => {
 		expect(image.attributes('decoding')).toBe('async')
 	})
 
-	it('paints the blurhash placeholder at the small preview dimensions', () => {
-		mount(MediaAttachment, { props: { attachment } })
+	it('paints the blurhash placeholder into a small bitmap in the preview\'s ratio', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, meta: { small: { width: 400, height: 300 } } } } })
 
+		// a bitmap left at the element's default 300×150 showed a corner of
+		// the decoded pixels stretched over the frame, and decoding at the
+		// preview's size was work spent on pixels the frame then scaled
+		const canvas = /** @type {HTMLCanvasElement} */ (wrapper.find('canvas.attachment__blurhash').element)
+		expect([canvas.width, canvas.height]).toEqual([32, 24])
 		expect(getContext).toHaveBeenCalledWith('2d')
-		expect(context.createImageData).toHaveBeenCalledWith(4, 3)
+		expect(context.createImageData).toHaveBeenCalledWith(32, 24)
 		const imageData = context.createImageData.mock.results[0].value
-		expect(imageData.data).toHaveLength(4 * 3 * 4)
+		expect(imageData.data).toHaveLength(32 * 24 * 4)
 		expect(imageData.data.some((channel) => channel !== 0)).toBe(true)
 		expect(context.putImageData).toHaveBeenCalledWith(imageData, 0, 0)
+	})
+
+	it('keeps the long side at 32 pixels for an upright picture too', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, meta: { small: { width: 300, height: 400 } } } } })
+
+		const canvas = /** @type {HTMLCanvasElement} */ (wrapper.find('canvas.attachment__blurhash').element)
+		expect([canvas.width, canvas.height]).toEqual([24, 32])
+		expect(context.createImageData).toHaveBeenCalledWith(24, 32)
 	})
 
 	it('crossfades the image out of its own blurhash once it has loaded', async () => {
@@ -159,6 +172,45 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('canvas.attachment__blurhash').classes()).toContain('attachment__blurhash--hidden')
 		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
 		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+	})
+
+	// the timeline's follow-up fetch replaces every status object, and with
+	// it every attachment object, while the element keeps the same src
+
+	it('keeps a loaded picture on screen when the status it belongs to is refreshed', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+		await wrapper.find('img').trigger('load')
+		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
+
+		// no second load event: the browser has nothing new to load
+		await wrapper.setProps({ attachment: { ...attachment } })
+
+		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
+		expect(wrapper.find('canvas.attachment__blurhash').classes()).toContain('attachment__blurhash--hidden')
+		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+	})
+
+	it('reads the loaded state off a picture whose load it did not hear', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+		const image = wrapper.find('img').element
+		Object.defineProperty(image, 'complete', { value: true, configurable: true })
+		Object.defineProperty(image, 'naturalWidth', { value: 800, configurable: true })
+		expect(wrapper.find('img.attachment__preview').classes()).not.toContain('attachment__preview--shown')
+
+		await wrapper.setProps({ attachment: { ...attachment } })
+
+		expect(wrapper.find('img.attachment__preview').classes()).toContain('attachment__preview--shown')
+		expect(wrapper.find('.loading-icon').exists()).toBe(false)
+	})
+
+	it('starts over when the preview itself changes', async () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment } })
+		await wrapper.find('img').trigger('load')
+
+		await wrapper.setProps({ attachment: { ...attachment, preview_url: 'https://cloud.example.org/media/other.jpg' } })
+
+		expect(wrapper.find('img.attachment__preview').classes()).not.toContain('attachment__preview--shown')
+		expect(wrapper.find('.loading-icon').exists()).toBe(true)
 	})
 
 	it('shows only a spinner while the attachment is still uploading', () => {
@@ -178,9 +230,9 @@ describe('MediaAttachment', () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment: null } })
 		expect(context.createImageData).not.toHaveBeenCalled()
 
-		await wrapper.setProps({ attachment: { ...attachment, meta: { small: { width: 2, height: 5 } } } })
+		await wrapper.setProps({ attachment: { ...attachment, meta: { small: { width: 200, height: 500 } } } })
 
-		expect(context.createImageData).toHaveBeenCalledWith(2, 5)
+		expect(context.createImageData).toHaveBeenCalledWith(13, 32)
 		expect(wrapper.find('img').attributes('src')).toBe(attachment.preview_url)
 	})
 

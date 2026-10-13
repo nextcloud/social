@@ -1038,6 +1038,46 @@ describe('timeline store actions', () => {
 			expect(tl().timeline).toEqual(['1'])
 			expect(showError).toHaveBeenCalledWith(errorMessage)
 		})
+
+		it('ignores a second press while the first request is still on its way', async () => {
+			// two requests racing for one button left the count a step off
+			// and whichever answer came last as the state
+			const status = initial()
+			store.addToTimeline([status])
+			let answer
+			axios.post.mockReturnValueOnce(new Promise((resolve) => {
+				answer = resolve
+			}))
+
+			const first = store[action]({ status })
+			await expect(store[action]({ status: tl().statuses['1'] })).resolves.toBeNull()
+
+			expect(axios.post).toHaveBeenCalledTimes(1)
+			expect(tl().statuses['1']).toMatchObject({ [flag]: !initialFlag, [counter]: 3 + delta })
+			expect(showError).not.toHaveBeenCalled()
+
+			const serverCopy = makeStatus('1', { [flag]: !initialFlag, [counter]: 3 + delta })
+			answer({ data: serverCopy })
+			await first
+			expect(store.isActing('1', flag === 'favourited' ? 'like' : 'boost')).toBe(false)
+
+			// settled: the next press goes out
+			axios.post.mockResolvedValueOnce({ data: serverCopy })
+			await store[action]({ status: tl().statuses['1'] })
+			expect(axios.post).toHaveBeenCalledTimes(2)
+		})
+
+		it('lets the next press through once the server refused the first', async () => {
+			const status = initial()
+			store.addToTimeline([status])
+			axios.post.mockRejectedValueOnce(new Error('boom'))
+			await store[action]({ status })
+
+			axios.post.mockResolvedValueOnce({ data: makeStatus('1') })
+			await store[action]({ status })
+
+			expect(axios.post).toHaveBeenCalledTimes(2)
+		})
 	})
 
 	describe.each([
@@ -1122,6 +1162,25 @@ describe('timeline store actions', () => {
 
 			expect(tl().statuses['1']).toMatchObject({ bookmarked: !bookmarked })
 			expect(showError).toHaveBeenCalledWith(errorMessage)
+		})
+
+		it('ignores a second press while the first request is still on its way', async () => {
+			const status = makeStatus('1', { bookmarked: !bookmarked })
+			store.addToTimeline([status])
+			let answer
+			axios.post.mockReturnValueOnce(new Promise((resolve) => {
+				answer = resolve
+			}))
+
+			const first = store.postBookmark({ status, bookmarked })
+			await expect(store.postBookmark({ status: tl().statuses['1'], bookmarked: !bookmarked })).resolves.toBeNull()
+
+			expect(axios.post).toHaveBeenCalledTimes(1)
+			expect(tl().statuses['1']).toMatchObject({ bookmarked })
+
+			answer({ data: makeStatus('1', { bookmarked }) })
+			await first
+			expect(store.isActing('1', 'bookmark')).toBe(false)
 		})
 	})
 
@@ -1283,7 +1342,7 @@ describe('timeline store actions', () => {
 			const result = await store.fetchTimeline()
 
 			expect(axios.get).toHaveBeenCalledTimes(1)
-			expect(axios.get).toHaveBeenCalledWith(url, { params: query })
+			expect(axios.get).toHaveBeenCalledWith(url, { params: query, signal: expect.any(AbortSignal) })
 			expect(result).toEqual(statuses)
 			expect(tl().timeline).toEqual(['1', '2'])
 		})
@@ -1343,7 +1402,7 @@ describe('timeline store actions', () => {
 
 			await store.fetchTimeline()
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/notifications`, { params: { limit: 15 } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/notifications`, { params: { limit: 15 }, signal: expect.any(AbortSignal) })
 		})
 
 		it('turns the page\'s filter into the exclusions the API takes', async () => {
@@ -1371,7 +1430,7 @@ describe('timeline store actions', () => {
 
 			await store.fetchTimeline()
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/bob@remote.tld/statuses`, { params: { limit: 15 } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/bob@remote.tld/statuses`, { params: { limit: 15 }, signal: expect.any(AbortSignal) })
 			expect(tl().timeline).toEqual(['1', '2'])
 		})
 
@@ -1390,7 +1449,7 @@ describe('timeline store actions', () => {
 
 			expect(axios.get).toHaveBeenCalledWith(
 				`${API}/accounts/bob@remote.tld/statuses`,
-				{ params: { limit: 15, only_media: true, media_type: media } },
+				{ params: { limit: 15, only_media: true, media_type: media }, signal: expect.any(AbortSignal) },
 			)
 		})
 
@@ -1406,7 +1465,7 @@ describe('timeline store actions', () => {
 
 			expect(axios.get).toHaveBeenCalledWith(
 				`${API}/accounts/bob@remote.tld/statuses`,
-				{ params: { limit: 15 } },
+				{ params: { limit: 15 }, signal: expect.any(AbortSignal) },
 			)
 		})
 
@@ -1418,7 +1477,7 @@ describe('timeline store actions', () => {
 
 			await store.fetchTimeline()
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/2/context`, { params: { limit: 15 } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/2/context`, { params: { limit: 15 }, signal: expect.any(AbortSignal) })
 			expect(tl().parentsTimeline).toEqual(['1'])
 			expect(tl().timeline).toEqual(['3'])
 		})
@@ -1426,7 +1485,7 @@ describe('timeline store actions', () => {
 		it('forwards since, max_id and an explicit limit', async () => {
 			await store.fetchTimeline({ since: '100', max_id: '50', limit: 30 })
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/home`, { params: { since: '100', max_id: '50', limit: 30 } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/home`, { params: { since: '100', max_id: '50', limit: 30 }, signal: expect.any(AbortSignal) })
 		})
 
 		it('drops a page that belongs to a timeline the reader has left', async () => {
@@ -1447,6 +1506,25 @@ describe('timeline store actions', () => {
 			expect(tl().statuses).toEqual({})
 		})
 
+		it('cancels the page still on its way for a list the reader has left', async () => {
+			// dropped on arrival before; cancelled, it costs the server
+			// nothing more either
+			let signal
+			axios.get.mockImplementationOnce((url, config) => new Promise((resolve, reject) => {
+				signal = config.signal
+				signal.addEventListener('abort', () => reject(new Error('canceled')))
+			}))
+			await store.changeTimelineType({ type: 'home', params: {} })
+			const pending = store.fetchTimeline()
+			expect(signal.aborted).toBe(false)
+
+			await store.changeTimelineType({ type: 'federated', params: {} })
+
+			expect(signal.aborted).toBe(true)
+			await expect(pending).rejects.toThrow('canceled')
+			expect(tl().timeline).toEqual([])
+		})
+
 		it('does not swallow request errors and leaves the timeline untouched', async () => {
 			axios.get.mockRejectedValue(new Error('boom'))
 
@@ -1461,7 +1539,7 @@ describe('timeline store actions', () => {
 
 			const result = await store.refreshTimeline()
 
-			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/public`, { params: { limit: 15 } })
+			expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/public`, { params: { limit: 15 }, signal: expect.any(AbortSignal) })
 			expect(result).toEqual(statuses)
 		})
 	})

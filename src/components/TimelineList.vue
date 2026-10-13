@@ -153,11 +153,39 @@ import { useServerData } from '../composables/useServerData.js'
 const MAX_CATCHUP_PAGES = 10
 
 /**
+ * The longest the poll waits between two attempts while the server keeps
+ * refusing, in milliseconds. Each failure doubles the wait from the usual
+ * interval up to this; the first answer puts it back.
+ */
+const MAX_POLL_WAIT = 5 * 60 * 1000
+
+/**
  * How far down the reader has to be for arriving posts to be announced with
  * the pill rather than simply prepended. Above this the top of the list is on
  * screen and a post appearing there is its own announcement.
  */
 const ANNOUNCE_BELOW = 240
+
+/**
+ * @param {string} identity a list, as `getTimelineIdentity` names it
+ * @return {string} where that list's mark is kept
+ */
+function placeKeyFor(identity) {
+	return `social:seen:${identity}`
+}
+
+/**
+ * Whether a list is one the caught-up line is drawn on: a chronological feed,
+ * not a thread, not the notifications page.
+ *
+ * @param {string} identity the list, as `getTimelineIdentity` names it
+ * @return {boolean}
+ */
+function keepsPlace(identity) {
+	const [type, , params] = JSON.parse(identity)
+
+	return type !== 'single-post' && type !== 'notifications' && !isRanked({ type, params })
+}
 
 /**
  * How long the notifications have to be on screen before they count as read.
@@ -293,10 +321,23 @@ export default {
 			swapping: false,
 			/** @type {ReturnType<typeof setTimeout>|null} */
 			swapTimer: null,
+			/**
+			 * The newest post each list has shown this session, by identity:
+			 * what is remembered as the reader's place when they leave it.
+			 * Taken as the lists fill, because by the time a switch is
+			 * noticed the store already holds the next list.
+			 *
+			 * @type {Object<string, string>}
+			 */
+			newestShown: {},
 			infoHidden: false,
 			state: [],
 			intervalId: -1,
 			pollEvery: 30000,
+			/** how long the poll is waiting after failures, 0 while the server answers */
+			pollWait: 0,
+			/** how many ticks of the interval still pass before the next attempt */
+			pollSkip: 0,
 			/** when the tab was last hidden, so returning can catch up */
 			hiddenSince: 0,
 			/** posts that arrived while the reader was further down the page */
@@ -724,7 +765,7 @@ export default {
 
 		/** @return {string} where this timeline's mark is kept */
 		placeKey() {
-			return `social:seen:${this.timelineIdentity}`
+			return placeKeyFor(this.timelineIdentity)
 		},
 
 		/** @return {string} what the line says */
@@ -835,8 +876,11 @@ export default {
 		 * timeline reuses this component: the paging state has to be put back
 		 * by hand, or Home keeps Global's "you have reached the end" — and
 		 * nothing would ask the server for the list that is now current.
+		 *
+		 * @param {string} now the list the store holds
+		 * @param {string} before the list being left
 		 */
-		timelineIdentity() {
+		timelineIdentity(now, before) {
 			if (!this.showParents) {
 				// a list put back, or fetched ahead, replaces the one on
 				// screen in the same render: drawn as a swap, like a held-over
@@ -844,7 +888,11 @@ export default {
 				if (this.timelineStore.restored && this.timeline.length > 0) {
 					this.startSwap()
 				}
-				this.rememberPlace()
+				// the place of the list being left, under its own key: the
+				// store already holds the next list here, and writing that
+				// one's newest post as seen rubbed out the line it was about
+				// to be drawn against
+				this.rememberPlace(before, this.newestShown[before])
 				this.readPlace()
 				this.resetAndLoad()
 			}
@@ -873,6 +921,7 @@ export default {
 		timeline(entries, previous) {
 			if (entries.length > 0) {
 				this.timelineStore.markFilled(this.timelineStore.getTimelineIdentity)
+				this.noteNewestShown(entries)
 			}
 			// the held-over list is on screen when the new one lands: that
 			// render swaps them, so it is drawn as a swap
@@ -907,6 +956,7 @@ export default {
 		// exactly the one worth not flickering
 		if (this.timeline.length > 0) {
 			this.heldOver = [...this.timeline]
+			this.noteNewestShown(this.timeline)
 		}
 
 		// the ancestors above a post are read as much as the replies below it
@@ -1019,17 +1069,33 @@ export default {
 			})
 		},
 
-		/** Remembers the newest post on this timeline as where the reader got to. */
-		rememberPlace() {
-			const newest = this.entries[0]
-			if (this.isThread || this.type === 'notifications' || !this.chronological || !newest?.id) {
+		/**
+		 * Keeps the newest post of the list on screen, for `rememberPlace`.
+		 *
+		 * @param {object[]} entries the list, newest first
+		 */
+		noteNewestShown(entries) {
+			const id = entries[0]?.id
+			if (id !== undefined) {
+				this.newestShown[this.timelineIdentity] = String(id)
+			}
+		},
+
+		/**
+		 * Remembers the newest post of a timeline as where the reader got to.
+		 *
+		 * @param {string} [identity] which list; the one on screen by default
+		 * @param {string} [newest] the newest post it showed; the first entry by default
+		 */
+		rememberPlace(identity = this.timelineIdentity, newest = this.entries[0]?.id) {
+			if (!newest || !keepsPlace(identity)) {
 				return
 			}
 
 			try {
 				window.localStorage.setItem(
-					this.placeKey,
-					JSON.stringify({ id: String(newest.id), at: Date.now() }),
+					placeKeyFor(identity),
+					JSON.stringify({ id: String(newest), at: Date.now() }),
 				)
 			} catch {
 				// a browser that will not store it shows no line next time
@@ -1221,15 +1287,30 @@ export default {
 
 		setupIntersectionObserver() {
 			this.observer = new IntersectionObserver((entries) => {
-				if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
+				if (entries[0].isIntersecting && !this.loading && !this.allLoaded && this.error === null) {
 					this.infiniteHandler()
 				}
 			}, { rootMargin: '200px' })
-			this.$nextTick(() => {
-				if (this.$refs.sentinel) {
-					this.observer.observe(this.$refs.sentinel)
-				}
-			})
+			this.$nextTick(() => this.watchSentinel())
+		},
+
+		/** Lets the sentinel below the list ask for the next page. */
+		watchSentinel() {
+			if (this.observer && this.$refs.sentinel) {
+				this.observer.observe(this.$refs.sentinel)
+			}
+		},
+
+		/**
+		 * Stops the sentinel asking. After a failed page the error block and
+		 * the wave trade places above the sentinel, and every reflow was an
+		 * intersection: a list whose request kept failing asked for it again
+		 * as fast as the server could refuse.
+		 */
+		unwatchSentinel() {
+			if (this.observer && this.$refs.sentinel) {
+				this.observer.unobserve(this.$refs.sentinel)
+			}
 		},
 
 		/**
@@ -1369,18 +1450,22 @@ export default {
 			this.arrived = 0
 			this.focused = -1
 			this.pollFailureReported = false
+			this.pollWait = 0
+			this.pollSkip = 0
 			// the dwell belonged to the list that was here; the new one earns
 			// its own. What has already been reported read stays reported.
 			clearTimeout(this.seenTimer)
 			this.seenTimer = -1
 			this.ensureMarker()
+			this.watchSentinel()
 			this.loadFirstPage()
 		},
 
-		/** What the retry button does. */
+		/** What the retry button does: the one thing that re-arms the sentinel after a failure. */
 		retry() {
 			this.error = null
 			this.allLoaded = false
+			this.watchSentinel()
 			this.infiniteHandler()
 		},
 
@@ -1435,6 +1520,7 @@ export default {
 				this.error = this.timeline.length === 0
 					? t('social', 'The posts could not be loaded.')
 					: t('social', 'No more posts could be loaded.')
+				this.unwatchSentinel()
 			} finally {
 				// the newer request owns `loading` now
 				if (generation === this.generation) {
@@ -1452,6 +1538,13 @@ export default {
 		pollIfVisible() {
 			if (document.visibilityState === 'hidden') {
 				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+
+			// backing off: a server that is down was asked every 30 seconds
+			// for as long as the tab was open
+			if (this.pollSkip > 0) {
+				this.pollSkip -= 1
 				return
 			}
 
@@ -1550,6 +1643,13 @@ export default {
 			if (this.showParents || !this.chronological) {
 				return
 			}
+			// While a page is on its way there is nothing to catch up on: with
+			// an empty list this asked for a cursor-less first page beside the
+			// real one, and counted it as arrivals. An empty list that failed
+			// belongs to the retry button.
+			if (this.loading || (this.timeline.length === 0 && this.error !== null)) {
+				return
+			}
 
 			// Newest by id, not this.timeline[0] (sorted by created_at): a
 			// federated post with a high id but an old date would otherwise
@@ -1564,6 +1664,8 @@ export default {
 					min_id: newest,
 				})
 				this.pollFailureReported = false
+				this.pollWait = 0
+				this.pollSkip = 0
 
 				if (response.length > 0) {
 					// only worth announcing when the top of the list is out of
@@ -1579,6 +1681,10 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to load newer timeline entries', { error })
+				// twice the wait each time, up to the ceiling: 60 s, 120 s,
+				// 240 s, then five minutes between attempts
+				this.pollWait = Math.min(Math.max(this.pollWait, this.pollEvery) * 2, Math.max(MAX_POLL_WAIT, this.pollEvery))
+				this.pollSkip = Math.max(0, Math.round(this.pollWait / this.pollEvery) - 1)
 				// once, not once per tick: a server that is down produced an
 				// endless stream of identical toasts every 30 seconds
 				if (!this.pollFailureReported) {

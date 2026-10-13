@@ -521,6 +521,11 @@ export default {
 	margin-bottom: 14px;
 	padding: 0;
 	border-radius: 8px;
+	/* a long column is laid out a screen at a time: a card off screen keeps
+	   a placeholder of about its height until it scrolls near, and its real
+	   size once it has been drawn */
+	content-visibility: auto;
+	contain-intrinsic-size: auto 320px;
 
 	/*
 	 * Cards used to appear all at once, in one hard step from the skeleton to
