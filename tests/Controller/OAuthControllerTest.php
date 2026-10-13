@@ -894,6 +894,23 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame(['error' => 'unknown client_id'], $response->getData());
 	}
 
+	/**
+	 * A failure that is not the caller's -- the database, a malformed row --
+	 * is answered with a fixed body and goes to the log; what went wrong is
+	 * not for an anonymous caller, and it is not a credential guess to throttle.
+	 */
+	public function testTokenAnswersAServerFailureWithAFixedBody(): void {
+		$this->knownClient();
+		$this->clientService->method('exchangeCode')
+			->willThrowException(new \RuntimeException('SQLSTATE[HY000]: social_client_auth is gone'));
+
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'secret', 'c');
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'server_error'], $response->getData());
+		$this->assertFalse($response->isThrottled());
+	}
+
 	public function testTokenRejectsAWrongClientSecret(): void {
 		$this->knownClient();
 		$this->clientService->method('confirmData')->willThrowException(new ClientException('wrong client_secret'));
