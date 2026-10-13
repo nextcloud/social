@@ -2890,6 +2890,8 @@ OC.L10N.register(
     "Could not follow that" : "Das Abo konnte nicht hinzugefügt werden.",
     "Could not unfollow that" : "Das Abo konnte nicht beendet werden.",
     "That file could not be read" : "Die Datei konnte nicht gelesen werden.",
+    "Close the composer?" : "Editor schließen?",
+    "What you have written is kept, and is back in the box the next time you open it." : "Dein Text bleibt erhalten und steht beim nächsten Öffnen wieder im Feld.",
     "_%n entry_::_%n entries_" : ["%n Eintrag","%n Einträge"]
 },
 "nplurals=2; plural=(n != 1);");

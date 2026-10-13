@@ -143,6 +143,17 @@ const MENTION_BOB = '<span class="mention" contenteditable="false">'
 
 const wrappers = []
 
+// NcDialog teleports its content and keeps its buttons in a prop; this one
+// renders both where they can be pressed
+const NcDialogStub = {
+	name: 'NcDialog',
+	props: ['open', 'buttons', 'name'],
+	emits: ['update:open'],
+	template: '<div v-if="open" class="nc-dialog"><span class="nc-dialog__name">{{ name }}</span>'
+		+ '<button v-for="button in buttons" :key="button.label" class="nc-dialog__button" @click="button.callback()">{{ button.label }}</button>'
+		+ '<slot /></div>',
+}
+
 /**
  * @param {object} props what the parent passes the composer
  * @param {object} [options] the rest of the world it is mounted into
@@ -181,6 +192,7 @@ function mountComposer(props = {}, { accountPrivacy, attachTo } = {}) {
 			plugins: [pinia],
 			stubs: {
 				NcEmojiPicker: { name: 'NcEmojiPicker', emits: ['select'], template: '<div class="emoji-picker-stub"><slot /></div>' },
+				NcDialog: NcDialogStub,
 				NcAvatar: true,
 				ActorAvatar: true,
 				RouterLink: RouterLinkStub,
@@ -2247,7 +2259,7 @@ describe('Composer', () => {
 		it('opens on a click into it', async () => {
 			const { wrapper } = mountComposer({ inReplyTo: replyTo(bob) })
 
-			await wrapper.trigger('focusin')
+			await input(wrapper).trigger('focusin')
 
 			expect(wrapper.classes()).not.toContain('new-post--collapsed')
 		})
@@ -2527,6 +2539,68 @@ describe('Composer', () => {
 			await clickOutside(wrapper)
 
 			expect(collapsed(wrapper)).toBe(false)
+		})
+
+		it('folds away again once the post has gone out, with the focus parked on its edge', async () => {
+			const { wrapper } = mountComposer({}, { attachTo: document.body })
+			await input(wrapper).trigger('focusin')
+			await setContent(wrapper, 'Hello')
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			// not on the box, which would open it again, and not on nothing
+			expect(collapsed(wrapper)).toBe(true)
+			expect(document.activeElement).toBe(wrapper.element)
+		})
+
+		it('folds an empty box away on Escape', async () => {
+			const { wrapper } = mountComposer({}, { attachTo: document.body })
+			await input(wrapper).trigger('focusin')
+			expect(collapsed(wrapper)).toBe(false)
+
+			await input(wrapper).trigger('keydown', { key: 'Escape' })
+
+			expect(collapsed(wrapper)).toBe(true)
+			expect(wrapper.find('.nc-dialog').exists()).toBe(false)
+			expect(document.activeElement).toBe(wrapper.element)
+		})
+
+		it('asks before folding away a box with words in it, and keeps the words', async () => {
+			const { wrapper } = mountComposer({}, { attachTo: document.body })
+			await input(wrapper).trigger('focusin')
+			await setContent(wrapper, 'half a thought')
+
+			await input(wrapper).trigger('keydown', { key: 'Escape' })
+
+			expect(collapsed(wrapper)).toBe(false)
+			const dialog = wrapper.find('.nc-dialog')
+			expect(dialog.find('.nc-dialog__name').text()).toBe('Close the composer?')
+
+			// the caret left the box for the dialog, so that the dialog's trap
+			// does not hand it back into the box after Close; Cancel returns it
+			expect(document.activeElement).not.toBe(input(wrapper).element)
+			await dialog.findAll('.nc-dialog__button').find((button) => button.text() === 'Cancel').trigger('click')
+			await nextTick()
+			expect(collapsed(wrapper)).toBe(false)
+			expect(wrapper.find('.nc-dialog').exists()).toBe(false)
+			expect(document.activeElement).toBe(input(wrapper).element)
+
+			await input(wrapper).trigger('keydown', { key: 'Escape' })
+			await wrapper.find('.nc-dialog').findAll('.nc-dialog__button').find((button) => button.text() === 'Close').trigger('click')
+
+			expect(collapsed(wrapper)).toBe(true)
+			expect(typed(wrapper)).toBe('half a thought')
+			expect(document.activeElement).toBe(wrapper.element)
+		})
+
+		it('leaves Escape to the New post dialog, which closes on it itself', async () => {
+			const { wrapper } = mountComposer({ startExpanded: true })
+			await setContent(wrapper, 'half a thought')
+
+			await input(wrapper).trigger('keydown', { key: 'Escape' })
+
+			expect(collapsed(wrapper)).toBe(false)
+			expect(wrapper.find('.nc-dialog').exists()).toBe(false)
 		})
 
 		it('stays open while the reader is in a menu of its own', async () => {

@@ -125,6 +125,9 @@ you by first name: "Aloha, Frank. What’s new?" A post may be up to
 across a failed post, a reload or a navigation, so nothing is lost to a
 network hiccup. A reply keeps its own draft, under the post it answers, so
 starting one does not take the place of a post you were still writing.
+**Ctrl+Enter** (**⌘+Enter** on a Mac) sends; once the post is out the box
+folds back to a single line. **Escape** folds an empty box away too, and asks
+first when there are words in it — they are kept either way.
 
 - **Visibility** is chosen with the globe menu next to the post button. The
   choice decides who receives the post on the fediverse, not only who sees it
