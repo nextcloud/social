@@ -178,6 +178,13 @@ const actionButton = (wrapper, label) => wrapper.find(`.post-actions button[aria
 const menuItem = (wrapper, label) => wrapper.findAll('.post-menu__item').find((button) => button.text() === label)
 
 describe('TimelinePost', () => {
+	it('lets the author\'s name set its own direction', () => {
+		const { wrapper } = mountPost({ item: makeItem({ account: { ...alice, display_name: 'أليس' } }) })
+
+		expect(wrapper.find('.display-name').text()).toBe('أليس')
+		expect(wrapper.find('.display-name').attributes('dir')).toBe('auto')
+	})
+
 	afterEach(() => {
 		eventBus.all.clear()
 	})
@@ -585,6 +592,8 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost({ item: warned() })
 
 			expect(wrapper.find('.post-warning__text').text()).toBe('politics')
+			// the warning is the author's words too, in the author's script
+			expect(wrapper.find('.post-warning__text').attributes('dir')).toBe('auto')
 			// not merely hidden with css: an author asking for it not to be
 			// shown should not have it sitting in the markup
 			expect(wrapper.text()).not.toContain('the hidden part')
@@ -1287,6 +1296,14 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost()
 			expect(menuItem(wrapper, 'Edit')).toBeDefined()
 			expect(menuItem(wrapper, 'Delete')).toBeDefined()
+		})
+
+		it('lets what is typed into the edit form set its own direction', async () => {
+			const { wrapper } = mountPost()
+			await menuItem(wrapper, 'Edit').trigger('click')
+
+			expect(wrapper.find('.post-edit-textarea').attributes('dir')).toBe('auto')
+			expect(wrapper.find('.post-edit-warning').attributes('dir')).toBe('auto')
 		})
 
 		it('gives the focus back to the menu button once the edit form is left', async () => {

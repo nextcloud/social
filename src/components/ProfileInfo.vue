@@ -43,7 +43,7 @@
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
-			<h2>
+			<h2 dir="auto">
 				{{ displayName }}
 				<BlueskyBadge v-if="isBluesky" />
 				<VerifiedBadge :account="accountInfo" />
@@ -295,8 +295,10 @@
 				</form>
 			</details>
 			<!-- Sanitized: a bio is HTML, remote ones from anywhere, see sanitizeHtml.js -->
-			<!-- eslint-disable-next-line vue/no-v-html -->
-			<div v-if="note" class="user-profile__note" v-html="note" />
+			<template v-if="note">
+				<!-- eslint-disable-next-line vue/no-v-html -->
+				<div class="user-profile__note" dir="auto" v-html="note" />
+			</template>
 			<!-- the hashtags this account pins to itself: a claim it makes
 			     about what it is about, so it sits with the bio rather than
 			     among the numbers -->

@@ -128,6 +128,7 @@
 				v-model="editSpoiler"
 				type="text"
 				class="post-edit-warning"
+				dir="auto"
 				maxlength="200"
 				:aria-label="t('social', 'Content warning')"
 				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
@@ -135,6 +136,7 @@
 				ref="editInput"
 				v-model="editContent"
 				class="post-edit-textarea"
+				dir="auto"
 				:maxlength="maxLength"
 				:aria-describedby="editIsTooLong ? `post-edit-count-${item.id}` : undefined"
 				:placeholder="t('social', 'Edit your post')"
@@ -193,7 +195,7 @@
 		  happened anyway.
 		-->
 		<div v-else-if="hasSpoiler" class="post-warning">
-			<p class="post-warning__text">
+			<p class="post-warning__text" dir="auto">
 				{{ item.spoiler_text }}
 			</p>
 			<NcButton

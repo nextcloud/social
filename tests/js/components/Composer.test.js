@@ -953,6 +953,15 @@ describe('Composer', () => {
 			expect(wrapper.find('.poll-editor').exists()).toBe(false)
 		})
 
+		it('lets the box and the warning take the direction of what is typed', async () => {
+			const { wrapper } = mountComposer()
+			await input(wrapper).trigger('focusin')
+			await toolbarButton(wrapper, 'Add content warning').trigger('click')
+
+			expect(input(wrapper).attributes('dir')).toBe('auto')
+			expect(wrapper.find('.content-warning').attributes('dir')).toBe('auto')
+		})
+
 		it('closes the content warning from the row it is typed in', async () => {
 			const { wrapper } = mountComposer()
 			await input(wrapper).trigger('focusin')

@@ -30,7 +30,7 @@ const ALLOWED = {
 		'contentOf() returns sanitizeHtml(version.content)',
 	'components/UserEntry.vue: <p v-html="sanitizedNote" />':
 		'sanitizedNote is sanitizeHtml(item.note)',
-	'components/ProfileInfo.vue: <div v-if="note" class="user-profile__note" v-html="note" />':
+	'components/ProfileInfo.vue: <div class="user-profile__note" dir="auto" v-html="note" />':
 		'note is sanitizeHtml(accountInfo.note)',
 	'components/AccountHoverCard.vue: <p v-if="note" class="account-hover-card__bio" v-html="note" />':
 		'note is sanitizeHtml(account.note)',

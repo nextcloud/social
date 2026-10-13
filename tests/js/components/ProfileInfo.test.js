@@ -891,6 +891,9 @@ describe('ProfileInfo', () => {
 
 			const note = mountProfile('bob@remote.example').find('.user-profile__note')
 			expect(note.text()).toContain('Hi there')
+			// a bio and a name written right to left read that way
+			expect(note.attributes('dir')).toBe('auto')
+			expect(mountProfile('bob@remote.example').find('h2').attributes('dir')).toBe('auto')
 			expect(note.html()).not.toContain('alert(1)')
 			expect(note.find('a').attributes('href')).toBe('https://example.org')
 		})

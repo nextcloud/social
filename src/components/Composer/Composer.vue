@@ -136,6 +136,7 @@
 						v-model="spoilerText"
 						type="text"
 						class="content-warning"
+						dir="auto"
 						maxlength="200"
 						:aria-label="t('social', 'Content warning')"
 						:placeholder="t('social', 'Content warning, e.g. what the post is about')">
@@ -189,6 +190,7 @@
 				class="message"
 				role="textbox"
 				aria-multiline="true"
+				dir="auto"
 				:aria-label="prompt"
 				:aria-describedby="statusIsTooLong ? 'composer-length' : undefined"
 				:placeholder="prompt"
