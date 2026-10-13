@@ -228,6 +228,11 @@ to stop.
   origin, the preflight answered without credentials, a web-app route outside
   the API bases closed, and a session cookie from another origin without its
   CSRF token answered 401 while the web app's own call still signs in.
+- `Db/PublicPagePlanAtScaleTest` — slow, only with `SOCIAL_BENCHMARK=1`, on
+  MySQL/MariaDB and PostgreSQL: seeds 50,000 posts with `occ social:benchmark`
+  and asserts the page query of the public timeline and of its Photos
+  narrowing is one index range with no sort, no temporary table and no full
+  read; removes the seed afterwards.
 - `Db/QueryPlanTest` — the plan of each hot query, recorded from the production
   method and handed to `EXPLAIN` verbatim: home (fast path on `social_sd_atn`,
   join path), Photos and Videos on home, public and a profile, an account's

@@ -451,6 +451,24 @@ class QueryPlanTest extends TestCase {
 	}
 
 	/**
+	 * The public page off the recipient rows: the public collection, one type
+	 * and one subtype, read as one descending index range that stops at the
+	 * limit — no join to reorder, no sort, no `OR`. `social_sd_atsn` answers
+	 * it from the index alone; MySQL may take `social_sd_atn` and sift the
+	 * subtype per entry, which is the same range in the same order.
+	 */
+	public function testThePublicPageIsOneIndexRangeOverTheRecipientRows(): void {
+		$this->useHomeFastPath(true);
+		$query = $this->capture(
+			$this->timeline(ProbeOptions::PUBLIC),
+			'/^SELECT [`"]?sd[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream_dest[`"]? [`"]?sd[`"]? WHERE/'
+		);
+
+		$this->assertStringNotContainsString('JOIN', strtoupper($query['sql']));
+		$this->assertIndexed($query, ['sd' => null]);
+	}
+
+	/**
 	 * The old page query, still what answers a narrowed home timeline and an
 	 * instance whose backfill has not finished: it may sort, it may not read
 	 * a table in full.
@@ -488,14 +506,29 @@ class QueryPlanTest extends TestCase {
 		$this->useHomeFastPath(true);
 		$sorts = 'the page is chosen among the narrowed rows and sorted';
 
-		$this->assertIndexed(
-			$this->capture($this->timeline(ProbeOptions::PUBLIC, $narrowing), '/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]?/'),
-			['s' => null, 'sd' => null, 'ca' => null], $sorts
-		);
-		$this->assertIndexed(
-			$this->capture($this->timeline(ProbeOptions::HOME, $narrowing), '/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/'),
-			['s' => null, 'sd' => null, 'f' => null], $sorts
-		);
+		// public and home: the newest posts of the kind, off its
+		// `(kind, nid)` index alone, then whether each of those few dozen
+		// belongs on the timeline — the join, driven by their keys
+		foreach ([
+			ProbeOptions::PUBLIC => ['/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream[`"]? [`"]?s[`"]? INNER JOIN/', ['s' => null, 'sd' => null, 'ca' => null]],
+			ProbeOptions::HOME => ['/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/', ['s' => null, 'sd' => null, 'f' => null]],
+		] as $probe => [$filterQuery, $guarded]) {
+			$run = QueryCounter::record($this->timeline($probe, $narrowing));
+			$byKind = $run->matching('/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream[`"]? [`"]?s[`"]? WHERE [`"]?s[`"]?\.[`"]?(media|short)_kind[`"]? =/');
+			$this->assertNotEmpty($byKind, $probe . ': the kind index was not read; ' . $run->summary());
+			foreach ($byKind as $query) {
+				$this->assertStringNotContainsString('JOIN', strtoupper($query['sql']));
+				$this->assertIndexed($query, ['s' => null]);
+			}
+			$filtered = $run->matching($filterQuery);
+			if (isset($narrowing['setOnlyShort'])) {
+				// the seed holds no short: an empty window leaves nothing to filter
+				$this->assertSame([], $filtered, $probe . ': ' . $run->summary());
+			} else {
+				$this->assertNotEmpty($filtered, $probe . ': the window was not filtered; ' . $run->summary());
+				$this->assertIndexed($filtered[0], $guarded, $sorts);
+			}
+		}
 		$this->assertIndexed(
 			$this->capture(
 				$this->timeline(ProbeOptions::ACCOUNT, $narrowing + ['setAccountId' => self::REMOTE . '/users/author0']),

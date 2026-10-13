@@ -985,6 +985,50 @@ photograph. A short (`only_short`, over `short_kind`) is rarer again, and
 takes it too. The old query is kept as the fallback for an instance whose
 backfill has not finished, and is slower and always correct.
 
+**The public page is read the same way, and so are the narrowed pages.** The
+joined public query had no selective predicate: on a public instance the
+public collection's recipient rows are nearly every post, and the type,
+archived and silenced filters each keep nearly every row. What made it cheap
+was one plan — walk `social_sd_atn` newest first, look each post up by key,
+stop at twenty — and nothing obliged the optimizer to choose it. On MySQL with
+a hundred thousand seeded posts it chose the other one, a read of the whole of
+`social_stream` with a temporary table and a sort: **1,208 ms** against
+**10.8 ms** for the same twenty rows (`occ social:benchmark`, `public@20`, the
+nightly run's failure). So `StreamTimelines::publicTimelineNidsFromRecipients()`
+reads the page from `social_stream_dest` alone — the public collection, type
+`recipient`, subtype `to`, newest nid first, three times the page — and
+`publicNidsOf()` applies the type, cached-author, hidden-actor and silenced
+filters to those few dozen ids by key, reading on (`refilledPage()`, the home
+timeline's rounds) when they empty the window. `local=` and `remote=` keep the
+join: the recipient row carries no origin, and a column on the largest table
+for the two narrowings a client asks for least was not worth its backfill.
+
+A Photos, Videos, Shorts or News page, public or home, is a question about the
+post, which the recipient rows cannot answer and the join answered by reading
+the table (`photos@20` on MySQL, **218 ms → 14 ms**). `narrowedNidsByKind()`
+reads the newest posts of the kind off its own `(kind, nid)` index —
+`kindWindowNids()`, one range per kind, merged — and asks the timeline's own
+query whether each of those few dozen belongs to it (`s.nid IN (…)`), with the
+same rounds. Where the rounds run out before the page fills while there are
+still posts of that kind further down — photographs on the home page of
+somebody who follows two accounts — it hands the request to the join, which
+is correct, rather than answer with a short page a client takes for the end.
+
+Two `OR`s the planners estimated badly went with it, each behind a flag
+written once the column it guards has no NULL left, as `dest_nid_filled` is:
+`archived = 0 OR archived IS NULL` on every list but the hashtag page
+(`stream_archived_filled`, `StreamRequestBuilder::hideArchived()`; with the
+bare equality MySQL walked `social_stream` in nid order looking for the tag
+rather than starting from the tag's index, so that page keeps the `OR`) and the media filters' fallback over
+the attachments of a row with no `media_kind` (`stream_media_kind_filled`,
+`SocialLimitsQueryBuilder::limitToMedia()` and its siblings).
+`Version1000Date20261013100500` gives the old rows their `archived = 0`,
+5,000 to a statement, and sets both flags when it finds nothing left to fill.
+`QueryPlanTest` pins both page shapes on a few hundred rows;
+`PublicPagePlanAtScaleTest` (with `SOCIAL_BENCHMARK=1`) seeds fifty thousand
+and asks MySQL and PostgreSQL for the plan again, because a plan at three
+hundred rows says nothing about the one at fifty thousand.
+
 **Counters are added to, not counted.** The three on an account lived only in
 the `details` JSON, so moving one meant recomputing all of them — four aggregate
 queries, on every post written and every follow accepted. For an account with a

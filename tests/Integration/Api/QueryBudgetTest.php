@@ -150,11 +150,17 @@ class QueryBudgetTest extends ReaderTestCase {
 		);
 	}
 
+	/**
+	 * Off the recipient rows, as home: a page short of the limit reads one
+	 * window further to find out there is nothing more, so five posts cost
+	 * one query more than forty.
+	 */
 	public function testThePublicTimelineCostsTheSameForAPageOfFiveAndAPageOfTwenty(): void {
+		$this->useHomeFastPath(true);
 		$authors = 0;
 
 		$this->assertFlatCostWithin(
-			'public', 10,
+			'public', 11,
 			function (int $count) use (&$authors): void {
 				for ($i = 0; $i < $count; $i++, $authors++) {
 					$this->post($this->remoteActor('public' . $authors), 'public post ' . $authors);
@@ -162,6 +168,7 @@ class QueryBudgetTest extends ReaderTestCase {
 			},
 			fn (): Response => $this->controller(TimelineApiController::class)->timelines('public'),
 			static fn (array $page): int => count($page),
+			true,
 		);
 	}
 

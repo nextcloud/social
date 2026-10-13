@@ -14,6 +14,7 @@ use OCA\Social\Migration\Version1000Date20260912000010;
 use OCA\Social\Migration\Version1000Date20260917000001;
 use OCA\Social\Migration\Version1000Date20260917000003;
 use OCA\Social\Migration\Version1000Date20260917000005;
+use OCA\Social\Migration\Version1000Date20261013100500;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tests\Integration\Helper\RowSeeder;
@@ -113,6 +114,66 @@ class RowBackfillMigrationsTest extends TestCase {
 		$this->assertSame(2, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM_DEST, [
 			'stream_id' => $one, 'nid' => (string)$this->value(CoreRequestBuilder::TABLE_STREAM, 'nid', 'id_prim', $one),
 		]), 'run again, nothing moves');
+	}
+
+	/**
+	 * A row stored before `archived` existed carries NULL there; it is given
+	 * a 0 and the flag says every list may drop the `OR` that admitted the
+	 * NULL. A row that was archived keeps its 1.
+	 */
+	public function testThePostsWithNoArchiveFlagAreGivenOne(): void {
+		$flagBefore = Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0');
+		$blank = $this->stream(['archived' => null]);
+		$kept = $this->stream(['archived' => true]);
+		Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0');
+
+		try {
+			$this->runStep(Version1000Date20261013100500::class);
+
+			$this->assertSame(0, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $blank, 'archived' => null]));
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $blank, 'archived' => false]));
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $kept, 'archived' => true]));
+			$this->assertSame(
+				'1',
+				Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED),
+				'the lists may drop the OR now'
+			);
+
+			$this->runStep(Version1000Date20261013100500::class);
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $kept, 'archived' => true]), 'run again, nothing moves');
+		} finally {
+			Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, $flagBefore);
+		}
+	}
+
+	/**
+	 * The media filters may drop their fallback over the attachments once no
+	 * row is left without a `media_kind` — and not before: a row the
+	 * earlier backfill has not reached keeps the flag down.
+	 */
+	public function testTheMediaFiltersAreToldWhenEveryRowHasItsKind(): void {
+		$flagBefore = Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0');
+		$unfilled = $this->stream(['media_kind' => null]);
+		Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0');
+
+		try {
+			$this->runStep(Version1000Date20261013100500::class);
+			$this->assertSame(
+				'0',
+				Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
+				'a row without a kind keeps the fallback'
+			);
+
+			RowSeeder::delete(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $unfilled]);
+			$this->runStep(Version1000Date20261013100500::class);
+			$this->assertSame(
+				'1',
+				Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
+				'no row without a kind: the filters may rely on the column'
+			);
+		} finally {
+			Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, $flagBefore);
+		}
 	}
 
 	/** Only the posts not yet worked out: a kind already stored is left alone, even a wrong one. */

@@ -44,7 +44,7 @@ class BoundedQueriesTest extends TestCase {
 	 * holds to its word.
 	 */
 	private const BOUNDED = '/setMaxResults\(|->in\(|PARAM_(?:STR|INT)_ARRAY|limitInArray\(|exprLimitInArray\('
-		. '|limitResults\(|limitPaginate\(|->paginate\(|paginateOnRecipient\(|homeTimelineFilters\(/';
+		. '|limitResults\(|limitPaginate\(|->paginate\(|paginateOnRecipient\(|homeTimelineFilters\(|boundNidPage\(/';
 
 	/** The paging helpers BOUNDED trusts, and the file each lives in. */
 	private const PAGING_HELPERS = [
@@ -53,6 +53,7 @@ class BoundedQueriesTest extends TestCase {
 		'paginate' => 'SocialLimitsQueryBuilder.php',
 		'paginateOnRecipient' => 'StreamTimelines.php',
 		'homeTimelineFilters' => 'StreamTimelines.php',
+		'boundNidPage' => 'StreamTimelines.php',
 	];
 
 	/** Reads of many rows with no limit, each with what keeps the result small. */
