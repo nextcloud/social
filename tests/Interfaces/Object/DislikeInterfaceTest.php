@@ -56,7 +56,7 @@ class DislikeInterfaceTest extends TestCase {
 	public function testADislikeIsStoredAndCountedOntoThePost(): void {
 		$this->actionsRequest->method('getActionFromItem')
 			->willThrowException(new ActionDoesNotExistException());
-		$this->actionsRequest->expects($this->once())->method('save');
+		$this->actionsRequest->expects($this->once())->method('save')->willReturn(true);
 
 		$post = new Note();
 		$post->setId(self::POST);

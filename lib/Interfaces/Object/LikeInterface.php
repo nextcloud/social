@@ -106,7 +106,12 @@ class LikeInterface extends AbstractActivityPubInterface implements IActivityPub
 		} catch (ActionDoesNotExistException $e) {
 		}
 
-		$this->actionsRequest->save($item);
+		// a redelivery overlapping the first copy passes the lookup above
+		// and is refused by the database instead
+		if (!$this->actionsRequest->save($item)) {
+			throw new ItemAlreadyExistsException();
+		}
+
 		try {
 			if ($item->hasActor()) {
 				$actor = $item->getActor();

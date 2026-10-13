@@ -96,8 +96,10 @@ class FollowServiceBlueskyTest extends TestCase {
 	public function testAFollowIsAcceptedAtOnceAndNeverDelivered(): void {
 		$this->followsRequest->method('getByPersons')->willThrowException(new FollowNotFoundException());
 		$saved = null;
-		$this->followsRequest->expects($this->once())->method('save')->willReturnCallback(static function (Follow $follow) use (&$saved): void {
+		$this->followsRequest->expects($this->once())->method('save')->willReturnCallback(static function (Follow $follow) use (&$saved): bool {
 			$saved = $follow;
+
+			return true;
 		});
 		$this->followsRequest->expects($this->once())->method('accepted');
 		$this->accountService->expects($this->once())->method('bumpActorCount')->with($this->bob->getId(), 'count_followers', 1);

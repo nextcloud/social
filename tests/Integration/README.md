@@ -20,6 +20,9 @@ to stop.
 - `Db/UndoFollowCountTest` — an incoming `Undo{Follow}` moves the follower
   count only when the stored follow it names is the row removed; one naming a
   follow id that is not stored changes nothing.
+- `Db/RejectFollowCountTest` — an incoming `Reject{Follow}` removes the stored
+  follow it names and moves the counts back that the request and its
+  acceptance moved; one naming a follow id that is not stored changes nothing.
 - `Db/ApproveReplyAuthorTest` — an `ApproveReply` moves a pending reply of
   ours to approved only when it comes from the author of the video it
   answers (the account behind the channel, as PeerTube sends it).
@@ -362,6 +365,12 @@ to stop.
   newer one), a Delete before its Create (caught the late Create resurrecting
   the post), an Undo{Like} before the Like, and a rotated key arriving in an
   Update{Person} verifying the next signature.
+- `Federation/OverlappingRedeliveryTest` — a Follow, Like, Announce and Create
+  delivered again while the first copy is still being handled, replayed by
+  making the second delivery's lookups miss the way the first copy's did: one
+  row, counted once, no exception (the UNIQUE violation this used to raise
+  was a 500 and a third delivery), the Accept sent again, and a usable
+  connection afterwards. Worth running on PostgreSQL and MySQL too.
 
 - `Helper/FreezesTheClock` — puts the server on a `FrozenClock`
   (`tests/Helper/FrozenClock.php`) that the test moves: registered on the

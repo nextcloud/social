@@ -28,36 +28,32 @@ class FollowsRequest extends FollowsRequestBuilder {
 	use TArrayTools;
 
 	/**
-	 * Insert a new Note in the database.
+	 * Inserts a follow, unless a row with its id or its (actor, object) pair
+	 * is already there.
 	 *
-	 * @param Follow $follow
+	 * The inbox looks a follow up before it writes it, and a redelivery that
+	 * overlaps the first copy passes that lookup too; the database skips the
+	 * second insert rather than failing it — a failed statement would abort
+	 * the surrounding transaction on PostgreSQL.
+	 *
+	 * @return bool whether the row was written: false when it was already there
 	 */
-	public function save(Follow $follow) {
-		$qb = $this->getFollowsInsertSql();
-		$qb->setValue('id', $qb->createNamedParameter($follow->getId()))
-			->setValue('actor_id', $qb->createNamedParameter($follow->getActorId()))
-			->setValue('type', $qb->createNamedParameter($follow->getType()))
-			->setValue('object_id', $qb->createNamedParameter($follow->getObjectId()))
-			->setValue('follow_id', $qb->createNamedParameter($follow->getFollowId()))
-			->setValue('accepted', $qb->createNamedParameter(($follow->isAccepted()) ? '1' : '0'))
-			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($follow->getActorId())))
-			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($follow->getObjectId())))
-			->setValue('follow_id_prim', $qb->createNamedParameter($qb->prim($follow->getFollowId())));
+	public function save(Follow $follow): bool {
+		$qb = $this->getQueryBuilder();
 
-		try {
-			$qb->setValue(
-				'creation',
-				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-			);
-		} catch (Exception $e) {
-			// 'now' is a constant, so this does not happen; were it ever to,
-			// the row would go in with no date at all, and every list that
-			// orders on it would place it arbitrarily
-			$this->logger->warning('could not timestamp a row', ['exception' => $e]);
-		}
-
-		$qb->generatePrimaryKey($follow->getId());
-		$qb->executeStatement();
+		return $this->dbConnection->insertIgnoreConflict(self::TABLE_FOLLOWS, [
+			'id' => $follow->getId(),
+			'id_prim' => $qb->prim($follow->getId()),
+			'actor_id' => $follow->getActorId(),
+			'type' => $follow->getType(),
+			'object_id' => $follow->getObjectId(),
+			'follow_id' => $follow->getFollowId(),
+			'accepted' => ($follow->isAccepted()) ? '1' : '0',
+			'actor_id_prim' => $qb->prim($follow->getActorId()),
+			'object_id_prim' => $qb->prim($follow->getObjectId()),
+			'follow_id_prim' => $qb->prim($follow->getFollowId()),
+			'creation' => (new DateTime('now'))->format('Y-m-d H:i:s'),
+		]) > 0;
 	}
 
 	/**
@@ -122,15 +118,17 @@ class FollowsRequest extends FollowsRequestBuilder {
 	 * Critical: remote servers embed the Follow in their Accept with THEIR id,
 	 * not ours. Match by actor+object pair instead.
 	 *
-	 * @param Follow $follow
+	 * @return bool whether a pending row was marked: false when there is
+	 *              none, or it was accepted already
 	 */
-	public function accepted(Follow $follow) {
+	public function accepted(Follow $follow): bool {
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('accepted', $qb->createNamedParameter('1'));
 		$this->limitToPrim($qb, 'actor_id_prim', $follow->getActorId());
 		$this->limitToPrim($qb, 'object_id_prim', $follow->getObjectId());
+		$qb->limitToAccepted(false);
 
-		$qb->executeStatement();
+		return $qb->executeStatement() > 0;
 	}
 
 	/**

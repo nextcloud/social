@@ -105,7 +105,7 @@ class FeaturedCollectionTest extends ActivityPubTestCase {
 			->willReturn(['type' => 'OrderedCollection', 'orderedItems' => [self::POST]]);
 		/** @var ACore|null $saved */
 		$saved = null;
-		$this->capture($this->actionsRequest, 'save', $saved);
+		$this->capture($this->actionsRequest, 'save', $saved, true);
 
 		$this->assertSame(1, $this->featured->refresh($this->bob()));
 
@@ -208,7 +208,7 @@ class FeaturedCollectionTest extends ActivityPubTestCase {
 
 		/** @var ACore|null $saved */
 		$saved = null;
-		$this->capture($this->actionsRequest, 'save', $saved);
+		$this->capture($this->actionsRequest, 'save', $saved, true);
 
 		(new AddInterface($this->featured))->processIncomingRequest(
 			$this->collectionActivity(Add::TYPE, self::FEATURED, self::POST)

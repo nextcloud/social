@@ -64,6 +64,8 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 	private LinkPreviewService|MockObject $linkPreviewService;
 	private ForwardService|MockObject $forwardService;
 	private NoteInterface $handler;
+	/** @var bool[] what the next writes answer; `true` once spent */
+	private array $written = [];
 
 	private Person $alice;
 	private StatusRevisionService|MockObject $revisionService;
@@ -76,6 +78,8 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		parent::setUp();
 
 		$this->streamRequest = $this->createMock(StreamRequest::class);
+		// a row is written unless a test says it was there already
+		$this->streamRequest->method('save')->willReturnCallback(fn (): bool => array_shift($this->written) ?? true);
 		$this->cacheActorsRequest = $this->createStub(CacheActorsRequest::class);
 		$this->pushService = $this->createMock(PushService::class);
 
@@ -261,6 +265,25 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 		$this->pushService->expects($this->once())->method('onNewStream')->with(self::NOTE);
 
 		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
+	}
+
+	/**
+	 * The same Create delivered again while the first copy is still being
+	 * handled: both copies pass the lookup, the database takes one row, and
+	 * only that one is pushed, queued and offered to the files.
+	 */
+	public function testACreateRedeliveredWhileTheFirstCopyIsStillBeingHandledIsPushedOnce(): void {
+		$this->nothingStored();
+		$note = $this->incomingNote();
+		$again = $this->incomingNote();
+
+		$this->written = [true, false];
+		$this->streamRequest->expects($this->exactly(2))->method('save');
+		$this->pushService->expects($this->once())->method('onNewStream')->with(self::NOTE);
+		$this->fileCommentsService->expects($this->once())->method('onReply');
+
+		$this->handler->activity($this->wrap(Create::TYPE, $note), $note);
+		$this->handler->activity($this->wrap(Create::TYPE, $again), $again);
 	}
 
 	public function testCreateOfAnAlreadyKnownNoteIsNotStoredTwice(): void {

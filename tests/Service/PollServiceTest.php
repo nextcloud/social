@@ -305,8 +305,10 @@ class PollServiceTest extends TestCase {
 		$this->accountService->method('getFromId')->with(self::AUTHOR)->willReturn($author);
 
 		$saved = [];
-		$this->actionsRequest->method('save')->willReturnCallback(function ($vote) use (&$saved): void {
+		$this->actionsRequest->method('save')->willReturnCallback(function ($vote) use (&$saved): bool {
 			$saved[] = $vote;
+
+			return true;
 		});
 		$this->activityService->expects($this->once())
 			->method('updateActivity')
