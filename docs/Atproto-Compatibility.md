@@ -699,6 +699,17 @@ side effect of an arriving post — recipients, `social_stream_dest`,
 notifications, filters, interests — happens the way it happens for
 ActivityPub; nothing downstream knows a Bluesky post from any other.
 
+A post is addressed to the public with the author's followers collection in
+`cc`, which is what the home timeline joins on. An author who asked apps not
+to show them to logged-out people — the `!no-unauthenticated` self-label on
+the profile, or on one post — has that post, and any boost of it, addressed
+to the followers collection alone: followers-only here, so the visibility
+layer every read goes through keeps it out of anonymous pages, the public
+timelines, search and the hashtag views, and what this server federates on
+is not addressed to the public. Followers-only rather than unlisted because
+unlisted is still served to anybody with the link, which is what the label
+asks apps not to do (`PostMapper::isLoggedInOnly()`).
+
 ### 9.4 Jetstream (optional)
 
 `occ social:atproto:listen` (`Reader\Jetstream\JetstreamListener`): one
@@ -1078,6 +1089,7 @@ actor is refreshed:
 |---|---|
 | `porn`, `sexual`, `nudity`, `graphic-media` | `sensitive: true` on the post's pictures, and a content warning naming the label when the post had none |
 | `!warn` (self or service) | content warning (the post's own text prefix is kept) |
+| `!no-unauthenticated` (self, on the profile or a post) | the post and any boost of it are followers-only here: not served to anonymous readers, not in the public timelines or search, not federated to the public (§9.3) |
 | `!hide` (service) | the post is not stored; the account's posts are not fetched while the label stands |
 | `spam`, `impersonation`, `scam`, `misleading`, other service labels | a content warning naming the label; the account's profile shows it |
 | account-level `!hide` / takedown | the cached actor is marked limited: no posts fetched, interactions not announced |

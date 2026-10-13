@@ -85,6 +85,37 @@ class PostMapperTest extends TestCase {
 		$this->assertArrayNotHasKey('quote', $note);
 	}
 
+	/**
+	 * The self-label asks apps not to show the account, or the post, to
+	 * people who are not logged in: the post is addressed to the author's
+	 * followers alone, never to the public.
+	 */
+	public function testAPostNotForLoggedOutPeopleIsAddressedToTheFollowersAlone(): void {
+		$mapper = new PostMapper($this->resolver());
+		$label = ['src' => self::DID, 'uri' => 'at://' . self::DID . '/app.bsky.actor.profile/self', 'val' => PostMapper::NO_UNAUTHENTICATED];
+		$followers = 'https://bsky.app/profile/' . self::DID . '/followers';
+
+		$onThePost = $mapper->create($this->postView(['labels' => [$label]]));
+		$this->assertSame([$followers], $onThePost['object']['to']);
+		$this->assertSame([], $onThePost['object']['cc']);
+		$this->assertSame([$followers], $onThePost['to'], 'the Create carries the same audience');
+		$this->assertNotContains(ACore::CONTEXT_PUBLIC, array_merge($onThePost['object']['to'], $onThePost['object']['cc']));
+
+		$author = $this->postView();
+		$author['author']['labels'] = [$label];
+		$onTheProfile = $mapper->note($author);
+		$this->assertSame([$followers], $onTheProfile['to'], 'the label on the profile covers every post');
+		$this->assertSame([], $onTheProfile['cc']);
+		$this->assertSame([PostMapper::NO_UNAUTHENTICATED], $onThePost['object']['_atproto']['labels'], 'the post label is kept with the post');
+
+		$public = $mapper->note($this->postView());
+		$this->assertSame([ACore::CONTEXT_PUBLIC], $public['to'], 'without the label a post is public');
+
+		$announce = $mapper->announce(['post' => $author, 'reason' => ['$type' => 'app.bsky.feed.defs#reasonRepost', 'by' => ['did' => self::OTHER], 'indexedAt' => '2026-10-08T11:00:00.000Z']]);
+		$this->assertSame(['https://bsky.app/profile/' . self::OTHER . '/followers'], $announce['to'], 'a boost of it is for the booster\'s followers alone');
+		$this->assertSame([], $announce['cc']);
+	}
+
 	public function testEachLabelKeepsTheLabelerThatAppliedIt(): void {
 		$note = (new PostMapper($this->resolver()))->note($this->postView(['labels' => [
 			['src' => 'did:plc:newitj5jo3uel7o4mnf3vj2o', 'uri' => 'at://x', 'val' => 'twitter-screenshot'],
