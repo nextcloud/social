@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
+use OCA\Social\Atproto\Identity\KeySealService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\AtprotoStatusService;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -29,6 +30,8 @@ use PHPUnit\Framework\TestCase;
 class AtprotoStatusServiceTest extends TestCase {
 	/** @var array<string, string> what each relay answers about this server */
 	private array $relayAnswers = [];
+	/** how many keys do not open with the instance secret */
+	private int $sealedKeys = 0;
 
 	private function service(array $relays): AtprotoStatusService {
 		$config = $this->createMock(AtprotoConfig::class);
@@ -54,7 +57,28 @@ class AtprotoStatusServiceTest extends TestCase {
 		$daemon = $this->createMock(FirehoseDaemon::class);
 		$daemon->method('status')->willReturn(['running' => true]);
 
-		return new AtprotoStatusService($config, $this->createMock(ConfigService::class), $this->createMock(IdentityService::class), $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class));
+		$keySeals = $this->createMock(KeySealService::class);
+		$keySeals->method('countSealed')->willReturnCallback(fn (): int => $this->sealedKeys);
+
+		return new AtprotoStatusService($config, $this->createMock(ConfigService::class), $this->createMock(IdentityService::class), $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, $keySeals);
+	}
+
+	private function keysCheck(): array {
+		foreach ($this->service([])->checks(true) as $check) {
+			if ($check['id'] === 'keys') {
+				return $check;
+			}
+		}
+		$this->fail('no keys check');
+	}
+
+	public function testKeysThatNoLongerOpenAreAnErrorThatNamesTheCommand(): void {
+		$this->assertSame(['id' => 'keys', 'state' => 'ok', 'detail' => ''], $this->keysCheck());
+
+		$this->sealedKeys = 3;
+		$check = $this->keysCheck();
+		$this->assertSame('error', $check['state']);
+		$this->assertSame('3 keys cannot be opened with the current secret: run occ social:atproto:keys:reseal with the previous secret in OC_OLD_SECRET', $check['detail']);
 	}
 
 	private function relayCheck(array $relays): array {

@@ -31,14 +31,12 @@ class AlohaApi extends ApiClient {
 
 	/** Whether this suite knows whom to sign in as. */
 	public static function fromEnvironment(): ?self {
-		$url = (string)getenv('NEXTCLOUD_URL');
-		$user = (string)getenv('NEXTCLOUD_USER');
-		$password = (string)getenv('NEXTCLOUD_PASSWORD');
-		if ($url === '' || $user === '' || $password === '') {
+		$values = Environment::values('Nextcloud', 'NEXTCLOUD_URL', 'NEXTCLOUD_USER', 'NEXTCLOUD_PASSWORD');
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($url, $user, $password);
+		return new self($values['NEXTCLOUD_URL'], $values['NEXTCLOUD_USER'], $values['NEXTCLOUD_PASSWORD']);
 	}
 
 	public function user(): string {

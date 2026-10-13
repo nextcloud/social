@@ -16,6 +16,8 @@ namespace OCA\Social\Atproto\Model;
  * custom handle when it has one, else the one this server assigned.
  */
 final class Identity {
+	/** made here, its genesis not yet taken by the directory: nothing of it is on Bluesky */
+	public const STATE_PENDING = 'pending';
 	public const STATE_ACTIVE = 'active';
 	public const STATE_DEACTIVATED = 'deactivated';
 	public const STATE_MOVED_AWAY = 'moved_away';

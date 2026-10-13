@@ -45,14 +45,12 @@ class PeerTube extends RestClient {
 
 	/** Whether this suite has a PeerTube to talk to at all. */
 	public static function fromEnvironment(): ?self {
-		$base = (string)getenv('PEERTUBE_BASE_URL');
-		$user = (string)getenv('PEERTUBE_USER');
-		$password = (string)getenv('PEERTUBE_PASSWORD');
-		if ($base === '' || $user === '' || $password === '') {
+		$values = Environment::values('PeerTube', 'PEERTUBE_BASE_URL', 'PEERTUBE_USER', 'PEERTUBE_PASSWORD');
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($base, $user, $password);
+		return new self($values['PEERTUBE_BASE_URL'], $values['PEERTUBE_USER'], $values['PEERTUBE_PASSWORD']);
 	}
 
 	/**

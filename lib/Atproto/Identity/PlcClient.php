@@ -11,6 +11,7 @@ namespace OCA\Social\Atproto\Identity;
 
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Service\CurlService;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -19,9 +20,9 @@ use Throwable;
  * The PLC directory: where a `did:plc` is registered and read back.
  *
  * Every request goes through the app's guarded HTTP client. A submission
- * is tried three times on a network failure or a 5xx, because the
- * operation is deterministic and resending it is harmless; a 4xx is the
- * directory's verdict and is reported as it is.
+ * is tried three times on a network failure, a 5xx or a 429, because the
+ * operation is deterministic and resending it is harmless; any other 4xx
+ * is the directory's verdict and is reported as such.
  */
 class PlcClient {
 	private const ATTEMPTS = 3;
@@ -37,7 +38,8 @@ class PlcClient {
 	/**
 	 * Sends a signed operation.
 	 *
-	 * @throws AtprotoException when the directory refuses it or cannot be reached
+	 * @throws AtprotoPlcRefusedException when the directory refuses it
+	 * @throws AtprotoException when it cannot be reached or is rate limiting
 	 */
 	public function submit(string $did, array $signedOperation): void {
 		$body = (string)json_encode($signedOperation, JSON_UNESCAPED_SLASHES);
@@ -54,12 +56,12 @@ class PlcClient {
 			if ($status >= 200 && $status < 300) {
 				return;
 			}
-			if ($status >= 500) {
+			if ($status >= 500 || $status === 429) {
 				$last = new AtprotoException('PLC directory answered ' . $status);
 				continue;
 			}
 
-			throw new AtprotoException('PLC directory refused the operation (' . (int)$status . '): ' . self::reason($answer));
+			throw new AtprotoPlcRefusedException('PLC directory refused the operation (' . (int)$status . '): ' . self::reason($answer));
 		}
 
 		throw new AtprotoException('PLC directory could not be reached: ' . ($last?->getMessage() ?? ''), 0, $last);

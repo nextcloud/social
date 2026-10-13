@@ -498,6 +498,8 @@ export default {
 					return t('social', 'Firehose proxied')
 				case 'relay_host':
 					return t('social', 'Relays carry this server')
+				case 'keys':
+					return t('social', 'Keys open with the instance secret')
 				default:
 					return id
 			}

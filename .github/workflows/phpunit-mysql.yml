@@ -13,7 +13,7 @@ name: PHPUnit MySQL
 # MySQL's and MariaDB's differences show up here the next morning.
 on:
   schedule:
-    - cron: '11 2 * * *'
+    - cron: '11 21 * * *'
   workflow_dispatch:
   workflow_call:
 

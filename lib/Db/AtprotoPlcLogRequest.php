@@ -14,7 +14,9 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
  * Every PLC operation this instance makes, written before it is sent and
- * marked when the directory took it.
+ * marked when the directory took it — or, when the directory refused or
+ * nullified it, marked dead with what the directory said. A dead row stays
+ * for the record and is never sent again.
  */
 class AtprotoPlcLogRequest extends CoreRequestBuilder {
 	/**
@@ -31,6 +33,19 @@ class AtprotoPlcLogRequest extends CoreRequestBuilder {
 		$qb->executeStatement();
 
 		return $qb->getLastInsertId();
+	}
+
+	/**
+	 * The operation signed again on another `prev`: the row keeps its place
+	 * and takes the new CID and bytes.
+	 */
+	public function rewrite(int $id, string $cid, array $operation): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_ATPROTO_PLC_LOG)
+			->set('cid', $qb->createNamedParameter($cid))
+			->set('operation', $qb->createNamedParameter((string)json_encode($operation)))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		$qb->executeStatement();
 	}
 
 	/**
@@ -52,44 +67,87 @@ class AtprotoPlcLogRequest extends CoreRequestBuilder {
 	}
 
 	/**
-	 * A DID's operations, oldest first.
+	 * The directory refused or nullified the operation: kept, never sent
+	 * again, and not the `prev` of anything.
+	 */
+	public function markDead(int $id, string $reason): void {
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_ATPROTO_PLC_LOG)
+			->set('dead', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
+			->set('reason', $qb->createNamedParameter(mb_substr($reason, 0, 255)))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT)));
+		$qb->executeStatement();
+	}
+
+	/**
+	 * A DID's operations, oldest first, the dead ones included.
 	 *
-	 * @return array<int, array{id: int, did: string, cid: string, operation: array, creation: int, sent: int, confirmed: int}>
+	 * @return array<int, array{id: int, did: string, cid: string, operation: array, creation: int, sent: int, confirmed: int, dead: int, reason: string}>
 	 */
 	public function getByDid(string $did): array {
-		$qb = $this->getQueryBuilder();
-		$qb->select('id', 'did', 'cid', 'operation', 'creation', 'sent', 'confirmed')
-			->from(self::TABLE_ATPROTO_PLC_LOG)
-			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+		$qb = $this->select();
+		$qb->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
 			->orderBy('id', 'asc');
 
 		return $this->rows($qb);
 	}
 
 	/**
-	 * Operations that were never confirmed: what a repair sends again.
+	 * A DID's operations the directory has not confirmed, oldest first:
+	 * what is sent next, each on the one before.
 	 *
-	 * @return array<int, array{id: int, did: string, cid: string, operation: array, creation: int, sent: int, confirmed: int}>
+	 * @return array<int, array{id: int, did: string, cid: string, operation: array, creation: int, sent: int, confirmed: int, dead: int, reason: string}>
+	 */
+	public function getPending(string $did): array {
+		$qb = $this->select();
+		$qb->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+			->andWhere($qb->expr()->isNull('confirmed'))
+			->andWhere($qb->expr()->isNull('dead'))
+			->orderBy('id', 'asc');
+
+		return $this->rows($qb);
+	}
+
+	/**
+	 * Operations that were never confirmed nor given up on: what a repair
+	 * sends again.
+	 *
+	 * @return array<int, array{id: int, did: string, cid: string, operation: array, creation: int, sent: int, confirmed: int, dead: int, reason: string}>
 	 */
 	public function getUnconfirmed(int $limit = 100): array {
-		$qb = $this->getQueryBuilder();
-		$qb->select('id', 'did', 'cid', 'operation', 'creation', 'sent', 'confirmed')
-			->from(self::TABLE_ATPROTO_PLC_LOG)
-			->where($qb->expr()->isNull('confirmed'))
+		$qb = $this->select();
+		$qb->where($qb->expr()->isNull('confirmed'))
+			->andWhere($qb->expr()->isNull('dead'))
 			->orderBy('id', 'asc')
 			->setMaxResults($limit);
 
 		return $this->rows($qb);
 	}
 
-	/** the latest operation's CID, the `prev` of the next one, '' for none */
+	/**
+	 * The latest live operation's CID — confirmed or still to be sent — the
+	 * `prev` the next one is built on; '' for none.
+	 */
 	public function latestCid(string $did): string {
+		return $this->lastCid($did, false);
+	}
+
+	/** the latest operation the directory confirmed, '' for none */
+	public function confirmedCid(string $did): string {
+		return $this->lastCid($did, true);
+	}
+
+	private function lastCid(string $did, bool $confirmedOnly): string {
 		$qb = $this->getQueryBuilder();
 		$qb->select('cid')
 			->from(self::TABLE_ATPROTO_PLC_LOG)
 			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+			->andWhere($qb->expr()->isNull('dead'))
 			->orderBy('id', 'desc')
 			->setMaxResults(1);
+		if ($confirmedOnly) {
+			$qb->andWhere($qb->expr()->isNotNull('confirmed'));
+		}
 		$cursor = $qb->executeQuery();
 		$row = $cursor->fetch();
 		$cursor->closeCursor();
@@ -105,6 +163,14 @@ class AtprotoPlcLogRequest extends CoreRequestBuilder {
 		$qb->executeStatement();
 	}
 
+	private function select(): SocialQueryBuilder {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id', 'did', 'cid', 'operation', 'creation', 'sent', 'confirmed', 'dead', 'reason')
+			->from(self::TABLE_ATPROTO_PLC_LOG);
+
+		return $qb;
+	}
+
 	private function rows(SocialQueryBuilder $qb): array {
 		$rows = [];
 		$cursor = $qb->executeQuery();
@@ -118,6 +184,8 @@ class AtprotoPlcLogRequest extends CoreRequestBuilder {
 				'creation' => AtprotoIdentityRequest::time($row['creation']),
 				'sent' => AtprotoIdentityRequest::time($row['sent']),
 				'confirmed' => AtprotoIdentityRequest::time($row['confirmed']),
+				'dead' => AtprotoIdentityRequest::time($row['dead']),
+				'reason' => (string)($row['reason'] ?? ''),
 			];
 		}
 		$cursor->closeCursor();

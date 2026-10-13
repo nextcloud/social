@@ -319,6 +319,7 @@ class TranslatableStringsTest extends TestCase {
 			'_%n follower in {month}_::_%n followers in {month}_' => ['%n Follower im {month}', '%n Follower im {month}'],
 			'_%n post in {month}_::_%n posts in {month}_' => ['%n Beitrag im {month}', '%n Beiträge im {month}'],
 			'_%n post at {hour}:00 UTC_::_%n posts at {hour}:00 UTC_' => ['%n Beitrag um {hour}:00 UTC', '%n Beiträge um {hour}:00 UTC'],
+			'_{count} account_::_{count} accounts_' => ['{count} Konto', '{count} Konten'],
 		];
 		$missing = [];
 		foreach (['de', 'de_DE'] as $locale) {

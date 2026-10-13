@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="img/nextcloud.png" alt="" width="72">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="img/social.svg">
+  <img src="img/social-dark.svg" alt="" width="72">
+</picture>
 
 # Aloha Social
 

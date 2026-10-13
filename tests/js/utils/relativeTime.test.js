@@ -2,8 +2,8 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
-import { describe, expect, it } from 'vitest'
-import { fromNow, fullDate, fullDateTime, shortAgo } from '../../../src/utils/relativeTime.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fromNow, fullDate, fullDateTime, shortAgo, timeOfDay } from '../../../src/utils/relativeTime.js'
 
 const NOW = new Date('2026-09-08T12:00:00Z')
 const ago = (seconds) => new Date(NOW.getTime() - seconds * 1000).toISOString()
@@ -98,5 +98,57 @@ describe('fullDateTime', () => {
 
 	it('says nothing about a date it cannot read', () => {
 		expect(fullDateTime('nope')).toBe('')
+	})
+})
+
+describe('timeOfDay', () => {
+	it('writes the time alone, in the reader\'s locale', () => {
+		expect(timeOfDay('2026-10-05T09:05:00Z')).toBe('9:05 AM')
+	})
+
+	it('says nothing about a date it cannot read', () => {
+		expect(timeOfDay('not a date')).toBe('')
+	})
+})
+
+/**
+ * Building an `Intl` formatter is the expensive part of using one, and a
+ * post's age is re-read on every tick of the clock for every post on
+ * screen: one formatter per locale and kind, not one per call.
+ */
+describe('the formatters', () => {
+	const now = new Date('2026-10-07T12:00:00Z')
+	const ago = (seconds) => new Date(now.getTime() - seconds * 1000)
+
+	afterEach(() => {
+		delete globalThis._nc_l10n_locale
+		vi.restoreAllMocks()
+	})
+
+	it('are built once per kind, however often an age is read', () => {
+		const numbers = vi.spyOn(Intl, 'NumberFormat')
+		const relatives = vi.spyOn(Intl, 'RelativeTimeFormat')
+		const dates = vi.spyOn(Intl, 'DateTimeFormat')
+
+		for (let i = 0; i < 50; i++) {
+			shortAgo(ago(3 * 3600 + i), now)
+			shortAgo(ago(20), now)
+			fromNow(ago(5 * 60), now)
+			fullDateTime(now)
+			fullDate(now)
+		}
+
+		expect(numbers.mock.calls.length).toBeLessThanOrEqual(1)
+		expect(relatives.mock.calls.length).toBeLessThanOrEqual(1)
+		expect(dates.mock.calls.length).toBeLessThanOrEqual(2)
+	})
+
+	it('are built per locale, so a change of language is not served the old one', () => {
+		globalThis._nc_l10n_locale = 'de'
+		expect(shortAgo(ago(5 * 60), now)).toBe('5 Min.')
+		expect(fullDate('2026-10-05T09:05:00Z')).toBe('5. Oktober 2026')
+
+		globalThis._nc_l10n_locale = 'en'
+		expect(shortAgo(ago(5 * 60), now)).toBe('5m')
 	})
 })

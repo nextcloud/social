@@ -68,6 +68,32 @@ describe('notifications store', () => {
 		})
 	})
 
+	/**
+	 * The sidebar polls the three counts and backs off while the server
+	 * keeps failing; the failures are swallowed here, so each fetch has to say
+	 * whether the server answered.
+	 */
+	describe('what the badge fetches answer', () => {
+		it.each([
+			['fetchUnreadNotifications', { count: 1 }],
+			['fetchUnreadDirectMessages', { count: 1 }],
+			['fetchPendingRequests', { summary: { pending_requests_count: 1 } }],
+		])('%s says the server answered', async (fetch, data) => {
+			axios.get.mockResolvedValue({ data })
+
+			await expect(store[fetch]()).resolves.toBe(true)
+		})
+
+		it.each(['fetchUnreadNotifications', 'fetchUnreadDirectMessages', 'fetchPendingRequests'])(
+			'%s says the server did not answer',
+			async (fetch) => {
+				axios.get.mockRejectedValue(new Error('offline'))
+
+				await expect(store[fetch]()).resolves.toBe(false)
+			},
+		)
+	})
+
 	describe('fetchPendingRequests', () => {
 		it('reads the count off the policy summary', async () => {
 			axios.get.mockResolvedValue({ data: { for_not_following: 'filter', summary: { pending_requests_count: 4, pending_notifications_count: 9 } } })

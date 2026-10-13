@@ -6,6 +6,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { register, unregister } from '@nextcloud/l10n'
 import { showError } from '../../../src/services/toast.js'
 import TimelineList from '../../../src/components/TimelineList.vue'
 import eventBus, { NOTIFICATIONS_READ } from '../../../src/services/eventBus.js'
@@ -1416,6 +1417,22 @@ describe('TimelineList', () => {
 			expect(emptyTitle(wrapper)).toBe('bob hasn\'t tooted yet')
 		})
 
+		/**
+		 * One sentence with a placeholder, not a name glued to a translated
+		 * fragment: a translator has to be able to put the name where their
+		 * language puts it.
+		 */
+		it('offers the empty-profile sentence for translation whole', async () => {
+			register('social', { '{account} hasn\'t tooted yet': 'Nothing from {account} so far' })
+			try {
+				const { wrapper } = mountList({ route: { name: 'profile', params: { account: 'bob' } } })
+				await flushPromises()
+				expect(emptyTitle(wrapper)).toBe('Nothing from bob so far')
+			} finally {
+				unregister('social')
+			}
+		})
+
 		it('names the account on the public profile page even for the owner', async () => {
 			const { wrapper } = mountList({
 				route: { name: 'profile', params: { account: 'alice' } },
@@ -1676,6 +1693,21 @@ describe('TimelineList', () => {
 			expect(store.fetchHomeMarker).toHaveBeenCalled()
 			expect(lineBefore(wrapper)).toBe('20')
 			expect(wrapper.find('.timeline-caughtup__label').text()).toMatch(/Up to date since/)
+		})
+
+		it('writes the date of the line in the reader\'s locale, not the browser\'s', async () => {
+			globalThis._nc_l10n_locale = 'de'
+			try {
+				const { wrapper } = mountList({
+					timeline: posts,
+					homeMarker: { id: '20', at: Date.parse('2026-10-05T09:00:00Z') },
+				})
+				await flushPromises()
+
+				expect(wrapper.find('.timeline-caughtup__label').text()).toContain('5. Oktober 2026')
+			} finally {
+				delete globalThis._nc_l10n_locale
+			}
 		})
 
 		it('falls back to what this browser remembers when the server has no marker yet', async () => {

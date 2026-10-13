@@ -94,6 +94,39 @@ class AtprotoBookkeepingStorageTest extends TestCase {
 		$this->assertSame('bafy-genesis', $log->latestCid($this->did));
 	}
 
+	/**
+	 * A dead operation stays in the log with the directory's reason, is
+	 * never pending again and is nobody's `prev`; a pending one keeps its
+	 * place when it is signed again on another head.
+	 */
+	public function testADeadOperationIsKeptButFollowedByNothing(): void {
+		$log = Server::get(AtprotoPlcLogRequest::class);
+		$genesis = $log->record($this->did, 'bafy-genesis', ['type' => 'plc_operation', 'prev' => null, 'sig' => 'x']);
+		$log->markConfirmed($genesis);
+		$refused = $log->record($this->did, 'bafy-refused', ['type' => 'plc_operation', 'prev' => 'bafy-genesis', 'sig' => 'y']);
+		$next = $log->record($this->did, 'bafy-next', ['type' => 'plc_operation', 'prev' => 'bafy-refused', 'sig' => 'z']);
+		$this->assertSame('bafy-next', $log->latestCid($this->did));
+		$this->assertSame('bafy-genesis', $log->confirmedCid($this->did));
+
+		$log->markDead($refused, 'PLC directory refused the operation (400): ' . str_repeat('é', 300));
+		$this->assertSame([$next], array_column($log->getPending($this->did), 'id'), 'the dead one is not sent again');
+		$this->assertNotContains($refused, array_column($log->getUnconfirmed(1000), 'id'));
+		$this->assertSame('bafy-next', $log->latestCid($this->did));
+		$rows = $log->getByDid($this->did);
+		$this->assertSame(['bafy-genesis', 'bafy-refused', 'bafy-next'], array_column($rows, 'cid'), 'kept for the record');
+		$this->assertGreaterThan(0, $rows[1]['dead']);
+		$this->assertSame(255, mb_strlen($rows[1]['reason']));
+		$this->assertStringStartsWith('PLC directory refused the operation (400): ', $rows[1]['reason']);
+		$this->assertSame([0, 0, 0], [$rows[0]['dead'], $rows[2]['dead'], strlen($rows[0]['reason'])]);
+
+		$log->rewrite($next, 'bafy-next-again', ['type' => 'plc_operation', 'prev' => 'bafy-genesis', 'sig' => 'w']);
+		$pending = $log->getPending($this->did);
+		$this->assertSame([[$next, 'bafy-next-again', 'bafy-genesis']], array_map(static fn (array $row): array => [$row['id'], $row['cid'], $row['operation']['prev']], $pending));
+		$log->markConfirmed($next);
+		$this->assertSame('bafy-next-again', $log->confirmedCid($this->did));
+		$this->assertSame([], $log->getPending($this->did));
+	}
+
 	public function testFirehoseRowsAreNumberedInOrderAndPrunedPastTheWindow(): void {
 		$events = Server::get(AtprotoEventRequest::class);
 		$body = "\xa1\x63did\x78\x20" . str_pad($this->did, 32, 'x');

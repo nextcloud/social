@@ -601,6 +601,15 @@ describe('Statistics', () => {
 			expect(wrapper.text()).toContain('crawl different servers')
 		})
 
+		it('counts the latest month\'s accounts with a plural, so one is not "1 accounts"', async () => {
+			const wrapper = await mountGrowth({
+				...GROWTH,
+				months: [...GROWTH.months.slice(0, -1), { ...GROWTH.months.at(-1), accounts: 1 }],
+			})
+
+			expect(wrapper.find('.stats__growth-latest').text()).toBe('1 account')
+		})
+
 		it('draws the chart with the months it covers named', async () => {
 			const wrapper = await mountGrowth(GROWTH)
 

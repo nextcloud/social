@@ -395,7 +395,7 @@ export default {
 	inset: 0;
 	/* the controls take presses; the rest lets them through to the slide */
 	pointer-events: none;
-	color: #fff;
+	color: var(--social-on-dark-text);
 
 	a,
 	button,
@@ -411,13 +411,13 @@ export default {
 	inset-block-start: 0;
 	inset-inline: 0;
 	block-size: 3px;
-	background: rgba(255, 255, 255, 0.35);
+	background: var(--social-on-dark-track);
 }
 
 .day-short__fill {
 	display: block;
 	block-size: 100%;
-	background: #fff;
+	background: var(--social-on-dark-text);
 	transition: width 0.1s linear;
 }
 
@@ -431,7 +431,7 @@ export default {
 	/* room on the end for the stack's own buttons, which sit over this */
 	padding-block: 16px;
 	padding-inline: 16px 72px;
-	background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+	background: linear-gradient(to top, var(--social-on-dark-scrim-heavy), transparent);
 }
 
 .day-short__marks {
@@ -446,8 +446,8 @@ export default {
 .day-short__mark {
 	padding: 1px 8px;
 	border-radius: var(--border-radius-pill, 999px);
-	background: #fff;
-	color: #000;
+	background: var(--social-on-dark-text);
+	color: var(--social-on-dark-ground);
 	font-weight: 700;
 }
 
@@ -456,11 +456,11 @@ export default {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	color: rgba(255, 255, 255, 0.85);
+	color: var(--social-on-dark-text-soft);
 }
 
 .day-short__delete {
-	color: #fff !important;
+	color: var(--social-on-dark-text) !important;
 }
 
 .day-short__author {
@@ -502,7 +502,7 @@ export default {
 	padding: 6px 10px;
 	border: none;
 	border-radius: var(--border-radius-pill, 999px);
-	background: rgba(255, 255, 255, 0.15);
+	background: var(--social-on-dark-tint);
 	color: inherit;
 	font-size: 22px;
 	line-height: 1;
@@ -510,7 +510,7 @@ export default {
 
 	&:hover,
 	&:focus-visible {
-		background: rgba(255, 255, 255, 0.3);
+		background: var(--social-on-dark-track);
 	}
 }
 
@@ -524,13 +524,13 @@ export default {
 	flex: 1 1 auto;
 	min-inline-size: 0;
 	padding: 6px 12px;
-	border: 1px solid rgba(255, 255, 255, 0.4);
+	border: 1px solid var(--social-on-dark-line);
 	border-radius: var(--border-radius-pill, 999px);
-	background: rgba(0, 0, 0, 0.4);
-	color: #fff;
+	background: var(--social-on-dark-scrim-light);
+	color: var(--social-on-dark-text);
 
 	&::placeholder {
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--social-on-dark-text-muted);
 	}
 }
 
@@ -546,6 +546,43 @@ export default {
 @media (prefers-reduced-motion: reduce) {
 	.day-short__fill {
 		transition: none;
+	}
+}
+
+/* Windows high contrast and the like replace every colour with the system's
+   and take the scrims away, leaving words on bare video. The bottom panel
+   takes a solid canvas, the reactions and the reply field the system's
+   button and field colours with a border. */
+@media (forced-colors: active) {
+	.day-short__bottom {
+		border-block-start: 1px solid CanvasText;
+		background: Canvas;
+		color: CanvasText;
+	}
+
+	.day-short__mark {
+		background: Highlight;
+		color: HighlightText;
+	}
+
+	.day-short__reaction {
+		border: 1px solid ButtonText;
+		background: ButtonFace;
+		color: ButtonText;
+	}
+
+	.day-short__reply-field {
+		border-color: FieldText;
+		background: Field;
+		color: FieldText;
+	}
+
+	.day-short__progress {
+		background: ButtonFace;
+	}
+
+	.day-short__fill {
+		background: Highlight;
 	}
 }
 </style>

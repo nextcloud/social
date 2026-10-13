@@ -1194,7 +1194,7 @@ export default {
 
 	&--record {
 		border-style: solid;
-		color: #fe2c55;
+		color: var(--social-on-dark-accent);
 	}
 
 	&--other {
@@ -1236,7 +1236,7 @@ export default {
 	margin-inline: auto;
 	overflow: hidden;
 	border-radius: 16px;
-	background: #000;
+	background: var(--social-on-dark-ground);
 }
 
 .short__video {
@@ -1263,16 +1263,16 @@ export default {
 	padding: 0;
 	border: none;
 	border-radius: 50%;
-	background: rgba(0, 0, 0, .55);
-	color: #fff;
+	background: var(--social-on-dark-scrim);
+	color: var(--social-on-dark-text);
 	cursor: pointer;
 
 	&:hover {
-		background: rgba(0, 0, 0, .75);
+		background: var(--social-on-dark-scrim-heavy);
 	}
 
 	&:focus-visible {
-		outline: 2px solid #fff;
+		outline: 2px solid var(--social-on-dark-text);
 		outline-offset: 2px;
 	}
 }
@@ -1290,10 +1290,10 @@ export default {
 	inset: 0;
 	display: grid;
 	place-items: center;
-	color: #fff;
+	color: var(--social-on-dark-text);
 	font-size: 96px;
 	font-weight: 800;
-	text-shadow: 0 2px 16px rgba(0, 0, 0, .6);
+	text-shadow: 0 2px 16px var(--social-on-dark-shadow);
 	animation: short-count 1s ease-out infinite;
 }
 
@@ -1309,13 +1309,13 @@ export default {
 	inset-inline: 10px;
 	block-size: 4px;
 	border-radius: 4px;
-	background: rgba(255, 255, 255, .3);
+	background: var(--social-on-dark-track);
 	overflow: hidden;
 
 	span {
 		display: block;
 		block-size: 100%;
-		background: #fe2c55;
+		background: var(--social-on-dark-accent);
 	}
 }
 
@@ -1326,8 +1326,8 @@ export default {
 	transform: translateX(-50%);
 	padding: 2px 10px;
 	border-radius: 999px;
-	background: rgba(0, 0, 0, .5);
-	color: #fff;
+	background: var(--social-on-dark-scrim);
+	color: var(--social-on-dark-text);
 	font-size: 13px;
 	font-variant-numeric: tabular-nums;
 
@@ -1338,7 +1338,7 @@ export default {
 		block-size: 8px;
 		margin-inline-end: 6px;
 		border-radius: 50%;
-		background: #fe2c55;
+		background: var(--social-on-dark-accent);
 		animation: short-blink 1s steps(2) infinite;
 	}
 }
@@ -1364,15 +1364,15 @@ export default {
 	inline-size: 72px;
 	block-size: 72px;
 	padding: 0;
-	border: 5px solid #fff;
+	border: 5px solid var(--social-on-dark-text);
 	border-radius: 50%;
-	background: #fe2c55;
+	background: var(--social-on-dark-accent);
 	box-shadow: var(--social-elevation-raised);
 	cursor: pointer;
 	transition: border-radius .2s ease, transform .2s ease;
 
 	&:hover:not(:disabled) {
-		background: #fe2c55;
+		background: var(--social-on-dark-accent);
 	}
 
 	&--recording {
@@ -1479,7 +1479,7 @@ export default {
 .short__shade {
 	position: absolute;
 	inset-block: 0;
-	background: rgba(0, 0, 0, .55);
+	background: var(--social-on-dark-scrim);
 	pointer-events: none;
 
 	&--before {
@@ -1498,7 +1498,7 @@ export default {
 .short__window {
 	position: absolute;
 	inset-block: 0;
-	border: 3px solid #fe2c55;
+	border: 3px solid var(--social-on-dark-accent);
 	border-radius: 8px;
 	pointer-events: none;
 }
@@ -1508,7 +1508,7 @@ export default {
 	inset-block: -4px;
 	inline-size: 2px;
 	margin-inline-start: -1px;
-	background: #fff;
+	background: var(--social-on-dark-text);
 	box-shadow: var(--social-elevation-resting);
 	pointer-events: none;
 }
@@ -1521,7 +1521,7 @@ export default {
 	padding: 0;
 	border: none;
 	border-radius: 6px;
-	background: #fe2c55;
+	background: var(--social-on-dark-accent);
 	cursor: ew-resize;
 
 	&::after {
@@ -1531,7 +1531,7 @@ export default {
 		inset-inline-start: 50%;
 		inline-size: 2px;
 		margin-inline-start: -1px;
-		background: #fff;
+		background: var(--social-on-dark-text);
 		border-radius: 1px;
 	}
 
@@ -1608,7 +1608,7 @@ export default {
 
 .short__range {
 	inline-size: 100%;
-	accent-color: #fe2c55;
+	accent-color: var(--social-on-dark-accent);
 }
 
 .short__caption {
@@ -1680,7 +1680,7 @@ export default {
 	span {
 		display: block;
 		block-size: 100%;
-		background: linear-gradient(90deg, #25f4ee, #fe2c55);
+		background: linear-gradient(90deg, var(--social-on-dark-accent-cool), var(--social-on-dark-accent));
 		transition: width .2s ease;
 	}
 }
@@ -1715,6 +1715,43 @@ export default {
 	.short__countdown,
 	.short__rec-time--live::before {
 		animation: none;
+	}
+}
+
+/* Windows high contrast and the like replace every colour with the system's
+   and take the scrims away. The buttons over the picture take the system's
+   button colours with a border, the readouts a solid canvas, the trim window
+   and the handles the highlight colour. */
+@media (forced-colors: active) {
+	.short__stage-button,
+	.short__shutter,
+	.short__handle {
+		border: 1px solid ButtonText;
+		background: ButtonFace;
+		color: ButtonText;
+	}
+
+	.short__countdown,
+	.short__rec-time {
+		border: 1px solid CanvasText;
+		background: Canvas;
+		color: CanvasText;
+		text-shadow: none;
+	}
+
+	.short__window {
+		border-color: Highlight;
+	}
+
+	.short__shade {
+		background: Canvas;
+		opacity: 0.7;
+	}
+
+	.short__rec-progress span,
+	.short__progress-bar span,
+	.short__playhead {
+		background: Highlight;
 	}
 }
 </style>

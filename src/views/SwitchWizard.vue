@@ -746,7 +746,7 @@ export default {
 		block-size: 36px;
 		flex: 0 0 auto;
 		border-radius: 50%;
-		color: #fff;
+		color: var(--social-on-dark-text);
 		font-size: 18px;
 	}
 

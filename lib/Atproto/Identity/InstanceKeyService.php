@@ -45,6 +45,28 @@ class InstanceKeyService {
 		return $this->current(InstanceKey::KIND_SERVICE);
 	}
 
+	/**
+	 * Every rotation key that still opens, the one in use first and the
+	 * retired ones after it, newest first: what can sign for a DID whose
+	 * document names an earlier key.
+	 *
+	 * @return PrivateKey[]
+	 */
+	public function rotationKeys(): array {
+		$keys = [$this->rotationKey()];
+		foreach ($this->identityRequest->getInstanceKeys(InstanceKey::KIND_ROTATION) as $key) {
+			if ($key->retired === 0) {
+				continue;
+			}
+			$secret = $this->cipher->open($key->sealedPrivateKey);
+			if ($secret !== '') {
+				$keys[] = new PrivateKey(Curve::K256, $secret);
+			}
+		}
+
+		return $keys;
+	}
+
 	/** when the rotation key in use was made, 0 when there is none yet */
 	public function rotationKeyAge(): int {
 		foreach ($this->identityRequest->getInstanceKeys(InstanceKey::KIND_ROTATION) as $key) {

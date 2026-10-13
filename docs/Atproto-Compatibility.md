@@ -156,7 +156,12 @@ When Bluesky is enabled for the instance, every local Social actor gets an
 AT Protocol identity, created lazily on first need (the first public post,
 the first follow of a Bluesky account, the first resolution of its handle)
 and eagerly for every existing account by `occ social:atproto:identities`.
-The identity is three things stored in `social_atproto_identity` (§15):
+It is **pending** until the PLC directory has taken its genesis operation —
+usually at once; while the directory cannot be reached, until the
+maintenance job gets it through — and nothing is published, announced or
+served for it before: the account is not on Bluesky yet, and the settings
+page says so. The identity is three things stored in
+`social_atproto_identity` (§15):
 
 - the **DID** (`did:plc:…`), computed by the PLC rules from the genesis
   operation (the DID *is* a hash of the first operation);
@@ -166,7 +171,13 @@ The identity is three things stored in `social_atproto_identity` (§15):
 - two **rotation keys**: the instance's rotation key (one per instance,
   rotated by the administrator, §16.3) first, and a per-account recovery
   key whose private half is shown to the person once (§4.4) and otherwise
-  not stored. Order is priority: the instance key wins a dispute.
+  not stored. Order is priority: the instance key wins a dispute, which
+  means the instance can nullify, within the PLC's 72-hour window, an
+  operation the person signed with their recovery key — a move away
+  included — and the person cannot nullify the instance's. That is
+  deliberate for a hosted instance (the administrator's way back from a
+  compromised phrase) and the opposite of Bluesky's own PDS, which lists
+  the person's key first; the settings page says so beside the phrase.
 
 The DID document the PLC publishes names the handle (§4.2), the signing
 key under `#atproto`, and the PDS service `#atproto_pds` with endpoint
@@ -213,14 +224,21 @@ Nothing, unless they look: **Settings → Apps and account → Bluesky** shows t
 handle and DID under the Fediverse handle, with a *Copy* button and a
 sentence that says the Bluesky account exists because this server offers
 one. The recovery key is shown there **once**, on first view, as a
-twelve-word phrase to write down (BIP-39 encoding of the 32-byte private
-key), with a "Show again" that requires password confirmation and
-regenerates (and re-registers, §4.5) rather than reveals. The switch **Be
+twelve-word phrase to write down, with a "Show again" that requires
+password confirmation and regenerates (and re-registers, §4.5) rather
+than reveals. The words are BIP-39's list and checksum over 128 bits of
+entropy, but the key is this app's own derivation from them (`Mnemonic`:
+SHA-256 of the entropy), not a BIP-39 seed: no other atproto tool
+imports the phrase, and nothing here takes it back yet — it is the
+person's proof of the DID for a later tool of this app's. The settings
+page says so, and that the instance's key ranks above it (§4.1). The switch **Be
 on Bluesky** is there too (§4.6).
 
 ### 4.5 PLC operations this app sends
 
 - **create**: on first need (§4.1), signed with the instance rotation key.
+  The identity is pending until the directory confirms it (§4.1); the
+  confirmation, wherever it happens, makes it active and sends `#identity`.
 - **update handle**: when the username changes (it does not, in Social, but
   the custom-handle phase needs it) and when the instance host changes.
 - **rotate keys**: when the administrator rotates the instance rotation key
@@ -234,6 +252,26 @@ Every operation goes through one `PlcClient` with retries and is recorded
 in `social_atproto_plc_log` before it is sent (so a crash between the two
 leaves a row to reconcile from), and `occ social:atproto:plc` lists the log
 and the directory's view side by side.
+
+The log is a queue per DID, and `prev` is the directory's, not the log's:
+an operation goes out in its turn, built on the operation the directory
+confirmed last. The client retries a network failure, a 5xx and a 429;
+any other 4xx is the directory's verdict, and the operation is **dead** —
+kept in the log with the directory's reason, never sent again, and not
+the `prev` of anything. The next operation is signed again on the
+confirmed head (with whichever rotation key of this instance that head
+still names, the retired ones included) and tried on its own. An
+operation the directory could not be asked about waits, with everything
+behind it, for the maintenance job (`IdentityService::repair()`, every
+five minutes), which first compares the log with the directory's audit
+log (`/log/audit`): an operation the directory holds is confirmed, one it
+nullified is dead, one it holds that the log does not — the person's own,
+signed with their recovery key elsewhere — is taken into the log as
+confirmed, and the identity row takes the handle the directory names and
+drops a recovery key it no longer lists. A signing key or instance key
+the directory no longer names is warned of, with the DID; this server
+cannot put that right by itself. A hand-over to another PDS (§13.2)
+refuses to start while an earlier operation for the DID is pending.
 
 ### 4.6 Switching off (D23)
 
@@ -460,7 +498,8 @@ the web server proxies at `/xrpc/com.atproto.sync.subscribeRepos`
 every commit (§5.3) is a `#commit` frame — `seq`, `did`, `rev`, `commit`
 CID, `ops` (`create`/`update`/`delete` with path and CID), `blocks` (the CAR
 of the commit, the changed MST nodes and the records), `time` — plus
-`#identity` (handle change), `#account` (deactivated/deleted), `#sync`
+`#identity` (an operation the directory confirmed: a new DID, a handle
+change), `#account` (deactivated/deleted), `#sync`
 (the head commit, when an account is switched back on, §4.6) and `#info`
 frames, each with a `seq` from one monotonic counter per instance. A client
 that connects with `?cursor=N` is replayed from `N+1` out of
@@ -1402,8 +1441,9 @@ identity switched off is listed with its state and left off; `--list`),
 `social:atproto:resolve <handle|did>`, `social:atproto:repo <user>`
 (head, record counts, `--verify` recomputes the MST and compares),
 `social:atproto:block <host|did>` / `--unblock`, `social:atproto:crawl`
-(`requestCrawl` now), `social:atproto:rotate-key`. Each documented in
-OCC-Commands.md with the usual shape.
+(`requestCrawl` now), `social:atproto:rotate-key`,
+`social:atproto:keys:reseal` (§16.3). Each documented in OCC-Commands.md
+with the usual shape.
 
 ### 14.4 Configuration
 
@@ -1479,12 +1519,21 @@ A proxied call is counted against the user's rate limit.
 ### 16.3 Rotation
 
 The instance rotation key is rotated by the administrator (`occ
-social:atproto:rotate-key`, admin page): a PLC operation per identity
-(queued, rate-limited by the PLC's limits — *verify*), the old key kept
-for the 72-hour window and then deleted. An account's signing key is
-rotated when its sealing secret changes (Nextcloud's `secret` rotation) —
-the setup check notices the seal no longer opens and the repair re-signs
-the repository with a fresh key and a PLC update.
+social:atproto:rotate-key`, admin page): a PLC operation per active or
+pending identity (queued, paced, resent by the maintenance job), the old
+key kept for the 72-hour window and then deleted.
+
+A change of Nextcloud's `secret` is not a key rotation: no sealed key
+opens any more, so nothing can be signed, and the keys are not replaced
+— they are the DIDs. The status checks (`AtprotoStatusService`, the
+Bluesky card, the setup check) count the keys that do not open, and
+`occ social:atproto:keys:reseal` (`KeySealService`) opens each with the
+previous secret, read from `OC_OLD_SECRET`, and stores it sealed with the
+current one; the instance keys, retired ones included, and the signing
+keys of every identity that still signs. A key neither secret opens is
+reported and left as it is: without the previous secret, the only way
+back is the person's recovery phrase (§4.4), which this app does not yet
+take back.
 
 ### 16.4 Input
 
@@ -1995,8 +2044,8 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   account's, and checks them: either is enough, as for the AppView. Setting
   it asks for the Nextcloud password.
 - **Then** the DID document names the domain (a PLC update with the same
-  keys and endpoint) and the firehose sends `#identity`, so relays and
-  AppViews resolve the handle again. The assigned `alice.<host>` keeps
+  keys and endpoint) and, once the directory took it, the firehose sends
+  `#identity`, so relays and AppViews resolve the handle again. The assigned `alice.<host>` keeps
   resolving here — `resolveHandle`, the well-known, sign-in by handle — as
   an alias the document does not list; going back to it is one button.
 - **Refused**: a name that is not a resolvable domain, anything under this
