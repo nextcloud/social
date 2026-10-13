@@ -457,7 +457,18 @@ The daemon reads new events by polling the event table (every 250 ms when
 idle, immediately after a write it was told about through a Redis/APCu
 notice where available) — the web request writes the row, the daemon
 serves it; no shared memory, no second code path. `--once` drains and exits
-for tests; `--max-seconds` as `social:worker` has. systemd unit and the
+for tests; `--max-seconds` as `social:worker` has.
+
+A frame's `seq` is the row's auto-increment id, taken when the row is
+inserted inside the commit's transaction and visible when that transaction
+commits, so a lower number can appear after a higher one is already
+there (two writes of different repositories overlapping). The daemon
+never serves past a number that is not there yet: it holds the later
+frames back and waits up to two seconds (`FirehoseDaemon::GAP_GRACE`,
+as the reference PDS sequencer does) for the missing one, then serves
+them in order. A number that is still missing after that is a write that
+rolled back; the daemon logs it at info level and goes on, and a frame
+with that number that turns up later is served by replay only. systemd unit and the
 Docker variant are documented in Admin.md; the setup check "firehose
 reachable" connects to the public URL and reads an `#info` frame.
 
