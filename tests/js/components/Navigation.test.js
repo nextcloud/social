@@ -35,9 +35,9 @@ const stubs = {
 	// `counter` is a slot in @nextcloud/vue 9, not a prop, and there is no
 	// `subname` slot — the app's extras go through `extra`
 	NcAppNavigationItem: {
-		props: ['name', 'active', 'href', 'target', 'to'],
+		props: ['name', 'active', 'href', 'target', 'to', 'ariaDescription'],
 		emits: ['click'],
-		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && JSON.stringify(to)" @click="$emit(\'click\', $event)">'
+		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && JSON.stringify(to)" :data-description="ariaDescription" @click="$emit(\'click\', $event)">'
 			+ '<span class="nav-item__icon"><slot name="icon" /></span><span class="nav-item__name">{{ name }}</span>'
 			+ '<span class="nav-item__counter"><slot name="counter" /></span>'
 			+ '<slot name="extra" /><span class="nav-item__actions"><slot name="actions" /></span><slot /></li>',
@@ -1073,6 +1073,16 @@ describe('Navigation', () => {
 		// badge never appeared at all
 		expect(item(mountNavigation(), 'Activities').find('.nc-counter').exists()).toBe(false)
 		expect(item(mountNavigation({ unread: 5 }), 'Activities').find('.nc-counter').attributes('data-count')).toBe('5')
+	})
+
+	it('says the number in words to a screen reader, which cannot see the badge', () => {
+		// the bubble sits outside the entry's link, so the accessible name
+		// was "Activities" whatever the badge showed
+		expect(item(mountNavigation(), 'Activities').attributes('data-description')).toBeUndefined()
+		expect(item(mountNavigation({ unread: 5 }), 'Activities').attributes('data-description')).toBe('5 unread')
+
+		notificationsStore.setUnreadDirectMessages(1)
+		expect(item(mountNavigation(), 'Direct messages').attributes('data-description')).toBe('1 unread')
 	})
 
 	it('counts the people waiting for a decision on Activities, in the same badge', () => {

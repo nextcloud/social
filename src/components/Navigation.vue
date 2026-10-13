@@ -83,6 +83,7 @@
 				:name="item.title"
 				:href="hrefFor(item.to)"
 				:active="isActive(item)"
+				:ariaDescription="unreadDescription(item.counter)"
 				@click="navigate(item.to, $event)">
 				<template #icon>
 					<component :is="item.icon" :size="20" />
@@ -204,6 +205,7 @@
 						:name="item.title"
 						:href="hrefFor(item.to)"
 						:active="isActive(item)"
+						:ariaDescription="unreadDescription(item.counter)"
 						@click="navigate(item.to, $event)">
 						<template #icon>
 							<component :is="item.icon" :size="20" />
@@ -893,6 +895,18 @@ export default {
 	},
 
 	methods: {
+		/**
+		 * The badge in words: the bubble sits outside the entry's link, so a
+		 * screen reader hearing "Activities" was told nothing of the number
+		 * beside it.
+		 *
+		 * @param {number|undefined} count what the badge shows
+		 * @return {string|undefined} what the entry says about it, or nothing
+		 */
+		unreadDescription(count) {
+			return count > 0 ? n('social', '%n unread', '%n unread', count) : undefined
+		},
+
 		/**
 		 * What a run of Explore rows is called.
 		 *
