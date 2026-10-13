@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Atproto\Identity;
 use OCA\Social\Atproto\Identity\PlcClient;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Service\CurlService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -22,9 +23,10 @@ use RuntimeException;
  * The PLC directory client: where each call goes, that it goes through
  * the guarded HTTP client with local addresses refused unless the
  * directory is a plain-http one of a test network, and what an answer
- * means: a submission is retried on a network failure or a 5xx and never
- * on the directory's 4xx verdict; a 404 is "not known", anything else not
- * JSON is a failure.
+ * means: a submission is retried on a network failure, a 5xx or a 429 and
+ * never on the directory's other 4xx verdicts, which come back as a
+ * refusal of their own kind; a 404 is "not known", anything else not JSON
+ * is a failure.
  */
 #[AllowMockObjectsWithoutExpectations]
 class PlcClientTest extends TestCase {
@@ -117,10 +119,25 @@ class PlcClientTest extends TestCase {
 		try {
 			$this->client()->submit(self::DID, ['sig' => 'x']);
 			$this->fail('accepted');
-		} catch (AtprotoException $e) {
+		} catch (AtprotoPlcRefusedException $e) {
 			$this->assertSame('PLC directory refused the operation (400): Invalid signature on op', $e->getMessage());
 		}
 		$this->assertCount(1, $this->requests);
+	}
+
+	public function testARateLimitIsRetriedAndIsNotAVerdict(): void {
+		$this->answers = [[429, '{"message":"Too many requests"}'], [200, '']];
+		$this->client()->submit(self::DID, ['sig' => 'x']);
+		$this->assertCount(2, $this->requests);
+
+		$this->answers = [[429, ''], [429, ''], [429, '']];
+		try {
+			$this->client()->submit(self::DID, ['sig' => 'x']);
+			$this->fail('accepted');
+		} catch (AtprotoException $e) {
+			$this->assertNotInstanceOf(AtprotoPlcRefusedException::class, $e, 'to be tried again later');
+			$this->assertStringContainsString('429', $e->getMessage());
+		}
 	}
 
 	public function testThreeFailuresAreGivenUpOn(): void {

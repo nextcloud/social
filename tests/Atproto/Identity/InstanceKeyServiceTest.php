@@ -43,7 +43,7 @@ class InstanceKeyServiceTest extends TestCase {
 
 			return $id;
 		});
-		$request->method('getInstanceKeys')->willReturnCallback(fn (string $kind): array => array_values(array_filter($this->rows, static fn (InstanceKey $key): bool => $key->kind === $kind)));
+		$request->method('getInstanceKeys')->willReturnCallback(fn (string $kind): array => array_values(array_reverse(array_filter($this->rows, static fn (InstanceKey $key): bool => $key->kind === $kind))));
 		$request->method('retireInstanceKey')->willReturnCallback(function (int $id): void {
 			$key = $this->rows[$id];
 			$this->rows[$id] = new InstanceKey($id, $key->kind, $key->sealedPrivateKey, $key->publicDidKey, $key->creation, $this->now);
@@ -94,6 +94,17 @@ class InstanceKeyServiceTest extends TestCase {
 		$this->assertSame(0, $keys->pruneRetired($this->now + InstanceKeyService::RETIRED_KEY_LIFETIME), 'kept for the whole window');
 		$this->assertSame(1, $keys->pruneRetired($this->now + InstanceKeyService::RETIRED_KEY_LIFETIME + 1));
 		$this->assertSame([$new->didKey()], array_values(array_map(static fn (InstanceKey $key): string => $key->publicDidKey, $this->rows)));
+	}
+
+	public function testTheRetiredKeysAreListedAfterTheOneInUse(): void {
+		$keys = $this->service();
+		$first = $keys->rotationKey();
+		[$second] = $keys->rotate();
+		[$third] = $keys->rotate();
+
+		$this->assertSame([$third->didKey(), $second->didKey(), $first->didKey()], array_map(static fn ($key): string => $key->didKey(), $this->service()->rotationKeys()));
+		$keys->pruneRetired($this->now + InstanceKeyService::RETIRED_KEY_LIFETIME + 1);
+		$this->assertSame([$third->didKey()], array_map(static fn ($key): string => $key->didKey(), $this->service()->rotationKeys()));
 	}
 
 	public function testASealThatNoLongerOpensIsAnErrorNotANewKey(): void {

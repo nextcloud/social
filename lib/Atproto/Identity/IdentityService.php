@@ -21,6 +21,7 @@ use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Security\PrivateKeyCipher;
 use Psr\Log\LoggerInterface;
@@ -30,9 +31,15 @@ use Psr\Log\LoggerInterface;
  * with the PLC directory, its signing key sealed here and opened for one
  * signature at a time.
  *
- * A PLC operation is logged before it is sent. The genesis operation
- * decides the DID, so an identity whose registration failed is kept and
- * the same operation sent again by repair(): sending it twice is harmless.
+ * A PLC operation is logged before it is sent and goes out in its turn,
+ * built on the operation the directory confirmed last. One the directory
+ * could not be asked waits in the log for repair(), which compares the
+ * log with the directory's and sends what is pending again — signed again
+ * on the directory's head where that moved on. One the directory refused
+ * or nullified is dead: kept for the record, never sent again, and not
+ * the `prev` of anything. The genesis operation decides the DID, so an
+ * identity whose registration is pending is kept and the same operation
+ * sent again.
  */
 class IdentityService {
 	public function __construct(
@@ -162,7 +169,7 @@ class IdentityService {
 		$identity = $this->identityRequest->getByDid($did);
 		$this->logger->info('Bluesky identity made', ['did' => $did, 'handle' => $handle, 'actor' => $actor->getId()]);
 
-		$this->send($logId, $did, $genesis);
+		$this->flush($did);
 		$this->events->identity($did, $handle);
 
 		return $identity;
@@ -245,13 +252,13 @@ class IdentityService {
 	/**
 	 * Hands the DID to another PDS (§13.2): its signing key, its rotation
 	 * keys and its endpoint, as that PDS recommends them, with the person's
-	 * recovery key kept first so the DID stays theirs. Signed with this
-	 * server's rotation key, which the new document no longer lists. Sent at
-	 * once and not left for repair: a move goes on only once the directory
-	 * took it.
+	 * recovery key kept first so the DID stays theirs. Signed with the
+	 * rotation key of this server that the directory's head names, which
+	 * the new document no longer lists. Sent at once and not left for
+	 * repair: a move goes on only once the directory took it.
 	 *
 	 * @param array $credentials the other PDS's `getRecommendedDidCredentials`
-	 * @throws AtprotoException
+	 * @throws AtprotoException also while an earlier operation for the DID is not confirmed
 	 */
 	public function handOver(Identity $identity, array $credentials): void {
 		$signing = (string)($credentials['verificationMethods']['atproto'] ?? '');
@@ -270,10 +277,11 @@ class IdentityService {
 		if (!str_starts_with($signing, 'did:key:') || $handle === '' || !preg_match('#^https?://#', $endpoint) || $rotation === []) {
 			throw new AtprotoException('The other PDS recommended no usable credentials');
 		}
-		$operation = PlcOperation::sign(
-			PlcOperation::build($rotation, $signing, $handle, $endpoint, $this->prev($identity)),
-			$this->instanceKeys->rotationKey(),
-		);
+		$this->flush($identity->did);
+		if ($this->plcLog->getPending($identity->did) !== []) {
+			throw new AtprotoException('An earlier PLC operation for ' . $identity->did . ' is not confirmed yet');
+		}
+		$operation = $this->follow($identity->did, PlcOperation::build($rotation, $signing, $handle, $endpoint, null), $this->prev($identity, true));
 		$logId = $this->plcLog->record($identity->did, PlcOperation::cid($operation)->toString(), $operation);
 		$this->plcLog->markSent($logId);
 		try {
@@ -395,9 +403,9 @@ class IdentityService {
 	public function tombstone(Identity $identity): void {
 		if ($identity->state !== Identity::STATE_TOMBSTONED) {
 			$operation = PlcOperation::sign(PlcOperation::tombstone($this->prev($identity)), $this->instanceKeys->rotationKey());
-			$logId = $this->plcLog->record($identity->did, PlcOperation::cid($operation)->toString(), $operation);
+			$this->plcLog->record($identity->did, PlcOperation::cid($operation)->toString(), $operation);
 			$this->identityRequest->setState($identity->did, Identity::STATE_TOMBSTONED);
-			$this->send($logId, $identity->did, $operation);
+			$this->flush($identity->did);
 		}
 		$this->repositories->delete($identity->did);
 		$this->blobRequest->deleteByDid($identity->did);
@@ -405,24 +413,81 @@ class IdentityService {
 	}
 
 	/**
-	 * Sends again what the directory never confirmed.
+	 * Sends again what the directory never confirmed, each DID's log first
+	 * compared with the directory's; once nothing is pending for a DID, so
+	 * the log's head is the directory's, the identity row is made to say
+	 * what that head says.
 	 *
 	 * @return int how many operations were confirmed now
 	 */
 	public function repair(int $limit = 100): int {
 		$confirmed = 0;
-		foreach ($this->plcLog->getUnconfirmed($limit) as $row) {
+		foreach (array_unique(array_column($this->plcLog->getUnconfirmed($limit), 'did')) as $did) {
 			try {
-				$this->plc->submit($row['did'], $row['operation']);
-				$this->plcLog->markSent($row['id']);
-				$this->plcLog->markConfirmed($row['id']);
-				$confirmed++;
+				$this->reconcile($did);
 			} catch (AtprotoException $e) {
-				$this->logger->warning('PLC operation still not accepted', ['did' => $row['did'], 'exception' => $e]);
+				$this->logger->warning('PLC log not compared with the directory', ['did' => $did, 'exception' => $e]);
+				continue;
+			}
+			$confirmed += $this->flush($did);
+			if ($this->plcLog->getPending($did) === []) {
+				$this->takeFromHead($did);
 			}
 		}
 
 		return $confirmed;
+	}
+
+	/**
+	 * The log against the directory's audit log: an operation the directory
+	 * holds is confirmed, one it nullified is dead, and one it holds that
+	 * this log does not is recorded as confirmed. A directory that does not
+	 * know the DID has nothing to compare: the genesis goes out as it is.
+	 *
+	 * @throws AtprotoException when the directory cannot be reached
+	 */
+	public function reconcile(string $did): void {
+		$audit = $this->plc->auditLog($did);
+		if ($audit === []) {
+			return;
+		}
+		$local = [];
+		foreach ($this->plcLog->getByDid($did) as $row) {
+			$local[$row['cid']] = $row;
+		}
+		$held = [];
+		$dead = [];
+		foreach ($audit as $entry) {
+			$cid = (string)($entry['cid'] ?? '');
+			$operation = is_array($entry['operation'] ?? null) ? $entry['operation'] : [];
+			if ($cid === '' || $operation === []) {
+				continue;
+			}
+			$row = $local[$cid] ?? null;
+			if (($entry['nullified'] ?? false) === true) {
+				if ($row !== null && $row['dead'] === 0) {
+					$this->plcLog->markDead($row['id'], 'nullified by the directory');
+					$this->logger->warning('PLC operation nullified by the directory', ['did' => $did, 'cid' => $cid]);
+					$dead[$cid] = true;
+				}
+				continue;
+			}
+			$held[$cid] = true;
+			if ($row === null) {
+				$id = $this->plcLog->record($did, $cid, $operation);
+				$this->plcLog->markSent($id);
+				$this->plcLog->markConfirmed($id);
+				$this->logger->info('PLC operation taken from the directory', ['did' => $did, 'cid' => $cid]);
+			} elseif ($row['confirmed'] === 0 && $row['dead'] === 0) {
+				$this->plcLog->markConfirmed($row['id']);
+			}
+		}
+		foreach ($local as $cid => $row) {
+			if ($row['confirmed'] !== 0 && $row['dead'] === 0 && !isset($held[$cid]) && !isset($dead[$cid])) {
+				$this->plcLog->markDead($row['id'], 'not in the directory\'s log');
+				$this->logger->warning('PLC operation confirmed here but not in the directory\'s log', ['did' => $did, 'cid' => $cid]);
+			}
+		}
 	}
 
 	/**
@@ -446,7 +511,7 @@ class IdentityService {
 		$operations = $this->plcLog->getByDid($identity->did);
 		$state = [];
 		foreach ($operations as $row) {
-			if (($row['operation']['type'] ?? '') === PlcOperation::TYPE_OPERATION) {
+			if ($row['dead'] === 0 && ($row['operation']['type'] ?? '') === PlcOperation::TYPE_OPERATION) {
 				$state = $row['operation'];
 			}
 		}
@@ -491,32 +556,168 @@ class IdentityService {
 			PlcOperation::build($rotationKeys, $identity->signingPublic, $handle, $endpoint, $this->prev($identity)),
 			$signer,
 		);
-		$logId = $this->plcLog->record($identity->did, PlcOperation::cid($operation)->toString(), $operation);
-		$this->send($logId, $identity->did, $operation);
+		$this->plcLog->record($identity->did, PlcOperation::cid($operation)->toString(), $operation);
+		$this->flush($identity->did);
 	}
 
 	/**
+	 * The CID the next operation follows: the latest live one in the log,
+	 * or with $confirmed the latest the directory took.
+	 *
 	 * @throws AtprotoException when the log has no operation to follow
 	 */
-	private function prev(Identity $identity): string {
-		$prev = $this->plcLog->latestCid($identity->did);
+	private function prev(Identity $identity, bool $confirmed = false): string {
+		$prev = $confirmed ? $this->plcLog->confirmedCid($identity->did) : $this->plcLog->latestCid($identity->did);
 		if ($prev === '') {
-			throw new AtprotoException('No PLC operation on record for ' . $identity->did);
+			throw new AtprotoException('No ' . ($confirmed ? 'confirmed ' : '') . 'PLC operation on record for ' . $identity->did);
 		}
 
 		return $prev;
 	}
 
 	/**
-	 * Sends a logged operation; a failure is logged and left for repair().
+	 * Sends a DID's pending operations in order, each signed on the
+	 * directory's head as it is then, with the rotation key of this
+	 * instance the head names; a genesis goes as it is. A refusal makes the
+	 * operation dead and the next one is tried on the same head; a
+	 * directory out of reach leaves the rest for repair().
+	 *
+	 * @return int how many were confirmed now
 	 */
-	private function send(int $logId, string $did, array $operation): void {
-		$this->plcLog->markSent($logId);
-		try {
-			$this->plc->submit($did, $operation);
-			$this->plcLog->markConfirmed($logId);
-		} catch (AtprotoException $e) {
-			$this->logger->warning('PLC operation not accepted yet', ['did' => $did, 'exception' => $e]);
+	private function flush(string $did): int {
+		$confirmed = 0;
+		$head = $this->plcLog->confirmedCid($did);
+		foreach ($this->plcLog->getPending($did) as $row) {
+			$operation = $row['operation'];
+			if ($head !== '' || ($operation['prev'] ?? null) !== null) {
+				try {
+					$operation = $this->follow($did, $operation, $head);
+				} catch (AtprotoException $e) {
+					$this->plcLog->markDead($row['id'], $e->getMessage());
+					$this->logger->warning('PLC operation cannot follow the directory\'s head', ['did' => $did, 'cid' => $row['cid'], 'reason' => $e->getMessage()]);
+					continue;
+				}
+				$cid = PlcOperation::cid($operation)->toString();
+				if ($cid !== $row['cid']) {
+					$this->plcLog->rewrite($row['id'], $cid, $operation);
+				}
+			}
+			$this->plcLog->markSent($row['id']);
+			try {
+				$this->plc->submit($did, $operation);
+			} catch (AtprotoPlcRefusedException $e) {
+				$this->plcLog->markDead($row['id'], $e->getMessage());
+				$this->logger->warning('PLC operation refused by the directory', ['did' => $did, 'cid' => $row['cid'], 'reason' => $e->getMessage()]);
+				continue;
+			} catch (AtprotoException $e) {
+				$this->logger->warning('PLC operation not accepted yet', ['did' => $did, 'exception' => $e]);
+				break;
+			}
+			$this->plcLog->markConfirmed($row['id']);
+			$head = PlcOperation::cid($operation)->toString();
+			$confirmed++;
 		}
+
+		return $confirmed;
+	}
+
+	/**
+	 * The operation signed to follow $head, with the rotation key of this
+	 * instance that $head names — the retired ones included, for a head
+	 * from before a rotation. One that follows the head with that key
+	 * already is returned as it is.
+	 *
+	 * @throws AtprotoException when nothing is confirmed, or no key of this instance has authority
+	 */
+	private function follow(string $did, array $operation, string $head): array {
+		if ($head === '') {
+			throw new AtprotoException('no confirmed operation to follow');
+		}
+		$authority = [];
+		foreach ($this->plcLog->getByDid($did) as $row) {
+			if ($row['cid'] === $head) {
+				$authority = self::authority($row['operation']);
+			}
+		}
+		foreach ($this->instanceKeys->rotationKeys() as $key) {
+			if (in_array($key->didKey(), $authority, true)) {
+				if (($operation['prev'] ?? null) === $head && PlcOperation::verify($operation, $key->publicKey())) {
+					return $operation;
+				}
+				$operation['prev'] = $head;
+
+				return PlcOperation::sign($operation, $key);
+			}
+		}
+
+		throw new AtprotoException('no rotation key of this server is named by the directory\'s latest operation');
+	}
+
+	/**
+	 * The identity row as the log's confirmed head has it — the directory's
+	 * latest operation, once nothing is pending: its handle, and its
+	 * recovery key only while the head still lists it. A signing key or an
+	 * instance key the head no longer names is nothing this server can put
+	 * right by itself, so it is warned of.
+	 */
+	private function takeFromHead(string $did): void {
+		$state = null;
+		foreach ($this->plcLog->getByDid($did) as $row) {
+			if ($row['dead'] === 0 && $row['confirmed'] !== 0) {
+				$state = ($row['operation']['type'] ?? '') === PlcOperation::TYPE_OPERATION ? $row['operation'] : null;
+			}
+		}
+		if ($state === null) {
+			return;
+		}
+		try {
+			$identity = $this->identityRequest->getByDid($did);
+		} catch (AtprotoIdentityNotFoundException) {
+			return;
+		}
+		$handle = (string)preg_replace('#^at://#', '', (string)($state['alsoKnownAs'][0] ?? ''));
+		if ($handle !== '' && $handle !== $identity->handle) {
+			$this->identityRequest->setCustomHandle($did, $handle === $identity->assignedHandle() ? '' : $handle);
+			$this->logger->warning('Bluesky handle taken from the directory', ['did' => $did, 'handle' => $handle, 'was' => $identity->handle]);
+		}
+		$rotation = self::stringList($state['rotationKeys'] ?? null);
+		if ($identity->recoveryPublic !== '' && !in_array($identity->recoveryPublic, $rotation, true)) {
+			$this->identityRequest->setRecoveryPublic($did, '');
+			$this->logger->warning('Recovery key no longer listed by the directory', ['did' => $did]);
+		}
+		$instance = array_map(static fn (PrivateKey $key): string => $key->didKey(), $this->instanceKeys->rotationKeys());
+		if (array_intersect($instance, $rotation) === []) {
+			$this->logger->warning('No rotation key of this server is listed by the directory', ['did' => $did, 'listed' => $rotation]);
+		}
+		if (($state['verificationMethods']['atproto'] ?? '') !== $identity->signingPublic) {
+			$this->logger->warning('The directory names another signing key', ['did' => $did, 'listed' => $state['verificationMethods']['atproto'] ?? '']);
+		}
+	}
+
+	/**
+	 * The keys an operation gives authority over the next one: its
+	 * rotation keys, or for a legacy `create` its recovery and signing key.
+	 *
+	 * @return list<string>
+	 */
+	private static function authority(array $operation): array {
+		if (($operation['type'] ?? '') === 'create') {
+			return array_values(array_filter([$operation['recoveryKey'] ?? null, $operation['signingKey'] ?? null], 'is_string'));
+		}
+
+		return self::stringList($operation['rotationKeys'] ?? null);
+	}
+
+	/**
+	 * The strings of a decoded JSON list, in order; anything else is none.
+	 *
+	 * @return list<string>
+	 */
+	private static function stringList(mixed $value): array {
+		if (!is_array($value)) {
+			return [];
+		}
+
+		return array_values(array_filter($value, 'is_string'));
 	}
 }

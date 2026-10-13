@@ -540,6 +540,17 @@ php occ social:atproto:plc [DID] [--repair]
 |--------|-------|-------------|
 | `--repair` | none | Send every operation the directory never confirmed again |
 
+Each row of the log says when the operation was sent and confirmed, or when it
+was given up on (`dead`) and what the directory said (`reason`). `--repair` is
+what the maintenance job does every five minutes: for each DID with a pending
+operation it compares the log with the directory's audit log — an operation
+the directory holds is confirmed, one it nullified is dead, one it holds that
+this log does not is taken into the log — then sends the pending operations in
+order, each built on the directory's latest confirmed operation and signed
+again when that moved. One the directory refuses is dead and never sent again;
+the next one follows the confirmed operation instead. One the directory could
+not be asked about (unreachable, a 5xx, a 429) waits, with everything behind it.
+
 ### `social:atproto:resolve`
 
 What a handle or DID is: the local identity, and the DID document the directory

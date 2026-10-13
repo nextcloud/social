@@ -28,6 +28,7 @@ use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Security\PrivateKeyCipher;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -38,7 +39,11 @@ use Psr\Log\NullLogger;
 /**
  * Making an identity: the handle, the genesis operation and the DID it
  * defines, what is stored sealed, what is logged before it is sent, and
- * what happens when the directory is down.
+ * what happens when the directory is down, refuses an operation or
+ * nullified one: the log is a queue per DID whose `prev` is the
+ * directory's confirmed head, a refused operation is dead and the next
+ * one follows the head instead, and repair() reads the directory's audit
+ * log before it sends anything again.
  */
 #[AllowMockObjectsWithoutExpectations]
 class IdentityServiceTest extends TestCase {
@@ -55,10 +60,12 @@ class IdentityServiceTest extends TestCase {
 	/** @var AtprotoBlobRequest&MockObject */
 	private AtprotoBlobRequest $blobs;
 	private PrivateKey $rotation;
+	/** the rotation key in use; the one before it stays in $rotation */
+	private PrivateKey $currentRotation;
 	private IdentityService $service;
 	/** @var array<string, Identity> */
 	private array $stored = [];
-	/** @var array<int, array{did: string, cid: string, operation: array}> */
+	/** @var array<int, array{id: int, did: string, cid: string, operation: array, creation: int, sent: int, confirmed: int, dead: int, reason: string, removed?: bool}> the PLC log, row id = index + 1 */
 	private array $logged = [];
 	/** @var array<string, Identity> the rows found by actor id */
 	private array $byActor = [];
@@ -80,25 +87,49 @@ class IdentityServiceTest extends TestCase {
 		$this->identityRequest->method('getByDid')->willReturnCallback(fn (string $did): Identity => $this->stored[$did] ?? throw new AtprotoIdentityNotFoundException());
 		$this->identityRequest->method('getByActorId')->willReturnCallback(fn (string $id): Identity => $this->byActor[$id] ?? throw new AtprotoIdentityNotFoundException());
 
+		$this->identityRequest->method('setRecoveryPublic')->willReturnCallback(function (string $did, string $recovery): void {
+			$was = $this->stored[$did];
+			$this->stored[$did] = new Identity($was->id, $was->actorId, $was->did, $was->handle, $was->sealedSigningKey, $was->signingPublic, $recovery, $was->state, $was->movedFromPds, $was->creation, $was->assignedHandle, $was->customHandle);
+		});
+		$this->identityRequest->method('setCustomHandle')->willReturnCallback(function (string $did, string $custom): void {
+			$was = $this->stored[$did];
+			$this->stored[$did] = new Identity($was->id, $was->actorId, $was->did, $custom !== '' ? $custom : $was->assignedHandle(), $was->sealedSigningKey, $was->signingPublic, $was->recoveryPublic, $was->state, $was->movedFromPds, $was->creation, $was->assignedHandle(), $custom);
+		});
+
 		$this->plcLog = $this->createMock(AtprotoPlcLogRequest::class);
 		$this->plcLog->method('record')->willReturnCallback(function (string $did, string $cid, array $operation): int {
-			$this->logged[] = ['did' => $did, 'cid' => $cid, 'operation' => $operation];
+			$this->logged[] = ['id' => count($this->logged) + 1, 'did' => $did, 'cid' => $cid, 'operation' => $operation, 'creation' => 1, 'sent' => 0, 'confirmed' => 0, 'dead' => 0, 'reason' => ''];
 
 			return count($this->logged);
 		});
-		$this->plcLog->method('latestCid')->willReturnCallback(function (string $did): string {
-			foreach (array_reverse($this->logged) as $row) {
-				if ($row['did'] === $did) {
-					return $row['cid'];
-				}
-			}
-
-			return '';
+		$this->plcLog->method('rewrite')->willReturnCallback(function (int $id, string $cid, array $operation): void {
+			$this->logged[$id - 1]['cid'] = $cid;
+			$this->logged[$id - 1]['operation'] = $operation;
 		});
+		$this->plcLog->method('markSent')->willReturnCallback(function (int $id): void {
+			$this->logged[$id - 1]['sent'] = 1;
+		});
+		$this->plcLog->method('markConfirmed')->willReturnCallback(function (int $id): void {
+			$this->logged[$id - 1]['confirmed'] = 1;
+		});
+		$this->plcLog->method('markDead')->willReturnCallback(function (int $id, string $reason): void {
+			$this->logged[$id - 1]['dead'] = 1;
+			$this->logged[$id - 1]['reason'] = $reason;
+		});
+		$this->plcLog->method('remove')->willReturnCallback(function (int $id): void {
+			$this->logged[$id - 1]['removed'] = true;
+		});
+		$this->plcLog->method('getByDid')->willReturnCallback(fn (string $did): array => $this->rows(static fn (array $row): bool => $row['did'] === $did));
+		$this->plcLog->method('getPending')->willReturnCallback(fn (string $did): array => $this->rows(static fn (array $row): bool => $row['did'] === $did && $row['confirmed'] === 0 && $row['dead'] === 0));
+		$this->plcLog->method('getUnconfirmed')->willReturnCallback(fn (int $limit = 100): array => array_slice($this->rows(static fn (array $row): bool => $row['confirmed'] === 0 && $row['dead'] === 0), 0, $limit));
+		$this->plcLog->method('latestCid')->willReturnCallback(fn (string $did): string => $this->lastCid($did, false));
+		$this->plcLog->method('confirmedCid')->willReturnCallback(fn (string $did): string => $this->lastCid($did, true));
 
 		$this->rotation = PrivateKey::generate(Curve::K256);
+		$this->currentRotation = $this->rotation;
 		$instanceKeys = $this->createMock(InstanceKeyService::class);
-		$instanceKeys->method('rotationKey')->willReturn($this->rotation);
+		$instanceKeys->method('rotationKey')->willReturnCallback(fn (): PrivateKey => $this->currentRotation);
+		$instanceKeys->method('rotationKeys')->willReturnCallback(fn (): array => $this->currentRotation === $this->rotation ? [$this->rotation] : [$this->currentRotation, $this->rotation]);
 		$instanceKeys->method('serviceKey')->willReturn(PrivateKey::generate(Curve::K256));
 
 		$cipher = $this->createMock(PrivateKeyCipher::class);
@@ -156,13 +187,207 @@ class IdentityServiceTest extends TestCase {
 	}
 
 	public function testRepairResendsWhatWasNotConfirmed(): void {
-		$this->plcLog->method('getUnconfirmed')->willReturn([
-			['id' => 7, 'did' => 'did:plc:x', 'cid' => 'bafy', 'operation' => ['type' => 'plc_operation'], 'creation' => 0, 'sent' => 0, 'confirmed' => 0],
-		]);
-		$this->plc->expects($this->once())->method('submit')->with('did:plc:x', ['type' => 'plc_operation']);
-		$this->plcLog->expects($this->once())->method('markConfirmed')->with(7);
+		$this->plcLog->record('did:plc:x', 'bafy', ['type' => 'plc_operation', 'prev' => null]);
+		$this->plc->expects($this->once())->method('auditLog')->with('did:plc:x')->willReturn([]);
+		$this->plc->expects($this->once())->method('submit')->with('did:plc:x', ['type' => 'plc_operation', 'prev' => null]);
+		$this->plcLog->expects($this->once())->method('markConfirmed')->with(1);
 
 		$this->assertSame(1, $this->service->repair());
+	}
+
+	/**
+	 * The directory could not be asked about A: A waits, B is queued
+	 * behind it and never tried on its own, and the repair sends both in
+	 * order once the directory answers, B as it was built, since A is the
+	 * head it follows.
+	 */
+	public function testAnOperationTheDirectoryCouldNotTakeHoldsTheOnesBehindIt(): void {
+		$identity = $this->service->forActor(self::actor('queued'));
+		$this->assertNotNull($identity);
+		$down = true;
+		$submitted = [];
+		$this->plc->method('submit')->willReturnCallback(static function (string $did, array $operation) use (&$submitted, &$down): void {
+			$submitted[] = $operation;
+			if ($down) {
+				throw new AtprotoException('PLC directory could not be reached');
+			}
+		});
+		$this->plc->method('auditLog')->willReturn([['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false]]);
+
+		$this->service->issueRecoveryKey($identity);
+		$this->service->useCustomHandle($this->stored[$identity->did], 'queued.example.org');
+
+		$this->assertSame([$this->logged[1]['operation'], $this->logged[1]['operation']], $submitted, 'A is tried when queued and again when B is queued; B is never tried while A is pending');
+		$this->assertSame([1, 1, 0], array_column($this->logged, 'sent'));
+		$this->assertSame([1, 0, 0], array_column($this->logged, 'confirmed'));
+		$this->assertSame($this->logged[1]['cid'], $this->logged[2]['operation']['prev'], 'B follows A');
+		$this->assertSame($this->logged[0]['cid'], $this->logged[1]['operation']['prev'], 'A follows the genesis');
+
+		$down = false;
+		$cidOfB = $this->logged[2]['cid'];
+		$this->assertSame(2, $this->service->repair());
+		$this->assertSame([1, 1, 1], array_column($this->logged, 'confirmed'));
+		$this->assertSame($cidOfB, $this->logged[2]['cid'], 'B was sent as it was built: its prev was the head');
+		$this->assertSame([$this->logged[1]['operation'], $this->logged[2]['operation']], array_slice($submitted, 2));
+	}
+
+	/**
+	 * The directory refuses A: A is dead, with the directory's reason, and
+	 * B — built on A — is signed again on the confirmed head and sent.
+	 */
+	public function testARefusedOperationIsDeadAndTheNextFollowsTheConfirmedHead(): void {
+		$identity = $this->service->forActor(self::actor('refused'));
+		$this->assertNotNull($identity);
+		$answer = static fn (): never => throw new AtprotoException('PLC directory could not be reached');
+		$submitted = [];
+		$this->plc->method('submit')->willReturnCallback(static function (string $did, array $operation) use (&$submitted, &$answer): void {
+			$submitted[] = $operation;
+			$answer();
+		});
+		$this->plc->method('auditLog')->willReturn([['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false]]);
+		$this->service->issueRecoveryKey($identity);
+		$this->service->useCustomHandle($this->stored[$identity->did], 'refused.example.org');
+		$recovery = $this->stored[$identity->did]->recoveryPublic;
+		$this->assertSame([$this->rotation->didKey(), $recovery], $this->logged[1]['operation']['rotationKeys']);
+		$this->assertSame([$this->rotation->didKey(), $recovery], $this->logged[2]['operation']['rotationKeys'], 'B carries the recovery key A added');
+
+		$tried = 0;
+		$answer = static function () use (&$tried): void {
+			if ($tried++ === 0) {
+				throw new AtprotoPlcRefusedException('PLC directory refused the operation (400): Invalid signature on op');
+			}
+		};
+		$this->assertSame(1, $this->service->repair());
+
+		$this->assertSame([1, 0, 1], array_column($this->logged, 'confirmed'));
+		$this->assertSame([0, 1, 0], array_column($this->logged, 'dead'));
+		$this->assertSame('PLC directory refused the operation (400): Invalid signature on op', $this->logged[1]['reason']);
+		$sent = $this->logged[2]['operation'];
+		$this->assertSame($this->logged[0]['cid'], $sent['prev'], 'B follows the genesis now, not the dead A');
+		$this->assertSame(['at://refused.example.org'], $sent['alsoKnownAs']);
+		$this->assertTrue(PlcOperation::verify($sent, $this->rotation->publicKey()), 'signed again');
+		$this->assertSame(PlcOperation::cid($sent)->toString(), $this->logged[2]['cid'], 'the row carries the CID of what was sent');
+		$this->assertSame($sent, end($submitted));
+		$this->assertSame(['at://refused.example.org'], $this->service->document($this->stored[$identity->did])['alsoKnownAs'], 'the document is built from the live operations');
+
+		$this->assertSame(0, $this->service->repair(), 'a dead operation is never sent again');
+		$this->assertCount(4, $submitted);
+	}
+
+	/**
+	 * A head that names only a retired instance key — the operation that
+	 * rotated it is dead — is followed with that key.
+	 */
+	public function testARetiredInstanceKeySignsWhenTheHeadStillNamesIt(): void {
+		$identity = $this->service->forActor(self::actor('rotated'));
+		$this->assertNotNull($identity);
+		$this->plc->method('auditLog')->willReturn([['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false]]);
+		$this->plc->method('submit')->willReturnCallback(function (string $did, array $operation): void {
+			if (count($this->logged) === 2) {
+				throw new AtprotoPlcRefusedException('PLC directory refused the operation (400): nope');
+			}
+		});
+		$new = PrivateKey::generate(Curve::K256);
+		$this->service->rotateInstanceKey($identity, $new, $this->rotation);
+		$this->currentRotation = $new;
+		$this->assertSame(1, $this->logged[1]['dead']);
+
+		$this->service->useCustomHandle($this->stored[$identity->did], 'rotated.example.org');
+
+		$sent = $this->logged[2]['operation'];
+		$this->assertSame(1, $this->logged[2]['confirmed']);
+		$this->assertSame($this->logged[0]['cid'], $sent['prev']);
+		$this->assertSame([$new->didKey()], $sent['rotationKeys'], 'the operation names the key in use');
+		$this->assertTrue(PlcOperation::verify($sent, $this->rotation->publicKey()), 'signed with the key the head names');
+		$this->assertFalse(PlcOperation::verify($sent, $new->publicKey()));
+	}
+
+	/**
+	 * The directory's audit log is the truth: an operation it nullified is
+	 * dead, one it holds that the log does not (the person's own, signed
+	 * with their recovery key) is taken in as confirmed, the identity row
+	 * takes the handle it names, and an operation that cannot follow the
+	 * new head — no key of this server is named any more — is dead too.
+	 */
+	public function testANullifiedOperationIsDeadAndTheIdentityFollowsTheDirectory(): void {
+		$identity = $this->service->forActor(self::actor('nullified'));
+		$this->assertNotNull($identity);
+		$this->service->issueRecoveryKey($identity);
+		$withRecovery = $this->stored[$identity->did];
+		$this->assertSame(1, $this->logged[1]['confirmed']);
+		$theirs = PlcOperation::sign(
+			PlcOperation::build([$withRecovery->recoveryPublic], $withRecovery->signingPublic, 'nullified.example.org', 'https://social.test', $this->logged[0]['cid']),
+			PrivateKey::generate(Curve::K256),
+		);
+		$this->plc->method('auditLog')->willReturn([
+			['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false],
+			['cid' => $this->logged[1]['cid'], 'operation' => $this->logged[1]['operation'], 'nullified' => true],
+			['cid' => PlcOperation::cid($theirs)->toString(), 'operation' => $theirs, 'nullified' => false],
+		]);
+		$this->plc->method('submit')->willThrowException(new AtprotoException('PLC directory could not be reached'));
+		$this->service->useCustomHandle($withRecovery, 'mine.example.org');
+		$this->assertSame(0, $this->logged[2]['confirmed']);
+		$this->identityRequest->expects($this->once())->method('setCustomHandle')->with($identity->did, 'nullified.example.org');
+		$this->identityRequest->expects($this->never())->method('setRecoveryPublic');
+
+		$this->assertSame(0, $this->service->repair());
+
+		$this->assertSame([0, 1, 1, 0], array_column($this->logged, 'dead'));
+		$this->assertSame('nullified by the directory', $this->logged[1]['reason']);
+		$this->assertSame($theirs, $this->logged[3]['operation'], 'the directory\'s operation is in the log');
+		$this->assertSame(1, $this->logged[3]['confirmed']);
+		$this->assertStringContainsString('no rotation key of this server', $this->logged[2]['reason']);
+		$this->assertSame(['at://nullified.example.org'], $this->service->document($withRecovery)['alsoKnownAs']);
+	}
+
+	/**
+	 * The directory's head names neither the recovery key nor any key of
+	 * this server: the row drops the recovery key, and the pending
+	 * operation that would have listed it again cannot follow the head.
+	 */
+	public function testARecoveryKeyTheDirectoryNoLongerListsIsDropped(): void {
+		$identity = $this->service->forActor(self::actor('dropped'));
+		$this->assertNotNull($identity);
+		$this->service->issueRecoveryKey($identity);
+		$theirs = PlcOperation::sign(
+			PlcOperation::build([PrivateKey::generate(Curve::K256)->didKey()], $identity->signingPublic, 'dropped.social.test', 'https://social.test', $this->logged[0]['cid']),
+			PrivateKey::generate(Curve::K256),
+		);
+		$this->plc->method('auditLog')->willReturn([
+			['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false],
+			['cid' => PlcOperation::cid($theirs)->toString(), 'operation' => $theirs, 'nullified' => false],
+		]);
+		$this->plc->method('submit')->willThrowException(new AtprotoException('PLC directory could not be reached'));
+		$this->service->useCustomHandle($this->stored[$identity->did], 'dropped.example.org');
+		$this->identityRequest->expects($this->once())->method('setRecoveryPublic')->with($identity->did, '');
+		$this->identityRequest->expects($this->once())->method('setCustomHandle')->with($identity->did, '');
+
+		$this->assertSame(0, $this->service->repair());
+
+		$this->assertSame([0, 1, 1, 0], array_column($this->logged, 'dead'));
+		$this->assertSame('not in the directory\'s log', $this->logged[1]['reason'], 'confirmed here, not held there');
+		$this->assertStringContainsString('no rotation key of this server', $this->logged[2]['reason']);
+	}
+
+	public function testAHandOverWaitsForAnOperationTheDirectoryHasNotConfirmed(): void {
+		$identity = $this->service->forActor(self::actor('waiting'));
+		$this->assertNotNull($identity);
+		$this->plc->method('submit')->willThrowException(new AtprotoException('PLC directory could not be reached'));
+		$this->service->issueRecoveryKey($identity);
+		$this->plcLog->expects($this->never())->method('remove');
+
+		try {
+			$this->service->handOver($this->stored[$identity->did], [
+				'rotationKeys' => [PrivateKey::generate(Curve::K256)->didKey()],
+				'verificationMethods' => ['atproto' => PrivateKey::generate(Curve::K256)->didKey()],
+				'alsoKnownAs' => ['at://waiting.pds.example.com'],
+				'services' => ['atproto_pds' => ['endpoint' => 'https://pds.example.com']],
+			]);
+			$this->fail('handed over');
+		} catch (AtprotoException $e) {
+			$this->assertStringContainsString('not confirmed yet', $e->getMessage());
+		}
+		$this->assertCount(2, $this->logged, 'nothing was logged for the hand-over');
 	}
 
 	public function testARecoveryKeyIsAddedSecondAndThePhraseIsTheOnlyCopy(): void {
@@ -377,6 +602,21 @@ class IdentityServiceTest extends TestCase {
 		$this->assertSame('did:web:social.test#atproto', $document['verificationMethod'][0]['id']);
 		$this->assertInstanceOf(PublicKey::class, PublicKey::fromDidKey('did:key:' . $document['verificationMethod'][0]['publicKeyMultibase']));
 		$this->assertSame('https://social.test', $document['service'][0]['serviceEndpoint']);
+	}
+
+	/** @return array<int, array> the rows not removed that $keep takes, as the request returns them */
+	private function rows(callable $keep): array {
+		return array_values(array_filter($this->logged, static fn (array $row): bool => !($row['removed'] ?? false) && $keep($row)));
+	}
+
+	private function lastCid(string $did, bool $confirmedOnly): string {
+		foreach (array_reverse($this->logged) as $row) {
+			if ($row['did'] === $did && $row['dead'] === 0 && !($row['removed'] ?? false) && (!$confirmedOnly || $row['confirmed'] !== 0)) {
+				return $row['cid'];
+			}
+		}
+
+		return '';
 	}
 
 	private static function actor(string $username): Person {

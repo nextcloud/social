@@ -235,6 +235,26 @@ in `social_atproto_plc_log` before it is sent (so a crash between the two
 leaves a row to reconcile from), and `occ social:atproto:plc` lists the log
 and the directory's view side by side.
 
+The log is a queue per DID, and `prev` is the directory's, not the log's:
+an operation goes out in its turn, built on the operation the directory
+confirmed last. The client retries a network failure, a 5xx and a 429;
+any other 4xx is the directory's verdict, and the operation is **dead** —
+kept in the log with the directory's reason, never sent again, and not
+the `prev` of anything. The next operation is signed again on the
+confirmed head (with whichever rotation key of this instance that head
+still names, the retired ones included) and tried on its own. An
+operation the directory could not be asked about waits, with everything
+behind it, for the maintenance job (`IdentityService::repair()`, every
+five minutes), which first compares the log with the directory's audit
+log (`/log/audit`): an operation the directory holds is confirmed, one it
+nullified is dead, one it holds that the log does not — the person's own,
+signed with their recovery key elsewhere — is taken into the log as
+confirmed, and the identity row takes the handle the directory names and
+drops a recovery key it no longer lists. A signing key or instance key
+the directory no longer names is warned of, with the DID; this server
+cannot put that right by itself. A hand-over to another PDS (§13.2)
+refuses to start while an earlier operation for the DID is pending.
+
 ### 4.6 Switching off (D23)
 
 **Settings → Apps and account → Bluesky** has the switch **Be on Bluesky**,

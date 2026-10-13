@@ -18,7 +18,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * `occ social:atproto:plc`: this app's log of PLC operations beside the
- * directory's view, and the resend of what never got through.
+ * directory's view, and the resend of what never got through. An
+ * operation the directory refused or nullified is shown dead, with the
+ * directory's reason.
  */
 class AtprotoPlc extends SocialCommand {
 	public function __construct(
@@ -70,6 +72,8 @@ class AtprotoPlc extends SocialCommand {
 				'created' => gmdate('Y-m-d H:i:s', $row['creation']),
 				'sent' => $row['sent'] > 0 ? gmdate('Y-m-d H:i:s', $row['sent']) : '-',
 				'confirmed' => $row['confirmed'] > 0 ? gmdate('Y-m-d H:i:s', $row['confirmed']) : '-',
+				'dead' => $row['dead'] > 0 ? gmdate('Y-m-d H:i:s', $row['dead']) : '-',
+				'reason' => $row['reason'],
 			], $compared['log']),
 			'directory' => $compared['directory'] ?? 'unknown to the directory',
 		]);
