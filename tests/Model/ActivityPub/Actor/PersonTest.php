@@ -942,6 +942,24 @@ class PersonTest extends TestCase {
 		$this->assertSame(1546300800, $person->getDeleted(), 'the stored time, not the current one');
 	}
 
+	/**
+	 * The columns are written in UTC; read in another zone, a cached actor's
+	 * `created_at` moved by that zone's offset.
+	 */
+	public function testImportFromDatabaseReadsTheStoredTimesAsUtcWhateverTheZone(): void {
+		date_default_timezone_set('America/Los_Angeles');
+		$person = new Person();
+
+		$person->importFromDatabase([
+			'id' => 'https://mastodon.social/users/alice',
+			'creation' => '2019-01-01 00:00:00',
+			'deleted' => '2019-01-02 00:00:00',
+		]);
+
+		$this->assertSame(1546300800, $person->getCreation());
+		$this->assertSame(1546387200, $person->getDeleted());
+	}
+
 	// --- discoverable / indexable ---------------------------------------
 
 	public function testImportReadsDiscoverableAndIndexable(): void {

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Model\ActivityPub\Actor;
 
 use DateTime;
+use DateTimeZone;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
@@ -1403,8 +1404,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 		$this->overlayStoredCounts($data);
 
+		// both columns are written in UTC, whatever zone the process reads in
 		try {
-			$cTime = new DateTime($this->get('creation', $data, 'yesterday'));
+			$cTime = new DateTime($this->get('creation', $data, 'yesterday'), new DateTimeZone('UTC'));
 			$this->setCreation($cTime->getTimestamp());
 		} catch (Exception $e) {
 		}
@@ -1414,7 +1416,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			if ($deletedValue === '' || $deletedValue === '0000-00-00 00:00:00') {
 				return;
 			}
-			$dTime = new DateTime($deletedValue);
+			$dTime = new DateTime($deletedValue, new DateTimeZone('UTC'));
 			$deleted = $dTime->getTimestamp();
 			if ($deleted > 0) {
 				$this->setDeleted($deleted);
