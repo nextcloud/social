@@ -15,6 +15,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\StreamPruneService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
@@ -57,6 +58,8 @@ class StreamPruneTest extends TestCase {
 	}
 
 	private function cleanup(): void {
+		// each test walks the old rows from the oldest, as the first run of a day does
+		Server::get(ConfigService::class)->deleteAppValue(ConfigService::SOCIAL_RETENTION_CHECKED);
 		foreach (self::SUFFIXES as $suffix) {
 			$this->streamRequest->deleteById($this->id($suffix), Note::TYPE);
 		}
@@ -226,6 +229,51 @@ class StreamPruneTest extends TestCase {
 		$this->assertSame(0, $this->countRows(CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id', 'stale'));
 		$this->assertSame(0, $this->countRows(CoreRequestBuilder::TABLE_STREAM_TAGS, 'stream_id', 'stale'));
 		$this->assertSame(0, $this->countRows(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS, 'parent_id_prim', 'stale'));
+	}
+
+	/**
+	 * Every chunk used to begin again at the oldest row, so the posts the
+	 * rules keep — most of the old table on a real instance — were judged
+	 * again on every chunk of every run. A run now carries on from where the
+	 * last one stopped, and a kept post is judged once a day: one that loses
+	 * its protection later the same day goes the next day.
+	 */
+	public function testAKeptPostIsJudgedOnceADay(): void {
+		$config = Server::get(ConfigService::class);
+		$before = (string)$config->getAppValue(ConfigService::SOCIAL_RETENTION_CHECKED);
+		$config->deleteAppValue(ConfigService::SOCIAL_RETENTION_CHECKED);
+
+		try {
+			$this->note('stale');
+			$this->note('followed-author', true, false, self::FOLLOWED);
+			$follow = new Follow();
+			$follow->setId(self::BASE . '/follows/1');
+			$follow->setActorId(self::VIEWER);
+			$follow->setObjectId(self::FOLLOWED);
+			$follow->setFollowId(self::FOLLOWED . '/followers');
+			$follow->setAccepted(true);
+			$this->followsRequest->save($follow);
+
+			$this->service->prune(90);
+			$this->assertFalse($this->exists('stale'));
+			$this->assertTrue($this->exists('followed-author'), 'followed: kept');
+			[$day] = explode('|', (string)$config->getAppValue(ConfigService::SOCIAL_RETENTION_CHECKED));
+			$this->assertSame(gmdate('Y-m-d'), $day, 'where the walk got to is kept, with the day it is for');
+
+			// the protection goes; today the post has been judged already
+			$this->followsRequest->deleteRelatedId(self::VIEWER);
+			$this->service->prune(90);
+			$this->assertTrue($this->exists('followed-author'), 'judged once today');
+
+			// tomorrow the walk starts again from the oldest row
+			$checked = explode('|', (string)$config->getAppValue(ConfigService::SOCIAL_RETENTION_CHECKED));
+			$checked[0] = gmdate('Y-m-d', time() - 86400);
+			$config->setAppValue(ConfigService::SOCIAL_RETENTION_CHECKED, implode('|', $checked));
+			$this->service->prune(90);
+			$this->assertFalse($this->exists('followed-author'), 'judged again the next day');
+		} finally {
+			$config->setAppValue(ConfigService::SOCIAL_RETENTION_CHECKED, $before);
+		}
 	}
 
 	public function testDisabledRetentionPrunesNothing(): void {

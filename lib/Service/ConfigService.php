@@ -88,6 +88,14 @@ class ConfigService {
 	public const SOCIAL_NOTIFICATION_RETENTION_DAYS = 'notification_retention_days';
 
 	/**
+	 * How far the retention walk has judged the old remote posts today:
+	 * `day|creation|id_prim`, written by `StreamPruneService` after each
+	 * chunk. A run carries on from it; the first run of a new day starts
+	 * again from the oldest row.
+	 */
+	public const SOCIAL_RETENTION_CHECKED = 'retention_checked';
+
+	/**
 	 * Days to keep a cached remote actor nobody here refers to any more —
 	 * not followed, not following, no post stored, no relation pending — before
 	 * the cache cron evicts it with its avatar; 0 disables the sweep.
