@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Gumlet\ImageResize;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCP\Config\IUserConfig;
 use OCP\IAvatarManager;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
@@ -44,7 +45,23 @@ class AvatarService {
 		private AccountService $accountService,
 		private LoggerInterface $logger,
 		private MultipartBodyService $multipartBodyService,
+		private IUserConfig $userConfig,
 	) {
+	}
+
+	/**
+	 * Takes the account's settings again from the database before the picture
+	 * is changed.
+	 *
+	 * Nextcloud numbers the picture's address (`?v=`) from its copy of the
+	 * user's settings, which this process read once and keeps. Another
+	 * process may have moved the number since — a web request that drew the
+	 * initials again after a name change, a cron pass — and a picture set
+	 * from a stale copy gets a number a peer has already seen: the actor is
+	 * told, but the picture is never fetched again.
+	 */
+	private function freshPictureVersion(string $userId): void {
+		$this->userConfig->clearCache($userId, true);
 	}
 
 	/**
@@ -94,6 +111,7 @@ class AvatarService {
 	 */
 	public function remove(string $userId): void {
 		$this->assertChangeable($userId);
+		$this->freshPictureVersion($userId);
 
 		try {
 			$this->avatarManager->getAvatar($userId)->remove();
@@ -253,6 +271,7 @@ class AvatarService {
 			throw new InvalidActionException('the uploaded avatar could not be read');
 		}
 
+		$this->freshPictureVersion($userId);
 		try {
 			$this->avatarManager->getAvatar($userId)->set($data);
 		} catch (\Throwable $e) {
