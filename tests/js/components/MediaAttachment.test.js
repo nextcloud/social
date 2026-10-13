@@ -134,15 +134,28 @@ describe('MediaAttachment', () => {
 		expect(image.attributes('decoding')).toBe('async')
 	})
 
-	it('paints the blurhash placeholder at the small preview dimensions', () => {
-		mount(MediaAttachment, { props: { attachment } })
+	it('paints the blurhash placeholder into a small bitmap in the preview\'s ratio', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, meta: { small: { width: 400, height: 300 } } } } })
 
+		// a bitmap left at the element's default 300×150 showed a corner of
+		// the decoded pixels stretched over the frame, and decoding at the
+		// preview's size was work spent on pixels the frame then scaled
+		const canvas = /** @type {HTMLCanvasElement} */ (wrapper.find('canvas.attachment__blurhash').element)
+		expect([canvas.width, canvas.height]).toEqual([32, 24])
 		expect(getContext).toHaveBeenCalledWith('2d')
-		expect(context.createImageData).toHaveBeenCalledWith(4, 3)
+		expect(context.createImageData).toHaveBeenCalledWith(32, 24)
 		const imageData = context.createImageData.mock.results[0].value
-		expect(imageData.data).toHaveLength(4 * 3 * 4)
+		expect(imageData.data).toHaveLength(32 * 24 * 4)
 		expect(imageData.data.some((channel) => channel !== 0)).toBe(true)
 		expect(context.putImageData).toHaveBeenCalledWith(imageData, 0, 0)
+	})
+
+	it('keeps the long side at 32 pixels for an upright picture too', () => {
+		const wrapper = mount(MediaAttachment, { props: { attachment: { ...attachment, meta: { small: { width: 300, height: 400 } } } } })
+
+		const canvas = /** @type {HTMLCanvasElement} */ (wrapper.find('canvas.attachment__blurhash').element)
+		expect([canvas.width, canvas.height]).toEqual([24, 32])
+		expect(context.createImageData).toHaveBeenCalledWith(24, 32)
 	})
 
 	it('crossfades the image out of its own blurhash once it has loaded', async () => {
@@ -217,9 +230,9 @@ describe('MediaAttachment', () => {
 		const wrapper = mount(MediaAttachment, { props: { attachment: null } })
 		expect(context.createImageData).not.toHaveBeenCalled()
 
-		await wrapper.setProps({ attachment: { ...attachment, meta: { small: { width: 2, height: 5 } } } })
+		await wrapper.setProps({ attachment: { ...attachment, meta: { small: { width: 200, height: 500 } } } })
 
-		expect(context.createImageData).toHaveBeenCalledWith(2, 5)
+		expect(context.createImageData).toHaveBeenCalledWith(13, 32)
 		expect(wrapper.find('img').attributes('src')).toBe(attachment.preview_url)
 	})
 

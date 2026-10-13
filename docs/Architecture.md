@@ -3125,7 +3125,9 @@ every place the text still leads.
 `GalleryRatio.js` reserves each picture's box from `meta.original` before it
 loads, clamped between 3:4 and 16:9, so a photo timeline does not jump under the
 reader's thumb as images arrive; `MediaAttachment.vue` paints the `blurhash`
-into that box meanwhile. `GalleryMedia.vue` carries the ALT badge — the
+into that box meanwhile — decoded into a 32-pixel bitmap in the preview's
+ratio that the box scales up, since a hash holds a few colour components and
+not a picture. `GalleryMedia.vue` carries the ALT badge — the
 description is what the picture *is*, and a reader who cannot see it is not the
 only one who wants it — and sets the `alt` attribute from the same value.
 

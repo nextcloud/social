@@ -123,6 +123,25 @@ function sourceOf(attachment) {
 	return String((plays ? attachment.url : attachment.preview_url) ?? '')
 }
 
+/** How many pixels the long side of a blurhash placeholder is drawn at. */
+const BLURHASH_PX = 32
+
+/**
+ * The bitmap a blurhash is decoded into: `BLURHASH_PX` on the long side, the
+ * short side in the preview's own ratio, never under a pixel.
+ *
+ * @param {{width: number, height: number}} small the preview's size
+ * @return {{width: number, height: number}}
+ */
+function blurhashSize(small) {
+	const scale = BLURHASH_PX / Math.max(small.width, small.height, 1)
+
+	return {
+		width: Math.max(1, Math.round(small.width * scale)),
+		height: Math.max(1, Math.round(small.height * scale)),
+	}
+}
+
 export default {
 	name: 'MediaAttachment',
 	components: {
@@ -547,9 +566,17 @@ export default {
 			}
 
 			try {
-				const ctx = /** @type {HTMLCanvasElement} */ (this.$refs.canvas).getContext('2d')
-				const imageData = ctx.createImageData(this.attachment.meta.small.width, this.attachment.meta.small.height)
-				const pixels = decode(blurhash, this.attachment.meta.small.width, this.attachment.meta.small.height)
+				const canvas = /** @type {HTMLCanvasElement} */ (this.$refs.canvas)
+				// a hash holds a few colour components, not a picture: decoding
+				// it at the preview's size was work spent on pixels the frame
+				// then scaled, and a bitmap left at the element's default
+				// 300×150 showed a corner of them stretched over the frame
+				const { width, height } = blurhashSize(this.attachment.meta.small)
+				canvas.width = width
+				canvas.height = height
+				const ctx = canvas.getContext('2d')
+				const imageData = ctx.createImageData(width, height)
+				const pixels = decode(blurhash, width, height)
 				imageData.data.set(pixels)
 				ctx.putImageData(imageData, 0, 0)
 			} catch (error) {
