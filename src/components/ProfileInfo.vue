@@ -364,12 +364,17 @@
 				<IconHeartOutline :size="20" />
 				{{ t('social', 'Support this account') }}
 			</a>
+			<!-- labelled by its own heading rather than `name`: NcModal draws a
+			     name into the page header, above the mask, where it sat over
+			     Nextcloud's search box -->
 			<NcModal
 				v-if="showProfileModal"
-				:name="t('social', 'Edit profile')"
+				labelId="social-profile-editor-title"
 				@close="showProfileModal = false">
 				<div class="user-profile__fields-modal">
-					<h3>{{ t('social', 'Edit profile') }}</h3>
+					<h3 id="social-profile-editor-title">
+						{{ t('social', 'Edit profile') }}
+					</h3>
 					<div class="user-profile__banner-edit">
 						<span class="user-profile__banner-edit-label">{{ t('social', 'Banner') }}</span>
 						<NcButton :disabled="loading" @click="openFilePicker">

@@ -41,8 +41,9 @@ const RouterLinkStub = {
 }
 const NcModalStub = {
 	name: 'NcModal',
+	props: ['name', 'labelId'],
 	emits: ['close'],
-	template: '<div class="modal-stub"><slot /></div>',
+	template: '<div class="modal-stub" :data-name="name" :data-label-id="labelId"><slot /></div>',
 }
 // NcActions only renders its entries inside a popover once opened; these
 // stand-ins render them inline so the menu content can be asserted.
@@ -1144,6 +1145,10 @@ describe('ProfileInfo', () => {
 			await openProfileEditor(wrapper)
 			const modal = wrapper.find('.modal-stub')
 			expect(modal.find('h3').text()).toBe('Edit profile')
+			// its own heading names the dialog: a `name` is drawn into the
+			// page header, above the mask, where it covered the search box
+			expect(modal.attributes('data-name')).toBeUndefined()
+			expect(modal.attributes('data-label-id')).toBe(modal.find('h3').attributes('id'))
 			const apply = buttonByText(modal, 'Apply')
 			expect(apply.attributes('disabled')).toBeDefined()
 
