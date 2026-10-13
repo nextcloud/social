@@ -191,6 +191,11 @@ to stop.
   status in `reblog`, decorated for the reader as on a timeline, where the
   reader's favourite now shows on the boosted status too; a boost of a status
   the reader may not see is a 404.
+- `Api/FollowerCountsTest` — a new account's follower count moves from its
+  first follow (its first cached row carries the counters rather than "never
+  counted"), and a reader who hides the numbers is still sent every account's
+  real `followers_count` through the real dispatcher and middlewares while a
+  status's numbers are 0.
 - `Api/PollInteractionsTest` — a poll is liked, boosted and taken back
   through `POST /api/v1/statuses/{id}/{act}` like any status, and the answer
   carries the reader's flags.

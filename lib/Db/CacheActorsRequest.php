@@ -18,6 +18,7 @@ use OCA\Social\Migration\Version1000Date20260920000002;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\Details;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -152,6 +153,17 @@ class CacheActorsRequest extends CacheActorsRequestBuilder {
 
 		$qb->setValue('icon_id', $qb->createNamedParameter($qb->prim($iconId)));
 		$qb->generatePrimaryKey($actor->getId());
+
+		// the counters the actor arrives with — a local account's, counted a
+		// moment ago by AccountService::addLocalActorDetailCount() — go into
+		// the columns too: a new row otherwise starts at "never counted", the
+		// bumps skip it, and the profile says 0 until the cron's walk
+		$count = $actor->getDetails(Details::COUNT);
+		if (isset($count['followers'])) {
+			$qb->setValue('count_followers', $qb->createNamedParameter(max(0, (int)$count['followers']), IQueryBuilder::PARAM_INT))
+				->setValue('count_following', $qb->createNamedParameter(max(0, (int)($count['following'] ?? 0)), IQueryBuilder::PARAM_INT))
+				->setValue('count_posts', $qb->createNamedParameter(max(0, (int)($count['post'] ?? 0)), IQueryBuilder::PARAM_INT));
+		}
 
 		try {
 			$qb->executeStatement();
