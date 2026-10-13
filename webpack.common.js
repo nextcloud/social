@@ -124,6 +124,21 @@ webpackConfig.module.rules.unshift({
 })
 webpackConfig.resolve.extensions = ['.*', '.ts', '.js', '.vue', '.json']
 
+// A size budget, sized to the bundle as it is so that growth is what warns:
+// the emoji picker chunk is the largest single file at some 935 KB, and the
+// administration entry with the framework chunk it loads first is the
+// largest entrypoint at some 1.35 MB. A warning, not an error -- the build
+// still goes through -- but one that shows up in the build log and in CI.
+// `tests/js/bundles.test.js` pins that the budget stays within reach of what
+// is committed in js/, so it cannot drift into a limit nothing would hit.
+webpackConfig.performance = {
+	hints: 'warning',
+	maxAssetSize: 1024 * 1024,
+	maxEntrypointSize: 1.4 * 1024 * 1024,
+	// the source maps are not served; the licence files are a few hundred bytes
+	assetFilter: (name) => name.endsWith('.js'),
+}
+
 // Preserve .htaccess when cleaning the output directory. It is the one file in
 // js/ that is not build output; the administration page's script was the other
 // one until that page became a Vue entry like every other.

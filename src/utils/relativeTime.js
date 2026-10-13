@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { getCanonicalLocale } from '@nextcloud/l10n'
+import { userLocale } from './locale.js'
 
 /**
  * The two date formats this app shows, from the platform rather than from a
@@ -32,13 +32,30 @@ const STEPS = [
 	['second', 1],
 ]
 
-/** @return {string} the locale to format in, falling back to the browser's */
-function locale() {
-	try {
-		return getCanonicalLocale()
-	} catch {
-		return undefined
+/**
+ * The formatters built so far, by locale and kind. Building one is the
+ * expensive part of `Intl`, and a post's age is re-read on every tick of the
+ * clock for every post on screen.
+ *
+ * @type {Map<string, unknown>}
+ */
+const formatters = new Map()
+
+/**
+ * @template T
+ * @param {string} kind what the formatter is for, with the options that
+ *   shape it, e.g. 'unit:hour'
+ * @param {(locale: string|undefined) => T} build makes it for a locale
+ * @return {T} the one formatter of that kind for the reader's locale
+ */
+function cached(kind, build) {
+	const locale = userLocale()
+	const key = `${locale ?? ''}|${kind}`
+	if (!formatters.has(key)) {
+		formatters.set(key, build(locale))
 	}
+
+	return /** @type {T} */ (formatters.get(key))
 }
 
 /**
@@ -58,9 +75,8 @@ export function fromNow(date, now = new Date()) {
 	const magnitude = Math.abs(seconds)
 
 	const [unit, size] = STEPS.find(([, step]) => magnitude >= step) ?? ['second', 1]
-	const formatter = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' })
 
-	return formatter.format(Math.round(seconds / size), unit)
+	return relativeFormat().format(Math.round(seconds / size), unit)
 }
 
 /**
@@ -96,21 +112,28 @@ export function shortAgo(date, now = new Date()) {
 
 	const seconds = Math.max(0, Math.round((now.getTime() - then.getTime()) / 1000))
 	if (seconds < 60) {
-		return new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' }).format(0, 'second')
+		return relativeFormat().format(0, 'second')
 	}
 
 	for (const { unit, size, below } of SHORT_STEPS) {
 		const count = Math.floor(seconds / size)
 		if (count < below) {
-			return new Intl.NumberFormat(locale(), { style: 'unit', unit, unitDisplay: 'narrow' }).format(count)
+			return cached(`unit:${unit}`, (locale) => new Intl.NumberFormat(locale, { style: 'unit', unit, unitDisplay: 'narrow' })).format(count)
 		}
 	}
 
-	return new Intl.DateTimeFormat(locale(), {
+	const withYear = then.getFullYear() !== now.getFullYear()
+
+	return cached(withYear ? 'day:year' : 'day', (locale) => new Intl.DateTimeFormat(locale, {
 		month: 'short',
 		day: 'numeric',
-		...(then.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
-	}).format(then)
+		...(withYear ? { year: 'numeric' } : {}),
+	})).format(then)
+}
+
+/** @return {Intl.RelativeTimeFormat} the one that says "yesterday" and "now" */
+function relativeFormat() {
+	return cached('relative', (locale) => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }))
 }
 
 /**
@@ -126,10 +149,25 @@ export function fullDateTime(date) {
 		return ''
 	}
 
-	return new Intl.DateTimeFormat(locale(), {
+	return cached('datetime', (locale) => new Intl.DateTimeFormat(locale, {
 		dateStyle: 'long',
 		timeStyle: 'short',
-	}).format(value)
+	})).format(value)
+}
+
+/**
+ * The time of day alone: "9:05 AM", "09:05".
+ *
+ * @param {string|number|Date} date the moment to write out
+ * @return {string} a localised time, or '' for a date that cannot be read
+ */
+export function timeOfDay(date) {
+	const value = new Date(date)
+	if (Number.isNaN(value.getTime())) {
+		return ''
+	}
+
+	return cached('time', (locale) => new Intl.DateTimeFormat(locale, { timeStyle: 'short' })).format(value)
 }
 
 /**
@@ -150,5 +188,5 @@ export function fullDate(date, timeZone = undefined) {
 		return ''
 	}
 
-	return new Intl.DateTimeFormat(locale(), { dateStyle: 'long', timeZone }).format(value)
+	return cached(`date:${timeZone ?? ''}`, (locale) => new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone })).format(value)
 }

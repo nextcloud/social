@@ -193,7 +193,7 @@
 </template>
 
 <script>
-import { getCanonicalLocale, translate as t } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import NcPopover from '@nextcloud/vue/components/NcPopover'
 import IconBell from 'vue-material-design-icons/BellOutline.vue'
 import IconChevronDoubleUp from 'vue-material-design-icons/ChevronDoubleUp.vue'
@@ -216,6 +216,7 @@ import {
 } from '../services/interests.js'
 import { showError, showSuccess, showUndo } from '../services/toast.js'
 import { STEP_SIZES, moveTo, sizeStep } from '../utils/interestCloud.js'
+import { userLocale } from '../utils/locale.js'
 
 /** the widths, in em, of the faint pills an empty cloud is drawn with */
 const GHOSTS = [6.5, 4.5, 5.5, 3.5, 5, 4, 6, 3.5, 4.5]
@@ -326,13 +327,9 @@ export default {
 			return this.preview.map((tag) => byTag.get(tag)).filter(Boolean)
 		},
 
-		/** @return {object} how a score is written in the reader's locale */
+		/** @return {Intl.NumberFormat} how a score is written in the reader's locale */
 		scoreFormat() {
-			try {
-				return new Intl.NumberFormat(getCanonicalLocale() || 'en', { maximumFractionDigits: 1, minimumFractionDigits: 1 })
-			} catch {
-				return new Intl.NumberFormat('en', { maximumFractionDigits: 1, minimumFractionDigits: 1 })
-			}
+			return new Intl.NumberFormat(userLocale(), { maximumFractionDigits: 1, minimumFractionDigits: 1 })
 		},
 	},
 

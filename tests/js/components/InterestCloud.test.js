@@ -140,6 +140,8 @@ describe('InterestCloud', () => {
 	afterEach(() => {
 		wrapper?.unmount()
 		wrapper = undefined
+		delete globalThis._nc_l10n_locale
+		delete globalThis._nc_l10n_language
 	})
 
 	describe('drawing', () => {
@@ -184,6 +186,19 @@ describe('InterestCloud', () => {
 			wrapper = mountCloud()
 
 			expect(tagNamed(wrapper, 'film').attributes('title')).toBe('Rank 4 · learned · score 12.3')
+		})
+
+		/**
+		 * A Nextcloud locale `Intl` does not read (`sr@latin` is one) used to
+		 * fall back to English numbers; the language the page is read in is
+		 * the reader's own.
+		 */
+		it('writes the score in the language the page is read in when the locale is not one Intl reads', () => {
+			globalThis._nc_l10n_locale = 'de@latin'
+			globalThis._nc_l10n_language = 'de'
+			wrapper = mountCloud()
+
+			expect(tagNamed(wrapper, 'film').attributes('title')).toBe('Rank 4 · learned · score 12,3')
 		})
 
 		it('marks pinned, added and followed tags with a glyph, and learned ones with none', () => {

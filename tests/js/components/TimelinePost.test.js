@@ -329,6 +329,36 @@ describe('TimelinePost', () => {
 			expect(wrapper.find('.post-message strong').text()).toBe('world')
 		})
 
+		/**
+		 * The links in a post are the anchors the server wrote, rebuilt by
+		 * MessageContent, and a bare @name or #tag in the text is a router
+		 * link: nothing in the rendering goes through linkifyjs, which the
+		 * component once imported for its side effects and shipped for nothing.
+		 */
+		it('draws a post\'s links and mentions without linkifyjs', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					content: '<p>Hi <a href="https://remote.example/@bob" class="u-url mention">@bob</a>,'
+						+ ' see <a href="https://example.org/page" rel="nofollow">example.org/page</a> and #tag</p>',
+					mentions: [bob],
+				}),
+			})
+
+			const links = wrapper.findAll('.post-message a')
+			expect(links.map((link) => link.attributes('href'))).toEqual([
+				'https://remote.example/@bob',
+				'https://example.org/page',
+				undefined,
+			])
+			expect(links.map((link) => link.text())).toEqual(['@bob', 'example.org/page', '#tag'])
+			expect(links[1].attributes('rel')).toBe('nofollow noopener noreferrer')
+			expect(links[2].attributes('to')).toBeUndefined()
+			expect(wrapper.findAllComponents(RouterLinkStub).map((link) => link.props('to').params)).toEqual([{ tag: 'tag' }])
+
+			const source = readFileSync(resolve(process.cwd(), 'src/components/TimelinePost.vue'), 'utf8')
+			expect(source).not.toMatch(/linkify/)
+		})
+
 		it('shows the post visibility as an icon with the label as tooltip', () => {
 			const { wrapper } = mountPost({ item: makeItem({ visibility: 'followers' }) })
 			const icon = wrapper.find('.post-visibility')

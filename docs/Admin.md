@@ -1210,7 +1210,10 @@ home timeline and the unread count **every thirty seconds**; with it the server
 tells the client instead and the poll drops to once every five minutes — a
 tenfold cut in the request volume, for one app install. The polls also answer
 `304` now when nothing has changed, so even without it most of them cost an
-index probe and an empty response rather than a rendered page.
+index probe and an empty response rather than a rendered page, and a tab
+nobody is looking at does not poll at all: it catches up once when it is
+returned to, and while the server keeps failing it backs off to one attempt
+in five minutes.
 
 **Run delivery workers.** `Cron\Queue` delivers twenty servers at a time and
 takes batch after batch for its 240 seconds: with peers that answer within a

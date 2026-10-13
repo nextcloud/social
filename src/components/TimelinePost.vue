@@ -514,11 +514,7 @@
 
 <script>
 
-// side-effect imports: they register the mention plugin and the string
-// interface that the rendered content relies on
 import { shortAgo, fullDateTime } from '../utils/relativeTime.js'
-import 'linkify-plugin-mention'
-import 'linkify-string'
 import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import CreationOutline from 'vue-material-design-icons/CreationOutline.vue'

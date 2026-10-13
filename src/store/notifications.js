@@ -103,6 +103,8 @@ export const useNotificationsStore = defineStore('notifications', {
 		/**
 		 * Reads how many conversations are unread. Silent on failure, for the
 		 * reason the notification count is: a badge is not worth a toast.
+		 *
+		 * @return {Promise<boolean>} whether the server answered
 		 */
 		async fetchUnreadDirectMessages() {
 			try {
@@ -116,8 +118,12 @@ export const useNotificationsStore = defineStore('notifications', {
 				}
 				this.directCounted = true
 				this.setUnreadDirectMessages(count)
+
+				return true
 			} catch (error) {
 				logger.error('Failed to read the unread direct message count', { error })
+
+				return false
 			}
 		},
 
@@ -155,14 +161,20 @@ export const useNotificationsStore = defineStore('notifications', {
 		 * own summary — the count Mastodon's clients draw their banner from —
 		 * and whether the one-time notice is due. Silent on failure: the line
 		 * and the notice simply stay away.
+		 *
+		 * @return {Promise<boolean>} whether the server answered
 		 */
 		async fetchPendingRequests() {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v2/notifications/policy'))
 				this.setPendingRequests(data?.summary?.pending_requests_count)
 				this.setPolicyNotice(data?.notice === true)
+
+				return true
 			} catch (error) {
 				logger.error('Failed to read how many senders are held back', { error })
+
+				return false
 			}
 		},
 
@@ -179,13 +191,21 @@ export const useNotificationsStore = defineStore('notifications', {
 			}
 		},
 
-		/** Reads the count. Failure is silent: a badge is not worth a toast. */
+		/**
+		 * Reads the count. Failure is silent: a badge is not worth a toast.
+		 *
+		 * @return {Promise<boolean>} whether the server answered
+		 */
 		async fetchUnreadNotifications() {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/notifications/unread_count'))
 				this.setUnreadNotifications(Number(data?.count) || 0)
+
+				return true
 			} catch (error) {
 				logger.error('Failed to read the unread notification count', { error })
+
+				return false
 			}
 		},
 

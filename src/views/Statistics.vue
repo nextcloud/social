@@ -1156,7 +1156,7 @@ export default {
 			const months = this.growth?.months ?? []
 			const last = months[months.length - 1]
 
-			return last ? t('social', '{count} accounts', { count: this.number(last.accounts) }) : ''
+			return last ? n('social', '{count} account', '{count} accounts', last.accounts, { count: this.number(last.accounts) }) : ''
 		},
 
 		/**
