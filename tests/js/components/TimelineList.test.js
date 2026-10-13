@@ -1140,6 +1140,46 @@ describe('TimelineList', () => {
 			expect(dispatch).toHaveBeenCalledWith({ min_id: '50' })
 		})
 
+		it('does not ask for a first page beside the one still loading', async () => {
+			// with nothing on screen the poll had no cursor, so it asked for
+			// a cursor-less first page beside the real one and counted the
+			// answer as posts that had arrived
+			let finishFirst
+			const { dispatch, store } = mountList({
+				responses: [new Promise((resolve) => {
+					finishFirst = resolve
+				})],
+			})
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			// a push event, and coming back to the tab, go the same way
+			onTimelinePush.mock.calls[0][0]()
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(1)
+
+			finishFirst([status('30')])
+			store.$patch({ statuses: { 30: status('30') }, timeline: ['30'] })
+			await flushPromises()
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
+			expect(dispatch).toHaveBeenLastCalledWith({ min_id: '30' })
+		})
+
+		it('leaves an empty list that failed to the retry button', async () => {
+			const { dispatch } = mountList({ responses: [new Error('network')] })
+			await flushPromises()
+			dispatch.mockClear()
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(dispatch).not.toHaveBeenCalled()
+		})
+
 		it('does not poll for ancestors', async () => {
 			const { dispatch } = mountList({ parents: [status('5')], props: { showParents: true } })
 			await flushPromises()

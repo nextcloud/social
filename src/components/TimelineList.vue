@@ -1623,6 +1623,13 @@ export default {
 			if (this.showParents || !this.chronological) {
 				return
 			}
+			// While a page is on its way there is nothing to catch up on: with
+			// an empty list this asked for a cursor-less first page beside the
+			// real one, and counted it as arrivals. An empty list that failed
+			// belongs to the retry button.
+			if (this.loading || (this.timeline.length === 0 && this.error !== null)) {
+				return
+			}
 
 			// Newest by id, not this.timeline[0] (sorted by created_at): a
 			// federated post with a high id but an old date would otherwise
