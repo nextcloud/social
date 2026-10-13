@@ -1038,6 +1038,46 @@ describe('timeline store actions', () => {
 			expect(tl().timeline).toEqual(['1'])
 			expect(showError).toHaveBeenCalledWith(errorMessage)
 		})
+
+		it('ignores a second press while the first request is still on its way', async () => {
+			// two requests racing for one button left the count a step off
+			// and whichever answer came last as the state
+			const status = initial()
+			store.addToTimeline([status])
+			let answer
+			axios.post.mockReturnValueOnce(new Promise((resolve) => {
+				answer = resolve
+			}))
+
+			const first = store[action]({ status })
+			await expect(store[action]({ status: tl().statuses['1'] })).resolves.toBeNull()
+
+			expect(axios.post).toHaveBeenCalledTimes(1)
+			expect(tl().statuses['1']).toMatchObject({ [flag]: !initialFlag, [counter]: 3 + delta })
+			expect(showError).not.toHaveBeenCalled()
+
+			const serverCopy = makeStatus('1', { [flag]: !initialFlag, [counter]: 3 + delta })
+			answer({ data: serverCopy })
+			await first
+			expect(store.isActing('1', flag === 'favourited' ? 'like' : 'boost')).toBe(false)
+
+			// settled: the next press goes out
+			axios.post.mockResolvedValueOnce({ data: serverCopy })
+			await store[action]({ status: tl().statuses['1'] })
+			expect(axios.post).toHaveBeenCalledTimes(2)
+		})
+
+		it('lets the next press through once the server refused the first', async () => {
+			const status = initial()
+			store.addToTimeline([status])
+			axios.post.mockRejectedValueOnce(new Error('boom'))
+			await store[action]({ status })
+
+			axios.post.mockResolvedValueOnce({ data: makeStatus('1') })
+			await store[action]({ status })
+
+			expect(axios.post).toHaveBeenCalledTimes(2)
+		})
 	})
 
 	describe.each([
@@ -1122,6 +1162,25 @@ describe('timeline store actions', () => {
 
 			expect(tl().statuses['1']).toMatchObject({ bookmarked: !bookmarked })
 			expect(showError).toHaveBeenCalledWith(errorMessage)
+		})
+
+		it('ignores a second press while the first request is still on its way', async () => {
+			const status = makeStatus('1', { bookmarked: !bookmarked })
+			store.addToTimeline([status])
+			let answer
+			axios.post.mockReturnValueOnce(new Promise((resolve) => {
+				answer = resolve
+			}))
+
+			const first = store.postBookmark({ status, bookmarked })
+			await expect(store.postBookmark({ status: tl().statuses['1'], bookmarked: !bookmarked })).resolves.toBeNull()
+
+			expect(axios.post).toHaveBeenCalledTimes(1)
+			expect(tl().statuses['1']).toMatchObject({ bookmarked })
+
+			answer({ data: makeStatus('1', { bookmarked }) })
+			await first
+			expect(store.isActing('1', 'bookmark')).toBe(false)
 		})
 	})
 
