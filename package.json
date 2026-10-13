@@ -68,7 +68,7 @@
 		"@nextcloud/stylelint-config": "^3.2.2",
 		"@nextcloud/webpack-vue-config": "^7.0.4",
 		"@playwright/test": "^1.64.0",
-		"@vitejs/plugin-vue": "^6.0.9",
+		"@vitejs/plugin-vue": "^6.0.10",
 		"@vitest/coverage-v8": "^5.0.3",
 		"@vue/compiler-dom": "3.5.43",
 		"@vue/compiler-sfc": "^3.5.43",
