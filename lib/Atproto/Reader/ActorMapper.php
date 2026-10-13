@@ -95,7 +95,7 @@ class ActorMapper {
 			'handle' => $handle,
 			'pds' => $pds,
 			'labels' => $labels,
-			'limited' => array_intersect($labels, self::LIMITING_LABELS) !== [],
+			'limited' => self::isLimiting($labels),
 			'indexed_at' => (string)($profile['indexedAt'] ?? ''),
 		]);
 		$person->setDetailArray(Details::BLUESKY, [
@@ -131,6 +131,15 @@ class ActorMapper {
 			'verified_by_bluesky' => $verified && in_array(self::BLUESKY_DID, $issuers, true),
 			'trusted_verifier' => ($state['trustedVerifierStatus'] ?? '') === 'valid',
 		];
+	}
+
+	/**
+	 * Whether the labels keep an account's posts out: `!hide` or a takedown.
+	 *
+	 * @param string[] $labels
+	 */
+	public static function isLimiting(array $labels): bool {
+		return array_intersect($labels, self::LIMITING_LABELS) !== [];
 	}
 
 	/**

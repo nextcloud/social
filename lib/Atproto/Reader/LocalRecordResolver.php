@@ -63,6 +63,18 @@ class LocalRecordResolver {
 		return $this->actors[$did];
 	}
 
+	/** The handle of a local account's DID, '' when the DID is not one of ours. */
+	public function handleOf(string $did): string {
+		if ($this->actorId($did) === '') {
+			return '';
+		}
+		try {
+			return strtolower($this->identities->getByDid($did)->handle);
+		} catch (AtprotoIdentityNotFoundException) {
+			return '';
+		}
+	}
+
 	/** The actor id a mention of a DID points at: local when ours, bsky.app otherwise. */
 	public function mentionTarget(string $did): string {
 		$local = $this->actorId($did);

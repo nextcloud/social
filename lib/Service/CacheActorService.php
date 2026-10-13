@@ -561,7 +561,12 @@ class CacheActorService {
 	 * @return Person[]
 	 */
 	public function searchCachedAccounts(string $search, ?int $limit = null, string $followedBy = ''): array {
-		return $this->cacheActorsRequest->searchAccounts($search, $limit, $followedBy);
+		// a Bluesky account its labels limit, or one Bluesky switched off,
+		// is kept and not offered
+		return array_values(array_filter(
+			$this->cacheActorsRequest->searchAccounts($search, $limit, $followedBy),
+			static fn (Person $actor): bool => !BlueskyActorService::isLimited($actor)
+		));
 	}
 
 	/**

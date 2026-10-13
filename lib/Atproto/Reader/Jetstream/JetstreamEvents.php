@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Reader\Jetstream;
 
+use OCA\Social\Atproto\Reader\AccountStatus;
 use OCA\Social\Atproto\Reader\BlueskyActorService;
 use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Reader\FeedPoller;
@@ -31,7 +32,9 @@ use Throwable;
  * changed profile or handle is read again. A block of a local account is
  * recorded at once (`BlockedByService`); a deleted block names nobody, so
  * the local accounts the blocker is recorded as blocking are asked about
- * again a moment later, when the AppView knows.
+ * again a moment later, when the AppView knows. An account Bluesky stopped
+ * serving, or serves again, is hidden, purged or restored here at once
+ * (`AccountStatus`).
  */
 class JetstreamEvents {
 	public const POST = 'app.bsky.feed.post';
@@ -59,6 +62,7 @@ class JetstreamEvents {
 		private LoggerInterface $logger,
 		private ?BlockedByService $blockedBy = null,
 		private ?LocalRecordResolver $local = null,
+		private ?AccountStatus $status = null,
 	) {
 	}
 
@@ -85,6 +89,7 @@ class JetstreamEvents {
 			match ((string)($event['kind'] ?? '')) {
 				'commit' => $this->commit($did, is_array($event['commit'] ?? null) ? $event['commit'] : []),
 				'identity' => $this->identity($did),
+				'account' => $this->account($did, is_array($event['account'] ?? null) ? $event['account'] : []),
 				default => null,
 			};
 		} catch (Throwable $e) {
@@ -207,6 +212,15 @@ class JetstreamEvents {
 		if ($handle !== '' && $handle !== 'handle.invalid') {
 			$this->watches->setHandle($did, $handle);
 		}
+	}
+
+	/**
+	 * Bluesky stopped serving the account, or serves it again: `active`
+	 * says which, `status` why (`deactivated`, `suspended`, `takendown`,
+	 * `deleted`) when it does not.
+	 */
+	private function account(string $did, array $account): void {
+		$this->status?->apply($did, (bool)($account['active'] ?? true), (string)($account['status'] ?? ''));
 	}
 
 	/**

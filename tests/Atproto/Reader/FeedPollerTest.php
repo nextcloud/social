@@ -13,6 +13,7 @@ use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Model\Watch;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Reader\AccountStatus;
 use OCA\Social\Atproto\Reader\ActorMapper;
 use OCA\Social\Atproto\Reader\BlueskyActorService;
 use OCA\Social\Atproto\Reader\FeedPoller;
@@ -126,6 +127,62 @@ class FeedPollerTest extends TestCase {
 		$this->assertSame(0, $this->poller->pollWatch($this->watch()));
 	}
 
+	/**
+	 * The AppView names why it refuses an account; the watch backs off as
+	 * after any failure, and the status is acted on once it has been said
+	 * three reads in a row. A plain not-found says nothing of the account
+	 * and waits longest, as before.
+	 */
+	public function testAnAccountTheAppViewNoLongerServesIsActedOnAfterThreeRefusals(): void {
+		$status = $this->createMock(AccountStatus::class);
+		$applied = [];
+		$status->method('apply')->willReturnCallback(static function (string $did, bool $active, string $status) use (&$applied): void {
+			$applied[] = [$did, $active, $status];
+		});
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturn(self::NOW);
+		$poller = new FeedPoller($this->config, $this->watches, $this->appView, $this->store, $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $time, new NullLogger(), $status);
+		$this->appView->method('query')->willReturnOnConsecutiveCalls(
+			$this->throwException(new AppViewNotFoundException('getAuthorFeed: Account is deactivated', 'AccountDeactivated')),
+			$this->throwException(new AppViewNotFoundException('getAuthorFeed: Account is deactivated', 'AccountDeactivated')),
+			$this->throwException(new AppViewNotFoundException('getAuthorFeed: Account is deactivated', 'AccountDeactivated')),
+			$this->throwException(new AppViewNotFoundException('getAuthorFeed: Could not find repo', 'RepoNotFound')),
+			$this->throwException(new AppViewNotFoundException('getAuthorFeed: Profile not found')),
+		);
+		$nexts = [];
+		$this->watches->method('failed')->willReturnCallback(static function (string $did, string $error, int $next) use (&$nexts): void {
+			$nexts[] = $next - self::NOW;
+		});
+
+		$poller->pollWatch($this->watch(failures: 0));
+		$poller->pollWatch($this->watch(failures: 1));
+		$this->assertSame([], $applied, 'twice is not yet persistent');
+		$poller->pollWatch($this->watch(failures: 2));
+		$this->assertSame([[self::DID, false, 'deactivated']], $applied);
+		$poller->pollWatch($this->watch(failures: 5));
+		$this->assertSame([self::DID, false, 'deleted'], $applied[1], 'a repository that is gone');
+		$poller->pollWatch($this->watch(failures: 7));
+		$this->assertCount(2, $applied, 'a plain not-found names no status');
+		$this->assertSame([2 * FeedPoller::INTERVAL, 4 * FeedPoller::INTERVAL, 8 * FeedPoller::INTERVAL, 64 * FeedPoller::INTERVAL, FeedPoller::MAX_BACKOFF], $nexts, 'the ordinary backoff, and the longest wait for a plain not-found');
+	}
+
+	/** An account Bluesky switched off is still asked about, and restored when its feed answers again. */
+	public function testASwitchedOffAccountIsReadAgainAndRestoredWhenItAnswers(): void {
+		$status = $this->createMock(AccountStatus::class);
+		$status->expects($this->once())->method('restore')->with(self::DID);
+		$status->expects($this->never())->method('apply');
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturn(self::NOW);
+		$poller = new FeedPoller($this->config, $this->watches, $this->appView, $this->store, $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $time, new NullLogger(), $status);
+		$off = new Person();
+		$off->setDetailArray(ActorMapper::DETAIL, ['limited' => true, 'status' => AccountStatus::DEACTIVATED, 'labels' => []]);
+		$this->actors->method('cached')->willReturn($off);
+		$this->appView->expects($this->once())->method('query')->willReturn(['feed' => [$this->item('2026-10-08T12:00:00.000Z', 'back')]]);
+		$this->store->method('storeFeedItem')->willReturn(1);
+
+		$this->assertSame(1, $poller->pollWatch($this->watch()));
+	}
+
 	public function testALimitedAccountIsNotReadAndAChangedHandleIsNoted(): void {
 		$limited = new Person();
 		$limited->setDetailArray(ActorMapper::DETAIL, ['limited' => true]);
@@ -150,6 +207,24 @@ class FeedPollerTest extends TestCase {
 		$this->store->method('storeFeedItem')->willReturn(1);
 
 		$this->assertSame(['watches' => 2, 'stored' => 2, 'requests' => 2], $poller->poll());
+	}
+
+	/** The clock is checked between watches, so a slow AppView ends the pass at the deadline. */
+	public function testAPassStopsAtItsDeadline(): void {
+		$now = self::NOW;
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(static function () use (&$now): int {
+			return $now;
+		});
+		$poller = new FeedPoller($this->config, $this->watches, $this->appView, $this->store, $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $time, new NullLogger());
+		$this->watches->method('getDue')->willReturn([$this->watch(), $this->watch('did:plc:two'), $this->watch('did:plc:three')]);
+		$this->appView->expects($this->exactly(2))->method('query')->willReturnCallback(static function () use (&$now): array {
+			$now += 20;
+
+			return ['feed' => []];
+		});
+
+		$this->assertSame(['watches' => 2, 'stored' => 0, 'requests' => 2], $poller->poll(FeedPoller::BATCH, self::NOW + 30));
 	}
 
 	public function testABlockedAuthorsWatchIsDroppedUnread(): void {

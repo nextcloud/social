@@ -422,6 +422,16 @@ to stop.
   grant across a leap day, a month end and a daylight-saving change — good on
   its last second however much it was used, revoked on the next.
 
+- `Atproto/LoggedInOnlyPostTest` — a Bluesky post whose author carries the
+  `!no-unauthenticated` self-label, stored through `PostStore`: followers-only
+  in the stream, not addressed to the public, refused to an anonymous reader
+  and to a stranger by the viewer-limited read, and read by a follower on
+  their home timeline.
+- `Atproto/AccountStatusTest` — a Bluesky account switched off, back and
+  gone, against the real tables: deactivation takes the recipient rows the
+  viewer-limited read joins on and leaves the post and the marked actor,
+  reactivation writes the rows back and makes the watch due, a deletion takes
+  the post, the cached actor and the watch.
 - `Atproto/DpopReplayWindowTest` — a captured DPoP proof walked second by
   second, with the replay table pruned on each, through the three checks that
   refuse it again: its stored id until its nonce lapses, the nonce until the
