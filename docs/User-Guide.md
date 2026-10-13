@@ -366,7 +366,9 @@ The sidebar is the map:
   (*3h*, *2w*) — with **All** and **Unread** in the same switcher as My Feed
   and Local. A search box joins them once there are more than a handful of
   conversations, and **Remove conversation** is in a row's **…** menu, which
-  appears when you point at the row. Opening a chat marks it read. Your
+  appears when you point at the row. Opening a chat marks it read, and the
+  sidebar badge comes down with it; new messages appear in the inbox and the
+  open chat on their own. Your
   messages are drawn in your own colour, the other person's in grey; a run of
   messages carries its time under the last one, and you see the others' by
   pointing at them. The message field is the feed composer's rounded line with

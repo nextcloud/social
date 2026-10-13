@@ -420,6 +420,7 @@ import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 import { isLocalAccount } from '../utils/accountLocality.js'
 import logger from '../services/logger.js'
+import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 
 /** How many conversations one request asks for. */
 const PAGE_SIZE = 40
@@ -508,7 +509,16 @@ export default {
 			conversations: [],
 			/** the `max_id` of the next page, '' once the server says there is none */
 			cursor: '',
+			/** whether the reader has gone past the first page */
+			paged: false,
 			loadingMore: false,
+			listRequest: 0,
+			intervalId: -1,
+			pollEvery: 30000,
+			/** when the tab was last hidden, so returning can catch up */
+			hiddenSince: 0,
+			/** whether the server said something arrived while the tab was hidden */
+			missed: false,
 			searchQuery: '',
 			filterMode: 'all',
 			currentUserId: window.OC?.getCurrentUser?.()?.uid ?? '',
@@ -720,7 +730,14 @@ export default {
 			}
 		},
 
-		messages() {
+		messages(now, before) {
+			// only when a message came or went: a refresh that found nothing
+			// new rebuilds the same list, and must not pull a reader who
+			// scrolled up back to the bottom
+			const ids = (list) => list.map((message) => String(message.id)).join(' ')
+			if (ids(now) === ids(before)) {
+				return
+			}
 			this.$nextTick(() => {
 				const thread = /** @type {HTMLElement|undefined} */ (this.$refs.threadContainer)
 				if (thread) {
@@ -735,6 +752,19 @@ export default {
 		if (this.selectedConversationId !== '') {
 			await this.loadThread(this.selectedConversationId)
 		}
+		// with notify_push the server says when a direct message arrives;
+		// polling remains as a slow safety net. Without it, poll every 30
+		// seconds, as the feed does.
+		const hasPush = onTimelinePush(this.onPushed)
+		this.pollEvery = (hasPush ? 300 : 30) * 1000
+		this.intervalId = window.setInterval(() => this.pollIfVisible(), this.pollEvery)
+		document.addEventListener('visibilitychange', this.pollOnReturn)
+	},
+
+	unmounted() {
+		offTimelinePush(this.onPushed)
+		document.removeEventListener('visibilitychange', this.pollOnReturn)
+		clearInterval(this.intervalId)
 	},
 
 	methods: {
@@ -791,6 +821,7 @@ export default {
 			if (more) {
 				params.max_id = this.cursor
 			}
+			const request = ++this.listRequest
 
 			try {
 				const { data, headers } = await axios.get(
@@ -799,6 +830,7 @@ export default {
 				)
 				const page = Array.isArray(data) ? data : []
 				this.cursor = nextCursor(headers)
+				this.paged = more
 				this.conversations = this.uniqueConversations(more ? [...this.conversations, ...page] : page)
 			} catch (error) {
 				if (!more) {
@@ -806,8 +838,98 @@ export default {
 				}
 				logger.error('Failed to load direct message conversations', { error, more })
 			} finally {
-				this.loadingList = false
-				this.loadingMore = false
+				if (request === this.listRequest) {
+					this.loadingList = false
+					this.loadingMore = false
+				}
+			}
+		},
+
+		/**
+		 * The first page again, laid over what is on screen.
+		 *
+		 * The rows the page brings are put first — they are the newest — and
+		 * every row already loaded that the page did not bring stays after
+		 * them, so a reader who paged keeps the older conversations. The
+		 * cursor is kept once the reader has paged: a fresh first page only
+		 * knows where its own second page starts.
+		 */
+		async refreshConversations() {
+			if (this.loadingList || this.loadingMore) {
+				return
+			}
+			if (this.listError) {
+				await this.loadConversations()
+
+				return
+			}
+
+			const request = ++this.listRequest
+			try {
+				const { data, headers } = await axios.get(
+					generateUrl('apps/social/api/v1/conversations'),
+					{ params: { limit: PAGE_SIZE } },
+				)
+				if (request !== this.listRequest) {
+					return
+				}
+				const page = Array.isArray(data) ? data : []
+				if (!this.paged) {
+					this.cursor = nextCursor(headers)
+				}
+				this.conversations = this.uniqueConversations([...page, ...this.conversations])
+			} catch (error) {
+				logger.error('Failed to refresh direct message conversations', { error })
+			}
+		},
+
+		/** The inbox and the open chat, as they are now. */
+		async refresh() {
+			await this.refreshConversations()
+			if (this.selectedConversationId !== '') {
+				await this.loadThread(this.selectedConversationId, true)
+			}
+		},
+
+		pollIfVisible() {
+			if (document.visibilityState === 'hidden') {
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+
+			this.refresh()
+		},
+
+		/**
+		 * What the server's push event runs. A hidden tab does not fetch —
+		 * opening the chat is what marks it read, and a reader who is not
+		 * looking has not read anything — but remembers that something came.
+		 */
+		onPushed() {
+			if (document.visibilityState === 'hidden') {
+				this.missed = true
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+
+			this.refresh()
+		},
+
+		/** Catches up once, on the way back to a tab that was left. */
+		pollOnReturn() {
+			if (document.visibilityState === 'hidden') {
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+			if (document.visibilityState !== 'visible' || this.hiddenSince === 0) {
+				return
+			}
+
+			const away = Date.now() - this.hiddenSince
+			this.hiddenSince = 0
+			if (this.missed || away >= this.pollEvery) {
+				this.missed = false
+				this.refresh()
 			}
 		},
 
@@ -912,7 +1034,7 @@ export default {
 					...(replyTo ? { in_reply_to_id: replyTo } : {}),
 				})
 				this.messageText = ''
-				await this.loadConversations()
+				await this.refreshConversations()
 				if (newRecipient) {
 					const conversation = this.conversations.find((item) => (item.accounts ?? []).some((candidate) => candidate.acct === recipient.acct || (candidate.id && recipient.id && String(candidate.id) === String(recipient.id))))
 					this.newRecipient = null
@@ -921,7 +1043,7 @@ export default {
 						this.$emit('select', String(conversation.id))
 					}
 				} else if (this.selectedConversationId) {
-					await this.loadThread(this.selectedConversationId)
+					await this.loadThread(this.selectedConversationId, true)
 				}
 			} catch (error) {
 				this.sendError = true
@@ -931,7 +1053,13 @@ export default {
 			}
 		},
 
-		async loadThread(id) {
+		/**
+		 * @param {string} id the conversation to show
+		 * @param {boolean} quiet whether the messages already on screen stay
+		 *                        there while the request runs — a refresh,
+		 *                        not an opening
+		 */
+		async loadThread(id, quiet = false) {
 			const conversation = this.conversations.find((item) => String(item.id) === id)
 			const request = ++this.threadRequest
 			if (!conversation?.last_status?.id) {
@@ -941,8 +1069,10 @@ export default {
 				return
 			}
 
-			this.loadingThread = true
-			this.threadError = false
+			if (!quiet) {
+				this.loadingThread = true
+				this.threadError = false
+			}
 			try {
 				const statusId = encodeURIComponent(String(conversation.last_status.id))
 				const { data } = await axios.get(generateUrl(`apps/social/api/v1/statuses/${statusId}/context`))
@@ -967,7 +1097,7 @@ export default {
 				}
 			} catch (error) {
 				if (request === this.threadRequest) {
-					this.threadError = true
+					this.threadError = !quiet
 					logger.error('Failed to load direct message conversation', { error, conversationId: id })
 				}
 			} finally {

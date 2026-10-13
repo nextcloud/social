@@ -10,7 +10,13 @@ import axios from '@nextcloud/axios'
 import { createPinia, setActivePinia } from 'pinia'
 import DirectMessages from '../../../src/components/DirectMessages.vue'
 import { useNotificationsStore } from '../../../src/store/notifications.js'
+import { offTimelinePush, onTimelinePush } from '../../../src/services/timelinePush.js'
 import { shortAgo } from '../../../src/utils/relativeTime.js'
+
+vi.mock('../../../src/services/timelinePush.js', () => ({
+	onTimelinePush: vi.fn(() => false),
+	offTimelinePush: vi.fn(),
+}))
 
 const bob = { id: 'https://remote.example/users/bob', acct: 'bob@remote.example', display_name: 'Bob' }
 const latest = { id: '11', content: '<p>Latest reply</p>', created_at: '2026-09-23T12:00:00Z', account: bob }
@@ -28,11 +34,17 @@ const stubs = {
 	TimelineEntry: { props: ['item', 'type', 'hideAuthor', 'hideAvatar'], template: '<article class="message-stub" :data-id="item.id" :data-hide-author="hideAuthor" :data-hide-avatar="hideAvatar">{{ item.content }}</article>' },
 }
 
+/** every pane mounted by a test, taken down after it so none keeps polling */
+const mounted = []
+
 function mountMessages(selectedConversationId = '') {
-	return mount(DirectMessages, {
+	const wrapper = mount(DirectMessages, {
 		props: { selectedConversationId },
 		global: { stubs },
 	})
+	mounted.push(wrapper)
+
+	return wrapper
 }
 
 /** Run the recipient search now, cancelling the debounced watcher request. */
@@ -48,6 +60,9 @@ describe('DirectMessages', () => {
 
 	beforeEach(() => {
 		setActivePinia(createPinia())
+		onTimelinePush.mockClear()
+		onTimelinePush.mockReturnValue(false)
+		offTimelinePush.mockClear()
 		get = vi.spyOn(axios, 'get').mockImplementation(async (url) => {
 			if (url.endsWith('/conversations')) {
 				return { data: [structuredClone(conversation)] }
@@ -59,6 +74,7 @@ describe('DirectMessages', () => {
 	})
 
 	afterEach(() => {
+		mounted.splice(0).forEach((wrapper) => wrapper.unmount())
 		vi.restoreAllMocks()
 	})
 
@@ -796,6 +812,168 @@ describe('DirectMessages', () => {
 			'/index.php/apps/social/api/v1/accounts/search',
 			{ params: { q: 'https://remote.example/@bob', limit: 8, resolve: true, following: true } },
 		)
+	})
+
+	/**
+	 * Nothing re-read the inbox or the open chat on its own: the sidebar
+	 * badge went up while the conversation on screen stayed as it was, and a
+	 * reply appeared only after re-selecting the chat or reloading the page.
+	 */
+	describe('keeping up', () => {
+		const listCalls = () => get.mock.calls.filter(([url]) => url.endsWith('/conversations'))
+		const contextCalls = () => get.mock.calls.filter(([url]) => url.includes('/context'))
+		const setVisibility = (state) => {
+			Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
+			document.dispatchEvent(new Event('visibilitychange'))
+		}
+
+		beforeEach(() => {
+			// only the poll: the recipient search debounces with a timeout
+			vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+		})
+
+		afterEach(() => {
+			setVisibility('visible')
+			vi.useRealTimers()
+		})
+
+		it('reads the inbox and the open chat again every 30 seconds without push', async () => {
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			get.mockClear()
+
+			vi.advanceTimersByTime(30 * 1000)
+			// a refresh, not an opening: nothing on screen is replaced by "Loading…"
+			expect(wrapper.vm.loadingList).toBe(false)
+			expect(wrapper.vm.loadingThread).toBe(false)
+			await flushPromises()
+
+			expect(listCalls()).toHaveLength(1)
+			expect(contextCalls()).toHaveLength(1)
+		})
+
+		it('shows a reply that arrived in the open chat and marks it read', async () => {
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			post.mockClear()
+			const reply = { id: '13', content: '<p>And another</p>', created_at: '2026-09-23T12:20:00Z', account: bob }
+			get.mockImplementation(async (url) => {
+				if (url.endsWith('/conversations')) {
+					return { data: [{ ...structuredClone(conversation), unread: true, last_status: reply }] }
+				}
+				return { data: { ancestors: [...context.ancestors, latest, ...context.descendants], descendants: [] } }
+			})
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(wrapper.findAll('.message-stub').map((entry) => entry.attributes('data-id'))).toEqual(['9', '11', '12', '13'])
+			expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
+			expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
+		})
+
+		it('listens for pushed events and slows the poll down to five minutes', async () => {
+			onTimelinePush.mockReturnValueOnce(true)
+			const wrapper = mountMessages()
+			await flushPromises()
+			get.mockClear()
+			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function))
+
+			onTimelinePush.mock.calls.at(-1)[0]()
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+
+			vi.advanceTimersByTime(270 * 1000)
+			await flushPromises()
+			expect(listCalls()).toHaveLength(2)
+
+			wrapper.unmount()
+			expect(offTimelinePush).toHaveBeenCalledWith(onTimelinePush.mock.calls.at(-1)[0])
+		})
+
+		it('does not ask while the tab is hidden, and catches up on the way back', async () => {
+			const wrapper = mountMessages()
+			await flushPromises()
+			get.mockClear()
+
+			setVisibility('hidden')
+			vi.advanceTimersByTime(31 * 1000)
+			await flushPromises()
+			expect(listCalls()).toHaveLength(0)
+
+			setVisibility('visible')
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+		})
+
+		it('reads a message pushed to a hidden tab as soon as the tab is back', async () => {
+			onTimelinePush.mockReturnValueOnce(true)
+			const wrapper = mountMessages()
+			await flushPromises()
+			get.mockClear()
+
+			setVisibility('hidden')
+			onTimelinePush.mock.calls.at(-1)[0]()
+			await flushPromises()
+			expect(listCalls()).toHaveLength(0)
+
+			// back well inside the five-minute poll
+			vi.advanceTimersByTime(10 * 1000)
+			setVisibility('visible')
+			await flushPromises()
+			expect(listCalls()).toHaveLength(1)
+		})
+
+		// sending used to read the first page afresh, so a reader who had
+		// paged lost the older rows with every message they wrote
+		it('keeps the older rows and their cursor when the inbox is read again', async () => {
+			const older = { ...structuredClone(conversation), id: '7', accounts: [{ ...bob, id: 'friend', acct: 'carol@remote.example', display_name: 'Carol' }] }
+			get.mockImplementation(async (url, { params } = {}) => {
+				if (url.endsWith('/conversations')) {
+					return params?.max_id === '99'
+						? { data: [older], headers: { link: '</index.php/apps/social/api/v1/conversations?limit=40&max_id=50>; rel="next"' } }
+						: { data: [structuredClone(conversation)], headers: { link: '</index.php/apps/social/api/v1/conversations?limit=40&max_id=99>; rel="next"' } }
+				}
+				return { data: context }
+			})
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			await wrapper.find('.direct-messages__more button').trigger('click')
+			await flushPromises()
+			expect(wrapper.findAll('.direct-messages__conversation')).toHaveLength(2)
+
+			await wrapper.find('.direct-messages__message-form textarea').setValue('Hello')
+			await wrapper.find('.direct-messages__message-form').trigger('submit')
+			await flushPromises()
+			expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/statuses', expect.objectContaining({ visibility: 'direct' }))
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+
+			expect(wrapper.findAll('.direct-messages__name').map((name) => name.text())).toEqual(['Bob', 'Carol'])
+			expect(wrapper.vm.cursor).toBe('50')
+			expect(wrapper.find('.direct-messages__more').exists()).toBe(true)
+		})
+
+		it('does not pull a reader who scrolled up back to the bottom when nothing arrived', async () => {
+			const wrapper = mountMessages('10')
+			await flushPromises()
+			const thread = wrapper.find('.direct-messages__thread').element
+			let scrollTop = 0
+			Object.defineProperty(thread, 'scrollTop', { get: () => scrollTop, set: (value) => { scrollTop = value }, configurable: true })
+			Object.defineProperty(thread, 'scrollHeight', { value: 900, configurable: true })
+			scrollTop = 120
+
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			await wrapper.vm.$nextTick()
+
+			expect(scrollTop).toBe(120)
+		})
 	})
 
 	it('keeps failed read markers from hiding a loaded thread', async () => {
