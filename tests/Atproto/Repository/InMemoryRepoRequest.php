@@ -139,6 +139,23 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	}
 
 	#[\Override]
+	public function getBlocks(string $did, array $cids): array {
+		$found = [];
+		foreach ($cids as $cid) {
+			if (isset($this->blocks[$did][$cid])) {
+				$found[$cid] = $this->blocks[$did][$cid]['bytes'];
+			}
+			foreach ($this->records[$did] ?? [] as $record) {
+				if ($record->cid->toString() === $cid) {
+					$found[$cid] = $record->bytes;
+				}
+			}
+		}
+
+		return $found;
+	}
+
+	#[\Override]
 	public function blocks(string $did, string $kind = ''): Generator {
 		foreach ($this->blocks[$did] ?? [] as $cid => $block) {
 			if ($kind === '' || $block['kind'] === $kind) {

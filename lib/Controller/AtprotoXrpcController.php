@@ -62,7 +62,7 @@ class AtprotoXrpcController extends Controller {
 		try {
 			$answer = $this->client->query($method, $_SERVER['QUERY_STRING'] ?? '', $this->headers());
 
-			return $this->answer($answer ?? $this->xrpc->query($method, $this->request->getParams()));
+			return $this->answer($answer ?? $this->xrpc->query($method, self::repeated($_SERVER['QUERY_STRING'] ?? '') + $this->request->getParams()));
 		} catch (XrpcException $e) {
 			return $this->refuse($e);
 		} catch (Throwable $e) {
@@ -188,6 +188,30 @@ class AtprotoXrpcController extends Controller {
 		}
 
 		return $headers;
+	}
+
+	/**
+	 * The parameters a query string gives more than once (`cids=a&cids=b`,
+	 * as XRPC spells an array), each as the list of its values; PHP keeps
+	 * the last one only.
+	 *
+	 * @return array<string, list<string>>
+	 */
+	public static function repeated(string $queryString): array {
+		$seen = [];
+		foreach (explode('&', $queryString) as $pair) {
+			if ($pair === '') {
+				continue;
+			}
+			[$name, $value] = explode('=', $pair, 2) + [1 => ''];
+			$name = urldecode($name);
+			if ($name === '' || str_ends_with($name, '[]')) {
+				continue;
+			}
+			$seen[$name][] = urldecode($value);
+		}
+
+		return array_filter($seen, static fn (array $values): bool => count($values) > 1);
 	}
 
 	private function answer(array|XrpcBytes $result): Response {

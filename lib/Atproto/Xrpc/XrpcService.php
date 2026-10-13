@@ -69,6 +69,7 @@ class XrpcService {
 			'com.atproto.sync.getLatestCommit' => $this->getLatestCommit(self::string($params, 'did')),
 			'com.atproto.sync.getRepoStatus' => $this->getRepoStatus(self::string($params, 'did')),
 			'com.atproto.sync.getRecord' => $this->getSyncRecord(self::string($params, 'did'), self::string($params, 'collection'), self::string($params, 'rkey')),
+			'com.atproto.sync.getBlocks' => $this->getBlocks(self::string($params, 'did'), self::strings($params, 'cids')),
 			'com.atproto.sync.getBlob' => $this->getBlob(self::string($params, 'did'), self::string($params, 'cid')),
 			'com.atproto.sync.listBlobs' => $this->listBlobs(self::string($params, 'did'), self::limit($params), self::string($params, 'cursor', false)),
 			'com.atproto.sync.listRepos' => $this->listRepos(self::limit($params, 500, 1000), self::string($params, 'cursor', false)),
@@ -192,6 +193,28 @@ class XrpcService {
 		$blocks[$record->cid->toString()] = $record->bytes;
 
 		return new XrpcBytes(Car::encode([Cid::parse($head->commitCid)], $blocks), 'application/vnd.ipld.car');
+	}
+
+	/**
+	 * Blocks by CID — tree nodes, commits, records — as a CAR with no
+	 * roots: what a verifier fetches to walk a proof. One CID the
+	 * repository does not have refuses the whole request, as the reference
+	 * PDS does.
+	 */
+	private function getBlocks(string $did, array $cids): XrpcBytes {
+		$identity = $this->repoIdentity($did);
+		foreach ($cids as $cid) {
+			if (!Cid::isValid($cid)) {
+				throw XrpcException::invalidRequest('Not a CID: ' . $cid);
+			}
+		}
+		$found = $this->repoRequest->getBlocks($identity->did, $cids);
+		$missing = array_diff($cids, array_keys($found));
+		if ($missing !== []) {
+			throw new XrpcException(404, 'BlockNotFound', 'Could not find cids: ' . implode(', ', $missing));
+		}
+
+		return new XrpcBytes(Car::encode([], $found), 'application/vnd.ipld.car');
 	}
 
 	/**
@@ -386,6 +409,24 @@ class XrpcService {
 		}
 
 		return $value;
+	}
+
+	/**
+	 * A parameter given once or more, as the query strings `cids=a&cids=b`
+	 * and `cids[]=a&cids[]=b` both give it.
+	 *
+	 * @param array<string, string|string[]> $params
+	 * @return list<string>
+	 * @throws XrpcException
+	 */
+	private static function strings(array $params, string $name): array {
+		$values = $params[$name] ?? [];
+		$values = array_values(array_filter(array_map(static fn ($value): string => trim((string)$value), is_array($values) ? $values : [$values]), static fn (string $value): bool => $value !== ''));
+		if ($values === []) {
+			throw XrpcException::invalidRequest('Params must have the property "' . $name . '"');
+		}
+
+		return array_values(array_unique($values));
 	}
 
 	/**

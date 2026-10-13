@@ -114,6 +114,16 @@ class AtprotoXrpcControllerTest extends TestCase {
 	}
 
 	/**
+	 * `cids=a&cids=b` is how XRPC spells an array in a query string, and
+	 * PHP keeps the last of them: the controller reads them all.
+	 */
+	public function testAParameterGivenMoreThanOnceIsAllOfItsValues(): void {
+		$this->assertSame(['cids' => ['a', 'b c']], AtprotoXrpcController::repeated('did=x&cids=a&cids=b%20c&limit=5'));
+		$this->assertSame([], AtprotoXrpcController::repeated('did=x&cids[]=a&cids[]=b'), 'what PHP already keeps whole');
+		$this->assertSame([], AtprotoXrpcController::repeated(''));
+	}
+
+	/**
 	 * A CAR is not a blob: it keeps the answer it had, written out in
 	 * pieces as the repository is read.
 	 */

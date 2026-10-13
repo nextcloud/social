@@ -369,6 +369,33 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 	}
 
 	/**
+	 * The blocks among $cids that the repository has, tree nodes and
+	 * commits here and records in their table: what `getBlocks` serves.
+	 *
+	 * @param string[] $cids
+	 * @return array<string, string> CID string => bytes, for the ones found
+	 */
+	public function getBlocks(string $did, array $cids): array {
+		$found = [];
+		foreach (array_chunk($cids, 500) as $chunk) {
+			foreach ([self::TABLE_ATPROTO_BLOCK, self::TABLE_ATPROTO_RECORD] as $table) {
+				$qb = $this->getQueryBuilder();
+				$qb->select('cid', 'bytes')
+					->from($table)
+					->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+					->andWhere($qb->expr()->in('cid', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)));
+				$cursor = $qb->executeQuery();
+				while ($row = $cursor->fetch()) {
+					$found[(string)$row['cid']] = self::bytes($row['bytes']);
+				}
+				$cursor->closeCursor();
+			}
+		}
+
+		return $found;
+	}
+
+	/**
 	 * The tree nodes and commit of a repository, a page at a time, as
 	 * `recordBytes` reads the records.
 	 *

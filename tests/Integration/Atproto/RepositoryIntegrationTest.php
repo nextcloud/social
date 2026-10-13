@@ -124,6 +124,27 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertSame([], $this->repositories->verify(self::DID, $this->key->publicKey()));
 	}
 
+	/**
+	 * `getBlocks` finds a block wherever it is kept, by (did, cid): a tree
+	 * node or the commit in the block table, a record in the record table,
+	 * and nothing for a CID the repository does not have.
+	 */
+	public function testBlocksAreFoundByCidAcrossBothTables(): void {
+		$result = $this->repositories->write(self::DID, $this->key, [
+			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'by cid', 'createdAt' => '2026-10-08T10:00:00.000Z'], self::ACTOR . '/3', '3kznmn7xqxl33'),
+		]);
+		$record = $this->repositories->getRecord(self::DID, 'app.bsky.feed.post', '3kznmn7xqxl33');
+		$this->assertNotNull($record);
+		$node = $this->repoRequest->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_MST)[0];
+		$absent = 'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm';
+
+		$found = $this->repoRequest->getBlocks(self::DID, [$node, $result->commitCid->toString(), $record->cid->toString(), $absent]);
+
+		$this->assertEqualsCanonicalizing([$node, $result->commitCid->toString(), $record->cid->toString()], array_keys($found));
+		$this->assertSame($record->bytes, $found[$record->cid->toString()]);
+		$this->assertSame([], $this->repoRequest->getBlocks('did:plc:integrationtest00000001', [$node]), 'another repository has none of them');
+	}
+
 	public function testAnIdentityRowRoundTrips(): void {
 		$this->identityRequest->create(self::ACTOR, self::DID, 'atproto-integration.nextcloud.test', 'sealed', 'did:key:zQ3sh', '');
 
