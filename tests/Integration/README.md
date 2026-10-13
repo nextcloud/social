@@ -20,6 +20,9 @@ to stop.
 - `Db/UndoFollowCountTest` — an incoming `Undo{Follow}` moves the follower
   count only when the stored follow it names is the row removed; one naming a
   follow id that is not stored changes nothing.
+- `Db/RejectFollowCountTest` — an incoming `Reject{Follow}` removes the stored
+  follow it names and moves the counts back that the request and its
+  acceptance moved; one naming a follow id that is not stored changes nothing.
 - `Db/ApproveReplyAuthorTest` — an `ApproveReply` moves a pending reply of
   ours to approved only when it comes from the author of the video it
   answers (the account behind the channel, as PeerTube sends it).

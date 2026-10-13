@@ -271,7 +271,8 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	 *   origin check: the Accept comes from the followed actor's server, and
 	 *   $item->getObjectId() is the followed actor → host must match origin.
 	 *
-	 * For Reject(ourFollow): remote rejected our follow → delete from DB.
+	 * For Reject(ourFollow): remote rejected our follow → delete from DB,
+	 *   and move the counts back the way an Undo does.
 	 *
 	 * For Undo(theirFollow): remote unfollowed us → delete from DB.
 	 *
@@ -303,7 +304,21 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 		if ($activity->getType() === Reject::TYPE) {
 			$activity->checkOrigin($item->getObjectId());
-			$this->followsRequest->delete($item);
+			// As for an Undo, the stored row decides what moves back: the
+			// follower's own count moved when the row was written, the
+			// followed account's when it was accepted.
+			$stored = $this->storedFollow($item);
+			if ($stored !== null) {
+				$this->followsRequest->delete($stored);
+				$this->accountService->bumpActorCount(
+					$stored->getActorId(), 'count_following', -1
+				);
+				if ($stored->isAccepted()) {
+					$this->accountService->bumpActorCount(
+						$stored->getObjectId(), 'count_followers', -1
+					);
+				}
+			}
 			$this->timelineRevisionService->bumpForActor($item->getActorId());
 		}
 

@@ -595,12 +595,69 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 	public function testRejectRemovesOurPendingFollowRequest(): void {
 		$follow = $this->ourFollowOfBob();
+		$stored = $this->stored($follow, false);
 		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', $this->bob->getId(), $follow);
 
-		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($follow));
+		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($stored));
 		$this->followsRequest->expects($this->never())->method('accepted');
 
 		$this->handler->activity($reject, $follow);
+	}
+
+	/** Records every counter move, in order, into `$moves`. */
+	private function recordCountMoves(array &$moves): void {
+		$this->accountService->method('bumpActorCount')->willReturnCallback(
+			function (string $actorId, string $column, int $by) use (&$moves): void {
+				$moves[] = [$actorId, $column, $by];
+			}
+		);
+	}
+
+	/**
+	 * A Reject of a follow this side already counted — the followed account
+	 * removing its follower — moves both counts back, as an Undo does.
+	 */
+	public function testRejectOfOurAcceptedFollowTakesItOffBothCounts(): void {
+		$follow = $this->ourFollowOfBob();
+		$stored = $this->stored($follow, true);
+		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', $this->bob->getId(), $follow);
+		$moves = [];
+		$this->recordCountMoves($moves);
+
+		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($stored));
+
+		$this->handler->activity($reject, $follow);
+
+		$this->assertSame([
+			[$this->alice->getId(), 'count_following', -1],
+			[$this->bob->getId(), 'count_followers', -1],
+		], $moves);
+	}
+
+	/** A pending request was never on the followed account's count, only on the follower's. */
+	public function testRejectOfOurPendingFollowRequestTakesItOffOurFollowingCountOnly(): void {
+		$follow = $this->ourFollowOfBob();
+		$this->stored($follow, false);
+		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', $this->bob->getId(), $follow);
+		$moves = [];
+		$this->recordCountMoves($moves);
+
+		$this->handler->activity($reject, $follow);
+
+		$this->assertSame([[$this->alice->getId(), 'count_following', -1]], $moves);
+	}
+
+	public function testRejectNamingAFollowThatIsNotStoredChangesNothing(): void {
+		$follow = $this->ourFollowOfBob();
+		$this->stored($follow, true);
+		$other = clone $follow;
+		$other->setId(self::LOCAL_URL . '/follows/not-stored');
+		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/2', $this->bob->getId(), $other);
+
+		$this->followsRequest->expects($this->never())->method('delete');
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->handler->activity($reject, $other);
 	}
 
 	public function testOtherActivitiesLeaveTheFollowUntouched(): void {
