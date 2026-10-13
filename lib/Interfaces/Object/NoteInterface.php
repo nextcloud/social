@@ -231,7 +231,12 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			// posts, and they travel in the one cache the queue entry works through
 			$fetchParent = $this->markUnknownParent($note);
 			$fetchQuote = $this->markUnknownQuote($note);
-			$this->streamRequest->save($note);
+			// nothing below is for a post that was not written now: a
+			// redelivery overlapping the first copy passes the lookup above
+			// and is refused by the database instead
+			if (!$this->streamRequest->save($note)) {
+				return;
+			}
 			$this->updateDetails($note);
 			$this->generateNotification($note);
 			// the bell on a profile: whoever asked to be told when this account

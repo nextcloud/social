@@ -1393,8 +1393,10 @@ class StreamServiceTest extends TestCase {
 		$saved = null;
 		$this->streamRequest->expects($this->once())
 			->method('save')
-			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+			->willReturnCallback(function (Stream $stream) use (&$saved): bool {
 				$saved = $stream;
+
+				return true;
 			});
 
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
@@ -1467,8 +1469,10 @@ class StreamServiceTest extends TestCase {
 
 		$saved = null;
 		$this->streamRequest->method('save')
-			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+			->willReturnCallback(function (Stream $stream) use (&$saved): bool {
 				$saved = $stream;
+
+				return true;
 			});
 
 		$this->service->syncRemoteTimeline($bob);
@@ -1536,8 +1540,10 @@ class StreamServiceTest extends TestCase {
 		$saved = [];
 		$this->streamRequest->expects($this->once())
 			->method('save')
-			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+			->willReturnCallback(function (Stream $stream) use (&$saved): bool {
 				$saved[] = $stream->getId();
+
+				return true;
 			});
 
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
@@ -1582,10 +1588,12 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
 		$this->streamRequest->expects($this->exactly(2))
 			->method('save')
-			->willReturnCallback(function (Stream $stream): void {
+			->willReturnCallback(function (Stream $stream): bool {
 				if ($stream->getId() === 'https://remote.example/notes/a') {
 					throw new \RuntimeException('db hiccup');
 				}
+
+				return true;
 			});
 
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
@@ -1609,8 +1617,10 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->method('getStreamById')->willThrowException(new StreamNotFoundException());
 
 		$saved = 0;
-		$this->streamRequest->method('save')->willReturnCallback(function () use (&$saved): void {
+		$this->streamRequest->method('save')->willReturnCallback(function () use (&$saved): bool {
 			$saved++;
+
+			return true;
 		});
 
 		$synced = $this->service->syncRemoteTimeline($bob);
@@ -1642,8 +1652,10 @@ class StreamServiceTest extends TestCase {
 		$saved = null;
 		$this->streamRequest->expects($this->once())
 			->method('save')
-			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+			->willReturnCallback(function (Stream $stream) use (&$saved): bool {
 				$saved = $stream;
+
+				return true;
 			});
 
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));
@@ -1682,8 +1694,10 @@ class StreamServiceTest extends TestCase {
 		$saved = null;
 		$this->streamRequest->expects($this->once())
 			->method('save')
-			->willReturnCallback(function (Stream $stream) use (&$saved): void {
+			->willReturnCallback(function (Stream $stream) use (&$saved): bool {
 				$saved = $stream;
+
+				return true;
 			});
 
 		$this->assertSame(1, $this->service->syncRemoteTimeline($bob));

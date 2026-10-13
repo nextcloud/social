@@ -89,7 +89,12 @@ class DislikeInterface extends AbstractActivityPubInterface implements IActivity
 		} catch (ActionDoesNotExistException $e) {
 		}
 
-		$this->actionsRequest->save($item);
+		// a redelivery overlapping the first copy passes the lookup above
+		// and is refused by the database instead
+		if (!$this->actionsRequest->save($item)) {
+			throw new ItemAlreadyExistsException();
+		}
+
 		$this->recount($item->getObjectId());
 	}
 

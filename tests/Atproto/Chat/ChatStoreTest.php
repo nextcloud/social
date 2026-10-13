@@ -58,8 +58,10 @@ class ChatStoreTest extends TestCase {
 		});
 		$posts->method('isKnown')->willReturnCallback(fn (string $id): bool => isset($this->streams[$id]));
 		$streams = $this->createMock(StreamRequest::class);
-		$streams->method('save')->willReturnCallback(function (Stream $stream): void {
+		$streams->method('save')->willReturnCallback(function (Stream $stream): bool {
 			$this->streams[$stream->getId()] = $stream;
+
+			return true;
 		});
 		$streams->method('getStreamById')->willReturnCallback(fn (string $id): Stream => $this->streams[$id] ?? throw new StreamNotFoundException());
 		$streams->method('deleteById')->willReturnCallback(function (string $id): void {

@@ -357,6 +357,12 @@ to stop.
   newer one), a Delete before its Create (caught the late Create resurrecting
   the post), an Undo{Like} before the Like, and a rotated key arriving in an
   Update{Person} verifying the next signature.
+- `Federation/OverlappingRedeliveryTest` — a Follow, Like, Announce and Create
+  delivered again while the first copy is still being handled, replayed by
+  making the second delivery's lookups miss the way the first copy's did: one
+  row, counted once, no exception (the UNIQUE violation this used to raise
+  was a 500 and a third delivery), the Accept sent again, and a usable
+  connection afterwards. Worth running on PostgreSQL and MySQL too.
 
 - `Helper/FreezesTheClock` — puts the server on a `FrozenClock`
   (`tests/Helper/FrozenClock.php`) that the test moves: registered on the

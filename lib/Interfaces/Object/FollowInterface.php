@@ -123,13 +123,16 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 		// question for the delivery queue, not for whether this server
 		// considers the follow accepted.
 		try {
-			$this->followsRequest->accepted($follow);
+			// Only the copy that marks the row counts and notifies: a
+			// redelivery overlapping the first one reaches here with the row
+			// pending too, and hears the Accept again without counting twice.
+			if ($this->followsRequest->accepted($follow)) {
+				// the followed account has one follower more; the three counters
+				// are not recomputed for it — see `AccountService::bumpActorCount()`
+				$this->accountService->bumpActorCount($follow->getObjectId(), 'count_followers', 1);
 
-			// the followed account has one follower more; the three counters
-			// are not recomputed for it — see `AccountService::bumpActorCount()`
-			$this->accountService->bumpActorCount($follow->getObjectId(), 'count_followers', 1);
-
-			$this->generateNotification($follow);
+				$this->generateNotification($follow);
+			}
 		} catch (Exception $e) {
 			$this->miscService->log(
 				'exception while accepting a follow: ' . get_class($e) . ' - ' . $e->getMessage(),
@@ -221,31 +224,40 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 
 		try {
 			$knownFollow = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
-			if ($knownFollow->isAccepted()) {
-				// the follower asks again for a follow this side already
-				// counts: its own record is pending, or gone. It hears the
-				// Accept again, and nothing here changes.
-				$this->sendAccept($follow);
-			} else {
-				$actor = $this->cacheActorService->getFromId($follow->getObjectId());
-				if (!$this->isLockedLocalActor($actor)) {
-					// a re-sent Follow of an unlocked account: (re-)send the Accept.
-					// For a locked account the pending row simply stays pending.
-					$this->confirmFollowRequest($follow);
-				}
-			}
 		} catch (FollowNotFoundException $e) {
 			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
+			if (!$actor->isLocal()) {
+				return;
+			}
 
-			if ($actor->isLocal()) {
-				$follow->setFollowId($actor->getFollowers());
-				$this->followsRequest->save($follow);
+			$follow->setFollowId($actor->getFollowers());
+			if ($this->followsRequest->save($follow)) {
 				if ($this->isLockedLocalActor($actor)) {
 					// wait for the owner: no Accept, a follow_request notification instead
 					$this->generateNotification($follow, true);
 				} else {
 					$this->confirmFollowRequest($follow);
 				}
+
+				return;
+			}
+
+			// a redelivery overlapping the first copy: the row went in
+			// between the lookup and the write, so this is a known follow
+			$knownFollow = $this->followsRequest->getByPersons($follow->getActorId(), $follow->getObjectId());
+		}
+
+		if ($knownFollow->isAccepted()) {
+			// the follower asks again for a follow this side already
+			// counts: its own record is pending, or gone. It hears the
+			// Accept again, and nothing here changes.
+			$this->sendAccept($follow);
+		} else {
+			$actor = $this->cacheActorService->getFromId($follow->getObjectId());
+			if (!$this->isLockedLocalActor($actor)) {
+				// a re-sent Follow of an unlocked account: (re-)send the Accept.
+				// For a locked account the pending row simply stays pending.
+				$this->confirmFollowRequest($follow);
 			}
 		}
 	}
