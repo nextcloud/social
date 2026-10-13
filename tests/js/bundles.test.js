@@ -4,6 +4,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
@@ -283,5 +284,48 @@ describe('the pages that load the bundles', () => {
 		expect(framework, `${file} does not load social-framework`).toBeGreaterThan(-1)
 		expect(framework, `${file} loads ${entry} before the framework it needs`)
 			.toBeLessThan(target)
+	})
+})
+
+/**
+ * The size budget in webpack.common.js: sized to the bundle as it is, so
+ * that growth is what warns. A budget far above the bundle warns on nothing;
+ * one below it warns on every build, and a warning that is always there is
+ * one nobody reads.
+ */
+describe('the size budget', () => {
+	const config = createRequire(import.meta.url)('../../webpack.common.js')
+	const size = (name) => statSync(join(JS, name)).size
+	const scripts = () => readdirSync(JS).filter((entry) => entry.endsWith('.js'))
+
+	it('warns, so the build log and CI show it, without failing the build', () => {
+		expect(config.performance).toMatchObject({ hints: 'warning' })
+		expect(config.performance.maxAssetSize).toBeGreaterThan(0)
+		expect(config.performance.maxEntrypointSize).toBeGreaterThan(0)
+	})
+
+	it('counts the scripts and not their source maps or licence files', () => {
+		expect(config.performance.assetFilter('social-social.js')).toBe(true)
+		expect(config.performance.assetFilter('social-social.js.map')).toBe(false)
+		expect(config.performance.assetFilter('social-social.js.LICENSE.txt')).toBe(false)
+	})
+
+	it('is within reach of the largest chunk: above it, and by less than a third', () => {
+		const largest = Math.max(...scripts().map(size))
+
+		expect(config.performance.maxAssetSize).toBeGreaterThanOrEqual(largest)
+		expect(config.performance.maxAssetSize).toBeLessThan(largest * 4 / 3)
+	})
+
+	it('is within reach of the largest entrypoint, the entry with the framework chunk it loads first', () => {
+		const entries = Object.keys(config.entry).map((name) => {
+			const own = size(`social-${name}.js`)
+
+			return name === 'filesAction' ? own : own + size('social-framework.js')
+		})
+		const largest = Math.max(...entries)
+
+		expect(config.performance.maxEntrypointSize).toBeGreaterThanOrEqual(largest)
+		expect(config.performance.maxEntrypointSize).toBeLessThan(largest * 4 / 3)
 	})
 })
