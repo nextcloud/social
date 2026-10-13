@@ -38,6 +38,12 @@ class SearchTermsRequest extends CoreRequestBuilder {
 	/** App setting: the nid the backfill has reached. */
 	public const CURSOR = 'search_index_cursor';
 
+	/** App setting: `cursor:count`, how often the chunk after that cursor has failed. */
+	public const FAILING = 'search_index_failing';
+
+	/** App setting: how many posts the backfill gave up on and left out of the index. */
+	public const SKIPPED = 'search_index_skipped';
+
 	/** The kinds of status a content search returns, and so the only ones indexed. */
 	public const TYPES = [Note::TYPE, Question::TYPE];
 
@@ -243,6 +249,28 @@ class SearchTermsRequest extends CoreRequestBuilder {
 		$this->insertIgnoringConflicts(self::TABLE_SEARCH_TERMS, $rows);
 
 		return ['last' => $last, 'read' => $read];
+	}
+
+	/**
+	 * The nid of the first indexable post after `$afterNid`, or '' when
+	 * there is none: the post a chunk of one would have indexed.
+	 */
+	public function nextNid(int|string $afterNid): string {
+		$qb = $this->getQueryBuilder();
+		$qb->select('nid')
+			->from(self::TABLE_STREAM)
+			->where($qb->expr()->gt('nid', $qb->createNamedParameter(Nid::normalize($afterNid))))
+			->andWhere($qb->expr()->in(
+				'type', $qb->createNamedParameter(self::TYPES, IQueryBuilder::PARAM_STR_ARRAY)
+			))
+			->orderBy('nid', 'asc')
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return is_array($row) ? (string)$row['nid'] : '';
 	}
 
 	private function indexable(Stream $stream): bool {

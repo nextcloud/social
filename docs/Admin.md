@@ -103,6 +103,13 @@ See below — this is the one check that is about apps rather than about
 federation, and it is a warning rather than an error, because everything else
 works without it.
 
+**Aloha Social: index repairs.** Whether the two repair jobs that walk the
+posts stored by an older version got past every one of them. `Cron\Index`
+gives each post its timeline and hashtag rows and `Cron\SearchIndex` puts its
+words into the content search; a post that keeps failing is passed over rather
+than holding every post after it back, and this check counts what was passed
+over. See [Posts the index repairs skipped](#posts-the-index-repairs-skipped).
+
 ### Mastodon apps cannot connect
 
 A Mastodon app is given a domain and builds `https://<domain>/api/v1/...` from
@@ -321,6 +328,32 @@ occ social:queue:retry --flush --min-tries 16   # or drop them, for a peer that 
 The **Deliveries** section of the Aloha Social settings names the instances
 the failures are stacked against, with the highest attempt count so far and
 when each was last tried.
+
+### Posts the index repairs skipped
+
+Two background jobs walk the posts an older version stored, oldest first, from
+a cursor kept in the app settings: `Cron\Index` writes the timeline and hashtag
+side rows of posts that lack them, and `Cron\SearchIndex` (queued once by the
+upgrade that added the word index) adds the words of every older post to the
+content search. A post that one of them cannot read — a malformed row, a type
+this version does not know — would otherwise fail on every run and hold the
+cursor, and with it every post after it, for good. So a post that has failed
+five passes of the timeline repair is skipped, and a chunk the search backfill
+fails twice is indexed one post at a time until the one that fails is found and
+skipped. Each skip is a warning in the Nextcloud log — `skipping stream` with
+the post's primary key and type, `skipping post` with its nid — carrying the
+error that stopped it, and this check counts them (`index_skipped`,
+`search_index_skipped`).
+
+A skipped post is still in the database and still served where it is read by
+its own id; what it lost is its place in the timelines or in the search. Fix or
+delete the row the log names, then `occ social:check:install --index --force`
+rebuilds the side rows of everything, and `occ config:app:delete social
+search_index_ready` followed by `occ config:app:delete social
+search_index_cursor` has the search backfill start again from the first post
+on the next cron run. Reset the counters with `occ config:app:delete social
+index_skipped` and `occ config:app:delete social search_index_skipped` once
+the posts are dealt with.
 
 ### No memory cache
 
@@ -996,6 +1029,9 @@ the moderation routes accept.
 | `atproto_firehose_status` | *(empty)* | The firehose daemon's last report (`occ social:atproto:serve`), as JSON: whether it runs, its pid, when it started and last reported, the head sequence number and how many relays are subscribed. The Bluesky card and the setup check read it; a daemon that has not reported for a minute is shown as stopped. |
 | `atproto_delete_cursor` | `0` | Where the Bluesky deletion sweep got to: the newest post id it has checked against the AppView in its pass over the last week's Bluesky posts, 25 at a time; `0` again when it reaches the end and starts over. Bookkeeping, not a setting. |
 | `atproto_detach_cursor` | `0` | The same for the sweep over the last month's local quotes of Bluesky posts, which marks a quote the quoted author detached as revoked here too. |
+| `index_skipped` | *(unset)* | How many posts the timeline index repair (`Cron\Index`) gave up on; shown by the *index repairs* setup check. See [Posts the index repairs skipped](#posts-the-index-repairs-skipped). |
+| `search_index_skipped` | *(unset)* | How many posts the search backfill (`Cron\SearchIndex`) left out of the word index; shown by the same check. |
+| `search_index_failing` | *(unset)* | `cursor:count` of the chunk the search backfill keeps failing on; after two failures it indexes one post at a time until it finds the post to skip. |
 
 ### Server settings
 

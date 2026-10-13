@@ -555,11 +555,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 * Only the keys: the repair hydrates the page with `getIndexStreams()` in
 	 * one query, and falls back to a stream at a time when that fails.
 	 *
-	 * @return list<array{nid: string, id_prim: string}>
+	 * @return list<array{nid: string, id_prim: string, type: string}>
 	 */
 	public function getIndexChunk(int|string $afterNid, int $limit): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('nid', 'id_prim')
+		$qb->select('nid', 'id_prim', 'type')
 			->from(self::TABLE_STREAM)
 			->where($qb->expr()->gt('nid', $qb->createNamedParameter((string)$afterNid)))
 			->orderBy('nid', 'asc')
@@ -571,6 +571,7 @@ class StreamRequest extends StreamRequestBuilder {
 			$rows[] = [
 				'nid' => (string)$row['nid'],
 				'id_prim' => (string)$row['id_prim'],
+				'type' => (string)$row['type'],
 			];
 		}
 		$cursor->closeCursor();

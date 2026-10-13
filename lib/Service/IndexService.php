@@ -41,6 +41,8 @@ class IndexService {
 	private const DONE_KEY = 'index_done';
 	/** `nid:count` of the stream the cursor is held before. */
 	private const FAILING_KEY = 'index_failing';
+	/** How many streams the walk gave up on; the setup check shows it. */
+	public const SKIPPED_KEY = 'index_skipped';
 
 	public function __construct(
 		private StreamRequest $streamRequest,
@@ -73,7 +75,7 @@ class IndexService {
 			} catch (StreamNotFoundException $e) {
 				// deleted since the page was read: nothing left to index
 			} catch (Throwable $e) {
-				if (!$this->skipAfterFailure($row['nid'], $e)) {
+				if (!$this->skipAfterFailure($row, $e)) {
 					$held = true;
 					break;
 				}
@@ -101,7 +103,7 @@ class IndexService {
 	 * that cannot be read must not cost the page, so the rows are then read
 	 * one at a time and the bad one is isolated.
 	 *
-	 * @param list<array{nid: string, id_prim: string}> $rows
+	 * @param list<array{nid: string, id_prim: string, type: string}> $rows
 	 *
 	 * @return array<string, Stream> nid => stream
 	 */
@@ -120,9 +122,14 @@ class IndexService {
 	/**
 	 * Counts a failure of one stream across passes, and says whether it has
 	 * failed often enough to be skipped. Until then the cursor stays before it
-	 * and the next pass retries it.
+	 * and the next pass retries it. A skipped stream is named with its
+	 * primary key and type, which is what says why it cannot be read, and
+	 * counted under SKIPPED_KEY for the setup check.
+	 *
+	 * @param array{nid: string, id_prim: string, type: string} $row
 	 */
-	private function skipAfterFailure(string $nid, Throwable $e): bool {
+	private function skipAfterFailure(array $row, Throwable $e): bool {
+		$nid = $row['nid'];
 		[$failingNid, $count] = array_pad(
 			explode(':', $this->config->getAppValue(Application::APP_ID, self::FAILING_KEY, '')), 2, '0'
 		);
@@ -130,10 +137,15 @@ class IndexService {
 
 		if ($count >= self::MAX_FAILURES) {
 			$this->config->deleteAppValue(Application::APP_ID, self::FAILING_KEY);
-			$this->logger->warning('[Cron\\Index] skipping stream ' . $nid . ' after ' . $count . ' failed attempts', [
-				'nid' => $nid,
-				'exception' => $e,
-			]);
+			$skipped = (int)$this->config->getAppValue(Application::APP_ID, self::SKIPPED_KEY, '0') + 1;
+			$this->config->setAppValue(Application::APP_ID, self::SKIPPED_KEY, (string)$skipped);
+			$this->logger->warning('[Cron\\Index] skipping stream ' . $nid . ' (' . $row['type'] . ' '
+				. $row['id_prim'] . ') after ' . $count . ' failed attempts', [
+					'nid' => $nid,
+					'id_prim' => $row['id_prim'],
+					'type' => $row['type'],
+					'exception' => $e,
+				]);
 
 			return true;
 		}

@@ -11,16 +11,19 @@ namespace OCA\Social\Tests\SetupChecks;
 
 use OCA\Social\Cron\Queue;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\SearchTermsRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
+use OCA\Social\Service\IndexService;
 use OCA\Social\Service\VideoTranscodeService;
 use OCA\Social\SetupChecks\BlueskyReady;
 use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\Docs;
+use OCA\Social\SetupChecks\IndexRepairsComplete;
 use OCA\Social\SetupChecks\MemcacheConfigured;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
@@ -347,6 +350,47 @@ class SetupChecksTest extends TestCase {
 		$this->assertStringContainsString('2 deliveries were given up on', $description);
 	}
 
+	// Social: index repairs
+
+	private function repairs(int $timelines, int $search): IndexRepairsComplete {
+		$config = $this->createStub(ConfigService::class);
+		$config->method('getAppValueInt')->willReturnCallback(
+			static fn (string $key): int => match ($key) {
+				IndexService::SKIPPED_KEY => $timelines,
+				SearchTermsRequest::SKIPPED => $search,
+				default => 0,
+			}
+		);
+
+		return new IndexRepairsComplete($this->l10n, $config);
+	}
+
+	public function testRepairsThatSkippedNothingAreQuiet(): void {
+		$this->assertSame(SetupResult::SUCCESS, $this->repairs(0, 0)->run()->getSeverity());
+	}
+
+	/**
+	 * A skipped post is one no timeline or search finds, and until now the
+	 * only trace of it was a warning in the log.
+	 */
+	public function testEachRepairThatSkippedPostsIsCountedSeparately(): void {
+		$result = $this->repairs(2, 1)->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('2 posts could not be given their timeline and hashtag rows', $description);
+		$this->assertStringContainsString('1 post could not be added to the content search', $description);
+		$this->assertStringContainsString('skipping stream', $description);
+		$this->assertSame(IndexRepairsComplete::DOC, $result->getLinkToDoc());
+	}
+
+	public function testOnlyTheRepairThatSkippedSomethingIsMentioned(): void {
+		$description = (string)$this->repairs(0, 3)->run()->getDescription();
+
+		$this->assertStringNotContainsString('timeline and hashtag rows', $description);
+		$this->assertStringContainsString('3 posts could not be added to the content search', $description);
+	}
+
 	/**
 	 * A check nobody can act on is a check nobody reads twice, so each one
 	 * links to the section of the guide that says what to do — and a section
@@ -364,6 +408,7 @@ class SetupChecksTest extends TestCase {
 			MemcacheConfigured::DOC,
 			VideoConverter::DOC,
 			BlueskyReady::DOC,
+			IndexRepairsComplete::DOC,
 		] as $link) {
 			$this->assertStringStartsWith(Docs::ADMIN_GUIDE . '#', $link);
 			$anchor = substr($link, strlen(Docs::ADMIN_GUIDE) + 1);

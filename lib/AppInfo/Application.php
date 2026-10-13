@@ -55,6 +55,7 @@ use OCA\Social\SetupChecks\BlueskyReady;
 use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
+use OCA\Social\SetupChecks\IndexRepairsComplete;
 use OCA\Social\SetupChecks\MemcacheConfigured;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
@@ -177,6 +178,7 @@ class Application extends App implements IBootstrap {
 		$context->registerSetupCheck(ClientApiAtRoot::class);
 		$context->registerSetupCheck(ProxyForwardsTheScheme::class);
 		$context->registerSetupCheck(MemcacheConfigured::class);
+		$context->registerSetupCheck(IndexRepairsComplete::class);
 	}
 
 	/**
