@@ -158,6 +158,7 @@ class AccountServiceTest extends TestCase {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn($uid);
 		$user->method('getEMailAddress')->willReturn($email);
+		$user->method('getDisplayName')->willReturnCallback(fn (): string => $this->displayName !== '' ? $this->displayName : $uid);
 
 		return $user;
 	}
@@ -178,6 +179,8 @@ class AccountServiceTest extends TestCase {
 	/** @var string[] every value written to the fediverse field */
 	private array $fediverseWrites = [];
 	private int $accountUpdates = 0;
+	/** the display name the user backend holds; '' for none, when Nextcloud shows the user id */
+	private string $displayName = '';
 	/** the scope of the profile picture; a stock Nextcloud federates it */
 	private string $avatarScope = IAccountManager::SCOPE_FEDERATED;
 
@@ -187,6 +190,7 @@ class AccountServiceTest extends TestCase {
 	 * write -- it asks for both now.
 	 */
 	private function withDisplayName(string $name, string $scope): void {
+		$this->displayName = $name;
 		$displayName = $this->createStub(IAccountProperty::class);
 		$displayName->method('getScope')->willReturn($scope);
 		$displayName->method('getValue')->willReturn($name);
@@ -1559,9 +1563,10 @@ class AccountServiceTest extends TestCase {
 	// setDisplayName()
 
 	/**
-	 * Core stores the name with the backend and then lets its own listener
-	 * re-validate the profile, which throws when the `fediverse` property
-	 * cannot be verified over the network. The stored name is kept.
+	 * Core stores the name with the backend and then tells its listeners;
+	 * its own, which copies the name into the profile, runs last and not at
+	 * all once an earlier one throws. The stored name is kept, and it is the
+	 * one the actor takes, not the copy the profile still holds.
 	 */
 	public function testADisplayNameIsKeptWhenAProfileListenerFailsAfterStoringIt(): void {
 		$alice = $this->alice();
@@ -1569,24 +1574,46 @@ class AccountServiceTest extends TestCase {
 		$user->method('canChangeDisplayName')->willReturn(true);
 		$user->expects($this->once())->method('setDisplayName')->with(' Alice Liddell ')
 			->willThrowException(new \InvalidArgumentException('fediverse'));
-		$user->method('getDisplayName')->willReturn('Alice Liddell');
+		$this->withDisplayName('alice', IAccountManager::SCOPE_FEDERATED);
+		$this->displayName = 'Alice Liddell';
 		$this->userManager->method('get')->with('alice')->willReturn($user);
 		$this->actorsRequest->method('getFromUserId')->with('alice')->willReturn($alice);
 		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($alice);
 		$this->logger->expects($this->once())->method('warning')
 			->with($this->stringContains('the display name is stored'));
-		// the actor is refreshed all the same, so the new name reaches it
 		$this->actorService->expects($this->once())->method('cacheLocalActor')
-			->with($this->identicalTo($alice));
+			->willReturnCallback(function (Person $actor) use ($alice): void {
+				$this->assertSame($alice, $actor);
+				$this->assertSame('Alice Liddell', $actor->getName());
+			});
 
 		$this->service->setDisplayName('alice', ' Alice Liddell ');
+	}
+
+	/**
+	 * The profile's copy of the name lags behind the user backend whenever
+	 * core's listener did not get to write it: the actor follows the backend.
+	 */
+	public function testTheActorTakesTheNameTheUserBackendHoldsNotTheProfilesCopy(): void {
+		$alice = $this->alice();
+		$alice->setName('alice');
+		$this->actorsRequest->method('getFromUsername')->willReturn($alice);
+		$this->userManager->method('get')->willReturn($this->user('alice'));
+		$this->withDisplayName('alice', IAccountManager::SCOPE_FEDERATED);
+		$this->displayName = 'Example Inc';
+		$this->documentService->method('cacheLocalAvatarByUsername')->willThrowException(new ItemUnknownException());
+		$this->streamRequest->method('lastNoteFromActorId')->willThrowException(new StreamNotFoundException());
+
+		$this->service->cacheLocalActorByUsername('alice');
+
+		$this->assertSame('Example Inc', $alice->getName());
 	}
 
 	public function testADisplayNameThatWasNotStoredIsAnError(): void {
 		$user = $this->user('alice');
 		$user->method('canChangeDisplayName')->willReturn(true);
 		$user->method('setDisplayName')->willThrowException(new \RuntimeException('backend down'));
-		$user->method('getDisplayName')->willReturn('Alice');
+		$this->displayName = 'Alice';
 		$this->userManager->method('get')->with('alice')->willReturn($user);
 		$this->actorService->expects($this->never())->method('cacheLocalActor');
 
