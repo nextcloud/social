@@ -343,6 +343,16 @@ takes `reblogs` as well as `notify`, a "no" is stored as a row in
 boosts as a predicate of the query rather than by filtering a page after it was
 read.
 
+**Notification types outside Mastodon's set stay with the first-party client.**
+This app has eight notification types Mastodon does not define — `story:react`,
+`story:comment`, `tagged`, and five `bluesky:*` ones (`Stream::FIRST_PARTY_NOTIFICATION_TYPES`).
+Mastodon's set is closed: Tusky shows an unknown type as an "unknown
+notification" row, Mastodon-Android and Moshidon decode `type` into an enum,
+Ivory hides it. So `/api/v1/notifications` and `/api/v2/notifications` serve
+them to the web app (the Nextcloud session) and to a client that names them in
+`types[]`, and exclude them in the query for any other bearer token, as Pleroma
+does with its `pleroma:emoji_reaction`.
+
 **Favourites and bookmarks are ordered by when they were marked**, as
 Mastodon orders them, and paged on the mark's own id
 (`social_stream_act.liked_nid` / `bookmarked_nid`): a post from last month

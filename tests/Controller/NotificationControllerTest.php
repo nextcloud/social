@@ -408,6 +408,40 @@ class NotificationControllerTest extends TestCase {
 		$this->assertNull($this->options, 'nothing was asked of the database');
 	}
 
+	/**
+	 * The types Mastodon does not define reach the web app and a client that
+	 * named them; another client's page is cut without them in the query.
+	 */
+	public function testAClientGetsOnlyTheNotificationTypesMastodonDefines(): void {
+		$this->timeline([]);
+		$this->withToken(['read']);
+
+		$this->controller()->indexV2(exclude_types: ['reblog']);
+
+		$this->assertSame(
+			array_merge(['reblog'], Stream::FIRST_PARTY_NOTIFICATION_TYPES),
+			$this->options?->getExcludeTypes()
+		);
+	}
+
+	public function testAClientThatNamesAFirstPartyTypeGetsIt(): void {
+		$this->timeline([]);
+		$this->withToken(['read']);
+
+		$this->controller()->indexV2(types: ['bluesky:verified']);
+
+		$this->assertNotContains('bluesky:verified', $this->options?->getExcludeTypes() ?? ['bluesky:verified']);
+		$this->assertContains('tagged', $this->options?->getExcludeTypes() ?? []);
+	}
+
+	public function testTheWebAppGetsEveryNotificationType(): void {
+		$this->timeline([]);
+
+		$this->controller()->indexV2();
+
+		$this->assertSame([], $this->options?->getExcludeTypes());
+	}
+
 	public function testTheGroupedListGroupsFavouritesOfOnePost(): void {
 		$this->timeline([$this->favourite(2, 200, 10), $this->favourite(1, 100, 10)]);
 

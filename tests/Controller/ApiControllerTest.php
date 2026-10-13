@@ -3711,6 +3711,47 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame('show_all', $chosen);
 	}
 
+	/**
+	 * The types Mastodon does not define -- a story reaction, a photo tag,
+	 * what only Bluesky tells -- reach the web app, and a client that named
+	 * them; another client's page is cut without them in the query, so it
+	 * stays full.
+	 */
+	public function testAClientGetsOnlyTheNotificationTypesMastodonDefines(): void {
+		$this->route = 'social.TimelineApi.notifications';
+		$this->bearerFor(['read']);
+		$options = $this->captureTimelineOptions();
+
+		$this->controller('Bearer s3cret')->notifications(exclude_types: ['reblog']);
+
+		$this->assertSame(
+			array_merge(['reblog'], Stream::FIRST_PARTY_NOTIFICATION_TYPES),
+			$options()->getExcludeTypes()
+		);
+	}
+
+	public function testAClientThatNamesAFirstPartyTypeGetsIt(): void {
+		$this->route = 'social.TimelineApi.notifications';
+		$this->bearerFor(['read']);
+		$options = $this->captureTimelineOptions();
+
+		$this->controller('Bearer s3cret')->notifications(types: ['mention', 'tagged']);
+
+		$probe = $options();
+		$this->assertSame(['mention', 'tagged'], $probe->getTypes());
+		$this->assertNotContains('tagged', $probe->getExcludeTypes());
+		$this->assertContains('story:react', $probe->getExcludeTypes());
+	}
+
+	public function testTheWebAppGetsEveryNotificationType(): void {
+		$this->loggedInAs();
+		$options = $this->captureTimelineOptions();
+
+		$this->controller()->notifications();
+
+		$this->assertSame([], $options()->getExcludeTypes());
+	}
+
 	public function testNotificationsRequireAViewer(): void {
 		$this->assertUnauthorized($this->controller()->notifications());
 	}

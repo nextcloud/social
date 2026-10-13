@@ -437,6 +437,13 @@ class TimelineApiController extends MastodonApiController {
 				}
 			}
 
+			if ($this->bearer !== '') {
+				// a client other than the web app: the types Mastodon does not
+				// define are left out unless it named them, in the query so
+				// that the page stays full
+				$exclude_types = array_merge($exclude_types, Stream::notificationTypesKeptFromClients($types));
+			}
+
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
 			$options->setProbe(ProbeOptions::NOTIFICATIONS)

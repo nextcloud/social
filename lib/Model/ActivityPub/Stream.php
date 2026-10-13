@@ -403,6 +403,24 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 		self::SUBTYPE_BLUESKY_STARTER_PACK => 'bluesky:starterpack_joined',
 	];
 
+	/**
+	 * The notification types Mastodon's API does not define: what only a
+	 * story, a photo tag or Bluesky tells. Served to the web app, and to a
+	 * client that names them in `types[]`; left out of every other client's
+	 * page, where a type outside the closed set is an "unknown notification"
+	 * row at best and a page that fails to decode at worst.
+	 */
+	public const FIRST_PARTY_NOTIFICATION_TYPES = [
+		'story:react',
+		'story:comment',
+		'tagged',
+		'bluesky:repost_liked',
+		'bluesky:repost_reposted',
+		'bluesky:verified',
+		'bluesky:unverified',
+		'bluesky:starterpack_joined',
+	];
+
 	private string $activityId = '';
 	private string $content = '';
 	private string $visibility = '';
@@ -3155,6 +3173,18 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * Mastodon's name for a notification sub-type, or an empty string for a
 	 * sub-type Mastodon has no notification for.
 	 */
+	/**
+	 * The first-party notification types a third-party client did not ask
+	 * for, to be excluded from its page.
+	 *
+	 * @param string[] $types the client's `types[]`
+	 *
+	 * @return string[]
+	 */
+	public static function notificationTypesKeptFromClients(array $types): array {
+		return array_values(array_diff(self::FIRST_PARTY_NOTIFICATION_TYPES, $types));
+	}
+
 	public static function notificationTypeOfSubType(string $subType): string {
 		return self::NOTIFICATION_TYPES[$subType] ?? '';
 	}
