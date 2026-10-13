@@ -193,6 +193,17 @@ describe('BlueskySettings', () => {
 	})
 
 	describe('the recovery phrase', () => {
+		it('says what the phrase is and what the server\'s key means for it', async () => {
+			for (const hasOne of [false, true]) {
+				serverHas(identity({ recovery_key: hasOne }))
+				const wrapper = mountSettings()
+				await flushPromises()
+
+				expect(wrapper.text()).toContain('The phrase is in this app\'s own format: no other Bluesky tool can read it.')
+				expect(wrapper.text()).toContain('for 72 hours the server can undo a change made with the phrase, a move to another server included')
+			}
+		})
+
 		it('offers to create one while there is none', async () => {
 			serverHas(identity({ recovery_key: false }))
 			const wrapper = mountSettings()

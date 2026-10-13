@@ -111,6 +111,12 @@
 						? t('social', 'The phrase you have stops working the moment a new one is made.')
 						: t('social', 'Twelve words that prove this Bluesky identity is yours even without this server. They are shown once, for you to write down.') }}
 				</p>
+				<!-- the instance key is listed first on the DID: it outranks
+				     the phrase for the directory's 72-hour window, and the
+				     phrase is this app's own encoding, not a BIP-39 seed -->
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'The phrase is in this app\'s own format: no other Bluesky tool can read it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
+				</p>
 			</div>
 			<!-- the domain only has to name the DID: the account, its
 			     followers and the assigned handle stay as they are -->

@@ -171,7 +171,13 @@ page says so. The identity is three things stored in
 - two **rotation keys**: the instance's rotation key (one per instance,
   rotated by the administrator, §16.3) first, and a per-account recovery
   key whose private half is shown to the person once (§4.4) and otherwise
-  not stored. Order is priority: the instance key wins a dispute.
+  not stored. Order is priority: the instance key wins a dispute, which
+  means the instance can nullify, within the PLC's 72-hour window, an
+  operation the person signed with their recovery key — a move away
+  included — and the person cannot nullify the instance's. That is
+  deliberate for a hosted instance (the administrator's way back from a
+  compromised phrase) and the opposite of Bluesky's own PDS, which lists
+  the person's key first; the settings page says so beside the phrase.
 
 The DID document the PLC publishes names the handle (§4.2), the signing
 key under `#atproto`, and the PDS service `#atproto_pds` with endpoint
@@ -218,9 +224,14 @@ Nothing, unless they look: **Settings → Apps and account → Bluesky** shows t
 handle and DID under the Fediverse handle, with a *Copy* button and a
 sentence that says the Bluesky account exists because this server offers
 one. The recovery key is shown there **once**, on first view, as a
-twelve-word phrase to write down (BIP-39 encoding of the 32-byte private
-key), with a "Show again" that requires password confirmation and
-regenerates (and re-registers, §4.5) rather than reveals. The switch **Be
+twelve-word phrase to write down, with a "Show again" that requires
+password confirmation and regenerates (and re-registers, §4.5) rather
+than reveals. The words are BIP-39's list and checksum over 128 bits of
+entropy, but the key is this app's own derivation from them (`Mnemonic`:
+SHA-256 of the entropy), not a BIP-39 seed: no other atproto tool
+imports the phrase, and nothing here takes it back yet — it is the
+person's proof of the DID for a later tool of this app's. The settings
+page says so, and that the instance's key ranks above it (§4.1). The switch **Be
 on Bluesky** is there too (§4.6).
 
 ### 4.5 PLC operations this app sends

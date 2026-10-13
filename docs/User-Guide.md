@@ -1072,6 +1072,9 @@ your own on that identifier, second only to the server's. They are shown once
 and never stored, so write them down; "Create a new recovery phrase" replaces
 them, and the old words stop working. You will not need the phrase in ordinary
 use; it is what lets you take the identity with you if this server ever cannot.
+The phrase is in this app's own format — no other Bluesky tool reads it — and
+the server's key ranks above it: for 72 hours the server can undo a change made
+with the phrase, a move to another server included.
 
 The post menu's *Delivery status* shows whether a post is on Bluesky and opens
 it there.
