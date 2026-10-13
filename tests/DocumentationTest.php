@@ -539,6 +539,36 @@ class DocumentationTest extends TestCase {
 		$this->assertSame([], $offenders, implode("\n", $offenders));
 	}
 
+	/**
+	 * CHANGELOG.md is generated (`make changelog`, cliff.toml) and its top
+	 * heading names the version of the tree it was generated from, so that
+	 * heading says how far the file goes: never past the app version, and
+	 * never short of the newest release tag — a tag ahead of it is a release
+	 * that was cut without regenerating the file. The tags are asked of git
+	 * where there is one to ask; a shallow checkout knows none and checks the
+	 * first half only.
+	 */
+	public function testTheChangelogIsGeneratedForTheReleasedTree(): void {
+		$found = preg_match('/^## (\d+\.\d+\.\d+)\b/m', $this->read('CHANGELOG.md'), $match);
+		$this->assertSame(1, $found, 'CHANGELOG.md has no "## X.Y.Z" heading: run `make changelog`.');
+		$top = $match[1];
+
+		$this->assertTrue(
+			version_compare($top, $this->appVersion(), '<='),
+			'CHANGELOG.md starts at ' . $top . ', which is ahead of the app version '
+			. $this->appVersion() . ' in appinfo/info.xml.'
+		);
+
+		$newestTag = $this->newestReleaseTag();
+		if ($newestTag !== null) {
+			$this->assertTrue(
+				version_compare($top, $newestTag, '>='),
+				'CHANGELOG.md stops at ' . $top . ' but ' . $newestTag . ' is tagged: run'
+				. ' `make changelog` and commit the result (docs/Releasing.md).'
+			);
+		}
+	}
+
 	public function testAppVersionMatchesPackageVersion(): void {
 		$package = json_decode($this->read('package.json'), true, 512, JSON_THROW_ON_ERROR);
 		$this->assertArrayHasKey('version', $package, 'package.json declares no version.');
@@ -777,6 +807,33 @@ class DocumentationTest extends TestCase {
 		}
 
 		return $files;
+	}
+
+	/**
+	 * The newest `vX.Y.Z` tag git knows of, without the `v`; null where git
+	 * or the tags are not there to be asked (a shallow checkout fetches none).
+	 */
+	private function newestReleaseTag(): ?string {
+		$lines = [];
+		$status = 1;
+		@exec(
+			'git -C ' . escapeshellarg(dirname(__DIR__)) . ' tag --list ' . escapeshellarg('v[0-9]*') . ' 2>/dev/null',
+			$lines,
+			$status
+		);
+
+		$versions = [];
+		foreach ($status === 0 ? $lines : [] as $line) {
+			if (preg_match('/^v(\d+\.\d+\.\d+)$/', trim($line), $match) === 1) {
+				$versions[] = $match[1];
+			}
+		}
+		if ($versions === []) {
+			return null;
+		}
+		usort($versions, 'version_compare');
+
+		return end($versions);
 	}
 
 	private function read(string $relativePath): string {
