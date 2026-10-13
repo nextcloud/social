@@ -1871,8 +1871,9 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
 - **Granular permissions** (atproto.com/specs/permission) are granted and
   held to: `repo:` records of a collection and an action, `rpc:` methods at
   a service (the AppView's `#bsky_appview` unless `atproto-proxy` names
-  another), `blob:` uploads of a type, `account:email`, `identity:`, and
-  `include:` permission sets. A set is resolved as Lexicon resolution
+  another), `blob:` uploads of a type (matched against what the bytes
+  are, not the `Content-Type` the app sent), `account:email`, `identity:`,
+  and `include:` permission sets. A set is resolved as Lexicon resolution
   says — the `_lexicon` TXT record of its authority, then the
   `com.atproto.lexicon.schema` record of that DID — kept a day at most, and
   only its `repo` and `rpc` permissions within its own namespace are taken;

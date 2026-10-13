@@ -82,6 +82,10 @@ class ClientXrpcTest extends TestCase {
 		}
 	}
 
+	/** a one-pixel PNG and the first box of an MP4: enough for the bytes to say what they are */
+	private const PNG = "\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\x06\0\0\0\x1f\x15\xc4\x89\0\0\0\rIDATx\xdac\x64\x60\xf8\x5f\x0f\0\x02\x87\x01\x80\xeb\x47\xba\x92\0\0\0\0IEND\xaeB\x60\x82";
+	private const MP4 = "\0\0\0\x18ftypmp42\0\0\0\0mp42isom";
+
 	private function file(string $bytes): string {
 		$path = (string)tempnam(sys_get_temp_dir(), 'social-test-');
 		file_put_contents($path, $bytes);
@@ -270,8 +274,28 @@ class ClientXrpcTest extends TestCase {
 		$this->assertSame('allowed', $refused(fn () => $this->client->query('app.bsky.feed.getTimeline', '', $headers)));
 		$this->assertSame('403 InsufficientScope', $refused(fn () => $this->client->query('app.bsky.feed.getAuthorFeed', '', $headers)));
 		$this->assertSame('403 InsufficientScope', $refused(fn () => $this->client->query('app.bsky.feed.getTimeline', '', $headers + ['atproto-proxy' => 'did:web:other.example#bsky_appview'])), 'another service');
-		$this->assertSame('allowed', $refused(fn () => $this->client->upload($this->file('pixels'), $headers + ['content-type' => 'image/png'])));
-		$this->assertSame('403 InsufficientScope', $refused(fn () => $this->client->upload($this->file('frames'), $headers + ['content-type' => 'video/mp4'])));
+		$this->assertSame('allowed', $refused(fn () => $this->client->upload($this->file(self::PNG), $headers + ['content-type' => 'image/png'])));
+		$this->assertSame('403 InsufficientScope', $refused(fn () => $this->client->upload($this->file(self::MP4), $headers + ['content-type' => 'video/mp4'])));
+	}
+
+	/**
+	 * The `blob:` permission is matched against what the file is, which is
+	 * read from its bytes: what the app says in `Content-Type` decides nothing.
+	 */
+	public function testTheUploadPermissionIsMatchedAgainstTheBytesNotTheClaimedType(): void {
+		$this->oauth->method('authenticate')->willReturn(new ClientSession('alice', $this->session->identity, 'sid', [
+			'atproto', 'blob:image/*',
+		]));
+		$headers = ['authorization' => 'DPoP token', 'dpop' => 'proof'];
+		$this->writes->method('upload')->willReturn(['blob' => []]);
+
+		try {
+			$this->client->upload($this->file(self::MP4), $headers + ['content-type' => 'image/png']);
+			$this->fail('a video went through as a picture');
+		} catch (XrpcException $e) {
+			$this->assertSame(403, $e->status);
+		}
+		$this->assertSame(['blob' => []], $this->client->upload($this->file(self::PNG), $headers + ['content-type' => 'video/mp4']), 'a picture is a picture whatever the header says');
 	}
 
 	public function testASuspendedAccountsAppIsTurnedAway(): void {
