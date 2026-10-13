@@ -35,6 +35,7 @@ const Settings = () => import(/* webpackChunkName: "settings" */'./views/Setting
 const Statistics = () => import(/* webpackChunkName: "statistics" */'./views/Statistics.vue')
 const Search = () => import('./components/Search.vue')
 const VideoShorts = () => import(/* webpackChunkName: "shorts" */'./views/VideoShorts.vue')
+const NotFound = () => import(/* webpackChunkName: "not-found" */'./views/NotFound.vue')
 
 /**
  * The path the app is actually served from, which is what the history base has
@@ -473,6 +474,15 @@ const router = createRouter({
 				details: ProfileTimeline,
 			},
 			props: true,
+		},
+		{
+			// last, so that it catches only what nothing above did: a mistyped
+			// link, or one to a page that is gone
+			path: '/:pathMatch(.*)*',
+			components: {
+				default: NotFound,
+			},
+			name: 'not-found',
 		},
 	],
 })

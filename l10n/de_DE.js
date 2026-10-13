@@ -2889,6 +2889,9 @@ OC.L10N.register(
     "That file could not be read" : "Die Datei konnte nicht gelesen werden.",
     "Close the composer?" : "Editor schließen?",
     "What you have written is kept, and is back in the box the next time you open it." : "Ihr Text bleibt erhalten und steht beim nächsten Öffnen wieder im Feld.",
+    "Page not found" : "Seite nicht gefunden",
+    "There is nothing at this address. The link may be wrong, or what it pointed to has moved." : "Unter dieser Adresse gibt es nichts. Der Link ist vielleicht falsch, oder das Ziel wurde verschoben.",
+    "Back to my feed" : "Zurück zu meinem Feed",
     "_%n entry_::_%n entries_" : ["%n Eintrag","%n Einträge"]
 },
 "nplurals=2; plural=(n != 1);");

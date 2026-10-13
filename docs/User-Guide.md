@@ -279,6 +279,9 @@ no place.
 
 ## Reading
 
+A link to a page that does not exist says *Page not found* and offers the way
+back to your feed.
+
 The sidebar is the map:
 
 - **My Feed**, **Local**, **Global** — a switcher above the posts. My Feed is
