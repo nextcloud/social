@@ -1075,9 +1075,13 @@ class MigrationService {
 	}
 
 	/**
-	 * The actor id an alias names: the id itself, or the one a handle resolves
-	 * to. A handle is what every other server's form asks for, so it is what
-	 * people type; the id is what the wire carries.
+	 * The actor id an alias names: the one a handle resolves to, or the one
+	 * served at a URL. A handle is what every other server's form asks for,
+	 * so it is what people type; the id is what the wire carries, and it is
+	 * not always the URL a person copies — Mastodon 4.5 answers
+	 * `/users/<name>` with an actor whose id is `/ap/users/<number>`, and
+	 * that is the id its Move check looks for. A URL nobody answers is kept
+	 * as typed.
 	 *
 	 * @throws InvalidResourceException
 	 */
@@ -1085,6 +1089,14 @@ class MigrationService {
 		$alias = trim($alias);
 		if (!self::isActorUrl($alias)) {
 			$alias = $this->resolveActor($alias)->getId();
+		} else {
+			try {
+				$alias = $this->resolveActor($alias)->getId();
+			} catch (Throwable $e) {
+				$this->logger->debug('an alias given as a URL could not be fetched, kept as typed', [
+					'alias' => $alias, 'exception' => $e,
+				]);
+			}
 		}
 
 		if ($alias === $actor->getId()) {

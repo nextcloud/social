@@ -14,6 +14,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\MoveInService;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
@@ -60,8 +61,12 @@ class MoveInFromMastodonTest extends TestCase {
 		$this->assertGreaterThan(0, $seen['posts']['total']);
 
 		$options = $moveIn->prepare(self::USER, $handle, true, true, false);
+		// the id Mastodon serves for the handle: `/users/<name>` before 4.5,
+		// `/ap/users/<number>` since
+		$sourceId = Server::get(CacheActorService::class)->getFromAccount(self::SOURCE . '@' . $host)->getId();
+		$this->assertStringStartsWith('https://' . $host . '/', $sourceId);
 		$this->assertContains(
-			'https://' . $host . '/users/' . self::SOURCE,
+			$sourceId,
 			Server::get(AccountService::class)->getActorFromUserId(self::USER)->getAlsoKnownAs(),
 			'the old account is named as an alias before anything else'
 		);

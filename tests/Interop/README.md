@@ -83,7 +83,13 @@ and follows it from `admin`; the workflow then has Mastodon deliver a `Move`
 signed by `leaver` to that inbox, and the last test reads whether the follow was
 re-pointed at `arrival` and `leaver` is recorded as moved. The inbound half is
 three steps in the workflow rather than one test, because the `Move` has to be
-sent by Mastodon between what this side prepares and what it asserts.
+sent by Mastodon between what this side prepares and what it asserts. The
+tests take Mastodon's id for an account from the handle, since it differs by
+version — `/users/<name>` on 4.3, `/ap/users/<number>` on 4.5 — and
+`MoveOutboundTest` names `landing` by its `/users/` URL on purpose: on 4.5
+that URL answers with the numeric id, which is the case
+`CacheActorService::getFromId()` resolves by fetching the actor at the id it
+claims.
 
 Covered for **moving in from the handle alone** (`MoveInFromMastodonTest`):
 our `puller` names Mastodon's `interop` as its old account, and the same

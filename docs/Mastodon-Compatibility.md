@@ -407,6 +407,21 @@ the same host. Three more have gone since: `Add` and `Remove` federate a pin,
 back-reference check, and the WebFinger profile-page link points at a Aloha Social
 profile rather than at `/index.php/u/alice`.
 
+**Mastodon 4.5 actor ids.** Since 4.5 a Mastodon account's id is
+`https://host/ap/users/<number>` — the inbox, the key id and the collections
+hang off it — and a fetch of the older `https://host/users/<name>` answers
+with that document, nothing in it naming the URL asked for. WebFinger has
+always pointed at the id, so a handle resolves as before. A URL is held to
+the same origin: the document's id has to be on the host it was fetched
+from, the actor is then fetched from the id it claims and has to answer with
+it (`CacheActorService::getFromId()`), the row is written from that document
+and never from the one at the other URL, and the URL is remembered as another
+address of the actor (`DurableCache`, 30 days) so a later lookup by it reads
+the row. A document claiming an id on another host is refused as before. The
+same applies to an alias typed as a URL (`MigrationService::addAlias()`): the
+id stored is the one the server serves there, which is what Mastodon's own
+`Move` check looks for; a URL nobody answers is kept as typed.
+
 **What a peer would still notice — one thing, and it is live today:**
 
 **Attachments are served in Mastodon's client shape rather than as ActivityPub

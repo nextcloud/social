@@ -153,10 +153,12 @@ class MigrationServiceTest extends TestCase {
 
 	// --- aliases ----------------------------------------------------------
 
+	/** A URL nobody answers is kept as typed. */
 	public function testAddAliasAppendsToTheListOnce(): void {
 		$alice = $this->alice();
 		$alice->setAlsoKnownAs(['https://old.example/users/alice']);
 		$this->accountService->method('getActorFromUserId')->with('alice')->willReturn($alice);
+		$this->cacheActorService->method('getFromId')->willThrowException(new \Exception('nobody there'));
 		$this->accountService->expects($this->once())->method('setAlsoKnownAs')
 			->with('alice', ['https://old.example/users/alice', 'https://older.example/users/alice']);
 
@@ -169,6 +171,7 @@ class MigrationServiceTest extends TestCase {
 		$alice = $this->alice();
 		$alice->setAlsoKnownAs(['https://old.example/users/alice']);
 		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$this->cacheActorService->method('getFromId')->willThrowException(new \Exception('nobody there'));
 		$this->accountService->expects($this->never())->method('setAlsoKnownAs');
 
 		$aliases = $this->service->addAlias('alice', 'https://old.example/users/alice');
@@ -176,11 +179,32 @@ class MigrationServiceTest extends TestCase {
 		$this->assertSame(['https://old.example/users/alice'], $aliases);
 	}
 
+	/**
+	 * A URL is fetched and the alias is the id served there: Mastodon 4.5
+	 * answers the `/users/<name>` a person copies with an actor whose id is
+	 * `/ap/users/<number>`, and it is that id its own Move check looks for in
+	 * our `alsoKnownAs`.
+	 */
+	public function testAddAliasGivenAsAUrlStoresTheIdServedThere(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->with('https://old.example/users/alice', true)
+			->willReturn($this->person('https://old.example/ap/users/117432973192526785', 'alice@old.example'));
+		$this->accountService->expects($this->once())->method('setAlsoKnownAs')
+			->with('alice', ['https://old.example/ap/users/117432973192526785']);
+
+		$this->assertSame(
+			['https://old.example/ap/users/117432973192526785'],
+			$this->service->addAlias('alice', 'https://old.example/users/alice')
+		);
+	}
+
 	#[DataProvider('notAnActorIdProvider')]
 	public function testAddAliasRefusesWhatIsNotAnActorId(string $alias): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->accountService->expects($this->never())->method('setAlsoKnownAs');
 		$this->cacheActorService->method('getFromAccount')->willThrowException(new \Exception('nobody there'));
+		$this->cacheActorService->method('getFromId')->willThrowException(new \Exception('nobody there'));
 
 		$this->expectException(InvalidResourceException::class);
 		$this->service->addAlias('alice', $alias);
