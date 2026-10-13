@@ -461,6 +461,76 @@ class DocumentationTest extends TestCase {
 		);
 	}
 
+	/** The documents a configuration key may be described in. */
+	private const CONFIG_KEY_DOCUMENTS = [
+		'docs/Admin.md',
+		'docs/Atproto-Compatibility.md',
+	];
+
+	/**
+	 * Every key `ConfigService` declares is described in the configuration
+	 * reference.
+	 *
+	 * Twenty-two were not — the For you tuning, the sidebar sections, the
+	 * signup notice, the Bluesky cursors among them — and an operator reading
+	 * the reference had no way of knowing they existed, let alone what a value
+	 * meant. The Bluesky keys are described in the Bluesky document; every
+	 * other one belongs in a table of docs/Admin.md.
+	 */
+	public function testEveryConfigKeyIsDocumented(): void {
+		preg_match_all(
+			"/public const [A-Z_]+ = '([a-z_.]+)';/",
+			$this->read('lib/Service/ConfigService.php'),
+			$matches
+		);
+		$keys = $this->normalise($matches[1]);
+		$this->assertNotEmpty($keys, 'No string constants found in lib/Service/ConfigService.php.');
+
+		$documented = '';
+		foreach (self::CONFIG_KEY_DOCUMENTS as $file) {
+			$documented .= $this->read($file);
+		}
+		$missing = array_values(array_filter(
+			$keys,
+			static fn (string $key): bool => !str_contains($documented, '`' . $key . '`')
+		));
+
+		$this->assertSame(
+			[],
+			$missing,
+			'These configuration keys are declared in ConfigService but described in none of '
+			. implode(', ', self::CONFIG_KEY_DOCUMENTS) . ': add a row for each to the'
+			. ' matching table under "Configuration" in docs/Admin.md.'
+		);
+	}
+
+	/**
+	 * Every background job registered in appinfo/info.xml has a row in the
+	 * integration table of docs/Architecture.md, and every row that says it
+	 * is registered there is.
+	 *
+	 * `Cron\MediaSweep` ran daily for weeks without appearing in the table,
+	 * the same shape of miss the repair-step check above was written for.
+	 */
+	public function testEveryRegisteredBackgroundJobIsDocumented(): void {
+		$registered = $this->registeredBackgroundJobs();
+		$documented = $this->documentedBackgroundJobs();
+
+		$this->assertNotEmpty($registered, 'appinfo/info.xml registers no background jobs.');
+		$this->assertSame(
+			[],
+			array_values(array_diff($registered, array_keys($documented))),
+			'These background jobs are registered in appinfo/info.xml but missing from the'
+			. ' integration table in docs/Architecture.md: add a "| Background Jobs |" row for each.'
+		);
+		$this->assertSame(
+			[],
+			array_values(array_diff(array_keys(array_filter($documented)), $registered)),
+			'These rows of the integration table in docs/Architecture.md say the job is'
+			. ' registered in appinfo/info.xml, and it is not: fix the source column, or register the job.'
+		);
+	}
+
 	public function testArchitectureStatesTheAppVersion(): void {
 		$found = preg_match(
 			'/\*\*App version:\*\*\s*`?([0-9][0-9.]*)`?/',
@@ -720,6 +790,40 @@ class DocumentationTest extends TestCase {
 		);
 
 		return $this->normalise($matches[1]);
+	}
+
+	/** Job classes registered as `<job>` in appinfo/info.xml, short names, sorted. */
+	private function registeredBackgroundJobs(): array {
+		preg_match_all(
+			'/<job>\s*OCA\\\\Social\\\\Cron\\\\([A-Za-z0-9_]+)\s*<\/job>/',
+			$this->read('appinfo/info.xml'),
+			$matches
+		);
+
+		return $this->normalise($matches[1]);
+	}
+
+	/**
+	 * Job classes with a "Background Jobs" row in the integration table of
+	 * docs/Architecture.md, short name => whether the row says the job is
+	 * registered in appinfo/info.xml (the others are queued by code).
+	 *
+	 * @return array<string, bool>
+	 */
+	private function documentedBackgroundJobs(): array {
+		$jobs = [];
+		foreach (explode("\n", $this->read('docs/Architecture.md')) as $line) {
+			if (!str_starts_with(trim($line), '| Background Jobs')) {
+				continue;
+			}
+
+			if (preg_match('/^\|[^|]*\|\s*`Cron\\\\([A-Za-z0-9_]+)`\s*\|([^|]*)\|/', trim($line), $match) === 1) {
+				$jobs[$match[1]] = str_contains($match[2], 'appinfo/info.xml');
+			}
+		}
+		ksort($jobs);
+
+		return $jobs;
 	}
 
 	/** Repair-step classes registered in appinfo/info.xml, short names, sorted. */
