@@ -163,6 +163,14 @@ register again; it now deletes authorizations. And a code is spent in the same
 statement that writes the token, so two requests arriving together cannot both
 exchange it.
 
+**The `client_credentials` grant** issues an app token now — bound to no
+account, granted `read`, one per app — which Mastodon's Android and iOS apps
+take in their sign-up flow and `Mastodon.py`-based tools probe `/api/v1/instance`
+with; it used to answer 400. A route that acts for an account answers such a
+token 401, as Mastodon does. The `/oauth/token` error bodies carry RFC 6749's
+names (`invalid_request`, `unsupported_grant_type`, `invalid_grant`,
+`invalid_client`) with a readable `error_description`.
+
 ### 3.3 The endpoint surface is now broad and mostly real
 
 I opened the controller method behind each route rather than trusting the route
@@ -244,9 +252,12 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The 4.x features still missing are announced rather than left to fail. `urls`
-is an empty object, which is how a client learns there is no streaming
-endpoint, and `vapid_key` is an empty string, so a client decides against
+The 4.x features still missing are announced rather than left to fail.
+`urls.streaming_api` (v2: `configuration.urls.streaming`) is `wss://<host>`
+although there is no streaming endpoint: masto.js (Elk, Phanpy) builds its
+websocket from it and, with the key left out, tried to connect to `undefined`
+on every page load; at this host the connection is a clean 404 and the client
+polls. `vapid_key` is an empty string, so a client decides against
 offering Web Push before it asks for it — which is what it does against any
 server with no VAPID key. `configuration.translation.enabled` is no longer
 always `false`: it is `true` where this Nextcloud has a translation provider,
@@ -265,6 +276,17 @@ Good overall. Two of the four issues this section used to list are fixed in
   the model no longer has it to leak.
 - **`poll` was absent rather than `null`** on non-poll statuses, against the
   app's own rule that a client should never have to test for a missing key.
+- **`application`, `filtered` and `text` were absent** from every Status.
+  Mastodon always sends them (`application: null|{name, website}`, `filtered:
+  []`, `text: null`); masto.js types `filtered` as required and Elk and Phanpy
+  read `status.filtered.length`. All three are always sent now — `application`
+  is null, as on every remote post, because which app wrote a post is not
+  recorded; `text` carries the source on a delete, as Mastodon's does.
+- **`roles` was absent and `last_status_at` could be a timestamp** on the
+  Account entity. `roles: []` is always sent (the credentials routes list the
+  account's own highlighted role in it, as `{id, name, color}`), and
+  `last_status_at` is the `YYYY-MM-DD` date Mastodon sends — Tusky showed the
+  timestamp raw in the profile header.
 
 `POST /api/v1/apps` was the third: it omitted `redirect_uri`, which Mastodon's
 Application entity always carries. It now answers with the first registered URI
@@ -342,6 +364,23 @@ takes `reblogs` as well as `notify`, a "no" is stored as a row in
 `social_actor_relation`, and the home and list timelines drop that account's
 boosts as a predicate of the query rather than by filtering a page after it was
 read.
+
+**Notification types outside Mastodon's set stay with the first-party client.**
+This app has eight notification types Mastodon does not define — `story:react`,
+`story:comment`, `tagged`, and five `bluesky:*` ones (`Stream::FIRST_PARTY_NOTIFICATION_TYPES`).
+Mastodon's set is closed: Tusky shows an unknown type as an "unknown
+notification" row, Mastodon-Android and Moshidon decode `type` into an enum,
+Ivory hides it. So `/api/v1/notifications` and `/api/v2/notifications` serve
+them to the web app (the Nextcloud session) and to a client that names them in
+`types[]`, and exclude them in the query for any other bearer token, as Pleroma
+does with its `pleroma:emoji_reaction`.
+
+**Favourites and bookmarks are ordered by when they were marked**, as
+Mastodon orders them, and paged on the mark's own id
+(`social_stream_act.liked_nid` / `bookmarked_nid`): a post from last month
+favourited today is first, and the `Link` cursors name the favourite rather than
+the post. Ordered by the post's id, as they were, a post older than the first
+page's `max_id` was never reached by "load more".
 
 ### 3.7 Profile editing
 
@@ -772,7 +811,7 @@ whether it is done. Query and scalability work has its own list in
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | Deliberately absent and announced as absent (`urls` is an empty object), so clients poll immediately rather than after a timeout. A real timeline needs a process that outlives a PHP request | **open** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | Deliberately absent: `urls.streaming_api` names `wss://<host>`, where the websocket is a clean 404, so clients poll rather than connect to `undefined`. A real timeline needs a process that outlives a PHP request | **open** |
 
 ### Tier 2b — what walking the route list turned up
 

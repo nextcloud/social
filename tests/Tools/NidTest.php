@@ -60,4 +60,19 @@ class NidTest extends TestCase {
 		$this->expectException(InvalidArgumentException::class);
 		Nid::normalize('12.3');
 	}
+
+	/**
+	 * A mark's id is minted from the millisecond and a post's from the
+	 * second, on one scale: `ms * 10^6` and `s * 10^9` are the same number
+	 * for the same moment, so one minted now sorts above every post
+	 * published before this second and below one published after it.
+	 */
+	public function testNowIsOnThePostNidScale(): void {
+		$second = time();
+		$now = Nid::now();
+
+		$this->assertMatchesRegularExpression('/^[1-9][0-9]{18}$/', $now);
+		$this->assertGreaterThan(0, Nid::compare($now, Nid::fromPublishedTime($second - 1, 999999999, 1000000000)));
+		$this->assertLessThan(0, Nid::compare($now, Nid::fromPublishedTime($second + 2, 1, 1000000000)));
+	}
 }

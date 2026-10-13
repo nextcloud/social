@@ -55,6 +55,8 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 		$replied = $this->getBool(StreamAction::REPLIED, $values, false);
 		$bookmarked = $this->getBool(StreamAction::BOOKMARKED, $values, false);
 		$disliked = $this->getBool(StreamAction::DISLIKED, $values, false);
+		$likedNid = $this->get(StreamAction::LIKED_NID, $values, '0');
+		$bookmarkedNid = $this->get(StreamAction::BOOKMARKED_NID, $values, '0');
 
 		$qb->setValue('actor_id', $qb->createNamedParameter($action->getActorId()))
 			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($action->getActorId())))
@@ -65,6 +67,8 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 			->setValue('replied', $qb->createNamedParameter(($replied) ? 1 : 0))
 			->setValue('bookmarked', $qb->createNamedParameter(($bookmarked) ? 1 : 0))
 			->setValue('disliked', $qb->createNamedParameter(($disliked) ? 1 : 0))
+			->setValue('liked_nid', $qb->createNamedParameter($likedNid))
+			->setValue('bookmarked_nid', $qb->createNamedParameter($bookmarkedNid))
 			->setValue('values', $qb->createNamedParameter(json_encode($this->nonFlagValues($action))));
 
 		$qb->executeStatement();
@@ -90,6 +94,9 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 			if ($field !== '') {
 				$qb->set($field, $qb->createNamedParameter(($action->getValueBool($entry)) ? 1 : 0));
 				$fields++;
+			} elseif ($entry === StreamAction::LIKED_NID || $entry === StreamAction::BOOKMARKED_NID) {
+				$qb->set($entry, $qb->createNamedParameter($action->getValue($entry)));
+				$fields++;
 			} elseif (!$valuesTouched) {
 				// non-flag entries (poll votes) live in the values JSON
 				$qb->set('values', $qb->createNamedParameter(json_encode($this->nonFlagValues($action))));
@@ -111,8 +118,8 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 	}
 
 	/**
-	 * The values that are not one of the four flag columns: what the `values`
-	 * JSON column stores.
+	 * The values that are not one of the flag or mark-id columns: what the
+	 * `values` JSON column stores.
 	 */
 	private function nonFlagValues(StreamAction $action): array {
 		return array_diff_key($action->getValues(), [
@@ -120,6 +127,8 @@ class StreamActionsRequest extends StreamActionsRequestBuilder {
 			StreamAction::BOOSTED => true,
 			StreamAction::REPLIED => true,
 			StreamAction::BOOKMARKED => true,
+			StreamAction::LIKED_NID => true,
+			StreamAction::BOOKMARKED_NID => true,
 		]);
 	}
 

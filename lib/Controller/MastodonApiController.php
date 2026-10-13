@@ -91,6 +91,9 @@ abstract class MastodonApiController extends Controller {
 	 */
 	protected string $pollTag = '';
 
+	/** the 401 an app token gets from a route that acts for an account */
+	public const APP_TOKEN_NAMES_NOBODY = 'this token belongs to an app and names no account: sign an account in';
+
 	protected string $bearer = '';
 	protected ?SocialClient $client = null;
 	protected ?Person $viewer = null;
@@ -126,13 +129,17 @@ abstract class MastodonApiController extends Controller {
 	}
 
 	/**
-	 *
-	 * @param bool $exception
+	 * @param bool $exception whether a request without a usable account is
+	 *                        refused rather than answered as nobody
+	 * @param bool $publicRoute a route anybody may read, that asked to refuse
+	 *                          only a token that is bad: an app token is a
+	 *                          good one that names nobody, and reads it as
+	 *                          anybody does
 	 *
 	 * @return bool
 	 * @throws ClientNotFoundException
 	 */
-	protected function initViewer(bool $exception = false): bool {
+	protected function initViewer(bool $exception = false, bool $publicRoute = false): bool {
 		try {
 			$userId = $this->currentSession();
 
@@ -206,8 +213,9 @@ abstract class MastodonApiController extends Controller {
 				$this->logger->warning('[' . static::class . '] initViewer failed', ['exception' => $e]);
 			}
 
-			if ($exception) {
-				throw new ClientNotFoundException('the access_token was revoked');
+			$appToken = ($e->getMessage() === self::APP_TOKEN_NAMES_NOBODY);
+			if ($exception && !($appToken && $publicRoute)) {
+				throw new ClientNotFoundException($appToken ? $e->getMessage() : 'the access_token was revoked');
 			}
 		}
 
@@ -231,6 +239,12 @@ abstract class MastodonApiController extends Controller {
 		if ($this->bearer !== '') {
 			$this->client = $this->clientService->getFromToken($this->bearer);
 			$this->checkTokenScope();
+
+			if ($this->client->getAuthUserId() === '') {
+				// an app token (the `client_credentials` grant): good for
+				// what anybody may read, and for nothing that is somebody's
+				throw new AccountDoesNotExistException(self::APP_TOKEN_NAMES_NOBODY);
+			}
 
 			return $this->client->getAuthUserId();
 		}

@@ -167,13 +167,31 @@ class InstanceTest extends TestCase {
 	 * out by calling: translation off, and no streaming URL to connect to.
 	 */
 	public function testTheFourPointXFeaturesThatAreMissingAreAnnouncedAsMissing(): void {
-		// not the populated fixture: what `InstanceService::getLocal()` builds
-		// for a real instance carries no streaming URL, because there is no
-		// streaming endpoint to name
 		$v2 = json_decode((string)json_encode((new Instance())->asV2()), false);
 
 		$this->assertFalse($v2->configuration->translation->enabled);
-		$this->assertSame([], (array)$v2->configuration->urls, 'no streaming endpoint to hand out');
+	}
+
+	/** v2 names v1's `urls.streaming_api` `configuration.urls.streaming`, as Mastodon does. */
+	public function testTheStreamingUrlIsNamedTheWayEachEntityNamesIt(): void {
+		$instance = (new Instance())->setUrls(['streaming_api' => 'wss://cloud.example.org']);
+
+		$v1 = json_decode((string)json_encode($instance->jsonSerialize()), false);
+		$v2 = json_decode((string)json_encode($instance->asV2()), false);
+
+		$this->assertSame('wss://cloud.example.org', $v1->urls->streaming_api);
+		$this->assertSame(['streaming' => 'wss://cloud.example.org'], (array)$v2->configuration->urls);
+	}
+
+	/**
+	 * Without a picture, the v2 `thumbnail` is null rather than `{"url": ""}`,
+	 * which Ivory and Mastodon for iOS fetched as the instance root.
+	 */
+	public function testNoPictureIsANullThumbnailInBothEntities(): void {
+		$instance = new Instance();
+
+		$this->assertNull($instance->jsonSerialize()['thumbnail']);
+		$this->assertNull($instance->asV2()['thumbnail']);
 	}
 
 	public function testContactAccountIsExposedWhenSet(): void {

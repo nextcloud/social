@@ -211,15 +211,60 @@ class PaginationTest extends ApiTestCase {
 	 * the status was favourited — so here they are favourited oldest status
 	 * first, the one order in which the two agree.
 	 */
+	/**
+	 * The same questions of a list whose cursors are opaque: favourites and
+	 * bookmarks are ordered by when they were marked and paged on the mark's
+	 * own id, as Mastodon pages them, so a client never names a cursor itself
+	 * and only ever follows the `Link` header.
+	 *
+	 * @param callable(array<string, mixed>): ApiResponse $page
+	 * @param string[] $rows every row of the list, newest first
+	 */
+	private function assertLinkPaging(callable $page, array $rows, string $list): void {
+		$this->assertCount(self::ROWS, $rows, $list . ': the fixture');
+		$limit = ['limit' => self::LIMIT];
+
+		$head = $page($limit);
+		$this->assertSame(array_slice($rows, 0, 3), $this->ids($head), $list . ': the first page is the newest rows, newest first');
+		$links = $head->links();
+		$this->assertArrayHasKey('next', $links, $list . ': a full page links the next one');
+		$this->assertArrayHasKey('prev', $links, $list . ': a page with rows links the previous one');
+		$this->assertNotContains($links['next']['query']['max_id'] ?? '', $rows, $list . ': the cursor names the mark, not the post');
+		$this->assertSame((string)self::LIMIT, $links['next']['query']['limit'] ?? null, $list . ': the limit survives into next');
+
+		$second = $page($links['next']['query']);
+		$this->assertSame(array_slice($rows, 3, 3), $this->ids($second), $list . ': next is the page below');
+		$back = $page($second->links()['prev']['query'] ?? []);
+		$this->assertSame(array_slice($rows, 0, 3), $this->ids($back), $list . ': prev from the second page is the first page');
+
+		$last = $page($second->links()['next']['query'] ?? []);
+		$this->assertSame(array_slice($rows, 6, 3), $this->ids($last), $list . ': the last page is what is left');
+		$this->assertArrayHasKey('prev', $last->links());
+
+		// a full last page still links a next one, which is empty and links nowhere
+		$beyond = $page($last->links()['next']['query'] ?? []);
+		$this->assertSame([], $this->ids($beyond), $list . ': below the oldest mark there is nothing');
+		$this->assertArrayNotHasKey('Link', $beyond->headers, $list . ': an empty page links nowhere');
+
+		// `since_id` takes the same cursor and answers the newest page above it
+		$this->assertSame(
+			array_slice($rows, 0, 3),
+			$this->ids($page($limit + ['since_id' => $last->links()['prev']['query']['min_id'] ?? ''])),
+			$list . ': since_id is the newest page above the cursor'
+		);
+	}
+
 	public function testFavouritesAndBookmarks(): void {
 		$rows = $this->bobPosts();
 		foreach (array_reverse($rows) as $id) {
 			$this->act('alice', $id, 'favourite');
 			$this->act('alice', $id, 'bookmark');
+			// the marks are dated to the millisecond; one each, in order
+			usleep(2000);
 		}
 
-		$this->assertMastodonPaging($this->route(TimelineApiController::class, 'favourites', [], 'alice'), $rows, 'favourites');
-		$this->assertMastodonPaging($this->route(TimelineApiController::class, 'bookmarks', [], 'alice'), $rows, 'bookmarks');
+		$this->assertLinkPaging($this->route(TimelineApiController::class, 'favourites', [], 'alice'), $rows, 'favourites');
+		$this->assertLinkPaging($this->route(TimelineApiController::class, 'bookmarks', [], 'alice'), $rows, 'bookmarks');
 	}
 
 	public function testNotifications(): void {

@@ -46,7 +46,10 @@ class SchemaValidatorTest extends TestCase {
 		$this->write('Owner', [
 			'type' => 'object',
 			'required' => ['url'],
-			'properties' => ['url' => ['type' => 'string', 'format' => 'url']],
+			'properties' => [
+				'url' => ['type' => 'string', 'format' => 'url'],
+				'stream' => ['type' => 'string', 'format' => 'websocket-url'],
+			],
 		]);
 
 		$this->validator = new SchemaValidator($this->directory);
@@ -71,7 +74,7 @@ class SchemaValidatorTest extends TestCase {
 			'count' => 3,
 			'note' => null,
 			'tags' => [['name' => 'cats']],
-			'owner' => ['url' => 'https://example.org/@owner'],
+			'owner' => ['url' => 'https://example.org/@owner', 'stream' => 'wss://example.org'],
 		], $change);
 		foreach ($remove as $key) {
 			unset($thing[$key]);
@@ -100,6 +103,7 @@ class SchemaValidatorTest extends TestCase {
 			'an object where a list belongs' => [['tags' => ['first' => ['name' => 'x']]], '$.tags: expected array, got object'],
 			'an empty name inside a list' => [['tags' => [['name' => '']]], '$.tags[0].name: shorter than 1 characters'],
 			'a nested entity with a bad url' => [['owner' => ['url' => 'javascript:alert(1)']], '$.owner.url: not a valid url'],
+			'a streaming address that is not a websocket' => [['owner' => ['url' => 'https://example.org/@owner', 'stream' => 'https://example.org']], '$.owner.stream: not a valid websocket-url'],
 			'a key a closed object does not allow' => [['meta' => ['x' => 1, 'y' => 2]], '$.meta: unexpected key "y"'],
 			'a value no alternative accepts' => [['either' => 'plain'], '$.either: matches none of the 2 allowed shapes, closest:'],
 		];

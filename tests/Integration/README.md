@@ -281,6 +281,14 @@ to stop.
   `Api/MarkedPostVisibilityTest` holds `/api/v1/bookmarks` and
   `/api/v1/favourites` to what the reader may read now, and a bookmarks
   import to the posts the importing account may read.
+  `Api/MarkOrderTest` lists favourites and bookmarks in the order they were
+  marked — an old post marked today first — and pages them on the mark.
+  `Api/NotificationSenderTest` narrows `/api/v1/notifications` and
+  `/api/v2/notifications` to one sender with Mastodon's `account_id`.
+  `Api/AppTokenTest` takes an app token from `/oauth/token` with the
+  `client_credentials` grant and holds it to what anybody may read: the
+  instance and the public timeline, and a 401 from every route that acts
+  for an account.
   `Api/MediaFromFileSessionTest` attaches a Nextcloud file through the web
   app's session and through a Nextcloud app password with `OCS-APIRequest:
   true`, and refuses a bearer token holding every scope and an app password

@@ -48,7 +48,7 @@ describe('SensitiveMediaSettings', () => {
 		select(wrapper).vm.$emit('update:modelValue', { id: 'show_all', text: 'Show it like anything else' })
 		await flushPromises()
 
-		expect(axios.put).toHaveBeenCalledWith(API, { expandMedia: 'show_all' })
+		expect(axios.put).toHaveBeenCalledWith(API, { expand_media: 'show_all' })
 		expect(showSuccess).toHaveBeenCalledWith('Saved. It applies the next time this page loads.')
 	})
 

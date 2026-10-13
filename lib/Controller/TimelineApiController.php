@@ -10,11 +10,13 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\Options\ProbeOptions;
+use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
@@ -115,9 +117,8 @@ class TimelineApiController extends MastodonApiController {
 			// so it still needs a viewer. A token that *was* presented still has
 			// to be a good one: a client whose token has been revoked has to
 			// learn that, not quietly get the anonymous view instead.
-			$this->initViewer(
-				$this->bearer !== '' || strtolower($timeline) !== ProbeOptions::PUBLIC
-			);
+			$public = strtolower($timeline) === ProbeOptions::PUBLIC;
+			$this->initViewer($this->bearer !== '' || !$public, $public);
 			$this->logger->debug('[' . static::class . '] Viewer initialized', [
 				'viewerId' => $this->viewer?->getId()
 			]);
@@ -283,11 +284,34 @@ class TimelineApiController extends MastodonApiController {
 			$posts = $this->streamService->getTimeline($options);
 
 			return $this->paged(
-				$this->filterService->apply($posts, '', $this->viewer), $options->getLimit(), $posts
+				$this->filterService->apply($posts, '', $this->viewer),
+				$options->getLimit(),
+				$this->markCursors($posts, StreamAction::LIKED_NID)
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
+	}
+
+	/**
+	 * The `Link` cursors of a favourites or bookmarks page: the id of each
+	 * mark, which is what the list is ordered and cut on, in place of the
+	 * post's. A client treats the cursor as opaque, as Mastodon's is the
+	 * favourite's own id there too.
+	 *
+	 * @param Stream[] $posts
+	 *
+	 * @return array<array{id: string}>
+	 */
+	private function markCursors(array $posts, string $mark): array {
+		return array_map(
+			static function (Stream $post) use ($mark): array {
+				$action = $post->getAction();
+
+				return ['id' => ($action !== null && $action->hasValue($mark)) ? $action->getValue($mark) : '0'];
+			},
+			$posts
+		);
 	}
 
 	#[NoCSRFRequired]
@@ -315,7 +339,9 @@ class TimelineApiController extends MastodonApiController {
 			// not a filter context in Mastodon either: the statuses carry an
 			// empty `filtered`, because its absence is read as an answer
 			return $this->paged(
-				$this->filterService->apply($posts, '', $this->viewer), $options->getLimit(), $posts
+				$this->filterService->apply($posts, '', $this->viewer),
+				$options->getLimit(),
+				$this->markCursors($posts, StreamAction::BOOKMARKED_NID)
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);
@@ -395,10 +421,27 @@ class TimelineApiController extends MastodonApiController {
 		int|string $since_id = 0,
 		array $types = [],
 		array $exclude_types = [],
-		string $accountId = '',
+		string $account_id = '',
 	): DataResponse {
 		try {
 			$this->initViewer(true);
+
+			if ($account_id !== '') {
+				// the notifications one account caused: Mastodon's `account_id`
+				// is the numeric id, and nobody by that name has caused any
+				try {
+					$account_id = $this->cacheActorService->resolve($account_id)->getId();
+				} catch (CacheActorDoesNotExistException) {
+					return new DataResponse([], Http::STATUS_OK);
+				}
+			}
+
+			if ($this->bearer !== '') {
+				// a client other than the web app: the types Mastodon does not
+				// define are left out unless it named them, in the query so
+				// that the page stays full
+				$exclude_types = array_merge($exclude_types, Stream::notificationTypesKeptFromClients($types));
+			}
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -409,7 +452,7 @@ class TimelineApiController extends MastodonApiController {
 				->setSince($since_id)
 				->setTypes($types)
 				->setExcludeTypes($exclude_types)
-				->setAccountId($accountId);
+				->setAccountId($account_id);
 
 			// A notification whose sub-type Mastodon has no name for would
 			// serialise as `"type": ""`, which a client with a closed enum

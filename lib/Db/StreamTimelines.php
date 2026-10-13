@@ -886,6 +886,12 @@ trait StreamTimelines {
 	 * once the follow has ended. That join can match a post once per
 	 * recipient row, hence `DISTINCT`.
 	 *
+	 * Ordered and cut on the mark's own id (`liked_nid`, `bookmarked_nid`:
+	 * when it was set), not the post's, as Mastodon orders its favourites: a
+	 * post from last month marked today is first, and `max_id`/`min_id` name
+	 * a mark. `social_sa_aln`/`social_sa_abn` serve the filter and the order
+	 * as one descending range.
+	 *
 	 * @param string $mark the action column that has to be set
 	 *
 	 * @return Stream[]
@@ -898,7 +904,10 @@ trait StreamTimelines {
 		$page = $this->getStreamNidsSelectSql();
 		$viewer = $page->createNamedParameter($page->prim($page->getViewer()->getId()));
 		$page->limitToStatusTypes();
-		$page->paginate($options);
+		// the sort column has to be selected for a DISTINCT page to be
+		// ordered on it; one mark row per post, so it does not widen the page
+		$page->addSelect('sa.' . $mark . '_nid');
+		$page->paginate($options, 'sa', $mark . '_nid');
 		$this->filterKind($page, $options);
 		$page->innerJoin(
 			's', CoreRequestBuilder::TABLE_STREAM_ACTIONS, 'sa',
@@ -922,11 +931,16 @@ trait StreamTimelines {
 		$qb->andWhere(
 			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
 		);
-		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->leftJoinStreamAction('sa');
 
-		return $this->getStreamsFromRequest($qb);
+		// in the order the page query chose them, which the hydrating read
+		// does not keep
+		$order = array_flip($nids);
+		$streams = $this->getStreamsFromRequest($qb);
+		usort($streams, static fn (Stream $a, Stream $b): int => $order[$a->getNid()] <=> $order[$b->getNid()]);
+
+		return $streams;
 	}
 
 	/**
@@ -1047,6 +1061,11 @@ trait StreamTimelines {
 		$qb->limitToType(SocialAppNotification::TYPE);
 		$qb->limitToSubTypes($wanted);
 		$qb->limitToSubTypes(Stream::subTypesOfNotificationTypes($options->getExcludeTypes()), true);
+		// the notifications one account caused -- Mastodon's `account_id`,
+		// resolved to the actor's id by the route
+		if ($options->getAccountId() !== '') {
+			$qb->limitToAttributedTo($options->getAccountId(), true);
+		}
 		$this->paginateOnRecipient($qb, $options);
 
 		$qb->selectDestFollowing('sd', '');

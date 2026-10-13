@@ -104,7 +104,7 @@ export default {
 			this.saving = true
 			try {
 				await axios.put(generateUrl('apps/social/api/v1/preferences'), {
-					expandMedia: this.sensitive,
+					expand_media: this.sensitive,
 				})
 				showSuccess(t('social', 'Saved. It applies the next time this page loads.'))
 			} catch {
