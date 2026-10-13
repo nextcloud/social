@@ -5,10 +5,13 @@ today, what is simply dead, and what it would cost to change. Written for
 whoever has to decide where refactoring effort goes.
 
 **Verified against:** app version 0.17.0, 2026-09-12, after the wave described
-in [What has been done](#what-has-been-done). Every number was measured on that
-tree rather than carried over — except the migration, repair-step, table,
-class, controller, import and `src/` file counts, which were re-measured on
-0.19.49 on 2026-09-14 — and
+in [What has been done](#what-has-been-done), with the migration, repair-step,
+table, class, controller, import and `src/` file counts re-measured on 0.19.49
+on 2026-09-14. **Re-checked on 0.26.239 (2026-10-13):** the sections that say
+so at their top were re-measured on that tree; every other section carries a
+one-line note that its numbers are historical. Between the two the app grew
+by the Bluesky stack, Shorts, the imports and eighteen more background jobs,
+so a historical number is a lower bound at best.
 [Reproducing the measurements](#reproducing-the-measurements) gives the command
 for each.
 
@@ -30,17 +33,20 @@ Re-measure before quoting it. Query and scalability behaviour lives in
 
 ## The shape of what is left
 
-The app is 76,325 lines of PHP across 415 files in `lib/`, and 17,779 lines of
-JavaScript and Vue across 81 files in `src/`.
+*Re-measured on 0.26.239.*
+
+The app is 199,859 lines of PHP across 963 files in `lib/`, and 90,365 lines of
+JavaScript and Vue across 295 files in `src/` (on 0.17.0: 76,325 lines in 415
+files, and 17,779 lines in 81 files).
 
 | Theme | Severity | Size |
 |---|---|---|
-| Translation catalogue covers under 40 % of source strings | Low | — |
+| Translation catalogue: 46 of 98 locales at half the German catalogue or more | Low | — |
 
 The two largest items in every previous version of this document are both gone.
 The vendored toolkit's query builder no longer extends a private core class, and
 the 856-line request model in front of the OCP HTTP client has been deleted
-rather than ported. `lib/Tools/` is 25 files and 2,657 lines of helpers and
+rather than ported. `lib/Tools/` is 25 files and 2,634 lines of helpers and
 traits now — a third of what it was, and nothing in it reaches outside `OCP\`.
 
 **Nothing in `lib/` names a class outside `OCP\` any more,** and a unit test
@@ -54,6 +60,8 @@ for those names are sentences in docblocks explaining what used to be there.
 ---
 
 ## Age of the code
+
+*Historical: measured on 0.17.0–0.19.x and not re-measured on 0.26.239; re-run the commands under [Reproducing the measurements](#reproducing-the-measurements) before quoting it.*
 
 Lines of `lib/` by the year they were last touched, from `git blame`:
 
@@ -77,6 +85,10 @@ share. Measured on a checkout hundreds of commits behind, 2026 came out at
 ---
 
 ## Two API generations in one URL namespace
+
+*Historical as to the counts:* the route table is 596 attribute routes and the
+eight entries left in `appinfo/routes.php` on 0.26.239, and `LocalController`
+is 960 lines; the structure described holds.
 
 The app serves two API designs, and they share the `/api/v1/` prefix.
 
@@ -116,6 +128,10 @@ server does, and treats an empty route table as a failure rather than a pass.
 ---
 
 ## Schema and migrations
+
+*Historical as to the counts:* on 0.26.239 there are 48 migration files and
+94 `TABLE_*` constants in `CoreRequestBuilder`; the squash and the schema
+fixture it is held to are as described.
 
 `Performance.md` covers query behaviour and the index and schema-shape hazards.
 What follows is the debt in the migration set itself.
@@ -170,6 +186,8 @@ nothing reads. The keys are still worth having — this is a note on the cost.
 
 ## Frontend
 
+*Historical: measured on 0.17.0–0.19.x and not re-measured on 0.26.239; re-run the commands under [Reproducing the measurements](#reproducing-the-measurements) before quoting it.*
+
 **Still Options API.** There are `setup()` blocks now, because the composables
 need them, but no `<script setup>` and no wholesale move to composition. That is
 a style question rather than debt: the components are consistent with each other.
@@ -196,16 +214,18 @@ tree reports no warnings.
 
 ## Toolchain
 
+*Re-measured on 0.26.239 (versions from `composer.json` and `package-lock.json`).*
+
 | Tool | Pinned | Status |
 |---|---|---|
-| `nextcloud/ocp` | `dev-stable35` | Matches the declared minimum, so analysis checks this app against the oldest server it claims to support. |
+| `nextcloud/ocp` | `dev-master` | Tracks the newest server API rather than the declared minimum (it was `dev-stable35` on 0.17.0), so analysis no longer checks this app against the oldest server it claims to support; the PHPUnit matrix does. |
 | PHPUnit | `^12.5` (12.5.36) | Current. |
-| Psalm | `^6.17` | Current, running on supported PHP. Its baseline covers six files and seven issues, none of them in `lib/Db`. |
-| ESLint | 10.10.0 with `@nextcloud/eslint-config` 9 | Current, flat config, five rules deliberately off, no warnings. |
-| Stylelint | `^17.15` | Current. |
-| Vitest / jsdom | 5.0 / 30.0 | Current. |
-| webpack / vue-router / vite | 5.110 / 5.3 / 8.3 | Current. |
-| `node-polyfill-webpack-plugin` | exactly `4.0.0` | **Blocked upstream.** `@nextcloud/webpack-vue-config` 6.3.2 peer-pins it; 4.1.0 needs a release there first. |
+| Psalm | `^6.17` | Current, running on supported PHP. Its baseline covers three files and four issues. |
+| ESLint | 10.12.0 with `@nextcloud/eslint-config` 9 | Current, flat config, six rules deliberately off. |
+| Stylelint | 17.16.0 | Current. |
+| Vitest / jsdom | 5.0.3 / 30.1.2 | Current. |
+| webpack / vue-router / vite | 5.111.1 / 5.3.1 / 8.3.4 | Current. |
+| `node-polyfill-webpack-plugin` | 4.0.0 (`^4.0.0`) | Installed at 4.0.0 under `@nextcloud/webpack-vue-config` 7.0.4; whether 4.1.0 is still held back upstream was not re-checked. |
 
 **PHPUnit 12, with the mock hygiene it asks for.** A double nothing sets an
 expectation on is a `createStub()` (about 1,400 of them were `createMock()`),
@@ -225,8 +245,10 @@ more places than that one.
 
 ## Remaining odds and ends
 
-**20 `@deprecated` markers in `lib/`, 12 of them on methods with live callers**,
-led by `CoreRequestBuilder::leftJoinStreamAction` (17) and
+*Re-measured on 0.26.239 where a number is given; the rest is historical.*
+
+**11 `@deprecated` markers in `lib/` (20 on 0.17.0)**, led by
+`CoreRequestBuilder::leftJoinStreamAction` (14 callers, 17 on 0.17.0) and
 `SocialLimitsQueryBuilder::limitPaginate` (8). The worst of them went with the
 request model — `Request::getUrl` had 55 callers and had been deprecated since
 toolkit version 19 — and what is left is concentrated in the query layer.
@@ -241,7 +263,7 @@ with it. The first is the older, slower path — `LOWER()` on unindexed text, as
 `Performance.md` describes. Collapsing them changes which rows match, in
 timeline queries, so it wants a database to check against.
 
-**Constructor promotion is at 151 of 206 (73 %).** The remaining 56 are the ones
+**Constructor promotion is at 576 of 638 (90 %; 151 of 206 on 0.17.0).** The remaining 62 are the ones
 an automated pass should not touch: constructors that do real work in the body,
 that forward a parameter to a parent as well as storing it, or whose property
 name differs from the parameter.
@@ -249,6 +271,12 @@ name differs from the parameter.
 ---
 
 ## Translations
+
+*Historical: the round trip described as missing below has happened.* On
+0.26.239 `TRANSIFEX_API_TOKEN` is set, `l10n.yml` pushes the source and the
+weekly `l10n sync` pulls translations back: the German catalogue has 2,888
+strings, 46 of the 98 locales carry at least half of that and eleven are at
+99 % or more. What follows is the state on 0.17.0.
 
 The frontend contains 295 distinct translatable strings. The best-covered
 locales (`de`, `de_DE`, `en_GB`) carry 135. The median locale across 98
@@ -282,7 +310,11 @@ is the whole of the remaining work.
 
 ## What is not debt
 
-Each item here is a search that does not need repeating.
+Each item here is a search that does not need repeating — on 0.17.0. *Two of
+them no longer hold on 0.26.239:* four properties are untyped (socket and
+stream handles, which PHP cannot type), and 33 calls to `IConfig`'s app-value
+and user-value methods are back, in `ExternalUserService`, `IndexService`,
+`ModerationListService` and others. The rest is historical.
 
 **Classes from outside `OCP\`: none.** No `OC\DB\QueryBuilder\QueryBuilder`, no
 `\OC::$server`, no `OC\SystemConfig`, no `Doctrine\DBAL\Query\QueryBuilder`. The
@@ -357,6 +389,9 @@ sixty when twenty survive the check.
 ---
 
 ## What has been done
+
+*A record of the waves up to 0.19.x; later work is in the commit history and
+[CHANGELOG.md](../CHANGELOG.md).*
 
 ### In [#2127](https://github.com/alohasocial/social/pull/2127)
 
@@ -436,9 +471,10 @@ sixty when twenty survive the check.
 
 ## Rough order of value for what is left
 
+*As of 0.17.0, with the l10n round trip since done.*
+
 1. Collapse the two cache-actor joins, with a database to check against.
-2. Finish the l10n round trip — a Transifex round trip, not a code change.
-3. Web Push and a streaming API, so mobile clients stop polling.
+2. Web Push and a streaming API, so mobile clients stop polling.
 
 ---
 

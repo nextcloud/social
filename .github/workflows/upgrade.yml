@@ -21,7 +21,7 @@ name: Upgrade from a release
 
 on:
   schedule:
-    - cron: '29 2 * * *'
+    - cron: '29 21 * * *'
   workflow_call:
   workflow_dispatch:
 

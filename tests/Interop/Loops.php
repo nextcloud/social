@@ -44,13 +44,12 @@ class Loops {
 	 * Loops to talk to.
 	 */
 	public static function fromEnvironment(string $tokenVariable = 'LOOPS_TOKEN'): ?self {
-		$base = (string)getenv('LOOPS_BASE_URL');
-		$token = (string)getenv($tokenVariable);
-		if ($base === '' || $token === '') {
+		$values = Environment::values('Loops', 'LOOPS_BASE_URL', $tokenVariable);
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($base, $token);
+		return new self($values['LOOPS_BASE_URL'], $values[$tokenVariable]);
 	}
 
 	/** The host this Loops answers on, which is the domain of its handles. */
