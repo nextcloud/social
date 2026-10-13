@@ -25,6 +25,8 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	public array $records = [];
 	/** @var array<string, array<string, array{kind: string, bytes: string}>> did => cid => block */
 	public array $blocks = [];
+	/** how often every record's path was read: what a commit must not need */
+	public int $leafReads = 0;
 
 	public function __construct() {
 	}
@@ -55,6 +57,7 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 
 	#[\Override]
 	public function getLeaves(string $did): array {
+		$this->leafReads++;
 		$leaves = [];
 		foreach ($this->records[$did] ?? [] as $path => $record) {
 			$leaves[$path] = $record->cid;

@@ -320,15 +320,24 @@ its collection, rkey, CID, DAG-CBOR bytes, and the Social id it came from
 (`local_id`, so a post maps to its record in O(1) in both directions) — and
 `social_atproto_block` — the content-addressed blocks of the MST and the
 commits, keyed by CID, because the sync endpoints and the firehose serve
-blocks, not rows. The MST is **recomputed in memory from the record table**
-when a commit is made, then its new or changed nodes are written to the
-block table and the unreferenced ones of the previous commit deleted — the
-simplest correct implementation, and a repository of ten thousand records
-rebuilds in well under a second in PHP; if a measurement says otherwise the
-`MST` class gets an incremental path, behind the same interface. The MST
-rules (fanout 4, key depth from the leading zero bits of the SHA-256 of the
-key, two hash bits per level, 32-byte CID v1 `dag-cbor` SHA-256) are pinned
-by the interop test vectors (§17.1).
+blocks, not rows. A commit **edits the stored MST in place**
+(`MstEditor`): it reads the nodes on the path from the root to each key it
+writes, rewrites them, writes the new nodes to the block table and deletes
+the ones they replace; every other node is kept by its CID and never read,
+so a commit costs the depth of the tree, not the size of the repository.
+The edits are the reference implementation's (split around a new key,
+merge around a removed one, trim an emptied root), and the tree they leave
+is, node for node, the one `Mst::build()` makes from the record table —
+pinned by random sequences of commits in the tests. The whole tree is
+still built from the records when a repository is imported (§13), when
+`occ social:atproto:repo --verify` checks it, and by the next commit after
+a stored node is found missing or malformed, which stores that tree in
+place of what was there. The MST rules (fanout 4, key depth from the
+leading zero bits of the SHA-256 of the key, two hash bits per level,
+32-byte CID v1 `dag-cbor` SHA-256) are pinned by the interop test vectors
+(§17.1). `tests/Integration/Atproto/CommitBenchmarkTest` (run with
+`SOCIAL_BENCHMARK=1`) prints what one commit costs on twenty thousand
+records next to what a rebuild of the tree costs.
 
 ### 5.3 Commits
 
