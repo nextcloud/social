@@ -2385,7 +2385,15 @@ grid keeps every video; an empty stack says *No shorts here yet* and what a
 short is. One viewer plays both kinds: pictures and text cards advance by
 themselves after their hold time, seeing a 24-hour short calls the story seen
 endpoint, anybody who can see one can react or reply, and its owner sees *Who
-has seen it*, the reactions and replies, and can delete it.
+has seen it*, the reactions and replies, and can delete it. The stack, the
+short composer and the day panel draw over video, black ground and white
+words whatever the theme: their colours are the `--social-on-dark-*` custom
+properties `App.vue` defines once on the root (the switch wizard's network
+marks read the same set), and each of the three carries a
+`@media (forced-colors: active)` rule that gives the controls and captions
+the system's button, canvas and highlight colours with a border, since a
+forced-colours mode takes the scrims away and would leave the words on bare
+video. `tests/js/onDarkPalette.test.js` pins both.
 
 **Videos with sound.** `src/composables/useSoundAutoplay.js` is shared by every
 player of Shorts, kept or 24-hour. It plays a video

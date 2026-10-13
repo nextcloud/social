@@ -1126,7 +1126,7 @@ export default {
 		100vh - var(--header-height, 50px) - var(--body-container-margin, 8px)
 	);
 	inline-size: 100%;
-	background: #000;
+	background: var(--social-on-dark-ground);
 
 	&__track {
 		/* the player is placed against the track, a slide's height per slide */
@@ -1151,7 +1151,7 @@ export default {
 		justify-content: center;
 		gap: 12px;
 		block-size: 100%;
-		color: #fff;
+		color: var(--social-on-dark-text);
 	}
 
 	&__rule {
@@ -1174,10 +1174,10 @@ export default {
 		inline-size: 40px;
 		block-size: 40px;
 		padding: 0;
-		border: 2px solid #fff;
+		border: 2px solid var(--social-on-dark-text);
 		border-radius: 12px;
-		background: linear-gradient(135deg, #ff3b5c, #0082c9);
-		color: #fff;
+		background: linear-gradient(135deg, var(--social-on-dark-accent), var(--social-on-dark-accent-blue));
+		color: var(--social-on-dark-text);
 		cursor: pointer;
 		transition: transform .15s ease;
 
@@ -1186,7 +1186,7 @@ export default {
 		}
 
 		&:focus-visible {
-			outline: 2px solid #fff;
+			outline: 2px solid var(--social-on-dark-text);
 			outline-offset: 2px;
 		}
 	}
@@ -1199,24 +1199,24 @@ export default {
 		gap: 2px;
 		padding: 3px;
 		border-radius: var(--border-radius-pill, 999px);
-		background: rgba(0, 0, 0, 0.55);
+		background: var(--social-on-dark-scrim);
 	}
 
 	&__scope {
 		padding: 4px 12px;
 		border-radius: var(--border-radius-pill, 999px);
-		color: rgba(255, 255, 255, 0.8);
+		color: var(--social-on-dark-text-soft);
 		font-size: 13px;
 		font-weight: 600;
 		text-decoration: none;
 
 		&--current {
-			background: #fff;
-			color: #000;
+			background: var(--social-on-dark-text);
+			color: var(--social-on-dark-ground);
 		}
 
 		&:focus-visible {
-			outline: 2px solid #fff;
+			outline: 2px solid var(--social-on-dark-text);
 			outline-offset: 2px;
 		}
 	}
@@ -1240,7 +1240,7 @@ export default {
 		/* contain rather than cover: a video shot wide is not improved by
 		   having its sides cut off to fill a tall window */
 		object-fit: contain;
-		background: #000;
+		background: var(--social-on-dark-ground);
 	}
 
 	&__poster {
@@ -1256,13 +1256,13 @@ export default {
 		cursor: pointer;
 
 		&:focus-visible {
-			outline: 2px solid #fff;
+			outline: 2px solid var(--social-on-dark-text);
 			outline-offset: -4px;
 		}
 	}
 
 	&__gone {
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--social-on-dark-text-muted);
 	}
 
 	/* over the slide being watched: every slide is exactly the track's
@@ -1284,8 +1284,8 @@ export default {
 		block-size: 40px;
 		border: none;
 		border-radius: 50%;
-		background: rgba(0, 0, 0, 0.55);
-		color: #fff;
+		background: var(--social-on-dark-scrim);
+		color: var(--social-on-dark-text);
 		cursor: pointer;
 		/* over the caption, which runs the width of the slide underneath it
 		   and used to swallow every press meant for this button */
@@ -1299,8 +1299,8 @@ export default {
 		z-index: 2;
 		padding: 3px 10px;
 		border-radius: 999px;
-		background: rgba(0, 0, 0, 0.7);
-		color: #fff;
+		background: var(--social-on-dark-scrim-heavy);
+		color: var(--social-on-dark-text);
 		font-size: 12px;
 		font-weight: 600;
 		pointer-events: none;
@@ -1326,8 +1326,8 @@ export default {
 		padding: 8px 0 6px;
 		border: none;
 		border-radius: 20px;
-		background: rgba(0, 0, 0, 0.55);
-		color: #fff;
+		background: var(--social-on-dark-scrim);
+		color: var(--social-on-dark-text);
 		cursor: pointer;
 		transition: transform .15s ease;
 
@@ -1336,11 +1336,11 @@ export default {
 		}
 
 		&--on {
-			color: #ff3b5c;
+			color: var(--social-on-dark-accent);
 		}
 
 		&:focus-visible {
-			outline: 2px solid #fff;
+			outline: 2px solid var(--social-on-dark-text);
 			outline-offset: 2px;
 		}
 	}
@@ -1348,7 +1348,7 @@ export default {
 	&__like-count {
 		font-size: 12px;
 		font-weight: 600;
-		color: #fff;
+		color: var(--social-on-dark-text);
 		font-variant-numeric: tabular-nums;
 	}
 
@@ -1365,8 +1365,8 @@ export default {
 		position: absolute;
 		inline-size: var(--size);
 		block-size: var(--size);
-		color: #ff3b5c;
-		filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+		color: var(--social-on-dark-accent);
+		filter: drop-shadow(0 2px 6px var(--social-on-dark-shadow));
 
 		/* where a double tap landed: it swells, holds, and lifts away */
 		&--burst {
@@ -1397,10 +1397,10 @@ export default {
 		gap: 6px;
 		/* room on the end for the sound button, which sits over this */
 		padding: 16px 72px 16px 16px;
-		color: #fff;
+		color: var(--social-on-dark-text);
 		/* the words sit on whatever the video happens to be showing, so they
 		   carry their own ground rather than hoping it is dark there */
-		background: linear-gradient(to top, rgba(0, 0, 0, 0.75), transparent);
+		background: linear-gradient(to top, var(--social-on-dark-scrim-heavy), transparent);
 	}
 
 	&__author {
@@ -1448,7 +1448,7 @@ export default {
 	}
 
 	&__open {
-		color: #fff;
+		color: var(--social-on-dark-text);
 		text-decoration: underline;
 	}
 }
@@ -1489,6 +1489,39 @@ export default {
 
 	.short__like {
 		transition: none;
+	}
+}
+
+/* Windows high contrast and the like replace every colour with the system's
+   and take the scrims away, leaving words on bare video. The controls take
+   the system's button colours with a border, the caption a solid canvas, so
+   each stays readable on whatever frame is under it. */
+@media (forced-colors: active) {
+	.shorts__create,
+	.shorts__scopes,
+	.short__sound,
+	.short__sound-hint,
+	.short__like {
+		border: 1px solid ButtonText;
+		background: ButtonFace;
+		color: ButtonText;
+	}
+
+	.shorts__scope--current {
+		background: Highlight;
+		color: HighlightText;
+	}
+
+	.short__like--on,
+	.short__heart {
+		color: Highlight;
+	}
+
+	.short__caption,
+	.shorts__empty {
+		border-block-start: 1px solid CanvasText;
+		background: Canvas;
+		color: CanvasText;
 	}
 }
 </style>
