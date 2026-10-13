@@ -252,9 +252,12 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The 4.x features still missing are announced rather than left to fail. `urls`
-is an empty object, which is how a client learns there is no streaming
-endpoint, and `vapid_key` is an empty string, so a client decides against
+The 4.x features still missing are announced rather than left to fail.
+`urls.streaming_api` (v2: `configuration.urls.streaming`) is `wss://<host>`
+although there is no streaming endpoint: masto.js (Elk, Phanpy) builds its
+websocket from it and, with the key left out, tried to connect to `undefined`
+on every page load; at this host the connection is a clean 404 and the client
+polls. `vapid_key` is an empty string, so a client decides against
 offering Web Push before it asks for it — which is what it does against any
 server with no VAPID key. `configuration.translation.enabled` is no longer
 always `false`: it is `true` where this Nextcloud has a translation provider,
@@ -808,7 +811,7 @@ whether it is done. Query and scalability work has its own list in
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | Deliberately absent and announced as absent (`urls` is an empty object), so clients poll immediately rather than after a timeout. A real timeline needs a process that outlives a PHP request | **open** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | Deliberately absent: `urls.streaming_api` names `wss://<host>`, where the websocket is a clean 404, so clients poll rather than connect to `undefined`. A real timeline needs a process that outlives a PHP request | **open** |
 
 ### Tier 2b — what walking the route list turned up
 

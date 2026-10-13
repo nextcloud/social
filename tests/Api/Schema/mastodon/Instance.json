@@ -56,6 +56,7 @@
 		},
 		"thumbnail": {
 			"type": "object",
+			"nullable": true,
 			"required": [
 				"url"
 			],
@@ -240,7 +241,7 @@
 					"properties": {
 						"streaming": {
 							"type": "string",
-							"format": "url"
+							"format": "websocket-url"
 						},
 						"status": {
 							"type": [
