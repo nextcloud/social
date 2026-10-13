@@ -620,6 +620,118 @@ describe('Navigation', () => {
 	 * because an older server sent no `sections` would read as the app being
 	 * broken rather than as a setting.
 	 */
+	/**
+	 * Without notify_push the sidebar re-reads its three counts on a timer.
+	 * A tab nobody is looking at does not ask -- on an instance with many
+	 * open tabs that was most of the traffic there was -- and a server that
+	 * keeps failing is asked less and less often.
+	 */
+	describe('the badge poll', () => {
+		const MINUTE = 60 * 1000
+		let fetches
+		let visibility
+
+		const answers = (answer) => fetches.forEach((fetch) => fetch.mockResolvedValue(answer))
+		const rounds = () => fetches[0].mock.calls.length
+		const lookAway = () => visibility.mockReturnValue('hidden')
+		const comeBack = () => {
+			visibility.mockReturnValue('visible')
+			document.dispatchEvent(new Event('visibilitychange'))
+		}
+
+		beforeEach(async () => {
+			vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'Date'] })
+			fetches = ['fetchUnreadNotifications', 'fetchUnreadDirectMessages', 'fetchPendingRequests']
+				.map((name) => vi.spyOn(notificationsStore, name).mockResolvedValue(true))
+			visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+			mountNavigation()
+			await flushPromises()
+			// the read the page opened with
+			expect(rounds()).toBe(1)
+			fetches.forEach((fetch) => fetch.mockClear())
+		})
+
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		it('reads all three counts once a minute while the tab is looked at', async () => {
+			await vi.advanceTimersByTimeAsync(2 * MINUTE)
+
+			fetches.forEach((fetch) => expect(fetch).toHaveBeenCalledTimes(2))
+		})
+
+		it('asks for nothing while the tab is hidden', async () => {
+			lookAway()
+
+			await vi.advanceTimersByTimeAsync(10 * MINUTE)
+
+			expect(rounds()).toBe(0)
+		})
+
+		it('catches up once on the way back to the tab', async () => {
+			lookAway()
+			await vi.advanceTimersByTimeAsync(3 * MINUTE)
+
+			comeBack()
+			await flushPromises()
+			expect(rounds()).toBe(1)
+
+			// a second visibilitychange is not a second return
+			comeBack()
+			await flushPromises()
+			expect(rounds()).toBe(1)
+		})
+
+		it('does not catch up after a glance away shorter than the interval', async () => {
+			lookAway()
+			await vi.advanceTimersByTimeAsync(MINUTE / 2)
+
+			comeBack()
+			await flushPromises()
+
+			expect(rounds()).toBe(0)
+		})
+
+		it('backs off to five minutes while the server keeps failing, and comes back when it answers', async () => {
+			answers(false)
+
+			// 60 s: asked, refused; the wait doubles to 120 s
+			await vi.advanceTimersByTimeAsync(MINUTE)
+			expect(rounds()).toBe(1)
+			// 180 s: asked again; 240 s next
+			await vi.advanceTimersByTimeAsync(2 * MINUTE)
+			expect(rounds()).toBe(2)
+			// 420 s: asked again; the ceiling, 300 s, from here
+			await vi.advanceTimersByTimeAsync(4 * MINUTE)
+			expect(rounds()).toBe(3)
+			await vi.advanceTimersByTimeAsync(4 * MINUTE)
+			expect(rounds()).toBe(3)
+			await vi.advanceTimersByTimeAsync(MINUTE)
+			expect(rounds()).toBe(4)
+
+			// one answer, and the minute is back
+			answers(true)
+			await vi.advanceTimersByTimeAsync(5 * MINUTE)
+			expect(rounds()).toBe(5)
+			await vi.advanceTimersByTimeAsync(MINUTE)
+			expect(rounds()).toBe(6)
+		})
+
+		it('stops asking when it leaves the page', async () => {
+			const wrapper = mountNavigation()
+			await flushPromises()
+			fetches.forEach((fetch) => fetch.mockClear())
+			wrapper.unmount()
+
+			await vi.advanceTimersByTimeAsync(2 * MINUTE)
+
+			// the sidebar mounted by the hook above is still polling; its
+			// rounds are the only ones left
+			expect(rounds()).toBe(2)
+		})
+	})
+
 	describe('the sections an instance offers', () => {
 		const offering = (sections) => {
 			useSettingsStore().setServerData({ public: false, sections })

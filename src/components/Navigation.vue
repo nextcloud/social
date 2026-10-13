@@ -360,8 +360,15 @@ import { ownAvatarUrl } from '../services/avatar.js'
 // its own chunk keeps all of that out of the entry bundle
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'./Composer/Composer.vue'))
 
-/** how often to re-read the badge when the server cannot push */
+/** how often to re-read the badges when the server cannot push */
 const UNREAD_POLL_MS = 60 * 1000
+
+/**
+ * The longest the badge poll waits while the server keeps failing, in
+ * milliseconds. Each failed round doubles the wait from `UNREAD_POLL_MS` up
+ * to this; the first answer puts it back.
+ */
+const MAX_UNREAD_POLL_MS = 5 * 60 * 1000
 
 /** how long to let the typing settle before searching */
 const SEARCH_DEBOUNCE_MS = 300
@@ -452,6 +459,12 @@ export default {
 			showErrors: false,
 			stopListening: null,
 			pollTimer: null,
+			/** how many ticks of the poll still pass before the next attempt */
+			pollSkip: 0,
+			/** how long the poll is waiting after failures, 0 while the server answers */
+			pollWait: 0,
+			/** when the tab was last hidden, so returning can catch up */
+			hiddenSince: 0,
 			searchTimer: null,
 			/** the LISTS_CHANGED handler, kept so only this one is removed */
 			onListsChanged: null,
@@ -835,9 +848,7 @@ export default {
 			this.fetchLists()
 			this.fetchBlueskyFeeds()
 			this.fetchFollowedTags()
-			this.notificationsStore.fetchUnreadNotifications()
-			this.notificationsStore.fetchUnreadDirectMessages()
-			this.notificationsStore.fetchPendingRequests()
+			this.refreshBadges()
 		})
 		// this one defers itself: the composer asks for it too, and it must
 		// wait whichever of the two asks first
@@ -859,22 +870,14 @@ export default {
 		}
 		this.openComposerFromQuery()
 
-		// the badge is only honest if it keeps up: with notify_push the server
-		// says when something arrived, and without it a slow poll is enough
-		this.stopListening = listen('social_timeline', () => {
-			this.notificationsStore.fetchUnreadNotifications()
-			this.notificationsStore.fetchUnreadDirectMessages()
-			this.notificationsStore.fetchPendingRequests()
-		})
+		// the badges are only honest if they keep up: with notify_push the
+		// server says when something arrived, and without it a slow poll is
+		// enough -- while somebody is looking; a hidden tab catches up when
+		// it comes back
+		this.stopListening = listen('social_timeline', this.refreshBadges)
 		if (!this.stopListening) {
-			this.pollTimer = setInterval(
-				() => {
-					this.notificationsStore.fetchUnreadNotifications()
-					this.notificationsStore.fetchUnreadDirectMessages()
-					this.notificationsStore.fetchPendingRequests()
-				},
-				UNREAD_POLL_MS,
-			)
+			this.pollTimer = setInterval(this.pollIfVisible, UNREAD_POLL_MS)
+			document.addEventListener('visibilitychange', this.pollOnReturn)
 		}
 	},
 
@@ -888,6 +891,7 @@ export default {
 		}
 		if (this.pollTimer !== null) {
 			clearInterval(this.pollTimer)
+			document.removeEventListener('visibilitychange', this.pollOnReturn)
 		}
 		if (this.searchTimer !== null) {
 			window.clearTimeout(this.searchTimer)
@@ -905,6 +909,66 @@ export default {
 		 */
 		unreadDescription(count) {
 			return count > 0 ? n('social', '%n unread', '%n unread', count) : undefined
+		},
+
+		/**
+		 * Reads the three counts the sidebar badges show. One request each:
+		 * the server has no route that answers all three together.
+		 *
+		 * @return {Promise<boolean>} whether the server answered any of them
+		 */
+		async refreshBadges() {
+			const answered = await Promise.all([
+				this.notificationsStore.fetchUnreadNotifications(),
+				this.notificationsStore.fetchUnreadDirectMessages(),
+				this.notificationsStore.fetchPendingRequests(),
+			])
+
+			return answered.some(Boolean)
+		},
+
+		/**
+		 * The polling tick. A tab nobody is looking at does not ask: on an
+		 * instance with many open tabs that was most of the traffic there was.
+		 */
+		pollIfVisible() {
+			if (document.visibilityState === 'hidden') {
+				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+			if (this.pollSkip > 0) {
+				this.pollSkip -= 1
+				return
+			}
+
+			this.pollBadges()
+		},
+
+		/** One round of the poll, and the wait before the next one. */
+		async pollBadges() {
+			if (await this.refreshBadges()) {
+				this.pollWait = 0
+				this.pollSkip = 0
+				return
+			}
+
+			// twice the wait each time, up to the ceiling: 120 s, 240 s, then
+			// five minutes between attempts while the server keeps failing
+			this.pollWait = Math.min(Math.max(this.pollWait, UNREAD_POLL_MS) * 2, MAX_UNREAD_POLL_MS)
+			this.pollSkip = Math.round(this.pollWait / UNREAD_POLL_MS) - 1
+		},
+
+		/** Catches up once, on the way back to a tab that was left. */
+		pollOnReturn() {
+			if (document.visibilityState !== 'visible' || this.hiddenSince === 0) {
+				return
+			}
+
+			const away = Date.now() - this.hiddenSince
+			this.hiddenSince = 0
+			if (away >= UNREAD_POLL_MS) {
+				this.pollBadges()
+			}
 		},
 
 		/**

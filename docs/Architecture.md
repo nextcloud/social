@@ -1139,7 +1139,12 @@ built from the newest id the viewer can see — which changes exactly when the
 answer does and costs an index-only read of the recipient rows: for the unread
 count one descending range of the viewer's own, for the home timeline the same
 windowed read the page makes, with a limit of one — so a poll that has not
-changed is answered `304`. Media carries the stored
+changed is answered `304`. The web app's own polls — the timeline every thirty
+seconds, the sidebar's three badge counts (unread activities, unread
+conversations, held requests; there is no combined route) every minute — only
+run while the tab is visible: a hidden tab asks once when it is returned to,
+and a server that keeps failing is asked less and less often, down to once in
+five minutes, until it answers. Media carries the stored
 file's own tag, which matters because a timeline is forty to sixty pictures a
 screen and each was a full Nextcloud boot.
 
