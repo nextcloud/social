@@ -974,9 +974,13 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 	 * nothing, because nothing in this schema points from a post back at the
 	 * attachment it shows.
 	 *
+	 * @param int $afterNid where the page starts: after the last row of the
+	 *                      one before, so a row that would not go is not read
+	 *                      again at the head of every page
+	 *
 	 * @return Document[]
 	 */
-	public function getOrphanedByParent(int $olderThanDays, int $limit): array {
+	public function getOrphanedByParent(int $olderThanDays, int $limit, int $afterNid = 0): array {
 		$qb = $this->getCacheDocumentsSelectSql();
 		$expr = $qb->expr();
 
@@ -994,6 +998,9 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 			->andWhere($expr->isNull('st.id_prim'))
 			->andWhere($expr->isNull('ca.id_prim'))
 			->andWhere($expr->isNull('so.source_id_prim'));
+		if ($afterNid > 0) {
+			$qb->andWhere($expr->gt('cd.nid', $qb->createNamedParameter($afterNid, IQueryBuilder::PARAM_INT)));
+		}
 
 		$qb->orderBy('cd.nid', 'asc');
 		$qb->setMaxResults($limit);

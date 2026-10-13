@@ -292,6 +292,26 @@ class CacheDocumentsRequestTest extends TestCase {
 		$this->assertSame(['old'], $this->ours($this->documents->getOrphanedByParent(7, 1000)));
 	}
 
+	/**
+	 * The sweep reads the orphans a page at a time in nid order, and a page
+	 * starts after the last row of the one before: a row that would not go
+	 * is not read again at the head of every page.
+	 */
+	public function testOrphansAreReadAfterACursor(): void {
+		$first = $this->document('first', ['parent' => self::BASE . '/notes/gone']);
+		$this->document('second', ['parent' => self::BASE . '/notes/gone-too']);
+		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+		$qb->update(CoreRequestBuilder::TABLE_CACHE_DOCUMENTS)
+			->set('creation', $qb->createNamedParameter(new DateTime('-30 days'), IQueryBuilder::PARAM_DATE))
+			->where($qb->expr()->in('id_prim', $qb->createNamedParameter(
+				[md5(self::BASE . '/documents/first'), md5(self::BASE . '/documents/second')], IQueryBuilder::PARAM_STR_ARRAY
+			)));
+		$qb->executeStatement();
+
+		$this->assertSame(['first', 'second'], $this->ours($this->documents->getOrphanedByParent(7, 1000)));
+		$this->assertSame(['second'], $this->ours($this->documents->getOrphanedByParent(7, 1000, (int)$first->getNid())));
+	}
+
 	public function testDocumentsFollowAnAccountThatMovesAndGoWithTheirParent(): void {
 		$this->document('avatar', ['parent' => self::ACTOR]);
 

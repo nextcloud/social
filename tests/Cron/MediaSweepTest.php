@@ -55,8 +55,10 @@ class MediaSweepTest extends TestCase {
 	}
 
 	public function testBothPassesRunAndAreBounded(): void {
+		// page after page, for a bounded time: one page a day fell behind
+		// every prune that orphaned more than that
 		$this->mediaPurgeService->expects($this->once())->method('sweepOrphans')
-			->with(MediaSweep::DAYS, MediaSweep::BATCH)->willReturn(3);
+			->with(MediaSweep::DAYS, MediaSweep::BATCH, 1_757_937_600 + MediaSweep::SECONDS)->willReturn(3);
 		$this->documentService->expects($this->once())->method('fillMissingMediaTypes')
 			->with(MediaSweep::BATCH)->willReturn(1);
 
