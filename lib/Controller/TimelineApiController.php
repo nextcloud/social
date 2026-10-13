@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\UnknownProbeException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -421,10 +422,20 @@ class TimelineApiController extends MastodonApiController {
 		int|string $since_id = 0,
 		array $types = [],
 		array $exclude_types = [],
-		string $accountId = '',
+		string $account_id = '',
 	): DataResponse {
 		try {
 			$this->initViewer(true);
+
+			if ($account_id !== '') {
+				// the notifications one account caused: Mastodon's `account_id`
+				// is the numeric id, and nobody by that name has caused any
+				try {
+					$account_id = $this->cacheActorService->resolve($account_id)->getId();
+				} catch (CacheActorDoesNotExistException) {
+					return new DataResponse([], Http::STATUS_OK);
+				}
+			}
 
 			$options = new ProbeOptions($this->request);
 			$options->setFormat(ACore::FORMAT_LOCAL);
@@ -435,7 +446,7 @@ class TimelineApiController extends MastodonApiController {
 				->setSince($since_id)
 				->setTypes($types)
 				->setExcludeTypes($exclude_types)
-				->setAccountId($accountId);
+				->setAccountId($account_id);
 
 			// A notification whose sub-type Mastodon has no name for would
 			// serialise as `"type": ""`, which a client with a closed enum

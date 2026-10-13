@@ -14,6 +14,7 @@ use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ModerationRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
@@ -23,6 +24,7 @@ use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\NotificationPolicy;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Model\NotificationDelivery;
 use OCA\Social\Service\AccountRelationService;
@@ -77,6 +79,8 @@ class NotificationControllerTest extends TestCase {
 	private array $headers = [];
 	/** @var int[] the notification ids the viewer has */
 	private array $own = [7];
+	/** what the last page was asked with */
+	private ?ProbeOptions $options = null;
 	/** @var array<int, array> [method, id] of every call that changes something */
 	private array $writes = [];
 	private bool $csrf = true;
@@ -184,7 +188,11 @@ class NotificationControllerTest extends TestCase {
 	/** The real inbox over a stream service that serves `$page`, and the policy double. */
 	private function inbox(): NotificationInboxService {
 		$streamService = $this->createStub(StreamService::class);
-		$streamService->method('getTimeline')->willReturnCallback(fn (): array => $this->page);
+		$streamService->method('getTimeline')->willReturnCallback(function (ProbeOptions $options): array {
+			$this->options = $options;
+
+			return $this->page;
+		});
 
 		return new NotificationInboxService(
 			$streamService,
@@ -367,6 +375,37 @@ class NotificationControllerTest extends TestCase {
 		$notification->setObject($post);
 
 		return $notification;
+	}
+
+	/**
+	 * Mastodon's `account_id` narrows the page to what one account caused,
+	 * resolved from the numeric id a client holds to the actor.
+	 */
+	public function testTheGroupedListFromOneAccountIsAskedForByItsId(): void {
+		$this->timeline([]);
+		$sender = new Person();
+		$sender->setId('https://cloud.example/users/42');
+		$this->cacheActorService->method('resolve')->willReturnCallback(
+			function (string $reference) use ($sender): Person {
+				$this->assertSame('42', $reference);
+
+				return $sender;
+			}
+		);
+
+		$this->controller()->indexV2(account_id: '42');
+
+		$this->assertSame('https://cloud.example/users/42', $this->options?->getAccountId());
+	}
+
+	public function testTheGroupedListFromAnAccountNobodyHoldsIsEmpty(): void {
+		$this->timeline([$this->favourite(2, 200, 10)]);
+		$this->cacheActorService->method('resolve')->willThrowException(new CacheActorDoesNotExistException());
+
+		$data = $this->controller()->indexV2(account_id: '42')->getData();
+
+		$this->assertSame([], $data['notification_groups']);
+		$this->assertNull($this->options, 'nothing was asked of the database');
 	}
 
 	public function testTheGroupedListGroupsFavouritesOfOnePost(): void {

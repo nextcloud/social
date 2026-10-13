@@ -3654,6 +3654,9 @@ class ApiControllerTest extends TestCase {
 	public function testNotificationsForwardTypeFilters(): void {
 		$this->loggedInAs();
 		$options = $this->captureTimelineOptions();
+		$sender = $this->createStub(Person::class);
+		$sender->method('getId')->willReturn('https://x/acct');
+		$this->cacheActorService->method('getCachedFromIds')->with(['https://x/acct'])->willReturn([$sender]);
 
 		$this->controller()->notifications(10, 0, 0, 0, ['mention', 'follow'], ['reblog'], 'https://x/acct');
 
@@ -3663,6 +3666,49 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(['reblog'], $probe->getExcludeTypes());
 		$this->assertSame('https://x/acct', $probe->getAccountId());
 		$this->assertSame(10, $probe->getLimit());
+	}
+
+	/**
+	 * Mastodon's `account_id` -- the parameter is bound by name, so it has
+	 * to carry that name -- narrows the page to what one account caused,
+	 * resolved from the numeric id a client holds to the actor.
+	 */
+	public function testNotificationsFromOneAccountAreAskedForByItsId(): void {
+		$this->loggedInAs();
+		$options = $this->captureTimelineOptions();
+		$sender = $this->createStub(Person::class);
+		$sender->method('getId')->willReturn('https://cloud.example/users/42');
+		$this->cacheActorService->method('getFromNids')->with([42])->willReturn([$sender]);
+
+		$this->controller()->notifications(account_id: '42');
+
+		$this->assertSame('https://cloud.example/users/42', $options()->getAccountId());
+	}
+
+	public function testNotificationsFromAnAccountNobodyHoldsAreNone(): void {
+		$this->loggedInAs();
+		$this->cacheActorService->method('getFromNids')->willReturn([]);
+		$this->streamService->expects($this->never())->method('getTimeline');
+
+		$response = $this->controller()->notifications(account_id: '42');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([], $response->getData());
+	}
+
+	public function testThePreferencesWriteIsBoundByTheNameTheClientSends(): void {
+		$this->loggedInAs();
+		$chosen = null;
+		$this->sensitiveMediaService->method('choose')->willReturnCallback(
+			function (string $userId, string $policy) use (&$chosen): bool {
+				$chosen = $policy;
+
+				return true;
+			}
+		);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->preferencesUpdate(expand_media: 'show_all')->getStatus());
+		$this->assertSame('show_all', $chosen);
 	}
 
 	public function testNotificationsRequireAViewer(): void {

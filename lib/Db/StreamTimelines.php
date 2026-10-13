@@ -1061,6 +1061,11 @@ trait StreamTimelines {
 		$qb->limitToType(SocialAppNotification::TYPE);
 		$qb->limitToSubTypes($wanted);
 		$qb->limitToSubTypes(Stream::subTypesOfNotificationTypes($options->getExcludeTypes()), true);
+		// the notifications one account caused -- Mastodon's `account_id`,
+		// resolved to the actor's id by the route
+		if ($options->getAccountId() !== '') {
+			$qb->limitToAttributedTo($options->getAccountId(), true);
+		}
 		$this->paginateOnRecipient($qb, $options);
 
 		$qb->selectDestFollowing('sd', '');

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Client\NotificationPolicy;
@@ -561,6 +562,16 @@ class NotificationController extends ClientApiController {
 		array $excludeTypes = [],
 		string $accountId = '',
 	): array {
+		if ($accountId !== '') {
+			// the notifications one account caused: Mastodon's `account_id`
+			// is the numeric id, and nobody by that name has caused any
+			try {
+				$accountId = $this->cacheActorService->resolve($accountId)->getId();
+			} catch (CacheActorDoesNotExistException) {
+				return [];
+			}
+		}
+
 		$page = $this->notificationInboxService->timeline(
 			$this->viewer, $limit, $maxId, $minId, $sinceId, $types, $excludeTypes, $accountId
 		);

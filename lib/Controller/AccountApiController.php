@@ -550,10 +550,10 @@ class AccountApiController extends MastodonApiController {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/preferences')]
-	public function preferencesUpdate(string $expandMedia = ''): DataResponse {
+	public function preferencesUpdate(string $expand_media = ''): DataResponse {
 		try {
 			$userId = $this->currentSession();
-			if (!$this->sensitiveMediaService->choose($userId, $expandMedia)) {
+			if (!$this->sensitiveMediaService->choose($userId, $expand_media)) {
 				return new DataResponse(
 					['error' => 'expand_media must be show_all, default, hide_all, or empty'],
 					Http::STATUS_UNPROCESSABLE_ENTITY
