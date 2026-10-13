@@ -94,6 +94,14 @@ class Version1000Date20260917000001 extends SimpleMigrationStep {
 	 */
 	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
+		$this->fill($output);
+	}
+
+	/**
+	 * The backfill and its flag, apart from the migration: a fresh install
+	 * runs migrations schema-only, so `InstallBackfills` calls this there.
+	 */
+	public function fill(IOutput $output): void {
 		// `*PREFIX*` is what the connection rewrites; there is no public API
 		// that hands the prefix over as a string
 		$dest = '*PREFIX*' . CoreRequestBuilder::TABLE_STREAM_DEST;

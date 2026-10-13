@@ -56,7 +56,7 @@ class Version1000Date20261013100500 extends SimpleMigrationStep {
 
 	/**
 	 * The backfill and the two flags, apart from the migration: a fresh
-	 * install runs migrations schema-only, so `MarkStreamColumnsFilled`
+	 * install runs migrations schema-only, so `InstallBackfills`
 	 * calls this on install, where the tables are empty and both flags go
 	 * up at once.
 	 */

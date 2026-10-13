@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Migration;
 
+use OCA\Social\Cron\SearchIndex;
+use OCA\Social\Cron\StreamAuthorHosts;
 use OCA\Social\Db\CoreRequestBuilder;
-use OCA\Social\Migration\MarkStreamColumnsFilled;
+use OCA\Social\Migration\InstallBackfills;
 use OCA\Social\Migration\Version1000Date20260912000010;
 use OCA\Social\Migration\Version1000Date20260917000001;
 use OCA\Social\Migration\Version1000Date20260917000003;
@@ -19,6 +21,7 @@ use OCA\Social\Migration\Version1000Date20261013100500;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tests\Integration\Helper\RowSeeder;
+use OCP\BackgroundJob\IJobList;
 use OCP\DB\ISchemaWrapper;
 use OCP\IAppConfig;
 use OCP\IDBConnection;
@@ -178,20 +181,27 @@ class RowBackfillMigrationsTest extends TestCase {
 	}
 
 	/**
-	 * Nextcloud installs an app with its migrations schema-only, so the
-	 * install step is what raises both flags there: on tables with nothing
-	 * left to fill, both go up.
+	 * Nextcloud installs an app with its migrations schema-only, so no
+	 * `postSchemaChange()` runs there: the install step runs their backfills
+	 * instead. With nothing left to fill — as on a fresh install — the three
+	 * flags the fast queries wait for are up when it is done, and the two
+	 * jobs that raise the others are queued.
 	 */
-	public function testTheInstallStepRaisesBothFlagsWhereNothingIsLeftToFill(): void {
+	public function testAFreshInstallEndsWithEveryFlagUpAndTheBackfillJobsQueued(): void {
 		$config = Server::get(IAppConfig::class);
-		$before = [
-			ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED => $config->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0'),
-			ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED => $config->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
+		$jobList = Server::get(IJobList::class);
+		$flags = [
+			ConfigService::SOCIAL_DEST_NID_FILLED, ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED,
+			ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED,
 		];
-		$blank = $this->stream(['archived' => null, 'media_kind' => 'image']);
-		foreach ($before as $key => $value) {
+		$before = [];
+		foreach ($flags as $key) {
+			$before[$key] = $config->getValueString('social', $key, '0');
 			$config->setValueString('social', $key, '0');
 		}
+		$jobs = [[SearchIndex::class, null], [StreamAuthorHosts::class, ['after' => '0']]];
+		$queuedBefore = array_map(static fn (array $job): bool => $jobList->has($job[0], $job[1]), $jobs);
+		$blank = $this->stream(['archived' => null, 'media_kind' => 'image']);
 
 		try {
 			$qb = $this->connection->getQueryBuilder();
@@ -200,18 +210,28 @@ class RowBackfillMigrationsTest extends TestCase {
 			$withoutKind = (int)$result->fetchOne();
 			$result->closeCursor();
 
-			Server::get(MarkStreamColumnsFilled::class)->run($this->createStub(IOutput::class));
+			Server::get(InstallBackfills::class)->run($this->createStub(IOutput::class));
 
 			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $blank, 'archived' => false]));
+			$this->assertSame('1', $config->getValueString('social', ConfigService::SOCIAL_DEST_NID_FILLED, '0'), 'the home fast path');
 			$this->assertSame('1', $config->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0'));
+			// a fresh install has no post without a kind; a shared test
+			// database may, and then the flag rightly stays down
 			$this->assertSame(
 				$withoutKind === 0 ? '1' : '0',
-				$config->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
-				'up exactly when no post is without a kind'
+				$config->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0')
 			);
+			foreach ($jobs as [$class, $argument]) {
+				$this->assertTrue($jobList->has($class, $argument), $class . ' is queued');
+			}
 		} finally {
 			foreach ($before as $key => $value) {
 				$config->setValueString('social', $key, $value);
+			}
+			foreach ($jobs as $i => [$class, $argument]) {
+				if (!$queuedBefore[$i]) {
+					$jobList->remove($class, $argument);
+				}
 			}
 		}
 	}
