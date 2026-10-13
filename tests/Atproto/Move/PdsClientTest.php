@@ -82,6 +82,30 @@ class PdsClientTest extends TestCase {
 		$this->assertFalse($seen['options']['json_headers'], 'no ActivityPub negotiation on an XRPC call');
 	}
 
+	/**
+	 * A JSON call is waited for in a request, so it is given twenty seconds;
+	 * only a repository or a blob, which move in a background job, get ten
+	 * minutes.
+	 */
+	public function testAJsonCallWaitsTwentySecondsAndABodyUploadTenMinutes(): void {
+		$timeouts = [];
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('doRequest')->willReturnCallback(function (string $method, string $url, array $options, &$contentType = null, &$status = null) use (&$timeouts): string {
+			$timeouts[] = $options['timeout'];
+			$status = 200;
+
+			return '{}';
+		});
+		$client = new PdsClient($curl, $this->createMock(IConfig::class));
+
+		$client->call('https://pds.example.com', 'com.atproto.server.describeServer');
+		$client->call('https://pds.example.com', 'com.atproto.server.createAccount', 'POST', [], ['did' => 'did:plc:a']);
+		$client->call('https://pds.example.com', 'com.atproto.repo.importRepo', 'POST', [], null, 'CAR', 'application/vnd.ipld.car');
+
+		$this->assertSame([20, 20, 600], $timeouts);
+		$this->assertSame(20, PdsClient::TIMEOUT);
+	}
+
 	public function testAServerThatCannotBeReachedIsAnAtprotoException(): void {
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('doRequest')->willThrowException(new RequestNetworkException('refused'));

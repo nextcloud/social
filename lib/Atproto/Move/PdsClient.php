@@ -24,6 +24,11 @@ use Throwable;
  * development network is.
  */
 class PdsClient {
+	/** what a JSON call is given to answer, in seconds: some are waited for in a request */
+	public const TIMEOUT = 20;
+	/** what a repository or a blob is given, in seconds: those only move in a background job */
+	public const LONG_TIMEOUT = 600;
+
 	public function __construct(
 		private CurlService $curl,
 		private IConfig $systemConfig,
@@ -63,7 +68,12 @@ class PdsClient {
 		if ($token !== '') {
 			$headers['Authorization'] = 'Bearer ' . $token;
 		}
-		$options = ['headers' => $headers, 'timeout' => 600, 'json_headers' => false, 'accept_errors' => true];
+		$options = [
+			'headers' => $headers,
+			'timeout' => $bytes !== null ? self::LONG_TIMEOUT : self::TIMEOUT,
+			'json_headers' => false,
+			'accept_errors' => true,
+		];
 		if ($json !== null) {
 			$options['headers']['Content-Type'] = 'application/json';
 			// a procedure's input is an object, and an empty PHP array encodes as []
@@ -94,7 +104,7 @@ class PdsClient {
 		try {
 			// a stream rather than a document: a repository is not held to the
 			// download ceiling
-			$answer = $this->curl->openStream($pds . '/xrpc/' . $method . '?' . http_build_query($query), $headers, '', 600);
+			$answer = $this->curl->openStream($pds . '/xrpc/' . $method . '?' . http_build_query($query), $headers, '', self::LONG_TIMEOUT);
 		} catch (RequestContentException $e) {
 			return ['status' => $e->getCode(), 'bytes' => '', 'type' => ''];
 		} catch (Throwable $e) {
