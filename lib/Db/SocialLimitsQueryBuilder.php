@@ -14,8 +14,6 @@ use DateTime;
 use Exception;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Announce;
-use OCA\Social\Model\ActivityPub\Object\Note;
-use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\ActorRelation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
@@ -41,7 +39,7 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 	 */
 	public function limitToStatusTypes(string $alias = '', bool $withBoosts = false): self {
 		$pf = ($alias === '') ? $this->getDefaultSelectAlias() . '.' : $alias . '.';
-		$types = [Note::TYPE, Question::TYPE];
+		$types = Stream::STATUS_TYPES;
 		if ($withBoosts) {
 			$types[] = Announce::TYPE;
 		}

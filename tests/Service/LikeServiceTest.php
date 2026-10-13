@@ -25,6 +25,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\ActivityService;
@@ -284,8 +285,26 @@ class LikeServiceTest extends TestCase {
 		$this->activityService->expects($this->never())->method('request');
 
 		$this->expectException(StreamNotFoundException::class);
-		$this->expectExceptionMessage('Stream is not a Note');
+		$this->expectExceptionMessage('Stream is not a status');
 		$this->service->create($this->alice(), self::POST_ID);
+	}
+
+	/** A poll is a status to its readers, and is liked as one. */
+	public function testCreateLikesAPoll(): void {
+		$poll = new Question();
+		$poll->setId(self::POST_ID);
+		$poll->setAttributedTo(self::BOB_ID);
+		$poll->setTo(ACore::CONTEXT_PUBLIC);
+		$this->streamService->method('getStreamById')->willReturn($poll);
+		$this->cacheActorService->method('getFromId')->with(self::BOB_ID)->willReturn($this->bob());
+		$this->likeInterface->expects($this->once())->method('save');
+		$this->streamActionService->expects($this->once())
+			->method('setActionBool')
+			->with(self::ALICE_ID, self::POST_ID, StreamAction::LIKED, true);
+
+		$like = $this->service->create($this->alice(), self::POST_ID);
+
+		$this->assertSame(self::POST_ID, $like->getObjectId());
 	}
 
 	public function testCreateFailsForUnknownPost(): void {

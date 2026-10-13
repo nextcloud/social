@@ -21,7 +21,6 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
@@ -71,8 +70,8 @@ class BoostService {
 		$announce->setActor($actor);
 
 		$note = $this->streamService->getStreamById($postId, true);
-		if ($note->getType() !== Note::TYPE) {
-			throw new StreamNotFoundException('Stream is not a Note');
+		if (!Stream::isStatusType($note->getType())) {
+			throw new StreamNotFoundException('Stream is not a status');
 		}
 
 		if (!$note->isPublic()) {
@@ -129,8 +128,8 @@ class BoostService {
 	 */
 	public function recordWithoutSending(Person $actor, string $postId, string $published): ACore {
 		$note = $this->streamService->getStreamById($postId, true);
-		if ($note->getType() !== Note::TYPE || !$note->isPublic()) {
-			throw new StreamNotFoundException('Stream is not a public Note');
+		if (!Stream::isStatusType($note->getType()) || !$note->isPublic()) {
+			throw new StreamNotFoundException('Stream is not a public status');
 		}
 		if ($this->hasAnnounce($actor, $postId)) {
 			throw new ItemAlreadyExistsException('this account has already boosted this post');
@@ -181,8 +180,8 @@ class BoostService {
 		$undo->setActor($actor);
 
 		$note = $this->streamService->getStreamById($postId, true);
-		if ($note->getType() !== Note::TYPE) {
-			throw new StreamNotFoundException('Stream is not a Note');
+		if (!Stream::isStatusType($note->getType())) {
+			throw new StreamNotFoundException('Stream is not a status');
 		}
 
 		try {

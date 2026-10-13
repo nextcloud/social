@@ -191,6 +191,9 @@ to stop.
   status in `reblog`, decorated for the reader as on a timeline, where the
   reader's favourite now shows on the boosted status too; a boost of a status
   the reader may not see is a 404.
+- `Api/PollInteractionsTest` — a poll is liked, boosted and taken back
+  through `POST /api/v1/statuses/{id}/{act}` like any status, and the answer
+  carries the reader's flags.
 - `Api/AccountBoostsTest` — `GET /api/v1/accounts/{id}/statuses` lists the
   account's boosts beside its posts, each with the boosted post in `reblog`,
   to a follower, the boosted author, the booster and nobody; an account whose
