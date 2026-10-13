@@ -30,6 +30,49 @@ const PREFETCH_FRESH = 3 * 60 * 1000
 /** The identities being fetched ahead right now, so none is asked for twice. */
 const prefetching = new Set()
 
+/**
+ * The page requests on their way, by the identity they were asked for, so a
+ * switch can cancel the ones for the list being left rather than let them run
+ * to the end and throw the answer away.
+ *
+ * @type {Map<string, Set<AbortController>>}
+ */
+const inFlight = new Map()
+
+/**
+ * @param {string} identity the list a request is for
+ * @return {AbortController} the controller, registered under that list
+ */
+function startRequest(identity) {
+	const controller = new AbortController()
+	if (!inFlight.has(identity)) {
+		inFlight.set(identity, new Set())
+	}
+	inFlight.get(identity).add(controller)
+
+	return controller
+}
+
+/**
+ * @param {string} identity the list a request was for
+ * @param {AbortController} controller its controller
+ */
+function endRequest(identity, controller) {
+	const controllers = inFlight.get(identity)
+	controllers?.delete(controller)
+	if (controllers?.size === 0) {
+		inFlight.delete(identity)
+	}
+}
+
+/** @param {string} identity the list whose page requests are cancelled */
+function abortRequests(identity) {
+	for (const controller of inFlight.get(identity) ?? []) {
+		controller.abort()
+	}
+	inFlight.delete(identity)
+}
+
 import logger from '../services/logger.js'
 import { isNewerId, newerId } from '../utils/snowflake.js'
 import { isBlockedBy } from '../utils/blockedBy.js'
@@ -1045,6 +1088,10 @@ export const useTimelineStore = defineStore('timeline', {
 				return
 			}
 
+			// a page still on its way for the list being left would be dropped
+			// on arrival; cancelled, it costs the server nothing more either
+			abortRequests(left.identity)
+
 			const wanted = this.getTimelineIdentity
 			const held = this.remembered.find((entry) => entry.identity === wanted) ?? null
 			const returning = held !== null && (held.fetchedAt === undefined || Date.now() - held.fetchedAt < PREFETCH_FRESH) ? held : null
@@ -1591,10 +1638,16 @@ export const useTimelineStore = defineStore('timeline', {
 			// the reader has moved on is dropped instead of being committed under
 			// the new heading
 			const identity = this.getTimelineIdentity
-			const request = axios.get(url, { params })
+			const controller = startRequest(identity)
+			const request = axios.get(url, { params, signal: controller.signal })
 			// the sidebar's own requests wait for the first of these
 			noteTimelineRequest(request)
-			const response = await request
+			let response
+			try {
+				response = await request
+			} finally {
+				endRequest(identity, controller)
+			}
 
 			if (this.getTimelineIdentity !== identity) {
 				logger.debug('Dropped a page that belongs to a timeline no longer on screen', { identity })

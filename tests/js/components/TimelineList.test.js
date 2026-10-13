@@ -1208,7 +1208,7 @@ describe('TimelineList', () => {
 			dispatch.mockReset()
 			dispatch.mockRejectedValue(new Error('down'))
 
-			for (let tick = 0; tick < 4; tick++) {
+			for (let tick = 0; tick < 20; tick++) {
 				vi.advanceTimersByTime(30 * 1000)
 				await flushPromises()
 			}
@@ -1229,14 +1229,47 @@ describe('TimelineList', () => {
 			await flushPromises()
 			expect(showError).toHaveBeenCalledTimes(1)
 
+			// the next attempt waits a minute after a failure
 			dispatch.mockResolvedValueOnce([])
-			vi.advanceTimersByTime(30 * 1000)
+			vi.advanceTimersByTime(60 * 1000)
 			await flushPromises()
 
 			dispatch.mockRejectedValueOnce(new Error('down again'))
 			vi.advanceTimersByTime(30 * 1000)
 			await flushPromises()
 			expect(showError).toHaveBeenCalledTimes(2)
+		})
+
+		it('backs off while the server keeps refusing, and comes back once it answers', async () => {
+			const { dispatch } = mountList({ timeline: [status('30')], responses: [[]] })
+			await flushPromises()
+			dispatch.mockReset()
+			dispatch.mockRejectedValue(new Error('down'))
+
+			// a server that is down was asked every 30 seconds for as long as
+			// the tab was open; the wait now doubles to a five-minute ceiling
+			const calls = []
+			for (let tick = 1; tick <= 40; tick++) {
+				vi.advanceTimersByTime(30 * 1000)
+				await flushPromises()
+				if (dispatch.mock.calls.length > calls.length) {
+					calls.push(tick * 30)
+				}
+			}
+			expect(calls).toEqual([30, 90, 210, 450, 750, 1050])
+
+			// an answer puts the usual pace back: the next attempt is five
+			// minutes after the last failure, the one after it 30 seconds later
+			dispatch.mockReset()
+			dispatch.mockResolvedValue([])
+			for (let tick = 0; tick < 5; tick++) {
+				vi.advanceTimersByTime(30 * 1000)
+				await flushPromises()
+			}
+			expect(dispatch).toHaveBeenCalledTimes(1)
+			vi.advanceTimersByTime(30 * 1000)
+			await flushPromises()
+			expect(dispatch).toHaveBeenCalledTimes(2)
 		})
 
 		it('stops catching up after ten pages, however the server answers', async () => {

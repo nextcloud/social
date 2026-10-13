@@ -153,6 +153,13 @@ import { useServerData } from '../composables/useServerData.js'
 const MAX_CATCHUP_PAGES = 10
 
 /**
+ * The longest the poll waits between two attempts while the server keeps
+ * refusing, in milliseconds. Each failure doubles the wait from the usual
+ * interval up to this; the first answer puts it back.
+ */
+const MAX_POLL_WAIT = 5 * 60 * 1000
+
+/**
  * How far down the reader has to be for arriving posts to be announced with
  * the pill rather than simply prepended. Above this the top of the list is on
  * screen and a post appearing there is its own announcement.
@@ -327,6 +334,10 @@ export default {
 			state: [],
 			intervalId: -1,
 			pollEvery: 30000,
+			/** how long the poll is waiting after failures, 0 while the server answers */
+			pollWait: 0,
+			/** how many ticks of the interval still pass before the next attempt */
+			pollSkip: 0,
 			/** when the tab was last hidden, so returning can catch up */
 			hiddenSince: 0,
 			/** posts that arrived while the reader was further down the page */
@@ -1439,6 +1450,8 @@ export default {
 			this.arrived = 0
 			this.focused = -1
 			this.pollFailureReported = false
+			this.pollWait = 0
+			this.pollSkip = 0
 			// the dwell belonged to the list that was here; the new one earns
 			// its own. What has already been reported read stays reported.
 			clearTimeout(this.seenTimer)
@@ -1525,6 +1538,13 @@ export default {
 		pollIfVisible() {
 			if (document.visibilityState === 'hidden') {
 				this.hiddenSince = this.hiddenSince || Date.now()
+				return
+			}
+
+			// backing off: a server that is down was asked every 30 seconds
+			// for as long as the tab was open
+			if (this.pollSkip > 0) {
+				this.pollSkip -= 1
 				return
 			}
 
@@ -1644,6 +1664,8 @@ export default {
 					min_id: newest,
 				})
 				this.pollFailureReported = false
+				this.pollWait = 0
+				this.pollSkip = 0
 
 				if (response.length > 0) {
 					// only worth announcing when the top of the list is out of
@@ -1659,6 +1681,10 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to load newer timeline entries', { error })
+				// twice the wait each time, up to the ceiling: 60 s, 120 s,
+				// 240 s, then five minutes between attempts
+				this.pollWait = Math.min(Math.max(this.pollWait, this.pollEvery) * 2, Math.max(MAX_POLL_WAIT, this.pollEvery))
+				this.pollSkip = Math.max(0, Math.round(this.pollWait / this.pollEvery) - 1)
 				// once, not once per tick: a server that is down produced an
 				// endless stream of identical toasts every 30 seconds
 				if (!this.pollFailureReported) {
