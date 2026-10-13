@@ -73,6 +73,7 @@ class XrpcAuthSurfaceTest extends TestCase {
 		'com.atproto.sync.getLatestCommit' => 'as getRepo',
 		'com.atproto.sync.getRepoStatus' => 'as getRepo',
 		'com.atproto.sync.getRecord' => 'as getRepo',
+		'com.atproto.sync.getBlocks' => 'as getRepo',
 		'com.atproto.sync.getBlob' => 'as getRepo: blobs of public records',
 		'com.atproto.sync.listBlobs' => 'as getRepo',
 		'com.atproto.sync.listRepos' => 'as getRepo',

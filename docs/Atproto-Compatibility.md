@@ -320,15 +320,24 @@ its collection, rkey, CID, DAG-CBOR bytes, and the Social id it came from
 (`local_id`, so a post maps to its record in O(1) in both directions) — and
 `social_atproto_block` — the content-addressed blocks of the MST and the
 commits, keyed by CID, because the sync endpoints and the firehose serve
-blocks, not rows. The MST is **recomputed in memory from the record table**
-when a commit is made, then its new or changed nodes are written to the
-block table and the unreferenced ones of the previous commit deleted — the
-simplest correct implementation, and a repository of ten thousand records
-rebuilds in well under a second in PHP; if a measurement says otherwise the
-`MST` class gets an incremental path, behind the same interface. The MST
-rules (fanout 4, key depth from the leading zero bits of the SHA-256 of the
-key, two hash bits per level, 32-byte CID v1 `dag-cbor` SHA-256) are pinned
-by the interop test vectors (§17.1).
+blocks, not rows. A commit **edits the stored MST in place**
+(`MstEditor`): it reads the nodes on the path from the root to each key it
+writes, rewrites them, writes the new nodes to the block table and deletes
+the ones they replace; every other node is kept by its CID and never read,
+so a commit costs the depth of the tree, not the size of the repository.
+The edits are the reference implementation's (split around a new key,
+merge around a removed one, trim an emptied root), and the tree they leave
+is, node for node, the one `Mst::build()` makes from the record table —
+pinned by random sequences of commits in the tests. The whole tree is
+still built from the records when a repository is imported (§13), when
+`occ social:atproto:repo --verify` checks it, and by the next commit after
+a stored node is found missing or malformed, which stores that tree in
+place of what was there. The MST rules (fanout 4, key depth from the
+leading zero bits of the SHA-256 of the key, two hash bits per level,
+32-byte CID v1 `dag-cbor` SHA-256) are pinned by the interop test vectors
+(§17.1). `tests/Integration/Atproto/CommitBenchmarkTest` (run with
+`SOCIAL_BENCHMARK=1`) prints what one commit costs on twenty thousand
+records next to what a rebuild of the tree costs.
 
 ### 5.3 Commits
 
@@ -338,7 +347,12 @@ over the DAG-CBOR of the unsigned commit). One commit per write, written in
 the same database transaction as the record and the blocks, and one
 firehose event per commit (§7). A write that fails half-way leaves the
 previous commit as the repository's head: the `social_atproto_repo` row
-(§15) holds the head CID and `rev`, and it is updated last.
+(§15) holds the head CID and `rev`, and it is updated last. The
+transaction begins by reading that row with a row lock (`SELECT … FOR
+UPDATE`; SQLite, which has one writer at a time anyway, without the
+clause), so two commits of one repository that start together run one
+after the other and the second builds on the first's head rather than
+forking the tree.
 
 ### 5.4 Blobs
 
@@ -380,8 +394,13 @@ apps today.
 relay and other PDSes need, and the account surface a Bluesky app logging
 in here needs:
 
-`com.atproto.sync.getRepo`, `getLatestCommit`, `getRecord`, `getBlob`,
-`listBlobs`, `listRepos`, `getRepoStatus`, `subscribeRepos` (§7);
+`com.atproto.sync.getRepo` (the CAR written out as the repository is
+read, a page of rows at a time, so a repository larger than a request's
+memory is served), `getLatestCommit`, `getRecord`, `getBlocks` (blocks by
+CID — tree nodes, commits, records — as a CAR with no roots; one CID the
+repository does not have refuses the request with `BlockNotFound`),
+`getBlob`, `listBlobs`, `listRepos`, `getRepoStatus`, `subscribeRepos`
+(§7);
 `com.atproto.identity.resolveHandle`, `updateHandle` (custom handles, later),
 `getRecommendedDidCredentials`, `signPlcOperation`, `submitPlcOperation`,
 `requestPlcOperationSignature` (§13); `com.atproto.server.describeServer`,
@@ -452,7 +471,18 @@ The daemon reads new events by polling the event table (every 250 ms when
 idle, immediately after a write it was told about through a Redis/APCu
 notice where available) — the web request writes the row, the daemon
 serves it; no shared memory, no second code path. `--once` drains and exits
-for tests; `--max-seconds` as `social:worker` has. systemd unit and the
+for tests; `--max-seconds` as `social:worker` has.
+
+A frame's `seq` is the row's auto-increment id, taken when the row is
+inserted inside the commit's transaction and visible when that transaction
+commits, so a lower number can appear after a higher one is already
+there (two writes of different repositories overlapping). The daemon
+never serves past a number that is not there yet: it holds the later
+frames back and waits up to two seconds (`FirehoseDaemon::GAP_GRACE`,
+as the reference PDS sequencer does) for the missing one, then serves
+them in order. A number that is still missing after that is a write that
+rolled back; the daemon logs it at info level and goes on, and a frame
+with that number that turns up later is served by replay only. systemd unit and the
 Docker variant are documented in Admin.md; the setup check "firehose
 reachable" connects to the public URL and reads an `#info` frame.
 

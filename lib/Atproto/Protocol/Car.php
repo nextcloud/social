@@ -22,14 +22,30 @@ final class Car {
 	 * @param array<string, string> $blocks CID string => bytes, in the order to write them
 	 */
 	public static function encode(array $roots, array $blocks): string {
-		$header = DagCbor::encode(['version' => 1, 'roots' => array_values($roots)]);
-		$out = Encoding::varint(strlen($header)) . $header;
+		$out = self::header($roots);
 		foreach ($blocks as $cid => $bytes) {
-			$cidBytes = Cid::parse($cid)->bytes();
-			$out .= Encoding::varint(strlen($cidBytes) + strlen($bytes)) . $cidBytes . $bytes;
+			$out .= self::block(Cid::parse($cid), $bytes);
 		}
 
 		return $out;
+	}
+
+	/**
+	 * The header alone, for a CAR written out piece by piece.
+	 *
+	 * @param Cid[] $roots
+	 */
+	public static function header(array $roots): string {
+		$header = DagCbor::encode(['version' => 1, 'roots' => array_values($roots)]);
+
+		return Encoding::varint(strlen($header)) . $header;
+	}
+
+	/** one block as a CAR carries it */
+	public static function block(Cid $cid, string $bytes): string {
+		$cidBytes = $cid->bytes();
+
+		return Encoding::varint(strlen($cidBytes) + strlen($bytes)) . $cidBytes . $bytes;
 	}
 
 	/**

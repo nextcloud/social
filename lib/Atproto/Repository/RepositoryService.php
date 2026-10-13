@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Repository;
 
+use Generator;
+use InvalidArgumentException;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Crypto\PublicKey;
 use OCA\Social\Atproto\Firehose\EventService;
@@ -21,6 +23,7 @@ use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
 use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Mst;
+use OCA\Social\Atproto\Protocol\MstEditor;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Protocol\Tid;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -31,16 +34,21 @@ use Throwable;
 /**
  * A repository's writes and reads.
  *
- * A write is one commit: the records change, the tree is rebuilt from
- * them, the commit is signed, the changed blocks are stored and the old
- * ones dropped, the head moves, and one firehose frame is appended — all in
+ * A write is one commit: the records change, the tree's nodes on the way
+ * to them are rewritten, the commit is signed, the changed blocks are
+ * stored and the old ones dropped, the head moves, and one firehose frame
+ * is appended — all in
  * one database transaction, so a failure half-way leaves the previous
- * commit as the repository. The lexicon is checked before anything is
+ * commit as the repository. The transaction starts by locking the head
+ * row, so two commits of one repository run one after the other and the
+ * second builds on the first. The lexicon is checked before anything is
  * signed; nothing that does not fit reaches a relay.
  */
 class RepositoryService {
 	/** what one commit may change: the firehose caps `ops` at 200 */
 	public const MAX_WRITES = 200;
+	/** how much of a CAR is handed out at once when a repository is streamed */
+	private const PIECE = 65536;
 
 	public function __construct(
 		private AtprotoRepoRequest $repoRequest,
@@ -87,25 +95,81 @@ class RepositoryService {
 	 * @param RepoWrite[] $writes
 	 */
 	private function commit(string $did, PrivateKey $signingKey, array $writes): CommitResult {
-		$head = $this->repoRequest->getHead($did);
-		$leaves = $this->repoRequest->getLeaves($did);
-		$oldMstCids = array_fill_keys($this->repoRequest->getBlockCids($did, AtprotoRepoRequest::BLOCK_MST), true);
+		$head = $this->repoRequest->lockHead($did);
 		$oldCommitCids = $this->repoRequest->getBlockCids($did, AtprotoRepoRequest::BLOCK_COMMIT);
 		$prevData = $head === null ? null : $this->rootOf($did, $head);
 
+		$known = null;
+		try {
+			$tree = MstEditor::open($prevData, fn (string $cid): ?string => $this->repoRequest->getBlock($did, $cid));
+			$change = $this->change($tree, $writes, $head?->recordCount ?? 0);
+		} catch (InvalidArgumentException) {
+			// a stored node is missing or not a node: the tree is made whole
+			// from the records, and what is stored becomes that tree
+			$tree = MstEditor::whole((new Mst($this->repoRequest->getLeaves($did)))->build());
+			$change = $this->change($tree, $writes, $head?->recordCount ?? 0);
+			$known = array_fill_keys($this->repoRequest->getBlockCids($did, AtprotoRepoRequest::BLOCK_MST), true);
+		}
+		$built = $tree->close();
+		$known ??= $tree->loaded();
+		$newMst = array_diff_key($built->blocks, $known);
+
+		foreach ($change['records'] as [$write, $cid, $bytes]) {
+			if ($write->action === RepoWrite::DELETE) {
+				$this->repoRequest->deleteRecord($did, $write->collection, $write->rkey);
+			} else {
+				$this->repoRequest->putRecord($did, $write->collection, $write->rkey, $cid, $bytes, $write->localId);
+			}
+		}
+		$rev = Tid::after($head?->rev ?? '');
+		$commit = Commit::sign($did, $built->root, $rev, $signingKey);
+		$commitBytes = $commit->toBytes();
+		$commitCid = $commit->cid();
+
+		$this->repoRequest->putBlocks($did, AtprotoRepoRequest::BLOCK_MST, $newMst);
+		$this->repoRequest->putBlocks($did, AtprotoRepoRequest::BLOCK_COMMIT, [$commitCid->toString() => $commitBytes]);
+		$this->repoRequest->deleteBlocks($did, [...array_keys(array_diff_key($known, $built->blocks)), ...$oldCommitCids]);
+		$this->repoRequest->setHead($did, $commitCid, $rev, $change['count']);
+
+		$seq = $this->events->commit(
+			$did, $commitCid, $rev, $head?->rev, $prevData, $change['ops'],
+			[$commitCid->toString() => $commitBytes] + $newMst + $change['blocks'],
+		);
+
+		return new CommitResult($did, $commitCid, $rev, $seq, $change['written']);
+	}
+
+	/**
+	 * The writes applied to the tree, and what they mean for the record
+	 * table, the firehose frame and the result; nothing is written yet.
+	 *
+	 * @param RepoWrite[] $writes
+	 * @return array{
+	 *     ops: list<array{action: string, path: string, cid: Cid|null, prev: Cid|null}>,
+	 *     records: list<array{0: RepoWrite, 1: Cid, 2: string}>,
+	 *     blocks: array<string, string>,
+	 *     written: array<string, Cid>,
+	 *     count: int,
+	 * }
+	 * @throws AtprotoException when a write does not fit what is there
+	 * @throws InvalidArgumentException when a stored node is missing or malformed
+	 */
+	private function change(MstEditor $tree, array $writes, int $count): array {
 		$ops = [];
-		$recordBlocks = [];
+		$records = [];
+		$blocks = [];
 		$written = [];
 		foreach ($writes as $write) {
 			$path = $write->path();
-			$previous = $leaves[$path] ?? null;
+			$previous = $tree->get($path);
 			if ($write->action === RepoWrite::DELETE) {
 				if ($previous === null) {
 					throw new AtprotoException('No record at ' . $path . ' to delete');
 				}
-				unset($leaves[$path]);
-				$this->repoRequest->deleteRecord($did, $write->collection, $write->rkey);
+				$tree->delete($path);
+				$records[] = [$write, $previous, ''];
 				$ops[] = ['action' => RepoWrite::DELETE, 'path' => $path, 'cid' => null, 'prev' => $previous];
+				$count--;
 				continue;
 			}
 			if ($write->action === RepoWrite::CREATE && $previous !== null) {
@@ -116,31 +180,17 @@ class RepositoryService {
 			}
 			$bytes = DagCbor::encode($write->record);
 			$cid = Cid::forDagCbor($bytes);
-			$leaves[$path] = $cid;
-			$this->repoRequest->putRecord($did, $write->collection, $write->rkey, $cid, $bytes, $write->localId);
-			$recordBlocks[$cid->toString()] = $bytes;
+			$tree->put($path, $cid);
+			$records[] = [$write, $cid, $bytes];
+			$blocks[$cid->toString()] = $bytes;
 			$ops[] = ['action' => $write->action, 'path' => $path, 'cid' => $cid, 'prev' => $previous];
 			$written[$path] = $cid;
+			if ($previous === null) {
+				$count++;
+			}
 		}
 
-		$tree = (new Mst($leaves))->build();
-		$rev = Tid::after($head?->rev ?? '');
-		$commit = Commit::sign($did, $tree->root, $rev, $signingKey);
-		$commitBytes = $commit->toBytes();
-		$commitCid = $commit->cid();
-
-		$newMst = array_diff_key($tree->blocks, $oldMstCids);
-		$this->repoRequest->putBlocks($did, AtprotoRepoRequest::BLOCK_MST, $newMst);
-		$this->repoRequest->putBlocks($did, AtprotoRepoRequest::BLOCK_COMMIT, [$commitCid->toString() => $commitBytes]);
-		$this->repoRequest->deleteBlocks($did, [...array_keys(array_diff_key($oldMstCids, $tree->blocks)), ...$oldCommitCids]);
-		$this->repoRequest->setHead($did, $commitCid, $rev, count($leaves));
-
-		$seq = $this->events->commit(
-			$did, $commitCid, $rev, $head?->rev, $prevData, $ops,
-			[$commitCid->toString() => $commitBytes] + $newMst + $recordBlocks,
-		);
-
-		return new CommitResult($did, $commitCid, $rev, $seq, $written);
+		return ['ops' => $ops, 'records' => $records, 'blocks' => $blocks, 'written' => $written, 'count' => $count];
 	}
 
 	/**
@@ -216,32 +266,58 @@ class RepositoryService {
 	}
 
 	/**
-	 * The whole repository as a CAR: the commit first, then the tree, then
-	 * the records. What a relay backfills from.
+	 * The whole repository as a CAR, in pieces: the header, then the commit,
+	 * the tree and the records as they are read, so a large repository is
+	 * never whole in memory. What a relay backfills from.
 	 *
+	 * @return Generator<int, string> the CAR's bytes, in order
 	 * @throws AtprotoException when there is no repository
 	 */
-	public function exportCar(string $did): string {
+	public function streamCar(string $did): Generator {
 		$head = $this->repoRequest->getHead($did);
 		if ($head === null) {
 			throw new AtprotoException('No repository for ' . $did);
 		}
-		$blocks = [];
 		$commitBytes = $this->repoRequest->getBlock($did, $head->commitCid);
 		if ($commitBytes === null) {
 			throw new AtprotoException('The head commit of ' . $did . ' is missing');
 		}
-		$blocks[$head->commitCid] = $commitBytes;
-		$this->repoRequest->eachBlock($did, static function (Cid $cid, string $kind, string $bytes) use (&$blocks): void {
-			if ($kind === AtprotoRepoRequest::BLOCK_MST) {
-				$blocks[$cid->toString()] = $bytes;
-			}
-		});
-		$this->repoRequest->eachRecordBytes($did, static function (Cid $cid, string $bytes) use (&$blocks): void {
-			$blocks[$cid->toString()] = $bytes;
-		});
 
-		return Car::encode([Cid::parse($head->commitCid)], $blocks);
+		return $this->carPieces($did, Cid::parse($head->commitCid), $commitBytes);
+	}
+
+	/**
+	 * The whole repository as one CAR string, for a request body.
+	 *
+	 * @throws AtprotoException when there is no repository
+	 */
+	public function exportCar(string $did): string {
+		return implode('', iterator_to_array($this->streamCar($did), false));
+	}
+
+	/**
+	 * @return Generator<int, string> pieces of about PIECE bytes
+	 */
+	private function carPieces(string $did, Cid $commitCid, string $commitBytes): Generator {
+		yield Car::header([$commitCid]) . Car::block($commitCid, $commitBytes);
+		$piece = '';
+		foreach ($this->repoRequest->blocks($did, AtprotoRepoRequest::BLOCK_MST) as [$cid, , $bytes]) {
+			$piece .= Car::block($cid, $bytes);
+			if (strlen($piece) >= self::PIECE) {
+				yield $piece;
+				$piece = '';
+			}
+		}
+		foreach ($this->repoRequest->recordBytes($did) as [$cid, $bytes]) {
+			$piece .= Car::block($cid, $bytes);
+			if (strlen($piece) >= self::PIECE) {
+				yield $piece;
+				$piece = '';
+			}
+		}
+		if ($piece !== '') {
+			yield $piece;
+		}
 	}
 
 	/**

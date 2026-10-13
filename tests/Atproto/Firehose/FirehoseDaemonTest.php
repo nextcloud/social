@@ -44,6 +44,7 @@ class FirehoseDaemonTest extends TestCase {
 	private InMemoryEventRequest $store;
 	private EventService $events;
 	private string $bind = '';
+	private ?LoggerInterface $logger = null;
 	private int $calls = 0;
 	/** @var array<int, callable(): void> what happens at the n-th reading of the clock */
 	private array $script = [];
@@ -113,6 +114,62 @@ class FirehoseDaemonTest extends TestCase {
 	}
 
 	/**
+	 * Sequence numbers are taken at insert and seen at commit, so seq 7 can
+	 * be there before seq 6: the daemon holds 7 back until 6 is there and
+	 * then serves both in order, and a live subscriber misses nothing.
+	 */
+	public function testAFrameNumberedBelowOneAlreadyThereIsStillServedInOrder(): void {
+		$this->store->next = 5;
+		$this->events->identity(self::DID, 'alice.social.example.com');
+		$client = null;
+		$this->script[3] = function () use (&$client): void {
+			$client = $this->connect('');
+		};
+		$this->script[5] = function (): void {
+			$this->store->next = 7;
+			$this->events->identity(self::DID, 'seven.example.org');
+		};
+		$this->script[7] = function (): void {
+			$this->store->next = 6;
+			$this->events->identity(self::DID, 'six.example.org');
+			$this->store->next = 8;
+		};
+		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->logger->expects($this->never())->method('info');
+
+		$this->daemon()->run($this->bind, 12, false, static function (): void {
+		});
+
+		$frames = $this->framesOf($client);
+		$this->assertSame([6, 7], self::seqs($frames));
+		$this->assertSame(['six.example.org', 'seven.example.org'], array_column(array_column($frames, 'body'), 'handle'));
+	}
+
+	/**
+	 * A number that never turns up is a write that rolled back: after the
+	 * grace period the stream goes on past it, and says so in the log.
+	 */
+	public function testAGapThatStaysIsPassedAfterTheGracePeriod(): void {
+		$this->store->next = 5;
+		$this->events->identity(self::DID, 'alice.social.example.com');
+		$client = null;
+		$this->script[3] = function () use (&$client): void {
+			$client = $this->connect('');
+		};
+		$this->script[5] = function (): void {
+			$this->store->next = 7;
+			$this->events->identity(self::DID, 'seven.example.org');
+		};
+		$this->logger = $this->createMock(LoggerInterface::class);
+		$this->logger->expects($this->once())->method('info')->with($this->stringContains('seq 6'));
+
+		$this->daemon()->run($this->bind, 12, false, static function (): void {
+		});
+
+		$this->assertSame([7], self::seqs($this->framesOf($client)));
+	}
+
+	/**
 	 * A commit frame as the daemon serves it: the body the repository
 	 * wrote, the row's sequence number added, the CAR's root the commit.
 	 */
@@ -149,7 +206,7 @@ class FirehoseDaemonTest extends TestCase {
 			return self::T0 + $this->calls;
 		});
 
-		return new FirehoseDaemon($this->createMock(AtprotoConfig::class), $this->events, $this->createMock(ConfigService::class), $time, $this->createMock(LoggerInterface::class));
+		return new FirehoseDaemon($this->createMock(AtprotoConfig::class), $this->events, $this->createMock(ConfigService::class), $time, $this->logger ?? $this->createMock(LoggerInterface::class));
 	}
 
 	/**

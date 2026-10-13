@@ -12,13 +12,15 @@ namespace OCA\Social\Atproto\Xrpc;
 /**
  * An XRPC answer passed on as bytes: a CAR file, a blob, or what the
  * AppView answered a proxied call, with its media type and status. A large
- * blob is a stream instead, read out a chunk at a time.
+ * blob is a stream instead, read out a chunk at a time; a whole repository
+ * is pieces, each made as the one before it goes out.
  */
 final class XrpcBytes {
 	/**
 	 * @param resource|null $stream the bytes as a stream, `$bytes` left empty
 	 * @param int $length the stream's length, -1 when not known
 	 * @param array<string, string> $headers further headers the answer carries
+	 * @param iterable<string>|null $pieces the bytes in pieces, `$bytes` left empty
 	 */
 	public function __construct(
 		public readonly string $bytes,
@@ -27,6 +29,7 @@ final class XrpcBytes {
 		public readonly mixed $stream = null,
 		public readonly int $length = -1,
 		public readonly array $headers = [],
+		public readonly ?iterable $pieces = null,
 	) {
 	}
 }

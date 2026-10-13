@@ -10,10 +10,12 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use Generator;
 use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
 
 /**
  * A repository as stored: its head, its records and its blocks.
@@ -26,12 +28,37 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class AtprotoRepoRequest extends CoreRequestBuilder {
 	public const BLOCK_MST = 'mst';
 	public const BLOCK_COMMIT = 'commit';
+	/** rows read at once when a repository is walked whole */
+	private const PAGE = 500;
 
 	public function getHead(string $did): ?RepoHead {
 		$qb = $this->getQueryBuilder();
 		$qb->select('did', 'commit_cid', 'rev', 'record_count', 'blob_bytes', 'updated')
 			->from(self::TABLE_ATPROTO_REPO)
 			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)));
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row === false ? null : $this->head($row);
+	}
+
+	/**
+	 * The head, read with a row lock that lasts until the transaction ends:
+	 * a second commit of the same repository waits here and then reads the
+	 * head this one leaves. There is no row to lock before the first commit;
+	 * two first commits race to the unique index on `did`, and one fails.
+	 * SQLite has no row locks and refuses the clause; its one writer at a
+	 * time serialises the commits by itself.
+	 */
+	public function lockHead(string $did): ?RepoHead {
+		$qb = $this->getQueryBuilder();
+		$qb->select('did', 'commit_cid', 'rev', 'record_count', 'blob_bytes', 'updated')
+			->from(self::TABLE_ATPROTO_REPO)
+			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)));
+		if ($this->dbConnection->getDatabaseProvider() !== IDBConnection::PLATFORM_SQLITE) {
+			$qb->forUpdate();
+		}
 		$cursor = $qb->executeQuery();
 		$row = $cursor->fetch();
 		$cursor->closeCursor();
@@ -211,21 +238,40 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 	}
 
 	/**
-	 * Every record's bytes, for `getRepo`; streamed through the callback so
-	 * a large repository is never whole in memory.
+	 * Every record's bytes, for `getRepo`; read a page at a time and handed
+	 * out one by one, so a large repository is never whole in memory — not
+	 * even in the driver's result buffer.
 	 *
+	 * @return Generator<int, array{0: Cid, 1: string, 2: string}> the CID, the bytes and the record's path
+	 */
+	public function recordBytes(string $did): Generator {
+		$after = 0;
+		do {
+			$qb = $this->getQueryBuilder();
+			$qb->select('id', 'cid', 'bytes', 'collection', 'rkey')
+				->from(self::TABLE_ATPROTO_RECORD)
+				->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+				->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)))
+				->orderBy('id', 'asc')
+				->setMaxResults(self::PAGE);
+			$cursor = $qb->executeQuery();
+			$rows = 0;
+			while ($row = $cursor->fetch()) {
+				$rows++;
+				$after = (int)$row['id'];
+				yield [Cid::parse((string)$row['cid']), self::bytes($row['bytes']), $row['collection'] . '/' . $row['rkey']];
+			}
+			$cursor->closeCursor();
+		} while ($rows === self::PAGE);
+	}
+
+	/**
 	 * @param callable(Cid, string, string): void $each the CID, the bytes and the record's path
 	 */
 	public function eachRecordBytes(string $did, callable $each): void {
-		$qb = $this->getQueryBuilder();
-		$qb->select('cid', 'bytes', 'collection', 'rkey')
-			->from(self::TABLE_ATPROTO_RECORD)
-			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)));
-		$cursor = $qb->executeQuery();
-		while ($row = $cursor->fetch()) {
-			$each(Cid::parse((string)$row['cid']), self::bytes($row['bytes']), $row['collection'] . '/' . $row['rkey']);
+		foreach ($this->recordBytes($did) as [$cid, $bytes, $path]) {
+			$each($cid, $bytes, $path);
 		}
-		$cursor->closeCursor();
 	}
 
 	public function countRecords(string $did): int {
@@ -323,23 +369,69 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 	}
 
 	/**
-	 * The tree nodes and commit of a repository, streamed.
+	 * The blocks among $cids that the repository has, tree nodes and
+	 * commits here and records in their table: what `getBlocks` serves.
 	 *
+	 * @param string[] $cids
+	 * @return array<string, string> CID string => bytes, for the ones found
+	 */
+	public function getBlocks(string $did, array $cids): array {
+		$found = [];
+		foreach (array_chunk($cids, 500) as $chunk) {
+			foreach ([self::TABLE_ATPROTO_BLOCK, self::TABLE_ATPROTO_RECORD] as $table) {
+				$qb = $this->getQueryBuilder();
+				$qb->select('cid', 'bytes')
+					->from($table)
+					->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+					->andWhere($qb->expr()->in('cid', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)));
+				$cursor = $qb->executeQuery();
+				while ($row = $cursor->fetch()) {
+					$found[(string)$row['cid']] = self::bytes($row['bytes']);
+				}
+				$cursor->closeCursor();
+			}
+		}
+
+		return $found;
+	}
+
+	/**
+	 * The tree nodes and commit of a repository, a page at a time, as
+	 * `recordBytes` reads the records.
+	 *
+	 * @return Generator<int, array{0: Cid, 1: string, 2: string}> CID, kind, bytes
+	 */
+	public function blocks(string $did, string $kind = ''): Generator {
+		$after = 0;
+		do {
+			$qb = $this->getQueryBuilder();
+			$qb->select('id', 'cid', 'kind', 'bytes')
+				->from(self::TABLE_ATPROTO_BLOCK)
+				->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+				->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($after, IQueryBuilder::PARAM_INT)))
+				->orderBy('id', 'asc')
+				->setMaxResults(self::PAGE);
+			if ($kind !== '') {
+				$qb->andWhere($qb->expr()->eq('kind', $qb->createNamedParameter($kind)));
+			}
+			$cursor = $qb->executeQuery();
+			$rows = 0;
+			while ($row = $cursor->fetch()) {
+				$rows++;
+				$after = (int)$row['id'];
+				yield [Cid::parse((string)$row['cid']), (string)$row['kind'], self::bytes($row['bytes'])];
+			}
+			$cursor->closeCursor();
+		} while ($rows === self::PAGE);
+	}
+
+	/**
 	 * @param callable(Cid, string, string): void $each CID, kind, bytes
 	 */
 	public function eachBlock(string $did, callable $each, string $kind = ''): void {
-		$qb = $this->getQueryBuilder();
-		$qb->select('cid', 'kind', 'bytes')
-			->from(self::TABLE_ATPROTO_BLOCK)
-			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)));
-		if ($kind !== '') {
-			$qb->andWhere($qb->expr()->eq('kind', $qb->createNamedParameter($kind)));
+		foreach ($this->blocks($did, $kind) as [$cid, $blockKind, $bytes]) {
+			$each($cid, $blockKind, $bytes);
 		}
-		$cursor = $qb->executeQuery();
-		while ($row = $cursor->fetch()) {
-			$each(Cid::parse((string)$row['cid']), (string)$row['kind'], self::bytes($row['bytes']));
-		}
-		$cursor->closeCursor();
 	}
 
 	/**
