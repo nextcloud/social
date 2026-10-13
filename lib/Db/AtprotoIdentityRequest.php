@@ -26,7 +26,7 @@ class AtprotoIdentityRequest extends CoreRequestBuilder {
 	 * @param string $sealedSigningKey the private half, already sealed
 	 * @return int the row id
 	 */
-	public function create(string $actorId, string $did, string $handle, string $sealedSigningKey, string $signingPublic, string $recoveryPublic): int {
+	public function create(string $actorId, string $did, string $handle, string $sealedSigningKey, string $signingPublic, string $recoveryPublic, string $state = Identity::STATE_ACTIVE): int {
 		$qb = $this->getQueryBuilder();
 		$now = new DateTime('now');
 		$qb->insert(self::TABLE_ATPROTO_IDENTITY)
@@ -37,7 +37,7 @@ class AtprotoIdentityRequest extends CoreRequestBuilder {
 			->setValue('signing_key', $qb->createNamedParameter($sealedSigningKey))
 			->setValue('signing_public', $qb->createNamedParameter($signingPublic))
 			->setValue('recovery_public', $qb->createNamedParameter($recoveryPublic))
-			->setValue('state', $qb->createNamedParameter(Identity::STATE_ACTIVE))
+			->setValue('state', $qb->createNamedParameter($state))
 			->setValue('moved_from_pds', $qb->createNamedParameter(''))
 			->setValue('creation', $qb->createNamedParameter($now, IQueryBuilder::PARAM_DATE))
 			->setValue('updated', $qb->createNamedParameter($now, IQueryBuilder::PARAM_DATE));

@@ -2897,6 +2897,7 @@ OC.L10N.register(
     "Back to my feed" : "Zurück zu meinem Feed",
     "Post by {name}" : "Beitrag von {name}",
     "_%n unread_::_%n unread_" : ["%n ungelesen","%n ungelesen"],
+    "Your Bluesky identity is not registered with the directory yet; this server keeps trying. Your profile and posts go to Bluesky once it is." : "Deine Bluesky-Identität ist noch nicht im Verzeichnis eingetragen; dieser Server versucht es weiter. Dein Profil und deine Beiträge gehen zu Bluesky, sobald sie es ist.",
     "_%n entry_::_%n entries_" : ["%n Eintrag","%n Einträge"]
 },
 "nplurals=2; plural=(n != 1);");

@@ -499,7 +499,10 @@ checks, and the card refuses to switch Bluesky on while one fails:
 Then `php occ social:atproto:identities` gives every existing account its
 identity (new accounts, and any account the command missed, get one on their
 first public post), and `php occ social:atproto:crawl` tells the relays to
-subscribe. From then on every public post of every account goes to Bluesky as
+subscribe. An identity is `pending` until the PLC directory has taken it —
+at once when the directory answers, else when the maintenance job gets the
+operation through; nothing goes to Bluesky for it before, and the posts
+written meanwhile follow within a day of the directory taking it. From then on every public post of every account goes to Bluesky as
 it is made, edits within five minutes replace the Bluesky copy and later ones
 leave it standing with its link to the current post here, and a deleted post is
 deleted there. Direct, followers-only and unlisted posts never leave. The other

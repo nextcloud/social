@@ -149,6 +149,19 @@ describe('BlueskySettings', () => {
 			expect(buttonByText(wrapper, 'Create a new recovery phrase')).toBeUndefined()
 		})
 
+		it('is neither on nor off while the directory has not taken the identity', async () => {
+			serverHas(identity({ active: false, state: 'pending' }))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			expect(presenceSwitch(wrapper).exists()).toBe(false)
+			expect(wrapper.text()).toContain('Your Bluesky identity is not registered with the directory yet')
+			expect(wrapper.text()).not.toContain('You are not on Bluesky')
+			expect(wrapper.text()).not.toContain('Publish my blocks of Bluesky accounts')
+			expect(buttonByText(wrapper, 'Create recovery phrase')).toBeUndefined()
+			expect(wrapper.find('code').text()).toBe('did:plc:abc123')
+		})
+
 		it('switches back on the same way', async () => {
 			serverHas(identity({ active: false, state: 'deactivated' }))
 			axios.post.mockResolvedValue({ data: identity({ active: true }) })

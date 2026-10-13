@@ -68,7 +68,8 @@ class AtprotoRotateKey extends SocialCommand {
 		$offset = 0;
 		while (($batch = $this->identities->getAll(200, $offset)) !== []) {
 			foreach ($batch as $identity) {
-				if ($identity->state !== \OCA\Social\Atproto\Model\Identity::STATE_ACTIVE) {
+				// a pending identity's operation waits behind its genesis
+				if (!in_array($identity->state, [\OCA\Social\Atproto\Model\Identity::STATE_ACTIVE, \OCA\Social\Atproto\Model\Identity::STATE_PENDING], true)) {
 					continue;
 				}
 				try {

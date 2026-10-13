@@ -59,6 +59,9 @@ class IdentityServiceTest extends TestCase {
 	private RepositoryService $repositories;
 	/** @var AtprotoBlobRequest&MockObject */
 	private AtprotoBlobRequest $blobs;
+	private AtprotoConfig $config;
+	private InstanceKeyService $instanceKeys;
+	private PrivateKeyCipher $cipher;
 	private PrivateKey $rotation;
 	/** the rotation key in use; the one before it stays in $rotation */
 	private PrivateKey $currentRotation;
@@ -79,10 +82,16 @@ class IdentityServiceTest extends TestCase {
 
 		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
 		$this->identityRequest->method('handleExists')->willReturnCallback(fn (string $handle): bool => $handle === 'taken.social.test');
-		$this->identityRequest->method('create')->willReturnCallback(function (string $actorId, string $did, string $handle, string $sealed, string $public, string $recovery): int {
-			$this->stored[$did] = new Identity(count($this->stored) + 1, $actorId, $did, $handle, $sealed, $public, $recovery, Identity::STATE_ACTIVE, '', 1700000000);
+		$this->identityRequest->method('create')->willReturnCallback(function (string $actorId, string $did, string $handle, string $sealed, string $public, string $recovery, string $state = Identity::STATE_ACTIVE): int {
+			$this->stored[$did] = new Identity(count($this->stored) + 1, $actorId, $did, $handle, $sealed, $public, $recovery, $state, '', 1700000000);
 
 			return count($this->stored);
+		});
+		$this->identityRequest->method('setState')->willReturnCallback(function (string $did, string $state): void {
+			$was = $this->stored[$did] ?? null;
+			if ($was !== null) {
+				$this->stored[$did] = new Identity($was->id, $was->actorId, $was->did, $was->handle, $was->sealedSigningKey, $was->signingPublic, $was->recoveryPublic, $state, $was->movedFromPds, $was->creation, $was->assignedHandle, $was->customHandle);
+			}
 		});
 		$this->identityRequest->method('getByDid')->willReturnCallback(fn (string $did): Identity => $this->stored[$did] ?? throw new AtprotoIdentityNotFoundException());
 		$this->identityRequest->method('getByActorId')->willReturnCallback(fn (string $id): Identity => $this->byActor[$id] ?? throw new AtprotoIdentityNotFoundException());
@@ -141,8 +150,15 @@ class IdentityServiceTest extends TestCase {
 		$this->repositories = $this->createMock(RepositoryService::class);
 		$this->blobs = $this->createMock(AtprotoBlobRequest::class);
 
+		$this->config = $config;
+		$this->instanceKeys = $instanceKeys;
+		$this->cipher = $cipher;
+		$this->setUpService();
+	}
+
+	private function setUpService(): void {
 		$this->service = new IdentityService(
-			$config, $this->identityRequest, $this->plcLog, $this->blobs, $instanceKeys, $this->plc, $this->events, $this->repositories, $cipher, new NullLogger(),
+			$this->config, $this->identityRequest, $this->plcLog, $this->blobs, $this->instanceKeys, $this->plc, $this->events, $this->repositories, $this->cipher, new NullLogger(),
 		);
 	}
 
@@ -156,12 +172,22 @@ class IdentityServiceTest extends TestCase {
 				&& $operation['prev'] === null
 				&& PlcOperation::verify($operation, $this->rotation->publicKey())),
 		);
-		$this->plcLog->expects($this->once())->method('markConfirmed');
-		$this->events->expects($this->once())->method('identity')->with($this->anything(), 'alice-smith.social.test');
+		$order = [];
+		$this->plcLog->expects($this->once())->method('markConfirmed')->willReturnCallback(function (int $id) use (&$order): void {
+			$this->logged[$id - 1]['confirmed'] = 1;
+			$order[] = 'confirmed';
+		});
+		$this->events->expects($this->once())->method('identity')->with($this->anything(), 'alice-smith.social.test')->willReturnCallback(static function () use (&$order): int {
+			$order[] = 'identity';
+
+			return 1;
+		});
 
 		$identity = $this->service->forActor(self::actor('Alice.Smith'));
 
 		$this->assertNotNull($identity);
+		$this->assertSame(['confirmed', 'identity'], $order, 'announced once the directory holds the DID');
+		$this->assertTrue($identity->isActive(), 'on Bluesky from the moment the directory took the genesis');
 		$this->assertSame('alice-smith.social.test', $identity->handle);
 		$this->assertSame($identity->did, PlcOperation::didOf($this->logged[0]['operation']), 'the DID is the hash of the logged genesis');
 		$this->assertStringStartsWith('sealed:', $identity->sealedSigningKey);
@@ -175,15 +201,75 @@ class IdentityServiceTest extends TestCase {
 		$this->assertSame('taken-2.social.test', $identity?->handle);
 	}
 
-	public function testADirectoryThatIsDownLeavesTheIdentityForRepair(): void {
-		$this->plc->method('submit')->willThrowException(new AtprotoException('down'));
+	/**
+	 * The directory is down: the identity exists here, pending — not on
+	 * Bluesky, not announced — and the repair that gets the genesis
+	 * through makes it active and announces it then.
+	 */
+	public function testADirectoryThatIsDownLeavesTheIdentityPendingForRepair(): void {
+		$down = true;
+		$this->plc->method('submit')->willReturnCallback(static function () use (&$down): void {
+			if ($down) {
+				throw new AtprotoException('down');
+			}
+		});
 		$this->plcLog->expects($this->once())->method('markSent');
 		$this->plcLog->expects($this->never())->method('markConfirmed');
+		$this->events->expects($this->never())->method('identity');
 
 		$identity = $this->service->forActor(self::actor('bob'));
 
 		$this->assertNotNull($identity, 'the identity exists here whatever the directory said');
-		$this->assertTrue($identity->isActive());
+		$this->assertSame(Identity::STATE_PENDING, $identity->state);
+		$this->assertFalse($identity->isActive(), 'nothing is published for it yet');
+		$this->assertNull($this->service->activeForActor(self::actor('bob')));
+		$this->assertSame($identity, $this->byActor[$identity->actorId] = $this->stored[$identity->did], 'kept, not made again');
+		$this->assertSame($identity->did, $this->service->forActor(self::actor('bob'))?->did);
+	}
+
+	public function testRepairMakesAPendingIdentityActiveAndAnnouncesIt(): void {
+		$this->plc->method('submit')->willThrowException(new AtprotoException('down'));
+		$identity = $this->service->forActor(self::actor('late'));
+		$this->assertNotNull($identity);
+		$this->assertSame(Identity::STATE_PENDING, $identity->state);
+
+		$this->plc = $this->createMock(PlcClient::class);
+		$this->setUpService();
+		$this->plc->method('auditLog')->willReturn([]);
+		$this->events->expects($this->once())->method('identity')->with($identity->did, 'late.social.test');
+
+		$this->assertSame(1, $this->service->repair());
+		$this->assertSame(Identity::STATE_ACTIVE, $this->stored[$identity->did]->state);
+	}
+
+	/**
+	 * A handle change is announced once the directory holds it, not when
+	 * it is written here.
+	 */
+	public function testAHandleChangeIsAnnouncedOnceTheDirectoryTookIt(): void {
+		$identity = $this->service->forActor(self::actor('renamed'));
+		$this->assertNotNull($identity);
+		$down = true;
+		$this->plc->method('submit')->willReturnCallback(static function () use (&$down): void {
+			if ($down) {
+				throw new AtprotoException('down');
+			}
+		});
+		$this->plc->method('auditLog')->willReturn([['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false]]);
+		$announced = [];
+		$this->events->method('identity')->willReturnCallback(static function (string $did, string $handle) use (&$announced): int {
+			$announced[] = $handle;
+
+			return 1;
+		});
+
+		$updated = $this->service->useCustomHandle($identity, 'renamed.example.org');
+		$this->assertSame('renamed.example.org', $updated->handle, 'the row has it');
+		$this->assertSame([], $announced, 'not announced while the directory does not hold it');
+
+		$down = false;
+		$this->service->repair();
+		$this->assertSame(['renamed.example.org'], $announced);
 	}
 
 	public function testRepairResendsWhatWasNotConfirmed(): void {

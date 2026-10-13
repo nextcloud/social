@@ -53,28 +53,35 @@
 					</dd>
 				</div>
 			</dl>
-			<!-- off is Bluesky's own deactivation: the account, its address
-			     and its repository stay, nothing new goes out, and on again
-			     it is back as it was -->
-			<NcCheckboxRadioSwitch
-				:modelValue="blueskyActive"
-				type="switch"
-				class="bluesky-settings__switch"
-				:disabled="switchingBluesky"
-				@update:modelValue="setBlueskyActive">
-				{{ t('social', 'Be on Bluesky') }}
-			</NcCheckboxRadioSwitch>
-			<template v-if="bluesky.active === false">
-				<p class="bluesky-settings__hint">
-					{{ t('social', 'You are not on Bluesky: your profile and posts are not shown there, and nothing new goes there. Bluesky apps are signed out of your account, and your Bluesky messages and notifications are not read.') }}
-				</p>
-				<p class="bluesky-settings__hint">
-					{{ t('social', 'You can still follow and read Bluesky accounts here, but your likes, replies and messages to them stay here. Switched back on, your handle, profile and earlier posts are back; posts written while off stay off Bluesky.') }}
+			<!-- pending: the directory has not taken the identity yet, so
+			     there is nothing on Bluesky to switch off -->
+			<p v-if="bluesky.state === 'pending'" class="bluesky-settings__hint">
+				{{ t('social', 'Your Bluesky identity is not registered with the directory yet; this server keeps trying. Your profile and posts go to Bluesky once it is.') }}
+			</p>
+			<template v-else>
+				<!-- off is Bluesky's own deactivation: the account, its address
+				     and its repository stay, nothing new goes out, and on again
+				     it is back as it was -->
+				<NcCheckboxRadioSwitch
+					:modelValue="blueskyActive"
+					type="switch"
+					class="bluesky-settings__switch"
+					:disabled="switchingBluesky"
+					@update:modelValue="setBlueskyActive">
+					{{ t('social', 'Be on Bluesky') }}
+				</NcCheckboxRadioSwitch>
+				<template v-if="bluesky.active === false">
+					<p class="bluesky-settings__hint">
+						{{ t('social', 'You are not on Bluesky: your profile and posts are not shown there, and nothing new goes there. Bluesky apps are signed out of your account, and your Bluesky messages and notifications are not read.') }}
+					</p>
+					<p class="bluesky-settings__hint">
+						{{ t('social', 'You can still follow and read Bluesky accounts here, but your likes, replies and messages to them stay here. Switched back on, your handle, profile and earlier posts are back; posts written while off stay off Bluesky.') }}
+					</p>
+				</template>
+				<p v-else class="bluesky-settings__hint">
+					{{ t('social', 'Switched off, your Bluesky profile and posts are no longer shown there and nothing new goes there. Your handle stays yours, and switching back on brings everything back except what you wrote while off.') }}
 				</p>
 			</template>
-			<p v-else class="bluesky-settings__hint">
-				{{ t('social', 'Switched off, your Bluesky profile and posts are no longer shown there and nothing new goes there. Your handle stays yours, and switching back on brings everything back except what you wrote while off.') }}
-			</p>
 			<!-- on Bluesky a block is a public record, and only a published one
 			     keeps the blocked account from replying to you there -->
 			<NcCheckboxRadioSwitch

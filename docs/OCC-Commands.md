@@ -634,9 +634,10 @@ php occ social:atproto:rotate-key [--force]
 | `--force` | none | Do it without asking |
 
 The old key is kept, retired, for the PLC's 72-hour recovery window and dropped
-by the maintenance job after it. Each identity gets one directory operation,
-paced so the directory's limits are respected; one the directory does not
-confirm is resent by the maintenance job.
+by the maintenance job after it. Each active or pending identity gets one
+directory operation, paced so the directory's limits are respected; one the
+directory does not confirm is resent by the maintenance job, a pending
+identity's behind its genesis.
 
 ### `social:queue:process`
 

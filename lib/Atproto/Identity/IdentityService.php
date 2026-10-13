@@ -39,7 +39,10 @@ use Psr\Log\LoggerInterface;
  * or nullified is dead: kept for the record, never sent again, and not
  * the `prev` of anything. The genesis operation decides the DID, so an
  * identity whose registration is pending is kept and the same operation
- * sent again.
+ * sent again; until the directory takes it the identity is `pending`,
+ * nothing is published for it and the firehose does not name it. The
+ * `#identity` event goes out when the directory confirms an operation,
+ * from wherever that happens.
  */
 class IdentityService {
 	public function __construct(
@@ -164,15 +167,12 @@ class IdentityService {
 		);
 		$did = PlcOperation::didOf($genesis);
 
-		$this->identityRequest->create($actor->getId(), $did, $handle, $this->cipher->seal($signing->secret()), $signing->didKey(), '');
-		$logId = $this->plcLog->record($did, PlcOperation::cid($genesis)->toString(), $genesis);
-		$identity = $this->identityRequest->getByDid($did);
+		$this->identityRequest->create($actor->getId(), $did, $handle, $this->cipher->seal($signing->secret()), $signing->didKey(), '', Identity::STATE_PENDING);
+		$this->plcLog->record($did, PlcOperation::cid($genesis)->toString(), $genesis);
 		$this->logger->info('Bluesky identity made', ['did' => $did, 'handle' => $handle, 'actor' => $actor->getId()]);
-
 		$this->flush($did);
-		$this->events->identity($did, $handle);
 
-		return $identity;
+		return $this->identityRequest->getByDid($did);
 	}
 
 	/**
@@ -230,8 +230,9 @@ class IdentityService {
 
 	/**
 	 * Gives the account another handle, or with '' its assigned one back:
-	 * the DID document names it, and the firehose tells the network to
-	 * resolve it again. The handle is checked by the caller.
+	 * the DID document names it, and once the directory took that, the
+	 * firehose tells the network to resolve it again. The handle is checked
+	 * by the caller.
 	 *
 	 * @return Identity the identity as it is now
 	 * @throws AtprotoException
@@ -244,7 +245,6 @@ class IdentityService {
 			$keys[] = $updated->recoveryPublic;
 		}
 		$this->update($updated, $keys, $updated->handle, $this->config->pdsEndpoint());
-		$this->events->identity($updated->did, $updated->handle);
 
 		return $updated;
 	}
@@ -616,9 +616,31 @@ class IdentityService {
 			$this->plcLog->markConfirmed($row['id']);
 			$head = PlcOperation::cid($operation)->toString();
 			$confirmed++;
+			$this->confirmed($did, $operation);
 		}
 
 		return $confirmed;
+	}
+
+	/**
+	 * The directory took an operation: the network is told to resolve the
+	 * DID again, and a genesis makes a pending identity active — it is on
+	 * Bluesky from now on.
+	 */
+	private function confirmed(string $did, array $operation): void {
+		if (($operation['type'] ?? '') !== PlcOperation::TYPE_OPERATION) {
+			return;
+		}
+		if (($operation['prev'] ?? null) === null) {
+			try {
+				if ($this->identityRequest->getByDid($did)->state === Identity::STATE_PENDING) {
+					$this->identityRequest->setState($did, Identity::STATE_ACTIVE);
+					$this->logger->info('Bluesky identity registered', ['did' => $did]);
+				}
+			} catch (AtprotoIdentityNotFoundException) {
+			}
+		}
+		$this->events->identity($did, (string)preg_replace('#^at://#', '', (string)($operation['alsoKnownAs'][0] ?? '')));
 	}
 
 	/**
@@ -679,6 +701,7 @@ class IdentityService {
 		if ($handle !== '' && $handle !== $identity->handle) {
 			$this->identityRequest->setCustomHandle($did, $handle === $identity->assignedHandle() ? '' : $handle);
 			$this->logger->warning('Bluesky handle taken from the directory', ['did' => $did, 'handle' => $handle, 'was' => $identity->handle]);
+			$this->events->identity($did, $handle);
 		}
 		$rotation = self::stringList($state['rotationKeys'] ?? null);
 		if ($identity->recoveryPublic !== '' && !in_array($identity->recoveryPublic, $rotation, true)) {

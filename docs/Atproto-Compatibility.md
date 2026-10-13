@@ -156,7 +156,12 @@ When Bluesky is enabled for the instance, every local Social actor gets an
 AT Protocol identity, created lazily on first need (the first public post,
 the first follow of a Bluesky account, the first resolution of its handle)
 and eagerly for every existing account by `occ social:atproto:identities`.
-The identity is three things stored in `social_atproto_identity` (§15):
+It is **pending** until the PLC directory has taken its genesis operation —
+usually at once; while the directory cannot be reached, until the
+maintenance job gets it through — and nothing is published, announced or
+served for it before: the account is not on Bluesky yet, and the settings
+page says so. The identity is three things stored in
+`social_atproto_identity` (§15):
 
 - the **DID** (`did:plc:…`), computed by the PLC rules from the genesis
   operation (the DID *is* a hash of the first operation);
@@ -221,6 +226,8 @@ on Bluesky** is there too (§4.6).
 ### 4.5 PLC operations this app sends
 
 - **create**: on first need (§4.1), signed with the instance rotation key.
+  The identity is pending until the directory confirms it (§4.1); the
+  confirmation, wherever it happens, makes it active and sends `#identity`.
 - **update handle**: when the username changes (it does not, in Social, but
   the custom-handle phase needs it) and when the instance host changes.
 - **rotate keys**: when the administrator rotates the instance rotation key
@@ -480,7 +487,8 @@ the web server proxies at `/xrpc/com.atproto.sync.subscribeRepos`
 every commit (§5.3) is a `#commit` frame — `seq`, `did`, `rev`, `commit`
 CID, `ops` (`create`/`update`/`delete` with path and CID), `blocks` (the CAR
 of the commit, the changed MST nodes and the records), `time` — plus
-`#identity` (handle change), `#account` (deactivated/deleted), `#sync`
+`#identity` (an operation the directory confirmed: a new DID, a handle
+change), `#account` (deactivated/deleted), `#sync`
 (the head commit, when an account is switched back on, §4.6) and `#info`
 frames, each with a `seq` from one monotonic counter per instance. A client
 that connects with `?cursor=N` is replayed from `N+1` out of
@@ -2015,8 +2023,8 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   account's, and checks them: either is enough, as for the AppView. Setting
   it asks for the Nextcloud password.
 - **Then** the DID document names the domain (a PLC update with the same
-  keys and endpoint) and the firehose sends `#identity`, so relays and
-  AppViews resolve the handle again. The assigned `alice.<host>` keeps
+  keys and endpoint) and, once the directory took it, the firehose sends
+  `#identity`, so relays and AppViews resolve the handle again. The assigned `alice.<host>` keeps
   resolving here — `resolveHandle`, the well-known, sign-in by handle — as
   an alias the document does not list; going back to it is one button.
 - **Refused**: a name that is not a resolvable domain, anything under this
