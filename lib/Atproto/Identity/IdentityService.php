@@ -264,27 +264,16 @@ class IdentityService {
 	 * @throws AtprotoException also while an earlier operation for the DID is not confirmed
 	 */
 	public function handOver(Identity $identity, array $credentials): void {
-		$signing = (string)($credentials['verificationMethods']['atproto'] ?? '');
-		$handle = (string)preg_replace('#^at://#', '', (string)($credentials['alsoKnownAs'][0] ?? ''));
-		$endpoint = (string)($credentials['services']['atproto_pds']['endpoint'] ?? '');
-		$rotation = [];
-		if ($identity->recoveryPublic !== '') {
-			$rotation[] = $identity->recoveryPublic;
-		}
-		foreach (is_array($credentials['rotationKeys'] ?? null) ? $credentials['rotationKeys'] : [] as $key) {
-			if (is_string($key) && str_starts_with($key, 'did:key:') && !in_array($key, $rotation, true)) {
-				$rotation[] = $key;
-			}
-		}
-		$rotation = array_slice($rotation, 0, 5);
-		if (!str_starts_with($signing, 'did:key:') || $handle === '' || !preg_match('#^https?://#', $endpoint) || $rotation === []) {
-			throw new AtprotoException('The other PDS recommended no usable credentials');
+		try {
+			$unsigned = PlcOperation::fromCredentials($credentials, $identity->recoveryPublic !== '' ? [$identity->recoveryPublic] : [], null);
+		} catch (\InvalidArgumentException $e) {
+			throw new AtprotoException($e->getMessage(), 0, $e);
 		}
 		$this->flush($identity->did);
 		if ($this->plcLog->getPending($identity->did) !== []) {
 			throw new AtprotoException('An earlier PLC operation for ' . $identity->did . ' is not confirmed yet');
 		}
-		$operation = $this->follow($identity->did, PlcOperation::build($rotation, $signing, $handle, $endpoint, null), $this->prev($identity, true));
+		$operation = $this->follow($identity->did, $unsigned, $this->prev($identity, true));
 		$logId = $this->plcLog->record($identity->did, PlcOperation::cid($operation)->toString(), $operation);
 		$this->plcLog->markSent($logId);
 		try {

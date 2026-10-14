@@ -25,6 +25,7 @@ webpackConfig.entry = {
 	oauth: path.join(__dirname, 'src', 'oauth.js'),
 	filesAction: path.join(__dirname, 'src', 'filesAction.js'),
 	signup: path.join(__dirname, 'src', 'signup.js'),
+	recovery: path.join(__dirname, 'src', 'recovery.js'),
 }
 
 // The one entry that stays self-contained. It registers "Share to Social" in
@@ -32,8 +33,10 @@ webpackConfig.entry = {
 // post anything: a few KB of @nextcloud/files and l10n it can carry itself,
 // the megabyte of framework it must not ask for. Excluded from the shared
 // chunk below, so `FilesScriptsListener` loads it alone — on purpose, and
-// `tests/js/bundles.test.js` pins that it works alone.
-const SELF_CONTAINED = ['filesAction']
+// `tests/js/bundles.test.js` pins that it works alone. The offline recovery
+// page is the other: `RecoveryToolPage` inlines it into one HTML file that has
+// to run with this server gone.
+const SELF_CONTAINED = ['filesAction', 'recovery']
 
 // Vue's build-time flags. Without them the bundle carries the devtools
 // bridge into production — `@vue/devtools-api` pulls in `@vue/devtools-kit`,

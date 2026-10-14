@@ -31,7 +31,8 @@ use ZipArchive;
  * A person's Bluesky account as files, for keeping and for moving it
  * without this server: the repository as a CAR, every blob by its CID, the
  * DID's operation log and document, the offline recovery script with its
- * word list, and a README that says what each is.
+ * word list, the offline recovery tool as one HTML page, and a README
+ * that says what each is.
  *
  * Every file goes through the destination as a stream, so neither the
  * repository nor the pictures are ever whole in memory; the same files go
@@ -55,6 +56,7 @@ class BlueskyArchiveService {
 		private AtprotoConfig $config,
 		private ITempManager $tempManager,
 		private ITimeFactory $time,
+		private RecoveryToolPage $recoveryTool,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -70,7 +72,7 @@ class BlueskyArchiveService {
 	/**
 	 * Writes the account's files under $root.
 	 *
-	 * @return array{repository: bool, blobs: int, missing: list<string>, log: string} what went in: whether the repository did, how many blobs, the CIDs of those that could not be read, and where the log came from (`directory` or `local`)
+	 * @return array{repository: bool, blobs: int, missing: list<string>, log: string, tool: bool} what went in: whether the repository did, how many blobs, the CIDs of those that could not be read, where the log came from (`directory` or `local`), and whether the recovery tool did
 	 * @throws UserMigrationException when the destination refuses a file
 	 */
 	public function write(Identity $identity, IExportDestination $destination, string $root = self::ROOT): array {
@@ -86,7 +88,11 @@ class BlueskyArchiveService {
 			$destination->addFileAsStream($root . 'recovery/' . basename($file), $stream);
 			fclose($stream);
 		}
-		$summary = ['repository' => $repository, 'blobs' => $blobs, 'missing' => $missing, 'log' => $log];
+		$tool = $this->recoveryTool->isBuilt();
+		if ($tool) {
+			self::add($destination, $root . 'recovery/bluesky-recovery-tool.html', $this->recoveryTool->render());
+		}
+		$summary = ['repository' => $repository, 'blobs' => $blobs, 'missing' => $missing, 'log' => $log, 'tool' => $tool];
 		self::add($destination, $root . 'README.txt', $this->readme($identity, $summary));
 
 		return $summary;
@@ -246,7 +252,7 @@ class BlueskyArchiveService {
 	}
 
 	/**
-	 * @param array{repository: bool, blobs: int, missing: list<string>, log: string} $summary
+	 * @param array{repository: bool, blobs: int, missing: list<string>, log: string, tool: bool} $summary
 	 */
 	private function readme(Identity $identity, array $summary): string {
 		$host = (string)parse_url($this->config->pdsEndpoint(), PHP_URL_HOST);
@@ -271,7 +277,9 @@ class BlueskyArchiveService {
 				? 'plc-log.json    Every operation of your DID, as the PLC directory (' . $this->config->plcDirectory() . ') answered its audit log.'
 				: 'plc-log.json    The operations of your DID as this server logged them: the PLC directory could not be asked when the archive was made.',
 			'did.json        Your DID document: the handle, the signing key and the server it names.',
-			'recovery/       recovery-key.py and the BIP-39 word list it reads: they turn your recovery phrase into its key, offline.',
+			$summary['tool']
+				? 'recovery/       bluesky-recovery-tool.html, the recovery tool: open it in a browser. Also recovery-key.py and the BIP-39 word list it reads, which turn your recovery phrase into its key with Python.'
+				: 'recovery/       recovery-key.py and the BIP-39 word list it reads: they turn your recovery phrase into its key, offline.',
 			'',
 			'YOUR RECOVERY PHRASE',
 			'',
@@ -279,13 +287,21 @@ class BlueskyArchiveService {
 			'rotation keys of your DID: with it you can point the DID at another server even',
 			'when this one is gone. The phrase is not in this archive; only you have it.',
 			'',
+			'The recovery tool does all of it in your browser, step by step: open',
+			'recovery/bluesky-recovery-tool.html (or "Download the recovery tool" in Settings),',
+			'give it your twelve words and your DID, and it gives the DID a signing key of your',
+			'own, creates the account on the new server, uploads repo.car and blobs/ and points',
+			'the DID there. Each request goes out only when you press its button.',
+			'',
+			'The same with goat (https://github.com/bluesky-social/goat), if you prefer:',
+			'',
 			'1. Turn the phrase into its key:',
 			'     python3 recovery/recovery-key.py recovery/bip39-english.txt',
 			'   It prints the key as hex and as multibase (z...): RECOVERY_KEY below.',
 			'   `goat key inspect RECOVERY_KEY` shows its did:key, which the last operation',
 			'   in plc-log.json lists under rotationKeys.',
 			'',
-			'2. With goat (https://github.com/bluesky-social/goat), give the DID a signing key',
+			'2. Give the DID a signing key',
 			'   of your own and drop this server\'s rotation key (SERVER_KEY: the other',
 			'   did:key in rotationKeys):',
 			'     goat key generate --type secp256k1      (SIGNING_KEY: the secret z..., SIGNING_DID_KEY: its did:key)',

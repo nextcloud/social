@@ -16,6 +16,7 @@ use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
+use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Service\AccountService;
@@ -25,7 +26,10 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PasswordConfirmationRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\ContentSecurityPolicy;
+use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
@@ -35,7 +39,8 @@ use Throwable;
 
 /**
  * What a person needs to keep their Bluesky account without this server:
- * who controls its DID, and the account as files to download.
+ * who controls its DID, the account as files to download, and the offline
+ * recovery tool that moves it with the recovery phrase.
  */
 class AtprotoRecoveryController extends Controller {
 	/** how much of the archive is read and sent at a time */
@@ -49,9 +54,53 @@ class AtprotoRecoveryController extends Controller {
 		private IdentityService $identities,
 		private BlueskyArchiveService $archive,
 		private DidControlService $control,
+		private RecoveryToolPage $recoveryTool,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
+	}
+
+	/**
+	 * `GET /bluesky-recovery`: the offline recovery tool, one page with its
+	 * script inline. Public — it holds nothing of anybody's — and allowed
+	 * to ask any HTTPS server, since the person names the new one.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/bluesky-recovery')]
+	public function recoveryTool(): Response {
+		return $this->recoveryPage(false);
+	}
+
+	/**
+	 * `GET /bluesky-recovery/download`: the same page as a file to keep,
+	 * for when this server is gone.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/bluesky-recovery/download')]
+	public function downloadRecoveryTool(): Response {
+		return $this->recoveryPage(true);
+	}
+
+	private function recoveryPage(bool $download): Response {
+		if (!$this->recoveryTool->isBuilt()) {
+			return new DataResponse(['error' => 'The recovery tool is not built', 'code' => 'tool-missing'], Http::STATUS_SERVICE_UNAVAILABLE);
+		}
+		$response = new DataDisplayResponse($this->recoveryTool->render(), Http::STATUS_OK, ['Content-Type' => 'text/html; charset=utf-8']);
+		$policy = new ContentSecurityPolicy();
+		$policy->addAllowedScriptDomain($this->recoveryTool->scriptSource());
+		$policy->addAllowedConnectDomain('https:');
+		$directory = $this->config->plcDirectory();
+		if (!str_starts_with($directory, 'https://')) {
+			$policy->addAllowedConnectDomain($directory);
+		}
+		$response->setContentSecurityPolicy($policy);
+		if ($download) {
+			$response->addHeader('Content-Disposition', 'attachment; filename="bluesky-recovery-tool.html"');
+		}
+
+		return $response;
 	}
 
 	/**

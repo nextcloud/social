@@ -21,6 +21,7 @@ use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
+use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -84,7 +85,7 @@ class BlueskyArchiveTest extends TestCase {
 		$service = new BlueskyArchiveService(
 			Server::get(IdentityService::class), $this->repositories, Server::get(AtprotoBlobRequest::class),
 			Server::get(PictureService::class), Server::get(VideoBlobService::class), $plc, $this->plcLog,
-			Server::get(AtprotoConfig::class), Server::get(ITempManager::class), Server::get(ITimeFactory::class), new NullLogger(),
+			Server::get(AtprotoConfig::class), Server::get(ITempManager::class), Server::get(ITimeFactory::class), Server::get(RecoveryToolPage::class), new NullLogger(),
 		);
 		$identity = new Identity(1, 'https://social.test/@archive', self::DID, 'archive.social.test', 'sealed', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0);
 

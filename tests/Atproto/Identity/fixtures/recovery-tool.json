@@ -1,0 +1,146 @@
+{
+    "phrases": [
+        {
+            "phrase": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+            "did_key": "did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt",
+            "multibase": "z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526",
+            "hex": "950f8acc1852f1a2562b2851457a04b1ba22541dd0f3b95ab9302d2894f29397"
+        },
+        {
+            "phrase": "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong",
+            "did_key": "did:key:zQ3shNJTGjP7GK4azVKxgmNm9zmQUaHfxHq6fLLg8jxe33Yiu",
+            "multibase": "z3vLfBm4fMRneYi3xrMq1XWYT83CLq6h7ZeMKZsJjL4E1dDV",
+            "hex": "a639593ec42e91b28f2e2fe39ebcb568949a3597dfe8ee8ee6ed7b12d9f94b54"
+        },
+        {
+            "phrase": "vote custom horn arena clay juice double evidence harsh million universe business",
+            "did_key": "did:key:zQ3shNTSx4o9DwDennowMeSuAEnALQ4gevpdQRDLi1Ajnh2vs",
+            "multibase": "z3vLckz2a6wwPeN2gHU8JPhqev5Rt8X1zmuRSiec86znotUs",
+            "hex": "82291ce8c85a4677560e3f3a7de5ef024aa8734fb6f886382337c5f44a41addc"
+        },
+        {
+            "phrase": "power novel evolve east jaguar blood insane good category device sea deputy",
+            "did_key": "did:key:zQ3shdoXDsN6zZQwddcuqn8Bo5ywEBaJVMwpPEMiB233LpXKm",
+            "multibase": "z3vLfw2rSvQXmbE7a3zCyF47PmenPt4ax8UawCCgFfZpibgv",
+            "hex": "b14f2d3209fab5d8c84d729b1845b31f95606161bf1af917253f987d02b0c3ab"
+        }
+    ],
+    "operation": {
+        "did": "did:plc:ofeyawbanllrz6osjex3hw2b",
+        "phrase": "vote custom horn arena clay juice double evidence harsh million universe business",
+        "last": {
+            "type": "plc_operation",
+            "rotationKeys": [
+                "did:key:zQ3shvdZxHMsLhbEV87T7A22JieraxAA8RRx6MZR1dBSnPFor",
+                "did:key:zQ3shNTSx4o9DwDennowMeSuAEnALQ4gevpdQRDLi1Ajnh2vs"
+            ],
+            "verificationMethods": {
+                "atproto": "did:key:zQ3shv4Do9PMpYFm9cQWF2r7uX7MTL1JeuHrgSgDJDa5oPZVZ"
+            },
+            "alsoKnownAs": [
+                "at://alice.social.test"
+            ],
+            "services": {
+                "atproto_pds": {
+                    "type": "AtprotoPersonalDataServer",
+                    "endpoint": "https://social.test"
+                }
+            },
+            "prev": "bafyreidrjgafqidk24optusjf6z5wqoxkbe5qbvawzzk6tklj2by34t5my",
+            "sig": "oy6KGatFjqY3f_UEvwmE8ctWPMe2siEF7ce19b0X07tvfDle0PZKDIvOOtfeyy0sQYHUpT1L5OmTAZciXWWmrw"
+        },
+        "last_cid": "bafyreid7n2jqcggcexuzkush3a2uiqeo6ub5rdg4p7miyook65es6ld7xy",
+        "credentials": {
+            "rotationKeys": [
+                "did:key:zQ3shwQy54zxDSfAevoBXauL2cWc6CD13UHvMi9HAjYBrUEKN",
+                "did:key:zQ3shNTSx4o9DwDennowMeSuAEnALQ4gevpdQRDLi1Ajnh2vs"
+            ],
+            "alsoKnownAs": [
+                "at://alice.pds.example"
+            ],
+            "verificationMethods": {
+                "atproto": "did:key:zQ3shX9UbMnpPe9AJkX9RXucfmgpzbJ7oFg3V3rJEZCnHVanZ"
+            },
+            "services": {
+                "atproto_pds": {
+                    "type": "AtprotoPersonalDataServer",
+                    "endpoint": "https://pds.example"
+                }
+            }
+        },
+        "unsigned_cbor_hex": "a66470726576783b6261667972656964376e326a71636767636578757a6b757368336132756971656f367562357264673470376d69796f6f6b36356573366c6437787964747970656d706c635f6f7065726174696f6e687365727669636573a16b617470726f746f5f706473a264747970657819417470726f746f506572736f6e616c4461746153657276657268656e64706f696e747368747470733a2f2f7064732e6578616d706c656b616c736f4b6e6f776e4173817661743a2f2f616c6963652e7064732e6578616d706c656c726f746174696f6e4b6579738278396469643a6b65793a7a513373684e545378346f39447744656e6e6f774d65537541456e414c513467657670645152444c6931416a6e6832767378396469643a6b65793a7a5133736877517935347a784453664165766f425861754c3263576336434431335548764d693948416a59427255454b4e73766572696669636174696f6e4d6574686f6473a167617470726f746f78396469643a6b65793a7a51337368583955624d6e70506539414a6b583952587563666d67707a624a376f4667335633724a455a436e4856616e5a",
+        "php_signed": {
+            "type": "plc_operation",
+            "rotationKeys": [
+                "did:key:zQ3shNTSx4o9DwDennowMeSuAEnALQ4gevpdQRDLi1Ajnh2vs",
+                "did:key:zQ3shwQy54zxDSfAevoBXauL2cWc6CD13UHvMi9HAjYBrUEKN"
+            ],
+            "verificationMethods": {
+                "atproto": "did:key:zQ3shX9UbMnpPe9AJkX9RXucfmgpzbJ7oFg3V3rJEZCnHVanZ"
+            },
+            "alsoKnownAs": [
+                "at://alice.pds.example"
+            ],
+            "services": {
+                "atproto_pds": {
+                    "type": "AtprotoPersonalDataServer",
+                    "endpoint": "https://pds.example"
+                }
+            },
+            "prev": "bafyreid7n2jqcggcexuzkush3a2uiqeo6ub5rdg4p7miyook65es6ld7xy",
+            "sig": "VlyHLKKdA4mMhTQFiJAFx94kJrvYqjbC4tdjjjxrWa5A7HP1tDoLmBS7Rd_D7BxsJCArotjSZYVwlYnNYTAT1g"
+        },
+        "php_cid": "bafyreifguy3zjrt2npwxavb57fjnqi3ldmjrkmdak7awrqhfwjxdnajoee",
+        "js_signed": {
+            "type": "plc_operation",
+            "rotationKeys": [
+                "did:key:zQ3shNTSx4o9DwDennowMeSuAEnALQ4gevpdQRDLi1Ajnh2vs",
+                "did:key:zQ3shwQy54zxDSfAevoBXauL2cWc6CD13UHvMi9HAjYBrUEKN"
+            ],
+            "verificationMethods": {
+                "atproto": "did:key:zQ3shX9UbMnpPe9AJkX9RXucfmgpzbJ7oFg3V3rJEZCnHVanZ"
+            },
+            "alsoKnownAs": [
+                "at://alice.pds.example"
+            ],
+            "services": {
+                "atproto_pds": {
+                    "type": "AtprotoPersonalDataServer",
+                    "endpoint": "https://pds.example"
+                }
+            },
+            "prev": "bafyreid7n2jqcggcexuzkush3a2uiqeo6ub5rdg4p7miyook65es6ld7xy",
+            "sig": "8fx3C6K2vkzKSCytbHLWZvcUDcdyctshFXHccgThHzQZ9L9POZAKbh19QTkrN2sDVBMlmSb53EuemlpnG63NhA"
+        },
+        "js_cid": "bafyreid3zi4ht4dyy5h77qf7r4dtkjbuyxskqfw2zismdrtenbvhpmleby",
+        "js_rekey": {
+            "operation": {
+                "type": "plc_operation",
+                "rotationKeys": [
+                    "did:key:zQ3shNTSx4o9DwDennowMeSuAEnALQ4gevpdQRDLi1Ajnh2vs",
+                    "did:key:zQ3shvdZxHMsLhbEV87T7A22JieraxAA8RRx6MZR1dBSnPFor"
+                ],
+                "verificationMethods": {
+                    "atproto": "did:key:zQ3shdoXDsN6zZQwddcuqn8Bo5ywEBaJVMwpPEMiB233LpXKm"
+                },
+                "alsoKnownAs": [
+                    "at://alice.social.test"
+                ],
+                "services": {
+                    "atproto_pds": {
+                        "type": "AtprotoPersonalDataServer",
+                        "endpoint": "https://social.test"
+                    }
+                },
+                "prev": "bafyreid7n2jqcggcexuzkush3a2uiqeo6ub5rdg4p7miyook65es6ld7xy",
+                "sig": "oVTPL38q3-cYV1Fh64UI5g2bmvh8A7-1tGWxu_foRPoAKt2OP6jFwERIB7CmaR5BNPsFmyfkJEEmmAceaBgwrg"
+            },
+            "cid": "bafyreiexowvdkffgg62alvqcgwtvo6x6fqjfr4bltvmkhdp3k54r2ssrc4"
+        },
+        "js_service_auth": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NksifQ.eyJpc3MiOiJkaWQ6cGxjOm9mZXlhd2Jhbmxscno2b3NqZXgzaHcyYiIsImF1ZCI6ImRpZDp3ZWI6cGRzLmV4YW1wbGUiLCJseG0iOiJjb20uYXRwcm90by5zZXJ2ZXIuY3JlYXRlQWNjb3VudCIsImp0aSI6IjAxMjM0NTY3ODlhYmNkZWYiLCJpYXQiOjE3NjAwMDAwMDAsImV4cCI6MTc2MDAwMDE4MH0.YUGylkL9wth3oh2iSWj8ORTxxF00o6-4iUxjcsgZZ8ED5kvHgQG8aMuj6XKunumEuKoz8We0F4xwrVFXpq7I4A",
+            "now": 1760000000,
+            "audience": "did:web:pds.example"
+        }
+    }
+}

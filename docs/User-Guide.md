@@ -1074,12 +1074,14 @@ them, and the old words stop working. You will not need the phrase in ordinary
 use. What it can do: the key it stands for can sign a change to your identifier
 at the PLC directory without this server — give it another signing key, point it
 at another Bluesky server, drop this server's key. That is how you take your
-Bluesky account with you if this server is ever gone; the steps use the `goat`
-command-line tool and the download below ([Moving.md](Moving.md#if-this-server-goes-away)).
-This app has no page of its own that makes that change for you. Anyone who has the
-words can do the same, so keep them where only you can find them.
+Bluesky account with you if this server is ever gone. **Download the recovery
+tool** keeps one HTML page that does it in your browser, step by step, from a
+saved copy and without this server; open it with your words and the download
+below ([Moving.md](Moving.md#if-this-server-goes-away); the `goat`
+command-line tool can do the same). Anyone who has the words can do the same,
+so keep them where only you can find them.
 
-No other Bluesky tool reads the words themselves, so the same dialog also
+Other Bluesky tools do not read the words themselves, so the same dialog also
 shows the key they stand for: the private key in the form the `goat` command-line
 tool takes (`z…`) and as hex, and the public key (`did:key:…`) that your
 identifier lists. Keep the words; the key lines are the same secret written
@@ -1098,8 +1100,8 @@ undo it; while that is so, the panel says until when and by which key.
 files after your password: your repository (every post, like, follow and the
 profile, in the CAR format other Bluesky servers import), the pictures and videos,
 the history of your identifier from the PLC directory, and a README with the
-steps to move the account with your recovery phrase and the `goat` tool, even when
-this server is gone. The archive from **Settings → Migration** holds the same files
+steps to move the account with your recovery phrase, even when this server is gone;
+it carries the recovery tool too. The archive from **Settings → Migration** holds the same files
 under `social/bluesky/`.
 
 The post menu's *Delivery status* shows whether a post is on Bluesky and opens

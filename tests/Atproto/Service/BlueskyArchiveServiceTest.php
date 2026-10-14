@@ -20,6 +20,7 @@ use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
+use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCA\Social\Exceptions\AtprotoException;
@@ -80,10 +81,13 @@ class BlueskyArchiveServiceTest extends TestCase {
 		$config->method('plcDirectory')->willReturn('https://plc.directory');
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getDateTime')->willReturn(new DateTime('2026-10-14 12:00:00'));
+		$tool = $this->createMock(RecoveryToolPage::class);
+		$tool->method('isBuilt')->willReturn(true);
+		$tool->method('render')->willReturn('<!DOCTYPE html><title>Bluesky recovery tool</title>');
 
 		return new BlueskyArchiveService(
 			$identities, $this->repositories, $blobs, $pictures, $videos, $this->plc, $plcLog, $config,
-			$this->createMock(ITempManager::class), $time, new NullLogger(),
+			$this->createMock(ITempManager::class), $time, $tool, new NullLogger(),
 		);
 	}
 
@@ -111,7 +115,7 @@ class BlueskyArchiveServiceTest extends TestCase {
 
 		$summary = $this->service()->write(self::identity(), $archive);
 
-		$this->assertSame(['repository' => true, 'blobs' => 2, 'missing' => [], 'log' => 'directory'], $summary);
+		$this->assertSame(['repository' => true, 'blobs' => 2, 'missing' => [], 'log' => 'directory', 'tool' => true], $summary);
 		$expected = [
 			'bluesky/README.txt',
 			'bluesky/blobs/' . $picture->cid->toString(),
@@ -119,6 +123,7 @@ class BlueskyArchiveServiceTest extends TestCase {
 			'bluesky/did.json',
 			'bluesky/plc-log.json',
 			'bluesky/recovery/bip39-english.txt',
+			'bluesky/recovery/bluesky-recovery-tool.html',
 			'bluesky/recovery/recovery-key.py',
 			'bluesky/repo.car',
 		];
@@ -132,8 +137,9 @@ class BlueskyArchiveServiceTest extends TestCase {
 		$resources = __DIR__ . '/../../../resources/atproto/';
 		$this->assertSame(file_get_contents($resources . 'recovery-key.py'), $archive->contents('bluesky/recovery/recovery-key.py'));
 		$this->assertSame(file_get_contents($resources . 'bip39-english.txt'), $archive->contents('bluesky/recovery/bip39-english.txt'));
+		$this->assertSame('<!DOCTYPE html><title>Bluesky recovery tool</title>', $archive->contents('bluesky/recovery/bluesky-recovery-tool.html'));
 		$readme = $archive->contents('bluesky/README.txt');
-		foreach ([self::DID, 'alice.social.test', 'repo.car', 'goat repo import repo.car', 'recovery-key.py', 'goat plc sign --plc-signing-key RECOVERY_KEY', '72'] as $text) {
+		foreach ([self::DID, 'alice.social.test', 'repo.car', 'goat repo import repo.car', 'recovery-key.py', 'goat plc sign --plc-signing-key RECOVERY_KEY', 'recovery/bluesky-recovery-tool.html', '72'] as $text) {
 			$this->assertStringContainsString($text, $readme);
 		}
 	}

@@ -14,6 +14,7 @@ use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
+use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Controller\AtprotoRecoveryController;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -41,11 +42,13 @@ class AtprotoRecoveryControllerTest extends TestCase {
 	private IdentityService&MockObject $identities;
 	private BlueskyArchiveService&MockObject $archive;
 	private DidControlService&MockObject $control;
+	private RecoveryToolPage&MockObject $recoveryTool;
 
 	protected function setUp(): void {
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->archive = $this->createMock(BlueskyArchiveService::class);
 		$this->control = $this->createMock(DidControlService::class);
+		$this->recoveryTool = $this->createMock(RecoveryToolPage::class);
 		// Response::getHeaders() reads both from the container
 		\OC::$server->register(IRequest::class, $this->createStub(IRequest::class));
 		$clock = $this->createStub(ITimeFactory::class);
@@ -67,7 +70,7 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		$accounts = $this->createStub(AccountService::class);
 		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
 
-		return new AtprotoRecoveryController($this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->archive, $this->control, new NullLogger());
+		return new AtprotoRecoveryController($this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->archive, $this->control, $this->recoveryTool, new NullLogger());
 	}
 
 	private static function identity(string $state = Identity::STATE_ACTIVE): Identity {
@@ -141,5 +144,30 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		$this->control->expects($this->never())->method('forIdentity');
 
 		$this->assertSame('no-identity', $this->controller()->control()->getData()['code']);
+	}
+
+	/** The tool is one page: its inline script allowed by hash, any HTTPS server reachable, and a file to keep from the download. */
+	public function testTheRecoveryToolIsServedAndDownloadedAsOnePage(): void {
+		$this->recoveryTool->method('isBuilt')->willReturn(true);
+		$this->recoveryTool->method('render')->willReturn('<!DOCTYPE html><title>tool</title>');
+		$this->recoveryTool->method('scriptSource')->willReturn("'sha256-abc='");
+
+		$served = $this->controller()->recoveryTool();
+		$this->assertSame('<!DOCTYPE html><title>tool</title>', $served->render());
+		$this->assertSame('text/html; charset=utf-8', $served->getHeaders()['Content-Type']);
+		$policy = $served->getContentSecurityPolicy()->buildPolicy();
+		$this->assertStringContainsString("'sha256-abc='", $policy);
+		$this->assertMatchesRegularExpression('/connect-src [^;]*https:/', $policy);
+		$this->assertStringNotContainsString('attachment', $served->getHeaders()['Content-Disposition'] ?? '');
+
+		$downloaded = $this->controller()->downloadRecoveryTool();
+		$this->assertSame('attachment; filename="bluesky-recovery-tool.html"', $downloaded->getHeaders()['Content-Disposition']);
+	}
+
+	public function testWithoutABuildTheToolSaysSo(): void {
+		$this->recoveryTool->method('isBuilt')->willReturn(false);
+
+		$response = $this->controller()->recoveryTool();
+		$this->assertSame([Http::STATUS_SERVICE_UNAVAILABLE, 'tool-missing'], [$response->getStatus(), $response->getData()['code']]);
 	}
 }

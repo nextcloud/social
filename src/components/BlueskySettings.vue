@@ -116,7 +116,18 @@
 				     phrase is this app's own encoding, not a BIP-39 seed, so
 				     the key is shown beside it in the forms other tools take -->
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for, written the way tools such as goat take it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
+					{{ t('social', 'Other Bluesky tools do not read the words themselves: the recovery tool below does, and when they are made you also see the key they stand for, written the way tools such as goat take it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
+				</p>
+				<!-- one page that works from a saved copy, so it is offered as a file -->
+				<NcButton class="bluesky-settings__recovery-tool" :href="recoveryToolDownload" download="bluesky-recovery-tool.html">
+					<template #icon>
+						<Download :size="20" />
+					</template>
+					{{ t('social', 'Download the recovery tool') }}
+				</NcButton>
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'One page that moves your Bluesky identifier to another server with your twelve words, in your browser, even when this server is gone. Keep it with your words.') }}
+					<a :href="recoveryToolPage" target="_blank" rel="noopener">{{ t('social', 'Open it here') }}</a>
 				</p>
 			</div>
 			<!-- the directory's own answer: the keys that can change the DID,
@@ -628,6 +639,16 @@ export default {
 	},
 
 	computed: {
+		/** @return {string} the offline recovery tool, as a file to keep */
+		recoveryToolDownload() {
+			return generateUrl('apps/social/bluesky-recovery/download')
+		},
+
+		/** @return {string} the offline recovery tool, served here */
+		recoveryToolPage() {
+			return generateUrl('apps/social/bluesky-recovery')
+		},
+
 		/** @return {string} the address a Bluesky app is given as the hosting provider */
 		origin() {
 			return window.location.origin
@@ -1131,6 +1152,10 @@ export default {
 		font-size: 13px;
 		overflow-wrap: anywhere;
 		user-select: all;
+	}
+
+	&__recovery-tool {
+		margin-top: 8px;
 	}
 
 	&__control {

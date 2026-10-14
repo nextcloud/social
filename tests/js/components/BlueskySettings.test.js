@@ -320,9 +320,22 @@ describe('BlueskySettings', () => {
 				const wrapper = mountSettings()
 				await flushPromises()
 
-				expect(wrapper.text()).toContain('No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for')
+				expect(wrapper.text()).toContain('the recovery tool below does, and when they are made you also see the key they stand for')
 				expect(wrapper.text()).toContain('for 72 hours the server can undo a change made with the phrase, a move to another server included')
 			}
+		})
+
+		/** The tool that uses the words without this server: a file to keep, and the page here. */
+		it('offers the recovery tool to download and to open', async () => {
+			serverHas()
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			const download = wrapper.findAll('a').find((link) => link.text() === 'Download the recovery tool')
+			expect(download.attributes('href')).toBe('/index.php/apps/social/bluesky-recovery/download')
+			expect(download.attributes('download')).toBe('bluesky-recovery-tool.html')
+			const open = wrapper.findAll('a').find((link) => link.text() === 'Open it here')
+			expect(open.attributes('href')).toBe('/index.php/apps/social/bluesky-recovery')
 		})
 
 		it('offers to create one while there is none', async () => {

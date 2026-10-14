@@ -266,19 +266,56 @@ multibase `z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526`, public
 (`MnemonicTest` pins all three, and that the script agrees).
 
 **What the phrase can do.** Its key is a rotation key of the DID, so it
-signs PLC operations the directory accepts without this server: with
-goat (`goat plc update`, `goat plc sign --plc-signing-key <multibase>`,
-`goat plc submit`) the person can give the DID a signing key of their
-own, create the account on another PDS with it
-(`goat account service-auth-offline`, `goat account create
---existing-did`), import the repository and blobs of the download
-(§4.5a) and point the DID there — the steps in Moving.md's "If this
-server goes away" and in the archive's README. They follow goat's
-documented commands and have not been run end to end against the live
-directory from this app's tests. The app has no page of its own that
-signs with the phrase. While this server exists its key ranks first, so
-for 72 hours it can nullify an operation signed with the phrase (§4.1);
-the "Who controls" panel (§4.5b) shows that window.
+signs PLC operations the directory accepts without this server. The
+**recovery tool** (below) does that in the person's browser; goat does
+the same from the command line (`goat plc update`, `goat plc sign
+--plc-signing-key <multibase>`, `goat plc submit`, then
+`goat account service-auth-offline` and `goat account create
+--existing-did`). Both paths are in Moving.md's "If this server goes away"
+and in the archive's README. Neither has been run end to end against the
+live directory from this app's tests. While this server exists its key
+ranks first, so for 72 hours it can nullify an operation signed with the
+phrase (§4.1); the "Who controls" panel (§4.5b) shows that window.
+
+**The recovery tool** is one HTML page with its script inline
+(`RecoveryToolPage`, the self-contained webpack entry `src/recovery.js`,
+which keeps `@noble/secp256k1` and `@noble/hashes` out of every other
+bundle). It is served publicly at `GET /apps/social/bluesky-recovery`
+(the inline script allowed by its CSP hash, `connect-src https:` for the
+directory and whichever server the person names), downloaded from
+`/bluesky-recovery/download` ("Download the recovery tool" in Settings),
+and put into the Bluesky archive as `recovery/bluesky-recovery-tool.html`.
+The page carries its strings, in the language it was downloaded in, and
+the word list, so a saved copy runs with this server gone. In order, each
+network request only on a button press:
+
+1. the key from the words (`src/recovery/plc.js`, the derivation above)
+   or from hex or multibase;
+2. the DID's latest operation from `<directory>/<did>/log/last`, or
+   pasted; the key must be one of its rotation keys (`key-not-listed`
+   otherwise);
+3. for a server that cannot sign any more, an operation that gives the
+   DID a fresh signing key made in the browser and puts the person's key
+   first, everything else as it was, sent to the directory;
+4. the new server's DID from `describeServer`, and `createAccount` with
+   the existing DID and a service-auth token (ES256K, `lxm`
+   `com.atproto.server.createAccount`) signed with that signing key;
+5. `importRepo` of `repo.car` and `uploadBlob` of each blob file;
+6. `getRecommendedDidCredentials` with the new account's token (or
+   pasted), the hand-over built exactly as `PlcOperation::fromCredentials()`
+   builds it — the person's key first, then the new server's, at most five
+   — signed and sent to the directory, or copied;
+7. `activateAccount`.
+
+Operations are DAG-CBOR as `DagCbor` writes it (lengths minimal, map keys
+by length then bytes), CIDs CIDv1 dag-cbor SHA-256 base32, signatures
+ECDSA over SHA-256, low-S, raw r‖s, base64url — RFC 6979 deterministic in
+the tool, random-k in OpenSSL, both valid. The cross-language fixtures
+(`tests/Atproto/Identity/fixtures/recovery-tool.json`, written by
+`RecoveryToolFixturesTest` and `tests/js/recovery/plc.test.js` with
+`SOCIAL_UPDATE_FIXTURES=1`) pin the same keys from the same words, the
+same operation bytes and CIDs, PHP's signature accepted by the tool, and
+the tool's operations and service token accepted by PHP.
 
 ### 4.5 PLC operations this app sends
 
@@ -346,8 +383,9 @@ still reads, `plc-log.json` (the directory's `/log/audit`, or where it
 cannot be asked the operations this server's log has as confirmed, in
 the same shape), `did.json` (the directory's document, else the one this
 app derives from its log), `recovery/recovery-key.py` with the word list
-(§4.4), and `README.txt`, which says what each file is and the goat steps
-of Moving.md's "If this server goes away". Every file goes to the
+(§4.4), `recovery/bluesky-recovery-tool.html` (the recovery tool, §4.4,
+where the JavaScript is built), and `README.txt`, which says what each
+file is and the steps of Moving.md's "If this server goes away". Every file goes to the
 archive as a stream — the CAR through a temporary stream that spills to
 disk — and the download is sent in pieces from the finished zip, so
 neither is ever whole in memory. Nothing is read back from these files
@@ -1889,8 +1927,8 @@ keys of every identity that still signs. A key neither secret opens is
 reported and left as it is: without the previous secret, the only way
 back is the person's recovery phrase (§4.4): its key signs a PLC
 operation that gives the DID a signing key of the person's own and points
-it elsewhere — with goat, as Moving.md's "If this server goes away" lists;
-this app does not take the phrase back itself.
+it elsewhere — with the recovery tool (§4.4) or goat, as Moving.md's "If
+this server goes away" lists.
 
 Until then a person's request that needs such a key — their identity,
 the recovery phrase, a move, a Bluesky app's call — is not answered with
