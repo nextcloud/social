@@ -44,7 +44,7 @@ composer run test:unit -- --filter TranslatableStringsTest  # one test class or 
 ## Conventions
 
 - **`js/` is committed and is what ships.** After changing `src/`, rebuild with `npm run build` and commit `js/` with it, including deleted and renamed chunks. CI ("NPM build") rebuilds and fails on any byte difference. Build with Node 24 from an LF checkout: a Windows checkout with CRLF line endings produces different bytes. Source maps are gitignored.
-- **Commits:** Conventional Commits with a scope, e.g. `feat(atproto): …`, `fix(social): …`, `chore(release): …`. Commit with `git commit -s` (DCO).
+- **Commits:** Conventional Commits with a scope, e.g. `feat(atproto): …`, `fix(social): …`, `chore(release): …`. The human contributor commits with `git commit -s` (DCO): the `Signed-off-by` line is theirs to add, and an agent never adds it (see "What this agent must never do" below). An agent-assisted commit carries the `Assisted-by:` trailer instead.
 - **Licensing (REUSE):** every new file needs SPDX headers. Use `SPDX-FileCopyrightText: <year> Aloha Social contributors` with `SPDX-License-Identifier: AGPL-3.0-or-later`, except files in `.github/workflows/`, which are `MIT`. Leave existing headers as they are. Files that cannot carry a header get an entry in `REUSE.toml`.
 
 ## Translations
@@ -85,7 +85,7 @@ All contributions generated or assisted by this agent must fully comply with:
 ### What this agent must never do
 
 - Open issues, submit pull requests, post review comments, or send security reports autonomously. Every contribution must be reviewed and submitted by a human.
-- Add `Signed-off-by` tags to commits. Only the human contributor can certify the Developer Certificate of Origin.
+- Add `Signed-off-by` tags to commits. Only the human contributor can certify the Developer Certificate of Origin, which they do with `git commit -s` on their own commits (the "Commits" convention above addresses them, not the agent).
 - Generate or submit security reports without independent human verification. Report verified vulnerabilities via [HackerOne](https://hackerone.com/nextcloud), not as GitHub issues.
 - Write PR descriptions, review comments, or issue reports on behalf of the contributor. These must be in the contributor's own words.
 - Fully automate the resolution of issues labeled [`good first issue`](https://github.com/issues?q=org%3Anextcloud+label%3A%22good+first+issue%22) or similar beginner-friendly labels.

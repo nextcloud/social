@@ -4,7 +4,7 @@
 -->
 <template>
 	<NcActions @update:open="$emit('update:open', $event)">
-		<NcActionButton v-if="canQuote" @click="$emit('quote')">
+		<NcActionButton v-if="canQuote" closeAfterClick @click="$emit('quote')">
 			<template #icon>
 				<FormatQuoteClose :size="20" />
 			</template>
@@ -13,6 +13,7 @@
 		<NcActionButton
 			v-if="isMine"
 			icon="icon-rename"
+			closeAfterClick
 			@click="$emit('edit')">
 			{{ t('social', 'Edit') }}
 		</NcActionButton>
@@ -77,12 +78,13 @@
 		<NcActionButton
 			v-if="isMine"
 			icon="icon-delete"
+			closeAfterClick
 			@click="$emit('delete')">
 			{{ t('social', 'Delete') }}
 		</NcActionButton>
 		<!-- the correction people actually make: the post goes and its words
 		     come back in the composer, to be posted again as a new post -->
-		<NcActionButton v-if="isMine" @click="$emit('redraft')">
+		<NcActionButton v-if="isMine" closeAfterClick @click="$emit('redraft')">
 			<template #icon>
 				<PencilBoxOutline :size="20" />
 			</template>
@@ -100,7 +102,7 @@
 		</NcActionButton>
 		<!-- where the post got to: the queue knows, and this asks it for the
 		     author, who is the only one it is answered for -->
-		<NcActionButton v-if="isMine && isLocal" @click="$emit('delivery')">
+		<NcActionButton v-if="isMine && isLocal" closeAfterClick @click="$emit('delivery')">
 			<template #icon>
 				<SendCheck :size="20" />
 			</template>
@@ -116,7 +118,7 @@
 			</template>
 			{{ onBluesky ? t('social', 'Open on Bluesky') : t('social', 'Open on original instance') }}
 		</NcActionLink>
-		<NcActionButton @click="$emit('bookmark')">
+		<NcActionButton closeAfterClick @click="$emit('bookmark')">
 			<template #icon>
 				<Bookmark v-if="item.bookmarked" :size="20" />
 				<BookmarkOutline v-else :size="20" />
@@ -125,7 +127,7 @@
 		</NcActionButton>
 		<!-- the keyboard's way to a reaction: the heart offers them on a hold
 		     or a right-click, neither of which a keyboard has -->
-		<NcActionButton v-if="!isPublic" @click="$emit('react')">
+		<NcActionButton v-if="!isPublic" closeAfterClick @click="$emit('react')">
 			<template #icon>
 				<EmoticonPlusOutline :size="20" />
 			</template>
@@ -134,7 +136,7 @@
 		<!-- the thread, not the person: muting an account is too blunt when
 		     one conversation has gone wrong, and it is possible only after
 		     the unwanted mention has arrived -->
-		<NcActionButton v-if="!isPublic" @click="$emit('muteConversation')">
+		<NcActionButton v-if="!isPublic" closeAfterClick @click="$emit('muteConversation')">
 			<template #icon>
 				<BellOutline v-if="item.muted" :size="20" />
 				<BellOffOutline v-else :size="20" />
@@ -143,13 +145,13 @@
 		</NcActionButton>
 		<!-- an album is made of the reader's own pictures; where the picture
 		     is, is where it is put into one -->
-		<NcActionButton v-if="canCollect" @click="$emit('collect')">
+		<NcActionButton v-if="canCollect" closeAfterClick @click="$emit('collect')">
 			<template #icon>
 				<FolderMultiplePlusOutline :size="20" />
 			</template>
 			{{ t('social', 'Add to a collection') }}
 		</NcActionButton>
-		<NcActionButton v-if="canPin" @click="$emit('pin')">
+		<NcActionButton v-if="canPin" closeAfterClick @click="$emit('pin')">
 			<template #icon>
 				<Pin v-if="!item.pinned" :size="20" />
 				<PinOff v-else :size="20" />
@@ -166,19 +168,19 @@
 		</NcActionButton>
 		<!-- what to do about somebody else, from the post that made the reader
 		     want to: both take their posts out of every timeline at once -->
-		<NcActionButton v-if="canModerateAuthor" @click="$emit('mute')">
+		<NcActionButton v-if="canModerateAuthor" closeAfterClick @click="$emit('mute')">
 			<template #icon>
 				<VolumeOff :size="20" />
 			</template>
 			{{ t('social', 'Mute {account}', { account: item.account.acct }) }}
 		</NcActionButton>
-		<NcActionButton v-if="canModerateAuthor" @click="$emit('block')">
+		<NcActionButton v-if="canModerateAuthor" closeAfterClick @click="$emit('block')">
 			<template #icon>
 				<Cancel :size="20" />
 			</template>
 			{{ t('social', 'Block {account}', { account: item.account.acct }) }}
 		</NcActionButton>
-		<NcActionButton v-if="!isMine" @click="$emit('report')">
+		<NcActionButton v-if="!isMine" closeAfterClick @click="$emit('report')">
 			<template #icon>
 				<Flag :size="20" />
 			</template>

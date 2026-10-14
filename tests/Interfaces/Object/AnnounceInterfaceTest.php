@@ -51,6 +51,10 @@ class AnnounceInterfaceTest extends ActivityPubTestCase {
 	/** @var MiscService&Stub */
 	private $miscService;
 	private AnnounceInterface $handler;
+	/** @var bool[] what the next stream writes answer; `true` once spent */
+	private array $streamsWritten = [];
+	/** @var bool[] what the next action writes answer; `true` once spent */
+	private array $actionsWritten = [];
 
 	private Person $alice;
 	private Person $bob;
@@ -61,6 +65,9 @@ class AnnounceInterfaceTest extends ActivityPubTestCase {
 
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		// a row is written unless a test says it was there already
+		$this->streamRequest->method('save')->willReturnCallback(fn (): bool => array_shift($this->streamsWritten) ?? true);
+		$this->actionsRequest->method('save')->willReturnCallback(fn (): bool => array_shift($this->actionsWritten) ?? true);
 		$this->streamQueueService = $this->createMock(StreamQueueService::class);
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
 		$this->miscService = $this->createStub(MiscService::class);
@@ -248,6 +255,27 @@ class AnnounceInterfaceTest extends ActivityPubTestCase {
 		$this->streamRequest->expects($this->never())->method('updateDetails');
 
 		$this->handler->processIncomingRequest($announce);
+	}
+
+	/**
+	 * The same Announce delivered again while the first copy is still being
+	 * handled: both copies pass the lookups, the database takes one row of
+	 * each kind, and only the first copy counts and notifies.
+	 */
+	public function testABoostRedeliveredWhileTheFirstCopyIsStillBeingHandledCountsAndNotifiesOnce(): void {
+		$this->storedStreamsByType([]);
+		$this->noStoredAction();
+		$this->streamRequest->method('getStreamById')->willReturn($this->post());
+
+		$this->streamsWritten = [true, false];
+		$this->actionsWritten = [true, false];
+		$this->streamRequest->expects($this->exactly(2))->method('save');
+		$this->actionsRequest->expects($this->exactly(2))->method('save');
+		$this->streamRequest->expects($this->once())->method('recount');
+		$this->notificationInterface->expects($this->once())->method('save');
+
+		$this->handler->processIncomingRequest($this->incomingAnnounce());
+		$this->handler->processIncomingRequest($this->incomingAnnounce());
 	}
 
 	public function testBoostOfALocalPostNotifiesItsAuthor(): void {

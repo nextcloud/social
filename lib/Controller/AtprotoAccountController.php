@@ -32,6 +32,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\PasswordConfirmationRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -294,10 +295,13 @@ class AtprotoAccountController extends Controller {
 
 	/**
 	 * Moves the viewer's Bluesky account to another PDS: the account is made
-	 * there now, the rest follows in the background.
+	 * there now, the rest follows in the background. The other server is the
+	 * person's choice and is waited for in the request, so a few tries an
+	 * hour is all one account gets.
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
+	#[UserRateLimit(limit: 3, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move')]
 	public function moveAway(string $pds, string $handle, string $email, string $password, string $inviteCode = ''): DataResponse {
 		$identity = $this->ownIdentity();

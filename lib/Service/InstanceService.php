@@ -153,7 +153,7 @@ class InstanceService {
 			->setRegistrations(false)
 			->setApprovalRequired(false)
 			->setInvitesEnabled(false)
-			->setUrls($this->urls())
+			->setUrls($this->urls($uri))
 			->setStats($this->stats())
 			->setUsage($this->usage())
 			->setConfiguration($this->configuration())
@@ -181,13 +181,15 @@ class InstanceService {
 	}
 
 	/**
-	 * Mastodon's `urls`, whose only member is the streaming endpoint. This app
-	 * has no streaming API, and a client handed a URL that never upgrades to a
-	 * websocket falls back to polling only after a timeout — so the key is left
-	 * out and the client polls from the start.
+	 * Mastodon's `urls`, whose only member is the streaming endpoint.
+	 *
+	 * This app has no streaming API, and the key is sent anyway: masto.js
+	 * (Elk, Phanpy) builds its websocket address from it and, without one,
+	 * tried to connect to `undefined` on every page load. Named, the
+	 * connection is a clean 404 at this host and the client polls.
 	 */
-	private function urls(): array {
-		return [];
+	private function urls(string $host): array {
+		return ['streaming_api' => 'wss://' . $host];
 	}
 
 	/**

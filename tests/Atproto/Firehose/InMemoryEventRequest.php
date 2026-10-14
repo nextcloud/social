@@ -34,7 +34,10 @@ class InMemoryEventRequest extends AtprotoEventRequest {
 
 	#[\Override]
 	public function after(int $seq, int $limit = 200): array {
-		return array_slice(array_values(array_filter($this->events, static fn (Event $event): bool => $event->seq > $seq)), 0, $limit);
+		$after = array_filter($this->events, static fn (Event $event): bool => $event->seq > $seq);
+		ksort($after);
+
+		return array_slice(array_values($after), 0, $limit);
 	}
 
 	#[\Override]

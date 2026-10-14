@@ -438,6 +438,25 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 	}
 
 	/**
+	 * The list `to` is emitted as when a single recipient and a list are
+	 * both set: the single one first, then the list, each once and none
+	 * empty. Empty while the list is, so a single recipient on its own is
+	 * still emitted as the string it is.
+	 *
+	 * @return string[]
+	 */
+	private function toEmitted(): array {
+		if ($this->getToArray() === []) {
+			return [];
+		}
+
+		return array_values(array_unique(array_filter(
+			array_merge([$this->getTo()], $this->getToArray()),
+			static fn ($recipient): bool => $recipient !== ''
+		)));
+	}
+
+	/**
 	 * @param string $k
 	 * @param string $v
 	 *
@@ -986,7 +1005,7 @@ class ACore extends Item implements JsonSerializable, IQueryRow {
 		$this->addEntry('type', $this->getType());
 		$this->addEntry('url', $this->getUrl());
 		$this->addEntry('to', $this->getTo());
-		$this->addEntryArray('to', $this->getToArray());
+		$this->addEntryArray('to', $this->toEmitted());
 		$this->addEntryArray('cc', $this->getCcArray());
 
 		if ($this->hasActor()) {

@@ -115,6 +115,19 @@ async function openGroup(wrapper, name) {
 }
 
 describe('the administration page', () => {
+	/**
+	 * Nextcloud's navigation toggle floats over the top left corner of the
+	 * settings column, and opening a group scrolls the page to the top of
+	 * that column, so the heading needs the same room under the toggle the
+	 * app's own Settings page keeps.
+	 */
+	it('keeps its heading clear of the navigation toggle, as Settings does', () => {
+		const offset = (file) => readFileSync(resolve(process.cwd(), 'src', file), 'utf8').match(/padding-block-start: ([^;]+);/)?.[1]
+
+		expect(offset('components/admin/AdminSettings.vue')).toBe('calc(var(--default-grid-baseline) * 12)')
+		expect(offset('components/admin/AdminSettings.vue')).toBe(offset('views/Settings.vue'))
+	})
+
 	beforeEach(() => {
 		vi.clearAllMocks()
 		axios.get.mockResolvedValue({ data: { accounts: [], cursors: [], announcements: [] } })

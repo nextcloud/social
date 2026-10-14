@@ -24,8 +24,13 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class JetstreamListenerTest extends TestCase {
+	private const START = 1760000000;
+
+	private int $now = self::START;
 	/** @var array<string, string> app values */
 	private array $values = [];
+	/** @var list<array{0: string, 1: int}> each cursor kept, with the clock it was kept at */
+	private array $kept = [];
 	/** @var Watch[] */
 	private array $watched = [];
 	/** @var JetstreamClient&MockObject */
@@ -42,14 +47,42 @@ class JetstreamListenerTest extends TestCase {
 		$configService->method('getAppValue')->willReturnCallback(fn (string $key): string => $this->values[$key] ?? '');
 		$configService->method('setAppValue')->willReturnCallback(function (string $key, string $value): void {
 			$this->values[$key] = $value;
+			if ($key === ConfigService::ATPROTO_JETSTREAM_CURSOR) {
+				$this->kept[] = [$value, $this->now - self::START];
+			}
 		});
 		$watches = $this->createMock(AtprotoWatchRequest::class);
 		$watches->method('getAll')->willReturnCallback(fn (): array => $this->watched);
 		$this->client = $this->createMock(JetstreamClient::class);
 		$this->events = $this->createMock(JetstreamEvents::class);
 		$time = $this->createMock(ITimeFactory::class);
-		$time->method('getTime')->willReturn(1760000000);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
 		$this->listener = new JetstreamListener($config, $configService, $watches, $this->events, $this->client, $time, new NullLogger());
+	}
+
+	/**
+	 * A connected listener whose reads answer these batches in turn, each
+	 * read moving the clock on by `$seconds`; a batch of null is a lost
+	 * connection.
+	 *
+	 * @param list<list<string>|null> $batches
+	 */
+	private function connected(array $batches, int $seconds = 0): void {
+		$this->watched = [new Watch('did:plc:a', 'a.test', '', 0, 0, 0, '', 0)];
+		$this->client->method('isConnected')->willReturn(true);
+		$this->client->method('read')->willReturnCallback(function () use (&$batches, $seconds): array {
+			$this->now += $seconds;
+			if ($batches === []) {
+				return [];
+			}
+			$batch = array_shift($batches);
+
+			return $batch ?? throw new \RuntimeException('gone');
+		});
+	}
+
+	private static function event(int $n): string {
+		return '{"did":"did:plc:a","time_us":' . (self::START * 1000000 + $n) . ',"kind":"commit"}';
 	}
 
 	public function testTheAddressAsksForTheCollectionsAndForNothingUntilTheAccountsAreNamed(): void {
@@ -62,6 +95,43 @@ class JetstreamListenerTest extends TestCase {
 			['type' => 'options_update', 'payload' => ['wantedCollections' => JetstreamEvents::COLLECTIONS, 'wantedDids' => ['did:plc:a'], 'maxMessageSizeBytes' => 0]],
 			json_decode(JetstreamListener::optionsUpdate(['did:plc:a']), true),
 		);
+	}
+
+	/**
+	 * A kept cursor is an app-config write that invalidates the config cache
+	 * of every request on the host, so one is written every few seconds, on
+	 * stopping, on a lost connection, and after a burst of events — not on
+	 * every read.
+	 */
+	public function testTheCursorIsKeptOnStoppingNotOnEveryRead(): void {
+		$this->connected([[self::event(1)], [self::event(2)], [self::event(3)], []]);
+
+		$this->listener->listen(static fn (): null => null, 0, true);
+
+		$this->assertSame([[(string)(self::START * 1000000 + 3), 0]], $this->kept, 'once, where it got to');
+	}
+
+	public function testTheCursorIsKeptEveryFewSecondsAndWhenTheConnectionIsLost(): void {
+		$this->connected([[self::event(1)], [self::event(2)], [self::event(3)], null], 3);
+
+		$this->listener->listen(static fn (): null => null, 0, true);
+
+		$this->assertSame([
+			[(string)(self::START * 1000000 + 2), 6],
+			[(string)(self::START * 1000000 + 3), 12],
+		], $this->kept, 'six seconds in, then on the loss; nothing more on stopping, it is kept already');
+	}
+
+	public function testABurstOfEventsKeepsTheCursorToo(): void {
+		$burst = array_map(static fn (int $n): string => self::event($n), range(1, JetstreamListener::KEEP_EVENTS));
+		$this->connected([$burst, [self::event(JetstreamListener::KEEP_EVENTS + 1)], []]);
+
+		$this->listener->listen(static fn (): null => null, 0, true);
+
+		$this->assertSame([
+			[(string)(self::START * 1000000 + JetstreamListener::KEEP_EVENTS), 0],
+			[(string)(self::START * 1000000 + JetstreamListener::KEEP_EVENTS + 1), 0],
+		], $this->kept, 'after the burst, and the last one on stopping');
 	}
 
 	/** An empty list of accounts would be the whole network. */

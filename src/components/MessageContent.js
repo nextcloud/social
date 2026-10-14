@@ -49,8 +49,10 @@ function formatMessage(hFn, routerLink, item) {
 	}
 	const dom = parser.parseFromString(`<div id="rootwrapper">${item.content ?? ''}</div>`, 'text/html')
 	const element = dom.getElementById('rootwrapper')
-	const cleaned = cleanCopy(hFn, routerLink, element, context)
-	return cleaned
+	const children = Array.from(element.childNodes).map((node) => domToVue(hFn, routerLink, node, context))
+	// the post's own direction, read from its first strong character: an
+	// Arabic or Hebrew post in an English page is otherwise set left to right
+	return hFn('div', { dir: 'auto' }, children)
 }
 
 /**

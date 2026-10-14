@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
+use OCA\Social\Atproto\Identity\KeySealService;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Reader\Jetstream\JetstreamListener;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -53,6 +54,7 @@ class AtprotoStatusService {
 		private ?AtprotoWatchRequest $watches = null,
 		private ?Blocklist $blocklist = null,
 		private ?JetstreamListener $listener = null,
+		private ?KeySealService $keySeals = null,
 	) {
 	}
 
@@ -118,6 +120,9 @@ class AtprotoStatusService {
 		];
 		$checks[] = $this->firehoseCheck();
 		$checks[] = $this->relayCheck();
+		if ($this->keySeals !== null) {
+			$checks[] = $this->keysCheck();
+		}
 
 		$failed = count(array_filter($checks, static fn (array $check): bool => $check['state'] === 'error')) > 0;
 		$cache->set('checks', $checks, $failed ? self::CACHE_FAILED : self::CACHE_OK);
@@ -267,6 +272,20 @@ class AtprotoStatusService {
 		$decoded = json_decode($body, true);
 
 		return is_array($decoded) ? $decoded : null;
+	}
+
+	/**
+	 * Whether every sealed key still opens: after a change of the instance
+	 * secret none does, and nothing can be signed until they are re-sealed.
+	 */
+	private function keysCheck(): array {
+		$sealed = $this->safe(fn (): int => $this->keySeals?->countSealed() ?? 0, 0);
+
+		return [
+			'id' => 'keys',
+			'state' => $sealed === 0 ? 'ok' : 'error',
+			'detail' => $sealed === 0 ? '' : $sealed . ' keys cannot be opened with the current secret: run occ social:atproto:keys:reseal with the previous secret in OC_OLD_SECRET',
+		];
 	}
 
 	private function rotationKeyAgeDays(): int {

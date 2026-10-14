@@ -96,8 +96,9 @@ class Instance implements IQueryRow, JsonSerializable {
 	 * them — a client that believes the string never asks.
 	 *
 	 * The features still missing are announced as missing rather than left to
-	 * fail: `urls` is an empty object, which is how a client learns there is no
-	 * streaming endpoint, and Web Push is absent, so a client that tries
+	 * fail: `urls.streaming_api` names this host, where the websocket is a
+	 * clean 404 rather than a connection to `undefined`, and Web Push is
+	 * absent, so a client that tries
 	 * `/api/v1/push/subscription` gets a 404 and falls back to polling — what
 	 * it does against any server without a VAPID key.
 	 *
@@ -199,6 +200,17 @@ class Instance implements IQueryRow, JsonSerializable {
 		$this->urls = $urls;
 
 		return $this;
+	}
+
+	/** `configuration.urls` of the v2 entity: v1's `urls`, `streaming_api` named `streaming`. */
+	private function v2Urls(): array {
+		$urls = $this->getUrls();
+		if (array_key_exists('streaming_api', $urls)) {
+			$urls['streaming'] = $urls['streaming_api'];
+			unset($urls['streaming_api']);
+		}
+
+		return $urls;
 	}
 
 	public function getStats(): array {
@@ -417,12 +429,15 @@ class Instance implements IQueryRow, JsonSerializable {
 			'usage' => (object)[
 				'users' => (object)['active_month' => (int)($stats['user_count'] ?? 0)],
 			],
-			'thumbnail' => (object)['url' => $this->getImage()],
+			// null rather than a `url` of "": Ivory and Mastodon for iOS
+			// fetched the empty one as the instance root
+			'thumbnail' => ($this->getImage() === '') ? null : (object)['url' => $this->getImage()],
 			'languages' => $this->getLanguages(),
 			'configuration' => (object)array_merge(
 				$configuration,
 				[
-					'urls' => (object)$this->getUrls(),
+					// v2 names v1's `streaming_api` `streaming`
+					'urls' => (object)$this->v2Urls(),
 					// an object, as Mastodon's is; `configuration()` fills in
 					// whether there is a provider
 					'translation' => (object)($configuration['translation']

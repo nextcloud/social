@@ -35,9 +35,9 @@ const stubs = {
 	// `counter` is a slot in @nextcloud/vue 9, not a prop, and there is no
 	// `subname` slot — the app's extras go through `extra`
 	NcAppNavigationItem: {
-		props: ['name', 'active', 'href', 'target', 'to'],
+		props: ['name', 'active', 'href', 'target', 'to', 'ariaDescription'],
 		emits: ['click'],
-		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && JSON.stringify(to)" @click="$emit(\'click\', $event)">'
+		template: '<li class="nav-item" :class="{ active }" :data-name="name" :data-href="href" :data-to="to && JSON.stringify(to)" :data-description="ariaDescription" @click="$emit(\'click\', $event)">'
 			+ '<span class="nav-item__icon"><slot name="icon" /></span><span class="nav-item__name">{{ name }}</span>'
 			+ '<span class="nav-item__counter"><slot name="counter" /></span>'
 			+ '<slot name="extra" /><span class="nav-item__actions"><slot name="actions" /></span><slot /></li>',
@@ -49,7 +49,7 @@ const stubs = {
 	NcActionButton: { emits: ['click'], template: '<button class="nav-caption__action" @click="$emit(\'click\')"><slot /></button>' },
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" :data-size="size" />' },
-	NcModal: { props: { name: String, closeOnClickOutside: Boolean }, emits: ['close'], template: '<div class="modal-stub" :data-name="name" :data-closes-on-outside-click="closeOnClickOutside ? \'yes\' : \'no\'"><slot /></div>' },
+	NcModal: { props: { name: String, labelId: String, closeOnClickOutside: Boolean }, emits: ['close'], template: '<div class="modal-stub" :data-name="name" :data-label-id="labelId" :data-closes-on-outside-click="closeOnClickOutside ? \'yes\' : \'no\'"><slot /></div>' },
 	Composer: { props: ['initialPaths'], emits: ['posted'], template: '<div class="composer-stub" :data-paths="JSON.stringify(initialPaths)" @click="$emit(\'posted\')" />' },
 }
 
@@ -159,7 +159,7 @@ describe('Navigation', () => {
 		it('opens the New post dialog with the files already handed to the composer', async () => {
 			const wrapper = await arriving(['/Photos/beach.jpg', '/Videos/talk.mp4'])
 
-			const dialog = wrapper.find('.modal-stub[data-name="New post"]')
+			const dialog = wrapper.find('.modal-stub[data-label-id="social-new-post-title"]')
 			expect(dialog.exists()).toBe(true)
 			expect(JSON.parse(dialog.find('.composer-stub').attributes('data-paths'))).toEqual(['/Photos/beach.jpg', '/Videos/talk.mp4'])
 		})
@@ -180,7 +180,7 @@ describe('Navigation', () => {
 			const wrapper = await arriving(['/Photos/beach.jpg'])
 
 			await wrapper.find('.composer-stub').trigger('click')
-			expect(wrapper.find('.modal-stub[data-name="New post"]').exists()).toBe(false)
+			expect(wrapper.find('.modal-stub[data-label-id="social-new-post-title"]').exists()).toBe(false)
 			await wrapper.find('.navigation__compose').trigger('click')
 			expect(JSON.parse(wrapper.find('.composer-stub').attributes('data-paths'))).toEqual([])
 		})
@@ -191,12 +191,25 @@ describe('Navigation', () => {
 			// draft is saved as it is typed and restored on the next open.
 			const wrapper = await arriving(['/Photos/beach.jpg'])
 
-			expect(wrapper.find('.modal-stub[data-name="New post"]').attributes('data-closes-on-outside-click'))
+			expect(wrapper.find('.modal-stub[data-label-id="social-new-post-title"]').attributes('data-closes-on-outside-click'))
 				.toBe('yes')
 		})
 
+		/**
+		 * NcModal draws `name` into the page header, above the mask, where it
+		 * sat over Nextcloud's search box. The dialog is labelled by a heading
+		 * of its own instead.
+		 */
+		it('titles itself inside the dialog, not in the page header', async () => {
+			const wrapper = await arriving(['/Photos/beach.jpg'])
+			const modal = wrapper.find('.modal-stub[data-label-id="social-new-post-title"]')
+
+			expect(modal.attributes('data-name')).toBeUndefined()
+			expect(modal.find('h2#social-new-post-title').text()).toBe('New post')
+		})
+
 		it('opens nothing without files on the address', () => {
-			expect(mountNavigation().find('.modal-stub[data-name="New post"]').exists()).toBe(false)
+			expect(mountNavigation().find('.modal-stub[data-label-id="social-new-post-title"]').exists()).toBe(false)
 			expect(router.replace).not.toHaveBeenCalled()
 		})
 	})
@@ -620,6 +633,118 @@ describe('Navigation', () => {
 	 * because an older server sent no `sections` would read as the app being
 	 * broken rather than as a setting.
 	 */
+	/**
+	 * Without notify_push the sidebar re-reads its three counts on a timer.
+	 * A tab nobody is looking at does not ask -- on an instance with many
+	 * open tabs that was most of the traffic there was -- and a server that
+	 * keeps failing is asked less and less often.
+	 */
+	describe('the badge poll', () => {
+		const MINUTE = 60 * 1000
+		let fetches
+		let visibility
+
+		const answers = (answer) => fetches.forEach((fetch) => fetch.mockResolvedValue(answer))
+		const rounds = () => fetches[0].mock.calls.length
+		const lookAway = () => visibility.mockReturnValue('hidden')
+		const comeBack = () => {
+			visibility.mockReturnValue('visible')
+			document.dispatchEvent(new Event('visibilitychange'))
+		}
+
+		beforeEach(async () => {
+			vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'Date'] })
+			fetches = ['fetchUnreadNotifications', 'fetchUnreadDirectMessages', 'fetchPendingRequests']
+				.map((name) => vi.spyOn(notificationsStore, name).mockResolvedValue(true))
+			visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+			mountNavigation()
+			await flushPromises()
+			// the read the page opened with
+			expect(rounds()).toBe(1)
+			fetches.forEach((fetch) => fetch.mockClear())
+		})
+
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		it('reads all three counts once a minute while the tab is looked at', async () => {
+			await vi.advanceTimersByTimeAsync(2 * MINUTE)
+
+			fetches.forEach((fetch) => expect(fetch).toHaveBeenCalledTimes(2))
+		})
+
+		it('asks for nothing while the tab is hidden', async () => {
+			lookAway()
+
+			await vi.advanceTimersByTimeAsync(10 * MINUTE)
+
+			expect(rounds()).toBe(0)
+		})
+
+		it('catches up once on the way back to the tab', async () => {
+			lookAway()
+			await vi.advanceTimersByTimeAsync(3 * MINUTE)
+
+			comeBack()
+			await flushPromises()
+			expect(rounds()).toBe(1)
+
+			// a second visibilitychange is not a second return
+			comeBack()
+			await flushPromises()
+			expect(rounds()).toBe(1)
+		})
+
+		it('does not catch up after a glance away shorter than the interval', async () => {
+			lookAway()
+			await vi.advanceTimersByTimeAsync(MINUTE / 2)
+
+			comeBack()
+			await flushPromises()
+
+			expect(rounds()).toBe(0)
+		})
+
+		it('backs off to five minutes while the server keeps failing, and comes back when it answers', async () => {
+			answers(false)
+
+			// 60 s: asked, refused; the wait doubles to 120 s
+			await vi.advanceTimersByTimeAsync(MINUTE)
+			expect(rounds()).toBe(1)
+			// 180 s: asked again; 240 s next
+			await vi.advanceTimersByTimeAsync(2 * MINUTE)
+			expect(rounds()).toBe(2)
+			// 420 s: asked again; the ceiling, 300 s, from here
+			await vi.advanceTimersByTimeAsync(4 * MINUTE)
+			expect(rounds()).toBe(3)
+			await vi.advanceTimersByTimeAsync(4 * MINUTE)
+			expect(rounds()).toBe(3)
+			await vi.advanceTimersByTimeAsync(MINUTE)
+			expect(rounds()).toBe(4)
+
+			// one answer, and the minute is back
+			answers(true)
+			await vi.advanceTimersByTimeAsync(5 * MINUTE)
+			expect(rounds()).toBe(5)
+			await vi.advanceTimersByTimeAsync(MINUTE)
+			expect(rounds()).toBe(6)
+		})
+
+		it('stops asking when it leaves the page', async () => {
+			const wrapper = mountNavigation()
+			await flushPromises()
+			fetches.forEach((fetch) => fetch.mockClear())
+			wrapper.unmount()
+
+			await vi.advanceTimersByTimeAsync(2 * MINUTE)
+
+			// the sidebar mounted by the hook above is still polling; its
+			// rounds are the only ones left
+			expect(rounds()).toBe(2)
+		})
+	})
+
 	describe('the sections an instance offers', () => {
 		const offering = (sections) => {
 			useSettingsStore().setServerData({ public: false, sections })
@@ -1075,6 +1200,16 @@ describe('Navigation', () => {
 		expect(item(mountNavigation({ unread: 5 }), 'Activities').find('.nc-counter').attributes('data-count')).toBe('5')
 	})
 
+	it('says the number in words to a screen reader, which cannot see the badge', () => {
+		// the bubble sits outside the entry's link, so the accessible name
+		// was "Activities" whatever the badge showed
+		expect(item(mountNavigation(), 'Activities').attributes('data-description')).toBeUndefined()
+		expect(item(mountNavigation({ unread: 5 }), 'Activities').attributes('data-description')).toBe('5 unread')
+
+		notificationsStore.setUnreadDirectMessages(1)
+		expect(item(mountNavigation(), 'Direct messages').attributes('data-description')).toBe('1 unread')
+	})
+
 	it('counts the people waiting for a decision on Activities, in the same badge', () => {
 		notificationsStore.setPendingRequests(3)
 		expect(item(mountNavigation(), 'Activities').find('.nc-counter').attributes('data-count')).toBe('3')
@@ -1191,7 +1326,7 @@ describe('Navigation', () => {
 		expect(wrapper.find('.modal-stub').exists()).toBe(false)
 		await wrapper.find('.navigation__compose').trigger('click')
 		const modal = wrapper.find('.modal-stub')
-		expect(modal.attributes('data-name')).toBe('New post')
+		expect(modal.attributes('data-label-id')).toBe('social-new-post-title')
 		expect(modal.find('.composer-stub').exists()).toBe(true)
 	})
 
@@ -1235,7 +1370,7 @@ describe('Navigation', () => {
 			const wrapper = mountNavigation()
 			await item(wrapper, 'Errors').trigger('click')
 
-			const modal = wrapper.find('.modal-stub[data-name="Errors"]')
+			const modal = wrapper.find('.modal-stub[data-label-id="social-errors-title"]')
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Account lookup failed', 'Post failed'])
 			expect(modal.findAll('.modal-errors__message').map((message) => message.text())).toEqual(['Could not load bob', 'Server unreachable'])
 
@@ -1245,6 +1380,15 @@ describe('Navigation', () => {
 			await nextTick()
 			expect(modal.findAll('.modal-errors__title').map((title) => title.text())).toEqual(['Post failed'])
 			expect(item(wrapper, 'Errors').find('.nc-counter').attributes('data-count')).toBe('1')
+		})
+
+		it('titles the dialog inside it, not in the page header', async () => {
+			const wrapper = mountNavigation()
+			await item(wrapper, 'Errors').trigger('click')
+			const modal = wrapper.find('.modal-stub[data-label-id="social-errors-title"]')
+
+			expect(modal.attributes('data-name')).toBeUndefined()
+			expect(modal.find('h2#social-errors-title').text()).toBe('Errors')
 		})
 
 		it('offers "Dismiss all" only for several errors and clears them all', async () => {

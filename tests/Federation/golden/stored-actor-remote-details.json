@@ -23,6 +23,7 @@
         "following_count": 4,
         "statuses_count": 9,
         "last_status_at": null,
+        "roles": [],
         "emojis": [],
         "fields": [
             {

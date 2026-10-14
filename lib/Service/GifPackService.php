@@ -14,7 +14,6 @@ use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
-use OCP\Http\Client\IClientService;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -84,7 +83,7 @@ class GifPackService {
 
 	public function __construct(
 		private IAppData $appData,
-		private IClientService $clientService,
+		private CurlService $curl,
 		private IURLGenerator $urlGenerator,
 		private ConfigService $configService,
 		private LoggerInterface $logger,
@@ -239,22 +238,22 @@ class GifPackService {
 		$url = sprintf(self::SOURCE, substr($gif->getSlug(), strlen(self::PREFIX)));
 
 		try {
-			$response = $this->clientService->newClient()->get($url, [
+			$status = 0;
+			$content = $this->curl->doRequest('get', $url, [
 				'timeout' => self::TIMEOUT,
-				'http_errors' => false,
-				// read as it arrives, so no more than the ceiling is ever held
-				'stream' => true,
-			]);
+				'json_headers' => false,
+				'accept_errors' => true,
+				// a URL this app ships, not one subject to the instance access list
+				'federation' => false,
+			], $contentType, $status);
 
-			if ($response->getStatusCode() !== 200) {
+			if ($status !== 200) {
 				$this->logger->notice('the emoji pack source refused a picture', [
-					'url' => $url, 'status' => $response->getStatusCode(),
+					'url' => $url, 'status' => $status,
 				]);
 
 				return '';
 			}
-
-			$content = CurlService::readAtMost($response, self::MAX_SIZE);
 		} catch (Throwable $e) {
 			$this->logger->notice('could not reach the emoji pack source', [
 				'url' => $url, 'exception' => $e,

@@ -23,9 +23,11 @@ use OCA\Social\Model\Details;
  * pictures of an image embed become attachments pointing at the CDN, and
  * a video is a federated `Video` streamed from Bluesky's video CDN; a
  * reply names its parent, a quote the quoted post; the moderation labels
- * of §12.1 become `sensitive` and a content warning; every post is public
+ * of §12.1 become `sensitive` and a content warning; a post is public
  * and addressed to the author's followers collection, which is what the
- * home timeline joins on. Counts and the `at://` URI ride in `details`.
+ * home timeline joins on — unless its author asked apps not to show them
+ * to logged-out people (`!no-unauthenticated`), when it is addressed to
+ * the followers alone. Counts and the `at://` URI ride in `details`.
  */
 class PostMapper {
 	public const DETAIL = Details::ATPROTO;
@@ -52,6 +54,15 @@ class PostMapper {
 	private const ADULT = ['porn', 'sexual', 'nudity', 'graphic-media', 'nsfl', 'gore'];
 	/** labels that hide the post altogether */
 	private const HIDE = ['!hide', '!takedown'];
+	/**
+	 * The self-label asking apps not to show the account, or the post, to
+	 * people who are not logged in. Followers-only is the audience here that
+	 * keeps the post out of anonymous pages, the public timelines, search and
+	 * federation addressed to the public, while the people who chose to
+	 * follow the account still see it; unlisted would still serve it to
+	 * anybody with the link.
+	 */
+	public const NO_UNAUTHENTICATED = '!no-unauthenticated';
 
 	/**
 	 * The `Create` for a post view, or null when the post must not be stored.
@@ -101,9 +112,31 @@ class PostMapper {
 			'actor' => BlueskyIds::actorId($by),
 			'object' => $postId,
 			'published' => $published,
-			'to' => [ACore::CONTEXT_PUBLIC],
-			'cc' => [BlueskyIds::followersId($by)],
-		];
+		] + self::audience(BlueskyIds::followersId($by), self::isLoggedInOnly(is_array($item['post'] ?? null) ? $item['post'] : []));
+	}
+
+	/**
+	 * Whether the post, or its author's profile, carries the label asking
+	 * apps not to show it to people who are not logged in.
+	 *
+	 * @param array $post an `app.bsky.feed.defs#postView`
+	 */
+	public static function isLoggedInOnly(array $post): bool {
+		return in_array(self::NO_UNAUTHENTICATED, ActorMapper::labelValues($post['labels'] ?? []), true)
+			|| in_array(self::NO_UNAUTHENTICATED, ActorMapper::labelValues($post['author']['labels'] ?? []), true);
+	}
+
+	/**
+	 * Who a post or a boost is addressed to: the public, with the followers
+	 * collection the home timeline joins on in `cc`; the followers alone when
+	 * it is not for logged-out people.
+	 *
+	 * @return array{to: list<string>, cc: list<string>}
+	 */
+	private static function audience(string $followers, bool $loggedInOnly): array {
+		return $loggedInOnly
+			? ['to' => [$followers], 'cc' => []]
+			: ['to' => [ACore::CONTEXT_PUBLIC], 'cc' => [$followers]];
 	}
 
 	/**
@@ -143,12 +176,11 @@ class PostMapper {
 			'attributedTo' => BlueskyIds::actorId($did),
 			'url' => BlueskyIds::postUrl($handle !== '' ? $handle : $did, $rkey),
 			'published' => $published,
-			'to' => [ACore::CONTEXT_PUBLIC],
-			'cc' => [BlueskyIds::followersId($did)],
+		] + self::audience(BlueskyIds::followersId($did), self::isLoggedInOnly($post)) + [
 			'content' => $content,
 			'summary' => $warning,
 			'sensitive' => $adult || $warning !== '',
-			'tag' => $this->tags($record['facets'] ?? [], (string)($record['reply']['parent']['uri'] ?? ''), $record['tags'] ?? []),
+			'tag' => $this->tags($text, $record['facets'] ?? [], (string)($record['reply']['parent']['uri'] ?? ''), $record['tags'] ?? []),
 			'attachment' => $attachments,
 			'inReplyTo' => $this->local->postId((string)($record['reply']['parent']['uri'] ?? '')),
 			'_atproto' => [
@@ -268,7 +300,7 @@ class PostMapper {
 				$parsed = BlueskyIds::parsePostId($postId);
 				$url = $parsed === null ? '' : BlueskyIds::postUrl($parsed['did'], $parsed['rkey']);
 
-				return [[], '', '<p><a href="' . self::escape($url) . '" rel="nofollow noopener noreferrer" target="_blank">' . self::escape('Video on Bluesky') . '</a></p>'];
+				return [[], '', '<p><a href="' . self::escape($url) . '" rel="nofollow noopener noreferrer" target="_blank">' . self::escape('Video') . '</a></p>'];
 		}
 
 		return [[], '', ''];
@@ -313,18 +345,18 @@ class PostMapper {
 			self::GENERATOR_VIEW => [
 				'https://bsky.app/profile/' . $owner . '/feed/' . $rkey,
 				(string)($view['displayName'] ?? ''), (string)($view['description'] ?? ''), (string)($view['avatar'] ?? ''),
-				'Bluesky feed' . $by,
+				'Feed' . $by,
 			],
 			self::LIST_VIEW => [
 				'https://bsky.app/profile/' . $owner . '/lists/' . $rkey,
 				(string)($view['name'] ?? ''), (string)($view['description'] ?? ''), (string)($view['avatar'] ?? ''),
-				'Bluesky list' . $by,
+				'List' . $by,
 			],
 			self::STARTER_PACK_VIEW => [
 				'https://bsky.app/starter-pack/' . $owner . '/' . $rkey,
 				(string)($view['record']['name'] ?? ''), (string)($view['record']['description'] ?? ''),
 				(string)($creator['avatar'] ?? ''),
-				'Bluesky starter pack' . $by,
+				'Starter pack' . $by,
 			],
 			default => ['', '', '', '', ''],
 		};
@@ -373,11 +405,14 @@ class PostMapper {
 	/**
 	 * Mentions and hashtags as the tags a Fediverse post carries them in:
 	 * the hashtags in the text, and the ones the record lists beside it
-	 * (`tags`), which Bluesky's hashtag search finds the post by too.
+	 * (`tags`), which Bluesky's hashtag search finds the post by too. A
+	 * mention is named by its handle — the `@handle` the text shows at the
+	 * facet, since the record carries only the DID — and the DID is in the
+	 * target alone.
 	 *
 	 * @return list<array{type: string, href: string, name: string}>
 	 */
-	private function tags(mixed $facets, string $parentUri = '', mixed $outline = []): array {
+	private function tags(string $text, mixed $facets, string $parentUri = '', mixed $outline = []): array {
 		$tags = [];
 		// a reply to a local post addresses its author, which is what makes
 		// the notification here; Bluesky names nobody in the reply itself
@@ -385,14 +420,16 @@ class PostMapper {
 		if ($parent !== null) {
 			$author = $this->local->actorId($parent['authority']);
 			if ($author !== '') {
-				$tags[] = ['type' => 'Mention', 'href' => $author, 'name' => '@' . $parent['authority']];
+				$handle = $this->local->handleOf($parent['authority']);
+				$tags[] = ['type' => 'Mention', 'href' => $author, 'name' => '@' . ($handle !== '' ? $handle : $parent['authority'])];
 			}
 		}
 		foreach (is_array($facets) ? $facets : [] as $facet) {
 			foreach (is_array($facet['features'] ?? null) ? $facet['features'] : [] as $feature) {
 				$type = (string)($feature['$type'] ?? '');
 				if ($type === 'app.bsky.richtext.facet#mention' && is_string($feature['did'] ?? null) && $feature['did'] !== '') {
-					$tags[] = ['type' => 'Mention', 'href' => $this->local->mentionTarget($feature['did']), 'name' => '@' . $feature['did']];
+					$shown = self::mentionText($text, $facet['index'] ?? null);
+					$tags[] = ['type' => 'Mention', 'href' => $this->local->mentionTarget($feature['did']), 'name' => $shown !== '' ? $shown : '@' . $feature['did']];
 				} elseif ($type === 'app.bsky.richtext.facet#tag' && is_string($feature['tag'] ?? null) && $feature['tag'] !== '') {
 					$tags[] = ['type' => 'Hashtag', 'href' => BlueskyIds::hashtagUrl($feature['tag']), 'name' => '#' . $feature['tag']];
 				}
@@ -408,6 +445,21 @@ class PostMapper {
 		}
 
 		return $tags;
+	}
+
+	/**
+	 * What the text shows at a mention facet: `@handle`, or '' when the
+	 * range is not one (ill-formed, or the text there is no handle).
+	 */
+	private static function mentionText(string $text, mixed $index): string {
+		$start = (int)($index['byteStart'] ?? -1);
+		$end = (int)($index['byteEnd'] ?? -1);
+		if (!is_array($index) || $start < 0 || $end <= $start || $end > strlen($text)) {
+			return '';
+		}
+		$shown = substr($text, $start, $end - $start);
+
+		return preg_match('/^@[^\s@]+$/u', $shown) === 1 ? $shown : '';
 	}
 
 	/**

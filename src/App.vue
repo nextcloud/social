@@ -991,6 +991,31 @@ img.emoji {
 </style>
 
 <style>
+/*
+ * The on-dark palette. Shorts, the short composer and the day panel draw
+ * over video, and the switch wizard's network marks sit on a brand tint:
+ * black ground and white words whatever the theme, so none of Nextcloud's
+ * colours -- which turn light in a light theme -- fits. One set, on the
+ * root, that the four components read; a high-contrast reader is served
+ * by their `forced-colors` rules instead.
+ */
+:root {
+	--social-on-dark-ground: #000;
+	--social-on-dark-text: #fff;
+	--social-on-dark-text-soft: rgba(255, 255, 255, 0.85);
+	--social-on-dark-text-muted: rgba(255, 255, 255, 0.7);
+	--social-on-dark-line: rgba(255, 255, 255, 0.4);
+	--social-on-dark-track: rgba(255, 255, 255, 0.3);
+	--social-on-dark-tint: rgba(255, 255, 255, 0.15);
+	--social-on-dark-scrim: rgba(0, 0, 0, 0.55);
+	--social-on-dark-scrim-light: rgba(0, 0, 0, 0.4);
+	--social-on-dark-scrim-heavy: rgba(0, 0, 0, 0.75);
+	--social-on-dark-shadow: rgba(0, 0, 0, 0.5);
+	--social-on-dark-accent: #fe2c55;
+	--social-on-dark-accent-cool: #25f4ee;
+	--social-on-dark-accent-blue: #0082c9;
+}
+
 /* remote custom emoji rendered inline in post content and display names */
 img.custom-emoji {
 	height: 1.25em;

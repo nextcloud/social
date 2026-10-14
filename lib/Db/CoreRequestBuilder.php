@@ -134,7 +134,7 @@ class CoreRequestBuilder {
 		self::TABLE_ATPROTO_BLOCK => ['id', 'did', 'cid', 'kind', 'bytes'],
 		self::TABLE_ATPROTO_BLOB => ['id', 'did', 'cid', 'document_id', 'document_id_prim', 'mime', 'size', 'creation'],
 		self::TABLE_ATPROTO_EVENT => ['seq', 'did', 'kind', 'bytes', 'time'],
-		self::TABLE_ATPROTO_PLC_LOG => ['id', 'did', 'cid', 'operation', 'creation', 'sent', 'confirmed'],
+		self::TABLE_ATPROTO_PLC_LOG => ['id', 'did', 'cid', 'operation', 'creation', 'sent', 'confirmed', 'dead', 'reason'],
 		self::TABLE_ATPROTO_WATCH => ['id', 'did', 'handle', 'cursor', 'last_sync', 'next_sync', 'failures', 'last_error', 'creation'],
 		self::TABLE_ATPROTO_NOTIFY_CURSOR => ['id', 'did', 'handle', 'cursor', 'last_sync', 'next_sync', 'failures', 'last_error', 'creation'],
 		self::TABLE_ATPROTO_CHAT_CURSOR => ['id', 'did', 'handle', 'cursor', 'last_sync', 'next_sync', 'failures', 'last_error', 'creation'],
@@ -817,6 +817,8 @@ class CoreRequestBuilder {
 			'replied',
 			'bookmarked',
 			'disliked',
+			'liked_nid',
+			'bookmarked_nid',
 			'values'
 		],
 		self::TABLE_STREAM_DEST => [
@@ -1312,6 +1314,8 @@ class CoreRequestBuilder {
 			->selectAlias('sa.boosted', 'streamaction_boosted')
 			->selectAlias('sa.replied', 'streamaction_replied')
 			->selectAlias('sa.bookmarked', 'streamaction_bookmarked')
+			->selectAlias('sa.liked_nid', 'streamaction_liked_nid')
+			->selectAlias('sa.bookmarked_nid', 'streamaction_bookmarked_nid')
 			->selectAlias('sa.values', 'streamaction_values');
 
 		$orX = $expr->orX(

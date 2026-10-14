@@ -90,14 +90,17 @@ describe('the Bluesky card', () => {
 				{ id: 'https', state: 'ok', detail: '' },
 				{ id: 'handle_host', state: 'warning', detail: 'No identity yet to resolve' },
 				{ id: 'firehose', state: 'error', detail: 'the web server must proxy the WebSocket to the daemon' },
+				{ id: 'keys', state: 'error', detail: '3 keys cannot be opened with the current secret' },
 			],
 		}))
 
 		expect(checks(wrapper).map((row) => row.classes().find((c) => c.startsWith('bluesky__check--'))))
-			.toEqual(['bluesky__check--ok', 'bluesky__check--warning', 'bluesky__check--error'])
+			.toEqual(['bluesky__check--ok', 'bluesky__check--warning', 'bluesky__check--error', 'bluesky__check--error'])
 		expect(wrapper.text()).toContain('HTTPS')
 		expect(wrapper.text()).toContain('Handle hosts resolve')
 		expect(wrapper.text()).toContain('No identity yet to resolve')
+		expect(wrapper.text()).toContain('Keys open with the instance secret')
+		expect(wrapper.text()).toContain('3 keys cannot be opened with the current secret')
 		expect(wrapper.text()).toContain('the web server must proxy the WebSocket to the daemon')
 	})
 

@@ -102,6 +102,15 @@ final class Nid {
 	 * Compose `publishedTime * limit + random` without overflowing PHP_INT_MAX.
 	 * `$random` must fit in the fixed-width suffix used by the nid generator.
 	 */
+	/**
+	 * An id for this moment, on the scale of a post's nid: a post's is its
+	 * second times 10^9, this is the millisecond times 10^6, so the two sort
+	 * together and one minted now is above every post published before it.
+	 */
+	public static function now(): string {
+		return self::fromPublishedTime((int)floor(microtime(true) * 1000.0), random_int(1, 999999), 1000000);
+	}
+
 	public static function fromPublishedTime(int $publishedTime, int $random, int $limit): string {
 		if ($publishedTime < 0 || $random < 0 || $limit < 2 || $random >= $limit) {
 			throw new InvalidArgumentException('Invalid component for a stream nid');

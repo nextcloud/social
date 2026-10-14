@@ -20,7 +20,9 @@ use RuntimeException;
  * frames because what a firehose needs of RFC 6455 is a page of it, and a
  * page this app owns is one it can bound: a slow consumer whose output
  * buffer fills past OUTPUT_LIMIT is dropped, as the reference relay drops
- * a slow PDS, and a request longer than REQUEST_LIMIT never upgrades.
+ * a slow PDS, a request longer than REQUEST_LIMIT never upgrades, and
+ * past MAX_SUBSCRIBERS in all or MAX_PER_ADDRESS from one address a
+ * connection is answered 503 and closed before it is read.
  *
  * Connections are plain TCP; the web server in front terminates TLS and
  * proxies the upgrade (contrib/webserver).
@@ -30,6 +32,10 @@ class WebSocketServer {
 	private const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 	private const REQUEST_LIMIT = 8192;
 	private const OUTPUT_LIMIT = 16 * 1024 * 1024;
+	/** connections held at once, each with an output buffer of up to OUTPUT_LIMIT */
+	public const MAX_SUBSCRIBERS = 256;
+	/** connections held from one address: a relay opens one, a few on a retry */
+	public const MAX_PER_ADDRESS = 8;
 	private const OPCODE_BINARY = 0x2;
 	private const OPCODE_CLOSE = 0x8;
 	private const OPCODE_PING = 0x9;
@@ -44,6 +50,8 @@ class WebSocketServer {
 
 	public function __construct(
 		private readonly string $bind,
+		private readonly int $maxSubscribers = self::MAX_SUBSCRIBERS,
+		private readonly int $maxPerAddress = self::MAX_PER_ADDRESS,
 	) {
 		$socket = @stream_socket_server('tcp://' . $bind, $errno, $error);
 		if ($socket === false) {
@@ -155,7 +163,32 @@ class WebSocketServer {
 		}
 		stream_set_blocking($socket, false);
 		$subscriber = new Subscriber((int)$socket, $socket);
+		$subscriber->address = self::addressOf((string)stream_socket_get_name($socket, true));
+		if (count($this->subscribers) >= $this->maxSubscribers || $this->heldFrom($subscriber->address) >= $this->maxPerAddress) {
+			$this->refuse($subscriber, 503, 'Service Unavailable');
+
+			return;
+		}
 		$this->subscribers[$subscriber->id] = $subscriber;
+	}
+
+	/** How many connections are held from an address, upgraded or not. */
+	private function heldFrom(string $address): int {
+		$held = 0;
+		foreach ($this->subscribers as $subscriber) {
+			if ($subscriber->address === $address) {
+				$held++;
+			}
+		}
+
+		return $held;
+	}
+
+	/** The address of a peer name as `stream_socket_get_name()` gives it: `ip:port` or `[ipv6]:port`. */
+	private static function addressOf(string $peer): string {
+		$colon = strrpos($peer, ':');
+
+		return $colon === false ? $peer : substr($peer, 0, $colon);
 	}
 
 	/**

@@ -11,15 +11,13 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Model\Gif;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\GifPackService;
-use OCA\Social\Tests\Helper\EndlessStream;
+use OCA\Social\Tools\Exceptions\RequestResultSizeException;
 use OCP\Files\IAppData;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\Files\SimpleFS\ISimpleFolder;
-use OCP\Http\Client\IClient;
-use OCP\Http\Client\IClientService;
-use OCP\Http\Client\IResponse;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -37,7 +35,7 @@ use Psr\Log\NullLogger;
 #[AllowMockObjectsWithoutExpectations]
 class GifPackServiceTest extends TestCase {
 	private ISimpleFolder&MockObject $folder;
-	private IClient&MockObject $client;
+	private CurlService&MockObject $curl;
 	private ConfigService&Stub $config;
 	private GifPackService $service;
 
@@ -46,9 +44,7 @@ class GifPackServiceTest extends TestCase {
 		$appData = $this->createStub(IAppData::class);
 		$appData->method('getFolder')->willReturn($this->folder);
 
-		$this->client = $this->createMock(IClient::class);
-		$clientService = $this->createStub(IClientService::class);
-		$clientService->method('newClient')->willReturn($this->client);
+		$this->curl = $this->createMock(CurlService::class);
 
 		$urlGenerator = $this->createStub(IURLGenerator::class);
 		$urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
@@ -59,7 +55,7 @@ class GifPackServiceTest extends TestCase {
 		$this->config->method('getAppValueBool')->willReturn(true);
 
 		$this->service = new GifPackService(
-			$appData, $clientService, $urlGenerator, $this->config, new NullLogger()
+			$appData, $this->curl, $urlGenerator, $this->config, new NullLogger()
 		);
 	}
 
@@ -156,7 +152,7 @@ class GifPackServiceTest extends TestCase {
 	public function testACachedPictureIsNotFetched(): void {
 		$file = $this->createStub(ISimpleFile::class);
 		$this->folder->method('getFile')->with('1f600.webp')->willReturn($file);
-		$this->client->expects($this->never())->method('get');
+		$this->curl->expects($this->never())->method('doRequest');
 
 		$this->assertSame($file, $this->service->file('noto-1f600'));
 	}
@@ -164,10 +160,10 @@ class GifPackServiceTest extends TestCase {
 	public function testOneThatIsNotHereYetIsFetchedAndKept(): void {
 		$webp = 'RIFF' . str_repeat('x', 4) . 'WEBPVP8X' . str_repeat('y', 32);
 		$this->folder->method('getFile')->willThrowException(new NotFoundException());
-		$this->client->expects($this->once())
-			->method('get')
-			->with('https://fonts.gstatic.com/s/e/notoemoji/latest/1f600/512.webp')
-			->willReturn($this->answering(200, $webp));
+		$asked = [];
+		$this->curl->expects($this->once())
+			->method('doRequest')
+			->willReturnCallback($this->answering(200, $webp, $asked));
 
 		$stored = $this->createStub(ISimpleFile::class);
 		$this->folder->expects($this->once())
@@ -176,6 +172,11 @@ class GifPackServiceTest extends TestCase {
 			->willReturn($stored);
 
 		$this->assertSame($stored, $this->service->file('noto-1f600'));
+		$this->assertSame('https://fonts.gstatic.com/s/e/notoemoji/latest/1f600/512.webp', $asked['url']);
+		// the app's own client: the address guard applies, the instance
+		// access list does not, this being a URL the app ships
+		$this->assertFalse($asked['options']['federation']);
+		$this->assertFalse($asked['options']['json_headers']);
 	}
 
 	/**
@@ -185,7 +186,7 @@ class GifPackServiceTest extends TestCase {
 	 */
 	public function testSomethingThatIsNotAWebPIsRefused(): void {
 		$this->folder->method('getFile')->willThrowException(new NotFoundException());
-		$this->client->method('get')->willReturn($this->answering(200, '<html>nope</html>'));
+		$this->curl->method('doRequest')->willReturnCallback($this->answering(200, '<html>nope</html>'));
 		$this->folder->expects($this->never())->method('newFile');
 
 		$this->expectException(NotFoundException::class);
@@ -193,36 +194,21 @@ class GifPackServiceTest extends TestCase {
 	}
 
 	/**
-	 * The answer is read as a stream and no further than one byte past the
-	 * ceiling: a source that never stops sending is refused without its body
-	 * being held.
+	 * The transport reads an answer as a stream and gives up one byte past
+	 * its ceiling; what arrives here is refused and nothing is stored.
 	 */
-	public function testAnAnswerPastTheCeilingIsRefusedWithoutBeingReadWhole(): void {
+	public function testAnAnswerPastTheCeilingIsRefused(): void {
 		$this->folder->method('getFile')->willThrowException(new NotFoundException());
-		$options = [];
-		$response = $this->createStub(IResponse::class);
-		$response->method('getStatusCode')->willReturn(200);
-		$response->method('getBody')->willReturnCallback(static fn () => EndlessStream::open());
-		$this->client->method('get')->willReturnCallback(function (string $url, array $sent) use (&$options, $response) {
-			$options = $sent;
-
-			return $response;
-		});
+		$this->curl->method('doRequest')->willThrowException(new RequestResultSizeException());
 		$this->folder->expects($this->never())->method('newFile');
 
-		try {
-			$this->service->file('noto-1f600');
-			$this->fail('an endless answer was stored');
-		} catch (NotFoundException) {
-		}
-
-		$this->assertTrue($options['stream'] ?? false, 'the body is streamed rather than buffered by the client');
-		$this->assertLessThan(9 * 1024 * 1024, EndlessStream::$read);
+		$this->expectException(NotFoundException::class);
+		$this->service->file('noto-1f600');
 	}
 
 	public function testASourceThatRefusesIsNotStored(): void {
 		$this->folder->method('getFile')->willThrowException(new NotFoundException());
-		$this->client->method('get')->willReturn($this->answering(404, ''));
+		$this->curl->method('doRequest')->willReturnCallback($this->answering(404, ''));
 		$this->folder->expects($this->never())->method('newFile');
 
 		$this->expectException(NotFoundException::class);
@@ -231,14 +217,14 @@ class GifPackServiceTest extends TestCase {
 
 	/** Nothing is fetched for a slug the manifest does not have. */
 	public function testAnUnknownSlugIsNeverFetched(): void {
-		$this->client->expects($this->never())->method('get');
+		$this->curl->expects($this->never())->method('doRequest');
 
 		$this->expectException(NotFoundException::class);
 		$this->service->file('noto-ffffff');
 	}
 
 	public function testATurnedOffPackFetchesNothing(): void {
-		$this->client->expects($this->never())->method('get');
+		$this->curl->expects($this->never())->method('doRequest');
 
 		$this->expectException(NotFoundException::class);
 		$this->serviceWithPackOff()->file('noto-1f600');
@@ -249,25 +235,28 @@ class GifPackServiceTest extends TestCase {
 		$this->assertStringContainsString('CC BY 4.0', $this->service->attribution());
 	}
 
-	private function answering(int $status, string $body): IResponse&MockObject {
-		$response = $this->createMock(IResponse::class);
-		$response->method('getStatusCode')->willReturn($status);
-		$response->method('getBody')->willReturn($body);
+	/**
+	 * What the transport answers a request: the body, with the status by
+	 * reference, and the request itself recorded in $asked.
+	 */
+	private function answering(int $status, string $body, ?array &$asked = null): callable {
+		return static function (string $method, string $url, array $options, &$contentType = null, &$code = null) use ($status, $body, &$asked): string {
+			$asked = ['method' => $method, 'url' => $url, 'options' => $options];
+			$code = $status;
 
-		return $response;
+			return $body;
+		};
 	}
 
 	private function serviceWithPackOff(): GifPackService {
 		$appData = $this->createStub(IAppData::class);
 		$appData->method('getFolder')->willReturn($this->folder);
-		$clientService = $this->createStub(IClientService::class);
-		$clientService->method('newClient')->willReturn($this->client);
 		$config = $this->createStub(ConfigService::class);
 		$config->method('getAppValueBool')->willReturn(false);
 
 		return new GifPackService(
 			$appData,
-			$clientService,
+			$this->curl,
 			$this->createStub(IURLGenerator::class),
 			$config,
 			new NullLogger()

@@ -110,6 +110,7 @@ import { showError } from '../services/toast.js'
 import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
+import { fullDate, timeOfDay } from '../utils/relativeTime.js'
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -630,7 +631,7 @@ export default {
 				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
 					return {
 						...byName,
-						title: this.$route.params.account + ' ' + t('social', 'hasn\'t tooted yet'),
+						title: t('social', '{account} hasn\'t tooted yet', { account: String(this.$route.params.account) }),
 					}
 				}
 				return byName
@@ -775,12 +776,11 @@ export default {
 			}
 
 			const when = new Date(this.lastSeenAt)
-			const time = when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 			const today = new Date().toDateString() === when.toDateString()
 
 			return today
-				? t('social', 'Up to date since {time}', { time })
-				: t('social', 'Up to date since {date}', { date: when.toLocaleDateString() })
+				? t('social', 'Up to date since {time}', { time: timeOfDay(when) })
+				: t('social', 'Up to date since {date}', { date: fullDate(when) })
 		},
 
 		/**

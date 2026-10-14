@@ -32,10 +32,11 @@ trait LoopsPairing {
 			$this->markTestSkipped('no Loops to talk to: set LOOPS_BASE_URL, LOOPS_TOKEN and LOOPS_FAN_TOKEN');
 		}
 
-		$this->video = (string)getenv('LOOPS_VIDEO');
-		if ($this->video === '' || !is_file($this->video)) {
+		$video = Environment::file('Loops', 'LOOPS_VIDEO');
+		if ($video === null) {
 			$this->markTestSkipped('no test video: set LOOPS_VIDEO to an H.264 MP4 of at least 250 KB');
 		}
+		$this->video = $video;
 
 		$this->loops = $loops;
 		$this->fan = $fan;

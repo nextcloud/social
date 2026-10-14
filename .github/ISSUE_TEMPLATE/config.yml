@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://hackerone.com/nextcloud
+    about: Do not report a security problem here. Report it through Nextcloud's HackerOne programme, as SECURITY.md describes.
+  - name: Questions and help
+    url: https://help.nextcloud.com/
+    about: The Nextcloud community forum, for questions about installing and running the app.

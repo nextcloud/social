@@ -208,6 +208,22 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame(0, $json->stats->domain_count);
 	}
 
+	/**
+	 * There is no streaming API, and the address is sent anyway: masto.js
+	 * builds its websocket from it and connected to `undefined` without
+	 * one. At this host the connection is a clean 404 and the client polls.
+	 */
+	public function testTheStreamingUrlNamesThisHost(): void {
+		$this->theming([]);
+		$this->configService->method('getSocialAddress')->willReturn('social.example.org');
+
+		$instance = $this->service->createLocal();
+
+		$this->assertSame(['streaming_api' => 'wss://social.example.org'], $instance->getUrls());
+		$v2 = json_decode((string)json_encode($instance->asV2()), false);
+		$this->assertSame('wss://social.example.org', $v2->configuration->urls->streaming);
+	}
+
 	public function testStatusAndDomainCountsAreComputedOnceAndRememberedInAppConfig(): void {
 		// /api/v1/instance is the first request every client makes; the two
 		// aggregates behind these numbers must not run on every hit

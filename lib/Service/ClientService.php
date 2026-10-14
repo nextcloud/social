@@ -58,6 +58,9 @@ class ClientService {
 	/** RFC 6749 §4.1.1 / RFC 8252: the out-of-band redirect, shown rather than sent */
 	public const REDIRECT_URI_OOB = 'urn:ietf:wg:oauth:2.0:oob';
 
+	/** what an app token may do: read what anybody may read */
+	public const APP_TOKEN_SCOPES = ['read'];
+
 	/** `scheme://`, lower case: a web origin or a native application's own scheme */
 	private const REDIRECT_URI_SCHEME_PATTERN = '/^([a-z][a-z0-9+.\-]*):\/\//';
 
@@ -280,6 +283,23 @@ class ClientService {
 		}
 
 		return false;
+	}
+
+	/**
+	 * The `client_credentials` grant (RFC 6749 §4.4): a token for the app
+	 * itself, bound to no account.
+	 *
+	 * Mastodon's own apps take one before anybody has signed in, for the
+	 * instance and its rules; bots and `Mastodon.py` tools probe
+	 * `/api/v1/instance` with one. It is granted `read` and nothing more,
+	 * whatever the app registered: there is no account for `write` or
+	 * `follow` to act on, and a route that needs one answers 401.
+	 */
+	public function issueAppToken(SocialClient $client): SocialClient {
+		$token = $this->token(80);
+		$this->clientAuthRequest->issueAppToken($client->getId(), self::APP_TOKEN_SCOPES, $token);
+
+		return $this->clientAuthRequest->getByToken($token)->setToken($token);
 	}
 
 	/**

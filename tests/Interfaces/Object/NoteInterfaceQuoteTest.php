@@ -75,7 +75,8 @@ class NoteInterfaceQuoteTest extends ActivityPubTestCase {
 		$this->streamRequest->expects($this->once())->method('save')
 			->with($this->callback(
 				static fn (Note $saved): bool => $saved->hasCache() && $saved->getCache()->hasItem(self::QUOTED)
-			));
+			))
+			->willReturn(true);
 		// the same queue a reply's unknown parent uses, not a second one
 		$this->streamQueueService->expects($this->once())->method('generateStreamQueue')
 			->with($note->getRequestToken(), StreamQueue::TYPE_CACHE, self::NOTE);
@@ -124,7 +125,8 @@ class NoteInterfaceQuoteTest extends ActivityPubTestCase {
 			->with($this->callback(static function (Note $saved): bool {
 				return $saved->getCache()->hasItem(self::QUOTED)
 					&& $saved->getCache()->hasItem(self::REMOTE_URL . '/notes/parent');
-			}));
+			}))
+			->willReturn(true);
 		$this->streamQueueService->expects($this->once())->method('generateStreamQueue');
 
 		$this->handler->save($note);
@@ -136,7 +138,7 @@ class NoteInterfaceQuoteTest extends ActivityPubTestCase {
 		$note = $this->quotingNote();
 		$note->setDetailInt(Details::ANCESTOR_DEPTH, StreamQueueService::MAX_ANCESTOR_DEPTH);
 
-		$this->streamRequest->expects($this->once())->method('save');
+		$this->streamRequest->expects($this->once())->method('save')->willReturn(true);
 		$this->streamQueueService->expects($this->never())->method('generateStreamQueue');
 
 		$this->handler->save($note);

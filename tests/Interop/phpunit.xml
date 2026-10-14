@@ -10,7 +10,9 @@
   - being tested is the delivery path as it actually runs — the models, the
   - signer and the queue — and not a test's idea of it. Every test skips when
   - MASTODON_BASE_URL and MASTODON_TOKEN are unset, so running the suite on a
-  - machine with no Mastodon is a pass with a reason rather than a failure.
+  - machine with no Mastodon is a pass with a reason rather than a failure —
+  - except in CI (the CI variable), where the workflow sets the variables and
+  - a missing one fails the test instead (Environment.php).
   -->
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.5/phpunit.xsd"

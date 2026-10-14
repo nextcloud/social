@@ -279,6 +279,24 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	}
 
 	/**
+	 * Drops every recipient row of these posts, which takes them out of every
+	 * timeline and viewer-limited read while the posts themselves stay;
+	 * `generateStreamDest()` puts the rows back.
+	 *
+	 * @param string[] $ids the posts' ids
+	 */
+	public function deleteByStreamIds(array $ids): void {
+		if ($ids === []) {
+			return;
+		}
+		$qb = $this->getStreamDestDeleteSql();
+		$prims = array_map(static fn (string $id): string => $qb->prim($id), $ids);
+		$qb->andWhere($qb->expr()->in('stream_id', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
+
+		$qb->executeStatement();
+	}
+
+	/**
 	 * @param string $actorId
 	 */
 	public function deleteRelatedToActor(string $actorId): void {

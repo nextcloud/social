@@ -85,6 +85,17 @@ composer-update:
 
 release: appstore
 
+# The first release this repository tags: the generated changelog starts
+# there, and cliff.toml's footer carries what was released before it.
+changelog_since=v0.24.1
+
+# Regenerate CHANGELOG.md from the conventional commits, labelled with the
+# version in appinfo/info.xml. Needs git-cliff (https://git-cliff.org); the
+# release dry run checks that the file is what this produces. See
+# docs/Releasing.md.
+changelog:
+	git cliff $(changelog_since).. --tag $(version) -o CHANGELOG.md
+
 # Create the Nextcloud App Store package.
 # App signing is handled separately by the release workflow.
 appstore: release-setup lint build-js-production composer
@@ -102,6 +113,7 @@ appstore: release-setup lint build-js-production composer
 		--exclude=/build \
 		--exclude=/babel.config.js \
 		--exclude=/build-package.sh \
+		--exclude=/cliff.toml \
 		--exclude=/composer.json \
 		--exclude=/composer.lock \
 		--exclude=/deploy.sh \

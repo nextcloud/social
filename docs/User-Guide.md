@@ -125,6 +125,9 @@ you by first name: "Aloha, Frank. What’s new?" A post may be up to
 across a failed post, a reload or a navigation, so nothing is lost to a
 network hiccup. A reply keeps its own draft, under the post it answers, so
 starting one does not take the place of a post you were still writing.
+**Ctrl+Enter** (**⌘+Enter** on a Mac) sends; once the post is out the box
+folds back to a single line. **Escape** folds an empty box away too, and asks
+first when there are words in it — they are kept either way.
 
 - **Visibility** is chosen with the globe menu next to the post button. The
   choice decides who receives the post on the fediverse, not only who sees it
@@ -276,6 +279,11 @@ no place.
 
 ## Reading
 
+The browser tab names the page you are on — the feed, the account, the author
+of the post, *Settings* — in front of the app's name, so the history and a
+screen reader can tell the pages apart. A link to a page that does not exist
+says *Page not found* and offers the way back to your feed.
+
 The sidebar is the map:
 
 - **My Feed**, **Local**, **Global** — a switcher above the posts. My Feed is
@@ -350,7 +358,10 @@ The sidebar is the map:
   Otherwise the page marks itself read after a couple of seconds in front of
   you, and that position is the one every other Fediverse client shares: a
   badge cleared on your phone is cleared here too.
-- **Direct messages** — private conversations, one chat per person. **New
+- **Direct messages** — private conversations, one chat per person: every
+  message between you and the same people is in that one chat, however it
+  was started (other apps may list such messages as separate
+  conversations). **New
   message** first offers people from your existing chats and the accounts you
   follow. Search by name, `@handle` or profile link to find somebody else:
   the people you know — accounts you follow and people from your chats — are
@@ -366,7 +377,9 @@ The sidebar is the map:
   (*3h*, *2w*) — with **All** and **Unread** in the same switcher as My Feed
   and Local. A search box joins them once there are more than a handful of
   conversations, and **Remove conversation** is in a row's **…** menu, which
-  appears when you point at the row. Opening a chat marks it read. Your
+  appears when you point at the row. Opening a chat marks it read, and the
+  sidebar badge comes down with it; new messages appear in the inbox and the
+  open chat on their own. Your
   messages are drawn in your own colour, the other person's in grey; a run of
   messages carries its time under the last one, and you see the others' by
   pointing at them. The message field is the feed composer's rounded line with
@@ -1059,6 +1072,9 @@ your own on that identifier, second only to the server's. They are shown once
 and never stored, so write them down; "Create a new recovery phrase" replaces
 them, and the old words stop working. You will not need the phrase in ordinary
 use; it is what lets you take the identity with you if this server ever cannot.
+The phrase is in this app's own format — no other Bluesky tool reads it — and
+the server's key ranks above it: for 72 hours the server can undo a change made
+with the phrase, a move to another server included.
 
 The post menu's *Delivery status* shows whether a post is on Bluesky and opens
 it there.
@@ -1117,7 +1133,10 @@ modifier key is held.
 | `?` | Show these shortcuts |
 
 `Enter` on a focused button or link still presses it — the shortcut only
-applies where nothing else claims the key.
+applies where nothing else claims the key. Nextcloud's own **Skip to main
+content**, the first Tab stop on every page and visible only while it has the
+focus, jumps past the sidebar into the page; each page carries one top-level
+heading to jump to.
 
 ## What the web client does not do yet
 

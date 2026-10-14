@@ -31,6 +31,7 @@ import AlohaScene from '../components/illustrations/AlohaScene.vue'
 import ProfileInfo from './../components/ProfileInfo.vue'
 import { defineAsyncComponent, ref } from 'vue'
 import logger from '../services/logger.js'
+import { setPageTitle } from '../services/pageTitle.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -98,10 +99,25 @@ export default {
 				&& this.accountInfo.acct === this.currentAccount.acct
 				&& this.$route.name === 'profile'
 		},
+
+		/** @return {string} what the tab calls this page */
+		pageTitle() {
+			const handle = String(this.uid ?? this.$route.params.account ?? '')
+
+			return this.accountInfo?.display_name || this.accountInfo?.acct || handle
+		},
 	},
 
 	watch: {
 		'$route.params.account': 'fetchProfileData',
+
+		// the handle until the account arrives, then the name it goes by
+		pageTitle: {
+			immediate: true,
+			handler(title) {
+				setPageTitle(title)
+			},
+		},
 	},
 
 	// Start fetching account information before mounting the component

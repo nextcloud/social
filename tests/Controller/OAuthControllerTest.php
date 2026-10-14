@@ -861,7 +861,7 @@ class OAuthControllerTest extends TestCase {
 		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'secret');
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'missing code'], $response->getData());
+		$this->assertSame(['error' => 'invalid_request', 'error_description' => 'missing code'], $response->getData());
 	}
 
 	public function testTokenRejectsUnknownGrantTypes(): void {
@@ -870,19 +870,38 @@ class OAuthControllerTest extends TestCase {
 		$response = $this->controller->token(self::OOB, 'password', 'client-1', 'secret');
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'invalid value for grant_type'], $response->getData());
+		$this->assertSame('unsupported_grant_type', $response->getData()['error']);
+		$this->assertArrayHasKey('error_description', $response->getData());
 	}
 
-	public function testTokenClientCredentialsGrantIsRefused(): void {
-		$this->knownClient();
+	/**
+	 * RFC 6749 §4.4: a token for the app itself. What comes back is the
+	 * app's own token, read `read` and bound to no account -- never a token
+	 * some account's authorization-code grant left on the app.
+	 */
+	public function testTokenClientCredentialsGrantIssuesAnAppToken(): void {
+		$client = $this->knownClient();
+		$client->setCreation(1700000000);
 		$this->clientService->expects($this->never())->method('exchangeCode');
+		$this->clientService->expects($this->once())->method('issueAppToken')
+			->with($this->identicalTo($client))
+			->willReturnCallback(function (SocialClient $c): SocialClient {
+				$issued = new SocialClient();
+				$issued->setToken('app-token')->setAuthScopes(['read'])->setAuthUserId('');
+				$issued->setCreation(1700000000);
+
+				return $issued;
+			});
 
 		$response = $this->controller->token(self::OOB, 'client_credentials', 'client-1', 'secret');
 
-		// Falling through would have returned whatever token the client row held from
-		// some user's authorization-code grant.
-		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'unsupported_grant_type'], $response->getData());
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame([
+			'access_token' => 'app-token',
+			'token_type' => 'Bearer',
+			'scope' => 'read',
+			'created_at' => 1700000000,
+		], $response->getData());
 	}
 
 	public function testTokenRejectsUnknownClientIds(): void {
@@ -891,7 +910,24 @@ class OAuthControllerTest extends TestCase {
 		$response = $this->controller->token(self::OOB, 'authorization_code', 'nope', 'secret', 'c');
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
-		$this->assertSame(['error' => 'unknown client_id'], $response->getData());
+		$this->assertSame(['error' => 'invalid_client', 'error_description' => 'unknown client_id'], $response->getData());
+	}
+
+	/**
+	 * A failure that is not the caller's -- the database, a malformed row --
+	 * is answered with a fixed body and goes to the log; what went wrong is
+	 * not for an anonymous caller, and it is not a credential guess to throttle.
+	 */
+	public function testTokenAnswersAServerFailureWithAFixedBody(): void {
+		$this->knownClient();
+		$this->clientService->method('exchangeCode')
+			->willThrowException(new \RuntimeException('SQLSTATE[HY000]: social_client_auth is gone'));
+
+		$response = $this->controller->token(self::OOB, 'authorization_code', 'client-1', 'secret', 'c');
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'server_error'], $response->getData());
+		$this->assertFalse($response->isThrottled());
 	}
 
 	public function testTokenRejectsAWrongClientSecret(): void {
@@ -1138,15 +1174,15 @@ class OAuthControllerTest extends TestCase {
 
 	/**
 	 * A Mastodon 4.3 client acts on what this says. Everything named here has
-	 * to be implemented: `client_credentials` was advertised and answered
-	 * `unsupported_grant_type`.
+	 * to be implemented: `client_credentials` was once advertised while the
+	 * endpoint answered it `unsupported_grant_type`.
 	 */
 	public function testTheMetadataDocumentOnlyAdvertisesWhatIsImplemented(): void {
 		$this->configService->method('getSocialUrl')->willReturn('https://nc.example/apps/social/');
 
 		$data = $this->controller->oauthMetadata()->getData();
 
-		$this->assertSame(['authorization_code'], $data['grant_types_supported']);
+		$this->assertSame(['authorization_code', 'client_credentials'], $data['grant_types_supported']);
 		$this->assertSame(['S256'], $data['code_challenge_methods_supported']);
 		$this->assertSame(
 			['client_secret_post', 'client_secret_basic'], $data['token_endpoint_auth_methods_supported']

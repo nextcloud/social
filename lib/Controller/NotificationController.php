@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\NotificationPolicy;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
@@ -561,6 +563,23 @@ class NotificationController extends ClientApiController {
 		array $excludeTypes = [],
 		string $accountId = '',
 	): array {
+		if ($accountId !== '') {
+			// the notifications one account caused: Mastodon's `account_id`
+			// is the numeric id, and nobody by that name has caused any
+			try {
+				$accountId = $this->cacheActorService->resolve($accountId)->getId();
+			} catch (CacheActorDoesNotExistException) {
+				return [];
+			}
+		}
+
+		if ($this->bearer !== '') {
+			// a client other than the web app: the types Mastodon does not
+			// define are left out unless it named them, in the query so that
+			// the page stays full
+			$excludeTypes = array_merge($excludeTypes, Stream::notificationTypesKeptFromClients($types));
+		}
+
 		$page = $this->notificationInboxService->timeline(
 			$this->viewer, $limit, $maxId, $minId, $sinceId, $types, $excludeTypes, $accountId
 		);

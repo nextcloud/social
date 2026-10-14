@@ -228,6 +228,15 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "MISSKEY_TOKEN=$TOKEN" >> "$GITHUB_ENV"
           curl -sf -X POST -H 'Content-Type: application/json' -d "{\"i\": \"$TOKEN\"}" "$MISSKEY_BASE_URL/api/i" | head -c 300; echo
+          # a new Misskey federates with nobody until its administrator says
+          # so: `federation` is `none` by default, and WebFinger answers 403
+          # to everyone while it is
+          curl -sf -X POST -H 'Content-Type: application/json' \
+            -d "{\"i\": \"$TOKEN\", \"federation\": \"all\"}" "$MISSKEY_BASE_URL/api/admin/update-meta"
+          curl -sf -X POST -H 'Content-Type: application/json' -d "{\"i\": \"$TOKEN\"}" "$MISSKEY_BASE_URL/api/admin/meta" \
+            | python3 -c 'import json, sys; m = json.load(sys.stdin); print("federation:", m["federation"]); sys.exit(0 if m["federation"] == "all" else 1)'
+          curl -sf -H 'Accept: application/jrd+json' \
+            "$MISSKEY_BASE_URL/.well-known/webfinger?resource=acct:interop@misskey.test" | head -c 300; echo
 
       - name: Interop tests
         working-directory: apps/social

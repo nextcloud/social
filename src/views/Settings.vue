@@ -6,9 +6,9 @@
 	<div class="settings">
 		<header class="settings__header">
 			<div class="settings__header-text">
-				<h2 class="settings__heading">
+				<h1 class="settings__heading">
 					{{ t('social', 'Settings') }}
-				</h2>
+				</h1>
 				<p class="settings__lede">
 					{{ t('social', 'Changes are saved as you make them.') }}
 				</p>

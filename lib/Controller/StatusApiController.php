@@ -633,6 +633,8 @@ class StatusApiController extends MastodonApiController {
 			// not dressed, as a redraft takes the text and media and nothing else
 			$item->setExportFormat(ACore::FORMAT_LOCAL);
 			$deleted = $item->exportAsLocal();
+			// with its source, as Mastodon answers a delete: what a redraft takes
+			$deleted['text'] = $this->asSourceText($item->getContent());
 
 			$this->streamService->deleteLocalItem($item, $item->getType());
 

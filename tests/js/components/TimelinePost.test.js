@@ -178,6 +178,13 @@ const actionButton = (wrapper, label) => wrapper.find(`.post-actions button[aria
 const menuItem = (wrapper, label) => wrapper.findAll('.post-menu__item').find((button) => button.text() === label)
 
 describe('TimelinePost', () => {
+	it('lets the author\'s name set its own direction', () => {
+		const { wrapper } = mountPost({ item: makeItem({ account: { ...alice, display_name: 'أليس' } }) })
+
+		expect(wrapper.find('.display-name').text()).toBe('أليس')
+		expect(wrapper.find('.display-name').attributes('dir')).toBe('auto')
+	})
+
 	afterEach(() => {
 		eventBus.all.clear()
 	})
@@ -320,6 +327,36 @@ describe('TimelinePost', () => {
 		it('renders the status content through MessageContent', () => {
 			const { wrapper } = mountPost()
 			expect(wrapper.find('.post-message strong').text()).toBe('world')
+		})
+
+		/**
+		 * The links in a post are the anchors the server wrote, rebuilt by
+		 * MessageContent, and a bare @name or #tag in the text is a router
+		 * link: nothing in the rendering goes through linkifyjs, which the
+		 * component once imported for its side effects and shipped for nothing.
+		 */
+		it('draws a post\'s links and mentions without linkifyjs', () => {
+			const { wrapper } = mountPost({
+				item: makeItem({
+					content: '<p>Hi <a href="https://remote.example/@bob" class="u-url mention">@bob</a>,'
+						+ ' see <a href="https://example.org/page" rel="nofollow">example.org/page</a> and #tag</p>',
+					mentions: [bob],
+				}),
+			})
+
+			const links = wrapper.findAll('.post-message a')
+			expect(links.map((link) => link.attributes('href'))).toEqual([
+				'https://remote.example/@bob',
+				'https://example.org/page',
+				undefined,
+			])
+			expect(links.map((link) => link.text())).toEqual(['@bob', 'example.org/page', '#tag'])
+			expect(links[1].attributes('rel')).toBe('nofollow noopener noreferrer')
+			expect(links[2].attributes('to')).toBeUndefined()
+			expect(wrapper.findAllComponents(RouterLinkStub).map((link) => link.props('to').params)).toEqual([{ tag: 'tag' }])
+
+			const source = readFileSync(resolve(process.cwd(), 'src/components/TimelinePost.vue'), 'utf8')
+			expect(source).not.toMatch(/linkify/)
 		})
 
 		it('shows the post visibility as an icon with the label as tooltip', () => {
@@ -585,6 +622,8 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost({ item: warned() })
 
 			expect(wrapper.find('.post-warning__text').text()).toBe('politics')
+			// the warning is the author's words too, in the author's script
+			expect(wrapper.find('.post-warning__text').attributes('dir')).toBe('auto')
 			// not merely hidden with css: an author asking for it not to be
 			// shown should not have it sitting in the markup
 			expect(wrapper.text()).not.toContain('the hidden part')
@@ -1245,6 +1284,29 @@ describe('TimelinePost', () => {
 			expect(accountStore.blockAccount).toHaveBeenCalledWith({ id: bob.id })
 		})
 
+		/**
+		 * The dialog's own focus trap returns the focus to the menu item that
+		 * opened it, which the menu has taken away by then, so the focus
+		 * landed on the page body.
+		 */
+		it('gives the focus back to the menu button once the dialog closes', async () => {
+			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
+			const menuButton = document.createElement('button')
+			const inside = document.createElement('button')
+			document.body.append(menuButton, inside)
+			menuButton.focus()
+			wrapper.findComponent({ name: 'PostMenu' }).vm.$emit('update:open', true)
+
+			await menuItem(wrapper, 'Block bob@remote.example').trigger('click')
+			inside.focus()
+			await wrapper.find('.nc-dialog__button--0').trigger('click')
+			await flushPromises()
+
+			expect(document.activeElement).toBe(menuButton)
+			menuButton.remove()
+			inside.remove()
+		})
+
 		it('leaves the confirmation up when the block was refused', async () => {
 			const { wrapper } = mountPost({ item: makeItem({ account: bob }) })
 			const accountStore = useAccountStore()
@@ -1264,6 +1326,32 @@ describe('TimelinePost', () => {
 			const { wrapper } = mountPost()
 			expect(menuItem(wrapper, 'Edit')).toBeDefined()
 			expect(menuItem(wrapper, 'Delete')).toBeDefined()
+		})
+
+		it('lets what is typed into the edit form set its own direction', async () => {
+			const { wrapper } = mountPost()
+			await menuItem(wrapper, 'Edit').trigger('click')
+
+			expect(wrapper.find('.post-edit-textarea').attributes('dir')).toBe('auto')
+			expect(wrapper.find('.post-edit-warning').attributes('dir')).toBe('auto')
+		})
+
+		it('gives the focus back to the menu button once the edit form is left', async () => {
+			const { wrapper } = mountPost()
+			const menuButton = document.createElement('button')
+			const inside = document.createElement('button')
+			document.body.append(menuButton, inside)
+			menuButton.focus()
+			wrapper.findComponent({ name: 'PostMenu' }).vm.$emit('update:open', true)
+
+			await menuItem(wrapper, 'Edit').trigger('click')
+			inside.focus()
+			await wrapper.findAll('button').find((button) => button.text() === 'Cancel').trigger('click')
+			await flushPromises()
+
+			expect(document.activeElement).toBe(menuButton)
+			menuButton.remove()
+			inside.remove()
 		})
 
 		it('lets the report dialog close itself, which needs a two-way binding', async () => {

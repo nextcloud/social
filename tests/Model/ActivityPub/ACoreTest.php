@@ -552,6 +552,31 @@ class ACoreTest extends TestCase {
 		}
 	}
 
+	/**
+	 * A single recipient and a list are one audience: the single one first,
+	 * then the list, each once, nothing empty.
+	 */
+	public function testExportAsActivityPubMergesASingleRecipientIntoTheList(): void {
+		$item = new Like();
+		$item->setId('https://a.example/l/1');
+		$item->setTo('https://b.example/users/bob');
+		$item->setToArray([ACore::CONTEXT_PUBLIC, 'https://b.example/users/bob', '']);
+
+		$export = $item->exportAsActivityPub();
+
+		$this->assertSame(['https://b.example/users/bob', ACore::CONTEXT_PUBLIC], $export['to']);
+	}
+
+	public function testExportAsActivityPubKeepsASingleRecipientAsTheStringItIs(): void {
+		$item = new Like();
+		$item->setId('https://a.example/l/1');
+		$item->setTo('https://b.example/users/bob');
+
+		$export = $item->exportAsActivityPub();
+
+		$this->assertSame('https://b.example/users/bob', $export['to']);
+	}
+
 	public function testExportAsActivityPubAddsDetailsOnlyWhenComplete(): void {
 		$item = new Like();
 		$item->setId('https://a.example/l/1');

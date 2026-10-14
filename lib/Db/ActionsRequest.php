@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
-use Exception;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Object\Like;
@@ -29,34 +28,30 @@ class ActionsRequest extends ActionsRequestBuilder {
 	public const VOTE_OPTION = '#option-';
 
 	/**
-	 * Insert a new Note in the database.
+	 * Inserts an action, unless a row with its id or its (actor, object,
+	 * type) is already there.
+	 *
+	 * The inbox looks an action up before it writes it, and a redelivery
+	 * that overlaps the first copy passes that lookup too; the database
+	 * skips the second insert rather than failing it — a failed statement
+	 * would abort the surrounding transaction on PostgreSQL.
+	 *
+	 * @return bool whether the row was written: false when it was already there
 	 */
-	public function save(ACore $like): void {
-		$qb = $this->getActionsInsertSql();
-		$qb->setValue('id', $qb->createNamedParameter($like->getId()))
-			->setValue('id_prim', $qb->createNamedParameter($qb->prim($like->getId())))
-			->setValue('actor_id', $qb->createNamedParameter($like->getActorId()))
-			->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($like->getActorId())))
-			->setValue('type', $qb->createNamedParameter($like->getType()))
-			->setValue('object_id', $qb->createNamedParameter($like->getObjectId()))
-			->setValue('object_id_prim', $qb->createNamedParameter($qb->prim($like->getObjectId())))
-			->setValue('poll_prim', $qb->createNamedParameter(
-				$qb->prim(self::pollOfVote($like->getType(), $like->getObjectId()))
-			));
+	public function save(ACore $like): bool {
+		$qb = $this->getQueryBuilder();
 
-		try {
-			$qb->setValue(
-				'creation',
-				$qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE)
-			);
-		} catch (Exception $e) {
-			// 'now' is a constant, so this does not happen; were it ever to,
-			// the row would go in with no date at all, and every list that
-			// orders on it would place it arbitrarily
-			$this->logger->warning('could not timestamp a row', ['exception' => $e]);
-		}
-
-		$qb->executeStatement();
+		return $this->dbConnection->insertIgnoreConflict(self::TABLE_ACTIONS, [
+			'id' => $like->getId(),
+			'id_prim' => $qb->prim($like->getId()),
+			'actor_id' => $like->getActorId(),
+			'actor_id_prim' => $qb->prim($like->getActorId()),
+			'type' => $like->getType(),
+			'object_id' => $like->getObjectId(),
+			'object_id_prim' => $qb->prim($like->getObjectId()),
+			'poll_prim' => $qb->prim(self::pollOfVote($like->getType(), $like->getObjectId())),
+			'creation' => (new DateTime('now'))->format('Y-m-d H:i:s'),
+		]) > 0;
 	}
 
 	/**

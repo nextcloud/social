@@ -26,7 +26,10 @@ use Throwable;
  * post newer than the last read stored, and the next read set by backoff —
  * soon after a page with posts, doubling up to six hours after empty ones,
  * reset by the next post. One pass is bounded twice: by how many watches
- * it visits and by the instance-wide ceiling on AppView requests.
+ * it visits and by the instance-wide ceiling on AppView requests. An
+ * account the AppView refuses as deactivated, taken down or gone, three
+ * reads in a row, is hidden or purged here (`AccountStatus`); one it
+ * serves again is restored.
  */
 class FeedPoller {
 	private ?string $acceptLabelers = null;
@@ -38,6 +41,8 @@ class FeedPoller {
 	public const BATCH = 50;
 	/** posts asked for per watch and pass */
 	public const PAGE = 50;
+	/** consecutive refusals naming an account's status before it is acted on */
+	public const STATUS_AFTER = 3;
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -49,20 +54,22 @@ class FeedPoller {
 		private LabelerService $labelers,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
+		private ?AccountStatus $status = null,
 	) {
 	}
 
 	/**
+	 * @param int $deadline the wall clock past which no further watch is read, 0 for none
 	 * @return array{watches: int, stored: int, requests: int}
 	 */
-	public function poll(int $limit = self::BATCH): array {
+	public function poll(int $limit = self::BATCH, int $deadline = 0): array {
 		$result = ['watches' => 0, 'stored' => 0, 'requests' => 0];
 		if (!$this->config->isEnabled()) {
 			return $result;
 		}
 		$ceiling = $this->config->syncCeiling();
 		foreach ($this->watches->getDue($this->time->getTime(), $limit) as $watch) {
-			if ($result['requests'] >= $ceiling) {
+			if ($result['requests'] >= $ceiling || ($deadline > 0 && $this->time->getTime() >= $deadline)) {
 				break;
 			}
 			$result['watches']++;
@@ -86,7 +93,9 @@ class FeedPoller {
 
 			return 0;
 		}
-		if ($actor !== null && BlueskyActorService::isLimited($actor)) {
+		// an account its labels limit is left alone; one Bluesky switched off
+		// is asked about, so it is restored when it comes back
+		if ($actor !== null && BlueskyActorService::isLimited($actor) && BlueskyActorService::status($actor) === '') {
 			$this->watches->synced($watch->did, $watch->cursor, $now, $now + self::MAX_BACKOFF);
 
 			return 0;
@@ -94,16 +103,30 @@ class FeedPoller {
 		try {
 			$feed = $this->appView->query('app.bsky.feed.getAuthorFeed', ['actor' => $watch->did, 'filter' => 'posts_with_replies', 'limit' => self::PAGE], $this->labelHeaders());
 		} catch (AppViewNotFoundException $e) {
-			// an account that is gone, deactivated or blocking: the watch
-			// stays, tried again later, in case it comes back
-			$this->watches->failed($watch->did, $e->getMessage(), $now + self::MAX_BACKOFF);
+			$status = AccountStatus::ERRORS[$e->error] ?? '';
+			if ($status === '') {
+				// an account that is gone, deactivated or blocking: the watch
+				// stays, tried again later, in case it comes back
+				$this->watches->failed($watch->did, $e->getMessage(), $now + self::MAX_BACKOFF);
+
+				return 0;
+			}
+			// the AppView names the status: acted on once it has said so a
+			// few reads in a row, with the ordinary backoff between them
+			$this->watches->failed($watch->did, $e->getMessage(), $now + $this->failureBackoff($watch));
+			if ($watch->failures + 1 >= self::STATUS_AFTER) {
+				$this->status?->apply($watch->did, false, $status);
+			}
 
 			return 0;
 		} catch (Throwable $e) {
 			$this->logger->notice('Bluesky feed not read', ['did' => $watch->did, 'exception' => $e]);
-			$this->watches->failed($watch->did, $e->getMessage(), $now + min(self::MAX_BACKOFF, self::INTERVAL * (1 << min(10, $watch->failures + 1))));
+			$this->watches->failed($watch->did, $e->getMessage(), $now + $this->failureBackoff($watch));
 
 			return 0;
+		}
+		if ($actor !== null && BlueskyActorService::status($actor) !== '') {
+			$this->status?->restore($watch->did);
 		}
 
 		$stored = 0;
@@ -144,6 +167,11 @@ class FeedPoller {
 		}
 
 		return (string)($item['post']['indexedAt'] ?? '');
+	}
+
+	/** How long after a failed read the next is: doubling with the failures, up to the maximum. */
+	private function failureBackoff(Watch $watch): int {
+		return min(self::MAX_BACKOFF, self::INTERVAL * (1 << min(10, $watch->failures + 1)));
 	}
 
 	private function nextInterval(Watch $watch, bool $hadPosts): int {

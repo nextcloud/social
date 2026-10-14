@@ -137,26 +137,47 @@ final class RemoteAddress {
 	 * that mixes a public and a loopback address cannot be used to slip through.
 	 */
 	public static function isLocalHost(string $host): bool {
-		$host = trim($host, " \t\n\r\0\x0B[]");
-		if ($host === '') {
-			return true;
-		}
-
-		if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
-			return self::isLocalIp($host);
-		}
-
-		foreach (self::resolve($host) as $ip) {
-			if (self::isLocalIp($ip)) {
-				return true;
-			}
-		}
-
-		return false;
+		return self::reachableAddresses($host) === [];
 	}
 
 	/**
-	 * Answers already given, for the life of this process.
+	 * The addresses a request to a host may be sent to: a literal public
+	 * address itself, or every address a name resolves to when all of them
+	 * are public. Empty when the host is local, when any of its addresses is,
+	 * or when it resolves to nothing — an unresolvable target is not a
+	 * legitimate peer, and failing closed is the safe direction.
+	 *
+	 * The request is pinned to exactly this set (see
+	 * `CurlService::pinReachable()`), so what was checked is what is reached:
+	 * a name that answers differently to a second lookup gains nothing.
+	 *
+	 * @return list<string>
+	 */
+	public static function reachableAddresses(string $host): array {
+		$host = trim($host, " \t\n\r\0\x0B[]");
+		if ($host === '') {
+			return [];
+		}
+
+		if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+			return self::isLocalIp($host) ? [] : [$host];
+		}
+
+		$addresses = self::resolve($host);
+		foreach ($addresses as $ip) {
+			if (self::isLocalIp($ip)) {
+				return [];
+			}
+		}
+
+		return $addresses;
+	}
+
+	/** How long a resolved address set is remembered, in seconds. */
+	private const MEMO_TTL = 60;
+
+	/**
+	 * Answers already given, for a short while.
 	 *
 	 * A delivery run resolves the same few dozen hosts over and over: one post
 	 * to two hundred inboxes is two hundred DNS round-trips for a handful of
@@ -164,12 +185,16 @@ final class RemoteAddress {
 	 * answers for the length of the run removes almost all of them.
 	 *
 	 * Deliberately per-process rather than a shared cache: a cron pass is
-	 * where the repetition is, and a short-lived memo cannot serve a stale
-	 * address to a later request.
+	 * where the repetition is. The entry carries the whole address set, which
+	 * is what a request is pinned to, and it is forgotten after MEMO_TTL so a
+	 * long-running worker follows a host that has moved.
 	 *
-	 * @var array<string, list<string>>
+	 * @var array<string, array{0: int, 1: list<string>}> host => [expires, addresses]
 	 */
 	private static array $resolved = [];
+
+	/** @var null|callable(string): list<string> the DNS lookups, replaced in tests */
+	private static $resolver = null;
 
 	/** Forgets the memo, for tests and long-running workers. */
 	public static function forgetResolved(): void {
@@ -177,13 +202,35 @@ final class RemoteAddress {
 	}
 
 	/**
+	 * Replaces the DNS lookups with $resolver, null restores them; the memo
+	 * is forgotten either way. For tests.
+	 *
+	 * @param null|callable(string): list<string> $resolver
+	 */
+	public static function resolveWith(?callable $resolver): void {
+		self::$resolver = $resolver;
+		self::$resolved = [];
+	}
+
+	/**
 	 * @return list<string> every A and AAAA address the host resolves to
 	 */
 	private static function resolve(string $host): array {
-		if (array_key_exists($host, self::$resolved)) {
-			return self::$resolved[$host];
+		$now = time();
+		if (isset(self::$resolved[$host]) && self::$resolved[$host][0] > $now) {
+			return self::$resolved[$host][1];
 		}
 
+		$ips = self::$resolver !== null ? (self::$resolver)($host) : self::lookup($host);
+		self::$resolved[$host] = [$now + self::MEMO_TTL, $ips];
+
+		return $ips;
+	}
+
+	/**
+	 * @return list<string>
+	 */
+	private static function lookup(string $host): array {
 		$ips = [];
 
 		$v4 = gethostbynamel($host);
@@ -200,11 +247,6 @@ final class RemoteAddress {
 			}
 		}
 
-		// A name that resolves to nothing is treated as local, i.e. refused: an
-		// unresolvable target is not a legitimate Fediverse peer, and failing closed
-		// is the safe direction.
-		self::$resolved[$host] = ($ips === []) ? ['127.0.0.1'] : $ips;
-
-		return self::$resolved[$host];
+		return $ips;
 	}
 }

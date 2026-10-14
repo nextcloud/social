@@ -62,6 +62,51 @@ class PrivateKeyCipher {
 		}
 	}
 
+	/**
+	 * Whether a stored value opens: empty, legacy plaintext, or sealed with
+	 * the secret in use. Nothing is logged for one that does not.
+	 */
+	public function opens(string $stored): bool {
+		if ($stored === '' || $this->isPlain($stored)) {
+			return true;
+		}
+		try {
+			$this->crypto->decrypt($stored);
+
+			return true;
+		} catch (Exception) {
+			return false;
+		}
+	}
+
+	/**
+	 * The stored value sealed with the secret in use, for one sealed with
+	 * $oldSecret before the secret changed. A value that opens as it is
+	 * (sealed with the current secret, or legacy plaintext) is sealed
+	 * afresh under the current secret; one that neither secret opens
+	 * yields ''.
+	 */
+	public function reseal(string $stored, #[\SensitiveParameter] string $oldSecret): string {
+		if ($stored === '') {
+			return '';
+		}
+		$plain = $this->isPlain($stored) ? $stored : null;
+		if ($plain === null) {
+			try {
+				$plain = $this->crypto->decrypt($stored);
+			} catch (Exception) {
+			}
+		}
+		if ($plain === null && $oldSecret !== '') {
+			try {
+				$plain = $this->crypto->decrypt($stored, $oldSecret);
+			} catch (Exception) {
+			}
+		}
+
+		return $plain === null ? '' : $this->seal($plain);
+	}
+
 	public function isPlain(string $stored): bool {
 		return str_starts_with($stored, self::PEM_PREFIX);
 	}

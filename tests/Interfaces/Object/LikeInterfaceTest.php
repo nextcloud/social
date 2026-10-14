@@ -45,6 +45,8 @@ class LikeInterfaceTest extends ActivityPubTestCase {
 	/** @var CacheActorService&Stub */
 	private $cacheActorService;
 	private LikeInterface $handler;
+	/** @var bool[] what the next writes answer; `true` once spent */
+	private array $written = [];
 
 	private Person $alice;
 	private Person $bob;
@@ -53,6 +55,8 @@ class LikeInterfaceTest extends ActivityPubTestCase {
 		parent::setUp();
 
 		$this->actionsRequest = $this->createMock(ActionsRequest::class);
+		// a row is written unless a test says it was there already
+		$this->actionsRequest->method('save')->willReturnCallback(fn (): bool => array_shift($this->written) ?? true);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
 
@@ -114,6 +118,25 @@ class LikeInterfaceTest extends ActivityPubTestCase {
 		$this->actionsRequest->expects($this->once())->method('save')->with($this->identicalTo($like));
 
 		$this->handler->processIncomingRequest($like);
+	}
+
+	/**
+	 * The same Like delivered again while the first copy is still being
+	 * handled: both copies pass the lookup, the database takes one row, and
+	 * only that one counts and notifies.
+	 */
+	public function testALikeRedeliveredWhileTheFirstCopyIsStillBeingHandledCountsAndNotifiesOnce(): void {
+		$this->noStoredLike();
+		$this->noNotificationYet();
+		$this->streamRequest->method('getStreamById')->willReturn($this->post());
+
+		$this->written = [true, false];
+		$this->actionsRequest->expects($this->exactly(2))->method('save');
+		$this->streamRequest->expects($this->once())->method('recount');
+		$this->notificationInterface->expects($this->once())->method('save');
+
+		$this->handler->processIncomingRequest($this->incomingLike());
+		$this->handler->processIncomingRequest($this->incomingLike());
 	}
 
 	public function testLikeAddsToTheLikeCounterOfThePost(): void {

@@ -46,7 +46,7 @@
 			"properties": {
 				"streaming_api": {
 					"type": "string",
-					"format": "url"
+					"format": "websocket-url"
 				}
 			},
 			"description": "Deliberate deviation: no streaming server, so `urls` is an empty object (docs/Mastodon-Compatibility.md, Tier 2 item 10)."

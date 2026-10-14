@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Atproto\Reader\Jetstream;
 
 use OCA\Social\Atproto\Model\Watch;
+use OCA\Social\Atproto\Reader\AccountStatus;
 use OCA\Social\Atproto\Reader\BlueskyActorService;
 use OCA\Social\Atproto\Reader\FeedPoller;
 use OCA\Social\Atproto\Reader\Jetstream\JetstreamEvents;
@@ -63,6 +64,11 @@ class JetstreamEventsTest extends TestCase {
 		$this->actors = $this->createMock(BlueskyActorService::class);
 		$this->events = new JetstreamEvents($this->watches, $poller, $this->store, $this->streams, $this->actors, $time, new NullLogger());
 		$this->events->setWatched([self::BOB]);
+	}
+
+	/** An event as Jetstream sends it, from `fixtures/`. */
+	private static function fixture(string $name): array {
+		return json_decode((string)file_get_contents(__DIR__ . '/fixtures/' . $name . '.json'), true, 512, JSON_THROW_ON_ERROR);
 	}
 
 	private static function commit(string $operation, string $collection, string $rkey, array $record = [], string $did = self::BOB): array {
@@ -133,6 +139,38 @@ class JetstreamEventsTest extends TestCase {
 
 		$this->events->handle(['did' => self::BOB, 'time_us' => 1, 'kind' => 'identity', 'identity' => ['did' => self::BOB, 'handle' => 'paypal.com']]);
 		$this->events->handle(['did' => self::BOB, 'time_us' => 2, 'kind' => 'identity', 'identity' => ['did' => self::BOB, 'handle' => 'paypal.com']]);
+	}
+
+	/**
+	 * Bluesky stopped serving the account, or serves it again: each status
+	 * Jetstream names is handed on as it was said, at once.
+	 */
+	public function testAnAccountEventIsActedOnAtOnceWithTheStatusItNames(): void {
+		$applied = [];
+		$status = $this->createMock(AccountStatus::class);
+		$status->method('apply')->willReturnCallback(static function (string $did, bool $active, string $status) use (&$applied): void {
+			$applied[] = [$did, $active, $status];
+		});
+		$time = $this->createMock(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
+		$events = new JetstreamEvents($this->watches, $this->createMock(FeedPoller::class), $this->store, $this->streams, $this->actors, $time, new NullLogger(), null, null, $status);
+		$events->setWatched([self::BOB]);
+
+		foreach (['deactivated', 'suspended', 'takendown', 'deleted', 'active'] as $name) {
+			$events->handle(self::fixture('account-' . $name));
+		}
+		$stranger = self::fixture('account-deleted');
+		$stranger['did'] = $stranger['account']['did'] = 'did:plc:stranger';
+		$events->handle($stranger);
+
+		$this->assertSame([
+			[self::BOB, false, 'deactivated'],
+			[self::BOB, false, 'suspended'],
+			[self::BOB, false, 'takendown'],
+			[self::BOB, false, 'deleted'],
+			[self::BOB, true, ''],
+		], $applied, 'each status as said; an account nobody follows is not acted on');
+		$this->assertFalse($events->hasPending(), 'nothing is read later for it');
 	}
 
 	public function testAnAccountNobodyFollowsIsIgnored(): void {

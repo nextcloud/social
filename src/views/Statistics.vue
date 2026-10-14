@@ -4,7 +4,7 @@
 -->
 <template>
 	<div class="stats">
-		<h2>{{ t('social', 'Statistics') }}</h2>
+		<h1>{{ t('social', 'Statistics') }}</h1>
 		<p class="stats__hint">
 			{{ t('social', 'What you have posted here, and what came back. Counted from this server when you opened the page, so it is never a stale number.') }}
 		</p>
@@ -1156,7 +1156,7 @@ export default {
 			const months = this.growth?.months ?? []
 			const last = months[months.length - 1]
 
-			return last ? t('social', '{count} accounts', { count: this.number(last.accounts) }) : ''
+			return last ? n('social', '{count} account', '{count} accounts', last.accounts, { count: this.number(last.accounts) }) : ''
 		},
 
 		/**
@@ -2072,7 +2072,7 @@ export default {
 	margin: 15px auto;
 	padding: 0 10px;
 
-	h2 {
+	h1 {
 		margin-bottom: 8px;
 	}
 }

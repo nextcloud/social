@@ -20,6 +20,10 @@ vi.mock('../../src/views/ProfileCollections.vue', () => ({ default: { name: 'Pro
 vi.mock('../../src/views/CollectionPage.vue', () => ({ default: { name: 'CollectionPage', render: () => null } }))
 vi.mock('../../src/views/PlacePage.vue', () => ({ default: { name: 'PlacePage', render: () => null } }))
 vi.mock('../../src/views/VideoShorts.vue', () => ({ default: { name: 'VideoShorts', render: () => null } }))
+vi.mock('../../src/views/NotFound.vue', () => ({ default: { name: 'NotFound', render: () => null } }))
+
+// what the server renders the page with; every page's title ends with it
+document.title = 'Aloha - Nextcloud'
 
 describe('router', () => {
 	it('is served under the app path and uses the "active" link class', () => {
@@ -190,8 +194,8 @@ describe('router', () => {
 		expect(route.redirectedFrom.path).toBe('/reels')
 	})
 
-	it('does not match unknown paths', () => {
-		expect(router.resolve('/nope/nope').matched).toEqual([])
+	it('matches an unknown path to the not-found page alone', () => {
+		expect(router.resolve('/nope/nope').matched.map((record) => record.name)).toEqual(['not-found'])
 	})
 
 	describe('where a navigation lands', () => {
@@ -303,6 +307,41 @@ describe('router', () => {
 			expect(router.options.scrollBehavior({ hash: '#reply-7' }, {}, null))
 				.toEqual({ el: '#reply-7', behavior: 'smooth' })
 		})
+	})
+})
+
+describe('an address that names nothing', () => {
+	it('is the not-found page rather than an empty column', () => {
+		for (const path of ['/nothing/here', '/apps/social/foo', '/timeline/news/old/path', '/settings/extra']) {
+			expect(router.resolve(path).name).toBe('not-found')
+		}
+	})
+
+	it('still lets every known address through', () => {
+		for (const path of ['/timeline', '/timeline/notifications', '/@alice', '/@alice/followers', '/settings', '/discover', '/shorts', '/search/x']) {
+			expect(router.resolve(path).name).not.toBe('not-found')
+		}
+	})
+})
+
+describe('the page title', () => {
+	it('names the page, in front of the title the server set', async () => {
+		await router.push('/settings')
+		expect(document.title).toBe('Settings - Aloha - Nextcloud')
+
+		await router.push('/discover')
+		expect(document.title).toBe('Discover - Aloha - Nextcloud')
+
+		await router.push('/nothing/here')
+		expect(document.title).toBe('Page not found - Aloha - Nextcloud')
+	})
+
+	it('leaves a page that names itself alone', async () => {
+		await router.push('/statistics')
+		await router.push('/timeline/notifications')
+
+		// the view sets it once mounted; the router must not clear it on the way
+		expect(document.title).toBe('Statistics - Aloha - Nextcloud')
 	})
 })
 

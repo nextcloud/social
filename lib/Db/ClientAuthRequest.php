@@ -100,6 +100,43 @@ class ClientAuthRequest extends ClientRequestBuilder {
 	}
 
 	/**
+	 * Records an app token: a row of the app's that names no account.
+	 *
+	 * Stored like an authorization, with an empty `user_id`, so that
+	 * `getByToken()` reads it back as a `SocialClient` whose `auth_user_id`
+	 * is empty -- which is what tells the routes it acts for nobody. One per
+	 * app, replaced by the next (the (client, user) index is unique), and
+	 * the app row is marked as used, as `authorize()` marks it, so a client
+	 * that only ever took an app token is not swept as never authorized.
+	 *
+	 * @param string[] $scopes
+	 */
+	public function issueAppToken(int $clientId, array $scopes, string $token): void {
+		$this->forget($clientId, '');
+
+		$qb = $this->getQueryBuilder();
+		$qb->insert(self::TABLE_CLIENT_AUTH)
+			->setValue('client_id', $qb->createNamedParameter($clientId, IQueryBuilder::PARAM_INT))
+			->setValue('user_id', $qb->createNamedParameter(''))
+			->setValue('account', $qb->createNamedParameter(''))
+			->setValue('scopes', $qb->createNamedParameter((string)json_encode($scopes)))
+			->setValue('code', $qb->createNamedParameter(''))
+			->setValue('code_challenge', $qb->createNamedParameter(''))
+			->setValue('code_challenge_method', $qb->createNamedParameter(''))
+			->setValue('redirect_uri', $qb->createNamedParameter(''))
+			->setValue('token', $qb->createNamedParameter($this->secretHasher->hash($token)))
+			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
+			->setValue('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+		$qb->executeStatement();
+
+		$app = $this->getQueryBuilder();
+		$app->update(self::TABLE_CLIENT)
+			->set('last_update', $app->createNamedParameter(new DateTime('+1 second'), IQueryBuilder::PARAM_DATE))
+			->where($app->expr()->eq('id', $app->createNamedParameter($clientId, IQueryBuilder::PARAM_INT)));
+		$app->executeStatement();
+	}
+
+	/**
 	 * Exchanges a code for a token, on the authorization the code names.
 	 *
 	 * The code is spent here: it is emptied in the same statement that writes

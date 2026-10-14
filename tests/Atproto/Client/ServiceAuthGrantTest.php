@@ -20,6 +20,7 @@ use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -54,7 +55,7 @@ class ServiceAuthGrantTest extends TestCase {
 		$actors->method('getFromId')->willReturn($alice);
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
-		$this->serviceAuth = new ServiceAuth($time);
+		$this->serviceAuth = new ServiceAuth($time, $this->replay());
 		$this->grants = new ServiceAuthGrant($config, $identities, $this->serviceAuth, $actors, $time);
 		$this->session = new ClientSession('alice', $this->alice, 'sid');
 	}
@@ -140,11 +141,51 @@ class ServiceAuthGrantTest extends TestCase {
 		$this->grants->uploader('Bearer ' . $expired);
 	}
 
+	/** An upload token is good for one upload: the second presentation is refused. */
+	public function testAnUploadTokenIsTakenOnce(): void {
+		$token = $this->serviceAuth->token($this->key, self::DID, self::HERE, ServiceAuthGrant::UPLOAD, 1800);
+
+		$this->assertNotNull($this->grants->uploader('Bearer ' . $token));
+		try {
+			$this->grants->uploader('Bearer ' . $token);
+			$this->fail('taken twice');
+		} catch (XrpcException $e) {
+			$this->assertSame(401, $e->status);
+			$this->assertSame('InvalidToken', $e->error);
+		}
+		$this->assertNotNull($this->grants->uploader('Bearer ' . $this->serviceAuth->token($this->key, self::DID, self::HERE, ServiceAuthGrant::UPLOAD, 1800)), 'another token of the same account');
+	}
+
+	public function testAnUploadTokenWithoutAnIdIsRefused(): void {
+		$claims = ['iss' => self::DID, 'aud' => self::HERE, 'lxm' => ServiceAuthGrant::UPLOAD, 'iat' => $this->now, 'exp' => $this->now + 60];
+		$input = Encoding::base64UrlEncode((string)json_encode(['typ' => 'JWT', 'alg' => 'ES256K'])) . '.' . Encoding::base64UrlEncode((string)json_encode($claims, JSON_UNESCAPED_SLASHES));
+		$token = $input . '.' . Encoding::base64UrlEncode($this->key->sign($input));
+
+		$this->expectException(XrpcException::class);
+		$this->grants->uploader('Bearer ' . $token);
+	}
+
 	public function testASessionTokenIsLeftToTheSession(): void {
 		$header = Encoding::base64UrlEncode((string)json_encode(['typ' => 'at+jwt', 'alg' => 'ES256K']));
 		$payload = Encoding::base64UrlEncode((string)json_encode(['scope' => 'com.atproto.access', 'sub' => self::DID]));
 
 		$this->assertNull($this->grants->uploader('Bearer ' . $header . '.' . $payload . '.c2ln'));
 		$this->assertNull($this->grants->uploader(''));
+	}
+
+	/** A replay record that remembers what it was given, as the table does. */
+	private function replay(): AtprotoOAuthRequest {
+		$seen = [];
+		$replay = $this->createStub(AtprotoOAuthRequest::class);
+		$replay->method('firstUse')->willReturnCallback(static function (string $hash) use (&$seen): bool {
+			if (isset($seen[$hash])) {
+				return false;
+			}
+			$seen[$hash] = true;
+
+			return true;
+		});
+
+		return $replay;
 	}
 }

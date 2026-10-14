@@ -154,4 +154,75 @@ class RemoteAddressTest extends TestCase {
 
 		$this->assertTrue(RemoteAddress::isLocalHost('nothing.invalid'));
 	}
+
+	// --- the addresses a request may be sent to
+
+	protected function tearDown(): void {
+		RemoteAddress::resolveWith(null);
+	}
+
+	public function testALiteralPublicAddressIsItsOwnAnswer(): void {
+		$this->assertSame(['1.2.3.4'], RemoteAddress::reachableAddresses('1.2.3.4'));
+		$this->assertSame(['2606:2800:220:1:248:1893:25c8:1946'], RemoteAddress::reachableAddresses('[2606:2800:220:1:248:1893:25c8:1946]'));
+	}
+
+	public function testALiteralLocalAddressHasNone(): void {
+		$this->assertSame([], RemoteAddress::reachableAddresses('127.0.0.1'));
+		$this->assertSame([], RemoteAddress::reachableAddresses('[::1]'));
+		$this->assertSame([], RemoteAddress::reachableAddresses(''));
+	}
+
+	public function testANameAnswersWithEveryAddressItResolvesTo(): void {
+		RemoteAddress::resolveWith(static fn (string $host): array => ['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946']);
+
+		$this->assertSame(['93.184.216.34', '2606:2800:220:1:248:1893:25c8:1946'], RemoteAddress::reachableAddresses('example.com'));
+		$this->assertFalse(RemoteAddress::isLocalHost('example.com'));
+	}
+
+	public function testANameWithOneLocalAddressAmongPublicOnesHasNone(): void {
+		RemoteAddress::resolveWith(static fn (): array => ['93.184.216.34', '169.254.169.254']);
+
+		$this->assertSame([], RemoteAddress::reachableAddresses('mixed.example'));
+		$this->assertTrue(RemoteAddress::isLocalHost('mixed.example'));
+	}
+
+	public function testANameThatResolvesToNothingHasNone(): void {
+		RemoteAddress::resolveWith(static fn (): array => []);
+
+		$this->assertSame([], RemoteAddress::reachableAddresses('gone.example'));
+		$this->assertTrue(RemoteAddress::isLocalHost('gone.example'));
+	}
+
+	/** The memo hands back the set that was checked, not a fresh lookup. */
+	public function testTheMemoAnswersWithTheSetItHolds(): void {
+		$lookups = 0;
+		RemoteAddress::resolveWith(static function () use (&$lookups): array {
+			$lookups++;
+
+			return $lookups === 1 ? ['93.184.216.34'] : ['127.0.0.1'];
+		});
+
+		$this->assertSame(['93.184.216.34'], RemoteAddress::reachableAddresses('example.com'));
+		$this->assertSame(['93.184.216.34'], RemoteAddress::reachableAddresses('example.com'));
+		$this->assertSame(1, $lookups);
+	}
+
+	public function testTheMemoIsForgottenAfterItsTime(): void {
+		$lookups = 0;
+		RemoteAddress::resolveWith(static function () use (&$lookups): array {
+			$lookups++;
+
+			return ['93.184.216.34'];
+		});
+		RemoteAddress::reachableAddresses('example.com');
+
+		$memo = new \ReflectionProperty(RemoteAddress::class, 'resolved');
+		$held = $memo->getValue();
+		$held['example.com'][0] = time() - 1;
+		$memo->setValue(null, $held);
+
+		RemoteAddress::reachableAddresses('example.com');
+
+		$this->assertSame(2, $lookups);
+	}
 }

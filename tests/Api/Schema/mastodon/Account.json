@@ -20,6 +20,7 @@
 		"last_status_at",
 		"locked",
 		"note",
+		"roles",
 		"statuses_count",
 		"url",
 		"username"

@@ -18,6 +18,7 @@ use OCA\Social\Atproto\Moderation\BlueskyReporter;
 use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -67,7 +68,7 @@ class BlueskyReporterTest extends TestCase {
 
 			return $note;
 		});
-		$this->reporter = new BlueskyReporter($config, $keys, new ServiceAuth($time), $plc, $this->refs, $this->streams, $this->curl, new NullLogger());
+		$this->reporter = new BlueskyReporter($config, $keys, new ServiceAuth($time, $this->createStub(AtprotoOAuthRequest::class)), $plc, $this->refs, $this->streams, $this->curl, new NullLogger());
 	}
 
 	public function testAReportGoesToTheModerationServiceInTheInstancesNameNotTheReporters(): void {

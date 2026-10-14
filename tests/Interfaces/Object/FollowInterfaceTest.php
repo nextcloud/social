@@ -57,6 +57,10 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 	private $miscService;
 	private TimelineRevisionService|Stub $timelineRevisionService;
 	private FollowInterface $handler;
+	/** @var bool[] what the next writes answer; `true` once spent */
+	private array $written = [];
+	/** @var bool[] what the next markings answer; `true` once spent */
+	private array $marked = [];
 
 	private Person $alice;
 	private Person $bob;
@@ -66,6 +70,9 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		parent::setUp();
 
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
+		// a row is written and a pending one marked, unless a test says otherwise
+		$this->followsRequest->method('save')->willReturnCallback(fn (): bool => array_shift($this->written) ?? true);
+		$this->followsRequest->method('accepted')->willReturnCallback(fn (): bool => array_shift($this->marked) ?? true);
 		$this->actorRelationRequest = $this->createMock(ActorRelationRequest::class);
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
@@ -307,6 +314,66 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->handler->processIncomingRequest($follow);
 	}
 
+	/**
+	 * A peer that times out delivers the same Follow again while the first
+	 * copy is still being handled: both copies pass the lookup, the
+	 * database takes one row, and the copy that marks it counts and
+	 * notifies — the other hears the Accept again.
+	 */
+	public function testAFollowRedeliveredWhileTheFirstCopyIsStillBeingHandledIsCountedOnceAndAnsweredTwice(): void {
+		$first = $this->incomingFollow();
+		$second = $this->incomingFollow();
+		$stored = clone $first;
+		$lookups = 0;
+		$this->followsRequest->method('getByPersons')->willReturnCallback(
+			function () use (&$lookups, $stored): Follow {
+				// both deliveries look before either has written
+				if (++$lookups <= 2) {
+					throw new FollowNotFoundException();
+				}
+
+				return $stored;
+			}
+		);
+		$this->written = [true, false];
+		$this->marked = [true, false];
+		$this->followsRequest->expects($this->exactly(2))->method('save');
+		$this->followsRequest->expects($this->exactly(2))->method('accepted');
+		$this->accountService->expects($this->once())
+			->method('bumpActorCount')->with($this->alice->getId(), 'count_followers', 1);
+		$this->notificationInterface->expects($this->once())->method('save');
+		$this->activityService->expects($this->exactly(2))->method('request')->with($this->isInstanceOf(Accept::class));
+
+		$this->handler->processIncomingRequest($first);
+		$this->handler->processIncomingRequest($second);
+	}
+
+	/** The same, towards a locked account: the row stays pending and nothing is answered. */
+	public function testAFollowOfALockedAccountRedeliveredWhileTheFirstCopyIsStillBeingHandledStaysPending(): void {
+		$this->lockAlice();
+		$first = $this->incomingFollow();
+		$second = $this->incomingFollow();
+		$stored = clone $first;
+		$lookups = 0;
+		$this->followsRequest->method('getByPersons')->willReturnCallback(
+			function () use (&$lookups, $stored): Follow {
+				if (++$lookups <= 2) {
+					throw new FollowNotFoundException();
+				}
+
+				return $stored;
+			}
+		);
+		$this->written = [true, false];
+		$this->followsRequest->expects($this->exactly(2))->method('save');
+		$this->followsRequest->expects($this->never())->method('accepted');
+		$this->notificationInterface->expects($this->once())->method('save');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->handler->processIncomingRequest($first);
+		$this->handler->processIncomingRequest($second);
+	}
+
 	public function testFollowOfALockedAccountIsStoredButNotAccepted(): void {
 		$this->noKnownFollow();
 		$this->lockAlice();
@@ -528,12 +595,69 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 	public function testRejectRemovesOurPendingFollowRequest(): void {
 		$follow = $this->ourFollowOfBob();
+		$stored = $this->stored($follow, false);
 		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', $this->bob->getId(), $follow);
 
-		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($follow));
+		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($stored));
 		$this->followsRequest->expects($this->never())->method('accepted');
 
 		$this->handler->activity($reject, $follow);
+	}
+
+	/** Records every counter move, in order, into `$moves`. */
+	private function recordCountMoves(array &$moves): void {
+		$this->accountService->method('bumpActorCount')->willReturnCallback(
+			function (string $actorId, string $column, int $by) use (&$moves): void {
+				$moves[] = [$actorId, $column, $by];
+			}
+		);
+	}
+
+	/**
+	 * A Reject of a follow this side already counted — the followed account
+	 * removing its follower — moves both counts back, as an Undo does.
+	 */
+	public function testRejectOfOurAcceptedFollowTakesItOffBothCounts(): void {
+		$follow = $this->ourFollowOfBob();
+		$stored = $this->stored($follow, true);
+		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', $this->bob->getId(), $follow);
+		$moves = [];
+		$this->recordCountMoves($moves);
+
+		$this->followsRequest->expects($this->once())->method('delete')->with($this->identicalTo($stored));
+
+		$this->handler->activity($reject, $follow);
+
+		$this->assertSame([
+			[$this->alice->getId(), 'count_following', -1],
+			[$this->bob->getId(), 'count_followers', -1],
+		], $moves);
+	}
+
+	/** A pending request was never on the followed account's count, only on the follower's. */
+	public function testRejectOfOurPendingFollowRequestTakesItOffOurFollowingCountOnly(): void {
+		$follow = $this->ourFollowOfBob();
+		$this->stored($follow, false);
+		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/1', $this->bob->getId(), $follow);
+		$moves = [];
+		$this->recordCountMoves($moves);
+
+		$this->handler->activity($reject, $follow);
+
+		$this->assertSame([[$this->alice->getId(), 'count_following', -1]], $moves);
+	}
+
+	public function testRejectNamingAFollowThatIsNotStoredChangesNothing(): void {
+		$follow = $this->ourFollowOfBob();
+		$this->stored($follow, true);
+		$other = clone $follow;
+		$other->setId(self::LOCAL_URL . '/follows/not-stored');
+		$reject = $this->incoming(Reject::TYPE, self::REMOTE_URL . '/rejects/2', $this->bob->getId(), $other);
+
+		$this->followsRequest->expects($this->never())->method('delete');
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->handler->activity($reject, $other);
 	}
 
 	public function testOtherActivitiesLeaveTheFollowUntouched(): void {

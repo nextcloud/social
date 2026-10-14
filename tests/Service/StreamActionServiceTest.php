@@ -13,6 +13,7 @@ use OCA\Social\Db\StreamActionsRequest;
 use OCA\Social\Exceptions\StreamActionDoesNotExistException;
 use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\StreamActionService;
+use OCA\Social\Tools\Nid;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -117,5 +118,66 @@ class StreamActionServiceTest extends TestCase {
 		$this->streamActionsRequest->expects($this->once())->method('save');
 
 		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, true);
+	}
+
+	// when a mark was set
+
+	public function testLikingAPostDatesTheLike(): void {
+		$this->streamActionsRequest->method('getAction')
+			->willThrowException(new StreamActionDoesNotExistException());
+		$saved = null;
+		$this->streamActionsRequest->expects($this->once())->method('save')
+			->willReturnCallback(function (StreamAction $action) use (&$saved): void {
+				$saved = $action;
+			});
+
+		$before = Nid::now();
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, true);
+
+		$this->assertTrue($saved->getValueBool(StreamAction::LIKED));
+		// the millisecond, ahead of the random suffix
+		$this->assertGreaterThanOrEqual(substr($before, 0, 13), substr($saved->getValue(StreamAction::LIKED_NID), 0, 13), 'dated now');
+		$this->assertSame([StreamAction::LIKED_NID, StreamAction::LIKED], $saved->getAffected(), 'the date is written with the flag');
+		$this->assertFalse($saved->hasValue(StreamAction::BOOKMARKED_NID), 'the bookmark is not touched');
+	}
+
+	public function testUnlikingClearsTheDate(): void {
+		$existing = new StreamAction(self::ACTOR, self::STREAM);
+		$existing->importFromDatabase(['liked' => '1', 'liked_nid' => '1760000000000123456']);
+		$this->streamActionsRequest->method('getAction')->willReturn($existing);
+		$this->streamActionsRequest->expects($this->once())->method('save');
+
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, false);
+
+		$this->assertSame('0', $existing->getValue(StreamAction::LIKED_NID));
+		$this->assertContains(StreamAction::LIKED_NID, $existing->getAffected());
+	}
+
+	public function testLikingAPostAgainKeepsItsPlaceInTheList(): void {
+		$existing = new StreamAction(self::ACTOR, self::STREAM);
+		$existing->importFromDatabase(['liked' => '1', 'liked_nid' => '1760000000000123456']);
+		$this->streamActionsRequest->method('getAction')->willReturn($existing);
+		$this->streamActionsRequest->expects($this->once())->method('save');
+
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::LIKED, true);
+
+		$this->assertSame('1760000000000123456', $existing->getValue(StreamAction::LIKED_NID));
+		$this->assertNotContains(StreamAction::LIKED_NID, $existing->getAffected());
+	}
+
+	public function testABookmarkIsDatedLikeALikeAndABoostIsNot(): void {
+		$this->streamActionsRequest->method('getAction')
+			->willThrowException(new StreamActionDoesNotExistException());
+		$saved = [];
+		$this->streamActionsRequest->expects($this->exactly(2))->method('save')
+			->willReturnCallback(function (StreamAction $action) use (&$saved): void {
+				$saved[] = $action;
+			});
+
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::BOOKMARKED, true);
+		$this->service->setActionBool(self::ACTOR, self::STREAM, StreamAction::BOOSTED, true);
+
+		$this->assertSame(19, strlen($saved[0]->getValue(StreamAction::BOOKMARKED_NID)));
+		$this->assertSame([StreamAction::BOOSTED], $saved[1]->getAffected());
 	}
 }

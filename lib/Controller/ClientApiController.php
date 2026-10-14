@@ -100,7 +100,8 @@ abstract class ClientApiController extends Controller {
 			]);
 
 			if ($required) {
-				throw new ClientNotFoundException('the access_token was revoked');
+				throw ($e instanceof ClientNotFoundException && $e->getMessage() === MastodonApiController::APP_TOKEN_NAMES_NOBODY)
+					? $e : new ClientNotFoundException('the access_token was revoked');
 			}
 		}
 	}
@@ -146,6 +147,12 @@ abstract class ClientApiController extends Controller {
 		if ($this->bearer !== '') {
 			$this->client = $this->clientService->getFromToken($this->bearer);
 			$this->checkTokenScope($scopes);
+
+			if ($this->client->getAuthUserId() === '') {
+				// an app token (the `client_credentials` grant): good for
+				// what anybody may read, and for nothing that is somebody's
+				throw new ClientNotFoundException(MastodonApiController::APP_TOKEN_NAMES_NOBODY);
+			}
 
 			return $this->client->getAuthUserId();
 		}

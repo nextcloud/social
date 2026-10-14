@@ -355,8 +355,10 @@ class InteropRegressionTest extends TestCase {
 		/** @var ACore|null $saved */
 		$saved = null;
 		$actions->expects($this->once())->method('save')
-			->willReturnCallback(function (ACore $pin) use (&$saved): void {
+			->willReturnCallback(function (ACore $pin) use (&$saved): bool {
 				$saved = $pin;
+
+				return true;
 			});
 
 		(new AddInterface($this->featured($actions)))->processIncomingRequest($add);

@@ -659,17 +659,22 @@ class OAuthController extends Controller {
 		try {
 			[$client_id, $client_secret] = $this->clientCredentials($client_id, $client_secret);
 			$client = $this->clientService->getFromClientId($client_id);
+			// no redirect_uri on the client_credentials grant (RFC 6749 §4.4.2)
 			$this->clientService->confirmData(
 				$client,
-				[
-					'client_secret' => $client_secret,
-					'redirect_uri' => $redirect_uri,
-				]
+				($grant_type === 'client_credentials')
+					? ['client_secret' => $client_secret]
+					: ['client_secret' => $client_secret, 'redirect_uri' => $redirect_uri]
 			);
 
+			// the error bodies carry RFC 6749 §5.2's names, which is what a
+			// client matches on, and say in words what was wrong
 			if ($grant_type === 'authorization_code') {
 				if ($code === '') {
-					return new DataResponse(['error' => 'missing code'], Http::STATUS_BAD_REQUEST);
+					return new DataResponse(
+						['error' => 'invalid_request', 'error_description' => 'missing code'],
+						Http::STATUS_BAD_REQUEST
+					);
 				}
 
 				// the code names the authorization, so what comes back is the
@@ -677,17 +682,16 @@ class OAuthController extends Controller {
 				// last held -- and only against the redirect_uri it was sent to
 				$client = $this->clientService->exchangeCode($client, $code, $code_verifier, $redirect_uri);
 			} elseif ($grant_type === 'client_credentials') {
-				// There is no app-only identity here for such a token to act
-				// as; every route this API has reads or writes somebody's
-				// account. Named here rather than falling through to the
-				// unknown-grant answer because the discovery document used to
-				// advertise it and clients still ask.
-				return new DataResponse(
-					['error' => 'unsupported_grant_type'], Http::STATUS_BAD_REQUEST
-				);
+				// a token for the app itself, bound to no account: what
+				// Mastodon's own apps take before anybody has signed in
+				$client = $this->clientService->issueAppToken($client);
 			} else {
 				return new DataResponse(
-					['error' => 'invalid value for grant_type'], Http::STATUS_BAD_REQUEST
+					[
+						'error' => 'unsupported_grant_type',
+						'error_description' => 'grant_type must be authorization_code or client_credentials',
+					],
+					Http::STATUS_BAD_REQUEST
 				);
 			}
 
@@ -713,7 +717,10 @@ class OAuthController extends Controller {
 		} catch (ClientNotFoundException $e) {
 			// A wrong client id / secret / code is a credential guess; throttle it so
 			// the public token endpoint cannot be brute-forced.
-			$response = new DataResponse(['error' => 'unknown client_id'], Http::STATUS_UNAUTHORIZED);
+			$response = new DataResponse(
+				['error' => 'invalid_client', 'error_description' => 'unknown client_id'],
+				Http::STATUS_UNAUTHORIZED
+			);
 			$response->throttle(['action' => 'socialOauthToken']);
 
 			return $response;
@@ -727,11 +734,19 @@ class OAuthController extends Controller {
 			$response->throttle(['action' => 'socialOauthToken']);
 
 			return $response;
-		} catch (Exception $e) {
+		} catch (ClientException $e) {
+			// the app's own refusals -- a wrong secret, an unknown redirect_uri,
+			// an expired code, a bad verifier -- are a credential guess too
 			$response = new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNAUTHORIZED);
 			$response->throttle(['action' => 'socialOauthToken']);
 
 			return $response;
+		} catch (Exception $e) {
+			// anything else is this server's failure, and its message is for
+			// the log rather than for an anonymous caller
+			$this->logger->error('OAuth token exchange failed', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'server_error'], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -843,11 +858,7 @@ class OAuthController extends Controller {
 			'app_registration_endpoint' => $base . '/api/v1/apps',
 			'scopes_supported' => self::SCOPES,
 			'response_types_supported' => ['code'],
-			// `client_credentials` is not among them: there is no app-only
-			// identity here for such a token to act as, and the endpoint
-			// answers `unsupported_grant_type`. Advertising it had clients ask
-			// for one and fail
-			'grant_types_supported' => ['authorization_code'],
+			'grant_types_supported' => ['authorization_code', 'client_credentials'],
 			'token_endpoint_auth_methods_supported' => ['client_secret_post', 'client_secret_basic'],
 			'code_challenge_methods_supported' => ClientService::CODE_CHALLENGE_METHODS,
 			'service_documentation' => self::REPOSITORY,
@@ -865,7 +876,7 @@ class OAuthController extends Controller {
 			$atproto = $this->atprotoOAuth->metadata();
 			$metadata = array_merge($metadata, $atproto, [
 				'scopes_supported' => array_values(array_unique(array_merge(self::SCOPES, AuthorizationServer::SCOPES_LISTED))),
-				'grant_types_supported' => ['authorization_code', 'refresh_token'],
+				'grant_types_supported' => ['authorization_code', 'client_credentials', 'refresh_token'],
 				'token_endpoint_auth_methods_supported' => ['client_secret_post', 'client_secret_basic', 'none', 'private_key_jwt'],
 			]);
 		}

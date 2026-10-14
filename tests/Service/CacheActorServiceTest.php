@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\ActorMapper;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -25,10 +26,13 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\ProfileLinkVerifier;
+use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\ICacheFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -352,22 +356,147 @@ class CacheActorServiceTest extends TestCase {
 		$this->service->getFromId(self::BOB);
 	}
 
+	private const ADMIN = 'https://remote.example/users/admin';
+
+	/** The actor of `$id` as fetched, the `Person` for each document given by its `id`. */
+	private function parsing(array $documents): void {
+		$this->ap->method('getItemFromData')->willReturnCallback(
+			function (array $data) use ($documents): Person {
+				foreach ($documents as $document) {
+					if ($document['id'] === ($data['id'] ?? null) && ($document['publicKey'] ?? null) === ($data['publicKey'] ?? null)) {
+						return $this->person($document['id'], (string)($document['preferredUsername'] ?? 'bob'))
+							->setPublicKey((string)($document['publicKey']['publicKeyPem'] ?? ''));
+					}
+				}
+				$this->fail('parsed a document nothing was expected to serve: ' . json_encode($data));
+			}
+		);
+	}
+
 	/**
 	 * The row is keyed by the actor's own id, so a document answering with a
-	 * stranger's id rewrites the stranger's row — public key included. Matching
-	 * hosts was not enough: any URL on a host that serves JSON somebody else
-	 * wrote (on a Nextcloud, a public share) could claim that host's admin
-	 * account, and an inbox POST naming such a URL as its `keyId` is what makes
-	 * this instance go and fetch it.
+	 * stranger's id must not rewrite the stranger's row — public key included.
+	 * Matching hosts alone was not enough: any URL on a host that serves JSON
+	 * somebody else wrote could claim that host's admin account, and an inbox
+	 * POST naming such a URL as its `keyId` is what makes this instance go and
+	 * fetch it. The row is written from the admin's own document, fetched at
+	 * the id it is keyed by, and nothing of what the other URL served.
 	 */
-	public function testGetFromIdRejectsAnActorClaimingAnotherIdOnTheSameHost(): void {
+	public function testAUrlClaimingAnotherIdOnTheSameHostDoesNotWriteThatActorsRow(): void {
 		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
-		$this->curlService->method('retrieveObject')->willReturn(self::ACTIVITY_JSON);
-		$this->ap->method('getItemFromData')->willReturn($this->person('https://remote.example/users/admin'));
+		$claiming = ['id' => self::ADMIN, 'type' => 'Person', 'preferredUsername' => 'admin',
+			'publicKey' => ['id' => self::ADMIN . '#main-key', 'owner' => self::ADMIN, 'publicKeyPem' => 'STRANGER']] + self::ACTIVITY_JSON;
+		$admin = ['id' => self::ADMIN, 'type' => 'Person', 'preferredUsername' => 'admin',
+			'publicKey' => ['id' => self::ADMIN . '#main-key', 'owner' => self::ADMIN, 'publicKeyPem' => 'ADMIN']] + self::ACTIVITY_JSON;
+		$this->serving([self::BOB => $claiming, self::ADMIN => $admin]);
+		$this->parsing([$claiming, $admin]);
+		$this->personInterface->expects($this->once())->method('save')
+			->with($this->callback(static fn (Person $saved): bool => $saved->getPublicKey() === 'ADMIN'));
+
+		$actor = $this->service->getFromId(self::BOB);
+
+		$this->assertSame(self::ADMIN, $actor->getId());
+		$this->assertSame('ADMIN', $actor->getPublicKey());
+	}
+
+	/**
+	 * Mastodon 4.5's actor document, as `/users/landing` answers: its `id` is
+	 * the numeric `/ap/users/<id>` (the inbox, the key and the collections
+	 * under it), `url` the profile page, and nothing in it names the URL it
+	 * was fetched from.
+	 */
+	private const MASTODON_45_URL = 'https://mastodon.test/users/landing';
+	private const MASTODON_45_ID = 'https://mastodon.test/ap/users/117432973192526785';
+	private const MASTODON_45_ACTOR = [
+		'@context' => ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1'],
+		'id' => self::MASTODON_45_ID,
+		'type' => 'Person',
+		'following' => self::MASTODON_45_ID . '/following',
+		'followers' => self::MASTODON_45_ID . '/followers',
+		'inbox' => self::MASTODON_45_ID . '/inbox',
+		'outbox' => self::MASTODON_45_ID . '/outbox',
+		'featured' => self::MASTODON_45_ID . '/collections/featured',
+		'preferredUsername' => 'landing',
+		'name' => 'Landing',
+		'url' => 'https://mastodon.test/@landing',
+		'alsoKnownAs' => ['https://nextcloud.test/index.php/apps/social/@mover'],
+		'publicKey' => ['id' => self::MASTODON_45_ID . '#main-key', 'owner' => self::MASTODON_45_ID, 'publicKeyPem' => 'PEM'],
+		'endpoints' => ['sharedInbox' => 'https://mastodon.test/inbox'],
+		'_host' => 'mastodon.test', '_contentType' => 'application/activity+json; charset=utf-8',
+	];
+
+	/** @return DurableCache one backed by memory, as an instance without a memcache keeps it */
+	private function durableCache(): DurableCache {
+		$cacheFactory = $this->createStub(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$clock = $this->createStub(ITimeFactory::class);
+		$clock->method('getTime')->willReturn(self::NOW);
+
+		return new DurableCache($cacheFactory, new InMemoryDurableCacheRequest(), $clock);
+	}
+
+	/**
+	 * A URL of the host that serves the actor under another id of the host
+	 * is taken from that id: the actor is stored under it, and the URL is
+	 * remembered as another address of it.
+	 */
+	public function testAnActorServedUnderAnotherIdOfItsHostIsTakenFromThatId(): void {
+		$aliases = $this->durableCache();
+		$this->service = new CacheActorService(
+			$this->actorsRequest, $this->cacheActorsRequest, $this->curlService, $this->configService, new NullLogger(),
+			durableCache: $aliases,
+		);
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->serving([self::MASTODON_45_URL => self::MASTODON_45_ACTOR, self::MASTODON_45_ID => self::MASTODON_45_ACTOR]);
+		$this->parsing([self::MASTODON_45_ACTOR]);
+		$this->personInterface->expects($this->once())->method('save')
+			->with($this->callback(static fn (Person $saved): bool => $saved->getId() === self::MASTODON_45_ID));
+
+		$actor = $this->service->getFromId(self::MASTODON_45_URL);
+
+		$this->assertSame(self::MASTODON_45_ID, $actor->getId());
+		$this->assertSame('landing@mastodon.test', $actor->getAccount());
+		$this->assertSame(self::MASTODON_45_ID, $aliases->get(CacheActorService::ALIAS_NAMESPACE, self::MASTODON_45_URL));
+	}
+
+	/** Once remembered, a lookup by the other address reads the row and fetches nothing. */
+	public function testALookupByARememberedAddressReadsTheCachedActor(): void {
+		$aliases = $this->durableCache();
+		$aliases->set(CacheActorService::ALIAS_NAMESPACE, self::MASTODON_45_URL, self::MASTODON_45_ID, CacheActorService::ALIAS_TTL);
+		$this->service = new CacheActorService(
+			$this->actorsRequest, $this->cacheActorsRequest, $this->curlService, $this->configService, new NullLogger(),
+			durableCache: $aliases,
+		);
+		$landing = $this->person(self::MASTODON_45_ID, 'landing');
+		$this->cacheActorsRequest->method('getFromId')->willReturnCallback(
+			static function (string $id) use ($landing): Person {
+				if ($id === self::MASTODON_45_ID) {
+					return $landing;
+				}
+				throw new CacheActorDoesNotExistException();
+			}
+		);
+		$this->curlService->expects($this->never())->method('retrieveObject');
+
+		$this->assertSame($landing, $this->service->getFromId(self::MASTODON_45_URL));
+	}
+
+	/** The id a document claims has to answer with that id, served as ActivityPub. */
+	#[DataProvider('idsNotServedAsClaimed')]
+	public function testAnIdOfTheHostNotServedAsClaimedIsRefused(array $servedAtTheId): void {
+		$this->cacheActorsRequest->method('getFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$this->serving([self::MASTODON_45_URL => self::MASTODON_45_ACTOR, self::MASTODON_45_ID => $servedAtTheId]);
+		$this->parsing([self::MASTODON_45_ACTOR, $servedAtTheId]);
 		$this->personInterface->expects($this->never())->method('save');
 
 		$this->expectException(InvalidOriginException::class);
-		$this->service->getFromId(self::BOB);
+		$this->service->getFromId(self::MASTODON_45_URL);
+	}
+
+	/** @return iterable<string, array{array<string, mixed>}> */
+	public static function idsNotServedAsClaimed(): iterable {
+		yield 'another id again' => [['id' => 'https://mastodon.test/ap/users/1', 'type' => 'Person', 'preferredUsername' => 'landing'] + self::ACTIVITY_JSON];
+		yield 'not as ActivityPub' => [['_contentType' => 'application/json'] + self::MASTODON_45_ACTOR];
 	}
 
 	/** An actor is only an actor when its host serves it as ActivityPub. */
@@ -514,7 +643,11 @@ class CacheActorServiceTest extends TestCase {
 	public function testDelegatingLookups(): void {
 		$bob = $this->person(self::BOB);
 		$options = new ProbeOptions();
-		$this->cacheActorsRequest->expects($this->once())->method('searchAccounts')->with('bo')->willReturn([$bob]);
+		// a Bluesky account its labels limit, or one Bluesky switched off, is
+		// kept here and not offered
+		$limited = $this->person('https://bsky.app/profile/did:plc:off', 'off.bsky.social');
+		$limited->setDetailArray(ActorMapper::DETAIL, ['limited' => true, 'status' => 'deactivated']);
+		$this->cacheActorsRequest->expects($this->once())->method('searchAccounts')->with('bo')->willReturn([$limited, $bob]);
 		$this->cacheActorsRequest->expects($this->once())->method('getFromNids')->with([1, 2])->willReturn([$bob]);
 		$this->cacheActorsRequest->expects($this->once())->method('probeActors')->with($this->identicalTo($options))->willReturn([$bob]);
 		$this->cacheActorsRequest->expects($this->once())->method('setViewer')->with($this->identicalTo($bob));

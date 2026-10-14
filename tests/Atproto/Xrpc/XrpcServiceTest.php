@@ -108,13 +108,17 @@ class XrpcServiceTest extends TestCase {
 		$this->assertTrue($answer['inviteCodeRequired'], 'nobody registers here');
 	}
 
-	public function testGetRepoIsTheCar(): void {
-		$this->repositories->method('exportCar')->with(self::DID)->willReturn('CAR');
+	public function testGetRepoIsTheCarInPieces(): void {
+		$this->repositories->method('streamCar')->with(self::DID)->willReturnCallback(static function (): \Generator {
+			yield 'CA';
+			yield 'R';
+		});
 		$answer = $this->xrpc->query('com.atproto.sync.getRepo', ['did' => self::DID]);
 
 		$this->assertInstanceOf(XrpcBytes::class, $answer);
 		$this->assertSame('application/vnd.ipld.car', $answer->contentType);
-		$this->assertSame('CAR', $answer->bytes);
+		$this->assertSame('', $answer->bytes);
+		$this->assertSame('CAR', implode('', iterator_to_array($answer->pieces ?? [], false)));
 	}
 
 	public function testAnUnknownRepoIsRepoNotFound(): void {
@@ -158,7 +162,7 @@ class XrpcServiceTest extends TestCase {
 		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', 'did:key:z', '', $state, '', 0);
 		$this->suspended = $suspended;
 		$this->repositories->method('getHead')->willReturn(new RepoHead(self::DID, 'bafy', '3kznmn7xqxl22', 3, 0, 0));
-		$this->repositories->expects($this->never())->method('exportCar');
+		$this->repositories->expects($this->never())->method('streamCar');
 		$this->repositories->expects($this->never())->method('getRecord');
 		$this->repositories->expects($this->never())->method('listRecords');
 		$this->blobRequest->expects($this->never())->method('get');

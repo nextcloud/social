@@ -944,9 +944,13 @@ export default {
 	max-width: 1120px;
 	margin-inline: auto;
 	padding-inline: calc(var(--default-grid-baseline) * 4);
-	// Nextcloud puts its navigation toggle over the top left corner of the
-	// settings content, where the heading would otherwise be
 	padding-block: calc(var(--default-grid-baseline) * 6);
+	// Nextcloud puts its navigation toggle over the top left corner of the
+	// settings content, where the heading would otherwise be. The same
+	// offset as the app's Settings page: opening a group scrolls this
+	// element to the top of the column, and the margin the settings
+	// frame gives it goes with the scroll
+	padding-block-start: calc(var(--default-grid-baseline) * 12);
 
 	&__header {
 		display: flex;

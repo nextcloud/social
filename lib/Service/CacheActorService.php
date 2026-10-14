@@ -78,6 +78,10 @@ class CacheActorService {
 	/** The most actors `$memo` holds; far more than one page of posts names. */
 	public const MEMO_LIMIT = 500;
 
+	/** The `DurableCache` namespace of URLs that serve an actor under another id of their host. */
+	public const ALIAS_NAMESPACE = 'social.actoralias';
+	public const ALIAS_TTL = 2592000; // 30 days
+
 	use TArrayTools;
 
 	public function __construct(
@@ -91,6 +95,7 @@ class CacheActorService {
 		private ?BlueskyActorService $blueskyActors = null,
 		private ?AtprotoIdentityRequest $atprotoIdentities = null,
 		private ?AtprotoConfig $atprotoConfig = null,
+		private ?DurableCache $durableCache = null,
 	) {
 	}
 
@@ -157,7 +162,7 @@ class CacheActorService {
 				throw new CacheActorDoesNotExistException();
 			}
 
-			$actor = $this->cacheActorsRequest->getFromId($id);
+			$actor = $this->cached($id);
 		} catch (CacheActorDoesNotExistException $e) {
 			try {
 				$object = $this->curlService->retrieveObject($id);
@@ -178,7 +183,7 @@ class CacheActorService {
 				throw new InvalidResourceException();
 			}
 
-			$this->assertIsTheActorOf($id, $actor, $this->get('_contentType', $object));
+			$actor = $this->theActorOf($id, $actor, $this->get('_contentType', $object));
 
 			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
 			try {
@@ -319,37 +324,84 @@ class CacheActorService {
 	}
 
 	/**
-	 * Holds a fetched document to being the actor of the URL it came from.
+	 * The cached copy of an actor: by its id, or by a URL remembered as
+	 * another address of it (see `theActorOf()`).
+	 *
+	 * @throws CacheActorDoesNotExistException
+	 */
+	private function cached(string $id): Person {
+		try {
+			return $this->cacheActorsRequest->getFromId($id);
+		} catch (CacheActorDoesNotExistException $e) {
+			$actorId = $this->durableCache?->get(self::ALIAS_NAMESPACE, $id);
+			if (!is_string($actorId) || $actorId === '') {
+				throw $e;
+			}
+
+			return $this->cacheActorsRequest->getFromId($actorId);
+		}
+	}
+
+	/**
+	 * The actor a document fetched from `$id` stands for, or a refusal.
 	 *
 	 * The cached row is keyed by the actor's own `id`, so a document that
-	 * answers with somebody else's id rewrites somebody else's row — public
-	 * key included, which is the key `SignatureService` then verifies that
-	 * account's requests with. Matching only the host was enough for any URL
-	 * on a host that serves JSON somebody else wrote (on a Nextcloud, a public
-	 * share) to claim that host's admin account, and an inbox POST naming such
-	 * a URL as its `keyId` is enough to make this instance go and fetch it.
+	 * answers with somebody else's id would rewrite somebody else's row —
+	 * public key included, which is the key `SignatureService` then verifies
+	 * that account's requests with. Two things are therefore required, the
+	 * same two `CurlService::retrieveAccount()` and `StreamQueueService`
+	 * require: the document has to be served as ActivityPub, and the row has
+	 * to be written from a document served at the id it is keyed by.
 	 *
-	 * Two things are therefore required, the same two `CurlService::retrieveAccount()`
-	 * and `StreamQueueService` require: the document has to be served as
-	 * ActivityPub, and it has to be the actor that was asked for. An actor
-	 * served at some other URL of its host is no longer taken as the actor of
-	 * this one — it is exactly what a document claiming a stranger's id looks
-	 * like from here.
+	 * A document whose `id` is another URL of the same host is not that
+	 * document: Mastodon 4.5 answers `/users/<name>` with the actor whose id
+	 * is `/ap/users/<number>`. The actor is fetched from the id it claims and
+	 * has to answer with that id, served as ActivityPub; what came from the
+	 * other URL is dropped, and that URL is remembered as another address of
+	 * the actor, so the next lookup by it reads the row. An id on another
+	 * host is what a document claiming a stranger's id looks like from here,
+	 * and is refused.
 	 *
 	 * @throws InvalidOriginException
+	 * @throws InvalidResourceException the claimed id serves no actor
+	 * @throws Exception anything the fetch raises
 	 */
-	private function assertIsTheActorOf(string $id, Person $actor, string $contentType): void {
+	private function theActorOf(string $id, Person $actor, string $contentType): Person {
 		if (!CurlService::isActivityPubMediaType($contentType)) {
 			throw new InvalidOriginException(
 				'CacheActorService::getFromId - id: ' . $id . ' - contentType: ' . $contentType
 			);
 		}
 
-		if (strtolower($actor->getId()) !== strtolower($id)) {
+		$actorId = $actor->getId();
+		if (strtolower($actorId) === strtolower($id)) {
+			return $actor;
+		}
+
+		$host = strtolower((string)parse_url($id, PHP_URL_HOST));
+		if ($host === '' || strtolower((string)parse_url($actorId, PHP_URL_HOST)) !== $host) {
 			throw new InvalidOriginException(
-				'CacheActorService::getFromId - id: ' . $id . ' - actorId: ' . $actor->getId()
+				'CacheActorService::getFromId - id: ' . $id . ' - actorId: ' . $actorId
 			);
 		}
+
+		$object = $this->curlService->retrieveObject($actorId);
+		/** @var Person $served */
+		$served = AP::instance()->getItemFromData($object);
+		if (!AP::instance()->isActor($served)) {
+			throw new InvalidResourceException();
+		}
+		if (!CurlService::isActivityPubMediaType($this->get('_contentType', $object))
+			|| strtolower($served->getId()) !== strtolower($actorId)) {
+			throw new InvalidOriginException(
+				'CacheActorService::getFromId - id: ' . $id . ' - actorId: ' . $actorId
+				. ' - serves: ' . $served->getId()
+			);
+		}
+
+		$this->durableCache?->set(self::ALIAS_NAMESPACE, $id, $actorId, self::ALIAS_TTL);
+
+		return $served;
 	}
 
 	/**
@@ -561,7 +613,12 @@ class CacheActorService {
 	 * @return Person[]
 	 */
 	public function searchCachedAccounts(string $search, ?int $limit = null, string $followedBy = ''): array {
-		return $this->cacheActorsRequest->searchAccounts($search, $limit, $followedBy);
+		// a Bluesky account its labels limit, or one Bluesky switched off,
+		// is kept and not offered
+		return array_values(array_filter(
+			$this->cacheActorsRequest->searchAccounts($search, $limit, $followedBy),
+			static fn (Person $actor): bool => !BlueskyActorService::isLimited($actor)
+		));
 	}
 
 	/**

@@ -113,6 +113,7 @@ class VendoredFilesTest extends TestCase {
 		'com.atproto.repo.listRecords.json' => 'd862390bf7b25d7f41b113570380320ce96ada19a529b4f50d88f509a7b20b5c',
 		'com.atproto.server.describeServer.json' => 'bfe9afbd9bd7b6e758720a3744470c94fc2bb7d611d6b46b39abccf5ad1eff88',
 		'com.atproto.sync.getBlob.json' => 'aaed9c4f39fe76a0eec90afd8635e5e2a655575e85f752cb6d8ae50be4057421',
+		'com.atproto.sync.getBlocks.json' => '7186125e93d5342bfafe5d8086811e9b14e9f119d750222a02f2d03b292f8fee',
 		'com.atproto.sync.getLatestCommit.json' => '698b4028ce312d629948ea6efe7eebe1e543fc7d3d289ee5a7966825d1f5856c',
 		'com.atproto.sync.getRecord.json' => '1d5a50caf428c87b87922e0adf021956c719af589cb89c7a3dc513875df13cdb',
 		'com.atproto.sync.getRepo.json' => 'c16b1b22bef031f0456d90cd4b4f648bc12ea1b3b9918eeb53177362875ee5fa',

@@ -173,7 +173,7 @@ class PostStoreTest extends TestCase {
 			'creator' => ['did' => self::DID, 'handle' => 'alice.bsky.social'], 'displayName' => 'Cats', 'description' => 'Only cats', 'avatar' => 'https://cdn.bsky.app/img/avatar/plain/cats@jpeg', 'indexedAt' => '2026-10-08T10:00:00.000Z',
 		]];
 		$this->cards->expects($this->once())->method('save')->willReturnCallback(function (StreamCard $card): void {
-			$this->assertSame(['https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22', 'https://bsky.app/profile/alice.bsky.social/feed/cats', 'Cats', 'Only cats', 'https://cdn.bsky.app/img/avatar/plain/cats@jpeg', 'Bluesky feed by @alice.bsky.social'],
+			$this->assertSame(['https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22', 'https://bsky.app/profile/alice.bsky.social/feed/cats', 'Cats', 'Only cats', 'https://cdn.bsky.app/img/avatar/plain/cats@jpeg', 'Feed by @alice.bsky.social'],
 				[$card->getStreamId(), $card->getUrl(), $card->getTitle(), $card->getDescription(), $card->getImage(), $card->getProviderName()]);
 		});
 

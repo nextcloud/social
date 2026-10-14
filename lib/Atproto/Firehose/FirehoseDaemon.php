@@ -29,13 +29,24 @@ use Psr\Log\LoggerInterface;
  * Polling, every POLL_IDLE seconds when nothing happened and at once after
  * something did: one code path, no shared memory, and a restart loses
  * nothing because the table is the stream.
+ *
+ * A row's sequence number is taken when it is inserted and seen when its
+ * transaction commits, so a lower number can turn up after a higher one
+ * is already there. The stream never moves past a number that is not
+ * there until GAP_GRACE seconds have passed without it; a gap that stays
+ * is a write that rolled back, and the stream goes on without it.
  */
 class FirehoseDaemon {
 	public const DEFAULT_BIND = '127.0.0.1:8787';
+	/** seconds a missing sequence number is waited for before the stream moves past it */
+	public const GAP_GRACE = 2;
 	private const POLL_IDLE = 0.25;
 	private const BATCH = 200;
 
 	private bool $stopping = false;
+	/** the first sequence number of the gap being waited on, 0 when none */
+	private int $missing = 0;
+	private int $missingSince = 0;
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -73,7 +84,7 @@ class FirehoseDaemon {
 
 			$latest = $this->events->latestSeq();
 			if ($latest > $head) {
-				$head = $this->broadcast($server, $head, $latest);
+				$head = $this->broadcast($server, $head, $now);
 			}
 			if ($now % 15 === 0) {
 				$this->report($head, count($server->subscribers()), $started);
@@ -133,19 +144,23 @@ class FirehoseDaemon {
 	}
 
 	/**
-	 * New frames to every subscriber.
+	 * New frames to every subscriber, in order, stopping short of a gap
+	 * that is still being waited on.
 	 *
 	 * @return int the new head
 	 */
-	private function broadcast(WebSocketServer $server, int $head, int $latest): int {
+	private function broadcast(WebSocketServer $server, int $head, int $now): int {
 		$events = $this->events->after($head, self::BATCH);
 		foreach ($events as $event) {
+			if ($event->seq > $head + 1 && !$this->gapMayBePassed($head + 1, $event->seq - 1, $now)) {
+				break;
+			}
 			foreach ($server->subscribers() as $subscriber) {
-				if ($subscriber->sent < $event->seq - 1) {
+				if ($subscriber->sent < $head) {
 					// fell behind: a replay takes it to here
-					$this->catchUp($server, $subscriber, $event->seq - 1);
+					$this->catchUp($server, $subscriber, $head);
 				}
-				if ($subscriber->sent === $event->seq - 1) {
+				if ($subscriber->sent < $event->seq) {
 					$server->send($subscriber, $event->frame());
 					$subscriber->sent = $event->seq;
 				}
@@ -154,6 +169,27 @@ class FirehoseDaemon {
 		}
 
 		return $head;
+	}
+
+	/**
+	 * Whether the stream may move past the sequence numbers $from to $to,
+	 * which are not there: not before GAP_GRACE seconds have passed since
+	 * the gap was first seen.
+	 */
+	private function gapMayBePassed(int $from, int $to, int $now): bool {
+		if ($this->missing !== $from) {
+			$this->missing = $from;
+			$this->missingSince = $now;
+
+			return false;
+		}
+		if ($now - $this->missingSince < self::GAP_GRACE) {
+			return false;
+		}
+		$this->logger->info('Firehose moves past seq ' . ($to > $from ? $from . '-' . $to : (string)$from) . ', not written within ' . self::GAP_GRACE . ' s of the next');
+		$this->missing = 0;
+
+		return true;
 	}
 
 	/**

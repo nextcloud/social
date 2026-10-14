@@ -52,7 +52,9 @@ See [*the delivery job has not run*](#the-delivery-job-has-not-run).
 **Outbound HTTP.** The server must be able to reach the rest of the fediverse
 over HTTPS. Requests to local and private addresses are refused unless
 Nextcloud's `allow_local_remote_servers` is on, which is a development setting
-and not one to carry into production.
+and not one to carry into production. A host is resolved once, every address
+it answers with is checked, and the request — and each redirect it follows —
+is sent to exactly those addresses.
 
 ---
 
@@ -439,7 +441,8 @@ checks, and the card refuses to switch Bluesky on while one fails:
   Apache needs `mod_proxy_wstunnel` for the first of them; nginx the
   `Upgrade`/`Connection` headers the shipped block sets.
 - **The firehose daemon.** `occ social:atproto:serve` is a long-running process
-  that serves the event stream relays subscribe to. Under systemd:
+  that serves the event stream relays subscribe to. It holds at most 256
+  connections, 8 from one address, and answers 503 past that. Under systemd:
 
   ```
   [Unit]
@@ -496,7 +499,10 @@ checks, and the card refuses to switch Bluesky on while one fails:
 Then `php occ social:atproto:identities` gives every existing account its
 identity (new accounts, and any account the command missed, get one on their
 first public post), and `php occ social:atproto:crawl` tells the relays to
-subscribe. From then on every public post of every account goes to Bluesky as
+subscribe. An identity is `pending` until the PLC directory has taken it —
+at once when the directory answers, else when the maintenance job gets the
+operation through; nothing goes to Bluesky for it before, and the posts
+written meanwhile follow within a day of the directory taking it. From then on every public post of every account goes to Bluesky as
 it is made, edits within five minutes replace the Bluesky copy and later ones
 leave it standing with its link to the current post here, and a deleted post is
 deleted there. Direct, followers-only and unlisted posts never leave. The other
@@ -549,7 +555,12 @@ account's daily limit — goes out as a link to the post here. Set
 service keys are stored sealed with the instance secret, like actor keys. They
 are the identities: a DID whose keys are lost can no longer be updated, and the
 person's recovery phrase (Settings → Apps and account → Bluesky) is their own way back. Back
-up the database *and* `config.php`'s `secret` together. After a restore from an
+up the database *and* `config.php`'s `secret` together. If the secret changes,
+no key opens any more and nothing can be signed; the Bluesky card and the
+setup check then say how many keys cannot be opened, and
+`OC_OLD_SECRET=<previous secret> php occ social:atproto:keys:reseal
+--old-secret-from-env` seals every key again under the new secret while the
+old one is still known. Without the old secret, the keys are lost. After a restore from an
 older backup the firehose sequence goes backwards; run `php occ
 social:atproto:crawl` and the relays re-read every repository.
 `php occ social:atproto:rotate-key` replaces the instance rotation key; the old
@@ -978,6 +989,13 @@ the moderation routes accept.
 | `polls_swept` | `0` | How far the closed-poll sweep has got, as a timestamp. |
 | `stream_author_hosts_filled` | `0` | Set to `1` by `Cron\StreamAuthorHosts` once every post carries the host of its author in `social_stream.author_host`. Until then the domain-block and silenced-instance filters also match a post by its actor id, which is slower. Bookkeeping, not a setting. |
 | `story_secret` | *(generated)* | The secret a 24-hour short's fetch capability (the bearcap Pixelfed fetches it with) is derived from, made the first time one is published. Changing it invalidates every outstanding capability at once, which is the only revocation it needs: a 24-hour short lives a day. Never set this by hand. |
+| `cache_cron_start` | `0` | Which of `Cron\Cache`'s steps the next pass begins with. Written by the job when it runs out of its five-minute budget, so the steps at the end of its list are not the ones that never run on a busy instance; a pass that finishes starts from the top again. Bookkeeping, not a setting. |
+| `client_api_root` | *(unset)* | Whether the client API answered at the domain root the last time the *Mastodon apps cannot connect* setup check probed it: `1`, `0`, or unset where nothing has asked yet. Written down rather than only cached because the OAuth discovery document is built from it, and that is a route any client may call. |
+| `client_api_scheme` | *(unset)* | Whether that probe's answer carried addresses in the scheme it was asked over: `0` once a proxy that drops the scheme has been seen (every absolute URL says `http` on an `https` site), which the same setup check reports. |
+| `dest_nid_filled` | `0` | Set to `1` by `Version1000Date20260917000001` once every recipient row carries the post's numeric id, which is what lets the home timeline use its fast page query; a flag, because asking the table for a row with a zero nid is a full scan of the largest table the app has. Bookkeeping, not a setting. |
+| `atproto_firehose_status` | *(empty)* | The firehose daemon's last report (`occ social:atproto:serve`), as JSON: whether it runs, its pid, when it started and last reported, the head sequence number and how many relays are subscribed. The Bluesky card and the setup check read it; a daemon that has not reported for a minute is shown as stopped. |
+| `atproto_delete_cursor` | `0` | Where the Bluesky deletion sweep got to: the newest post id it has checked against the AppView in its pass over the last week's Bluesky posts, 25 at a time; `0` again when it reaches the end and starts over. Bookkeeping, not a setting. |
+| `atproto_detach_cursor` | `0` | The same for the sweep over the last month's local quotes of Bluesky posts, which marks a quote the quoted author detached as revoked here too. |
 
 ### Server settings
 
@@ -1014,6 +1032,19 @@ settings page, which validates the ranges given here; every one can be set with
 | `secure_mode` | `0` | Refuse ActivityPub fetches that are not signed. Mastodon's secure mode. Turning it on makes this instance invisible to every peer that does not sign what it asks for, and to every anonymous reader; it is a decision about who to federate with, not a hardening step to apply by default. |
 | `publish_blocks` | `0` | Publish the deny list on `/api/v1/instance/domain_blocks`, the way Mastodon does, so somebody choosing a server can see who it will not talk to. Whether *this* server wants that read by anybody is a disclosure decision. |
 | `allow_self_signed` | `0` | Accept peers whose certificates do not check out. **Development only**: on a server anybody else uses, this hands every federated request to whoever can answer for the address. |
+| `stories` | `1` | Whether this instance offers Shorts — a picture or a video that is gone in a day. Off, the bar goes from the timeline and nothing new is taken; what was posted expires as it would have. Set from the Sections card. |
+| `gif_pack` | `1` | Whether the composer offers the animated emoji pack. What ships is the list, not the pictures: `Cron\GifPack` fetches the first screenful into appdata ahead of time and the rest are fetched as somebody picks them. `0` fetches nothing and leaves the picker with what `occ social:gif add` added. |
+| `section_photos` | `1` | Whether the Photos section is offered in the sidebar: the same posts read through one filter. Turning it off hides the section and stops it being offered; the posts are not touched, and turning it back on shows them again. Set from the Sections card. |
+| `section_videos` | `1` | The same for the Videos section. |
+| `group_lists` | `[]` | Which Nextcloud groups become lists for their members, as a JSON array of group ids; at most 100. Empty is no groups, which is the default: every group a person was in used to become a list, which tells everybody in a group who else is in it. A group that no longer exists is dropped when the setting is read, not written back. Set from the Sections card. |
+| `interests` | `1` | Whether For you — the feed that learns which hashtags a reader lingers on — exists on this instance at all. Off, the feed and its settings are gone and what was learned is kept for the day it is switched back on. See [For-You.md](For-You.md). |
+| `interests_default` | `1` | What a reader who never touched their own *learn from my reading* switch gets. `0` makes learning opt-in. |
+| `interests_half_life` | `30` | Days until a learned tag's score has halved. The For you card accepts 7–180; a value set with `occ` outside 1–365 is clamped when read. |
+| `interests_threshold` | `3` | The score a learned tag needs before it is listed as an interest, 0.5–20. |
+| `interests_cap` | `30` | How many interests are listed, 5–100. |
+| `interests_window` | `7` | How many days back the For you feed looks for posts, 1–30. |
+| `cache_actor_days` | `180` | Days to keep a cached remote account nobody here refers to any more — not followed, not following, no post stored, no relation pending — before `Cron\Cache` evicts it with its avatar. `0` disables the sweep. |
+| `atproto_oauth_trusted` | `[]` | The Bluesky apps an administrator vouches for, by OAuth client id, as a JSON array: the Bluesky sign-in consent page shows those apps' own name and logo, which it never takes from an app on its own word. Set from the Bluesky card. |
 
 ### Moderation and federation
 
@@ -1034,6 +1065,7 @@ settings page, which validates the ranges given here; every one can be set with
 | `review_posts` | `1` | How many posts an account must have had published before its posts stop being held. `1` is first-post review as it has always meant. An account graduates by having that many posts approved — a person having looked at it that many times, which is the only measure of trust here that is not a guess. Capped at 20. |
 | `autospam` | `1` | Hold a post that trips one of the spam rules — more than five links in a short post, or more than five mentions from an account nobody follows and that follows nobody. Nothing is ever refused by the rules, only shown to a person. |
 | `ai_tags` | *(empty)* | Hashtags that label a post as **made with AI**, comma-separated, added to the built-in list (`#ai`, `#aiart`, `#aigenerated`, `#aigeneratedart`, `#aiimage`, `#aiphoto`, `#aivideo`, `#genai`, `#generativeai`, `#madewithai`, `#midjourney`, `#stablediffusion`, `#dalle`, `#dalle3`, `#sora`, `#fluxai`, `#comfyui`). Compared without the `#` and without regard to case; a built-in tag cannot be removed. A reader who turns on **Hide posts made with AI** under Settings → Blocking is shown no post carrying one of these tags, and no post whose picture states machine-generation provenance in its metadata (IPTC `DigitalSourceType` of `trainedAlgorithmicMedia` or `compositeWithTrainedAlgorithmicMedia`, in XMP or inside a C2PA manifest — read when the picture is stored, before the metadata is stripped). **What this can and cannot do:** it recognises *labels* — a hashtag the author or their tool added, a provenance mark a generator wrote into the file — and nothing else. A generated post that carries neither is not recognised; a real photograph tagged `#ai` by its author is. There is no classifier here and there should not be one. |
+| `blocklist_sources` | `[]` | The published block lists this instance follows, as JSON: one object per source with its id, where it is fetched from, which format it is in, whether it is on, and what the last run did. Empty until an administrator turns one on under **Block lists**; `Cron\BlocklistSync` re-reads the sources that are on daily. See [following a published list](#commands-by-task). |
 
 ### External users
 
@@ -1049,6 +1081,23 @@ Set from the External users cards; these are the keys they write.
 | `external_min_age` | `16` | The age a person confirms at registration. `0` asks nothing. |
 | `external_reserved` | `[]` | Usernames nobody may register, as a JSON array, on top of the built-in ones. |
 | `external_user_invites` | `0` | Whether every user may send invitation links. |
+| `external_signup_notice` | *(empty)* | The additional registration and privacy information shown on the introduction page and beside the form, as plain text. Empty shows the translated template text. |
+| `external_signup_notice_required` | `0` | Whether registering requires ticking that the notice was read. With it on, the notice's version, the time and the text as accepted are recorded with the account (the per-account keys below). |
+
+### Per account
+
+User values under the app `social`, written by the app for one account and
+read back by it; `occ user:setting <user> social <key>` shows them. The For
+you learning switches a reader sets for themselves are listed in
+[For-You.md](For-You.md).
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `app_settings` | *(unset)* | The Pixelfed app's own switches for this account, as JSON (`updated_at` and the `common` groups), stored for `/api/v1.1/compose/settings` the way Pixelfed stores them so that a reinstalled app finds itself as it was left. Only Pixelfed's own switches are kept; the server interprets none of them. |
+| `external_signup_notice_version` | *(unset)* | The version of the signup notice an external user accepted, when `external_signup_notice_required` was on at registration. Removed with the account. |
+| `external_signup_notice_accepted` | *(unset)* | When they accepted it, as a Unix timestamp. |
+| `external_signup_notice_snapshot` | *(unset)* | The notice's text as it was when they accepted it. |
+| `handle_publish_failed` | *(unset)* | When Nextcloud last refused the account's fediverse handle on its profile, as a Unix timestamp. Publishing the handle is not tried again for a day after that, and the value is cleared once a publish succeeds. |
 
 ### System configuration
 
@@ -1199,7 +1248,10 @@ home timeline and the unread count **every thirty seconds**; with it the server
 tells the client instead and the poll drops to once every five minutes — a
 tenfold cut in the request volume, for one app install. The polls also answer
 `304` now when nothing has changed, so even without it most of them cost an
-index probe and an empty response rather than a rendered page.
+index probe and an empty response rather than a rendered page, and a tab
+nobody is looking at does not poll at all: it catches up once when it is
+returned to, and while the server keeps failing it backs off to one attempt
+in five minutes.
 
 **Run delivery workers.** `Cron\Queue` delivers twenty servers at a time and
 takes batch after batch for its 240 seconds: with peers that answer within a

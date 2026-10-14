@@ -68,6 +68,15 @@ describe('MessageContent', () => {
 		})
 	})
 
+	describe('direction', () => {
+		// an Arabic or Hebrew post in an English page was set left to right,
+		// with its sentence-final punctuation on the wrong side
+		it('lets the post set its own direction from its first strong character', () => {
+			expect(mountContent('<p>مرحبا بالعالم</p>').attributes('dir')).toBe('auto')
+			expect(mountContent('<p>Hello</p>').attributes('dir')).toBe('auto')
+		})
+	})
+
 	describe('links', () => {
 		it('opens ordinary links in a new tab without referrer or opener', () => {
 			const wrapper = mountContent('<p>see <a href="https://example.org/x" onclick="alert(1)">https://example.org/x</a></p>')

@@ -39,10 +39,10 @@ on:
         default: true
   schedule:
     # nightly, but on Wednesdays, when the weekly run below has every leg
-    - cron: '33 2 * * 0,1,2,4,5,6'
+    - cron: '33 21 * * 0,1,2,4,5,6'
     # weekly, and by hand: the install shapes and the en_XA pseudo-locale
     # (below); WEEKLY in the legs job names this one
-    - cron: '27 4 * * 3'
+    - cron: '45 21 * * 3'
 
 permissions:
   contents: read

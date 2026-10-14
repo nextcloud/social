@@ -25,13 +25,12 @@ class Akkoma extends ClientApi {
 
 	/** Whether this suite has an Akkoma to talk to at all. */
 	public static function fromEnvironment(): ?self {
-		$base = (string)getenv('AKKOMA_BASE_URL');
-		$token = (string)getenv('AKKOMA_TOKEN');
-		if ($base === '' || $token === '') {
+		$values = Environment::values('Akkoma', 'AKKOMA_BASE_URL', 'AKKOMA_TOKEN');
+		if ($values === null) {
 			return null;
 		}
 
-		return new self($base, $token);
+		return new self($values['AKKOMA_BASE_URL'], $values['AKKOMA_TOKEN']);
 	}
 
 	/** The handle of the account this client acts as, `user@host`. */

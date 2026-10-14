@@ -19,6 +19,8 @@ final class Subscriber {
 	public bool $upgraded = false;
 	public bool $handshakeDoneNow = false;
 	public bool $closed = false;
+	/** the peer's address, without the port */
+	public string $address = '';
 	/** the cursor the subscriber connected with; null for live only */
 	public ?int $cursor = null;
 	/** the last sequence number sent, so the next is the one after */

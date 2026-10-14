@@ -4,9 +4,9 @@
 -->
 <template>
 	<div class="discover">
-		<h2 class="discover__heading">
+		<h1 class="discover__heading">
 			{{ t('social', 'Discover') }}
-		</h2>
+		</h1>
 
 		<!-- the same control the timelines and a profile are switched with:
 		     four lists of one screen, chosen while reading rather than
