@@ -78,6 +78,8 @@ class MoveInServiceTest extends TestCase {
 	private Identity $current;
 	/** whether the PLC directory knows the DID */
 	private bool $known = true;
+	/** the revision of the old server's repository */
+	private string $oldRev = '';
 	/** whether the old server hands out the second blob as it is named */
 	private bool $elsewhereArrives = false;
 	/** @var array<string, string> path => bytes of the records copied here */
@@ -229,10 +231,17 @@ class MoveInServiceTest extends TestCase {
 		$this->answers['com.atproto.server.createSession'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.bsky.social', 'accessJwt' => 'access', 'refreshJwt' => 'refresh']]];
 	}
 
-	private function oldRepository(): string {
-		$records = ['app.bsky.feed.post/' . Tid::next() => DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => 'from Bluesky', 'createdAt' => '2026-01-01T00:00:00.000Z'])];
+	/**
+	 * @param list<string> $texts the posts in it
+	 */
+	private function oldRepository(array $texts = ['from Bluesky']): string {
+		$records = [];
+		foreach ($texts as $text) {
+			$records['app.bsky.feed.post/' . Tid::next()] = DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => $text, 'createdAt' => '2026-01-01T00:00:00.000Z']);
+		}
 		$tree = (new Mst(array_map(static fn (string $b): Cid => Cid::forDagCbor($b), $records)))->build();
-		$commit = Commit::sign(self::DID, $tree->root, Tid::next(), $this->oldKey);
+		$this->oldRev = Tid::next();
+		$commit = Commit::sign(self::DID, $tree->root, $this->oldRev, $this->oldKey);
 		$blocks = [$commit->cid()->toString() => $commit->toBytes()] + $tree->blocks;
 		foreach ($records as $bytes) {
 			$blocks[Cid::forDagCbor($bytes)->toString()] = $bytes;
@@ -588,6 +597,45 @@ class MoveInServiceTest extends TestCase {
 		$this->rows[1]->state = Move::RUNNING;
 		$this->expectException(MoveErrorException::class);
 		$this->moves->newCode('alice');
+	}
+
+	/** A post written on the old server while the move waited for the code comes along. */
+	public function testPostsWrittenDuringTheMoveAreCopiedBeforeTheSignature(): void {
+		$imported = [];
+		$this->repositories->method('import')->willReturnCallback(function (string $did, PrivateKey $key, array $records) use (&$imported): Cid {
+			$imported[] = count($records);
+
+			return Cid::forRaw('a commit');
+		});
+		$this->identities->method('adopt')->willReturn($this->current);
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->assertSame($this->oldRev, $this->rows[1]->progress['rev']);
+
+		$this->car = $this->oldRepository(['from Bluesky', 'written while the move waited']);
+		$this->answers['com.atproto.sync.getLatestCommit'] = [['status' => 200, 'body' => ['cid' => 'bafy', 'rev' => $this->oldRev]]];
+		$this->repositories->expects($this->once())->method('delete')->with(self::DID);
+		$this->moves->code('alice', '12345');
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame([1, 2], $imported, 'copied again, with the new post');
+		$this->assertSame($this->oldRev, $this->rows[1]->progress['rev']);
+		$methods = $this->methods();
+		$this->assertLessThan(array_search('com.atproto.identity.signPlcOperation', $methods, true), array_search('com.atproto.sync.getLatestCommit', $methods, true), 'before the signature');
+		$this->assertSame(Move::DONE, $this->rows[1]->state);
+	}
+
+	public function testAnUnchangedRepositoryIsNotCopiedAgain(): void {
+		$this->identities->method('adopt')->willReturn($this->current);
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->answers['com.atproto.sync.getLatestCommit'] = [['status' => 200, 'body' => ['cid' => 'bafy', 'rev' => $this->oldRev]]];
+		$this->repositories->expects($this->never())->method('delete');
+
+		$this->moves->code('alice', '12345');
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame(Move::DONE, $this->rows[1]->state);
 	}
 
 	/** A post here that names a picture which did not arrive. */

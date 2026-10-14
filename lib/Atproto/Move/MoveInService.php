@@ -415,6 +415,9 @@ class MoveInService {
 
 				return Move::WAITING;
 			case Move::STEP_IDENTITY:
+				if (!$this->catchUp($move)) {
+					return Move::NEEDS_DECISION;
+				}
 				$this->takeDid($move);
 				break;
 			case Move::STEP_ACTIVATE:
@@ -446,7 +449,7 @@ class MoveInService {
 			throw new MoveFailure('repo-invalid', $e->getMessage(), $e);
 		}
 		$this->repositories->import($move->did, $this->key($move), $archive['records'], $archive['rev']);
-		$move->progress = ['records' => count($archive['records'])] + $move->progress;
+		$move->progress = ['records' => count($archive['records']), 'rev' => $archive['rev']] + $move->progress;
 	}
 
 	/**
@@ -520,6 +523,36 @@ class MoveInService {
 			$cursor = count($page) === 100 ? end($page)->rkey : '';
 		} while ($cursor !== '');
 		$move->progress = ['follows' => $adopted] + $move->progress;
+	}
+
+	/**
+	 * What was posted on the old PDS since the repository was copied comes
+	 * along: when its latest commit is newer than the copy, the repository
+	 * is copied again, and the blobs new to it.
+	 *
+	 * @return bool false when blobs are missing after that, and the person decides
+	 * @throws AtprotoException
+	 */
+	private function catchUp(Move $move): bool {
+		try {
+			$latest = $this->pds->call($move->pds, 'com.atproto.sync.getLatestCommit', 'GET', ['did' => $move->did]);
+		} catch (AtprotoException $e) {
+			$this->logger->info('Latest commit of a Bluesky account moving here not read', ['did' => $move->did, 'exception' => $e]);
+
+			return true;
+		}
+		$rev = (string)($latest['body']['rev'] ?? '');
+		$copied = (string)($move->progress['rev'] ?? '');
+		if ($latest['status'] !== 200 || $rev === '' || strcmp($rev, $copied) <= 0) {
+			return true;
+		}
+		$this->logger->info('Bluesky account moving here changed since it was copied; copying it again', ['did' => $move->did, 'copied' => $copied, 'latest' => $rev]);
+		$this->repositories->delete($move->did);
+		$this->copyRepository($move);
+		$this->copyBlobs($move);
+		$this->moves->update($move);
+
+		return $this->movedBlobs->complete($move);
 	}
 
 	/**

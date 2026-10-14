@@ -1394,7 +1394,11 @@ here*):
    called off: it ends (`state` `cancelled`), its session on the old PDS is
    ended and dropped, and the copied repository and blobs are deleted;
    a background job that is still copying stops and drops what it copied.
-4. With the code the old PDS **signs the operation** (`signPlcOperation`)
+4. First, what was posted on the old PDS since the copy comes along: when
+   its `com.atproto.sync.getLatestCommit` names a newer revision than the
+   one copied, the repository is copied again, with the blobs new to it
+   (and the blob check of step 3 once more). With the code the old PDS
+   **signs the operation** (`signPlcOperation`)
    that names this PDS, the key made here, the handle below and the
    rotation keys below; this server checks it is what was asked and
    sends it to the directory. The account **takes the DID**, and the DID
