@@ -11,6 +11,7 @@ namespace OCA\Social\Atproto\Move;
 
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\IConfig;
@@ -29,10 +30,16 @@ class PdsClient {
 	public const TIMEOUT = 20;
 	/** what a repository or a blob is given, in seconds: those only move in a background job */
 	public const LONG_TIMEOUT = 600;
+	/** how many password sign-ins this server sends one PDS in a window */
+	public const SIGN_INS = 20;
+	/** that window, in seconds */
+	public const SIGN_IN_WINDOW = 600;
+	private const SIGN_IN = 'com.atproto.server.createSession';
 
 	public function __construct(
 		private CurlService $curl,
 		private IConfig $systemConfig,
+		private DurableCache $cache,
 	) {
 	}
 
@@ -62,9 +69,12 @@ class PdsClient {
 	 * @param array|null $json the JSON body of a procedure
 	 * @param resource|string|null $bytes a raw body, with its type
 	 * @return array{status: int, body: array}
-	 * @throws MoveFailure when the PDS cannot be reached
+	 * @throws MoveFailure when the PDS cannot be reached, or this server sent it too many sign-ins of late
 	 */
 	public function call(string $pds, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
+		if ($method === self::SIGN_IN) {
+			$this->countSignIn($pds);
+		}
 		$headers = ['Accept' => 'application/json'];
 		if ($token !== '') {
 			$headers['Authorization'] = 'Bearer ' . $token;
@@ -121,6 +131,20 @@ class PdsClient {
 		}
 
 		return ['status' => $answer['status'], 'bytes' => $bytes, 'type' => $type];
+	}
+
+	/**
+	 * Counts a password sign-in at a PDS, for the whole instance: a PDS
+	 * limits them per address, so the people of one server share that
+	 * limit, and one person's tries must not use it up for all.
+	 *
+	 * @throws MoveFailure `rate-limited` past `SIGN_INS` in `SIGN_IN_WINDOW`
+	 */
+	private function countSignIn(string $pds): void {
+		$host = strtolower((string)parse_url($pds, PHP_URL_HOST));
+		if ($this->cache->inc('social.atproto.pds-sign-ins', $host, self::SIGN_IN_WINDOW) > self::SIGN_INS) {
+			throw new MoveFailure('rate-limited', 'This server signed in to ' . $host . ' too often of late; try again in a few minutes');
+		}
 	}
 
 	/**

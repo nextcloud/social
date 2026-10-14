@@ -88,6 +88,19 @@ class AtprotoAccountControllerTest extends TestCase {
 		$this->assertSame(3600, $limit->getPeriod());
 	}
 
+	/**
+	 * Moving here signs in to another server with a password, and an
+	 * invitation sends a message: both are held to a few an hour.
+	 */
+	public function testMovingHereIsRateLimitedPerUser(): void {
+		foreach (['moveIn', 'moveInvite'] as $route) {
+			$attributes = (new \ReflectionMethod(AtprotoAccountController::class, $route))->getAttributes(UserRateLimit::class);
+			$this->assertCount(1, $attributes, $route);
+			$limit = $attributes[0]->newInstance();
+			$this->assertSame([5, 3600], [$limit->getLimit(), $limit->getPeriod()], $route);
+		}
+	}
+
 	/** Calling a move off asks for the password, as starting it does; a new code is a few times an hour. */
 	public function testCallingOffAndANewCodeAreGuarded(): void {
 		$cancel = new \ReflectionMethod(AtprotoAccountController::class, 'cancelMoveIn');

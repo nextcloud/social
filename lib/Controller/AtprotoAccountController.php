@@ -411,6 +411,7 @@ class AtprotoAccountController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
+	#[UserRateLimit(limit: 5, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in')]
 	public function moveIn(string $handle, string $password, string $authFactorToken = ''): DataResponse {
 		if (!$this->config->isEnabled()) {
@@ -532,6 +533,7 @@ class AtprotoAccountController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
+	#[UserRateLimit(limit: 5, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-invite')]
 	public function moveInvite(string $account): DataResponse {
 		if (!$this->config->isEnabled()) {

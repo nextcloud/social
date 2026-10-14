@@ -14,6 +14,7 @@ use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
@@ -27,7 +28,7 @@ class PdsClientTest extends TestCase {
 		$config = $this->createMock(IConfig::class);
 		$config->method('getSystemValueBool')->with('allow_local_remote_servers', false)->willReturn($local);
 
-		return new PdsClient($this->createMock(CurlService::class), $config);
+		return new PdsClient($this->createMock(CurlService::class), $config, $this->createMock(DurableCache::class));
 	}
 
 	public function testAPdsIsItsHttpsOrigin(): void {
@@ -54,7 +55,7 @@ class PdsClientTest extends TestCase {
 
 			return '{}';
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
 		$client->call('https://pds.example.com', 'com.atproto.server.deactivateAccount', 'POST', [], []);
 		$client->call('https://pds.example.com', 'com.atproto.repo.createRecord', 'POST', [], ['repo' => 'did:plc:a']);
@@ -72,7 +73,7 @@ class PdsClientTest extends TestCase {
 
 			return '{"error":"InvalidRequest","message":"no"}';
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
 		$answer = $client->call('https://pds.example.com', 'com.atproto.server.describeServer', 'GET', ['a' => 'b'], null, null, '', 'tok');
 
@@ -99,7 +100,7 @@ class PdsClientTest extends TestCase {
 
 			return '{}';
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
 		$client->call('https://pds.example.com', 'com.atproto.server.describeServer');
 		$client->call('https://pds.example.com', 'com.atproto.server.createAccount', 'POST', [], ['did' => 'did:plc:a']);
@@ -112,7 +113,7 @@ class PdsClientTest extends TestCase {
 	public function testAServerThatCannotBeReachedIsAnAtprotoException(): void {
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('doRequest')->willThrowException(new RequestNetworkException('refused'));
-		$client = new PdsClient($curl, $this->createMock(IConfig::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
 		$this->expectException(AtprotoException::class);
 		$client->call('https://pds.example.com', 'com.atproto.server.describeServer');
@@ -129,7 +130,7 @@ class PdsClientTest extends TestCase {
 			$curl = $this->createMock(CurlService::class);
 			$curl->method('doRequest')->willThrowException($failure);
 			try {
-				(new PdsClient($curl, $this->createMock(IConfig::class)))->call('https://pds.example.com', 'com.atproto.server.describeServer');
+				(new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class)))->call('https://pds.example.com', 'com.atproto.server.describeServer');
 				$this->fail('reached');
 			} catch (MoveFailure $e) {
 				$this->assertSame($slug, $e->errorCode);
@@ -157,7 +158,7 @@ class PdsClientTest extends TestCase {
 
 			return ['stream' => $stream, 'status' => 200, 'headers' => ['Content-Type' => ['application/vnd.ipld.car']]];
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
 		$this->assertSame(
 			['status' => 200, 'bytes' => 'CAR', 'type' => 'application/vnd.ipld.car'],
@@ -168,9 +169,49 @@ class PdsClientTest extends TestCase {
 	public function testARefusedByteAnswerCarriesItsStatus(): void {
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('openStream')->willThrowException(new RequestContentException('url', 404));
-		$client = new PdsClient($curl, $this->createMock(IConfig::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
 		$this->assertSame(['status' => 404, 'bytes' => '', 'type' => ''], $client->bytes('https://pds.example.com', 'com.atproto.sync.getBlob', ['cid' => 'x']));
+	}
+
+	/**
+	 * Password sign-ins to one PDS are counted for the whole instance, as
+	 * the PDS counts them per address: past the ceiling none is sent, and
+	 * other calls and other servers are not held back.
+	 */
+	public function testSignInsToOneServerAreThrottledForTheWholeInstance(): void {
+		$counts = [];
+		$cache = $this->createMock(DurableCache::class);
+		$cache->method('inc')->willReturnCallback(function (string $namespace, string $key, int $ttl) use (&$counts): int {
+			$this->assertSame(PdsClient::SIGN_IN_WINDOW, $ttl);
+
+			return $counts[$key] = ($counts[$key] ?? 0) + 1;
+		});
+		$sent = 0;
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('doRequest')->willReturnCallback(function (string $method, string $url, array $options, &$contentType = null, &$status = null) use (&$sent): string {
+			$sent++;
+			$status = 200;
+
+			return '{}';
+		});
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $cache);
+
+		for ($i = 0; $i < PdsClient::SIGN_INS; $i++) {
+			$client->call('https://bsky.social', 'com.atproto.server.createSession', 'POST', [], ['identifier' => 'a', 'password' => 'b']);
+		}
+		try {
+			$client->call('https://bsky.social', 'com.atproto.server.createSession', 'POST', [], ['identifier' => 'a', 'password' => 'b']);
+			$this->fail('sent');
+		} catch (MoveFailure $e) {
+			$this->assertSame('rate-limited', $e->errorCode);
+		}
+		$this->assertSame(PdsClient::SIGN_INS, $sent);
+		$this->assertSame([20, 10], [PdsClient::SIGN_INS, PdsClient::SIGN_IN_WINDOW / 60]);
+
+		$client->call('https://bsky.social', 'com.atproto.server.describeServer');
+		$client->call('https://pds.example.com', 'com.atproto.server.createSession', 'POST', [], ['identifier' => 'a', 'password' => 'b']);
+		$this->assertSame(PdsClient::SIGN_INS + 2, $sent);
 	}
 
 	public function testPlainHttpOnlyOnAServerThatTalksToLocalOnes(): void {

@@ -1374,7 +1374,11 @@ here*):
    old PDS is read from the DID's state in the PLC directory, and this
    server signs in there (`createSession`, with the e-mailed sign-in code
    when the old PDS asks for one). The password is not kept; the session
-   is, sealed, while the move runs.
+   is, sealed, while the move runs. A PDS limits password sign-ins per
+   address, and all of this server's people share its address: so a
+   person may start five moves an hour, and the whole instance sends one
+   PDS host at most 20 sign-ins in ten minutes (`rate-limited` past that).
+   Inviting a DID (below) is held to five an hour as well.
 2. A background job copies the **repository** (`com.atproto.sync.getRepo`,
    checked against the DID's signing key and written here byte for byte
    under a commit signed with a key made for the account here), the
