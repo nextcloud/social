@@ -343,6 +343,22 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
+	 * Goes on with a move away that stopped for the viewer to decide —
+	 * pictures or videos did not arrive, or the repository there is not the
+	 * one here: `without_missing` switches without them, else they are
+	 * copied again.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move/continue')]
+	public function continueMove(bool $without_missing = false): DataResponse {
+		try {
+			return new DataResponse(['move' => $this->moveAway->proceed($this->userId(), $without_missing)->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
 	 * What a PDS the viewer may move to says of itself, for the form: the
 	 * handle domains it gives out, whether it needs an invite code, its
 	 * DID. Each call reaches out to the server typed, so a few an hour.

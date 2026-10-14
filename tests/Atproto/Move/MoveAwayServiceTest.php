@@ -17,6 +17,7 @@ use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
+use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Move\MoveAwayService;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -50,6 +51,7 @@ class MoveAwayServiceTest extends TestCase {
 	private array $answers = [];
 	/** @var array<int, Move> */
 	private array $rows = [];
+	private ?RepoHead $head = null;
 	/** @var (callable(string): void)|null told of every call to the other PDS before it is answered */
 	private $pdsHook = null;
 	private array $queued = [];
@@ -88,6 +90,7 @@ class MoveAwayServiceTest extends TestCase {
 		$this->identities->method('getByDid')->willReturnCallback(fn (): Identity => $this->alice);
 		$repositories = $this->createMock(RepositoryService::class);
 		$repositories->method('exportCar')->with(self::DID)->willReturn('the car');
+		$repositories->method('getHead')->willReturnCallback(fn (): ?RepoHead => $this->head);
 		$cid = Cid::forRaw('pixels');
 		$blobs = $this->createMock(AtprotoBlobRequest::class);
 		$blobs->method('get')->willReturnCallback(static fn (string $did, string $c): ?BlobRef => $c === $cid->toString() ? new BlobRef(self::DID, $cid, 'doc', 'image/jpeg', 6) : null);
@@ -292,6 +295,58 @@ class MoveAwayServiceTest extends TestCase {
 		}
 	}
 
+	public function testMissingPicturesStopTheMoveBeforeTheDidMoves(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->head = new RepoHead(self::DID, 'bafyhead', 'rev1', 12, 0, 0);
+		$this->answers['com.atproto.server.checkAccountStatus'] = [['status' => 200, 'body' => ['repoCommit' => 'bafyhead', 'indexedRecords' => 12, 'expectedBlobs' => 5, 'importedBlobs' => 2]]];
+		$this->identities->expects($this->never())->method('handOver');
+
+		$this->moves->run($move->id);
+
+		$row = $this->rows[1];
+		$this->assertSame([Move::NEEDS_DECISION, Move::STEP_CHECK, 'blobs-missing', 3, 'repo_copied'], [$row->state, $row->step, $row->progress['code'], $row->progress['missing'], $row->progress['stage']]);
+		$this->assertTrue($row->isUnderWay(), 'no other move starts meanwhile');
+	}
+
+	public function testAfterMissingPicturesThePersonCopiesAgainOrSwitchesWithout(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->answers['com.atproto.server.checkAccountStatus'] = [
+			['status' => 200, 'body' => ['expectedBlobs' => 5, 'importedBlobs' => 2]],
+			['status' => 200, 'body' => ['expectedBlobs' => 5, 'importedBlobs' => 4]],
+		];
+		$this->moves->run($move->id);
+
+		$this->calls = [];
+		$this->moves->proceed('alice', false);
+		$this->assertSame([Move::RUNNING, Move::STEP_BLOBS], [$this->rows[1]->state, $this->rows[1]->step]);
+		$this->moves->run($move->id);
+		$this->assertSame(['com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus'], array_column($this->calls, 'method'), 'copied again and asked again');
+		$this->assertSame([Move::NEEDS_DECISION, 1], [$this->rows[1]->state, $this->rows[1]->progress['missing']]);
+
+		$this->identities->expects($this->once())->method('handOver');
+		$this->moves->proceed('alice', true);
+		$this->moves->run($move->id);
+		$this->assertSame([Move::DONE, 1], [$this->rows[1]->state, $this->rows[1]->progress['accepted_missing']]);
+	}
+
+	public function testARepositoryThatIsNotTheOneHereIsCopiedAgain(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->head = new RepoHead(self::DID, 'bafyhead', 'rev2', 12, 0, 0);
+		$this->answers['com.atproto.server.checkAccountStatus'] = [['status' => 200, 'body' => ['repoCommit' => 'bafyolder', 'indexedRecords' => 11]]];
+		$this->moves->run($move->id);
+		$this->assertSame([Move::NEEDS_DECISION, 'repo-incomplete'], [$this->rows[1]->state, $this->rows[1]->progress['code']]);
+
+		$this->moves->proceed('alice', false);
+		$this->assertSame(Move::STEP_REPO, $this->rows[1]->step);
+	}
+
+	public function testOnlyAStoppedMoveWaitsForADecision(): void {
+		$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+
+		$this->expectException(MoveErrorException::class);
+		$this->moves->proceed('alice', true);
+	}
+
 	private function assertRefused(string $code, string $message, string $handle = 'alice.pds.example.com'): void {
 		try {
 			$this->moves->start('alice', $this->alice, 'pds.example.com', $handle, 'a@example.org', 'pw');
@@ -316,7 +371,7 @@ class MoveAwayServiceTest extends TestCase {
 
 		$this->moves->run($move->id);
 
-		$this->assertSame(['com.atproto.server.describeServer', 'com.atproto.server.createAccount', 'com.atproto.repo.importRepo', 'com.atproto.repo.listMissingBlobs', 'com.atproto.repo.uploadBlob', 'com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.identity.getRecommendedDidCredentials', 'com.atproto.server.activateAccount'], array_column($this->calls, 'method'), 'in this order: the DID moves only once everything is there');
+		$this->assertSame(['com.atproto.server.describeServer', 'com.atproto.server.createAccount', 'com.atproto.repo.importRepo', 'com.atproto.repo.listMissingBlobs', 'com.atproto.repo.uploadBlob', 'com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus', 'com.atproto.identity.getRecommendedDidCredentials', 'com.atproto.server.activateAccount'], array_column($this->calls, 'method'), 'in this order: the DID moves only once everything is there');
 		$this->assertSame('the car', $this->call('com.atproto.repo.importRepo')['bytes']);
 		$this->assertSame('pixels', $this->call('com.atproto.repo.uploadBlob')['bytes']);
 		$this->assertSame(['limit' => 500, 'cursor' => 'c1'], $this->calls[5]['query']);

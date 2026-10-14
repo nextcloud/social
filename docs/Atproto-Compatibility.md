@@ -1404,7 +1404,13 @@ The mirror image, so a person is not locked in. On the Migration page,
 2. In the background (`AtprotoMove` job, `oc_social_atproto_move`): the
    repository as a CAR into `importRepo`, the blobs that
    `listMissingBlobs` names into `uploadBlob`, the preferences into
-   `putPreferences`.
+   `putPreferences`. Then `checkAccountStatus` there: the repository at
+   this server's head commit with as many records, and `importedBlobs`
+   equal to `expectedBlobs`. Anything missing stops the move *before* the
+   DID moves, in `needs_decision` with `blobs-missing` and
+   `progress.missing` (or `repo-incomplete`);
+   `POST …/bluesky/move/continue` copies again, or with `without_missing`
+   moves the DID without what is missing.
 3. The DID: `getRecommendedDidCredentials` there, then this server signs
    and sends the PLC operation itself (`IdentityService::handOver()`), with
    the person's recovery key first among the rotation keys and the other
@@ -1484,6 +1490,9 @@ older clients.
 | `move-switching` | "Call it off" while the DID is being pointed at the other server | Wait a moment; the move then goes on or stops |
 | `move-past-switch` | "Call it off" after the DID points at the other server | Use "Try again" to finish the move |
 | `target-account-left` | Not an error: a move was called off, and the account made on the other server is still there, deactivated | Delete it at that server (the answer names its host) |
+| `blobs-missing` | Before the DID moved, the other server lacks pictures or videos (`progress.missing`); the move waits in `needs_decision` | Copy again, or switch without them |
+| `repo-incomplete` | Before the DID moved, the repository on the other server is not the one here; the move waits in `needs_decision` | Copy again |
+| `no-decision-pending` | "Continue" with no move waiting for a decision | Nothing to do |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |

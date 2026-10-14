@@ -160,6 +160,19 @@ class AtprotoMoveAwayRoutesTest extends TestCase {
 		$this->assertSame('identity_switched', $this->controller()->move()->getData()['move']['progress']['stage']);
 	}
 
+	public function testContinuingPassesTheDecisionOn(): void {
+		$this->moveAway->expects($this->once())->method('proceed')->with('alice', true)
+			->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_IDENTITY, Move::RUNNING));
+
+		$this->assertSame('running', $this->controller()->continueMove(true)->getData()['move']['state']);
+	}
+
+	public function testNoDecisionPendingIsCoded(): void {
+		$this->moveAway->method('proceed')->willThrowException(new MoveErrorException('No move waits for a decision', 'no-decision-pending'));
+
+		$this->assertSame('no-decision-pending', $this->controller()->continueMove()->getData()['code']);
+	}
+
 	public function testNothingToStartAgainIsCoded(): void {
 		$this->moveAway->method('latest')->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_REPO, Move::DONE));
 		$this->moveAway->method('retry')->willThrowException(new MoveErrorException('There is no failed move to start again', 'no-failed-move'));

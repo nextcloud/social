@@ -46,6 +46,8 @@ use Throwable;
 class MoveAwayService {
 	private const CREATE_ACCOUNT = 'com.atproto.server.createAccount';
 	private const MAX_BLOBS_PER_PAGE = 500;
+	/** what stops a move for the person to decide on, rather than failing it */
+	private const DECISIONS = ['blobs-missing', 'repo-incomplete'];
 	/** what the other PDS's `createAccount` errors mean, as codes for the page */
 	private const CREATE_ACCOUNT_ERRORS = [
 		'HandleNotAvailable' => 'handle-taken',
@@ -306,7 +308,7 @@ class MoveAwayService {
 
 				return;
 			}
-			$move->state = Move::FAILED;
+			$move->state = $e instanceof MoveErrorException && in_array($e->errorCode, self::DECISIONS, true) ? Move::NEEDS_DECISION : Move::FAILED;
 			$move->error = $e->getMessage();
 			$move->progress['code'] = self::codeOf($e);
 			$move->progress['stage'] = self::stageOf($move);
@@ -339,10 +341,62 @@ class MoveAwayService {
 			Move::STEP_REPO => $this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, $this->repositories->exportCar($move->did), 'application/vnd.ipld.car'),
 			Move::STEP_BLOBS => $this->copyBlobs($move),
 			Move::STEP_PREFERENCES => $this->authed($move, 'app.bsky.actor.putPreferences', 'POST', [], $this->preferences->get(new ClientSession($move->userId, $identity, ''))),
+			Move::STEP_CHECK => $this->check($move),
 			Move::STEP_IDENTITY => $this->handOver($move, $identity),
 			Move::STEP_ACTIVATE => $this->activate($move, $identity),
 			default => null,
 		};
+	}
+
+	/**
+	 * Asks the other PDS whether everything arrived before the DID moves
+	 * (`checkAccountStatus`): the repository at this one's head commit, as
+	 * many records, every blob it names. What is missing stops the move
+	 * for the person to decide — copy again, or switch without it.
+	 *
+	 * @throws AtprotoException
+	 * @throws MoveErrorException blobs-missing or repo-incomplete
+	 */
+	private function check(Move $move): void {
+		$status = $this->authed($move, 'com.atproto.server.checkAccountStatus');
+		$head = $this->repositories->getHead($move->did);
+		$records = $head?->recordCount ?? 0;
+		if (($head !== null && ($status['repoCommit'] ?? '') !== $head->commitCid) || (int)($status['indexedRecords'] ?? 0) < $records) {
+			$move->progress['records'] = $records;
+			$move->progress['records_there'] = (int)($status['indexedRecords'] ?? 0);
+			throw new MoveErrorException('The repository on the other server is not the one here', 'repo-incomplete');
+		}
+		$missing = max(0, (int)($status['expectedBlobs'] ?? 0) - (int)($status['importedBlobs'] ?? 0));
+		$move->progress['missing'] = $missing;
+		if ($missing > 0) {
+			throw new MoveErrorException($missing . ' pictures or videos did not arrive on the other server', 'blobs-missing');
+		}
+	}
+
+	/**
+	 * Goes on with a move stopped for the person to decide: without what is
+	 * missing (the DID moves now), or copying again.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function proceed(string $userId, bool $withoutMissing): Move {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::AWAY || $move->state !== Move::NEEDS_DECISION) {
+			throw new MoveErrorException('No move waits for a decision', 'no-decision-pending');
+		}
+		if ($withoutMissing) {
+			$move->progress['accepted_missing'] = (int)($move->progress['missing'] ?? 0);
+			$move->step = Move::STEP_IDENTITY;
+		} else {
+			$move->step = ($move->progress['code'] ?? '') === 'repo-incomplete' ? Move::STEP_REPO : Move::STEP_BLOBS;
+		}
+		$move->state = Move::RUNNING;
+		$move->error = '';
+		unset($move->progress['code']);
+		$this->save($move);
+		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
+
+		return $move;
 	}
 
 	/**

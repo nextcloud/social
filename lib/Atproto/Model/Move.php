@@ -15,8 +15,9 @@ namespace OCA\Social\Atproto\Model;
  *
  * Moving away goes through the steps in order: the account is made on the
  * other PDS when the move starts, then its repository, its blobs and its
- * preferences are copied there, the DID is pointed there, the account is
- * activated there and switched off here.
+ * preferences are copied there, the other PDS is asked whether everything
+ * arrived, the DID is pointed there, the account is activated there and
+ * switched off here.
  *
  * Moving here: the repository, the blobs, the preferences and the follows
  * are copied from the old PDS, the old PDS e-mails the person a code, and
@@ -38,6 +39,8 @@ final class Move {
 	public const STEP_REPO = 'repo';
 	public const STEP_BLOBS = 'blobs';
 	public const STEP_PREFERENCES = 'prefs';
+	/** moving away: the other PDS is asked whether everything arrived, before the DID moves */
+	public const STEP_CHECK = 'check';
 	public const STEP_IDENTITY = 'identity';
 	public const STEP_ACTIVATE = 'activate';
 	public const STEP_DONE = 'done';
@@ -108,7 +111,8 @@ final class Move {
 		return match ($step) {
 			self::STEP_REPO => self::STEP_BLOBS,
 			self::STEP_BLOBS => self::STEP_PREFERENCES,
-			self::STEP_PREFERENCES => self::STEP_IDENTITY,
+			self::STEP_PREFERENCES => self::STEP_CHECK,
+			self::STEP_CHECK => self::STEP_IDENTITY,
 			self::STEP_IDENTITY => self::STEP_ACTIVATE,
 			default => self::STEP_DONE,
 		};
