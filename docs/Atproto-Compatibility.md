@@ -1397,7 +1397,10 @@ The mirror image, so a person is not locked in. On the Migration page,
    token the account signs for that PDS and `createAccount`, then
    `createAccount` there with the existing DID — the account exists there
    *deactivated*. What the other PDS refuses is answered at once, with a
-   code (§13.4).
+   code (§13.4). The form can ask `GET …/bluesky/move/target?pds=` first
+   for the handle domains the server gives out and whether it needs an
+   invite code; a handle under none of them is refused before anything
+   is made (`handle-not-allowed`).
 2. In the background (`AtprotoMove` job, `oc_social_atproto_move`): the
    repository as a CAR into `importRepo`, the blobs that
    `listMissingBlobs` names into `uploadBlob`, the preferences into

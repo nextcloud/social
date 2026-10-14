@@ -322,6 +322,25 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
+	 * What a PDS the viewer may move to says of itself, for the form: the
+	 * handle domains it gives out, whether it needs an invite code, its
+	 * DID. Each call reaches out to the server typed, so a few an hour.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 3600)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/move/target')]
+	public function moveTarget(string $pds = ''): DataResponse {
+		if ($this->ownIdentity() === null) {
+			return $this->noIdentity();
+		}
+		try {
+			return new DataResponse($this->moveAway->target($pds));
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
 	 * Starts a failed move again, from where it stopped.
 	 */
 	#[NoAdminRequired]

@@ -210,6 +210,24 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertStringNotContainsString('did:key', (string)json_encode(MoveAwayService::control($this->alice, $done)), 'roles, never keys');
 	}
 
+	public function testTheTargetSaysWhichHandlesItGivesOut(): void {
+		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['did' => self::PDS_DID, 'availableUserDomains' => ['.pds.example.com', 42, ''], 'inviteCodeRequired' => true, 'links' => []]]];
+
+		$this->assertSame(
+			['pds' => self::PDS, 'did' => self::PDS_DID, 'availableUserDomains' => ['.pds.example.com'], 'inviteCodeRequired' => true],
+			$this->moves->target('pds.example.com/'),
+		);
+		$this->assertNotContains('com.atproto.server.createAccount', array_column($this->calls, 'method'));
+
+		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['availableUserDomains' => []]]];
+		try {
+			$this->moves->target('pds.example.com');
+			$this->fail('a server without a DID');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('pds-unknown', $e->errorCode);
+		}
+	}
+
 	private function assertRefused(string $code, string $message, string $handle = 'alice.pds.example.com'): void {
 		try {
 			$this->moves->start('alice', $this->alice, 'pds.example.com', $handle, 'a@example.org', 'pw');

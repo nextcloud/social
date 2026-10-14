@@ -92,22 +92,15 @@ class MoveAwayService {
 		if ($identity->recoveryPublic === '' && !$withoutRecovery) {
 			throw new MoveErrorException('There is no recovery key: after the move only the other server controls the account', 'recovery-key-missing');
 		}
-		try {
-			$origin = $this->pds->origin($pds);
-			$server = $this->pds->expect($origin, 'com.atproto.server.describeServer');
-		} catch (AtprotoException $e) {
-			throw new MoveErrorException($e->getMessage(), self::codeOf($e), $e);
-		}
-		$pdsDid = (string)($server['did'] ?? '');
-		if (!Syntax::isDid($pdsDid)) {
-			throw new MoveErrorException('That server does not say what it is', 'pds-unknown');
-		}
+		$server = $this->target($pds);
+		$origin = $server['pds'];
+		$pdsDid = $server['did'];
 		$handle = strtolower(trim(ltrim(trim($handle), '@')));
-		$domains = is_array($server['availableUserDomains'] ?? null) ? $server['availableUserDomains'] : [];
+		$domains = $server['availableUserDomains'];
 		if (!Syntax::isHandle($handle) || ($domains !== [] && !self::underAny($handle, $domains))) {
 			throw new MoveErrorException('That server gives out handles ending in ' . implode(', ', $domains), 'handle-not-allowed');
 		}
-		if (($server['inviteCodeRequired'] ?? false) === true && trim($inviteCode) === '') {
+		if ($server['inviteCodeRequired'] && trim($inviteCode) === '') {
 			throw new MoveErrorException('That server needs an invite code', 'invite-code-required');
 		}
 
@@ -134,6 +127,41 @@ class MoveAwayService {
 		$this->jobList->add(AtprotoMove::class, ['move' => $saved->id]);
 
 		return $saved;
+	}
+
+	/**
+	 * What the PDS an account would move to says of itself
+	 * (`describeServer`), for the form before anything is started: its
+	 * DID, the handle domains it gives out and whether it needs an invite
+	 * code. Asked through PdsClient, with its refusal of local addresses.
+	 *
+	 * @return array{pds: string, did: string, availableUserDomains: list<string>, inviteCodeRequired: bool}
+	 * @throws MoveErrorException
+	 */
+	public function target(string $pds): array {
+		try {
+			$origin = $this->pds->origin($pds);
+			$server = $this->pds->expect($origin, 'com.atproto.server.describeServer');
+		} catch (AtprotoException $e) {
+			throw new MoveErrorException($e->getMessage(), self::codeOf($e), $e);
+		}
+		$did = (string)($server['did'] ?? '');
+		if (!Syntax::isDid($did)) {
+			throw new MoveErrorException('That server does not say what it is', 'pds-unknown');
+		}
+		$domains = [];
+		foreach (is_array($server['availableUserDomains'] ?? null) ? $server['availableUserDomains'] : [] as $domain) {
+			if (is_string($domain) && $domain !== '') {
+				$domains[] = $domain;
+			}
+		}
+
+		return [
+			'pds' => $origin,
+			'did' => $did,
+			'availableUserDomains' => $domains,
+			'inviteCodeRequired' => ($server['inviteCodeRequired'] ?? false) === true,
+		];
 	}
 
 	/**
@@ -324,9 +352,12 @@ class MoveAwayService {
 		return is_array($session) ? $session : [];
 	}
 
+	/**
+	 * @param list<string> $domains
+	 */
 	private static function underAny(string $handle, array $domains): bool {
 		foreach ($domains as $domain) {
-			if (is_string($domain) && $domain !== '' && str_ends_with($handle, str_starts_with($domain, '.') ? $domain : '.' . $domain)) {
+			if (str_ends_with($handle, str_starts_with($domain, '.') ? $domain : '.' . $domain)) {
 				return true;
 			}
 		}

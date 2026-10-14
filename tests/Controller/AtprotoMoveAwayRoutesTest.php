@@ -123,6 +123,21 @@ class AtprotoMoveAwayRoutesTest extends TestCase {
 		$this->controller()->moveAway('pds.example.com', 'alice.pds.example.com', 'a@example.org', 'pw', '', true);
 	}
 
+	public function testTheTargetIsAskedThroughTheServiceAndRateLimited(): void {
+		$this->moveAway->expects($this->once())->method('target')->with('pds.example.com')
+			->willReturn(['pds' => 'https://pds.example.com', 'did' => 'did:web:pds.example.com', 'availableUserDomains' => ['.pds.example.com'], 'inviteCodeRequired' => false]);
+
+		$this->assertSame(['.pds.example.com'], $this->controller()->moveTarget('pds.example.com')->getData()['availableUserDomains']);
+		$limits = (new \ReflectionMethod(AtprotoAccountController::class, 'moveTarget'))->getAttributes(\OCP\AppFramework\Http\Attribute\UserRateLimit::class);
+		$this->assertCount(1, $limits);
+	}
+
+	public function testATargetThatCannotBeAskedIsCoded(): void {
+		$this->moveAway->method('target')->willThrowException(new MoveErrorException('host does not resolve to a public address', 'pds-not-public'));
+
+		$this->assertSame('pds-not-public', $this->controller()->moveTarget('localhost')->getData()['code']);
+	}
+
 	public function testNothingToStartAgainIsCoded(): void {
 		$this->moveAway->method('latest')->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_REPO, Move::DONE));
 		$this->moveAway->method('retry')->willThrowException(new MoveErrorException('There is no failed move to start again', 'no-failed-move'));
