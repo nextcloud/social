@@ -20,8 +20,8 @@ use OCP\BackgroundJob\QueuedJob;
 /**
  * Carries a move of a Bluesky account on (§13), whatever is left of it:
  * away — the repository, the blobs, the preferences, the DID, the
- * activation — or here — the repository, the blobs, the preferences, the
- * follows, then, once the person entered the e-mailed code, the DID —
+ * activation — or here — the repository, the blobs, the preferences, then,
+ * once the person entered the e-mailed code, the DID and the follows —
  * or, for one the other side moved here, the follows once it is active.
  */
 class AtprotoMove extends QueuedJob {

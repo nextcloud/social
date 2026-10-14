@@ -2297,8 +2297,7 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   here. Records keep their CIDs, so every reference to them stays good.
   **Blobs** are fetched with `listBlobs`/`getBlob` and stored as they came,
   each checked against its CID; nothing is re-encoded. **Preferences** come
-  along. **Follows** become follows here, each tied to the record it came
-  with, so nothing is written twice.
+  along.
 - **Then the old PDS e-mails a code** (`requestPlcOperationSignature`); the
   move waits. With the code it signs the operation that names this PDS,
   this server's rotation key and the account's handle here — checked
@@ -2306,8 +2305,11 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   DID**: the account's identity row keeps its handle (and custom handle)
   and gets the moved DID and its new key, and the DID this server had made
   for the account is **retired**, tombstoned with its repository. The page
-  says so before the move starts. Last, `deactivateAccount` on the old PDS.
-- **Then the posts** become posts in the timeline here (4e). A wrong code
+  says so before the move starts. Then `deactivateAccount` on the old PDS.
+- **Then the follows** become follows here, each tied to the record it came
+  with, so nothing is written twice — only once the DID is the account's,
+  as in a move driven by a tool, so a move that never got that far leaves
+  no follows behind. **Then the posts** become posts in the timeline here (4e). A wrong code
   stops the move, and *Try again* asks the old PDS for a new one.
 
 **4d as built** — `Move\InboundMoveService`, `Move\BridgyTwin`,

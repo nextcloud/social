@@ -59,12 +59,13 @@ use Throwable;
  *
  * A background job copies the repository — checked against the DID's
  * signing key, written here byte for byte under a commit signed with a key
- * made for the account here — the blobs, the preferences and the follows.
- * Then the old PDS e-mails the person a code; with it, it signs the
- * operation that points the DID here, and the account takes the DID: the
- * one this server had made for it is retired. Last, the account is switched
- * off on the old PDS, its posts become posts in its timeline here and its
- * lists its lists here.
+ * made for the account here — the blobs and the preferences. Then the old
+ * PDS e-mails the person a code; with it, it signs the operation that
+ * points the DID here, and the account takes the DID: the one this server
+ * had made for it is retired. Last, the account is switched off on the old
+ * PDS, its follows become follows here — only now, so a move called off
+ * leaves none behind — its posts posts in its timeline here and its lists
+ * its lists here.
  */
 class MoveInService {
 	private const PAGE = 500;
@@ -190,6 +191,10 @@ class MoveInService {
 		if ($move->state !== Move::RUNNING || $move->direction !== Move::IN) {
 			return;
 		}
+		if ($move->step === Move::STEP_FOLLOWS && !isset($this->unseal($move->session)['code'])) {
+			// stopped at the follows when they still came before the code
+			$move->step = Move::STEP_CODE;
+		}
 		try {
 			while ($move->step !== Move::STEP_DONE) {
 				if (!$this->step($move)) {
@@ -232,7 +237,13 @@ class MoveInService {
 				}
 				break;
 			case Move::STEP_FOLLOWS:
-				$this->adoptFollows($move);
+				// the DID is the account's by now: a follow not taken over
+				// does not undo the move
+				try {
+					$this->adoptFollows($move);
+				} catch (Throwable $e) {
+					$this->logger->warning('Follows of a Bluesky account that moved here not taken over', ['did' => $move->did, 'exception' => $e]);
+				}
 				break;
 			case Move::STEP_CODE:
 				$this->authed($move, 'com.atproto.identity.requestPlcOperationSignature', 'POST');

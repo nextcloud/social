@@ -276,7 +276,7 @@ class MoveInServiceTest extends TestCase {
 		$this->moves->start('alice', 'alice.bsky.social', 'pw');
 		$this->repositories->expects($this->once())->method('import')->with(self::DID, $this->isInstanceOf(PrivateKey::class), $this->callback(static fn (array $records): bool => count($records) === 1 && str_starts_with(array_key_first($records), 'app.bsky.feed.post/')))->willReturn(Cid::forRaw('the new commit'));
 		$this->blobs->expects($this->once())->method('put')->with($this->callback(fn (BlobRef $blob): bool => $blob->cid->equals(Cid::forRaw($this->blob)) && $blob->documentId === 'https://social.test/documents/local/9'));
-		$this->follows->expects($this->once())->method('adoptBlueskyFollow')->with($this->anything(), $this->anything(), self::DID, '3kfollow')->willReturn(true);
+		$this->follows->expects($this->never())->method('adoptBlueskyFollow');
 
 		$this->moves->run($this->rows[1]);
 
@@ -317,6 +317,11 @@ class MoveInServiceTest extends TestCase {
 			'verificationMethods' => ['atproto' => $key->didKey()],
 			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => self::HERE]],
 		]]]];
+		$this->follows->expects($this->once())->method('adoptBlueskyFollow')->with($this->anything(), $this->anything(), self::DID, '3kfollow')->willReturnCallback(function (): bool {
+			$this->calls[] = ['method' => 'follow', 'json' => null, 'token' => ''];
+
+			return true;
+		});
 		$this->history->expects($this->once())->method('import')->with($this->isInstanceOf(Person::class), self::DID)->willReturn(3);
 		$this->lists->expects($this->once())->method('adopt')->with($this->isInstanceOf(Person::class), self::DID)->willReturn(2);
 		$this->moves->run($this->rows[1]);
@@ -326,11 +331,30 @@ class MoveInServiceTest extends TestCase {
 		$this->assertSame([$this->rotation->didKey()], $sign['rotationKeys'], 'this server holds the DID now');
 		$this->assertSame(['at://alice.social.test'], $sign['alsoKnownAs'], 'under the handle the account has here');
 		$this->assertSame(self::HERE, $sign['services']['atproto_pds']['endpoint']);
-		$this->assertSame('com.atproto.server.deactivateAccount', end($this->calls)['method'], 'and switched off there');
+		$methods = $this->methods();
+		$this->assertSame(['com.atproto.identity.signPlcOperation', 'com.atproto.server.deactivateAccount', 'follow'], array_values(array_intersect($methods, ['com.atproto.identity.signPlcOperation', 'com.atproto.server.deactivateAccount', 'follow'])), 'switched off there, and the follows taken over only once the DID is the account\'s');
 		$this->assertSame(Move::DONE, $this->rows[1]->state);
 		$this->assertSame('', $this->rows[1]->session);
 		$this->assertSame(3, $this->rows[1]->progress['posts'], 'and its posts are posts here');
 		$this->assertSame(2, $this->rows[1]->progress['lists'], 'and its lists lists here');
+	}
+
+	public function testTheFollowsComeAfterTheIdentity(): void {
+		$this->assertSame(
+			[Move::STEP_BLOBS, Move::STEP_PREFERENCES, Move::STEP_CODE, Move::STEP_IDENTITY, Move::STEP_ACTIVATE, Move::STEP_FOLLOWS, Move::STEP_POSTS, Move::STEP_DONE],
+			array_map(Move::nextIn(...), [Move::STEP_REPO, Move::STEP_BLOBS, Move::STEP_PREFERENCES, Move::STEP_CODE, Move::STEP_IDENTITY, Move::STEP_ACTIVATE, Move::STEP_FOLLOWS, Move::STEP_POSTS]),
+		);
+	}
+
+	/** A move that stopped at the follows when they came before the code asks for the code. */
+	public function testAMoveStoppedAtTheFollowsBeforeTheCodeAsksForIt(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->rows[1]->step = Move::STEP_FOLLOWS;
+		$this->follows->expects($this->never())->method('adoptBlueskyFollow');
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame([Move::STEP_CODE, Move::WAITING], [$this->rows[1]->step, $this->rows[1]->state]);
 	}
 
 	public function testAMoveIsDoneEvenWhenItsPostsCannotBeImported(): void {
