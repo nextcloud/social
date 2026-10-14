@@ -91,6 +91,22 @@ class ServiceAuthGrantTest extends TestCase {
 		}
 	}
 
+	public function testATokenToMakeTheAccountElsewhereNeedsASessionThatMayChangeTheIdentity(): void {
+		$identity = new ClientSession('alice', $this->alice, 'sid', ['atproto', 'identity:*', 'transition:generic']);
+		$token = $this->grants->grant($identity, 'did:web:pds.example.com', ServiceAuthGrant::CREATE_ACCOUNT)['token'];
+		$claims = json_decode(Encoding::base64UrlDecode(explode('.', $token)[1]), true);
+		$this->assertSame(['did:web:pds.example.com', ServiceAuthGrant::CREATE_ACCOUNT], [$claims['aud'], $claims['lxm']]);
+
+		foreach ([[$this->session, 'did:web:pds.example.com', 'an app password'], [$identity, self::HERE, 'this server'], [$identity, 'pds.example.com', 'not a DID']] as [$session, $audience, $what]) {
+			try {
+				$this->grants->grant($session, $audience, ServiceAuthGrant::CREATE_ACCOUNT);
+				$this->fail('granted: ' . $what);
+			} catch (XrpcException $e) {
+				$this->assertSame(400, $e->status, $what);
+			}
+		}
+	}
+
 	public function testTheVideoServiceUploadsInTheAccountsName(): void {
 		$token = $this->serviceAuth->token($this->key, self::DID, self::HERE, ServiceAuthGrant::UPLOAD, 1800);
 

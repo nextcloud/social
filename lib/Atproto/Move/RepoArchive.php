@@ -23,6 +23,9 @@ use OCA\Social\Exceptions\AtprotoException;
  * names is in the file.
  */
 final class RepoArchive {
+	/** the largest repository taken, however it arrives */
+	public const MAX_BYTES = 64 * 1024 * 1024;
+
 	/**
 	 * @return array{rev: string, records: array<string, string>} the revision and path => record bytes
 	 * @throws AtprotoException when the archive is not the account's repository

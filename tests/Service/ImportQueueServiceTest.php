@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Atproto\Move\FollowFrom;
 use OCA\Social\Cron\RunImport;
 use OCA\Social\Db\ImportsRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -43,6 +44,7 @@ class ImportQueueServiceTest extends TestCase {
 	private PostImportService|MockObject $postImportService;
 	private MoveInService|MockObject $moveInService;
 	private AccountService|MockObject $accountService;
+	private FollowFrom|MockObject $followFrom;
 	private ImportQueueService $service;
 
 	/** @var array<string, string> the kept uploads, by name */
@@ -66,6 +68,7 @@ class ImportQueueServiceTest extends TestCase {
 		$this->postImportService = $this->createMock(PostImportService::class);
 		$this->moveInService = $this->createMock(MoveInService::class);
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->followFrom = $this->createMock(FollowFrom::class);
 
 		$this->appData->method('getFolder')->willReturn($this->folder);
 		$this->folder->method('newFile')->willReturnCallback(function (string $name, $content): ISimpleFile {
@@ -94,6 +97,7 @@ class ImportQueueServiceTest extends TestCase {
 			$this->moveInService,
 			$this->accountService,
 			new NullLogger(),
+			$this->followFrom,
 		);
 	}
 
@@ -323,6 +327,18 @@ class ImportQueueServiceTest extends TestCase {
 		$this->assertSame(3, $job->getFailed());
 		$this->assertSame(120, $job->getReport()['media']);
 		$this->assertSame([], $this->deleted, 'nothing was kept, so nothing is deleted');
+	}
+
+	/** Following whom a Bluesky account follows has no file either: the run reads its PDS. */
+	public function testRunHandsBlueskyFollowsToTheirServiceAndTalliesThem(): void {
+		$job = $this->queuedRow(ImportJob::KIND_BLUESKY_FOLLOWS, '', ['did' => 'did:plc:alice', 'pds' => 'https://pds.example.com', 'handle' => 'alice.bsky.social']);
+		$this->followFrom->expects($this->once())->method('run')->with('alice', $job->getOptions(), $this->isCallable())
+			->willReturn(['followed' => 7, 'skipped' => 2, 'failed' => ['did:plc:gone' => 'not found']]);
+
+		$this->service->run(42);
+
+		$this->assertSame([ImportJob::STATUS_DONE, 7, 2, 1], [$job->getStatus(), $job->getDone(), $job->getSkipped(), $job->getFailed()]);
+		$this->assertSame(['did:plc:gone' => 'not found'], $job->getReport()['failed']);
 	}
 
 	// dismiss()

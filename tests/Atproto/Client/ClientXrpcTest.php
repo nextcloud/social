@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Client\AppViewProxy;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Client\ClientXrpc;
 use OCA\Social\Atproto\Client\NotificationSettings;
+use OCA\Social\Atproto\Client\PlcSignatureService;
 use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Client\ServiceAuthGrant;
 use OCA\Social\Atproto\Client\SessionService;
@@ -55,6 +56,8 @@ class ClientXrpcTest extends TestCase {
 	private BlueskyBookmarks $bookmarks;
 	/** @var NotificationSettings&MockObject */
 	private NotificationSettings $notificationSettings;
+	/** @var PlcSignatureService&MockObject */
+	private PlcSignatureService $plcSignatures;
 	private ClientXrpc $client;
 	private ClientSession $session;
 
@@ -73,7 +76,7 @@ class ClientXrpcTest extends TestCase {
 		$this->oauth->method('issuer')->willReturn('https://social.test');
 		$this->inbound = $this->createMock(InboundMoveService::class);
 		$this->inbound->method('owns')->willReturnCallback(static fn (string $authorization): bool => $authorization === 'Bearer move');
-		$this->client = new ClientXrpc($config, $this->sessions, $this->proxy, $this->createMock(Preferences::class), $this->writes, $this->grants, $this->oauth, $this->moderation, $this->inbound, $this->mutes = $this->createMock(BlueskyMutes::class), $this->bookmarks = $this->createMock(BlueskyBookmarks::class), $this->notificationSettings = $this->createMock(NotificationSettings::class));
+		$this->client = new ClientXrpc($config, $this->sessions, $this->proxy, $this->createMock(Preferences::class), $this->writes, $this->grants, $this->oauth, $this->moderation, $this->inbound, $this->mutes = $this->createMock(BlueskyMutes::class), $this->bookmarks = $this->createMock(BlueskyBookmarks::class), $this->notificationSettings = $this->createMock(NotificationSettings::class), $this->plcSignatures = $this->createMock(PlcSignatureService::class));
 	}
 
 	protected function tearDown(): void {
@@ -92,6 +95,20 @@ class ClientXrpcTest extends TestCase {
 		$this->files[] = $path;
 
 		return $path;
+	}
+
+	public function testThePlcSignatureMethodsGoToTheirServiceSignedIn(): void {
+		$this->plcSignatures->expects($this->exactly(2))->method('procedure')
+			->willReturnCallback(fn (ClientSession $session, string $method, array $body): array => ['method' => $method, 'body' => $body, 'did' => $session->identity->did]);
+
+		$this->assertSame(['method' => PlcSignatureService::REQUEST, 'body' => [], 'did' => 'did:plc:ewvi7nxzyoun6zhxrhs64oiz'], $this->client->procedure(PlcSignatureService::REQUEST, '', ['authorization' => 'Bearer x'], '1.2.3.4'));
+		$this->assertSame(['token' => 'ABCDE-FGHIJ'], $this->client->procedure(PlcSignatureService::SIGN, '{"token":"ABCDE-FGHIJ"}', ['authorization' => 'Bearer x'], '1.2.3.4')['body']);
+	}
+
+	public function testThePlcSignatureMethodsNeedASignIn(): void {
+		$this->plcSignatures->expects($this->never())->method('procedure');
+		$this->expectException(XrpcException::class);
+		$this->client->procedure(PlcSignatureService::SIGN, '{}', [], '1.2.3.4');
 	}
 
 	public function testThePublicSurfaceIsNotOurs(): void {

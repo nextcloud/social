@@ -9,6 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\UserMigration;
 
+use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Service\BlueskyArchiveService;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -73,6 +76,8 @@ class SocialMigratorTest extends TestCase {
 	private StreamRequest|MockObject $streamRequest;
 	private StreamActionService|MockObject $streamActionService;
 	private \OCA\Social\Service\InterestService|Stub $interestService;
+	private IdentityService&MockObject $identities;
+	private BlueskyArchiveService&MockObject $blueskyArchive;
 	private SocialMigrator $migrator;
 	private RecordingOutput $output;
 
@@ -98,6 +103,8 @@ class SocialMigratorTest extends TestCase {
 		$this->streamActionService = $this->createMock(StreamActionService::class);
 		$this->interestService = $this->createStub(\OCA\Social\Service\InterestService::class);
 		$this->interestService->method('export')->willReturn(['version' => 1, 'settings' => [], 'interests' => []]);
+		$this->identities = $this->createMock(IdentityService::class);
+		$this->blueskyArchive = $this->createMock(BlueskyArchiveService::class);
 
 		$tempManager = $this->createStub(ITempManager::class);
 		$tempManager->method('getTemporaryFile')->willReturnCallback(function (): string {
@@ -130,6 +137,8 @@ class SocialMigratorTest extends TestCase {
 			$this->streamRequest,
 			$this->streamActionService,
 			$this->interestService,
+			$this->identities,
+			$this->blueskyArchive,
 			$tempManager,
 			$urlGenerator,
 			new NullLogger(),
@@ -322,6 +331,28 @@ class SocialMigratorTest extends TestCase {
 	 * The lists and the blocked servers are the files the Migration page's
 	 * one-file downloads write, so the archive holds what those hold.
 	 */
+	/** A Bluesky account hosted here goes into the archive under the app's folder; one that moved away does not. */
+	public function testTheBlueskyAccountTravelsUnderTheAppsFolder(): void {
+		$this->anAccountWithNothingInIt();
+		$identity = new Identity(1, 'https://social.test/@alice', 'did:plc:alice', 'alice.social.test', 'sealed', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0);
+		$this->identities->method('forActor')->willReturn($identity);
+		$this->blueskyArchive->expects($this->once())->method('write')
+			->with($identity, $this->isInstanceOf(MigrationArchive::class), 'social/bluesky/')
+			->willReturn(['repository' => true, 'blobs' => 3, 'missing' => [], 'log' => 'directory']);
+
+		$this->export();
+
+		$this->assertStringContainsString('Exported the Bluesky account did:plc:alice with 3 blob(s) to social/bluesky/', $this->output->text());
+	}
+
+	public function testABlueskyAccountThatMovedAwayIsNotExported(): void {
+		$this->anAccountWithNothingInIt();
+		$this->identities->method('forActor')->willReturn(new Identity(1, 'https://social.test/@alice', 'did:plc:alice', 'alice.social.test', 'sealed', 'did:key:z', '', Identity::STATE_MOVED_AWAY, '', 0));
+		$this->blueskyArchive->expects($this->never())->method('write');
+
+		$this->export();
+	}
+
 	public function testTheListsAndTheBlockedDomainsAreTheFilesOfTheOneFileDownloads(): void {
 		$this->anAccountWithNothingInIt();
 		$this->migrationService->method('exportCsv')

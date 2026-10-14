@@ -113,9 +113,59 @@
 				</p>
 				<!-- the instance key is listed first on the DID: it outranks
 				     the phrase for the directory's 72-hour window, and the
-				     phrase is this app's own encoding, not a BIP-39 seed -->
+				     phrase is this app's own encoding, not a BIP-39 seed, so
+				     the key is shown beside it in the forms other tools take -->
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'The phrase is in this app\'s own format: no other Bluesky tool can read it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
+					{{ t('social', 'Other Bluesky tools do not read the words themselves: the recovery tool below does, and when they are made you also see the key they stand for, written the way tools such as goat take it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
+				</p>
+				<!-- one page that works from a saved copy, so it is offered as a file -->
+				<NcButton class="bluesky-settings__recovery-tool" :href="recoveryToolDownload" download="bluesky-recovery-tool.html">
+					<template #icon>
+						<Download :size="20" />
+					</template>
+					{{ t('social', 'Download the recovery tool') }}
+				</NcButton>
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'One page that moves your Bluesky identifier to another server with your twelve words, in your browser, even when this server is gone. Keep it with your words.') }}
+					<a :href="recoveryToolPage" target="_blank" rel="noopener">{{ t('social', 'Open it here') }}</a>
+				</p>
+			</div>
+			<!-- the directory's own answer: the keys that can change the DID,
+			     highest first, and the window in which a higher key can undo
+			     the latest change -->
+			<div v-if="bluesky.state !== 'pending'" class="bluesky-settings__control">
+				<h5 class="bluesky-settings__title">
+					{{ t('social', 'Who controls your Bluesky identifier') }}
+				</h5>
+				<p v-if="controlError" class="bluesky-settings__hint">
+					{{ controlError }}
+				</p>
+				<template v-else-if="control">
+					<p class="bluesky-settings__hint">
+						{{ t('social', 'These keys can change where your identifier points, the first one ranking highest:') }}
+					</p>
+					<ol class="bluesky-settings__control-keys">
+						<li v-for="key in control.rotation_keys" :key="key.key">
+							{{ roleLabel(key.role) }}
+							<code v-if="key.role === 'unknown'" class="bluesky-settings__code">{{ key.key }}</code>
+						</li>
+					</ol>
+					<p v-if="control.undo" class="bluesky-settings__hint">
+						{{ t('social', 'The latest change was made on {date}. Until {until}, it can still be undone by: {keys}.', { date: fullDateTime(control.last_operation.created_at * 1000), until: fullDateTime(control.undo.until * 1000), keys: control.undo.by.map((key) => roleLabel(key.role)).join(', ') }) }}
+					</p>
+				</template>
+			</div>
+			<!-- the account as files: what moving it needs when this server
+			     cannot help, so it is offered on or off Bluesky -->
+			<div class="bluesky-settings__archive">
+				<NcButton @click="downloadArchive">
+					<template #icon>
+						<Download :size="20" />
+					</template>
+					{{ t('social', 'Download your Bluesky account') }}
+				</NcButton>
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from Settings → Migration holds the same files.') }}
 				</p>
 			</div>
 			<!-- the domain only has to name the DID: the account, its
@@ -433,6 +483,29 @@
 			<p class="bluesky-settings__phrase">
 				<code>{{ phrase }}</code>
 			</p>
+			<template v-if="recoveryKey">
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'Keep the twelve words: they are the whole key. Below is the same key written the way other Bluesky tools take it, for when you use one of them.') }}
+				</p>
+				<dl class="bluesky-settings__identity">
+					<div v-for="row in recoveryKeyRows" :key="row.which" class="bluesky-settings__identity-row">
+						<dt>{{ row.label }}</dt>
+						<dd>
+							<code class="bluesky-settings__code">{{ row.value }}</code>
+							<NcButton
+								variant="tertiary"
+								:title="blueskyCopied === row.which ? t('social', 'Copied') : t('social', 'Copy')"
+								:aria-label="blueskyCopied === row.which ? t('social', 'Copied') : row.copyLabel"
+								@click="copyBluesky(row.which, row.value)">
+								<template #icon>
+									<Check v-if="blueskyCopied === row.which" :size="16" />
+									<ContentCopy v-else :size="16" />
+								</template>
+							</NcButton>
+						</dd>
+					</div>
+				</dl>
+			</template>
 		</NcDialog>
 	</div>
 </template>
@@ -448,12 +521,13 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Check from 'vue-material-design-icons/Check.vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
+import Download from 'vue-material-design-icons/Download.vue'
 import KeyOutline from 'vue-material-design-icons/KeyOutline.vue'
 import { translate as t } from '@nextcloud/l10n'
 import { confirmPassword } from '../services/externalApi.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
-import { fromNow, fullDate } from '../utils/relativeTime.js'
+import { fromNow, fullDate, fullDateTime } from '../utils/relativeTime.js'
 
 /**
  * The account's Bluesky identity: its handle and DID, and the recovery
@@ -468,6 +542,7 @@ export default {
 	components: {
 		Check,
 		ContentCopy,
+		Download,
 		KeyOutline,
 		NcButton,
 		NcCheckboxRadioSwitch,
@@ -496,8 +571,21 @@ export default {
 			blueskyCopied: '',
 			blueskyCopyTimer: null,
 			recovering: false,
+			/**
+			 * Who controls the DID, as the directory answered; null until it comes
+			 *
+			 * @type {{did: string, state: string, rotation_keys: Array<{key: string, role: string}>, last_operation: {cid: string, created_at: number, signed_by: ({key: string, role: string}|null)}, undo: ({until: number, by: Array<{key: string, role: string}>}|null)}|null}
+			 */
+			control: null,
+			controlError: '',
 			/** the twelve words, for as long as the dialog shows them */
 			phrase: '',
+			/**
+			 * The key the words stand for, as other tools take it, for as long as the dialog shows it
+			 *
+			 * @type {{did_key: string, multibase: string, hex: string}|null}
+			 */
+			recoveryKey: null,
 			/** the domain as typed into the own-handle field */
 			customHandle: '',
 			/** what the server said about the domain, under the field */
@@ -551,6 +639,16 @@ export default {
 	},
 
 	computed: {
+		/** @return {string} the offline recovery tool, as a file to keep */
+		recoveryToolDownload() {
+			return generateUrl('apps/social/bluesky-recovery/download')
+		},
+
+		/** @return {string} the offline recovery tool, served here */
+		recoveryToolPage() {
+			return generateUrl('apps/social/bluesky-recovery')
+		},
+
 		/** @return {string} the address a Bluesky app is given as the hosting provider */
 		origin() {
 			return window.location.origin
@@ -579,6 +677,18 @@ export default {
 		/** @return {string} the file that names the DID instead of a record */
 		didFileAddress() {
 			return 'https://' + this.customHandleDomain + '/.well-known/atproto-did'
+		},
+
+		/** @return {Array<{which: 'key-multibase'|'key-hex'|'key-public', label: string, copyLabel: string, value: string}>} the key the phrase stands for, one row per form */
+		recoveryKeyRows() {
+			if (this.recoveryKey === null) {
+				return []
+			}
+			return [
+				{ which: 'key-multibase', label: t('social', 'Private key, multibase (goat)'), copyLabel: t('social', 'Copy the private key in multibase'), value: this.recoveryKey.multibase },
+				{ which: 'key-hex', label: t('social', 'Private key, hex'), copyLabel: t('social', 'Copy the private key in hex'), value: this.recoveryKey.hex },
+				{ which: 'key-public', label: t('social', 'Public key'), copyLabel: t('social', 'Copy the public key'), value: this.recoveryKey.did_key },
+			]
 		},
 
 		/** @return {import('../types/Nextcloud.js').DialogButton[]} */
@@ -634,11 +744,51 @@ export default {
 			} catch (error) {
 				logger.debug('Could not load the Bluesky identity', { error })
 				this.blueskyError = t('social', 'Could not read your Bluesky identity right now.')
+				return
+			}
+			if (this.bluesky?.state !== 'pending') {
+				this.loadControl()
 			}
 		},
 
 		/**
-		 * @param {'handle'|'did'|'phrase'|'password'|'dns-name'|'dns-value'|'file-address'|'file-content'} which what was asked for
+		 * Asks who controls the DID: the directory's answer, read by the server.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async loadControl() {
+			this.controlError = ''
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/social/bluesky/control'))
+				this.control = data
+			} catch (error) {
+				logger.debug('Could not read who controls the Bluesky identifier', { error })
+				this.control = null
+				this.controlError = t('social', 'The directory that keeps Bluesky identifiers could not be asked right now.')
+			}
+		},
+
+		/**
+		 * @param {string} role what the server called the key
+		 * @return {string} what the key is to the person
+		 */
+		roleLabel(role) {
+			switch (role) {
+				case 'server':
+					return t('social', 'This server')
+				case 'server-retired':
+					return t('social', 'This server (an earlier key)')
+				case 'recovery':
+					return t('social', 'Your recovery phrase')
+				default:
+					return t('social', 'A key this server does not know')
+			}
+		},
+
+		fullDateTime,
+
+		/**
+		 * @param {'handle'|'did'|'phrase'|'key-multibase'|'key-hex'|'key-public'|'password'|'dns-name'|'dns-value'|'file-address'|'file-content'} which what was asked for
 		 * @param {string} text what goes onto the clipboard
 		 */
 		async copyBluesky(which, text) {
@@ -670,9 +820,11 @@ export default {
 			this.recovering = true
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/recovery'))
-				const { phrase, ...identity } = data
+				const { phrase, key, ...identity } = data
 				this.takeIdentity(identity)
+				this.recoveryKey = key ?? null
 				this.phrase = phrase
+				this.loadControl()
 			} catch (error) {
 				// the password confirmation of a moment ago has run out, which
 				// the server answers with 403 rather than a dialog
@@ -684,8 +836,24 @@ export default {
 			}
 		},
 
+		/**
+		 * Downloads the account as a zip, after the password: the browser
+		 * goes to the file, so it is saved as it arrives.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async downloadArchive() {
+			try {
+				await confirmPassword()
+			} catch {
+				return
+			}
+			window.location.assign(generateUrl('apps/social/api/v1/social/bluesky/archive'))
+		},
+
 		closePhrase() {
 			this.phrase = ''
+			this.recoveryKey = null
 		},
 
 		/**
@@ -984,6 +1152,25 @@ export default {
 		font-size: 13px;
 		overflow-wrap: anywhere;
 		user-select: all;
+	}
+
+	&__recovery-tool {
+		margin-top: 8px;
+	}
+
+	&__control {
+		margin-top: 12px;
+	}
+
+	&__control-keys {
+		margin: 4px 0;
+		padding-inline-start: 24px;
+		list-style: decimal;
+		overflow-wrap: anywhere;
+	}
+
+	&__archive {
+		margin-top: 12px;
 	}
 
 	&__recovery {

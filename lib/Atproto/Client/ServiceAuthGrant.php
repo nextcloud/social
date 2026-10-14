@@ -28,11 +28,15 @@ use Throwable;
  * upload needs are granted: Bluesky's video service, to ask the account's
  * upload limits and take the video, and this server, for the video
  * service to store what it made with `uploadBlob` in the account's name.
- * Anything else would be the account's signature in the hands of a
+ * Beside those, a session allowed to change the identity may have a token
+ * for `createAccount` at another PDS, which a tool moving the account away
+ * needs. Anything else would be the account's signature in the hands of a
  * service this server knows nothing of, so it is refused.
  */
 class ServiceAuthGrant {
 	public const UPLOAD = 'com.atproto.repo.uploadBlob';
+	/** what a tool moving the account away has the new PDS make the account with */
+	public const CREATE_ACCOUNT = 'com.atproto.server.createAccount';
 	/** the longest a token is good for: a large video takes a while to upload */
 	public const MAX_LIFETIME = 1800;
 	/** what a clock may be off by, between this server and the one sending the token */
@@ -55,7 +59,7 @@ class ServiceAuthGrant {
 	 * @throws XrpcException
 	 */
 	public function grant(ClientSession $session, string $audience, string $method, int $exp = 0): array {
-		if (!$this->allowed($audience, $method)) {
+		if (!$this->allowed($audience, $method) && !$this->movingAway($session, $audience, $method)) {
 			throw XrpcException::invalidRequest('This server does not hand out tokens for that service and method');
 		}
 		$now = $this->time->getTime();
@@ -111,6 +115,17 @@ class ServiceAuthGrant {
 		}
 
 		return new ClientSession($userId, $identity, '');
+	}
+
+	/**
+	 * A tool moving the account away (§13.2) has the new PDS make the
+	 * account with the DID, with a token for `createAccount` there: granted
+	 * to a session that may change the identity, which the move needs
+	 * anyway, never to an app password.
+	 */
+	private function movingAway(ClientSession $session, string $audience, string $method): bool {
+		return $method === self::CREATE_ACCOUNT && Syntax::isDid(explode('#', $audience, 2)[0]) && !$this->isThisServer($audience)
+			&& $session->permissions()->mayManageIdentity();
 	}
 
 	private function allowed(string $audience, string $method): bool {

@@ -11,11 +11,12 @@ namespace OCA\Social\Controller;
 
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Client\ClientXrpc;
-use OCA\Social\Atproto\Move\InboundMoveService;
+use OCA\Social\Atproto\Move\RepoArchive;
 use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\Xrpc\XrpcBytes;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Atproto\Xrpc\XrpcService;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Response\StreamedRemoteResponse;
 use OCP\AppFramework\Controller;
@@ -65,6 +66,9 @@ class AtprotoXrpcController extends Controller {
 			return $this->answer($answer ?? $this->xrpc->query($method, self::repeated($_SERVER['QUERY_STRING'] ?? '') + $this->request->getParams()));
 		} catch (XrpcException $e) {
 			return $this->refuse($e);
+		} catch (AtprotoKeysSealedException $e) {
+			// an administrator's to put right; the app shows the message
+			return $this->refuse(new XrpcException(503, 'KeysSealed', $e->getMessage()));
 		} catch (Throwable $e) {
 			$this->logger->error('XRPC query failed', ['method' => $method, 'exception' => $e]);
 
@@ -98,6 +102,9 @@ class AtprotoXrpcController extends Controller {
 			return $this->answer($this->xrpc->procedure($method, is_array($body) ? $body : []));
 		} catch (XrpcException $e) {
 			return $this->refuse($e);
+		} catch (AtprotoKeysSealedException $e) {
+			// an administrator's to put right; the app shows the message
+			return $this->refuse(new XrpcException(503, 'KeysSealed', $e->getMessage()));
 		} catch (Throwable $e) {
 			$this->logger->error('XRPC procedure failed', ['method' => $method, 'exception' => $e]);
 
@@ -128,7 +135,7 @@ class AtprotoXrpcController extends Controller {
 	 * @throws XrpcException
 	 */
 	private function importRepo(): Response {
-		$path = $this->received(InboundMoveService::MAX_REPO, new XrpcException(413, 'PayloadTooLarge', 'This repository is too large to move here'));
+		$path = $this->received(RepoArchive::MAX_BYTES, new XrpcException(413, 'PayloadTooLarge', 'This repository is too large to move here'));
 		try {
 			return $this->answer($this->client->importRepo($path, $this->headers()));
 		} finally {

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -18,6 +19,7 @@ use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -69,6 +71,7 @@ class MigrationServiceTest extends TestCase {
 	private StreamActionService|MockObject $streamActionService;
 	private DomainBlockService|MockObject $domainBlockService;
 	private IConfig|MockObject $config;
+	private BlueskyAfterMoveOut|MockObject $blueskyAfterMove;
 	private MigrationService $service;
 	/** @var array<string, string> the user values written, by key */
 	private array $userValues = [];
@@ -96,6 +99,7 @@ class MigrationServiceTest extends TestCase {
 			$this->userValues[$key] = $value;
 		});
 
+		$this->blueskyAfterMove = $this->createMock(BlueskyAfterMoveOut::class);
 		$this->service = new MigrationService(
 			$this->accountService,
 			$this->actorsRequest,
@@ -113,6 +117,7 @@ class MigrationServiceTest extends TestCase {
 			$this->domainBlockService,
 			$this->config,
 			new NullLogger(),
+			$this->blueskyAfterMove,
 		);
 	}
 
@@ -322,6 +327,58 @@ class MigrationServiceTest extends TestCase {
 		);
 		$this->assertContains([self::ALICE, InstancePath::TYPE_FOLLOWERS], $paths, 'fanned out to every follower inbox');
 		$this->assertContains([self::NEW_ALICE . '/inbox', InstancePath::TYPE_INBOX], $paths, 'and told to the new home');
+	}
+
+	/**
+	 * The Bluesky identity is not left silently active: the choice is
+	 * checked before anything moves and followed once the Move is out.
+	 */
+	public function testMoveDecidesOnTheBlueskyIdentityBeforeAndFollowsAfter(): void {
+		$alice = $this->alice();
+		$this->accountService->method('getActorFromUserId')->willReturn($alice);
+		$this->cacheActorService->method('getFromId')->willReturn($this->newAlice());
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
+		$order = [];
+		$this->blueskyAfterMove->expects($this->once())->method('assertPossible')->with($alice, 'keep')
+			->willReturnCallback(function () use (&$order): void {
+				$order[] = 'checked';
+			});
+		$this->accountService->method('setMovedTo')->willReturnCallback(function () use (&$order): void {
+			$order[] = 'moved';
+		});
+		$this->blueskyAfterMove->expects($this->once())->method('apply')->with($alice, 'keep')
+			->willReturnCallback(function () use (&$order): string {
+				$order[] = 'applied';
+
+				return 'kept';
+			});
+
+		$this->service->move('alice', self::NEW_ALICE, true, 'keep');
+
+		$this->assertSame(['checked', 'moved', 'applied'], $order);
+	}
+
+	public function testABlueskyChoiceThatCannotBeFollowedStopsTheMoveBeforeAnythingHappens(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->blueskyAfterMove->method('assertPossible')->willThrowException(new MoveErrorException('Move the Bluesky account first', 'bluesky-move-first'));
+		$this->activityService->expects($this->never())->method('request');
+		$this->accountService->expects($this->never())->method('setMovedTo');
+
+		try {
+			$this->service->move('alice', self::NEW_ALICE, true, 'move');
+			$this->fail('moved');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('bluesky-move-first', $e->errorCode);
+		}
+	}
+
+	public function testByDefaultTheBlueskyIdentityIsSwitchedOff(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->cacheActorService->method('getFromId')->willReturn($this->newAlice());
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
+		$this->blueskyAfterMove->expects($this->once())->method('apply')->with($this->anything(), 'deactivate');
+
+		$this->service->move('alice', self::NEW_ALICE);
 	}
 
 	/** Mastodon's thirty days between moves: a second one in an afternoon is a mistake made twice. */

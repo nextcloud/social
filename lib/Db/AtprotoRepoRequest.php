@@ -274,11 +274,17 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 		}
 	}
 
-	public function countRecords(string $did): int {
+	/**
+	 * How many records a repository holds, of one collection or of all.
+	 */
+	public function countRecords(string $did, string $collection = ''): int {
 		$qb = $this->getQueryBuilder();
 		$qb->select($qb->func()->count('id', 'n'))
 			->from(self::TABLE_ATPROTO_RECORD)
 			->where($qb->expr()->eq('did', $qb->createNamedParameter($did)));
+		if ($collection !== '') {
+			$qb->andWhere($qb->expr()->eq('collection', $qb->createNamedParameter($collection)));
+		}
 		$cursor = $qb->executeQuery();
 		$row = $cursor->fetch();
 		$cursor->closeCursor();

@@ -50,6 +50,34 @@ final class PlcOperation {
 		];
 	}
 
+	/**
+	 * The unsigned operation that hands a DID to another PDS: its signing
+	 * key, handle and endpoint as its `getRecommendedDidCredentials` names
+	 * them, and the rotation keys $first (the person's own) ahead of the
+	 * ones it recommends, at most five. The offline recovery tool
+	 * (`src/recovery/plc.js`) builds the same.
+	 *
+	 * @param string[] $first did:keys to rank highest, in order
+	 * @throws InvalidArgumentException when the credentials are not usable
+	 */
+	public static function fromCredentials(array $credentials, array $first, ?string $prev): array {
+		$signing = (string)($credentials['verificationMethods']['atproto'] ?? '');
+		$handle = (string)preg_replace('#^at://#', '', (string)($credentials['alsoKnownAs'][0] ?? ''));
+		$endpoint = (string)($credentials['services']['atproto_pds']['endpoint'] ?? '');
+		$rotation = array_values(array_filter($first, static fn ($key): bool => is_string($key) && $key !== ''));
+		foreach (is_array($credentials['rotationKeys'] ?? null) ? $credentials['rotationKeys'] : [] as $key) {
+			if (is_string($key) && str_starts_with($key, 'did:key:') && !in_array($key, $rotation, true)) {
+				$rotation[] = $key;
+			}
+		}
+		$rotation = array_slice($rotation, 0, 5);
+		if (!str_starts_with($signing, 'did:key:') || $handle === '' || !preg_match('#^https?://#', $endpoint) || $rotation === []) {
+			throw new InvalidArgumentException('The other PDS recommended no usable credentials');
+		}
+
+		return self::build($rotation, $signing, $handle, $endpoint, $prev);
+	}
+
 	public static function tombstone(string $prev): array {
 		return ['type' => self::TYPE_TOMBSTONE, 'prev' => $prev];
 	}

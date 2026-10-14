@@ -105,8 +105,8 @@ class InMemoryRepoRequest extends AtprotoRepoRequest {
 	}
 
 	#[\Override]
-	public function countRecords(string $did): int {
-		return count($this->records[$did] ?? []);
+	public function countRecords(string $did, string $collection = ''): int {
+		return count(array_filter($this->records[$did] ?? [], static fn (StoredRecord $r): bool => $collection === '' || $r->collection === $collection));
 	}
 
 	#[\Override]

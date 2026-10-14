@@ -12,9 +12,38 @@
 			{{ t('social', 'Your Bluesky account can live on another server (a PDS). Your followers, posts and handle history move with it; your Fediverse account here stays as it is. Afterwards this server no longer publishes to Bluesky for you.') }}
 		</p>
 
-		<p v-if="move && move.state === 'done'" class="migration__bluesky-done">
-			{{ t('social', 'Your Bluesky account now lives on {pds} as {handle}.', { pds: move.pds, handle: move.handle }) }}
-		</p>
+		<template v-if="move && move.state === 'done'">
+			<p class="migration__bluesky-done">
+				{{ t('social', 'Your Bluesky account now lives on {pds} as {handle}.', { pds: move.pds, handle: move.handle }) }}
+			</p>
+			<p class="migration__bluesky-control">
+				{{ hasRecoveryKey
+					? t('social', 'You, with your recovery phrase, and {host} control it now. This server no longer does.', { host: newHost || hostOf(move.pds) })
+					: t('social', 'Only {host} controls it now. This server no longer does.', { host: newHost || hostOf(move.pds) }) }}
+			</p>
+		</template>
+
+		<NcNoteCard v-else-if="move && move.state === 'needs_decision'" type="warning" class="migration__bluesky-decision">
+			<p>
+				{{ move.progress.code === 'blobs-missing'
+					? n('social', '{n} picture or video did not arrive on {pds}. Your account still points here.', '{n} pictures or videos did not arrive on {pds}. Your account still points here.', move.progress.missing, { n: move.progress.missing, pds: move.pds })
+					: t('social', 'Your posts did not all arrive on {pds}. Your account still points here.', { pds: move.pds }) }}
+			</p>
+			<p v-if="actionError" class="migration__bluesky-error" role="alert">
+				{{ actionError }}
+			</p>
+			<div class="migration__bluesky-actions">
+				<NcButton :disabled="busy" @click="decide(false)">
+					{{ t('social', 'Copy again') }}
+				</NcButton>
+				<NcButton v-if="move.progress.code === 'blobs-missing'" :disabled="busy" @click="decide(true)">
+					{{ t('social', 'Switch without them') }}
+				</NcButton>
+				<NcButton :disabled="busy" @click="callOff">
+					{{ t('social', 'Call it off') }}
+				</NcButton>
+			</div>
+		</NcNoteCard>
 
 		<div v-else-if="move && move.state === 'running'" class="migration__bluesky-progress" aria-live="polite">
 			<NcLoadingIcon :size="20" />
@@ -25,6 +54,9 @@
 				<p class="migration__bluesky-step">
 					{{ stepText }}
 				</p>
+				<NcButton v-if="canCallOff" :disabled="busy" @click="callOff">
+					{{ t('social', 'Call it off') }}
+				</NcButton>
 			</div>
 		</div>
 
@@ -40,6 +72,13 @@
 					</template>
 					{{ t('social', 'Try again') }}
 				</NcButton>
+				<NcButton v-if="canCallOff" :disabled="busy" @click="callOff">
+					{{ t('social', 'Call it off') }}
+				</NcButton>
+			</NcNoteCard>
+
+			<NcNoteCard v-if="move && move.state === 'cancelled'" type="info" class="migration__bluesky-cancelled">
+				<p>{{ t('social', 'The move was called off. The account made on {host} is still there, switched off: delete it there if you do not want it.', { host: hostOf(move.pds) }) }}</p>
 			</NcNoteCard>
 
 			<template v-if="identityActive">
@@ -81,12 +120,18 @@
 						:disabled="busy"
 						@keydown.enter.prevent="askToConfirm" />
 				</div>
+				<NcCheckboxRadioSwitch v-model="announce" class="migration__bluesky-announce" :disabled="busy">
+					{{ t('social', 'Afterwards, post where my Bluesky account went') }}
+				</NcCheckboxRadioSwitch>
 				<p v-if="startError" class="migration__bluesky-error" role="alert">
 					{{ startError }}
 				</p>
 				<div v-if="confirming" class="migration__bluesky-actions">
 					<p class="migration__bluesky-confirm">
 						{{ t('social', 'Your Bluesky account is moved to {server}. This cannot be undone from here.', { server: pds.trim() }) }}
+					</p>
+					<p v-if="!hasRecoveryKey" class="migration__bluesky-confirm migration__bluesky-no-recovery">
+						{{ t('social', 'You have no recovery phrase: afterwards only {server} controls your Bluesky account.', { server: pds.trim() }) }}
 					</p>
 					<NcButton variant="error" :disabled="busy" @click="start">
 						<template v-if="busy" #icon>
@@ -114,11 +159,12 @@ import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
 import { confirmPassword } from '../services/externalApi.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowRight from 'vue-material-design-icons/AccountArrowRight.vue'
-import { t } from '@nextcloud/l10n'
+import { n, t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
 /** How often a running move is asked about, in milliseconds. */
@@ -135,6 +181,7 @@ export default {
 	components: {
 		IconAccountArrowRight,
 		NcButton,
+		NcCheckboxRadioSwitch,
 		NcLoadingIcon,
 		NcNoteCard,
 		NcTextField,
@@ -151,12 +198,18 @@ export default {
 			email: '',
 			password: '',
 			inviteCode: '',
+			/** whether a post says where the account went once it moved */
+			announce: false,
+			/** @type {string|null} the new server's host once a move away is done */
+			newHost: null,
 			confirming: false,
 			busy: false,
 			/** @type {string} why the server would not start the move */
 			startError: '',
 			/** @type {string} why the server would not start it again */
 			retryError: '',
+			/** @type {string} why the server would not go on or call it off */
+			actionError: '',
 			/** @type {number|null} the timer behind the next poll, while a move runs */
 			pollTimer: null,
 		}
@@ -166,6 +219,17 @@ export default {
 		/** @return {boolean} */
 		identityActive() {
 			return this.identity?.state === 'active'
+		},
+
+		/** @return {boolean} whether the person holds a recovery key of the account */
+		hasRecoveryKey() {
+			return this.identity?.recovery_key === true
+		},
+
+		/** @return {boolean} whether the move can still be called off: the account has not been pointed at the new server */
+		canCallOff() {
+			return ['account_created', 'repo_copied'].includes(this.move?.progress?.stage)
+				&& !(this.move?.state === 'running' && this.move?.step === 'identity')
 		},
 
 		/** @return {boolean} whether there is anything to show */
@@ -194,6 +258,8 @@ export default {
 						: t('social', 'Copying your pictures and videos')
 				case 'prefs':
 					return t('social', 'Copying your settings')
+				case 'check':
+					return t('social', 'Checking that everything arrived')
 				case 'identity':
 					return t('social', 'Pointing your account at the new server')
 				case 'activate':
@@ -213,6 +279,7 @@ export default {
 	},
 
 	methods: {
+		n,
 		t,
 
 		/**
@@ -236,6 +303,7 @@ export default {
 		async loadMove() {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/social/bluesky/move'))
+				this.newHost = data?.new_host ?? null
 				this.takeMove(data?.move)
 			} catch (error) {
 				logger.debug('Could not read the Bluesky move', { error })
@@ -298,6 +366,8 @@ export default {
 					email: this.email.trim(),
 					password: this.password,
 					inviteCode: this.inviteCode.trim(),
+					without_recovery: !this.hasRecoveryKey,
+					announce: this.announce ? 'post' : 'none',
 				})
 				this.password = ''
 				this.confirming = false
@@ -312,6 +382,54 @@ export default {
 						? t('social', 'Confirm your password again and retry.')
 						: t('social', 'Could not start the move'))
 				}
+			} finally {
+				this.busy = false
+			}
+		},
+
+		/** @param {string} url the pds as the server keeps it @return {string} its host */
+		hostOf(url) {
+			try {
+				return new URL(url).host
+			} catch {
+				return url
+			}
+		},
+
+		/**
+		 * Goes on with a move that stopped before the switch: copying again,
+		 * or switching without what is missing.
+		 *
+		 * @param {boolean} withoutMissing switch without what did not arrive
+		 * @return {Promise<void>}
+		 */
+		async decide(withoutMissing) {
+			this.busy = true
+			this.actionError = ''
+			try {
+				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move/continue'), { without_missing: withoutMissing })
+				this.takeMove(data?.move)
+			} catch (error) {
+				this.actionError = error?.response?.data?.error || t('social', 'Could not go on with the move')
+			} finally {
+				this.busy = false
+			}
+		},
+
+		/**
+		 * Calls the move off before the switch.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async callOff() {
+			this.busy = true
+			this.actionError = ''
+			try {
+				const { data } = await axios.delete(generateUrl('apps/social/api/v1/social/bluesky/move'))
+				this.takeMove(data?.move)
+			} catch (error) {
+				this.actionError = error?.response?.data?.error || t('social', 'Could not call the move off')
+				showError(this.actionError)
 			} finally {
 				this.busy = false
 			}
@@ -402,6 +520,14 @@ export default {
 	border-inline-start: 3px solid var(--color-primary-element);
 	background: var(--color-primary-element-light);
 	font-weight: 600;
+}
+
+.migration__bluesky-control {
+	color: var(--color-text-maxcontrast);
+}
+
+.migration__bluesky-announce {
+	margin-top: 8px;
 }
 
 .migration__bluesky-error {

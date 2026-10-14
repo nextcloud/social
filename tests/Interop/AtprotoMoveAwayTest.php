@@ -48,7 +48,8 @@ class AtprotoMoveAwayTest extends TestCase {
 		$handle = 'moved' . bin2hex(random_bytes(3)) . '.test';
 		$password = 'Moved-' . bin2hex(random_bytes(6));
 		$moves = Server::get(MoveAwayService::class);
-		$move = $moves->start($this->alice->actor->getUserId(), $identity, $this->network->pds, $handle, $handle . '@example.test', $password);
+		// no recovery phrase was made, so the move must say it goes on without one
+		$move = $moves->start($this->alice->actor->getUserId(), $identity, $this->network->pds, $handle, $handle . '@example.test', $password, withoutRecovery: true);
 		$moves->run($move->id);
 		$done = $moves->latest($this->alice->actor->getUserId());
 		$this->assertSame(Move::DONE, $done?->state, 'the move ended at ' . $done?->step . ': ' . $done?->error);

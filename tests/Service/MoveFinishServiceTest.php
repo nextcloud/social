@@ -168,9 +168,21 @@ class MoveFinishServiceTest extends TestCase {
 		$this->assertSame(self::CALLBACK, $token['body']['redirect_uri'], 'the code is only good for the URI it was sent to');
 		$this->assertSame('Bearer tok', $move['headers']['Authorization']);
 		$this->assertSame('https://cloud.example/index.php/apps/social/@bob', $move['body']['target'], 'the new account by its id, which every server resolves as it is');
+		$this->assertSame('deactivate', $move['body']['bluesky'], 'the old account\'s Bluesky identity is switched off unless the person said otherwise');
 		$this->assertSame('done', $status['status']);
 		$this->assertSame('alice@old.example', $status['acct']);
 		$this->assertSame('done', $this->service->status('bob')['status'], 'kept for the page the person comes back to');
+	}
+
+	public function testTheBlueskyChoiceGoesToTheOldServer(): void {
+		$this->registered();
+		$this->answers['https://old.example/index.php/apps/social/oauth/token'] = ['access_token' => 'tok'];
+		$this->answers['https://old.example/index.php/apps/social/api/v1/migration/move/authorized'] = ['moved_to' => 'https://cloud.example/index.php/apps/social/@bob'];
+		$this->service->start('bob', '@alice@old.example', 'keep');
+
+		$this->service->finish('bob', 'the-code', 'state-of-the-art');
+
+		$this->assertSame('keep', $this->posts[2]['body']['bluesky']);
 	}
 
 	public function testFinishRefusesACodeThatIsNotForTheMoveThatWasStarted(): void {

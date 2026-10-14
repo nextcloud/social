@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Move;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Client\AppPasswordService;
 use OCA\Social\Atproto\Client\Preferences;
@@ -24,7 +23,10 @@ use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Move\BridgyTwin;
 use OCA\Social\Atproto\Move\InboundMoveService;
+use OCA\Social\Atproto\Move\MovedBlobs;
 use OCA\Social\Atproto\Move\MoveInService;
+use OCA\Social\Atproto\Move\PdsClient;
+use OCA\Social\Atproto\Move\PostRepublisher;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
@@ -38,10 +40,12 @@ use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoClientRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\DocumentService;
@@ -76,6 +80,8 @@ class InboundMoveServiceTest extends TestCase {
 	private PrivateKey $rotation;
 	private Identity $current;
 	private string $picture = 'a picture, byte for byte';
+	/** whether the old PDS hands the picture out */
+	private bool $oldHandsOut = true;
 	/** what the stored document's bytes turned out to be */
 	private string $sniffed = 'image/png';
 	/** @var array<string, string> path => record bytes the repository holds */
@@ -87,6 +93,10 @@ class InboundMoveServiceTest extends TestCase {
 	/** @var MoveInService&MockObject */
 	private MoveInService $moveIn;
 	private ServiceAuth $serviceAuth;
+	/** @var AtprotoIdentityRequest&MockObject */
+	private AtprotoIdentityRequest $identityRequest;
+	/** @var PostRepublisher&MockObject */
+	private PostRepublisher $republisher;
 	private InboundMoveService $moves;
 
 	protected function setUp(): void {
@@ -112,6 +122,8 @@ class InboundMoveServiceTest extends TestCase {
 		$plc = $this->createMock(PlcClient::class);
 		$plc->method('data')->willReturnCallback(fn (): array => $this->plcState);
 		$this->identities = $this->createMock(IdentityService::class);
+		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
+		$this->republisher = $this->createMock(PostRepublisher::class);
 		$this->identities->method('getByDid')->willThrowException(new AtprotoIdentityNotFoundException());
 		$this->identities->method('forActor')->willReturnCallback(fn (): Identity => $this->current);
 		$this->repositories = $this->createMock(RepositoryService::class);
@@ -143,8 +155,14 @@ class InboundMoveServiceTest extends TestCase {
 
 			return $document;
 		});
+		$oldPds = $this->createMock(PdsClient::class);
+		$oldPds->method('bytes')->willReturnCallback(fn (string $pds, string $method, array $query): array => $query['cid'] === Cid::forRaw($this->picture)->toString() && $this->oldHandsOut
+			? ['status' => 200, 'path' => $this->file($this->picture), 'size' => strlen($this->picture), 'type' => 'image/png']
+			: ['status' => 404, 'path' => '', 'size' => 0, 'type' => '']);
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->moveIn->method('didOf')->willReturn(self::DID);
+		$this->moveIn->method('didState')->willReturnCallback(fn (): array => $this->plcState);
+		$this->moveIn->method('keptHandle')->willReturnCallback(fn (string $pds, array $state): string => ($state['alsoKnownAs'][0] ?? '') === 'at://alice.example.org' ? 'alice.example.org' : '');
 		$bridgy = $this->createMock(BridgyTwin::class);
 		$bridgy->method('ask')->willReturnCallback(function (Person $actor, string $command): void {
 			$this->asked[] = $command;
@@ -184,7 +202,8 @@ class InboundMoveServiceTest extends TestCase {
 		$this->moves = new InboundMoveService(
 			$config, $sessions, $this->serviceAuth, $plc, $this->identities, $keys, $this->repositories, $repoRequest, $blobs,
 			$documents, $this->createMock(Preferences::class), $this->moveIn, $bridgy, $actors, $request, $crypto, $random,
-			$this->createMock(IThrottler::class), $jobs, $time, new NullLogger(),
+			$this->createMock(IThrottler::class), $jobs, $time, new NullLogger(), $this->identityRequest,
+			new MovedBlobs($oldPds, $repoRequest, $blobs, $documents, $actors, new NullLogger()), $this->republisher,
 		);
 	}
 
@@ -284,6 +303,7 @@ class InboundMoveServiceTest extends TestCase {
 		$move = $this->moves->latest('alice');
 
 		$this->assertSame([Move::FAILED, 'The invitation expired', ''], [$move?->state, $move?->error, $this->rows[1]->session]);
+		$this->assertSame('invite-expired', $move?->progress['code']);
 	}
 
 	public function testTheSessionOnlyMovesTheAccount(): void {
@@ -295,10 +315,44 @@ class InboundMoveServiceTest extends TestCase {
 		$this->assertFalse($this->moves->owns('Bearer a.' . rtrim(strtr(base64_encode('{"sub":"did:plc:x"}'), '+/', '-_'), '=') . '.c'), 'an app\'s session is not a move\'s');
 
 		$credentials = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
-		$this->assertSame([$this->rotation->didKey()], $credentials['rotationKeys']);
+		$this->assertSame(['did:key:zOld', $this->rotation->didKey()], $credentials['rotationKeys'], 'a key the old server is not known to hold is kept');
 		$this->assertSame(['at://alice.social.test'], $credentials['alsoKnownAs']);
 		$this->assertSame(self::HERE, $credentials['services']['atproto_pds']['endpoint']);
 		$this->assertStringStartsWith('did:key:z', $credentials['verificationMethods']['atproto']);
+	}
+
+	/** The keys the DID lists stay, the person's recovery key here first and this server's last. */
+	public function testTheRecommendedRotationKeysKeepThePersonsKeys(): void {
+		$this->plcState = $this->stateAt('https://pds.example.com', $this->oldKey->didKey(), ['did:key:zUser', 'did:key:zOldPds']);
+		$this->current = new Identity(1, 'https://social.test/@alice', 'did:plc:qhuarct7u6lie3dhefl6c4ua', 'alice.social.test', '', '', 'did:key:zRecovery', Identity::STATE_ACTIVE, '', 0);
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+
+		$keys = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth)['rotationKeys'];
+
+		$this->assertSame(['did:key:zRecovery', 'did:key:zUser', 'did:key:zOldPds', $this->rotation->didKey()], $keys);
+	}
+
+	/** A handle on the person's own domain is recommended, and is their custom handle here once the DID moved. */
+	public function testAHandleOnTheirOwnDomainIsKept(): void {
+		$this->plcState = ['alsoKnownAs' => ['at://alice.example.org']] + $this->plcState;
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+		$recommended = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
+		$this->assertSame(['at://alice.example.org'], $recommended['alsoKnownAs']);
+		$this->assertSame('alice.example.org', $this->rows[1]->progress['handle_kept']);
+
+		$this->plcState = ['alsoKnownAs' => ['at://alice.example.org']] + $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->identityRequest->expects($this->once())->method('setCustomHandle')->with($this->current->did, 'alice.example.org');
+		$this->identities->method('receive')->willReturn($this->current);
+		$this->moves->procedure('com.atproto.server.activateAccount', [], $auth);
+	}
+
+	/** A DID Bridgy Fed holds lists only Bridgy's keys: none of them stays. */
+	public function testBridgysKeysAreNotKept(): void {
+		$this->plcState = $this->stateAt('https://atproto.brid.gy', $this->oldKey->didKey(), ['did:key:zBridgy']);
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+
+		$this->assertSame([$this->rotation->didKey()], $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth)['rotationKeys']);
 	}
 
 	public function testTheRepositoryIsTakenOnlyAsTheDidSignedIt(): void {
@@ -365,7 +419,10 @@ class InboundMoveServiceTest extends TestCase {
 
 		$this->assertSame('InvalidRequest', $this->refused(fn () => $this->moves->procedure('com.atproto.server.activateAccount', [], $auth))->error);
 
-		$this->plcState = $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->current = new Identity(1, 'https://social.test/@alice', 'did:plc:qhuarct7u6lie3dhefl6c4ua', 'alice.social.test', '', '', 'did:key:zRecovery', Identity::STATE_ACTIVE, '', 0);
+		$this->plcState = $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], ['did:key:zRecovery', $this->rotation->didKey()]);
+		$this->identityRequest->expects($this->once())->method('setRecoveryPublic')->with(self::DID, 'did:key:zRecovery');
+		$this->republisher->expects($this->once())->method('remember')->with($this->anything(), $this->current);
 		$this->identities->expects($this->once())->method('receive')
 			->with($this->current, self::DID, $this->callback(fn (PrivateKey $key): bool => $key->didKey() === $recommended['verificationMethods']['atproto']), 'https://pds.example.com')
 			->willReturn($this->current);
@@ -394,6 +451,46 @@ class InboundMoveServiceTest extends TestCase {
 		$this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth);
 	}
 
+	/** An operation is held back while pictures are missing, until the person decides. */
+	public function testMissingPicturesHoldTheOperationBackUntilThePersonDecides(): void {
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+		$recommended = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
+		$here = ['type' => 'plc_operation'] + $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->identities->expects($this->once())->method('submit')->with(self::DID, $here);
+
+		$this->assertSame('BlobsMissing', $this->refused(fn () => $this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth))->error);
+		$this->assertSame([Move::NEEDS_DECISION, 'blobs-missing', 1], [$this->rows[1]->state, $this->rows[1]->progress['code'], $this->rows[1]->progress['missing']['count']]);
+		$this->assertSame(Move::NEEDS_DECISION, $this->moves->latest('alice')?->state, 'the session goes on meanwhile');
+
+		$this->moves->decide($this->rows[1], true);
+		$this->assertSame(Move::WAITING, $this->rows[1]->state);
+		$this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth);
+	}
+
+	/** Asked to, this server copies the missing pictures from the old PDS itself. */
+	public function testMissingPicturesAreCopiedFromTheOldPds(): void {
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+		$recommended = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
+		$here = ['type' => 'plc_operation'] + $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->refused(fn () => $this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth));
+
+		$this->oldHandsOut = false;
+		$this->moves->decide($this->rows[1], false);
+		$this->assertSame([[AtprotoMove::class, ['move' => 1]]], $this->queued);
+		$this->moves->run($this->rows[1]);
+		$this->assertSame(Move::NEEDS_DECISION, $this->rows[1]->state, 'still missing: the person decides again');
+
+		$this->oldHandsOut = true;
+		$this->moves->decide($this->rows[1], false);
+		$this->moves->run($this->rows[1]);
+		$this->assertSame(Move::WAITING, $this->rows[1]->state);
+		$this->assertArrayHasKey(Cid::forRaw($this->picture)->toString(), $this->stored);
+		$this->identities->expects($this->once())->method('submit');
+		$this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth);
+	}
+
 	public function testARefreshEndsTheSessionBefore(): void {
 		$made = $this->made();
 
@@ -410,15 +507,19 @@ class InboundMoveServiceTest extends TestCase {
 
 		$this->moves->cancel('alice');
 
-		$this->assertSame(Move::FAILED, $this->rows[1]->state);
+		$this->assertSame(Move::CANCELLED, $this->rows[1]->state);
 		$this->assertSame('ExpiredToken', $this->refused(fn () => $this->moves->query('com.atproto.server.getSession', [], $auth))->error);
 	}
 
 	public function testAnotherMoveUnderWayIsNotReplaced(): void {
 		$this->rows[1] = new Move(1, self::DID, 'alice', Move::IN, 'https://pds.example.com', '', 'alice.bsky.social', Move::STEP_REPO, Move::RUNNING);
 
-		$this->expectException(InvalidArgumentException::class);
-		$this->moves->invite('alice', 'alice.bsky.social');
+		try {
+			$this->moves->invite('alice', 'alice.bsky.social');
+			$this->fail('invited');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('move-in-progress', $e->errorCode);
+		}
 	}
 
 	/** A replay record that remembers what it was given, as the table does. */

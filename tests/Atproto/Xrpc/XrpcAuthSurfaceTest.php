@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Atproto\Xrpc;
 use OCA\Social\Atproto\Client\AppViewProxy;
 use OCA\Social\Atproto\Client\ClientXrpc;
 use OCA\Social\Atproto\Client\NotificationSettings;
+use OCA\Social\Atproto\Client\PlcSignatureService;
 use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Client\ServiceAuthGrant;
 use OCA\Social\Atproto\Client\SessionService;
@@ -91,6 +92,7 @@ class XrpcAuthSurfaceTest extends TestCase {
 		'com.atproto.repo.uploadBlob', 'com.atproto.repo.importRepo', 'com.atproto.moderation.createReport',
 		'app.bsky.actor.getPreferences', 'app.bsky.actor.putPreferences', 'app.bsky.feed.getTimeline', 'app.bsky.graph.muteActor',
 		'chat.bsky.convo.listConvos', 'chat.bsky.convo.sendMessage',
+		'com.atproto.identity.requestPlcOperationSignature', 'com.atproto.identity.signPlcOperation',
 	];
 
 	private bool $enabled = true;
@@ -118,7 +120,7 @@ class XrpcAuthSurfaceTest extends TestCase {
 			$config, $sessions, $this->createMock(AppViewProxy::class), $this->createMock(Preferences::class),
 			$this->createMock(WriteService::class), $grants, $oauth, $this->createMock(ModerationService::class),
 			$inbound, $this->createMock(BlueskyMutes::class), $this->createMock(BlueskyBookmarks::class),
-			$this->createMock(NotificationSettings::class),
+			$this->createMock(NotificationSettings::class), $this->createMock(PlcSignatureService::class),
 		);
 
 		$identities = $this->createMock(IdentityService::class);
