@@ -12,7 +12,7 @@ import { confirmPassword } from '../../../src/services/externalApi.js'
 import BlueskyMoveAway from '../../../src/components/BlueskyMoveAway.vue'
 
 vi.mock('@nextcloud/axios', () => ({
-	default: { get: vi.fn(), post: vi.fn() },
+	default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('../../../src/services/externalApi.js', () => ({ confirmPassword: vi.fn().mockResolvedValue(undefined) }))
@@ -45,18 +45,18 @@ function moveOf(state, step = 'repo', extra = {}) {
  * The server: an identity in `state` (or none), and the moves the GET answers
  * one after the other, the last one repeated.
  */
-function server({ identity = 'active', moves = [null] } = {}) {
+function server({ identity = 'active', moves = [null], recovery = false, newHost = null } = {}) {
 	let polls = 0
 	axios.get.mockImplementation((url) => {
 		if (url === `${API}/identity`) {
 			return identity === null
 				? notFound()
-				: Promise.resolve({ data: { handle: 'alice.example.org', did: 'did:plc:alice', state: identity } })
+				: Promise.resolve({ data: { handle: 'alice.example.org', did: 'did:plc:alice', state: identity, recovery_key: recovery } })
 		}
 		if (url === `${API}/move`) {
 			const move = moves[Math.min(polls, moves.length - 1)]
 			polls++
-			return Promise.resolve({ data: { move } })
+			return Promise.resolve({ data: { move, has_recovery_key: recovery, new_host: newHost } })
 		}
 		return notFound()
 	})
@@ -158,9 +158,86 @@ describe('BlueskyMoveAway', () => {
 			email: 'alice@example.org',
 			password: 'hunter22',
 			inviteCode: 'bsky-social-abc',
+			without_recovery: true,
+			announce: 'none',
 		})
 		expect(wrapper.text()).toContain('Moving to https://pds.example …')
 		expect(wrapper.find('.migration__bluesky-form').exists()).toBe(false)
+	})
+
+	it('warns before the move that without a recovery phrase only the new server controls the account', async () => {
+		server({ recovery: true })
+		axios.post.mockResolvedValue({ data: { move: moveOf('running') } })
+		const wrapper = await mountCard()
+		await fill(wrapper)
+		await buttonNamed(wrapper, 'Move my Bluesky account').trigger('click')
+		expect(wrapper.find('.migration__bluesky-no-recovery').exists()).toBe(false)
+
+		await buttonNamed(wrapper, 'Move it').trigger('click')
+		await flushPromises()
+		expect(axios.post.mock.calls[0][1].without_recovery).toBe(false)
+		wrapper.unmount()
+
+		server({ recovery: false })
+		const bare = await mountCard()
+		await fill(bare)
+		await buttonNamed(bare, 'Move my Bluesky account').trigger('click')
+		expect(bare.find('.migration__bluesky-no-recovery').text()).toBe('You have no recovery phrase: afterwards only bsky.social controls your Bluesky account.')
+	})
+
+	it('asks for a post saying where the account went when ticked', async () => {
+		server()
+		axios.post.mockResolvedValue({ data: { move: moveOf('running') } })
+		const wrapper = await mountCard()
+		await fill(wrapper)
+		await wrapper.find('.migration__bluesky-announce input').setValue(true)
+
+		await buttonNamed(wrapper, 'Move my Bluesky account').trigger('click')
+		await buttonNamed(wrapper, 'Move it').trigger('click')
+		await flushPromises()
+
+		expect(axios.post.mock.calls[0][1].announce).toBe('post')
+	})
+
+	it('says who controls the account once it moved', async () => {
+		server({ moves: [moveOf('done', 'done')], recovery: true, newHost: 'pds.example' })
+		const wrapper = await mountCard()
+
+		expect(wrapper.find('.migration__bluesky-control').text()).toBe('You, with your recovery phrase, and pds.example control it now. This server no longer does.')
+	})
+
+	it('lets a move that waits for a decision copy again, switch without what is missing, or be called off', async () => {
+		server({ moves: [moveOf('needs_decision', 'check', { progress: { code: 'blobs-missing', missing: 3, stage: 'repo_copied' } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'identity') } })
+		const wrapper = await mountCard()
+
+		expect(wrapper.text()).toContain('3 pictures or videos did not arrive on https://pds.example. Your account still points here.')
+		await buttonNamed(wrapper, 'Switch without them').trigger('click')
+		await flushPromises()
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move/continue`, { without_missing: true })
+		expect(wrapper.find('.migration__bluesky-progress').exists()).toBe(true)
+	})
+
+	it('calls a move off before the switch and says the account there is left', async () => {
+		server({ moves: [moveOf('running', 'blobs', { progress: { stage: 'repo_copied' } })] })
+		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'blobs', { progress: { stage: 'repo_copied', code: 'target-account-left' } }), code: 'target-account-left', host: 'pds.example' } })
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call it off').trigger('click')
+		await flushPromises()
+
+		expect(axios.delete).toHaveBeenCalledWith(`${API}/move`)
+		expect(wrapper.text()).toContain('The move was called off. The account made on pds.example is still there, switched off: delete it there if you do not want it.')
+		expect(wrapper.find('.migration__bluesky-form').exists()).toBe(true)
+		wrapper.unmount()
+	})
+
+	it('offers no way to call a move off once the account points at the new server', async () => {
+		server({ moves: [moveOf('failed', 'activate', { error: 'activateAccount answered 500', progress: { stage: 'identity_switched' } })] })
+		const wrapper = await mountCard()
+
+		expect(buttonNamed(wrapper, 'Try again')).toBeDefined()
+		expect(buttonNamed(wrapper, 'Call it off')).toBeUndefined()
 	})
 
 	it('sends nothing when the move is not confirmed', async () => {

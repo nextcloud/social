@@ -2886,6 +2886,17 @@ OC.L10N.register(
     "Back to %s" : "Zurück zu %s",
     "Your code to move your Bluesky account" : "Dein Code zum Umzug deines Bluesky-Kontos",
     "A tool you signed in to asks to point your Bluesky account at another server. To allow it, enter this code there. It is good for 15 minutes." : "Ein Werkzeug, bei dem du dich angemeldet hast, möchte dein Bluesky-Konto auf einen anderen Server umstellen. Um das zu erlauben, gib dort diesen Code ein. Er gilt 15 Minuten.",
-    "If you are not moving your Bluesky account, ignore this e-mail and nothing changes." : "Wenn du dein Bluesky-Konto nicht umziehst, ignoriere diese E-Mail, dann ändert sich nichts."
+    "If you are not moving your Bluesky account, ignore this e-mail and nothing changes." : "Wenn du dein Bluesky-Konto nicht umziehst, ignoriere diese E-Mail, dann ändert sich nichts.",
+    "You, with your recovery phrase, and {host} control it now. This server no longer does." : "Jetzt kontrollierst du es mit deiner Wiederherstellungsphrase, zusammen mit {host}. Dieser Server nicht mehr.",
+    "Only {host} controls it now. This server no longer does." : "Jetzt kontrolliert es nur noch {host}. Dieser Server nicht mehr.",
+    "_{n} picture or video did not arrive on {pds}. Your account still points here._::_{n} pictures or videos did not arrive on {pds}. Your account still points here._" : ["{n} Bild oder Video ist nicht auf {pds} angekommen. Dein Konto zeigt noch hierher.","{n} Bilder oder Videos sind nicht auf {pds} angekommen. Dein Konto zeigt noch hierher."],
+    "Your posts did not all arrive on {pds}. Your account still points here." : "Nicht alle deine Beiträge sind auf {pds} angekommen. Dein Konto zeigt noch hierher.",
+    "Copy again" : "Erneut kopieren",
+    "Switch without them" : "Ohne sie umstellen",
+    "The move was called off. The account made on {host} is still there, switched off: delete it there if you do not want it." : "Der Umzug wurde abgebrochen. Das auf {host} angelegte Konto gibt es noch, ausgeschaltet: Lösche es dort, wenn du es nicht willst.",
+    "Afterwards, post where my Bluesky account went" : "Danach in einem Beitrag sagen, wohin mein Bluesky-Konto umgezogen ist",
+    "You have no recovery phrase: afterwards only {server} controls your Bluesky account." : "Du hast keine Wiederherstellungsphrase: Danach kontrolliert nur noch {server} dein Bluesky-Konto.",
+    "Checking that everything arrived" : "Prüfen, ob alles angekommen ist",
+    "Could not go on with the move" : "Der Umzug konnte nicht fortgesetzt werden"
 },
 "nplurals=2; plural=(n != 1);");
