@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Move;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Crypto\Curve;
@@ -30,6 +29,7 @@ use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
 use OCP\Security\ICrypto;
@@ -149,31 +149,54 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertSame([[AtprotoMove::class, ['move' => 1]]], $this->queued);
 	}
 
-	public function testWhatTheOtherServerWillNotTakeIsSaidAtOnce(): void {
-		foreach ([
-			['alice.elsewhere.org', '', 'gives out handles ending in .pds.example.com'],
-		] as [$handle, $invite, $message]) {
-			try {
-				$this->moves->start('alice', $this->alice, 'pds.example.com', $handle, 'a@example.org', 'pw', $invite);
-				$this->fail('started');
-			} catch (InvalidArgumentException $e) {
-				$this->assertStringContainsString($message, $e->getMessage());
-			}
-		}
+	public function testWhatTheOtherServerWillNotTakeIsSaidAtOnceWithACode(): void {
+		$this->assertRefused('handle-not-allowed', 'gives out handles ending in .pds.example.com', 'alice.elsewhere.org');
 
 		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['did' => self::PDS_DID, 'inviteCodeRequired' => true]]];
-		try {
-			$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'a@example.org', 'pw');
-			$this->fail('started without an invite');
-		} catch (InvalidArgumentException $e) {
-			$this->assertStringContainsString('invite code', $e->getMessage());
-		}
+		$this->assertRefused('invite-code-required', 'invite code');
 
-		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['did' => self::PDS_DID]]];
-		$this->answers['com.atproto.server.createAccount'] = [['status' => 400, 'body' => ['error' => 'HandleNotAvailable', 'message' => 'Handle already taken']]];
-		$this->expectException(InvalidArgumentException::class);
-		$this->expectExceptionMessage('Handle already taken');
-		$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'a@example.org', 'pw');
+		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => []]];
+		$this->assertRefused('pds-unknown', 'does not say what it is');
+
+		foreach (['HandleNotAvailable' => 'handle-taken', 'InvalidInviteCode' => 'invite-code-invalid', 'SomethingNew' => 'account-not-created'] as $error => $code) {
+			$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['did' => self::PDS_DID]]];
+			$this->answers['com.atproto.server.createAccount'] = [['status' => 400, 'body' => ['error' => $error, 'message' => 'Not like this']]];
+			$this->assertRefused($code, 'Not like this');
+		}
+	}
+
+	public function testAServerThatCannotBeReachedHasItsOwnCode(): void {
+		$this->answers['com.atproto.server.describeServer'] = [['status' => 500, 'body' => []]];
+		$this->assertRefused('pds-refused', 'describeServer answered 500');
+
+		$this->assertSame('pds-unreachable', MoveAwayService::codeOf(new AtprotoException('The PDS at https://x could not be reached: timeout')));
+		$this->assertSame('pds-not-public', MoveAwayService::codeOf(new AtprotoException('The PDS at https://x could not be reached: host does not resolve to a public address: x')));
+		$this->assertSame('pds-address-invalid', MoveAwayService::codeOf(new AtprotoException('That is not the https address of a PDS')));
+		$this->assertSame('keys-sealed', MoveAwayService::codeOf(new AtprotoException('The signing key of did:plc:x cannot be opened')));
+		$this->assertSame('plc-refused', MoveAwayService::codeOf(new \OCA\Social\Exceptions\AtprotoPlcRefusedException('PLC directory refused the operation (400): bad')));
+		$this->assertSame('plc-unreachable', MoveAwayService::codeOf(new AtprotoException('PLC directory could not be reached: timeout')));
+	}
+
+	public function testAFailedStepKeepsItsCode(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->answers['com.atproto.repo.importRepo'] = [['status' => 413, 'body' => ['error' => 'PayloadTooLarge']]];
+
+		$this->moves->run($move->id);
+
+		$this->assertSame(Move::FAILED, $this->rows[1]->state);
+		$this->assertSame('pds-refused', $this->rows[1]->progress['code']);
+		$this->moves->retry('alice');
+		$this->assertArrayNotHasKey('code', $this->rows[1]->progress, 'a move started again has no error');
+	}
+
+	private function assertRefused(string $code, string $message, string $handle = 'alice.pds.example.com'): void {
+		try {
+			$this->moves->start('alice', $this->alice, 'pds.example.com', $handle, 'a@example.org', 'pw');
+			$this->fail('started');
+		} catch (MoveErrorException $e) {
+			$this->assertSame($code, $e->errorCode);
+			$this->assertStringContainsString($message, $e->getMessage());
+		}
 	}
 
 	public function testTheMoveCopiesHandsOverActivatesAndSwitchesOffHere(): void {
@@ -231,14 +254,18 @@ class MoveAwayServiceTest extends TestCase {
 	public function testOnlyAMoveAwayIsStartedAgainHere(): void {
 		$this->rows[1] = new Move(1, self::DID, 'alice', Move::INBOUND, 'https://atproto.brid.gy', '', 'alice.ap.brid.gy', Move::STEP_REPO, Move::FAILED);
 
-		$this->expectException(InvalidArgumentException::class);
+		$this->expectException(MoveErrorException::class);
 		$this->moves->retry('alice');
 	}
 
 	public function testOneMoveAtATime(): void {
 		$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
 
-		$this->expectException(InvalidArgumentException::class);
-		$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice2.pds.example.com', 'alice@example.org', 'secret');
+		try {
+			$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice2.pds.example.com', 'alice@example.org', 'secret');
+			$this->fail('a second move started');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('move-in-progress', $e->errorCode);
+		}
 	}
 }

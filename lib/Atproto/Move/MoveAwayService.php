@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Client\Preferences;
@@ -24,6 +23,8 @@ use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoPlcRefusedException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCP\BackgroundJob\IJobList;
 use OCP\Security\ICrypto;
 use Psr\Log\LoggerInterface;
@@ -45,6 +46,16 @@ use Throwable;
 class MoveAwayService {
 	private const CREATE_ACCOUNT = 'com.atproto.server.createAccount';
 	private const MAX_BLOBS_PER_PAGE = 500;
+	/** what the other PDS's `createAccount` errors mean, as codes for the page */
+	private const CREATE_ACCOUNT_ERRORS = [
+		'HandleNotAvailable' => 'handle-taken',
+		'InvalidHandle' => 'handle-not-allowed',
+		'UnsupportedDomain' => 'handle-not-allowed',
+		'InvalidInviteCode' => 'invite-code-invalid',
+		'InvalidPassword' => 'password-not-accepted',
+		'IncompatibleDidDoc' => 'account-not-created',
+		'RateLimitExceeded' => 'rate-limited',
+	];
 
 	public function __construct(
 		private PdsClient $pds,
@@ -65,40 +76,50 @@ class MoveAwayService {
 	/**
 	 * Makes the account on the other PDS and queues the rest.
 	 *
-	 * @throws InvalidArgumentException with what to tell the person
-	 * @throws AtprotoException
+	 * @throws MoveErrorException with what to tell the person
 	 */
 	public function start(string $userId, Identity $identity, string $pds, string $handle, string $email, string $password, string $inviteCode = ''): Move {
 		if (!$identity->isActive()) {
-			throw new InvalidArgumentException('The Bluesky account is not active here');
+			throw new MoveErrorException('The Bluesky account is not active here', 'identity-inactive');
 		}
 		$latest = $this->moves->latestOfUser($userId);
 		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
-			throw new InvalidArgumentException('A move is already under way');
+			throw new MoveErrorException('A move is already under way', 'move-in-progress');
 		}
-		$origin = $this->pds->origin($pds);
-		$server = $this->pds->expect($origin, 'com.atproto.server.describeServer');
+		try {
+			$origin = $this->pds->origin($pds);
+			$server = $this->pds->expect($origin, 'com.atproto.server.describeServer');
+		} catch (AtprotoException $e) {
+			throw new MoveErrorException($e->getMessage(), self::codeOf($e), $e);
+		}
 		$pdsDid = (string)($server['did'] ?? '');
 		if (!Syntax::isDid($pdsDid)) {
-			throw new InvalidArgumentException('That server does not say what it is');
+			throw new MoveErrorException('That server does not say what it is', 'pds-unknown');
 		}
 		$handle = strtolower(trim(ltrim(trim($handle), '@')));
 		$domains = is_array($server['availableUserDomains'] ?? null) ? $server['availableUserDomains'] : [];
 		if (!Syntax::isHandle($handle) || ($domains !== [] && !self::underAny($handle, $domains))) {
-			throw new InvalidArgumentException('That server gives out handles ending in ' . implode(', ', $domains));
+			throw new MoveErrorException('That server gives out handles ending in ' . implode(', ', $domains), 'handle-not-allowed');
 		}
 		if (($server['inviteCodeRequired'] ?? false) === true && trim($inviteCode) === '') {
-			throw new InvalidArgumentException('That server needs an invite code');
+			throw new MoveErrorException('That server needs an invite code', 'invite-code-required');
 		}
 
-		$token = $this->serviceAuth->token($this->identities->signingKey($identity), $identity->did, $pdsDid, self::CREATE_ACCOUNT, 300);
-		$body = ['did' => $identity->did, 'handle' => $handle, 'email' => trim($email), 'password' => $password];
-		if (trim($inviteCode) !== '') {
-			$body['inviteCode'] = trim($inviteCode);
+		try {
+			$token = $this->serviceAuth->token($this->identities->signingKey($identity), $identity->did, $pdsDid, self::CREATE_ACCOUNT, 300);
+			$body = ['did' => $identity->did, 'handle' => $handle, 'email' => trim($email), 'password' => $password];
+			if (trim($inviteCode) !== '') {
+				$body['inviteCode'] = trim($inviteCode);
+			}
+			$answer = $this->pds->call($origin, self::CREATE_ACCOUNT, 'POST', [], $body, null, '', $token);
+		} catch (AtprotoException $e) {
+			throw new MoveErrorException($e->getMessage(), self::codeOf($e), $e);
 		}
-		$answer = $this->pds->call($origin, self::CREATE_ACCOUNT, 'POST', [], $body, null, '', $token);
 		if ($answer['status'] !== 200 || !is_string($answer['body']['accessJwt'] ?? null)) {
-			throw new InvalidArgumentException('The other server did not make the account: ' . trim((string)($answer['body']['message'] ?? $answer['body']['error'] ?? 'status ' . $answer['status'])));
+			throw new MoveErrorException(
+				'The other server did not make the account: ' . trim((string)($answer['body']['message'] ?? $answer['body']['error'] ?? 'status ' . $answer['status'])),
+				self::CREATE_ACCOUNT_ERRORS[(string)($answer['body']['error'] ?? '')] ?? 'account-not-created',
+			);
 		}
 
 		$move = new Move(0, $identity->did, $userId, Move::AWAY, $origin, $pdsDid, (string)($answer['body']['handle'] ?? $handle), Move::STEP_REPO, Move::RUNNING);
@@ -110,17 +131,38 @@ class MoveAwayService {
 	}
 
 	/**
+	 * The stable code of what stopped a call or a step, for the page.
+	 */
+	public static function codeOf(Throwable $e): string {
+		$message = $e->getMessage();
+
+		return match (true) {
+			$e instanceof MoveErrorException => $e->errorCode,
+			$e instanceof AtprotoPlcRefusedException => 'plc-refused',
+			str_starts_with($message, 'PLC directory could not be reached') => 'plc-unreachable',
+			str_contains($message, 'signing key of') && str_contains($message, 'cannot be opened') => 'keys-sealed',
+			str_starts_with($message, 'That is not the https address') => 'pds-address-invalid',
+			str_contains($message, 'public address') => 'pds-not-public',
+			str_contains($message, 'could not be reached') => 'pds-unreachable',
+			str_contains($message, '(ExpiredToken') || str_contains($message, '(InvalidToken') => 'pds-session-expired',
+			preg_match('/ answered \d{3}/', $message) === 1 => 'pds-refused',
+			default => 'move-failed',
+		};
+	}
+
+	/**
 	 * Starts a failed move again, from the step it failed at.
 	 *
-	 * @throws InvalidArgumentException
+	 * @throws MoveErrorException
 	 */
 	public function retry(string $userId): Move {
 		$move = $this->moves->latestOfUser($userId);
 		if ($move === null || $move->state !== Move::FAILED || $move->direction !== Move::AWAY) {
-			throw new InvalidArgumentException('There is no failed move to start again');
+			throw new MoveErrorException('There is no failed move to start again', 'no-failed-move');
 		}
 		$move->state = Move::RUNNING;
 		$move->error = '';
+		unset($move->progress['code']);
 		$this->moves->update($move);
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 
@@ -154,6 +196,7 @@ class MoveAwayService {
 		} catch (Throwable $e) {
 			$move->state = Move::FAILED;
 			$move->error = $e->getMessage();
+			$move->progress['code'] = self::codeOf($e);
 			$this->moves->update($move);
 			$this->logger->warning('Bluesky account move stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
 		}

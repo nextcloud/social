@@ -1407,6 +1407,42 @@ PDS — Bridgy Fed supports account migration out — so the followers come
 along; the page offers it when the handle resolves to a `*.ap.brid.gy`
 DID, and tells the person to turn the bridge off afterwards.
 
+### 13.4 Move error codes
+
+Every error answer of the move routes under `/api/v1/social/bluesky/*`
+carries a stable code beside the English sentence,
+`{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
+code in its progress (`progress.code`) next to `error`. The Migration page
+explains the code in the person's language; the sentence is for logs and
+older clients.
+
+| Code | When | What the person can do |
+|---|---|---|
+| `bluesky-off` | Bluesky is not enabled on this server | Nothing here; ask the administrator |
+| `no-identity` | The account has no Bluesky identity here | Nothing to move |
+| `identity-inactive` | The Bluesky account is switched off or already moved | Switch it on first |
+| `move-in-progress` | Another move of the account is under way | Wait for it, or call it off |
+| `pds-address-invalid` | The server typed is not an https address | Check the address |
+| `pds-not-public` | The server's address does not resolve to a public address | Check the address |
+| `pds-unreachable` | The other server did not answer | Try again later |
+| `pds-unknown` | The other server does not say which DID it has (`describeServer`) | It is not a Bluesky server; check the address |
+| `pds-refused` | The other server answered a step with an error | Try again; the details say which step |
+| `pds-session-expired` | The session on the other server ended and could not be renewed | Try again |
+| `handle-not-allowed` | The handle does not end in one the other server gives out | Pick a handle under one of its domains |
+| `handle-taken` | The other server has that handle already | Pick another handle |
+| `invite-code-required` | The other server needs an invite code | Ask that server for one |
+| `invite-code-invalid` | The other server refused the invite code | Check the code |
+| `password-not-accepted` | The other server refused the password | Pick a longer one |
+| `rate-limited` | The other server asks to wait | Try again later |
+| `account-not-created` | The other server did not make the account, for another reason | The details say why |
+| `keys-sealed` | The account's keys cannot be opened (the instance secret changed) | Ask the administrator to run `occ social:atproto:keys:reseal` |
+| `plc-unreachable` | The PLC directory did not answer | Try again later |
+| `plc-refused` | The PLC directory refused the operation | The details say why |
+| `no-failed-move` | "Try again" with no stopped move | Nothing to do |
+| `move-refused` | A move here could not be started again | The details say why |
+| `move-failed` | A step stopped for a reason without its own code | The details say why |
+| `server-error` | Something unexpected on this server | Try again; the log has the details |
+
 ## 14. Operations
 
 ### 14.1 Requirements

@@ -57,7 +57,10 @@ final class Move {
 	public const DONE = 'done';
 
 	/**
-	 * @param array{blobs?: int, records?: int, follows?: int, expectedBlobs?: int, posts?: int, likes?: int, reposts?: int, lists?: int} $progress counts of what was copied
+	 * @param array<string, mixed> $progress counts of what was copied (`blobs`,
+	 *                                       `records`, `follows`, `posts`, …), and
+	 *                                       for the page `code` once it stopped
+	 *                                       and, moving away, `stage`
 	 */
 	public function __construct(
 		public readonly int $id,
