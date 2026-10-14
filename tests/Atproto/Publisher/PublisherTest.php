@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\PresenceService;
 use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\DagCbor;
@@ -25,6 +26,7 @@ use OCA\Social\Atproto\Repository\CommitResult;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -73,6 +75,8 @@ class PublisherTest extends TestCase {
 	private ImportedPostsRequest $imported;
 	/** when the author last switched back on for Bluesky; 0 for never */
 	private int $onSince = 0;
+	/** the account's latest move away, as the moves table has it */
+	private ?Move $moveAway = null;
 
 	protected function setUp(): void {
 		$config = $this->createMock(AtprotoConfig::class);
@@ -101,7 +105,44 @@ class PublisherTest extends TestCase {
 		$this->imported->method('isImported')->willReturnCallback(fn (string $actor, string $post): bool => in_array($post, $this->importedPosts, true));
 		$presence = $this->createMock(PresenceService::class);
 		$presence->method('writtenWhileOff')->willReturnCallback(fn (Person $author, Stream $post): bool => $post->getPublishedTime() < $this->onSince);
-		$this->publisher = new Publisher($config, $identities, $this->repositories, $this->mapper, $this->videos, $this->streamRequest, $actors, $this->time, new NullLogger(), $this->imported, $presence);
+		$moves = $this->createMock(AtprotoMoveRequest::class);
+		$moves->method('latestOfDid')->willReturnCallback(fn (string $did, string $direction): ?Move => $direction === Move::AWAY ? $this->moveAway : null);
+		$this->publisher = new Publisher($config, $identities, $this->repositories, $this->mapper, $this->videos, $this->streamRequest, $actors, $this->time, new NullLogger(), $this->imported, $presence, null, $moves);
+	}
+
+	public function testAPostWaitsWhileTheAccountMovesAwayAndGoesBeforeTheDidMoves(): void {
+		foreach ([[Move::RUNNING, Move::STEP_BLOBS], [Move::NEEDS_DECISION, Move::STEP_CHECK], [Move::FAILED, Move::STEP_ACTIVATE]] as [$state, $step]) {
+			$this->moveAway = new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', $step, $state);
+			$this->repositories->expects($this->never())->method('write');
+			$this->assertNull($this->publisher->publishPost($this->post()), $state . ' at ' . $step);
+		}
+	}
+
+	public function testTheBacklogOfAMoveIsPublishedOldestFirstDespiteThePause(): void {
+		$this->moveAway = new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_CHECK, Move::RUNNING);
+		$older = $this->post(1760000000 - 100);
+		$older->setId(self::POST . '0');
+		$before = $this->post(1760000000 - 9000);
+		$before->setId(self::POST . 'old');
+		$this->streamRequest->method('getByAuthor')->willReturn([$this->post(), $older, $before]);
+		$written = [];
+		$this->repositories->method('write')->willReturnCallback(function (string $did, PrivateKey $key, array $writes) use (&$written): CommitResult {
+			$written[] = $writes[0]->localId;
+
+			return $this->written();
+		});
+
+		$this->assertSame(2, $this->publisher->publishBacklog('https://social.test/@alice', 1760000000 - 1000));
+
+		$this->assertSame([self::POST . '0', self::POST], $written, 'only what was written since the move began, oldest first');
+		$this->assertNull($this->publisher->publishPost($this->post()), 'the pause holds again afterwards');
+	}
+
+	public function testACalledOffMoveNoLongerHoldsPostsBack(): void {
+		$this->moveAway = new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_BLOBS, Move::CANCELLED);
+		$this->repositories->expects($this->once())->method('write')->willReturn($this->written());
+
+		$this->assertNotNull($this->publisher->publishPost($this->post()));
 	}
 
 	public function testAPublicPostIsWrittenOnce(): void {

@@ -1404,7 +1404,15 @@ The mirror image, so a person is not locked in. On the Migration page,
 2. In the background (`AtprotoMove` job, `oc_social_atproto_move`): the
    repository as a CAR into `importRepo`, the blobs that
    `listMissingBlobs` names into `uploadBlob`, the preferences into
-   `putPreferences`. Then `checkAccountStatus` there: the repository at
+   `putPreferences`. While the move runs, or waits for the person, posts
+   written here wait instead of going to the account's repository (the
+   Publisher skips them with a log line). Right before the DID moves they
+   are published, oldest first, and when the repository's head moved on
+   since it was exported — those posts, or a like or a follow made
+   meanwhile — it is exported into `importRepo` again and the blobs
+   copied again. A move called off, or stopped before the DID moved, no
+   longer holds posts back: what waited is published then, or by the
+   reconcile pass. Then `checkAccountStatus` there: the repository at
    this server's head commit with as many records, and `importedBlobs`
    equal to `expectedBlobs`. Anything missing stops the move *before* the
    DID moves, in `needs_decision` with `blobs-missing` and

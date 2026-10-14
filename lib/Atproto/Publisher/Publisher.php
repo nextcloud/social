@@ -12,6 +12,7 @@ namespace OCA\Social\Atproto\Publisher;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\PresenceService;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Tid;
@@ -19,6 +20,7 @@ use OCA\Social\Atproto\Repository\CommitResult;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\AtprotoException;
@@ -47,6 +49,11 @@ class Publisher {
 	/** how far back the reconcile pass looks */
 	public const RECONCILE_WINDOW = 86400;
 	public const RECONCILE_BATCH = 100;
+	/** how many posts written during a move away are published before the DID moves, at most */
+	public const MOVE_BACKLOG = 500;
+
+	/** set while the posts a move away held back are published */
+	private bool $publishingBacklog = false;
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -61,13 +68,17 @@ class Publisher {
 		private ImportedPostsRequest $imported,
 		private ?PresenceService $presence = null,
 		private ?ContainerInterface $container = null,
+		private ?AtprotoMoveRequest $moves = null,
 	) {
 	}
 
 	/**
 	 * Publishes a post, unless it is not one that goes to Bluesky, is there
 	 * already, or its author is not on Bluesky now or was not when they
-	 * wrote it.
+	 * wrote it. While the author's Bluesky account moves away it waits:
+	 * the move publishes what waits right before the DID moves
+	 * (publishBacklog()), and once a move is called off or stops before
+	 * that, the reconcile pass does.
 	 *
 	 * @return CommitResult|null the commit, or null when nothing was written
 	 * @throws AtprotoException
@@ -82,6 +93,11 @@ class Publisher {
 		$author = $this->cacheActorService->getFromId($post->getAttributedTo());
 		$identity = $this->identities->forActor($author);
 		if ($identity === null || !$identity->isActive() || $this->presence?->writtenWhileOff($author, $post) === true) {
+			return null;
+		}
+		if ($this->movingAway($identity)) {
+			$this->logger->info('Post waits: the Bluesky account is moving away', ['post' => $post->getId(), 'did' => $identity->did]);
+
 			return null;
 		}
 		$this->ensureProfile($author, $identity);
@@ -101,6 +117,61 @@ class Publisher {
 		$this->logger->info('Post published to Bluesky', ['post' => $post->getId(), 'did' => $identity->did, 'truncated' => $mapped['truncated']]);
 
 		return $result;
+	}
+
+	/**
+	 * Publishes the posts of an author written since a move away started
+	 * and held back meanwhile, oldest first: the move does so right before
+	 * it exports the repository for the last time.
+	 *
+	 * @return int how many were published
+	 */
+	public function publishBacklog(string $actorId, int $since): int {
+		$posts = [];
+		$before = 0;
+		do {
+			$page = $this->streamRequest->getByAuthor($actorId, 50, $before);
+			foreach ($page as $post) {
+				if ($post->getPublishedTime() < $since) {
+					break 2;
+				}
+				$posts[] = $post;
+				$before = $post->getNid();
+			}
+		} while (count($page) === 50 && count($posts) < self::MOVE_BACKLOG);
+
+		$published = 0;
+		$this->publishingBacklog = true;
+		try {
+			foreach (array_reverse(array_slice($posts, 0, self::MOVE_BACKLOG)) as $post) {
+				try {
+					if (!$this->imported->isImported($post->getAttributedTo(), $post->getId())) {
+						$published += $this->publishPost($post) !== null ? 1 : 0;
+					}
+				} catch (Throwable $e) {
+					$this->logger->warning('Post held back for a move not published to Bluesky', ['post' => $post->getId(), 'exception' => $e]);
+				}
+			}
+		} finally {
+			$this->publishingBacklog = false;
+		}
+
+		return $published;
+	}
+
+	/**
+	 * Whether the account moves away now, so its posts wait: while the
+	 * move runs or waits for the person, and once the DID moved and the
+	 * move stopped before it was done.
+	 */
+	private function movingAway(Identity $identity): bool {
+		if ($this->publishingBacklog || $this->moves === null) {
+			return false;
+		}
+		$move = $this->moves->latestOfDid($identity->did, Move::AWAY);
+
+		return $move !== null && ($move->isUnderWay()
+			|| ($move->state === Move::FAILED && in_array($move->step, [Move::STEP_ACTIVATE, Move::STEP_DONE], true)));
 	}
 
 	/**

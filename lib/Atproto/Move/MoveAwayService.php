@@ -17,6 +17,7 @@ use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\PictureService;
+use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Cron\AtprotoMove;
@@ -71,6 +72,7 @@ class MoveAwayService {
 		private AtprotoMoveRequest $moves,
 		private ICrypto $crypto,
 		private IJobList $jobList,
+		private Publisher $publisher,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -239,6 +241,11 @@ class MoveAwayService {
 		$move->progress['stage'] = self::stageOf($move);
 		$this->moves->update($move);
 		$this->logger->info('Bluesky account move called off', ['did' => $move->did, 'pds' => $move->pds, 'step' => $move->step]);
+		try {
+			$this->publisher->publishBacklog($this->identities->getByDid($move->did)->actorId, $move->creation);
+		} catch (Throwable $e) {
+			$this->logger->warning('Posts held back for a move not published after it was called off', ['did' => $move->did, 'exception' => $e]);
+		}
 
 		return $move;
 	}
@@ -338,10 +345,10 @@ class MoveAwayService {
 	 */
 	private function step(Move $move, Identity $identity): void {
 		match ($move->step) {
-			Move::STEP_REPO => $this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, $this->repositories->exportCar($move->did), 'application/vnd.ipld.car'),
+			Move::STEP_REPO => $this->importRepository($move),
 			Move::STEP_BLOBS => $this->copyBlobs($move),
 			Move::STEP_PREFERENCES => $this->authed($move, 'app.bsky.actor.putPreferences', 'POST', [], $this->preferences->get(new ClientSession($move->userId, $identity, ''))),
-			Move::STEP_CHECK => $this->check($move),
+			Move::STEP_CHECK => $this->check($move, $identity),
 			Move::STEP_IDENTITY => $this->handOver($move, $identity),
 			Move::STEP_ACTIVATE => $this->activate($move, $identity),
 			default => null,
@@ -349,17 +356,43 @@ class MoveAwayService {
 	}
 
 	/**
-	 * Asks the other PDS whether everything arrived before the DID moves
-	 * (`checkAccountStatus`): the repository at this one's head commit, as
-	 * many records, every blob it names. What is missing stops the move
-	 * for the person to decide — copy again, or switch without it.
+	 * The repository as it is now, into the other PDS; the head commit it
+	 * was exported at is kept, to know later whether it moved on.
+	 *
+	 * @throws AtprotoException
+	 */
+	private function importRepository(Move $move): void {
+		$head = $this->repositories->getHead($move->did);
+		$this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, $this->repositories->exportCar($move->did), 'application/vnd.ipld.car');
+		$move->progress['exported'] = (string)$head?->commitCid;
+	}
+
+	/**
+	 * Right before the DID moves: the posts written here during the move
+	 * and held back meanwhile are published, the repository is exported
+	 * again when its head moved on since it was, and the other PDS is
+	 * asked whether everything arrived (`checkAccountStatus`): the
+	 * repository at this one's head commit, as many records, every blob it
+	 * names. What is missing stops the move for the person to decide —
+	 * copy again, or switch without it.
 	 *
 	 * @throws AtprotoException
 	 * @throws MoveErrorException blobs-missing or repo-incomplete
 	 */
-	private function check(Move $move): void {
-		$status = $this->authed($move, 'com.atproto.server.checkAccountStatus');
+	private function check(Move $move, Identity $identity): void {
+		$waiting = $this->publisher->publishBacklog($identity->actorId, $move->creation);
+		if ($waiting > 0) {
+			$move->progress['posts_during_move'] = $waiting;
+			$this->logger->info('Posts written during the move published before the DID moves', ['did' => $move->did, 'posts' => $waiting]);
+		}
 		$head = $this->repositories->getHead($move->did);
+		if ($head !== null && $head->commitCid !== ($move->progress['exported'] ?? '')) {
+			$this->importRepository($move);
+			$this->copyBlobs($move);
+			$this->save($move);
+			$head = $this->repositories->getHead($move->did);
+		}
+		$status = $this->authed($move, 'com.atproto.server.checkAccountStatus');
 		$records = $head?->recordCount ?? 0;
 		if (($head !== null && ($status['repoCommit'] ?? '') !== $head->commitCid) || (int)($status['indexedRecords'] ?? 0) < $records) {
 			$move->progress['records'] = $records;

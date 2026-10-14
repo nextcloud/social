@@ -23,6 +23,7 @@ use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Publisher\PictureService;
+use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Cron\AtprotoMove;
@@ -52,6 +53,8 @@ class MoveAwayServiceTest extends TestCase {
 	/** @var array<int, Move> */
 	private array $rows = [];
 	private ?RepoHead $head = null;
+	/** @var Publisher&MockObject */
+	private Publisher $publisher;
 	/** @var (callable(string): void)|null told of every call to the other PDS before it is answered */
 	private $pdsHook = null;
 	private array $queued = [];
@@ -89,7 +92,7 @@ class MoveAwayServiceTest extends TestCase {
 		$this->identities->method('signingKey')->willReturnCallback(fn (): PrivateKey => $this->key);
 		$this->identities->method('getByDid')->willReturnCallback(fn (): Identity => $this->alice);
 		$repositories = $this->createMock(RepositoryService::class);
-		$repositories->method('exportCar')->with(self::DID)->willReturn('the car');
+		$repositories->method('exportCar')->with(self::DID)->willReturnCallback(fn (): string => 'the car at ' . ($this->head?->commitCid ?? 'nothing'));
 		$repositories->method('getHead')->willReturnCallback(fn (): ?RepoHead => $this->head);
 		$cid = Cid::forRaw('pixels');
 		$blobs = $this->createMock(AtprotoBlobRequest::class);
@@ -117,9 +120,10 @@ class MoveAwayServiceTest extends TestCase {
 		$jobs->method('add')->willReturnCallback(function (string $job, mixed $argument): void {
 			$this->queued[] = [$job, $argument];
 		});
+		$this->publisher = $this->createMock(Publisher::class);
 		$this->moves = new MoveAwayService(
 			$pds, new ServiceAuth($time, $this->createStub(AtprotoOAuthRequest::class)), $this->identities, $repositories, $blobs, $pictures, $this->createMock(VideoBlobService::class),
-			$preferences, $request, $crypto, $jobs, new NullLogger(),
+			$preferences, $request, $crypto, $jobs, $this->publisher, new NullLogger(),
 		);
 		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['did' => self::PDS_DID, 'availableUserDomains' => ['.pds.example.com'], 'inviteCodeRequired' => false]]];
 		$this->answers['com.atproto.server.createAccount'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.pds.example.com', 'accessJwt' => 'access-1', 'refreshJwt' => 'refresh-1']]];
@@ -347,6 +351,45 @@ class MoveAwayServiceTest extends TestCase {
 		$this->moves->proceed('alice', true);
 	}
 
+	public function testPostsWrittenDuringTheMoveGoAlongBeforeTheDidMoves(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->head = new RepoHead(self::DID, 'bafyfirst', 'rev1', 10, 0, 0);
+		$this->publisher->expects($this->once())->method('publishBacklog')->with('https://social.test/@alice', 0)
+			->willReturnCallback(function (): int {
+				// what waited is written to the repository here now
+				$this->head = new RepoHead(self::DID, 'bafysecond', 'rev2', 12, 0, 0);
+
+				return 2;
+			});
+		$this->answers['com.atproto.server.checkAccountStatus'] = [['status' => 200, 'body' => ['repoCommit' => 'bafysecond', 'indexedRecords' => 12]]];
+		$this->identities->expects($this->once())->method('handOver');
+
+		$this->moves->run($move->id);
+
+		$imports = array_values(array_filter($this->calls, static fn (array $c): bool => $c['method'] === 'com.atproto.repo.importRepo'));
+		$this->assertSame(['the car at bafyfirst', 'the car at bafysecond'], array_column($imports, 'bytes'), 'exported again, its head having moved on');
+		$methods = array_column($this->calls, 'method');
+		$this->assertLessThan(array_search('com.atproto.identity.getRecommendedDidCredentials', $methods, true), array_search('com.atproto.server.checkAccountStatus', $methods, true));
+		$this->assertSame([Move::DONE, 2, 'bafysecond'], [$this->rows[1]->state, $this->rows[1]->progress['posts_during_move'], $this->rows[1]->progress['exported']]);
+	}
+
+	public function testARepositoryThatDidNotMoveOnIsNotExportedAgain(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->head = new RepoHead(self::DID, 'bafyfirst', 'rev1', 10, 0, 0);
+		$this->answers['com.atproto.server.checkAccountStatus'] = [['status' => 200, 'body' => ['repoCommit' => 'bafyfirst', 'indexedRecords' => 10]]];
+
+		$this->moves->run($move->id);
+
+		$this->assertCount(1, array_filter(array_column($this->calls, 'method'), static fn (string $m): bool => $m === 'com.atproto.repo.importRepo'));
+	}
+
+	public function testCallingOffPublishesWhatWaited(): void {
+		$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->publisher->expects($this->once())->method('publishBacklog')->with('https://social.test/@alice', 0);
+
+		$this->moves->cancel('alice');
+	}
+
 	private function assertRefused(string $code, string $message, string $handle = 'alice.pds.example.com'): void {
 		try {
 			$this->moves->start('alice', $this->alice, 'pds.example.com', $handle, 'a@example.org', 'pw');
@@ -372,7 +415,7 @@ class MoveAwayServiceTest extends TestCase {
 		$this->moves->run($move->id);
 
 		$this->assertSame(['com.atproto.server.describeServer', 'com.atproto.server.createAccount', 'com.atproto.repo.importRepo', 'com.atproto.repo.listMissingBlobs', 'com.atproto.repo.uploadBlob', 'com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus', 'com.atproto.identity.getRecommendedDidCredentials', 'com.atproto.server.activateAccount'], array_column($this->calls, 'method'), 'in this order: the DID moves only once everything is there');
-		$this->assertSame('the car', $this->call('com.atproto.repo.importRepo')['bytes']);
+		$this->assertSame('the car at nothing', $this->call('com.atproto.repo.importRepo')['bytes']);
 		$this->assertSame('pixels', $this->call('com.atproto.repo.uploadBlob')['bytes']);
 		$this->assertSame(['limit' => 500, 'cursor' => 'c1'], $this->calls[5]['query']);
 		$this->assertSame('access-1', $this->call('com.atproto.server.activateAccount')['token']);
