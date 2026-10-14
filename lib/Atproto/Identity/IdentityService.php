@@ -14,6 +14,7 @@ use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Crypto\PublicKey;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Move\RotationKeys;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\AtprotoBlobRequest;
@@ -179,15 +180,18 @@ class IdentityService {
 	}
 
 	/**
-	 * Gives the account a recovery key of its own, second in authority to
-	 * the instance's. The phrase is the only copy of the private half.
+	 * Gives the account a recovery key of its own: in the place of the one
+	 * it replaces, else next to the instance's (RotationKeys::carry()),
+	 * every other key the DID lists kept where it is. The phrase is the
+	 * only copy of the private half.
 	 *
 	 * @return string the twelve words
-	 * @throws AtprotoException
+	 * @throws AtprotoException also when the DID lists five rotation keys already
 	 */
 	public function issueRecoveryKey(Identity $identity): string {
 		[$phrase, $recovery] = Mnemonic::generate();
-		$this->update($identity, [$this->instanceKeys->rotationKey()->didKey(), $recovery->didKey()], $identity->handle, $this->config->pdsEndpoint());
+		$replace = $identity->recoveryPublic !== '' ? [$identity->recoveryPublic => $recovery->didKey()] : [];
+		$this->update($identity, $identity->handle, $this->config->pdsEndpoint(), $replace, $recovery->didKey());
 		$this->identityRequest->setRecoveryPublic($identity->did, $recovery->didKey());
 
 		return $phrase;
@@ -195,16 +199,12 @@ class IdentityService {
 
 	/**
 	 * Re-registers after the instance rotation key changed: the new key
-	 * takes the first place, the old one signs the handover.
+	 * takes the old one's place, the old one signs the handover.
 	 *
 	 * @throws AtprotoException
 	 */
 	public function rotateInstanceKey(Identity $identity, PrivateKey $newKey, PrivateKey $oldKey): void {
-		$keys = [$newKey->didKey()];
-		if ($identity->recoveryPublic !== '') {
-			$keys[] = $identity->recoveryPublic;
-		}
-		$this->update($identity, $keys, $identity->handle, $this->config->pdsEndpoint(), $oldKey);
+		$this->update($identity, $identity->handle, $this->config->pdsEndpoint(), [$oldKey->didKey() => $newKey->didKey()], '', $oldKey);
 	}
 
 	/**
@@ -222,11 +222,7 @@ class IdentityService {
 			&& ($data['verificationMethods']['atproto'] ?? '') === $identity->signingPublic) {
 			return false;
 		}
-		$keys = [$this->instanceKeys->rotationKey()->didKey()];
-		if ($identity->recoveryPublic !== '') {
-			$keys[] = $identity->recoveryPublic;
-		}
-		$this->update($identity, $keys, $identity->handle, $endpoint);
+		$this->update($identity, $identity->handle, $endpoint);
 
 		return true;
 	}
@@ -243,11 +239,7 @@ class IdentityService {
 	public function useCustomHandle(Identity $identity, string $handle): Identity {
 		$this->identityRequest->setCustomHandle($identity->did, $handle);
 		$updated = $this->identityRequest->getByDid($identity->did);
-		$keys = [$this->instanceKeys->rotationKey()->didKey()];
-		if ($updated->recoveryPublic !== '') {
-			$keys[] = $updated->recoveryPublic;
-		}
-		$this->update($updated, $keys, $updated->handle, $this->config->pdsEndpoint());
+		$this->update($updated, $updated->handle, $this->config->pdsEndpoint());
 
 		return $updated;
 	}
@@ -539,17 +531,50 @@ class IdentityService {
 	}
 
 	/**
-	 * @param string[] $rotationKeys
-	 * @throws AtprotoException
+	 * Signs and sends an operation with the handle and endpoint given, and
+	 * the rotation keys of the operation it follows, as RotationKeys::carry()
+	 * changes them: $replace and every retired key of this server replaced
+	 * in place — the latter by the one in use — and $add listed.
+	 *
+	 * @param array<string, string> $replace old did:key => new did:key
+	 * @throws AtprotoException also when $add would list more than five keys
 	 */
-	private function update(Identity $identity, array $rotationKeys, string $handle, string $endpoint, ?PrivateKey $signer = null): void {
+	private function update(Identity $identity, string $handle, string $endpoint, array $replace = [], string $add = '', ?PrivateKey $signer = null): void {
+		$prev = $this->prev($identity);
+		$current = $this->instanceKeys->rotationKey()->didKey();
+		foreach ($this->instanceKeys->rotationDidKeys() as $key => $retired) {
+			if ($retired && !isset($replace[$key])) {
+				$replace[$key] = $current;
+			}
+		}
+		try {
+			$rotation = RotationKeys::carry(self::authority($this->operationOf($identity->did, $prev) ?? []), $replace, $current, $add);
+		} catch (\InvalidArgumentException $e) {
+			throw new AtprotoException($e->getMessage() . ' for ' . $identity->did, 0, $e);
+		}
+		if ($rotation === []) {
+			throw new AtprotoException('The operation ' . $prev . ' of ' . $identity->did . ' names no rotation key to keep');
+		}
 		$signer ??= $this->instanceKeys->rotationKey();
 		$operation = PlcOperation::sign(
-			PlcOperation::build($rotationKeys, $identity->signingPublic, $handle, $endpoint, $this->prev($identity)),
+			PlcOperation::build($rotation, $identity->signingPublic, $handle, $endpoint, $prev),
 			$signer,
 		);
 		$this->plcLog->record($identity->did, PlcOperation::cid($operation)->toString(), $operation);
 		$this->flush($identity->did);
+	}
+
+	/**
+	 * The operation the log holds under $cid, or null.
+	 */
+	private function operationOf(string $did, string $cid): ?array {
+		foreach ($this->plcLog->getByDid($did) as $row) {
+			if ($row['cid'] === $cid) {
+				return $row['operation'];
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -639,7 +664,9 @@ class IdentityService {
 	 * The operation signed to follow $head, with the rotation key of this
 	 * instance that $head names — the retired ones included, for a head
 	 * from before a rotation. One that follows the head with that key
-	 * already is returned as it is.
+	 * already is returned as it is; one built on another operation takes
+	 * $head's rotation keys with its own changes to them carried over
+	 * (RotationKeys::rebase()), so a key the person added meanwhile stays.
 	 *
 	 * @throws AtprotoException when nothing is confirmed, or no key of this instance has authority
 	 */
@@ -647,10 +674,12 @@ class IdentityService {
 		if ($head === '') {
 			throw new AtprotoException('no confirmed operation to follow');
 		}
-		$authority = [];
-		foreach ($this->plcLog->getByDid($did) as $row) {
-			if ($row['cid'] === $head) {
-				$authority = self::authority($row['operation']);
+		$authority = self::authority($this->operationOf($did, $head) ?? []);
+		$prev = $operation['prev'] ?? null;
+		if (is_string($prev) && $prev !== $head && ($operation['type'] ?? '') === PlcOperation::TYPE_OPERATION) {
+			$base = $this->operationOf($did, $prev);
+			if ($base !== null) {
+				$operation['rotationKeys'] = RotationKeys::rebase(self::authority($base), $operation['rotationKeys'] ?? [], $authority, $this->instanceKeys->rotationKey()->didKey());
 			}
 		}
 		foreach ($this->instanceKeys->rotationKeys() as $key) {

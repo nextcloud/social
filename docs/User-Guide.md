@@ -1068,7 +1068,9 @@ Your profile page shows both handles under your name, each with a Copy button,
 and the Bluesky one leads to your profile on bsky.app. **Settings → Apps and
 account → Bluesky** shows the handle and the DID — the permanent identifier your Bluesky
 account has — and offers a **recovery phrase**: twelve words that are a key of
-your own on that identifier, second only to the server's. They are shown once
+your own on that identifier: on an identifier this server made, it ranks
+second, after the server's; on one you brought here, your own keys rank first,
+and they keep their places whatever the server changes later. They are shown once
 and never stored, so write them down; "Create a new recovery phrase" replaces
 them, and the old words stop working. You will not need the phrase in ordinary
 use. What it can do: the key it stands for can sign a change to your identifier

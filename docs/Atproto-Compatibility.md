@@ -178,6 +178,10 @@ page says so. The identity is three things stored in
   deliberate for a hosted instance (the administrator's way back from a
   compromised phrase) and the opposite of Bluesky's own PDS, which lists
   the person's key first; the settings page says so beside the phrase.
+  That is the order of an identity made here. A DID that moved here keeps
+  the person's own keys first and this server's last (§13.1), and a DID
+  the person changed with their own key keeps the order they gave it: no
+  later operation of this server reorders it (§4.5).
 
 The DID document the PLC publishes names the handle (§4.2), the signing
 key under `#atproto`, and the PDS service `#atproto_pds` with endpoint
@@ -325,11 +329,30 @@ the tool's operations and service token accepted by PHP.
 - **update handle**: when the username changes (it does not, in Social, but
   the custom-handle phase needs it) and when the instance host changes.
 - **rotate keys**: when the administrator rotates the instance rotation key
-  (§16.3) or the person regenerates their recovery key.
+  (§16.3) or the person makes or replaces their recovery key — each only
+  the key concerned, see below.
 - **update PDS endpoint**: on a host change, and when an account moves
   away (§13.2).
 - **tombstone**: when a Social account is deleted. `AccountService::deleteActor()`
   gains this step; the DID is dead afterwards, as the person asked.
+
+**Rotation keys of a later operation.** Every operation this server signs
+after the genesis — a handle or host change, a key rotation, a recovery
+phrase — carries the rotation keys of the operation it follows (with
+nothing pending, the directory's confirmed head), in their order
+(`RotationKeys::carry()`). It changes only two of them: this server's own
+key, where a rotation or a retired key puts the key in use in its place,
+and the recovery key, which a new phrase puts in the old one's place, or
+where there was none, beside this server's key — below it where this
+server's key is first, above it where a key of the person already ranks
+above this server. Every other key, the person's included, stays where it
+stood. A DID that lists five keys already takes no recovery key (the
+answer says so) rather than dropping one. An operation that waited while
+the directory moved on — the person changed the DID with their own key
+meanwhile — is carried onto the new head with only its own change
+(`RotationKeys::rebase()`), so their change stays. A hand-over to another
+PDS (§13.2) is the exception: it names the keys the new server recommends,
+the person's recovery key first.
 
 Every operation goes through one `PlcClient` with retries and is recorded
 in `social_atproto_plc_log` before it is sent (so a crash between the two

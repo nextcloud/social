@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Crypto\PublicKey;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
+use OCA\Social\Atproto\Identity\Mnemonic;
 use OCA\Social\Atproto\Identity\PlcClient;
 use OCA\Social\Atproto\Identity\PlcOperation;
 use OCA\Social\Atproto\Model\Identity;
@@ -140,6 +141,9 @@ class IdentityServiceTest extends TestCase {
 		$instanceKeys = $this->createMock(InstanceKeyService::class);
 		$instanceKeys->method('rotationKey')->willReturnCallback(fn (): PrivateKey => $this->currentRotation);
 		$instanceKeys->method('rotationKeys')->willReturnCallback(fn (): array => $this->currentRotation === $this->rotation ? [$this->rotation] : [$this->currentRotation, $this->rotation]);
+		$instanceKeys->method('rotationDidKeys')->willReturnCallback(fn (): array => $this->currentRotation === $this->rotation
+			? [$this->rotation->didKey() => false]
+			: [$this->currentRotation->didKey() => false, $this->rotation->didKey() => true]);
 		$instanceKeys->method('serviceKey')->willReturn(PrivateKey::generate(Curve::K256));
 
 		$cipher = $this->createMock(PrivateKeyCipher::class);
@@ -494,6 +498,122 @@ class IdentityServiceTest extends TestCase {
 		$this->assertSame(\OCA\Social\Atproto\Identity\Mnemonic::keyFromPhrase($phrase)->didKey(), $update['rotationKeys'][1]);
 		$this->assertSame($this->logged[0]['cid'], $update['prev'], 'the update follows the genesis');
 		$this->assertTrue(PlcOperation::verify($update, $this->rotation->publicKey()));
+	}
+
+	/**
+	 * An identity whose DID the person ranks first, as a move here leaves
+	 * it (RotationKeys::forMoveHere()): the confirmed head lists $keys.
+	 *
+	 * @param list<string> $keys
+	 */
+	private function identityWithHead(string $name, array $keys): Identity {
+		$identity = $this->service->forActor(self::actor($name));
+		$this->assertNotNull($identity);
+		$head = PlcOperation::sign(PlcOperation::build($keys, $identity->signingPublic, $identity->handle, 'https://social.test', $this->logged[count($this->logged) - 1]['cid']), $this->rotation);
+		$id = $this->plcLog->record($identity->did, PlcOperation::cid($head)->toString(), $head);
+		$this->plcLog->markSent($id);
+		$this->plcLog->markConfirmed($id);
+
+		return $this->stored[$identity->did];
+	}
+
+	private function lastOperation(): array {
+		return $this->logged[count($this->logged) - 1]['operation'];
+	}
+
+	/** A handle change carries the keys the head lists, the person's first, untouched. */
+	public function testAHandleChangeKeepsTheKeysThePersonPutFirst(): void {
+		$user = PrivateKey::generate(Curve::K256)->didKey();
+		$identity = $this->identityWithHead('first', [$user, $this->rotation->didKey()]);
+
+		$this->service->useCustomHandle($identity, 'first.example.org');
+
+		$this->assertSame([$user, $this->rotation->didKey()], $this->lastOperation()['rotationKeys']);
+		$this->assertSame(['at://first.example.org'], $this->lastOperation()['alsoKnownAs']);
+		$this->assertSame(1, $this->logged[count($this->logged) - 1]['confirmed']);
+	}
+
+	/** A rotation of the instance key puts the new key where the old one stood, and only there. */
+	public function testAnInstanceKeyRotationReplacesOnlyThisServersKeyInPlace(): void {
+		$user = PrivateKey::generate(Curve::K256)->didKey();
+		$other = PrivateKey::generate(Curve::K256)->didKey();
+		$identity = $this->identityWithHead('rotating', [$user, $this->rotation->didKey(), $other]);
+		$new = PrivateKey::generate(Curve::K256);
+		$this->currentRotation = $new;
+
+		$this->service->rotateInstanceKey($identity, $new, $this->rotation);
+
+		$operation = $this->lastOperation();
+		$this->assertSame([$user, $new->didKey(), $other], $operation['rotationKeys']);
+		$this->assertTrue(PlcOperation::verify($operation, $this->rotation->publicKey()), 'the old key signs the handover');
+
+		$this->service->refresh($this->stored[$identity->did]);
+		$this->assertSame([$user, $new->didKey(), $other], $this->lastOperation()['rotationKeys'], 'and later operations keep it so');
+	}
+
+	/**
+	 * A recovery phrase adds its key without dropping the person's: above
+	 * this server's key where the person ranks first, and a new phrase
+	 * takes the place of the one it replaces.
+	 */
+	public function testARecoveryKeyIsAddedBesideThePersonsKeysAndReplacedInPlace(): void {
+		$user = PrivateKey::generate(Curve::K256)->didKey();
+		$identity = $this->identityWithHead('keeper', [$user, $this->rotation->didKey()]);
+
+		$first = Mnemonic::keyFromPhrase($this->service->issueRecoveryKey($identity))->didKey();
+		$this->assertSame([$user, $first, $this->rotation->didKey()], $this->lastOperation()['rotationKeys']);
+
+		$second = Mnemonic::keyFromPhrase($this->service->issueRecoveryKey($this->stored[$identity->did]))->didKey();
+		$this->assertSame([$user, $second, $this->rotation->didKey()], $this->lastOperation()['rotationKeys']);
+	}
+
+	/** Five keys are the most a DID lists: a phrase that would be a sixth is refused, and nothing is dropped for it. */
+	public function testTheFiveKeyCapHolds(): void {
+		$users = array_map(static fn (): string => PrivateKey::generate(Curve::K256)->didKey(), range(1, 4));
+		$identity = $this->identityWithHead('full', [...$users, $this->rotation->didKey()]);
+		$logged = count($this->logged);
+		$this->identityRequest->expects($this->never())->method('setRecoveryPublic');
+
+		try {
+			$this->service->issueRecoveryKey($identity);
+			$this->fail('a sixth key was listed');
+		} catch (AtprotoException $e) {
+			$this->assertStringContainsString('5 rotation keys already', $e->getMessage());
+		}
+		$this->assertCount($logged, $this->logged);
+
+		$this->service->useCustomHandle($identity, 'full.example.org');
+		$this->assertSame([...$users, $this->rotation->didKey()], $this->lastOperation()['rotationKeys']);
+	}
+
+	/**
+	 * An operation built on a head the directory has moved past is carried
+	 * onto the new head: a key the person added meanwhile stays.
+	 */
+	public function testAnOperationBuiltOnAnOlderHeadKeepsAKeyThePersonAddedMeanwhile(): void {
+		$identity = $this->service->forActor(self::actor('meanwhile'));
+		$this->assertNotNull($identity);
+		$this->plc->method('submit')->willReturnCallback(function (): void {
+			if (count($this->logged) === 2) {
+				throw new AtprotoException('PLC directory could not be reached');
+			}
+		});
+		$this->service->useCustomHandle($identity, 'meanwhile.example.org');
+		$this->assertSame(0, $this->logged[1]['confirmed'], 'left for repair');
+		$user = PrivateKey::generate(Curve::K256)->didKey();
+		$theirs = PlcOperation::sign(PlcOperation::build([$user, $this->rotation->didKey()], $identity->signingPublic, $identity->handle, 'https://social.test', $this->logged[0]['cid']), $this->rotation);
+		$this->plc->method('auditLog')->willReturn([
+			['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false],
+			['cid' => PlcOperation::cid($theirs)->toString(), 'operation' => $theirs, 'nullified' => false],
+		]);
+
+		$this->service->repair();
+
+		$sent = $this->logged[1]['operation'];
+		$this->assertSame(1, $this->logged[1]['confirmed']);
+		$this->assertSame(PlcOperation::cid($theirs)->toString(), $sent['prev']);
+		$this->assertSame([$user, $this->rotation->didKey()], $sent['rotationKeys']);
+		$this->assertSame(['at://meanwhile.example.org'], $sent['alsoKnownAs']);
 	}
 
 	public function testHandingOverPointsTheDidAtTheOtherPdsAndKeepsTheRecoveryKeyFirst(): void {
