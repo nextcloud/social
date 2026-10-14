@@ -197,6 +197,19 @@ describe('BlueskyMoveIn', () => {
 		expect(wrapper.find('[role="alert"]').text()).toContain('Too late')
 	})
 
+	it('lets the person decide on pictures that did not arrive', async () => {
+		server({ moves: [moveOf('needs_decision', 'code', { progress: { code: 'blobs-missing', missing: { count: 12, cids: [] } } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'code') } })
+		const wrapper = await mountCard()
+
+		expect(wrapper.text()).toContain('12 pictures or videos of your posts could not be copied here.')
+		await buttonNamed(wrapper, 'Go on without them').trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/continue`, { without_missing: true })
+		expect(wrapper.text()).toContain('Asking Bluesky to e-mail you a code')
+	})
+
 	it('follows a running move and says when it is done, under the handle here', async () => {
 		server({ moves: [moveOf('running', 'follows'), moveOf('done', 'done')] })
 		const wrapper = await mountCard()

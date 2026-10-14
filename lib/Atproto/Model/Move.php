@@ -59,7 +59,7 @@ final class Move {
 	public const WAITING = 'waiting';
 	public const FAILED = 'failed';
 	public const DONE = 'done';
-	/** moving away: stopped before the DID moved, for the person to decide how to go on */
+	/** stopped before the DID moved, for the person to decide how to go on: blobs did not arrive */
 	public const NEEDS_DECISION = 'needs_decision';
 	/** called off by the person before the DID moved */
 	public const CANCELLED = 'cancelled';

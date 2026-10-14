@@ -16,6 +16,8 @@
 			{{ t('social', 'Your Bluesky account now lives here, as {handle}.', { handle: identity.handle }) }}
 		</p>
 
+		<BlueskyMissingBlobs v-else-if="move && move.state === 'needs_decision'" :move="move" @move="takeMove" />
+
 		<div v-else-if="move && move.state === 'waiting'" class="migration__bluesky-in-code">
 			<p>
 				{{ t('social', 'Bluesky e-mailed you a code to confirm the move. Enter it here.') }}
@@ -137,6 +139,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowLeft from 'vue-material-design-icons/AccountArrowLeft.vue'
+import BlueskyMissingBlobs from './BlueskyMissingBlobs.vue'
 import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
@@ -152,6 +155,7 @@ export default {
 	name: 'BlueskyMoveIn',
 
 	components: {
+		BlueskyMissingBlobs,
 		IconAccountArrowLeft,
 		NcButton,
 		NcLoadingIcon,

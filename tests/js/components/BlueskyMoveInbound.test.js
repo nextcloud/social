@@ -184,6 +184,19 @@ describe('BlueskyMoveInbound', () => {
 		expect(wrapper.text()).not.toContain('Call it off')
 	})
 
+	it('lets the person have missing pictures copied again', async () => {
+		server({ moves: [moveOf('needs_decision', 'blobs', { progress: { code: 'blobs-missing', missing: { count: 1, cids: [] } } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'blobs') } })
+		const wrapper = await mountCard()
+
+		expect(wrapper.text()).toContain('1 picture or video of your posts could not be copied here.')
+		await buttonNamed(wrapper, 'Try copying them again').trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/continue`, { without_missing: false })
+		expect(wrapper.text()).toContain('Bringing')
+	})
+
 	it('calls a move off that has not finished', async () => {
 		server({ moves: [moveOf('waiting')] })
 		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'invited', { error: 'Called off' }) } })

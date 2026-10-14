@@ -21,6 +21,7 @@ use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Model\StoredRecord;
+use OCA\Social\Atproto\Move\MovedBlobs;
 use OCA\Social\Atproto\Move\MoveInService;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Move\PostHistory;
@@ -77,6 +78,10 @@ class MoveInServiceTest extends TestCase {
 	private Identity $current;
 	/** whether the PLC directory knows the DID */
 	private bool $known = true;
+	/** whether the old server hands out the second blob as it is named */
+	private bool $elsewhereArrives = false;
+	/** @var array<string, string> path => bytes of the records copied here */
+	private array $records = [];
 	/** @var list<string> the DID's rotation keys before the move */
 	private array $listedKeys = [];
 	/** @var (callable(): void)|null what happens while the blobs are listed */
@@ -138,9 +143,11 @@ class MoveInServiceTest extends TestCase {
 		});
 		$pds->method('bytes')->willReturnCallback(fn (string $origin, string $method, array $query): array => match ($method) {
 			'com.atproto.sync.getRepo' => ['status' => 200, 'bytes' => $this->car, 'type' => 'application/vnd.ipld.car'],
-			'com.atproto.sync.getBlob' => $query['cid'] === Cid::forRaw($this->blob)->toString()
-				? ['status' => 200, 'bytes' => $this->blob, 'type' => 'image/png']
-				: ['status' => 200, 'bytes' => 'not what it is named', 'type' => 'image/png'],
+			'com.atproto.sync.getBlob' => match (true) {
+				$query['cid'] === Cid::forRaw($this->blob)->toString() => ['status' => 200, 'bytes' => $this->blob, 'type' => 'image/png'],
+				$this->elsewhereArrives && $query['cid'] === Cid::forRaw('elsewhere')->toString() => ['status' => 200, 'bytes' => 'elsewhere', 'type' => 'image/png'],
+				default => ['status' => 200, 'bytes' => 'not what it is named', 'type' => 'image/png'],
+			},
 		});
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('pdsEndpoint')->willReturn(self::HERE);
@@ -170,7 +177,7 @@ class MoveInServiceTest extends TestCase {
 		$verifier->method('refusal')->willReturnCallback(static fn (string $handle): string => str_ends_with($handle, '.social.test') || !str_contains($handle, '.') ? 'no' : '');
 		$documents = $this->createMock(DocumentService::class);
 		$documents->method('storeAsIs')->willReturnCallback(function (Person $actor, string $path): Document {
-			$this->assertSame($this->blob, file_get_contents($path), 'stored as it came');
+			$this->assertContains(file_get_contents($path), [$this->blob, 'elsewhere'], 'stored as it came');
 			$document = new Document();
 			$document->setId('https://social.test/documents/local/9');
 			$document->setMimeType($this->sniffed);
@@ -207,10 +214,17 @@ class MoveInServiceTest extends TestCase {
 		$jobs->method('add')->willReturnCallback(function (string $job, mixed $argument): void {
 			$this->queued[] = [$job, $argument];
 		});
+		$repoRequest = $this->createMock(AtprotoRepoRequest::class);
+		$repoRequest->method('eachRecordBytes')->willReturnCallback(function (string $did, callable $each): void {
+			foreach ($this->records as $path => $bytes) {
+				$each(Cid::forDagCbor($bytes), $bytes, $path);
+			}
+		});
 		$this->moves = new MoveInService(
-			$pds, $config, $appView, $plc, $this->identities, $keys, $this->repositories, $this->createMock(AtprotoRepoRequest::class),
-			$this->blobs, $documents, $this->createMock(Preferences::class), $actors, $this->follows, $this->history, $actorsRequest, $request,
+			$pds, $config, $appView, $plc, $this->identities, $keys, $this->repositories, $repoRequest,
+			$this->blobs, $this->createMock(Preferences::class), $actors, $this->follows, $this->history, $actorsRequest, $request,
 			$crypto, $jobs, new NullLogger(), $this->lists, $this->identityRequest, $verifier,
+			new MovedBlobs($pds, $repoRequest, $this->blobs, $documents, $actorsRequest, new NullLogger()),
 		);
 		$this->answers['com.atproto.server.createSession'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.bsky.social', 'accessJwt' => 'access', 'refreshJwt' => 'refresh']]];
 	}
@@ -574,6 +588,62 @@ class MoveInServiceTest extends TestCase {
 		$this->rows[1]->state = Move::RUNNING;
 		$this->expectException(MoveErrorException::class);
 		$this->moves->newCode('alice');
+	}
+
+	/** A post here that names a picture which did not arrive. */
+	private function aPostNamesAMissingPicture(): void {
+		$picture = ['$type' => 'blob', 'ref' => Cid::forRaw('elsewhere'), 'mimeType' => 'image/png', 'size' => 9];
+		$this->records = ['app.bsky.feed.post/3kpost' => DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => 'look', 'embed' => ['$type' => 'app.bsky.embed.images', 'images' => [['image' => $picture, 'alt' => '']]], 'createdAt' => '2026-01-01T00:00:00.000Z'])];
+		$stored = [];
+		$this->blobs->method('put')->willReturnCallback(function (BlobRef $blob) use (&$stored): void {
+			$stored[$blob->cid->toString()] = $blob;
+		});
+		$this->blobs->method('get')->willReturnCallback(function (string $did, string $cid) use (&$stored): ?BlobRef {
+			return $stored[$cid] ?? null;
+		});
+	}
+
+	/** Before the code is asked for, a move with pictures missing waits for the person to decide. */
+	public function testMissingPicturesStopTheMoveBeforeTheCode(): void {
+		$this->aPostNamesAMissingPicture();
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame([Move::NEEDS_DECISION, Move::STEP_CODE, 'blobs-missing'], [$this->rows[1]->state, $this->rows[1]->step, $this->rows[1]->progress['code']]);
+		$this->assertSame(['count' => 1, 'cids' => [Cid::forRaw('elsewhere')->toString()]], $this->rows[1]->progress['missing']);
+		$this->assertNotContains('com.atproto.identity.requestPlcOperationSignature', $this->methods(), 'no code asked for');
+		$this->assertTrue($this->rows[1]->isUnderWay(), 'and no other move starts meanwhile');
+	}
+
+	public function testThePersonGoesOnWithoutTheMissingPictures(): void {
+		$this->aPostNamesAMissingPicture();
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+
+		$this->moves->decide($this->rows[1], true);
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame([Move::WAITING, Move::STEP_CODE], [$this->rows[1]->state, $this->rows[1]->step]);
+		$this->assertArrayNotHasKey('code', $this->rows[1]->progress);
+		$this->assertContains('com.atproto.identity.requestPlcOperationSignature', $this->methods());
+	}
+
+	public function testThePersonHasTheMissingPicturesCopiedAgain(): void {
+		$this->aPostNamesAMissingPicture();
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->elsewhereArrives = true;
+
+		$this->moves->decide($this->rows[1], false);
+		$this->assertSame([Move::RUNNING, Move::STEP_BLOBS], [$this->rows[1]->state, $this->rows[1]->step]);
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame([Move::WAITING, Move::STEP_CODE], [$this->rows[1]->state, $this->rows[1]->step], $this->rows[1]->error);
+		$this->assertArrayNotHasKey('missing', $this->rows[1]->progress);
+
+		$this->expectException(MoveErrorException::class);
+		$this->moves->decide($this->rows[1], true);
 	}
 
 	/** the did:key of the signing key the move made for the account here */

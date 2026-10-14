@@ -2904,6 +2904,10 @@ OC.L10N.register(
     "A new code is on its way to {address}." : "Ein neuer Code ist unterwegs an {address}.",
     "A new code is on its way to the e-mail address of your Bluesky account." : "Ein neuer Code ist unterwegs an die E-Mail-Adresse deines Bluesky-Kontos.",
     "Could not ask for a new code" : "Konnte keinen neuen Code anfordern",
-    "Could not call off the move" : "Konnte den Umzug nicht abbrechen"
+    "Could not call off the move" : "Konnte den Umzug nicht abbrechen",
+    "_%n picture or video of your posts could not be copied here._::_%n pictures or videos of your posts could not be copied here._" : ["%n Bild oder Video deiner Beiträge konnte nicht hierher kopiert werden.","%n Bilder oder Videos deiner Beiträge konnten nicht hierher kopiert werden."],
+    "Your account is not pointed at this server until you decide." : "Dein Konto wird erst auf diesen Server umgestellt, wenn du entschieden hast.",
+    "Try copying them again" : "Erneut kopieren",
+    "Go on without them" : "Ohne sie fortfahren"
 },
 "nplurals=2; plural=(n != 1);");

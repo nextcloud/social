@@ -23,7 +23,9 @@ use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Move\BridgyTwin;
 use OCA\Social\Atproto\Move\InboundMoveService;
+use OCA\Social\Atproto\Move\MovedBlobs;
 use OCA\Social\Atproto\Move\MoveInService;
+use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
@@ -77,6 +79,8 @@ class InboundMoveServiceTest extends TestCase {
 	private PrivateKey $rotation;
 	private Identity $current;
 	private string $picture = 'a picture, byte for byte';
+	/** whether the old PDS hands the picture out */
+	private bool $oldHandsOut = true;
 	/** what the stored document's bytes turned out to be */
 	private string $sniffed = 'image/png';
 	/** @var array<string, string> path => record bytes the repository holds */
@@ -147,6 +151,10 @@ class InboundMoveServiceTest extends TestCase {
 
 			return $document;
 		});
+		$oldPds = $this->createMock(PdsClient::class);
+		$oldPds->method('bytes')->willReturnCallback(fn (string $pds, string $method, array $query): array => $query['cid'] === Cid::forRaw($this->picture)->toString() && $this->oldHandsOut
+			? ['status' => 200, 'bytes' => $this->picture, 'type' => 'image/png']
+			: ['status' => 404, 'bytes' => '', 'type' => '']);
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->moveIn->method('didOf')->willReturn(self::DID);
 		$this->moveIn->method('didState')->willReturnCallback(fn (): array => $this->plcState);
@@ -191,6 +199,7 @@ class InboundMoveServiceTest extends TestCase {
 			$config, $sessions, $this->serviceAuth, $plc, $this->identities, $keys, $this->repositories, $repoRequest, $blobs,
 			$documents, $this->createMock(Preferences::class), $this->moveIn, $bridgy, $actors, $request, $crypto, $random,
 			$this->createMock(IThrottler::class), $jobs, $time, new NullLogger(), $this->identityRequest,
+			new MovedBlobs($oldPds, $repoRequest, $blobs, $documents, $actors, new NullLogger()),
 		);
 	}
 
@@ -434,6 +443,46 @@ class InboundMoveServiceTest extends TestCase {
 
 		$this->identities->expects($this->once())->method('submit')->with(self::DID, $here);
 		$this->assertSame('InvalidRequest', $this->refused(fn () => $this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $elsewhere], $auth))->error);
+		$this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth);
+	}
+
+	/** An operation is held back while pictures are missing, until the person decides. */
+	public function testMissingPicturesHoldTheOperationBackUntilThePersonDecides(): void {
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+		$recommended = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
+		$here = ['type' => 'plc_operation'] + $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->identities->expects($this->once())->method('submit')->with(self::DID, $here);
+
+		$this->assertSame('BlobsMissing', $this->refused(fn () => $this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth))->error);
+		$this->assertSame([Move::NEEDS_DECISION, 'blobs-missing', 1], [$this->rows[1]->state, $this->rows[1]->progress['code'], $this->rows[1]->progress['missing']['count']]);
+		$this->assertSame(Move::NEEDS_DECISION, $this->moves->latest('alice')?->state, 'the session goes on meanwhile');
+
+		$this->moves->decide($this->rows[1], true);
+		$this->assertSame(Move::WAITING, $this->rows[1]->state);
+		$this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth);
+	}
+
+	/** Asked to, this server copies the missing pictures from the old PDS itself. */
+	public function testMissingPicturesAreCopiedFromTheOldPds(): void {
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+		$recommended = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
+		$here = ['type' => 'plc_operation'] + $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->refused(fn () => $this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth));
+
+		$this->oldHandsOut = false;
+		$this->moves->decide($this->rows[1], false);
+		$this->assertSame([[AtprotoMove::class, ['move' => 1]]], $this->queued);
+		$this->moves->run($this->rows[1]);
+		$this->assertSame(Move::NEEDS_DECISION, $this->rows[1]->state, 'still missing: the person decides again');
+
+		$this->oldHandsOut = true;
+		$this->moves->decide($this->rows[1], false);
+		$this->moves->run($this->rows[1]);
+		$this->assertSame(Move::WAITING, $this->rows[1]->state);
+		$this->assertArrayHasKey(Cid::forRaw($this->picture)->toString(), $this->stored);
+		$this->identities->expects($this->once())->method('submit');
 		$this->moves->procedure('com.atproto.identity.submitPlcOperation', ['operation' => $here], $auth);
 	}
 

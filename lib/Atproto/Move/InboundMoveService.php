@@ -24,7 +24,6 @@ use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Protocol\Cid;
-use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -99,6 +98,7 @@ class InboundMoveService {
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 		private AtprotoIdentityRequest $identityRequest,
+		private MovedBlobs $movedBlobs,
 	) {
 	}
 
@@ -113,7 +113,7 @@ class InboundMoveService {
 	 */
 	public function invite(string $userId, string $typed): array {
 		$latest = $this->moves->latestOfUser($userId);
-		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
+		if ($latest !== null && $latest->isUnderWay()) {
 			if ($latest->direction !== Move::INBOUND || $latest->step !== Move::STEP_INVITED) {
 				throw new MoveErrorException('A move is already under way', 'move-in-progress');
 			}
@@ -172,7 +172,7 @@ class InboundMoveService {
 	 */
 	public function cancel(string $userId): Move {
 		$move = $this->latest($userId);
-		if ($move === null || $move->direction !== Move::INBOUND || $move->state !== Move::WAITING) {
+		if ($move === null || $move->direction !== Move::INBOUND || !in_array($move->state, [Move::WAITING, Move::NEEDS_DECISION], true)) {
 			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
 		}
 		$this->end($move, 'Called off', '');
@@ -185,7 +185,7 @@ class InboundMoveService {
 	 */
 	public function latest(string $userId): ?Move {
 		$move = $this->moves->latestOfUser($userId);
-		if ($move !== null && $move->direction === Move::INBOUND && $move->state === Move::WAITING
+		if ($move !== null && $move->direction === Move::INBOUND && in_array($move->state, [Move::WAITING, Move::NEEDS_DECISION], true)
 			&& (int)($this->unseal($move->session)['until'] ?? 0) < $this->time->getTime()) {
 			$invited = $move->step === Move::STEP_INVITED;
 			$this->end($move, $invited ? 'The invitation expired' : 'The move was not finished in time', $invited ? 'invite-expired' : 'move-expired');
@@ -313,7 +313,7 @@ class InboundMoveService {
 		} catch (AtprotoException $e) {
 			throw XrpcException::invalidRequest($e->getMessage());
 		}
-		$expected = count($this->referencedBlobs($move->did));
+		$expected = count($this->movedBlobs->referenced($move->did));
 		$move->progress = ['records' => count($archive['records']), 'expectedBlobs' => $expected] + $move->progress;
 		$move->step = Move::STEP_BLOBS;
 		$this->moves->update($move);
@@ -352,10 +352,62 @@ class InboundMoveService {
 	}
 
 	/**
+	 * The person's decision on a move the PLC operation was held back for,
+	 * as blobs are missing: go on without them — the next operation the
+	 * other side sends is taken — or have this server copy them from the
+	 * old PDS first.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function decide(Move $move, bool $withoutMissing): Move {
+		if ($move->direction !== Move::INBOUND || $move->state !== Move::NEEDS_DECISION) {
+			throw new MoveErrorException('The move does not wait for a decision', 'no-decision-pending');
+		}
+		$move->resume();
+		if ($withoutMissing) {
+			$move->progress['missing_accepted'] = (int)($move->progress['missing']['count'] ?? 0);
+			$move->state = Move::WAITING;
+		} else {
+			$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
+		}
+		$this->moves->update($move);
+
+		return $move;
+	}
+
+	/**
+	 * Copies the missing blobs from the old PDS, for a person who asked
+	 * for that; the move then waits for the other side again, or for their
+	 * decision once more.
+	 */
+	private function copyMissing(Move $move): void {
+		foreach ($this->movedBlobs->missing($move->did) as $cid) {
+			try {
+				if ($this->movedBlobs->copy($move, $cid) > 0) {
+					$move->progress = ['blobs' => (int)($move->progress['blobs'] ?? 0) + 1] + $move->progress;
+				}
+			} catch (AtprotoException $e) {
+				$this->logger->info('Blob of a move here not copied from the old PDS', ['did' => $move->did, 'cid' => $cid, 'exception' => $e]);
+			}
+		}
+		$move->state = Move::WAITING;
+		if (!$this->movedBlobs->complete($move)) {
+			$move->state = Move::NEEDS_DECISION;
+		}
+		$this->moves->update($move);
+	}
+
+	/**
 	 * After activation: the follows become follows here, the posts posts
-	 * here, and the move is done.
+	 * here, and the move is done. Before it, the blobs the person asked
+	 * to have copied again are.
 	 */
 	public function run(Move $move): void {
+		if ($move->direction === Move::INBOUND && $move->state === Move::RUNNING && !$this->isActivated($move) && $move->step !== Move::STEP_INVITED) {
+			$this->copyMissing($move);
+
+			return;
+		}
 		if ($move->direction !== Move::INBOUND || $move->state !== Move::RUNNING || !in_array($move->step, [Move::STEP_FOLLOWS, Move::STEP_POSTS], true)) {
 			return;
 		}
@@ -439,6 +491,11 @@ class InboundMoveService {
 		if (!$this->pointsHere($move, $operation)) {
 			throw XrpcException::invalidRequest('The operation does not point the DID at this server with the recommended key');
 		}
+		if (!$this->movedBlobs->complete($move)) {
+			$this->moves->update($move);
+
+			throw new XrpcException(400, 'BlobsMissing', $move->error . '; the account\'s owner decides on this server whether the move goes on without them');
+		}
 		try {
 			$this->identities->submit($move->did, $operation);
 		} catch (AtprotoException $e) {
@@ -453,7 +510,7 @@ class InboundMoveService {
 	 */
 	private function status(Move $move): array {
 		$head = $this->repositories->getHead($move->did);
-		$referenced = $this->referencedBlobs($move->did);
+		$referenced = $this->movedBlobs->referenced($move->did);
 		$imported = 0;
 		foreach (array_keys($referenced) as $cid) {
 			$imported += $this->blobs->get($move->did, (string)$cid) !== null ? 1 : 0;
@@ -524,7 +581,7 @@ class InboundMoveService {
 	 */
 	private function missingBlobs(Move $move, int $limit, string $cursor): array {
 		$limit = max(1, min(1000, $limit));
-		$referenced = $this->referencedBlobs($move->did);
+		$referenced = $this->movedBlobs->referenced($move->did);
 		ksort($referenced, SORT_STRING);
 		$blobs = [];
 		foreach ($referenced as $cid => $path) {
@@ -538,46 +595,6 @@ class InboundMoveService {
 		}
 
 		return ['blobs' => $blobs];
-	}
-
-	/**
-	 * Every blob the repository's records name, with the first record that
-	 * names it.
-	 *
-	 * @return array<string, string> CID => record path
-	 */
-	private function referencedBlobs(string $did): array {
-		$referenced = [];
-		$this->repoRequest->eachRecordBytes($did, static function (Cid $cid, string $bytes, string $path) use (&$referenced): void {
-			try {
-				$value = DagCbor::decode($bytes);
-			} catch (Throwable) {
-				return;
-			}
-			foreach (self::blobsIn($value) as $blob) {
-				$referenced[$blob] ??= $path;
-			}
-		});
-
-		return $referenced;
-	}
-
-	/**
-	 * @return list<string> the CIDs of the blobs a record value names
-	 */
-	private static function blobsIn(mixed $value): array {
-		if (!is_array($value)) {
-			return [];
-		}
-		if (($value['$type'] ?? null) === 'blob' && ($value['ref'] ?? null) instanceof Cid) {
-			return [$value['ref']->toString()];
-		}
-		$found = [];
-		foreach ($value as $item) {
-			array_push($found, ...self::blobsIn($item));
-		}
-
-		return $found;
 	}
 
 	/**

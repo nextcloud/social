@@ -21,7 +21,6 @@ use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\PlcClient;
 use OCA\Social\Atproto\Identity\PlcOperation;
-use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -43,7 +42,6 @@ use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Exceptions\MoveErrorException;
-use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\FollowService;
 use OCP\BackgroundJob\IJobList;
 use OCP\Security\ICrypto;
@@ -84,7 +82,6 @@ class MoveInService {
 		private RepositoryService $repositories,
 		private AtprotoRepoRequest $repoRequest,
 		private AtprotoBlobRequest $blobs,
-		private DocumentService $documents,
 		private Preferences $preferences,
 		private BlueskyActorService $blueskyActors,
 		private FollowService $follows,
@@ -97,6 +94,7 @@ class MoveInService {
 		private BlueskyListImport $lists,
 		private AtprotoIdentityRequest $identityRequest,
 		private HandleVerifier $handles,
+		private MovedBlobs $movedBlobs,
 	) {
 	}
 
@@ -108,8 +106,7 @@ class MoveInService {
 	 * @throws AtprotoException
 	 */
 	public function start(string $userId, string $typed, string $password, string $authFactorToken = ''): Move {
-		$latest = $this->moves->latestOfUser($userId);
-		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
+		if ($this->moves->latestOfUser($userId)?->isUnderWay() === true) {
 			throw new MoveErrorException('A move is already under way', 'move-in-progress');
 		}
 		$did = $this->didOf($typed);
@@ -181,6 +178,28 @@ class MoveInService {
 		}
 		if ($move->step === Move::STEP_IDENTITY) {
 			$move->step = Move::STEP_CODE;
+		}
+		$move->resume();
+		$this->moves->update($move);
+		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
+
+		return $move;
+	}
+
+	/**
+	 * The person's decision on a move that stopped because blobs are
+	 * missing: go on without them, or copy them again first.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function decide(Move $move, bool $withoutMissing): Move {
+		if ($move->direction !== Move::IN || $move->state !== Move::NEEDS_DECISION) {
+			throw new MoveErrorException('The move does not wait for a decision', 'no-decision-pending');
+		}
+		if ($withoutMissing) {
+			$move->progress['missing_accepted'] = (int)($move->progress['missing']['count'] ?? 0);
+		} else {
+			$move->step = Move::STEP_BLOBS;
 		}
 		$move->resume();
 		$this->moves->update($move);
@@ -332,12 +351,12 @@ class MoveInService {
 				if ($this->calledOff($move)) {
 					return;
 				}
-				$goesOn = $this->step($move);
+				$waitsIn = $this->step($move);
 				if ($this->calledOff($move)) {
 					return;
 				}
-				if (!$goesOn) {
-					$move->state = Move::WAITING;
+				if ($waitsIn !== '') {
+					$move->state = $waitsIn;
 					$this->moves->update($move);
 
 					return;
@@ -359,10 +378,10 @@ class MoveInService {
 	}
 
 	/**
-	 * @return bool false when the move waits for the person
+	 * @return string the state the move waits for the person in, '' when it goes on
 	 * @throws AtprotoException
 	 */
-	private function step(Move $move): bool {
+	private function step(Move $move): string {
 		switch ($move->step) {
 			case Move::STEP_REPO:
 				$this->copyRepository($move);
@@ -388,10 +407,13 @@ class MoveInService {
 				}
 				break;
 			case Move::STEP_CODE:
+				if (!$this->movedBlobs->complete($move)) {
+					return Move::NEEDS_DECISION;
+				}
 				$this->settleHandle($move);
 				$this->requestCode($move);
 
-				return false;
+				return Move::WAITING;
 			case Move::STEP_IDENTITY:
 				$this->takeDid($move);
 				break;
@@ -403,7 +425,7 @@ class MoveInService {
 				break;
 		}
 
-		return true;
+		return '';
 	}
 
 	/**
@@ -433,7 +455,6 @@ class MoveInService {
 	 * @throws AtprotoException
 	 */
 	private function copyBlobs(Move $move): void {
-		$actor = $this->actors->getFromUserId($move->userId);
 		$cursor = '';
 		$copied = (int)($move->progress['blobs'] ?? 0);
 		do {
@@ -442,21 +463,7 @@ class MoveInService {
 				if (!is_string($cid) || !Cid::isValid($cid) || $this->blobs->get($move->did, $cid) !== null) {
 					continue;
 				}
-				$blob = $this->pds->bytes($move->pds, 'com.atproto.sync.getBlob', ['did' => $move->did, 'cid' => $cid]);
-				if ($blob['status'] !== 200 || !Cid::forRaw($blob['bytes'])->equals(Cid::parse($cid))) {
-					$this->logger->info('Blob not copied', ['did' => $move->did, 'cid' => $cid, 'status' => $blob['status']]);
-					continue;
-				}
-				$path = (string)tempnam(sys_get_temp_dir(), 'social-atproto-move-');
-				try {
-					file_put_contents($path, $blob['bytes']);
-					$document = $this->documents->storeAsIs($actor, $path);
-				} finally {
-					@unlink($path);
-				}
-				$this->blobs->put(new BlobRef($move->did, Cid::parse($cid), $document->getId(), BlobRef::servableType($document->getMimeType()), strlen($blob['bytes'])));
-				$this->repoRequest->addBlobBytes($move->did, strlen($blob['bytes']));
-				$copied++;
+				$copied += $this->movedBlobs->copy($move, $cid) > 0 ? 1 : 0;
 			}
 			$cursor = (string)($page['cursor'] ?? '');
 			$move->progress = ['blobs' => $copied] + $move->progress;

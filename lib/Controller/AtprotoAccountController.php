@@ -452,6 +452,27 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
+	 * The viewer's decision on a move here that stopped because pictures
+	 * or videos are missing: go on without them, or copy them again first.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in/continue')]
+	public function continueMoveIn(bool $without_missing = false): DataResponse {
+		try {
+			$latest = $this->inbound->latest($this->userId());
+			$move = match ($latest?->direction) {
+				Move::IN => $this->moveIn->decide($latest, $without_missing),
+				Move::INBOUND => $this->inbound->decide($latest, $without_missing),
+				default => throw new MoveErrorException('The move does not wait for a decision', 'no-decision-pending'),
+			};
+
+			return new DataResponse(['move' => $move->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
 	 * The code the old Bluesky server e-mailed: the move here goes on.
 	 */
 	#[NoAdminRequired]

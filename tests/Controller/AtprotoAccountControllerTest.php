@@ -47,12 +47,14 @@ class AtprotoAccountControllerTest extends TestCase {
 	private PresenceService&MockObject $presence;
 	private Publisher&MockObject $publisher;
 	private MoveInService&MockObject $moveIn;
+	private InboundMoveService&MockObject $inbound;
 	private bool $enabled = true;
 
 	protected function setUp(): void {
 		$this->presence = $this->createMock(PresenceService::class);
 		$this->publisher = $this->createMock(Publisher::class);
 		$this->moveIn = $this->createMock(MoveInService::class);
+		$this->inbound = $this->createMock(InboundMoveService::class);
 	}
 
 	private function controller(): AtprotoAccountController {
@@ -69,7 +71,7 @@ class AtprotoAccountControllerTest extends TestCase {
 			$this->createStub(IRequest::class), $session, $config, $accounts, $this->createStub(IdentityService::class), $this->publisher,
 			$this->createStub(LabelerService::class), $this->createStub(AppPasswordService::class), $this->createStub(AuthorizationServer::class),
 			$this->createStub(CustomHandleService::class), $this->createStub(MoveAwayService::class), $this->moveIn,
-			$this->createStub(InboundMoveService::class), $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
+			$this->inbound, $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
 		);
 	}
 
@@ -102,6 +104,16 @@ class AtprotoAccountControllerTest extends TestCase {
 		$data = $this->controller()->newMoveInCode()->getData();
 		$this->assertSame(['alice@example.org', 'waiting'], [$data['sent_to'], $data['move']['state']]);
 		$this->assertSame('move-past-switch', $this->controller()->cancelMoveIn()->getData()['code']);
+	}
+
+	/** The decision on missing pictures goes to the move that waits for it. */
+	public function testTheDecisionGoesToTheMoveThatWaits(): void {
+		$move = new Move(1, self::DID, 'alice', Move::IN, 'https://pds.example.com', '', 'alice.bsky.social', Move::STEP_CODE, Move::NEEDS_DECISION);
+		$this->inbound->method('latest')->willReturnOnConsecutiveCalls($move, null);
+		$this->moveIn->expects($this->once())->method('decide')->with($move, true)->willReturn($move);
+
+		$this->assertSame('needs_decision', $this->controller()->continueMoveIn(true)->getData()['move']['state']);
+		$this->assertSame('no-decision-pending', $this->controller()->continueMoveIn()->getData()['code']);
 	}
 
 	/** Every refusal of a move route carries the code the page explains, next to the sentence. */

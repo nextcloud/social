@@ -1380,8 +1380,14 @@ here*):
    under a commit signed with a key made for the account here), the
    **blobs** (`listBlobs`/`getBlob`, each checked against its CID) and the
    **preferences**.
-3. The old PDS **e-mails a code** (`requestPlcOperationSignature`); the move
-   waits for the person to enter it. The page says where the code went
+3. Before that, the blobs the copied records name are compared with the
+   blobs stored here (and the counts logged). When any is missing, the
+   move stops in state `needs_decision` with `progress.missing` (`count`
+   and the first 50 `cids`) and code `blobs-missing`: the person has them
+   copied again or goes on without them (`POST …/move-in/continue`), so the
+   DID never switches with pictures silently lost. Then the old PDS
+   **e-mails a code** (`requestPlcOperationSignature`); the move waits for
+   the person to enter it. The page says where the code went
    when the old PDS's session names the address (`progress.code_sent_to`),
    offers *Send a new code* (asks again, three times an hour) and *Call off
    the move*. Until the PLC operation may have been sent, a move can be
@@ -1404,8 +1410,11 @@ account here*): the person invites the DID and gets a one-time code; Bridgy
 Fed, or a migration tool such as `goat account migrate`, then runs steps
 1–12 of the protocol's migration against this server (`createAccount`
 with the code, `importRepo`, `uploadBlob`, `getRecommendedDidCredentials`,
-`submitPlcOperation`, `activateAccount`). Once activated, the follows and
-the posts come over as above.
+`submitPlcOperation`, `activateAccount`). A `submitPlcOperation` while
+blobs the records name are missing is refused (`BlobsMissing`) and the
+move waits for the person's decision as above; asked to copy them again,
+this server fetches them from the old PDS itself (`getBlob` is public).
+Once activated, the follows and the posts come over as above.
 
 **Handle.** A handle on a domain of the person's own (`alice.example.org`)
 stays theirs: the operation names it, it becomes the account's custom
@@ -1609,11 +1618,11 @@ older clients.
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |
 | `recovery-key-missing` | No recovery key, and the start did not say `without_recovery` | Make a recovery phrase first, or confirm that only the new server will control the account |
-| `no-move-to-call-off` | "Call it off" with no move away under way | Nothing to do |
+| `no-move-to-call-off` | "Call it off" with no move under way | Nothing to do |
 | `move-switching` | "Call it off" while the DID is being pointed at the other server | Wait a moment; the move then goes on or stops |
-| `move-past-switch` | "Call it off" after the DID points at the other server | Use "Try again" to finish the move |
+| `move-past-switch` | "Call it off" after the DID points at the other server, or, moving here, once the PLC operation may have been sent | Use "Try again" to finish the move |
 | `target-account-left` | Not an error: a move was called off, and the account made on the other server is still there, deactivated | Delete it at that server (the answer names its host) |
-| `blobs-missing` | Before the DID moved, the other server lacks pictures or videos (`progress.missing`); the move waits in `needs_decision` | Copy again, or switch without them |
+| `blobs-missing` | Before the DID moved, pictures or videos did not arrive — on the other server, or here when moving here (`progress.missing`); the move waits in `needs_decision` | Copy again, or switch without them |
 | `repo-incomplete` | Before the DID moved, the repository on the other server is not the one here; the move waits in `needs_decision` | Copy again |
 | `no-decision-pending` | "Continue" with no move waiting for a decision | Nothing to do |
 | `announce-invalid` | `announce` is not `post`, `profile` or `none` | Pick one of them |
