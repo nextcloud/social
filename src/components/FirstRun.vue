@@ -20,24 +20,41 @@
 			</NcButton>
 		</header>
 
-		<div class="first-run__card">
-			<div class="first-run__progress">
-				<ol class="first-run__steps" :aria-label="t('social', 'Steps')">
+		<!-- where in the introduction this page is, and the way between
+		     the steps: a row of tabs on a narrow screen, a sticky rail
+		     beside the page on a wide one, the way the settings page does it -->
+		<div class="first-run__body">
+			<nav class="first-run__nav" :aria-label="t('social', 'Introduction progress')">
+				<ol class="first-run__steps">
 					<li
-						v-for="(name, index) in stepNames"
-						:key="name"
-						class="first-run__dot"
-						:class="{ 'first-run__dot--done': index < step, 'first-run__dot--current': index === step }"
-						:aria-current="index === step ? 'step' : undefined">
-						<span class="hidden-visually">{{ name }}</span>
+						v-for="item in introductionSteps"
+						:key="item.n"
+						class="first-run__step"
+						:class="{ 'first-run__step--current': step === item.n - 1 }">
+						<button
+							type="button"
+							class="first-run__step-button"
+							:aria-current="step === item.n - 1 ? 'step' : undefined"
+							:disabled="busy !== '' || moveBusy || followsBusy || bioSaving"
+							@click="step = item.n - 1">
+							<span class="first-run__step-icon">
+								<component :is="item.icon" :size="20" />
+							</span>
+							<span class="first-run__step-text">
+								<span class="first-run__step-title">{{ item.label }}</span>
+								<span class="first-run__step-description">{{ item.description }}</span>
+							</span>
+							<span class="first-run__step-indicator" aria-hidden="true">
+								<IconCheck v-if="item.n - 1 < step" :size="14" />
+								<template v-else-if="item.n - 1 === step"><IconCheck :size="14" /></template>
+								<template v-else>{{ item.n }}</template>
+							</span>
+						</button>
 					</li>
 				</ol>
-				<!-- which page of how many, in words: the dots are the map,
-				     this is where you are on it -->
-				<p class="first-run__step-name">
-					{{ t('social', 'Page {page} of {total}', { page: step + 1, total: stepNames.length }) }}
-				</p>
-			</div>
+			</nav>
+			<div class="first-run__main">
+				<div class="first-run__card">
 
 			<Transition :name="reducedMotion ? '' : 'first-run-step'" mode="out-in">
 				<!-- 1. how it all works -->
@@ -356,7 +373,9 @@
 				</NcButton>
 			</footer>
 		</div>
-	</section>
+	</div>
+</div>
+</section>
 </template>
 
 <script>
@@ -400,6 +419,7 @@ import IconClose from 'vue-material-design-icons/Close.vue'
 import IconContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import IconPencil from 'vue-material-design-icons/Pencil.vue'
 import IconPost from 'vue-material-design-icons/Post.vue'
+import IconShieldCheck from 'vue-material-design-icons/ShieldCheck.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import AccountSettings from './AccountSettings.vue'
@@ -440,6 +460,7 @@ export default {
 		IconContentCopy,
 		IconPencil,
 		IconPost,
+		IconShieldCheck,
 		IconUpload,
 		NcButton,
 		NcLoadingIcon,
@@ -586,6 +607,24 @@ export default {
 			return this.bioTooLong
 				? this.n('social', '%n character too many', '%n characters too many', -this.bioCharsLeft)
 				: this.n('social', '%n character left', '%n characters left', this.bioCharsLeft)
+		},
+
+		/**
+		 * The way between the steps, in the sidebar: how it works, profile,
+		 * privacy, people, bring what you had, ready. The labels are the
+		 * introduction's own words.
+		 *
+		 * @return {{n: number, label: string, description: string, icon: string}[]}
+		 */
+		introductionSteps() {
+			return [
+				{ n: 1, label: t('social', 'How it works'), description: t('social', 'Your address and what you can do'), icon: 'IconPost' },
+				{ n: 2, label: t('social', 'Profile'), description: t('social', 'Your bio and display name'), icon: 'IconAccountCircle' },
+				{ n: 3, label: t('social', 'Privacy'), description: t('social', 'Who can follow and message you'), icon: 'IconShieldCheck' },
+				{ n: 4, label: t('social', 'People'), description: t('social', 'Find people to follow'), icon: 'IconAccountMultiplePlus' },
+				{ n: 5, label: t('social', 'Move'), description: t('social', 'Bring your follows from elsewhere'), icon: 'IconAccountArrowRight' },
+				{ n: 6, label: t('social', 'Ready'), description: t('social', 'Start posting and exploring'), icon: 'IconPencil' },
+			]
 		},
 	},
 
@@ -890,6 +929,8 @@ export default {
 </script>
 
 <style scoped lang="scss">
+@use '../styles/layout.scss' as layout;
+
 .first-run__move {
 	display: flex;
 	align-items: flex-end;
@@ -919,6 +960,190 @@ export default {
 	// centers its pages at 800px, and two columns do not fit in it
 	#app-content-vue &.social__wrapper {
 		max-width: 1080px;
+	}
+
+	/* where in the introduction this page is, and the way between
+	   the steps: a row of tabs on a narrow screen, a sticky rail
+	   beside the page on a wide one, the way the setup screen does it */
+	&__body {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
+		width: 100%;
+	}
+
+	&__nav {
+		min-width: 0;
+	}
+
+	&__steps {
+		display: flex;
+		flex-wrap: wrap;
+		gap: calc(var(--default-grid-baseline) * 2);
+		margin: 0 0 calc(var(--default-grid-baseline) * 5);
+		padding: 0;
+		list-style: none;
+	}
+
+	&__step-button {
+		display: inline-flex;
+		align-items: center;
+		gap: calc(var(--default-grid-baseline) * 2);
+		padding: calc(var(--default-grid-baseline) * 1) calc(var(--default-grid-baseline) * 3);
+		border: 1px solid transparent;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--color-text-maxcontrast);
+		font-size: 13px;
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+
+		&:hover:not(:disabled) {
+			background: transparent;
+			color: var(--color-main-text);
+		}
+
+		&:focus-visible {
+			outline: 2px solid var(--color-primary-element);
+			outline-offset: 2px;
+		}
+
+		&:disabled {
+			cursor: default;
+			opacity: 0.6;
+		}
+
+		.first-run__step--current & {
+			background: var(--color-primary-element-light);
+			color: var(--color-primary-element-light-text);
+		}
+	}
+
+	&__step-dot {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: var(--color-background-darker);
+		font-size: 12px;
+		font-weight: 700;
+
+		.first-run__step--current & {
+			background: var(--color-primary-element);
+			color: var(--color-primary-element-text);
+		}
+	}
+
+	&__step-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		inline-size: 28px;
+		block-size: 28px;
+		border-radius: 50%;
+		background: var(--color-primary-element-light);
+		color: var(--color-primary-element-light-text);
+	}
+
+	.first-run__step--current &__step-icon {
+		background: var(--color-primary-element);
+		color: var(--color-primary-element-text);
+	}
+
+	&__step-text {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	&__step-title {
+		font-weight: bold;
+	}
+
+	&__step-description {
+		display: none;
+		font-size: 13px;
+		line-height: 1.35;
+		color: var(--color-text-maxcontrast);
+	}
+
+	@include layout.from(layout.$wide) {
+		&__step-description {
+			display: block;
+		}
+	}
+
+	&__step-indicator {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 auto;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: transparent;
+		font-size: 12px;
+		font-weight: 700;
+		color: var(--color-text-maxcontrast);
+		margin-inline-start: auto;
+		opacity: 0.6;
+
+		.first-run__step--current & {
+			background: var(--color-primary-element);
+			color: var(--color-primary-element-text);
+			opacity: 1;
+		}
+	}
+
+	&__main {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		min-width: 0;
+	}
+
+	@include layout.from(layout.$wide) {
+		&__body {
+			grid-template-columns: 260px minmax(0, 1fr);
+			gap: calc(var(--default-grid-baseline) * 8);
+			align-items: start;
+		}
+
+		&__nav {
+			position: sticky;
+			inset-block-start: calc(var(--default-grid-baseline) * 12);
+			align-self: start;
+			max-height: calc(100vh - 120px);
+			overflow-y: auto;
+			overflow-x: hidden;
+		}
+
+		&__steps {
+			flex-direction: column;
+			align-items: stretch;
+			margin: 0;
+		}
+
+		&__step-button {
+			width: 100%;
+			border-radius: var(--border-radius-large);
+			text-align: start;
+			padding: 8px 10px;
+			background: transparent;
+		}
+
+		.first-run__step--current & {
+			background: var(--color-primary-element-light);
+			color: var(--color-primary-element-light-text);
+		}
+
+		&:hover:not(:disabled) {
+			background: transparent;
+			color: var(--color-main-text);
+		}
 	}
 
 	&__header {
@@ -955,20 +1180,8 @@ export default {
 		background: var(--color-main-background);
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 16px);
-	}
-
-	&__progress {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	&__steps {
-		display: flex;
-		gap: 8px;
-		margin: 0;
-		padding: 0;
-		list-style: none;
+		width: 100%;
+		max-width: 880px;
 	}
 
 	@media (max-width: 767px) {

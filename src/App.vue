@@ -16,7 +16,7 @@
 	     them the app yet. The app is here when they are through. -->
 	<NcContent v-else-if="introductionVisible" appName="social">
 		<NcAppContent>
-			<FirstRun @done="finishIntroduction" />
+			<FirstRun @done="finishIntroduction" :key="replayKey" />
 		</NcAppContent>
 	</NcContent>
 	<NcContent v-else-if="!serverData.setup" appName="social" :class="{public: serverData.public}">
@@ -250,6 +250,17 @@ export default {
 			} catch {
 				return true
 			}
+		},
+
+		/**
+		 * Key to force FirstRun to re-mount when the replay query changes.
+		 * This ensures the introduction shows immediately when clicking
+		 * "Show the introduction again" in Settings.
+		 *
+		 * @return {string}
+		 */
+		replayKey() {
+			return this.$route.query?.replay === '1' ? 'replay' : 'welcome'
 		},
 
 		/**

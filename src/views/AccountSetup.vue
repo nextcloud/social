@@ -4,23 +4,26 @@
 -->
 <template>
 	<div class="account-setup social__wrapper">
-		<section class="account-setup__card" :aria-label="t('social', 'Your account on the fediverse')">
+		<header class="account-setup__header">
 			<span class="account-setup__logo" aria-hidden="true" />
-			<h1 class="account-setup__title">
-				{{ t('social', 'Welcome to Aloha Social') }}
-			</h1>
-			<p class="account-setup__lead">
-				{{ t('social', 'You do not have an account here yet. Here is what this is:') }}
-			</p>
+			<div class="account-setup__header-text">
+				<h1 class="account-setup__title">
+					{{ t('social', 'Welcome to Aloha Social') }}
+				</h1>
+				<p class="account-setup__lead">
+					{{ t('social', 'You do not have an account here yet. Here is what this is:') }}
+				</p>
+			</div>
+		</header>
 
-			<!-- the explainer reads, the answers sit: two columns while there
-			     is room, one below it -->
-			<div class="account-setup__body">
-				<div class="account-setup__about">
-					<h2 class="account-setup__about-title">
-						{{ t('social', 'What Aloha Social gives you') }}
-					</h2>
-					<ul class="account-setup__points">
+		<!-- the explainer reads, the answers sit: two columns while there
+		     is room, one below it -->
+		<div class="account-setup__body">
+			<div class="account-setup__about">
+				<h2 class="account-setup__about-title">
+					{{ t('social', 'What Aloha Social gives you') }}
+				</h2>
+				<ul class="account-setup__points">
 						<li class="account-setup__point">
 							<IconAt class="account-setup__point-icon" :size="20" />
 							<div class="account-setup__point-text">
@@ -199,8 +202,7 @@
 					</form>
 				</div>
 			</div>
-		</section>
-	</div>
+		</div>
 </template>
 
 <script>
@@ -371,8 +373,9 @@ export default {
 <style scoped lang="scss">
 .account-setup {
 	display: flex;
-	justify-content: center;
-	padding: 24px 16px;
+	flex-direction: column;
+	align-items: center;
+	padding: 56px 16px 24px;
 
 	// the setup question fills the page, not the reading column: the app
 	// centers its pages at 800px, and an explainer beside two answers
@@ -381,39 +384,31 @@ export default {
 		max-width: 1080px;
 	}
 
-	&__card {
+	&__header {
+		display: flex;
+		align-items: flex-start;
+		gap: 16px;
 		width: 100%;
 		max-width: 1024px;
-		padding: 32px;
-		background: var(--color-main-background);
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius-large, 16px);
-	}
-
-	// the explainer reads, the answers sit: two columns while there is
-	// room, one below it
-	&__body {
-		display: grid;
-		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-		gap: 12px 32px;
-		align-items: start;
-
-		@media (max-width: 760px) {
-			grid-template-columns: minmax(0, 1fr);
-		}
+		margin-bottom: 32px;
 	}
 
 	/* the app's own mark, drawn on the current colour like the sidebar's */
 	&__logo {
 		display: block;
+		flex: 0 0 auto;
 		width: 48px;
 		height: 48px;
-		margin: 0 0 16px;
 		background-image: url('../../img/social-dark.svg');
 		background-repeat: no-repeat;
 		background-position: center;
 		background-size: contain;
 		filter: var(--background-invert-if-dark);
+	}
+
+	&__header-text {
+		flex: 1;
+		min-width: 0;
 	}
 
 	&__title {
@@ -425,9 +420,24 @@ export default {
 	}
 
 	&__lead {
-		margin: 0 0 20px;
+		margin: 0;
 		line-height: 1.6;
 		text-wrap: pretty;
+	}
+
+	// the explainer reads, the answers sit: two columns while there is
+	// room, one below it
+	&__body {
+		display: grid;
+		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+		gap: 12px 32px;
+		align-items: start;
+		width: 100%;
+		max-width: 1024px;
+
+		@media (max-width: 760px) {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 
 	/* the explainer is quiet: one column of rows with an accent icon, no

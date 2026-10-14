@@ -91,10 +91,17 @@ describe('FirstRun', () => {
 
 		expect(wrapper.find('h2').text()).toBe('How Aloha Social works')
 		expect(wrapper.find('.first-run__handle').text()).toBe('@alice@cloud.example.org')
-		// five steps, the first lit
-		expect(wrapper.findAll('.first-run__dot')).toHaveLength(6)
-		expect(wrapper.find('.first-run__dot--current').attributes('aria-current')).toBe('step')
-		expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 6')
+		// six steps, the first lit
+		const steps = wrapper.findAll('.first-run__steps .first-run__step-button')
+		expect(steps).toHaveLength(6)
+		expect(steps[0].text()).toContain('How it works')
+		expect(steps[0].text()).toContain('Your address and what you can do')
+		expect(steps[1].text()).toContain('Profile')
+		expect(steps[2].text()).toContain('Privacy')
+		expect(steps[3].text()).toContain('People')
+		expect(steps[4].text()).toContain('Move')
+		expect(steps[5].text()).toContain('Ready')
+		expect(wrapper.find('.first-run__steps [aria-current="step"]').text()).toContain('How it works')
 	})
 
 	it('says what the account can do, not only what its address is', async () => {
@@ -147,7 +154,7 @@ describe('FirstRun', () => {
 		it('asks for the bio second', async () => {
 			const wrapper = await onStep('Set up your profile')
 
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 6')
+			expect(wrapper.find('.first-run__steps [aria-current="step"]').text()).toContain('Profile')
 			expect(wrapper.find('#social-first-run-bio').element.value).toBe('Hello, fediverse')
 			expect(wrapper.text()).toContain('You post as Alice.')
 		})
@@ -155,7 +162,7 @@ describe('FirstRun', () => {
 		it('asks for the privacy third, with the settings themselves', async () => {
 			const wrapper = await onStep('Decide who can reach you')
 
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 3 of 6')
+			expect(wrapper.find('.first-run__steps [aria-current="step"]').text()).toContain('Privacy')
 			expect(wrapper.text()).toContain('Who can find and follow you')
 			expect(wrapper.text()).toContain('Approve who follows you')
 			expect(wrapper.text()).toContain('Who may send you direct messages')
@@ -423,7 +430,7 @@ describe('FirstRun', () => {
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
 			await flushPromises()
 			expect(wrapper.find('h2').text()).toBe('Set up your profile')
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 6')
+			expect(wrapper.find('.first-run__steps [aria-current="step"]').text()).toContain('Profile')
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
 			await flushPromises()
@@ -444,7 +451,7 @@ describe('FirstRun', () => {
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
 			await flushPromises()
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 6')
+			expect(wrapper.find('.first-run__steps [aria-current="step"]').text()).toContain('How it works')
 		})
 
 		it('does not turn while the reader is typing in the handle to move', async () => {
