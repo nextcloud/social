@@ -16,7 +16,7 @@
 	     them the app yet. The app is here when they are through. -->
 	<NcContent v-else-if="introductionVisible" appName="social">
 		<NcAppContent>
-			<FirstRun @done="finishIntroduction" :key="replayKey" />
+			<FirstRun :key="replayKey" @done="finishIntroduction" />
 		</NcAppContent>
 	</NcContent>
 	<NcContent v-else-if="!serverData.setup" appName="social" :class="{public: serverData.public}">

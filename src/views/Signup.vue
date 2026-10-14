@@ -30,7 +30,7 @@
 			</li>
 			<li class="signup__step" :class="{ 'signup__step--current': step === 3 }" :aria-current="step === 3 ? 'step' : undefined">
 				<span class="signup__step-dot" aria-hidden="true">3</span>
-				{{ t('social', 'Ready') }}
+				{{ t('social', 'Result') }}
 			</li>
 		</ol>
 

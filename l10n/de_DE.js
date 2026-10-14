@@ -2254,7 +2254,7 @@ OC.L10N.register(
     "An address of your own" : "Eine eigene Adresse",
     "Like an email address: @you@host. People on Mastodon, Pixelfed, PeerTube and other servers can follow it and reply." : "Wie eine E-Mail-Adresse: @du@host. Personen auf Mastodon, Pixelfed, PeerTube und anderen Servern können ihr folgen und Ihnen antworten.",
     "One fediverse, many servers" : "Ein Fediverse, viele Server",
-    "Thousands of social networks speak the same language, so an account here reaches an account anywhere. This Nextcloud runs one of those servers." : "Tausende soziale Netzwerke sprechen dieselbe Sprache, deshalb reicht ein Konto von hier überall hin. Diese Nextcloud betreutet einen dieser Server.",
+    "Thousands of social networks speak the same language, so an account here reaches an account anywhere. This Nextcloud runs one of those servers." : "Tausende soziale Netzwerke sprechen dieselbe Sprache, deshalb reicht ein Konto von hier überall hin. Diese Nextcloud betreibt einen dieser Server.",
     "Yours to keep" : "Es gehört Ihnen",
     "Your profile, avatar and name come from your Nextcloud account — and you can move the whole thing to another server whenever you like." : "Name, Profil und Profilbild kommen aus Ihrem Nextcloud-Konto – und Sie können alles jederzeit auf einen anderen Server mitnehmen.",
     "What is the fediverse?" : "Was ist das Fediverse?",

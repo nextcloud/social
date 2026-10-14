@@ -105,7 +105,7 @@ describe('the registration page', () => {
 		const wrapper = await page(OPEN)
 		const steps = () => wrapper.find('.signup__steps').findAll('li').map((item) => item.text())
 
-		expect(steps()).toEqual(['1 About', '2 Your details', '3 Ready'])
+		expect(steps()).toEqual(['1 About', '2 Your details', '3 Result'])
 		expect(wrapper.find('.signup__steps li[aria-current="step"]').text()).toContain('About')
 		await continueToForm(wrapper)
 		expect(wrapper.find('.signup__steps li[aria-current="step"]').text()).toContain('Your details')

@@ -358,7 +358,6 @@ export default {
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/account/link'), { handle: this.linked })
 				this.linkedNow = data?.result?.handle ?? this.linked
-				await this.setIntroductionPending()
 				this.$emit('linked', this.linkedNow)
 			} catch (error) {
 				logger.warn('Could not put the account on the profile', { error })

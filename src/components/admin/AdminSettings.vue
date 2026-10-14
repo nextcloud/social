@@ -824,7 +824,7 @@ export default {
 
 		/** Scrolls to the section asked for, once it is on the page. */
 		scrollToPending() {
-			if (this.pending !== '' && scrollToSection(this.pending)) {
+			if (this.pending !== '' && scrollToSection(this.pending, this.$el)) {
 				this.pending = ''
 			}
 		},
@@ -857,7 +857,7 @@ export default {
 		 * @param {MouseEvent} event the click
 		 */
 		jumpTo(id, event) {
-			if (scrollToSection(id)) {
+			if (scrollToSection(id, this.$el)) {
 				event.preventDefault()
 				this.current = id
 				this.remember(id)
@@ -901,7 +901,7 @@ export default {
 		watch() {
 			const ids = this.shownSections.map((section) => section.id)
 			this.observer?.disconnect()
-			this.observer = watchSections(ids, () => this.mark())
+			this.observer = watchSections(ids, () => this.mark(), this.$el)
 			this.mark()
 		},
 
@@ -911,7 +911,7 @@ export default {
 		 */
 		mark() {
 			const ids = this.shownSections.map((section) => section.id)
-			this.current = currentSection(ids, ids[0] ?? '')
+			this.current = currentSection(ids, ids[0] ?? '', this.$el)
 		},
 	},
 }
