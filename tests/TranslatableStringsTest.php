@@ -366,7 +366,6 @@ class TranslatableStringsTest extends TestCase {
 				'Folge noch einem Konto, dann können wir prüfen, wem es folgt.',
 				'Folge noch {count} Konten, dann können wir prüfen, wem sie folgen.',
 			],
-			'_%n entry_::_%n entries_' => ['%n Eintrag', '%n Einträge'],
 			'_%n view_::_%n views_' => ['%n Aufruf', '%n Aufrufe'],
 			'_%n like_::_%n likes_' => ['%n Like', '%n Likes'],
 			'_%n dislike_::_%n dislikes_' => ['%n Ablehnung', '%n Ablehnungen'],
