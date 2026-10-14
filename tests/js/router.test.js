@@ -37,6 +37,20 @@ describe('router', () => {
 		expect(route.params.type).toBeFalsy()
 	})
 
+	// `?welcome=1` is how the account setup screen and the first login after
+	// registering ask for the introduction on the way in. Losing it there
+	// loses the introduction: the redirect out of `/` carries the query on.
+	it('carries the address on with the redirect, welcome and all', async () => {
+		await router.push('/?welcome=1')
+
+		const route = router.currentRoute.value
+		expect(route.path).toBe('/timeline')
+		expect(route.query).toEqual({ welcome: '1' })
+
+		// the address left behind is where the next router starts from
+		window.history.replaceState({}, '', '/')
+	})
+
 	it('exposes the timeline type as a route param passed to the view as a prop', () => {
 		const route = router.resolve('/timeline/notifications')
 

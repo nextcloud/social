@@ -17,7 +17,7 @@
 				<NcButton
 					v-if="outcome.state === 'created'"
 					variant="primary"
-					:href="state.loginUrl"
+					:href="firstRunLoginUrl"
 					wide>
 					{{ t('social', 'Log in') }}
 				</NcButton>
@@ -198,6 +198,7 @@
 import axios from '@nextcloud/axios'
 import { loadState } from '@nextcloud/initial-state'
 import { translate as t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
@@ -338,6 +339,23 @@ export default {
 		/** @return {string} */
 		signupPage() {
 			return signupUrl()
+		},
+
+		/**
+		 * The first login, for somebody who has just registered.
+		 *
+		 * The page promises an introduction after joining; the way in is the
+		 * home timeline carrying `welcome`, which is what the account setup
+		 * screen reloads with and what the introduction shows for. The login
+		 * is core's, and it takes the new reader there on its way through.
+		 *
+		 * @return {string}
+		 */
+		firstRunLoginUrl() {
+			const app = generateUrl('/apps/social/') + '?welcome=1'
+			const separator = this.state.loginUrl.includes('?') ? '&' : '?'
+
+			return this.state.loginUrl + separator + 'redirect_url=' + encodeURIComponent(app)
 		},
 	},
 

@@ -83,7 +83,7 @@ describe('FirstRun', () => {
 		serverHas()
 		const wrapper = await mountFirstRun()
 
-		expect(wrapper.find('h2').text()).toBe('You are on the fediverse')
+		expect(wrapper.find('h2').text()).toBe('Welcome to Aloha Social')
 		expect(wrapper.find('.first-run__handle').text()).toBe('@alice@cloud.example.org')
 		// four steps, the first lit
 		expect(wrapper.findAll('.first-run__dot')).toHaveLength(4)
@@ -290,7 +290,7 @@ describe('FirstRun', () => {
 		await button(wrapper, 'Back').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('h2').text()).toBe('You are on the fediverse')
+		expect(wrapper.find('h2').text()).toBe('Welcome to Aloha Social')
 		expect(button(wrapper, 'Back')).toBeUndefined()
 	})
 })

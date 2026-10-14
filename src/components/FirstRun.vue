@@ -27,13 +27,14 @@
 		</header>
 
 		<Transition :name="reducedMotion ? '' : 'first-run-step'" mode="out-in">
-			<!-- 1. the address -->
+			<!-- 1. the address, and the welcome: this runs the moment the
+			     account exists, however it was made -->
 			<div v-if="step === 0" key="address" class="first-run__body">
 				<h2 class="first-run__title">
-					{{ t('social', 'You are on the fediverse') }}
+					{{ t('social', 'Welcome to Aloha Social') }}
 				</h2>
 				<p class="first-run__lead">
-					{{ t('social', 'Your Nextcloud made you an account. This is your address — anyone on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can follow it:') }}
+					{{ t('social', 'Your account is ready. This is your address — anyone on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can follow it:') }}
 				</p>
 				<div class="first-run__address">
 					<code class="first-run__handle">{{ socialId }}</code>
@@ -222,11 +223,12 @@
 /**
  * The first thing a new account sees, in place of a paragraph about beta.
  *
- * The account was made a moment ago by the server, and the reader has three
- * questions the old banner did not answer: what is my address, who do I
- * follow, and can I bring what I had. Four short steps, each skippable,
- * and it is gone for good once closed -- `firstrun` is true on exactly one
- * page load, the one right after the actor was created.
+ * The account was made a moment ago — by the setup screen, or by registering
+ * on the signup page — and the reader has three questions the old banner did
+ * not answer: what is my address, who do I follow, and can I bring what I
+ * had. Four short steps, each skippable, and it is gone for good once closed:
+ * the home timeline shows it for `?welcome=1`, which is what both of those
+ * two ways in carry, and never again after that unless asked for by name.
  *
  * Nothing here is a second implementation of anything: the people come from
  * the suggestions the Discover page reads (the colleagues among them, marked

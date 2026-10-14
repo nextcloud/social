@@ -10,8 +10,58 @@
 				{{ t('social', 'Welcome to Aloha Social') }}
 			</h1>
 			<p class="account-setup__lead">
-				{{ t('social', 'You do not have an account here yet. Create one, or show an account you already have on your profile.') }}
+				{{ t('social', 'You do not have an account here yet. Here is what this is:') }}
 			</p>
+
+			<!-- what the software is, before the question of what to do about
+			     it: the first thing somebody asks on arriving is what they are
+			     joining, and the answer is not "ActivityPub and a key pair" -->
+			<div class="account-setup__about">
+				<h2 class="account-setup__about-title">
+					{{ t('social', 'What Aloha Social gives you') }}
+				</h2>
+				<ul class="account-setup__points">
+					<li class="account-setup__point">
+						<IconAt class="account-setup__point-icon" :size="20" />
+						<div class="account-setup__point-text">
+							<h3 class="account-setup__point-title">
+								{{ t('social', 'An address of your own') }}
+							</h3>
+							<p>
+								{{ t('social', 'Like an email address: @you@host. People on Mastodon, Pixelfed, PeerTube and other servers can follow it and reply.') }}
+							</p>
+						</div>
+					</li>
+					<li class="account-setup__point">
+						<IconWeb class="account-setup__point-icon" :size="20" />
+						<div class="account-setup__point-text">
+							<h3 class="account-setup__point-title">
+								{{ t('social', 'One fediverse, many servers') }}
+							</h3>
+							<p>
+								{{ t('social', 'Thousands of social networks speak the same language, so an account here reaches an account anywhere. This Nextcloud runs one of those servers.') }}
+							</p>
+						</div>
+					</li>
+					<li class="account-setup__point">
+						<IconSwapHorizontal class="account-setup__point-icon" :size="20" />
+						<div class="account-setup__point-text">
+							<h3 class="account-setup__point-title">
+								{{ t('social', 'Yours to keep') }}
+							</h3>
+							<p>
+								{{ t('social', 'Your profile, avatar and name come from your Nextcloud account — and you can move the whole thing to another server whenever you like.') }}
+							</p>
+						</div>
+					</li>
+				</ul>
+				<details class="account-setup__more">
+					<summary>{{ t('social', 'What is the fediverse?') }}</summary>
+					<p>
+						{{ t('social', 'The fediverse is not one website but thousands of them, run by different people and communities, that all speak the same language (ActivityPub). An account on any of them can follow, like and reply to an account on any other, the way email works across providers. Nobody owns it and nobody can switch it off.') }}
+					</p>
+				</details>
+			</div>
 
 			<!-- the two answers, one at a time: the question is which of them,
 			     not two forms to read past each other -->
@@ -136,20 +186,25 @@
  *
  * The actor used to be created on the first click of the app icon, with a
  * handle derived from the user id and no way to say "I already have one on
- * mastodon.social". This asks, and shows one answer at a time -- creating is
- * first, because that is what most people want, and linking is a choice of its
- * own rather than a second form to read past. An account here is made with the
- * handle they choose (the address cannot be changed afterwards, so it is chosen
- * first, and the address it would make is drawn as it is typed); an account
- * they already have is only named on their Nextcloud profile, where their
- * colleagues find it -- and nothing is created here.
+ * mastodon.social". This explains what the software is first — three points
+ * and a fold, because the first thing somebody asks on arriving is what they
+ * are joining — and then asks, one answer at a time: creating is first,
+ * because that is what most people want, and linking is a choice of its own
+ * rather than a second form to read past. An account here is made with the
+ * handle they choose (the address cannot be changed afterwards, so it is
+ * chosen first, and the address it would make is drawn as it is typed); an
+ * account they already have is only named on their Nextcloud profile, where
+ * their colleagues find it -- and nothing is created here.
  */
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconAccountPlus from 'vue-material-design-icons/AccountPlus.vue'
+import IconAt from 'vue-material-design-icons/At.vue'
 import IconLinkVariant from 'vue-material-design-icons/LinkVariant.vue'
+import IconSwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
+import IconWeb from 'vue-material-design-icons/Web.vue'
 import logger from '../services/logger.js'
 import { useServerData } from '../composables/useServerData.js'
 
@@ -157,7 +212,10 @@ export default {
 	name: 'AccountSetup',
 	components: {
 		IconAccountPlus,
+		IconAt,
 		IconLinkVariant,
+		IconSwapHorizontal,
+		IconWeb,
 		NcButton,
 		NcLoadingIcon,
 	},
@@ -272,9 +330,81 @@ export default {
 	}
 
 	&__lead {
-		margin: 0 0 24px;
+		margin: 0 0 20px;
 		line-height: 1.6;
 		text-wrap: pretty;
+	}
+
+	/* the explainer is quiet: one column of rows with an accent icon, no
+	   card of its own, so the two answers stay the things that look
+	   choosable */
+	&__about {
+		margin: 0 0 24px;
+	}
+
+	&__about-title {
+		margin: 0 0 12px;
+		font-size: 13px;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__points {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin: 0 0 12px;
+		padding: 0;
+		list-style: none;
+	}
+
+	&__point {
+		display: flex;
+		gap: 12px;
+		align-items: flex-start;
+	}
+
+	&__point-icon {
+		flex: 0 0 auto;
+		margin-top: 2px;
+		color: var(--color-primary-element);
+	}
+
+	&__point-text {
+		min-width: 0;
+	}
+
+	&__point-title {
+		margin: 0 0 2px;
+		font-size: 14px;
+		font-weight: 600;
+	}
+
+	&__point-text p {
+		margin: 0;
+		font-size: 13px;
+		line-height: 1.45;
+		color: var(--color-text-maxcontrast);
+		text-wrap: pretty;
+	}
+
+	&__more {
+		summary {
+			cursor: pointer;
+			font-size: 13px;
+			font-weight: 600;
+			color: var(--color-primary-element);
+		}
+
+		p {
+			margin: 8px 0 0;
+			font-size: 13px;
+			line-height: 1.5;
+			color: var(--color-text-maxcontrast);
+			text-wrap: pretty;
+		}
 	}
 
 	&__modes {

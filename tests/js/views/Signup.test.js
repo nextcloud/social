@@ -146,7 +146,7 @@ describe('the registration page', () => {
 	it('says what the confirmation link came to', async () => {
 		const created = await page({ ...OPEN, result: { state: 'created', handle: 'alice' } })
 		expect(created.text()).toContain('Your account is ready')
-		expect(button(created, 'Log in').attributes('href')).toBe('/index.php/login')
+		expect(button(created, 'Log in').attributes('href')).toBe('/index.php/login?redirect_url=' + encodeURIComponent('/index.php/apps/social/?welcome=1'))
 
 		const failed = await page({ ...OPEN, result: { state: 'error', message: 'This confirmation link is not valid any more.' } })
 		expect(failed.text()).toContain('This confirmation link is not valid any more.')

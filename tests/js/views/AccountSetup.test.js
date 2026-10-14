@@ -51,6 +51,20 @@ describe('AccountSetup', () => {
 		expect(wrapper.text()).toContain('Welcome to Aloha Social')
 	})
 
+	it('says what the software is before it asks anything', () => {
+		const wrapper = mountSetup()
+
+		expect(wrapper.text()).toContain('What Aloha Social gives you')
+		expect(wrapper.text()).toContain('An address of your own')
+		expect(wrapper.text()).toContain('One fediverse, many servers')
+		expect(wrapper.text()).toContain('Yours to keep')
+
+		// the longer answer is folded, and opens
+		const more = wrapper.find('.account-setup__more summary')
+		expect(wrapper.find('.account-setup__more').element.open).toBe(false)
+		expect(more.text()).toBe('What is the fediverse?')
+	})
+
 	it('creates the account with the handle that was typed and says so', async () => {
 		axios.post.mockResolvedValue({ data: { status: 1, result: { account: { id: '1', acct: 'ali_ce' } } } })
 		const wrapper = mountSetup()
