@@ -307,19 +307,20 @@ class AtprotoAccountController extends Controller {
 	 * person's choice and is waited for in the request, so a few tries an
 	 * hour is all one account gets. Without a recovery key the person says
 	 * `without_recovery` first: only the other server controls the account
-	 * then.
+	 * then. `announce` says where the account went once it moved: a
+	 * `post`, a `profile` field, or `none`.
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
 	#[UserRateLimit(limit: 3, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move')]
-	public function moveAway(string $pds, string $handle, string $email, string $password, string $inviteCode = '', bool $without_recovery = false): DataResponse {
+	public function moveAway(string $pds, string $handle, string $email, string $password, string $inviteCode = '', bool $without_recovery = false, string $announce = 'none'): DataResponse {
 		$identity = $this->ownIdentity();
 		if ($identity === null) {
 			return $this->noIdentity();
 		}
 		try {
-			return new DataResponse(['move' => $this->moveAway->start($this->userId(), $identity, $pds, $handle, $email, $password, $inviteCode, $without_recovery)->export()]);
+			return new DataResponse(['move' => $this->moveAway->start($this->userId(), $identity, $pds, $handle, $email, $password, $inviteCode, $without_recovery, $announce)->export()]);
 		} catch (Throwable $e) {
 			return self::moveError($e);
 		}

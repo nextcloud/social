@@ -73,6 +73,7 @@ class MoveAwayService {
 		private ICrypto $crypto,
 		private IJobList $jobList,
 		private Publisher $publisher,
+		private MoveAnnouncement $announcement,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -83,9 +84,13 @@ class MoveAwayService {
 	 * @param bool $withoutRecovery the person was told that without a
 	 *                              recovery key only the other server will
 	 *                              control the account, and goes on
+	 * @param string $announce what says where the account went once it
+	 *                         moved: a post, a profile field, or nothing
+	 *                         (MoveAnnouncement::KINDS)
 	 * @throws MoveErrorException with what to tell the person
 	 */
-	public function start(string $userId, Identity $identity, string $pds, string $handle, string $email, string $password, string $inviteCode = '', bool $withoutRecovery = false): Move {
+	public function start(string $userId, Identity $identity, string $pds, string $handle, string $email, string $password, string $inviteCode = '', bool $withoutRecovery = false, string $announce = MoveAnnouncement::NONE): Move {
+		MoveAnnouncement::assertKind($announce);
 		if (!$identity->isActive()) {
 			throw new MoveErrorException('The Bluesky account is not active here', 'identity-inactive');
 		}
@@ -127,7 +132,7 @@ class MoveAwayService {
 
 		$move = new Move(0, $identity->did, $userId, Move::AWAY, $origin, $pdsDid, (string)($answer['body']['handle'] ?? $handle), Move::STEP_REPO, Move::RUNNING);
 		$move->session = $this->seal($answer['body']);
-		$move->progress = ['stage' => self::stageOf($move)];
+		$move->progress = ['stage' => self::stageOf($move), 'announce' => $announce, 'from_handle' => $identity->handle];
 		$saved = new Move($this->moves->add($move), $move->did, $userId, Move::AWAY, $origin, $pdsDid, $move->handle, $move->step, $move->state, $move->session, $move->progress);
 		$this->jobList->add(AtprotoMove::class, ['move' => $saved->id]);
 
@@ -309,6 +314,7 @@ class MoveAwayService {
 			$move->session = '';
 			$this->save($move);
 			$this->logger->info('Bluesky account moved away', ['did' => $move->did, 'pds' => $move->pds]);
+			$this->announce($move);
 		} catch (Throwable $e) {
 			if ($move->state === Move::CANCELLED) {
 				$this->logger->info('Bluesky account move stopped: called off', ['did' => $move->did, 'step' => $move->step]);
@@ -322,6 +328,27 @@ class MoveAwayService {
 			$this->moves->update($move);
 			$this->logger->warning('Bluesky account move stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
 		}
+	}
+
+	/**
+	 * Says where the account went, as the person chose when the move
+	 * started. A move is done whatever comes of it; what failed is kept
+	 * for the page (`progress.announce_code`).
+	 */
+	private function announce(Move $move): void {
+		$kind = (string)($move->progress['announce'] ?? MoveAnnouncement::NONE);
+		if ($kind === MoveAnnouncement::NONE) {
+			return;
+		}
+		try {
+			$this->announcement->announce($move->userId, $kind, (string)($move->progress['from_handle'] ?? $move->did), $move->handle);
+			$move->progress['announced'] = true;
+		} catch (Throwable $e) {
+			$move->progress['announced'] = false;
+			$move->progress['announce_code'] = $e instanceof MoveErrorException ? $e->errorCode : 'announce-failed';
+			$this->logger->warning('Where the Bluesky account went was not announced', ['did' => $move->did, 'kind' => $kind, 'exception' => $e]);
+		}
+		$this->moves->update($move);
 	}
 
 	/**

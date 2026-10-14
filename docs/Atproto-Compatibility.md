@@ -1448,6 +1448,16 @@ account's password and that code) — the answer says so with
 `target-account-left` and the host. Once the DID moved the move can only be
 finished (`move-past-switch`).
 
+**The other half of the same person.** The start can ask
+(`announce`) that once the move is done the account here says where the
+Bluesky account went: one public post — "My account alice.example.com now
+lives at alice.newpds.example: https://bsky.app/profile/alice.newpds.example"
+— or a profile field "Also at" with that address (`MoveAnnouncement`).
+Both go through the ordinary post and profile paths, so they are the
+person's to edit or delete; the text is a short English template, as the
+switch wizard's announcement is. A full profile (four fields) is left as
+it is (`profile-fields-full`); the move is done either way.
+
 The Fediverse account is untouched; after the move the local actor has no
 Bluesky identity until §4.1 creates a fresh one — which it does not do
 automatically for a moved-away account (flag on the identity row), so the
@@ -1501,6 +1511,9 @@ older clients.
 | `blobs-missing` | Before the DID moved, the other server lacks pictures or videos (`progress.missing`); the move waits in `needs_decision` | Copy again, or switch without them |
 | `repo-incomplete` | Before the DID moved, the repository on the other server is not the one here; the move waits in `needs_decision` | Copy again |
 | `no-decision-pending` | "Continue" with no move waiting for a decision | Nothing to do |
+| `announce-invalid` | `announce` is not `post`, `profile` or `none` | Pick one of them |
+| `profile-fields-full` | After the move, the profile had no free field for the new address (`progress.announce_code`) | Add the address to the profile by hand |
+| `announce-failed` | After the move, the post or the profile field could not be written (`progress.announce_code`) | Post the new address by hand |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |

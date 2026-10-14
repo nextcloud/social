@@ -18,6 +18,7 @@ use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Model\RepoHead;
+use OCA\Social\Atproto\Move\MoveAnnouncement;
 use OCA\Social\Atproto\Move\MoveAwayService;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -55,6 +56,8 @@ class MoveAwayServiceTest extends TestCase {
 	private ?RepoHead $head = null;
 	/** @var Publisher&MockObject */
 	private Publisher $publisher;
+	/** @var MoveAnnouncement&MockObject */
+	private MoveAnnouncement $announcement;
 	/** @var (callable(string): void)|null told of every call to the other PDS before it is answered */
 	private $pdsHook = null;
 	private array $queued = [];
@@ -121,9 +124,10 @@ class MoveAwayServiceTest extends TestCase {
 			$this->queued[] = [$job, $argument];
 		});
 		$this->publisher = $this->createMock(Publisher::class);
+		$this->announcement = $this->createMock(MoveAnnouncement::class);
 		$this->moves = new MoveAwayService(
 			$pds, new ServiceAuth($time, $this->createStub(AtprotoOAuthRequest::class)), $this->identities, $repositories, $blobs, $pictures, $this->createMock(VideoBlobService::class),
-			$preferences, $request, $crypto, $jobs, $this->publisher, new NullLogger(),
+			$preferences, $request, $crypto, $jobs, $this->publisher, $this->announcement, new NullLogger(),
 		);
 		$this->answers['com.atproto.server.describeServer'] = [['status' => 200, 'body' => ['did' => self::PDS_DID, 'availableUserDomains' => ['.pds.example.com'], 'inviteCodeRequired' => false]]];
 		$this->answers['com.atproto.server.createAccount'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.pds.example.com', 'accessJwt' => 'access-1', 'refreshJwt' => 'refresh-1']]];
@@ -388,6 +392,41 @@ class MoveAwayServiceTest extends TestCase {
 		$this->publisher->expects($this->once())->method('publishBacklog')->with('https://social.test/@alice', 0);
 
 		$this->moves->cancel('alice');
+	}
+
+	public function testOnceMovedTheAccountHereSaysWhereItWentAsChosen(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret', '', false, 'post');
+		$this->announcement->expects($this->once())->method('announce')->with('alice', 'post', 'alice.social.test', 'alice.pds.example.com');
+
+		$this->moves->run($move->id);
+
+		$this->assertSame([Move::DONE, true], [$this->rows[1]->state, $this->rows[1]->progress['announced']]);
+	}
+
+	public function testAnAnnouncementThatFailsLeavesTheMoveDone(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret', '', false, 'profile');
+		$this->announcement->method('announce')->willThrowException(new MoveErrorException('The profile has no free field', 'profile-fields-full'));
+
+		$this->moves->run($move->id);
+
+		$this->assertSame([Move::DONE, false, 'profile-fields-full'], [$this->rows[1]->state, $this->rows[1]->progress['announced'], $this->rows[1]->progress['announce_code']]);
+	}
+
+	public function testNothingIsAnnouncedUnlessAsked(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->announcement->expects($this->never())->method('announce');
+
+		$this->moves->run($move->id);
+	}
+
+	public function testAnUnknownAnnouncementIsRefusedFirst(): void {
+		try {
+			$this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret', '', false, 'billboard');
+			$this->fail('started');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('announce-invalid', $e->errorCode);
+		}
+		$this->assertSame([], $this->calls);
 	}
 
 	private function assertRefused(string $code, string $message, string $handle = 'alice.pds.example.com'): void {
