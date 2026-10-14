@@ -2895,6 +2895,13 @@
     "Afterwards, post where my Bluesky account went" : "Danach in einem Beitrag sagen, wohin mein Bluesky-Konto umgezogen ist",
     "You have no recovery phrase: afterwards only {server} controls your Bluesky account." : "Du hast keine Wiederherstellungsphrase: Danach kontrolliert nur noch {server} dein Bluesky-Konto.",
     "Checking that everything arrived" : "Prüfen, ob alles angekommen ist",
-    "Could not go on with the move" : "Der Umzug konnte nicht fortgesetzt werden"
+    "Could not go on with the move" : "Der Umzug konnte nicht fortgesetzt werden",
+    "The code went to {address}." : "Der Code ging an {address}.",
+    "Send a new code" : "Neuen Code senden",
+    "Call off the move" : "Umzug abbrechen",
+    "A new code is on its way to {address}." : "Ein neuer Code ist unterwegs an {address}.",
+    "A new code is on its way to the e-mail address of your Bluesky account." : "Ein neuer Code ist unterwegs an die E-Mail-Adresse deines Bluesky-Kontos.",
+    "Could not ask for a new code" : "Konnte keinen neuen Code anfordern",
+    "Could not call off the move" : "Konnte den Umzug nicht abbrechen"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

@@ -12,7 +12,7 @@ import { confirmPassword } from '../../../src/services/externalApi.js'
 import BlueskyMoveIn from '../../../src/components/BlueskyMoveIn.vue'
 
 vi.mock('@nextcloud/axios', () => ({
-	default: { get: vi.fn(), post: vi.fn() },
+	default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('../../../src/services/externalApi.js', () => ({ confirmPassword: vi.fn().mockResolvedValue(undefined) }))
@@ -157,6 +157,44 @@ describe('BlueskyMoveIn', () => {
 
 		expect(axios.post).toHaveBeenCalledWith(`${API}/move/code`, { code: '12345-ABCDE' })
 		expect(wrapper.text()).toContain('Pointing your account at this server')
+	})
+
+	it('says where the code went, and asks for a new one', async () => {
+		server({ moves: [moveOf('waiting', 'code', { progress: { code_sent_to: 'alice@example.org' } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('waiting', 'code'), sent_to: '' } })
+		const wrapper = await mountCard()
+		expect(wrapper.text()).toContain('The code went to alice@example.org.')
+
+		await buttonNamed(wrapper, 'Send a new code').trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/code`)
+		expect(wrapper.text()).toContain('A new code is on its way to the e-mail address of your Bluesky account.')
+	})
+
+	it('calls a waiting move off after the Nextcloud password', async () => {
+		server({ moves: [moveOf('waiting', 'code')] })
+		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'code', { error: 'Called off' }) } })
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call off the move').trigger('click')
+		await flushPromises()
+
+		expect(confirmPassword).toHaveBeenCalled()
+		expect(axios.delete).toHaveBeenCalledWith(`${API}/move-in`)
+		expect(wrapper.text()).not.toContain('The move stopped')
+		expect(inputs(wrapper)).toHaveLength(3)
+	})
+
+	it('shows why a move could not be called off', async () => {
+		server({ moves: [moveOf('waiting', 'code')] })
+		axios.delete.mockRejectedValue({ response: { status: 422, data: { error: 'Too late', code: 'move-past-switch' } } })
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call off the move').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').text()).toContain('Too late')
 	})
 
 	it('follows a running move and says when it is done, under the handle here', async () => {

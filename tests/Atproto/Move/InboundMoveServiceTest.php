@@ -453,8 +453,7 @@ class InboundMoveServiceTest extends TestCase {
 
 		$this->moves->cancel('alice');
 
-		$this->assertSame(Move::FAILED, $this->rows[1]->state);
-		$this->assertSame('move-cancelled', $this->rows[1]->progress['code']);
+		$this->assertSame(Move::CANCELLED, $this->rows[1]->state);
 		$this->assertSame('ExpiredToken', $this->refused(fn () => $this->moves->query('com.atproto.server.getSession', [], $auth))->error);
 	}
 

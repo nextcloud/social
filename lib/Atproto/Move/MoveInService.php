@@ -190,8 +190,134 @@ class MoveInService {
 	}
 
 	/**
+	 * Calls off a move whose DID has not switched yet: it ends, the session
+	 * on the old PDS is ended and dropped, and what was copied here is
+	 * deleted.
+	 *
+	 * @throws MoveErrorException `move-past-switch` once the DID may have moved
+	 */
+	public function cancel(string $userId): Move {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::IN || in_array($move->state, [Move::DONE, Move::CANCELLED], true)) {
+			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
+		}
+		if ($this->pastSwitch($move)) {
+			throw new MoveErrorException('The account has been pointed at this server already; the move can no longer be called off', 'move-past-switch');
+		}
+		$refresh = (string)($this->unseal($move->session)['refreshJwt'] ?? '');
+		$move->state = Move::CANCELLED;
+		$move->error = 'Called off';
+		$move->session = '';
+		$this->moves->update($move);
+		if ($refresh !== '') {
+			try {
+				$this->pds->call($move->pds, 'com.atproto.server.deleteSession', 'POST', [], null, null, '', $refresh);
+			} catch (Throwable $e) {
+				$this->logger->info('Session on the old PDS not ended', ['did' => $move->did, 'exception' => $e]);
+			}
+		}
+		$this->dropCopy($move);
+
+		return $move;
+	}
+
+	/**
+	 * Whether the DID may already point here: from the identity step on,
+	 * unless that step failed before the directory took anything.
+	 */
+	private function pastSwitch(Move $move): bool {
+		if (!in_array($move->step, [Move::STEP_REPO, Move::STEP_BLOBS, Move::STEP_PREFERENCES, Move::STEP_CODE, Move::STEP_IDENTITY], true)) {
+			return true;
+		}
+		if ($move->step !== Move::STEP_IDENTITY) {
+			return false;
+		}
+		if ($move->state === Move::RUNNING || $this->isHere($move->did)) {
+			return true;
+		}
+		try {
+			$state = $this->plc->data($move->did);
+		} catch (AtprotoException) {
+			return true;
+		}
+
+		return rtrim((string)($state['services']['atproto_pds']['endpoint'] ?? ''), '/') === $this->config->pdsEndpoint();
+	}
+
+	/**
+	 * Asks the old PDS again to e-mail a code, for a move waiting for one.
+	 *
+	 * @return array{move: Move, sent_to: string} the move, and the address the old PDS says it e-mailed, '' when it does not say
+	 * @throws MoveErrorException
+	 * @throws AtprotoException
+	 */
+	public function newCode(string $userId): array {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::IN || $move->state !== Move::WAITING || $move->step !== Move::STEP_CODE) {
+			throw new MoveErrorException('No move is waiting for a code', 'no-move-waiting');
+		}
+		$this->requestCode($move);
+		$this->moves->update($move);
+
+		return ['move' => $move, 'sent_to' => (string)($move->progress['code_sent_to'] ?? '')];
+	}
+
+	/**
+	 * The old PDS e-mails the person a code (`requestPlcOperationSignature`
+	 * answers nothing); the address its session names is kept as
+	 * `code_sent_to`, '' when it names none.
+	 *
+	 * @throws AtprotoException
+	 */
+	private function requestCode(Move $move): void {
+		$this->authed($move, 'com.atproto.identity.requestPlcOperationSignature', 'POST');
+		try {
+			$email = (string)($this->authed($move, 'com.atproto.server.getSession')['email'] ?? '');
+		} catch (AtprotoException) {
+			$email = '';
+		}
+		$move->progress['code_sent_to'] = filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : '';
+	}
+
+	/**
+	 * Whether the move was called off while the job ran; what the job
+	 * copied since is dropped then, unless $drop is false.
+	 */
+	private function calledOff(Move $move, bool $drop = true): bool {
+		$stored = $this->moves->get($move->id);
+		if ($stored === null || $stored->state === Move::RUNNING) {
+			return false;
+		}
+		if ($drop && $stored->state === Move::CANCELLED) {
+			$this->dropCopy($stored);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Deletes what a move copied here, unless the DID is an account's here.
+	 */
+	private function dropCopy(Move $move): void {
+		if (!$this->isHere($move->did)) {
+			$this->repositories->delete($move->did);
+			$this->blobs->deleteByDid($move->did);
+		}
+	}
+
+	private function isHere(string $did): bool {
+		try {
+			$this->identities->getByDid($did);
+
+			return true;
+		} catch (AtprotoIdentityNotFoundException) {
+			return false;
+		}
+	}
+
+	/**
 	 * Runs the steps left, until the move is done, waits for the code, or a
-	 * step fails.
+	 * step fails. A move called off meanwhile is left as it is.
 	 */
 	public function run(Move $move): void {
 		if ($move->state !== Move::RUNNING || $move->direction !== Move::IN) {
@@ -203,7 +329,14 @@ class MoveInService {
 		}
 		try {
 			while ($move->step !== Move::STEP_DONE) {
-				if (!$this->step($move)) {
+				if ($this->calledOff($move)) {
+					return;
+				}
+				$goesOn = $this->step($move);
+				if ($this->calledOff($move)) {
+					return;
+				}
+				if (!$goesOn) {
 					$move->state = Move::WAITING;
 					$this->moves->update($move);
 
@@ -216,6 +349,9 @@ class MoveInService {
 			$move->session = '';
 			$this->moves->update($move);
 		} catch (Throwable $e) {
+			if ($this->calledOff($move)) {
+				return;
+			}
 			$move->fail($e->getMessage(), MoveFailure::codeOf($e));
 			$this->moves->update($move);
 			$this->logger->warning('Bluesky account move here stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
@@ -253,7 +389,7 @@ class MoveInService {
 				break;
 			case Move::STEP_CODE:
 				$this->settleHandle($move);
-				$this->authed($move, 'com.atproto.identity.requestPlcOperationSignature', 'POST');
+				$this->requestCode($move);
 
 				return false;
 			case Move::STEP_IDENTITY:
@@ -324,6 +460,9 @@ class MoveInService {
 			}
 			$cursor = (string)($page['cursor'] ?? '');
 			$move->progress = ['blobs' => $copied] + $move->progress;
+			if ($this->calledOff($move, false)) {
+				return;
+			}
 			$this->moves->update($move);
 		} while ($cursor !== '');
 	}

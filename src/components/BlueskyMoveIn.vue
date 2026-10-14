@@ -20,6 +20,9 @@
 			<p>
 				{{ t('social', 'Bluesky e-mailed you a code to confirm the move. Enter it here.') }}
 			</p>
+			<p v-if="sentTo">
+				{{ t('social', 'The code went to {address}.', { address: sentTo }) }}
+			</p>
 			<NcTextField
 				v-model="code"
 				class="migration__bluesky-in-field"
@@ -35,6 +38,17 @@
 				</template>
 				{{ t('social', 'Confirm the move') }}
 			</NcButton>
+			<p v-if="codeNote" class="migration__bluesky-in-note" role="status">
+				{{ codeNote }}
+			</p>
+			<div class="migration__bluesky-in-actions">
+				<NcButton :disabled="busy" @click="newCode">
+					{{ t('social', 'Send a new code') }}
+				</NcButton>
+				<NcButton :disabled="busy" @click="cancel">
+					{{ t('social', 'Call off the move') }}
+				</NcButton>
+			</div>
 		</div>
 
 		<div v-else-if="move && move.state === 'running'" class="migration__bluesky-in-progress" aria-live="polite">
@@ -159,6 +173,8 @@ export default {
 			busy: false,
 			startError: '',
 			codeError: '',
+			/** what became of a new code, once one was asked for */
+			codeNote: '',
 			retryError: '',
 			/** @type {number|null} */
 			pollTimer: null,
@@ -169,6 +185,11 @@ export default {
 		/** @return {boolean} */
 		shown() {
 			return this.identity !== null
+		},
+
+		/** @return {string} where the old server sent the code, '' when it did not say */
+		sentTo() {
+			return this.move?.progress?.code_sent_to ?? ''
 		},
 
 		/** @return {boolean} whether the sign-in is filled in */
@@ -332,6 +353,60 @@ export default {
 					this.codeError = error.response.data?.error || t('social', 'Could not confirm the move')
 				} else {
 					showError(t('social', 'Could not confirm the move'))
+				}
+			} finally {
+				this.busy = false
+			}
+		},
+
+		/**
+		 * Asks the old server again to e-mail a code.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async newCode() {
+			this.busy = true
+			this.codeError = ''
+			this.codeNote = ''
+			try {
+				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move-in/code'))
+				this.takeMove(data?.move)
+				this.codeNote = data?.sent_to
+					? t('social', 'A new code is on its way to {address}.', { address: data.sent_to })
+					: t('social', 'A new code is on its way to the e-mail address of your Bluesky account.')
+			} catch (error) {
+				if (error?.response?.status === 422) {
+					this.codeError = error.response.data?.error || t('social', 'Could not ask for a new code')
+				} else {
+					showError(t('social', 'Could not ask for a new code'))
+				}
+			} finally {
+				this.busy = false
+			}
+		},
+
+		/**
+		 * Calls the move off, after the Nextcloud password.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async cancel() {
+			try {
+				await confirmPassword()
+			} catch {
+				return
+			}
+			this.busy = true
+			this.codeError = ''
+			try {
+				const { data } = await axios.delete(generateUrl('apps/social/api/v1/social/bluesky/move-in'))
+				this.codeNote = ''
+				this.takeMove(data?.move)
+			} catch (error) {
+				if (error?.response?.status === 422) {
+					this.codeError = error.response.data?.error || t('social', 'Could not call off the move')
+				} else {
+					showError(t('social', 'Could not call off the move'))
 				}
 			} finally {
 				this.busy = false

@@ -61,7 +61,7 @@ final class Move {
 	public const DONE = 'done';
 	/** moving away: stopped before the DID moved, for the person to decide how to go on */
 	public const NEEDS_DECISION = 'needs_decision';
-	/** moving away: called off by the person before the DID moved */
+	/** called off by the person before the DID moved */
 	public const CANCELLED = 'cancelled';
 
 	/**

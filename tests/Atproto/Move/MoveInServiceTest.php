@@ -79,6 +79,10 @@ class MoveInServiceTest extends TestCase {
 	private bool $known = true;
 	/** @var list<string> the DID's rotation keys before the move */
 	private array $listedKeys = [];
+	/** @var (callable(): void)|null what happens while the blobs are listed */
+	private $duringCopy = null;
+	/** where the directory says the DID's PDS is */
+	private string $pointsAt = self::OLD;
 	/** the DID's handle before the move */
 	private string $oldHandle = 'alice.bsky.social';
 	/** @var list<string> the domains the old server gives handles under */
@@ -126,6 +130,9 @@ class MoveInServiceTest extends TestCase {
 		});
 		$pds->method('expect')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = []): array {
 			$this->calls[] = ['method' => $method, 'json' => null, 'token' => ''];
+			if ($this->duringCopy !== null) {
+				($this->duringCopy)();
+			}
 
 			return $method === 'com.atproto.sync.listBlobs' ? ['cids' => [Cid::forRaw($this->blob)->toString(), Cid::forRaw('elsewhere')->toString()]] : [];
 		});
@@ -144,7 +151,7 @@ class MoveInServiceTest extends TestCase {
 			'rotationKeys' => $this->listedKeys,
 			'alsoKnownAs' => ['at://' . $this->oldHandle],
 			'verificationMethods' => ['atproto' => $this->oldKey->didKey()],
-			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => self::OLD]],
+			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => $this->pointsAt]],
 		] : null);
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->identities->method('getByDid')->willThrowException(new AtprotoIdentityNotFoundException());
@@ -465,6 +472,108 @@ class MoveInServiceTest extends TestCase {
 		$this->taken = ['taken.example.org'];
 
 		$this->assertSame($kept, $this->moves->keptHandle(self::OLD, ['alsoKnownAs' => ['at://' . $handle]], 'alice.social.test'));
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: string}> the step and state a move is called off in
+	 */
+	public static function beforeTheSwitch(): array {
+		return [
+			'copying the repository' => [Move::STEP_REPO, Move::RUNNING],
+			'copying the blobs' => [Move::STEP_BLOBS, Move::RUNNING],
+			'copying the preferences' => [Move::STEP_PREFERENCES, Move::RUNNING],
+			'waiting for the code' => [Move::STEP_CODE, Move::WAITING],
+			'failed with the code' => [Move::STEP_IDENTITY, Move::FAILED],
+			'failed copying' => [Move::STEP_BLOBS, Move::FAILED],
+		];
+	}
+
+	/** A move whose DID has not switched can be called off: the session ends and the copy is dropped. */
+	#[DataProvider('beforeTheSwitch')]
+	public function testAMoveIsCalledOffBeforeTheSwitch(string $step, string $state): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->rows[1]->step = $step;
+		$this->rows[1]->state = $state;
+		$this->repositories->expects($this->once())->method('delete')->with(self::DID);
+		$this->blobs->expects($this->once())->method('deleteByDid')->with(self::DID);
+
+		$move = $this->moves->cancel('alice');
+
+		$this->assertSame([Move::CANCELLED, ''], [$move->state, $this->rows[1]->session]);
+		$this->assertContains('com.atproto.server.deleteSession', $this->methods(), 'the session on the old server ends');
+		$this->assertSame('refresh', end($this->calls)['token']);
+		try {
+			$this->moves->retry($this->rows[1]);
+			$this->fail('started again');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('no-failed-move', $e->errorCode, 'a called-off move is not started again');
+		}
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: string, 2: string}> the step, the state, where the directory points
+	 */
+	public static function pastTheSwitch(): array {
+		return [
+			'pointing the DID here' => [Move::STEP_IDENTITY, Move::RUNNING, self::OLD],
+			'failed after the directory took it' => [Move::STEP_IDENTITY, Move::FAILED, self::HERE],
+			'switching off the old account' => [Move::STEP_ACTIVATE, Move::RUNNING, self::HERE],
+			'taking the follows over' => [Move::STEP_FOLLOWS, Move::FAILED, self::HERE],
+			'done' => [Move::STEP_DONE, Move::DONE, self::HERE],
+		];
+	}
+
+	#[DataProvider('pastTheSwitch')]
+	public function testAMoveIsNotCalledOffOnceTheDidMayHaveSwitched(string $step, string $state, string $pointsAt): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->rows[1]->step = $step;
+		$this->rows[1]->state = $state;
+		$this->pointsAt = $pointsAt;
+		$this->repositories->expects($this->never())->method('delete');
+
+		try {
+			$this->moves->cancel('alice');
+			$this->fail('called off');
+		} catch (MoveErrorException $e) {
+			$this->assertSame($state === Move::DONE ? 'no-move-to-call-off' : 'move-past-switch', $e->errorCode);
+		}
+		$this->assertSame($state, $this->rows[1]->state);
+	}
+
+	/** A move called off while the job copies stops there, and what the job copied is dropped. */
+	public function testTheJobStopsWhenTheMoveIsCalledOff(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->duringCopy = function (): void {
+			$this->duringCopy = null;
+			$this->moves->cancel('alice');
+		};
+		$this->repositories->expects($this->exactly(2))->method('delete')->with(self::DID);
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame(Move::CANCELLED, $this->rows[1]->state);
+		$this->assertNotContains('com.atproto.identity.requestPlcOperationSignature', $this->methods());
+	}
+
+	/** A waiting move can get a new code, and says where the old server sent it. */
+	public function testAWaitingMoveGetsANewCode(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->answers['com.atproto.server.getSession'] = [
+			['status' => 200, 'body' => ['did' => self::DID, 'email' => 'alice@example.org']],
+			['status' => 200, 'body' => ['did' => self::DID]],
+		];
+		$this->moves->run($this->rows[1]);
+		$this->assertSame('alice@example.org', $this->rows[1]->progress['code_sent_to']);
+
+		$sent = $this->moves->newCode('alice');
+
+		$this->assertSame(2, count(array_keys($this->methods(), 'com.atproto.identity.requestPlcOperationSignature', true)));
+		$this->assertSame('', $sent['sent_to'], 'an old server that does not say');
+		$this->assertSame([Move::WAITING, Move::STEP_CODE], [$sent['move']->state, $sent['move']->step]);
+
+		$this->rows[1]->state = Move::RUNNING;
+		$this->expectException(MoveErrorException::class);
+		$this->moves->newCode('alice');
 	}
 
 	/** the did:key of the signing key the move made for the account here */

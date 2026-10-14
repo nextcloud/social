@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Identity\CustomHandleService;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\PresenceService;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Moderation\LabelerService;
 use OCA\Social\Atproto\Move\BridgyTwin;
 use OCA\Social\Atproto\Move\InboundMoveService;
@@ -29,6 +30,7 @@ use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\PasswordConfirmationRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\IRequest;
 use OCP\IUser;
@@ -82,6 +84,24 @@ class AtprotoAccountControllerTest extends TestCase {
 		$limit = $attributes[0]->newInstance();
 		$this->assertSame(3, $limit->getLimit());
 		$this->assertSame(3600, $limit->getPeriod());
+	}
+
+	/** Calling a move off asks for the password, as starting it does; a new code is a few times an hour. */
+	public function testCallingOffAndANewCodeAreGuarded(): void {
+		$cancel = new \ReflectionMethod(AtprotoAccountController::class, 'cancelMoveIn');
+		$this->assertCount(1, $cancel->getAttributes(PasswordConfirmationRequired::class));
+		$limit = (new \ReflectionMethod(AtprotoAccountController::class, 'newMoveInCode'))->getAttributes(UserRateLimit::class)[0]->newInstance();
+		$this->assertSame([3, 3600], [$limit->getLimit(), $limit->getPeriod()]);
+	}
+
+	public function testANewCodeSaysWhereItWent(): void {
+		$move = new Move(1, self::DID, 'alice', Move::IN, 'https://pds.example.com', '', 'alice.bsky.social', Move::STEP_CODE, Move::WAITING);
+		$this->moveIn->method('newCode')->willReturn(['move' => $move, 'sent_to' => 'alice@example.org']);
+		$this->moveIn->method('cancel')->willThrowException(new MoveErrorException('Too late', 'move-past-switch'));
+
+		$data = $this->controller()->newMoveInCode()->getData();
+		$this->assertSame(['alice@example.org', 'waiting'], [$data['sent_to'], $data['move']['state']]);
+		$this->assertSame('move-past-switch', $this->controller()->cancelMoveIn()->getData()['code']);
 	}
 
 	/** Every refusal of a move route carries the code the page explains, next to the sentence. */

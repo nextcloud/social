@@ -175,7 +175,7 @@ class InboundMoveService {
 		if ($move === null || $move->direction !== Move::INBOUND || $move->state !== Move::WAITING) {
 			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
 		}
-		$this->end($move, 'Called off', 'move-cancelled');
+		$this->end($move, 'Called off', '');
 
 		return $move;
 	}
@@ -649,7 +649,7 @@ class InboundMoveService {
 
 	private function isCurrent(Move $move, array $sealed, string $did, string $sid): bool {
 		return $move->direction === Move::INBOUND
-			&& $move->state !== Move::FAILED
+			&& !in_array($move->state, [Move::FAILED, Move::CANCELLED], true)
 			&& $move->did === $did
 			&& $sid !== ''
 			&& hash_equals((string)($sealed['sid'] ?? ''), $sid)
@@ -669,11 +669,17 @@ class InboundMoveService {
 	}
 
 	/**
-	 * Ends a move that did not finish; what arrived of the repository and its
-	 * blobs is dropped, unless the DID is an account's here after all.
+	 * Ends a move that did not finish — failed with $code, or with none
+	 * called off — and what arrived of the repository and its blobs is
+	 * dropped, unless the DID is an account's here after all.
 	 */
 	private function end(Move $move, string $why, string $code): void {
-		$move->fail($why, $code);
+		if ($code === '') {
+			$move->state = Move::CANCELLED;
+			$move->error = $why;
+		} else {
+			$move->fail($why, $code);
+		}
 		$move->session = '';
 		$this->moves->update($move);
 		try {

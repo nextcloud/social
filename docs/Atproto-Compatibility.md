@@ -1381,7 +1381,13 @@ here*):
    **blobs** (`listBlobs`/`getBlob`, each checked against its CID) and the
    **preferences**.
 3. The old PDS **e-mails a code** (`requestPlcOperationSignature`); the move
-   waits for the person to enter it.
+   waits for the person to enter it. The page says where the code went
+   when the old PDS's session names the address (`progress.code_sent_to`),
+   offers *Send a new code* (asks again, three times an hour) and *Call off
+   the move*. Until the PLC operation may have been sent, a move can be
+   called off: it ends (`state` `cancelled`), its session on the old PDS is
+   ended and dropped, and the copied repository and blobs are deleted;
+   a background job that is still copying stops and drops what it copied.
 4. With the code the old PDS **signs the operation** (`signPlcOperation`)
    that names this PDS, the key made here, the handle below and the
    rotation keys below; this server checks it is what was asked and
@@ -1634,7 +1640,6 @@ older clients.
 | `repo-unavailable` | The old server did not hand out the repository | Try again later |
 | `repo-invalid` | The repository is not the account's, or not signed with its key | Ask the old server's operator |
 | `operation-mismatch` | The old server signed another operation than was asked | Try again; report it if it repeats |
-| `move-cancelled` | The person called the move off | — |
 | `move-replaced` | An invitation was replaced by a newer one | — |
 | `invite-expired` / `move-expired` | An invitation, or a move driven by a tool, ran out of time | Invite again |
 | `bridgy-unreachable` | Bridgy Fed could not be sent the request | Try again later |

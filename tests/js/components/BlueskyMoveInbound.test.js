@@ -186,14 +186,15 @@ describe('BlueskyMoveInbound', () => {
 
 	it('calls a move off that has not finished', async () => {
 		server({ moves: [moveOf('waiting')] })
-		axios.delete.mockResolvedValue({ data: { move: moveOf('failed', 'invited', { error: 'Called off' }) } })
+		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'invited', { error: 'Called off' }) } })
 		const wrapper = await mountCard()
 
 		await buttonNamed(wrapper, 'Call it off').trigger('click')
 		await flushPromises()
 
 		expect(axios.delete).toHaveBeenCalledWith(`${API}/move-invite`)
-		expect(wrapper.text()).toContain('The move stopped: Called off')
+		expect(wrapper.text()).not.toContain('The move stopped')
+		expect(wrapper.text()).toContain('Invite the account')
 	})
 
 	it('leaves the other moves to their cards', async () => {

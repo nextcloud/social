@@ -419,6 +419,39 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
+	 * Calls off the viewer's move here while the DID has not switched: the
+	 * session on the old server and what was copied here are dropped.
+	 */
+	#[NoAdminRequired]
+	#[PasswordConfirmationRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/social/bluesky/move-in')]
+	public function cancelMoveIn(): DataResponse {
+		try {
+			return new DataResponse(['move' => $this->moveIn->cancel($this->userId())->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
+	 * Asks the old Bluesky server again to e-mail the code a waiting move
+	 * needs; `sent_to` is the address it went to, '' when the old server
+	 * does not say.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 3, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in/code')]
+	public function newMoveInCode(): DataResponse {
+		try {
+			$sent = $this->moveIn->newCode($this->userId());
+
+			return new DataResponse(['move' => $sent['move']->export(), 'sent_to' => $sent['sent_to']]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
 	 * The code the old Bluesky server e-mailed: the move here goes on.
 	 */
 	#[NoAdminRequired]
