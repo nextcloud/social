@@ -1552,7 +1552,7 @@ older clients.
 | `invite-code-required` | The other server needs an invite code | Ask that server for one |
 | `invite-code-invalid` | The other server refused the invite code | Check the code |
 | `password-not-accepted` | The other server refused the password | Pick a longer one |
-| `rate-limited` | The other server asks to wait | Try again later |
+| `rate-limited` | The other server asks to wait, or this server sent it too many sign-ins of late (§13.1) | Try again later |
 | `account-not-created` | The other server did not make the account, for another reason | The details say why |
 | `keys-sealed` | The account's keys cannot be opened (the instance secret changed) | Ask the administrator to run `occ social:atproto:keys:reseal` |
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
@@ -1570,13 +1570,29 @@ older clients.
 | `announce-failed` | After the move, the post or the profile field could not be written (`progress.announce_code`) | Post the new address by hand |
 | `bluesky-move-first` | A Fediverse move-out asked `bluesky: move` with no Bluesky move away done or under way | Move the Bluesky account first, or choose `deactivate` or `keep` |
 | `bluesky-choice-invalid` | A Fediverse move-out's `bluesky` is not `move`, `deactivate` or `keep` | Pick one of them |
-| `handle-invalid` | "Follow the same people": what was typed is not a handle or a DID | Check the handle |
+| `handle-invalid` | What was typed is not a handle or a DID | Check the handle |
 | `handle-not-found` | No Bluesky account goes by the handle | Check the handle |
 | `did-not-supported` | The account's DID is not a `did:plc` | Nothing to do from here |
-| `did-not-found` | The PLC directory knows no server for the DID | Check the account |
+| `did-not-found` | The PLC directory does not know the DID, or knows no server for it | Check the account |
 | `import-in-progress` | The same people are being followed already | Wait for it on the imports list |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
+| `account-here-already` | The Bluesky account lives on this server already | Nothing to move |
+| `pds-not-named` | The DID names no server | Nothing can be moved from it |
+| `pds-blocked` | The old server is on this instance's block list | Ask the administrator |
+| `wrong-password` | The old server did not take the password | Type the account's own password, not an app password |
+| `auth-factor-required` | The old server e-mailed a sign-in code | Enter that code and start again |
+| `sign-in-code-invalid` / `sign-in-code-expired` | The sign-in code was wrong or old | Start again for a new one |
+| `sign-in-refused` | The old server refused the sign-in for another reason | The sentence names it |
+| `no-move-waiting` | A code was sent, but no move waits for one | Reload the page |
+| `code-invalid` / `code-expired` | The e-mailed code was wrong or old | *Try again* asks for a new one |
+| `repo-unavailable` | The old server did not hand out the repository | Try again later |
+| `repo-invalid` | The repository is not the account's, or not signed with its key | Ask the old server's operator |
+| `operation-mismatch` | The old server signed another operation than was asked | Try again; report it if it repeats |
+| `move-cancelled` | The person called the move off | — |
+| `move-replaced` | An invitation was replaced by a newer one | — |
+| `invite-expired` / `move-expired` | An invitation, or a move driven by a tool, ran out of time | Invite again |
+| `bridgy-unreachable` | Bridgy Fed could not be sent the request | Try again later |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |
 | `server-error` | Something unexpected on this server | Try again; the log has the details |
 

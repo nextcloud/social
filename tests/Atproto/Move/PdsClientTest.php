@@ -9,11 +9,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Move;
 
+use OCA\Social\Atproto\Move\MoveFailure;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\IConfig;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -113,6 +116,33 @@ class PdsClientTest extends TestCase {
 
 		$this->expectException(AtprotoException::class);
 		$client->call('https://pds.example.com', 'com.atproto.server.describeServer');
+	}
+
+	/** Why a PDS was not reached, or refused, is a code the page explains. */
+	public function testWhyAServerWasNotReachedIsACode(): void {
+		$failures = [
+			'pds-unreachable' => new RequestNetworkException('refused'),
+			'pds-not-public' => new RequestServerException('host does not resolve to a public address: pds.internal'),
+			'pds-blocked' => new UnauthorizedFediverseException('blocked'),
+		];
+		foreach ($failures as $slug => $failure) {
+			$curl = $this->createMock(CurlService::class);
+			$curl->method('doRequest')->willThrowException($failure);
+			try {
+				(new PdsClient($curl, $this->createMock(IConfig::class)))->call('https://pds.example.com', 'com.atproto.server.describeServer');
+				$this->fail('reached');
+			} catch (MoveFailure $e) {
+				$this->assertSame($slug, $e->errorCode);
+			}
+		}
+		try {
+			$this->client(false)->origin('http://pds.example.com');
+		} catch (MoveFailure $e) {
+			$this->assertSame('pds-address-invalid', $e->errorCode);
+		}
+
+		$this->assertSame('rate-limited', PdsClient::refused('m', ['status' => 429, 'body' => []])->errorCode);
+		$this->assertSame('pds-refused', PdsClient::refused('m', ['status' => 400, 'body' => ['error' => 'InvalidRequest']])->errorCode);
 	}
 
 	public function testBytesAreReadAsAStreamWithTheirType(): void {

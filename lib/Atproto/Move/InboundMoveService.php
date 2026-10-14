@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Client\Preferences;
@@ -36,6 +35,7 @@ use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Service\DocumentService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
@@ -106,30 +106,30 @@ class InboundMoveService {
 	 * tool needs is answered, the code once.
 	 *
 	 * @return array{move: Move, bridgy: bool, pds: string, handle: string, email: string, code: string}
-	 * @throws InvalidArgumentException with what to tell the person
+	 * @throws MoveErrorException with what to tell the person
 	 * @throws AtprotoException
 	 */
 	public function invite(string $userId, string $typed): array {
 		$latest = $this->moves->latestOfUser($userId);
 		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
 			if ($latest->direction !== Move::INBOUND || $latest->step !== Move::STEP_INVITED) {
-				throw new InvalidArgumentException('A move is already under way');
+				throw new MoveErrorException('A move is already under way', 'move-in-progress');
 			}
-			$this->end($latest, 'Replaced by a new invitation');
+			$this->end($latest, 'Replaced by a new invitation', 'move-replaced');
 		}
 		$did = $this->moveIn->didOf($typed);
 		try {
 			$this->identities->getByDid($did);
-			throw new InvalidArgumentException('That Bluesky account is on this server already');
+			throw new MoveErrorException('That Bluesky account is on this server already', 'account-here-already');
 		} catch (AtprotoIdentityNotFoundException) {
 		}
-		$data = $this->plc->data($did);
+		$data = $this->moveIn->didState($did);
 		$endpoint = rtrim((string)($data['services']['atproto_pds']['endpoint'] ?? ''), '/');
 		if ($endpoint === '') {
-			throw new InvalidArgumentException('The directory names no server for that account');
+			throw new MoveErrorException('The directory names no server for that account', 'pds-not-named');
 		}
 		$actor = $this->actors->getFromUserId($userId);
-		$identity = $this->identities->forActor($actor) ?? throw new InvalidArgumentException('Bluesky is off for this account');
+		$identity = $this->identities->forActor($actor) ?? throw new MoveErrorException('Bluesky is off for this account', 'no-identity');
 		$oldHandle = (string)preg_replace('~^at://~', '', (string)($data['alsoKnownAs'][0] ?? $did));
 
 		$code = implode('-', str_split($this->random->generate(24, ISecureRandom::CHAR_LOWER . ISecureRandom::CHAR_DIGITS), 6));
@@ -152,10 +152,10 @@ class InboundMoveService {
 			try {
 				$this->bridgy->ask($actor, BridgyTwin::command($pds, $email, $identity->handle, $code));
 			} catch (Throwable $e) {
-				$this->end($move, 'Bridgy Fed could not be asked');
+				$this->end($move, 'Bridgy Fed could not be asked', 'bridgy-unreachable');
 				$this->logger->warning('Bridgy Fed not asked to move a twin here', ['did' => $did, 'exception' => $e]);
 
-				throw new InvalidArgumentException('Bridgy Fed could not be sent the request; try again later');
+				throw new MoveErrorException('Bridgy Fed could not be sent the request; try again later', 'bridgy-unreachable');
 			}
 		}
 
@@ -166,14 +166,14 @@ class InboundMoveService {
 	 * Calls off a move here that is not finished: what arrived of it is
 	 * dropped.
 	 *
-	 * @throws InvalidArgumentException
+	 * @throws MoveErrorException
 	 */
 	public function cancel(string $userId): Move {
 		$move = $this->latest($userId);
 		if ($move === null || $move->direction !== Move::INBOUND || $move->state !== Move::WAITING) {
-			throw new InvalidArgumentException('There is no move here to call off');
+			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
 		}
-		$this->end($move, 'Called off');
+		$this->end($move, 'Called off', 'move-cancelled');
 
 		return $move;
 	}
@@ -185,7 +185,8 @@ class InboundMoveService {
 		$move = $this->moves->latestOfUser($userId);
 		if ($move !== null && $move->direction === Move::INBOUND && $move->state === Move::WAITING
 			&& (int)($this->unseal($move->session)['until'] ?? 0) < $this->time->getTime()) {
-			$this->end($move, $move->step === Move::STEP_INVITED ? 'The invitation expired' : 'The move was not finished in time');
+			$invited = $move->step === Move::STEP_INVITED;
+			$this->end($move, $invited ? 'The invitation expired' : 'The move was not finished in time', $invited ? 'invite-expired' : 'move-expired');
 		}
 
 		return $move;
@@ -628,9 +629,8 @@ class InboundMoveService {
 	 * Ends a move that did not finish; what arrived of the repository and its
 	 * blobs is dropped, unless the DID is an account's here after all.
 	 */
-	private function end(Move $move, string $why): void {
-		$move->state = Move::FAILED;
-		$move->error = $why;
+	private function end(Move $move, string $why, string $code): void {
+		$move->fail($why, $code);
 		$move->session = '';
 		$this->moves->update($move);
 		try {

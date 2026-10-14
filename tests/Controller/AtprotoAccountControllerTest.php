@@ -25,6 +25,7 @@ use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Controller\AtprotoAccountController;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Http;
@@ -43,11 +44,13 @@ class AtprotoAccountControllerTest extends TestCase {
 
 	private PresenceService&MockObject $presence;
 	private Publisher&MockObject $publisher;
+	private MoveInService&MockObject $moveIn;
 	private bool $enabled = true;
 
 	protected function setUp(): void {
 		$this->presence = $this->createMock(PresenceService::class);
 		$this->publisher = $this->createMock(Publisher::class);
+		$this->moveIn = $this->createMock(MoveInService::class);
 	}
 
 	private function controller(): AtprotoAccountController {
@@ -63,7 +66,7 @@ class AtprotoAccountControllerTest extends TestCase {
 		return new AtprotoAccountController(
 			$this->createStub(IRequest::class), $session, $config, $accounts, $this->createStub(IdentityService::class), $this->publisher,
 			$this->createStub(LabelerService::class), $this->createStub(AppPasswordService::class), $this->createStub(AuthorizationServer::class),
-			$this->createStub(CustomHandleService::class), $this->createStub(MoveAwayService::class), $this->createStub(MoveInService::class),
+			$this->createStub(CustomHandleService::class), $this->createStub(MoveAwayService::class), $this->moveIn,
 			$this->createStub(InboundMoveService::class), $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
 		);
 	}
@@ -79,6 +82,20 @@ class AtprotoAccountControllerTest extends TestCase {
 		$limit = $attributes[0]->newInstance();
 		$this->assertSame(3, $limit->getLimit());
 		$this->assertSame(3600, $limit->getPeriod());
+	}
+
+	/** Every refusal of a move route carries the code the page explains, next to the sentence. */
+	public function testAMoveRouteAnswersAnErrorWithItsCode(): void {
+		$this->moveIn->method('start')->willThrowException(new MoveErrorException('The Bluesky server did not let you sign in', 'wrong-password'));
+		$this->moveIn->method('code')->willThrowException(new MoveErrorException('That is not a code', 'code-invalid'));
+
+		$refused = $this->controller()->moveIn('alice.bsky.social', 'pw');
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $refused->getStatus());
+		$this->assertSame(['error' => 'The Bluesky server did not let you sign in', 'code' => 'wrong-password'], $refused->getData());
+		$this->assertSame('code-invalid', $this->controller()->moveCode('')->getData()['code'] ?? null);
+
+		$this->enabled = false;
+		$this->assertSame([Http::STATUS_NOT_FOUND, 'bluesky-off'], [$this->controller()->moveIn('a', 'b')->getStatus(), $this->controller()->moveIn('a', 'b')->getData()['code']]);
 	}
 
 	private static function identity(string $state): Identity {

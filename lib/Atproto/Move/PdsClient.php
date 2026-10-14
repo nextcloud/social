@@ -9,9 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
-use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\IConfig;
 use Throwable;
 
@@ -38,7 +39,7 @@ class PdsClient {
 	/**
 	 * A PDS address as typed, made its origin.
 	 *
-	 * @throws AtprotoException when it is not one this server will talk to
+	 * @throws MoveFailure when it is not one this server will talk to
 	 */
 	public function origin(string $typed): string {
 		$typed = trim($typed);
@@ -50,7 +51,7 @@ class PdsClient {
 		$host = strtolower($url['host'] ?? '');
 		$local = $this->systemConfig->getSystemValueBool('allow_local_remote_servers', false);
 		if ($host === '' || isset($url['user']) || !($scheme === 'https' || ($scheme === 'http' && $local))) {
-			throw new AtprotoException('That is not the https address of a PDS');
+			throw new MoveFailure('pds-address-invalid', 'That is not the https address of a PDS');
 		}
 
 		return $scheme . '://' . $host . (isset($url['port']) ? ':' . $url['port'] : '');
@@ -61,7 +62,7 @@ class PdsClient {
 	 * @param array|null $json the JSON body of a procedure
 	 * @param resource|string|null $bytes a raw body, with its type
 	 * @return array{status: int, body: array}
-	 * @throws AtprotoException when the PDS cannot be reached
+	 * @throws MoveFailure when the PDS cannot be reached
 	 */
 	public function call(string $pds, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
 		$headers = ['Accept' => 'application/json'];
@@ -87,7 +88,7 @@ class PdsClient {
 		try {
 			$body = json_decode($this->curl->doRequest($verb === 'GET' ? 'get' : 'post', $url, $options, $contentType, $status), true);
 		} catch (Throwable $e) {
-			throw new AtprotoException('The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), 0, $e);
+			throw self::unreachable($pds, $e);
 		}
 
 		return ['status' => (int)$status, 'body' => is_array($body) ? $body : []];
@@ -97,7 +98,7 @@ class PdsClient {
 	 * A query whose answer is bytes — a repository, a blob — with its type.
 	 *
 	 * @return array{status: int, bytes: string, type: string}
-	 * @throws AtprotoException when the PDS cannot be reached
+	 * @throws MoveFailure when the PDS cannot be reached
 	 */
 	public function bytes(string $pds, string $method, array $query, string $token = ''): array {
 		$headers = $token === '' ? [] : ['Authorization' => 'Bearer ' . $token];
@@ -108,7 +109,7 @@ class PdsClient {
 		} catch (RequestContentException $e) {
 			return ['status' => $e->getCode(), 'bytes' => '', 'type' => ''];
 		} catch (Throwable $e) {
-			throw new AtprotoException('The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), 0, $e);
+			throw self::unreachable($pds, $e);
 		}
 		$bytes = (string)stream_get_contents($answer['stream']);
 		fclose($answer['stream']);
@@ -123,18 +124,46 @@ class PdsClient {
 	}
 
 	/**
+	 * Why a PDS was not reached: `pds-not-public` for an address this server
+	 * does not send requests to, `pds-blocked` for an instance it does not
+	 * federate with, `pds-unreachable` for anything else.
+	 */
+	private static function unreachable(string $pds, Throwable $e): MoveFailure {
+		$slug = match (true) {
+			$e instanceof RequestServerException && str_contains($e->getMessage(), 'public address') => 'pds-not-public',
+			$e instanceof UnauthorizedFediverseException => 'pds-blocked',
+			default => 'pds-unreachable',
+		};
+
+		return new MoveFailure($slug, 'The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), $e);
+	}
+
+	/**
 	 * The same, for a call that has to succeed.
 	 *
 	 * @return array the answer
-	 * @throws AtprotoException with the PDS's own error
+	 * @throws MoveFailure with the PDS's own error
 	 */
 	public function expect(string $pds, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
 		$answer = $this->call($pds, $method, $verb, $query, $json, $bytes, $type, $token);
 		if ($answer['status'] !== 200) {
-			$error = trim((string)($answer['body']['error'] ?? '') . ': ' . (string)($answer['body']['message'] ?? ''), ': ');
-			throw new AtprotoException($method . ' answered ' . $answer['status'] . ($error !== '' ? ' (' . $error . ')' : ''));
+			throw self::refused($method, $answer);
 		}
 
 		return $answer['body'];
+	}
+
+	/**
+	 * A call the PDS answered with an error, with its own error in the
+	 * message: `rate-limited` when it asks to slow down, `pds-refused`
+	 * otherwise.
+	 *
+	 * @param array{status: int, body: array} $answer
+	 */
+	public static function refused(string $method, array $answer): MoveFailure {
+		$error = trim((string)($answer['body']['error'] ?? '') . ': ' . (string)($answer['body']['message'] ?? ''), ': ');
+		$slug = $answer['status'] === 429 || ($answer['body']['error'] ?? '') === 'RateLimitExceeded' ? 'rate-limited' : 'pds-refused';
+
+		return new MoveFailure($slug, $method . ' answered ' . $answer['status'] . ($error !== '' ? ' (' . $error . ')' : ''));
 	}
 }

@@ -118,6 +118,23 @@ final class Move {
 		};
 	}
 
+	/**
+	 * The move stopped: the sentence for the log and older clients, and
+	 * the code the page explains (§13.5).
+	 */
+	public function fail(string $error, string $code): void {
+		$this->state = self::FAILED;
+		$this->error = $error;
+		$this->progress = ['code' => $code] + $this->progress;
+	}
+
+	/** The move goes on: what stopped it is forgotten. */
+	public function resume(): void {
+		$this->state = self::RUNNING;
+		$this->error = '';
+		unset($this->progress['code']);
+	}
+
 	/** what the settings show of it */
 	public function export(): array {
 		return [

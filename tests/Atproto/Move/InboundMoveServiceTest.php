@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Move;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Client\AppPasswordService;
 use OCA\Social\Atproto\Client\Preferences;
@@ -42,6 +41,7 @@ use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\DocumentService;
@@ -145,6 +145,7 @@ class InboundMoveServiceTest extends TestCase {
 		});
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->moveIn->method('didOf')->willReturn(self::DID);
+		$this->moveIn->method('didState')->willReturnCallback(fn (): array => $this->plcState);
 		$bridgy = $this->createMock(BridgyTwin::class);
 		$bridgy->method('ask')->willReturnCallback(function (Person $actor, string $command): void {
 			$this->asked[] = $command;
@@ -284,6 +285,7 @@ class InboundMoveServiceTest extends TestCase {
 		$move = $this->moves->latest('alice');
 
 		$this->assertSame([Move::FAILED, 'The invitation expired', ''], [$move?->state, $move?->error, $this->rows[1]->session]);
+		$this->assertSame('invite-expired', $move?->progress['code']);
 	}
 
 	public function testTheSessionOnlyMovesTheAccount(): void {
@@ -411,14 +413,19 @@ class InboundMoveServiceTest extends TestCase {
 		$this->moves->cancel('alice');
 
 		$this->assertSame(Move::FAILED, $this->rows[1]->state);
+		$this->assertSame('move-cancelled', $this->rows[1]->progress['code']);
 		$this->assertSame('ExpiredToken', $this->refused(fn () => $this->moves->query('com.atproto.server.getSession', [], $auth))->error);
 	}
 
 	public function testAnotherMoveUnderWayIsNotReplaced(): void {
 		$this->rows[1] = new Move(1, self::DID, 'alice', Move::IN, 'https://pds.example.com', '', 'alice.bsky.social', Move::STEP_REPO, Move::RUNNING);
 
-		$this->expectException(InvalidArgumentException::class);
-		$this->moves->invite('alice', 'alice.bsky.social');
+		try {
+			$this->moves->invite('alice', 'alice.bsky.social');
+			$this->fail('invited');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('move-in-progress', $e->errorCode);
+		}
 	}
 
 	/** A replay record that remembers what it was given, as the table does. */

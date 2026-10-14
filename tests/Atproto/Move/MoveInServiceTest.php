@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Move;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Crypto\Curve;
@@ -40,6 +39,7 @@ use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Service\DocumentService;
@@ -72,6 +72,8 @@ class MoveInServiceTest extends TestCase {
 	/** what the stored document's bytes turned out to be */
 	private string $sniffed = 'image/png';
 	private Identity $current;
+	/** whether the PLC directory knows the DID */
+	private bool $known = true;
 	/** @var IdentityService&MockObject */
 	private IdentityService $identities;
 	/** @var RepositoryService&MockObject */
@@ -116,10 +118,10 @@ class MoveInServiceTest extends TestCase {
 		$appView = $this->createMock(AppViewClient::class);
 		$appView->method('query')->willReturnCallback(static fn (string $m, array $p): array => $p['handle'] === 'alice.bsky.social' ? ['did' => self::DID] : []);
 		$plc = $this->createMock(PlcClient::class);
-		$plc->method('data')->willReturnCallback(fn (): array => [
+		$plc->method('data')->willReturnCallback(fn (): ?array => $this->known ? [
 			'verificationMethods' => ['atproto' => $this->oldKey->didKey()],
 			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => self::OLD]],
-		]);
+		] : null);
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->identities->method('getByDid')->willThrowException(new AtprotoIdentityNotFoundException());
 		$this->identities->method('forActor')->willReturnCallback(fn (): Identity => $this->current);
@@ -209,12 +211,65 @@ class MoveInServiceTest extends TestCase {
 		try {
 			$this->moves->start('alice', 'alice.bsky.social', 'pw');
 			$this->fail('started');
-		} catch (InvalidArgumentException $e) {
+		} catch (MoveErrorException $e) {
 			$this->assertStringContainsString('e-mailed you a sign-in code', $e->getMessage());
 		}
 
-		$this->expectException(InvalidArgumentException::class);
+		$this->expectException(MoveErrorException::class);
 		$this->moves->start('alice', 'nobody.bsky.social', 'pw');
+	}
+
+	/**
+	 * @return string the code of what start() refused
+	 */
+	private function refusedStart(string $typed = 'alice.bsky.social'): string {
+		try {
+			$this->moves->start('alice', $typed, 'pw');
+		} catch (MoveErrorException $e) {
+			return $e->errorCode;
+		}
+		$this->fail('started');
+	}
+
+	/** What stops a move before it starts carries a code the page explains. */
+	public function testARefusedStartSaysWhyAsACode(): void {
+		$this->assertSame('handle-not-found', $this->refusedStart('nobody.bsky.social'));
+		$this->assertSame('handle-invalid', $this->refusedStart('not a handle'));
+		$this->assertSame('did-not-supported', $this->refusedStart('did:web:example.com'));
+
+		$this->answers['com.atproto.server.createSession'] = [
+			['status' => 401, 'body' => ['error' => 'AuthenticationRequired', 'message' => 'Invalid identifier or password']],
+			['status' => 401, 'body' => ['error' => 'AuthFactorTokenRequired']],
+			['status' => 401, 'body' => ['error' => 'InvalidToken']],
+			['status' => 429, 'body' => ['error' => 'RateLimitExceeded']],
+		];
+		$this->assertSame(['wrong-password', 'auth-factor-required', 'sign-in-code-invalid', 'rate-limited'], [$this->refusedStart(), $this->refusedStart(), $this->refusedStart(), $this->refusedStart()]);
+
+		$this->known = false;
+		$this->assertSame('did-not-found', $this->refusedStart(), 'a DID the directory does not know is not "unreachable"');
+
+		$this->known = true;
+		$this->rows[1] = new Move(1, self::DID, 'alice', Move::IN, self::OLD, '', 'alice.bsky.social', Move::STEP_CODE, Move::WAITING);
+		$this->assertSame('move-in-progress', $this->refusedStart());
+	}
+
+	/** A wrong or old e-mailed code fails the move with a code saying so. */
+	public function testARefusedCodeFailsTheMoveWithItsCode(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->moves->code('alice', '12345');
+		$this->answers['com.atproto.identity.signPlcOperation'] = [
+			['status' => 400, 'body' => ['error' => 'InvalidToken', 'message' => 'Token is invalid']],
+			['status' => 400, 'body' => ['error' => 'InvalidToken', 'message' => 'Token is invalid']],
+		];
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame(Move::FAILED, $this->rows[1]->state);
+		$this->assertSame('code-invalid', $this->rows[1]->progress['code']);
+
+		$this->moves->retry($this->rows[1]);
+		$this->assertArrayNotHasKey('code', $this->rows[1]->progress, 'a move that goes on again has no failure');
 	}
 
 	public function testTheCopyRunsUntilTheOldServerEmailsACode(): void {
@@ -297,6 +352,7 @@ class MoveInServiceTest extends TestCase {
 		$this->moves->code('alice', '12345');
 		$this->moves->run($this->rows[1]);
 		$this->assertSame(Move::FAILED, $this->rows[1]->state);
+		$this->assertSame('operation-mismatch', $this->rows[1]->progress['code']);
 
 		$this->moves->retry($this->rows[1]);
 		$this->assertSame(Move::STEP_CODE, $this->rows[1]->step, 'a new code is asked for');
