@@ -9,14 +9,19 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Migration;
 
+use OCA\Social\Cron\SearchIndex;
+use OCA\Social\Cron\StreamAuthorHosts;
 use OCA\Social\Db\CoreRequestBuilder;
+use OCA\Social\Migration\InstallBackfills;
 use OCA\Social\Migration\Version1000Date20260912000010;
 use OCA\Social\Migration\Version1000Date20260917000001;
 use OCA\Social\Migration\Version1000Date20260917000003;
 use OCA\Social\Migration\Version1000Date20260917000005;
+use OCA\Social\Migration\Version1000Date20261013100500;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tests\Integration\Helper\RowSeeder;
+use OCP\BackgroundJob\IJobList;
 use OCP\DB\ISchemaWrapper;
 use OCP\IAppConfig;
 use OCP\IDBConnection;
@@ -113,6 +118,122 @@ class RowBackfillMigrationsTest extends TestCase {
 		$this->assertSame(2, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM_DEST, [
 			'stream_id' => $one, 'nid' => (string)$this->value(CoreRequestBuilder::TABLE_STREAM, 'nid', 'id_prim', $one),
 		]), 'run again, nothing moves');
+	}
+
+	/**
+	 * A row stored before `archived` existed carries NULL there; it is given
+	 * a 0 and the flag says every list may drop the `OR` that admitted the
+	 * NULL. A row that was archived keeps its 1.
+	 */
+	public function testThePostsWithNoArchiveFlagAreGivenOne(): void {
+		$flagBefore = Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0');
+		$blank = $this->stream(['archived' => null]);
+		$kept = $this->stream(['archived' => true]);
+		Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0');
+
+		try {
+			$this->runStep(Version1000Date20261013100500::class);
+
+			$this->assertSame(0, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $blank, 'archived' => null]));
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $blank, 'archived' => false]));
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $kept, 'archived' => true]));
+			$this->assertSame(
+				'1',
+				Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED),
+				'the lists may drop the OR now'
+			);
+
+			$this->runStep(Version1000Date20261013100500::class);
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $kept, 'archived' => true]), 'run again, nothing moves');
+		} finally {
+			Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, $flagBefore);
+		}
+	}
+
+	/**
+	 * The media filters may drop their fallback over the attachments once no
+	 * row is left without a `media_kind` — and not before: a row the
+	 * earlier backfill has not reached keeps the flag down.
+	 */
+	public function testTheMediaFiltersAreToldWhenEveryRowHasItsKind(): void {
+		$flagBefore = Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0');
+		$unfilled = $this->stream(['media_kind' => null]);
+		Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0');
+
+		try {
+			$this->runStep(Version1000Date20261013100500::class);
+			$this->assertSame(
+				'0',
+				Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
+				'a row without a kind keeps the fallback'
+			);
+
+			RowSeeder::delete(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $unfilled]);
+			$this->runStep(Version1000Date20261013100500::class);
+			$this->assertSame(
+				'1',
+				Server::get(IAppConfig::class)->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0'),
+				'no row without a kind: the filters may rely on the column'
+			);
+		} finally {
+			Server::get(IAppConfig::class)->setValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, $flagBefore);
+		}
+	}
+
+	/**
+	 * Nextcloud installs an app with its migrations schema-only, so no
+	 * `postSchemaChange()` runs there: the install step runs their backfills
+	 * instead. With nothing left to fill — as on a fresh install — the three
+	 * flags the fast queries wait for are up when it is done, and the two
+	 * jobs that raise the others are queued.
+	 */
+	public function testAFreshInstallEndsWithEveryFlagUpAndTheBackfillJobsQueued(): void {
+		$config = Server::get(IAppConfig::class);
+		$jobList = Server::get(IJobList::class);
+		$flags = [
+			ConfigService::SOCIAL_DEST_NID_FILLED, ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED,
+			ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED,
+		];
+		$before = [];
+		foreach ($flags as $key) {
+			$before[$key] = $config->getValueString('social', $key, '0');
+			$config->setValueString('social', $key, '0');
+		}
+		$jobs = [[SearchIndex::class, null], [StreamAuthorHosts::class, ['after' => '0']]];
+		$queuedBefore = array_map(static fn (array $job): bool => $jobList->has($job[0], $job[1]), $jobs);
+		$blank = $this->stream(['archived' => null, 'media_kind' => 'image']);
+
+		try {
+			$qb = $this->connection->getQueryBuilder();
+			$qb->select($qb->func()->count('*'))->from(CoreRequestBuilder::TABLE_STREAM)->where($qb->expr()->isNull('media_kind'));
+			$result = $qb->executeQuery();
+			$withoutKind = (int)$result->fetchOne();
+			$result->closeCursor();
+
+			Server::get(InstallBackfills::class)->run($this->createStub(IOutput::class));
+
+			$this->assertSame(1, RowSeeder::count(CoreRequestBuilder::TABLE_STREAM, ['id_prim' => $blank, 'archived' => false]));
+			$this->assertSame('1', $config->getValueString('social', ConfigService::SOCIAL_DEST_NID_FILLED, '0'), 'the home fast path');
+			$this->assertSame('1', $config->getValueString('social', ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED, '0'));
+			// a fresh install has no post without a kind; a shared test
+			// database may, and then the flag rightly stays down
+			$this->assertSame(
+				$withoutKind === 0 ? '1' : '0',
+				$config->getValueString('social', ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, '0')
+			);
+			foreach ($jobs as [$class, $argument]) {
+				$this->assertTrue($jobList->has($class, $argument), $class . ' is queued');
+			}
+		} finally {
+			foreach ($before as $key => $value) {
+				$config->setValueString('social', $key, $value);
+			}
+			foreach ($jobs as $i => [$class, $argument]) {
+				if (!$queuedBefore[$i]) {
+					$jobList->remove($class, $argument);
+				}
+			}
+		}
 	}
 
 	/** Only the posts not yet worked out: a kind already stored is left alone, even a wrong one. */

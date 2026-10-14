@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Reader\BlueskyActorService;
 use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Service\AtprotoConfig;
@@ -81,6 +82,14 @@ class CacheActorService {
 	/** The `DurableCache` namespace of URLs that serve an actor under another id of their host. */
 	public const ALIAS_NAMESPACE = 'social.actoralias';
 	public const ALIAS_TTL = 2592000; // 30 days
+
+	/**
+	 * Where an actor id that could not be fetched is remembered, and for how
+	 * long: a post whose author is gone is liked, boosted and replied to, and
+	 * each of those asked the author's server again inside the request.
+	 */
+	public const MISS_NAMESPACE = Application::APP_ID . '/actor-miss';
+	public const MISS_SECONDS = 600;
 
 	use TArrayTools;
 
@@ -164,32 +173,18 @@ class CacheActorService {
 
 			$actor = $this->cached($id);
 		} catch (CacheActorDoesNotExistException $e) {
+			// a fetch of this id failed a moment ago: asked again, it is the
+			// same connect attempt to the same server, inside somebody's request
+			if (!$refresh && $this->durableCache?->get(self::MISS_NAMESPACE, md5($id)) !== null) {
+				throw new CacheActorDoesNotExistException('not fetched again yet: ' . $id);
+			}
+
 			try {
-				$object = $this->curlService->retrieveObject($id);
-			} catch (RequestContentException $e) {
-				// in case of refresh but remote tells us that actor is gone, we delete it.
-				if ($refresh && $e->getCode() === Http::STATUS_GONE) {
-					$this->delete($this->cacheActorsRequest->getFromId($id));
-				}
+				$actor = $this->fetchActor($id, $refresh);
+			} catch (Exception $e) {
+				$this->durableCache?->set(self::MISS_NAMESPACE, md5($id), 1, self::MISS_SECONDS);
 
 				throw $e;
-			}
-
-			$this->logger->debug('object retrieved', ['id' => $id, 'object' => $object]);
-
-			/** @var Person $actor */
-			$actor = AP::instance()->getItemFromData($object);
-			if (!AP::instance()->isActor($actor)) {
-				throw new InvalidResourceException();
-			}
-
-			$actor = $this->theActorOf($id, $actor, $this->get('_contentType', $object));
-
-			$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
-			try {
-				$this->save($actor);
-			} catch (Exception $e) {
-				throw new InvalidResourceException($e->getMessage());
 			}
 		}
 
@@ -197,6 +192,42 @@ class CacheActorService {
 		$this->memo[$id] = $actor;
 		if (count($this->memo) > self::MEMO_LIMIT) {
 			unset($this->memo[array_key_first($this->memo)]);
+		}
+
+		return $actor;
+	}
+
+	/**
+	 * Fetches an actor this instance does not hold, checks it is the actor at
+	 * that id, and stores it.
+	 */
+	private function fetchActor(string $id, bool $refresh): Person {
+		try {
+			$object = $this->curlService->retrieveObject($id);
+		} catch (RequestContentException $e) {
+			// in case of refresh but remote tells us that actor is gone, we delete it.
+			if ($refresh && $e->getCode() === Http::STATUS_GONE) {
+				$this->delete($this->cacheActorsRequest->getFromId($id));
+			}
+
+			throw $e;
+		}
+
+		$this->logger->debug('object retrieved', ['id' => $id, 'object' => $object]);
+
+		/** @var Person $actor */
+		$actor = AP::instance()->getItemFromData($object);
+		if (!AP::instance()->isActor($actor)) {
+			throw new InvalidResourceException();
+		}
+
+		$actor = $this->theActorOf($id, $actor, $this->get('_contentType', $object));
+
+		$actor->setAccount($actor->getPreferredUsername() . '@' . $this->get('_host', $object));
+		try {
+			$this->save($actor);
+		} catch (Exception $e) {
+			throw new InvalidResourceException($e->getMessage());
 		}
 
 		return $actor;
@@ -439,6 +470,19 @@ class CacheActorService {
 	 *
 	 * @return Person[] keyed by actor id; ids that are not cached are absent
 	 */
+	/**
+	 * The actor at `$id` as this instance holds it — its row, or the row an
+	 * address remembered as another of the actor's names points at — and
+	 * never a fetch.
+	 *
+	 * @throws CacheActorDoesNotExistException
+	 */
+	public function getCachedFromId(string $id): Person {
+		$anchor = strpos($id, '#');
+
+		return $this->cached(($anchor === false) ? $id : substr($id, 0, $anchor));
+	}
+
 	public function getCachedFromIds(array $ids): array {
 		$wanted = [];
 		foreach ($ids as $id) {

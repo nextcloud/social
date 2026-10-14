@@ -123,6 +123,52 @@ class MediaPurgeServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A retention prune, a domain purge or an account deletion orphans more
+	 * than one page of documents a day: the sweep reads page after page, each
+	 * after the last row of the one before, until a page comes back short or
+	 * its time is up.
+	 */
+	public function testTheSweepReadsOnPageAfterPageFromWhereTheLastOneEnded(): void {
+		$pages = [
+			0 => [$this->documentAt('a', 11), $this->documentAt('b', 12)],
+			12 => [$this->documentAt('c', 13), $this->documentAt('d', 14)],
+			14 => [$this->documentAt('e', 15)],
+		];
+		$asked = [];
+		$this->cacheDocumentsRequest->method('getOrphanedByParent')->willReturnCallback(
+			static function (int $days, int $limit, int $after) use ($pages, &$asked): array {
+				$asked[] = $after;
+
+				return $pages[$after] ?? [];
+			}
+		);
+		$this->cacheDocumentsRequest->method('deleteById')->willReturnCallback(
+			static function (string $id): void {
+				if ($id === 'c') {
+					throw new \RuntimeException('the database said no');
+				}
+			}
+		);
+
+		$this->assertSame(4, $this->service->sweepOrphans(30, 2, time() + 60));
+		$this->assertSame([0, 12, 14], $asked, 'a row that would not go is not read again');
+	}
+
+	public function testTheSweepStopsWhenItsTimeIsUp(): void {
+		$this->cacheDocumentsRequest->expects($this->once())->method('getOrphanedByParent')
+			->willReturn([$this->documentAt('a', 1), $this->documentAt('b', 2)]);
+
+		$this->assertSame(2, $this->service->sweepOrphans(30, 2, time() - 1));
+	}
+
+	private function documentAt(string $id, int $nid): Document {
+		$document = $this->document($id);
+		$document->setNid($nid);
+
+		return $document;
+	}
+
 	public function testOneRowThatWillNotGoDoesNotStopTheSweep(): void {
 		$this->cacheDocumentsRequest->method('getOrphanedByParent')
 			->with(30, 500)

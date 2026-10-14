@@ -55,10 +55,12 @@ use OCA\Social\SetupChecks\BlueskyReady;
 use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
+use OCA\Social\SetupChecks\IndexRepairsComplete;
 use OCA\Social\SetupChecks\MemcacheConfigured;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
 use OCA\Social\SetupChecks\ReachableByStrictPeers;
+use OCA\Social\SetupChecks\RetentionBoundsTheTables;
 use OCA\Social\SetupChecks\UploadLimitsAgree;
 use OCA\Social\SetupChecks\VideoConverter;
 use OCA\Social\SetupChecks\WebFingerReachable;
@@ -177,6 +179,8 @@ class Application extends App implements IBootstrap {
 		$context->registerSetupCheck(ClientApiAtRoot::class);
 		$context->registerSetupCheck(ProxyForwardsTheScheme::class);
 		$context->registerSetupCheck(MemcacheConfigured::class);
+		$context->registerSetupCheck(IndexRepairsComplete::class);
+		$context->registerSetupCheck(RetentionBoundsTheTables::class);
 	}
 
 	/**

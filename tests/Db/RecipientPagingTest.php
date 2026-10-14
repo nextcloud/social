@@ -130,7 +130,7 @@ class RecipientPagingTest extends TestCase {
 	/** @return array<string, array{string}> */
 	public static function provideTimelines(): array {
 		return [
-			'public' => ['getTimelinePublic'],
+			'public' => ['publicTimelineJoined'],
 			'notifications' => ['notificationFilters'],
 			'direct' => ['directTimelineNids'],
 		];

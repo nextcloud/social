@@ -70,6 +70,17 @@ class Version1000Date20261008000503 extends SimpleMigrationStep {
 
 	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
-		$this->jobList->add(StreamAuthorHosts::class, ['after' => '0']);
+		$this->fill();
+	}
+
+	/**
+	 * Queues the backfill, which raises `stream_author_hosts_filled` when it
+	 * is done; `InstallBackfills` calls this on a fresh install, which runs
+	 * migrations schema-only.
+	 */
+	public function fill(): void {
+		if (!$this->jobList->has(StreamAuthorHosts::class, ['after' => '0'])) {
+			$this->jobList->add(StreamAuthorHosts::class, ['after' => '0']);
+		}
 	}
 }

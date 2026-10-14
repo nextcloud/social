@@ -53,11 +53,20 @@ class QueueController extends Controller {
 	}
 
 	/**
-	 * The whole worker's time budget. Whatever is left over stays STANDBY and is
-	 * delivered by the cron, so a post with many recipient inboxes (or a slow
-	 * remote) cannot pin a PHP worker indefinitely.
+	 * The worker's time budget. Whatever is left over stays STANDBY and is
+	 * delivered by `Cron\Queue`, so a post with many recipient inboxes (or a
+	 * slow remote) holds a PHP-FPM worker and a database connection for
+	 * seconds rather than minutes: every local post starts one of these.
 	 */
-	public const MAX_DURATION = 90;
+	public const MAX_DURATION = 20;
+
+	/**
+	 * How many of a post's deliveries the async drain takes on: one wave of
+	 * `ActivityService::PARALLEL` hosts and a little more. A post's followers
+	 * on the instances it reaches first see it within seconds; the rest of a
+	 * large fan-out is the cron's, which drains it in the background.
+	 */
+	public const ASYNC_ROWS = 40;
 
 	/**
 	 * Delivers what is on standby under a token, for this server alone.
@@ -98,23 +107,32 @@ class QueueController extends Controller {
 		// From here the request is detached: async() has flushed an empty body and
 		// closed the connection, and this worker only delivers queued activities.
 		$this->async();
-
-		// a post's whole fan-out, several servers at a time: one after
-		// another, the budget ran out on the first few slow peers
-		foreach ($requests as $request) {
-			$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
-		}
-		$this->activityService->manageInit();
-		$this->activityService->manageRequests(
-			$requests,
-			time() + self::MAX_DURATION,
-			fn (RequestQueue $request, Throwable $e) => $this->handBack($request, $e)
-		);
+		$this->drain($requests);
 
 		// exit(), not a Response: the connection is gone and headers are sent, so
 		// letting the framework render a response would only feed warnings into the
 		// log. Registered shutdown handlers still run.
 		exit();
+	}
+
+	/**
+	 * Delivers the first ASYNC_ROWS of a post's deliveries, several servers
+	 * at a time, within MAX_DURATION. What is not reached stays on standby
+	 * for `Cron\Queue`.
+	 *
+	 * @param list<RequestQueue> $requests
+	 */
+	protected function drain(array $requests): void {
+		$wave = array_slice($requests, 0, self::ASYNC_ROWS);
+		foreach ($wave as $request) {
+			$request->setTimeout(ActivityService::TIMEOUT_ASYNC);
+		}
+		$this->activityService->manageInit();
+		$this->activityService->manageRequests(
+			$wave,
+			time() + self::MAX_DURATION,
+			fn (RequestQueue $request, Throwable $e) => $this->handBack($request, $e)
+		);
 	}
 
 	/**

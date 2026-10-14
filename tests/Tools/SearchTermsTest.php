@@ -20,7 +20,7 @@ use PHPUnit\Framework\TestCase;
 class SearchTermsTest extends TestCase {
 	public function testMarkupIsNotTextAndSeparatesWords(): void {
 		$this->assertSame(
-			['the', 'zebra', 'crossed', 'road'],
+			['zebra', 'crossed', 'road'],
 			SearchTerms::ofHtml('<p>The <span class="h-card"><a href="https://x.example/@a">Zebra</a></span> crossed</p><p>the road</p>')
 		);
 		$this->assertSame(['one', 'two'], SearchTerms::ofHtml('<p>one</p><p>two</p>'));
@@ -54,6 +54,34 @@ class SearchTermsTest extends TestCase {
 
 	public function testEachWordIsStoredOnceInTheOrderItFirstAppears(): void {
 		$this->assertSame(['zebra', 'and'], SearchTerms::ofText('zebra and Zebra and ZEBRA'));
+	}
+
+	/**
+	 * A function word is in nearly every post, so each one is a row per
+	 * post in `social_search_term` that no search narrows on: they are not
+	 * stored. A search made of nothing else is answered by the scan instead.
+	 */
+	public function testFunctionWordsAreNotIndexed(): void {
+		$this->assertSame(['zebra', 'straße', 'hund'], SearchTerms::ofHtml('<p>The zebra and the Straße, und der Hund ist nicht hier</p>'));
+		$this->assertSame(
+			['the', 'zebra', 'and', 'straße'],
+			SearchTerms::ofHtml('<p>The zebra and the Straße</p>', true),
+			'the words of a post as written, for checking a beginning against'
+		);
+	}
+
+	public function testTheStopListIsEnglishAndGermanFunctionWords(): void {
+		foreach (['the', 'and', 'of', 'to', 'is', 'der', 'die', 'das', 'und', 'nicht', 'ich'] as $word) {
+			$this->assertTrue(SearchTerms::isStopWord($word), $word);
+		}
+		foreach (['zebra', 'nextcloud', 'haus', 'ai'] as $word) {
+			$this->assertFalse(SearchTerms::isStopWord($word), $word);
+		}
+		$this->assertGreaterThanOrEqual(100, count(SearchTerms::STOP_WORDS));
+		$this->assertSame(SearchTerms::STOP_WORDS, array_values(array_unique(SearchTerms::STOP_WORDS)), 'each once');
+		foreach (SearchTerms::STOP_WORDS as $word) {
+			$this->assertSame(SearchTerms::ofText($word), [$word], 'stored in the form a word is compared in: ' . $word);
+		}
 	}
 
 	public function testAPostHasAtMostSoManyWords(): void {

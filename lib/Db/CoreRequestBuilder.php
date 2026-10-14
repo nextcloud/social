@@ -951,6 +951,12 @@ class CoreRequestBuilder {
 
 	private ?bool $authorHostsFilled = null;
 
+	/** Whether every stream row carries a value in `archived`; asked once per request builder. */
+	private ?bool $archivedFilled = null;
+
+	/** Whether every stream row carries a `media_kind`; asked once per request builder. */
+	private ?bool $mediaKindFilled = null;
+
 	/** Blocking or unblocking an instance makes the memo wrong; drop it. */
 	public static function forgetBlockedDomains(): void {
 		self::$blockedDomains = [];
@@ -973,6 +979,7 @@ class CoreRequestBuilder {
 				$qb->setAuthorHostsFilled($this->authorHostsAreFilled());
 			}
 		}
+		$qb->setMediaKindFilled($this->mediaKindIsFilled());
 
 		return $qb;
 	}
@@ -991,6 +998,33 @@ class CoreRequestBuilder {
 		);
 
 		return $this->authorHostsFilled;
+	}
+
+	/**
+	 * Whether no `social_stream` row is left with NULL in `archived`.
+	 *
+	 * A flag `Version1000Date20261013100500` sets when its backfill ends,
+	 * for the reason `authorHostsAreFilled()` gives: until it is set the
+	 * lists keep admitting a NULL beside a 0.
+	 */
+	protected function archivedIsFilled(): bool {
+		$this->archivedFilled ??= $this->configService->getAppValueBool(
+			ConfigService::SOCIAL_STREAM_ARCHIVED_FILLED
+		);
+
+		return $this->archivedFilled;
+	}
+
+	/**
+	 * Whether no `social_stream` row is left with NULL in `media_kind`: the
+	 * same flag, for the media filters' fallback over the attachments.
+	 */
+	protected function mediaKindIsFilled(): bool {
+		$this->mediaKindFilled ??= $this->configService->getAppValueBool(
+			ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED
+		);
+
+		return $this->mediaKindFilled;
 	}
 
 	/**

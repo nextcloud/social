@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\ActorMapper;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -18,6 +19,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\HashtagService;
+use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\SearchService;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
@@ -163,6 +165,53 @@ class SearchServiceTest extends TestCase {
 			->willReturn($bob);
 
 		$this->assertSame([$bob], $this->service->searchUri('https://remote.example/users/bob'));
+	}
+
+	/**
+	 * The search bar of Nextcloud asks once per debounced prefix of what is
+	 * typed, and every prefix of a URL is a URL: a lookup that may fetch
+	 * would be one connect attempt per keystroke inside the request. So it
+	 * answers from the cache, and hands what it does not know to the
+	 * background fetch queue, which a later search then finds.
+	 */
+	public function testACacheOnlySearchNeverFetchesAndQueuesWhatItDoesNotKnow(): void {
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$service = new SearchService(
+			$this->cacheActorService, $this->hashtagService, $this->streamRequest, new NullLogger(), $this->curlService,
+			null, $queue
+		);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+		$this->cacheActorService->method('getCachedFromId')->willThrowException(new CacheActorDoesNotExistException());
+		$queue->expects($this->once())->method('resolveActors')->with(['https://remote.example/users/bob']);
+
+		$this->assertSame([], $service->searchUri('https://remote.example/users/bob', false));
+	}
+
+	public function testACacheOnlySearchAnswersACachedActorWithoutQueueing(): void {
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$service = new SearchService(
+			$this->cacheActorService, $this->hashtagService, $this->streamRequest, new NullLogger(), $this->curlService,
+			null, $queue
+		);
+		$bob = new Person();
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+		$this->cacheActorService->method('getCachedFromId')
+			->with('https://remote.example/users/bob')->willReturn($bob);
+		$queue->expects($this->never())->method('resolveActors');
+
+		$this->assertSame([$bob], $service->searchUri('https://remote.example/users/bob', false));
+	}
+
+	public function testACacheOnlySearchDoesNotOfferALimitedBlueskyAccount(): void {
+		$service = new SearchService(
+			$this->cacheActorService, $this->hashtagService, $this->streamRequest, new NullLogger(), $this->curlService,
+			null, $this->createMock(RemoteFetchQueue::class)
+		);
+		$limited = new Person();
+		$limited->setDetailArray(ActorMapper::DETAIL, ['limited' => true]);
+		$this->cacheActorService->method('getCachedFromId')->willReturn($limited);
+
+		$this->assertSame([], $service->searchUri('https://remote.example/users/hidden', false));
 	}
 
 	public function testSearchUriSwallowsResolutionFailures(): void {

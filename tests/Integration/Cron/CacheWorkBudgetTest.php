@@ -413,10 +413,11 @@ class CacheWorkBudgetTest extends TestCase {
 		$pruned = 3 * $cap - $this->seededWhere(CoreRequestBuilder::TABLE_STREAM);
 		$this->assertLessThanOrEqual($cap, $pruned);
 		$this->assertGreaterThan(0, $pruned);
-		// the chunk's ids, its documents and every table that names a post,
-		// per chunk of five hundred, and the queue and notification sweeps:
-		// 205 today, for ten chunks
-		$this->assertWithinBudget($run, intdiv($cap, StreamPruneService::CHUNK), 21, 10);
+		// the chunk's candidates and the ids no rule keeps, their documents,
+		// every table that names a post and the place the walk got to, per
+		// chunk of five hundred, and the queue and notification sweeps: 224
+		// today, for ten chunks
+		$this->assertWithinBudget($run, intdiv($cap, StreamPruneService::CHUNK), 23, 10);
 	}
 
 	/** One batch of remote posts asked for their counts, each stamped once. */

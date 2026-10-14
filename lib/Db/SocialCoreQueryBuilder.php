@@ -45,6 +45,7 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 
 	/** Whether every `social_stream` row carries its `author_host`; see `filterDomainBlocked()`. */
 	private bool $authorHostsFilled = false;
+	private bool $mediaKindFilled = false;
 
 	public function __construct(
 		IQueryBuilder $queryBuilder,
@@ -92,6 +93,15 @@ class SocialCoreQueryBuilder extends ExtendedQueryBuilder {
 
 	public function authorHostsAreFilled(): bool {
 		return $this->authorHostsFilled;
+	}
+
+	public function setMediaKindFilled(bool $filled): void {
+		$this->mediaKindFilled = $filled;
+	}
+
+	/** Whether every stream row carries a `media_kind`, so the media filters need no fallback. */
+	public function mediaKindIsFilled(): bool {
+		return $this->mediaKindFilled;
 	}
 
 	public function prim(string $id): string {

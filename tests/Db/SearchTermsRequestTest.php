@@ -156,9 +156,9 @@ class SearchTermsRequestTest extends TestCase {
 	public function testAStoredPostIsIndexedUnderEachOfItsWordsInOneStatement(): void {
 		$this->request()->index($this->note('<p>The Zebra crossed the road</p>'));
 
+		// `the` is a function word, which the index leaves out
 		$this->assertCount(1, $this->inserts);
 		$this->assertSame([
-			['the', '42', md5(self::POST)],
 			['zebra', '42', md5(self::POST)],
 			['crossed', '42', md5(self::POST)],
 			['road', '42', md5(self::POST)],

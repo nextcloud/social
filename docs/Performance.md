@@ -76,7 +76,7 @@ could still be cheaper, and the schema items at the end.
 |-------|-------------------|
 | `StreamRequest::getDescendants()` | A thread is walked a level at a time, each level one query, bounded by depth and by page size. Fine for a conversation; a thread thousands deep is still thousands of levels. |
 | `CacheActorService::getFromId()` | An uncached actor is fetched over HTTP inside the request that asked for it. Bounded by the access list and a timeout, but it is network in a read path. |
-| `StreamPruneService` | The retention pass is `NOT EXISTS` over the largest table, which is a sequential scan by design. It runs from cron and from `occ`, never from a request. |
+| `StreamPruneService` | The retention pass asks four `NOT EXISTS` of each old remote post. It walks the candidates off the `creation` index from where the day's walk got to (`retention_checked`), so each kept post is judged once a day rather than on every chunk; it runs from cron and from `occ`, never from a request. |
 
 ### Transactions
 

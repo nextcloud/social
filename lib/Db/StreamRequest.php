@@ -555,11 +555,11 @@ class StreamRequest extends StreamRequestBuilder {
 	 * Only the keys: the repair hydrates the page with `getIndexStreams()` in
 	 * one query, and falls back to a stream at a time when that fails.
 	 *
-	 * @return list<array{nid: string, id_prim: string}>
+	 * @return list<array{nid: string, id_prim: string, type: string}>
 	 */
 	public function getIndexChunk(int|string $afterNid, int $limit): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('nid', 'id_prim')
+		$qb->select('nid', 'id_prim', 'type')
 			->from(self::TABLE_STREAM)
 			->where($qb->expr()->gt('nid', $qb->createNamedParameter((string)$afterNid)))
 			->orderBy('nid', 'asc')
@@ -571,11 +571,35 @@ class StreamRequest extends StreamRequestBuilder {
 			$rows[] = [
 				'nid' => (string)$row['nid'],
 				'id_prim' => (string)$row['id_prim'],
+				'type' => (string)$row['type'],
 			];
 		}
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/**
+	 * How many posts are stored, counted no further than `$cap`: the setup
+	 * check asks whether the table is past a size, and a full `COUNT(*)` of
+	 * the largest table would cost more the larger it is.
+	 */
+	public function countPostsUpTo(int $cap): int {
+		$page = $this->getQueryBuilder();
+		$page->select('nid')
+			->from(self::TABLE_STREAM)
+			->setMaxResults(max(1, $cap));
+
+		$qb = $this->getQueryBuilder();
+		$qb->select($qb->func()->count('*', 'posts'))
+			->from($qb->createFunction('(' . $page->getSQL() . ')'), 'capped');
+		$qb->setParameters($page->getParameters(), $page->getParameterTypes());
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($data === false) ? 0 : (int)$data['posts'];
 	}
 
 	/**
