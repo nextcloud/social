@@ -16,11 +16,11 @@ use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Crypto\PublicKey;
+use OCA\Social\Atproto\Identity\HandleVerifier;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\PlcClient;
 use OCA\Social\Atproto\Identity\PlcOperation;
-use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -35,11 +35,13 @@ use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
-use OCA\Social\Service\DocumentService;
+use OCA\Social\Exceptions\AtprotoPlcRefusedException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Service\FollowService;
 use OCP\BackgroundJob\IJobList;
 use OCP\Security\ICrypto;
@@ -57,15 +59,18 @@ use Throwable;
  *
  * A background job copies the repository — checked against the DID's
  * signing key, written here byte for byte under a commit signed with a key
- * made for the account here — the blobs, the preferences and the follows.
- * Then the old PDS e-mails the person a code; with it, it signs the
- * operation that points the DID here, and the account takes the DID: the
- * one this server had made for it is retired. Last, the account is switched
- * off on the old PDS, its posts become posts in its timeline here and its
- * lists its lists here.
+ * made for the account here — the blobs and the preferences. Then the old
+ * PDS e-mails the person a code; with it, it signs the operation that
+ * points the DID here, and the account takes the DID: the one this server
+ * had made for it is retired. Last, the account is switched off on the old
+ * PDS, its follows become follows here — only now, so a move called off
+ * leaves none behind — its posts posts in its timeline here and its lists
+ * its lists here.
  */
 class MoveInService {
 	private const PAGE = 500;
+	/** the domains the big hosts give handles under, for an old server that does not say */
+	private const HOSTED_HANDLES = ['.bsky.social', '.brid.gy'];
 
 	public function __construct(
 		private PdsClient $pds,
@@ -77,7 +82,6 @@ class MoveInService {
 		private RepositoryService $repositories,
 		private AtprotoRepoRequest $repoRequest,
 		private AtprotoBlobRequest $blobs,
-		private DocumentService $documents,
 		private Preferences $preferences,
 		private BlueskyActorService $blueskyActors,
 		private FollowService $follows,
@@ -88,6 +92,10 @@ class MoveInService {
 		private IJobList $jobList,
 		private LoggerInterface $logger,
 		private BlueskyListImport $lists,
+		private AtprotoIdentityRequest $identityRequest,
+		private HandleVerifier $handles,
+		private MovedBlobs $movedBlobs,
+		private PostRepublisher $republisher,
 	) {
 	}
 
@@ -95,24 +103,23 @@ class MoveInService {
 	 * Signs in to the old PDS and queues the copy.
 	 *
 	 * @param string $authFactorToken the code a PDS e-mails for a sign-in it wants confirmed
-	 * @throws InvalidArgumentException with what to tell the person
+	 * @throws MoveErrorException with what to tell the person
 	 * @throws AtprotoException
 	 */
 	public function start(string $userId, string $typed, string $password, string $authFactorToken = ''): Move {
-		$latest = $this->moves->latestOfUser($userId);
-		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
-			throw new InvalidArgumentException('A move is already under way');
+		if ($this->moves->latestOfUser($userId)?->isUnderWay() === true) {
+			throw new MoveErrorException('A move is already under way', 'move-in-progress');
 		}
 		$did = $this->didOf($typed);
 		try {
 			$this->identities->getByDid($did);
-			throw new InvalidArgumentException('That Bluesky account is on this server already');
+			throw new MoveErrorException('That Bluesky account is on this server already', 'account-here-already');
 		} catch (AtprotoIdentityNotFoundException) {
 		}
-		$data = $this->plc->data($did);
+		$data = $this->didState($did);
 		$endpoint = (string)($data['services']['atproto_pds']['endpoint'] ?? '');
 		if ($endpoint === '') {
-			throw new InvalidArgumentException('The directory names no server for that account');
+			throw new MoveErrorException('The directory names no server for that account', 'pds-not-named');
 		}
 		$origin = $this->pds->origin($endpoint);
 
@@ -121,11 +128,8 @@ class MoveInService {
 			$login['authFactorToken'] = trim($authFactorToken);
 		}
 		$answer = $this->pds->call($origin, 'com.atproto.server.createSession', 'POST', [], $login);
-		if (($answer['body']['error'] ?? '') === 'AuthFactorTokenRequired') {
-			throw new InvalidArgumentException('The Bluesky server e-mailed you a sign-in code: enter it and start again');
-		}
 		if ($answer['status'] !== 200 || ($answer['body']['did'] ?? '') !== $did) {
-			throw new InvalidArgumentException('The Bluesky server did not let you sign in: ' . trim((string)($answer['body']['message'] ?? 'status ' . $answer['status'])));
+			throw self::signInRefused($answer);
 		}
 
 		$key = PrivateKey::generate(Curve::K256);
@@ -144,21 +148,20 @@ class MoveInService {
 	/**
 	 * The code the old PDS e-mailed: the move goes on with it.
 	 *
-	 * @throws InvalidArgumentException
+	 * @throws MoveErrorException
 	 */
 	public function code(string $userId, string $code): Move {
 		$move = $this->moves->latestOfUser($userId);
 		if ($move === null || $move->direction !== Move::IN || $move->state !== Move::WAITING) {
-			throw new InvalidArgumentException('No move is waiting for a code');
+			throw new MoveErrorException('No move is waiting for a code', 'no-move-waiting');
 		}
 		$code = trim($code);
 		if ($code === '' || strlen($code) > 64) {
-			throw new InvalidArgumentException('That is not a code');
+			throw new MoveErrorException('That is not a code', 'code-invalid');
 		}
 		$move->session = $this->seal(['code' => $code] + $this->unseal($move->session));
 		$move->step = Move::STEP_IDENTITY;
-		$move->state = Move::RUNNING;
-		$move->error = '';
+		$move->resume();
 		$this->moves->update($move);
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 
@@ -168,17 +171,16 @@ class MoveInService {
 	/**
 	 * Starts a failed move again from its step; a wrong code asks for a new one.
 	 *
-	 * @throws InvalidArgumentException
+	 * @throws MoveErrorException
 	 */
 	public function retry(Move $move): Move {
 		if ($move->direction !== Move::IN || $move->state !== Move::FAILED) {
-			throw new InvalidArgumentException('There is no failed move to start again');
+			throw new MoveErrorException('There is no failed move to start again', 'no-failed-move');
 		}
 		if ($move->step === Move::STEP_IDENTITY) {
 			$move->step = Move::STEP_CODE;
 		}
-		$move->state = Move::RUNNING;
-		$move->error = '';
+		$move->resume();
 		$this->moves->update($move);
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 
@@ -186,17 +188,200 @@ class MoveInService {
 	}
 
 	/**
+	 * How many of the person's posts are on Bluesky now, under the identity
+	 * a move here would retire.
+	 */
+	public function postsOnBluesky(string $userId): int {
+		try {
+			return $this->republisher->onBluesky($this->identities->forActor($this->actors->getFromUserId($userId), false));
+		} catch (Throwable) {
+			return 0;
+		}
+	}
+
+	/**
+	 * Queues the posts the person's finished move here took off Bluesky to
+	 * be published again, into the moved repository.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function republish(string $userId): Move {
+		$move = $this->moves->latestOfUser($userId);
+
+		return $this->republisher->queue($move !== null && in_array($move->direction, [Move::IN, Move::INBOUND], true) ? $move : null);
+	}
+
+	/**
+	 * The person's decision on a move that stopped because blobs are
+	 * missing: go on without them, or copy them again first.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function decide(Move $move, bool $withoutMissing): Move {
+		if ($move->direction !== Move::IN || $move->state !== Move::NEEDS_DECISION) {
+			throw new MoveErrorException('The move does not wait for a decision', 'no-decision-pending');
+		}
+		if ($withoutMissing) {
+			$move->progress['missing_accepted'] = (int)($move->progress['missing']['count'] ?? 0);
+		} else {
+			$move->step = Move::STEP_BLOBS;
+		}
+		$move->resume();
+		$this->moves->update($move);
+		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
+
+		return $move;
+	}
+
+	/**
+	 * Calls off a move whose DID has not switched yet: it ends, the session
+	 * on the old PDS is ended and dropped, and what was copied here is
+	 * deleted.
+	 *
+	 * @throws MoveErrorException `move-past-switch` once the DID may have moved
+	 */
+	public function cancel(string $userId): Move {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::IN || in_array($move->state, [Move::DONE, Move::CANCELLED], true)) {
+			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
+		}
+		if ($this->pastSwitch($move)) {
+			throw new MoveErrorException('The account has been pointed at this server already; the move can no longer be called off', 'move-past-switch');
+		}
+		$refresh = (string)($this->unseal($move->session)['refreshJwt'] ?? '');
+		$move->state = Move::CANCELLED;
+		$move->error = 'Called off';
+		$move->session = '';
+		$this->moves->update($move);
+		if ($refresh !== '') {
+			try {
+				$this->pds->call($move->pds, 'com.atproto.server.deleteSession', 'POST', [], null, null, '', $refresh);
+			} catch (Throwable $e) {
+				$this->logger->info('Session on the old PDS not ended', ['did' => $move->did, 'exception' => $e]);
+			}
+		}
+		$this->dropCopy($move);
+
+		return $move;
+	}
+
+	/**
+	 * Whether the DID may already point here: from the identity step on,
+	 * unless that step failed before the directory took anything.
+	 */
+	private function pastSwitch(Move $move): bool {
+		if (!in_array($move->step, [Move::STEP_REPO, Move::STEP_BLOBS, Move::STEP_PREFERENCES, Move::STEP_CODE, Move::STEP_IDENTITY], true)) {
+			return true;
+		}
+		if ($move->step !== Move::STEP_IDENTITY) {
+			return false;
+		}
+		if ($move->state === Move::RUNNING || $this->isHere($move->did)) {
+			return true;
+		}
+		try {
+			$state = $this->plc->data($move->did);
+		} catch (AtprotoException) {
+			return true;
+		}
+
+		return rtrim((string)($state['services']['atproto_pds']['endpoint'] ?? ''), '/') === $this->config->pdsEndpoint();
+	}
+
+	/**
+	 * Asks the old PDS again to e-mail a code, for a move waiting for one.
+	 *
+	 * @return array{move: Move, sent_to: string} the move, and the address the old PDS says it e-mailed, '' when it does not say
+	 * @throws MoveErrorException
+	 * @throws AtprotoException
+	 */
+	public function newCode(string $userId): array {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::IN || $move->state !== Move::WAITING || $move->step !== Move::STEP_CODE) {
+			throw new MoveErrorException('No move is waiting for a code', 'no-move-waiting');
+		}
+		$this->requestCode($move);
+		$this->moves->update($move);
+
+		return ['move' => $move, 'sent_to' => (string)($move->progress['code_sent_to'] ?? '')];
+	}
+
+	/**
+	 * The old PDS e-mails the person a code (`requestPlcOperationSignature`
+	 * answers nothing); the address its session names is kept as
+	 * `code_sent_to`, '' when it names none.
+	 *
+	 * @throws AtprotoException
+	 */
+	private function requestCode(Move $move): void {
+		$this->authed($move, 'com.atproto.identity.requestPlcOperationSignature', 'POST');
+		try {
+			$email = (string)($this->authed($move, 'com.atproto.server.getSession')['email'] ?? '');
+		} catch (AtprotoException) {
+			$email = '';
+		}
+		$move->progress['code_sent_to'] = filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : '';
+	}
+
+	/**
+	 * Whether the move was called off while the job ran; what the job
+	 * copied since is dropped then, unless $drop is false.
+	 */
+	private function calledOff(Move $move, bool $drop = true): bool {
+		$stored = $this->moves->get($move->id);
+		if ($stored === null || $stored->state === Move::RUNNING) {
+			return false;
+		}
+		if ($drop && $stored->state === Move::CANCELLED) {
+			$this->dropCopy($stored);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Deletes what a move copied here, unless the DID is an account's here.
+	 */
+	private function dropCopy(Move $move): void {
+		if (!$this->isHere($move->did)) {
+			$this->repositories->delete($move->did);
+			$this->blobs->deleteByDid($move->did);
+		}
+	}
+
+	private function isHere(string $did): bool {
+		try {
+			$this->identities->getByDid($did);
+
+			return true;
+		} catch (AtprotoIdentityNotFoundException) {
+			return false;
+		}
+	}
+
+	/**
 	 * Runs the steps left, until the move is done, waits for the code, or a
-	 * step fails.
+	 * step fails. A move called off meanwhile is left as it is.
 	 */
 	public function run(Move $move): void {
 		if ($move->state !== Move::RUNNING || $move->direction !== Move::IN) {
 			return;
 		}
+		if ($move->step === Move::STEP_FOLLOWS && !isset($this->unseal($move->session)['code'])) {
+			// stopped at the follows when they still came before the code
+			$move->step = Move::STEP_CODE;
+		}
 		try {
 			while ($move->step !== Move::STEP_DONE) {
-				if (!$this->step($move)) {
-					$move->state = Move::WAITING;
+				if ($this->calledOff($move)) {
+					return;
+				}
+				$waitsIn = $this->step($move);
+				if ($this->calledOff($move)) {
+					return;
+				}
+				if ($waitsIn !== '') {
+					$move->state = $waitsIn;
 					$this->moves->update($move);
 
 					return;
@@ -208,18 +393,20 @@ class MoveInService {
 			$move->session = '';
 			$this->moves->update($move);
 		} catch (Throwable $e) {
-			$move->state = Move::FAILED;
-			$move->error = $e->getMessage();
+			if ($this->calledOff($move)) {
+				return;
+			}
+			$move->fail($e->getMessage(), MoveFailure::codeOf($e));
 			$this->moves->update($move);
 			$this->logger->warning('Bluesky account move here stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
 		}
 	}
 
 	/**
-	 * @return bool false when the move waits for the person
+	 * @return string the state the move waits for the person in, '' when it goes on
 	 * @throws AtprotoException
 	 */
-	private function step(Move $move): bool {
+	private function step(Move $move): string {
 		switch ($move->step) {
 			case Move::STEP_REPO:
 				$this->copyRepository($move);
@@ -236,13 +423,26 @@ class MoveInService {
 				}
 				break;
 			case Move::STEP_FOLLOWS:
-				$this->adoptFollows($move);
+				// the DID is the account's by now: a follow not taken over
+				// does not undo the move
+				try {
+					$this->adoptFollows($move);
+				} catch (Throwable $e) {
+					$this->logger->warning('Follows of a Bluesky account that moved here not taken over', ['did' => $move->did, 'exception' => $e]);
+				}
 				break;
 			case Move::STEP_CODE:
-				$this->authed($move, 'com.atproto.identity.requestPlcOperationSignature', 'POST');
+				if (!$this->movedBlobs->complete($move)) {
+					return Move::NEEDS_DECISION;
+				}
+				$this->settleHandle($move);
+				$this->requestCode($move);
 
-				return false;
+				return Move::WAITING;
 			case Move::STEP_IDENTITY:
+				if (!$this->catchUp($move)) {
+					return Move::NEEDS_DECISION;
+				}
 				$this->takeDid($move);
 				break;
 			case Move::STEP_ACTIVATE:
@@ -253,7 +453,7 @@ class MoveInService {
 				break;
 		}
 
-		return true;
+		return '';
 	}
 
 	/**
@@ -263,14 +463,24 @@ class MoveInService {
 		if ($this->repositories->getHead($move->did) !== null) {
 			return;
 		}
-		$signing = (string)($this->plc->data($move->did)['verificationMethods']['atproto'] ?? '');
-		$car = $this->pds->bytes($move->pds, 'com.atproto.sync.getRepo', ['did' => $move->did]);
-		if ($car['status'] !== 200 || $signing === '') {
-			throw new AtprotoException('The old server did not hand out the repository (' . $car['status'] . ')');
+		$signing = (string)($this->didState($move->did)['verificationMethods']['atproto'] ?? '');
+		$car = $this->pds->bytes($move->pds, 'com.atproto.sync.getRepo', ['did' => $move->did], RepoArchive::MAX_BYTES);
+		try {
+			if ($car['status'] !== 200 || $signing === '') {
+				throw new MoveFailure('repo-unavailable', 'The old server did not hand out the repository (' . $car['status'] . ')');
+			}
+			$archive = RepoArchive::read((string)file_get_contents($car['path']), $move->did, PublicKey::fromDidKey($signing));
+		} catch (MoveFailure $e) {
+			throw $e;
+		} catch (AtprotoException|InvalidArgumentException $e) {
+			throw new MoveFailure('repo-invalid', $e->getMessage(), $e);
+		} finally {
+			if ($car['path'] !== '') {
+				@unlink($car['path']);
+			}
 		}
-		$archive = RepoArchive::read($car['bytes'], $move->did, PublicKey::fromDidKey($signing));
 		$this->repositories->import($move->did, $this->key($move), $archive['records'], $archive['rev']);
-		$move->progress = ['records' => count($archive['records'])];
+		$move->progress = ['records' => count($archive['records']), 'rev' => $archive['rev']] + $move->progress;
 	}
 
 	/**
@@ -279,7 +489,6 @@ class MoveInService {
 	 * @throws AtprotoException
 	 */
 	private function copyBlobs(Move $move): void {
-		$actor = $this->actors->getFromUserId($move->userId);
 		$cursor = '';
 		$copied = (int)($move->progress['blobs'] ?? 0);
 		do {
@@ -288,24 +497,13 @@ class MoveInService {
 				if (!is_string($cid) || !Cid::isValid($cid) || $this->blobs->get($move->did, $cid) !== null) {
 					continue;
 				}
-				$blob = $this->pds->bytes($move->pds, 'com.atproto.sync.getBlob', ['did' => $move->did, 'cid' => $cid]);
-				if ($blob['status'] !== 200 || !Cid::forRaw($blob['bytes'])->equals(Cid::parse($cid))) {
-					$this->logger->info('Blob not copied', ['did' => $move->did, 'cid' => $cid, 'status' => $blob['status']]);
-					continue;
-				}
-				$path = (string)tempnam(sys_get_temp_dir(), 'social-atproto-move-');
-				try {
-					file_put_contents($path, $blob['bytes']);
-					$document = $this->documents->storeAsIs($actor, $path);
-				} finally {
-					@unlink($path);
-				}
-				$this->blobs->put(new BlobRef($move->did, Cid::parse($cid), $document->getId(), BlobRef::servableType($document->getMimeType()), strlen($blob['bytes'])));
-				$this->repoRequest->addBlobBytes($move->did, strlen($blob['bytes']));
-				$copied++;
+				$copied += $this->movedBlobs->copy($move, $cid) > 0 ? 1 : 0;
 			}
 			$cursor = (string)($page['cursor'] ?? '');
 			$move->progress = ['blobs' => $copied] + $move->progress;
+			if ($this->calledOff($move, false)) {
+				return;
+			}
 			$this->moves->update($move);
 		} while ($cursor !== '');
 	}
@@ -359,29 +557,147 @@ class MoveInService {
 	}
 
 	/**
+	 * What was posted on the old PDS since the repository was copied comes
+	 * along: when its latest commit is newer than the copy, the repository
+	 * is copied again, and the blobs new to it.
+	 *
+	 * @return bool false when blobs are missing after that, and the person decides
+	 * @throws AtprotoException
+	 */
+	private function catchUp(Move $move): bool {
+		try {
+			$latest = $this->pds->call($move->pds, 'com.atproto.sync.getLatestCommit', 'GET', ['did' => $move->did]);
+		} catch (AtprotoException $e) {
+			$this->logger->info('Latest commit of a Bluesky account moving here not read', ['did' => $move->did, 'exception' => $e]);
+
+			return true;
+		}
+		$rev = (string)($latest['body']['rev'] ?? '');
+		$copied = (string)($move->progress['rev'] ?? '');
+		if ($latest['status'] !== 200 || $rev === '' || strcmp($rev, $copied) <= 0) {
+			return true;
+		}
+		$this->logger->info('Bluesky account moving here changed since it was copied; copying it again', ['did' => $move->did, 'copied' => $copied, 'latest' => $rev]);
+		$this->repositories->delete($move->did);
+		$this->copyRepository($move);
+		$this->copyBlobs($move);
+		$this->moves->update($move);
+
+		return $this->movedBlobs->complete($move);
+	}
+
+	/**
 	 * The old PDS signs the operation that points the DID here, and the
-	 * account takes it.
+	 * account takes it. The rotation keys are the person's own first, then
+	 * this server's (`RotationKeys`); the old server's are dropped.
 	 *
 	 * @throws AtprotoException
 	 */
 	private function takeDid(Move $move): void {
 		$session = $this->unseal($move->session);
 		$actor = $this->actors->getFromUserId($move->userId);
-		$current = $this->identities->forActor($actor) ?? throw new AtprotoException('This account has no Bluesky identity to move into');
+		$current = $this->identities->forActor($actor) ?? throw new MoveFailure('no-identity', 'This account has no Bluesky identity to move into');
 		$key = $this->key($move);
+		$here = $this->instanceKeys->rotationKey()->didKey();
+		$rotation = RotationKeys::forMoveHere($this->didState($move->did)['rotationKeys'] ?? null, $this->oldServerKeys($move), $current->recoveryPublic, $here);
+		$kept = $this->settleHandle($move);
 		$signed = $this->authed($move, 'com.atproto.identity.signPlcOperation', 'POST', [], [
 			'token' => (string)($session['code'] ?? ''),
-			'rotationKeys' => [$this->instanceKeys->rotationKey()->didKey()],
-			'alsoKnownAs' => ['at://' . $current->handle],
+			'rotationKeys' => $rotation,
+			'alsoKnownAs' => ['at://' . ($kept !== '' ? $kept : $current->handle)],
 			'verificationMethods' => ['atproto' => $key->didKey()],
 			'services' => ['atproto_pds' => ['type' => PlcOperation::PDS_SERVICE_TYPE, 'endpoint' => $this->config->pdsEndpoint()]],
 		]);
 		$operation = is_array($signed['operation'] ?? null) ? $signed['operation'] : [];
 		if (($operation['services']['atproto_pds']['endpoint'] ?? '') !== $this->config->pdsEndpoint()
-			|| ($operation['verificationMethods']['atproto'] ?? '') !== $key->didKey()) {
-			throw new AtprotoException('The old server signed something else than was asked');
+			|| ($operation['verificationMethods']['atproto'] ?? '') !== $key->didKey()
+			|| RotationKeys::didKeys($operation['rotationKeys'] ?? null) !== $rotation) {
+			throw new MoveFailure('operation-mismatch', 'The old server signed something else than was asked');
 		}
-		$this->identities->adopt($current, $move->did, $key, $move->pds, $operation);
+		$this->republisher->remember($move, $current);
+		try {
+			if ($kept !== '') {
+				// set before the DID moves, so the identity is announced under it
+				$this->identityRequest->setCustomHandle($current->did, $kept);
+			}
+			$this->identities->adopt($current, $move->did, $key, $move->pds, $operation);
+		} catch (AtprotoException $e) {
+			if ($kept !== '') {
+				$this->identityRequest->setCustomHandle($current->did, $current->customHandle);
+			}
+			throw $e instanceof AtprotoPlcRefusedException || !str_starts_with($e->getMessage(), 'PLC directory') ? $e : new MoveFailure('plc-unreachable', $e->getMessage(), $e);
+		}
+		if ($current->recoveryPublic !== '') {
+			// the recovery key is one of the moved DID's now, as it was of the one retired
+			$this->identityRequest->setRecoveryPublic($move->did, $current->recoveryPublic);
+		}
+	}
+
+	/**
+	 * Decides once which handle the account has after the move, and keeps
+	 * it in the move's progress: `handle_kept`, the person's own domain, or
+	 * '' when the handle becomes the one here.
+	 */
+	private function settleHandle(Move $move): string {
+		if (!array_key_exists('handle_kept', $move->progress)) {
+			$identity = $this->identities->forActor($this->actors->getFromUserId($move->userId), false);
+			$move->progress['handle_kept'] = $this->keptHandle($move->pds, $this->didState($move->did), $identity?->handle ?? '');
+			$this->moves->update($move);
+		}
+
+		return (string)$move->progress['handle_kept'];
+	}
+
+	/**
+	 * The handle a DID moving here keeps: one on a domain of the person's
+	 * own, not under a domain the old server gives handles under
+	 * (`describeServer`'s `availableUserDomains`, its own host, or Bluesky's
+	 * and Bridgy Fed's); '' when the handle is the old server's to give, is
+	 * under this server's host, or is another account's here.
+	 *
+	 * @param array $state the DID's state in the directory
+	 * @param string $own the handle the account has here now
+	 */
+	public function keptHandle(string $pds, array $state, string $own): string {
+		$handle = HandleVerifier::normal((string)preg_replace('#^at://#', '', (string)($state['alsoKnownAs'][0] ?? '')));
+		if ($handle === '' || $this->handles->refusal($handle) !== '' || ($handle !== $own && $this->identityRequest->handleExists($handle))) {
+			return '';
+		}
+		$domains = [...self::HOSTED_HANDLES, '.' . strtolower((string)parse_url($pds, PHP_URL_HOST))];
+		try {
+			$described = $this->pds->call($pds, 'com.atproto.server.describeServer');
+			foreach (is_array($described['body']['availableUserDomains'] ?? null) ? $described['body']['availableUserDomains'] : [] as $domain) {
+				if (is_string($domain) && trim($domain, '.') !== '') {
+					$domains[] = '.' . strtolower(trim($domain, '.'));
+				}
+			}
+		} catch (AtprotoException $e) {
+			$this->logger->info('The old PDS did not say which domains it gives handles under', ['pds' => $pds, 'exception' => $e]);
+		}
+		foreach ($domains as $domain) {
+			if (str_ends_with('.' . $handle, $domain)) {
+				return '';
+			}
+		}
+
+		return $handle;
+	}
+
+	/**
+	 * The old PDS's own rotation keys, as it recommends them for an account
+	 * it holds; none when it does not say, and then every key the DID lists
+	 * is kept.
+	 *
+	 * @return list<string>
+	 */
+	private function oldServerKeys(Move $move): array {
+		try {
+			return RotationKeys::didKeys($this->authed($move, 'com.atproto.identity.getRecommendedDidCredentials')['rotationKeys'] ?? null);
+		} catch (AtprotoException $e) {
+			$this->logger->info('The old PDS did not name its rotation keys; every key the DID lists is kept', ['did' => $move->did, 'exception' => $e]);
+
+			return [];
+		}
 	}
 
 	/**
@@ -394,35 +710,92 @@ class MoveInService {
 		$session = $this->unseal($move->session);
 		$answer = $this->pds->call($move->pds, $method, $verb, $query, $json, null, '', (string)($session['accessJwt'] ?? ''));
 		if (in_array($answer['status'], [400, 401], true) && in_array($answer['body']['error'] ?? '', ['ExpiredToken', 'InvalidToken'], true) && ($session['refreshJwt'] ?? '') !== '') {
-			$refreshed = $this->pds->expect($move->pds, 'com.atproto.server.refreshSession', 'POST', [], null, null, '', (string)$session['refreshJwt']);
+			try {
+				$refreshed = $this->pds->expect($move->pds, 'com.atproto.server.refreshSession', 'POST', [], null, null, '', (string)$session['refreshJwt']);
+			} catch (MoveFailure $e) {
+				// a PLC token that is wrong or old answers as an expired session does
+				throw $method === 'com.atproto.identity.signPlcOperation' ? self::codeRefused($answer) : new MoveFailure($e->errorCode === 'pds-refused' ? 'pds-session-expired' : $e->errorCode, $e->getMessage(), $e);
+			}
 			$move->session = $this->seal(['accessJwt' => (string)($refreshed['accessJwt'] ?? ''), 'refreshJwt' => (string)($refreshed['refreshJwt'] ?? '')] + $session);
 			$this->moves->update($move);
 			$answer = $this->pds->call($move->pds, $method, $verb, $query, $json, null, '', (string)($refreshed['accessJwt'] ?? ''));
 		}
 		if ($answer['status'] !== 200) {
-			$error = trim((string)($answer['body']['error'] ?? '') . ': ' . (string)($answer['body']['message'] ?? ''), ': ');
-			throw new AtprotoException($method . ' answered ' . $answer['status'] . ($error !== '' ? ' (' . $error . ')' : ''));
+			throw $method === 'com.atproto.identity.signPlcOperation' && in_array($answer['body']['error'] ?? '', ['ExpiredToken', 'InvalidToken'], true)
+				? self::codeRefused($answer)
+				: PdsClient::refused($method, $answer);
 		}
 
 		return $answer['body'];
 	}
 
 	/**
+	 * The old PDS did not take the e-mailed code: `code-expired` or
+	 * `code-invalid`.
+	 *
+	 * @param array{status: int, body: array} $answer
+	 */
+	private static function codeRefused(array $answer): MoveFailure {
+		$failure = PdsClient::refused('com.atproto.identity.signPlcOperation', $answer);
+
+		return new MoveFailure(($answer['body']['error'] ?? '') === 'ExpiredToken' ? 'code-expired' : 'code-invalid', $failure->getMessage());
+	}
+
+	/**
+	 * The old PDS did not let the person sign in, as a code: a sign-in code
+	 * asked for, wrong or old; a wrong password; too many tries.
+	 *
+	 * @param array{status: int, body: array} $answer
+	 */
+	private static function signInRefused(array $answer): MoveErrorException {
+		$error = (string)($answer['body']['error'] ?? '');
+		$slug = match (true) {
+			$error === 'AuthFactorTokenRequired' => 'auth-factor-required',
+			$error === 'ExpiredToken' => 'sign-in-code-expired',
+			$error === 'InvalidToken' => 'sign-in-code-invalid',
+			$answer['status'] === 429 || $error === 'RateLimitExceeded' => 'rate-limited',
+			$answer['status'] === 401 || $error === 'AuthenticationRequired' => 'wrong-password',
+			default => 'sign-in-refused',
+		};
+		if ($slug === 'auth-factor-required') {
+			return new MoveErrorException('The Bluesky server e-mailed you a sign-in code: enter it and start again', $slug);
+		}
+
+		return new MoveErrorException('The Bluesky server did not let you sign in: ' . trim((string)($answer['body']['message'] ?? 'status ' . $answer['status'])), $slug);
+	}
+
+	/**
+	 * The directory's current state of a DID.
+	 *
+	 * @throws MoveErrorException `did-not-found` when the directory does not know it
+	 * @throws MoveFailure `plc-unreachable`
+	 */
+	public function didState(string $did): array {
+		try {
+			$data = $this->plc->data($did);
+		} catch (AtprotoException $e) {
+			throw new MoveFailure('plc-unreachable', $e->getMessage(), $e);
+		}
+
+		return $data ?? throw new MoveErrorException('The PLC directory does not know ' . $did, 'did-not-found');
+	}
+
+	/**
 	 * The did:plc a handle or DID the person typed names.
 	 *
-	 * @throws InvalidArgumentException
+	 * @throws MoveErrorException
 	 */
 	public function didOf(string $typed): string {
 		$typed = strtolower(trim(ltrim(trim($typed), '@')));
 		if (Syntax::isDid($typed)) {
 			if (!str_starts_with($typed, 'did:plc:')) {
-				throw new InvalidArgumentException('Only accounts with a did:plc can move here');
+				throw new MoveErrorException('Only accounts with a did:plc can move here', 'did-not-supported');
 			}
 
 			return $typed;
 		}
 		if (!Syntax::isHandle($typed)) {
-			throw new InvalidArgumentException('That is not a Bluesky handle');
+			throw new MoveErrorException('That is not a Bluesky handle', 'handle-invalid');
 		}
 		try {
 			$did = (string)($this->appView->query('com.atproto.identity.resolveHandle', ['handle' => $typed])['did'] ?? '');
@@ -430,7 +803,7 @@ class MoveInService {
 			$did = '';
 		}
 		if (!str_starts_with($did, 'did:plc:')) {
-			throw new InvalidArgumentException('No Bluesky account with a did:plc goes by ' . $typed);
+			throw new MoveErrorException('No Bluesky account with a did:plc goes by ' . $typed, 'handle-not-found');
 		}
 
 		return $did;
@@ -449,7 +822,7 @@ class MoveInService {
 	private function key(Move $move): PrivateKey {
 		$secret = (string)($this->unseal($move->session)['key'] ?? '');
 		if ($secret === '') {
-			throw new AtprotoException('The move lost its signing key; start it again');
+			throw new MoveFailure('keys-sealed', 'The move lost its signing key; start it again');
 		}
 
 		return new PrivateKey(Curve::K256, (string)hex2bin($secret));

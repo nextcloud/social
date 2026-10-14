@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
 use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
@@ -49,7 +50,7 @@ class MigrationApiController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/move/authorized')]
-	public function moveAuthorized(string $target = ''): DataResponse {
+	public function moveAuthorized(string $target = '', string $bluesky = BlueskyAfterMoveOut::DEACTIVATE): DataResponse {
 		try {
 			$this->initViewer([MoveFinishService::SCOPE]);
 			// the scope spelled out, on a token: the base accepts `write` for
@@ -59,7 +60,7 @@ class MigrationApiController extends ClientApiController {
 			}
 
 			$userId = $this->viewer()->getUserId();
-			$moved = $this->migrationService->move($userId, $target);
+			$moved = $this->migrationService->move($userId, $target, true, $bluesky);
 
 			return new DataResponse(
 				$this->migrationService->moveStatus($userId)

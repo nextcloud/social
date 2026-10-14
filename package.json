@@ -1,7 +1,7 @@
 {
 	"name": "social",
 	"description": "Nextcloud becomes part of the federated social networks!",
-	"version": "0.26.255",
+	"version": "0.26.258",
 	"authors": [
 		{
 			"name": "Benedikt Schächner",
@@ -37,6 +37,8 @@
 		"@nextcloud/notify_push": "^1.4.0",
 		"@nextcloud/router": "^3.2.0",
 		"@nextcloud/vue": "^9.13.0",
+		"@noble/hashes": "2.4.0",
+		"@noble/secp256k1": "3.2.0",
 		"blurhash": "^2.0.5",
 		"debounce": "^3.0.0",
 		"dompurify": "^3.4.16",

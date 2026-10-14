@@ -100,6 +100,7 @@ class VendoredFilesTest extends TestCase {
 		'app.bsky.notification.defs.json' => 'f6ce74e19bda3100d4c80924ab9636859ce445b6bb1016b150f0003553d09086',
 		'app.bsky.richtext.facet.json' => 'ef44635c7fc3ab095bc02d29ecc2af6c410b4d5a4a82fd3a971a93674092ff8f',
 		'chat.bsky.actor.declaration.json' => '9e056a303f26f705e02371f0be64e222c4158a570e0ec182d5c1924596de5a5a',
+		'com.atproto.identity.signPlcOperation.json' => '33595630e559b08cb1d421ab2d3cfb8787a200ffd30676c338fd0a08ba2da266',
 		'com.atproto.label.defs.json' => 'b20ed39fa5530ff62a6b4bfbbd7a3648dd57896db7c9c7ac379e1bfc64d1f724',
 		'com.atproto.repo.strongRef.json' => '2d27ecc2a09a86b5065c36e36b987ef726a814023c5e198a1eda8e4c283714e0',
 		'com.atproto.sync.subscribeRepos.json' => 'bfc3e22bfeae701736fbbbd68a56f0b4b8b66ef4e0e10f1c281b2de61c3328ae',

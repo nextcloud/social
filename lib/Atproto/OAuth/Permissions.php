@@ -191,6 +191,21 @@ final class Permissions {
 		return false;
 	}
 
+	/**
+	 * Whether the whole identity may be changed (`identity:*`): its PLC
+	 * operations, as a tool moving the account away signs them. Not a
+	 * transitional scope's to grant, as no app password's is.
+	 */
+	public function mayManageIdentity(): bool {
+		foreach ($this->rules as $rule) {
+			if ($rule['resource'] === 'identity' && ($rule['attr'] ?? '') === '*') {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/** Whether the account's e-mail address may be read. */
 	public function mayReadEmail(): bool {
 		if (in_array(self::EMAIL, $this->scopes, true)) {

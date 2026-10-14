@@ -14,6 +14,7 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Tools\Exceptions\RequestContentException;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -49,6 +50,10 @@ class PlcClientTest extends TestCase {
 				throw $answer;
 			}
 			$status = $answer[0];
+			// as the real client does: an error status is an exception unless the caller takes it
+			if ($status >= 300 && !($options['accept_errors'] ?? false)) {
+				throw new RequestContentException($url, $status);
+			}
 
 			return $answer[1];
 		});

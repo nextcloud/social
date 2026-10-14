@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Command;
 
 use Exception;
+use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
 use OCA\Social\Service\MigrationService;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -41,6 +42,11 @@ class AccountMove extends SocialCommand {
 			->addOption(
 				'force', 'f', InputOption::VALUE_NONE,
 				'skip the confirmation prompt (required with --no-interaction)'
+			)
+			->addOption(
+				'bluesky', null, InputOption::VALUE_REQUIRED,
+				'what becomes of the account\'s Bluesky identity: deactivate, keep, or move (only once its own move is done or under way)',
+				BlueskyAfterMoveOut::DEACTIVATE
 			)
 			->setDescription('Move a local account to another server and tell its followers');
 	}
@@ -77,7 +83,7 @@ class AccountMove extends SocialCommand {
 			$output->write('checking that ' . $target . ' lists this account... ');
 			// an administrator's command is not held to the thirty-day cooldown
 			// the person's own button is: they are the one who can judge why
-			$moved = $this->migrationService->move($userId, $target, false);
+			$moved = $this->migrationService->move($userId, $target, false, (string)$input->getOption('bluesky'));
 		} catch (Exception $e) {
 			$output->writeln('');
 			$output->writeln('<error>' . $e->getMessage() . '</error>');

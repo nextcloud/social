@@ -23,7 +23,8 @@ use OCA\Social\Service\ModerationService;
 /**
  * The part of the XRPC surface a Bluesky app signed in here uses (§6.2,
  * §6.3): sessions, its own account, writes and uploads, service-auth
- * tokens for Bluesky's video service, preferences, and
+ * tokens for Bluesky's video service, preferences, the PLC signature a
+ * tool moving the account away asks for (`PlcSignatureService`), and
  * everything of `app.bsky.*` passed on to the AppView. What is not a
  * signed-in call is the public surface's (`XrpcService`), and is answered
  * there. An account moving here (`createAccount`, and the session that
@@ -58,6 +59,7 @@ class ClientXrpc {
 		private BlueskyMutes $mutes,
 		private BlueskyBookmarks $bookmarks,
 		private NotificationSettings $notificationSettings,
+		private PlcSignatureService $plcSignatures,
 	) {
 	}
 
@@ -133,6 +135,9 @@ class ClientXrpc {
 				$this->sessions->delete((string)($headers['authorization'] ?? ''));
 
 				return [];
+		}
+		if (in_array($method, PlcSignatureService::METHODS, true)) {
+			return $this->plcSignatures->procedure($this->signedIn($headers, $method, 'POST'), $method, $rawBody === '' ? [] : self::json($rawBody));
 		}
 		if (!$this->isClientMethod($method)) {
 			return null;

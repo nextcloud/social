@@ -15,13 +15,15 @@ namespace OCA\Social\Atproto\Model;
  *
  * Moving away goes through the steps in order: the account is made on the
  * other PDS when the move starts, then its repository, its blobs and its
- * preferences are copied there, the DID is pointed there, the account is
- * activated there and switched off here.
+ * preferences are copied there, the other PDS is asked whether everything
+ * arrived, the DID is pointed there, the account is activated there and
+ * switched off here.
  *
- * Moving here: the repository, the blobs, the preferences and the follows
- * are copied from the old PDS, the old PDS e-mails the person a code, and
- * with it signs the operation that points the DID here; the account then
- * takes the DID, and is switched off there; its posts become posts here.
+ * Moving here: the repository, the blobs and the preferences are copied
+ * from the old PDS, the old PDS e-mails the person a code, and with it
+ * signs the operation that points the DID here; the account then takes the
+ * DID, and is switched off there; its follows become follows here, and its
+ * posts posts here.
  *
  * Moving here inbound, the other side drives — Bridgy Fed for a bridged
  * account, or a migration tool: the person invites the DID with a one-time
@@ -38,6 +40,8 @@ final class Move {
 	public const STEP_REPO = 'repo';
 	public const STEP_BLOBS = 'blobs';
 	public const STEP_PREFERENCES = 'prefs';
+	/** moving away: the other PDS is asked whether everything arrived, before the DID moves */
+	public const STEP_CHECK = 'check';
 	public const STEP_IDENTITY = 'identity';
 	public const STEP_ACTIVATE = 'activate';
 	public const STEP_DONE = 'done';
@@ -55,9 +59,16 @@ final class Move {
 	public const WAITING = 'waiting';
 	public const FAILED = 'failed';
 	public const DONE = 'done';
+	/** stopped before the DID moved, for the person to decide how to go on: blobs did not arrive */
+	public const NEEDS_DECISION = 'needs_decision';
+	/** called off by the person before the DID moved */
+	public const CANCELLED = 'cancelled';
 
 	/**
-	 * @param array{blobs?: int, records?: int, follows?: int, expectedBlobs?: int, posts?: int, likes?: int, reposts?: int, lists?: int} $progress counts of what was copied
+	 * @param array<string, mixed> $progress counts of what was copied (`blobs`,
+	 *                                       `records`, `follows`, `posts`, …), and
+	 *                                       for the page `code` once it stopped
+	 *                                       and, moving away, `stage`
 	 */
 	public function __construct(
 		public readonly int $id,
@@ -77,16 +88,21 @@ final class Move {
 	) {
 	}
 
+	/** Whether the move still holds the account: running, or waiting for the person. */
+	public function isUnderWay(): bool {
+		return in_array($this->state, [self::RUNNING, self::WAITING, self::NEEDS_DECISION], true);
+	}
+
 	/** The step after one when moving here; the last is done. */
 	public static function nextIn(string $step): string {
 		return match ($step) {
 			self::STEP_REPO => self::STEP_BLOBS,
 			self::STEP_BLOBS => self::STEP_PREFERENCES,
-			self::STEP_PREFERENCES => self::STEP_FOLLOWS,
-			self::STEP_FOLLOWS => self::STEP_CODE,
+			self::STEP_PREFERENCES => self::STEP_CODE,
 			self::STEP_CODE => self::STEP_IDENTITY,
 			self::STEP_IDENTITY => self::STEP_ACTIVATE,
-			self::STEP_ACTIVATE => self::STEP_POSTS,
+			self::STEP_ACTIVATE => self::STEP_FOLLOWS,
+			self::STEP_FOLLOWS => self::STEP_POSTS,
 			default => self::STEP_DONE,
 		};
 	}
@@ -96,10 +112,28 @@ final class Move {
 		return match ($step) {
 			self::STEP_REPO => self::STEP_BLOBS,
 			self::STEP_BLOBS => self::STEP_PREFERENCES,
-			self::STEP_PREFERENCES => self::STEP_IDENTITY,
+			self::STEP_PREFERENCES => self::STEP_CHECK,
+			self::STEP_CHECK => self::STEP_IDENTITY,
 			self::STEP_IDENTITY => self::STEP_ACTIVATE,
 			default => self::STEP_DONE,
 		};
+	}
+
+	/**
+	 * The move stopped: the sentence for the log and older clients, and
+	 * the code the page explains (§13.5).
+	 */
+	public function fail(string $error, string $code): void {
+		$this->state = self::FAILED;
+		$this->error = $error;
+		$this->progress = ['code' => $code] + $this->progress;
+	}
+
+	/** The move goes on: what stopped it is forgotten. */
+	public function resume(): void {
+		$this->state = self::RUNNING;
+		$this->error = '';
+		unset($this->progress['code']);
 	}
 
 	/** what the settings show of it */

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Atproto\Move\FollowFrom;
 use OCA\Social\Cron\RunImport;
 use OCA\Social\Db\ImportsRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -62,6 +63,7 @@ class ImportQueueService {
 		private MoveInService $moveInService,
 		private AccountService $accountService,
 		private LoggerInterface $logger,
+		private FollowFrom $followFrom,
 	) {
 	}
 
@@ -210,6 +212,11 @@ class ImportQueueService {
 					->setSkipped($report['skipped'] + $report['already'] + $report['posts_skipped'])
 					->setFailed($report['failed'] + $report['posts_failed'])
 					->setReport($report);
+				break;
+
+			case ImportJob::KIND_BLUESKY_FOLLOWS:
+				$result = $this->followFrom->run($userId, $job->getOptions(), $progress);
+				$this->tally($job, $result['followed'], $result['skipped'], $result['failed']);
 				break;
 
 			default:

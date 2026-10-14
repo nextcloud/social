@@ -318,14 +318,64 @@ describe('the size budget', () => {
 	})
 
 	it('is within reach of the largest entrypoint, the entry with the framework chunk it loads first', () => {
-		const entries = Object.keys(config.entry).map((name) => {
+		// a js/ built before an entry was added has no file for it yet
+		const entries = Object.keys(config.entry).filter((name) => existsSync(join(JS, `social-${name}.js`))).map((name) => {
 			const own = size(`social-${name}.js`)
 
-			return name === 'filesAction' ? own : own + size('social-framework.js')
+			// the two self-contained entries load no framework chunk
+			return ['filesAction', 'recovery'].includes(name) ? own : own + size('social-framework.js')
 		})
 		const largest = Math.max(...entries)
 
 		expect(config.performance.maxEntrypointSize).toBeGreaterThanOrEqual(largest)
 		expect(config.performance.maxEntrypointSize).toBeLessThan(largest * 4 / 3)
+	})
+})
+
+/**
+ * The offline recovery tool is inlined into one HTML page by
+ * `RecoveryToolPage` and has to run from a saved copy with the server gone,
+ * so it carries everything it needs and asks for no chunk; and the signing
+ * code it brings stays out of every other bundle.
+ */
+describe('the recovery tool entry', () => {
+	it('derives a key when it runs alone, with no chunk to wait for', async () => {
+		const content = bundle('social-recovery.js')
+		if (content === null) {
+			// a js/ built before the tool existed; the presence check above guards the build
+			return
+		}
+		expect(content.includes('webpackChunksocial')).toBe(false)
+
+		const { JSDOM } = await import('jsdom')
+		const words = readFileSync(resolve(process.cwd(), 'resources/atproto/bip39-english.txt'), 'utf8').trim().split(/\r?\n/)
+		const w = new JSDOM('<!doctype html><html><body><textarea id="key"></textarea><p id="key-result"></p>'
+			+ '<script type="application/json" id="recovery-data"></script></body></html>', { runScripts: 'outside-only' }).window
+		w.document.getElementById('recovery-data').textContent = JSON.stringify({ words, strings: { 'key-ok': '{key}' } })
+		// the page has every element the script wires; these two are what this needs
+		const real = w.document.getElementById.bind(w.document)
+		w.document.getElementById = (id) => real(id) ?? w.document.createElement('input')
+		w.eval(content)
+
+		const key = w.document.getElementById('key')
+		key.value = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+		key.dispatchEvent(new w.Event('input'))
+		expect(w.document.getElementById('key-result').textContent).toBe('did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt')
+	})
+
+	it('stays small', () => {
+		if (!existsSync(join(JS, 'social-recovery.js'))) {
+			return
+		}
+		// 11 KB when it was written
+		expect(gzipSync(readFileSync(join(JS, 'social-recovery.js'))).length).toBeLessThan(16 * 1024)
+	})
+
+	it.each(['social-social.js', 'social-framework.js', 'social-settings.js'])('%s does not carry its signing code', (name) => {
+		const content = bundle(name)
+		if (content === null) {
+			return
+		}
+		expect(content.includes('noble-secp256k1')).toBe(false)
 	})
 })

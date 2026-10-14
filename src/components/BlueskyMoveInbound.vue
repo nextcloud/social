@@ -13,6 +13,8 @@
 			{{ t('social', 'Your Bluesky account now lives here, as {handle}.', { handle: identity.handle }) }}
 		</p>
 
+		<BlueskyMissingBlobs v-else-if="move && move.state === 'needs_decision'" :move="move" @move="takeMove" />
+
 		<div v-else-if="move && (move.state === 'waiting' || move.state === 'running')" class="migration__bluesky-inbound-progress" aria-live="polite">
 			<NcLoadingIcon :size="20" />
 			<div>
@@ -134,6 +136,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconBridge from 'vue-material-design-icons/Bridge.vue'
+import BlueskyMissingBlobs from './BlueskyMissingBlobs.vue'
 import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
@@ -150,6 +153,7 @@ export default {
 	name: 'BlueskyMoveInbound',
 
 	components: {
+		BlueskyMissingBlobs,
 		IconBridge,
 		NcButton,
 		NcLoadingIcon,

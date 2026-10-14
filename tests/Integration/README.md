@@ -354,6 +354,10 @@ to stop.
   out as the repository is read, a page of rows at a time: the peak over
   3,000 records of 4 KB is the peak over 600, and the pieces joined decode
   to the blocks the one-string export has.
+- `Atproto/BlueskyArchiveTest` — "Download your Bluesky account" against a
+  real repository: the zip's `repo.car` decodes to the blocks the repository
+  has, rooted at its head commit, and `plc-log.json` holds the operations this
+  server confirmed when the directory is not asked.
 - `Atproto/ListReposQueryBudgetTest` — `com.atproto.sync.listRepos` asks for a
   page's identities and suspended accounts at once: a page of fifty costs the
   queries a page of five does, and a suspended account is listed `takendown`.

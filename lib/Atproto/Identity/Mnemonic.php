@@ -17,14 +17,20 @@ use RuntimeException;
 /**
  * A recovery key as twelve words.
  *
- * BIP-39: 128 bits of entropy and a four-bit checksum, in eleven-bit groups
- * indexing the English word list. The signing key is derived from the
- * entropy (SHA-256 of it), so the words are the key and the key is never
- * stored: what the person wrote down is the only copy.
+ * The words are BIP-39's: 128 bits of entropy and a four-bit checksum (the
+ * first four bits of SHA-256 of the entropy), in eleven-bit groups
+ * indexing the English word list. The key is not BIP-39's seed: it is
+ * SHA-256 of the ASCII prefix `social.atproto.recovery.v1` followed by the
+ * sixteen entropy bytes, taken as a secp256k1 secret. So the words are the
+ * key and the key is never stored: what the person wrote down is the only
+ * copy. docs/Atproto-Compatibility.md §4.4 spells this out for other
+ * implementations; `resources/atproto/recovery-key.py` is one.
  */
 final class Mnemonic {
 	private const WORDLIST = __DIR__ . '/../../../resources/atproto/bip39-english.txt';
 	private const WORDS = 12;
+	/** what the entropy is hashed after, so the key is this app's and no other derivation's */
+	private const KEY_PREFIX = 'social.atproto.recovery.v1';
 
 	/** @var string[]|null */
 	private static ?array $words = null;
@@ -45,6 +51,20 @@ final class Mnemonic {
 	 */
 	public static function keyFromPhrase(string $phrase): PrivateKey {
 		return self::keyFromEntropy(self::decode($phrase));
+	}
+
+	/**
+	 * The key a phrase is, written the ways other tools take it: the
+	 * private key as multibase (goat) and as hex (the reference PDS,
+	 * `@atproto/crypto`), and the public key as a did:key.
+	 *
+	 * @return array{did_key: string, multibase: string, hex: string}
+	 * @throws InvalidArgumentException when the words are not a phrase
+	 */
+	public static function keyForms(string $phrase): array {
+		$key = self::keyFromPhrase($phrase);
+
+		return ['did_key' => $key->didKey(), 'multibase' => $key->multibase(), 'hex' => bin2hex($key->secret())];
 	}
 
 	public static function encode(string $entropy): string {
@@ -94,7 +114,7 @@ final class Mnemonic {
 	}
 
 	private static function keyFromEntropy(string $entropy): PrivateKey {
-		return new PrivateKey(Curve::K256, hash('sha256', 'social.atproto.recovery.v1' . $entropy, true));
+		return new PrivateKey(Curve::K256, hash('sha256', self::KEY_PREFIX . $entropy, true));
 	}
 
 	/**

@@ -68,6 +68,19 @@ class Lexicon {
 	}
 
 	/**
+	 * Checks the JSON input of a procedure against its lexicon.
+	 *
+	 * @throws LexiconException
+	 */
+	public function validateInput(mixed $body, string $nsid): void {
+		$definition = $this->definition($nsid . '#main');
+		if (($definition['type'] ?? '') !== 'procedure' || !is_array($definition['input']['schema'] ?? null)) {
+			throw new LexiconException($nsid . ' is not a procedure with an input');
+		}
+		$this->check($body, $definition['input']['schema'], $nsid, 'input');
+	}
+
+	/**
 	 * Whether a record fits, for callers that ask rather than throw.
 	 */
 	public function fits(array $record): bool {

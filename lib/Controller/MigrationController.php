@@ -9,7 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ImportJob;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
@@ -274,7 +276,7 @@ class MigrationController extends ClientApiController {
 	#[AnonRateLimit(limit: 10, period: 3600)]
 	#[UserRateLimit(limit: 10, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/move-in/finish')]
-	public function moveInFinishStart(string $handle = ''): DataResponse {
+	public function moveInFinishStart(string $handle = '', string $bluesky = BlueskyAfterMoveOut::DEACTIVATE): DataResponse {
 		try {
 			$userId = $this->caller(['write']);
 		} catch (Throwable $e) {
@@ -282,7 +284,7 @@ class MigrationController extends ClientApiController {
 		}
 		try {
 			return new DataResponse(
-				['authorize_url' => $this->moveFinishService->start($userId, $handle)],
+				['authorize_url' => $this->moveFinishService->start($userId, $handle, $bluesky)],
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
@@ -347,30 +349,34 @@ class MigrationController extends ClientApiController {
 	 * it: Nextcloud's own password confirmation (the attribute), the handle
 	 * typed back as `confirm`, and the new account already naming this one in
 	 * its `alsoKnownAs`, which `MigrationService::move()` checks. Thirty days
-	 * between moves, as Mastodon keeps. Until now this was
+	 * between moves, as Mastodon keeps. `bluesky` says what becomes of the
+	 * account's Bluesky identity (BlueskyAfterMoveOut), switched off unless
+	 * the person says otherwise. Until now this was
 	 * `occ social:account:move`, and on a hosted Nextcloud a support ticket.
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
 	#[UserRateLimit(limit: 5, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/move')]
-	public function moveOut(string $target = '', string $confirm = ''): DataResponse {
+	public function moveOut(string $target = '', string $confirm = '', string $bluesky = BlueskyAfterMoveOut::DEACTIVATE): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+			return new DataResponse(['error' => 'not logged in', 'code' => 'not-signed-in'], Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
 			$handle = $this->accountService->getActorFromUserId($this->userId)->getAccount();
 			if ($handle === '' || strcasecmp(ltrim(trim($confirm), '@'), $handle) !== 0) {
 				return new DataResponse(
-					['error' => 'type your own handle, ' . $handle . ', to confirm the move'],
+					['error' => 'type your own handle, ' . $handle . ', to confirm the move', 'code' => 'confirm-handle'],
 					Http::STATUS_UNPROCESSABLE_ENTITY
 				);
 			}
 
-			$moved = $this->migrationService->move($this->userId, $target);
+			$moved = $this->migrationService->move($this->userId, $target, true, $bluesky);
+		} catch (MoveErrorException $e) {
+			return new DataResponse($e->toArray(), Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return new DataResponse(['error' => $e->getMessage(), 'code' => 'move-refused'], Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
 
 		return new DataResponse(
