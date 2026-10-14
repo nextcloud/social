@@ -1421,6 +1421,19 @@ host (`new_host`). Without a recovery key only the other server controls
 the account afterwards, so a start without one has to say
 `without_recovery: true`; else it is refused with `recovery-key-missing`.
 
+**Where the account stands.** Each step records the stage in
+`progress.stage`: `account_created` (made on the other server,
+deactivated), `repo_copied` (the repository is there, the DID has not
+moved), `identity_switched` (the DID points there, the account is not
+active there yet), `activated`, `done`. "Try again" goes on from the step
+that stopped. Before the DID moved, `DELETE …/bluesky/move` calls the move
+off: the run stops before its next step, and the account made on the other
+server is left there, deactivated, because deleting it takes a code that
+server e-mails (`requestAccountDelete`, then `deleteAccount` with the
+account's password and that code) — the answer says so with
+`target-account-left` and the host. Once the DID moved the move can only be
+finished (`move-past-switch`).
+
 The Fediverse account is untouched; after the move the local actor has no
 Bluesky identity until §4.1 creates a fresh one — which it does not do
 automatically for a moved-away account (flag on the identity row), so the
@@ -1467,6 +1480,10 @@ older clients.
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |
 | `recovery-key-missing` | No recovery key, and the start did not say `without_recovery` | Make a recovery phrase first, or confirm that only the new server will control the account |
+| `no-move-to-call-off` | "Call it off" with no move away under way | Nothing to do |
+| `move-switching` | "Call it off" while the DID is being pointed at the other server | Wait a moment; the move then goes on or stops |
+| `move-past-switch` | "Call it off" after the DID points at the other server | Use "Try again" to finish the move |
+| `target-account-left` | Not an error: a move was called off, and the account made on the other server is still there, deactivated | Delete it at that server (the answer names its host) |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |

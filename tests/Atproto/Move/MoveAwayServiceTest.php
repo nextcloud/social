@@ -50,6 +50,8 @@ class MoveAwayServiceTest extends TestCase {
 	private array $answers = [];
 	/** @var array<int, Move> */
 	private array $rows = [];
+	/** @var (callable(string): void)|null told of every call to the other PDS before it is answered */
+	private $pdsHook = null;
 	private array $queued = [];
 	private PrivateKey $key;
 	private Identity $alice;
@@ -64,6 +66,9 @@ class MoveAwayServiceTest extends TestCase {
 		$pds->method('origin')->willReturnCallback(static fn (string $typed): string => 'https://' . preg_replace('#^https?://#', '', rtrim($typed, '/')));
 		$pds->method('call')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
 			$this->calls[] = ['method' => $method, 'verb' => $verb, 'query' => $query, 'json' => $json, 'bytes' => $bytes, 'token' => $token];
+			if ($this->pdsHook !== null) {
+				($this->pdsHook)($method);
+			}
 
 			return $this->answer($method);
 		});
@@ -93,7 +98,7 @@ class MoveAwayServiceTest extends TestCase {
 		$request = $this->createMock(AtprotoMoveRequest::class);
 		$request->method('add')->willReturnCallback(function (Move $move): int {
 			$id = count($this->rows) + 1;
-			$this->rows[$id] = new Move($id, $move->did, $move->userId, $move->direction, $move->pds, $move->pdsDid, $move->handle, $move->step, $move->state, $move->session);
+			$this->rows[$id] = new Move($id, $move->did, $move->userId, $move->direction, $move->pds, $move->pdsDid, $move->handle, $move->step, $move->state, $move->session, $move->progress);
 
 			return $id;
 		});
@@ -225,6 +230,65 @@ class MoveAwayServiceTest extends TestCase {
 			$this->fail('a server without a DID');
 		} catch (MoveErrorException $e) {
 			$this->assertSame('pds-unknown', $e->errorCode);
+		}
+	}
+
+	public function testEachStepSaysWhereTheAccountStands(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->assertSame('account_created', $this->rows[1]->progress['stage']);
+		$this->answers['com.atproto.server.activateAccount'] = [['status' => 500, 'body' => ['error' => 'InternalServerError']]];
+
+		$this->moves->run($move->id);
+
+		$this->assertSame([Move::FAILED, Move::STEP_ACTIVATE, 'identity_switched'], [$this->rows[1]->state, $this->rows[1]->step, $this->rows[1]->progress['stage']]);
+
+		$this->calls = [];
+		$this->moves->retry('alice');
+		$this->moves->run($move->id);
+		$this->assertSame(['com.atproto.server.activateAccount'], array_column($this->calls, 'method'), 'Try again goes on from the stage it stopped at');
+		$this->assertSame('done', $this->rows[1]->progress['stage']);
+	}
+
+	public function testAMoveIsCalledOffBeforeTheSwitchAndTheAccountThereIsLeftForThePerson(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [['status' => 502, 'body' => []]];
+		$this->moves->run($move->id);
+
+		$called = $this->moves->cancel('alice');
+
+		$this->assertSame([Move::CANCELLED, 'target-account-left', 'repo_copied', ''], [$this->rows[1]->state, $this->rows[1]->progress['code'], $this->rows[1]->progress['stage'], $this->rows[1]->session]);
+		$this->assertSame(Move::CANCELLED, $called->state);
+		$this->identities->expects($this->never())->method('handOver');
+		$this->moves->run($move->id);
+		$this->assertFalse($called->isUnderWay(), 'a new move may start');
+	}
+
+	public function testARunningMoveCalledOffStopsBeforeTheDidMoves(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->answers['app.bsky.actor.putPreferences'] = [['status' => 200, 'body' => []]];
+		$this->identities->expects($this->never())->method('handOver');
+		$this->answers['com.atproto.identity.getRecommendedDidCredentials'] = [['status' => 200, 'body' => []]];
+		// the person calls it off while the preferences are copied
+		$this->pdsHook = function (string $method): void {
+			if ($method === 'app.bsky.actor.putPreferences') {
+				$this->moves->cancel('alice');
+			}
+		};
+
+		$this->moves->run($move->id);
+
+		$this->assertSame(Move::CANCELLED, $this->rows[1]->state);
+	}
+
+	public function testAfterTheSwitchAMoveIsNotCalledOff(): void {
+		foreach ([[Move::STEP_ACTIVATE, Move::FAILED, 'move-past-switch'], [Move::STEP_IDENTITY, Move::RUNNING, 'move-switching'], [Move::STEP_DONE, Move::DONE, 'no-move-to-call-off']] as [$step, $state, $code]) {
+			$this->rows = [1 => new Move(1, self::DID, 'alice', Move::AWAY, self::PDS, self::PDS_DID, 'alice.pds.example.com', $step, $state)];
+			try {
+				$this->moves->cancel('alice');
+				$this->fail('called off at ' . $step);
+			} catch (MoveErrorException $e) {
+				$this->assertSame($code, $e->errorCode);
+			}
 		}
 	}
 

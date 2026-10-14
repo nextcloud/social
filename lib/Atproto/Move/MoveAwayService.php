@@ -86,7 +86,7 @@ class MoveAwayService {
 			throw new MoveErrorException('The Bluesky account is not active here', 'identity-inactive');
 		}
 		$latest = $this->moves->latestOfUser($userId);
-		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
+		if ($latest !== null && $latest->isUnderWay()) {
 			throw new MoveErrorException('A move is already under way', 'move-in-progress');
 		}
 		if ($identity->recoveryPublic === '' && !$withoutRecovery) {
@@ -123,7 +123,8 @@ class MoveAwayService {
 
 		$move = new Move(0, $identity->did, $userId, Move::AWAY, $origin, $pdsDid, (string)($answer['body']['handle'] ?? $handle), Move::STEP_REPO, Move::RUNNING);
 		$move->session = $this->seal($answer['body']);
-		$saved = new Move($this->moves->add($move), $move->did, $userId, Move::AWAY, $origin, $pdsDid, $move->handle, $move->step, $move->state, $move->session);
+		$move->progress = ['stage' => self::stageOf($move)];
+		$saved = new Move($this->moves->add($move), $move->did, $userId, Move::AWAY, $origin, $pdsDid, $move->handle, $move->step, $move->state, $move->session, $move->progress);
 		$this->jobList->add(AtprotoMove::class, ['move' => $saved->id]);
 
 		return $saved;
@@ -197,7 +198,7 @@ class MoveAwayService {
 		$move->state = Move::RUNNING;
 		$move->error = '';
 		unset($move->progress['code']);
-		$this->moves->update($move);
+		$this->save($move);
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 
 		return $move;
@@ -206,6 +207,58 @@ class MoveAwayService {
 	/** The person's latest move, for the settings. */
 	public function latest(string $userId): ?Move {
 		return $this->moves->latestOfUser($userId);
+	}
+
+	/**
+	 * Calls off a move away before the DID moved. The account made on the
+	 * other server stays there, deactivated: deleting it takes a code that
+	 * server e-mails to the address given there
+	 * (`com.atproto.server.requestAccountDelete`, then `deleteAccount`), so
+	 * the person is told to delete it there. Once the DID moved, or while
+	 * it is being moved, a move is not called off but finished.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function cancel(string $userId): Move {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::AWAY || !in_array($move->state, [Move::RUNNING, Move::FAILED, Move::NEEDS_DECISION], true)) {
+			throw new MoveErrorException('There is no move away to call off', 'no-move-to-call-off');
+		}
+		if (in_array($move->step, [Move::STEP_ACTIVATE, Move::STEP_DONE], true)) {
+			throw new MoveErrorException('Your account already points at the new server; the move can only be finished', 'move-past-switch');
+		}
+		if ($move->step === Move::STEP_IDENTITY && $move->state === Move::RUNNING) {
+			throw new MoveErrorException('Your account is being pointed at the new server right now; wait for it', 'move-switching');
+		}
+		$move->state = Move::CANCELLED;
+		$move->session = '';
+		$move->error = 'Called off';
+		$move->progress['code'] = 'target-account-left';
+		$move->progress['stage'] = self::stageOf($move);
+		$this->moves->update($move);
+		$this->logger->info('Bluesky account move called off', ['did' => $move->did, 'pds' => $move->pds, 'step' => $move->step]);
+
+		return $move;
+	}
+
+	/**
+	 * Where the account stands in a move away, for the page to say:
+	 * `account_created` (made on the other server, deactivated),
+	 * `repo_copied` (its repository is there; the DID has not moved),
+	 * `identity_switched` (the DID points there; not yet active there),
+	 * `activated` (active there, about to be done here) or `done`.
+	 */
+	public static function stageOf(Move $move): string {
+		if ($move->state === Move::DONE) {
+			return 'done';
+		}
+
+		return match ($move->step) {
+			Move::STEP_REPO => 'account_created',
+			Move::STEP_ACTIVATE => 'identity_switched',
+			Move::STEP_DONE => 'activated',
+			default => 'repo_copied',
+		};
 	}
 
 	/**
@@ -241,19 +294,41 @@ class MoveAwayService {
 			while ($move->step !== Move::STEP_DONE) {
 				$this->step($move, $identity);
 				$move->step = Move::next($move->step);
-				$this->moves->update($move);
+				$this->save($move);
 			}
 			$move->state = Move::DONE;
 			$move->session = '';
-			$this->moves->update($move);
+			$this->save($move);
 			$this->logger->info('Bluesky account moved away', ['did' => $move->did, 'pds' => $move->pds]);
 		} catch (Throwable $e) {
+			if ($move->state === Move::CANCELLED) {
+				$this->logger->info('Bluesky account move stopped: called off', ['did' => $move->did, 'step' => $move->step]);
+
+				return;
+			}
 			$move->state = Move::FAILED;
 			$move->error = $e->getMessage();
 			$move->progress['code'] = self::codeOf($e);
+			$move->progress['stage'] = self::stageOf($move);
 			$this->moves->update($move);
 			$this->logger->warning('Bluesky account move stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
 		}
+	}
+
+	/**
+	 * Writes where a running move got to, with its stage — unless the
+	 * person called it off meanwhile, which stops the run here.
+	 *
+	 * @throws MoveErrorException when the move was called off
+	 */
+	private function save(Move $move): void {
+		$stored = $this->moves->get($move->id);
+		if ($stored !== null && $stored->state === Move::CANCELLED) {
+			$move->state = Move::CANCELLED;
+			throw new MoveErrorException('The move was called off', 'move-called-off');
+		}
+		$move->progress['stage'] = self::stageOf($move);
+		$this->moves->update($move);
 	}
 
 	/**
@@ -264,10 +339,23 @@ class MoveAwayService {
 			Move::STEP_REPO => $this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, $this->repositories->exportCar($move->did), 'application/vnd.ipld.car'),
 			Move::STEP_BLOBS => $this->copyBlobs($move),
 			Move::STEP_PREFERENCES => $this->authed($move, 'app.bsky.actor.putPreferences', 'POST', [], $this->preferences->get(new ClientSession($move->userId, $identity, ''))),
-			Move::STEP_IDENTITY => $this->identities->handOver($identity, $this->authed($move, 'com.atproto.identity.getRecommendedDidCredentials')),
+			Move::STEP_IDENTITY => $this->handOver($move, $identity),
 			Move::STEP_ACTIVATE => $this->activate($move, $identity),
 			default => null,
 		};
+	}
+
+	/**
+	 * Points the DID at the other PDS, unless the move was called off
+	 * since the last step.
+	 *
+	 * @throws AtprotoException
+	 * @throws MoveErrorException
+	 */
+	private function handOver(Move $move, Identity $identity): void {
+		$credentials = $this->authed($move, 'com.atproto.identity.getRecommendedDidCredentials');
+		$this->save($move);
+		$this->identities->handOver($identity, $credentials);
 	}
 
 	/**
@@ -294,8 +382,8 @@ class MoveAwayService {
 				$copied++;
 			}
 			$cursor = (string)($page['cursor'] ?? '');
-			$move->progress = ['blobs' => $copied];
-			$this->moves->update($move);
+			$move->progress['blobs'] = $copied;
+			$this->save($move);
 		} while ($cursor !== '');
 	}
 
@@ -321,7 +409,7 @@ class MoveAwayService {
 		if (in_array($answer['status'], [400, 401], true) && in_array($answer['body']['error'] ?? '', ['ExpiredToken', 'InvalidToken'], true) && is_string($session['refreshJwt'] ?? null)) {
 			$refreshed = $this->pds->expect($move->pds, 'com.atproto.server.refreshSession', 'POST', [], null, '', '', $session['refreshJwt']);
 			$move->session = $this->seal($refreshed);
-			$this->moves->update($move);
+			$this->save($move);
 			if (is_resource($bytes)) {
 				rewind($bytes);
 			}

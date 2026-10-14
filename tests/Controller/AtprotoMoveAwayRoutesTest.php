@@ -138,6 +138,28 @@ class AtprotoMoveAwayRoutesTest extends TestCase {
 		$this->assertSame('pds-not-public', $this->controller()->moveTarget('localhost')->getData()['code']);
 	}
 
+	public function testCallingOffSaysTheAccountThereIsLeftAndWhere(): void {
+		$this->moveAway->method('cancel')->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_BLOBS, Move::CANCELLED));
+
+		$data = $this->controller()->cancelMoveAway()->getData();
+
+		$this->assertSame(['cancelled', 'target-account-left', 'pds.example.com'], [$data['move']['state'], $data['code'], $data['host']]);
+	}
+
+	public function testCallingOffAfterTheSwitchIsRefusedWithItsCode(): void {
+		$this->moveAway->method('cancel')->willThrowException(new MoveErrorException('Your account already points at the new server', 'move-past-switch'));
+
+		$response = $this->controller()->cancelMoveAway();
+
+		$this->assertSame([Http::STATUS_UNPROCESSABLE_ENTITY, 'move-past-switch'], [$response->getStatus(), $response->getData()['code']]);
+	}
+
+	public function testAnOlderMoveAwayIsGivenItsStage(): void {
+		$this->inbound->method('latest')->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_ACTIVATE, Move::FAILED));
+
+		$this->assertSame('identity_switched', $this->controller()->move()->getData()['move']['progress']['stage']);
+	}
+
 	public function testNothingToStartAgainIsCoded(): void {
 		$this->moveAway->method('latest')->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_REPO, Move::DONE));
 		$this->moveAway->method('retry')->willThrowException(new MoveErrorException('There is no failed move to start again', 'no-failed-move'));

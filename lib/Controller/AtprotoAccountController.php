@@ -293,8 +293,12 @@ class AtprotoAccountController extends Controller {
 		}
 
 		$move = $this->inbound->latest($this->userId());
+		$export = $move?->export();
+		if ($move !== null && $export !== null && $move->direction === Move::AWAY) {
+			$export['progress']['stage'] ??= MoveAwayService::stageOf($move);
+		}
 
-		return new DataResponse(['move' => $move?->export()] + MoveAwayService::control($this->ownIdentity(), $move));
+		return new DataResponse(['move' => $export] + MoveAwayService::control($this->ownIdentity(), $move));
 	}
 
 	/**
@@ -316,6 +320,23 @@ class AtprotoAccountController extends Controller {
 		}
 		try {
 			return new DataResponse(['move' => $this->moveAway->start($this->userId(), $identity, $pds, $handle, $email, $password, $inviteCode, $without_recovery)->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
+	 * Calls off a move away before the DID moved. The answer says that the
+	 * account made on the other server is left there, deactivated, for the
+	 * person to delete there (`target-account-left`, with the host).
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/social/bluesky/move')]
+	public function cancelMoveAway(): DataResponse {
+		try {
+			$move = $this->moveAway->cancel($this->userId());
+
+			return new DataResponse(['move' => $move->export(), 'code' => 'target-account-left', 'host' => (string)parse_url($move->pds, PHP_URL_HOST)]);
 		} catch (Throwable $e) {
 			return self::moveError($e);
 		}

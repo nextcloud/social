@@ -55,6 +55,10 @@ final class Move {
 	public const WAITING = 'waiting';
 	public const FAILED = 'failed';
 	public const DONE = 'done';
+	/** moving away: stopped before the DID moved, for the person to decide how to go on */
+	public const NEEDS_DECISION = 'needs_decision';
+	/** moving away: called off by the person before the DID moved */
+	public const CANCELLED = 'cancelled';
 
 	/**
 	 * @param array<string, mixed> $progress counts of what was copied (`blobs`,
@@ -78,6 +82,11 @@ final class Move {
 		public readonly int $creation = 0,
 		public readonly int $updated = 0,
 	) {
+	}
+
+	/** Whether the move still holds the account: running, or waiting for the person. */
+	public function isUnderWay(): bool {
+		return in_array($this->state, [self::RUNNING, self::WAITING, self::NEEDS_DECISION], true);
 	}
 
 	/** The step after one when moving here; the last is done. */
