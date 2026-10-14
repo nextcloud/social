@@ -164,6 +164,38 @@ trait StreamTimelines {
 	 * @return Stream[]
 	 */
 	private function refilledHomePage(array $posts, array $window, ProbeOptions $options): array {
+		return $this->refilledPage(
+			$posts, $window, $options,
+			function (ProbeOptions $next): array {
+				$window = $this->homeTimelineNidsFromRecipients($next) ?? [];
+				if ($window !== [] && $this->followsAnyTag()) {
+					$window = $this->mergeNidPages($window, $this->followedTagNids($next), $next);
+				}
+
+				return $window;
+			},
+			fn (array $window, ProbeOptions $next): array => $this->streamsByNids($window, $next, true)
+		);
+	}
+
+	/**
+	 * The rounds `refilledHomePage()` describes, for any page chosen off the
+	 * recipient rows and filtered afterwards: posts, or the ids of them.
+	 *
+	 * @template T
+	 *
+	 * @param list<T> $posts what the first window came back with
+	 * @param string[] $window the ids that window was chosen from
+	 * @param callable(ProbeOptions): string[] $nextWindow the ids below (or
+	 *                                                     above) the cursor the options carry
+	 * @param callable(string[], ProbeOptions): list<T> $hydrate those ids filtered, and read if
+	 *                                                           that is what the page holds
+	 *
+	 * @return list<T>
+	 */
+	private function refilledPage(
+		array $posts, array $window, ProbeOptions $options, callable $nextWindow, callable $hydrate,
+	): array {
 		for ($round = 0; $round < self::HOME_REFILL_ROUNDS; $round++) {
 			if (count($posts) >= $options->getLimit() || $window === []) {
 				break;
@@ -176,16 +208,12 @@ trait StreamTimelines {
 				$next->setMaxId(min($window));
 			}
 
-			$window = $this->homeTimelineNidsFromRecipients($next) ?? [];
+			$window = $nextWindow($next);
 			if ($window === []) {
 				break;
 			}
 
-			if ($this->followsAnyTag()) {
-				$window = $this->mergeNidPages($window, $this->followedTagNids($next), $next);
-			}
-
-			$posts = array_merge($posts, $this->streamsByNids($window, $next, true));
+			$posts = array_merge($posts, $hydrate($window, $next));
 		}
 
 		return $posts;
@@ -288,6 +316,17 @@ trait StreamTimelines {
 			return $fast;
 		}
 
+		// a media or news narrowing: the newest posts of the kind, then the
+		// join query asked about those few dozen alone
+		if ($this->recipientNidsAreFilled() && $this->narrowedToAKind($options)) {
+			$byKind = $this->narrowedNidsByKind(
+				$options, fn (array $window, ProbeOptions $next): array => $this->homeTimelineNidsByJoin($next, $window)
+			);
+			if ($byKind !== null) {
+				return $byKind;
+			}
+		}
+
 		return $this->homeTimelineNidsByJoin($options);
 	}
 
@@ -298,11 +337,16 @@ trait StreamTimelines {
 	 * for a viewer the fast path cannot serve. See
 	 * `homeTimelineNidsFromRecipients()` for what is wrong with it.
 	 *
+	 * @param string[]|null $within the posts to choose among, or null for all
+	 *
 	 * @return string[]
 	 */
-	private function homeTimelineNidsByJoin(ProbeOptions $options): array {
+	private function homeTimelineNidsByJoin(ProbeOptions $options, ?array $within = null): array {
 		$page = $this->getStreamNidsSelectSql();
 		$this->homeTimelineFilters($page, $options, false);
+		if ($within !== null) {
+			$page->andWhere($page->expr()->in('s.nid', $page->createNamedParameter($within, IQueryBuilder::PARAM_STR_ARRAY)));
+		}
 
 		return $this->getNidsFromRequest($page);
 	}
@@ -362,8 +406,7 @@ trait StreamTimelines {
 		// which has the predicate *in* the query and finds them wherever they
 		// are. They are also read far less often than the home timeline, which
 		// is what makes that the right trade rather than a concession.
-		if ($options->isOnlyMedia() || $options->isOnlyVideo() || $options->isOnlyShort()
-			|| $options->getMediaType() !== '' || $options->isOnlyNews()) {
+		if ($this->narrowedToAKind($options)) {
 			return null;
 		}
 
@@ -415,6 +458,12 @@ trait StreamTimelines {
 		return $nids;
 	}
 
+	/** Whether the caller asked for one kind of post; see `filterKind()`. */
+	private function narrowedToAKind(ProbeOptions $options): bool {
+		return $options->isOnlyMedia() || $options->isOnlyVideo() || $options->isOnlyShort()
+			|| $options->getMediaType() !== '' || $options->isOnlyNews();
+	}
+
 	/**
 	 * The page query over recipient rows, for the collections `$collections`
 	 * names.
@@ -440,17 +489,26 @@ trait StreamTimelines {
 			// to the bottom for ever; it is excluded rather than shown last
 			->andWhere($expr->gt('sd.nid', $qb->createNamedParameter('0')));
 
+		$this->boundNidPage($qb, 'sd', $options, $wanted);
+	}
+
+	/**
+	 * The cursor, the order and the size of a page of nids read off one
+	 * table: what every page query chosen before its rows are read shares.
+	 */
+	private function boundNidPage(SocialQueryBuilder $qb, string $alias, ProbeOptions $options, int $wanted): void {
+		$expr = $qb->expr();
 		if ($options->getSince() > 0) {
-			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getSince())));
+			$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($options->getSince())));
 		}
 		if ($options->getMaxId() > 0) {
-			$qb->andWhere($expr->lt('sd.nid', $qb->createNamedParameter($options->getMaxId())));
+			$qb->andWhere($expr->lt($alias . '.nid', $qb->createNamedParameter($options->getMaxId())));
 		}
 		if ($options->getMinId() > 0) {
-			$qb->andWhere($expr->gt('sd.nid', $qb->createNamedParameter($options->getMinId())));
+			$qb->andWhere($expr->gt($alias . '.nid', $qb->createNamedParameter($options->getMinId())));
 		}
 
-		$qb->orderBy('sd.nid', $options->isInverted() ? 'asc' : 'desc');
+		$qb->orderBy($alias . '.nid', $options->isInverted() ? 'asc' : 'desc');
 		$qb->setMaxResults($wanted);
 	}
 
@@ -976,7 +1034,13 @@ trait StreamTimelines {
 	 * @return string[]
 	 */
 	protected function hashtagTimelineNids(ProbeOptions $options): array {
-		$page = $this->getStreamNidsSelectSql(true);
+		// the archived filter in the form that admits a row the backfill has
+		// not reached, filled or not: with the bare `archived = 0` MySQL walks
+		// `social_stream` in nid order looking for the tag, which on a large
+		// table and a rare tag is a read of the whole table, where with the
+		// `OR` it starts from the tag's index. `QueryPlanTest` pins the plan.
+		$page = $this->getStreamNidsSelectSql(true, true);
+		$this->hideArchived($page, false, true);
 		$page->limitToStatusTypes();
 		$page->paginate($options);
 		$this->filterKind($page, $options);
@@ -1295,7 +1359,280 @@ trait StreamTimelines {
 		return str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $value);
 	}
 
+	/**
+	 * Should return:
+	 *  * All public posts, newest first
+	 *
+	 * Two phases, as the home timeline: which posts, decided over the
+	 * recipient rows alone, then what they say — see
+	 * `publicTimelineNidsFromRecipients()` for why. The join query is kept
+	 * for what that page cannot answer.
+	 *
+	 * @return Stream[]
+	 */
 	private function getTimelinePublic(ProbeOptions $options): array {
+		if ($this->narrowedToAKind($options)) {
+			$page = ($options->originLimit() === null)
+				? $this->narrowedNidsByKind(
+					$options, fn (array $window, ProbeOptions $next): array => $this->publicNidsOf($window, $next, true)
+				)
+				: null;
+			if ($page === null) {
+				return $this->publicTimelineJoined($options);
+			}
+
+			return ($page === []) ? [] : $this->publicStreams($page, $options);
+		}
+
+		$nids = $this->publicTimelineNidsFromRecipients($options);
+		if ($nids === null) {
+			return $this->publicTimelineJoined($options);
+		}
+		if ($nids === []) {
+			return [];
+		}
+
+		$page = array_slice(
+			$this->refilledPage(
+				$this->publicNidsOf($nids, $options), $nids, $options,
+				fn (ProbeOptions $next): array => $this->publicTimelineNidsFromRecipients($next) ?? [],
+				fn (array $window, ProbeOptions $next): array => $this->publicNidsOf($window, $next)
+			),
+			0,
+			$options->getLimit()
+		);
+
+		return ($page === []) ? [] : $this->publicStreams($page, $options);
+	}
+
+	/**
+	 * A page of a Photos, Videos, Shorts or News timeline, chosen off the
+	 * post's own kind index and filtered to the timeline by `$filter`.
+	 *
+	 * The recipient rows cannot answer a question about the post, and the
+	 * join query that could was read in full by MySQL at a hundred thousand
+	 * rows: the public Photos page scanned `social_stream` and sorted it, and
+	 * the home one drove from every recipient row of everything the viewer
+	 * follows into a temporary table. Each kind has an index of
+	 * `(kind, nid)`, so the newest posts of one kind are one index range in
+	 * nid order (`kindWindowNids()`); which of them belong on this timeline
+	 * is then asked of those few dozen rows, and the page reads on, as the
+	 * home timeline does, when that empties it.
+	 *
+	 * Returns **null** for the join query where this cannot answer: the
+	 * index cannot be trusted yet, or the windows ran out before the page
+	 * filled while there were still posts of the kind further down — a
+	 * narrowing whose posts are mostly not on this timeline (photographs on
+	 * the home page of somebody who follows two accounts) is one the join
+	 * query reads as fast as it reads anything, and one an empty page would
+	 * wrongly call finished.
+	 *
+	 * @param callable(string[], ProbeOptions): string[] $filter the ids of a
+	 *                                                           window that belong on the timeline, in order
+	 *
+	 * @return string[]|null
+	 */
+	private function narrowedNidsByKind(ProbeOptions $options, callable $filter): ?array {
+		$window = $this->kindWindowNids($options);
+		if ($window === null) {
+			return null;
+		}
+
+		$wanted = min(self::HOME_OVERREAD_MAX, $options->getLimit() * self::HOME_OVERREAD);
+		$exhausted = count($window) < $wanted;
+		$nids = $this->refilledPage(
+			($window === []) ? [] : $filter($window, $options), $window, $options,
+			function (ProbeOptions $next) use (&$exhausted, $wanted): array {
+				$window = $this->kindWindowNids($next) ?? [];
+				$exhausted = count($window) < $wanted;
+
+				return $window;
+			},
+			$filter
+		);
+
+		if (count($nids) < $options->getLimit() && !$exhausted) {
+			return null;
+		}
+
+		return array_slice($nids, 0, $options->getLimit());
+	}
+
+	/**
+	 * The newest posts of the kind a narrowing asks for, before any other
+	 * filter: one `(kind, nid)` index range per kind, merged — `only_media`
+	 * is image, video, audio, gifv and mixed.
+	 *
+	 * Returns **null** where the index cannot be trusted yet — a media
+	 * narrowing before every row carries its `media_kind` — and for a
+	 * narrowing to both media and news, which no one index holds.
+	 *
+	 * @return string[]|null
+	 */
+	private function kindWindowNids(ProbeOptions $options): ?array {
+		$media = $options->isOnlyMedia() || $options->isOnlyVideo() || $options->isOnlyShort() || $options->getMediaType() !== '';
+		if ($media && $options->isOnlyNews()) {
+			return null;
+		}
+
+		if ($options->isOnlyShort()) {
+			$kinds = ['short_kind' => [Stream::SHORT_KIND_SHORT]];
+		} elseif ($options->isOnlyVideo() || $options->getMediaType() === 'video') {
+			$kinds = ['media_kind' => ['video', Stream::MEDIA_KIND_MIXED]];
+		} elseif ($options->getMediaType() !== '') {
+			$kinds = ['media_kind' => [$options->getMediaType(), Stream::MEDIA_KIND_MIXED]];
+		} elseif ($options->isOnlyMedia()) {
+			$kinds = ['media_kind' => [...Stream::MEDIA_KINDS, Stream::MEDIA_KIND_MIXED]];
+		} else {
+			$kinds = ['news_kind' => [Stream::NEWS_KIND_LINK, Stream::NEWS_KIND_ARTICLE]];
+		}
+		if (isset($kinds['media_kind']) && !$this->mediaKindIsFilled()) {
+			return null;
+		}
+
+		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
+		}
+		$wanted = min(self::HOME_OVERREAD_MAX, $options->getLimit() * self::HOME_OVERREAD);
+
+		$nids = [];
+		foreach ($kinds as $column => $values) {
+			foreach ($values as $value) {
+				$qb = $this->getQueryBuilder();
+				$qb->select('s.nid')
+					->from(self::TABLE_STREAM, 's')
+					->where($qb->expr()->eq('s.' . $column, $qb->createNamedParameter($value)));
+				$this->boundNidPage($qb, 's', $options, $wanted);
+				$nids = $this->mergeNidPages($nids, $this->getNidsFromRequest($qb), $options, $wanted);
+			}
+		}
+
+		return $nids;
+	}
+
+	/**
+	 * The ids of `$window` that belong on the public timeline, in its order:
+	 * the filters the page query left out, applied as one projection of one
+	 * column over a few dozen rows read by their key.
+	 *
+	 * Apart from the read of the rows because the read is wide — eighty
+	 * columns, the author's beside them — and the window is three times the
+	 * page: filtering first reads that width for the twenty rows that are
+	 * shown rather than the sixty that were considered.
+	 *
+	 * @param string[] $window
+	 * @param bool $byKind whether the window came off a kind index, so that
+	 *                     whether each post is public is still to be asked
+	 *
+	 * @return string[]
+	 */
+	private function publicNidsOf(array $window, ProbeOptions $options, bool $byKind = false): array {
+		$page = $this->getStreamNidsSelectSql(false);
+		$page->andWhere($page->expr()->in('s.nid', $page->createNamedParameter($window, IQueryBuilder::PARAM_STR_ARRAY)));
+		$page->limitToStatusTypes();
+		if ($byKind) {
+			// the recipient row, by its unique key: addressed *to* the public
+			// collection, as the page off the recipient rows is
+			$this->filterKind($page, $options);
+			$page->selectDestFollowing('sd', '');
+			$page->innerJoinStreamDest('recipient', 'id_prim', 'sd', 's');
+			$page->limitToDest(ACore::CONTEXT_PUBLIC, 'recipient', 'to', 'sd');
+		}
+		// a post without a cached author is left out here, where it does not
+		// take a place on the page
+		$page->joinCacheActors('ca', 's.attributed_to_prim');
+		$page->filterHiddenActors();
+		$this->filterSilencedActors($page);
+		$page->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
+
+		return $this->getNidsFromRequest($page);
+	}
+
+	/**
+	 * The rows of a public page that has been decided, in its order, with
+	 * their author: a status carries no boosted object, so the object join
+	 * `streamsByNids()` makes for the home page is not made.
+	 *
+	 * @param string[] $nids
+	 *
+	 * @return Stream[]
+	 */
+	private function publicStreams(array $nids, ProbeOptions $options): array {
+		$qb = $this->getStreamSelectSql($options->getFormat());
+		$qb->andWhere(
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
+		);
+		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		$qb->leftJoinStreamAction();
+
+		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * The ids of a page of the public timeline, off the recipient rows alone.
+	 *
+	 * The joined query has no selective predicate: on a public instance the
+	 * public collection's recipient rows are nearly every post, and the
+	 * type, archived and silenced filters each keep nearly every row. What
+	 * made it cheap was one plan — walk `social_sd_atn` newest first, look
+	 * each post up by its key, stop at the limit — and nothing in the query
+	 * obliged the planner to choose it: the other plan reads `social_stream`
+	 * in full, probes the recipient rows and sorts, and which one the
+	 * optimizer picks follows its row estimates for the table in front of it.
+	 * On a copy of an instance it picked the second, at a hundred times the
+	 * cost, for the same SQL.
+	 *
+	 * So the page is read from one table with one possible plan: the public
+	 * collection, type `recipient`, subtype `to`, newest nid first, which
+	 * `social_sd_atn` answers as one index range in that order, with no join
+	 * to reorder and no `OR` to estimate; the subtype is sifted per entry
+	 * (an index carrying it as well was tried and made MySQL read the home
+	 * page as a skip scan). The filters the join carried are applied to the
+	 * rows it chose, in `publicNidsOf()`, where each is a lookup against a
+	 * few dozen ids; the page is read wider than asked and read on when
+	 * filtering empties it, as the home timeline is.
+	 *
+	 * Returns **null** where the page cannot be decided here and the join
+	 * query answers: an instance whose backfill has not finished, and
+	 * `local=` / `remote=`, a question about the post's origin the recipient
+	 * rows cannot answer. A `local` flag on the recipient row would answer
+	 * it, at the price of a column on the largest table this app has and a
+	 * backfill over every row of it, for the two narrowings of the public
+	 * timeline a client asks for least. A media or news narrowing is a
+	 * question about the post too, and is answered off the post's own index
+	 * instead: see `narrowedNidsByKind()`.
+	 *
+	 * @return string[]|null
+	 */
+	private function publicTimelineNidsFromRecipients(ProbeOptions $options): ?array {
+		if (!$this->recipientNidsAreFilled() || $options->originLimit() !== null) {
+			return null;
+		}
+
+		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
+		}
+		$wanted = min(self::HOME_OVERREAD_MAX, $options->getLimit() * self::HOME_OVERREAD);
+
+		$qb = $this->getQueryBuilder();
+		$this->selectHomeRecipients(
+			$qb, $qb->expr()->eq('sd.actor_id', $qb->createNamedParameter(md5(ACore::CONTEXT_PUBLIC))), $options, $wanted
+		);
+		// addressed *to* the public collection: an unlisted post names it in
+		// `cc` and is kept off this timeline, as its author asked
+		$qb->andWhere($qb->expr()->eq('sd.subtype', $qb->createNamedParameter('to')));
+
+		return $this->getNidsFromRequest($qb);
+	}
+
+	/**
+	 * The public timeline as one joined page query: what answers a narrowed
+	 * request, and an instance whose backfill has not finished.
+	 *
+	 * @return Stream[]
+	 */
+	private function publicTimelineJoined(ProbeOptions $options): array {
 		// the recipient join fixes the actor (the public collection) and the
 		// type, which the unique index makes at most one row
 		$page = $this->getStreamNidsSelectSql(false);
@@ -1319,18 +1656,7 @@ trait StreamTimelines {
 		$this->filterSilencedActors($page);
 
 		$nids = $this->getNidsFromRequest($page);
-		if ($nids === []) {
-			return [];
-		}
 
-		$qb = $this->getStreamSelectSql($options->getFormat());
-		$qb->andWhere(
-			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
-		);
-		$qb->orderBy('s.nid', $options->isInverted() ? 'asc' : 'desc');
-		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
-		$qb->leftJoinStreamAction();
-
-		return $this->getStreamsFromRequest($qb);
+		return ($nids === []) ? [] : $this->publicStreams($nids, $options);
 	}
 }

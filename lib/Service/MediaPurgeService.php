@@ -118,22 +118,35 @@ class MediaPurgeService {
 	 * post back at the attachment it shows, so "parentless" would sweep away
 	 * the pictures of live posts.
 	 *
+	 * Page after page of `$limit`, each read after the last row of the one
+	 * before, until a page comes back short or `$deadline` has passed: a
+	 * retention prune, a domain purge or an account deletion orphans far more
+	 * than one page a day, and one page a day never caught up.
+	 *
+	 * @param int $deadline a timestamp past which no further page is read; 0
+	 *                      for one page
+	 *
 	 * @return int how many rows went
 	 */
-	public function sweepOrphans(int $days, int $limit): int {
+	public function sweepOrphans(int $days, int $limit, int $deadline = 0): int {
 		$swept = 0;
-		foreach ($this->cacheDocumentsRequest->getOrphanedByParent($days, $limit) as $document) {
-			try {
-				$this->purge($document);
-				$swept++;
-			} catch (Throwable $e) {
-				// one row that will not go is not a reason to stop: the rest
-				// of the batch is still worth reclaiming
-				$this->logger->warning('could not remove an orphaned document', [
-					'document' => $document->getId(), 'exception' => $e,
-				]);
+		$after = 0;
+		do {
+			$page = $this->cacheDocumentsRequest->getOrphanedByParent($days, $limit, $after);
+			foreach ($page as $document) {
+				$after = max($after, (int)$document->getNid());
+				try {
+					$this->purge($document);
+					$swept++;
+				} catch (Throwable $e) {
+					// one row that will not go is not a reason to stop: the rest
+					// of the batch is still worth reclaiming
+					$this->logger->warning('could not remove an orphaned document', [
+						'document' => $document->getId(), 'exception' => $e,
+					]);
+				}
 			}
-		}
+		} while (count($page) >= $limit && $after > 0 && time() < $deadline);
 
 		if ($swept > 0) {
 			$this->logger->info('swept documents whose parent is gone', [

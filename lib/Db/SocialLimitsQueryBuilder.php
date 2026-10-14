@@ -536,12 +536,21 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		// are what a row written before that column existed is judged by, and
 		// they are the reason this predicate could never use an index: they are
 		// applied *after* the join, so a Photos timeline on a ten-million-row
-		// table read every candidate row and then decided.
+		// table read every candidate row and then decided. Once the flag says
+		// every row has its kind, the `OR` that admits them is left out: a
+		// planner that sees it stops trusting the index.
+		$byKind = $expr->andX(
+			$expr->isNotNull($pf . '.media_kind'),
+			$expr->neq($pf . '.media_kind', $this->createNamedParameter(Stream::MEDIA_KIND_NONE))
+		);
+		if ($this->mediaKindIsFilled()) {
+			$this->andWhere($byKind);
+
+			return $this;
+		}
+
 		$this->andWhere($expr->orX(
-			$expr->andX(
-				$expr->isNotNull($pf . '.media_kind'),
-				$expr->neq($pf . '.media_kind', $this->createNamedParameter(Stream::MEDIA_KIND_NONE))
-			),
+			$byKind,
 			$expr->andX(
 				$expr->isNull($pf . '.media_kind'),
 				$expr->isNotNull($pf . '.attachments'),
@@ -575,13 +584,20 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 
+		// the indexed answer, wherever the column has been filled in.
+		// `mixed` counts: a post with a photograph and a video in it is a
+		// video post, and the column had to choose one word for it.
+		$byKind = $expr->in($pf . '.media_kind', $this->createNamedParameter(
+			['video', Stream::MEDIA_KIND_MIXED], IQueryBuilder::PARAM_STR_ARRAY
+		));
+		if ($this->mediaKindIsFilled()) {
+			$this->andWhere($byKind);
+
+			return $this;
+		}
+
 		$this->andWhere($expr->orX(
-			// the indexed answer, wherever the column has been filled in.
-			// `mixed` counts: a post with a photograph and a video in it is a
-			// video post, and the column had to choose one word for it.
-			$expr->in($pf . '.media_kind', $this->createNamedParameter(
-				['video', Stream::MEDIA_KIND_MIXED], IQueryBuilder::PARAM_STR_ARRAY
-			)),
+			$byKind,
 			// and the old question, for a row the backfill has not reached
 			$expr->andX(
 				$expr->isNull($pf . '.media_kind'),
@@ -622,10 +638,17 @@ class SocialLimitsQueryBuilder extends SocialCrossQueryBuilder {
 		$expr = $this->expr();
 		$pf = $this->getDefaultSelectAlias();
 
+		$byKind = $expr->in($pf . '.media_kind', $this->createNamedParameter(
+			[$type, Stream::MEDIA_KIND_MIXED], IQueryBuilder::PARAM_STR_ARRAY
+		));
+		if ($this->mediaKindIsFilled()) {
+			$this->andWhere($byKind);
+
+			return $this;
+		}
+
 		$this->andWhere($expr->orX(
-			$expr->in($pf . '.media_kind', $this->createNamedParameter(
-				[$type, Stream::MEDIA_KIND_MIXED], IQueryBuilder::PARAM_STR_ARRAY
-			)),
+			$byKind,
 			$expr->andX(
 				$expr->isNull($pf . '.media_kind'),
 				$expr->like(

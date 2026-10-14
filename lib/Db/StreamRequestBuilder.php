@@ -106,19 +106,26 @@ class StreamRequestBuilder extends CoreRequestBuilder {
 	 * asks for them, and a read written later shows none until somebody
 	 * decides it should. The other way round, every list written from now on
 	 * would leak one until somebody noticed.
+	 *
+	 * `$admitUnfilled` keeps the `OR … IS NULL` after the backfill has made
+	 * it dead weight, for a query whose plan depends on it.
 	 */
-	protected function hideArchived(SocialQueryBuilder $qb, bool $withArchived): void {
+	protected function hideArchived(SocialQueryBuilder $qb, bool $withArchived, bool $admitUnfilled = false): void {
 		if ($withArchived) {
 			return;
 		}
 
-		$qb->andWhere(
-			$qb->expr()->orX(
-				$qb->expr()->eq('s.archived', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL)),
-				// rows written before the column existed
-				$qb->expr()->isNull('s.archived')
-			)
-		);
+		$notArchived = $qb->expr()->eq('s.archived', $qb->createNamedParameter(false, IQueryBuilder::PARAM_BOOL));
+		if ($this->archivedIsFilled() && !$admitUnfilled) {
+			$qb->andWhere($notArchived);
+
+			return;
+		}
+
+		// rows written before the column existed carry NULL until the
+		// backfill has reached them; an `OR` a planner estimates badly, so
+		// it is dropped the moment the flag says it is dead weight
+		$qb->andWhere($qb->expr()->orX($notArchived, $qb->expr()->isNull('s.archived')));
 	}
 
 	/**

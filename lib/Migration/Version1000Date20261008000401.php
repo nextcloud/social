@@ -71,6 +71,15 @@ class Version1000Date20261008000401 extends SimpleMigrationStep {
 
 	#[\Override]
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
+		$this->fill();
+	}
+
+	/**
+	 * Queues the backfill, which marks the index ready when it reaches the
+	 * newest post; `InstallBackfills` calls this on a fresh install, which
+	 * runs migrations schema-only.
+	 */
+	public function fill(): void {
 		if (!$this->jobList->has(SearchIndex::class, null)) {
 			$this->jobList->add(SearchIndex::class);
 		}

@@ -11,20 +11,25 @@ namespace OCA\Social\Tests\SetupChecks;
 
 use OCA\Social\Cron\Queue;
 use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Db\SearchTermsRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FederationHealthService;
+use OCA\Social\Service\IndexService;
 use OCA\Social\Service\VideoTranscodeService;
 use OCA\Social\SetupChecks\BlueskyReady;
 use OCA\Social\SetupChecks\ClientApiAtRoot;
 use OCA\Social\SetupChecks\CloudAddressMatches;
 use OCA\Social\SetupChecks\CronRanRecently;
 use OCA\Social\SetupChecks\Docs;
+use OCA\Social\SetupChecks\IndexRepairsComplete;
 use OCA\Social\SetupChecks\MemcacheConfigured;
 use OCA\Social\SetupChecks\OutboundQueueNotStuck;
 use OCA\Social\SetupChecks\ProxyForwardsTheScheme;
 use OCA\Social\SetupChecks\ReachableByStrictPeers;
+use OCA\Social\SetupChecks\RetentionBoundsTheTables;
 use OCA\Social\SetupChecks\UploadLimitsAgree;
 use OCA\Social\SetupChecks\VideoConverter;
 use OCA\Social\SetupChecks\WebFingerReachable;
@@ -347,6 +352,94 @@ class SetupChecksTest extends TestCase {
 		$this->assertStringContainsString('2 deliveries were given up on', $description);
 	}
 
+	// Social: table growth
+
+	private function growth(int $retentionDays, int $posts, int $terms): RetentionBoundsTheTables {
+		$config = $this->createStub(ConfigService::class);
+		$config->method('getAppValueInt')->willReturnCallback(
+			static fn (string $key): int => ($key === ConfigService::SOCIAL_RETENTION_DAYS) ? $retentionDays : 0
+		);
+		$streams = $this->createStub(StreamRequest::class);
+		$streams->method('countPostsUpTo')->willReturnCallback(
+			static fn (int $cap): int => min($posts, $cap)
+		);
+		$searchTerms = $this->createStub(SearchTermsRequest::class);
+		$searchTerms->method('approximateCount')->willReturn($terms);
+
+		return new RetentionBoundsTheTables($this->l10n, $config, $streams, $searchTerms);
+	}
+
+	public function testRetentionThatIsOnIsQuietWhateverTheSize(): void {
+		$result = $this->growth(180, RetentionBoundsTheTables::POSTS + 1, RetentionBoundsTheTables::TERMS + 1)->run();
+
+		$this->assertSame(SetupResult::SUCCESS, $result->getSeverity());
+	}
+
+	public function testASmallInstanceWithoutRetentionIsQuiet(): void {
+		$this->assertSame(SetupResult::SUCCESS, $this->growth(0, 5000, 100000)->run()->getSeverity());
+	}
+
+	/**
+	 * Nothing bounds the posts, their recipient rows or their words by
+	 * default; the default stays, and an instance that has grown past the
+	 * size where that starts to cost is told how to bound them.
+	 */
+	public function testALargeInstanceWithoutRetentionIsWarnedAndToldWhere(): void {
+		$result = $this->growth(0, RetentionBoundsTheTables::POSTS + 10, 1000)->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('retention_days', $description);
+		$this->assertSame(RetentionBoundsTheTables::DOC, $result->getLinkToDoc());
+	}
+
+	public function testAWordIndexPastItsSizeIsWarnedAboutToo(): void {
+		$result = $this->growth(0, 1000, RetentionBoundsTheTables::TERMS + 1)->run();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+	}
+
+	// Social: index repairs
+
+	private function repairs(int $timelines, int $search): IndexRepairsComplete {
+		$config = $this->createStub(ConfigService::class);
+		$config->method('getAppValueInt')->willReturnCallback(
+			static fn (string $key): int => match ($key) {
+				IndexService::SKIPPED_KEY => $timelines,
+				SearchTermsRequest::SKIPPED => $search,
+				default => 0,
+			}
+		);
+
+		return new IndexRepairsComplete($this->l10n, $config);
+	}
+
+	public function testRepairsThatSkippedNothingAreQuiet(): void {
+		$this->assertSame(SetupResult::SUCCESS, $this->repairs(0, 0)->run()->getSeverity());
+	}
+
+	/**
+	 * A skipped post is one no timeline or search finds, and until now the
+	 * only trace of it was a warning in the log.
+	 */
+	public function testEachRepairThatSkippedPostsIsCountedSeparately(): void {
+		$result = $this->repairs(2, 1)->run();
+		$description = (string)$result->getDescription();
+
+		$this->assertSame(SetupResult::WARNING, $result->getSeverity());
+		$this->assertStringContainsString('2 posts could not be given their timeline and hashtag rows', $description);
+		$this->assertStringContainsString('1 post could not be added to the content search', $description);
+		$this->assertStringContainsString('skipping stream', $description);
+		$this->assertSame(IndexRepairsComplete::DOC, $result->getLinkToDoc());
+	}
+
+	public function testOnlyTheRepairThatSkippedSomethingIsMentioned(): void {
+		$description = (string)$this->repairs(0, 3)->run()->getDescription();
+
+		$this->assertStringNotContainsString('timeline and hashtag rows', $description);
+		$this->assertStringContainsString('3 posts could not be added to the content search', $description);
+	}
+
 	/**
 	 * A check nobody can act on is a check nobody reads twice, so each one
 	 * links to the section of the guide that says what to do — and a section
@@ -364,6 +457,8 @@ class SetupChecksTest extends TestCase {
 			MemcacheConfigured::DOC,
 			VideoConverter::DOC,
 			BlueskyReady::DOC,
+			IndexRepairsComplete::DOC,
+			RetentionBoundsTheTables::DOC,
 		] as $link) {
 			$this->assertStringStartsWith(Docs::ADMIN_GUIDE . '#', $link);
 			$anchor = substr($link, strlen(Docs::ADMIN_GUIDE) + 1);

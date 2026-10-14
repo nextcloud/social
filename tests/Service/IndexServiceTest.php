@@ -79,9 +79,11 @@ class IndexServiceTest extends TestCase {
 		);
 	}
 
-	/** @return list<array{nid: string, id_prim: string}> */
+	/** @return list<array{nid: string, id_prim: string, type: string}> */
 	private static function rows(int ...$nids): array {
-		return array_map(static fn (int $nid): array => ['nid' => (string)$nid, 'id_prim' => 'p' . $nid], $nids);
+		return array_map(
+			static fn (int $nid): array => ['nid' => (string)$nid, 'id_prim' => 'p' . $nid, 'type' => 'Note'], $nids
+		);
 	}
 
 	public function testAPageIsHydratedInOneQueryAndTheCursorWrittenOnce(): void {
@@ -177,11 +179,18 @@ class IndexServiceTest extends TestCase {
 			$this->assertSame('100', $this->stored['index_nid'], 'pass ' . $pass);
 		}
 
+		// named by what says why it cannot be read, and counted where the
+		// setup check looks
 		$this->logger->expects($this->once())->method('warning')
-			->with($this->stringContains('skipping stream 200'));
+			->with(
+				$this->stringContains('skipping stream 200 (Note p200)'),
+				$this->callback(static fn (array $context): bool
+					=> $context['id_prim'] === 'p200' && $context['type'] === 'Note' && isset($context['exception']))
+			);
 		$this->assertSame(1, $this->service->repairNextChunk());
 		$this->assertSame('300', $this->stored['index_nid']);
 		$this->assertArrayNotHasKey('index_failing', $this->stored);
+		$this->assertSame('1', $this->stored[IndexService::SKIPPED_KEY]);
 	}
 
 	public function testAPageThatCannotBeHydratedIsReadOneStreamAtATime(): void {

@@ -88,6 +88,14 @@ class ConfigService {
 	public const SOCIAL_NOTIFICATION_RETENTION_DAYS = 'notification_retention_days';
 
 	/**
+	 * How far the retention walk has judged the old remote posts today:
+	 * `day|creation|id_prim`, written by `StreamPruneService` after each
+	 * chunk. A run carries on from it; the first run of a new day starts
+	 * again from the oldest row.
+	 */
+	public const SOCIAL_RETENTION_CHECKED = 'retention_checked';
+
+	/**
 	 * Days to keep a cached remote actor nobody here refers to any more —
 	 * not followed, not following, no post stored, no relation pending — before
 	 * the cache cron evicts it with its avatar; 0 disables the sweep.
@@ -360,6 +368,26 @@ class ConfigService {
 	public const SOCIAL_DEST_NID_FILLED = 'dest_nid_filled';
 
 	/**
+	 * Whether every `social_stream` row carries a value in `archived`.
+	 *
+	 * Set by `Version1000Date20261013100500` once no row is left with NULL
+	 * there. Until then every list of posts has to admit a NULL beside a 0,
+	 * and that `OR` is the kind of predicate a planner estimates badly.
+	 */
+	public const SOCIAL_STREAM_ARCHIVED_FILLED = 'stream_archived_filled';
+
+	/**
+	 * Whether every `social_stream` row carries a value in `media_kind`.
+	 *
+	 * `Version1000Date20260917000003` fills the column; this is set by
+	 * `Version1000Date20261013100500` once it finds no row without one. Until
+	 * then the media filters keep the `OR` that judges a row by its
+	 * attachments, which is what kept them from being answered by the
+	 * `(media_kind, nid)` index.
+	 */
+	public const SOCIAL_STREAM_MEDIA_KIND_FILLED = 'stream_media_kind_filled';
+
+	/**
 	 * Whether every post carries the host of its author in `author_host` yet.
 	 *
 	 * Set by `Cron\StreamAuthorHosts` when its backfill reaches the end of
@@ -563,6 +591,8 @@ class ConfigService {
 		self::SOCIAL_LOCAL_ACTOR_CURSOR => '',
 		self::SOCIAL_PROFILE_LINK_CURSOR => '',
 		self::SOCIAL_DEST_NID_FILLED => '0',
+		self::SOCIAL_STREAM_ARCHIVED_FILLED => '0',
+		self::SOCIAL_STREAM_MEDIA_KIND_FILLED => '0',
 		self::SOCIAL_STREAM_AUTHOR_HOSTS_FILLED => '0',
 		self::SOCIAL_SEARCH_WINDOW_DAYS => '365',
 		self::SOCIAL_NSFW_POLICY => 'default',

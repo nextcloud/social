@@ -68,6 +68,16 @@ trait StreamSearch {
 			return [];
 		}
 
+		// function words are not in the index: beside other words they ask
+		// nothing of it, and a query of nothing else is answered by the scan
+		$whole = array_values(array_filter($whole, static fn (string $word): bool => !SearchTerms::isStopWord($word)));
+		if (SearchTerms::isStopWord($prefix)) {
+			$prefix = '';
+		}
+		if ($whole === [] && $prefix === '') {
+			return $this->scanContent($term, $limit, $offset, $authorId, $maxId, $minId);
+		}
+
 		// a lone prefix is read through its head, and a head as common as
 		// `the` is nearly every post: it is bounded the way the scan was. A
 		// whole word is not
@@ -123,7 +133,7 @@ trait StreamSearch {
 		}
 
 		return array_values(array_filter($hits, static function (Stream $post) use ($prefix): bool {
-			foreach (SearchTerms::ofHtml($post->getContent()) as $word) {
+			foreach (SearchTerms::ofHtml($post->getContent(), true) as $word) {
 				if (str_starts_with($word, $prefix)) {
 					return true;
 				}

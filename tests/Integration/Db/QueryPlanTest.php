@@ -78,6 +78,7 @@ class QueryPlanTest extends TestCase {
 	private static array $streams = [];
 
 	private string $fastPathBefore = '';
+	private string $mediaKindBefore = '';
 
 	public static function setUpBeforeClass(): void {
 		parent::setUpBeforeClass();
@@ -153,11 +154,13 @@ class QueryPlanTest extends TestCase {
 			$this->markTestSkipped('query plans are asserted on SQLite, MySQL and PostgreSQL only');
 		}
 		$this->fastPathBefore = Server::get(ConfigService::class)->getAppValue(ConfigService::SOCIAL_DEST_NID_FILLED);
+		$this->mediaKindBefore = Server::get(ConfigService::class)->getAppValue(ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED);
 	}
 
 	protected function tearDown(): void {
 		if (self::$platform !== '') {
 			$this->useHomeFastPath($this->fastPathBefore === '1');
+			$this->useMediaKindIndex($this->mediaKindBefore === '1');
 		}
 		parent::tearDown();
 	}
@@ -252,6 +255,17 @@ class QueryPlanTest extends TestCase {
 	private function useHomeFastPath(bool $fast): void {
 		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_DEST_NID_FILLED, $fast ? '1' : '0');
 		(new ReflectionProperty(StreamRequest::class, 'recipientNidsFilled'))
+			->setValue(Server::get(StreamRequest::class), null);
+	}
+
+	/**
+	 * Whether every post is taken to carry its `media_kind`, which is what
+	 * lets a Photos or Videos page start from the kind index; the request
+	 * memoises the flag, so the memo goes with it.
+	 */
+	private function useMediaKindIndex(bool $filled): void {
+		Server::get(ConfigService::class)->setAppValue(ConfigService::SOCIAL_STREAM_MEDIA_KIND_FILLED, $filled ? '1' : '0');
+		(new ReflectionProperty(CoreRequestBuilder::class, 'mediaKindFilled'))
 			->setValue(Server::get(StreamRequest::class), null);
 	}
 
@@ -451,6 +465,24 @@ class QueryPlanTest extends TestCase {
 	}
 
 	/**
+	 * The public page off the recipient rows: the public collection, one type
+	 * and one subtype, read as one descending index range that stops at the
+	 * limit — no join to reorder, no sort, no `OR`. `social_sd_atsn` answers
+	 * it from the index alone; MySQL may take `social_sd_atn` and sift the
+	 * subtype per entry, which is the same range in the same order.
+	 */
+	public function testThePublicPageIsOneIndexRangeOverTheRecipientRows(): void {
+		$this->useHomeFastPath(true);
+		$query = $this->capture(
+			$this->timeline(ProbeOptions::PUBLIC),
+			'/^SELECT [`"]?sd[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream_dest[`"]? [`"]?sd[`"]? WHERE/'
+		);
+
+		$this->assertStringNotContainsString('JOIN', strtoupper($query['sql']));
+		$this->assertIndexed($query, ['sd' => null]);
+	}
+
+	/**
 	 * The old page query, still what answers a narrowed home timeline and an
 	 * instance whose backfill has not finished: it may sort, it may not read
 	 * a table in full.
@@ -486,16 +518,32 @@ class QueryPlanTest extends TestCase {
 	#[DataProvider('mediaNarrowings')]
 	public function testANarrowedTimelineReadsNoTableInFull(array $narrowing): void {
 		$this->useHomeFastPath(true);
+		$this->useMediaKindIndex(true);
 		$sorts = 'the page is chosen among the narrowed rows and sorted';
 
-		$this->assertIndexed(
-			$this->capture($this->timeline(ProbeOptions::PUBLIC, $narrowing), '/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]?/'),
-			['s' => null, 'sd' => null, 'ca' => null], $sorts
-		);
-		$this->assertIndexed(
-			$this->capture($this->timeline(ProbeOptions::HOME, $narrowing), '/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/'),
-			['s' => null, 'sd' => null, 'f' => null], $sorts
-		);
+		// public and home: the newest posts of the kind, off its
+		// `(kind, nid)` index alone, then whether each of those few dozen
+		// belongs on the timeline — the join, driven by their keys
+		foreach ([
+			ProbeOptions::PUBLIC => ['/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream[`"]? [`"]?s[`"]? INNER JOIN/', ['s' => null, 'sd' => null, 'ca' => null]],
+			ProbeOptions::HOME => ['/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/', ['s' => null, 'sd' => null, 'f' => null]],
+		] as $probe => [$filterQuery, $guarded]) {
+			$run = QueryCounter::record($this->timeline($probe, $narrowing));
+			$byKind = $run->matching('/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream[`"]? [`"]?s[`"]? WHERE [`"]?s[`"]?\.[`"]?(media|short)_kind[`"]? =/');
+			$this->assertNotEmpty($byKind, $probe . ': the kind index was not read; ' . $run->summary());
+			foreach ($byKind as $query) {
+				$this->assertStringNotContainsString('JOIN', strtoupper($query['sql']));
+				$this->assertIndexed($query, ['s' => null]);
+			}
+			$filtered = $run->matching($filterQuery);
+			if (isset($narrowing['setOnlyShort'])) {
+				// the seed holds no short: an empty window leaves nothing to filter
+				$this->assertSame([], $filtered, $probe . ': ' . $run->summary());
+			} else {
+				$this->assertNotEmpty($filtered, $probe . ': the window was not filtered; ' . $run->summary());
+				$this->assertIndexed($filtered[0], $guarded, $sorts);
+			}
+		}
 		$this->assertIndexed(
 			$this->capture(
 				$this->timeline(ProbeOptions::ACCOUNT, $narrowing + ['setAccountId' => self::REMOTE . '/users/author0']),
@@ -503,6 +551,44 @@ class QueryPlanTest extends TestCase {
 			),
 			['s' => null, 'sd' => null], $sorts
 		);
+	}
+
+	/** @return array<string, array{array<string, mixed>}> */
+	public static function mediaKindNarrowings(): array {
+		return [
+			'Photos' => [['setOnlyMedia' => true]],
+			'Videos' => [['setOnlyVideo' => true]],
+		];
+	}
+
+	/**
+	 * Before every post carries its `media_kind` the kind index cannot be
+	 * trusted, and a Photos or Videos page is the joined query, with the
+	 * attachments fallback in it: it may sort, it may not read a table in
+	 * full, and the kind index is not read on its own.
+	 *
+	 * @param array<string, mixed> $narrowing
+	 */
+	#[DataProvider('mediaKindNarrowings')]
+	public function testANarrowedTimelineBeforeTheKindsAreFilledIsTheJoinReadThroughIndexes(array $narrowing): void {
+		$this->useHomeFastPath(true);
+		$this->useMediaKindIndex(false);
+		$sorts = 'the page is chosen among the narrowed rows and sorted';
+
+		foreach ([
+			ProbeOptions::PUBLIC => ['/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream[`"]? [`"]?s[`"]? INNER JOIN/', ['s' => null, 'sd' => null, 'ca' => null]],
+			ProbeOptions::HOME => ['/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]?/', ['s' => null, 'sd' => null, 'f' => null]],
+		] as $probe => [$joined, $guarded]) {
+			$run = QueryCounter::record($this->timeline($probe, $narrowing));
+			$this->assertSame(
+				[], $run->matching('/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM [`"]?\w*social_stream[`"]? [`"]?s[`"]? WHERE [`"]?s[`"]?\.[`"]?media_kind[`"]? =/'),
+				$probe . ': the kind index is read before every post has a kind; ' . $run->summary()
+			);
+			$pages = $run->matching($joined);
+			$this->assertNotEmpty($pages, $probe . ': the joined page was not run; ' . $run->summary());
+			$this->assertStringContainsString('attachments', $pages[0]['sql'], 'a post with no kind yet is judged by its attachments');
+			$this->assertIndexed($pages[0], $guarded, $sorts);
+		}
 	}
 
 	/** @return array<string, array{array<string, mixed>}> */

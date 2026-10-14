@@ -105,9 +105,41 @@ class QueueControllerTest extends TestCase {
 	public function testTheDeliveryLoopItselfCannotBeUnitTested(): void {
 		$this->markTestSkipped(
 			'With queued requests, asyncForRequest() detaches the HTTP response (TAsync::async()) and ends in '
-			. 'exit() because the connection is already closed; that path needs an end-to-end test. The body '
-			. 'drain is ActivityService::manageRequests(), tested there; what is left here is handBack(), below.'
+			. 'exit() because the connection is already closed; that path needs an end-to-end test. What it '
+			. 'delivers is drain(), and what fails is handBack(), both below.'
 		);
+	}
+
+	/**
+	 * A post's fan-out is delivered here by a web worker, one per post. The
+	 * whole of it, for up to ninety seconds, held a PHP-FPM worker and a
+	 * database connection per post; a few posts a minute from accounts with
+	 * many follower hosts and the web server stopped answering. One wave is
+	 * delivered here, briefly, and the rest is left on standby for
+	 * `Cron\Queue`.
+	 */
+	public function testTheAsyncDrainDeliversOneBoundedWaveAndLeavesTheRestToCron(): void {
+		$requests = [];
+		for ($i = 0; $i < QueueController::ASYNC_ROWS + 25; $i++) {
+			$requests[] = new RequestQueue('{}', new InstancePath('https://host' . $i . '.example/inbox', InstancePath::TYPE_INBOX), 'alice');
+		}
+		$this->activityService->expects($this->once())->method('manageInit');
+		$this->activityService->expects($this->once())->method('manageRequests')->willReturnCallback(
+			function (array $queues, int $deadline) use ($requests): int {
+				$this->assertSame(array_slice($requests, 0, QueueController::ASYNC_ROWS), $queues);
+				$this->assertLessThanOrEqual(time() + QueueController::MAX_DURATION, $deadline);
+
+				return count($queues);
+			}
+		);
+
+		$this->controller->drainNow($requests);
+
+		$this->assertLessThanOrEqual(20, QueueController::MAX_DURATION, 'a worker is held for seconds, not minutes');
+		$this->assertLessThanOrEqual(40, QueueController::ASYNC_ROWS);
+		foreach (array_slice($requests, QueueController::ASYNC_ROWS) as $left) {
+			$this->assertSame(5, $left->getTimeout(), 'what is left is not touched, and stays on standby');
+		}
 	}
 
 	/**
@@ -155,5 +187,10 @@ class QueueControllerTest extends TestCase {
 class TestableQueueController extends QueueController {
 	public function handBackOne(RequestQueue $request, \Throwable $e): void {
 		$this->handBack($request, $e);
+	}
+
+	/** @param list<RequestQueue> $requests */
+	public function drainNow(array $requests): void {
+		$this->drain($requests);
 	}
 }

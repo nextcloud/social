@@ -231,6 +231,21 @@ class SearchTermsRequestTest extends TestCase {
 		$this->assertSame(['one' => $this->nids['zebra-1'], 'zebras' => $this->nids['zebra-1']], $this->terms('zebra-1'), 'running it again is harmless');
 	}
 
+	/**
+	 * What the table-growth setup check reads: posts counted no further than
+	 * a cap, and the word index's size from its highest id, neither of them
+	 * a count of a whole large table.
+	 */
+	public function testTheSizesTheGrowthCheckReadsAreBounded(): void {
+		$this->post('zebra-1', '<p>zebras crossing</p>', 1);
+		$this->post('zebra-2', '<p>zebras resting</p>', 2);
+		$this->post('zebra-3', '<p>zebras grazing</p>', 3);
+
+		$this->assertSame(2, $this->streamRequest->countPostsUpTo(2), 'counting stops at the cap');
+		$this->assertGreaterThanOrEqual(3, $this->streamRequest->countPostsUpTo(1000000000));
+		$this->assertGreaterThanOrEqual(count($this->terms('zebra-3')), $this->searchTermsRequest->approximateCount());
+	}
+
 	public function testTheIndexIsReadyOnlyOnceTheBackfillSaidSo(): void {
 		$config = Server::get(ConfigService::class);
 

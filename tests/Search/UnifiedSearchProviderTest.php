@@ -139,7 +139,8 @@ class UnifiedSearchProviderTest extends TestCase {
 	}
 
 	public function testSearchTrimsTheTermAndQueriesAccountsUrisAndHashtags(): void {
-		$this->searchService->expects($this->once())->method('searchUri')->with('alice')->willReturn([]);
+		// cache-only: the search bar asks per keystroke, and must not fetch
+		$this->searchService->expects($this->once())->method('searchUri')->with('alice', false)->willReturn([]);
 		$this->searchService->expects($this->once())->method('searchAccounts')->with('alice')->willReturn([]);
 		$this->searchService->expects($this->once())->method('searchHashtags')->with('alice')->willReturn([]);
 

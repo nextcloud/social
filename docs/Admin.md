@@ -103,6 +103,18 @@ See below — this is the one check that is about apps rather than about
 federation, and it is a warning rather than an error, because everything else
 works without it.
 
+**Aloha Social: index repairs.** Whether the two repair jobs that walk the
+posts stored by an older version got past every one of them. `Cron\Index`
+gives each post its timeline and hashtag rows and `Cron\SearchIndex` puts its
+words into the content search; a post that keeps failing is passed over rather
+than holding every post after it back, and this check counts what was passed
+over. See [Posts the index repairs skipped](#posts-the-index-repairs-skipped).
+
+**Aloha Social: table growth.** A warning when retention is off and the post
+tables have grown past the size where that starts to cost: more than a million
+posts, or about thirty million words in the search index. See
+[The post tables keep growing](#the-post-tables-keep-growing).
+
 ### Mastodon apps cannot connect
 
 A Mastodon app is given a domain and builds `https://<domain>/api/v1/...` from
@@ -321,6 +333,54 @@ occ social:queue:retry --flush --min-tries 16   # or drop them, for a peer that 
 The **Deliveries** section of the Aloha Social settings names the instances
 the failures are stacked against, with the highest attempt count so far and
 when each was last tried.
+
+### Posts the index repairs skipped
+
+Two background jobs walk the posts an older version stored, oldest first, from
+a cursor kept in the app settings: `Cron\Index` writes the timeline and hashtag
+side rows of posts that lack them, and `Cron\SearchIndex` (queued once by the
+upgrade that added the word index) adds the words of every older post to the
+content search. A post that one of them cannot read — a malformed row, a type
+this version does not know — would otherwise fail on every run and hold the
+cursor, and with it every post after it, for good. So a post that has failed
+five passes of the timeline repair is skipped, and a chunk the search backfill
+fails twice is indexed one post at a time until the one that fails is found and
+skipped. Each skip is a warning in the Nextcloud log — `skipping stream` with
+the post's primary key and type, `skipping post` with its nid — carrying the
+error that stopped it, and this check counts them (`index_skipped`,
+`search_index_skipped`).
+
+A skipped post is still in the database and still served where it is read by
+its own id; what it lost is its place in the timelines or in the search. Fix or
+delete the row the log names, then `occ social:check:install --index --force`
+rebuilds the side rows of everything, and `occ config:app:delete social
+search_index_ready` followed by `occ config:app:delete social
+search_index_cursor` has the search backfill start again from the first post
+on the next cron run. Reset the counters with `occ config:app:delete social
+index_skipped` and `occ config:app:delete social search_index_skipped` once
+the posts are dealt with.
+
+### The post tables keep growing
+
+Retention is off unless an administrator turns it on (`retention_days`, `0` by
+default), and that default is deliberate: deleting what other servers sent is a
+decision about the instance, not a tuning knob. Without it, `social_stream`,
+its recipient rows (`social_stream_dest`, one per recipient), its hashtag rows,
+its words (`social_search_term`) and the cached attachments grow with
+everything the instance has ever received. The check counts the posts up to a
+million (it stops counting there) and reads the word index's highest id, and
+warns past either.
+
+```bash
+occ config:app:set social retention_days --value 180   # remote posts nobody here touched, after 180 days
+occ social:stream:prune --dry-run                      # what the next pass would remove
+```
+
+Retention never touches a local post, a direct message, a post somebody here
+liked, boosted, bookmarked or replied to, a post a local post boosts or replies
+to, or anything by an account somebody here follows. The cron pass removes up to
+5,000 posts a run; `occ social:stream:prune` removes all of them at once. Their
+cached media goes with them, and the orphaned-media sweep takes what is left.
 
 ### No memory cache
 
@@ -996,6 +1056,12 @@ the moderation routes accept.
 | `atproto_firehose_status` | *(empty)* | The firehose daemon's last report (`occ social:atproto:serve`), as JSON: whether it runs, its pid, when it started and last reported, the head sequence number and how many relays are subscribed. The Bluesky card and the setup check read it; a daemon that has not reported for a minute is shown as stopped. |
 | `atproto_delete_cursor` | `0` | Where the Bluesky deletion sweep got to: the newest post id it has checked against the AppView in its pass over the last week's Bluesky posts, 25 at a time; `0` again when it reaches the end and starts over. Bookkeeping, not a setting. |
 | `atproto_detach_cursor` | `0` | The same for the sweep over the last month's local quotes of Bluesky posts, which marks a quote the quoted author detached as revoked here too. |
+| `stream_archived_filled` | `0` | Set to `1` by `Version1000Date20261013100500` once every post carries a value in `social_stream.archived`. Until then every list of posts also admits a post whose column is still empty, an `OR` the database plans badly. |
+| `stream_media_kind_filled` | `0` | Set to `1` by `Version1000Date20261013100500` once no post is left without a `media_kind`. Until then the Photos, Videos and media filters also judge a post by its attachments, and the narrowed timelines use the slower joined query. |
+| `retention_checked` | *(written by the prune)* | How far today's retention walk has judged the old remote posts, as `day\|creation\|id_prim`. Each run carries on from it, so a post retention keeps is looked at once a day; the first run of a new day starts again from the oldest post. Deleting it restarts the walk. |
+| `index_skipped` | *(unset)* | How many posts the timeline index repair (`Cron\Index`) gave up on; shown by the *index repairs* setup check. See [Posts the index repairs skipped](#posts-the-index-repairs-skipped). |
+| `search_index_skipped` | *(unset)* | How many posts the search backfill (`Cron\SearchIndex`) left out of the word index; shown by the same check. |
+| `search_index_failing` | *(unset)* | `cursor:count` of the chunk the search backfill keeps failing on; after two failures it indexes one post at a time until it finds the post to skip. |
 
 ### Server settings
 
@@ -1016,7 +1082,7 @@ settings page, which validates the ranges given here; every one can be set with
 | `video_max_height` | `1080` | The tallest a converted video is written, 240–2160. Only smaller, never larger: a 480p video is left at 480p. Only consulted when `video_transcode` is on. |
 | `video_ladder` | `0` | Whether each stored MP4 is **also** written at a ladder of smaller sizes, as HLS, so a player can pick the one that fits the connection. A different question from `video_transcode`, which is about a video being playable at all elsewhere; this is about it being watchable on a phone on a train. Off by default, because it is several ffmpeg encodes per video on this server. Each rung is one file — `-hls_flags single_file` writes the rendition as a fragmented MP4 and the playlist addresses its segments as byte ranges — so a forty-minute video is three files rather than a thousand, which is also the shape PeerTube publishes. The original is kept and is what a player without HLS falls back to. Needs ffmpeg **and** ffprobe. One video every half-hour, or `occ social:media:ladder` to work through a backlog now. Built from `video/mp4` only: a `.mov` goes through the transcoder first. |
 | `video_ladder_heights` | `360,720,1080` | Which heights, comma-separated, 144–2160. Heights at or above a video's own are skipped rather than upscaled, and the video's own height is always a rung, so the best rung is never worse than the file beside it. A list with nothing usable in it is refused by the admin card rather than silently replaced with the default. Only consulted when `video_ladder` is on. |
-| `search_window_days` | `365` | How far back a content search scans while it cannot use its word index: before `Cron\SearchIndex` has indexed the posts stored before the upgrade (until `search_index_ready` is `1`), and for a query that is only the beginning of a word. Such a search is a range rather than one indexed word, and unbounded it reads every post the instance has ever stored; a year covers what anybody is looking for. `0` searches everything, which an instance small enough can afford to say. A search for whole words reads the index and is not bounded by this. |
+| `search_window_days` | `365` | How far back a content search scans while it cannot use its word index: before `Cron\SearchIndex` has indexed the posts stored before the upgrade (until `search_index_ready` is `1`), for a query that is only the beginning of a word, and for one made only of the English and German function words the index leaves out (`the`, `and`, `der`, `und` …). Such a search is a range rather than one indexed word, and unbounded it reads every post the instance has ever stored; a year covers what anybody is looking for. `0` searches everything, which an instance small enough can afford to say. A search for whole words reads the index and is not bounded by this. |
 | `local_actor_cursor` | `''` | Bookkeeping, not a setting: where the cron's local-account refresh walk got to. It used to read every local account into memory on every pass; it pages now, and this is what makes the next pass carry on rather than start again. |
 | `profile_link_cursor` | `''` | Bookkeeping, not a setting: where the cron's walk over the local accounts whose profile fields carry a link got to, so the next pass checks the next ones. |
 | `video_quota` | `0` | How many megabytes of video **one account** may keep here; `0` is no quota, which is what every instance has in effect today. A different question from `max_video_size`, which is a ceiling on one file: that is about a single request, this about a year of them. Off by default because an instance that has been running without a quota and acquires one on upgrade would start refusing uploads from exactly the accounts that use it most. Checked once, where an upload is written, against the size recorded on each stored file — so a video uploaded before this app recorded sizes counts as nothing until the daily usage job has been past it, which fills the column in as it walks. The **ladders this server builds do not count against it**: they are made because an administrator asked for them, are several times the size of the upload, and would turn a quota somebody was told about into one several times smaller. They are counted in what an administrator is shown, because they are real disk. Who is holding what is under **Administration → Aloha Social → Storage**. |

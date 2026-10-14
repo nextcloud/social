@@ -45,6 +45,13 @@ use Psr\Log\LoggerInterface;
 class StreamPruneService {
 	public const CHUNK = 500;
 
+	/**
+	 * How many chunks of candidates one run judges at most when it was given
+	 * a ceiling: a run over old rows that are nearly all kept deletes little
+	 * and must still end.
+	 */
+	public const MAX_CHUNKS = 40;
+
 	public function __construct(
 		private IDBConnection $connection,
 		private ConfigService $configService,
@@ -85,24 +92,39 @@ class StreamPruneService {
 
 		$streams = 0;
 		$documents = 0;
-		while (true) {
-			$limit = self::CHUNK;
-			if ($max > 0) {
-				$limit = min($limit, $max - $streams);
-				if ($limit <= 0) {
-					break;
-				}
-			}
-
-			$prims = $this->selectPrunable($cutoff, $limit);
-			if ($prims === []) {
+		$after = $this->checkedUpTo();
+		for ($chunk = 0; $max <= 0 || $chunk < self::MAX_CHUNKS; $chunk++) {
+			if ($max > 0 && $streams >= $max) {
 				break;
 			}
 
-			$streams += count($prims);
-			// one cascade, defined next to the delete it belongs to
-			$documents += $this->streamRequest->deleteRelatedTo($prims);
-			$this->streamRequest->deleteByPrims($prims);
+			$candidates = $this->selectCandidates($cutoff, $after);
+			if ($candidates === []) {
+				break;
+			}
+
+			$prims = $this->selectPrunable($cutoff, array_column($candidates, 'id_prim'));
+			if ($max > 0) {
+				$prims = array_slice($prims, 0, $max - $streams);
+			}
+			if ($prims !== []) {
+				$streams += count($prims);
+				// one cascade, defined next to the delete it belongs to
+				$documents += $this->streamRequest->deleteRelatedTo($prims);
+				$this->streamRequest->deleteByPrims($prims);
+			}
+
+			// a chunk cut short by the ceiling is judged again next run
+			if ($max > 0 && $streams >= $max) {
+				break;
+			}
+			$after = $candidates[count($candidates) - 1];
+			$this->configService->setAppValue(
+				ConfigService::SOCIAL_RETENTION_CHECKED, gmdate('Y-m-d') . '|' . $after['creation'] . '|' . $after['id_prim']
+			);
+			if (count($candidates) < self::CHUNK) {
+				break;
+			}
 		}
 
 		if ($streams > 0) {
@@ -170,26 +192,86 @@ class StreamPruneService {
 	}
 
 	/**
-	 * @return string[] id_prim of prunable remote streams, oldest first
+	 * Where today's walk got to, or null to start from the oldest row.
+	 *
+	 * Kept rows — every post by an author somebody here follows, everything
+	 * liked or replied to — are most of the old table, and each chunk used
+	 * to start from the oldest row and judge all of them again. The walk now
+	 * carries on from the last row it judged, within a run and across the
+	 * runs of a day; a new day starts it again, so a post that lost its
+	 * protection goes at most a day later than it could.
+	 *
+	 * @return array{creation: string, id_prim: string}|null
 	 */
-	private function selectPrunable(DateTime $cutoff, int $limit): array {
-		$qb = $this->prunableQuery($cutoff);
-		$qb->select('s.id_prim')
-			->orderBy('s.creation', 'asc')
-			->setMaxResults($limit);
+	private function checkedUpTo(): ?array {
+		$parts = explode('|', (string)$this->configService->getAppValue(ConfigService::SOCIAL_RETENTION_CHECKED));
+		if (count($parts) !== 3 || $parts[0] !== gmdate('Y-m-d') || $parts[1] === '') {
+			return null;
+		}
 
-		$cursor = $qb->executeQuery();
-		$prims = array_map(static fn (array $row): string => (string)$row['id_prim'], $cursor->fetchAll());
-		$cursor->closeCursor();
-
-		return $prims;
+		return ['creation' => $parts[1], 'id_prim' => $parts[2]];
 	}
 
 	/**
-	 * The conditions that make a remote stream prunable; see the class doc for
-	 * the protection rules.
+	 * The next CHUNK old remote statuses after `$after`, in (creation,
+	 * id_prim) order, before any protection rule is asked: a range of the
+	 * `creation` index.
+	 *
+	 * @param array{creation: string, id_prim: string}|null $after
+	 *
+	 * @return list<array{creation: string, id_prim: string}>
 	 */
-	private function prunableQuery(DateTime $cutoff): IQueryBuilder {
+	private function selectCandidates(DateTime $cutoff, ?array $after): array {
+		$qb = $this->candidateQuery($cutoff);
+		$expr = $qb->expr();
+		$qb->select('s.creation', 's.id_prim');
+		if ($after !== null) {
+			$from = new DateTime($after['creation']);
+			$qb->andWhere($expr->gte('s.creation', $qb->createNamedParameter($from, IQueryBuilder::PARAM_DATE)));
+			$qb->andWhere($expr->orX(
+				$expr->gt('s.creation', $qb->createNamedParameter($from, IQueryBuilder::PARAM_DATE)),
+				$expr->gt('s.id_prim', $qb->createNamedParameter($after['id_prim']))
+			));
+		}
+		$qb->orderBy('s.creation', 'asc')
+			->addOrderBy('s.id_prim', 'asc')
+			->setMaxResults(self::CHUNK);
+
+		$cursor = $qb->executeQuery();
+		$rows = [];
+		while ($row = $cursor->fetch()) {
+			$rows[] = [
+				'creation' => (new DateTime((string)$row['creation']))->format('Y-m-d H:i:s'),
+				'id_prim' => (string)$row['id_prim'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
+	/**
+	 * The candidates no protection rule keeps.
+	 *
+	 * @param list<string> $prims
+	 *
+	 * @return string[] id_prim of prunable remote streams
+	 */
+	private function selectPrunable(DateTime $cutoff, array $prims): array {
+		$qb = $this->prunableQuery($cutoff);
+		$qb->select('s.id_prim')
+			->andWhere($qb->expr()->in('s.id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)))
+			->orderBy('s.creation', 'asc');
+
+		$cursor = $qb->executeQuery();
+		$found = array_map(static fn (array $row): string => (string)$row['id_prim'], $cursor->fetchAll());
+		$cursor->closeCursor();
+
+		return $found;
+	}
+
+	/** The remote statuses retention may consider at all: old, and not a direct message. */
+	private function candidateQuery(DateTime $cutoff): IQueryBuilder {
 		$qb = $this->connection->getQueryBuilder();
 		$expr = $qb->expr();
 
@@ -200,6 +282,16 @@ class StreamPruneService {
 			)))
 			->andWhere($expr->lt('s.creation', $qb->createNamedParameter($cutoff, IQueryBuilder::PARAM_DATE)))
 			->andWhere($expr->neq('s.visibility', $qb->createNamedParameter(Stream::TYPE_DIRECT)));
+
+		return $qb;
+	}
+
+	/**
+	 * The conditions that make a remote stream prunable; see the class doc for
+	 * the protection rules.
+	 */
+	private function prunableQuery(DateTime $cutoff): IQueryBuilder {
+		$qb = $this->candidateQuery($cutoff);
 
 		// a local interaction flag on the status
 		$act = $this->connection->getQueryBuilder();
