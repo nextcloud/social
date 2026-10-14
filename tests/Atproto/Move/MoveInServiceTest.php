@@ -13,6 +13,7 @@ use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
+use OCA\Social\Atproto\Identity\HandleVerifier;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\PlcClient;
@@ -48,6 +49,7 @@ use OCA\Social\Service\FollowService;
 use OCP\BackgroundJob\IJobList;
 use OCP\Security\ICrypto;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -77,6 +79,12 @@ class MoveInServiceTest extends TestCase {
 	private bool $known = true;
 	/** @var list<string> the DID's rotation keys before the move */
 	private array $listedKeys = [];
+	/** the DID's handle before the move */
+	private string $oldHandle = 'alice.bsky.social';
+	/** @var list<string> the domains the old server gives handles under */
+	private array $userDomains = ['.bsky.social'];
+	/** @var list<string> the custom handles other accounts here have */
+	private array $taken = [];
 	/** @var IdentityService&MockObject */
 	private IdentityService $identities;
 	/** @var RepositoryService&MockObject */
@@ -110,6 +118,10 @@ class MoveInServiceTest extends TestCase {
 				return ['status' => 200, 'body' => ['operation' => ['type' => 'plc_operation'] + array_diff_key($json ?? [], ['token' => true])]];
 			}
 
+			if ($answer === null && $method === 'com.atproto.server.describeServer') {
+				return ['status' => 200, 'body' => ['did' => 'did:web:pds.example.com', 'availableUserDomains' => $this->userDomains]];
+			}
+
 			return $answer ?? ['status' => 200, 'body' => []];
 		});
 		$pds->method('expect')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = []): array {
@@ -130,6 +142,7 @@ class MoveInServiceTest extends TestCase {
 		$plc = $this->createMock(PlcClient::class);
 		$plc->method('data')->willReturnCallback(fn (): ?array => $this->known ? [
 			'rotationKeys' => $this->listedKeys,
+			'alsoKnownAs' => ['at://' . $this->oldHandle],
 			'verificationMethods' => ['atproto' => $this->oldKey->didKey()],
 			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => self::OLD]],
 		] : null);
@@ -145,6 +158,9 @@ class MoveInServiceTest extends TestCase {
 		]);
 		$this->blobs = $this->createMock(AtprotoBlobRequest::class);
 		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
+		$this->identityRequest->method('handleExists')->willReturnCallback(fn (string $handle): bool => in_array($handle, $this->taken, true));
+		$verifier = $this->createMock(HandleVerifier::class);
+		$verifier->method('refusal')->willReturnCallback(static fn (string $handle): string => str_ends_with($handle, '.social.test') || !str_contains($handle, '.') ? 'no' : '');
 		$documents = $this->createMock(DocumentService::class);
 		$documents->method('storeAsIs')->willReturnCallback(function (Person $actor, string $path): Document {
 			$this->assertSame($this->blob, file_get_contents($path), 'stored as it came');
@@ -187,7 +203,7 @@ class MoveInServiceTest extends TestCase {
 		$this->moves = new MoveInService(
 			$pds, $config, $appView, $plc, $this->identities, $keys, $this->repositories, $this->createMock(AtprotoRepoRequest::class),
 			$this->blobs, $documents, $this->createMock(Preferences::class), $actors, $this->follows, $this->history, $actorsRequest, $request,
-			$crypto, $jobs, new NullLogger(), $this->lists, $this->identityRequest,
+			$crypto, $jobs, new NullLogger(), $this->lists, $this->identityRequest, $verifier,
 		);
 		$this->answers['com.atproto.server.createSession'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.bsky.social', 'accessJwt' => 'access', 'refreshJwt' => 'refresh']]];
 	}
@@ -401,6 +417,54 @@ class MoveInServiceTest extends TestCase {
 		$this->moves->run($this->rows[1]);
 
 		$this->assertSame('operation-mismatch', $this->rows[1]->progress['code'] ?? null);
+	}
+
+	/** A handle on the person's own domain stays theirs: the DID names it, and it is the custom handle here. */
+	public function testAHandleOnTheirOwnDomainIsKept(): void {
+		$this->oldHandle = 'alice.example.org';
+		$this->identityRequest->expects($this->once())->method('setCustomHandle')->with($this->current->did, 'alice.example.org');
+		$this->identities->method('adopt')->willReturn($this->current);
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->assertSame('alice.example.org', $this->rows[1]->progress['handle_kept'], 'known while the move waits for the code');
+
+		$this->moves->code('alice', '12345');
+		$this->moves->run($this->rows[1]);
+
+		$sign = array_values(array_filter($this->calls, static fn (array $c): bool => $c['method'] === 'com.atproto.identity.signPlcOperation'))[0]['json'];
+		$this->assertSame(['at://alice.example.org'], $sign['alsoKnownAs']);
+		$this->assertSame(Move::DONE, $this->rows[1]->state);
+	}
+
+	public function testAHandleTheOldServerGaveBecomesTheOneHere(): void {
+		$this->identityRequest->expects($this->never())->method('setCustomHandle');
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame('', $this->rows[1]->progress['handle_kept']);
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: list<string>, 2: string}> the handle, the old server's domains, what is kept
+	 */
+	public static function handles(): array {
+		return [
+			'own domain' => ['alice.example.org', ['.pds.example.com'], 'alice.example.org'],
+			'under a domain the old server gives' => ['alice.pds.example.com', ['.pds.example.com'], ''],
+			'under one it gives without a dot' => ['alice.users.example', ['users.example'], ''],
+			'Bluesky\'s, when the old server does not say' => ['alice.bsky.social', [], ''],
+			'Bridgy\'s' => ['alice.mastodon.example.ap.brid.gy', [], ''],
+			'this server\'s' => ['bob.social.test', [], ''],
+			'another account\'s here' => ['taken.example.org', [], ''],
+		];
+	}
+
+	#[DataProvider('handles')]
+	public function testWhichHandleIsKept(string $handle, array $domains, string $kept): void {
+		$this->userDomains = $domains;
+		$this->taken = ['taken.example.org'];
+
+		$this->assertSame($kept, $this->moves->keptHandle(self::OLD, ['alsoKnownAs' => ['at://' . $handle]], 'alice.social.test'));
 	}
 
 	/** the did:key of the signing key the move made for the account here */

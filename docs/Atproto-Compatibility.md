@@ -1383,8 +1383,8 @@ here*):
 3. The old PDS **e-mails a code** (`requestPlcOperationSignature`); the move
    waits for the person to enter it.
 4. With the code the old PDS **signs the operation** (`signPlcOperation`)
-   that names this PDS, the key made here, the account's handle here and
-   the rotation keys below; this server checks it is what was asked and
+   that names this PDS, the key made here, the handle below and the
+   rotation keys below; this server checks it is what was asked and
    sends it to the directory. The account **takes the DID**, and the DID
    this server had made for the account is retired (tombstoned with its
    repository).
@@ -1400,6 +1400,17 @@ Fed, or a migration tool such as `goat account migrate`, then runs steps
 with the code, `importRepo`, `uploadBlob`, `getRecommendedDidCredentials`,
 `submitPlcOperation`, `activateAccount`). Once activated, the follows and
 the posts come over as above.
+
+**Handle.** A handle on a domain of the person's own (`alice.example.org`)
+stays theirs: the operation names it, it becomes the account's custom
+handle here (§4.2, checked again every day as any custom handle is), and
+the move's progress says so (`handle_kept`). A handle is the person's own
+when it is not under a domain the old server gives handles under — its
+`describeServer`'s `availableUserDomains`, its own host, `bsky.social` or
+Bridgy Fed's `brid.gy` — nor under this server's host, nor another
+account's here. Any other handle becomes the account's handle here,
+`alice.<host>`. The decision is made before the code is asked for (driven
+from here) or when the tool asks for the recommended credentials.
 
 **Rotation keys.** A move here keeps the DID the person's: the operation
 lists their own keys first and this server's last, so a key of theirs

@@ -150,6 +150,7 @@ class InboundMoveServiceTest extends TestCase {
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->moveIn->method('didOf')->willReturn(self::DID);
 		$this->moveIn->method('didState')->willReturnCallback(fn (): array => $this->plcState);
+		$this->moveIn->method('keptHandle')->willReturnCallback(fn (string $pds, array $state): string => ($state['alsoKnownAs'][0] ?? '') === 'at://alice.example.org' ? 'alice.example.org' : '');
 		$bridgy = $this->createMock(BridgyTwin::class);
 		$bridgy->method('ask')->willReturnCallback(function (Person $actor, string $command): void {
 			$this->asked[] = $command;
@@ -316,6 +317,21 @@ class InboundMoveServiceTest extends TestCase {
 		$keys = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth)['rotationKeys'];
 
 		$this->assertSame(['did:key:zRecovery', 'did:key:zUser', 'did:key:zOldPds', $this->rotation->didKey()], $keys);
+	}
+
+	/** A handle on the person's own domain is recommended, and is their custom handle here once the DID moved. */
+	public function testAHandleOnTheirOwnDomainIsKept(): void {
+		$this->plcState = ['alsoKnownAs' => ['at://alice.example.org']] + $this->plcState;
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+		$recommended = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
+		$this->assertSame(['at://alice.example.org'], $recommended['alsoKnownAs']);
+		$this->assertSame('alice.example.org', $this->rows[1]->progress['handle_kept']);
+
+		$this->plcState = ['alsoKnownAs' => ['at://alice.example.org']] + $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->identityRequest->expects($this->once())->method('setCustomHandle')->with($this->current->did, 'alice.example.org');
+		$this->identities->method('receive')->willReturn($this->current);
+		$this->moves->procedure('com.atproto.server.activateAccount', [], $auth);
 	}
 
 	/** A DID Bridgy Fed holds lists only Bridgy's keys: none of them stays. */

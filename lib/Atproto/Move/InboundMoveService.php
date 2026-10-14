@@ -398,12 +398,21 @@ class InboundMoveService {
 		if ($current === null) {
 			throw XrpcException::invalidRequest('Bluesky is off for this account');
 		}
+		$kept = (string)($move->progress['handle_kept'] ?? '');
+		$kept = $kept !== '' && ($state['alsoKnownAs'][0] ?? '') === 'at://' . $kept ? $kept : '';
 		try {
+			if ($kept !== '') {
+				// set before the DID moves, so the identity is announced under it
+				$this->identityRequest->setCustomHandle($current->did, $kept);
+			}
 			$this->identities->receive($current, $move->did, $this->key($move), $move->pds);
 			if ($current->recoveryPublic !== '' && in_array($current->recoveryPublic, RotationKeys::didKeys($state['rotationKeys'] ?? null), true)) {
 				$this->identityRequest->setRecoveryPublic($move->did, $current->recoveryPublic);
 			}
 		} catch (AtprotoException $e) {
+			if ($kept !== '') {
+				$this->identityRequest->setCustomHandle($current->did, $current->customHandle);
+			}
 			$this->logger->error('A Bluesky account that moved here could not take its DID', ['did' => $move->did, 'exception' => $e]);
 
 			throw new XrpcException(500, 'InternalServerError', 'The account could not be activated');
@@ -472,21 +481,27 @@ class InboundMoveService {
 	 * `com.atproto.identity.getRecommendedDidCredentials`: the rotation
 	 * keys — the person's recovery key here and every key the DID lists now
 	 * that is not the old server's, then this server's (`RotationKeys`) —
-	 * the account's handle here, the key made for it here and this PDS.
+	 * the handle on the person's own domain when they had one, else the
+	 * account's handle here, the key made for it here and this PDS.
 	 *
 	 * @throws XrpcException
 	 */
 	private function credentials(Move $move): array {
 		try {
 			$state = $this->plc->data($move->did) ?? [];
-			$recovery = $this->identities->forActor($this->actors->getFromUserId($move->userId), false)?->recoveryPublic ?? '';
+			$identity = $this->identities->forActor($this->actors->getFromUserId($move->userId), false);
 		} catch (Throwable) {
 			throw new XrpcException(400, 'UnresolvableDid', 'The DID\'s rotation keys could not be read from the directory');
 		}
+		if (!array_key_exists('handle_kept', $move->progress)) {
+			$move->progress['handle_kept'] = $this->moveIn->keptHandle($move->pds, $state, $identity?->handle ?? '');
+			$this->moves->update($move);
+		}
+		$kept = (string)$move->progress['handle_kept'];
 
 		return [
-			'rotationKeys' => RotationKeys::forMoveHere($state['rotationKeys'] ?? null, $this->oldServerKeys($move, $state), $recovery, $this->instanceKeys->rotationKey()->didKey()),
-			'alsoKnownAs' => ['at://' . $this->handleHere($move)],
+			'rotationKeys' => RotationKeys::forMoveHere($state['rotationKeys'] ?? null, $this->oldServerKeys($move, $state), $identity?->recoveryPublic ?? '', $this->instanceKeys->rotationKey()->didKey()),
+			'alsoKnownAs' => ['at://' . ($kept !== '' ? $kept : $this->handleHere($move))],
 			'verificationMethods' => ['atproto' => $this->publicKey($move)],
 			'services' => ['atproto_pds' => ['type' => PlcOperation::PDS_SERVICE_TYPE, 'endpoint' => $this->config->pdsEndpoint()]],
 		];

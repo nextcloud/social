@@ -16,6 +16,7 @@ use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Crypto\PublicKey;
+use OCA\Social\Atproto\Identity\HandleVerifier;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\PlcClient;
@@ -70,6 +71,8 @@ use Throwable;
  */
 class MoveInService {
 	private const PAGE = 500;
+	/** the domains the big hosts give handles under, for an old server that does not say */
+	private const HOSTED_HANDLES = ['.bsky.social', '.brid.gy'];
 
 	public function __construct(
 		private PdsClient $pds,
@@ -93,6 +96,7 @@ class MoveInService {
 		private LoggerInterface $logger,
 		private BlueskyListImport $lists,
 		private AtprotoIdentityRequest $identityRequest,
+		private HandleVerifier $handles,
 	) {
 	}
 
@@ -248,6 +252,7 @@ class MoveInService {
 				}
 				break;
 			case Move::STEP_CODE:
+				$this->settleHandle($move);
 				$this->authed($move, 'com.atproto.identity.requestPlcOperationSignature', 'POST');
 
 				return false;
@@ -283,7 +288,7 @@ class MoveInService {
 			throw new MoveFailure('repo-invalid', $e->getMessage(), $e);
 		}
 		$this->repositories->import($move->did, $this->key($move), $archive['records'], $archive['rev']);
-		$move->progress = ['records' => count($archive['records'])];
+		$move->progress = ['records' => count($archive['records'])] + $move->progress;
 	}
 
 	/**
@@ -385,10 +390,11 @@ class MoveInService {
 		$key = $this->key($move);
 		$here = $this->instanceKeys->rotationKey()->didKey();
 		$rotation = RotationKeys::forMoveHere($this->didState($move->did)['rotationKeys'] ?? null, $this->oldServerKeys($move), $current->recoveryPublic, $here);
+		$kept = $this->settleHandle($move);
 		$signed = $this->authed($move, 'com.atproto.identity.signPlcOperation', 'POST', [], [
 			'token' => (string)($session['code'] ?? ''),
 			'rotationKeys' => $rotation,
-			'alsoKnownAs' => ['at://' . $current->handle],
+			'alsoKnownAs' => ['at://' . ($kept !== '' ? $kept : $current->handle)],
 			'verificationMethods' => ['atproto' => $key->didKey()],
 			'services' => ['atproto_pds' => ['type' => PlcOperation::PDS_SERVICE_TYPE, 'endpoint' => $this->config->pdsEndpoint()]],
 		]);
@@ -399,14 +405,71 @@ class MoveInService {
 			throw new MoveFailure('operation-mismatch', 'The old server signed something else than was asked');
 		}
 		try {
+			if ($kept !== '') {
+				// set before the DID moves, so the identity is announced under it
+				$this->identityRequest->setCustomHandle($current->did, $kept);
+			}
 			$this->identities->adopt($current, $move->did, $key, $move->pds, $operation);
 		} catch (AtprotoException $e) {
+			if ($kept !== '') {
+				$this->identityRequest->setCustomHandle($current->did, $current->customHandle);
+			}
 			throw $e instanceof AtprotoPlcRefusedException || !str_starts_with($e->getMessage(), 'PLC directory') ? $e : new MoveFailure('plc-unreachable', $e->getMessage(), $e);
 		}
 		if ($current->recoveryPublic !== '') {
 			// the recovery key is one of the moved DID's now, as it was of the one retired
 			$this->identityRequest->setRecoveryPublic($move->did, $current->recoveryPublic);
 		}
+	}
+
+	/**
+	 * Decides once which handle the account has after the move, and keeps
+	 * it in the move's progress: `handle_kept`, the person's own domain, or
+	 * '' when the handle becomes the one here.
+	 */
+	private function settleHandle(Move $move): string {
+		if (!array_key_exists('handle_kept', $move->progress)) {
+			$identity = $this->identities->forActor($this->actors->getFromUserId($move->userId), false);
+			$move->progress['handle_kept'] = $this->keptHandle($move->pds, $this->didState($move->did), $identity?->handle ?? '');
+			$this->moves->update($move);
+		}
+
+		return (string)$move->progress['handle_kept'];
+	}
+
+	/**
+	 * The handle a DID moving here keeps: one on a domain of the person's
+	 * own, not under a domain the old server gives handles under
+	 * (`describeServer`'s `availableUserDomains`, its own host, or Bluesky's
+	 * and Bridgy Fed's); '' when the handle is the old server's to give, is
+	 * under this server's host, or is another account's here.
+	 *
+	 * @param array $state the DID's state in the directory
+	 * @param string $own the handle the account has here now
+	 */
+	public function keptHandle(string $pds, array $state, string $own): string {
+		$handle = HandleVerifier::normal((string)preg_replace('#^at://#', '', (string)($state['alsoKnownAs'][0] ?? '')));
+		if ($handle === '' || $this->handles->refusal($handle) !== '' || ($handle !== $own && $this->identityRequest->handleExists($handle))) {
+			return '';
+		}
+		$domains = [...self::HOSTED_HANDLES, '.' . strtolower((string)parse_url($pds, PHP_URL_HOST))];
+		try {
+			$described = $this->pds->call($pds, 'com.atproto.server.describeServer');
+			foreach (is_array($described['body']['availableUserDomains'] ?? null) ? $described['body']['availableUserDomains'] : [] as $domain) {
+				if (is_string($domain) && trim($domain, '.') !== '') {
+					$domains[] = '.' . strtolower(trim($domain, '.'));
+				}
+			}
+		} catch (AtprotoException $e) {
+			$this->logger->info('The old PDS did not say which domains it gives handles under', ['pds' => $pds, 'exception' => $e]);
+		}
+		foreach ($domains as $domain) {
+			if (str_ends_with('.' . $handle, $domain)) {
+				return '';
+			}
+		}
+
+		return $handle;
 	}
 
 	/**
