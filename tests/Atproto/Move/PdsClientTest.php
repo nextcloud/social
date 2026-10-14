@@ -20,6 +20,7 @@ use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\IConfig;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 #[AllowMockObjectsWithoutExpectations]
@@ -160,10 +161,40 @@ class PdsClientTest extends TestCase {
 		});
 		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
-		$this->assertSame(
-			['status' => 200, 'bytes' => 'CAR', 'type' => 'application/vnd.ipld.car'],
-			$client->bytes('https://pds.example.com', 'com.atproto.sync.getRepo', ['did' => 'did:plc:a'], 'tok')
-		);
+		$answer = $client->bytes('https://pds.example.com', 'com.atproto.sync.getRepo', ['did' => 'did:plc:a'], 10, 'tok');
+		$this->assertSame([200, 3, 'application/vnd.ipld.car', 'CAR'], [$answer['status'], $answer['size'], $answer['type'], file_get_contents($answer['path'])]);
+		unlink($answer['path']);
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: string, 2: array}> the method, the code past the cap, the headers
+	 */
+	public static function overTheCap(): array {
+		return [
+			'a repository that says its length' => ['com.atproto.sync.getRepo', 'repo-too-large', ['Content-Length' => ['2000000']]],
+			'a repository that does not' => ['com.atproto.sync.getRepo', 'repo-too-large', []],
+			'a blob' => ['com.atproto.sync.getBlob', 'blob-too-large', []],
+		];
+	}
+
+	/** An answer past the cap is refused as it arrives, and nothing of it is kept. */
+	#[DataProvider('overTheCap')]
+	public function testAnAnswerPastTheCapIsRefused(string $method, string $slug, array $headers): void {
+		$stream = fopen('php://temp', 'r+');
+		fwrite($stream, str_repeat('x', 200000));
+		rewind($stream);
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('openStream')->willReturn(['stream' => $stream, 'status' => 200, 'headers' => $headers]);
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$before = glob(sys_get_temp_dir() . '/social-atproto-pds-*') ?: [];
+
+		try {
+			$client->bytes('https://pds.example.com', $method, ['did' => 'did:plc:a'], 100000);
+			$this->fail('taken');
+		} catch (MoveFailure $e) {
+			$this->assertSame($slug, $e->errorCode);
+		}
+		$this->assertSame($before, glob(sys_get_temp_dir() . '/social-atproto-pds-*') ?: [], 'nothing is left behind');
 	}
 
 	public function testARefusedByteAnswerCarriesItsStatus(): void {
@@ -171,7 +202,7 @@ class PdsClientTest extends TestCase {
 		$curl->method('openStream')->willThrowException(new RequestContentException('url', 404));
 		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
 
-		$this->assertSame(['status' => 404, 'bytes' => '', 'type' => ''], $client->bytes('https://pds.example.com', 'com.atproto.sync.getBlob', ['cid' => 'x']));
+		$this->assertSame(['status' => 404, 'path' => '', 'size' => 0, 'type' => ''], $client->bytes('https://pds.example.com', 'com.atproto.sync.getBlob', ['cid' => 'x'], 100));
 	}
 
 	/**

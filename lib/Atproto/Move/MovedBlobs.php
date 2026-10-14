@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
+use OCA\Social\Atproto\Client\ClientXrpc;
 use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Protocol\Cid;
@@ -117,23 +118,32 @@ class MovedBlobs {
 	 * @throws MoveFailure when the old PDS cannot be reached
 	 */
 	public function copy(Move $move, string $cid): int {
-		$blob = $this->pds->bytes($move->pds, 'com.atproto.sync.getBlob', ['did' => $move->did, 'cid' => $cid]);
-		if ($blob['status'] !== 200 || !Cid::forRaw($blob['bytes'])->equals(Cid::parse($cid))) {
-			$this->logger->info('Blob not copied', ['did' => $move->did, 'cid' => $cid, 'status' => $blob['status']]);
+		try {
+			$blob = $this->pds->bytes($move->pds, 'com.atproto.sync.getBlob', ['did' => $move->did, 'cid' => $cid], ClientXrpc::MAX_UPLOAD);
+		} catch (MoveFailure $e) {
+			if ($e->errorCode !== 'blob-too-large') {
+				throw $e;
+			}
+			$this->logger->info('Blob not copied: larger than any taken here', ['did' => $move->did, 'cid' => $cid]);
 
 			return 0;
 		}
-		$path = (string)tempnam(sys_get_temp_dir(), 'social-atproto-move-');
 		try {
-			file_put_contents($path, $blob['bytes']);
-			$document = $this->documents->storeAsIs($this->actors->getFromUserId($move->userId), $path);
-		} finally {
-			@unlink($path);
-		}
-		$this->blobs->put(new BlobRef($move->did, Cid::parse($cid), $document->getId(), BlobRef::servableType($document->getMimeType()), strlen($blob['bytes'])));
-		$this->repoRequest->addBlobBytes($move->did, strlen($blob['bytes']));
+			if ($blob['status'] !== 200 || !Cid::forRawDigest((string)hash_file('sha256', $blob['path'], true))->equals(Cid::parse($cid))) {
+				$this->logger->info('Blob not copied', ['did' => $move->did, 'cid' => $cid, 'status' => $blob['status']]);
 
-		return strlen($blob['bytes']);
+				return 0;
+			}
+			$document = $this->documents->storeAsIs($this->actors->getFromUserId($move->userId), $blob['path']);
+		} finally {
+			if ($blob['path'] !== '') {
+				@unlink($blob['path']);
+			}
+		}
+		$this->blobs->put(new BlobRef($move->did, Cid::parse($cid), $document->getId(), BlobRef::servableType($document->getMimeType()), $blob['size']));
+		$this->repoRequest->addBlobBytes($move->did, $blob['size']);
+
+		return $blob['size'];
 	}
 
 	/**

@@ -157,8 +157,8 @@ class InboundMoveServiceTest extends TestCase {
 		});
 		$oldPds = $this->createMock(PdsClient::class);
 		$oldPds->method('bytes')->willReturnCallback(fn (string $pds, string $method, array $query): array => $query['cid'] === Cid::forRaw($this->picture)->toString() && $this->oldHandsOut
-			? ['status' => 200, 'bytes' => $this->picture, 'type' => 'image/png']
-			: ['status' => 404, 'bytes' => '', 'type' => '']);
+			? ['status' => 200, 'path' => $this->file($this->picture), 'size' => strlen($this->picture), 'type' => 'image/png']
+			: ['status' => 404, 'path' => '', 'size' => 0, 'type' => '']);
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->moveIn->method('didOf')->willReturn(self::DID);
 		$this->moveIn->method('didState')->willReturnCallback(fn (): array => $this->plcState);

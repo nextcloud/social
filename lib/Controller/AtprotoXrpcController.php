@@ -11,7 +11,7 @@ namespace OCA\Social\Controller;
 
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Client\ClientXrpc;
-use OCA\Social\Atproto\Move\InboundMoveService;
+use OCA\Social\Atproto\Move\RepoArchive;
 use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\Xrpc\XrpcBytes;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -128,7 +128,7 @@ class AtprotoXrpcController extends Controller {
 	 * @throws XrpcException
 	 */
 	private function importRepo(): Response {
-		$path = $this->received(InboundMoveService::MAX_REPO, new XrpcException(413, 'PayloadTooLarge', 'This repository is too large to move here'));
+		$path = $this->received(RepoArchive::MAX_BYTES, new XrpcException(413, 'PayloadTooLarge', 'This repository is too large to move here'));
 		try {
 			return $this->answer($this->client->importRepo($path, $this->headers()));
 		} finally {

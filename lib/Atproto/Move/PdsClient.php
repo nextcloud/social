@@ -105,32 +105,66 @@ class PdsClient {
 	}
 
 	/**
-	 * A query whose answer is bytes — a repository, a blob — with its type.
+	 * A query whose answer is bytes — a repository, a blob — copied to a
+	 * temporary file as it arrives, which the caller removes; none is made
+	 * for an error status.
 	 *
-	 * @return array{status: int, bytes: string, type: string}
-	 * @throws MoveFailure when the PDS cannot be reached
+	 * @param int $max the most bytes taken
+	 * @return array{status: int, path: string, size: int, type: string}
+	 * @throws MoveFailure when the PDS cannot be reached, or the answer is larger than $max (`repo-too-large`, `blob-too-large`)
 	 */
-	public function bytes(string $pds, string $method, array $query, string $token = ''): array {
+	public function bytes(string $pds, string $method, array $query, int $max, string $token = ''): array {
 		$headers = $token === '' ? [] : ['Authorization' => 'Bearer ' . $token];
 		try {
 			// a stream rather than a document: a repository is not held to the
-			// download ceiling
+			// download ceiling, only to $max
 			$answer = $this->curl->openStream($pds . '/xrpc/' . $method . '?' . http_build_query($query), $headers, '', self::LONG_TIMEOUT);
 		} catch (RequestContentException $e) {
-			return ['status' => $e->getCode(), 'bytes' => '', 'type' => ''];
+			return ['status' => $e->getCode(), 'path' => '', 'size' => 0, 'type' => ''];
 		} catch (Throwable $e) {
 			throw self::unreachable($pds, $e);
 		}
-		$bytes = (string)stream_get_contents($answer['stream']);
-		fclose($answer['stream']);
 		$type = '';
+		$length = -1;
 		foreach ($answer['headers'] as $name => $values) {
 			if (strtolower($name) === 'content-type') {
 				$type = (string)($values[0] ?? '');
+			} elseif (strtolower($name) === 'content-length') {
+				$length = (int)($values[0] ?? -1);
 			}
 		}
+		$path = (string)tempnam(sys_get_temp_dir(), 'social-atproto-pds-');
+		$out = fopen($path, 'wb');
+		$size = 0;
+		try {
+			if ($out === false) {
+				throw new MoveFailure(MoveFailure::FAILED, 'No temporary file for what ' . $method . ' answered');
+			}
+			while ($length <= $max && !feof($answer['stream'])) {
+				$chunk = fread($answer['stream'], 65536);
+				if ($chunk === false) {
+					break;
+				}
+				$size += strlen($chunk);
+				if ($size > $max) {
+					break;
+				}
+				fwrite($out, $chunk);
+			}
+			if ($length > $max || $size > $max) {
+				throw new MoveFailure($method === 'com.atproto.sync.getRepo' ? 'repo-too-large' : 'blob-too-large', $method . ' answered more than ' . $max . ' bytes');
+			}
+		} catch (MoveFailure $e) {
+			@unlink($path);
+			throw $e;
+		} finally {
+			if ($out !== false) {
+				fclose($out);
+			}
+			fclose($answer['stream']);
+		}
 
-		return ['status' => $answer['status'], 'bytes' => $bytes, 'type' => $type];
+		return ['status' => $answer['status'], 'path' => $path, 'size' => $size, 'type' => $type];
 	}
 
 	/**

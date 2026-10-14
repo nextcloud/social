@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Atproto\Move;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
+use OCA\Social\Atproto\Client\ClientXrpc;
 use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
@@ -26,6 +27,7 @@ use OCA\Social\Atproto\Move\MoveInService;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Move\PostHistory;
 use OCA\Social\Atproto\Move\PostRepublisher;
+use OCA\Social\Atproto\Move\RepoArchive;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
@@ -79,6 +81,8 @@ class MoveInServiceTest extends TestCase {
 	private Identity $current;
 	/** whether the PLC directory knows the DID */
 	private bool $known = true;
+	/** @var array<string, int> the cap each download was given, by method */
+	private array $downloaded = [];
 	/** the revision of the old server's repository */
 	private string $oldRev = '';
 	/** whether the old server hands out the second blob as it is named */
@@ -146,13 +150,17 @@ class MoveInServiceTest extends TestCase {
 
 			return $method === 'com.atproto.sync.listBlobs' ? ['cids' => [Cid::forRaw($this->blob)->toString(), Cid::forRaw('elsewhere')->toString()]] : [];
 		});
-		$pds->method('bytes')->willReturnCallback(fn (string $origin, string $method, array $query): array => match ($method) {
-			'com.atproto.sync.getRepo' => ['status' => 200, 'bytes' => $this->car, 'type' => 'application/vnd.ipld.car'],
-			'com.atproto.sync.getBlob' => match (true) {
-				$query['cid'] === Cid::forRaw($this->blob)->toString() => ['status' => 200, 'bytes' => $this->blob, 'type' => 'image/png'],
-				$this->elsewhereArrives && $query['cid'] === Cid::forRaw('elsewhere')->toString() => ['status' => 200, 'bytes' => 'elsewhere', 'type' => 'image/png'],
-				default => ['status' => 200, 'bytes' => 'not what it is named', 'type' => 'image/png'],
-			},
+		$pds->method('bytes')->willReturnCallback(function (string $origin, string $method, array $query, int $max): array {
+			$this->downloaded[$method] = $max;
+
+			return self::downloaded(match ($method) {
+				'com.atproto.sync.getRepo' => $this->car,
+				'com.atproto.sync.getBlob' => match (true) {
+					$query['cid'] === Cid::forRaw($this->blob)->toString() => $this->blob,
+					$this->elsewhereArrives && $query['cid'] === Cid::forRaw('elsewhere')->toString() => 'elsewhere',
+					default => 'not what it is named',
+				},
+			});
 		});
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('pdsEndpoint')->willReturn(self::HERE);
@@ -601,6 +609,25 @@ class MoveInServiceTest extends TestCase {
 		$this->rows[1]->state = Move::RUNNING;
 		$this->expectException(MoveErrorException::class);
 		$this->moves->newCode('alice');
+	}
+
+	/** A download as PdsClient hands it over: in a temporary file. */
+	private static function downloaded(string $bytes): array {
+		$path = (string)tempnam(sys_get_temp_dir(), 'social-test-');
+		file_put_contents($path, $bytes);
+
+		return ['status' => 200, 'path' => $path, 'size' => strlen($bytes), 'type' => 'application/octet-stream'];
+	}
+
+	/** A repository and its blobs are downloaded with the caps the server keeps, and the files go afterwards. */
+	public function testDownloadsAreCappedAndCleanedUp(): void {
+		$before = glob(sys_get_temp_dir() . '/social-test-*') ?: [];
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame(['com.atproto.sync.getRepo' => RepoArchive::MAX_BYTES, 'com.atproto.sync.getBlob' => ClientXrpc::MAX_UPLOAD], $this->downloaded);
+		$this->assertSame(64 * 1024 * 1024, RepoArchive::MAX_BYTES);
+		$this->assertSame($before, glob(sys_get_temp_dir() . '/social-test-*') ?: [], 'no download is left behind');
 	}
 
 	/** A post written on the old server while the move waited for the code comes along. */

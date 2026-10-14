@@ -1383,7 +1383,11 @@ here*):
    checked against the DID's signing key and written here byte for byte
    under a commit signed with a key made for the account here), the
    **blobs** (`listBlobs`/`getBlob`, each checked against its CID) and the
-   **preferences**.
+   **preferences**. The repository and the blobs arrive in temporary files
+   rather than in memory,
+   held to the caps the server takes from a tool too: 64 MB for the
+   repository (`repo-too-large` past that), and the largest upload for a
+   blob (a larger one is not copied, and counts as missing below).
 3. Before that, the blobs the copied records name are compared with the
    blobs stored here (and the counts logged). When any is missing, the
    move stops in state `needs_decision` with `progress.missing` (`count`
@@ -1666,6 +1670,8 @@ older clients.
 | `no-move-waiting` | A code was sent, but no move waits for one | Reload the page |
 | `code-invalid` / `code-expired` | The e-mailed code was wrong or old | *Try again* asks for a new one |
 | `repo-unavailable` | The old server did not hand out the repository | Try again later |
+| `repo-too-large` | The repository is larger than the 64 MB this server takes | Ask the administrator |
+| `blob-too-large` | A blob is larger than the largest upload this server takes; it is not copied and counts among the missing (`blobs-missing`) | Go on without it |
 | `repo-invalid` | The repository is not the account's, or not signed with its key | Ask the old server's operator |
 | `operation-mismatch` | The old server signed another operation than was asked | Try again; report it if it repeats |
 | `nothing-to-republish` | Publishing again with no finished move that took posts off Bluesky | — |

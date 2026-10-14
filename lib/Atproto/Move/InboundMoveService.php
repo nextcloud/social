@@ -69,8 +69,6 @@ class InboundMoveService {
 	public const INVITATION_LIFETIME = 86400;
 	/** how long the session the other side gets lasts */
 	public const SESSION_LIFETIME = 7 * 86400;
-	/** the largest repository taken */
-	public const MAX_REPO = 64 * 1024 * 1024;
 	private const PAGE = 500;
 	private const THROTTLE = 'social_atproto_move_inbound';
 	private const CREATE = 'com.atproto.server.createAccount';

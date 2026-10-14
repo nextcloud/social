@@ -464,14 +464,20 @@ class MoveInService {
 			return;
 		}
 		$signing = (string)($this->didState($move->did)['verificationMethods']['atproto'] ?? '');
-		$car = $this->pds->bytes($move->pds, 'com.atproto.sync.getRepo', ['did' => $move->did]);
-		if ($car['status'] !== 200 || $signing === '') {
-			throw new MoveFailure('repo-unavailable', 'The old server did not hand out the repository (' . $car['status'] . ')');
-		}
+		$car = $this->pds->bytes($move->pds, 'com.atproto.sync.getRepo', ['did' => $move->did], RepoArchive::MAX_BYTES);
 		try {
-			$archive = RepoArchive::read($car['bytes'], $move->did, PublicKey::fromDidKey($signing));
+			if ($car['status'] !== 200 || $signing === '') {
+				throw new MoveFailure('repo-unavailable', 'The old server did not hand out the repository (' . $car['status'] . ')');
+			}
+			$archive = RepoArchive::read((string)file_get_contents($car['path']), $move->did, PublicKey::fromDidKey($signing));
+		} catch (MoveFailure $e) {
+			throw $e;
 		} catch (AtprotoException|InvalidArgumentException $e) {
 			throw new MoveFailure('repo-invalid', $e->getMessage(), $e);
+		} finally {
+			if ($car['path'] !== '') {
+				@unlink($car['path']);
+			}
 		}
 		$this->repositories->import($move->did, $this->key($move), $archive['records'], $archive['rev']);
 		$move->progress = ['records' => count($archive['records']), 'rev' => $archive['rev']] + $move->progress;
