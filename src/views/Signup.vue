@@ -417,6 +417,17 @@ export default {
 		},
 	},
 
+	mounted() {
+		// the two columns need more than the guest wrapper's 700px; the
+		// class goes back when the page does, so the login keeps its width
+		this.guestWrapper = document.querySelector('.wrapper')
+		this.guestWrapper?.classList.add('social-signup-wide')
+	},
+
+	unmounted() {
+		this.guestWrapper?.classList.remove('social-signup-wide')
+	},
+
 	methods: {
 		t,
 
@@ -456,9 +467,11 @@ export default {
 <style scoped lang="scss">
 // The guest layout's box is 440px by habit; registration carries an
 // introduction, a form and the instance's rules, so it takes the wide
-// variant core offers and fills the wrapper instead.
+// variant core offers and fills a widened wrapper instead. The wrapper
+// itself is core's (700px); the page asks for more while it is mounted
+// and hands it back when it is gone.
 .signup {
-	width: min(880px, 100%);
+	width: min(1024px, 100%);
 	text-align: start;
 
 	&__brand {
@@ -721,5 +734,15 @@ export default {
 			text-decoration: underline;
 		}
 	}
+}
+</style>
+
+<style>
+/* The guest wrapper centers every public page at 700px; registration lays
+   an introduction beside its form and needs the room. Unscoped, because the
+   wrapper is core's markup above this component, and narrowed to the class
+   the page puts on while it is mounted. */
+.wrapper.social-signup-wide {
+	max-width: 1080px;
 }
 </style>

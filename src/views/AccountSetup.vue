@@ -374,9 +374,16 @@ export default {
 	justify-content: center;
 	padding: 24px 16px;
 
+	// the setup question fills the page, not the reading column: the app
+	// centers its pages at 800px, and an explainer beside two answers
+	// does not fit in it
+	#app-content-vue &.social__wrapper {
+		max-width: 1080px;
+	}
+
 	&__card {
 		width: 100%;
-		max-width: 880px;
+		max-width: 1024px;
 		padding: 32px;
 		background: var(--color-main-background);
 		border: 1px solid var(--color-border);

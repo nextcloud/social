@@ -53,6 +53,21 @@ describe('the registration page', () => {
 		post.mockReset()
 	})
 
+	it('widens the guest wrapper while it is mounted, and hands it back afterwards', async () => {
+		const wrapper = document.createElement('div')
+		wrapper.className = 'wrapper'
+		document.body.appendChild(wrapper)
+		try {
+			const signup = await page(OPEN)
+
+			expect(wrapper.classList.contains('social-signup-wide')).toBe(true)
+			signup.unmount()
+			expect(wrapper.classList.contains('social-signup-wide')).toBe(false)
+		} finally {
+			wrapper.remove()
+		}
+	})
+
 	it('says why it is closed and offers the way back', async () => {
 		const wrapper = await page({ ...OPEN, open: false, reason: 'This server accepts registrations by invitation only.' })
 

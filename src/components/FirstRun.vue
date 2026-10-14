@@ -120,18 +120,26 @@
 					</div>
 				</div>
 
-				<!-- 2. the account itself: a bio, and who can reach it. The
-			     forms are the settings sections themselves, so nothing here
-			     is a second implementation of anything -->
+				<!-- 2. the account's face: a bio, next to the name the
+			     Nextcloud account gives it -->
 				<div v-else-if="step === 1" key="profile" class="first-run__page">
 					<h2 ref="heading" class="first-run__title" tabindex="-1">
-						{{ t('social', 'Set up your profile and privacy') }}
+						{{ t('social', 'Set up your profile') }}
 					</h2>
 					<p class="first-run__lead">
 						{{ t('social', 'Everything here can be changed later in Settings.') }}
 					</p>
 
-					<div class="first-run__profile-grid">
+					<p v-if="!credentials" class="first-run__hint">
+						{{ t('social', 'Loading your account …') }}
+					</p>
+					<template v-else>
+						<p class="first-run__hint">
+							{{ t('social', 'You post as {name}.', { name: displayName }) }}
+							<a class="first-run__link" :href="personalSettings">
+								{{ t('social', 'Change your name in your Nextcloud settings') }}
+							</a>
+						</p>
 						<div class="first-run__bio">
 							<label class="first-run__bio-label" for="social-first-run-bio">
 								{{ t('social', 'Bio') }}
@@ -166,21 +174,31 @@
 								</NcButton>
 							</div>
 						</div>
-						<div class="first-run__privacy">
-							<h3 class="first-run__subtitle">
-								{{ t('social', 'Who can find and follow you') }}
-							</h3>
-							<AccountSettings />
-							<h3 class="first-run__subtitle">
-								{{ t('social', 'Who may send you direct messages') }}
-							</h3>
-							<DirectMessagesSettings />
-						</div>
-					</div>
+					</template>
 				</div>
 
-				<!-- 3. people -->
-				<div v-else-if="step === 2" key="people" class="first-run__page">
+				<!-- 3. who can reach it: the settings sections themselves, so
+			     nothing here is a second implementation of anything -->
+				<div v-else-if="step === 2" key="privacy" class="first-run__page">
+					<h2 ref="heading" class="first-run__title" tabindex="-1">
+						{{ t('social', 'Decide who can reach you') }}
+					</h2>
+					<p class="first-run__lead">
+						{{ t('social', 'Everything here can be changed later in Settings.') }}
+					</p>
+
+					<h3 class="first-run__subtitle">
+						{{ t('social', 'Who can find and follow you') }}
+					</h3>
+					<AccountSettings />
+					<h3 class="first-run__subtitle">
+						{{ t('social', 'Who may send you direct messages') }}
+					</h3>
+					<DirectMessagesSettings />
+				</div>
+
+				<!-- 4. people -->
+				<div v-else-if="step === 3" key="people" class="first-run__page">
 					<h2 ref="heading" class="first-run__title" tabindex="-1">
 						{{ t('social', 'A feed is only as good as who is in it') }}
 					</h2>
@@ -188,72 +206,66 @@
 						{{ t('social', 'Nothing shows up here until you follow somebody. Two places to start:') }}
 					</p>
 
-					<div class="first-run__find-grid">
-						<div>
-							<h3 class="first-run__subtitle">
-								{{ t('social', 'People on your Nextcloud') }}
-							</h3>
-							<ul v-if="colleagues.length" class="first-run__people">
-								<li v-for="account in colleagues" :key="account.acct" class="first-run__person">
-									<ActorAvatar :actor="account" :size="36" :link="false" />
-									<span class="first-run__person-names">
-										<span class="first-run__person-name">{{ account.display_name || account.username }}</span>
-										<span class="first-run__person-handle">@{{ account.acct }}</span>
-									</span>
-									<NcButton
-										:variant="followed.includes(account.acct) ? 'success' : 'primary'"
-										:disabled="followed.includes(account.acct) || busy === account.acct"
-										@click="follow(account)">
-										<template #icon>
-											<NcLoadingIcon v-if="busy === account.acct" :size="20" />
-											<IconCheck v-else-if="followed.includes(account.acct)" :size="20" />
-											<IconAccountPlus v-else :size="20" />
-										</template>
-										{{ followed.includes(account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
-									</NcButton>
-								</li>
-							</ul>
-							<p v-else-if="loading" class="first-run__hint">
-								{{ t('social', 'Looking around …') }}
-							</p>
-							<p v-else class="first-run__hint">
-								{{ t('social', 'Nobody on this Nextcloud has said where they are on the fediverse yet. You are the first — your handle is now on your Nextcloud profile, so the next person will see you here.') }}
-							</p>
-						</div>
-						<div>
-							<h3 class="first-run__subtitle">
-								{{ t('social', 'Starter packs') }}
-							</h3>
-							<ul v-if="packs.length" class="first-run__packs">
-								<li v-for="pack in packs" :key="pack.id" class="first-run__pack">
-									<span class="first-run__pack-text">
-										<span class="first-run__pack-name">{{ pack.name }}</span>
-										<span v-if="pack.description" class="first-run__pack-description">{{ pack.description }}</span>
-									</span>
-									<NcButton
-										:variant="followedPacks.includes(pack.id) ? 'success' : 'secondary'"
-										:disabled="followedPacks.includes(pack.id) || busy === pack.id || !pack.size"
-										@click="followPack(pack)">
-										<template #icon>
-											<NcLoadingIcon v-if="busy === pack.id" :size="20" />
-											<IconCheck v-else-if="followedPacks.includes(pack.id)" :size="20" />
-											<IconAccountMultiplePlus v-else :size="20" />
-										</template>
-										{{ followedPacks.includes(pack.id)
-											? t('social', 'Following')
-											: n('social', 'Follow %n account', 'Follow %n accounts', pack.size) }}
-									</NcButton>
-								</li>
-							</ul>
-							<p v-else-if="!loading" class="first-run__hint">
-								{{ t('social', 'No starter packs on this server. Discover has suggestions and what is trending.') }}
-							</p>
-						</div>
-					</div>
+					<h3 class="first-run__subtitle">
+						{{ t('social', 'People on your Nextcloud') }}
+					</h3>
+					<ul v-if="colleagues.length" class="first-run__people">
+						<li v-for="account in colleagues" :key="account.acct" class="first-run__person">
+							<ActorAvatar :actor="account" :size="36" :link="false" />
+							<span class="first-run__person-names">
+								<span class="first-run__person-name">{{ account.display_name || account.username }}</span>
+								<span class="first-run__person-handle">@{{ account.acct }}</span>
+							</span>
+							<NcButton
+								:variant="followed.includes(account.acct) ? 'success' : 'primary'"
+								:disabled="followed.includes(account.acct) || busy === account.acct"
+								@click="follow(account)">
+								<template #icon>
+									<NcLoadingIcon v-if="busy === account.acct" :size="20" />
+									<IconCheck v-else-if="followed.includes(account.acct)" :size="20" />
+									<IconAccountPlus v-else :size="20" />
+								</template>
+								{{ followed.includes(account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
+							</NcButton>
+						</li>
+					</ul>
+					<p v-else-if="loading" class="first-run__hint">
+						{{ t('social', 'Looking around …') }}
+					</p>
+					<p v-else class="first-run__hint">
+						{{ t('social', 'Nobody on this Nextcloud has said where they are on the fediverse yet. You are the first — your handle is now on your Nextcloud profile, so the next person will see you here.') }}
+					</p>
+					<h3 class="first-run__subtitle">
+						{{ t('social', 'Starter packs') }}
+					</h3>
+					<ul v-if="packs.length" class="first-run__packs">
+						<li v-for="pack in packs" :key="pack.id" class="first-run__pack">
+							<span class="first-run__pack-text">
+								<span class="first-run__pack-name">{{ pack.name }}</span>
+								<span v-if="pack.description" class="first-run__pack-description">{{ pack.description }}</span>
+							</span>
+							<NcButton
+								:variant="followedPacks.includes(pack.id) ? 'success' : 'secondary'"
+								:disabled="followedPacks.includes(pack.id) || busy === pack.id || !pack.size"
+								@click="followPack(pack)">
+								<template #icon>
+									<NcLoadingIcon v-if="busy === pack.id" :size="20" />
+									<IconCheck v-else-if="followedPacks.includes(pack.id)" :size="20" />
+									<IconAccountMultiplePlus v-else :size="20" />
+								</template>
+								{{ followedPacks.includes(pack.id)
+									? t('social', 'Following')
+									: n('social', 'Follow %n account', 'Follow %n accounts', pack.size) }}
+							</NcButton>
+						</li>
+					</ul>
+					<p v-else-if="!loading" class="first-run__hint">
+						{{ t('social', 'No starter packs on this server. Discover has suggestions and what is trending.') }}
+					</p>
 				</div>
 
-				<!-- 4. what you had -->
-				<div v-else-if="step === 3" key="follows" class="first-run__page">
+				<!-- 5. what you had -->
+				<div v-else-if="step === 4" key="follows" class="first-run__page">
 					<h2 ref="heading" class="first-run__title" tabindex="-1">
 						{{ t('social', 'Already somewhere else?') }}
 					</h2>
@@ -309,7 +321,7 @@
 					</p>
 				</div>
 
-				<!-- 5. go -->
+				<!-- 6. go -->
 				<div v-else key="ready" class="first-run__page">
 					<h2 ref="heading" class="first-run__title" tabindex="-1">
 						{{ t('social', 'That is all there is to it') }}
@@ -447,7 +459,8 @@ export default {
 			step: 0,
 			stepNames: [
 				t('social', 'How it works'),
-				t('social', 'Profile and privacy'),
+				t('social', 'Profile'),
+				t('social', 'Privacy'),
 				t('social', 'People to follow'),
 				t('social', 'Bring what you had'),
 				t('social', 'Ready'),
@@ -521,6 +534,19 @@ export default {
 		/** @return {object|null} the CredentialAccount, once it has come */
 		credentials() {
 			return this.accountStore.credentials
+		},
+
+		/**
+		 * @return {string} the name this account posts under, falling back to
+		 *                  the handle where Nextcloud holds no display name
+		 */
+		displayName() {
+			return this.credentials?.display_name || this.credentials?.username || ''
+		},
+
+		/** @return {string} where the name and the picture actually live */
+		personalSettings() {
+			return generateUrl('/settings/user')
 		},
 
 		/**
@@ -886,8 +912,14 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
-	max-width: 880px;
+	max-width: 1040px;
 	margin: 0 auto;
+
+	// the walkthrough fills the page, not the reading column: the app
+	// centers its pages at 800px, and two columns do not fit in it
+	#app-content-vue &.social__wrapper {
+		max-width: 1080px;
+	}
 
 	&__header {
 		display: flex;
@@ -1092,19 +1124,7 @@ export default {
 		user-select: all;
 	}
 
-	/* the bio beside the privacy, above it on a phone */
-	&__profile-grid {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		gap: 12px 32px;
-		align-items: start;
-		margin-top: 8px;
-
-		@media (max-width: 720px) {
-			grid-template-columns: minmax(0, 1fr);
-		}
-	}
-
+	/* the bio, full width: a few words do not need two columns */
 	&__bio {
 		display: flex;
 		flex-direction: column;
@@ -1148,30 +1168,9 @@ export default {
 		}
 	}
 
-	/* the settings sections themselves, under one heading each */
-	&__privacy {
-		min-width: 0;
-
-		.first-run__subtitle:first-child {
-			margin-top: 0;
-		}
-	}
-
-	/* colleagues beside packs while there is room for them */
-	&__find-grid {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-		gap: 12px 32px;
-		align-items: start;
-		margin-top: 4px;
-
-		@media (max-width: 720px) {
-			grid-template-columns: minmax(0, 1fr);
-		}
-
-		.first-run__subtitle:first-child {
-			margin-top: 0;
-		}
+	/* the name lives on the Nextcloud account, next to the picture */
+	&__link {
+		text-decoration: underline;
 	}
 
 	&__people,

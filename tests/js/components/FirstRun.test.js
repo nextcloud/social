@@ -92,9 +92,9 @@ describe('FirstRun', () => {
 		expect(wrapper.find('h2').text()).toBe('How Aloha Social works')
 		expect(wrapper.find('.first-run__handle').text()).toBe('@alice@cloud.example.org')
 		// five steps, the first lit
-		expect(wrapper.findAll('.first-run__dot')).toHaveLength(5)
+		expect(wrapper.findAll('.first-run__dot')).toHaveLength(6)
 		expect(wrapper.find('.first-run__dot--current').attributes('aria-current')).toBe('step')
-		expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 5')
+		expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 6')
 	})
 
 	it('says what the account can do, not only what its address is', async () => {
@@ -122,7 +122,7 @@ describe('FirstRun', () => {
 
 	// the second page: the bio, and who can reach the account. The forms
 	// are the settings sections themselves, not copies of them.
-	describe('the profile and privacy step', () => {
+	describe('the profile and privacy steps', () => {
 		const credentials = {
 			id: '1',
 			url: 'https://cloud.example.org/alice',
@@ -131,23 +131,31 @@ describe('FirstRun', () => {
 			source: { note: 'Hello, fediverse', privacy: 'public' },
 		}
 
-		async function onProfile() {
+		async function onStep(name) {
 			serverHas()
 			const wrapper = await mountFirstRun()
 			accountStore.setCredentials(credentials)
 			await flushPromises()
-			await next(wrapper)
-			await flushPromises()
+			while (wrapper.find('h2').text() !== name) {
+				await next(wrapper)
+				await flushPromises()
+			}
 
 			return wrapper
 		}
 
-		it('asks for the bio second, with the privacy settings beside it', async () => {
-			const wrapper = await onProfile()
+		it('asks for the bio second', async () => {
+			const wrapper = await onStep('Set up your profile')
 
-			expect(wrapper.find('h2').text()).toBe('Set up your profile and privacy')
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 5')
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 6')
 			expect(wrapper.find('#social-first-run-bio').element.value).toBe('Hello, fediverse')
+			expect(wrapper.text()).toContain('You post as Alice.')
+		})
+
+		it('asks for the privacy third, with the settings themselves', async () => {
+			const wrapper = await onStep('Decide who can reach you')
+
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 3 of 6')
 			expect(wrapper.text()).toContain('Who can find and follow you')
 			expect(wrapper.text()).toContain('Approve who follows you')
 			expect(wrapper.text()).toContain('Who may send you direct messages')
@@ -156,7 +164,7 @@ describe('FirstRun', () => {
 
 		it('saves the bio the way the profile editor does', async () => {
 			axios.patch.mockResolvedValue({ data: { ...credentials, source: { note: 'New bio', privacy: 'public' } } })
-			const wrapper = await onProfile()
+			const wrapper = await onStep('Set up your profile')
 
 			await wrapper.find('#social-first-run-bio').setValue('New bio')
 			await button(wrapper, 'Save').trigger('click')
@@ -170,7 +178,7 @@ describe('FirstRun', () => {
 		})
 
 		it('does not send an unchanged bio', async () => {
-			const wrapper = await onProfile()
+			const wrapper = await onStep('Set up your profile')
 
 			expect(button(wrapper, 'Save').attributes('disabled')).toBeDefined()
 			expect(axios.patch).not.toHaveBeenCalled()
@@ -202,6 +210,7 @@ describe('FirstRun', () => {
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
 		await next(wrapper)
+		await next(wrapper)
 
 		expect(wrapper.find('h2').text()).toBe('A feed is only as good as who is in it')
 		// the people on this Nextcloud: what no other server could know
@@ -214,6 +223,7 @@ describe('FirstRun', () => {
 	it('follows a colleague from the card and says so', async () => {
 		serverHas({ suggestions: [{ sources: ['featured'], account: bob }] })
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 
@@ -229,6 +239,7 @@ describe('FirstRun', () => {
 		serverHas({ packs: [pack] })
 		axios.post.mockResolvedValue({ data: { followed: ['a', 'b', 'c', 'd'], failed: [] } })
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 
@@ -252,6 +263,7 @@ describe('FirstRun', () => {
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
 		await next(wrapper)
+		await next(wrapper)
 
 		await button(wrapper, 'Follow 4 accounts').trigger('click')
 		await flushPromises()
@@ -266,6 +278,7 @@ describe('FirstRun', () => {
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
 		await next(wrapper)
+		await next(wrapper)
 
 		expect(wrapper.text()).toContain('You are the first')
 		expect(wrapper.text()).toContain('No starter packs on this server')
@@ -278,6 +291,7 @@ describe('FirstRun', () => {
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
 		await next(wrapper)
+		await next(wrapper)
 
 		expect(wrapper.find('.first-run__pack-name').text()).toBe('The fediverse')
 		expect(showError).not.toHaveBeenCalled()
@@ -288,6 +302,7 @@ describe('FirstRun', () => {
 		axios.post.mockResolvedValue({ data: { import: { id: 9, kind: 'move_in', status: 'queued' } } })
 		finishedImports = [{ id: 9, kind: 'move_in', status: 'done', done: 15, report: { followed: 12, imported: 3 } }]
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
@@ -309,6 +324,7 @@ describe('FirstRun', () => {
 		axios.post.mockResolvedValue({ data: { import: { id: 7, kind: 'follows', status: 'queued' } } })
 		finishedImports = [{ id: 7, kind: 'follows', status: 'done', done: 12, skipped: 1, failed: 1 }]
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
@@ -336,6 +352,7 @@ describe('FirstRun', () => {
 		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
+		await next(wrapper)
 
 		const accept = wrapper.find('input[type="file"]').attributes('accept').split(',')
 		expect(accept).toEqual(expect.arrayContaining(['.csv', '.json', 'application/json']))
@@ -345,6 +362,7 @@ describe('FirstRun', () => {
 	it('keeps the file input behind its button out of the tab order', async () => {
 		serverHas()
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
@@ -358,6 +376,7 @@ describe('FirstRun', () => {
 		serverHas()
 		const emit = vi.spyOn(eventBus, 'emit')
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
@@ -401,10 +420,14 @@ describe('FirstRun', () => {
 			serverHas()
 			const wrapper = await mountFirstRun()
 
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+			await flushPromises()
+			expect(wrapper.find('h2').text()).toBe('Set up your profile')
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 6')
+
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
 			await flushPromises()
-			expect(wrapper.find('h2').text()).toBe('Set up your profile and privacy')
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 5')
+			expect(wrapper.find('h2').text()).toBe('Decide who can reach you')
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
 			await flushPromises()
@@ -412,7 +435,7 @@ describe('FirstRun', () => {
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
 			await flushPromises()
-			expect(wrapper.find('h2').text()).toBe('Set up your profile and privacy')
+			expect(wrapper.find('h2').text()).toBe('Decide who can reach you')
 		})
 
 		it('stays put at the ends', async () => {
@@ -421,12 +444,13 @@ describe('FirstRun', () => {
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
 			await flushPromises()
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 5')
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 6')
 		})
 
 		it('does not turn while the reader is typing in the handle to move', async () => {
 			serverHas()
 			const wrapper = await mountFirstRun()
+			await next(wrapper)
 			await next(wrapper)
 			await next(wrapper)
 			await next(wrapper)
