@@ -19,10 +19,11 @@ namespace OCA\Social\Atproto\Model;
  * arrived, the DID is pointed there, the account is activated there and
  * switched off here.
  *
- * Moving here: the repository, the blobs, the preferences and the follows
- * are copied from the old PDS, the old PDS e-mails the person a code, and
- * with it signs the operation that points the DID here; the account then
- * takes the DID, and is switched off there; its posts become posts here.
+ * Moving here: the repository, the blobs and the preferences are copied
+ * from the old PDS, the old PDS e-mails the person a code, and with it
+ * signs the operation that points the DID here; the account then takes the
+ * DID, and is switched off there; its follows become follows here, and its
+ * posts posts here.
  *
  * Moving here inbound, the other side drives — Bridgy Fed for a bridged
  * account, or a migration tool: the person invites the DID with a one-time
@@ -58,9 +59,9 @@ final class Move {
 	public const WAITING = 'waiting';
 	public const FAILED = 'failed';
 	public const DONE = 'done';
-	/** moving away: stopped before the DID moved, for the person to decide how to go on */
+	/** stopped before the DID moved, for the person to decide how to go on: blobs did not arrive */
 	public const NEEDS_DECISION = 'needs_decision';
-	/** moving away: called off by the person before the DID moved */
+	/** called off by the person before the DID moved */
 	public const CANCELLED = 'cancelled';
 
 	/**
@@ -97,11 +98,11 @@ final class Move {
 		return match ($step) {
 			self::STEP_REPO => self::STEP_BLOBS,
 			self::STEP_BLOBS => self::STEP_PREFERENCES,
-			self::STEP_PREFERENCES => self::STEP_FOLLOWS,
-			self::STEP_FOLLOWS => self::STEP_CODE,
+			self::STEP_PREFERENCES => self::STEP_CODE,
 			self::STEP_CODE => self::STEP_IDENTITY,
 			self::STEP_IDENTITY => self::STEP_ACTIVATE,
-			self::STEP_ACTIVATE => self::STEP_POSTS,
+			self::STEP_ACTIVATE => self::STEP_FOLLOWS,
+			self::STEP_FOLLOWS => self::STEP_POSTS,
 			default => self::STEP_DONE,
 		};
 	}
@@ -116,6 +117,23 @@ final class Move {
 			self::STEP_IDENTITY => self::STEP_ACTIVATE,
 			default => self::STEP_DONE,
 		};
+	}
+
+	/**
+	 * The move stopped: the sentence for the log and older clients, and
+	 * the code the page explains (§13.5).
+	 */
+	public function fail(string $error, string $code): void {
+		$this->state = self::FAILED;
+		$this->error = $error;
+		$this->progress = ['code' => $code] + $this->progress;
+	}
+
+	/** The move goes on: what stopped it is forgotten. */
+	public function resume(): void {
+		$this->state = self::RUNNING;
+		$this->error = '';
+		unset($this->progress['code']);
 	}
 
 	/** what the settings show of it */

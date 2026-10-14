@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\UserMigration;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Service\BlueskyArchiveService;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -56,7 +58,9 @@ use Throwable;
  * `media_attachments/` in the layout Mastodon's own archive uses, so the archive
  * is useful outside Nextcloud too — `following_accounts.csv` is the file
  * `MigrationService::parseFollowsCsv()` reads and the one Mastodon's "Import
- * follows" accepts.
+ * follows" accepts. The Bluesky account, where there is one, travels under
+ * `bluesky/` in the formats atproto tools read: the repository as a CAR, the
+ * blobs, the DID's log — export only, see exportBluesky().
  *
  * What deliberately does not travel:
  *
@@ -123,6 +127,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	private const PATH_OUTBOX = self::PATH_ROOT . 'outbox.json';
 	/** For you: what was learned and chosen, and the reader's switches. */
 	private const PATH_INTERESTS = self::PATH_ROOT . 'interests.json';
+	/** The Bluesky account: repository, blobs, the DID's log and document, see `BlueskyArchiveService`. */
+	private const PATH_BLUESKY = self::PATH_ROOT . BlueskyArchiveService::ROOT;
 	/**
 	 * Where the files sit, relative to the app's folder in the archive, in the
 	 * layout Mastodon's own export uses: `media_attachments/files/<id>/original.<ext>`
@@ -186,6 +192,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		private StreamRequest $streamRequest,
 		private StreamActionService $streamActionService,
 		private InterestService $interestService,
+		private IdentityService $identities,
+		private BlueskyArchiveService $blueskyArchive,
 		private ITempManager $tempManager,
 		private IURLGenerator $urlGenerator,
 		private LoggerInterface $logger,
@@ -215,8 +223,8 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 	public function getDescription(): string {
 		return $this->l10n->t(
 			'Your Fediverse profile, the accounts you follow, block and mute, your own posts'
-			. ' with the pictures and videos in them, your bookmarks and your favourites.'
-			. ' Your private key stays behind.'
+			. ' with the pictures and videos in them, your bookmarks and your favourites,'
+			. ' and your Bluesky account where you have one. Your private keys stay behind.'
 		);
 	}
 
@@ -302,6 +310,39 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 		$this->exportMarks($actor, $exportDestination, $output);
 		$this->exportInterests($actor, $exportDestination, $output);
 		$this->exportOutbox($actor, $exportDestination, $output);
+		$this->exportBluesky($actor, $exportDestination, $output);
+	}
+
+	/**
+	 * The Bluesky account, where the person has one here: the files
+	 * `BlueskyArchiveService` writes, under `bluesky/`. Nothing is read
+	 * back from them on import — a Bluesky account comes here by a move,
+	 * not from a file — so they are for keeping, and for moving the
+	 * account without this server.
+	 */
+	private function exportBluesky(
+		Person $actor,
+		IExportDestination $exportDestination,
+		OutputInterface $output,
+	): void {
+		try {
+			$identity = $this->identities->forActor($actor, false);
+		} catch (Throwable $e) {
+			$this->logger->notice('cannot read the Bluesky identity of an account for its export', [
+				'actor' => $actor->getId(), 'exception' => $e,
+			]);
+
+			return;
+		}
+		if (!BlueskyArchiveService::exportable($identity)) {
+			return;
+		}
+		try {
+			$written = $this->blueskyArchive->write($identity, $exportDestination, self::PATH_BLUESKY);
+		} catch (Throwable $e) {
+			throw new SocialMigratorException('Could not export the Bluesky account', 0, $e);
+		}
+		$output->writeln('Exported the Bluesky account ' . $identity->did . ' with ' . $written['blobs'] . ' blob(s) to ' . self::PATH_BLUESKY . '…');
 	}
 
 	/**

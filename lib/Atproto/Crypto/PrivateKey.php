@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Crypto;
 
 use InvalidArgumentException;
+use OCA\Social\Atproto\Protocol\Encoding;
 use OpenSSLAsymmetricKey;
 use RuntimeException;
 use SensitiveParameter;
@@ -75,6 +76,15 @@ final class PrivateKey {
 
 	public function didKey(): string {
 		return $this->publicKey()->didKey();
+	}
+
+	/**
+	 * The secret as atproto tools take a private key: `z`, then base58btc
+	 * of the multicodec prefix and the 32 bytes — what `goat key generate`
+	 * prints and `goat plc sign --plc-signing-key` reads.
+	 */
+	public function multibase(): string {
+		return 'z' . Encoding::base58Encode($this->curve->privateKeyPrefix() . $this->secret);
 	}
 
 	/**

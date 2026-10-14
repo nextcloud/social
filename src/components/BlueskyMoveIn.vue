@@ -12,13 +12,31 @@
 			{{ t('social', 'An account you have on Bluesky can live on this server instead. Your followers there keep following you, and your posts and the accounts you follow come along.') }}
 		</p>
 
-		<p v-if="move && move.state === 'done'" class="migration__bluesky-in-done">
-			{{ t('social', 'Your Bluesky account now lives here, as {handle}.', { handle: identity.handle }) }}
-		</p>
+		<template v-if="move && move.state === 'done'">
+			<p class="migration__bluesky-in-done">
+				{{ t('social', 'Your Bluesky account now lives here, as {handle}.', { handle: identity.handle }) }}
+			</p>
+			<div v-if="republishable" class="migration__bluesky-in-actions">
+				<p class="migration__bluesky-in-confirm">
+					{{ n('social', '%n post you wrote here was taken off Bluesky by the move. It can be published again from your moved account.', '%n posts you wrote here were taken off Bluesky by the move. They can be published again from your moved account.', republishable) }}
+				</p>
+				<NcButton :disabled="busy" @click="republish">
+					{{ t('social', 'Publish them again') }}
+				</NcButton>
+			</div>
+			<p v-else-if="move.progress?.republish?.state" class="migration__bluesky-in-note">
+				{{ t('social', 'Your posts are being published on Bluesky again.') }}
+			</p>
+		</template>
+
+		<BlueskyMissingBlobs v-else-if="move && move.state === 'needs_decision'" :move="move" @move="takeMove" />
 
 		<div v-else-if="move && move.state === 'waiting'" class="migration__bluesky-in-code">
 			<p>
 				{{ t('social', 'Bluesky e-mailed you a code to confirm the move. Enter it here.') }}
+			</p>
+			<p v-if="sentTo">
+				{{ t('social', 'The code went to {address}.', { address: sentTo }) }}
 			</p>
 			<NcTextField
 				v-model="code"
@@ -35,6 +53,17 @@
 				</template>
 				{{ t('social', 'Confirm the move') }}
 			</NcButton>
+			<p v-if="codeNote" class="migration__bluesky-in-note" role="status">
+				{{ codeNote }}
+			</p>
+			<div class="migration__bluesky-in-actions">
+				<NcButton :disabled="busy" @click="newCode">
+					{{ t('social', 'Send a new code') }}
+				</NcButton>
+				<NcButton :disabled="busy" @click="cancel">
+					{{ t('social', 'Call off the move') }}
+				</NcButton>
+			</div>
 		</div>
 
 		<div v-else-if="move && move.state === 'running'" class="migration__bluesky-in-progress" aria-live="polite">
@@ -93,6 +122,9 @@
 			<div v-if="confirming" class="migration__bluesky-in-actions">
 				<p class="migration__bluesky-in-confirm">
 					{{ t('social', 'The Bluesky account you bring replaces {handle}, the one this server made for you: its posts and followers on Bluesky are not kept.', { handle: identity.handle }) }}
+					<template v-if="postsOnBluesky > 0">
+						{{ n('social', '%n post disappears from Bluesky; you can publish it again afterwards.', '%n posts disappear from Bluesky; you can publish them again afterwards.', postsOnBluesky) }}
+					</template>
 				</p>
 				<NcButton variant="error" :disabled="busy" @click="start">
 					<template v-if="busy" #icon>
@@ -123,7 +155,8 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowLeft from 'vue-material-design-icons/AccountArrowLeft.vue'
-import { t } from '@nextcloud/l10n'
+import BlueskyMissingBlobs from './BlueskyMissingBlobs.vue'
+import { n, t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
 
 /** How often a running move is asked about, in milliseconds. */
@@ -138,6 +171,7 @@ export default {
 	name: 'BlueskyMoveIn',
 
 	components: {
+		BlueskyMissingBlobs,
 		IconAccountArrowLeft,
 		NcButton,
 		NcLoadingIcon,
@@ -151,6 +185,8 @@ export default {
 			identity: null,
 			/** @type {object|null} the latest move here, as the server keeps it */
 			move: null,
+			/** how many of the person's posts a move here takes off Bluesky */
+			postsOnBluesky: 0,
 			handle: '',
 			password: '',
 			signInCode: '',
@@ -159,6 +195,8 @@ export default {
 			busy: false,
 			startError: '',
 			codeError: '',
+			/** what became of a new code, once one was asked for */
+			codeNote: '',
 			retryError: '',
 			/** @type {number|null} */
 			pollTimer: null,
@@ -169,6 +207,17 @@ export default {
 		/** @return {boolean} */
 		shown() {
 			return this.identity !== null
+		},
+
+		/** @return {number} the posts a finished move took off Bluesky, while they can be published again */
+		republishable() {
+			const republish = this.move?.progress?.republish
+			return republish && !republish.state ? republish.count ?? 0 : 0
+		},
+
+		/** @return {string} where the old server sent the code, '' when it did not say */
+		sentTo() {
+			return this.move?.progress?.code_sent_to ?? ''
 		},
 
 		/** @return {boolean} whether the sign-in is filled in */
@@ -210,6 +259,7 @@ export default {
 	},
 
 	methods: {
+		n,
 		t,
 
 		/** @return {Promise<void>} */
@@ -229,6 +279,7 @@ export default {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1/social/bluesky/move'))
 				const before = this.move?.state
+				this.postsOnBluesky = data?.posts_on_bluesky ?? 0
 				this.takeMove(data?.move)
 				if (before !== 'done' && this.move?.state === 'done') {
 					// the account goes by its handle here now
@@ -333,6 +384,77 @@ export default {
 				} else {
 					showError(t('social', 'Could not confirm the move'))
 				}
+			} finally {
+				this.busy = false
+			}
+		},
+
+		/**
+		 * Asks the old server again to e-mail a code.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async newCode() {
+			this.busy = true
+			this.codeError = ''
+			this.codeNote = ''
+			try {
+				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move-in/code'))
+				this.takeMove(data?.move)
+				this.codeNote = data?.sent_to
+					? t('social', 'A new code is on its way to {address}.', { address: data.sent_to })
+					: t('social', 'A new code is on its way to the e-mail address of your Bluesky account.')
+			} catch (error) {
+				if (error?.response?.status === 422) {
+					this.codeError = error.response.data?.error || t('social', 'Could not ask for a new code')
+				} else {
+					showError(t('social', 'Could not ask for a new code'))
+				}
+			} finally {
+				this.busy = false
+			}
+		},
+
+		/**
+		 * Calls the move off, after the Nextcloud password.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async cancel() {
+			try {
+				await confirmPassword()
+			} catch {
+				return
+			}
+			this.busy = true
+			this.codeError = ''
+			try {
+				const { data } = await axios.delete(generateUrl('apps/social/api/v1/social/bluesky/move-in'))
+				this.codeNote = ''
+				this.takeMove(data?.move)
+			} catch (error) {
+				if (error?.response?.status === 422) {
+					this.codeError = error.response.data?.error || t('social', 'Could not call off the move')
+				} else {
+					showError(t('social', 'Could not call off the move'))
+				}
+			} finally {
+				this.busy = false
+			}
+		},
+
+		/**
+		 * Publishes the posts the move took off Bluesky again.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async republish() {
+			this.busy = true
+			try {
+				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move-in/republish'))
+				this.takeMove(data?.move)
+			} catch (error) {
+				showError(error?.response?.data?.error || t('social', 'Could not publish the posts again'))
 			} finally {
 				this.busy = false
 			}

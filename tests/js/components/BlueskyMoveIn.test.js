@@ -12,7 +12,7 @@ import { confirmPassword } from '../../../src/services/externalApi.js'
 import BlueskyMoveIn from '../../../src/components/BlueskyMoveIn.vue'
 
 vi.mock('@nextcloud/axios', () => ({
-	default: { get: vi.fn(), post: vi.fn() },
+	default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('../../../src/services/externalApi.js', () => ({ confirmPassword: vi.fn().mockResolvedValue(undefined) }))
@@ -42,7 +42,7 @@ function moveOf(state, step = 'repo', extra = {}) {
 }
 
 /** The server: an identity (or none), and the moves the GET answers one after the other. */
-function server({ identity = true, moves = [null] } = {}) {
+function server({ identity = true, moves = [null], postsOnBluesky = 0 } = {}) {
 	let polls = 0
 	axios.get.mockImplementation((url) => {
 		if (url === `${API}/identity`) {
@@ -53,7 +53,7 @@ function server({ identity = true, moves = [null] } = {}) {
 		if (url === `${API}/move`) {
 			const move = moves[Math.min(polls, moves.length - 1)]
 			polls++
-			return Promise.resolve({ data: { move } })
+			return Promise.resolve({ data: { move, posts_on_bluesky: postsOnBluesky } })
 		}
 		return notFound()
 	})
@@ -116,6 +116,31 @@ describe('BlueskyMoveIn', () => {
 		expect(wrapper.text()).toContain('Bringing alice.bsky.social here')
 	})
 
+	it('says how many posts the move takes off Bluesky', async () => {
+		server({ postsOnBluesky: 38 })
+		const wrapper = await mountCard()
+		const [handle, password] = inputs(wrapper)
+		await handle.setValue('alice.bsky.social')
+		await password.setValue('pw')
+
+		await buttonNamed(wrapper, 'Bring my Bluesky account here').trigger('click')
+
+		expect(wrapper.text()).toContain('38 posts disappear from Bluesky; you can publish them again afterwards.')
+	})
+
+	it('offers to publish the posts the move took off Bluesky again', async () => {
+		server({ moves: [moveOf('done', 'done', { progress: { republish: { count: 38, state: '' } } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('done', 'done', { progress: { republish: { count: 38, state: 'queued' } } }) } })
+		const wrapper = await mountCard()
+		expect(wrapper.text()).toContain('38 posts you wrote here were taken off Bluesky by the move.')
+
+		await buttonNamed(wrapper, 'Publish them again').trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/republish`)
+		expect(wrapper.text()).toContain('Your posts are being published on Bluesky again.')
+	})
+
 	it('sends nothing when the password confirmation is dismissed', async () => {
 		server()
 		confirmPassword.mockRejectedValueOnce(new Error('dismissed'))
@@ -157,6 +182,57 @@ describe('BlueskyMoveIn', () => {
 
 		expect(axios.post).toHaveBeenCalledWith(`${API}/move/code`, { code: '12345-ABCDE' })
 		expect(wrapper.text()).toContain('Pointing your account at this server')
+	})
+
+	it('says where the code went, and asks for a new one', async () => {
+		server({ moves: [moveOf('waiting', 'code', { progress: { code_sent_to: 'alice@example.org' } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('waiting', 'code'), sent_to: '' } })
+		const wrapper = await mountCard()
+		expect(wrapper.text()).toContain('The code went to alice@example.org.')
+
+		await buttonNamed(wrapper, 'Send a new code').trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/code`)
+		expect(wrapper.text()).toContain('A new code is on its way to the e-mail address of your Bluesky account.')
+	})
+
+	it('calls a waiting move off after the Nextcloud password', async () => {
+		server({ moves: [moveOf('waiting', 'code')] })
+		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'code', { error: 'Called off' }) } })
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call off the move').trigger('click')
+		await flushPromises()
+
+		expect(confirmPassword).toHaveBeenCalled()
+		expect(axios.delete).toHaveBeenCalledWith(`${API}/move-in`)
+		expect(wrapper.text()).not.toContain('The move stopped')
+		expect(inputs(wrapper)).toHaveLength(3)
+	})
+
+	it('shows why a move could not be called off', async () => {
+		server({ moves: [moveOf('waiting', 'code')] })
+		axios.delete.mockRejectedValue({ response: { status: 422, data: { error: 'Too late', code: 'move-past-switch' } } })
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call off the move').trigger('click')
+		await flushPromises()
+
+		expect(wrapper.find('[role="alert"]').text()).toContain('Too late')
+	})
+
+	it('lets the person decide on pictures that did not arrive', async () => {
+		server({ moves: [moveOf('needs_decision', 'code', { progress: { code: 'blobs-missing', missing: { count: 12, cids: [] } } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'code') } })
+		const wrapper = await mountCard()
+
+		expect(wrapper.text()).toContain('12 pictures or videos of your posts could not be copied here.')
+		await buttonNamed(wrapper, 'Go on without them').trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/continue`, { without_missing: true })
+		expect(wrapper.text()).toContain('Asking Bluesky to e-mail you a code')
 	})
 
 	it('follows a running move and says when it is done, under the handle here', async () => {

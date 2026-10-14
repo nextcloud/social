@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Client\Preferences;
@@ -25,17 +24,18 @@ use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Protocol\Cid;
-use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Service\DocumentService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
@@ -69,8 +69,6 @@ class InboundMoveService {
 	public const INVITATION_LIFETIME = 86400;
 	/** how long the session the other side gets lasts */
 	public const SESSION_LIFETIME = 7 * 86400;
-	/** the largest repository taken */
-	public const MAX_REPO = 64 * 1024 * 1024;
 	private const PAGE = 500;
 	private const THROTTLE = 'social_atproto_move_inbound';
 	private const CREATE = 'com.atproto.server.createAccount';
@@ -97,6 +95,9 @@ class InboundMoveService {
 		private IJobList $jobList,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
+		private AtprotoIdentityRequest $identityRequest,
+		private MovedBlobs $movedBlobs,
+		private PostRepublisher $republisher,
 	) {
 	}
 
@@ -106,30 +107,30 @@ class InboundMoveService {
 	 * tool needs is answered, the code once.
 	 *
 	 * @return array{move: Move, bridgy: bool, pds: string, handle: string, email: string, code: string}
-	 * @throws InvalidArgumentException with what to tell the person
+	 * @throws MoveErrorException with what to tell the person
 	 * @throws AtprotoException
 	 */
 	public function invite(string $userId, string $typed): array {
 		$latest = $this->moves->latestOfUser($userId);
-		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
+		if ($latest !== null && $latest->isUnderWay()) {
 			if ($latest->direction !== Move::INBOUND || $latest->step !== Move::STEP_INVITED) {
-				throw new InvalidArgumentException('A move is already under way');
+				throw new MoveErrorException('A move is already under way', 'move-in-progress');
 			}
-			$this->end($latest, 'Replaced by a new invitation');
+			$this->end($latest, 'Replaced by a new invitation', 'move-replaced');
 		}
 		$did = $this->moveIn->didOf($typed);
 		try {
 			$this->identities->getByDid($did);
-			throw new InvalidArgumentException('That Bluesky account is on this server already');
+			throw new MoveErrorException('That Bluesky account is on this server already', 'account-here-already');
 		} catch (AtprotoIdentityNotFoundException) {
 		}
-		$data = $this->plc->data($did);
+		$data = $this->moveIn->didState($did);
 		$endpoint = rtrim((string)($data['services']['atproto_pds']['endpoint'] ?? ''), '/');
 		if ($endpoint === '') {
-			throw new InvalidArgumentException('The directory names no server for that account');
+			throw new MoveErrorException('The directory names no server for that account', 'pds-not-named');
 		}
 		$actor = $this->actors->getFromUserId($userId);
-		$identity = $this->identities->forActor($actor) ?? throw new InvalidArgumentException('Bluesky is off for this account');
+		$identity = $this->identities->forActor($actor) ?? throw new MoveErrorException('Bluesky is off for this account', 'no-identity');
 		$oldHandle = (string)preg_replace('~^at://~', '', (string)($data['alsoKnownAs'][0] ?? $did));
 
 		$code = implode('-', str_split($this->random->generate(24, ISecureRandom::CHAR_LOWER . ISecureRandom::CHAR_DIGITS), 6));
@@ -152,10 +153,10 @@ class InboundMoveService {
 			try {
 				$this->bridgy->ask($actor, BridgyTwin::command($pds, $email, $identity->handle, $code));
 			} catch (Throwable $e) {
-				$this->end($move, 'Bridgy Fed could not be asked');
+				$this->end($move, 'Bridgy Fed could not be asked', 'bridgy-unreachable');
 				$this->logger->warning('Bridgy Fed not asked to move a twin here', ['did' => $did, 'exception' => $e]);
 
-				throw new InvalidArgumentException('Bridgy Fed could not be sent the request; try again later');
+				throw new MoveErrorException('Bridgy Fed could not be sent the request; try again later', 'bridgy-unreachable');
 			}
 		}
 
@@ -166,14 +167,14 @@ class InboundMoveService {
 	 * Calls off a move here that is not finished: what arrived of it is
 	 * dropped.
 	 *
-	 * @throws InvalidArgumentException
+	 * @throws MoveErrorException
 	 */
 	public function cancel(string $userId): Move {
 		$move = $this->latest($userId);
-		if ($move === null || $move->direction !== Move::INBOUND || $move->state !== Move::WAITING) {
-			throw new InvalidArgumentException('There is no move here to call off');
+		if ($move === null || $move->direction !== Move::INBOUND || !in_array($move->state, [Move::WAITING, Move::NEEDS_DECISION], true)) {
+			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
 		}
-		$this->end($move, 'Called off');
+		$this->end($move, 'Called off', '');
 
 		return $move;
 	}
@@ -183,9 +184,10 @@ class InboundMoveService {
 	 */
 	public function latest(string $userId): ?Move {
 		$move = $this->moves->latestOfUser($userId);
-		if ($move !== null && $move->direction === Move::INBOUND && $move->state === Move::WAITING
+		if ($move !== null && $move->direction === Move::INBOUND && in_array($move->state, [Move::WAITING, Move::NEEDS_DECISION], true)
 			&& (int)($this->unseal($move->session)['until'] ?? 0) < $this->time->getTime()) {
-			$this->end($move, $move->step === Move::STEP_INVITED ? 'The invitation expired' : 'The move was not finished in time');
+			$invited = $move->step === Move::STEP_INVITED;
+			$this->end($move, $invited ? 'The invitation expired' : 'The move was not finished in time', $invited ? 'invite-expired' : 'move-expired');
 		}
 
 		return $move;
@@ -310,7 +312,7 @@ class InboundMoveService {
 		} catch (AtprotoException $e) {
 			throw XrpcException::invalidRequest($e->getMessage());
 		}
-		$expected = count($this->referencedBlobs($move->did));
+		$expected = count($this->movedBlobs->referenced($move->did));
 		$move->progress = ['records' => count($archive['records']), 'expectedBlobs' => $expected] + $move->progress;
 		$move->step = Move::STEP_BLOBS;
 		$this->moves->update($move);
@@ -349,10 +351,62 @@ class InboundMoveService {
 	}
 
 	/**
+	 * The person's decision on a move the PLC operation was held back for,
+	 * as blobs are missing: go on without them — the next operation the
+	 * other side sends is taken — or have this server copy them from the
+	 * old PDS first.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function decide(Move $move, bool $withoutMissing): Move {
+		if ($move->direction !== Move::INBOUND || $move->state !== Move::NEEDS_DECISION) {
+			throw new MoveErrorException('The move does not wait for a decision', 'no-decision-pending');
+		}
+		$move->resume();
+		if ($withoutMissing) {
+			$move->progress['missing_accepted'] = (int)($move->progress['missing']['count'] ?? 0);
+			$move->state = Move::WAITING;
+		} else {
+			$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
+		}
+		$this->moves->update($move);
+
+		return $move;
+	}
+
+	/**
+	 * Copies the missing blobs from the old PDS, for a person who asked
+	 * for that; the move then waits for the other side again, or for their
+	 * decision once more.
+	 */
+	private function copyMissing(Move $move): void {
+		foreach ($this->movedBlobs->missing($move->did) as $cid) {
+			try {
+				if ($this->movedBlobs->copy($move, $cid) > 0) {
+					$move->progress = ['blobs' => (int)($move->progress['blobs'] ?? 0) + 1] + $move->progress;
+				}
+			} catch (AtprotoException $e) {
+				$this->logger->info('Blob of a move here not copied from the old PDS', ['did' => $move->did, 'cid' => $cid, 'exception' => $e]);
+			}
+		}
+		$move->state = Move::WAITING;
+		if (!$this->movedBlobs->complete($move)) {
+			$move->state = Move::NEEDS_DECISION;
+		}
+		$this->moves->update($move);
+	}
+
+	/**
 	 * After activation: the follows become follows here, the posts posts
-	 * here, and the move is done.
+	 * here, and the move is done. Before it, the blobs the person asked
+	 * to have copied again are.
 	 */
 	public function run(Move $move): void {
+		if ($move->direction === Move::INBOUND && $move->state === Move::RUNNING && !$this->isActivated($move) && $move->step !== Move::STEP_INVITED) {
+			$this->copyMissing($move);
+
+			return;
+		}
 		if ($move->direction !== Move::INBOUND || $move->state !== Move::RUNNING || !in_array($move->step, [Move::STEP_FOLLOWS, Move::STEP_POSTS], true)) {
 			return;
 		}
@@ -387,16 +441,30 @@ class InboundMoveService {
 		if ($move->step === Move::STEP_INVITED || $this->repositories->getHead($move->did) === null) {
 			throw XrpcException::invalidRequest('The repository has not arrived');
 		}
-		if (!$this->pointsHere($move, $this->plc->data($move->did) ?? [])) {
+		$state = $this->plc->data($move->did) ?? [];
+		if (!$this->pointsHere($move, $state)) {
 			throw XrpcException::invalidRequest('The DID does not name this server and the key it recommended yet');
 		}
 		$current = $this->identities->forActor($this->actors->getFromUserId($move->userId));
 		if ($current === null) {
 			throw XrpcException::invalidRequest('Bluesky is off for this account');
 		}
+		$this->republisher->remember($move, $current);
+		$kept = (string)($move->progress['handle_kept'] ?? '');
+		$kept = $kept !== '' && ($state['alsoKnownAs'][0] ?? '') === 'at://' . $kept ? $kept : '';
 		try {
+			if ($kept !== '') {
+				// set before the DID moves, so the identity is announced under it
+				$this->identityRequest->setCustomHandle($current->did, $kept);
+			}
 			$this->identities->receive($current, $move->did, $this->key($move), $move->pds);
+			if ($current->recoveryPublic !== '' && in_array($current->recoveryPublic, RotationKeys::didKeys($state['rotationKeys'] ?? null), true)) {
+				$this->identityRequest->setRecoveryPublic($move->did, $current->recoveryPublic);
+			}
 		} catch (AtprotoException $e) {
+			if ($kept !== '') {
+				$this->identityRequest->setCustomHandle($current->did, $current->customHandle);
+			}
 			$this->logger->error('A Bluesky account that moved here could not take its DID', ['did' => $move->did, 'exception' => $e]);
 
 			throw new XrpcException(500, 'InternalServerError', 'The account could not be activated');
@@ -423,6 +491,11 @@ class InboundMoveService {
 		if (!$this->pointsHere($move, $operation)) {
 			throw XrpcException::invalidRequest('The operation does not point the DID at this server with the recommended key');
 		}
+		if (!$this->movedBlobs->complete($move)) {
+			$this->moves->update($move);
+
+			throw new XrpcException(400, 'BlobsMissing', $move->error . '; the account\'s owner decides on this server whether the move goes on without them');
+		}
 		try {
 			$this->identities->submit($move->did, $operation);
 		} catch (AtprotoException $e) {
@@ -437,7 +510,7 @@ class InboundMoveService {
 	 */
 	private function status(Move $move): array {
 		$head = $this->repositories->getHead($move->did);
-		$referenced = $this->referencedBlobs($move->did);
+		$referenced = $this->movedBlobs->referenced($move->did);
 		$imported = 0;
 		foreach (array_keys($referenced) as $cid) {
 			$imported += $this->blobs->get($move->did, (string)$cid) !== null ? 1 : 0;
@@ -462,17 +535,45 @@ class InboundMoveService {
 	}
 
 	/**
-	 * `com.atproto.identity.getRecommendedDidCredentials`: this server's
-	 * rotation key, the account's handle here, the key made for it here and
-	 * this PDS.
+	 * `com.atproto.identity.getRecommendedDidCredentials`: the rotation
+	 * keys — the person's recovery key here and every key the DID lists now
+	 * that is not the old server's, then this server's (`RotationKeys`) —
+	 * the handle on the person's own domain when they had one, else the
+	 * account's handle here, the key made for it here and this PDS.
+	 *
+	 * @throws XrpcException
 	 */
 	private function credentials(Move $move): array {
+		try {
+			$state = $this->plc->data($move->did) ?? [];
+			$identity = $this->identities->forActor($this->actors->getFromUserId($move->userId), false);
+		} catch (Throwable) {
+			throw new XrpcException(400, 'UnresolvableDid', 'The DID\'s rotation keys could not be read from the directory');
+		}
+		if (!array_key_exists('handle_kept', $move->progress)) {
+			$move->progress['handle_kept'] = $this->moveIn->keptHandle($move->pds, $state, $identity?->handle ?? '');
+			$this->moves->update($move);
+		}
+		$kept = (string)$move->progress['handle_kept'];
+
 		return [
-			'rotationKeys' => [$this->instanceKeys->rotationKey()->didKey()],
-			'alsoKnownAs' => ['at://' . $this->handleHere($move)],
+			'rotationKeys' => RotationKeys::forMoveHere($state['rotationKeys'] ?? null, $this->oldServerKeys($move, $state), $identity?->recoveryPublic ?? '', $this->instanceKeys->rotationKey()->didKey()),
+			'alsoKnownAs' => ['at://' . ($kept !== '' ? $kept : $this->handleHere($move))],
 			'verificationMethods' => ['atproto' => $this->publicKey($move)],
 			'services' => ['atproto_pds' => ['type' => PlcOperation::PDS_SERVICE_TYPE, 'endpoint' => $this->config->pdsEndpoint()]],
 		];
+	}
+
+	/**
+	 * The old server's own rotation keys, as far as they can be told: a
+	 * DID Bridgy Fed holds lists only Bridgy's. Any other old server is
+	 * not asked — only the tool that drives the move has a session there —
+	 * so every key such a DID lists is kept.
+	 *
+	 * @return list<string>
+	 */
+	private function oldServerKeys(Move $move, array $state): array {
+		return BridgyTwin::hosts($move->pds) ? RotationKeys::didKeys($state['rotationKeys'] ?? null) : [];
 	}
 
 	/**
@@ -480,7 +581,7 @@ class InboundMoveService {
 	 */
 	private function missingBlobs(Move $move, int $limit, string $cursor): array {
 		$limit = max(1, min(1000, $limit));
-		$referenced = $this->referencedBlobs($move->did);
+		$referenced = $this->movedBlobs->referenced($move->did);
 		ksort($referenced, SORT_STRING);
 		$blobs = [];
 		foreach ($referenced as $cid => $path) {
@@ -494,46 +595,6 @@ class InboundMoveService {
 		}
 
 		return ['blobs' => $blobs];
-	}
-
-	/**
-	 * Every blob the repository's records name, with the first record that
-	 * names it.
-	 *
-	 * @return array<string, string> CID => record path
-	 */
-	private function referencedBlobs(string $did): array {
-		$referenced = [];
-		$this->repoRequest->eachRecordBytes($did, static function (Cid $cid, string $bytes, string $path) use (&$referenced): void {
-			try {
-				$value = DagCbor::decode($bytes);
-			} catch (Throwable) {
-				return;
-			}
-			foreach (self::blobsIn($value) as $blob) {
-				$referenced[$blob] ??= $path;
-			}
-		});
-
-		return $referenced;
-	}
-
-	/**
-	 * @return list<string> the CIDs of the blobs a record value names
-	 */
-	private static function blobsIn(mixed $value): array {
-		if (!is_array($value)) {
-			return [];
-		}
-		if (($value['$type'] ?? null) === 'blob' && ($value['ref'] ?? null) instanceof Cid) {
-			return [$value['ref']->toString()];
-		}
-		$found = [];
-		foreach ($value as $item) {
-			array_push($found, ...self::blobsIn($item));
-		}
-
-		return $found;
 	}
 
 	/**
@@ -605,7 +666,7 @@ class InboundMoveService {
 
 	private function isCurrent(Move $move, array $sealed, string $did, string $sid): bool {
 		return $move->direction === Move::INBOUND
-			&& $move->state !== Move::FAILED
+			&& !in_array($move->state, [Move::FAILED, Move::CANCELLED], true)
 			&& $move->did === $did
 			&& $sid !== ''
 			&& hash_equals((string)($sealed['sid'] ?? ''), $sid)
@@ -625,12 +686,17 @@ class InboundMoveService {
 	}
 
 	/**
-	 * Ends a move that did not finish; what arrived of the repository and its
-	 * blobs is dropped, unless the DID is an account's here after all.
+	 * Ends a move that did not finish — failed with $code, or with none
+	 * called off — and what arrived of the repository and its blobs is
+	 * dropped, unless the DID is an account's here after all.
 	 */
-	private function end(Move $move, string $why): void {
-		$move->state = Move::FAILED;
-		$move->error = $why;
+	private function end(Move $move, string $why, string $code): void {
+		if ($code === '') {
+			$move->state = Move::CANCELLED;
+			$move->error = $why;
+		} else {
+			$move->fail($why, $code);
+		}
 		$move->session = '';
 		$this->moves->update($move);
 		try {

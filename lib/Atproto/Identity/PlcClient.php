@@ -124,13 +124,15 @@ class PlcClient {
 	}
 
 	/**
-	 * @return array{headers: array<string, string>, body?: string, timeout: int, json_headers: bool, allow_local_address: bool}
+	 * @return array{headers: array<string, string>, body?: string, timeout: int, json_headers: bool, accept_errors: bool, allow_local_address: bool}
 	 */
 	private function options(string $body = ''): array {
 		$options = [
 			'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
 			'timeout' => self::TIMEOUT,
 			'json_headers' => false,
+			// a 404 is "not known" and a 4xx a verdict: the status is read here
+			'accept_errors' => true,
 			// the interop job runs its own directory on this machine
 			'allow_local_address' => !str_starts_with($this->config->plcDirectory(), 'https://'),
 		];

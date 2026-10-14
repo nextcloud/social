@@ -178,6 +178,10 @@ page says so. The identity is three things stored in
   deliberate for a hosted instance (the administrator's way back from a
   compromised phrase) and the opposite of Bluesky's own PDS, which lists
   the person's key first; the settings page says so beside the phrase.
+  That is the order of an identity made here. A DID that moved here keeps
+  the person's own keys first and this server's last (§13.1), and a DID
+  the person changed with their own key keeps the order they gave it: no
+  later operation of this server reorders it (§4.5).
 
 The DID document the PLC publishes names the handle (§4.2), the signing
 key under `#atproto`, and the PDS service `#atproto_pds` with endpoint
@@ -223,16 +227,99 @@ the account keys.
 Nothing, unless they look: **Settings → Apps and account → Bluesky** shows the Bluesky
 handle and DID under the Fediverse handle, with a *Copy* button and a
 sentence that says the Bluesky account exists because this server offers
-one. The recovery key is shown there **once**, on first view, as a
-twelve-word phrase to write down, with a "Show again" that requires
-password confirmation and regenerates (and re-registers, §4.5) rather
-than reveals. The words are BIP-39's list and checksum over 128 bits of
-entropy, but the key is this app's own derivation from them (`Mnemonic`:
-SHA-256 of the entropy), not a BIP-39 seed: no other atproto tool
-imports the phrase, and nothing here takes it back yet — it is the
-person's proof of the DID for a later tool of this app's. The settings
-page says so, and that the instance's key ranks above it (§4.1). The switch **Be
-on Bluesky** is there too (§4.6).
+one. The recovery key is made on request (*Create recovery phrase*, after
+password confirmation) and shown **once**, as a twelve-word phrase to
+write down; making a new one replaces it on the DID (§4.5) rather than
+revealing the old one. The same dialog shows the key the words stand for
+in the forms other atproto tools take — the private key as multibase
+(what `goat key generate` prints and `goat plc sign --plc-signing-key`
+reads) and as hex (what the reference PDS and `@atproto/crypto` import),
+and the public `did:key` the directory lists — with the advice to keep
+the words, which are all of it. The settings page says that the
+instance's key ranks above it (§4.1). The switch **Be on Bluesky** is
+there too (§4.6).
+
+**The derivation**, for anyone who reimplements it (`Mnemonic`;
+`resources/atproto/recovery-key.py` does it with Python 3 and nothing
+else):
+
+1. The phrase is lower-cased and split on white space; it is exactly
+   twelve words of BIP-39's English list (`resources/atproto/bip39-english.txt`,
+   the standard 2048 words). No Unicode normalisation is needed: the list
+   is ASCII.
+2. Each word is its index in the list as eleven bits, most significant
+   first; the 132 bits are the 128 bits of entropy (16 bytes, big-endian)
+   and a 4-bit checksum, which must equal the first four bits of
+   SHA-256 of the entropy — BIP-39's own encoding.
+3. The private key is **SHA-256 of the 26 ASCII bytes
+   `social.atproto.recovery.v1` followed by the 16 entropy bytes**, taken
+   as a big-endian secp256k1 (`k256`) secret. It is *not* BIP-39's seed:
+   no PBKDF2, no passphrase, no BIP-32 path, so a wallet that imports the
+   words derives a different key.
+4. Written out: hex is the 32 bytes in lower-case hex; multibase is `z`
+   followed by base58btc (Bitcoin alphabet) of `0x81 0x26` (the multicodec
+   varint of `secp256k1-priv`, 0x1301) and the 32 bytes; the `did:key` is
+   `did:key:z` followed by base58btc of `0xe7 0x01` and the 33-byte
+   compressed public point.
+
+Example: `abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about`
+(entropy sixteen zero bytes) is the hex key
+`950f8acc1852f1a2562b2851457a04b1ba22541dd0f3b95ab9302d2894f29397`,
+multibase `z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526`, public
+`did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt`
+(`MnemonicTest` pins all three, and that the script agrees).
+
+**What the phrase can do.** Its key is a rotation key of the DID, so it
+signs PLC operations the directory accepts without this server. The
+**recovery tool** (below) does that in the person's browser; goat does
+the same from the command line (`goat plc update`, `goat plc sign
+--plc-signing-key <multibase>`, `goat plc submit`, then
+`goat account service-auth-offline` and `goat account create
+--existing-did`). Both paths are in Moving.md's "If this server goes away"
+and in the archive's README. Neither has been run end to end against the
+live directory from this app's tests. While this server exists its key
+ranks first, so for 72 hours it can nullify an operation signed with the
+phrase (§4.1); the "Who controls" panel (§4.5b) shows that window.
+
+**The recovery tool** is one HTML page with its script inline
+(`RecoveryToolPage`, the self-contained webpack entry `src/recovery.js`,
+which keeps `@noble/secp256k1` and `@noble/hashes` out of every other
+bundle). It is served publicly at `GET /apps/social/bluesky-recovery`
+(the inline script allowed by its CSP hash, `connect-src https:` for the
+directory and whichever server the person names), downloaded from
+`/bluesky-recovery/download` ("Download the recovery tool" in Settings),
+and put into the Bluesky archive as `recovery/bluesky-recovery-tool.html`.
+The page carries its strings, in the language it was downloaded in, and
+the word list, so a saved copy runs with this server gone. In order, each
+network request only on a button press:
+
+1. the key from the words (`src/recovery/plc.js`, the derivation above)
+   or from hex or multibase;
+2. the DID's latest operation from `<directory>/<did>/log/last`, or
+   pasted; the key must be one of its rotation keys (`key-not-listed`
+   otherwise);
+3. for a server that cannot sign any more, an operation that gives the
+   DID a fresh signing key made in the browser and puts the person's key
+   first, everything else as it was, sent to the directory;
+4. the new server's DID from `describeServer`, and `createAccount` with
+   the existing DID and a service-auth token (ES256K, `lxm`
+   `com.atproto.server.createAccount`) signed with that signing key;
+5. `importRepo` of `repo.car` and `uploadBlob` of each blob file;
+6. `getRecommendedDidCredentials` with the new account's token (or
+   pasted), the hand-over built exactly as `PlcOperation::fromCredentials()`
+   builds it — the person's key first, then the new server's, at most five
+   — signed and sent to the directory, or copied;
+7. `activateAccount`.
+
+Operations are DAG-CBOR as `DagCbor` writes it (lengths minimal, map keys
+by length then bytes), CIDs CIDv1 dag-cbor SHA-256 base32, signatures
+ECDSA over SHA-256, low-S, raw r‖s, base64url — RFC 6979 deterministic in
+the tool, random-k in OpenSSL, both valid. The cross-language fixtures
+(`tests/Atproto/Identity/fixtures/recovery-tool.json`, written by
+`RecoveryToolFixturesTest` and `tests/js/recovery/plc.test.js` with
+`SOCIAL_UPDATE_FIXTURES=1`) pin the same keys from the same words, the
+same operation bytes and CIDs, PHP's signature accepted by the tool, and
+the tool's operations and service token accepted by PHP.
 
 ### 4.5 PLC operations this app sends
 
@@ -242,11 +329,30 @@ on Bluesky** is there too (§4.6).
 - **update handle**: when the username changes (it does not, in Social, but
   the custom-handle phase needs it) and when the instance host changes.
 - **rotate keys**: when the administrator rotates the instance rotation key
-  (§16.3) or the person regenerates their recovery key.
+  (§16.3) or the person makes or replaces their recovery key — each only
+  the key concerned, see below.
 - **update PDS endpoint**: on a host change, and when an account moves
   away (§13.2).
 - **tombstone**: when a Social account is deleted. `AccountService::deleteActor()`
   gains this step; the DID is dead afterwards, as the person asked.
+
+**Rotation keys of a later operation.** Every operation this server signs
+after the genesis — a handle or host change, a key rotation, a recovery
+phrase — carries the rotation keys of the operation it follows (with
+nothing pending, the directory's confirmed head), in their order
+(`RotationKeys::carry()`). It changes only two of them: this server's own
+key, where a rotation or a retired key puts the key in use in its place,
+and the recovery key, which a new phrase puts in the old one's place, or
+where there was none, beside this server's key — below it where this
+server's key is first, above it where a key of the person already ranks
+above this server. Every other key, the person's included, stays where it
+stood. A DID that lists five keys already takes no recovery key (the
+answer says so) rather than dropping one. An operation that waited while
+the directory moved on — the person changed the DID with their own key
+meanwhile — is carried onto the new head with only its own change
+(`RotationKeys::rebase()`), so their change stays. A hand-over to another
+PDS (§13.2) is the exception: it names the keys the new server recommends,
+the person's recovery key first.
 
 Every operation goes through one `PlcClient` with retries and is recorded
 in `social_atproto_plc_log` before it is sent (so a crash between the two
@@ -272,6 +378,41 @@ drops a recovery key it no longer lists. A signing key or instance key
 the directory no longer names is warned of, with the DID; this server
 cannot put that right by itself. A hand-over to another PDS (§13.2)
 refuses to start while an earlier operation for the DID is pending.
+
+### 4.5b Who controls the DID
+
+The Bluesky section of Settings shows **Who controls your Bluesky
+identifier** (`GET /api/v1/social/bluesky/control`, `DidControlService`):
+the rotation keys of the DID's latest operation, highest first, each named
+by what it is to the person — this server (`InstanceKeyService`'s keys,
+read by their public halves without opening any; a retired one is "an
+earlier key"), their recovery phrase, or a key this server does not know
+(shown as its `did:key`). Whose key signed the latest operation is found
+by checking its signature against the keys of the operation before it;
+while that operation is younger than 72 hours and a key ranks above the
+signer, the panel says until when, and by which keys, it can still be
+undone (the PLC nullification rule). The directory's audit log is the
+source, kept a minute in the distributed cache under the operation this
+server confirmed last, so an operation this server sends is seen at once.
+
+### 4.5a The account as files
+
+**Download your Bluesky account** (Settings, the Bluesky section;
+`GET /api/v1/social/bluesky/archive`, `BlueskyArchiveService`) and the
+account export of the Migration page (`SocialMigrator`, under
+`social/bluesky/`) carry the same files: `repo.car` (the repository as
+`com.atproto.sync.getRepo` streams it), `blobs/<cid>` for every blob that
+still reads, `plc-log.json` (the directory's `/log/audit`, or where it
+cannot be asked the operations this server's log has as confirmed, in
+the same shape), `did.json` (the directory's document, else the one this
+app derives from its log), `recovery/recovery-key.py` with the word list
+(§4.4), `recovery/bluesky-recovery-tool.html` (the recovery tool, §4.4,
+where the JavaScript is built), and `README.txt`, which says what each
+file is and the steps of Moving.md's "If this server goes away". Every file goes to the
+archive as a stream — the CAR through a temporary stream that spills to
+disk — and the download is sent in pieces from the finished zip, so
+neither is ever whole in memory. Nothing is read back from these files
+on import: a Bluesky account comes here by a move (§13), not from a file.
 
 ### 4.6 Switching off (D23)
 
@@ -1360,33 +1501,116 @@ beside the Fediverse move-in.
 
 ### 13.1 The flow
 
-1. The person types their Bluesky handle and app password (never stored
-   beyond the run; Bluesky OAuth later). The old PDS is resolved from the
-   DID document.
-2. **Create the account here with the existing DID**:
-   `com.atproto.server.getServiceAuth` on the old PDS (aud this instance's
-   service DID, lxm `com.atproto.server.createAccount`), then
-   `createAccount` here with that token and the DID — the account exists
-   here *deactivated*. The DID is bound to the Nextcloud user; the local
-   actor's own `did:plc` is **not** created, the moved DID is its identity.
-3. **Repository**: `com.atproto.sync.getRepo` from the old PDS, imported
-   with `importRepo` into this one; `listMissingBlobs` here, each fetched
-   with `getBlob` from the old PDS and `uploadBlob` here; preferences via
-   `app.bsky.actor.getPreferences`/`putPreferences`. Runs as a queued import
-   (`ImportQueueService`, kind `bluesky_move`), progress on the page.
-4. **Identity**: `getRecommendedDidCredentials` here (our signing key, our
-   rotation key, the new handle `alice.<host>`, our PDS endpoint);
-   `requestPlcOperationSignature` on the old PDS (Bluesky e-mails the
-   person a code), the person enters the code, `signPlcOperation` on the
-   old PDS, `submitPlcOperation` here.
-5. **Activate**: `activateAccount` here, `deactivateAccount` on the old
-   PDS. The followers follow the DID and need do nothing; the handle
-   changes to `alice.<host>` unless the person owns a domain and sets a
-   custom handle (later phase).
-6. The imported posts become local stream rows (§9.3's mapping, attributed
-   to the local actor), the follows become watches and `social_follows`
-   rows, the likes and reposts become actions, the curate lists public
-   lists (§9.7) — through the import path, nothing re-published.
+There are two ways in, and in both this server is the *new* PDS of the
+protocol's account migration (classes `Move\MoveInService`,
+`Move\InboundMoveService`, job `Cron\AtprotoMove`, table
+`social_atproto_move`).
+
+**Driven from here** (Settings → Migration → *Bring your Bluesky account
+here*):
+
+1. The person types their Bluesky handle (or DID) and the account's own
+   **password** — not an app password: a PDS signs a change of the DID only
+   for a full session — and confirms with their Nextcloud password. The
+   old PDS is read from the DID's state in the PLC directory, and this
+   server signs in there (`createSession`, with the e-mailed sign-in code
+   when the old PDS asks for one). The password is not kept; the session
+   is, sealed, while the move runs. A PDS limits password sign-ins per
+   address, and all of this server's people share its address: so a
+   person may start five moves an hour, and the whole instance sends one
+   PDS host at most 20 sign-ins in ten minutes (`rate-limited` past that).
+   Inviting a DID (below) is held to five an hour as well.
+2. A background job copies the **repository** (`com.atproto.sync.getRepo`,
+   checked against the DID's signing key and written here byte for byte
+   under a commit signed with a key made for the account here), the
+   **blobs** (`listBlobs`/`getBlob`, each checked against its CID) and the
+   **preferences**. The repository and the blobs arrive in temporary files
+   rather than in memory,
+   held to the caps the server takes from a tool too: 64 MB for the
+   repository (`repo-too-large` past that), and the largest upload for a
+   blob (a larger one is not copied, and counts as missing below).
+3. Before that, the blobs the copied records name are compared with the
+   blobs stored here (and the counts logged). When any is missing, the
+   move stops in state `needs_decision` with `progress.missing` (`count`
+   and the first 50 `cids`) and code `blobs-missing`: the person has them
+   copied again or goes on without them (`POST …/move-in/continue`), so the
+   DID never switches with pictures silently lost. Then the old PDS
+   **e-mails a code** (`requestPlcOperationSignature`); the move waits for
+   the person to enter it. The page says where the code went
+   when the old PDS's session names the address (`progress.code_sent_to`),
+   offers *Send a new code* (asks again, three times an hour) and *Call off
+   the move*. Until the PLC operation may have been sent, a move can be
+   called off: it ends (`state` `cancelled`), its session on the old PDS is
+   ended and dropped, and the copied repository and blobs are deleted;
+   a background job that is still copying stops and drops what it copied.
+4. First, what was posted on the old PDS since the copy comes along: when
+   its `com.atproto.sync.getLatestCommit` names a newer revision than the
+   one copied, the repository is copied again, with the blobs new to it
+   (and the blob check of step 3 once more). With the code the old PDS
+   **signs the operation** (`signPlcOperation`)
+   that names this PDS, the key made here, the handle below and the
+   rotation keys below; this server checks it is what was asked and
+   sends it to the directory. The account **takes the DID**, and the DID
+   this server had made for the account is retired (tombstoned with its
+   repository).
+5. `deactivateAccount` on the old PDS; then the **follows** become follows
+   here, the posts posts in the timeline, the likes and reposts actions,
+   the curate lists lists here (§9.7) — through the import path, nothing
+   re-published.
+
+**Driven by a tool** (Settings → Migration → *Bring your bridged Bluesky
+account here*): the person invites the DID and gets a one-time code; Bridgy
+Fed, or a migration tool such as `goat account migrate`, then runs steps
+1–12 of the protocol's migration against this server (`createAccount`
+with the code, `importRepo`, `uploadBlob`, `getRecommendedDidCredentials`,
+`submitPlcOperation`, `activateAccount`). A `submitPlcOperation` while
+blobs the records name are missing is refused (`BlobsMissing`) and the
+move waits for the person's decision as above; asked to copy them again,
+this server fetches them from the old PDS itself (`getBlob` is public).
+Once activated, the follows and the posts come over as above.
+
+**Posts written here.** The identity this server made for the account is
+retired by the move, and with its repository the posts written here
+disappear from Bluesky. `GET …/bluesky/move` answers how many there are
+now (`posts_on_bluesky`), for the confirmation; the move keeps the count
+and the time they were written in (`progress.republish`). Once the move is
+done, `POST …/move-in/republish` publishes them again, into the moved
+repository, through the Publisher a page at a time in the background —
+the account's local public posts of that time, not the ones brought over
+from Bluesky or elsewhere (`progress.republish.state` `queued`, then
+`done`, with how many were `published`).
+
+**Handle.** A handle on a domain of the person's own (`alice.example.org`)
+stays theirs: the operation names it, it becomes the account's custom
+handle here (§4.2, checked again every day as any custom handle is), and
+the move's progress says so (`handle_kept`). A handle is the person's own
+when it is not under a domain the old server gives handles under — its
+`describeServer`'s `availableUserDomains`, its own host, `bsky.social` or
+Bridgy Fed's `brid.gy` — nor under this server's host, nor another
+account's here. Any other handle becomes the account's handle here,
+`alice.<host>`. The decision is made before the code is asked for (driven
+from here) or when the tool asks for the recommended credentials.
+
+**Rotation keys.** A move here keeps the DID the person's: the operation
+lists their own keys first and this server's last, so a key of theirs
+ranks above this server's and can undo, for 72 hours, an operation this
+server signed. In order:
+
+1. the person's **recovery key** here, when they made one (the identity
+   keeps it as its recovery key afterwards);
+2. every rotation key the DID **lists now** that is **not the old server's
+   own** — driven from here, the old PDS's own keys are the ones its
+   `getRecommendedDidCredentials` names; when it does not answer, no key
+   is dropped. Driven by a tool, the old server cannot be asked (only the
+   tool has a session there): a DID Bridgy Fed holds lists only Bridgy's
+   keys, and those are dropped; for any other old server every listed key
+   is kept, the old server's included;
+3. this server's rotation key.
+
+The directory allows five rotation keys; past that, the lowest-ranked of
+the person's are left out, never this server's. Operations this server
+signs later for the DID (a handle change, a key rotation, §4.5) list this
+server's key and the recovery key only.
 
 ### 13.2 Moving away
 
@@ -1528,8 +1752,10 @@ and its followers do not come along: only a move (§13.1) brings them.
 
 ### 13.5 Move error codes
 
-Every error answer of the move routes under `/api/v1/social/bluesky/*`
-carries a stable code beside the English sentence,
+Every error answer of the move routes under `/api/v1/social/bluesky/*`,
+and of the account's own Bluesky routes there — identity, recovery
+phrase, `control` (§4.5b), `archive` (§4.5a) — and of the recovery tool
+(§4.4), carries a stable code beside the English sentence,
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
 explains the code in the person's language; the sentence is for logs and
@@ -1538,7 +1764,7 @@ older clients.
 | Code | When | What the person can do |
 |---|---|---|
 | `bluesky-off` | Bluesky is not enabled on this server | Nothing here; ask the administrator |
-| `no-identity` | The account has no Bluesky identity here | Nothing to move |
+| `no-identity` | The account has no Bluesky identity here (also `control` and `archive`, for one that moved away or was deleted) | Nothing to move or download |
 | `identity-inactive` | The Bluesky account is switched off or already moved | Switch it on first |
 | `move-in-progress` | Another move of the account is under way | Wait for it, or call it off |
 | `pds-address-invalid` | The server typed is not an https address | Check the address |
@@ -1552,17 +1778,20 @@ older clients.
 | `invite-code-required` | The other server needs an invite code | Ask that server for one |
 | `invite-code-invalid` | The other server refused the invite code | Check the code |
 | `password-not-accepted` | The other server refused the password | Pick a longer one |
-| `rate-limited` | The other server asks to wait | Try again later |
+| `rate-limited` | The other server asks to wait, or this server sent it too many sign-ins of late (§13.1) | Try again later |
 | `account-not-created` | The other server did not make the account, for another reason | The details say why |
-| `keys-sealed` | The account's keys cannot be opened (the instance secret changed) | Ask the administrator to run `occ social:atproto:keys:reseal` |
+| `keys-sealed` | A key of this server cannot be opened (the instance secret changed): 503 on any route that needs one; an XRPC call answers 503 `KeysSealed` (§16.3) | Ask the administrator to run `occ social:atproto:keys:reseal` |
+| `directory-unreachable` | `control`: the PLC directory did not answer (503) | Try again later |
+| `export-failed` | `archive`: the zip could not be written (500) | Try again; the log has the details |
+| `tool-missing` | The recovery tool's script is not built on this server (503) | Ask the administrator; a release has it |
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |
 | `recovery-key-missing` | No recovery key, and the start did not say `without_recovery` | Make a recovery phrase first, or confirm that only the new server will control the account |
-| `no-move-to-call-off` | "Call it off" with no move away under way | Nothing to do |
+| `no-move-to-call-off` | "Call it off" with no move under way | Nothing to do |
 | `move-switching` | "Call it off" while the DID is being pointed at the other server | Wait a moment; the move then goes on or stops |
-| `move-past-switch` | "Call it off" after the DID points at the other server | Use "Try again" to finish the move |
+| `move-past-switch` | "Call it off" after the DID points at the other server, or, moving here, once the PLC operation may have been sent | Use "Try again" to finish the move |
 | `target-account-left` | Not an error: a move was called off, and the account made on the other server is still there, deactivated | Delete it at that server (the answer names its host) |
-| `blobs-missing` | Before the DID moved, the other server lacks pictures or videos (`progress.missing`); the move waits in `needs_decision` | Copy again, or switch without them |
+| `blobs-missing` | Before the DID moved, pictures or videos did not arrive — on the other server, or here when moving here (`progress.missing`); the move waits in `needs_decision` | Copy again, or switch without them |
 | `repo-incomplete` | Before the DID moved, the repository on the other server is not the one here; the move waits in `needs_decision` | Copy again |
 | `no-decision-pending` | "Continue" with no move waiting for a decision | Nothing to do |
 | `announce-invalid` | `announce` is not `post`, `profile` or `none` | Pick one of them |
@@ -1570,13 +1799,32 @@ older clients.
 | `announce-failed` | After the move, the post or the profile field could not be written (`progress.announce_code`) | Post the new address by hand |
 | `bluesky-move-first` | A Fediverse move-out asked `bluesky: move` with no Bluesky move away done or under way | Move the Bluesky account first, or choose `deactivate` or `keep` |
 | `bluesky-choice-invalid` | A Fediverse move-out's `bluesky` is not `move`, `deactivate` or `keep` | Pick one of them |
-| `handle-invalid` | "Follow the same people": what was typed is not a handle or a DID | Check the handle |
+| `handle-invalid` | What was typed is not a handle or a DID | Check the handle |
 | `handle-not-found` | No Bluesky account goes by the handle | Check the handle |
 | `did-not-supported` | The account's DID is not a `did:plc` | Nothing to do from here |
-| `did-not-found` | The PLC directory knows no server for the DID | Check the account |
+| `did-not-found` | The PLC directory does not know the DID, or knows no server for it; for `control`, a DID the directory does not know yet | Check the account |
 | `import-in-progress` | The same people are being followed already | Wait for it on the imports list |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
+| `account-here-already` | The Bluesky account lives on this server already | Nothing to move |
+| `pds-not-named` | The DID names no server | Nothing can be moved from it |
+| `pds-blocked` | The old server is on this instance's block list | Ask the administrator |
+| `wrong-password` | The old server did not take the password | Type the account's own password, not an app password |
+| `auth-factor-required` | The old server e-mailed a sign-in code | Enter that code and start again |
+| `sign-in-code-invalid` / `sign-in-code-expired` | The sign-in code was wrong or old | Start again for a new one |
+| `sign-in-refused` | The old server refused the sign-in for another reason | The sentence names it |
+| `no-move-waiting` | A code was sent, but no move waits for one | Reload the page |
+| `code-invalid` / `code-expired` | The e-mailed code was wrong or old | *Try again* asks for a new one |
+| `repo-unavailable` | The old server did not hand out the repository | Try again later |
+| `repo-too-large` | The repository is larger than the 64 MB this server takes | Ask the administrator |
+| `blob-too-large` | A blob is larger than the largest upload this server takes; it is not copied and counts among the missing (`blobs-missing`) | Go on without it |
+| `repo-invalid` | The repository is not the account's, or not signed with its key | Ask the old server's operator |
+| `operation-mismatch` | The old server signed another operation than was asked | Try again; report it if it repeats |
+| `nothing-to-republish` | Publishing again with no finished move that took posts off Bluesky | — |
+| `republish-queued` | Publishing again a second time | Wait; it runs in the background |
+| `move-replaced` | An invitation was replaced by a newer one | — |
+| `invite-expired` / `move-expired` | An invitation, or a move driven by a tool, ran out of time | Invite again |
+| `bridgy-unreachable` | Bridgy Fed could not be sent the request | Try again later |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |
 | `server-error` | Something unexpected on this server | Try again; the log has the details |
 
@@ -1705,8 +1953,18 @@ previous secret, read from `OC_OLD_SECRET`, and stores it sealed with the
 current one; the instance keys, retired ones included, and the signing
 keys of every identity that still signs. A key neither secret opens is
 reported and left as it is: without the previous secret, the only way
-back is the person's recovery phrase (§4.4), which this app does not yet
-take back.
+back is the person's recovery phrase (§4.4): its key signs a PLC
+operation that gives the DID a signing key of the person's own and points
+it elsewhere — with the recovery tool (§4.4) or goat, as Moving.md's "If
+this server goes away" lists.
+
+Until then a person's request that needs such a key — their identity,
+the recovery phrase, a move, a Bluesky app's call — is not answered with
+a raw error: the account routes answer 503
+`{"error": "This server's keys need to be re-sealed by an administrator (occ social:atproto:keys:reseal)", "code": "keys-sealed"}`,
+an XRPC call 503 with the error `KeysSealed` and the same message, and a
+move that stops on it keeps that message as its error
+(`AtprotoKeysSealedException`).
 
 ### 16.4 Input
 
@@ -2281,17 +2539,20 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   here. Records keep their CIDs, so every reference to them stays good.
   **Blobs** are fetched with `listBlobs`/`getBlob` and stored as they came,
   each checked against its CID; nothing is re-encoded. **Preferences** come
-  along. **Follows** become follows here, each tied to the record it came
-  with, so nothing is written twice.
+  along.
 - **Then the old PDS e-mails a code** (`requestPlcOperationSignature`); the
   move waits. With the code it signs the operation that names this PDS,
-  this server's rotation key and the account's handle here — checked
+  the rotation keys of §13.1 — the person's own first, this server's last —
+  and the account's handle here — checked
   before it is taken — the directory takes it, and the account **takes the
   DID**: the account's identity row keeps its handle (and custom handle)
   and gets the moved DID and its new key, and the DID this server had made
   for the account is **retired**, tombstoned with its repository. The page
-  says so before the move starts. Last, `deactivateAccount` on the old PDS.
-- **Then the posts** become posts in the timeline here (4e). A wrong code
+  says so before the move starts. Then `deactivateAccount` on the old PDS.
+- **Then the follows** become follows here, each tied to the record it came
+  with, so nothing is written twice — only once the DID is the account's,
+  as in a move driven by a tool, so a move that never got that far leaves
+  no follows behind. **Then the posts** become posts in the timeline here (4e). A wrong code
   stops the move, and *Try again* asks the old PDS for a new one.
 
 **4d as built** — `Move\InboundMoveService`, `Move\BridgyTwin`,

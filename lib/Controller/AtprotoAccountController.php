@@ -13,6 +13,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Client\AppPasswordService;
 use OCA\Social\Atproto\Identity\CustomHandleService;
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Identity\Mnemonic;
 use OCA\Social\Atproto\Identity\PresenceService;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
@@ -20,12 +21,14 @@ use OCA\Social\Atproto\Moderation\LabelerService;
 use OCA\Social\Atproto\Move\BridgyTwin;
 use OCA\Social\Atproto\Move\InboundMoveService;
 use OCA\Social\Atproto\Move\MoveAwayService;
+use OCA\Social\Atproto\Move\MoveFailure;
 use OCA\Social\Atproto\Move\MoveInService;
 use OCA\Social\Atproto\OAuth\AuthorizationServer;
 use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Controller;
@@ -85,7 +88,7 @@ class AtprotoAccountController extends Controller {
 
 			return new DataResponse(self::export($identity) + ['publish_blocks' => $this->blocks->isPublished($this->userId())]);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -112,7 +115,7 @@ class AtprotoAccountController extends Controller {
 		} catch (\InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -132,7 +135,7 @@ class AtprotoAccountController extends Controller {
 
 			return new DataResponse(['publish_blocks' => $this->blocks->isPublished($this->userId())]);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -257,7 +260,7 @@ class AtprotoAccountController extends Controller {
 		} catch (\InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -277,19 +280,20 @@ class AtprotoAccountController extends Controller {
 
 			return new DataResponse(self::export($changed));
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
 	/**
-	 * The viewer's latest move of their Bluesky account, or null, and who
-	 * controls the account once it moved away (MoveAwayService::control()).
+	 * The viewer's latest move of their Bluesky account, or null, who
+	 * controls the account once it moved away (MoveAwayService::control()),
+	 * and how many of their posts are on Bluesky now.
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/move')]
 	public function move(): DataResponse {
 		if (!$this->config->isEnabled()) {
-			return self::moveError(new MoveErrorException('Bluesky is not enabled on this server', 'bluesky-off'), Http::STATUS_NOT_FOUND);
+			return self::blueskyOff();
 		}
 
 		$move = $this->inbound->latest($this->userId());
@@ -298,7 +302,11 @@ class AtprotoAccountController extends Controller {
 			$export['progress']['stage'] ??= MoveAwayService::stageOf($move);
 		}
 
-		return new DataResponse(['move' => $export] + MoveAwayService::control($this->ownIdentity(), $move));
+		return new DataResponse([
+			'move' => $export,
+			// what a move here would take off Bluesky, for the confirmation
+			'posts_on_bluesky' => $this->moveIn->postsOnBluesky($this->userId()),
+		] + MoveAwayService::control($this->ownIdentity(), $move));
 	}
 
 	/**
@@ -405,17 +413,84 @@ class AtprotoAccountController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
+	#[UserRateLimit(limit: 5, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in')]
 	public function moveIn(string $handle, string $password, string $authFactorToken = ''): DataResponse {
 		if (!$this->config->isEnabled()) {
-			return new DataResponse(['error' => 'Bluesky is not enabled on this server'], Http::STATUS_NOT_FOUND);
+			return self::blueskyOff();
 		}
 		try {
 			return new DataResponse(['move' => $this->moveIn->start($this->userId(), $handle, $password, $authFactorToken)->export()]);
-		} catch (\InvalidArgumentException|AtprotoException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e);
+		}
+	}
+
+	/**
+	 * Calls off the viewer's move here while the DID has not switched: the
+	 * session on the old server and what was copied here are dropped.
+	 */
+	#[NoAdminRequired]
+	#[PasswordConfirmationRequired]
+	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/social/bluesky/move-in')]
+	public function cancelMoveIn(): DataResponse {
+		try {
+			return new DataResponse(['move' => $this->moveIn->cancel($this->userId())->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
+	 * Asks the old Bluesky server again to e-mail the code a waiting move
+	 * needs; `sent_to` is the address it went to, '' when the old server
+	 * does not say.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 3, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in/code')]
+	public function newMoveInCode(): DataResponse {
+		try {
+			$sent = $this->moveIn->newCode($this->userId());
+
+			return new DataResponse(['move' => $sent['move']->export(), 'sent_to' => $sent['sent_to']]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
+	 * The viewer's decision on a move here that stopped because pictures
+	 * or videos are missing: go on without them, or copy them again first.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in/continue')]
+	public function continueMoveIn(bool $without_missing = false): DataResponse {
+		try {
+			$latest = $this->inbound->latest($this->userId());
+			$move = match ($latest?->direction) {
+				Move::IN => $this->moveIn->decide($latest, $without_missing),
+				Move::INBOUND => $this->inbound->decide($latest, $without_missing),
+				default => throw new MoveErrorException('The move does not wait for a decision', 'no-decision-pending'),
+			};
+
+			return new DataResponse(['move' => $move->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
+	 * Publishes the posts a finished move here took off Bluesky again,
+	 * into the moved repository, in the background.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in/republish')]
+	public function republishMovedPosts(): DataResponse {
+		try {
+			return new DataResponse(['move' => $this->moveIn->republish($this->userId())->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
 		}
 	}
 
@@ -427,8 +502,8 @@ class AtprotoAccountController extends Controller {
 	public function moveCode(string $code): DataResponse {
 		try {
 			return new DataResponse(['move' => $this->moveIn->code($this->userId(), $code)->export()]);
-		} catch (\InvalidArgumentException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return self::moveError($e);
 		}
 	}
 
@@ -460,19 +535,18 @@ class AtprotoAccountController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
+	#[UserRateLimit(limit: 5, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-invite')]
 	public function moveInvite(string $account): DataResponse {
 		if (!$this->config->isEnabled()) {
-			return new DataResponse(['error' => 'Bluesky is not enabled on this server'], Http::STATUS_NOT_FOUND);
+			return self::blueskyOff();
 		}
 		try {
 			$invited = $this->inbound->invite($this->userId(), $account);
 
 			return new DataResponse(['move' => $invited['move']->export()] + $invited);
-		} catch (\InvalidArgumentException|AtprotoException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e);
 		}
 	}
 
@@ -484,8 +558,8 @@ class AtprotoAccountController extends Controller {
 	public function cancelMoveInvite(): DataResponse {
 		try {
 			return new DataResponse(['move' => $this->inbound->cancel($this->userId())->export()]);
-		} catch (\InvalidArgumentException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (Throwable $e) {
+			return self::moveError($e);
 		}
 	}
 
@@ -515,8 +589,10 @@ class AtprotoAccountController extends Controller {
 
 	/**
 	 * `POST /api/v1/social/bluesky/recovery`: issues a recovery phrase —
-	 * the first, or a new one that replaces the last. Shown once, never
-	 * stored, so the password is asked for first.
+	 * the first, or a new one that replaces the last — and the key it
+	 * stands for in the forms other atproto tools take (`key`: `did_key`,
+	 * `multibase`, `hex`). Shown once, never stored, so the password is
+	 * asked for first.
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
@@ -533,9 +609,9 @@ class AtprotoAccountController extends Controller {
 			}
 			$phrase = $this->identities->issueRecoveryKey($identity);
 
-			return new DataResponse(['phrase' => $phrase] + self::export($this->identities->getByDid($identity->did)));
+			return new DataResponse(['phrase' => $phrase, 'key' => Mnemonic::keyForms($phrase)] + self::export($this->identities->getByDid($identity->did)));
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -559,9 +635,10 @@ class AtprotoAccountController extends Controller {
 		];
 	}
 
-	/**
-	 * The viewer's identity, as it is; null when Bluesky is off or there is none.
-	 */
+	private static function blueskyOff(): DataResponse {
+		return self::moveError(new MoveErrorException('Bluesky is not enabled on this server', 'bluesky-off'), Http::STATUS_NOT_FOUND);
+	}
+
 	/**
 	 * The profile published again, off the request, after the handle
 	 * changed: a verification of the account goes out again with it, as one
@@ -575,12 +652,19 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
-	 * An error of a move route as the page reads it: the sentence and its
-	 * code, 422 for what the person can do something about, 500 otherwise.
+	 * An error of a Bluesky route as the page reads it: the sentence and its
+	 * code, 422 for what the person can do something about, 500 otherwise,
+	 * and 503 `keys-sealed` for a key of this server that does not open.
 	 */
 	private static function moveError(Throwable $e, int $status = Http::STATUS_UNPROCESSABLE_ENTITY): DataResponse {
+		if ($e instanceof AtprotoKeysSealedException) {
+			return new DataResponse(['error' => $e->getMessage(), 'code' => AtprotoKeysSealedException::ERROR_CODE], Http::STATUS_SERVICE_UNAVAILABLE);
+		}
 		if ($e instanceof MoveErrorException) {
 			return new DataResponse($e->toArray(), $status);
+		}
+		if ($e instanceof MoveFailure) {
+			return new DataResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], $status);
 		}
 		if ($e instanceof AtprotoException) {
 			return new DataResponse(['error' => $e->getMessage(), 'code' => MoveAwayService::codeOf($e)], $status);
@@ -593,6 +677,9 @@ class AtprotoAccountController extends Controller {
 		return self::moveError(new MoveErrorException('No Bluesky identity for this account', 'no-identity'), Http::STATUS_NOT_FOUND);
 	}
 
+	/**
+	 * The viewer's identity, as it is; null when Bluesky is off or there is none.
+	 */
 	private function ownIdentity(): ?Identity {
 		if (!$this->config->isEnabled()) {
 			return null;

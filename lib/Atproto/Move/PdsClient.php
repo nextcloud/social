@@ -9,9 +9,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
-use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Tools\Exceptions\RequestContentException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\IConfig;
 use Throwable;
 
@@ -28,17 +30,23 @@ class PdsClient {
 	public const TIMEOUT = 20;
 	/** what a repository or a blob is given, in seconds: those only move in a background job */
 	public const LONG_TIMEOUT = 600;
+	/** how many password sign-ins this server sends one PDS in a window */
+	public const SIGN_INS = 20;
+	/** that window, in seconds */
+	public const SIGN_IN_WINDOW = 600;
+	private const SIGN_IN = 'com.atproto.server.createSession';
 
 	public function __construct(
 		private CurlService $curl,
 		private IConfig $systemConfig,
+		private DurableCache $cache,
 	) {
 	}
 
 	/**
 	 * A PDS address as typed, made its origin.
 	 *
-	 * @throws AtprotoException when it is not one this server will talk to
+	 * @throws MoveFailure when it is not one this server will talk to
 	 */
 	public function origin(string $typed): string {
 		$typed = trim($typed);
@@ -50,7 +58,7 @@ class PdsClient {
 		$host = strtolower($url['host'] ?? '');
 		$local = $this->systemConfig->getSystemValueBool('allow_local_remote_servers', false);
 		if ($host === '' || isset($url['user']) || !($scheme === 'https' || ($scheme === 'http' && $local))) {
-			throw new AtprotoException('That is not the https address of a PDS');
+			throw new MoveFailure('pds-address-invalid', 'That is not the https address of a PDS');
 		}
 
 		return $scheme . '://' . $host . (isset($url['port']) ? ':' . $url['port'] : '');
@@ -61,9 +69,12 @@ class PdsClient {
 	 * @param array|null $json the JSON body of a procedure
 	 * @param resource|string|null $bytes a raw body, with its type
 	 * @return array{status: int, body: array}
-	 * @throws AtprotoException when the PDS cannot be reached
+	 * @throws MoveFailure when the PDS cannot be reached, or this server sent it too many sign-ins of late
 	 */
 	public function call(string $pds, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
+		if ($method === self::SIGN_IN) {
+			$this->countSignIn($pds);
+		}
 		$headers = ['Accept' => 'application/json'];
 		if ($token !== '') {
 			$headers['Authorization'] = 'Bearer ' . $token;
@@ -87,54 +98,130 @@ class PdsClient {
 		try {
 			$body = json_decode($this->curl->doRequest($verb === 'GET' ? 'get' : 'post', $url, $options, $contentType, $status), true);
 		} catch (Throwable $e) {
-			throw new AtprotoException('The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), 0, $e);
+			throw self::unreachable($pds, $e);
 		}
 
 		return ['status' => (int)$status, 'body' => is_array($body) ? $body : []];
 	}
 
 	/**
-	 * A query whose answer is bytes — a repository, a blob — with its type.
+	 * A query whose answer is bytes — a repository, a blob — copied to a
+	 * temporary file as it arrives, which the caller removes; none is made
+	 * for an error status.
 	 *
-	 * @return array{status: int, bytes: string, type: string}
-	 * @throws AtprotoException when the PDS cannot be reached
+	 * @param int $max the most bytes taken
+	 * @return array{status: int, path: string, size: int, type: string}
+	 * @throws MoveFailure when the PDS cannot be reached, or the answer is larger than $max (`repo-too-large`, `blob-too-large`)
 	 */
-	public function bytes(string $pds, string $method, array $query, string $token = ''): array {
+	public function bytes(string $pds, string $method, array $query, int $max, string $token = ''): array {
 		$headers = $token === '' ? [] : ['Authorization' => 'Bearer ' . $token];
 		try {
 			// a stream rather than a document: a repository is not held to the
-			// download ceiling
+			// download ceiling, only to $max
 			$answer = $this->curl->openStream($pds . '/xrpc/' . $method . '?' . http_build_query($query), $headers, '', self::LONG_TIMEOUT);
 		} catch (RequestContentException $e) {
-			return ['status' => $e->getCode(), 'bytes' => '', 'type' => ''];
+			return ['status' => $e->getCode(), 'path' => '', 'size' => 0, 'type' => ''];
 		} catch (Throwable $e) {
-			throw new AtprotoException('The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), 0, $e);
+			throw self::unreachable($pds, $e);
 		}
-		$bytes = (string)stream_get_contents($answer['stream']);
-		fclose($answer['stream']);
 		$type = '';
+		$length = -1;
 		foreach ($answer['headers'] as $name => $values) {
 			if (strtolower($name) === 'content-type') {
 				$type = (string)($values[0] ?? '');
+			} elseif (strtolower($name) === 'content-length') {
+				$length = (int)($values[0] ?? -1);
 			}
 		}
+		$path = (string)tempnam(sys_get_temp_dir(), 'social-atproto-pds-');
+		$out = fopen($path, 'wb');
+		$size = 0;
+		try {
+			if ($out === false) {
+				throw new MoveFailure(MoveFailure::FAILED, 'No temporary file for what ' . $method . ' answered');
+			}
+			while ($length <= $max && !feof($answer['stream'])) {
+				$chunk = fread($answer['stream'], 65536);
+				if ($chunk === false) {
+					break;
+				}
+				$size += strlen($chunk);
+				if ($size > $max) {
+					break;
+				}
+				fwrite($out, $chunk);
+			}
+			if ($length > $max || $size > $max) {
+				throw new MoveFailure($method === 'com.atproto.sync.getRepo' ? 'repo-too-large' : 'blob-too-large', $method . ' answered more than ' . $max . ' bytes');
+			}
+		} catch (MoveFailure $e) {
+			@unlink($path);
+			throw $e;
+		} finally {
+			if ($out !== false) {
+				fclose($out);
+			}
+			fclose($answer['stream']);
+		}
 
-		return ['status' => $answer['status'], 'bytes' => $bytes, 'type' => $type];
+		return ['status' => $answer['status'], 'path' => $path, 'size' => $size, 'type' => $type];
+	}
+
+	/**
+	 * Counts a password sign-in at a PDS, for the whole instance: a PDS
+	 * limits them per address, so the people of one server share that
+	 * limit, and one person's tries must not use it up for all.
+	 *
+	 * @throws MoveFailure `rate-limited` past `SIGN_INS` in `SIGN_IN_WINDOW`
+	 */
+	private function countSignIn(string $pds): void {
+		$host = strtolower((string)parse_url($pds, PHP_URL_HOST));
+		if ($this->cache->inc('social.atproto.pds-sign-ins', $host, self::SIGN_IN_WINDOW) > self::SIGN_INS) {
+			throw new MoveFailure('rate-limited', 'This server signed in to ' . $host . ' too often of late; try again in a few minutes');
+		}
+	}
+
+	/**
+	 * Why a PDS was not reached: `pds-not-public` for an address this server
+	 * does not send requests to, `pds-blocked` for an instance it does not
+	 * federate with, `pds-unreachable` for anything else.
+	 */
+	private static function unreachable(string $pds, Throwable $e): MoveFailure {
+		$slug = match (true) {
+			$e instanceof RequestServerException && str_contains($e->getMessage(), 'public address') => 'pds-not-public',
+			$e instanceof UnauthorizedFediverseException => 'pds-blocked',
+			default => 'pds-unreachable',
+		};
+
+		return new MoveFailure($slug, 'The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), $e);
 	}
 
 	/**
 	 * The same, for a call that has to succeed.
 	 *
 	 * @return array the answer
-	 * @throws AtprotoException with the PDS's own error
+	 * @throws MoveFailure with the PDS's own error
 	 */
 	public function expect(string $pds, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
 		$answer = $this->call($pds, $method, $verb, $query, $json, $bytes, $type, $token);
 		if ($answer['status'] !== 200) {
-			$error = trim((string)($answer['body']['error'] ?? '') . ': ' . (string)($answer['body']['message'] ?? ''), ': ');
-			throw new AtprotoException($method . ' answered ' . $answer['status'] . ($error !== '' ? ' (' . $error . ')' : ''));
+			throw self::refused($method, $answer);
 		}
 
 		return $answer['body'];
+	}
+
+	/**
+	 * A call the PDS answered with an error, with its own error in the
+	 * message: `rate-limited` when it asks to slow down, `pds-refused`
+	 * otherwise.
+	 *
+	 * @param array{status: int, body: array} $answer
+	 */
+	public static function refused(string $method, array $answer): MoveFailure {
+		$error = trim((string)($answer['body']['error'] ?? '') . ': ' . (string)($answer['body']['message'] ?? ''), ': ');
+		$slug = $answer['status'] === 429 || ($answer['body']['error'] ?? '') === 'RateLimitExceeded' ? 'rate-limited' : 'pds-refused';
+
+		return new MoveFailure($slug, $method . ' answered ' . $answer['status'] . ($error !== '' ? ' (' . $error . ')' : ''));
 	}
 }
