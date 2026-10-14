@@ -1360,33 +1360,67 @@ beside the Fediverse move-in.
 
 ### 13.1 The flow
 
-1. The person types their Bluesky handle and app password (never stored
-   beyond the run; Bluesky OAuth later). The old PDS is resolved from the
-   DID document.
-2. **Create the account here with the existing DID**:
-   `com.atproto.server.getServiceAuth` on the old PDS (aud this instance's
-   service DID, lxm `com.atproto.server.createAccount`), then
-   `createAccount` here with that token and the DID — the account exists
-   here *deactivated*. The DID is bound to the Nextcloud user; the local
-   actor's own `did:plc` is **not** created, the moved DID is its identity.
-3. **Repository**: `com.atproto.sync.getRepo` from the old PDS, imported
-   with `importRepo` into this one; `listMissingBlobs` here, each fetched
-   with `getBlob` from the old PDS and `uploadBlob` here; preferences via
-   `app.bsky.actor.getPreferences`/`putPreferences`. Runs as a queued import
-   (`ImportQueueService`, kind `bluesky_move`), progress on the page.
-4. **Identity**: `getRecommendedDidCredentials` here (our signing key, our
-   rotation key, the new handle `alice.<host>`, our PDS endpoint);
-   `requestPlcOperationSignature` on the old PDS (Bluesky e-mails the
-   person a code), the person enters the code, `signPlcOperation` on the
-   old PDS, `submitPlcOperation` here.
-5. **Activate**: `activateAccount` here, `deactivateAccount` on the old
-   PDS. The followers follow the DID and need do nothing; the handle
-   changes to `alice.<host>` unless the person owns a domain and sets a
-   custom handle (later phase).
-6. The imported posts become local stream rows (§9.3's mapping, attributed
-   to the local actor), the follows become watches and `social_follows`
-   rows, the likes and reposts become actions, the curate lists public
-   lists (§9.7) — through the import path, nothing re-published.
+There are two ways in, and in both this server is the *new* PDS of the
+protocol's account migration (classes `Move\MoveInService`,
+`Move\InboundMoveService`, job `Cron\AtprotoMove`, table
+`social_atproto_move`).
+
+**Driven from here** (Settings → Migration → *Bring your Bluesky account
+here*):
+
+1. The person types their Bluesky handle (or DID) and the account's own
+   **password** — not an app password: a PDS signs a change of the DID only
+   for a full session — and confirms with their Nextcloud password. The
+   old PDS is read from the DID's state in the PLC directory, and this
+   server signs in there (`createSession`, with the e-mailed sign-in code
+   when the old PDS asks for one). The password is not kept; the session
+   is, sealed, while the move runs.
+2. A background job copies the **repository** (`com.atproto.sync.getRepo`,
+   checked against the DID's signing key and written here byte for byte
+   under a commit signed with a key made for the account here), the
+   **blobs** (`listBlobs`/`getBlob`, each checked against its CID) and the
+   **preferences**.
+3. The old PDS **e-mails a code** (`requestPlcOperationSignature`); the move
+   waits for the person to enter it.
+4. With the code the old PDS **signs the operation** (`signPlcOperation`)
+   that names this PDS, the key made here, the account's handle here and
+   the rotation keys below; this server checks it is what was asked and
+   sends it to the directory. The account **takes the DID**, and the DID
+   this server had made for the account is retired (tombstoned with its
+   repository).
+5. `deactivateAccount` on the old PDS; then the **follows** become follows
+   here, the posts posts in the timeline, the likes and reposts actions,
+   the curate lists lists here (§9.7) — through the import path, nothing
+   re-published.
+
+**Driven by a tool** (Settings → Migration → *Bring your bridged Bluesky
+account here*): the person invites the DID and gets a one-time code; Bridgy
+Fed, or a migration tool such as `goat account migrate`, then runs steps
+1–12 of the protocol's migration against this server (`createAccount`
+with the code, `importRepo`, `uploadBlob`, `getRecommendedDidCredentials`,
+`submitPlcOperation`, `activateAccount`). Once activated, the follows and
+the posts come over as above.
+
+**Rotation keys.** A move here keeps the DID the person's: the operation
+lists their own keys first and this server's last, so a key of theirs
+ranks above this server's and can undo, for 72 hours, an operation this
+server signed. In order:
+
+1. the person's **recovery key** here, when they made one (the identity
+   keeps it as its recovery key afterwards);
+2. every rotation key the DID **lists now** that is **not the old server's
+   own** — driven from here, the old PDS's own keys are the ones its
+   `getRecommendedDidCredentials` names; when it does not answer, no key
+   is dropped. Driven by a tool, the old server cannot be asked (only the
+   tool has a session there): a DID Bridgy Fed holds lists only Bridgy's
+   keys, and those are dropped; for any other old server every listed key
+   is kept, the old server's included;
+3. this server's rotation key.
+
+The directory allows five rotation keys; past that, the lowest-ranked of
+the person's are left out, never this server's. Operations this server
+signs later for the DID (a handle change, a key rotation, §4.5) list this
+server's key and the recovery key only.
 
 ### 13.2 Moving away
 
@@ -2300,7 +2334,8 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   along.
 - **Then the old PDS e-mails a code** (`requestPlcOperationSignature`); the
   move waits. With the code it signs the operation that names this PDS,
-  this server's rotation key and the account's handle here — checked
+  the rotation keys of §13.1 — the person's own first, this server's last —
+  and the account's handle here — checked
   before it is taken — the directory takes it, and the account **takes the
   DID**: the account's identity row keeps its handle (and custom handle)
   and gets the moved DID and its new key, and the DID this server had made

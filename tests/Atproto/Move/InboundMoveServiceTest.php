@@ -37,6 +37,7 @@ use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoClientRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoOAuthRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -87,6 +88,8 @@ class InboundMoveServiceTest extends TestCase {
 	/** @var MoveInService&MockObject */
 	private MoveInService $moveIn;
 	private ServiceAuth $serviceAuth;
+	/** @var AtprotoIdentityRequest&MockObject */
+	private AtprotoIdentityRequest $identityRequest;
 	private InboundMoveService $moves;
 
 	protected function setUp(): void {
@@ -112,6 +115,7 @@ class InboundMoveServiceTest extends TestCase {
 		$plc = $this->createMock(PlcClient::class);
 		$plc->method('data')->willReturnCallback(fn (): array => $this->plcState);
 		$this->identities = $this->createMock(IdentityService::class);
+		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
 		$this->identities->method('getByDid')->willThrowException(new AtprotoIdentityNotFoundException());
 		$this->identities->method('forActor')->willReturnCallback(fn (): Identity => $this->current);
 		$this->repositories = $this->createMock(RepositoryService::class);
@@ -185,7 +189,7 @@ class InboundMoveServiceTest extends TestCase {
 		$this->moves = new InboundMoveService(
 			$config, $sessions, $this->serviceAuth, $plc, $this->identities, $keys, $this->repositories, $repoRequest, $blobs,
 			$documents, $this->createMock(Preferences::class), $this->moveIn, $bridgy, $actors, $request, $crypto, $random,
-			$this->createMock(IThrottler::class), $jobs, $time, new NullLogger(),
+			$this->createMock(IThrottler::class), $jobs, $time, new NullLogger(), $this->identityRequest,
 		);
 	}
 
@@ -297,10 +301,29 @@ class InboundMoveServiceTest extends TestCase {
 		$this->assertFalse($this->moves->owns('Bearer a.' . rtrim(strtr(base64_encode('{"sub":"did:plc:x"}'), '+/', '-_'), '=') . '.c'), 'an app\'s session is not a move\'s');
 
 		$credentials = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth);
-		$this->assertSame([$this->rotation->didKey()], $credentials['rotationKeys']);
+		$this->assertSame(['did:key:zOld', $this->rotation->didKey()], $credentials['rotationKeys'], 'a key the old server is not known to hold is kept');
 		$this->assertSame(['at://alice.social.test'], $credentials['alsoKnownAs']);
 		$this->assertSame(self::HERE, $credentials['services']['atproto_pds']['endpoint']);
 		$this->assertStringStartsWith('did:key:z', $credentials['verificationMethods']['atproto']);
+	}
+
+	/** The keys the DID lists stay, the person's recovery key here first and this server's last. */
+	public function testTheRecommendedRotationKeysKeepThePersonsKeys(): void {
+		$this->plcState = $this->stateAt('https://pds.example.com', $this->oldKey->didKey(), ['did:key:zUser', 'did:key:zOldPds']);
+		$this->current = new Identity(1, 'https://social.test/@alice', 'did:plc:qhuarct7u6lie3dhefl6c4ua', 'alice.social.test', '', '', 'did:key:zRecovery', Identity::STATE_ACTIVE, '', 0);
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+
+		$keys = $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth)['rotationKeys'];
+
+		$this->assertSame(['did:key:zRecovery', 'did:key:zUser', 'did:key:zOldPds', $this->rotation->didKey()], $keys);
+	}
+
+	/** A DID Bridgy Fed holds lists only Bridgy's keys: none of them stays. */
+	public function testBridgysKeysAreNotKept(): void {
+		$this->plcState = $this->stateAt('https://atproto.brid.gy', $this->oldKey->didKey(), ['did:key:zBridgy']);
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+
+		$this->assertSame([$this->rotation->didKey()], $this->moves->query('com.atproto.identity.getRecommendedDidCredentials', [], $auth)['rotationKeys']);
 	}
 
 	public function testTheRepositoryIsTakenOnlyAsTheDidSignedIt(): void {
@@ -367,7 +390,9 @@ class InboundMoveServiceTest extends TestCase {
 
 		$this->assertSame('InvalidRequest', $this->refused(fn () => $this->moves->procedure('com.atproto.server.activateAccount', [], $auth))->error);
 
-		$this->plcState = $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], [$this->rotation->didKey()]);
+		$this->current = new Identity(1, 'https://social.test/@alice', 'did:plc:qhuarct7u6lie3dhefl6c4ua', 'alice.social.test', '', '', 'did:key:zRecovery', Identity::STATE_ACTIVE, '', 0);
+		$this->plcState = $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], ['did:key:zRecovery', $this->rotation->didKey()]);
+		$this->identityRequest->expects($this->once())->method('setRecoveryPublic')->with(self::DID, 'did:key:zRecovery');
 		$this->identities->expects($this->once())->method('receive')
 			->with($this->current, self::DID, $this->callback(fn (PrivateKey $key): bool => $key->didKey() === $recommended['verificationMethods']['atproto']), 'https://pds.example.com')
 			->willReturn($this->current);

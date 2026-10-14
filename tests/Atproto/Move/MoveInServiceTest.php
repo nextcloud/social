@@ -36,6 +36,7 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
@@ -74,6 +75,8 @@ class MoveInServiceTest extends TestCase {
 	private Identity $current;
 	/** whether the PLC directory knows the DID */
 	private bool $known = true;
+	/** @var list<string> the DID's rotation keys before the move */
+	private array $listedKeys = [];
 	/** @var IdentityService&MockObject */
 	private IdentityService $identities;
 	/** @var RepositoryService&MockObject */
@@ -86,6 +89,8 @@ class MoveInServiceTest extends TestCase {
 	private BlueskyListImport $lists;
 	/** @var AtprotoBlobRequest&MockObject */
 	private AtprotoBlobRequest $blobs;
+	/** @var AtprotoIdentityRequest&MockObject */
+	private AtprotoIdentityRequest $identityRequest;
 	private MoveInService $moves;
 
 	protected function setUp(): void {
@@ -99,8 +104,13 @@ class MoveInServiceTest extends TestCase {
 		$pds->method('call')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
 			$this->calls[] = ['method' => $method, 'json' => $json, 'token' => $token];
 			$this->answers[$method] ??= [];
+			$answer = array_shift($this->answers[$method]);
+			if ($answer === null && $method === 'com.atproto.identity.signPlcOperation') {
+				// the old server signs what it was asked
+				return ['status' => 200, 'body' => ['operation' => ['type' => 'plc_operation'] + array_diff_key($json ?? [], ['token' => true])]];
+			}
 
-			return array_shift($this->answers[$method]) ?? ['status' => 200, 'body' => []];
+			return $answer ?? ['status' => 200, 'body' => []];
 		});
 		$pds->method('expect')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = []): array {
 			$this->calls[] = ['method' => $method, 'json' => null, 'token' => ''];
@@ -119,6 +129,7 @@ class MoveInServiceTest extends TestCase {
 		$appView->method('query')->willReturnCallback(static fn (string $m, array $p): array => $p['handle'] === 'alice.bsky.social' ? ['did' => self::DID] : []);
 		$plc = $this->createMock(PlcClient::class);
 		$plc->method('data')->willReturnCallback(fn (): ?array => $this->known ? [
+			'rotationKeys' => $this->listedKeys,
 			'verificationMethods' => ['atproto' => $this->oldKey->didKey()],
 			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => self::OLD]],
 		] : null);
@@ -133,6 +144,7 @@ class MoveInServiceTest extends TestCase {
 			new StoredRecord(self::DID, 'app.bsky.graph.follow', '3kfollow', Cid::forRaw('f'), DagCbor::encode(['$type' => 'app.bsky.graph.follow', 'subject' => self::FOLLOWED, 'createdAt' => '2026-01-01T00:00:00.000Z']), '', 0),
 		]);
 		$this->blobs = $this->createMock(AtprotoBlobRequest::class);
+		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
 		$documents = $this->createMock(DocumentService::class);
 		$documents->method('storeAsIs')->willReturnCallback(function (Person $actor, string $path): Document {
 			$this->assertSame($this->blob, file_get_contents($path), 'stored as it came');
@@ -175,7 +187,7 @@ class MoveInServiceTest extends TestCase {
 		$this->moves = new MoveInService(
 			$pds, $config, $appView, $plc, $this->identities, $keys, $this->repositories, $this->createMock(AtprotoRepoRequest::class),
 			$this->blobs, $documents, $this->createMock(Preferences::class), $actors, $this->follows, $this->history, $actorsRequest, $request,
-			$crypto, $jobs, new NullLogger(), $this->lists,
+			$crypto, $jobs, new NullLogger(), $this->lists, $this->identityRequest,
 		);
 		$this->answers['com.atproto.server.createSession'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.bsky.social', 'accessJwt' => 'access', 'refreshJwt' => 'refresh']]];
 	}
@@ -309,14 +321,6 @@ class MoveInServiceTest extends TestCase {
 		}))->willReturn($this->current);
 
 		$this->moves->code('alice', ' 12345-ABCDE ');
-		// the old server signs what it was asked: this PDS, the key made here
-		$session = json_decode((string)base64_decode(substr($this->rows[1]->session, 7)), true);
-		$key = new PrivateKey(Curve::K256, (string)hex2bin($session['key']));
-		$this->answers['com.atproto.identity.signPlcOperation'] = [['status' => 200, 'body' => ['operation' => [
-			'type' => 'plc_operation',
-			'verificationMethods' => ['atproto' => $key->didKey()],
-			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => self::HERE]],
-		]]]];
 		$this->follows->expects($this->once())->method('adoptBlueskyFollow')->with($this->anything(), $this->anything(), self::DID, '3kfollow')->willReturnCallback(function (): bool {
 			$this->calls[] = ['method' => 'follow', 'json' => null, 'token' => ''];
 
@@ -337,6 +341,73 @@ class MoveInServiceTest extends TestCase {
 		$this->assertSame('', $this->rows[1]->session);
 		$this->assertSame(3, $this->rows[1]->progress['posts'], 'and its posts are posts here');
 		$this->assertSame(2, $this->rows[1]->progress['lists'], 'and its lists lists here');
+	}
+
+	/**
+	 * Runs a move to the signature and answers the rotation keys the old
+	 * server was asked to sign.
+	 *
+	 * @param list<string> $oldServer what the old server names as its own keys
+	 * @return list<string>
+	 */
+	private function signedRotationKeys(array $oldServer): array {
+		$this->answers['com.atproto.identity.getRecommendedDidCredentials'] = [['status' => 200, 'body' => ['rotationKeys' => $oldServer]]];
+		$this->identities->method('adopt')->willReturn($this->current);
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->moves->code('alice', '12345');
+		$this->moves->run($this->rows[1]);
+		$this->assertSame(Move::DONE, $this->rows[1]->state, (string)$this->rows[1]->error);
+
+		return array_values(array_filter($this->calls, static fn (array $c): bool => $c['method'] === 'com.atproto.identity.signPlcOperation'))[0]['json']['rotationKeys'];
+	}
+
+	/** The person's own rotation key stays theirs, ranked above this server's; the old server's is dropped. */
+	public function testTheUsersRotationKeysAreKeptAndTheOldServersDropped(): void {
+		$this->listedKeys = ['did:key:zUser', 'did:key:zOldPds'];
+
+		$this->assertSame(['did:key:zUser', $this->rotation->didKey()], $this->signedRotationKeys(['did:key:zOldPds']));
+	}
+
+	/** A recovery key the person has here becomes one of the moved DID's, first. */
+	public function testTheRecoveryKeyHereComesFirst(): void {
+		$this->listedKeys = ['did:key:zUser', 'did:key:zOldPds'];
+		$this->current = new Identity(1, 'https://social.test/@alice', 'did:plc:qhuarct7u6lie3dhefl6c4ua', 'alice.social.test', '', '', 'did:key:zRecovery', Identity::STATE_ACTIVE, '', 0);
+		$this->identityRequest->expects($this->once())->method('setRecoveryPublic')->with(self::DID, 'did:key:zRecovery');
+
+		$this->assertSame(['did:key:zRecovery', 'did:key:zUser', $this->rotation->didKey()], $this->signedRotationKeys(['did:key:zOldPds']));
+	}
+
+	/** An old server that does not say which keys are its own has none dropped; the directory's limit holds. */
+	public function testEveryKeyIsKeptWhenTheOldServerDoesNotSayWithinTheLimit(): void {
+		$this->listedKeys = ['did:key:z1', 'did:key:z2', 'did:key:z3', 'did:key:z4', 'did:key:z5'];
+		$this->answers['com.atproto.identity.getRecommendedDidCredentials'] = [['status' => 400, 'body' => ['error' => 'InvalidRequest']]];
+
+		$this->assertSame(['did:key:z1', 'did:key:z2', 'did:key:z3', 'did:key:z4', $this->rotation->didKey()], $this->signedRotationKeys([]));
+	}
+
+	public function testAnOperationWithOtherRotationKeysIsNotTaken(): void {
+		$this->listedKeys = ['did:key:zUser', 'did:key:zOldPds'];
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->moves->code('alice', '12345');
+		$this->answers['com.atproto.identity.signPlcOperation'] = [['status' => 200, 'body' => ['operation' => [
+			'rotationKeys' => [$this->rotation->didKey()],
+			'verificationMethods' => ['atproto' => $this->keyHere()],
+			'services' => ['atproto_pds' => ['endpoint' => self::HERE]],
+		]]]];
+		$this->identities->expects($this->never())->method('adopt');
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame('operation-mismatch', $this->rows[1]->progress['code'] ?? null);
+	}
+
+	/** the did:key of the signing key the move made for the account here */
+	private function keyHere(): string {
+		$session = json_decode((string)base64_decode(substr($this->rows[1]->session, 7)), true);
+
+		return (new PrivateKey(Curve::K256, (string)hex2bin($session['key'])))->didKey();
 	}
 
 	public function testTheFollowsComeAfterTheIdentity(): void {

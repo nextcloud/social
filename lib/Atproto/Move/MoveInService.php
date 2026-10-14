@@ -35,6 +35,7 @@ use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoException;
@@ -91,6 +92,7 @@ class MoveInService {
 		private IJobList $jobList,
 		private LoggerInterface $logger,
 		private BlueskyListImport $lists,
+		private AtprotoIdentityRequest $identityRequest,
 	) {
 	}
 
@@ -371,7 +373,8 @@ class MoveInService {
 
 	/**
 	 * The old PDS signs the operation that points the DID here, and the
-	 * account takes it.
+	 * account takes it. The rotation keys are the person's own first, then
+	 * this server's (`RotationKeys`); the old server's are dropped.
 	 *
 	 * @throws AtprotoException
 	 */
@@ -380,22 +383,46 @@ class MoveInService {
 		$actor = $this->actors->getFromUserId($move->userId);
 		$current = $this->identities->forActor($actor) ?? throw new MoveFailure('no-identity', 'This account has no Bluesky identity to move into');
 		$key = $this->key($move);
+		$here = $this->instanceKeys->rotationKey()->didKey();
+		$rotation = RotationKeys::forMoveHere($this->didState($move->did)['rotationKeys'] ?? null, $this->oldServerKeys($move), $current->recoveryPublic, $here);
 		$signed = $this->authed($move, 'com.atproto.identity.signPlcOperation', 'POST', [], [
 			'token' => (string)($session['code'] ?? ''),
-			'rotationKeys' => [$this->instanceKeys->rotationKey()->didKey()],
+			'rotationKeys' => $rotation,
 			'alsoKnownAs' => ['at://' . $current->handle],
 			'verificationMethods' => ['atproto' => $key->didKey()],
 			'services' => ['atproto_pds' => ['type' => PlcOperation::PDS_SERVICE_TYPE, 'endpoint' => $this->config->pdsEndpoint()]],
 		]);
 		$operation = is_array($signed['operation'] ?? null) ? $signed['operation'] : [];
 		if (($operation['services']['atproto_pds']['endpoint'] ?? '') !== $this->config->pdsEndpoint()
-			|| ($operation['verificationMethods']['atproto'] ?? '') !== $key->didKey()) {
+			|| ($operation['verificationMethods']['atproto'] ?? '') !== $key->didKey()
+			|| RotationKeys::didKeys($operation['rotationKeys'] ?? null) !== $rotation) {
 			throw new MoveFailure('operation-mismatch', 'The old server signed something else than was asked');
 		}
 		try {
 			$this->identities->adopt($current, $move->did, $key, $move->pds, $operation);
 		} catch (AtprotoException $e) {
 			throw $e instanceof AtprotoPlcRefusedException || !str_starts_with($e->getMessage(), 'PLC directory') ? $e : new MoveFailure('plc-unreachable', $e->getMessage(), $e);
+		}
+		if ($current->recoveryPublic !== '') {
+			// the recovery key is one of the moved DID's now, as it was of the one retired
+			$this->identityRequest->setRecoveryPublic($move->did, $current->recoveryPublic);
+		}
+	}
+
+	/**
+	 * The old PDS's own rotation keys, as it recommends them for an account
+	 * it holds; none when it does not say, and then every key the DID lists
+	 * is kept.
+	 *
+	 * @return list<string>
+	 */
+	private function oldServerKeys(Move $move): array {
+		try {
+			return RotationKeys::didKeys($this->authed($move, 'com.atproto.identity.getRecommendedDidCredentials')['rotationKeys'] ?? null);
+		} catch (AtprotoException $e) {
+			$this->logger->info('The old PDS did not name its rotation keys; every key the DID lists is kept', ['did' => $move->did, 'exception' => $e]);
+
+			return [];
 		}
 	}
 

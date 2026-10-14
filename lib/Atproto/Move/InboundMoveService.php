@@ -31,6 +31,7 @@ use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
+use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Exceptions\AtprotoException;
@@ -97,6 +98,7 @@ class InboundMoveService {
 		private IJobList $jobList,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
+		private AtprotoIdentityRequest $identityRequest,
 	) {
 	}
 
@@ -388,7 +390,8 @@ class InboundMoveService {
 		if ($move->step === Move::STEP_INVITED || $this->repositories->getHead($move->did) === null) {
 			throw XrpcException::invalidRequest('The repository has not arrived');
 		}
-		if (!$this->pointsHere($move, $this->plc->data($move->did) ?? [])) {
+		$state = $this->plc->data($move->did) ?? [];
+		if (!$this->pointsHere($move, $state)) {
 			throw XrpcException::invalidRequest('The DID does not name this server and the key it recommended yet');
 		}
 		$current = $this->identities->forActor($this->actors->getFromUserId($move->userId));
@@ -397,6 +400,9 @@ class InboundMoveService {
 		}
 		try {
 			$this->identities->receive($current, $move->did, $this->key($move), $move->pds);
+			if ($current->recoveryPublic !== '' && in_array($current->recoveryPublic, RotationKeys::didKeys($state['rotationKeys'] ?? null), true)) {
+				$this->identityRequest->setRecoveryPublic($move->did, $current->recoveryPublic);
+			}
 		} catch (AtprotoException $e) {
 			$this->logger->error('A Bluesky account that moved here could not take its DID', ['did' => $move->did, 'exception' => $e]);
 
@@ -463,17 +469,39 @@ class InboundMoveService {
 	}
 
 	/**
-	 * `com.atproto.identity.getRecommendedDidCredentials`: this server's
-	 * rotation key, the account's handle here, the key made for it here and
-	 * this PDS.
+	 * `com.atproto.identity.getRecommendedDidCredentials`: the rotation
+	 * keys — the person's recovery key here and every key the DID lists now
+	 * that is not the old server's, then this server's (`RotationKeys`) —
+	 * the account's handle here, the key made for it here and this PDS.
+	 *
+	 * @throws XrpcException
 	 */
 	private function credentials(Move $move): array {
+		try {
+			$state = $this->plc->data($move->did) ?? [];
+			$recovery = $this->identities->forActor($this->actors->getFromUserId($move->userId), false)?->recoveryPublic ?? '';
+		} catch (Throwable) {
+			throw new XrpcException(400, 'UnresolvableDid', 'The DID\'s rotation keys could not be read from the directory');
+		}
+
 		return [
-			'rotationKeys' => [$this->instanceKeys->rotationKey()->didKey()],
+			'rotationKeys' => RotationKeys::forMoveHere($state['rotationKeys'] ?? null, $this->oldServerKeys($move, $state), $recovery, $this->instanceKeys->rotationKey()->didKey()),
 			'alsoKnownAs' => ['at://' . $this->handleHere($move)],
 			'verificationMethods' => ['atproto' => $this->publicKey($move)],
 			'services' => ['atproto_pds' => ['type' => PlcOperation::PDS_SERVICE_TYPE, 'endpoint' => $this->config->pdsEndpoint()]],
 		];
+	}
+
+	/**
+	 * The old server's own rotation keys, as far as they can be told: a
+	 * DID Bridgy Fed holds lists only Bridgy's. Any other old server is
+	 * not asked — only the tool that drives the move has a session there —
+	 * so every key such a DID lists is kept.
+	 *
+	 * @return list<string>
+	 */
+	private function oldServerKeys(Move $move, array $state): array {
+		return BridgyTwin::hosts($move->pds) ? RotationKeys::didKeys($state['rotationKeys'] ?? null) : [];
 	}
 
 	/**
