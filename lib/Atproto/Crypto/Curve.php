@@ -35,6 +35,14 @@ enum Curve: string {
 		};
 	}
 
+	/** the multicodec varint that precedes the secret in a multibase private key (secp256k1-priv, p256-priv) */
+	public function privateKeyPrefix(): string {
+		return match ($this) {
+			self::K256 => "\x81\x26",
+			self::P256 => "\x86\x26",
+		};
+	}
+
 	public function jwtAlgorithm(): string {
 		return match ($this) {
 			self::K256 => 'ES256K',

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 
@@ -22,6 +22,7 @@ vi.mock('../../../src/services/logger.js', () => ({
 
 const IDENTITY = '/index.php/apps/social/api/v1/social/bluesky/identity'
 const RECOVERY = '/index.php/apps/social/api/v1/social/bluesky/recovery'
+const CONTROL = '/index.php/apps/social/api/v1/social/bluesky/control'
 const PHRASE = 'abandon ability able about above absent absorb abstract absurd abuse access accident'
 
 function identity(overrides = {}) {
@@ -35,11 +36,38 @@ function identity(overrides = {}) {
 	}
 }
 
-/** @param {object} answer what the identity route answers */
-function serverHas(answer = identity()) {
-	axios.get.mockImplementation((url) => (url === IDENTITY
-		? Promise.resolve({ data: answer })
-		: Promise.reject(new Error(`unexpected ${url}`))))
+const SERVER_KEY = 'did:key:zQ3shServer'
+const RECOVERY_KEY = 'did:key:zQ3shRecovery'
+
+/**
+ * @param {object} overrides what differs from a DID this server alone controls
+ * @return {object} what the control route answers
+ */
+function control(overrides = {}) {
+	return {
+		did: 'did:plc:abc123',
+		state: 'active',
+		rotation_keys: [{ key: SERVER_KEY, role: 'server' }],
+		last_operation: { cid: 'bafyhead', created_at: 1760000000, signed_by: { key: SERVER_KEY, role: 'server' } },
+		undo: null,
+		...overrides,
+	}
+}
+
+/**
+ * @param {object} answer what the identity route answers
+ * @param {object|Error} controls what the control route answers, or how it fails
+ */
+function serverHas(answer = identity(), controls = control()) {
+	axios.get.mockImplementation((url) => {
+		if (url === IDENTITY) {
+			return Promise.resolve({ data: answer })
+		}
+		if (url === CONTROL) {
+			return controls instanceof Error ? Promise.reject(controls) : Promise.resolve({ data: controls })
+		}
+		return Promise.reject(new Error(`unexpected ${url}`))
+	})
 }
 
 /** @return {object} the mounted section */
@@ -192,6 +220,99 @@ describe('BlueskySettings', () => {
 		})
 	})
 
+	/** Who can change where the DID points, as the directory has it, in words. */
+	describe('who controls the identifier', () => {
+		it('lists the keys by what they are to the person, the highest first', async () => {
+			serverHas(identity({ recovery_key: true }), control({
+				rotation_keys: [{ key: SERVER_KEY, role: 'server' }, { key: RECOVERY_KEY, role: 'recovery' }, { key: 'did:key:zQ3shOther', role: 'unknown' }],
+			}))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			const keys = wrapper.findAll('.bluesky-settings__control-keys li').map((item) => item.text())
+			expect(keys).toEqual(['This server', 'Your recovery phrase', 'A key this server does not know did:key:zQ3shOther'])
+			expect(wrapper.text()).not.toContain('can still be undone')
+		})
+
+		it('says until when and by which key the latest change can be undone', async () => {
+			serverHas(identity({ recovery_key: true }), control({
+				rotation_keys: [{ key: RECOVERY_KEY, role: 'recovery' }],
+				last_operation: { cid: 'bafymove', created_at: 1760000000, signed_by: { key: RECOVERY_KEY, role: 'recovery' } },
+				undo: { until: 1760000000 + 72 * 3600, by: [{ key: SERVER_KEY, role: 'server' }] },
+			}))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			expect(wrapper.text()).toMatch(/it can still be undone by: This server\./)
+		})
+
+		it('says so when the directory could not be asked, and does not ask for a pending identity', async () => {
+			serverHas(identity(), new Error('503'))
+			const wrapper = mountSettings()
+			await flushPromises()
+			expect(wrapper.text()).toContain('could not be asked right now')
+
+			axios.get.mockClear()
+			serverHas(identity({ state: 'pending' }))
+			mountSettings()
+			await flushPromises()
+			expect(axios.get).not.toHaveBeenCalledWith(CONTROL)
+		})
+
+		it('asks again once a new phrase is made', async () => {
+			serverHas()
+			axios.post.mockResolvedValue({ data: { ...identity({ recovery_key: true }), phrase: PHRASE } })
+			const wrapper = mountSettings()
+			await flushPromises()
+			axios.get.mockClear()
+
+			await buttonByText(wrapper, 'Create recovery phrase').trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith(CONTROL)
+		})
+	})
+
+	/** The account as files, for moving it without this server: a download after the password. */
+	describe('the account download', () => {
+		const realLocation = window.location
+		let assign
+
+		beforeEach(() => {
+			assign = vi.fn()
+			Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign } })
+		})
+
+		afterEach(() => {
+			Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
+		})
+
+		it('asks for the password, then downloads the archive', async () => {
+			serverHas()
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			expect(wrapper.text()).toContain('with a guide to moving the account even if this server is gone')
+			await buttonByText(wrapper, 'Download your Bluesky account').trigger('click')
+			await flushPromises()
+
+			expect(confirmPassword).toHaveBeenCalled()
+			expect(assign).toHaveBeenCalledWith('/index.php/apps/social/api/v1/social/bluesky/archive')
+		})
+
+		it('is offered while the account is switched off, and does nothing when the password dialog is dismissed', async () => {
+			serverHas(identity({ active: false, state: 'deactivated' }))
+			vi.mocked(confirmPassword).mockRejectedValueOnce(new Error('dismissed'))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await buttonByText(wrapper, 'Download your Bluesky account').trigger('click')
+			await flushPromises()
+
+			expect(assign).not.toHaveBeenCalled()
+		})
+	})
+
 	describe('the recovery phrase', () => {
 		it('says what the phrase is and what the server\'s key means for it', async () => {
 			for (const hasOne of [false, true]) {
@@ -199,9 +320,22 @@ describe('BlueskySettings', () => {
 				const wrapper = mountSettings()
 				await flushPromises()
 
-				expect(wrapper.text()).toContain('The phrase is in this app\'s own format: no other Bluesky tool can read it.')
+				expect(wrapper.text()).toContain('the recovery tool below does, and when they are made you also see the key they stand for')
 				expect(wrapper.text()).toContain('for 72 hours the server can undo a change made with the phrase, a move to another server included')
 			}
+		})
+
+		/** The tool that uses the words without this server: a file to keep, and the page here. */
+		it('offers the recovery tool to download and to open', async () => {
+			serverHas()
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			const download = wrapper.findAll('a').find((link) => link.text() === 'Download the recovery tool')
+			expect(download.attributes('href')).toBe('/index.php/apps/social/bluesky-recovery/download')
+			expect(download.attributes('download')).toBe('bluesky-recovery-tool.html')
+			const open = wrapper.findAll('a').find((link) => link.text() === 'Open it here')
+			expect(open.attributes('href')).toBe('/index.php/apps/social/bluesky-recovery')
 		})
 
 		it('offers to create one while there is none', async () => {
@@ -239,6 +373,30 @@ describe('BlueskySettings', () => {
 			expect(dialog.text()).toContain('shown once and never again')
 			// the button follows the identity the answer carried
 			expect(buttonByText(wrapper, 'Create a new recovery phrase')).toBeDefined()
+		})
+
+		/** The words are this app's own encoding; the key beside them is what goat and the reference PDS read. */
+		it('shows the key the words stand for in the forms other tools take, and forgets it with the words', async () => {
+			serverHas()
+			const key = { did_key: 'did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt', multibase: 'z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526', hex: '950f8acc1852f1a2562b2851457a04b1ba22541dd0f3b95ab9302d2894f29397' }
+			axios.post.mockResolvedValue({ data: { ...identity({ recovery_key: true }), phrase: PHRASE, key } })
+			const writeText = vi.fn().mockResolvedValue(undefined)
+			Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await buttonByText(wrapper, 'Create recovery phrase').trigger('click')
+			await flushPromises()
+
+			const dialog = wrapper.find('.dialog-stub')
+			expect(dialog.text()).toContain('Keep the twelve words: they are the whole key.')
+			expect(dialog.findAll('code').map((code) => code.text())).toEqual([PHRASE, key.multibase, key.hex, key.did_key])
+			await buttonByLabel(wrapper, 'Copy the private key in multibase').trigger('click')
+			expect(writeText).toHaveBeenCalledWith(key.multibase)
+
+			wrapper.findComponent({ name: 'NcDialog' }).props('buttons')[1].callback()
+			await flushPromises()
+			expect(wrapper.vm.recoveryKey).toBe(null)
 		})
 
 		it('does nothing when the password dialog is dismissed', async () => {

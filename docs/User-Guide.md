@@ -1068,13 +1068,43 @@ Your profile page shows both handles under your name, each with a Copy button,
 and the Bluesky one leads to your profile on bsky.app. **Settings → Apps and
 account → Bluesky** shows the handle and the DID — the permanent identifier your Bluesky
 account has — and offers a **recovery phrase**: twelve words that are a key of
-your own on that identifier, second only to the server's. They are shown once
+your own on that identifier: on an identifier this server made, it ranks
+second, after the server's; on one you brought here, your own keys rank first,
+and they keep their places whatever the server changes later. They are shown once
 and never stored, so write them down; "Create a new recovery phrase" replaces
 them, and the old words stop working. You will not need the phrase in ordinary
-use; it is what lets you take the identity with you if this server ever cannot.
-The phrase is in this app's own format — no other Bluesky tool reads it — and
-the server's key ranks above it: for 72 hours the server can undo a change made
-with the phrase, a move to another server included.
+use. What it can do: the key it stands for can sign a change to your identifier
+at the PLC directory without this server — give it another signing key, point it
+at another Bluesky server, drop this server's key. That is how you take your
+Bluesky account with you if this server is ever gone. **Download the recovery
+tool** keeps one HTML page that does it in your browser, step by step, from a
+saved copy and without this server; open it with your words and the download
+below ([Moving.md](Moving.md#if-this-server-goes-away); the `goat`
+command-line tool can do the same). Anyone who has the words can do the same,
+so keep them where only you can find them.
+
+Other Bluesky tools do not read the words themselves, so the same dialog also
+shows the key they stand for: the private key in the form the `goat` command-line
+tool takes (`z…`) and as hex, and the public key (`did:key:…`) that your
+identifier lists. Keep the words; the key lines are the same secret written
+differently, and the words can be turned back into them offline
+([how](Atproto-Compatibility.md#44-what-the-person-sees-of-their-identity)).
+The server's key ranks above yours: for 72 hours the server can undo a change
+made with the phrase, a move to another server included.
+
+**Who controls your Bluesky identifier**, in the same section, lists the keys
+that can change where your identifier points, as the PLC directory has them,
+highest first: this server, your recovery phrase, or a key this server does not
+know. For 72 hours after a change, a key ranking above the one that made it can
+undo it; while that is so, the panel says until when and by which key.
+
+**Download your Bluesky account**, in the same section, gives you the account as
+files after your password: your repository (every post, like, follow and the
+profile, in the CAR format other Bluesky servers import), the pictures and videos,
+the history of your identifier from the PLC directory, and a README with the
+steps to move the account with your recovery phrase, even when this server is gone;
+it carries the recovery tool too. The archive from **Settings → Migration** holds the same files
+under `social/bluesky/`.
 
 The post menu's *Delivery status* shows whether a post is on Bluesky and opens
 it there.

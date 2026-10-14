@@ -72,6 +72,8 @@ class RouteAuthMatrixTest extends TestCase {
 		'AtprotoOAuthController::parPreflight' => 'CORS preflight, answers headers only',
 		'AtprotoOAuthController::tokenPreflight' => 'CORS preflight, answers headers only',
 		'AtprotoOAuthController::revokePreflight' => 'CORS preflight, answers headers only',
+		'AtprotoRecoveryController::recoveryTool' => 'the offline recovery tool, a static page holding nothing of anybody',
+		'AtprotoRecoveryController::downloadRecoveryTool' => 'the offline recovery tool as a file, a static page holding nothing of anybody',
 		'AtprotoWellKnownController::atprotoDid' => 'atproto handle resolution, public by protocol',
 		'AtprotoWellKnownController::didJson' => 'did:web document, public by protocol',
 		'AtprotoXrpcController::query' => 'XRPC, authenticated by its own access token',

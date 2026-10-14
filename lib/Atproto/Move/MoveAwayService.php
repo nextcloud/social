@@ -24,6 +24,7 @@ use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCP\BackgroundJob\IJobList;
@@ -184,7 +185,7 @@ class MoveAwayService {
 			$e instanceof MoveErrorException, $e instanceof MoveFailure => $e->errorCode,
 			$e instanceof AtprotoPlcRefusedException => 'plc-refused',
 			str_starts_with($message, 'PLC directory could not be reached') => 'plc-unreachable',
-			str_contains($message, 'signing key of') && str_contains($message, 'cannot be opened') => 'keys-sealed',
+			$e instanceof AtprotoKeysSealedException => AtprotoKeysSealedException::ERROR_CODE,
 			str_starts_with($message, 'That is not the https address') => 'pds-address-invalid',
 			str_contains($message, 'public address') => 'pds-not-public',
 			str_contains($message, 'could not be reached') => 'pds-unreachable',

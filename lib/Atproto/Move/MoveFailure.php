@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Move;
 
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Exceptions\MoveErrorException;
 use Throwable;
@@ -39,6 +40,9 @@ class MoveFailure extends AtprotoException {
 		for ($cause = $e; $cause !== null; $cause = $cause->getPrevious()) {
 			if ($cause instanceof self || $cause instanceof MoveErrorException) {
 				return $cause->errorCode;
+			}
+			if ($cause instanceof AtprotoKeysSealedException) {
+				return AtprotoKeysSealedException::ERROR_CODE;
 			}
 			if ($cause instanceof AtprotoPlcRefusedException) {
 				return 'plc-refused';

@@ -16,6 +16,7 @@ use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\Xrpc\XrpcBytes;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Atproto\Xrpc\XrpcService;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Response\StreamedRemoteResponse;
 use OCP\AppFramework\Controller;
@@ -65,6 +66,9 @@ class AtprotoXrpcController extends Controller {
 			return $this->answer($answer ?? $this->xrpc->query($method, self::repeated($_SERVER['QUERY_STRING'] ?? '') + $this->request->getParams()));
 		} catch (XrpcException $e) {
 			return $this->refuse($e);
+		} catch (AtprotoKeysSealedException $e) {
+			// an administrator's to put right; the app shows the message
+			return $this->refuse(new XrpcException(503, 'KeysSealed', $e->getMessage()));
 		} catch (Throwable $e) {
 			$this->logger->error('XRPC query failed', ['method' => $method, 'exception' => $e]);
 
@@ -98,6 +102,9 @@ class AtprotoXrpcController extends Controller {
 			return $this->answer($this->xrpc->procedure($method, is_array($body) ? $body : []));
 		} catch (XrpcException $e) {
 			return $this->refuse($e);
+		} catch (AtprotoKeysSealedException $e) {
+			// an administrator's to put right; the app shows the message
+			return $this->refuse(new XrpcException(503, 'KeysSealed', $e->getMessage()));
 		} catch (Throwable $e) {
 			$this->logger->error('XRPC procedure failed', ['method' => $method, 'exception' => $e]);
 

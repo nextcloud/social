@@ -178,6 +178,10 @@ page says so. The identity is three things stored in
   deliberate for a hosted instance (the administrator's way back from a
   compromised phrase) and the opposite of Bluesky's own PDS, which lists
   the person's key first; the settings page says so beside the phrase.
+  That is the order of an identity made here. A DID that moved here keeps
+  the person's own keys first and this server's last (§13.1), and a DID
+  the person changed with their own key keeps the order they gave it: no
+  later operation of this server reorders it (§4.5).
 
 The DID document the PLC publishes names the handle (§4.2), the signing
 key under `#atproto`, and the PDS service `#atproto_pds` with endpoint
@@ -223,16 +227,99 @@ the account keys.
 Nothing, unless they look: **Settings → Apps and account → Bluesky** shows the Bluesky
 handle and DID under the Fediverse handle, with a *Copy* button and a
 sentence that says the Bluesky account exists because this server offers
-one. The recovery key is shown there **once**, on first view, as a
-twelve-word phrase to write down, with a "Show again" that requires
-password confirmation and regenerates (and re-registers, §4.5) rather
-than reveals. The words are BIP-39's list and checksum over 128 bits of
-entropy, but the key is this app's own derivation from them (`Mnemonic`:
-SHA-256 of the entropy), not a BIP-39 seed: no other atproto tool
-imports the phrase, and nothing here takes it back yet — it is the
-person's proof of the DID for a later tool of this app's. The settings
-page says so, and that the instance's key ranks above it (§4.1). The switch **Be
-on Bluesky** is there too (§4.6).
+one. The recovery key is made on request (*Create recovery phrase*, after
+password confirmation) and shown **once**, as a twelve-word phrase to
+write down; making a new one replaces it on the DID (§4.5) rather than
+revealing the old one. The same dialog shows the key the words stand for
+in the forms other atproto tools take — the private key as multibase
+(what `goat key generate` prints and `goat plc sign --plc-signing-key`
+reads) and as hex (what the reference PDS and `@atproto/crypto` import),
+and the public `did:key` the directory lists — with the advice to keep
+the words, which are all of it. The settings page says that the
+instance's key ranks above it (§4.1). The switch **Be on Bluesky** is
+there too (§4.6).
+
+**The derivation**, for anyone who reimplements it (`Mnemonic`;
+`resources/atproto/recovery-key.py` does it with Python 3 and nothing
+else):
+
+1. The phrase is lower-cased and split on white space; it is exactly
+   twelve words of BIP-39's English list (`resources/atproto/bip39-english.txt`,
+   the standard 2048 words). No Unicode normalisation is needed: the list
+   is ASCII.
+2. Each word is its index in the list as eleven bits, most significant
+   first; the 132 bits are the 128 bits of entropy (16 bytes, big-endian)
+   and a 4-bit checksum, which must equal the first four bits of
+   SHA-256 of the entropy — BIP-39's own encoding.
+3. The private key is **SHA-256 of the 26 ASCII bytes
+   `social.atproto.recovery.v1` followed by the 16 entropy bytes**, taken
+   as a big-endian secp256k1 (`k256`) secret. It is *not* BIP-39's seed:
+   no PBKDF2, no passphrase, no BIP-32 path, so a wallet that imports the
+   words derives a different key.
+4. Written out: hex is the 32 bytes in lower-case hex; multibase is `z`
+   followed by base58btc (Bitcoin alphabet) of `0x81 0x26` (the multicodec
+   varint of `secp256k1-priv`, 0x1301) and the 32 bytes; the `did:key` is
+   `did:key:z` followed by base58btc of `0xe7 0x01` and the 33-byte
+   compressed public point.
+
+Example: `abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about`
+(entropy sixteen zero bytes) is the hex key
+`950f8acc1852f1a2562b2851457a04b1ba22541dd0f3b95ab9302d2894f29397`,
+multibase `z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526`, public
+`did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt`
+(`MnemonicTest` pins all three, and that the script agrees).
+
+**What the phrase can do.** Its key is a rotation key of the DID, so it
+signs PLC operations the directory accepts without this server. The
+**recovery tool** (below) does that in the person's browser; goat does
+the same from the command line (`goat plc update`, `goat plc sign
+--plc-signing-key <multibase>`, `goat plc submit`, then
+`goat account service-auth-offline` and `goat account create
+--existing-did`). Both paths are in Moving.md's "If this server goes away"
+and in the archive's README. Neither has been run end to end against the
+live directory from this app's tests. While this server exists its key
+ranks first, so for 72 hours it can nullify an operation signed with the
+phrase (§4.1); the "Who controls" panel (§4.5b) shows that window.
+
+**The recovery tool** is one HTML page with its script inline
+(`RecoveryToolPage`, the self-contained webpack entry `src/recovery.js`,
+which keeps `@noble/secp256k1` and `@noble/hashes` out of every other
+bundle). It is served publicly at `GET /apps/social/bluesky-recovery`
+(the inline script allowed by its CSP hash, `connect-src https:` for the
+directory and whichever server the person names), downloaded from
+`/bluesky-recovery/download` ("Download the recovery tool" in Settings),
+and put into the Bluesky archive as `recovery/bluesky-recovery-tool.html`.
+The page carries its strings, in the language it was downloaded in, and
+the word list, so a saved copy runs with this server gone. In order, each
+network request only on a button press:
+
+1. the key from the words (`src/recovery/plc.js`, the derivation above)
+   or from hex or multibase;
+2. the DID's latest operation from `<directory>/<did>/log/last`, or
+   pasted; the key must be one of its rotation keys (`key-not-listed`
+   otherwise);
+3. for a server that cannot sign any more, an operation that gives the
+   DID a fresh signing key made in the browser and puts the person's key
+   first, everything else as it was, sent to the directory;
+4. the new server's DID from `describeServer`, and `createAccount` with
+   the existing DID and a service-auth token (ES256K, `lxm`
+   `com.atproto.server.createAccount`) signed with that signing key;
+5. `importRepo` of `repo.car` and `uploadBlob` of each blob file;
+6. `getRecommendedDidCredentials` with the new account's token (or
+   pasted), the hand-over built exactly as `PlcOperation::fromCredentials()`
+   builds it — the person's key first, then the new server's, at most five
+   — signed and sent to the directory, or copied;
+7. `activateAccount`.
+
+Operations are DAG-CBOR as `DagCbor` writes it (lengths minimal, map keys
+by length then bytes), CIDs CIDv1 dag-cbor SHA-256 base32, signatures
+ECDSA over SHA-256, low-S, raw r‖s, base64url — RFC 6979 deterministic in
+the tool, random-k in OpenSSL, both valid. The cross-language fixtures
+(`tests/Atproto/Identity/fixtures/recovery-tool.json`, written by
+`RecoveryToolFixturesTest` and `tests/js/recovery/plc.test.js` with
+`SOCIAL_UPDATE_FIXTURES=1`) pin the same keys from the same words, the
+same operation bytes and CIDs, PHP's signature accepted by the tool, and
+the tool's operations and service token accepted by PHP.
 
 ### 4.5 PLC operations this app sends
 
@@ -242,11 +329,30 @@ on Bluesky** is there too (§4.6).
 - **update handle**: when the username changes (it does not, in Social, but
   the custom-handle phase needs it) and when the instance host changes.
 - **rotate keys**: when the administrator rotates the instance rotation key
-  (§16.3) or the person regenerates their recovery key.
+  (§16.3) or the person makes or replaces their recovery key — each only
+  the key concerned, see below.
 - **update PDS endpoint**: on a host change, and when an account moves
   away (§13.2).
 - **tombstone**: when a Social account is deleted. `AccountService::deleteActor()`
   gains this step; the DID is dead afterwards, as the person asked.
+
+**Rotation keys of a later operation.** Every operation this server signs
+after the genesis — a handle or host change, a key rotation, a recovery
+phrase — carries the rotation keys of the operation it follows (with
+nothing pending, the directory's confirmed head), in their order
+(`RotationKeys::carry()`). It changes only two of them: this server's own
+key, where a rotation or a retired key puts the key in use in its place,
+and the recovery key, which a new phrase puts in the old one's place, or
+where there was none, beside this server's key — below it where this
+server's key is first, above it where a key of the person already ranks
+above this server. Every other key, the person's included, stays where it
+stood. A DID that lists five keys already takes no recovery key (the
+answer says so) rather than dropping one. An operation that waited while
+the directory moved on — the person changed the DID with their own key
+meanwhile — is carried onto the new head with only its own change
+(`RotationKeys::rebase()`), so their change stays. A hand-over to another
+PDS (§13.2) is the exception: it names the keys the new server recommends,
+the person's recovery key first.
 
 Every operation goes through one `PlcClient` with retries and is recorded
 in `social_atproto_plc_log` before it is sent (so a crash between the two
@@ -272,6 +378,41 @@ drops a recovery key it no longer lists. A signing key or instance key
 the directory no longer names is warned of, with the DID; this server
 cannot put that right by itself. A hand-over to another PDS (§13.2)
 refuses to start while an earlier operation for the DID is pending.
+
+### 4.5b Who controls the DID
+
+The Bluesky section of Settings shows **Who controls your Bluesky
+identifier** (`GET /api/v1/social/bluesky/control`, `DidControlService`):
+the rotation keys of the DID's latest operation, highest first, each named
+by what it is to the person — this server (`InstanceKeyService`'s keys,
+read by their public halves without opening any; a retired one is "an
+earlier key"), their recovery phrase, or a key this server does not know
+(shown as its `did:key`). Whose key signed the latest operation is found
+by checking its signature against the keys of the operation before it;
+while that operation is younger than 72 hours and a key ranks above the
+signer, the panel says until when, and by which keys, it can still be
+undone (the PLC nullification rule). The directory's audit log is the
+source, kept a minute in the distributed cache under the operation this
+server confirmed last, so an operation this server sends is seen at once.
+
+### 4.5a The account as files
+
+**Download your Bluesky account** (Settings, the Bluesky section;
+`GET /api/v1/social/bluesky/archive`, `BlueskyArchiveService`) and the
+account export of the Migration page (`SocialMigrator`, under
+`social/bluesky/`) carry the same files: `repo.car` (the repository as
+`com.atproto.sync.getRepo` streams it), `blobs/<cid>` for every blob that
+still reads, `plc-log.json` (the directory's `/log/audit`, or where it
+cannot be asked the operations this server's log has as confirmed, in
+the same shape), `did.json` (the directory's document, else the one this
+app derives from its log), `recovery/recovery-key.py` with the word list
+(§4.4), `recovery/bluesky-recovery-tool.html` (the recovery tool, §4.4,
+where the JavaScript is built), and `README.txt`, which says what each
+file is and the steps of Moving.md's "If this server goes away". Every file goes to the
+archive as a stream — the CAR through a temporary stream that spills to
+disk — and the download is sent in pieces from the finished zip, so
+neither is ever whole in memory. Nothing is read back from these files
+on import: a Bluesky account comes here by a move (§13), not from a file.
 
 ### 4.6 Switching off (D23)
 
@@ -1611,8 +1752,10 @@ and its followers do not come along: only a move (§13.1) brings them.
 
 ### 13.5 Move error codes
 
-Every error answer of the move routes under `/api/v1/social/bluesky/*`
-carries a stable code beside the English sentence,
+Every error answer of the move routes under `/api/v1/social/bluesky/*`,
+and of the account's own Bluesky routes there — identity, recovery
+phrase, `control` (§4.5b), `archive` (§4.5a) — and of the recovery tool
+(§4.4), carries a stable code beside the English sentence,
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
 explains the code in the person's language; the sentence is for logs and
@@ -1621,7 +1764,7 @@ older clients.
 | Code | When | What the person can do |
 |---|---|---|
 | `bluesky-off` | Bluesky is not enabled on this server | Nothing here; ask the administrator |
-| `no-identity` | The account has no Bluesky identity here | Nothing to move |
+| `no-identity` | The account has no Bluesky identity here (also `control` and `archive`, for one that moved away or was deleted) | Nothing to move or download |
 | `identity-inactive` | The Bluesky account is switched off or already moved | Switch it on first |
 | `move-in-progress` | Another move of the account is under way | Wait for it, or call it off |
 | `pds-address-invalid` | The server typed is not an https address | Check the address |
@@ -1637,7 +1780,10 @@ older clients.
 | `password-not-accepted` | The other server refused the password | Pick a longer one |
 | `rate-limited` | The other server asks to wait, or this server sent it too many sign-ins of late (§13.1) | Try again later |
 | `account-not-created` | The other server did not make the account, for another reason | The details say why |
-| `keys-sealed` | The account's keys cannot be opened (the instance secret changed) | Ask the administrator to run `occ social:atproto:keys:reseal` |
+| `keys-sealed` | A key of this server cannot be opened (the instance secret changed): 503 on any route that needs one; an XRPC call answers 503 `KeysSealed` (§16.3) | Ask the administrator to run `occ social:atproto:keys:reseal` |
+| `directory-unreachable` | `control`: the PLC directory did not answer (503) | Try again later |
+| `export-failed` | `archive`: the zip could not be written (500) | Try again; the log has the details |
+| `tool-missing` | The recovery tool's script is not built on this server (503) | Ask the administrator; a release has it |
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |
 | `recovery-key-missing` | No recovery key, and the start did not say `without_recovery` | Make a recovery phrase first, or confirm that only the new server will control the account |
@@ -1656,7 +1802,7 @@ older clients.
 | `handle-invalid` | What was typed is not a handle or a DID | Check the handle |
 | `handle-not-found` | No Bluesky account goes by the handle | Check the handle |
 | `did-not-supported` | The account's DID is not a `did:plc` | Nothing to do from here |
-| `did-not-found` | The PLC directory does not know the DID, or knows no server for it | Check the account |
+| `did-not-found` | The PLC directory does not know the DID, or knows no server for it; for `control`, a DID the directory does not know yet | Check the account |
 | `import-in-progress` | The same people are being followed already | Wait for it on the imports list |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
@@ -1807,8 +1953,18 @@ previous secret, read from `OC_OLD_SECRET`, and stores it sealed with the
 current one; the instance keys, retired ones included, and the signing
 keys of every identity that still signs. A key neither secret opens is
 reported and left as it is: without the previous secret, the only way
-back is the person's recovery phrase (§4.4), which this app does not yet
-take back.
+back is the person's recovery phrase (§4.4): its key signs a PLC
+operation that gives the DID a signing key of the person's own and points
+it elsewhere — with the recovery tool (§4.4) or goat, as Moving.md's "If
+this server goes away" lists.
+
+Until then a person's request that needs such a key — their identity,
+the recovery phrase, a move, a Bluesky app's call — is not answered with
+a raw error: the account routes answer 503
+`{"error": "This server's keys need to be re-sealed by an administrator (occ social:atproto:keys:reseal)", "code": "keys-sealed"}`,
+an XRPC call 503 with the error `KeysSealed` and the same message, and a
+move that stops on it keeps that message as its error
+(`AtprotoKeysSealedException`).
 
 ### 16.4 Input
 

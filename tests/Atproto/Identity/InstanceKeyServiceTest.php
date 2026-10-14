@@ -12,7 +12,7 @@ namespace OCA\Social\Tests\Atproto\Identity;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Model\InstanceKey;
 use OCA\Social\Db\AtprotoIdentityRequest;
-use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Security\PrivateKeyCipher;
 use OCP\Security\ICrypto;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -107,16 +107,31 @@ class InstanceKeyServiceTest extends TestCase {
 		$this->assertSame([$third->didKey()], array_map(static fn ($key): string => $key->didKey(), $this->service()->rotationKeys()));
 	}
 
-	public function testASealThatNoLongerOpensIsAnErrorNotANewKey(): void {
-		$this->service()->rotationKey();
+	/** The public halves are read as stored: naming the keys on a DID opens none, so it works while the seals do not. */
+	public function testTheRotationKeysAreListedByTheirPublicHalvesWithoutOpeningAny(): void {
+		$keys = $this->service();
+		$first = $keys->rotationKey();
+		[$second] = $keys->rotate();
 		$this->secret = 'another instance secret';
 
-		try {
-			$this->service()->rotationKey();
-			$this->fail('a key was handed out');
-		} catch (AtprotoException $e) {
-			$this->assertStringContainsString('instance secret changed', $e->getMessage());
+		$this->assertSame([$second->didKey() => false, $first->didKey() => true], $this->service()->rotationDidKeys());
+	}
+
+	/** Said in words the person can pass on, with the code the page explains it by: the service key as much as the rotation key. */
+	public function testASealThatNoLongerOpensIsAnErrorNotANewKey(): void {
+		$this->service()->rotationKey();
+		$this->service()->serviceKey();
+		$this->secret = 'another instance secret';
+
+		foreach (['rotationKey', 'serviceKey'] as $kind) {
+			try {
+				$this->service()->{$kind}();
+				$this->fail('a key was handed out');
+			} catch (AtprotoKeysSealedException $e) {
+				$this->assertSame('This server\'s keys need to be re-sealed by an administrator (occ social:atproto:keys:reseal)', $e->getMessage());
+				$this->assertSame('keys-sealed', AtprotoKeysSealedException::ERROR_CODE);
+			}
 		}
-		$this->assertCount(1, $this->rows, 'no second key was made behind the directory\'s back');
+		$this->assertCount(2, $this->rows, 'no second key was made behind the directory\'s back');
 	}
 }
