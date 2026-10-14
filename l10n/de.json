@@ -2881,6 +2881,9 @@
     "Aloha Social sent requests to remove your posts to the servers that received them. Those servers control copies they may already have stored." : "Aloha Social hat die Server, die deine Beiträge erhalten haben, um deren Löschung gebeten. Diese Server entscheiden selbst über bereits gespeicherte Kopien.",
     "Return to Aloha Social" : "Zurück zu Aloha Social",
     "Go to the sign-in page" : "Zur Anmeldeseite",
-    "Back to %s" : "Zurück zu %s"
+    "Back to %s" : "Zurück zu %s",
+    "Your code to move your Bluesky account" : "Dein Code zum Umzug deines Bluesky-Kontos",
+    "A tool you signed in to asks to point your Bluesky account at another server. To allow it, enter this code there. It is good for 15 minutes." : "Ein Werkzeug, bei dem du dich angemeldet hast, möchte dein Bluesky-Konto auf einen anderen Server umstellen. Um das zu erlauben, gib dort diesen Code ein. Er gilt 15 Minuten.",
+    "If you are not moving your Bluesky account, ignore this e-mail and nothing changes." : "Wenn du dein Bluesky-Konto nicht umziehst, ignoriere diese E-Mail, dann ändert sich nichts."
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

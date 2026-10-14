@@ -439,14 +439,16 @@ CID — tree nodes, commits, records — as a CAR with no roots; one CID the
 repository does not have refuses the request with `BlockNotFound`),
 `getBlob`, `listBlobs`, `listRepos`, `getRepoStatus`, `subscribeRepos`
 (§7);
-`com.atproto.identity.resolveHandle`, `updateHandle` (custom handles, later),
-`getRecommendedDidCredentials`, `signPlcOperation`, `submitPlcOperation`,
-`requestPlcOperationSignature` (§13); `com.atproto.server.describeServer`,
-`createSession`, `refreshSession`, `deleteSession`, `getSession`,
-`getServiceAuth`, `checkAccountStatus`, `activateAccount`,
-`deactivateAccount`, `createAccount` (migration in only, §13; open
-registration is **never** offered — a Bluesky account here is a Nextcloud
-account); `com.atproto.repo.createRecord`, `putRecord`, `deleteRecord`,
+`com.atproto.identity.resolveHandle`, `updateHandle` (custom handles, later);
+`requestPlcOperationSignature` and `signPlcOperation` to a session allowed
+`identity:*`, for a tool moving the account away (§13.2);
+`getRecommendedDidCredentials`, `submitPlcOperation`, `checkAccountStatus`
+and `activateAccount` to an account moving here (§13);
+`com.atproto.server.describeServer`, `createSession`, `refreshSession`,
+`deleteSession`, `getSession`, `getServiceAuth`, `createAccount`
+(migration in only, §13; open registration is **never** offered — a
+Bluesky account here is a Nextcloud account); `deactivateAccount` is not
+served (switching off is in Settings, §4.6); `com.atproto.repo.createRecord`, `putRecord`, `deleteRecord`,
 `getRecord`, `listRecords`, `describeRepo`, `uploadBlob`, `applyWrites`,
 `importRepo`, `listMissingBlobs`; `com.atproto.moderation.createReport`
 (proxied, §12.3); `com.atproto.label.queryLabels` (answers the self-labels
@@ -1447,6 +1449,31 @@ server e-mails (`requestAccountDelete`, then `deleteAccount` with the
 account's password and that code) — the answer says so with
 `target-account-left` and the host. Once the DID moved the move can only be
 finished (`move-past-switch`).
+
+**Moving away with another tool.** A migration tool driven from outside
+(the reference flow, as `goat account migrate` runs it) gets what it needs
+from this server to a session allowed to change the identity — an OAuth
+grant with `identity:*`, as the reference PDS asks; an app password never
+is, nor `transition:generic`, and `createSession` here takes app passwords
+only, so a tool that signs in with a password cannot do this:
+
+- `getServiceAuth` with `lxm` `com.atproto.server.createAccount` and the new
+  PDS's DID as `aud` (`ServiceAuthGrant`), for `createAccount` there; the
+  repository and the blobs are public (`getRepo`, `listBlobs`, `getBlob`);
+- `requestPlcOperationSignature` (`PlcSignatureService`): a code e-mailed by
+  Nextcloud's mail to the address of the Nextcloud account, kept hashed,
+  good once and for fifteen minutes (the reference PDS's lifetime), three
+  an hour;
+- `signPlcOperation` with that code: the operation the tool proposes (each
+  field the current one where it names none), checked against the
+  vendored lexicon, signed with this server's rotation key that the DID's
+  latest operation names and answered, not sent — the tool has the new PDS
+  submit it. The person's recovery key keeps the first place among the
+  rotation keys, as in `handOver()`. Ten an hour; refused while an earlier
+  operation for the DID is not confirmed.
+
+`deactivateAccount` is not served: after such a move, switch Bluesky off
+in Settings (§4.6). The page's own move above needs none of this.
 
 **The other half of the same person.** The start can ask
 (`announce`) that once the move is done the account here says where the
