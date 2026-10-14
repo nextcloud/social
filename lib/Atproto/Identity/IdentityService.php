@@ -21,6 +21,7 @@ use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Security\PrivateKeyCipher;
@@ -133,12 +134,14 @@ class IdentityService {
 	/**
 	 * The signing key, opened.
 	 *
-	 * @throws AtprotoException when the seal does not open (the instance secret changed)
+	 * @throws AtprotoKeysSealedException when the seal does not open (the instance secret changed)
 	 */
 	public function signingKey(Identity $identity): PrivateKey {
 		$secret = $this->cipher->open($identity->sealedSigningKey);
 		if ($secret === '') {
-			throw new AtprotoException('The signing key of ' . $identity->did . ' cannot be opened');
+			$this->logger->error('The signing key of a Bluesky identity cannot be opened with the instance secret', ['did' => $identity->did]);
+
+			throw new AtprotoKeysSealedException('signing key of ' . $identity->did);
 		}
 
 		return new PrivateKey(Curve::K256, $secret);

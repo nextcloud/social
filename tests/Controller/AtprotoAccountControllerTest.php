@@ -27,6 +27,7 @@ use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Controller\AtprotoAccountController;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
@@ -50,6 +51,7 @@ class AtprotoAccountControllerTest extends TestCase {
 	private MoveInService&MockObject $moveIn;
 	private InboundMoveService&MockObject $inbound;
 	private IdentityService&MockObject $identities;
+	private MoveAwayService&MockObject $moveAway;
 	private bool $enabled = true;
 
 	protected function setUp(): void {
@@ -58,6 +60,7 @@ class AtprotoAccountControllerTest extends TestCase {
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->inbound = $this->createMock(InboundMoveService::class);
 		$this->identities = $this->createMock(IdentityService::class);
+		$this->moveAway = $this->createMock(MoveAwayService::class);
 	}
 
 	private function controller(): AtprotoAccountController {
@@ -73,7 +76,7 @@ class AtprotoAccountControllerTest extends TestCase {
 		return new AtprotoAccountController(
 			$this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->publisher,
 			$this->createStub(LabelerService::class), $this->createStub(AppPasswordService::class), $this->createStub(AuthorizationServer::class),
-			$this->createStub(CustomHandleService::class), $this->createStub(MoveAwayService::class), $this->moveIn,
+			$this->createStub(CustomHandleService::class), $this->moveAway, $this->moveIn,
 			$this->inbound, $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
 		);
 	}
@@ -208,5 +211,25 @@ class AtprotoAccountControllerTest extends TestCase {
 
 		$this->assertSame($phrase, $data['phrase']);
 		$this->assertSame(['did_key' => $key->didKey(), 'multibase' => $key->multibase(), 'hex' => bin2hex($key->secret())], $data['key']);
+	}
+
+	/**
+	 * A key the instance secret no longer opens is answered with the code
+	 * the page explains it by, on the identity, the phrase and a move.
+	 */
+	public function testAKeyThatDoesNotOpenIsAnsweredWithItsCode(): void {
+		$this->identities->method('forActor')->willThrowException(new AtprotoKeysSealedException('instance rotation key'));
+		$expected = ['error' => 'This server\'s keys need to be re-sealed by an administrator (occ social:atproto:keys:reseal)', 'code' => 'keys-sealed'];
+
+		foreach ([$this->controller()->identity(), $this->controller()->recovery()] as $response) {
+			$this->assertSame(Http::STATUS_SERVICE_UNAVAILABLE, $response->getStatus());
+			$this->assertSame($expected, $response->getData());
+		}
+
+		$this->identities = $this->createMock(IdentityService::class);
+		$this->identities->method('forActor')->willReturn(self::identity(Identity::STATE_ACTIVE));
+		$this->moveAway->method('start')->willThrowException(new AtprotoKeysSealedException('signing key'));
+		$response = $this->controller()->moveAway('https://pds.example', 'alice.pds.example', 'alice@example.org', 'secret');
+		$this->assertSame($expected, $response->getData());
 	}
 }

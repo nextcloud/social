@@ -13,7 +13,7 @@ use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Model\InstanceKey;
 use OCA\Social\Db\AtprotoIdentityRequest;
-use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Security\PrivateKeyCipher;
 
 /**
@@ -115,7 +115,7 @@ class InstanceKeyService {
 	}
 
 	/**
-	 * @throws AtprotoException when a stored key cannot be opened
+	 * @throws AtprotoKeysSealedException when the stored key does not open with the instance secret
 	 */
 	private function current(string $kind): PrivateKey {
 		if (isset($this->opened[$kind])) {
@@ -127,7 +127,7 @@ class InstanceKeyService {
 			}
 			$secret = $this->cipher->open($key->sealedPrivateKey);
 			if ($secret === '') {
-				throw new AtprotoException('The instance ' . $kind . ' key cannot be opened: the instance secret changed');
+				throw new AtprotoKeysSealedException('instance ' . $kind . ' key');
 			}
 
 			return $this->opened[$kind] = new PrivateKey(Curve::K256, $secret);

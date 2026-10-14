@@ -28,6 +28,7 @@ use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Controller;
@@ -87,7 +88,7 @@ class AtprotoAccountController extends Controller {
 
 			return new DataResponse(self::export($identity) + ['publish_blocks' => $this->blocks->isPublished($this->userId())]);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -114,7 +115,7 @@ class AtprotoAccountController extends Controller {
 		} catch (\InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -134,7 +135,7 @@ class AtprotoAccountController extends Controller {
 
 			return new DataResponse(['publish_blocks' => $this->blocks->isPublished($this->userId())]);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -259,7 +260,7 @@ class AtprotoAccountController extends Controller {
 		} catch (\InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -279,7 +280,7 @@ class AtprotoAccountController extends Controller {
 
 			return new DataResponse(self::export($changed));
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -610,7 +611,7 @@ class AtprotoAccountController extends Controller {
 
 			return new DataResponse(['phrase' => $phrase, 'key' => Mnemonic::keyForms($phrase)] + self::export($this->identities->getByDid($identity->did)));
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return self::moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -651,10 +652,14 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
-	 * An error of a move route as the page reads it: the sentence and its
-	 * code, 422 for what the person can do something about, 500 otherwise.
+	 * An error of a Bluesky route as the page reads it: the sentence and its
+	 * code, 422 for what the person can do something about, 500 otherwise,
+	 * and 503 `keys-sealed` for a key of this server that does not open.
 	 */
 	private static function moveError(Throwable $e, int $status = Http::STATUS_UNPROCESSABLE_ENTITY): DataResponse {
+		if ($e instanceof AtprotoKeysSealedException) {
+			return new DataResponse(['error' => $e->getMessage(), 'code' => AtprotoKeysSealedException::ERROR_CODE], Http::STATUS_SERVICE_UNAVAILABLE);
+		}
 		if ($e instanceof MoveErrorException) {
 			return new DataResponse($e->toArray(), $status);
 		}

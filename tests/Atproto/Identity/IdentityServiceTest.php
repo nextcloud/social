@@ -28,6 +28,7 @@ use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\AtprotoPlcRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Security\PrivateKeyCipher;
@@ -678,6 +679,15 @@ class IdentityServiceTest extends TestCase {
 		$moved = self::actor('fay');
 		$moved->setMovedTo('https://elsewhere.example/@fay');
 		$this->assertNull($this->service->forActor($moved));
+	}
+
+	/** A signing key the instance secret no longer opens is said so, in words an administrator can act on. */
+	public function testASigningKeyThatDoesNotOpenAsksForTheReseal(): void {
+		$identity = new Identity(1, 'https://social.test/@alice', 'did:plc:alice', 'alice.social.test', 'sealed with another secret', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0);
+
+		$this->expectException(AtprotoKeysSealedException::class);
+		$this->expectExceptionMessage('occ social:atproto:keys:reseal');
+		$this->service->signingKey($identity);
 	}
 
 	public function testTheInstanceDocumentNamesTheServiceKeyAndThePds(): void {

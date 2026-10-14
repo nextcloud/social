@@ -24,6 +24,7 @@ use OCA\Social\Controller\AtprotoXrpcController;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
+use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Response\StreamedRemoteResponse;
 use OCA\Social\Service\ConfigService;
@@ -150,7 +151,20 @@ class AtprotoXrpcControllerTest extends TestCase {
 	/**
 	 * @param array<string, string>|null $params
 	 */
-	private function controller(?array $params = null): AtprotoXrpcController {
+	/** A Bluesky app is told why nothing can be signed, in words its user can pass on to the administrator. */
+	public function testAKeyThatDoesNotOpenIsAnsweredAsSuch(): void {
+		$client = $this->createMock(ClientXrpc::class);
+		$client->method('query')->willThrowException(new AtprotoKeysSealedException('signing key'));
+		$client->method('procedure')->willThrowException(new AtprotoKeysSealedException('signing key'));
+
+		foreach ([$this->controller(null, $client)->query('app.bsky.feed.getTimeline'), $this->controller(null, $client)->procedure('com.atproto.repo.createRecord')] as $response) {
+			$this->assertSame(503, $response->getStatus());
+			$this->assertSame('KeysSealed', $response->getData()['error']);
+			$this->assertStringContainsString('occ social:atproto:keys:reseal', $response->getData()['message']);
+		}
+	}
+
+	private function controller(?array $params = null, ?ClientXrpc $client = null): AtprotoXrpcController {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
 		$identities = $this->createMock(IdentityService::class);
@@ -170,8 +184,10 @@ class AtprotoXrpcControllerTest extends TestCase {
 			$config, $identities, $repositories, $this->createMock(AtprotoRepoRequest::class), $blobs, $pictures, $videos,
 			$this->createMock(ConfigService::class), $this->createMock(ModerationService::class), $this->createMock(AtprotoIdentityRequest::class),
 		);
-		$client = $this->createMock(ClientXrpc::class);
-		$client->method('query')->willReturn(null);
+		if ($client === null) {
+			$client = $this->createMock(ClientXrpc::class);
+			$client->method('query')->willReturn(null);
+		}
 		$request = $this->createMock(IRequest::class);
 		$request->method('getParams')->willReturn($params ?? ['did' => self::DID, 'cid' => Cid::forRaw('bytes')->toString()]);
 		$request->method('getHeader')->willReturn('');

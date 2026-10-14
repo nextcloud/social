@@ -1841,6 +1841,14 @@ reported and left as it is: without the previous secret, the only way
 back is the person's recovery phrase (§4.4), which this app does not yet
 take back.
 
+Until then a person's request that needs such a key — their identity,
+the recovery phrase, a move, a Bluesky app's call — is not answered with
+a raw error: the account routes answer 503
+`{"error": "This server's keys need to be re-sealed by an administrator (occ social:atproto:keys:reseal)", "code": "keys-sealed"}`,
+an XRPC call 503 with the error `KeysSealed` and the same message, and a
+move that stops on it keeps that message as its error
+(`AtprotoKeysSealedException`).
+
 ### 16.4 Input
 
 Records from Bluesky are untrusted input. What the AppView, a relay or
