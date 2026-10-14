@@ -39,6 +39,7 @@ const linkModeButton = (wrapper) => wrapper.findAll('button').find((b) => b.text
 describe('AccountSetup', () => {
 	afterEach(() => {
 		axios.post.mockReset()
+		window.localStorage.clear()
 	})
 
 	it('suggests a handle and shows the address it would make', () => {
@@ -58,11 +59,31 @@ describe('AccountSetup', () => {
 		expect(wrapper.text()).toContain('An address of your own')
 		expect(wrapper.text()).toContain('One fediverse, many servers')
 		expect(wrapper.text()).toContain('Yours to keep')
+		// what this instance offers is not what every instance offers
+		expect(wrapper.text()).not.toContain('Also on Bluesky')
 
 		// the longer answer is folded, and opens
 		const more = wrapper.find('.account-setup__more summary')
 		expect(wrapper.find('.account-setup__more').element.open).toBe(false)
 		expect(more.text()).toBe('What is the fediverse?')
+	})
+
+	// the administrator switches AT Protocol on per instance; where they
+	// have, both the explainer and the address the username would make say so
+	it('says the account is on Bluesky too, where this server offers that', () => {
+		const wrapper = mountSetup({ bluesky: { enabled: true, host: 'cloud.example.org' } })
+
+		expect(wrapper.text()).toContain('Also on Bluesky')
+		expect(wrapper.text()).toContain('AT Protocol')
+		expect(wrapper.find('.account-setup__address--bluesky').text()).toBe('On Bluesky too: @alice.cloud.example.org')
+	})
+
+	it('waits for a username before drawing the address it cannot show', async () => {
+		const wrapper = mountSetup({ bluesky: { enabled: true, host: 'cloud.example.org' } })
+
+		expect(wrapper.find('.account-setup__address--bluesky').exists()).toBe(true)
+		await handleInput(wrapper).setValue('')
+		expect(wrapper.find('.account-setup__address--bluesky').exists()).toBe(false)
 	})
 
 	it('creates the account with the handle that was typed and says so', async () => {
@@ -77,6 +98,23 @@ describe('AccountSetup', () => {
 		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/account/create', { username: 'ali_ce' })
 		expect(wrapper.emitted('created')).toHaveLength(1)
 		expect(wrapper.emitted('created')[0][0]).toEqual({ id: '1', acct: 'ali_ce' })
+	})
+
+	// a reader who deleted their account and made a new one is new here,
+	// whatever they asked for on the account this one replaces: without this
+	// the walkthrough stays away and the app opens unshown
+	it('opens the introduction again for the new account', async () => {
+		axios.post.mockResolvedValue({ data: { status: 1, result: { account: { id: '1', acct: 'alice' } } } })
+		window.localStorage.setItem('social:introduction:alice@cloud.example.org', 'dismissed')
+		const wrapper = mountSetup()
+
+		await wrapper.find('form.account-setup__form').trigger('submit')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenNthCalledWith(1, '/index.php/apps/social/api/v1/account/create', { username: 'alice' })
+		expect(axios.post).toHaveBeenNthCalledWith(2, '/index.php/apps/social/api/v1/introduction/reset')
+		expect(window.localStorage.getItem('social:introduction:alice@cloud.example.org')).toBeNull()
+		expect(wrapper.emitted('created')).toHaveLength(1)
 	})
 
 	it('shows the reason a handle cannot be had, and stays', async () => {

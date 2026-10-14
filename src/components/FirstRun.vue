@@ -15,6 +15,11 @@
 					<span class="hidden-visually">{{ name }}</span>
 				</li>
 			</ol>
+			<!-- which page of how many, said in words: the dots are the map,
+			     this is where you are on it -->
+			<p class="first-run__step-name">
+				{{ t('social', 'Page {page} of {total}', { page: step + 1, total: stepNames.length }) }}
+			</p>
 			<NcButton
 				variant="tertiary"
 				class="first-run__skip"
@@ -27,15 +32,15 @@
 		</header>
 
 		<Transition :name="reducedMotion ? '' : 'first-run-step'" mode="out-in">
-			<!-- 1. the address, and the welcome: this runs the moment the
-			     account exists, however it was made -->
-			<div v-if="step === 0" key="address" class="first-run__body">
-				<h2 class="first-run__title">
-					{{ t('social', 'Welcome to Aloha Social') }}
+			<!-- 1. how it all works -->
+			<div v-if="step === 0" key="how" class="first-run__page">
+				<h2 ref="heading" class="first-run__title" tabindex="-1">
+					{{ t('social', 'How Aloha Social works') }}
 				</h2>
 				<p class="first-run__lead">
-					{{ t('social', 'Your account is ready. This is your address — anyone on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can follow it:') }}
+					{{ t('social', 'Your account is ready. Here is what you have, and what you can do with it:') }}
 				</p>
+
 				<div class="first-run__address">
 					<code class="first-run__handle">{{ socialId }}</code>
 					<NcButton variant="secondary" @click="copyHandle">
@@ -47,8 +52,58 @@
 					</NcButton>
 				</div>
 				<p class="first-run__hint">
-					{{ t('social', 'Give it to people the way you would an email address. Your profile, your avatar and your name come from your Nextcloud account and can be changed on your profile page.') }}
+					{{ t('social', 'Give it to people the way you would an email address. Anybody on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can follow it and talk to you.') }}
 				</p>
+
+				<ul class="first-run__what">
+					<li class="first-run__what-item">
+						<IconPost class="first-run__what-icon" :size="20" />
+						<div class="first-run__what-text">
+							<h3 class="first-run__what-title">
+								{{ t('social', 'Post what you like') }}
+							</h3>
+							<p>
+								{{ t('social', 'Text, pictures and polls. Who sees each post is yours to choose: everybody, your followers, or only the people you mention.') }}
+							</p>
+						</div>
+					</li>
+					<li class="first-run__what-item">
+						<IconAccountMultiplePlus class="first-run__what-icon" :size="20" />
+						<div class="first-run__what-text">
+							<h3 class="first-run__what-title">
+								{{ t('social', 'Follow anybody') }}
+							</h3>
+							<p>
+								{{ t('social', 'On any server that speaks ActivityPub — Mastodon, Pixelfed, PeerTube, this Nextcloud — and their posts arrive in your home feed.') }}
+							</p>
+						</div>
+					</li>
+					<li class="first-run__what-item">
+						<IconAccountCircle class="first-run__what-icon" :size="20" />
+						<div class="first-run__what-text">
+							<h3 class="first-run__what-title">
+								{{ t('social', 'Your profile is already set up') }}
+							</h3>
+							<p>
+								{{ t('social', 'Name, avatar and bio come from your Nextcloud account; change them on your profile page and they change here too.') }}
+							</p>
+						</div>
+					</li>
+					<!-- what this instance offers, where the administrator has
+					     switched it on: an account here is a Bluesky account too -->
+					<li v-if="blueskyEnabled" class="first-run__what-item">
+						<IconButterfly class="first-run__what-icon" :size="20" />
+						<div class="first-run__what-text">
+							<h3 class="first-run__what-title">
+								{{ t('social', 'Also on Bluesky') }}
+							</h3>
+							<p>
+								{{ t('social', 'This server speaks AT Protocol as well, so you are reachable from any Bluesky app at {handle}. Your posts and profile are shown there, and switching that off is in Settings.', { handle: blueskyHandle }) }}
+							</p>
+						</div>
+					</li>
+				</ul>
+
 				<div class="first-run__islands">
 					<AlohaScene scene="islands" class="first-run__islands-scene" />
 					<p class="first-run__hint">
@@ -58,8 +113,8 @@
 			</div>
 
 			<!-- 2. people -->
-			<div v-else-if="step === 1" key="people" class="first-run__body">
-				<h2 class="first-run__title">
+			<div v-else-if="step === 1" key="people" class="first-run__page">
+				<h2 ref="heading" class="first-run__title" tabindex="-1">
 					{{ t('social', 'A feed is only as good as who is in it') }}
 				</h2>
 				<p class="first-run__lead">
@@ -126,8 +181,8 @@
 			</div>
 
 			<!-- 3. what you had -->
-			<div v-else-if="step === 2" key="follows" class="first-run__body">
-				<h2 class="first-run__title">
+			<div v-else-if="step === 2" key="follows" class="first-run__page">
+				<h2 ref="heading" class="first-run__title" tabindex="-1">
 					{{ t('social', 'Already somewhere else?') }}
 				</h2>
 				<p class="first-run__lead">
@@ -183,8 +238,8 @@
 			</div>
 
 			<!-- 4. go -->
-			<div v-else key="ready" class="first-run__body">
-				<h2 class="first-run__title">
+			<div v-else key="ready" class="first-run__page">
+				<h2 ref="heading" class="first-run__title" tabindex="-1">
 					{{ t('social', 'That is all there is to it') }}
 				</h2>
 				<p class="first-run__lead">
@@ -221,14 +276,16 @@
 
 <script>
 /**
- * The first thing a new account sees, in place of a paragraph about beta.
+ * The walkthrough a new account goes through, in place of a paragraph about
+ * beta.
  *
  * The account was made a moment ago — by the setup screen, or by registering
  * on the signup page — and the reader has three questions the old banner did
- * not answer: what is my address, who do I follow, and can I bring what I
- * had. Four short steps, each skippable, and it is gone for good once closed:
- * the home timeline shows it for `?welcome=1`, which is what both of those
- * two ways in carry, and never again after that unless asked for by name.
+ * not answer: how does this thing work, who do I follow, and can I bring
+ * what I had. Four pages, each skippable, turned with Next and Back (or the
+ * arrow keys), and it is gone for good once closed: the home timeline shows
+ * it for `?welcome=1`, which is what both of those two ways in carry, and
+ * never again after that unless asked for by name.
  *
  * Nothing here is a second implementation of anything: the people come from
  * the suggestions the Discover page reads (the colleagues among them, marked
@@ -241,15 +298,18 @@ import { mapStores } from 'pinia'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import IconAccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
 import IconAccountArrowRight from 'vue-material-design-icons/AccountArrowRight.vue'
+import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
+import IconAccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue'
 import IconAccountPlus from 'vue-material-design-icons/AccountPlus.vue'
 import IconArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import IconArrowRight from 'vue-material-design-icons/ArrowRight.vue'
+import IconButterfly from 'vue-material-design-icons/Butterfly.vue'
 import IconCheck from 'vue-material-design-icons/Check.vue'
 import IconClose from 'vue-material-design-icons/Close.vue'
 import IconContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import IconPencil from 'vue-material-design-icons/Pencil.vue'
+import IconPost from 'vue-material-design-icons/Post.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import AlohaScene from './illustrations/AlohaScene.vue'
@@ -257,10 +317,14 @@ import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
 import { useAccountStore } from '../store/account.js'
+import { useSettingsStore } from '../store/settings.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 
 /** how many colleagues to show; Discover has the rest */
 const MAX_COLLEAGUES = 6
+
+/** how long a page takes to slide in, which is how long focus waits */
+const PAGE_TRANSITION_MS = 220
 
 export default {
 	name: 'FirstRun',
@@ -268,14 +332,17 @@ export default {
 		ActorAvatar,
 		AlohaScene,
 		IconAccountArrowRight,
+		IconAccountCircle,
 		IconAccountMultiplePlus,
 		IconAccountPlus,
 		IconArrowLeft,
 		IconArrowRight,
+		IconButterfly,
 		IconCheck,
 		IconClose,
 		IconContentCopy,
 		IconPencil,
+		IconPost,
 		IconUpload,
 		NcButton,
 		NcLoadingIcon,
@@ -294,12 +361,14 @@ export default {
 		return {
 			step: 0,
 			stepNames: [
-				t('social', 'Your address'),
+				t('social', 'How it works'),
 				t('social', 'People to follow'),
-				t('social', 'Bring your follows'),
+				t('social', 'Bring what you had'),
 				t('social', 'Ready'),
 			],
 
+			/** where the page heading is focused once it has finished arriving */
+			focusTimer: null,
 			loading: true,
 			/** accounts on this Nextcloud that said where they are, as Discover marks them */
 			colleagues: [],
@@ -323,7 +392,7 @@ export default {
 	},
 
 	computed: {
-		...mapStores(useAccountStore),
+		...mapStores(useAccountStore, useSettingsStore),
 
 		/**
 		 * The reader's own server, as their address spells it.
@@ -335,20 +404,77 @@ export default {
 			return at > 0 ? this.socialId.slice(at + 1) : window.location.host
 		},
 
+		/** @return {boolean} whether this instance also speaks AT Protocol */
+		blueskyEnabled() {
+			return this.settingsStore.getServerData.bluesky?.enabled === true
+		},
+
+		/**
+		 * The address the reader is reachable at on Bluesky, where this
+		 * instance has switched that on: `<name>.<host>`.
+		 *
+		 * @return {string}
+		 */
+		blueskyHandle() {
+			const name = String(this.socialId ?? '').replace(/^@/, '').split('@')[0]
+			const host = this.settingsStore.getServerData.bluesky?.host ?? this.homeHost
+
+			return '@' + name + '.' + host
+		},
+
 		followedAnything() {
 			return this.followed.length > 0 || this.followedPacks.length > 0 || this.followsResult !== '' || this.moveResult !== ''
 		},
 	},
 
+	watch: {
+		/**
+		 * A page turned is a page arrived at: put the reader on its title,
+		 * so a keyboard and a screen reader are on the new page with them.
+		 * The wait is the page taking its turn to slide in.
+		 */
+		step() {
+			window.clearTimeout(this.focusTimer)
+			this.focusTimer = window.setTimeout(() => {
+				/** @type {HTMLElement|undefined} */ (this.$refs.heading)?.focus()
+			}, this.reducedMotion ? 0 : PAGE_TRANSITION_MS)
+		},
+	},
+
 	mounted() {
 		this.load()
+		window.addEventListener('keydown', this.onKeyDown)
 	},
 
 	beforeUnmount() {
 		window.clearTimeout(this.copyTimer)
+		window.clearTimeout(this.focusTimer)
+		window.removeEventListener('keydown', this.onKeyDown)
 	},
 
 	methods: {
+		/**
+		 * The arrow keys turn the page, the way a wizard does; typing in one
+		 * of the fields on these pages is not navigation.
+		 *
+		 * @param {KeyboardEvent} event the key that was pressed
+		 */
+		onKeyDown(event) {
+			if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+				return
+			}
+			const target = event.target
+			if (target instanceof HTMLElement
+				&& (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) {
+				return
+			}
+			if (event.key === 'ArrowLeft' && this.step > 0) {
+				this.step--
+			} else if (event.key === 'ArrowRight' && this.step < this.stepNames.length - 1) {
+				this.step++
+			}
+		},
+
 		/** Opens the file chooser for the follows export. */
 		pickFollows() {
 			/** @type {HTMLInputElement} */ (this.$refs.follows).click()
@@ -608,6 +734,14 @@ export default {
 		list-style: none;
 	}
 
+	/* which page of how many, in words beside the dots */
+	&__step-name {
+		margin: 0;
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--color-text-maxcontrast);
+	}
+
 	/* the dot that is current stretches into a short bar, which is what
 	   says "you are here" without a number */
 	&__dot {
@@ -627,10 +761,48 @@ export default {
 		}
 	}
 
-	&__body {
+	/* one page of the walkthrough: focused, and scrolls if a page is taller
+	   than the window rather than pushing the footer away */
+	&__page {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+
+	/* what you can do, as a quiet list: icon, what it is, one line on it */
+	&__what {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin: 8px 0 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	&__what-item {
+		display: flex;
+		gap: 12px;
+		align-items: flex-start;
+	}
+
+	&__what-icon {
+		flex: 0 0 auto;
+		margin-top: 2px;
+		color: var(--color-primary-element);
+	}
+
+	&__what-title {
+		margin: 0 0 2px;
+		font-size: 14px;
+		font-weight: 600;
+	}
+
+	&__what-text p {
+		margin: 0;
+		font-size: 13px;
+		line-height: 1.45;
+		color: var(--color-text-maxcontrast);
+		text-wrap: pretty;
 	}
 
 	&__title {

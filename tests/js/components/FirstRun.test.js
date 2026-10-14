@@ -52,10 +52,15 @@ let finishedImports = []
 
 let accountStore
 
-async function mountFirstRun() {
+async function mountFirstRun(serverData = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
-	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', firstrun: true })
+	useSettingsStore().setServerData({
+		public: false,
+		cloudAddress: 'https://cloud.example.org',
+		firstrun: true,
+		...serverData,
+	})
 	accountStore = useAccountStore()
 	vi.spyOn(accountStore, 'followAccount').mockResolvedValue(undefined)
 	const wrapper = mount(FirstRun, {
@@ -83,11 +88,35 @@ describe('FirstRun', () => {
 		serverHas()
 		const wrapper = await mountFirstRun()
 
-		expect(wrapper.find('h2').text()).toBe('Welcome to Aloha Social')
+		expect(wrapper.find('h2').text()).toBe('How Aloha Social works')
 		expect(wrapper.find('.first-run__handle').text()).toBe('@alice@cloud.example.org')
 		// four steps, the first lit
 		expect(wrapper.findAll('.first-run__dot')).toHaveLength(4)
 		expect(wrapper.find('.first-run__dot--current').attributes('aria-current')).toBe('step')
+		expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 4')
+	})
+
+	it('says what the account can do, not only what its address is', async () => {
+		serverHas()
+		const wrapper = await mountFirstRun()
+
+		expect(wrapper.text()).toContain('Post what you like')
+		expect(wrapper.text()).toContain('Who sees each post is yours to choose')
+		expect(wrapper.text()).toContain('Follow anybody')
+		expect(wrapper.text()).toContain('Your profile is already set up')
+		// what this instance offers is not what every instance offers
+		expect(wrapper.text()).not.toContain('Also on Bluesky')
+	})
+
+	// the administrator can switch AT Protocol on per instance; where they
+	// have, the walkthrough says the account is reachable there too
+	it('says the account is on Bluesky too, where this server offers that', async () => {
+		serverHas()
+		const wrapper = await mountFirstRun({ bluesky: { enabled: true, host: 'cloud.example.org' } })
+
+		expect(wrapper.text()).toContain('Also on Bluesky')
+		expect(wrapper.text()).toContain('@alice.cloud.example.org')
+		expect(wrapper.text()).toContain('AT Protocol')
 	})
 
 	it('copies the address', async () => {
@@ -290,7 +319,46 @@ describe('FirstRun', () => {
 		await button(wrapper, 'Back').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('h2').text()).toBe('Welcome to Aloha Social')
+		expect(wrapper.find('h2').text()).toBe('How Aloha Social works')
 		expect(button(wrapper, 'Back')).toBeUndefined()
+	})
+
+	// the pages are pages: turned with the buttons or the arrow keys, and
+	// never by typing in the field one of them carries
+	describe('as pages', () => {
+		it('turns with the arrow keys', async () => {
+			serverHas()
+			const wrapper = await mountFirstRun()
+
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+			await flushPromises()
+			expect(wrapper.find('h2').text()).toBe('A feed is only as good as who is in it')
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 4')
+
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+			await flushPromises()
+			expect(wrapper.find('h2').text()).toBe('How Aloha Social works')
+		})
+
+		it('stays put at the ends', async () => {
+			serverHas()
+			const wrapper = await mountFirstRun()
+
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+			await flushPromises()
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 4')
+		})
+
+		it('does not turn while the reader is typing in the handle to move', async () => {
+			serverHas()
+			const wrapper = await mountFirstRun()
+			await next(wrapper)
+			await next(wrapper)
+
+			await wrapper.find('.first-run__move input').trigger('keydown', { key: 'ArrowRight' })
+			await flushPromises()
+
+			expect(wrapper.find('h2').text()).toBe('Already somewhere else?')
+		})
 	})
 })
