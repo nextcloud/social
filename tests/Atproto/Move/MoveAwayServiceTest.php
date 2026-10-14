@@ -20,6 +20,7 @@ use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Move\MoveAnnouncement;
 use OCA\Social\Atproto\Move\MoveAwayService;
+use OCA\Social\Atproto\Move\MoveFailure;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Encoding;
@@ -191,6 +192,8 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertSame('keys-sealed', MoveAwayService::codeOf(new AtprotoException('The signing key of did:plc:x cannot be opened')));
 		$this->assertSame('plc-refused', MoveAwayService::codeOf(new \OCA\Social\Exceptions\AtprotoPlcRefusedException('PLC directory refused the operation (400): bad')));
 		$this->assertSame('plc-unreachable', MoveAwayService::codeOf(new AtprotoException('PLC directory could not be reached: timeout')));
+		$this->assertSame('pds-blocked', MoveAwayService::codeOf(new MoveFailure('pds-blocked', 'The PDS at https://x could not be reached: blocked')), 'a code PdsClient gives is kept');
+		$this->assertSame('rate-limited', MoveAwayService::codeOf(PdsClient::refused('com.atproto.repo.importRepo', ['status' => 429, 'body' => []])));
 	}
 
 	public function testAFailedStepKeepsItsCode(): void {

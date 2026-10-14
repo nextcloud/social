@@ -181,7 +181,7 @@ class MoveAwayService {
 		$message = $e->getMessage();
 
 		return match (true) {
-			$e instanceof MoveErrorException => $e->errorCode,
+			$e instanceof MoveErrorException, $e instanceof MoveFailure => $e->errorCode,
 			$e instanceof AtprotoPlcRefusedException => 'plc-refused',
 			str_starts_with($message, 'PLC directory could not be reached') => 'plc-unreachable',
 			str_contains($message, 'signing key of') && str_contains($message, 'cannot be opened') => 'keys-sealed',
