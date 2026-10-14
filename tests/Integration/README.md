@@ -45,6 +45,11 @@ to stop.
 - `Db/ReplyCountTest` — the reply counter on a post: a recount counts what is
   stored, counts one fewer after a delete, and carries the replies that live on
   the post's own server across untouched.
+- `Db/PublishedPostCountsTest` — a local post's counts on Bluesky: which of
+  its likes, boosts, replies and quotes held here the AppView counts too
+  (from bsky.app, or a local account's own record — never the Fediverse's),
+  and which local posts with a post record the cron's pass takes: inside the
+  window, due, oldest first.
 - `Db/RequestQueueLifecycleTest` — standby → running → deleted on success,
   failures counted and retried, abandoned after MAX_TRIES, stale RUNNING rows
   reaped back to standby.
