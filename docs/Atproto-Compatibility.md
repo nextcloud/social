@@ -265,6 +265,21 @@ multibase `z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526`, public
 `did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt`
 (`MnemonicTest` pins all three, and that the script agrees).
 
+**What the phrase can do.** Its key is a rotation key of the DID, so it
+signs PLC operations the directory accepts without this server: with
+goat (`goat plc update`, `goat plc sign --plc-signing-key <multibase>`,
+`goat plc submit`) the person can give the DID a signing key of their
+own, create the account on another PDS with it
+(`goat account service-auth-offline`, `goat account create
+--existing-did`), import the repository and blobs of the download
+(§4.5a) and point the DID there — the steps in Moving.md's "If this
+server goes away" and in the archive's README. They follow goat's
+documented commands and have not been run end to end against the live
+directory from this app's tests. The app has no page of its own that
+signs with the phrase. While this server exists its key ranks first, so
+for 72 hours it can nullify an operation signed with the phrase (§4.1);
+the "Who controls" panel (§4.5b) shows that window.
+
 ### 4.5 PLC operations this app sends
 
 - **create**: on first need (§4.1), signed with the instance rotation key.
@@ -1872,8 +1887,10 @@ previous secret, read from `OC_OLD_SECRET`, and stores it sealed with the
 current one; the instance keys, retired ones included, and the signing
 keys of every identity that still signs. A key neither secret opens is
 reported and left as it is: without the previous secret, the only way
-back is the person's recovery phrase (§4.4), which this app does not yet
-take back.
+back is the person's recovery phrase (§4.4): its key signs a PLC
+operation that gives the DID a signing key of the person's own and points
+it elsewhere — with goat, as Moving.md's "If this server goes away" lists;
+this app does not take the phrase back itself.
 
 Until then a person's request that needs such a key — their identity,
 the recovery phrase, a move, a Bluesky app's call — is not answered with

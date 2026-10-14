@@ -1071,7 +1071,15 @@ account has — and offers a **recovery phrase**: twelve words that are a key of
 your own on that identifier, second only to the server's. They are shown once
 and never stored, so write them down; "Create a new recovery phrase" replaces
 them, and the old words stop working. You will not need the phrase in ordinary
-use. No other Bluesky tool reads the words themselves, so the same dialog also
+use. What it can do: the key it stands for can sign a change to your identifier
+at the PLC directory without this server — give it another signing key, point it
+at another Bluesky server, drop this server's key. That is how you take your
+Bluesky account with you if this server is ever gone; the steps use the `goat`
+command-line tool and the download below ([Moving.md](Moving.md#if-this-server-goes-away)).
+This app has no page of its own that makes that change for you. Anyone who has the
+words can do the same, so keep them where only you can find them.
+
+No other Bluesky tool reads the words themselves, so the same dialog also
 shows the key they stand for: the private key in the form the `goat` command-line
 tool takes (`z…`) and as hex, and the public key (`did:key:…`) that your
 identifier lists. Keep the words; the key lines are the same secret written
