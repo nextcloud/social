@@ -358,6 +358,7 @@ export default {
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/account/link'), { handle: this.linked })
 				this.linkedNow = data?.result?.handle ?? this.linked
+				await this.setIntroductionPending()
 				this.$emit('linked', this.linkedNow)
 			} catch (error) {
 				logger.warn('Could not put the account on the profile', { error })
@@ -375,7 +376,7 @@ export default {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding: 56px 16px 24px;
+	padding: 80px 16px 24px;
 
 	// the setup question fills the page, not the reading column: the app
 	// centers its pages at 800px, and an explainer beside two answers
@@ -386,17 +387,18 @@ export default {
 
 	&__header {
 		display: flex;
-		align-items: flex-start;
+		flex-direction: column;
+		align-items: center;
 		gap: 16px;
 		width: 100%;
 		max-width: 1024px;
-		margin-bottom: 32px;
+		margin-bottom: 40px;
+		text-align: center;
 	}
 
 	/* the app's own mark, drawn on the current colour like the sidebar's */
 	&__logo {
 		display: block;
-		flex: 0 0 auto;
 		width: 48px;
 		height: 48px;
 		background-image: url('../../img/social-dark.svg');
@@ -407,7 +409,6 @@ export default {
 	}
 
 	&__header-text {
-		flex: 1;
 		min-width: 0;
 	}
 
@@ -446,6 +447,7 @@ export default {
 	&__about {
 		margin: 0;
 		min-width: 0;
+		text-align: center;
 	}
 
 	&__about-title {
@@ -468,13 +470,14 @@ export default {
 
 	&__point {
 		display: flex;
-		gap: 12px;
-		align-items: flex-start;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		text-align: center;
 	}
 
 	&__point-icon {
 		flex: 0 0 auto;
-		margin-top: 2px;
 		color: var(--color-primary-element);
 	}
 
@@ -517,17 +520,20 @@ export default {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 		gap: 12px;
+		max-width: 600px;
+		margin: 0 auto;
 	}
 
 	&__mode {
 		display: flex;
-		gap: 12px;
-		align-items: flex-start;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
 		padding: 16px;
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 12px);
 		background: var(--color-main-background);
-		text-align: start;
+		text-align: center;
 		color: var(--color-main-text);
 		transition: border-color .15s ease, background-color .15s ease;
 
@@ -552,7 +558,6 @@ export default {
 
 	&__mode-icon {
 		flex: 0 0 auto;
-		margin-top: 2px;
 		color: var(--color-text-maxcontrast);
 	}
 
@@ -578,11 +583,15 @@ export default {
 	&__form {
 		display: flex;
 		flex-direction: column;
+		align-items: center;
 		gap: 12px;
 		margin-top: 20px;
 		padding: 20px;
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 12px);
+		max-width: 500px;
+		width: 100%;
+		text-align: center;
 	}
 
 	&__heading {
@@ -601,12 +610,13 @@ export default {
 		width: 100%;
 		min-width: 0;
 		margin: 0;
+		text-align: center;
 	}
 
 	/* the address the username would make, in the shape FirstRun shows the
 	   one an account has */
 	&__address {
-		margin: 0;
+		margin: 0 auto;
 		padding: 10px 14px;
 		border-radius: var(--border-radius-element, 8px);
 		background: var(--color-primary-element-light);
@@ -614,6 +624,8 @@ export default {
 		font-size: 16px;
 		font-weight: 700;
 		overflow-wrap: anywhere;
+		text-align: center;
+		max-width: 100%;
 	}
 
 	/* the second address is the quieter one: the fediverse address is the
@@ -624,6 +636,7 @@ export default {
 		color: var(--color-text-maxcontrast);
 		font-size: 13px;
 		font-weight: 600;
+		text-align: center;
 	}
 
 	&__bluesky-label {
@@ -635,7 +648,21 @@ export default {
 		font-size: 13px;
 		line-height: 1.5;
 		color: var(--color-text-maxcontrast);
-		text-wrap: pretty;
+		text-align: center;
+	}
+
+	&__error {
+		margin: 0;
+		font-size: 13px;
+		color: var(--color-error);
+		text-align: center;
+	}
+
+	&__done {
+		margin: 0;
+		font-size: 13px;
+		color: var(--color-success);
+		text-align: center;
 	}
 
 	&__error {
