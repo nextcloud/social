@@ -282,7 +282,8 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
-	 * The viewer's latest move of their Bluesky account, or null.
+	 * The viewer's latest move of their Bluesky account, or null, and who
+	 * controls the account once it moved away (MoveAwayService::control()).
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/move')]
@@ -291,26 +292,30 @@ class AtprotoAccountController extends Controller {
 			return self::moveError(new MoveErrorException('Bluesky is not enabled on this server', 'bluesky-off'), Http::STATUS_NOT_FOUND);
 		}
 
-		return new DataResponse(['move' => $this->inbound->latest($this->userId())?->export()]);
+		$move = $this->inbound->latest($this->userId());
+
+		return new DataResponse(['move' => $move?->export()] + MoveAwayService::control($this->ownIdentity(), $move));
 	}
 
 	/**
 	 * Moves the viewer's Bluesky account to another PDS: the account is made
 	 * there now, the rest follows in the background. The other server is the
 	 * person's choice and is waited for in the request, so a few tries an
-	 * hour is all one account gets.
+	 * hour is all one account gets. Without a recovery key the person says
+	 * `without_recovery` first: only the other server controls the account
+	 * then.
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
 	#[UserRateLimit(limit: 3, period: 3600)]
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move')]
-	public function moveAway(string $pds, string $handle, string $email, string $password, string $inviteCode = ''): DataResponse {
+	public function moveAway(string $pds, string $handle, string $email, string $password, string $inviteCode = '', bool $without_recovery = false): DataResponse {
 		$identity = $this->ownIdentity();
 		if ($identity === null) {
 			return $this->noIdentity();
 		}
 		try {
-			return new DataResponse(['move' => $this->moveAway->start($this->userId(), $identity, $pds, $handle, $email, $password, $inviteCode)->export()]);
+			return new DataResponse(['move' => $this->moveAway->start($this->userId(), $identity, $pds, $handle, $email, $password, $inviteCode, $without_recovery)->export()]);
 		} catch (Throwable $e) {
 			return self::moveError($e);
 		}

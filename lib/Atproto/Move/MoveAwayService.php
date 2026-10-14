@@ -76,15 +76,21 @@ class MoveAwayService {
 	/**
 	 * Makes the account on the other PDS and queues the rest.
 	 *
+	 * @param bool $withoutRecovery the person was told that without a
+	 *                              recovery key only the other server will
+	 *                              control the account, and goes on
 	 * @throws MoveErrorException with what to tell the person
 	 */
-	public function start(string $userId, Identity $identity, string $pds, string $handle, string $email, string $password, string $inviteCode = ''): Move {
+	public function start(string $userId, Identity $identity, string $pds, string $handle, string $email, string $password, string $inviteCode = '', bool $withoutRecovery = false): Move {
 		if (!$identity->isActive()) {
 			throw new MoveErrorException('The Bluesky account is not active here', 'identity-inactive');
 		}
 		$latest = $this->moves->latestOfUser($userId);
 		if ($latest !== null && in_array($latest->state, [Move::RUNNING, Move::WAITING], true)) {
 			throw new MoveErrorException('A move is already under way', 'move-in-progress');
+		}
+		if ($identity->recoveryPublic === '' && !$withoutRecovery) {
+			throw new MoveErrorException('There is no recovery key: after the move only the other server controls the account', 'recovery-key-missing');
 		}
 		try {
 			$origin = $this->pds->origin($pds);
@@ -172,6 +178,26 @@ class MoveAwayService {
 	/** The person's latest move, for the settings. */
 	public function latest(string $userId): ?Move {
 		return $this->moves->latestOfUser($userId);
+	}
+
+	/**
+	 * Who controls the account once it moved, for the page: whether the
+	 * person holds a recovery key, the rotation keys the handover names by
+	 * their role — the recovery key first, then the other server's; this
+	 * server keeps none — and, once a move away is done, the other
+	 * server's host.
+	 *
+	 * @return array{has_recovery_key: bool, rotation_keys: list<string>, new_host: string|null}
+	 */
+	public static function control(?Identity $identity, ?Move $move): array {
+		$recovery = $identity !== null && $identity->recoveryPublic !== '';
+		$done = $move !== null && $move->direction === Move::AWAY && $move->state === Move::DONE;
+
+		return [
+			'has_recovery_key' => $recovery,
+			'rotation_keys' => $recovery ? ['recovery', 'new_server'] : ['new_server'],
+			'new_host' => $done ? (string)parse_url($move->pds, PHP_URL_HOST) : null,
+		];
 	}
 
 	/**

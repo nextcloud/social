@@ -106,6 +106,23 @@ class AtprotoMoveAwayRoutesTest extends TestCase {
 		$this->assertSame([Http::STATUS_NOT_FOUND, 'bluesky-off'], [$response->getStatus(), $response->getData()['code']]);
 	}
 
+	public function testTheStatusSaysWhoControlsTheAccountAfterwards(): void {
+		$this->identity = self::identity('did:key:zRecovery');
+		$this->inbound->method('latest')->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_DONE, Move::DONE));
+
+		$data = $this->controller()->move()->getData();
+
+		$this->assertSame([true, ['recovery', 'new_server'], 'pds.example.com'], [$data['has_recovery_key'], $data['rotation_keys'], $data['new_host']]);
+	}
+
+	public function testWithoutRecoveryIsPassedOn(): void {
+		$this->moveAway->expects($this->once())->method('start')
+			->with('alice', $this->anything(), 'pds.example.com', 'alice.pds.example.com', 'a@example.org', 'pw', '', true)
+			->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_REPO, Move::RUNNING));
+
+		$this->controller()->moveAway('pds.example.com', 'alice.pds.example.com', 'a@example.org', 'pw', '', true);
+	}
+
 	public function testNothingToStartAgainIsCoded(): void {
 		$this->moveAway->method('latest')->willReturn(new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com', '', 'alice.pds.example.com', Move::STEP_REPO, Move::DONE));
 		$this->moveAway->method('retry')->willThrowException(new MoveErrorException('There is no failed move to start again', 'no-failed-move'));

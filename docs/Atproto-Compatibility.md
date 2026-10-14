@@ -1388,15 +1388,40 @@ beside the Fediverse move-in.
 
 ### 13.2 Moving away
 
-The mirror image, so a person is not locked in: `Settings → Migration →
-Move your Bluesky account away` performs steps 2–5 from the other side
-(this instance is the *old* PDS: it serves `getServiceAuth`,
-`requestPlcOperationSignature` by Nextcloud e-mail, `signPlcOperation`,
-`deactivateAccount`). The Fediverse account is untouched; after the move
-the local actor has no Bluesky identity until §4.1 creates a fresh one —
-which it does not do automatically for a moved-away account (flag on the
-identity row), so the person is not silently given a second Bluesky
-account.
+The mirror image, so a person is not locked in. On the Migration page,
+**Move your Bluesky account away** drives the move from here, the way
+`goat account migrate` does it from outside (`MoveAwayService`):
+
+1. In the request: `describeServer` on the other PDS (its DID, the handle
+   domains it gives out, whether it needs an invite code), a service-auth
+   token the account signs for that PDS and `createAccount`, then
+   `createAccount` there with the existing DID — the account exists there
+   *deactivated*. What the other PDS refuses is answered at once, with a
+   code (§13.4).
+2. In the background (`AtprotoMove` job, `oc_social_atproto_move`): the
+   repository as a CAR into `importRepo`, the blobs that
+   `listMissingBlobs` names into `uploadBlob`, the preferences into
+   `putPreferences`.
+3. The DID: `getRecommendedDidCredentials` there, then this server signs
+   and sends the PLC operation itself (`IdentityService::handOver()`), with
+   the person's recovery key first among the rotation keys and the other
+   PDS's after it; this server keeps no rotation key of the DID.
+4. `activateAccount` there; here the identity becomes `moved_away`, the
+   firehose says the account is deactivated, and nothing more is published
+   for it.
+
+**Who controls the account afterwards.** `GET /api/v1/social/bluesky/move`
+says whether the person holds a recovery key (`has_recovery_key`), the
+rotation keys the handover names by role (`["recovery", "new_server"]`,
+never the keys themselves) and, once the move is done, the other server's
+host (`new_host`). Without a recovery key only the other server controls
+the account afterwards, so a start without one has to say
+`without_recovery: true`; else it is refused with `recovery-key-missing`.
+
+The Fediverse account is untouched; after the move the local actor has no
+Bluesky identity until §4.1 creates a fresh one — which it does not do
+automatically for a moved-away account (flag on the identity row), so the
+person is not silently given a second Bluesky account.
 
 ### 13.3 Bridgy Fed twins (D18)
 
@@ -1438,6 +1463,7 @@ older clients.
 | `keys-sealed` | The account's keys cannot be opened (the instance secret changed) | Ask the administrator to run `occ social:atproto:keys:reseal` |
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |
+| `recovery-key-missing` | No recovery key, and the start did not say `without_recovery` | Make a recovery phrase first, or confirm that only the new server will control the account |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |

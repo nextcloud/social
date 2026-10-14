@@ -59,7 +59,7 @@ class MoveAwayServiceTest extends TestCase {
 
 	protected function setUp(): void {
 		$this->key = PrivateKey::generate(Curve::K256);
-		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', '', 'did:key:zRecovery', Identity::STATE_ACTIVE, '', 0);
 		$pds = $this->createMock(PdsClient::class);
 		$pds->method('origin')->willReturnCallback(static fn (string $typed): string => 'https://' . preg_replace('#^https?://#', '', rtrim($typed, '/')));
 		$pds->method('call')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
@@ -187,6 +187,27 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertSame('pds-refused', $this->rows[1]->progress['code']);
 		$this->moves->retry('alice');
 		$this->assertArrayNotHasKey('code', $this->rows[1]->progress, 'a move started again has no error');
+	}
+
+	public function testWithoutARecoveryKeyThePersonSaysSoFirst(): void {
+		$this->alice = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$this->assertRefused('recovery-key-missing', 'only the other server controls the account');
+		$this->assertNotContains('com.atproto.server.createAccount', array_column($this->calls, 'method'), 'nothing was asked of the other server');
+
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'a@example.org', 'pw', '', true);
+		$this->assertSame(Move::RUNNING, $move->state);
+	}
+
+	public function testThePageIsToldWhoControlsTheAccountAfterwards(): void {
+		$this->assertSame(['has_recovery_key' => true, 'rotation_keys' => ['recovery', 'new_server'], 'new_host' => null], MoveAwayService::control($this->alice, null));
+		$bare = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$this->assertSame(['new_server'], MoveAwayService::control($bare, null)['rotation_keys']);
+
+		$done = new Move(1, self::DID, 'alice', Move::AWAY, 'https://pds.example.com:8443', self::PDS_DID, 'alice.pds.example.com', Move::STEP_DONE, Move::DONE);
+		$this->assertSame('pds.example.com', MoveAwayService::control($this->alice, $done)['new_host']);
+		$done->state = Move::RUNNING;
+		$this->assertNull(MoveAwayService::control($this->alice, $done)['new_host'], 'the host only once the move is done');
+		$this->assertStringNotContainsString('did:key', (string)json_encode(MoveAwayService::control($this->alice, $done)), 'roles, never keys');
 	}
 
 	private function assertRefused(string $code, string $message, string $handle = 'alice.pds.example.com'): void {
