@@ -223,16 +223,47 @@ the account keys.
 Nothing, unless they look: **Settings → Apps and account → Bluesky** shows the Bluesky
 handle and DID under the Fediverse handle, with a *Copy* button and a
 sentence that says the Bluesky account exists because this server offers
-one. The recovery key is shown there **once**, on first view, as a
-twelve-word phrase to write down, with a "Show again" that requires
-password confirmation and regenerates (and re-registers, §4.5) rather
-than reveals. The words are BIP-39's list and checksum over 128 bits of
-entropy, but the key is this app's own derivation from them (`Mnemonic`:
-SHA-256 of the entropy), not a BIP-39 seed: no other atproto tool
-imports the phrase, and nothing here takes it back yet — it is the
-person's proof of the DID for a later tool of this app's. The settings
-page says so, and that the instance's key ranks above it (§4.1). The switch **Be
-on Bluesky** is there too (§4.6).
+one. The recovery key is made on request (*Create recovery phrase*, after
+password confirmation) and shown **once**, as a twelve-word phrase to
+write down; making a new one replaces it on the DID (§4.5) rather than
+revealing the old one. The same dialog shows the key the words stand for
+in the forms other atproto tools take — the private key as multibase
+(what `goat key generate` prints and `goat plc sign --plc-signing-key`
+reads) and as hex (what the reference PDS and `@atproto/crypto` import),
+and the public `did:key` the directory lists — with the advice to keep
+the words, which are all of it. The settings page says that the
+instance's key ranks above it (§4.1). The switch **Be on Bluesky** is
+there too (§4.6).
+
+**The derivation**, for anyone who reimplements it (`Mnemonic`;
+`resources/atproto/recovery-key.py` does it with Python 3 and nothing
+else):
+
+1. The phrase is lower-cased and split on white space; it is exactly
+   twelve words of BIP-39's English list (`resources/atproto/bip39-english.txt`,
+   the standard 2048 words). No Unicode normalisation is needed: the list
+   is ASCII.
+2. Each word is its index in the list as eleven bits, most significant
+   first; the 132 bits are the 128 bits of entropy (16 bytes, big-endian)
+   and a 4-bit checksum, which must equal the first four bits of
+   SHA-256 of the entropy — BIP-39's own encoding.
+3. The private key is **SHA-256 of the 26 ASCII bytes
+   `social.atproto.recovery.v1` followed by the 16 entropy bytes**, taken
+   as a big-endian secp256k1 (`k256`) secret. It is *not* BIP-39's seed:
+   no PBKDF2, no passphrase, no BIP-32 path, so a wallet that imports the
+   words derives a different key.
+4. Written out: hex is the 32 bytes in lower-case hex; multibase is `z`
+   followed by base58btc (Bitcoin alphabet) of `0x81 0x26` (the multicodec
+   varint of `secp256k1-priv`, 0x1301) and the 32 bytes; the `did:key` is
+   `did:key:z` followed by base58btc of `0xe7 0x01` and the 33-byte
+   compressed public point.
+
+Example: `abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about`
+(entropy sixteen zero bytes) is the hex key
+`950f8acc1852f1a2562b2851457a04b1ba22541dd0f3b95ab9302d2894f29397`,
+multibase `z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526`, public
+`did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt`
+(`MnemonicTest` pins all three, and that the script agrees).
 
 ### 4.5 PLC operations this app sends
 

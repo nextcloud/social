@@ -113,9 +113,10 @@
 				</p>
 				<!-- the instance key is listed first on the DID: it outranks
 				     the phrase for the directory's 72-hour window, and the
-				     phrase is this app's own encoding, not a BIP-39 seed -->
+				     phrase is this app's own encoding, not a BIP-39 seed, so
+				     the key is shown beside it in the forms other tools take -->
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'The phrase is in this app\'s own format: no other Bluesky tool can read it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
+					{{ t('social', 'No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for, written the way tools such as goat take it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
 				</p>
 			</div>
 			<!-- the domain only has to name the DID: the account, its
@@ -433,6 +434,29 @@
 			<p class="bluesky-settings__phrase">
 				<code>{{ phrase }}</code>
 			</p>
+			<template v-if="recoveryKey">
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'Keep the twelve words: they are the whole key. Below is the same key written the way other Bluesky tools take it, for when you use one of them.') }}
+				</p>
+				<dl class="bluesky-settings__identity">
+					<div v-for="row in recoveryKeyRows" :key="row.which" class="bluesky-settings__identity-row">
+						<dt>{{ row.label }}</dt>
+						<dd>
+							<code class="bluesky-settings__code">{{ row.value }}</code>
+							<NcButton
+								variant="tertiary"
+								:title="blueskyCopied === row.which ? t('social', 'Copied') : t('social', 'Copy')"
+								:aria-label="blueskyCopied === row.which ? t('social', 'Copied') : row.copyLabel"
+								@click="copyBluesky(row.which, row.value)">
+								<template #icon>
+									<Check v-if="blueskyCopied === row.which" :size="16" />
+									<ContentCopy v-else :size="16" />
+								</template>
+							</NcButton>
+						</dd>
+					</div>
+				</dl>
+			</template>
 		</NcDialog>
 	</div>
 </template>
@@ -498,6 +522,12 @@ export default {
 			recovering: false,
 			/** the twelve words, for as long as the dialog shows them */
 			phrase: '',
+			/**
+			 * The key the words stand for, as other tools take it, for as long as the dialog shows it
+			 *
+			 * @type {{did_key: string, multibase: string, hex: string}|null}
+			 */
+			recoveryKey: null,
 			/** the domain as typed into the own-handle field */
 			customHandle: '',
 			/** what the server said about the domain, under the field */
@@ -581,6 +611,18 @@ export default {
 			return 'https://' + this.customHandleDomain + '/.well-known/atproto-did'
 		},
 
+		/** @return {Array<{which: 'key-multibase'|'key-hex'|'key-public', label: string, copyLabel: string, value: string}>} the key the phrase stands for, one row per form */
+		recoveryKeyRows() {
+			if (this.recoveryKey === null) {
+				return []
+			}
+			return [
+				{ which: 'key-multibase', label: t('social', 'Private key, multibase (goat)'), copyLabel: t('social', 'Copy the private key in multibase'), value: this.recoveryKey.multibase },
+				{ which: 'key-hex', label: t('social', 'Private key, hex'), copyLabel: t('social', 'Copy the private key in hex'), value: this.recoveryKey.hex },
+				{ which: 'key-public', label: t('social', 'Public key'), copyLabel: t('social', 'Copy the public key'), value: this.recoveryKey.did_key },
+			]
+		},
+
 		/** @return {import('../types/Nextcloud.js').DialogButton[]} */
 		phraseButtons() {
 			return [
@@ -638,7 +680,7 @@ export default {
 		},
 
 		/**
-		 * @param {'handle'|'did'|'phrase'|'password'|'dns-name'|'dns-value'|'file-address'|'file-content'} which what was asked for
+		 * @param {'handle'|'did'|'phrase'|'key-multibase'|'key-hex'|'key-public'|'password'|'dns-name'|'dns-value'|'file-address'|'file-content'} which what was asked for
 		 * @param {string} text what goes onto the clipboard
 		 */
 		async copyBluesky(which, text) {
@@ -670,8 +712,9 @@ export default {
 			this.recovering = true
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/recovery'))
-				const { phrase, ...identity } = data
+				const { phrase, key, ...identity } = data
 				this.takeIdentity(identity)
+				this.recoveryKey = key ?? null
 				this.phrase = phrase
 			} catch (error) {
 				// the password confirmation of a moment ago has run out, which
@@ -686,6 +729,7 @@ export default {
 
 		closePhrase() {
 			this.phrase = ''
+			this.recoveryKey = null
 		},
 
 		/**

@@ -13,6 +13,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Client\AppPasswordService;
 use OCA\Social\Atproto\Identity\CustomHandleService;
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Identity\Mnemonic;
 use OCA\Social\Atproto\Identity\PresenceService;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
@@ -587,8 +588,10 @@ class AtprotoAccountController extends Controller {
 
 	/**
 	 * `POST /api/v1/social/bluesky/recovery`: issues a recovery phrase —
-	 * the first, or a new one that replaces the last. Shown once, never
-	 * stored, so the password is asked for first.
+	 * the first, or a new one that replaces the last — and the key it
+	 * stands for in the forms other atproto tools take (`key`: `did_key`,
+	 * `multibase`, `hex`). Shown once, never stored, so the password is
+	 * asked for first.
 	 */
 	#[NoAdminRequired]
 	#[PasswordConfirmationRequired]
@@ -605,7 +608,7 @@ class AtprotoAccountController extends Controller {
 			}
 			$phrase = $this->identities->issueRecoveryKey($identity);
 
-			return new DataResponse(['phrase' => $phrase] + self::export($this->identities->getByDid($identity->did)));
+			return new DataResponse(['phrase' => $phrase, 'key' => Mnemonic::keyForms($phrase)] + self::export($this->identities->getByDid($identity->did)));
 		} catch (Throwable $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}

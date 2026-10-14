@@ -2871,6 +2871,14 @@
     "Aloha Social sent requests to remove your posts to the servers that received them. Those servers control copies they may already have stored." : "Aloha Social hat die Server, die Ihre Beiträge erhalten haben, um deren Löschung gebeten. Diese Server entscheiden selbst über bereits gespeicherte Kopien.",
     "Return to Aloha Social" : "Zurück zu Aloha Social",
     "Go to the sign-in page" : "Zur Anmeldeseite",
-    "Back to %s" : "Zurück zu %s"
+    "Back to %s" : "Zurück zu %s",
+    "No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for, written the way tools such as goat take it. This server's key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included." : "Kein anderes Bluesky-Werkzeug liest die Wörter selbst. Deshalb sehen Sie beim Erstellen auch den Schlüssel, für den sie stehen, so geschrieben, wie Werkzeuge wie goat ihn annehmen. Der Schlüssel dieses Servers steht über ihm: 72 Stunden lang kann der Server eine Änderung rückgängig machen, die mit der Phrase vorgenommen wurde, auch einen Umzug auf einen anderen Server.",
+    "Keep the twelve words: they are the whole key. Below is the same key written the way other Bluesky tools take it, for when you use one of them." : "Bewahren Sie die zwölf Wörter auf: Sie sind der ganze Schlüssel. Darunter steht derselbe Schlüssel so, wie andere Bluesky-Werkzeuge ihn annehmen, falls Sie eines davon benutzen.",
+    "Private key, multibase (goat)" : "Privater Schlüssel, Multibase (goat)",
+    "Copy the private key in multibase" : "Privaten Schlüssel in Multibase kopieren",
+    "Private key, hex" : "Privater Schlüssel, hexadezimal",
+    "Copy the private key in hex" : "Privaten Schlüssel hexadezimal kopieren",
+    "Public key" : "Öffentlicher Schlüssel",
+    "Copy the public key" : "Öffentlichen Schlüssel kopieren"
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

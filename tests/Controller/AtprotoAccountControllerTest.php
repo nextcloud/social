@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use OCA\Social\Atproto\Client\AppPasswordService;
 use OCA\Social\Atproto\Identity\CustomHandleService;
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Identity\Mnemonic;
 use OCA\Social\Atproto\Identity\PresenceService;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
@@ -48,6 +49,7 @@ class AtprotoAccountControllerTest extends TestCase {
 	private Publisher&MockObject $publisher;
 	private MoveInService&MockObject $moveIn;
 	private InboundMoveService&MockObject $inbound;
+	private IdentityService&MockObject $identities;
 	private bool $enabled = true;
 
 	protected function setUp(): void {
@@ -55,6 +57,7 @@ class AtprotoAccountControllerTest extends TestCase {
 		$this->publisher = $this->createMock(Publisher::class);
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->inbound = $this->createMock(InboundMoveService::class);
+		$this->identities = $this->createMock(IdentityService::class);
 	}
 
 	private function controller(): AtprotoAccountController {
@@ -68,7 +71,7 @@ class AtprotoAccountControllerTest extends TestCase {
 		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
 
 		return new AtprotoAccountController(
-			$this->createStub(IRequest::class), $session, $config, $accounts, $this->createStub(IdentityService::class), $this->publisher,
+			$this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->publisher,
 			$this->createStub(LabelerService::class), $this->createStub(AppPasswordService::class), $this->createStub(AuthorizationServer::class),
 			$this->createStub(CustomHandleService::class), $this->createStub(MoveAwayService::class), $this->moveIn,
 			$this->inbound, $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
@@ -189,5 +192,21 @@ class AtprotoAccountControllerTest extends TestCase {
 	public function testTheExportSaysWhetherTheIdentityIsOn(): void {
 		$this->assertTrue(AtprotoAccountController::export(self::identity(Identity::STATE_ACTIVE))['active']);
 		$this->assertFalse(AtprotoAccountController::export(self::identity(Identity::STATE_DEACTIVATED))['active']);
+	}
+
+	/**
+	 * The phrase comes with the key it stands for, written as goat and the
+	 * reference PDS take a key, and the did:key the directory lists.
+	 */
+	public function testANewPhraseComesWithItsKeyInTheFormsOtherToolsTake(): void {
+		[$phrase, $key] = Mnemonic::generate();
+		$this->identities->method('forActor')->willReturn(self::identity(Identity::STATE_ACTIVE));
+		$this->identities->expects($this->once())->method('issueRecoveryKey')->willReturn($phrase);
+		$this->identities->method('getByDid')->willReturn(self::identity(Identity::STATE_ACTIVE));
+
+		$data = $this->controller()->recovery()->getData();
+
+		$this->assertSame($phrase, $data['phrase']);
+		$this->assertSame(['did_key' => $key->didKey(), 'multibase' => $key->multibase(), 'hex' => bin2hex($key->secret())], $data['key']);
 	}
 }

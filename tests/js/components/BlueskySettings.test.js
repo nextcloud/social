@@ -199,7 +199,7 @@ describe('BlueskySettings', () => {
 				const wrapper = mountSettings()
 				await flushPromises()
 
-				expect(wrapper.text()).toContain('The phrase is in this app\'s own format: no other Bluesky tool can read it.')
+				expect(wrapper.text()).toContain('No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for')
 				expect(wrapper.text()).toContain('for 72 hours the server can undo a change made with the phrase, a move to another server included')
 			}
 		})
@@ -239,6 +239,30 @@ describe('BlueskySettings', () => {
 			expect(dialog.text()).toContain('shown once and never again')
 			// the button follows the identity the answer carried
 			expect(buttonByText(wrapper, 'Create a new recovery phrase')).toBeDefined()
+		})
+
+		/** The words are this app's own encoding; the key beside them is what goat and the reference PDS read. */
+		it('shows the key the words stand for in the forms other tools take, and forgets it with the words', async () => {
+			serverHas()
+			const key = { did_key: 'did:key:zQ3shX448VC3xo912wY7zzdUFdMqGifmFTv9GomCodivqkgkt', multibase: 'z3vLe2mABz9GSzoARHpVNW8P1rnySJ8rmfg3AKSpyVfHE526', hex: '950f8acc1852f1a2562b2851457a04b1ba22541dd0f3b95ab9302d2894f29397' }
+			axios.post.mockResolvedValue({ data: { ...identity({ recovery_key: true }), phrase: PHRASE, key } })
+			const writeText = vi.fn().mockResolvedValue(undefined)
+			Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await buttonByText(wrapper, 'Create recovery phrase').trigger('click')
+			await flushPromises()
+
+			const dialog = wrapper.find('.dialog-stub')
+			expect(dialog.text()).toContain('Keep the twelve words: they are the whole key.')
+			expect(dialog.findAll('code').map((code) => code.text())).toEqual([PHRASE, key.multibase, key.hex, key.did_key])
+			await buttonByLabel(wrapper, 'Copy the private key in multibase').trigger('click')
+			expect(writeText).toHaveBeenCalledWith(key.multibase)
+
+			wrapper.findComponent({ name: 'NcDialog' }).props('buttons')[1].callback()
+			await flushPromises()
+			expect(wrapper.vm.recoveryKey).toBe(null)
 		})
 
 		it('does nothing when the password dialog is dismissed', async () => {

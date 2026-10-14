@@ -2914,6 +2914,14 @@ OC.L10N.register(
     "Publish them again" : "Erneut veröffentlichen",
     "Your posts are being published on Bluesky again." : "Deine Beiträge werden erneut auf Bluesky veröffentlicht.",
     "_%n post disappears from Bluesky; you can publish it again afterwards._::_%n posts disappear from Bluesky; you can publish them again afterwards._" : ["%n Beitrag verschwindet von Bluesky; du kannst ihn danach erneut veröffentlichen.","%n Beiträge verschwinden von Bluesky; du kannst sie danach erneut veröffentlichen."],
-    "Could not publish the posts again" : "Die Beiträge konnten nicht erneut veröffentlicht werden"
+    "Could not publish the posts again" : "Die Beiträge konnten nicht erneut veröffentlicht werden",
+    "No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for, written the way tools such as goat take it. This server's key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included." : "Kein anderes Bluesky-Werkzeug liest die Wörter selbst. Deshalb siehst du beim Erstellen auch den Schlüssel, für den sie stehen, so geschrieben, wie Werkzeuge wie goat ihn annehmen. Der Schlüssel dieses Servers steht über ihm: 72 Stunden lang kann der Server eine Änderung rückgängig machen, die mit der Phrase vorgenommen wurde, auch einen Umzug auf einen anderen Server.",
+    "Keep the twelve words: they are the whole key. Below is the same key written the way other Bluesky tools take it, for when you use one of them." : "Bewahre die zwölf Wörter auf: Sie sind der ganze Schlüssel. Darunter steht derselbe Schlüssel so, wie andere Bluesky-Werkzeuge ihn annehmen, falls du eines davon benutzt.",
+    "Private key, multibase (goat)" : "Privater Schlüssel, Multibase (goat)",
+    "Copy the private key in multibase" : "Privaten Schlüssel in Multibase kopieren",
+    "Private key, hex" : "Privater Schlüssel, hexadezimal",
+    "Copy the private key in hex" : "Privaten Schlüssel hexadezimal kopieren",
+    "Public key" : "Öffentlicher Schlüssel",
+    "Copy the public key" : "Öffentlichen Schlüssel kopieren"
 },
 "nplurals=2; plural=(n != 1);");
