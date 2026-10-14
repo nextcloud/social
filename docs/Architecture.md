@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.258
+**App version:** 0.26.260
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -2158,7 +2158,7 @@ Each store is installed per Pinia instance rather than per module registration, 
 
 `profile.followers` and `profile.following` render the same `ProfileFollowers` component; it decides what to load from the route.
 
-Views outside the router: `Dashboard.vue` (mounted by the dashboard entry), `OAuth2Authorize.vue` (mounted by the OAuth entry on `#social-oauth2`), `ProfilePageIntegration.vue` (registered by the profile entry as the `social-profile-section` custom element), and `OStatus.vue` (unreachable, per the table above).
+Views outside the router: `AccountSetup.vue` (rendered by `App.vue` while the reader has no local account: a branded welcome and a collapsible fediverse explanation precede the choice between creating an account here and publishing an existing external handle on the Nextcloud profile. Creating is selected by default, and only the selected form is shown. The suggested username, live address preview, permanence warning and optional Bluesky address appear before explicit submission. Linking creates no local account and does not enable posting through the external one), `Dashboard.vue` (mounted by the dashboard entry), `OAuth2Authorize.vue` (mounted by the OAuth entry on `#social-oauth2`), `ProfilePageIntegration.vue` (registered by the profile entry as the `social-profile-section` custom element), and `OStatus.vue` (unreachable, per the table above).
 
 The Nextcloud Profile page's classic script queue runs Aloha Social's `profile.js`
 before the Profile app's module entry. The latter creates

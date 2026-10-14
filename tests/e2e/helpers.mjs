@@ -71,7 +71,7 @@ export async function login(page, user = USER, password = PASSWORD) {
 export async function openApp(page, path = '/') {
 	await page.goto(APP + path)
 
-	const create = page.getByRole('button', { name: /^Create @/ })
+	const create = page.getByRole('button', { name: 'Create account', exact: true })
 	// the first paint of the app on a cold built-in server takes a while, and
 	// this is the first of them: either screen appearing ends the wait
 	await expect(create.or(page.locator('.app-navigation').first())).toBeVisible({ timeout: 45_000 })
