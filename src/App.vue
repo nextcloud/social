@@ -11,6 +11,14 @@
 			<AccountSetup @created="onAccountCreated" />
 		</NcAppContent>
 	</NcContent>
+	<!-- No navigation and no feed behind it: the walkthrough is a page of its
+	     own, for the reader who has just got an account and nobody has shown
+	     them the app yet. The app is here when they are through. -->
+	<NcContent v-else-if="introductionVisible" appName="social">
+		<NcAppContent>
+			<FirstRun @done="finishIntroduction" />
+		</NcAppContent>
+	</NcContent>
 	<NcContent v-else-if="!serverData.setup" appName="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public" @search="search" />
 		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
@@ -112,14 +120,6 @@
 			<p>{{ t('social', 'The Aloha Social app needs to be set up by the server administrator.') }}</p>
 		</NcAppContent>
 	</NcContent>
-
-	<!-- The walkthrough is not part of the app: it is its own surface over
-	     it, for the moment the account is new, with the app waiting behind.
-	     A modal keeps the focus inside it and takes Escape out of the way --
-	     the wizard's own skip is the one way out, and it says what it does. -->
-	<NcModal v-if="introductionVisible" size="large" noClose>
-		<FirstRun @done="finishIntroduction" />
-	</NcModal>
 </template>
 
 <script>
@@ -128,7 +128,6 @@ import { starterPackRoute } from './utils/starterPack.js'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcModal from '@nextcloud/vue/components/NcModal'
 
 import Navigation from './components/Navigation.vue'
 import ShortcutHelp from './components/ShortcutHelp.vue'
@@ -152,8 +151,8 @@ import { useServerData } from './composables/useServerData.js'
 // one page load in an account's life: not worth a place in the entry every
 // other load pays for, so it arrives as its own chunk when it is needed
 const AccountSetup = defineAsyncComponent(() => import(/* webpackChunkName: "account-setup" */'./views/AccountSetup.vue'))
-// the walkthrough is read once in an account's life and never again: the same
-// reasoning, and it is the larger of the two
+// the walkthrough is read once in an account's life and never again: it
+// travels as its own chunk, the same reasoning the setup screen travels by
 const FirstRun = defineAsyncComponent(() => import(/* webpackChunkName: "first-run" */'./components/FirstRun.vue'))
 // the emoji picker is most of a megabyte; it travels in its own chunk and is
 // fetched the first time somebody presses "add a reaction"
@@ -173,7 +172,6 @@ export default {
 		NcContent,
 		NcAppContent,
 		NcButton,
-		NcModal,
 		Navigation,
 		ReactionPicker,
 		ShortcutHelp,
@@ -218,16 +216,17 @@ export default {
 		/**
 		 * Whether the walkthrough is up.
 		 *
-		 * It is a surface of its own over the app, not a page in it, and only
-		 * for the moment the account is new: `?welcome=1`, which the setup
-		 * screen and the first login after registering carry, or `?replay=1`,
-		 * which Settings links to. Afterwards it stays away, on the server
-		 * and in this browser, whatever the reader does in the app.
+		 * It is a page of its own rather than a page in the app: `App.vue`
+		 * renders it *instead* of the app while it is open, and only for the
+		 * moment the account is new — `?welcome=1`, which the setup screen and
+		 * the first login after registering carry, or `?replay=1`, which
+		 * Settings links to. Afterwards it stays away, on the server and in
+		 * this browser, whatever the reader does in the app.
 		 *
 		 * @return {boolean}
 		 */
 		introductionVisible() {
-			if (this.serverData.public || this.serverData.needsAccount || this.introductionHidden) {
+			if (this.serverData.setup || this.serverData.public || this.serverData.needsAccount || this.introductionHidden) {
 				return false
 			}
 			const requested = this.$route.query?.welcome === '1'

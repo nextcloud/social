@@ -3,23 +3,12 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<section class="first-run" :aria-label="t('social', 'Getting started on the fediverse')">
+	<section class="first-run social__wrapper" :aria-label="t('social', 'Getting started on the fediverse')">
 		<header class="first-run__header">
-			<ol class="first-run__steps" :aria-label="t('social', 'Steps')">
-				<li
-					v-for="(name, index) in stepNames"
-					:key="name"
-					class="first-run__dot"
-					:class="{ 'first-run__dot--done': index < step, 'first-run__dot--current': index === step }"
-					:aria-current="index === step ? 'step' : undefined">
-					<span class="hidden-visually">{{ name }}</span>
-				</li>
-			</ol>
-			<!-- which page of how many, said in words: the dots are the map,
-			     this is where you are on it -->
-			<p class="first-run__step-name">
-				{{ t('social', 'Page {page} of {total}', { page: step + 1, total: stepNames.length }) }}
-			</p>
+			<span class="first-run__logo" aria-hidden="true" />
+			<h1 class="first-run__brand">
+				{{ t('social', 'Aloha Social') }}
+			</h1>
 			<NcButton
 				variant="tertiary"
 				class="first-run__skip"
@@ -31,246 +20,266 @@
 			</NcButton>
 		</header>
 
-		<Transition :name="reducedMotion ? '' : 'first-run-step'" mode="out-in">
-			<!-- 1. how it all works -->
-			<div v-if="step === 0" key="how" class="first-run__page">
-				<h2 ref="heading" class="first-run__title" tabindex="-1">
-					{{ t('social', 'How Aloha Social works') }}
-				</h2>
-				<p class="first-run__lead">
-					{{ t('social', 'Your account is ready. Here is what you have, and what you can do with it:') }}
+		<div class="first-run__card">
+			<div class="first-run__progress">
+				<ol class="first-run__steps" :aria-label="t('social', 'Steps')">
+					<li
+						v-for="(name, index) in stepNames"
+						:key="name"
+						class="first-run__dot"
+						:class="{ 'first-run__dot--done': index < step, 'first-run__dot--current': index === step }"
+						:aria-current="index === step ? 'step' : undefined">
+						<span class="hidden-visually">{{ name }}</span>
+					</li>
+				</ol>
+				<!-- which page of how many, in words: the dots are the map,
+				     this is where you are on it -->
+				<p class="first-run__step-name">
+					{{ t('social', 'Page {page} of {total}', { page: step + 1, total: stepNames.length }) }}
 				</p>
+			</div>
 
-				<div class="first-run__address">
-					<code class="first-run__handle">{{ socialId }}</code>
-					<NcButton variant="secondary" @click="copyHandle">
-						<template #icon>
-							<IconCheck v-if="copied" :size="20" />
-							<IconContentCopy v-else :size="20" />
-						</template>
-						{{ copied ? t('social', 'Copied') : t('social', 'Copy') }}
-					</NcButton>
-				</div>
-				<p class="first-run__hint">
-					{{ t('social', 'Give it to people the way you would an email address. Anybody on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can follow it and talk to you.') }}
-				</p>
+			<Transition :name="reducedMotion ? '' : 'first-run-step'" mode="out-in">
+				<!-- 1. how it all works -->
+				<div v-if="step === 0" key="how" class="first-run__page">
+					<h2 ref="heading" class="first-run__title" tabindex="-1">
+						{{ t('social', 'How Aloha Social works') }}
+					</h2>
+					<p class="first-run__lead">
+						{{ t('social', 'Your account is ready. Here is what you have, and what you can do with it:') }}
+					</p>
 
-				<ul class="first-run__what">
-					<li class="first-run__what-item">
-						<IconPost class="first-run__what-icon" :size="20" />
-						<div class="first-run__what-text">
-							<h3 class="first-run__what-title">
-								{{ t('social', 'Post what you like') }}
-							</h3>
-							<p>
-								{{ t('social', 'Text, pictures and polls. Who sees each post is yours to choose: everybody, your followers, or only the people you mention.') }}
-							</p>
-						</div>
-					</li>
-					<li class="first-run__what-item">
-						<IconAccountMultiplePlus class="first-run__what-icon" :size="20" />
-						<div class="first-run__what-text">
-							<h3 class="first-run__what-title">
-								{{ t('social', 'Follow anybody') }}
-							</h3>
-							<p>
-								{{ t('social', 'On any server that speaks ActivityPub — Mastodon, Pixelfed, PeerTube, this Nextcloud — and their posts arrive in your home feed.') }}
-							</p>
-						</div>
-					</li>
-					<li class="first-run__what-item">
-						<IconAccountCircle class="first-run__what-icon" :size="20" />
-						<div class="first-run__what-text">
-							<h3 class="first-run__what-title">
-								{{ t('social', 'Your profile is already set up') }}
-							</h3>
-							<p>
-								{{ t('social', 'Name, avatar and bio come from your Nextcloud account; change them on your profile page and they change here too.') }}
-							</p>
-						</div>
-					</li>
-					<!-- what this instance offers, where the administrator has
-					     switched it on: an account here is a Bluesky account too -->
-					<li v-if="blueskyEnabled" class="first-run__what-item">
-						<IconButterfly class="first-run__what-icon" :size="20" />
-						<div class="first-run__what-text">
-							<h3 class="first-run__what-title">
-								{{ t('social', 'Also on Bluesky') }}
-							</h3>
-							<p>
-								{{ t('social', 'This server speaks AT Protocol as well, so you are reachable from any Bluesky app at {handle}. Your posts and profile are shown there, and switching that off is in Settings.', { handle: blueskyHandle }) }}
-							</p>
-						</div>
-					</li>
-				</ul>
-
-				<div class="first-run__islands">
-					<AlohaScene scene="islands" class="first-run__islands-scene" />
+					<div class="first-run__address">
+						<code class="first-run__handle">{{ socialId }}</code>
+						<NcButton variant="secondary" @click="copyHandle">
+							<template #icon>
+								<IconCheck v-if="copied" :size="20" />
+								<IconContentCopy v-else :size="20" />
+							</template>
+							{{ copied ? t('social', 'Copied') : t('social', 'Copy') }}
+						</NcButton>
+					</div>
 					<p class="first-run__hint">
-						{{ t('social', 'Every server in the fediverse is an island, and yours is {host}. Following somebody on another one opens a canoe route to theirs, and their posts travel to you along it.', { host: homeHost }) }}
+						{{ t('social', 'Give it to people the way you would an email address. Anybody on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can follow it and talk to you.') }}
+					</p>
+
+					<ul class="first-run__what">
+						<li class="first-run__what-item">
+							<IconPost class="first-run__what-icon" :size="20" />
+							<div class="first-run__what-text">
+								<h3 class="first-run__what-title">
+									{{ t('social', 'Post what you like') }}
+								</h3>
+								<p>
+									{{ t('social', 'Text, pictures and polls. Who sees each post is yours to choose: everybody, your followers, or only the people you mention.') }}
+								</p>
+							</div>
+						</li>
+						<li class="first-run__what-item">
+							<IconAccountMultiplePlus class="first-run__what-icon" :size="20" />
+							<div class="first-run__what-text">
+								<h3 class="first-run__what-title">
+									{{ t('social', 'Follow anybody') }}
+								</h3>
+								<p>
+									{{ t('social', 'On any server that speaks ActivityPub — Mastodon, Pixelfed, PeerTube, this Nextcloud — and their posts arrive in your home feed.') }}
+								</p>
+							</div>
+						</li>
+						<li class="first-run__what-item">
+							<IconAccountCircle class="first-run__what-icon" :size="20" />
+							<div class="first-run__what-text">
+								<h3 class="first-run__what-title">
+									{{ t('social', 'Your profile is already set up') }}
+								</h3>
+								<p>
+									{{ t('social', 'Name, avatar and bio come from your Nextcloud account; change them on your profile page and they change here too.') }}
+								</p>
+							</div>
+						</li>
+						<!-- what this instance offers, where the administrator has
+					     switched it on: an account here is a Bluesky account too -->
+						<li v-if="blueskyEnabled" class="first-run__what-item">
+							<IconButterfly class="first-run__what-icon" :size="20" />
+							<div class="first-run__what-text">
+								<h3 class="first-run__what-title">
+									{{ t('social', 'Also on Bluesky') }}
+								</h3>
+								<p>
+									{{ t('social', 'This server speaks AT Protocol as well, so you are reachable from any Bluesky app at {handle}. Your posts and profile are shown there, and switching that off is in Settings.', { handle: blueskyHandle }) }}
+								</p>
+							</div>
+						</li>
+					</ul>
+
+					<div class="first-run__islands">
+						<AlohaScene scene="islands" class="first-run__islands-scene" />
+						<p class="first-run__hint">
+							{{ t('social', 'Every server in the fediverse is an island, and yours is {host}. Following somebody on another one opens a canoe route to theirs, and their posts travel to you along it.', { host: homeHost }) }}
+						</p>
+					</div>
+				</div>
+
+				<!-- 2. people -->
+				<div v-else-if="step === 1" key="people" class="first-run__page">
+					<h2 ref="heading" class="first-run__title" tabindex="-1">
+						{{ t('social', 'A feed is only as good as who is in it') }}
+					</h2>
+					<p class="first-run__lead">
+						{{ t('social', 'Nothing shows up here until you follow somebody. Two places to start:') }}
+					</p>
+
+					<h3 class="first-run__subtitle">
+						{{ t('social', 'People on your Nextcloud') }}
+					</h3>
+					<ul v-if="colleagues.length" class="first-run__people">
+						<li v-for="account in colleagues" :key="account.acct" class="first-run__person">
+							<ActorAvatar :actor="account" :size="36" :link="false" />
+							<span class="first-run__person-names">
+								<span class="first-run__person-name">{{ account.display_name || account.username }}</span>
+								<span class="first-run__person-handle">@{{ account.acct }}</span>
+							</span>
+							<NcButton
+								:variant="followed.includes(account.acct) ? 'success' : 'primary'"
+								:disabled="followed.includes(account.acct) || busy === account.acct"
+								@click="follow(account)">
+								<template #icon>
+									<NcLoadingIcon v-if="busy === account.acct" :size="20" />
+									<IconCheck v-else-if="followed.includes(account.acct)" :size="20" />
+									<IconAccountPlus v-else :size="20" />
+								</template>
+								{{ followed.includes(account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
+							</NcButton>
+						</li>
+					</ul>
+					<p v-else-if="loading" class="first-run__hint">
+						{{ t('social', 'Looking around …') }}
+					</p>
+					<p v-else class="first-run__hint">
+						{{ t('social', 'Nobody on this Nextcloud has said where they are on the fediverse yet. You are the first — your handle is now on your Nextcloud profile, so the next person will see you here.') }}
+					</p>
+
+					<h3 class="first-run__subtitle">
+						{{ t('social', 'Starter packs') }}
+					</h3>
+					<ul v-if="packs.length" class="first-run__packs">
+						<li v-for="pack in packs" :key="pack.id" class="first-run__pack">
+							<span class="first-run__pack-text">
+								<span class="first-run__pack-name">{{ pack.name }}</span>
+								<span v-if="pack.description" class="first-run__pack-description">{{ pack.description }}</span>
+							</span>
+							<NcButton
+								:variant="followedPacks.includes(pack.id) ? 'success' : 'secondary'"
+								:disabled="followedPacks.includes(pack.id) || busy === pack.id || !pack.size"
+								@click="followPack(pack)">
+								<template #icon>
+									<NcLoadingIcon v-if="busy === pack.id" :size="20" />
+									<IconCheck v-else-if="followedPacks.includes(pack.id)" :size="20" />
+									<IconAccountMultiplePlus v-else :size="20" />
+								</template>
+								{{ followedPacks.includes(pack.id)
+									? t('social', 'Following')
+									: n('social', 'Follow %n account', 'Follow %n accounts', pack.size) }}
+							</NcButton>
+						</li>
+					</ul>
+					<p v-else-if="!loading" class="first-run__hint">
+						{{ t('social', 'No starter packs on this server. Discover has suggestions and what is trending.') }}
 					</p>
 				</div>
-			</div>
 
-			<!-- 2. people -->
-			<div v-else-if="step === 1" key="people" class="first-run__page">
-				<h2 ref="heading" class="first-run__title" tabindex="-1">
-					{{ t('social', 'A feed is only as good as who is in it') }}
-				</h2>
-				<p class="first-run__lead">
-					{{ t('social', 'Nothing shows up here until you follow somebody. Two places to start:') }}
-				</p>
-
-				<h3 class="first-run__subtitle">
-					{{ t('social', 'People on your Nextcloud') }}
-				</h3>
-				<ul v-if="colleagues.length" class="first-run__people">
-					<li v-for="account in colleagues" :key="account.acct" class="first-run__person">
-						<ActorAvatar :actor="account" :size="36" :link="false" />
-						<span class="first-run__person-names">
-							<span class="first-run__person-name">{{ account.display_name || account.username }}</span>
-							<span class="first-run__person-handle">@{{ account.acct }}</span>
-						</span>
-						<NcButton
-							:variant="followed.includes(account.acct) ? 'success' : 'primary'"
-							:disabled="followed.includes(account.acct) || busy === account.acct"
-							@click="follow(account)">
+				<!-- 3. what you had -->
+				<div v-else-if="step === 2" key="follows" class="first-run__page">
+					<h2 ref="heading" class="first-run__title" tabindex="-1">
+						{{ t('social', 'Already somewhere else?') }}
+					</h2>
+					<p class="first-run__lead">
+						{{ t('social', 'If you have an account on Mastodon or another server, type its handle. Everyone it follows is followed from here and its public posts are brought along, in the background. Moving your followers over as well is the last step, done on your old server; Settings → Migration tells you how.') }}
+					</p>
+					<div class="first-run__move">
+						<NcTextField
+							v-model="oldHandle"
+							class="first-run__move-field"
+							:label="t('social', 'Your old account')"
+							placeholder="@you@mastodon.example"
+							:disabled="moveBusy"
+							@keydown.enter="moveIn" />
+						<NcButton variant="primary" :disabled="moveBusy || oldHandle.trim() === ''" @click="moveIn">
 							<template #icon>
-								<NcLoadingIcon v-if="busy === account.acct" :size="20" />
-								<IconCheck v-else-if="followed.includes(account.acct)" :size="20" />
-								<IconAccountPlus v-else :size="20" />
+								<NcLoadingIcon v-if="moveBusy" :size="20" />
+								<IconAccountArrowRight v-else :size="20" />
 							</template>
-							{{ followed.includes(account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
+							{{ moveBusy ? t('social', 'Moving …') : t('social', 'Move here') }}
 						</NcButton>
-					</li>
-				</ul>
-				<p v-else-if="loading" class="first-run__hint">
-					{{ t('social', 'Looking around …') }}
-				</p>
-				<p v-else class="first-run__hint">
-					{{ t('social', 'Nobody on this Nextcloud has said where they are on the fediverse yet. You are the first — your handle is now on your Nextcloud profile, so the next person will see you here.') }}
-				</p>
-
-				<h3 class="first-run__subtitle">
-					{{ t('social', 'Starter packs') }}
-				</h3>
-				<ul v-if="packs.length" class="first-run__packs">
-					<li v-for="pack in packs" :key="pack.id" class="first-run__pack">
-						<span class="first-run__pack-text">
-							<span class="first-run__pack-name">{{ pack.name }}</span>
-							<span v-if="pack.description" class="first-run__pack-description">{{ pack.description }}</span>
-						</span>
-						<NcButton
-							:variant="followedPacks.includes(pack.id) ? 'success' : 'secondary'"
-							:disabled="followedPacks.includes(pack.id) || busy === pack.id || !pack.size"
-							@click="followPack(pack)">
-							<template #icon>
-								<NcLoadingIcon v-if="busy === pack.id" :size="20" />
-								<IconCheck v-else-if="followedPacks.includes(pack.id)" :size="20" />
-								<IconAccountMultiplePlus v-else :size="20" />
-							</template>
-							{{ followedPacks.includes(pack.id)
-								? t('social', 'Following')
-								: n('social', 'Follow %n account', 'Follow %n accounts', pack.size) }}
-						</NcButton>
-					</li>
-				</ul>
-				<p v-else-if="!loading" class="first-run__hint">
-					{{ t('social', 'No starter packs on this server. Discover has suggestions and what is trending.') }}
-				</p>
-			</div>
-
-			<!-- 3. what you had -->
-			<div v-else-if="step === 2" key="follows" class="first-run__page">
-				<h2 ref="heading" class="first-run__title" tabindex="-1">
-					{{ t('social', 'Already somewhere else?') }}
-				</h2>
-				<p class="first-run__lead">
-					{{ t('social', 'If you have an account on Mastodon or another server, type its handle. Everyone it follows is followed from here and its public posts are brought along, in the background. Moving your followers over as well is the last step, done on your old server; Settings → Migration tells you how.') }}
-				</p>
-				<div class="first-run__move">
-					<NcTextField
-						v-model="oldHandle"
-						class="first-run__move-field"
-						:label="t('social', 'Your old account')"
-						placeholder="@you@mastodon.example"
-						:disabled="moveBusy"
-						@keydown.enter="moveIn" />
-					<NcButton variant="primary" :disabled="moveBusy || oldHandle.trim() === ''" @click="moveIn">
-						<template #icon>
-							<NcLoadingIcon v-if="moveBusy" :size="20" />
-							<IconAccountArrowRight v-else :size="20" />
-						</template>
-						{{ moveBusy ? t('social', 'Moving …') : t('social', 'Move here') }}
-					</NcButton>
-				</div>
-				<p v-if="moveResult" class="first-run__result" role="status">
-					{{ moveResult }}
-				</p>
-				<p class="first-run__hint">
-					{{ t('social', 'Or upload the file your old server exports: Mastodon and servers like it write following_accounts.csv, Pixelfed pixelfed-following.json; each account in it is followed from here.') }}
-				</p>
-				<!-- opened by the button below, which is the control a keyboard
+					</div>
+					<p v-if="moveResult" class="first-run__result" role="status">
+						{{ moveResult }}
+					</p>
+					<p class="first-run__hint">
+						{{ t('social', 'Or upload the file your old server exports: Mastodon and servers like it write following_accounts.csv, Pixelfed pixelfed-following.json; each account in it is followed from here.') }}
+					</p>
+					<!-- opened by the button below, which is the control a keyboard
 				     and a screen reader reach; the input stays out of both -->
-				<input
-					ref="follows"
-					type="file"
-					accept=".csv,text/csv,.json,application/json"
-					class="hidden-visually"
-					tabindex="-1"
-					aria-hidden="true"
-					@change="importFollows">
-				<div class="first-run__import">
-					<NcButton variant="primary" :disabled="followsBusy" @click="pickFollows">
-						<template #icon>
-							<NcLoadingIcon v-if="followsBusy" :size="20" />
-							<IconUpload v-else :size="20" />
-						</template>
-						{{ followsBusy ? t('social', 'Following …') : t('social', 'Upload your follows') }}
-					</NcButton>
-					<p v-if="followsResult" class="first-run__result" role="status">
-						{{ followsResult }}
+					<input
+						ref="follows"
+						type="file"
+						accept=".csv,text/csv,.json,application/json"
+						class="hidden-visually"
+						tabindex="-1"
+						aria-hidden="true"
+						@change="importFollows">
+					<div class="first-run__import">
+						<NcButton variant="primary" :disabled="followsBusy" @click="pickFollows">
+							<template #icon>
+								<NcLoadingIcon v-if="followsBusy" :size="20" />
+								<IconUpload v-else :size="20" />
+							</template>
+							{{ followsBusy ? t('social', 'Following …') : t('social', 'Upload your follows') }}
+						</NcButton>
+						<p v-if="followsResult" class="first-run__result" role="status">
+							{{ followsResult }}
+						</p>
+					</div>
+					<p class="first-run__hint">
+						{{ t('social', 'On Mastodon: Preferences → Import and export → Data export → Follows (CSV). Moving your followers over as well is in Settings, under Migration — that one is a one-way move, so it is not a button here.') }}
 					</p>
 				</div>
-				<p class="first-run__hint">
-					{{ t('social', 'On Mastodon: Preferences → Import and export → Data export → Follows (CSV). Moving your followers over as well is in Settings, under Migration — that one is a one-way move, so it is not a button here.') }}
-				</p>
-			</div>
 
-			<!-- 4. go -->
-			<div v-else key="ready" class="first-run__page">
-				<h2 ref="heading" class="first-run__title" tabindex="-1">
-					{{ t('social', 'That is all there is to it') }}
-				</h2>
-				<p class="first-run__lead">
-					{{ followedAnything
-						? t('social', 'Your feed fills up as the people you follow post. Meanwhile, say hello — a first post is how the fediverse finds out you are here.')
-						: t('social', 'You have not followed anyone yet, and that is fine: Discover is always a click away in the sidebar. Say hello in the meantime — a first post is how the fediverse finds out you are here.') }}
-				</p>
-			</div>
-		</Transition>
+				<!-- 4. go -->
+				<div v-else key="ready" class="first-run__page">
+					<h2 ref="heading" class="first-run__title" tabindex="-1">
+						{{ t('social', 'That is all there is to it') }}
+					</h2>
+					<p class="first-run__lead">
+						{{ followedAnything
+							? t('social', 'Your feed fills up as the people you follow post. Meanwhile, say hello — a first post is how the fediverse finds out you are here.')
+							: t('social', 'You have not followed anyone yet, and that is fine: Discover is always a click away in the sidebar. Say hello in the meantime — a first post is how the fediverse finds out you are here.') }}
+					</p>
+				</div>
+			</Transition>
 
-		<footer class="first-run__footer">
-			<NcButton v-if="step > 0" variant="tertiary" @click="step--">
-				<template #icon>
-					<IconArrowLeft :size="20" />
-				</template>
-				{{ t('social', 'Back') }}
-			</NcButton>
-			<span class="first-run__spacer" />
-			<NcButton v-if="step < stepNames.length - 1" variant="primary" @click="step++">
-				{{ t('social', 'Next') }}
-				<template #icon>
-					<IconArrowRight :size="20" />
-				</template>
-			</NcButton>
-			<NcButton v-else variant="primary" @click="finish(true)">
-				<template #icon>
-					<IconPencil :size="20" />
-				</template>
-				{{ t('social', 'Write your first post') }}
-			</NcButton>
-		</footer>
+			<footer class="first-run__footer">
+				<NcButton v-if="step > 0" variant="tertiary" @click="step--">
+					<template #icon>
+						<IconArrowLeft :size="20" />
+					</template>
+					{{ t('social', 'Back') }}
+				</NcButton>
+				<span class="first-run__spacer" />
+				<NcButton v-if="step < stepNames.length - 1" variant="primary" @click="step++">
+					{{ t('social', 'Next') }}
+					<template #icon>
+						<IconArrowRight :size="20" />
+					</template>
+				</NcButton>
+				<NcButton v-else variant="primary" @click="finish(true)">
+					<template #icon>
+						<IconPencil :size="20" />
+					</template>
+					{{ t('social', 'Write your first post') }}
+				</NcButton>
+			</footer>
+		</div>
 	</section>
 </template>
 
@@ -283,9 +292,14 @@
  * on the signup page — and the reader has three questions the old banner did
  * not answer: how does this thing work, who do I follow, and can I bring
  * what I had. Four pages, each skippable, turned with Next and Back (or the
- * arrow keys), and it is gone for good once closed: the home timeline shows
- * it for `?welcome=1`, which is what both of those two ways in carry, and
- * never again after that unless asked for by name.
+ * arrow keys), and it is gone for good once closed.
+ *
+ * It is a page of its own rather than part of the app: `App.vue` renders it
+ * instead* of the app while it is open, so the reader sees this and nothing
+ * else — no sidebar, no feed behind it — and the app is there when they are
+ * through. `?welcome=1`, which the setup screen and the first login after
+ * registering carry, is what brings it up; `?replay=1`, which Settings links
+ * to, brings it up again.
  *
  * Nothing here is a second implementation of anything: the people come from
  * the suggestions the Discover page reads (the colleagues among them, marked
@@ -704,21 +718,56 @@ export default {
 }
 
 /*
- * Its own surface, not part of the app: `App.vue` puts it over the app in
- * an `NcModal`, so the card here is only the walkthrough — the modal's own
- * container is the surface, the margin and the hairline are the app's idea
- * and would say "a thing in the timeline" rather than "a thing of its own".
+ * A page of its own, not part of the app: `App.vue` renders it instead of the
+ * app, so it is a whole page — the brand at the top, the walkthrough in a
+ * card below it — the same quiet surface the setup screen gives its question.
  */
 .first-run {
-	position: relative;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 16px;
+	max-width: 640px;
+	margin: 0 auto;
 
 	&__header {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: 12px;
+	}
+
+	/* the app's own mark, in the current colour, the way the sidebar's is */
+	&__logo {
+		display: block;
+		flex: 0 0 auto;
+		width: 32px;
+		height: 32px;
+		background-image: url('../../img/social-dark.svg');
+		background-repeat: no-repeat;
+		background-position: center;
+		background-size: contain;
+		filter: var(--background-invert-if-dark);
+	}
+
+	&__brand {
+		flex: 1;
+		margin: 0;
+		font-size: 17px;
+		font-weight: 700;
+	}
+
+	&__card {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: 32px;
+		background: var(--color-main-background);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 16px);
+	}
+
+	&__progress {
+		display: flex;
+		align-items: center;
 		gap: 12px;
 	}
 
@@ -728,6 +777,14 @@ export default {
 		margin: 0;
 		padding: 0;
 		list-style: none;
+	}
+
+	@media (max-width: 767px) {
+		gap: 12px;
+
+		&__card {
+			padding: 20px;
+		}
 	}
 
 	/* which page of how many, in words beside the dots */

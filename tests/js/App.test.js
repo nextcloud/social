@@ -50,7 +50,6 @@ const stubs = {
 	NcContent: { props: ['appName'], template: '<div class="content-stub" :data-app-name="appName"><slot /></div>' },
 	NcAppContent: { template: '<main class="app-content-stub"><slot /></main>' },
 	Navigation: { emits: ['search'], template: '<nav class="navigation-stub" />' },
-	NcModal: { name: 'NcModal', template: '<div class="modal-stub"><slot /></div>' },
 	// the real one is an async chunk; the stub stands in synchronously
 	AccountSetup: { name: 'AccountSetup', emits: ['created'], template: '<section class="account-setup-stub" />' },
 	FirstRun: { name: 'FirstRun', emits: ['done'], template: '<section class="first-run-stub" />' },
@@ -179,9 +178,10 @@ describe('App', () => {
 			const wrapper = await openOn({ welcome: '1' })
 
 			expect(wrapper.find('.first-run-stub').exists()).toBe(true)
-			// and it is over the app, not in it: the modal carries it
-			expect(wrapper.find('.modal-stub .first-run-stub').exists()).toBe(true)
-			expect(wrapper.find('.router-view-stub').exists()).toBe(true)
+			// a page of its own, not part of the app: nothing of the app is
+			// on screen behind or beside it
+			expect(wrapper.find('.navigation-stub').exists()).toBe(false)
+			expect(wrapper.find('.router-view-stub').exists()).toBe(false)
 		})
 
 		it('opens again for ?replay=1, which Settings links to', async () => {
@@ -239,6 +239,9 @@ describe('App', () => {
 			expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/introduction/dismiss')
 			expect(settingsStore.getServerData.introductionDismissed).toBe(true)
 			expect(router.replace).toHaveBeenCalledWith({ query: { other: 'x' } })
+			// and the app is there where the walkthrough stood
+			expect(wrapper.find('.navigation-stub').exists()).toBe(true)
+			expect(wrapper.find('.router-view-stub').exists()).toBe(true)
 		})
 	})
 
