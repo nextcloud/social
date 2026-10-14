@@ -50,8 +50,10 @@ const stubs = {
 	NcContent: { props: ['appName'], template: '<div class="content-stub" :data-app-name="appName"><slot /></div>' },
 	NcAppContent: { template: '<main class="app-content-stub"><slot /></main>' },
 	Navigation: { emits: ['search'], template: '<nav class="navigation-stub" />' },
+	NcModal: { name: 'NcModal', template: '<div class="modal-stub"><slot /></div>' },
 	// the real one is an async chunk; the stub stands in synchronously
 	AccountSetup: { name: 'AccountSetup', emits: ['created'], template: '<section class="account-setup-stub" />' },
+	FirstRun: { name: 'FirstRun', emits: ['done'], template: '<section class="first-run-stub" />' },
 	// so is the emoji picker, and it is the larger of the two. Left to itself it
 	// resolves after the file that mounted it has finished, and logging from a
 	// worker whose rpc is already closing fails the whole run with an
@@ -151,6 +153,93 @@ describe('App', () => {
 		await flushPromises()
 		vi.restoreAllMocks()
 		delete globalThis.OCA.Push
+	})
+
+	// The walkthrough is a surface of its own over the app, not a page in it:
+	// it opens the moment the account exists and stays away afterwards,
+	// whatever the reader does in the app.
+	describe('the walkthrough over the app', () => {
+		const openOn = async (query) => {
+			route.value = { name: 'timeline', params: {}, query, fullPath: '/timeline' }
+			const wrapper = mountApp()
+			await flushPromises()
+
+			return wrapper
+		}
+
+		beforeEach(() => {
+			window.localStorage.clear()
+		})
+
+		afterEach(() => {
+			window.localStorage.clear()
+		})
+
+		it('opens for ?welcome=1, which is what both ways in carry', async () => {
+			const wrapper = await openOn({ welcome: '1' })
+
+			expect(wrapper.find('.first-run-stub').exists()).toBe(true)
+			// and it is over the app, not in it: the modal carries it
+			expect(wrapper.find('.modal-stub .first-run-stub').exists()).toBe(true)
+			expect(wrapper.find('.router-view-stub').exists()).toBe(true)
+		})
+
+		it('opens again for ?replay=1, which Settings links to', async () => {
+			const wrapper = await openOn({ replay: '1' })
+
+			expect(wrapper.find('.first-run-stub').exists()).toBe(true)
+		})
+
+		it('stays away for a reader who has read it already', async () => {
+			accountStore.currentAccountHandle = 'alice@cloud.example.org'
+			window.localStorage.setItem('social:introduction:alice@cloud.example.org', 'dismissed')
+			const wrapper = await openOn({ welcome: '1' })
+
+			expect(wrapper.find('.first-run-stub').exists()).toBe(false)
+		})
+
+		it('stays away where the server says so, on whatever browser the reader comes with', async () => {
+			setServerData({ introductionDismissed: true })
+			makeStore()
+			const wrapper = await openOn({ welcome: '1' })
+
+			expect(wrapper.find('.first-run-stub').exists()).toBe(false)
+		})
+
+		it('is not a visitor\'s to read, welcome in the address or not', async () => {
+			setServerData({ public: true })
+			makeStore()
+			const wrapper = await openOn({ welcome: '1' })
+
+			expect(wrapper.find('.first-run-stub').exists()).toBe(false)
+		})
+
+		it('is nobody\'s to read before they have an account', async () => {
+			setServerData({ needsAccount: true, suggestedHandle: 'alice' })
+			makeStore()
+			const wrapper = await openOn({ welcome: '1' })
+
+			expect(wrapper.find('.account-setup-stub').exists()).toBe(true)
+			expect(wrapper.find('.first-run-stub').exists()).toBe(false)
+		})
+
+		// or a reload would bring it back, and so would Back
+		it('is gone for good once it says it is done, here and on the server', async () => {
+			accountStore.currentAccountHandle = 'alice@cloud.example.org'
+			router.replace = vi.fn()
+			route.value = { name: 'timeline', params: {}, query: { welcome: '1', other: 'x' }, fullPath: '/timeline' }
+			const wrapper = mountApp()
+			await flushPromises()
+
+			wrapper.findComponent({ name: 'FirstRun' }).vm.$emit('done')
+			await flushPromises()
+
+			expect(wrapper.find('.first-run-stub').exists()).toBe(false)
+			expect(window.localStorage.getItem('social:introduction:alice@cloud.example.org')).toBe('dismissed')
+			expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/introduction/dismiss')
+			expect(settingsStore.getServerData.introductionDismissed).toBe(true)
+			expect(router.replace).toHaveBeenCalledWith({ query: { other: 'x' } })
+		})
 	})
 
 	describe('before there is an account', () => {

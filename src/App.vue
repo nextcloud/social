@@ -112,6 +112,14 @@
 			<p>{{ t('social', 'The Aloha Social app needs to be set up by the server administrator.') }}</p>
 		</NcAppContent>
 	</NcContent>
+
+	<!-- The walkthrough is not part of the app: it is its own surface over
+	     it, for the moment the account is new, with the app waiting behind.
+	     A modal keeps the focus inside it and takes Escape out of the way --
+	     the wizard's own skip is the one way out, and it says what it does. -->
+	<NcModal v-if="introductionVisible" size="large" noClose>
+		<FirstRun @done="finishIntroduction" />
+	</NcModal>
 </template>
 
 <script>
@@ -120,6 +128,7 @@ import { starterPackRoute } from './utils/starterPack.js'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import NcModal from '@nextcloud/vue/components/NcModal'
 
 import Navigation from './components/Navigation.vue'
 import ShortcutHelp from './components/ShortcutHelp.vue'
@@ -143,6 +152,9 @@ import { useServerData } from './composables/useServerData.js'
 // one page load in an account's life: not worth a place in the entry every
 // other load pays for, so it arrives as its own chunk when it is needed
 const AccountSetup = defineAsyncComponent(() => import(/* webpackChunkName: "account-setup" */'./views/AccountSetup.vue'))
+// the walkthrough is read once in an account's life and never again: the same
+// reasoning, and it is the larger of the two
+const FirstRun = defineAsyncComponent(() => import(/* webpackChunkName: "first-run" */'./components/FirstRun.vue'))
 // the emoji picker is most of a megabyte; it travels in its own chunk and is
 // fetched the first time somebody presses "add a reaction"
 const ReactionPicker = defineAsyncComponent(() => import(/* webpackChunkName: "reaction-picker" */'./components/ReactionPicker.vue'))
@@ -157,9 +169,11 @@ export default {
 	name: 'App',
 	components: {
 		AccountSetup,
+		FirstRun,
 		NcContent,
 		NcAppContent,
 		NcButton,
+		NcModal,
 		Navigation,
 		ReactionPicker,
 		ShortcutHelp,
@@ -176,7 +190,8 @@ export default {
 
 	data() {
 		return {
-			infoHidden: false,
+			/** the walkthrough, once closed, is closed */
+			introductionHidden: false,
 			state: [],
 			cloudAddress: '',
 			shortcutHelpOpen: false,
@@ -199,6 +214,36 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
+
+		/**
+		 * Whether the walkthrough is up.
+		 *
+		 * It is a surface of its own over the app, not a page in it, and only
+		 * for the moment the account is new: `?welcome=1`, which the setup
+		 * screen and the first login after registering carry, or `?replay=1`,
+		 * which Settings links to. Afterwards it stays away, on the server
+		 * and in this browser, whatever the reader does in the app.
+		 *
+		 * @return {boolean}
+		 */
+		introductionVisible() {
+			if (this.serverData.public || this.serverData.needsAccount || this.introductionHidden) {
+				return false
+			}
+			const requested = this.$route.query?.welcome === '1'
+				|| this.$route.query?.replay === '1'
+				|| this.settingsStore.getServerData.firstrun === true
+			if (!requested || this.settingsStore.getServerData.introductionDismissed === true) {
+				return false
+			}
+			try {
+				// Storage can be disabled by the browser; the server-side
+				// setting remains the source of truth in that case.
+				return window.localStorage.getItem(`social:introduction:${this.accountStore.currentAccountHandle}`) !== 'dismissed'
+			} catch {
+				return true
+			}
+		},
 
 		/**
 		 * Whether the administrator's checks found something to warn about.
@@ -396,8 +441,31 @@ export default {
 			}
 		},
 
-		hideInfo() {
-			this.infoHidden = true
+		/**
+		 * The walkthrough is finished, or was skipped: gone for good, on the
+		 * server and in this browser, and the two query flags taken out of the
+		 * address so a reload or Back does not open it again.
+		 */
+		finishIntroduction() {
+			this.introductionHidden = true
+			try {
+				window.localStorage.setItem(`social:introduction:${this.accountStore.currentAccountHandle}`, 'dismissed')
+			} catch {
+				// Storage can be disabled by the browser; the server-side
+				// setting remains the source of truth in that case.
+			}
+			try {
+				axios.post(generateUrl('apps/social/api/v1/introduction/dismiss'))?.catch(() => {})
+			} catch {
+				// the local dismissal is enough if the preference cannot be written
+			}
+			this.settingsStore.setServerDataEntry({ key: 'introductionDismissed', value: true })
+			if (this.$route.query?.welcome !== undefined || this.$route.query?.replay !== undefined) {
+				const query = { ...this.$route.query }
+				delete query.welcome
+				delete query.replay
+				this.$router.replace({ query })
+			}
 		},
 
 		setCloudAddress() {

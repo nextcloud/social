@@ -704,17 +704,13 @@ export default {
 }
 
 /*
- * A card in the column, the width of the timeline. Quiet: a hairline, the
- * app's background, one accent — the step dots and the primary button — so
- * it reads as part of the page and not as a modal in its way.
+ * Its own surface, not part of the app: `App.vue` puts it over the app in
+ * an `NcModal`, so the card here is only the walkthrough — the modal's own
+ * container is the surface, the margin and the hairline are the app's idea
+ * and would say "a thing in the timeline" rather than "a thing of its own".
  */
 .first-run {
 	position: relative;
-	margin: calc(var(--default-grid-baseline) * 4);
-	padding: calc(var(--default-grid-baseline) * 4) calc(var(--default-grid-baseline) * 5);
-	background: var(--color-main-background);
-	border: 1px solid var(--color-border);
-	border-radius: var(--border-radius-large, 16px);
 	display: flex;
 	flex-direction: column;
 	gap: 12px;

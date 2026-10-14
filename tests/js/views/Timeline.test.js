@@ -48,11 +48,6 @@ const DirectMessagesStub = {
 	props: ['selectedConversationId'],
 	template: '<section class="direct-messages-stub" />',
 }
-const FirstRunStub = {
-	name: 'FirstRun',
-	emits: ['done'],
-	template: '<section class="first-run-stub" />',
-}
 
 let pinia
 let accountStore
@@ -83,7 +78,7 @@ function mountTimeline(route = {}) {
 			// Announcements what the instance is telling everybody; each is its
 			// own request with its own tests, and left real they would answer
 			// after these tests have finished
-			stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, ShortsBar: ShortsBarStub, NotificationRequests: NotificationRequestsStub },
+			stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, ShortsBar: ShortsBarStub, NotificationRequests: NotificationRequestsStub },
 		},
 	})
 }
@@ -92,28 +87,6 @@ describe('Timeline', () => {
 	beforeEach(() => {
 		window.localStorage.clear()
 		makeStore()
-	})
-
-	it('remembers a dismissed introduction and allows an explicit replay', async () => {
-		accountStore.currentAccountHandle = 'alice@cloud.example'
-		useSettingsStore().setServerDataEntry({ key: 'introductionDismissed', value: false })
-		const first = mountTimeline({ query: { welcome: '1' } })
-		expect(first.find('.first-run-stub').exists()).toBe(true)
-
-		first.vm.hideInfo()
-		await nextTick()
-		expect(axios.post).toHaveBeenCalled()
-		expect(first.find('.first-run-stub').exists()).toBe(false)
-		expect(window.localStorage.getItem('social:introduction:alice@cloud.example')).toBe('dismissed')
-		first.unmount()
-
-		useSettingsStore().setServerDataEntry({ key: 'introductionDismissed', value: true })
-		const refreshed = mountTimeline({ query: { welcome: '1' } })
-		expect(refreshed.find('.first-run-stub').exists()).toBe(false)
-		refreshed.unmount()
-
-		const replay = mountTimeline({ query: { replay: '1' } })
-		expect(replay.find('.first-run-stub').exists()).toBe(true)
 	})
 
 	afterEach(() => {
@@ -159,7 +132,7 @@ describe('Timeline', () => {
 				global: {
 					plugins: [pinia],
 					mocks: { $route: route, $router: { replace: vi.fn() } },
-					stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, ShortsBar: CountedShortsBar, NotificationRequests: NotificationRequestsStub },
+					stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, ShortsBar: CountedShortsBar, NotificationRequests: NotificationRequestsStub },
 				},
 			})
 
@@ -363,55 +336,6 @@ describe('Timeline', () => {
 		await nextTick()
 		expect(wrapper.find('.search-active').exists()).toBe(false)
 		expect(wrapper.findComponent(TimelineListStub).exists()).toBe(true)
-	})
-
-	it('shows no introduction after the first run', () => {
-		const wrapper = mountTimeline()
-		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(false)
-	})
-
-	it('shows the introduction after the reload that follows creating the account', () => {
-		// the setup screen reloads with ?welcome=1; the server does not know
-		// this load is the first, since the account existed when it answered
-		const wrapper = mountTimeline({ query: { welcome: '1' } })
-		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(true)
-	})
-
-	// or reloading the page would bring it back, and so would Back
-	it('takes the welcome out of the address once the introduction is closed', async () => {
-		const replace = vi.fn()
-		const wrapper = mount(Timeline, {
-			global: {
-				plugins: [pinia],
-				mocks: {
-					$route: { name: 'timeline', params: {}, query: { welcome: '1', other: 'x' } },
-					$router: { replace },
-				},
-				stubs: { Announcements: AnnouncementsStub, Composer: ComposerStub, DirectMessages: DirectMessagesStub, FirstRun: FirstRunStub, TimelineList: TimelineListStub, RouterLink: RouterLinkStub, OnThisDay: OnThisDayStub, WeeklyRecap: WeeklyRecapStub, ShortsBar: ShortsBarStub, NotificationRequests: NotificationRequestsStub },
-			},
-		})
-		await wrapper.findComponent(FirstRunStub).vm.$emit('done')
-
-		expect(wrapper.findComponent(FirstRunStub).exists()).toBe(false)
-		expect(replace).toHaveBeenCalledWith({ query: { other: 'x' } })
-	})
-
-	describe('on the first run', () => {
-		beforeEach(() => {
-			makeStore({ firstrun: true })
-		})
-
-		it('opens with the introduction in place of the old beta banner', () => {
-			const wrapper = mountTimeline()
-			expect(wrapper.findComponent(FirstRunStub).exists()).toBe(true)
-			expect(wrapper.find('.social__welcome').exists()).toBe(false)
-		})
-
-		it('takes the introduction away for good once it says it is done', async () => {
-			const wrapper = mountTimeline()
-			await wrapper.findComponent(FirstRunStub).vm.$emit('done')
-			expect(wrapper.findComponent(FirstRunStub).exists()).toBe(false)
-		})
 	})
 
 	// the composer emits `post-published` for every post that goes out; which
