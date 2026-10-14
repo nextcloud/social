@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\IConfig;
@@ -77,7 +78,7 @@ class MoveFinishService {
 	 * @return string the authorize URL
 	 * @throws InvalidResourceException when the old server is not this app, or will not register us
 	 */
-	public function start(string $userId, string $handle): string {
+	public function start(string $userId, string $handle, string $bluesky = BlueskyAfterMoveOut::DEACTIVATE): string {
 		$old = $this->migrationService->resolveActor($handle);
 		if (!$this->canFinish($old)) {
 			throw new InvalidResourceException(
@@ -109,6 +110,7 @@ class MoveFinishService {
 			'client_id' => $clientId,
 			'client_secret' => $clientSecret,
 			'callback' => $callback,
+			'bluesky' => $bluesky,
 			'created' => time(),
 		]);
 
@@ -160,7 +162,7 @@ class MoveFinishService {
 			$actor = $this->accountService->getActorFromUserId($userId);
 			$moved = $this->post(
 				$pending['base'] . '/api/v1/migration/move/authorized',
-				['target' => $actor->getId()],
+				['target' => $actor->getId(), 'bluesky' => (string)($pending['bluesky'] ?? BlueskyAfterMoveOut::DEACTIVATE)],
 				['Authorization' => 'Bearer ' . $accessToken]
 			);
 			if (($moved['moved_to'] ?? '') === '') {

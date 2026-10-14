@@ -346,7 +346,7 @@ class MigrationControllerTest extends TestCase {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$target = new Person();
 		$target->setId('https://new.example/users/alice')->setAccount('alice@new.example')->setUrl('https://new.example/@alice');
-		$this->migrationService->expects($this->once())->method('move')->with('alice', '@alice@new.example')->willReturn($target);
+		$this->migrationService->expects($this->once())->method('move')->with('alice', '@alice@new.example', true, 'deactivate')->willReturn($target);
 		$this->migrationService->method('moveStatus')
 			->willReturn(['moved_to' => 'https://new.example/users/alice', 'moved_at' => 1000, 'can_move_at' => 1000 + 30 * 86400]);
 
@@ -368,6 +368,18 @@ class MigrationControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
 		$this->assertStringContainsString('can move again', $response->getData()['error']);
+	}
+
+	public function testMovingAwayRefusalsCarryACode(): void {
+		$this->accountService = $this->createStub(AccountService::class);
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->migrationService->method('move')->with('alice', '@alice@new.example', true, 'move')
+			->willThrowException(new \OCA\Social\Exceptions\MoveErrorException('Move the Bluesky account first', 'bluesky-move-first'));
+
+		$response = $this->controller()->moveOut('@alice@new.example', 'alice@cloud.example', 'move');
+		$this->assertSame([Http::STATUS_UNPROCESSABLE_ENTITY, 'bluesky-move-first'], [$response->getStatus(), $response->getData()['code']]);
+
+		$this->assertSame('confirm-handle', $this->controller()->moveOut('@alice@new.example', 'bob@cloud.example')->getData()['code']);
 	}
 
 	public function testUndoingTheMoveAnswersTheStatusAfterwards(): void {

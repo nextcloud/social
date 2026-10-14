@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
 use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -18,6 +19,7 @@ use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Move;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -107,6 +109,7 @@ class MigrationService {
 		private DomainBlockService $domainBlockService,
 		private IConfig $config,
 		private LoggerInterface $logger,
+		private BlueskyAfterMoveOut $blueskyAfterMove,
 	) {
 	}
 
@@ -171,32 +174,39 @@ class MigrationService {
 	 * @param bool $enforceCooldown whether a move within COOLDOWN_SECONDS of the
 	 *                              last is refused; the person's own button says
 	 *                              yes, an administrator's command may say no
+	 * @param string $bluesky what becomes of the account's Bluesky identity,
+	 *                        one of BlueskyAfterMoveOut::CHOICES
 	 *
 	 * @return Person the target as fetched
 	 * @throws InvalidResourceException when the target does not list the actor, or is the actor,
-	 *                                  or the account moved too recently
+	 *                                  or the account moved too recently, or the
+	 *                                  Bluesky choice cannot be followed — a
+	 *                                  MoveErrorException with its code for these
 	 */
-	public function move(string $userId, string $targetId, bool $enforceCooldown = true): Person {
+	public function move(string $userId, string $targetId, bool $enforceCooldown = true, string $bluesky = BlueskyAfterMoveOut::DEACTIVATE): Person {
 		$actor = $this->accountService->getActorFromUserId($userId);
 		if ($enforceCooldown) {
 			$status = $this->moveStatus($userId);
 			if ($status['can_move_at'] > time()) {
-				throw new InvalidResourceException(
+				throw new MoveErrorException(
 					'this account moved on ' . gmdate('Y-m-d', (int)$status['moved_at'])
-					. ' and can move again on ' . gmdate('Y-m-d', $status['can_move_at'])
+					. ' and can move again on ' . gmdate('Y-m-d', $status['can_move_at']),
+					'move-cooldown'
 				);
 			}
 		}
+		$this->blueskyAfterMove->assertPossible($actor, $bluesky);
 		$target = $this->resolveActor($targetId);
 
 		if ($target->getId() === $actor->getId()) {
-			throw new InvalidResourceException('an account cannot be moved onto itself');
+			throw new MoveErrorException('an account cannot be moved onto itself', 'move-onto-self');
 		}
 
 		if (!in_array($actor->getId(), $target->getAlsoKnownAs(), true)) {
-			throw new InvalidResourceException(
+			throw new MoveErrorException(
 				$target->getId() . ' does not list ' . $actor->getId() . ' in its alsoKnownAs:'
-				. ' add the alias on the new account first, then try again'
+				. ' add the alias on the new account first, then try again',
+				'alias-missing'
 			);
 		}
 
@@ -224,6 +234,11 @@ class MigrationService {
 		$this->config->setUserValue($userId, Application::APP_ID, self::MOVED_AT, (string)time());
 
 		$this->refollowLocalFollowers($actor, $target);
+		try {
+			$this->blueskyAfterMove->apply($actor, $bluesky);
+		} catch (Throwable $e) {
+			$this->logger->warning('the Bluesky identity was not handled after the move', ['actor' => $actor->getId(), 'exception' => $e]);
+		}
 
 		return $target;
 	}

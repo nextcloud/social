@@ -119,7 +119,7 @@ for an administrator acting on somebody else's account, and it **skips the
 cooldown**. Undoing a move (clearing `movedTo`) is on the same page.
 
 ```
-php occ social:account:move [-f|--force] <userId> <target>
+php occ social:account:move [-f|--force] [--bluesky=deactivate|keep|move] <userId> <target>
 ```
 
 | Argument | Required | Description |
@@ -130,6 +130,7 @@ php occ social:account:move [-f|--force] <userId> <target>
 | Option | Value | Description |
 |--------|-------|-------------|
 | `-f`, `--force` | none | Do not ask for confirmation (required with `--no-interaction`) |
+| `--bluesky` | `deactivate` (default), `keep`, `move` | What becomes of the account's Bluesky identity: switched off, kept as it is, or moving on its own — `move` only once its Bluesky move away is done or under way |
 
 What happens, in order:
 

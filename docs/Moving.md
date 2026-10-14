@@ -95,6 +95,44 @@ Take an export from the same page first if you want a copy of everything.
 An administrator can move an account for somebody with
 `occ social:account:move`, which skips the thirty days.
 
+## Your Bluesky account
+
+If this server puts you on Bluesky too, your Bluesky account is a second
+account of the same person, and it can move on its own.
+
+**Moving it to another Bluesky server.** In *Settings → Migration → Move
+your Bluesky account away*, name the server, the handle you want there (one
+ending in a domain that server gives out), an e-mail address and a password
+for the account there. The account is made there at once; your posts,
+pictures and settings are copied in the background; then your account is
+pointed at the new server and switched on there. Your followers on Bluesky
+follow you there without doing anything.
+
+- **Who controls the account afterwards.** You, with your recovery phrase if
+  you made one, and the new server. This server keeps no say. Without a
+  recovery phrase only the new server controls the account, and the page
+  asks you to confirm that before the move starts.
+- **Posts you write here during the move** wait, and go along right before
+  your account is pointed at the new server.
+- **Missing pictures.** Before the switch the new server is asked whether
+  everything arrived. If pictures or videos are missing, the move waits for
+  you: copy again, or switch without them.
+- **Calling it off.** Until your account is pointed at the new server you can
+  call the move off. The account made at the new server stays there,
+  switched off; delete it there. Once the switch happened, the move can only
+  be finished: *Try again* goes on from where it stopped.
+- **Telling your other followers.** You can ask for one public post, or a
+  profile field *Also at*, saying where your Bluesky account went. Both are
+  ordinary posts and fields, yours to edit or delete.
+
+**Moving your Fediverse account away** leaves the Bluesky account behind on
+this server, and a moved account posts nothing more here. So the move asks
+what becomes of it: switch it off (the default — it is shown as inactive on
+Bluesky; your handle stays yours and Settings can switch it on again), keep
+it as it is, or say that it moves too — which is only possible once its own
+move above is done or under way. `occ social:account:move` takes the same
+choice as `--bluesky`.
+
 ## What does not move, whatever you do
 
 - **Posts.** Copied, never moved: see above.

@@ -1458,6 +1458,18 @@ person's to edit or delete; the text is a short English template, as the
 switch wizard's announcement is. A full profile (four fields) is left as
 it is (`profile-fields-full`); the move is done either way.
 
+**When the Fediverse account moves out instead** (`MigrationService::move()`
+— the Migration page's button, `occ social:account:move`, and the move a
+new Aloha Social server finishes with `move/authorized`), a moved account
+posts nothing more here, so its Bluesky identity would be a silent account
+on Bluesky for good. The move takes `bluesky` (`BlueskyAfterMoveOut`):
+`deactivate`, the default, announces the account inactive on the firehose
+and marks the identity deactivated (`IdentityService::deactivate()`, as
+switching off in Settings does — it can be switched on again); `keep`
+leaves it; `move` is taken only while or after a Bluesky move away runs,
+else the Fediverse move is refused before anything is sent
+(`bluesky-move-first`).
+
 The Fediverse account is untouched; after the move the local actor has no
 Bluesky identity until §4.1 creates a fresh one — which it does not do
 automatically for a moved-away account (flag on the identity row), so the
@@ -1514,6 +1526,8 @@ older clients.
 | `announce-invalid` | `announce` is not `post`, `profile` or `none` | Pick one of them |
 | `profile-fields-full` | After the move, the profile had no free field for the new address (`progress.announce_code`) | Add the address to the profile by hand |
 | `announce-failed` | After the move, the post or the profile field could not be written (`progress.announce_code`) | Post the new address by hand |
+| `bluesky-move-first` | A Fediverse move-out asked `bluesky: move` with no Bluesky move away done or under way | Move the Bluesky account first, or choose `deactivate` or `keep` |
+| `bluesky-choice-invalid` | A Fediverse move-out's `bluesky` is not `move`, `deactivate` or `keep` | Pick one of them |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |
