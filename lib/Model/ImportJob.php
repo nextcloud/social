@@ -33,10 +33,13 @@ class ImportJob implements JsonSerializable {
 	public const KIND_MOVE_IN = 'move_in';
 	public const KIND_BOOKMARKS = 'bookmarks';
 	public const KIND_DOMAIN_BLOCKS = 'domain_blocks';
+	/** following from here whom a Bluesky account follows, read from its public records */
+	public const KIND_BLUESKY_FOLLOWS = 'bluesky_follows';
 
 	public const KINDS = [
 		self::KIND_FOLLOWS, self::KIND_BLOCKS, self::KIND_MUTES, self::KIND_LISTS,
 		self::KIND_POSTS, self::KIND_MOVE_IN, self::KIND_BOOKMARKS, self::KIND_DOMAIN_BLOCKS,
+		self::KIND_BLUESKY_FOLLOWS,
 	];
 
 	private int $id = 0;

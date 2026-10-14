@@ -244,7 +244,7 @@ on Bluesky** is there too (§4.6).
 - **rotate keys**: when the administrator rotates the instance rotation key
   (§16.3) or the person regenerates their recovery key.
 - **update PDS endpoint**: on a host change, and when an account moves
-  away (§13.4).
+  away (§13.2).
 - **tombstone**: when a Social account is deleted. `AccountService::deleteActor()`
   gains this step; the DID is dead afterwards, as the person asked.
 
@@ -1399,7 +1399,7 @@ The mirror image, so a person is not locked in. On the Migration page,
    token the account signs for that PDS and `createAccount`, then
    `createAccount` there with the existing DID — the account exists there
    *deactivated*. What the other PDS refuses is answered at once, with a
-   code (§13.4). The form can ask `GET …/bluesky/move/target?pds=` first
+   code (§13.5). The form can ask `GET …/bluesky/move/target?pds=` first
    for the handle domains the server gives out and whether it needs an
    invite code; a handle under none of them is refused before anything
    is made (`handle-not-allowed`).
@@ -1511,7 +1511,22 @@ PDS — Bridgy Fed supports account migration out — so the followers come
 along; the page offers it when the handle resolves to a `*.ap.brid.gy`
 DID, and tells the person to turn the bridge off afterwards.
 
-### 13.4 Move error codes
+### 13.4 Following the same people, without moving
+
+Between nothing and a whole move: `POST /api/v1/social/bluesky/follow-from`
+with a Bluesky handle or DID follows from the person's account here everyone
+that account follows (`FollowFrom`). Follow records are public, so no
+password is asked: the DID is resolved (the AppView's `resolveHandle`), its
+PDS read from the PLC directory and asked through `PdsClient` with its
+refusal of local addresses, and its `app.bsky.graph.follow` records are read
+with `com.atproto.repo.listRecords`, at most 5000. Each account followed
+there is resolved (`BlueskyActorService`) and followed from here through
+`FollowService::followActor()` — one already followed is skipped — in the
+background as an import of kind `bluesky_follows`, its progress on the
+imports list like the CSV imports. The Bluesky account stays where it is,
+and its followers do not come along: only a move (§13.1) brings them.
+
+### 13.5 Move error codes
 
 Every error answer of the move routes under `/api/v1/social/bluesky/*`
 carries a stable code beside the English sentence,
@@ -1555,6 +1570,11 @@ older clients.
 | `announce-failed` | After the move, the post or the profile field could not be written (`progress.announce_code`) | Post the new address by hand |
 | `bluesky-move-first` | A Fediverse move-out asked `bluesky: move` with no Bluesky move away done or under way | Move the Bluesky account first, or choose `deactivate` or `keep` |
 | `bluesky-choice-invalid` | A Fediverse move-out's `bluesky` is not `move`, `deactivate` or `keep` | Pick one of them |
+| `handle-invalid` | "Follow the same people": what was typed is not a handle or a DID | Check the handle |
+| `handle-not-found` | No Bluesky account goes by the handle | Check the handle |
+| `did-not-supported` | The account's DID is not a `did:plc` | Nothing to do from here |
+| `did-not-found` | The PLC directory knows no server for the DID | Check the account |
+| `import-in-progress` | The same people are being followed already | Wait for it on the imports list |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |

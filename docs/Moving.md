@@ -125,6 +125,12 @@ follow you there without doing anything.
   profile field *Also at*, saying where your Bluesky account went. Both are
   ordinary posts and fields, yours to edit or delete.
 
+**Following the same people without moving.** If your Bluesky account lives
+elsewhere and stays there, you can still follow from here everyone it
+follows: give its handle, and the people it follows are followed from your
+account here in the background (its follows are public, so no password is
+asked). Your Bluesky followers do not come along; only a move brings them.
+
 **Moving your Fediverse account away** leaves the Bluesky account behind on
 this server, and a moved account posts nothing more here. So the move asks
 what becomes of it: switch it off (the default — it is shown as inactive on
