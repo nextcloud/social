@@ -9,11 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
+use OCA\Social\Atproto\Identity\DidControlService;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
 use OCA\Social\Controller\AtprotoRecoveryController;
+use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Service\AccountService;
@@ -38,10 +40,12 @@ use Psr\Log\NullLogger;
 class AtprotoRecoveryControllerTest extends TestCase {
 	private IdentityService&MockObject $identities;
 	private BlueskyArchiveService&MockObject $archive;
+	private DidControlService&MockObject $control;
 
 	protected function setUp(): void {
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->archive = $this->createMock(BlueskyArchiveService::class);
+		$this->control = $this->createMock(DidControlService::class);
 		// Response::getHeaders() reads both from the container
 		\OC::$server->register(IRequest::class, $this->createStub(IRequest::class));
 		$clock = $this->createStub(ITimeFactory::class);
@@ -63,7 +67,7 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		$accounts = $this->createStub(AccountService::class);
 		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
 
-		return new AtprotoRecoveryController($this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->archive, new NullLogger());
+		return new AtprotoRecoveryController($this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->archive, $this->control, new NullLogger());
 	}
 
 	private static function identity(string $state = Identity::STATE_ACTIVE): Identity {
@@ -113,5 +117,29 @@ class AtprotoRecoveryControllerTest extends TestCase {
 			$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 			$this->assertSame('no-identity', $response->getData()['code']);
 		}
+	}
+
+	/** Who controls the DID, as the directory has it; each failure with the code the page explains it by. */
+	public function testWhoControlsTheDidIsAnsweredOrSaidWhyNot(): void {
+		$this->identities->method('forActor')->willReturn(self::identity());
+		$control = ['did' => 'did:plc:alice', 'state' => 'active', 'rotation_keys' => [['key' => 'did:key:zServer', 'role' => 'server']], 'last_operation' => null, 'undo' => null];
+		$this->control->method('forIdentity')->willReturnOnConsecutiveCalls(
+			$control,
+			$this->throwException(new AtprotoException('PLC directory could not be reached')),
+			$this->throwException(new \InvalidArgumentException('The PLC directory does not know did:plc:alice')),
+		);
+
+		$this->assertSame($control, $this->controller()->control()->getData());
+		$unreachable = $this->controller()->control();
+		$this->assertSame([Http::STATUS_SERVICE_UNAVAILABLE, 'directory-unreachable'], [$unreachable->getStatus(), $unreachable->getData()['code']]);
+		$unknown = $this->controller()->control();
+		$this->assertSame([Http::STATUS_NOT_FOUND, 'did-not-found'], [$unknown->getStatus(), $unknown->getData()['code']]);
+	}
+
+	public function testThereIsNoControlToShowWithoutAnAccountHostedHere(): void {
+		$this->identities->method('forActor')->willReturn(null);
+		$this->control->expects($this->never())->method('forIdentity');
+
+		$this->assertSame('no-identity', $this->controller()->control()->getData()['code']);
 	}
 }

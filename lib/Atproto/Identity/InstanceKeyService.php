@@ -67,6 +67,21 @@ class InstanceKeyService {
 		return $keys;
 	}
 
+	/**
+	 * The public halves of this instance's rotation keys, the one in use
+	 * and the retired ones, read without opening any.
+	 *
+	 * @return array<string, bool> did:key => whether it is retired
+	 */
+	public function rotationDidKeys(): array {
+		$keys = [];
+		foreach ($this->identityRequest->getInstanceKeys(InstanceKey::KIND_ROTATION) as $key) {
+			$keys[$key->publicDidKey] = $key->retired !== 0;
+		}
+
+		return $keys;
+	}
+
 	/** when the rotation key in use was made, 0 when there is none yet */
 	public function rotationKeyAge(): int {
 		foreach ($this->identityRequest->getInstanceKeys(InstanceKey::KIND_ROTATION) as $key) {

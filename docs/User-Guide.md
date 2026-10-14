@@ -1080,6 +1080,12 @@ differently, and the words can be turned back into them offline
 The server's key ranks above yours: for 72 hours the server can undo a change
 made with the phrase, a move to another server included.
 
+**Who controls your Bluesky identifier**, in the same section, lists the keys
+that can change where your identifier points, as the PLC directory has them,
+highest first: this server, your recovery phrase, or a key this server does not
+know. For 72 hours after a change, a key ranking above the one that made it can
+undo it; while that is so, the panel says until when and by which key.
+
 **Download your Bluesky account**, in the same section, gives you the account as
 files after your password: your repository (every post, like, follow and the
 profile, in the CAR format other Bluesky servers import), the pictures and videos,

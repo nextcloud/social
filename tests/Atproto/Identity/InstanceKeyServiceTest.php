@@ -107,6 +107,16 @@ class InstanceKeyServiceTest extends TestCase {
 		$this->assertSame([$third->didKey()], array_map(static fn ($key): string => $key->didKey(), $this->service()->rotationKeys()));
 	}
 
+	/** The public halves are read as stored: naming the keys on a DID opens none, so it works while the seals do not. */
+	public function testTheRotationKeysAreListedByTheirPublicHalvesWithoutOpeningAny(): void {
+		$keys = $this->service();
+		$first = $keys->rotationKey();
+		[$second] = $keys->rotate();
+		$this->secret = 'another instance secret';
+
+		$this->assertSame([$second->didKey() => false, $first->didKey() => true], $this->service()->rotationDidKeys());
+	}
+
 	/** Said in words the person can pass on, with the code the page explains it by: the service key as much as the rotation key. */
 	public function testASealThatNoLongerOpensIsAnErrorNotANewKey(): void {
 		$this->service()->rotationKey();

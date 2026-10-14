@@ -22,6 +22,7 @@ vi.mock('../../../src/services/logger.js', () => ({
 
 const IDENTITY = '/index.php/apps/social/api/v1/social/bluesky/identity'
 const RECOVERY = '/index.php/apps/social/api/v1/social/bluesky/recovery'
+const CONTROL = '/index.php/apps/social/api/v1/social/bluesky/control'
 const PHRASE = 'abandon ability able about above absent absorb abstract absurd abuse access accident'
 
 function identity(overrides = {}) {
@@ -35,11 +36,38 @@ function identity(overrides = {}) {
 	}
 }
 
-/** @param {object} answer what the identity route answers */
-function serverHas(answer = identity()) {
-	axios.get.mockImplementation((url) => (url === IDENTITY
-		? Promise.resolve({ data: answer })
-		: Promise.reject(new Error(`unexpected ${url}`))))
+const SERVER_KEY = 'did:key:zQ3shServer'
+const RECOVERY_KEY = 'did:key:zQ3shRecovery'
+
+/**
+ * @param {object} overrides what differs from a DID this server alone controls
+ * @return {object} what the control route answers
+ */
+function control(overrides = {}) {
+	return {
+		did: 'did:plc:abc123',
+		state: 'active',
+		rotation_keys: [{ key: SERVER_KEY, role: 'server' }],
+		last_operation: { cid: 'bafyhead', created_at: 1760000000, signed_by: { key: SERVER_KEY, role: 'server' } },
+		undo: null,
+		...overrides,
+	}
+}
+
+/**
+ * @param {object} answer what the identity route answers
+ * @param {object|Error} controls what the control route answers, or how it fails
+ */
+function serverHas(answer = identity(), controls = control()) {
+	axios.get.mockImplementation((url) => {
+		if (url === IDENTITY) {
+			return Promise.resolve({ data: answer })
+		}
+		if (url === CONTROL) {
+			return controls instanceof Error ? Promise.reject(controls) : Promise.resolve({ data: controls })
+		}
+		return Promise.reject(new Error(`unexpected ${url}`))
+	})
 }
 
 /** @return {object} the mounted section */
@@ -189,6 +217,59 @@ describe('BlueskySettings', () => {
 
 			expect(showError).toHaveBeenCalledWith('Could not switch your presence on Bluesky')
 			expect(presenceSwitch(wrapper).element.checked).toBe(true)
+		})
+	})
+
+	/** Who can change where the DID points, as the directory has it, in words. */
+	describe('who controls the identifier', () => {
+		it('lists the keys by what they are to the person, the highest first', async () => {
+			serverHas(identity({ recovery_key: true }), control({
+				rotation_keys: [{ key: SERVER_KEY, role: 'server' }, { key: RECOVERY_KEY, role: 'recovery' }, { key: 'did:key:zQ3shOther', role: 'unknown' }],
+			}))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			const keys = wrapper.findAll('.bluesky-settings__control-keys li').map((item) => item.text())
+			expect(keys).toEqual(['This server', 'Your recovery phrase', 'A key this server does not know did:key:zQ3shOther'])
+			expect(wrapper.text()).not.toContain('can still be undone')
+		})
+
+		it('says until when and by which key the latest change can be undone', async () => {
+			serverHas(identity({ recovery_key: true }), control({
+				rotation_keys: [{ key: RECOVERY_KEY, role: 'recovery' }],
+				last_operation: { cid: 'bafymove', created_at: 1760000000, signed_by: { key: RECOVERY_KEY, role: 'recovery' } },
+				undo: { until: 1760000000 + 72 * 3600, by: [{ key: SERVER_KEY, role: 'server' }] },
+			}))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			expect(wrapper.text()).toMatch(/it can still be undone by: This server\./)
+		})
+
+		it('says so when the directory could not be asked, and does not ask for a pending identity', async () => {
+			serverHas(identity(), new Error('503'))
+			const wrapper = mountSettings()
+			await flushPromises()
+			expect(wrapper.text()).toContain('could not be asked right now')
+
+			axios.get.mockClear()
+			serverHas(identity({ state: 'pending' }))
+			mountSettings()
+			await flushPromises()
+			expect(axios.get).not.toHaveBeenCalledWith(CONTROL)
+		})
+
+		it('asks again once a new phrase is made', async () => {
+			serverHas()
+			axios.post.mockResolvedValue({ data: { ...identity({ recovery_key: true }), phrase: PHRASE } })
+			const wrapper = mountSettings()
+			await flushPromises()
+			axios.get.mockClear()
+
+			await buttonByText(wrapper, 'Create recovery phrase').trigger('click')
+			await flushPromises()
+
+			expect(axios.get).toHaveBeenCalledWith(CONTROL)
 		})
 	})
 

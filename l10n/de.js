@@ -2925,6 +2925,13 @@ OC.L10N.register(
     "Copy the public key" : "Öffentlichen Schlüssel kopieren",
     "Your Fediverse profile, the accounts you follow, block and mute, your own posts with the pictures and videos in them, your bookmarks and your favourites, and your Bluesky account where you have one. Your private keys stay behind." : "Dein Fediverse-Profil, die Konten, denen du folgst und die du blockierst oder stummschaltest, deine eigenen Beiträge mit ihren Bildern und Videos, deine Lesezeichen und deine Favoriten sowie dein Bluesky-Konto, falls du eines hast. Deine privaten Schlüssel bleiben hier.",
     "Download your Bluesky account" : "Dein Bluesky-Konto herunterladen",
-    "Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from Settings → Migration holds the same files." : "Deine Beiträge, Bilder und die Geschichte deiner Bluesky-Kennung in den Dateien, die Bluesky-Werkzeuge lesen, mit einer Anleitung, wie du das Konto umziehst, selbst wenn es diesen Server nicht mehr gibt. Das Archiv unter Einstellungen → Kontoumzug enthält dieselben Dateien."
+    "Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from Settings → Migration holds the same files." : "Deine Beiträge, Bilder und die Geschichte deiner Bluesky-Kennung in den Dateien, die Bluesky-Werkzeuge lesen, mit einer Anleitung, wie du das Konto umziehst, selbst wenn es diesen Server nicht mehr gibt. Das Archiv unter Einstellungen → Kontoumzug enthält dieselben Dateien.",
+    "Who controls your Bluesky identifier" : "Wer deine Bluesky-Kennung kontrolliert",
+    "These keys can change where your identifier points, the first one ranking highest:" : "Diese Schlüssel können ändern, wohin deine Kennung zeigt; der erste hat den höchsten Rang:",
+    "The latest change was made on {date}. Until {until}, it can still be undone by: {keys}." : "Die letzte Änderung wurde am {date} vorgenommen. Bis {until} kann sie noch rückgängig gemacht werden von: {keys}.",
+    "The directory that keeps Bluesky identifiers could not be asked right now." : "Das Verzeichnis, das Bluesky-Kennungen verwaltet, konnte gerade nicht abgefragt werden.",
+    "This server" : "Dieser Server",
+    "This server (an earlier key)" : "Dieser Server (ein früherer Schlüssel)",
+    "A key this server does not know" : "Ein Schlüssel, den dieser Server nicht kennt"
 },
 "nplurals=2; plural=(n != 1);");

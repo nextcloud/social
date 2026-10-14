@@ -11,10 +11,12 @@ namespace OCA\Social\Controller;
 
 use Generator;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Identity\DidControlService;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
+use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Response\StreamedPiecesResponse;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Controller;
@@ -33,7 +35,7 @@ use Throwable;
 
 /**
  * What a person needs to keep their Bluesky account without this server:
- * the account as files to download.
+ * who controls its DID, and the account as files to download.
  */
 class AtprotoRecoveryController extends Controller {
 	/** how much of the archive is read and sent at a time */
@@ -46,9 +48,34 @@ class AtprotoRecoveryController extends Controller {
 		private AccountService $accountService,
 		private IdentityService $identities,
 		private BlueskyArchiveService $archive,
+		private DidControlService $control,
 		private LoggerInterface $logger,
 	) {
 		parent::__construct(Application::APP_ID, $request);
+	}
+
+	/**
+	 * `GET /api/v1/social/bluesky/control`: who controls the viewer's DID,
+	 * as the PLC directory has it now — its rotation keys by role, the
+	 * latest operation, and until when it can still be undone and by
+	 * which keys. Read-only; the directory's answer is kept a minute.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/control')]
+	public function control(): DataResponse {
+		$identity = $this->ownIdentity();
+		if ($identity === null || !BlueskyArchiveService::exportable($identity)) {
+			return new DataResponse(['error' => 'No Bluesky account for this account', 'code' => 'no-identity'], Http::STATUS_NOT_FOUND);
+		}
+		try {
+			return new DataResponse($this->control->forIdentity($identity));
+		} catch (\InvalidArgumentException $e) {
+			return new DataResponse(['error' => $e->getMessage(), 'code' => 'did-not-found'], Http::STATUS_NOT_FOUND);
+		} catch (AtprotoException $e) {
+			$this->logger->info('PLC directory not reached for the DID\'s keys', ['did' => $identity->did, 'exception' => $e]);
+
+			return new DataResponse(['error' => 'The PLC directory could not be reached', 'code' => 'directory-unreachable'], Http::STATUS_SERVICE_UNAVAILABLE);
+		}
 	}
 
 	/**

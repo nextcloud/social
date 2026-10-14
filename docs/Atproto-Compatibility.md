@@ -304,6 +304,22 @@ the directory no longer names is warned of, with the DID; this server
 cannot put that right by itself. A hand-over to another PDS (§13.2)
 refuses to start while an earlier operation for the DID is pending.
 
+### 4.5b Who controls the DID
+
+The Bluesky section of Settings shows **Who controls your Bluesky
+identifier** (`GET /api/v1/social/bluesky/control`, `DidControlService`):
+the rotation keys of the DID's latest operation, highest first, each named
+by what it is to the person — this server (`InstanceKeyService`'s keys,
+read by their public halves without opening any; a retired one is "an
+earlier key"), their recovery phrase, or a key this server does not know
+(shown as its `did:key`). Whose key signed the latest operation is found
+by checking its signature against the keys of the operation before it;
+while that operation is younger than 72 hours and a key ranks above the
+signer, the panel says until when, and by which keys, it can still be
+undone (the PLC nullification rule). The directory's audit log is the
+source, kept a minute in the distributed cache under the operation this
+server confirmed last, so an operation this server sends is seen at once.
+
 ### 4.5a The account as files
 
 **Download your Bluesky account** (Settings, the Bluesky section;

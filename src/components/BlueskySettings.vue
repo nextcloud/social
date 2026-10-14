@@ -119,6 +119,31 @@
 					{{ t('social', 'No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for, written the way tools such as goat take it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
 				</p>
 			</div>
+			<!-- the directory's own answer: the keys that can change the DID,
+			     highest first, and the window in which a higher key can undo
+			     the latest change -->
+			<div v-if="bluesky.state !== 'pending'" class="bluesky-settings__control">
+				<h5 class="bluesky-settings__title">
+					{{ t('social', 'Who controls your Bluesky identifier') }}
+				</h5>
+				<p v-if="controlError" class="bluesky-settings__hint">
+					{{ controlError }}
+				</p>
+				<template v-else-if="control">
+					<p class="bluesky-settings__hint">
+						{{ t('social', 'These keys can change where your identifier points, the first one ranking highest:') }}
+					</p>
+					<ol class="bluesky-settings__control-keys">
+						<li v-for="key in control.rotation_keys" :key="key.key">
+							{{ roleLabel(key.role) }}
+							<code v-if="key.role === 'unknown'" class="bluesky-settings__code">{{ key.key }}</code>
+						</li>
+					</ol>
+					<p v-if="control.undo" class="bluesky-settings__hint">
+						{{ t('social', 'The latest change was made on {date}. Until {until}, it can still be undone by: {keys}.', { date: fullDateTime(control.last_operation.created_at * 1000), until: fullDateTime(control.undo.until * 1000), keys: control.undo.by.map((key) => roleLabel(key.role)).join(', ') }) }}
+					</p>
+				</template>
+			</div>
 			<!-- the account as files: what moving it needs when this server
 			     cannot help, so it is offered on or off Bluesky -->
 			<div class="bluesky-settings__archive">
@@ -491,7 +516,7 @@ import { translate as t } from '@nextcloud/l10n'
 import { confirmPassword } from '../services/externalApi.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
-import { fromNow, fullDate } from '../utils/relativeTime.js'
+import { fromNow, fullDate, fullDateTime } from '../utils/relativeTime.js'
 
 /**
  * The account's Bluesky identity: its handle and DID, and the recovery
@@ -535,6 +560,13 @@ export default {
 			blueskyCopied: '',
 			blueskyCopyTimer: null,
 			recovering: false,
+			/**
+			 * Who controls the DID, as the directory answered; null until it comes
+			 *
+			 * @type {{did: string, state: string, rotation_keys: Array<{key: string, role: string}>, last_operation: {cid: string, created_at: number, signed_by: ({key: string, role: string}|null)}, undo: ({until: number, by: Array<{key: string, role: string}>}|null)}|null}
+			 */
+			control: null,
+			controlError: '',
 			/** the twelve words, for as long as the dialog shows them */
 			phrase: '',
 			/**
@@ -691,8 +723,48 @@ export default {
 			} catch (error) {
 				logger.debug('Could not load the Bluesky identity', { error })
 				this.blueskyError = t('social', 'Could not read your Bluesky identity right now.')
+				return
+			}
+			if (this.bluesky?.state !== 'pending') {
+				this.loadControl()
 			}
 		},
+
+		/**
+		 * Asks who controls the DID: the directory's answer, read by the server.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async loadControl() {
+			this.controlError = ''
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/social/bluesky/control'))
+				this.control = data
+			} catch (error) {
+				logger.debug('Could not read who controls the Bluesky identifier', { error })
+				this.control = null
+				this.controlError = t('social', 'The directory that keeps Bluesky identifiers could not be asked right now.')
+			}
+		},
+
+		/**
+		 * @param {string} role what the server called the key
+		 * @return {string} what the key is to the person
+		 */
+		roleLabel(role) {
+			switch (role) {
+				case 'server':
+					return t('social', 'This server')
+				case 'server-retired':
+					return t('social', 'This server (an earlier key)')
+				case 'recovery':
+					return t('social', 'Your recovery phrase')
+				default:
+					return t('social', 'A key this server does not know')
+			}
+		},
+
+		fullDateTime,
 
 		/**
 		 * @param {'handle'|'did'|'phrase'|'key-multibase'|'key-hex'|'key-public'|'password'|'dns-name'|'dns-value'|'file-address'|'file-content'} which what was asked for
@@ -731,6 +803,7 @@ export default {
 				this.takeIdentity(identity)
 				this.recoveryKey = key ?? null
 				this.phrase = phrase
+				this.loadControl()
 			} catch (error) {
 				// the password confirmation of a moment ago has run out, which
 				// the server answers with 403 rather than a dialog
@@ -1058,6 +1131,17 @@ export default {
 		font-size: 13px;
 		overflow-wrap: anywhere;
 		user-select: all;
+	}
+
+	&__control {
+		margin-top: 12px;
+	}
+
+	&__control-keys {
+		margin: 4px 0;
+		padding-inline-start: 24px;
+		list-style: decimal;
+		overflow-wrap: anywhere;
 	}
 
 	&__archive {
