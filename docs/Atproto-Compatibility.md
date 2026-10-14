@@ -1729,8 +1729,10 @@ and its followers do not come along: only a move (§13.1) brings them.
 
 ### 13.5 Move error codes
 
-Every error answer of the move routes under `/api/v1/social/bluesky/*`
-carries a stable code beside the English sentence,
+Every error answer of the move routes under `/api/v1/social/bluesky/*`,
+and of the account's own Bluesky routes there — identity, recovery
+phrase, `control` (§4.5b), `archive` (§4.5a) — and of the recovery tool
+(§4.4), carries a stable code beside the English sentence,
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
 explains the code in the person's language; the sentence is for logs and
@@ -1739,7 +1741,7 @@ older clients.
 | Code | When | What the person can do |
 |---|---|---|
 | `bluesky-off` | Bluesky is not enabled on this server | Nothing here; ask the administrator |
-| `no-identity` | The account has no Bluesky identity here | Nothing to move |
+| `no-identity` | The account has no Bluesky identity here (also `control` and `archive`, for one that moved away or was deleted) | Nothing to move or download |
 | `identity-inactive` | The Bluesky account is switched off or already moved | Switch it on first |
 | `move-in-progress` | Another move of the account is under way | Wait for it, or call it off |
 | `pds-address-invalid` | The server typed is not an https address | Check the address |
@@ -1755,7 +1757,10 @@ older clients.
 | `password-not-accepted` | The other server refused the password | Pick a longer one |
 | `rate-limited` | The other server asks to wait, or this server sent it too many sign-ins of late (§13.1) | Try again later |
 | `account-not-created` | The other server did not make the account, for another reason | The details say why |
-| `keys-sealed` | The account's keys cannot be opened (the instance secret changed) | Ask the administrator to run `occ social:atproto:keys:reseal` |
+| `keys-sealed` | A key of this server cannot be opened (the instance secret changed): 503 on any route that needs one; an XRPC call answers 503 `KeysSealed` (§16.3) | Ask the administrator to run `occ social:atproto:keys:reseal` |
+| `directory-unreachable` | `control`: the PLC directory did not answer (503) | Try again later |
+| `export-failed` | `archive`: the zip could not be written (500) | Try again; the log has the details |
+| `tool-missing` | The recovery tool's script is not built on this server (503) | Ask the administrator; a release has it |
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |
 | `recovery-key-missing` | No recovery key, and the start did not say `without_recovery` | Make a recovery phrase first, or confirm that only the new server will control the account |
@@ -1774,7 +1779,7 @@ older clients.
 | `handle-invalid` | What was typed is not a handle or a DID | Check the handle |
 | `handle-not-found` | No Bluesky account goes by the handle | Check the handle |
 | `did-not-supported` | The account's DID is not a `did:plc` | Nothing to do from here |
-| `did-not-found` | The PLC directory does not know the DID, or knows no server for it | Check the account |
+| `did-not-found` | The PLC directory does not know the DID, or knows no server for it; for `control`, a DID the directory does not know yet | Check the account |
 | `import-in-progress` | The same people are being followed already | Wait for it on the imports list |
 | `no-failed-move` | "Try again" with no stopped move | Nothing to do |
 | `move-refused` | A move here could not be started again | The details say why |
