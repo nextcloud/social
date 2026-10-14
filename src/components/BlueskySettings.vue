@@ -119,6 +119,19 @@
 					{{ t('social', 'No other Bluesky tool reads the words themselves, so when they are made you also see the key they stand for, written the way tools such as goat take it. This server\'s key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included.') }}
 				</p>
 			</div>
+			<!-- the account as files: what moving it needs when this server
+			     cannot help, so it is offered on or off Bluesky -->
+			<div class="bluesky-settings__archive">
+				<NcButton @click="downloadArchive">
+					<template #icon>
+						<Download :size="20" />
+					</template>
+					{{ t('social', 'Download your Bluesky account') }}
+				</NcButton>
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from Settings → Migration holds the same files.') }}
+				</p>
+			</div>
 			<!-- the domain only has to name the DID: the account, its
 			     followers and the assigned handle stay as they are -->
 			<div v-if="bluesky.active !== false && bluesky.assigned_handle" class="bluesky-settings__custom-handle">
@@ -472,6 +485,7 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import Check from 'vue-material-design-icons/Check.vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
+import Download from 'vue-material-design-icons/Download.vue'
 import KeyOutline from 'vue-material-design-icons/KeyOutline.vue'
 import { translate as t } from '@nextcloud/l10n'
 import { confirmPassword } from '../services/externalApi.js'
@@ -492,6 +506,7 @@ export default {
 	components: {
 		Check,
 		ContentCopy,
+		Download,
 		KeyOutline,
 		NcButton,
 		NcCheckboxRadioSwitch,
@@ -725,6 +740,21 @@ export default {
 			} finally {
 				this.recovering = false
 			}
+		},
+
+		/**
+		 * Downloads the account as a zip, after the password: the browser
+		 * goes to the file, so it is saved as it arrives.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async downloadArchive() {
+			try {
+				await confirmPassword()
+			} catch {
+				return
+			}
+			window.location.assign(generateUrl('apps/social/api/v1/social/bluesky/archive'))
 		},
 
 		closePhrase() {
@@ -1028,6 +1058,10 @@ export default {
 		font-size: 13px;
 		overflow-wrap: anywhere;
 		user-select: all;
+	}
+
+	&__archive {
+		margin-top: 12px;
 	}
 
 	&__recovery {

@@ -139,6 +139,63 @@ it as it is, or say that it moves too — which is only possible once its own
 move above is done or under way. `occ social:account:move` takes the same
 choice as `--bluesky`.
 
+## If this server goes away
+
+**On the fediverse**, an account on a server that is gone cannot be moved:
+the old server has to send the move. Take the export from **Settings →
+Migration** while the server runs; its `following_accounts.csv` brings your
+follows to a new account anywhere, and the archive keeps your posts.
+
+**On Bluesky** your account is a DID, `did:plc:…`, registered with the PLC
+directory, and whoever holds one of its *rotation keys* can point it at
+another server — this server's own key, and, if you made one, your
+**recovery phrase** (Settings, Bluesky section). That is what the phrase is
+for, and it works without this server:
+
+1. **While the server runs**, download your account (**Download your
+   Bluesky account** in the same section, or the archive from Settings →
+   Migration, under `social/bluesky/`): your repository as `repo.car`, the
+   pictures and videos under `blobs/`, your DID's history as `plc-log.json`,
+   and `recovery/recovery-key.py`. Without that archive the posts are gone
+   with the server; the DID and your followers still move with the phrase.
+2. **Turn the phrase into its key**, offline:
+   `python3 recovery/recovery-key.py recovery/bip39-english.txt`, then type
+   the twelve words. It prints the key as hex and as multibase (`z…`). If
+   you saved the key when you made the phrase, you already have it.
+3. **With [goat](https://github.com/bluesky-social/goat)**, give the DID a
+   signing key of your own and drop this server's rotation key (the other
+   `did:key` in `rotationKeys` of the last operation in `plc-log.json`):
+   `goat key generate --type secp256k1`, then
+   `goat plc update --atproto-key <its did:key> --remove-rotation-key <this server's key> <your DID> > op.json`,
+   `goat plc sign --plc-signing-key <your recovery key> op.json > signed.json`
+   and `goat plc submit --did <your DID> signed.json`.
+4. **Create the account on the new server with your DID**:
+   `goat account service-auth-offline --atproto-signing-key <the new signing key> --iss <your DID> --aud <the new server's did:web> --lxm com.atproto.server.createAccount`
+   gives a token for
+   `goat account create --pds-host https://<new server> --existing-did <your DID> --service-auth <token> --handle … --email … --password …`.
+5. **Bring your data**: `goat account login`, `goat repo import repo.car`,
+   and `goat blob upload blobs/<cid>` for each blob `goat account missing-blobs`
+   lists.
+6. **Point the DID at the new server**: `goat account plc recommended` names
+   its signing key, rotation key, handle and address; build the operation
+   with `goat plc update` (`--atproto-key`, `--pds`, `--handle`), put your
+   recovery key first in its `rotationKeys` and the new server's after it,
+   sign it with your recovery key and submit it as in step 3. Then
+   `goat account activate`.
+
+The `README.txt` in the archive carries the same steps with your DID filled
+in. They follow goat's own commands as of October 2026 (`goat <command> --help`
+has the flags); they have not been run end to end against a live directory
+from this app's tests.
+
+**The 72-hour rule.** This server's key ranks above your recovery key on the
+DID. For 72 hours after an operation signed with your phrase, a key that
+ranks above it can undo it — so while this server still exists, its
+administrator can reverse a change you made with the phrase, a move
+included. Once the server is gone, nobody can. A move made from this
+server's own **Move your Bluesky account away** puts your recovery key first
+on the new server, so the order is yours from then on.
+
 ## What does not move, whatever you do
 
 - **Posts.** Copied, never moved: see above.

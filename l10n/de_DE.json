@@ -2879,6 +2879,9 @@
     "Private key, hex" : "Privater Schlüssel, hexadezimal",
     "Copy the private key in hex" : "Privaten Schlüssel hexadezimal kopieren",
     "Public key" : "Öffentlicher Schlüssel",
-    "Copy the public key" : "Öffentlichen Schlüssel kopieren"
+    "Copy the public key" : "Öffentlichen Schlüssel kopieren",
+    "Your Fediverse profile, the accounts you follow, block and mute, your own posts with the pictures and videos in them, your bookmarks and your favourites, and your Bluesky account where you have one. Your private keys stay behind." : "Ihr Fediverse-Profil, die Konten, denen Sie folgen, die Sie blockieren und stummschalten, Ihre eigenen Beiträge mit den Bildern und Videos darin, Ihre Lesezeichen und Ihre Favoriten sowie Ihr Bluesky-Konto, falls Sie eines haben. Ihre privaten Schlüssel bleiben zurück.",
+    "Download your Bluesky account" : "Ihr Bluesky-Konto herunterladen",
+    "Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from Settings → Migration holds the same files." : "Ihre Beiträge, Bilder und die Geschichte Ihrer Bluesky-Kennung in den Dateien, die Bluesky-Werkzeuge lesen, mit einer Anleitung, wie Sie das Konto umziehen, selbst wenn es diesen Server nicht mehr gibt. Das Archiv unter Einstellungen → Kontoumzug enthält dieselben Dateien."
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

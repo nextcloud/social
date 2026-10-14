@@ -304,6 +304,24 @@ the directory no longer names is warned of, with the DID; this server
 cannot put that right by itself. A hand-over to another PDS (§13.2)
 refuses to start while an earlier operation for the DID is pending.
 
+### 4.5a The account as files
+
+**Download your Bluesky account** (Settings, the Bluesky section;
+`GET /api/v1/social/bluesky/archive`, `BlueskyArchiveService`) and the
+account export of the Migration page (`SocialMigrator`, under
+`social/bluesky/`) carry the same files: `repo.car` (the repository as
+`com.atproto.sync.getRepo` streams it), `blobs/<cid>` for every blob that
+still reads, `plc-log.json` (the directory's `/log/audit`, or where it
+cannot be asked the operations this server's log has as confirmed, in
+the same shape), `did.json` (the directory's document, else the one this
+app derives from its log), `recovery/recovery-key.py` with the word list
+(§4.4), and `README.txt`, which says what each file is and the goat steps
+of Moving.md's "If this server goes away". Every file goes to the
+archive as a stream — the CAR through a temporary stream that spills to
+disk — and the download is sent in pieces from the finished zip, so
+neither is ever whole in memory. Nothing is read back from these files
+on import: a Bluesky account comes here by a move (§13), not from a file.
+
 ### 4.6 Switching off (D23)
 
 **Settings → Apps and account → Bluesky** has the switch **Be on Bluesky**,

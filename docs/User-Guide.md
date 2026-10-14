@@ -1080,6 +1080,14 @@ differently, and the words can be turned back into them offline
 The server's key ranks above yours: for 72 hours the server can undo a change
 made with the phrase, a move to another server included.
 
+**Download your Bluesky account**, in the same section, gives you the account as
+files after your password: your repository (every post, like, follow and the
+profile, in the CAR format other Bluesky servers import), the pictures and videos,
+the history of your identifier from the PLC directory, and a README with the
+steps to move the account with your recovery phrase and the `goat` tool, even when
+this server is gone. The archive from **Settings → Migration** holds the same files
+under `social/bluesky/`.
+
 The post menu's *Delivery status* shows whether a post is on Bluesky and opens
 it there.
 

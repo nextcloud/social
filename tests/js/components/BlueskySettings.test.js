@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 
@@ -189,6 +189,46 @@ describe('BlueskySettings', () => {
 
 			expect(showError).toHaveBeenCalledWith('Could not switch your presence on Bluesky')
 			expect(presenceSwitch(wrapper).element.checked).toBe(true)
+		})
+	})
+
+	/** The account as files, for moving it without this server: a download after the password. */
+	describe('the account download', () => {
+		const realLocation = window.location
+		let assign
+
+		beforeEach(() => {
+			assign = vi.fn()
+			Object.defineProperty(window, 'location', { configurable: true, value: { ...realLocation, assign } })
+		})
+
+		afterEach(() => {
+			Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
+		})
+
+		it('asks for the password, then downloads the archive', async () => {
+			serverHas()
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			expect(wrapper.text()).toContain('with a guide to moving the account even if this server is gone')
+			await buttonByText(wrapper, 'Download your Bluesky account').trigger('click')
+			await flushPromises()
+
+			expect(confirmPassword).toHaveBeenCalled()
+			expect(assign).toHaveBeenCalledWith('/index.php/apps/social/api/v1/social/bluesky/archive')
+		})
+
+		it('is offered while the account is switched off, and does nothing when the password dialog is dismissed', async () => {
+			serverHas(identity({ active: false, state: 'deactivated' }))
+			vi.mocked(confirmPassword).mockRejectedValueOnce(new Error('dismissed'))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await buttonByText(wrapper, 'Download your Bluesky account').trigger('click')
+			await flushPromises()
+
+			expect(assign).not.toHaveBeenCalled()
 		})
 	})
 

@@ -2922,6 +2922,9 @@ OC.L10N.register(
     "Private key, hex" : "Privater Schlüssel, hexadezimal",
     "Copy the private key in hex" : "Privaten Schlüssel hexadezimal kopieren",
     "Public key" : "Öffentlicher Schlüssel",
-    "Copy the public key" : "Öffentlichen Schlüssel kopieren"
+    "Copy the public key" : "Öffentlichen Schlüssel kopieren",
+    "Your Fediverse profile, the accounts you follow, block and mute, your own posts with the pictures and videos in them, your bookmarks and your favourites, and your Bluesky account where you have one. Your private keys stay behind." : "Dein Fediverse-Profil, die Konten, denen du folgst und die du blockierst oder stummschaltest, deine eigenen Beiträge mit ihren Bildern und Videos, deine Lesezeichen und deine Favoriten sowie dein Bluesky-Konto, falls du eines hast. Deine privaten Schlüssel bleiben hier.",
+    "Download your Bluesky account" : "Dein Bluesky-Konto herunterladen",
+    "Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from Settings → Migration holds the same files." : "Deine Beiträge, Bilder und die Geschichte deiner Bluesky-Kennung in den Dateien, die Bluesky-Werkzeuge lesen, mit einer Anleitung, wie du das Konto umziehst, selbst wenn es diesen Server nicht mehr gibt. Das Archiv unter Einstellungen → Kontoumzug enthält dieselben Dateien."
 },
 "nplurals=2; plural=(n != 1);");
