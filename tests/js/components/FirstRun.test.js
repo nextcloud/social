@@ -14,7 +14,7 @@ import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.mock('@nextcloud/axios', () => ({
-	default: { get: vi.fn(), post: vi.fn() },
+	default: { get: vi.fn(), post: vi.fn(), patch: vi.fn() },
 }))
 vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('../../../src/services/logger.js', () => ({
@@ -82,6 +82,7 @@ describe('FirstRun', () => {
 		vi.restoreAllMocks()
 		axios.get.mockReset()
 		axios.post.mockReset()
+		axios.patch.mockReset()
 	})
 
 	it('opens on the address, which is the one thing a new account has', async () => {
@@ -90,10 +91,10 @@ describe('FirstRun', () => {
 
 		expect(wrapper.find('h2').text()).toBe('How Aloha Social works')
 		expect(wrapper.find('.first-run__handle').text()).toBe('@alice@cloud.example.org')
-		// four steps, the first lit
-		expect(wrapper.findAll('.first-run__dot')).toHaveLength(4)
+		// five steps, the first lit
+		expect(wrapper.findAll('.first-run__dot')).toHaveLength(5)
 		expect(wrapper.find('.first-run__dot--current').attributes('aria-current')).toBe('step')
-		expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 4')
+		expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 5')
 	})
 
 	it('says what the account can do, not only what its address is', async () => {
@@ -117,6 +118,63 @@ describe('FirstRun', () => {
 		expect(wrapper.text()).toContain('Also on Bluesky')
 		expect(wrapper.text()).toContain('@alice.cloud.example.org')
 		expect(wrapper.text()).toContain('AT Protocol')
+	})
+
+	// the second page: the bio, and who can reach the account. The forms
+	// are the settings sections themselves, not copies of them.
+	describe('the profile and privacy step', () => {
+		const credentials = {
+			id: '1',
+			url: 'https://cloud.example.org/alice',
+			username: 'alice',
+			display_name: 'Alice',
+			source: { note: 'Hello, fediverse', privacy: 'public' },
+		}
+
+		async function onProfile() {
+			serverHas()
+			const wrapper = await mountFirstRun()
+			accountStore.setCredentials(credentials)
+			await flushPromises()
+			await next(wrapper)
+			await flushPromises()
+
+			return wrapper
+		}
+
+		it('asks for the bio second, with the privacy settings beside it', async () => {
+			const wrapper = await onProfile()
+
+			expect(wrapper.find('h2').text()).toBe('Set up your profile and privacy')
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 5')
+			expect(wrapper.find('#social-first-run-bio').element.value).toBe('Hello, fediverse')
+			expect(wrapper.text()).toContain('Who can find and follow you')
+			expect(wrapper.text()).toContain('Approve who follows you')
+			expect(wrapper.text()).toContain('Who may send you direct messages')
+			expect(wrapper.text()).toContain('Everybody')
+		})
+
+		it('saves the bio the way the profile editor does', async () => {
+			axios.patch.mockResolvedValue({ data: { ...credentials, source: { note: 'New bio', privacy: 'public' } } })
+			const wrapper = await onProfile()
+
+			await wrapper.find('#social-first-run-bio').setValue('New bio')
+			await button(wrapper, 'Save').trigger('click')
+			await flushPromises()
+
+			expect(axios.patch).toHaveBeenCalledWith(
+				'/index.php/apps/social/api/v1/accounts/update_credentials',
+				{ note: 'New bio' },
+			)
+			expect(showSuccess).toHaveBeenCalledWith('Profile saved')
+		})
+
+		it('does not send an unchanged bio', async () => {
+			const wrapper = await onProfile()
+
+			expect(button(wrapper, 'Save').attributes('disabled')).toBeDefined()
+			expect(axios.patch).not.toHaveBeenCalled()
+		})
 	})
 
 	it('copies the address', async () => {
@@ -143,6 +201,7 @@ describe('FirstRun', () => {
 		})
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
+		await next(wrapper)
 
 		expect(wrapper.find('h2').text()).toBe('A feed is only as good as who is in it')
 		// the people on this Nextcloud: what no other server could know
@@ -155,6 +214,7 @@ describe('FirstRun', () => {
 	it('follows a colleague from the card and says so', async () => {
 		serverHas({ suggestions: [{ sources: ['featured'], account: bob }] })
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 
 		await button(wrapper, 'Follow').trigger('click')
@@ -170,12 +230,15 @@ describe('FirstRun', () => {
 		axios.post.mockResolvedValue({ data: { followed: ['a', 'b', 'c', 'd'], failed: [] } })
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
+		await next(wrapper)
 
 		await button(wrapper, 'Follow 4 accounts').trigger('click')
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/starter_packs/fediverse/follow')
 		expect(button(wrapper, 'Following')).toBeDefined()
+		expect(showSuccess).toHaveBeenCalledWith('Followed 4 accounts')
+		expect(showError).not.toHaveBeenCalled()
 	})
 
 	/**
@@ -187,6 +250,7 @@ describe('FirstRun', () => {
 		serverHas({ packs: [pack] })
 		axios.post.mockResolvedValue({ data: { followed: [], failed: [] } })
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 
 		await button(wrapper, 'Follow 4 accounts').trigger('click')
@@ -201,6 +265,7 @@ describe('FirstRun', () => {
 		serverHas()
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
+		await next(wrapper)
 
 		expect(wrapper.text()).toContain('You are the first')
 		expect(wrapper.text()).toContain('No starter packs on this server')
@@ -212,6 +277,7 @@ describe('FirstRun', () => {
 			: Promise.reject(new Error('500')))
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
+		await next(wrapper)
 
 		expect(wrapper.find('.first-run__pack-name').text()).toBe('The fediverse')
 		expect(showError).not.toHaveBeenCalled()
@@ -222,6 +288,7 @@ describe('FirstRun', () => {
 		axios.post.mockResolvedValue({ data: { import: { id: 9, kind: 'move_in', status: 'queued' } } })
 		finishedImports = [{ id: 9, kind: 'move_in', status: 'done', done: 15, report: { followed: 12, imported: 3 } }]
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 
@@ -242,6 +309,7 @@ describe('FirstRun', () => {
 		axios.post.mockResolvedValue({ data: { import: { id: 7, kind: 'follows', status: 'queued' } } })
 		finishedImports = [{ id: 7, kind: 'follows', status: 'done', done: 12, skipped: 1, failed: 1 }]
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 
@@ -267,6 +335,7 @@ describe('FirstRun', () => {
 		const wrapper = await mountFirstRun()
 		await next(wrapper)
 		await next(wrapper)
+		await next(wrapper)
 
 		const accept = wrapper.find('input[type="file"]').attributes('accept').split(',')
 		expect(accept).toEqual(expect.arrayContaining(['.csv', '.json', 'application/json']))
@@ -276,6 +345,7 @@ describe('FirstRun', () => {
 	it('keeps the file input behind its button out of the tab order', async () => {
 		serverHas()
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 
@@ -288,6 +358,7 @@ describe('FirstRun', () => {
 		serverHas()
 		const emit = vi.spyOn(eventBus, 'emit')
 		const wrapper = await mountFirstRun()
+		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
 		await next(wrapper)
@@ -332,12 +403,16 @@ describe('FirstRun', () => {
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
 			await flushPromises()
+			expect(wrapper.find('h2').text()).toBe('Set up your profile and privacy')
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 5')
+
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+			await flushPromises()
 			expect(wrapper.find('h2').text()).toBe('A feed is only as good as who is in it')
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 2 of 4')
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
 			await flushPromises()
-			expect(wrapper.find('h2').text()).toBe('How Aloha Social works')
+			expect(wrapper.find('h2').text()).toBe('Set up your profile and privacy')
 		})
 
 		it('stays put at the ends', async () => {
@@ -346,12 +421,13 @@ describe('FirstRun', () => {
 
 			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
 			await flushPromises()
-			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 4')
+			expect(wrapper.find('.first-run__step-name').text()).toBe('Page 1 of 5')
 		})
 
 		it('does not turn while the reader is typing in the handle to move', async () => {
 			serverHas()
 			const wrapper = await mountFirstRun()
+			await next(wrapper)
 			await next(wrapper)
 			await next(wrapper)
 

@@ -190,6 +190,16 @@ describe('App', () => {
 			expect(wrapper.find('.first-run-stub').exists()).toBe(true)
 		})
 
+		it('replays for ?replay=1 even where the introduction was dismissed', async () => {
+			accountStore.currentAccountHandle = 'alice@cloud.example.org'
+			window.localStorage.setItem('social:introduction:alice@cloud.example.org', 'dismissed')
+			setServerData({ introductionDismissed: true })
+			makeStore()
+			const wrapper = await openOn({ replay: '1' })
+
+			expect(wrapper.find('.first-run-stub').exists()).toBe(true)
+		})
+
 		it('stays away for a reader who has read it already', async () => {
 			accountStore.currentAccountHandle = 'alice@cloud.example.org'
 			window.localStorage.setItem('social:introduction:alice@cloud.example.org', 'dismissed')

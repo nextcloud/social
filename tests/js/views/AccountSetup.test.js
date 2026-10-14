@@ -42,6 +42,14 @@ describe('AccountSetup', () => {
 		window.localStorage.clear()
 	})
 
+	it('lays the explainer beside the answers', () => {
+		const wrapper = mountSetup()
+
+		expect(wrapper.find('.account-setup__body').exists()).toBe(true)
+		expect(wrapper.find('.account-setup__body > .account-setup__about').exists()).toBe(true)
+		expect(wrapper.find('.account-setup__body > .account-setup__answers').exists()).toBe(true)
+	})
+
 	it('suggests a handle and shows the address it would make', () => {
 		const wrapper = mountSetup()
 

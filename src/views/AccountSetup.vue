@@ -13,189 +13,192 @@
 				{{ t('social', 'You do not have an account here yet. Here is what this is:') }}
 			</p>
 
-			<!-- what the software is, before the question of what to do about
-			     it: the first thing somebody asks on arriving is what they are
-			     joining, and the answer is not "ActivityPub and a key pair" -->
-			<div class="account-setup__about">
-				<h2 class="account-setup__about-title">
-					{{ t('social', 'What Aloha Social gives you') }}
-				</h2>
-				<ul class="account-setup__points">
-					<li class="account-setup__point">
-						<IconAt class="account-setup__point-icon" :size="20" />
-						<div class="account-setup__point-text">
-							<h3 class="account-setup__point-title">
-								{{ t('social', 'An address of your own') }}
-							</h3>
-							<p>
-								{{ t('social', 'Like an email address: @you@host. People on Mastodon, Pixelfed, PeerTube and other servers can follow it and reply.') }}
-							</p>
-						</div>
-					</li>
-					<li class="account-setup__point">
-						<IconWeb class="account-setup__point-icon" :size="20" />
-						<div class="account-setup__point-text">
-							<h3 class="account-setup__point-title">
-								{{ t('social', 'One fediverse, many servers') }}
-							</h3>
-							<p>
-								{{ t('social', 'Thousands of social networks speak the same language, so an account here reaches an account anywhere. This Nextcloud runs one of those servers.') }}
-							</p>
-						</div>
-					</li>
-					<li class="account-setup__point">
-						<IconSwapHorizontal class="account-setup__point-icon" :size="20" />
-						<div class="account-setup__point-text">
-							<h3 class="account-setup__point-title">
-								{{ t('social', 'Yours to keep') }}
-							</h3>
-							<p>
-								{{ t('social', 'Your profile, avatar and name come from your Nextcloud account — and you can move the whole thing to another server whenever you like.') }}
-							</p>
-						</div>
-					</li>
-					<!-- what the administrator has switched on, not what every
-				     Aloha Social does: an instance that also speaks AT Protocol
-				     says so here, and one that does not says nothing -->
-					<li v-if="blueskyEnabled" class="account-setup__point">
-						<IconAt class="account-setup__point-icon" :size="20" />
-						<div class="account-setup__point-text">
-							<h3 class="account-setup__point-title">
-								{{ t('social', 'Also on Bluesky') }}
-							</h3>
-							<p>
-								{{ t('social', 'This server speaks AT Protocol as well, so your account gets a Bluesky identity too and your posts are shown there. Switching that off is in Settings.') }}
-							</p>
-						</div>
-					</li>
-				</ul>
-				<details class="account-setup__more">
-					<summary>{{ t('social', 'What is the fediverse?') }}</summary>
-					<p>
-						{{ t('social', 'The fediverse is not one website but thousands of them, run by different people and communities, that all speak the same language (ActivityPub). An account on any of them can follow, like and reply to an account on any other, the way email works across providers. Nobody owns it and nobody can switch it off.') }}
-					</p>
-				</details>
+			<!-- the explainer reads, the answers sit: two columns while there
+			     is room, one below it -->
+			<div class="account-setup__body">
+				<div class="account-setup__about">
+					<h2 class="account-setup__about-title">
+						{{ t('social', 'What Aloha Social gives you') }}
+					</h2>
+					<ul class="account-setup__points">
+						<li class="account-setup__point">
+							<IconAt class="account-setup__point-icon" :size="20" />
+							<div class="account-setup__point-text">
+								<h3 class="account-setup__point-title">
+									{{ t('social', 'An address of your own') }}
+								</h3>
+								<p>
+									{{ t('social', 'Like an email address: @you@host. People on Mastodon, Pixelfed, PeerTube and other servers can follow it and reply.') }}
+								</p>
+							</div>
+						</li>
+						<li class="account-setup__point">
+							<IconWeb class="account-setup__point-icon" :size="20" />
+							<div class="account-setup__point-text">
+								<h3 class="account-setup__point-title">
+									{{ t('social', 'One fediverse, many servers') }}
+								</h3>
+								<p>
+									{{ t('social', 'Thousands of social networks speak the same language, so an account here reaches an account anywhere. This Nextcloud runs one of those servers.') }}
+								</p>
+							</div>
+						</li>
+						<li class="account-setup__point">
+							<IconSwapHorizontal class="account-setup__point-icon" :size="20" />
+							<div class="account-setup__point-text">
+								<h3 class="account-setup__point-title">
+									{{ t('social', 'Yours to keep') }}
+								</h3>
+								<p>
+									{{ t('social', 'Your profile, avatar and name come from your Nextcloud account — and you can move the whole thing to another server whenever you like.') }}
+								</p>
+							</div>
+						</li>
+						<!-- what the administrator has switched on, not what every
+					     Aloha Social does: an instance that also speaks AT Protocol
+					     says so here, and one that does not says nothing -->
+						<li v-if="blueskyEnabled" class="account-setup__point">
+							<IconAt class="account-setup__point-icon" :size="20" />
+							<div class="account-setup__point-text">
+								<h3 class="account-setup__point-title">
+									{{ t('social', 'Also on Bluesky') }}
+								</h3>
+								<p>
+									{{ t('social', 'This server speaks AT Protocol as well, so your account gets a Bluesky identity too and your posts are shown there. Switching that off is in Settings.') }}
+								</p>
+							</div>
+						</li>
+					</ul>
+					<details class="account-setup__more">
+						<summary>{{ t('social', 'What is the fediverse?') }}</summary>
+						<p>
+							{{ t('social', 'The fediverse is not one website but thousands of them, run by different people and communities, that all speak the same language (ActivityPub). An account on any of them can follow, like and reply to an account on any other, the way email works across providers. Nobody owns it and nobody can switch it off.') }}
+						</p>
+					</details>
+				</div>
+
+				<div class="account-setup__answers">
+					<!-- the two answers, one at a time: the question is which of them,
+					     not two forms to read past each other -->
+					<div class="account-setup__modes" role="group" :aria-label="t('social', 'How do you want to continue?')">
+						<button
+							type="button"
+							class="account-setup__mode"
+							:class="{ 'account-setup__mode--active': mode === 'create' }"
+							:aria-pressed="mode === 'create'"
+							:disabled="busy !== ''"
+							@click="choose('create')">
+							<IconAccountPlus class="account-setup__mode-icon" :size="20" />
+							<span class="account-setup__mode-text">
+								<span class="account-setup__mode-title">
+									{{ t('social', 'Create a new account') }}
+								</span>
+								<span class="account-setup__mode-desc">
+									{{ t('social', 'Your own address, on this server.') }}
+								</span>
+							</span>
+						</button>
+						<button
+							type="button"
+							class="account-setup__mode"
+							:class="{ 'account-setup__mode--active': mode === 'link' }"
+							:aria-pressed="mode === 'link'"
+							:disabled="busy !== ''"
+							@click="choose('link')">
+							<IconLinkVariant class="account-setup__mode-icon" :size="20" />
+							<span class="account-setup__mode-text">
+								<span class="account-setup__mode-title">
+									{{ t('social', 'Link an existing account') }}
+								</span>
+								<span class="account-setup__mode-desc">
+									{{ t('social', 'An account on Mastodon or another server.') }}
+								</span>
+							</span>
+						</button>
+					</div>
+
+					<form v-if="mode === 'create'" class="account-setup__form" @submit.prevent="create">
+						<h2 class="account-setup__heading">
+							{{ t('social', 'Choose your username') }}
+						</h2>
+						<label class="account-setup__label" for="account-setup-handle">
+							{{ t('social', 'Username') }}
+						</label>
+						<input
+							id="account-setup-handle"
+							v-model.trim="handle"
+							type="text"
+							class="account-setup__input"
+							autocomplete="off"
+							spellcheck="false"
+							maxlength="64"
+							pattern="[A-Za-z0-9_]+([A-Za-z0-9_.\-]*[A-Za-z0-9_])?"
+							aria-describedby="account-setup-address"
+							:aria-invalid="createError !== ''"
+							:disabled="busy !== ''"
+							required>
+						<!-- the address as it is typed, not on the way out: the choice
+						     is permanent, so it is worth seeing before it is made -->
+						<p id="account-setup-address" class="account-setup__address">
+							@{{ handle || '…' }}@{{ hostname }}
+						</p>
+						<!-- the second address the account gets, where the administrator
+						     has switched that on -->
+						<p v-if="blueskyEnabled && handle !== ''" class="account-setup__address account-setup__address--bluesky">
+							<span class="account-setup__bluesky-label">{{ t('social', 'On Bluesky too:') }}</span>
+							@{{ handle }}.{{ blueskyHost }}
+						</p>
+						<p class="account-setup__hint">
+							{{ t('social', 'This is your address on the fediverse — letters, numbers, underscores, dots and dashes. It cannot be changed later.') }}
+						</p>
+						<p v-if="createError" class="account-setup__error" role="alert">
+							{{ createError }}
+						</p>
+						<NcButton type="submit" variant="primary" :disabled="busy !== '' || handle === ''">
+							<template #icon>
+								<NcLoadingIcon v-if="busy === 'create'" :size="20" />
+								<IconAccountPlus v-else :size="20" />
+							</template>
+							{{ t('social', 'Create account') }}
+						</NcButton>
+					</form>
+
+					<form v-else class="account-setup__form" @submit.prevent="link">
+						<h2 class="account-setup__heading">
+							{{ t('social', 'Your existing account') }}
+						</h2>
+						<p class="account-setup__hint">
+							{{ t('social', 'This only shows your existing account on your Nextcloud profile so others can find it. You will not post from that external account here.') }}
+						</p>
+						<label class="account-setup__label" for="account-setup-linked">
+							{{ t('social', 'Fediverse handle') }}
+						</label>
+						<input
+							id="account-setup-linked"
+							v-model.trim="linked"
+							type="text"
+							class="account-setup__input"
+							autocomplete="off"
+							spellcheck="false"
+							placeholder="you@mastodon.social"
+							:aria-invalid="linkError !== ''"
+							:disabled="busy !== ''">
+						<p v-if="linkError" class="account-setup__error" role="alert">
+							{{ linkError }}
+						</p>
+						<p v-if="linkedNow" class="account-setup__done" role="status">
+							{{ t('social', 'Your profile now says you are @{handle}. The people on this Nextcloud will see it on Discover.', { handle: linkedNow }) }}
+						</p>
+						<NcButton type="submit" variant="secondary" :disabled="busy !== '' || linked === ''">
+							<template #icon>
+								<NcLoadingIcon v-if="busy === 'link'" :size="20" />
+								<IconLinkVariant v-else :size="20" />
+							</template>
+							{{ t('social', 'Link account') }}
+						</NcButton>
+					</form>
+				</div>
 			</div>
-
-			<!-- the two answers, one at a time: the question is which of them,
-			     not two forms to read past each other -->
-			<div class="account-setup__modes" role="group" :aria-label="t('social', 'How do you want to continue?')">
-				<button
-					type="button"
-					class="account-setup__mode"
-					:class="{ 'account-setup__mode--active': mode === 'create' }"
-					:aria-pressed="mode === 'create'"
-					:disabled="busy !== ''"
-					@click="choose('create')">
-					<IconAccountPlus class="account-setup__mode-icon" :size="20" />
-					<span class="account-setup__mode-text">
-						<span class="account-setup__mode-title">
-							{{ t('social', 'Create a new account') }}
-						</span>
-						<span class="account-setup__mode-desc">
-							{{ t('social', 'Your own address, on this server.') }}
-						</span>
-					</span>
-				</button>
-				<button
-					type="button"
-					class="account-setup__mode"
-					:class="{ 'account-setup__mode--active': mode === 'link' }"
-					:aria-pressed="mode === 'link'"
-					:disabled="busy !== ''"
-					@click="choose('link')">
-					<IconLinkVariant class="account-setup__mode-icon" :size="20" />
-					<span class="account-setup__mode-text">
-						<span class="account-setup__mode-title">
-							{{ t('social', 'Link an existing account') }}
-						</span>
-						<span class="account-setup__mode-desc">
-							{{ t('social', 'An account on Mastodon or another server.') }}
-						</span>
-					</span>
-				</button>
-			</div>
-
-			<form v-if="mode === 'create'" class="account-setup__form" @submit.prevent="create">
-				<h2 class="account-setup__heading">
-					{{ t('social', 'Choose your username') }}
-				</h2>
-				<label class="account-setup__label" for="account-setup-handle">
-					{{ t('social', 'Username') }}
-				</label>
-				<input
-					id="account-setup-handle"
-					v-model.trim="handle"
-					type="text"
-					class="account-setup__input"
-					autocomplete="off"
-					spellcheck="false"
-					maxlength="64"
-					pattern="[A-Za-z0-9_]+([A-Za-z0-9_.\-]*[A-Za-z0-9_])?"
-					aria-describedby="account-setup-address"
-					:aria-invalid="createError !== ''"
-					:disabled="busy !== ''"
-					required>
-				<!-- the address as it is typed, not on the way out: the choice
-				     is permanent, so it is worth seeing before it is made -->
-				<p id="account-setup-address" class="account-setup__address">
-					@{{ handle || '…' }}@{{ hostname }}
-				</p>
-				<!-- the second address the account gets, where the administrator
-				     has switched that on -->
-				<p v-if="blueskyEnabled && handle !== ''" class="account-setup__address account-setup__address--bluesky">
-					<span class="account-setup__bluesky-label">{{ t('social', 'On Bluesky too:') }}</span>
-					@{{ handle }}.{{ blueskyHost }}
-				</p>
-				<p class="account-setup__hint">
-					{{ t('social', 'This is your address on the fediverse — letters, numbers, underscores, dots and dashes. It cannot be changed later.') }}
-				</p>
-				<p v-if="createError" class="account-setup__error" role="alert">
-					{{ createError }}
-				</p>
-				<NcButton type="submit" variant="primary" :disabled="busy !== '' || handle === ''">
-					<template #icon>
-						<NcLoadingIcon v-if="busy === 'create'" :size="20" />
-						<IconAccountPlus v-else :size="20" />
-					</template>
-					{{ t('social', 'Create account') }}
-				</NcButton>
-			</form>
-
-			<form v-else class="account-setup__form" @submit.prevent="link">
-				<h2 class="account-setup__heading">
-					{{ t('social', 'Your existing account') }}
-				</h2>
-				<p class="account-setup__hint">
-					{{ t('social', 'This only shows your existing account on your Nextcloud profile so others can find it. You will not post from that external account here.') }}
-				</p>
-				<label class="account-setup__label" for="account-setup-linked">
-					{{ t('social', 'Fediverse handle') }}
-				</label>
-				<input
-					id="account-setup-linked"
-					v-model.trim="linked"
-					type="text"
-					class="account-setup__input"
-					autocomplete="off"
-					spellcheck="false"
-					placeholder="you@mastodon.social"
-					:aria-invalid="linkError !== ''"
-					:disabled="busy !== ''">
-				<p v-if="linkError" class="account-setup__error" role="alert">
-					{{ linkError }}
-				</p>
-				<p v-if="linkedNow" class="account-setup__done" role="status">
-					{{ t('social', 'Your profile now says you are @{handle}. The people on this Nextcloud will see it on Discover.', { handle: linkedNow }) }}
-				</p>
-				<NcButton type="submit" variant="secondary" :disabled="busy !== '' || linked === ''">
-					<template #icon>
-						<NcLoadingIcon v-if="busy === 'link'" :size="20" />
-						<IconLinkVariant v-else :size="20" />
-					</template>
-					{{ t('social', 'Link account') }}
-				</NcButton>
-			</form>
 		</section>
 	</div>
 </template>
@@ -373,11 +376,24 @@ export default {
 
 	&__card {
 		width: 100%;
-		max-width: 600px;
+		max-width: 880px;
 		padding: 32px;
 		background: var(--color-main-background);
 		border: 1px solid var(--color-border);
 		border-radius: var(--border-radius-large, 16px);
+	}
+
+	// the explainer reads, the answers sit: two columns while there is
+	// room, one below it
+	&__body {
+		display: grid;
+		grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+		gap: 12px 32px;
+		align-items: start;
+
+		@media (max-width: 760px) {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 
 	/* the app's own mark, drawn on the current colour like the sidebar's */
@@ -411,7 +427,8 @@ export default {
 	   card of its own, so the two answers stay the things that look
 	   choosable */
 	&__about {
-		margin: 0 0 24px;
+		margin: 0;
+		min-width: 0;
 	}
 
 	&__about-title {
@@ -481,7 +498,7 @@ export default {
 
 	&__modes {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 		gap: 12px;
 	}
 

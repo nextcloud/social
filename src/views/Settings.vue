@@ -506,7 +506,7 @@ export default {
 					icon: 'IconIntroduction',
 					component: 'IntroductionSettings',
 					title: t('social', 'Introduction'),
-					lede: t('social', 'The four steps shown when your account was new: your address, people to follow, and the follows you had on another server.'),
+					lede: t('social', 'The five steps shown when your account was new: your address, your profile and privacy, people to follow, and the follows you had on another server.'),
 				},
 				{
 					id: 'shortcuts',

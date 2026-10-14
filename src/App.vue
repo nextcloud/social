@@ -229,11 +229,19 @@ export default {
 			if (this.serverData.setup || this.serverData.public || this.serverData.needsAccount || this.introductionHidden) {
 				return false
 			}
+			// `?replay=1` is the way back in, from Settings: it answers the
+			// dismissal rather than being answered by it. Without the
+			// exception below, "Show the introduction again" leads nowhere
+			// for everybody who has ever closed it — which is everybody.
+			const replay = this.$route.query?.replay === '1'
 			const requested = this.$route.query?.welcome === '1'
-				|| this.$route.query?.replay === '1'
+				|| replay
 				|| this.settingsStore.getServerData.firstrun === true
-			if (!requested || this.settingsStore.getServerData.introductionDismissed === true) {
+			if (!requested || (!replay && this.settingsStore.getServerData.introductionDismissed === true)) {
 				return false
+			}
+			if (replay) {
+				return true
 			}
 			try {
 				// Storage can be disabled by the browser; the server-side

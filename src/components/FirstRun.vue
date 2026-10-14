@@ -120,8 +120,67 @@
 					</div>
 				</div>
 
-				<!-- 2. people -->
-				<div v-else-if="step === 1" key="people" class="first-run__page">
+				<!-- 2. the account itself: a bio, and who can reach it. The
+			     forms are the settings sections themselves, so nothing here
+			     is a second implementation of anything -->
+				<div v-else-if="step === 1" key="profile" class="first-run__page">
+					<h2 ref="heading" class="first-run__title" tabindex="-1">
+						{{ t('social', 'Set up your profile and privacy') }}
+					</h2>
+					<p class="first-run__lead">
+						{{ t('social', 'Everything here can be changed later in Settings.') }}
+					</p>
+
+					<div class="first-run__profile-grid">
+						<div class="first-run__bio">
+							<label class="first-run__bio-label" for="social-first-run-bio">
+								{{ t('social', 'Bio') }}
+							</label>
+							<textarea
+								id="social-first-run-bio"
+								v-model="bioDraft"
+								class="first-run__bio-input"
+								rows="4"
+								aria-describedby="social-first-run-bio-count"
+								:aria-invalid="bioTooLong ? 'true' : 'false'"
+								:placeholder="t('social', 'A few words about you, shown on your profile and shared with other servers.')"
+								:disabled="bioSaving"
+								@input="touchBio" />
+							<!-- no maxlength: the server truncates an over-long bio
+						     instead of refusing it, and silently swallowing the
+						     tail of a pasted bio is worse than saying that it
+						     is too long -->
+							<div class="first-run__bio-row">
+								<span
+									id="social-first-run-bio-count"
+									class="first-run__bio-count"
+									:class="{ 'first-run__bio-count--over': bioTooLong }"
+									role="status">
+									{{ bioCountLabel }}
+								</span>
+								<NcButton variant="secondary" :disabled="!bioChanged || bioTooLong || bioSaving" @click="saveBio">
+									<template #icon>
+										<NcLoadingIcon v-if="bioSaving" :size="20" />
+									</template>
+									{{ bioSaving ? t('social', 'Saving…') : t('social', 'Save') }}
+								</NcButton>
+							</div>
+						</div>
+						<div class="first-run__privacy">
+							<h3 class="first-run__subtitle">
+								{{ t('social', 'Who can find and follow you') }}
+							</h3>
+							<AccountSettings />
+							<h3 class="first-run__subtitle">
+								{{ t('social', 'Who may send you direct messages') }}
+							</h3>
+							<DirectMessagesSettings />
+						</div>
+					</div>
+				</div>
+
+				<!-- 3. people -->
+				<div v-else-if="step === 2" key="people" class="first-run__page">
 					<h2 ref="heading" class="first-run__title" tabindex="-1">
 						{{ t('social', 'A feed is only as good as who is in it') }}
 					</h2>
@@ -129,67 +188,72 @@
 						{{ t('social', 'Nothing shows up here until you follow somebody. Two places to start:') }}
 					</p>
 
-					<h3 class="first-run__subtitle">
-						{{ t('social', 'People on your Nextcloud') }}
-					</h3>
-					<ul v-if="colleagues.length" class="first-run__people">
-						<li v-for="account in colleagues" :key="account.acct" class="first-run__person">
-							<ActorAvatar :actor="account" :size="36" :link="false" />
-							<span class="first-run__person-names">
-								<span class="first-run__person-name">{{ account.display_name || account.username }}</span>
-								<span class="first-run__person-handle">@{{ account.acct }}</span>
-							</span>
-							<NcButton
-								:variant="followed.includes(account.acct) ? 'success' : 'primary'"
-								:disabled="followed.includes(account.acct) || busy === account.acct"
-								@click="follow(account)">
-								<template #icon>
-									<NcLoadingIcon v-if="busy === account.acct" :size="20" />
-									<IconCheck v-else-if="followed.includes(account.acct)" :size="20" />
-									<IconAccountPlus v-else :size="20" />
-								</template>
-								{{ followed.includes(account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
-							</NcButton>
-						</li>
-					</ul>
-					<p v-else-if="loading" class="first-run__hint">
-						{{ t('social', 'Looking around …') }}
-					</p>
-					<p v-else class="first-run__hint">
-						{{ t('social', 'Nobody on this Nextcloud has said where they are on the fediverse yet. You are the first — your handle is now on your Nextcloud profile, so the next person will see you here.') }}
-					</p>
-
-					<h3 class="first-run__subtitle">
-						{{ t('social', 'Starter packs') }}
-					</h3>
-					<ul v-if="packs.length" class="first-run__packs">
-						<li v-for="pack in packs" :key="pack.id" class="first-run__pack">
-							<span class="first-run__pack-text">
-								<span class="first-run__pack-name">{{ pack.name }}</span>
-								<span v-if="pack.description" class="first-run__pack-description">{{ pack.description }}</span>
-							</span>
-							<NcButton
-								:variant="followedPacks.includes(pack.id) ? 'success' : 'secondary'"
-								:disabled="followedPacks.includes(pack.id) || busy === pack.id || !pack.size"
-								@click="followPack(pack)">
-								<template #icon>
-									<NcLoadingIcon v-if="busy === pack.id" :size="20" />
-									<IconCheck v-else-if="followedPacks.includes(pack.id)" :size="20" />
-									<IconAccountMultiplePlus v-else :size="20" />
-								</template>
-								{{ followedPacks.includes(pack.id)
-									? t('social', 'Following')
-									: n('social', 'Follow %n account', 'Follow %n accounts', pack.size) }}
-							</NcButton>
-						</li>
-					</ul>
-					<p v-else-if="!loading" class="first-run__hint">
-						{{ t('social', 'No starter packs on this server. Discover has suggestions and what is trending.') }}
-					</p>
+					<div class="first-run__find-grid">
+						<div>
+							<h3 class="first-run__subtitle">
+								{{ t('social', 'People on your Nextcloud') }}
+							</h3>
+							<ul v-if="colleagues.length" class="first-run__people">
+								<li v-for="account in colleagues" :key="account.acct" class="first-run__person">
+									<ActorAvatar :actor="account" :size="36" :link="false" />
+									<span class="first-run__person-names">
+										<span class="first-run__person-name">{{ account.display_name || account.username }}</span>
+										<span class="first-run__person-handle">@{{ account.acct }}</span>
+									</span>
+									<NcButton
+										:variant="followed.includes(account.acct) ? 'success' : 'primary'"
+										:disabled="followed.includes(account.acct) || busy === account.acct"
+										@click="follow(account)">
+										<template #icon>
+											<NcLoadingIcon v-if="busy === account.acct" :size="20" />
+											<IconCheck v-else-if="followed.includes(account.acct)" :size="20" />
+											<IconAccountPlus v-else :size="20" />
+										</template>
+										{{ followed.includes(account.acct) ? t('social', 'Following') : t('social', 'Follow') }}
+									</NcButton>
+								</li>
+							</ul>
+							<p v-else-if="loading" class="first-run__hint">
+								{{ t('social', 'Looking around …') }}
+							</p>
+							<p v-else class="first-run__hint">
+								{{ t('social', 'Nobody on this Nextcloud has said where they are on the fediverse yet. You are the first — your handle is now on your Nextcloud profile, so the next person will see you here.') }}
+							</p>
+						</div>
+						<div>
+							<h3 class="first-run__subtitle">
+								{{ t('social', 'Starter packs') }}
+							</h3>
+							<ul v-if="packs.length" class="first-run__packs">
+								<li v-for="pack in packs" :key="pack.id" class="first-run__pack">
+									<span class="first-run__pack-text">
+										<span class="first-run__pack-name">{{ pack.name }}</span>
+										<span v-if="pack.description" class="first-run__pack-description">{{ pack.description }}</span>
+									</span>
+									<NcButton
+										:variant="followedPacks.includes(pack.id) ? 'success' : 'secondary'"
+										:disabled="followedPacks.includes(pack.id) || busy === pack.id || !pack.size"
+										@click="followPack(pack)">
+										<template #icon>
+											<NcLoadingIcon v-if="busy === pack.id" :size="20" />
+											<IconCheck v-else-if="followedPacks.includes(pack.id)" :size="20" />
+											<IconAccountMultiplePlus v-else :size="20" />
+										</template>
+										{{ followedPacks.includes(pack.id)
+											? t('social', 'Following')
+											: n('social', 'Follow %n account', 'Follow %n accounts', pack.size) }}
+									</NcButton>
+								</li>
+							</ul>
+							<p v-else-if="!loading" class="first-run__hint">
+								{{ t('social', 'No starter packs on this server. Discover has suggestions and what is trending.') }}
+							</p>
+						</div>
+					</div>
 				</div>
 
-				<!-- 3. what you had -->
-				<div v-else-if="step === 2" key="follows" class="first-run__page">
+				<!-- 4. what you had -->
+				<div v-else-if="step === 3" key="follows" class="first-run__page">
 					<h2 ref="heading" class="first-run__title" tabindex="-1">
 						{{ t('social', 'Already somewhere else?') }}
 					</h2>
@@ -245,7 +309,7 @@
 					</p>
 				</div>
 
-				<!-- 4. go -->
+				<!-- 5. go -->
 				<div v-else key="ready" class="first-run__page">
 					<h2 ref="heading" class="first-run__title" tabindex="-1">
 						{{ t('social', 'That is all there is to it') }}
@@ -326,7 +390,9 @@ import IconPencil from 'vue-material-design-icons/Pencil.vue'
 import IconPost from 'vue-material-design-icons/Post.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
 import ActorAvatar from './ActorAvatar.vue'
+import AccountSettings from './AccountSettings.vue'
 import AlohaScene from './illustrations/AlohaScene.vue'
+import DirectMessagesSettings from './DirectMessagesSettings.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
@@ -337,14 +403,19 @@ import { useCurrentUser } from '../composables/useCurrentUser.js'
 /** how many colleagues to show; Discover has the rest */
 const MAX_COLLEAGUES = 6
 
+/** what the server truncates a bio at, in characters */
+const BIO_MAX_LENGTH = 500
+
 /** how long a page takes to slide in, which is how long focus waits */
 const PAGE_TRANSITION_MS = 220
 
 export default {
 	name: 'FirstRun',
 	components: {
+		AccountSettings,
 		ActorAvatar,
 		AlohaScene,
+		DirectMessagesSettings,
 		IconAccountArrowRight,
 		IconAccountCircle,
 		IconAccountMultiplePlus,
@@ -376,6 +447,7 @@ export default {
 			step: 0,
 			stepNames: [
 				t('social', 'How it works'),
+				t('social', 'Profile and privacy'),
 				t('social', 'People to follow'),
 				t('social', 'Bring what you had'),
 				t('social', 'Ready'),
@@ -395,6 +467,12 @@ export default {
 			busy: '',
 			copied: false,
 			copyTimer: null,
+			/** the bio as it is being edited */
+			bioDraft: '',
+			/** whether the reader has touched the bio since it was read */
+			bioTouched: false,
+			/** whether the bio is being saved */
+			bioSaving: false,
 			followsBusy: false,
 			followsResult: '',
 			/** @type {string} the old account, as typed */
@@ -439,6 +517,50 @@ export default {
 		followedAnything() {
 			return this.followed.length > 0 || this.followedPacks.length > 0 || this.followsResult !== '' || this.moveResult !== ''
 		},
+
+		/** @return {object|null} the CredentialAccount, once it has come */
+		credentials() {
+			return this.accountStore.credentials
+		},
+
+		/**
+		 * The bio as the server holds it. The same normalization the
+		 * profile editor uses: carriage returns go, the ends are trimmed.
+		 *
+		 * @return {string}
+		 */
+		bioStored() {
+			return (this.credentials?.source?.note ?? '').replace(/\r\n|\r/g, '\n').trim()
+		},
+
+		/** @return {string} the bio as it would be stored */
+		bioValue() {
+			return (this.bioDraft ?? '').replace(/\r\n|\r/g, '\n').trim()
+		},
+
+		/** @return {number} how many characters the bio has left */
+		bioCharsLeft() {
+			// `mb_strlen()` on the server counts code points, and `.length`
+			// counts UTF-16 units: an emoji is one character, not two
+			return BIO_MAX_LENGTH - [...this.bioValue].length
+		},
+
+		/** @return {boolean} */
+		bioTooLong() {
+			return this.bioCharsLeft < 0
+		},
+
+		/** @return {boolean} whether the bio is worth saving */
+		bioChanged() {
+			return this.bioValue !== this.bioStored
+		},
+
+		/** @return {string} */
+		bioCountLabel() {
+			return this.bioTooLong
+				? this.n('social', '%n character too many', '%n characters too many', -this.bioCharsLeft)
+				: this.n('social', '%n character left', '%n characters left', this.bioCharsLeft)
+		},
 	},
 
 	watch: {
@@ -452,6 +574,18 @@ export default {
 			this.focusTimer = window.setTimeout(() => {
 				/** @type {HTMLElement|undefined} */ (this.$refs.heading)?.focus()
 			}, this.reducedMotion ? 0 : PAGE_TRANSITION_MS)
+		},
+
+		// the bio starts where the server holds it. Not while the reader
+		// is editing: taking the server's copy then would throw their
+		// words away.
+		credentials: {
+			immediate: true,
+			handler(credentials) {
+				if (credentials && !this.bioTouched) {
+					this.bioDraft = this.bioStored
+				}
+			},
 		},
 	},
 
@@ -566,7 +700,7 @@ export default {
 				}
 
 				this.followedPacks.push(pack.id)
-				showSuccess(n('social', 'Followed %n account', 'Followed %n accounts', count))
+				showSuccess(this.n('social', 'Followed %n account', 'Followed %n accounts', count))
 			} catch (error) {
 				logger.error('Could not follow the starter pack', { error, pack: pack.id })
 				showError(t('social', 'Could not follow these accounts'))
@@ -686,6 +820,32 @@ export default {
 			return null
 		},
 
+		/** The bio was touched; the server's copy is no longer its start. */
+		touchBio() {
+			this.bioTouched = true
+		},
+
+		/**
+		 * Saves the bio the way the profile editor does: only the bio goes,
+		 * so nothing else on the account is touched.
+		 *
+		 * @return {Promise<void>}
+		 */
+		async saveBio() {
+			if (!this.bioChanged || this.bioTooLong || this.bioSaving) {
+				return
+			}
+			this.bioSaving = true
+			try {
+				const saved = await this.accountStore.updateCredentials({ note: this.bioValue })
+				if (saved) {
+					showSuccess(t('social', 'Profile saved'))
+				}
+			} finally {
+				this.bioSaving = false
+			}
+		},
+
 		/**
 		 * Closes the introduction for good.
 		 *
@@ -726,7 +886,7 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
-	max-width: 640px;
+	max-width: 880px;
 	margin: 0 auto;
 
 	&__header {
@@ -822,14 +982,20 @@ export default {
 		gap: 8px;
 	}
 
-	/* what you can do, as a quiet list: icon, what it is, one line on it */
+	/* what you can do, as a quiet list: icon, what it is, one line on it.
+	   Two columns while there is room for them */
 	&__what {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 10px;
 		margin: 8px 0 0;
 		padding: 0;
 		list-style: none;
+
+		@media (min-width: 720px) {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			gap: 12px 24px;
+		}
 	}
 
 	&__what-item {
@@ -924,6 +1090,88 @@ export default {
 		font-weight: 700;
 		overflow-wrap: anywhere;
 		user-select: all;
+	}
+
+	/* the bio beside the privacy, above it on a phone */
+	&__profile-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 12px 32px;
+		align-items: start;
+		margin-top: 8px;
+
+		@media (max-width: 720px) {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
+
+	&__bio {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	&__bio-label {
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--color-text-maxcontrast);
+	}
+
+	&__bio-input {
+		width: 100%;
+		padding: 8px 10px;
+		border: 1px solid var(--color-border);
+		border-radius: 8px;
+		font-size: 14px;
+		line-height: 1.5;
+		resize: vertical;
+		background: var(--color-main-background);
+		color: var(--color-main-text);
+	}
+
+	&__bio-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px 12px;
+	}
+
+	&__bio-count {
+		flex: 1 1 auto;
+		font-size: 12px;
+		color: var(--color-text-maxcontrast);
+
+		&--over {
+			color: var(--color-error-text);
+			font-weight: 600;
+		}
+	}
+
+	/* the settings sections themselves, under one heading each */
+	&__privacy {
+		min-width: 0;
+
+		.first-run__subtitle:first-child {
+			margin-top: 0;
+		}
+	}
+
+	/* colleagues beside packs while there is room for them */
+	&__find-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 12px 32px;
+		align-items: start;
+		margin-top: 4px;
+
+		@media (max-width: 720px) {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.first-run__subtitle:first-child {
+			margin-top: 0;
+		}
 	}
 
 	&__people,
