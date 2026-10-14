@@ -2908,6 +2908,12 @@ OC.L10N.register(
     "_%n picture or video of your posts could not be copied here._::_%n pictures or videos of your posts could not be copied here._" : ["%n Bild oder Video deiner Beiträge konnte nicht hierher kopiert werden.","%n Bilder oder Videos deiner Beiträge konnten nicht hierher kopiert werden."],
     "Your account is not pointed at this server until you decide." : "Dein Konto wird erst auf diesen Server umgestellt, wenn du entschieden hast.",
     "Try copying them again" : "Erneut kopieren",
-    "Go on without them" : "Ohne sie fortfahren"
+    "Go on without them" : "Ohne sie fortfahren",
+    "Could not go on with the move" : "Der Umzug konnte nicht fortgesetzt werden",
+    "_%n post you wrote here was taken off Bluesky by the move. It can be published again from your moved account._::_%n posts you wrote here were taken off Bluesky by the move. They can be published again from your moved account._" : ["%n Beitrag, den du hier geschrieben hast, wurde durch den Umzug von Bluesky entfernt. Er kann von deinem umgezogenen Konto erneut veröffentlicht werden.","%n Beiträge, die du hier geschrieben hast, wurden durch den Umzug von Bluesky entfernt. Sie können von deinem umgezogenen Konto erneut veröffentlicht werden."],
+    "Publish them again" : "Erneut veröffentlichen",
+    "Your posts are being published on Bluesky again." : "Deine Beiträge werden erneut auf Bluesky veröffentlicht.",
+    "_%n post disappears from Bluesky; you can publish it again afterwards._::_%n posts disappear from Bluesky; you can publish them again afterwards._" : ["%n Beitrag verschwindet von Bluesky; du kannst ihn danach erneut veröffentlichen.","%n Beiträge verschwinden von Bluesky; du kannst sie danach erneut veröffentlichen."],
+    "Could not publish the posts again" : "Die Beiträge konnten nicht erneut veröffentlicht werden"
 },
 "nplurals=2; plural=(n != 1);");

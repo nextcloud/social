@@ -95,6 +95,7 @@ class MoveInService {
 		private AtprotoIdentityRequest $identityRequest,
 		private HandleVerifier $handles,
 		private MovedBlobs $movedBlobs,
+		private PostRepublisher $republisher,
 	) {
 	}
 
@@ -184,6 +185,30 @@ class MoveInService {
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 
 		return $move;
+	}
+
+	/**
+	 * How many of the person's posts are on Bluesky now, under the identity
+	 * a move here would retire.
+	 */
+	public function postsOnBluesky(string $userId): int {
+		try {
+			return $this->republisher->onBluesky($this->identities->forActor($this->actors->getFromUserId($userId), false));
+		} catch (Throwable) {
+			return 0;
+		}
+	}
+
+	/**
+	 * Queues the posts the person's finished move here took off Bluesky to
+	 * be published again, into the moved repository.
+	 *
+	 * @throws MoveErrorException
+	 */
+	public function republish(string $userId): Move {
+		$move = $this->moves->latestOfUser($userId);
+
+		return $this->republisher->queue($move !== null && in_array($move->direction, [Move::IN, Move::INBOUND], true) ? $move : null);
 	}
 
 	/**
@@ -583,6 +608,7 @@ class MoveInService {
 			|| RotationKeys::didKeys($operation['rotationKeys'] ?? null) !== $rotation) {
 			throw new MoveFailure('operation-mismatch', 'The old server signed something else than was asked');
 		}
+		$this->republisher->remember($move, $current);
 		try {
 			if ($kept !== '') {
 				// set before the DID moves, so the identity is announced under it

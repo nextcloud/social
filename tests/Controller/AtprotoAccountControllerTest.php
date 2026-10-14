@@ -116,6 +116,16 @@ class AtprotoAccountControllerTest extends TestCase {
 		$this->assertSame('no-decision-pending', $this->controller()->continueMoveIn()->getData()['code']);
 	}
 
+	/** The move card says how many posts a move here takes off Bluesky, and can have them published again. */
+	public function testThePostsOnBlueskyAreToldAndCanBeRepublished(): void {
+		$this->moveIn->method('postsOnBluesky')->with('alice')->willReturn(38);
+		$this->moveIn->method('republish')->willThrowException(new MoveErrorException('Nothing', 'nothing-to-republish'));
+
+		$data = $this->controller()->move()->getData();
+		$this->assertSame([null, 38], [$data['move'], $data['posts_on_bluesky']]);
+		$this->assertSame('nothing-to-republish', $this->controller()->republishMovedPosts()->getData()['code']);
+	}
+
 	/** Every refusal of a move route carries the code the page explains, next to the sentence. */
 	public function testAMoveRouteAnswersAnErrorWithItsCode(): void {
 		$this->moveIn->method('start')->willThrowException(new MoveErrorException('The Bluesky server did not let you sign in', 'wrong-password'));

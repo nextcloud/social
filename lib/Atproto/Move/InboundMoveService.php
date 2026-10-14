@@ -99,6 +99,7 @@ class InboundMoveService {
 		private LoggerInterface $logger,
 		private AtprotoIdentityRequest $identityRequest,
 		private MovedBlobs $movedBlobs,
+		private PostRepublisher $republisher,
 	) {
 	}
 
@@ -450,6 +451,7 @@ class InboundMoveService {
 		if ($current === null) {
 			throw XrpcException::invalidRequest('Bluesky is off for this account');
 		}
+		$this->republisher->remember($move, $current);
 		$kept = (string)($move->progress['handle_kept'] ?? '');
 		$kept = $kept !== '' && ($state['alsoKnownAs'][0] ?? '') === 'at://' . $kept ? $kept : '';
 		try {

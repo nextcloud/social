@@ -42,7 +42,7 @@ function moveOf(state, step = 'repo', extra = {}) {
 }
 
 /** The server: an identity (or none), and the moves the GET answers one after the other. */
-function server({ identity = true, moves = [null] } = {}) {
+function server({ identity = true, moves = [null], postsOnBluesky = 0 } = {}) {
 	let polls = 0
 	axios.get.mockImplementation((url) => {
 		if (url === `${API}/identity`) {
@@ -53,7 +53,7 @@ function server({ identity = true, moves = [null] } = {}) {
 		if (url === `${API}/move`) {
 			const move = moves[Math.min(polls, moves.length - 1)]
 			polls++
-			return Promise.resolve({ data: { move } })
+			return Promise.resolve({ data: { move, posts_on_bluesky: postsOnBluesky } })
 		}
 		return notFound()
 	})
@@ -114,6 +114,31 @@ describe('BlueskyMoveIn', () => {
 		expect(confirmPassword).toHaveBeenCalled()
 		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in`, { handle: 'alice.bsky.social', password: 'the password', authFactorToken: '' })
 		expect(wrapper.text()).toContain('Bringing alice.bsky.social here')
+	})
+
+	it('says how many posts the move takes off Bluesky', async () => {
+		server({ postsOnBluesky: 38 })
+		const wrapper = await mountCard()
+		const [handle, password] = inputs(wrapper)
+		await handle.setValue('alice.bsky.social')
+		await password.setValue('pw')
+
+		await buttonNamed(wrapper, 'Bring my Bluesky account here').trigger('click')
+
+		expect(wrapper.text()).toContain('38 posts disappear from Bluesky; you can publish them again afterwards.')
+	})
+
+	it('offers to publish the posts the move took off Bluesky again', async () => {
+		server({ moves: [moveOf('done', 'done', { progress: { republish: { count: 38, state: '' } } })] })
+		axios.post.mockResolvedValue({ data: { move: moveOf('done', 'done', { progress: { republish: { count: 38, state: 'queued' } } }) } })
+		const wrapper = await mountCard()
+		expect(wrapper.text()).toContain('38 posts you wrote here were taken off Bluesky by the move.')
+
+		await buttonNamed(wrapper, 'Publish them again').trigger('click')
+		await flushPromises()
+
+		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/republish`)
+		expect(wrapper.text()).toContain('Your posts are being published on Bluesky again.')
 	})
 
 	it('sends nothing when the password confirmation is dismissed', async () => {

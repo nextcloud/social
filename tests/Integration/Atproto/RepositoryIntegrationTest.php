@@ -71,6 +71,7 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertNotNull($head);
 		$this->assertSame($second->commitCid->toString(), $head->commitCid);
 		$this->assertSame(2, $head->recordCount);
+		$this->assertSame([2, 1], [$this->repoRequest->countRecords(self::DID), $this->repoRequest->countRecords(self::DID, 'app.bsky.feed.post')], 'counted whole and by collection');
 		$this->assertGreaterThan(0, strcmp($second->rev, $first->rev));
 		$this->assertSame([], $this->repositories->verify(self::DID, $this->key->publicKey()), 'the stored blocks are the tree');
 

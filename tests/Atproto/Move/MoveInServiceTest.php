@@ -25,6 +25,7 @@ use OCA\Social\Atproto\Move\MovedBlobs;
 use OCA\Social\Atproto\Move\MoveInService;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Move\PostHistory;
+use OCA\Social\Atproto\Move\PostRepublisher;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
@@ -110,6 +111,8 @@ class MoveInServiceTest extends TestCase {
 	private AtprotoBlobRequest $blobs;
 	/** @var AtprotoIdentityRequest&MockObject */
 	private AtprotoIdentityRequest $identityRequest;
+	/** @var PostRepublisher&MockObject */
+	private PostRepublisher $republisher;
 	private MoveInService $moves;
 
 	protected function setUp(): void {
@@ -174,6 +177,7 @@ class MoveInServiceTest extends TestCase {
 		]);
 		$this->blobs = $this->createMock(AtprotoBlobRequest::class);
 		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
+		$this->republisher = $this->createMock(PostRepublisher::class);
 		$this->identityRequest->method('handleExists')->willReturnCallback(fn (string $handle): bool => in_array($handle, $this->taken, true));
 		$verifier = $this->createMock(HandleVerifier::class);
 		$verifier->method('refusal')->willReturnCallback(static fn (string $handle): string => str_ends_with($handle, '.social.test') || !str_contains($handle, '.') ? 'no' : '');
@@ -226,7 +230,7 @@ class MoveInServiceTest extends TestCase {
 			$pds, $config, $appView, $plc, $this->identities, $keys, $this->repositories, $repoRequest,
 			$this->blobs, $this->createMock(Preferences::class), $actors, $this->follows, $this->history, $actorsRequest, $request,
 			$crypto, $jobs, new NullLogger(), $this->lists, $this->identityRequest, $verifier,
-			new MovedBlobs($pds, $repoRequest, $this->blobs, $documents, $actorsRequest, new NullLogger()),
+			new MovedBlobs($pds, $repoRequest, $this->blobs, $documents, $actorsRequest, new NullLogger()), $this->republisher,
 		);
 		$this->answers['com.atproto.server.createSession'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.bsky.social', 'accessJwt' => 'access', 'refreshJwt' => 'refresh']]];
 	}
@@ -623,6 +627,25 @@ class MoveInServiceTest extends TestCase {
 		$methods = $this->methods();
 		$this->assertLessThan(array_search('com.atproto.identity.signPlcOperation', $methods, true), array_search('com.atproto.sync.getLatestCommit', $methods, true), 'before the signature');
 		$this->assertSame(Move::DONE, $this->rows[1]->state);
+	}
+
+	/** What the move takes off Bluesky is counted before the identity here is retired. */
+	public function testThePostsOnBlueskyAreRememberedBeforeTheDidMoves(): void {
+		$order = [];
+		$this->republisher->expects($this->once())->method('remember')->with($this->anything(), $this->current)->willReturnCallback(function () use (&$order): void {
+			$order[] = 'remember';
+		});
+		$this->identities->method('adopt')->willReturnCallback(function () use (&$order): Identity {
+			$order[] = 'adopt';
+
+			return $this->current;
+		});
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->moves->code('alice', '12345');
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame(['remember', 'adopt'], $order);
 	}
 
 	public function testAnUnchangedRepositoryIsNotCopiedAgain(): void {

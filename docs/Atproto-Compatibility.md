@@ -1420,6 +1420,17 @@ move waits for the person's decision as above; asked to copy them again,
 this server fetches them from the old PDS itself (`getBlob` is public).
 Once activated, the follows and the posts come over as above.
 
+**Posts written here.** The identity this server made for the account is
+retired by the move, and with its repository the posts written here
+disappear from Bluesky. `GET …/bluesky/move` answers how many there are
+now (`posts_on_bluesky`), for the confirmation; the move keeps the count
+and the time they were written in (`progress.republish`). Once the move is
+done, `POST …/move-in/republish` publishes them again, into the moved
+repository, through the Publisher a page at a time in the background —
+the account's local public posts of that time, not the ones brought over
+from Bluesky or elsewhere (`progress.republish.state` `queued`, then
+`done`, with how many were `published`).
+
 **Handle.** A handle on a domain of the person's own (`alice.example.org`)
 stays theirs: the operation names it, it becomes the account's custom
 handle here (§4.2, checked again every day as any custom handle is), and
@@ -1653,6 +1664,8 @@ older clients.
 | `repo-unavailable` | The old server did not hand out the repository | Try again later |
 | `repo-invalid` | The repository is not the account's, or not signed with its key | Ask the old server's operator |
 | `operation-mismatch` | The old server signed another operation than was asked | Try again; report it if it repeats |
+| `nothing-to-republish` | Publishing again with no finished move that took posts off Bluesky | — |
+| `republish-queued` | Publishing again a second time | Wait; it runs in the background |
 | `move-replaced` | An invitation was replaced by a newer one | — |
 | `invite-expired` / `move-expired` | An invitation, or a move driven by a tool, ran out of time | Invite again |
 | `bridgy-unreachable` | Bridgy Fed could not be sent the request | Try again later |

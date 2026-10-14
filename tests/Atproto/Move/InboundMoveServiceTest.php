@@ -26,6 +26,7 @@ use OCA\Social\Atproto\Move\InboundMoveService;
 use OCA\Social\Atproto\Move\MovedBlobs;
 use OCA\Social\Atproto\Move\MoveInService;
 use OCA\Social\Atproto\Move\PdsClient;
+use OCA\Social\Atproto\Move\PostRepublisher;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
@@ -94,6 +95,8 @@ class InboundMoveServiceTest extends TestCase {
 	private ServiceAuth $serviceAuth;
 	/** @var AtprotoIdentityRequest&MockObject */
 	private AtprotoIdentityRequest $identityRequest;
+	/** @var PostRepublisher&MockObject */
+	private PostRepublisher $republisher;
 	private InboundMoveService $moves;
 
 	protected function setUp(): void {
@@ -120,6 +123,7 @@ class InboundMoveServiceTest extends TestCase {
 		$plc->method('data')->willReturnCallback(fn (): array => $this->plcState);
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
+		$this->republisher = $this->createMock(PostRepublisher::class);
 		$this->identities->method('getByDid')->willThrowException(new AtprotoIdentityNotFoundException());
 		$this->identities->method('forActor')->willReturnCallback(fn (): Identity => $this->current);
 		$this->repositories = $this->createMock(RepositoryService::class);
@@ -199,7 +203,7 @@ class InboundMoveServiceTest extends TestCase {
 			$config, $sessions, $this->serviceAuth, $plc, $this->identities, $keys, $this->repositories, $repoRequest, $blobs,
 			$documents, $this->createMock(Preferences::class), $this->moveIn, $bridgy, $actors, $request, $crypto, $random,
 			$this->createMock(IThrottler::class), $jobs, $time, new NullLogger(), $this->identityRequest,
-			new MovedBlobs($oldPds, $repoRequest, $blobs, $documents, $actors, new NullLogger()),
+			new MovedBlobs($oldPds, $repoRequest, $blobs, $documents, $actors, new NullLogger()), $this->republisher,
 		);
 	}
 
@@ -418,6 +422,7 @@ class InboundMoveServiceTest extends TestCase {
 		$this->current = new Identity(1, 'https://social.test/@alice', 'did:plc:qhuarct7u6lie3dhefl6c4ua', 'alice.social.test', '', '', 'did:key:zRecovery', Identity::STATE_ACTIVE, '', 0);
 		$this->plcState = $this->stateAt(self::HERE, $recommended['verificationMethods']['atproto'], ['did:key:zRecovery', $this->rotation->didKey()]);
 		$this->identityRequest->expects($this->once())->method('setRecoveryPublic')->with(self::DID, 'did:key:zRecovery');
+		$this->republisher->expects($this->once())->method('remember')->with($this->anything(), $this->current);
 		$this->identities->expects($this->once())->method('receive')
 			->with($this->current, self::DID, $this->callback(fn (PrivateKey $key): bool => $key->didKey() === $recommended['verificationMethods']['atproto']), 'https://pds.example.com')
 			->willReturn($this->current);

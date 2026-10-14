@@ -283,8 +283,9 @@ class AtprotoAccountController extends Controller {
 	}
 
 	/**
-	 * The viewer's latest move of their Bluesky account, or null, and who
-	 * controls the account once it moved away (MoveAwayService::control()).
+	 * The viewer's latest move of their Bluesky account, or null, who
+	 * controls the account once it moved away (MoveAwayService::control()),
+	 * and how many of their posts are on Bluesky now.
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/move')]
@@ -299,7 +300,11 @@ class AtprotoAccountController extends Controller {
 			$export['progress']['stage'] ??= MoveAwayService::stageOf($move);
 		}
 
-		return new DataResponse(['move' => $export] + MoveAwayService::control($this->ownIdentity(), $move));
+		return new DataResponse([
+			'move' => $export,
+			// what a move here would take off Bluesky, for the confirmation
+			'posts_on_bluesky' => $this->moveIn->postsOnBluesky($this->userId()),
+		] + MoveAwayService::control($this->ownIdentity(), $move));
 	}
 
 	/**
@@ -467,6 +472,20 @@ class AtprotoAccountController extends Controller {
 			};
 
 			return new DataResponse(['move' => $move->export()]);
+		} catch (Throwable $e) {
+			return self::moveError($e);
+		}
+	}
+
+	/**
+	 * Publishes the posts a finished move here took off Bluesky again,
+	 * into the moved repository, in the background.
+	 */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/move-in/republish')]
+	public function republishMovedPosts(): DataResponse {
+		try {
+			return new DataResponse(['move' => $this->moveIn->republish($this->userId())->export()]);
 		} catch (Throwable $e) {
 			return self::moveError($e);
 		}
