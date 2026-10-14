@@ -166,7 +166,7 @@ import IconTags from 'vue-material-design-icons/Pound.vue'
 import { defineAsyncComponent } from 'vue'
 import { n, t } from '@nextcloud/l10n'
 import { useServerData } from '../composables/useServerData.js'
-import { currentSection, findSection, scrollToSection, watchSections } from '../services/sectionRail.js'
+import { currentSection, scrollToSection, watchSections } from '../services/sectionRail.js'
 
 // The forms, switches and lists below are only ever drawn on this page, so
 // they travel in a chunk of their own rather than in the entry every reader
@@ -506,7 +506,7 @@ export default {
 					icon: 'IconIntroduction',
 					component: 'IntroductionSettings',
 					title: t('social', 'Introduction'),
-					lede: t('social', 'The six steps shown when your account was new: your address, your profile and privacy, people to follow, and the follows you had on another server.'),
+					lede: t('social', 'The four steps shown when your account was new: your address, people to follow, and the follows you had on another server.'),
 				},
 				{
 					id: 'shortcuts',
@@ -664,7 +664,7 @@ export default {
 				// drawn on the next update, which calls this again
 				return
 			}
-			const section = findSection(this.$el, id)
+			const section = document.getElementById(id)
 			if (!section || typeof section.scrollIntoView !== 'function') {
 				return
 			}
@@ -712,7 +712,7 @@ export default {
 		 * @param {MouseEvent} event the click
 		 */
 		jumpTo(id, event) {
-			if (!scrollToSection(id, this.$el)) {
+			if (!scrollToSection(id)) {
 				return
 			}
 			event.preventDefault()
@@ -729,7 +729,7 @@ export default {
 		 */
 		watchSections() {
 			this.observer?.disconnect()
-			this.observer = watchSections(this.shownSections.map((section) => section.id), () => this.markCurrent(), this.$el)
+			this.observer = watchSections(this.shownSections.map((section) => section.id), () => this.markCurrent())
 			this.markCurrent()
 		},
 
@@ -740,7 +740,7 @@ export default {
 		 */
 		markCurrent() {
 			const ids = this.shownSections.map((section) => section.id)
-			this.current = currentSection(ids, ids[0] ?? '', this.$el)
+			this.current = currentSection(ids, ids[0] ?? '')
 		},
 	},
 }

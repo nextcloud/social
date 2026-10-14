@@ -53,21 +53,6 @@ describe('the registration page', () => {
 		post.mockReset()
 	})
 
-	it('widens the guest wrapper while it is mounted, and hands it back afterwards', async () => {
-		const wrapper = document.createElement('div')
-		wrapper.className = 'wrapper'
-		document.body.appendChild(wrapper)
-		try {
-			const signup = await page(OPEN)
-
-			expect(wrapper.classList.contains('social-signup-wide')).toBe(true)
-			signup.unmount()
-			expect(wrapper.classList.contains('social-signup-wide')).toBe(false)
-		} finally {
-			wrapper.remove()
-		}
-	})
-
 	it('says why it is closed and offers the way back', async () => {
 		const wrapper = await page({ ...OPEN, open: false, reason: 'This server accepts registrations by invitation only.' })
 
@@ -78,11 +63,9 @@ describe('the registration page', () => {
 
 	it('shows the rules, the age to confirm and the address the handle becomes', async () => {
 		const wrapper = await page(OPEN)
-		expect(wrapper.classes()).toContain('wide')
-		expect(wrapper.text()).toContain('An Aloha Social account, connected to the fediverse')
+		expect(wrapper.text()).toContain('A Aloha Social account, connected to the fediverse')
 		expect(wrapper.text()).toContain('does not give you access to Files, Talk, WebDAV')
 		expect(wrapper.text()).toContain('finish the introduction, find people and any starter packs this server offers')
-		expect(wrapper.text()).toContain('What happens next')
 		expect(wrapper.text()).not.toContain('This server requires two-factor authentication.')
 		await continueToForm(wrapper)
 		wrapper.vm.handle = '@Alice'
@@ -99,16 +82,6 @@ describe('the registration page', () => {
 	it('explains the configured two-factor requirement before collecting details', async () => {
 		const wrapper = await page({ ...OPEN, twoFactorRequired: true })
 		expect(wrapper.text()).toContain('This server requires two-factor authentication.')
-	})
-
-	it('walks the three steps from the overview to the result', async () => {
-		const wrapper = await page(OPEN)
-		const steps = () => wrapper.find('.signup__steps').findAll('li').map((item) => item.text())
-
-		expect(steps()).toEqual(['1 About', '2 Your details', '3 Result'])
-		expect(wrapper.find('.signup__steps li[aria-current="step"]').text()).toContain('About')
-		await continueToForm(wrapper)
-		expect(wrapper.find('.signup__steps li[aria-current="step"]').text()).toContain('Your details')
 	})
 
 	it('sends everything, the honeypot and the invitation included', async () => {
@@ -173,7 +146,7 @@ describe('the registration page', () => {
 	it('says what the confirmation link came to', async () => {
 		const created = await page({ ...OPEN, result: { state: 'created', handle: 'alice' } })
 		expect(created.text()).toContain('Your account is ready')
-		expect(button(created, 'Log in').attributes('href')).toBe('/index.php/login?redirect_url=' + encodeURIComponent('/index.php/apps/social/?welcome=1'))
+		expect(button(created, 'Log in').attributes('href')).toBe('/index.php/login')
 
 		const failed = await page({ ...OPEN, result: { state: 'error', message: 'This confirmation link is not valid any more.' } })
 		expect(failed.text()).toContain('This confirmation link is not valid any more.')

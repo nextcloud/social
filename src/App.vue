@@ -11,14 +11,6 @@
 			<AccountSetup @created="onAccountCreated" />
 		</NcAppContent>
 	</NcContent>
-	<!-- No navigation and no feed behind it: the walkthrough is a page of its
-	     own, for the reader who has just got an account and nobody has shown
-	     them the app yet. The app is here when they are through. -->
-	<NcContent v-else-if="introductionVisible" appName="social">
-		<NcAppContent>
-			<FirstRun :key="replayKey" @done="finishIntroduction" />
-		</NcAppContent>
-	</NcContent>
 	<NcContent v-else-if="!serverData.setup" appName="social" :class="{public: serverData.public}">
 		<Navigation v-if="!serverData.public" @search="search" />
 		<ShortcutHelp :open="shortcutHelpOpen" @close="shortcutHelpOpen = false" />
@@ -151,9 +143,6 @@ import { useServerData } from './composables/useServerData.js'
 // one page load in an account's life: not worth a place in the entry every
 // other load pays for, so it arrives as its own chunk when it is needed
 const AccountSetup = defineAsyncComponent(() => import(/* webpackChunkName: "account-setup" */'./views/AccountSetup.vue'))
-// the walkthrough is read once in an account's life and never again: it
-// travels as its own chunk, the same reasoning the setup screen travels by
-const FirstRun = defineAsyncComponent(() => import(/* webpackChunkName: "first-run" */'./components/FirstRun.vue'))
 // the emoji picker is most of a megabyte; it travels in its own chunk and is
 // fetched the first time somebody presses "add a reaction"
 const ReactionPicker = defineAsyncComponent(() => import(/* webpackChunkName: "reaction-picker" */'./components/ReactionPicker.vue'))
@@ -168,7 +157,6 @@ export default {
 	name: 'App',
 	components: {
 		AccountSetup,
-		FirstRun,
 		NcContent,
 		NcAppContent,
 		NcButton,
@@ -188,8 +176,7 @@ export default {
 
 	data() {
 		return {
-			/** the walkthrough, once closed, is closed */
-			introductionHidden: false,
+			infoHidden: false,
 			state: [],
 			cloudAddress: '',
 			shortcutHelpOpen: false,
@@ -212,56 +199,6 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useSettingsStore, useTimelineStore),
-
-		/**
-		 * Whether the walkthrough is up.
-		 *
-		 * It is a page of its own rather than a page in the app: `App.vue`
-		 * renders it *instead* of the app while it is open, and only for the
-		 * moment the account is new — `?welcome=1`, which the setup screen and
-		 * the first login after registering carry, or `?replay=1`, which
-		 * Settings links to. Afterwards it stays away, on the server and in
-		 * this browser, whatever the reader does in the app.
-		 *
-		 * @return {boolean}
-		 */
-		introductionVisible() {
-			if (this.serverData.setup || this.serverData.public || this.serverData.needsAccount || this.introductionHidden) {
-				return false
-			}
-			// `?replay=1` is the way back in, from Settings: it answers the
-			// dismissal rather than being answered by it. Without the
-			// exception below, "Show the introduction again" leads nowhere
-			// for everybody who has ever closed it — which is everybody.
-			const replay = this.$route.query?.replay === '1'
-			const requested = this.$route.query?.welcome === '1'
-				|| replay
-				|| this.settingsStore.getServerData.firstrun === true
-			if (!requested || (!replay && this.settingsStore.getServerData.introductionDismissed === true)) {
-				return false
-			}
-			if (replay) {
-				return true
-			}
-			try {
-				// Storage can be disabled by the browser; the server-side
-				// setting remains the source of truth in that case.
-				return window.localStorage.getItem(`social:introduction:${this.accountStore.currentAccountHandle}`) !== 'dismissed'
-			} catch {
-				return true
-			}
-		},
-
-		/**
-		 * Key to force FirstRun to re-mount when the replay query changes.
-		 * This ensures the introduction shows immediately when clicking
-		 * "Show the introduction again" in Settings.
-		 *
-		 * @return {string}
-		 */
-		replayKey() {
-			return this.$route.query?.replay === '1' ? 'replay' : 'welcome'
-		},
 
 		/**
 		 * Whether the administrator's checks found something to warn about.
@@ -459,31 +396,8 @@ export default {
 			}
 		},
 
-		/**
-		 * The walkthrough is finished, or was skipped: gone for good, on the
-		 * server and in this browser, and the two query flags taken out of the
-		 * address so a reload or Back does not open it again.
-		 */
-		finishIntroduction() {
-			this.introductionHidden = true
-			try {
-				window.localStorage.setItem(`social:introduction:${this.accountStore.currentAccountHandle}`, 'dismissed')
-			} catch {
-				// Storage can be disabled by the browser; the server-side
-				// setting remains the source of truth in that case.
-			}
-			try {
-				axios.post(generateUrl('apps/social/api/v1/introduction/dismiss'))?.catch(() => {})
-			} catch {
-				// the local dismissal is enough if the preference cannot be written
-			}
-			this.settingsStore.setServerDataEntry({ key: 'introductionDismissed', value: true })
-			if (this.$route.query?.welcome !== undefined || this.$route.query?.replay !== undefined) {
-				const query = { ...this.$route.query }
-				delete query.welcome
-				delete query.replay
-				this.$router.replace({ query })
-			}
+		hideInfo() {
+			this.infoHidden = true
 		},
 
 		setCloudAddress() {

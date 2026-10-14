@@ -20,17 +20,6 @@
 export const RAIL_BAND = 96
 
 /**
- * Finds a section inside its page, where ids cannot collide with the header.
- *
- * @param {Element|null|undefined} root the page containing the sections
- * @param {string} id the section id
- * @return {Element|null} the section, if drawn
- */
-export function findSection(root, id) {
-	return Array.from(root?.querySelectorAll('[id]') ?? []).find((section) => section.id === id) ?? null
-}
-
-/**
  * The section the reader is looking at.
  *
  * The last one whose heading has passed the top of the window. Taking the
@@ -43,14 +32,13 @@ export function findSection(root, id) {
  *
  * @param {string[]} ids the section ids, in the order they are drawn
  * @param {string} current what is marked now, kept when nothing has passed yet
- * @param {Element|null} root the page containing the sections
  * @return {string} the id to mark
  */
-export function currentSection(ids, current = '', root = null) {
+export function currentSection(ids, current = '') {
 	let found = current
 
 	for (const id of ids) {
-		const el = findSection(root, id)
+		const el = document.getElementById(id)
 		if (el && el.getBoundingClientRect().top <= RAIL_BAND) {
 			found = id
 		}
@@ -68,17 +56,16 @@ export function currentSection(ids, current = '', root = null) {
  *
  * @param {string[]} ids the section ids to watch
  * @param {() => void} onChange called with no arguments
- * @param {Element|null} root the page containing the sections
  * @return {IntersectionObserver|null} to disconnect, or null where the browser has none
  */
-export function watchSections(ids, onChange, root = null) {
+export function watchSections(ids, onChange) {
 	if (typeof IntersectionObserver !== 'function') {
 		return null
 	}
 
 	const observer = new IntersectionObserver(() => onChange(), { threshold: 0 })
 	for (const id of ids) {
-		const el = findSection(root, id)
+		const el = document.getElementById(id)
 		if (el) {
 			observer.observe(el)
 		}
@@ -91,11 +78,10 @@ export function watchSections(ids, onChange, root = null) {
  * Puts a section in view, the way the rest of the page scrolls.
  *
  * @param {string} id the section to go to
- * @param {Element|null} root the page containing the sections
  * @return {boolean} whether there was a section to go to
  */
-export function scrollToSection(id, root = null) {
-	const section = findSection(root, id)
+export function scrollToSection(id) {
+	const section = document.getElementById(id)
 	if (!section || typeof section.scrollIntoView !== 'function') {
 		return false
 	}

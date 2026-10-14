@@ -228,9 +228,10 @@ describe('Settings', () => {
 			const wrapper = await mountSettings()
 
 			const tops = { account: -800, 'direct-messages': -400, 'featured-tags': 40, portfolio: 320 }
-			for (const [id, top] of Object.entries(tops)) {
-				vi.spyOn(wrapper.get(`#${id}`).element, 'getBoundingClientRect').mockReturnValue({ top })
-			}
+			const real = document.getElementById.bind(document)
+			vi.spyOn(document, 'getElementById').mockImplementation((id) => (
+				id in tops ? { getBoundingClientRect: () => ({ top: tops[id] }) } : real(id)
+			))
 
 			wrapper.vm.markCurrent()
 			expect(wrapper.vm.current).toBe('featured-tags')
@@ -248,9 +249,10 @@ describe('Settings', () => {
 			wrapper.vm.current = 'portfolio'
 
 			const tops = { account: 150, 'direct-messages': 600, 'featured-tags': 900, portfolio: 1400 }
-			for (const [id, top] of Object.entries(tops)) {
-				vi.spyOn(wrapper.get(`#${id}`).element, 'getBoundingClientRect').mockReturnValue({ top })
-			}
+			const real = document.getElementById.bind(document)
+			vi.spyOn(document, 'getElementById').mockImplementation((id) => (
+				id in tops ? { getBoundingClientRect: () => ({ top: tops[id] }) } : real(id)
+			))
 
 			wrapper.vm.markCurrent()
 			expect(wrapper.vm.current).toBe('account')

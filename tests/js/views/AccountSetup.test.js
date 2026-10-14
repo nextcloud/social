@@ -15,6 +15,12 @@ vi.mock('../../../src/services/logger.js', () => ({
 	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
+/**
+ * Mounts the setup screen with account and instance state supplied by the server.
+ *
+ * @param {object} serverData overrides for the default instance state
+ * @return {import('@vue/test-utils').VueWrapper} the mounted setup screen
+ */
 function mountSetup(serverData = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
@@ -30,16 +36,45 @@ function mountSetup(serverData = {}) {
 	return mount(AccountSetup, { global: { plugins: [pinia], stubs: { NcLoadingIcon: true } } })
 }
 
+/**
+ * Finds the username field in the creation form.
+ *
+ * @param {import('@vue/test-utils').VueWrapper} wrapper the setup screen
+ * @return {import('@vue/test-utils').DOMWrapper} the matching form control
+ */
 const handleInput = (wrapper) => wrapper.find('#account-setup-handle')
+/**
+ * Finds the explicit account creation action.
+ *
+ * @param {import('@vue/test-utils').VueWrapper} wrapper the setup screen
+ * @return {import('@vue/test-utils').DOMWrapper} the matching form control
+ */
 const createButton = (wrapper) => wrapper.findAll('button').find((b) => b.text() === 'Create account')
+/**
+ * Finds the action that publishes an external handle.
+ *
+ * @param {import('@vue/test-utils').VueWrapper} wrapper the setup screen
+ * @return {import('@vue/test-utils').DOMWrapper} the matching form control
+ */
 const linkButton = (wrapper) => wrapper.findAll('button').find((b) => b.text() === 'Link account')
+/**
+ * Finds the choice that opens the account creation form.
+ *
+ * @param {import('@vue/test-utils').VueWrapper} wrapper the setup screen
+ * @return {import('@vue/test-utils').DOMWrapper} the matching form control
+ */
 const createModeButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().includes('Create a new account'))
+/**
+ * Finds the choice that opens the external account form.
+ *
+ * @param {import('@vue/test-utils').VueWrapper} wrapper the setup screen
+ * @return {import('@vue/test-utils').DOMWrapper} the matching form control
+ */
 const linkModeButton = (wrapper) => wrapper.findAll('button').find((b) => b.text().includes('Link an existing account'))
 
 describe('AccountSetup', () => {
 	afterEach(() => {
 		axios.post.mockReset()
-		window.localStorage.clear()
 	})
 
 	it('lays the explainer beside the answers', () => {
@@ -103,26 +138,10 @@ describe('AccountSetup', () => {
 		await wrapper.find('form.account-setup__form').trigger('submit')
 		await flushPromises()
 
+		expect(axios.post).toHaveBeenCalledTimes(1)
 		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/account/create', { username: 'ali_ce' })
 		expect(wrapper.emitted('created')).toHaveLength(1)
 		expect(wrapper.emitted('created')[0][0]).toEqual({ id: '1', acct: 'ali_ce' })
-	})
-
-	// a reader who deleted their account and made a new one is new here,
-	// whatever they asked for on the account this one replaces: without this
-	// the walkthrough stays away and the app opens unshown
-	it('opens the introduction again for the new account', async () => {
-		axios.post.mockResolvedValue({ data: { status: 1, result: { account: { id: '1', acct: 'alice' } } } })
-		window.localStorage.setItem('social:introduction:alice@cloud.example.org', 'dismissed')
-		const wrapper = mountSetup()
-
-		await wrapper.find('form.account-setup__form').trigger('submit')
-		await flushPromises()
-
-		expect(axios.post).toHaveBeenNthCalledWith(1, '/index.php/apps/social/api/v1/account/create', { username: 'alice' })
-		expect(axios.post).toHaveBeenNthCalledWith(2, '/index.php/apps/social/api/v1/introduction/reset')
-		expect(window.localStorage.getItem('social:introduction:alice@cloud.example.org')).toBeNull()
-		expect(wrapper.emitted('created')).toHaveLength(1)
 	})
 
 	it('shows the reason a handle cannot be had, and stays', async () => {
@@ -135,6 +154,7 @@ describe('AccountSetup', () => {
 		expect(wrapper.find('.account-setup__error').text()).toBe('that handle is taken')
 		expect(wrapper.emitted('created')).toBeUndefined()
 		expect(handleInput(wrapper).element.disabled).toBe(false)
+		expect(handleInput(wrapper).attributes('aria-invalid')).toBe('true')
 	})
 
 	it('puts an account elsewhere on the profile and creates nothing', async () => {
@@ -159,11 +179,13 @@ describe('AccountSetup', () => {
 
 		expect(wrapper.find('#account-setup-handle').exists()).toBe(true)
 		expect(wrapper.find('#account-setup-linked').exists()).toBe(false)
+		expect(axios.post).not.toHaveBeenCalled()
 		expect(wrapper.text()).not.toContain('This only shows your existing account on your Nextcloud profile')
 		await linkModeButton(wrapper).trigger('click')
 		expect(wrapper.find('#account-setup-handle').exists()).toBe(false)
 		expect(wrapper.find('#account-setup-linked').exists()).toBe(true)
 		expect(wrapper.text()).toContain('This only shows your existing account on your Nextcloud profile')
+		expect(axios.post).not.toHaveBeenCalled()
 	})
 
 	it('leaves a refusal behind when the answer changes', async () => {

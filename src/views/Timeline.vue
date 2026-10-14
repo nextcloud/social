@@ -4,6 +4,9 @@
 -->
 <template>
 	<div class="social__wrapper" :class="{ 'social__wrapper--direct': type === 'direct', 'social__wrapper--reading': display === 'list' && type !== 'direct' }">
+		<!-- the first thing a new account sees; gone for good once closed -->
+		<FirstRun v-if="showInfo" @done="hideInfo" />
+
 		<!-- what the administrators are telling everybody, above the posts and
 		     above the composer: it is read before anything is written, and it
 		     is only here at all while something in it is unread. Not on a
@@ -168,6 +171,7 @@ import DirectMessages from './../components/DirectMessages.vue'
 import TimelineSwitcher from './../components/TimelineSwitcher.vue'
 import FirstPostCelebration from './../components/FirstPostCelebration.vue'
 import Announcements from './../components/Announcements.vue'
+import FirstRun from './../components/FirstRun.vue'
 import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import InterestsLearningBanner from './../components/InterestsLearningBanner.vue'
 import InterestsNotice from './../components/InterestsNotice.vue'
@@ -206,6 +210,7 @@ export default {
 		IconCheckAll,
 		NcButton,
 		FirstPostCelebration,
+		FirstRun,
 		HashtagFollowButton,
 		HashtagFollowedList,
 		InterestsLearningBanner,
@@ -224,6 +229,7 @@ export default {
 
 	data() {
 		return {
+			infoHidden: false,
 			/** the pending fetch-ahead of the other scopes, or 0 */
 			prefetchTimer: 0,
 			/** the title of the list being read, once the server has said */
@@ -599,6 +605,24 @@ export default {
 			return 'home'
 		},
 
+		showInfo() {
+			// `firstrun` from the server, or `?welcome=1`, which is what the
+			// setup screen reloads with once the account exists and what
+			// Settings links to for somebody who wants it again
+			const replay = this.$route.query?.replay === '1'
+			const requested = this.settingsStore.getServerData.firstrun || this.$route.query?.welcome === '1'
+			let dismissedLocally = false
+			try {
+				dismissedLocally = window.localStorage.getItem(`social:introduction:${this.accountStore.currentAccountHandle}`) === 'dismissed'
+			} catch {
+				// Storage can be disabled by the browser; the server-side setting
+				// remains the source of truth in that case.
+			}
+
+			const dismissed = this.settingsStore.getServerData.introductionDismissed === true || dismissedLocally
+			return (replay || (requested && !dismissed)) && !this.infoHidden
+		},
+
 		/** @return {boolean} whether the first-post celebration is on screen */
 		celebratingFirstPost() {
 			return this.timelineStore.isCelebratingFirstPost
@@ -729,6 +753,31 @@ export default {
 				}
 			} catch {
 				this.listTitle = ''
+			}
+		},
+
+		hideInfo() {
+			this.infoHidden = true
+			// Keep the dismissal with the account, so it survives refreshes and
+			// signing in on another device. Settings can still explicitly reopen it.
+			try {
+				window.localStorage.setItem(`social:introduction:${this.accountStore.currentAccountHandle}`, 'dismissed')
+			} catch {
+				// Storage can be disabled by the browser; the server-side setting
+				// remains the source of truth in that case.
+			}
+			try {
+				axios.post(generateUrl('apps/social/api/v1/introduction/dismiss'))?.catch(() => {})
+			} catch {
+				// The local dismissal is enough for this browser session if the
+				// preference endpoint cannot be reached.
+			}
+			this.settingsStore.setServerDataEntry({ key: 'introductionDismissed', value: true })
+			if (this.$route.query?.welcome !== undefined || this.$route.query?.replay !== undefined) {
+				const query = { ...this.$route.query }
+				delete query.welcome
+				delete query.replay
+				this.$router.replace({ query })
 			}
 		},
 

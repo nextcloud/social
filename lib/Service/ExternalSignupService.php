@@ -479,12 +479,7 @@ class ExternalSignupService {
 		$template->addHeader();
 		$template->addHeading($this->l10n->t('Welcome, @%s', [$handle]));
 		$template->addBodyText($this->l10n->t('Your account @%1$s@%2$s is ready. Log in with your username and the password you chose.', [$handle, $this->domain()]));
-		// The introduction is what runs on the way in, whichever way the
-		// account was made; the button takes the reader there the same way
-		// the setup screen and the registration page do.
-		$template->addBodyButton($this->l10n->t('Log in'), $this->urlGenerator->linkToRouteAbsolute('core.login.showLoginForm', [
-			'redirect_url' => $this->urlGenerator->linkToRoute('social.Navigation.navigate') . '?welcome=1',
-		]));
+		$template->addBodyButton($this->l10n->t('Log in'), $this->urlGenerator->linkToRouteAbsolute('core.login.showLoginForm'));
 		$template->addFooter();
 
 		$this->send($email, $template);
