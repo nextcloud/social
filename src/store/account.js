@@ -115,9 +115,19 @@ function indexAccount(state, { actorId, data }) {
 	if (!data.acct) {
 		return
 	}
+	state.accountIdMap = { ...state.accountIdMap, [handleOf(data)]: data.url }
+}
+
+/**
+ * The handle the store files an account by: a local account's username with
+ * the host of its actor URL, anybody else's handle as it stands.
+ *
+ * @param {import('../types/Mastodon.js').Account} data the account
+ * @return {string}
+ */
+function handleOf(data) {
 	// a Bluesky handle is whole without a host, and is what every lookup asks by
-	const accountId = (data.acct.indexOf('@') === -1 && !isBlueskyAccount(data)) ? data.acct + '@' + new URL(data.url).hostname : data.acct
-	state.accountIdMap = { ...state.accountIdMap, [accountId]: data.url }
+	return (data.acct.indexOf('@') === -1 && !isBlueskyAccount(data)) ? data.acct + '@' + new URL(data.url).hostname : data.acct
 }
 
 /**
@@ -300,6 +310,16 @@ export const useAccountStore = defineStore('account', {
 		setCurrentAccount(account) {
 			this.currentAccountHandle = account
 		},
+		/**
+		 * Files the reader's own account and makes it the current one, by the
+		 * handle it is filed under rather than one put together from outside.
+		 *
+		 * @param {import('../types/Mastodon.js').Account} data the account
+		 */
+		setOwnAccount(data) {
+			this.addAccount({ actorId: data.url, data })
+			this.setCurrentAccount(handleOf(data))
+		},
 		addAccount({ actorId, data }) {
 			indexAccount(this, { actorId, data })
 		},
@@ -463,13 +483,23 @@ export const useAccountStore = defineStore('account', {
 				})
 			}
 		},
-		fetchCurrentAccountInfo(account) {
+		/**
+		 * Loads the reader's own account by its address. The answer decides
+		 * the handle it is current under: the address may end in a host other
+		 * than the one its actor URL has, which is what the store files it by.
+		 *
+		 * @param {string} account the reader's address
+		 */
+		async fetchCurrentAccountInfo(account) {
 			this.setCurrentAccount(account)
-			this.fetchAccountInfo(account)
 			// the settings on the account — the default audience among them —
 			// are only on the credentials route, and the composer wants them
 			// before the reader opens it rather than after
 			this.fetchCredentials()
+			const data = await this.fetchAccountInfo(account)
+			if (data?.url && data.acct) {
+				this.setCurrentAccount(handleOf(data))
+			}
 		},
 		/**
 		 * The reader's own account with its settings on it. Nothing waits for

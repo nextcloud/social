@@ -167,7 +167,7 @@ const NcDialogStub = {
 function mountComposer(props = {}, { accountPrivacy, attachTo } = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
-	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org' })
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', viewer: { username: 'alice', address: 'alice@cloud.example.org' } })
 	if (accountPrivacy !== undefined) {
 		useAccountStore().setCredentials({
 			id: '1',
@@ -2151,6 +2151,23 @@ describe('Composer', () => {
 
 			expect(input(wrapper).findAll('.mention a').map((mention) => mention.text()))
 				.toEqual(['@bob@remote.example', '@carol@cloud.example.org'])
+		})
+
+		/** the username, chosen on the setup screen, is not the user id `alice` */
+		it('knows the reader by the account\'s username, not by the user id', async () => {
+			const { wrapper } = mountComposer()
+			useSettingsStore().setServerDataEntry({ key: 'viewer', value: { username: 'aloha_al', address: 'aloha_al@cloud.example.org' } })
+
+			eventBus.emit('composer-reply', replyTo(bob, {
+				mentions: [
+					{ id: '1', acct: 'aloha_al', username: 'aloha_al', url: 'https://cloud.example.org/@aloha_al' },
+					{ id: '2', acct: 'alice', username: 'alice', url: 'https://cloud.example.org/@alice' },
+				],
+			}))
+			await flushPromises()
+
+			expect(input(wrapper).findAll('.mention a').map((mention) => mention.text()))
+				.toEqual(['@bob@remote.example', '@alice@cloud.example.org'])
 		})
 
 		it('names each participant once, whether or not the handle carries its host', async () => {

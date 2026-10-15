@@ -371,6 +371,30 @@ describe('account store actions', () => {
 		expect(store.currentAccount).toEqual(alice)
 	})
 
+	/**
+	 * An address may end in a host other than the one in the actor URL, which
+	 * is what the account is filed under; asked for by its address, it still
+	 * has to be the current account once it arrives.
+	 */
+	it('fetchCurrentAccountInfo makes the answer current under the handle it is filed by', async () => {
+		axios.get.mockResolvedValue({ data: alice })
+
+		await store.fetchCurrentAccountInfo('alice@example.org')
+
+		expect(axios.get).toHaveBeenCalledWith(`${API}/global/account/info`, { params: { account: 'alice@example.org' } })
+		expect(store.currentAccountHandle).toBe(ALICE)
+		expect(store.currentAccount).toEqual(alice)
+	})
+
+	it('setOwnAccount files the reader\'s account and makes it current by its own name', () => {
+		const chosen = { ...alice, acct: 'aloha_al', username: 'aloha_al', url: 'https://cloud.example.org/@aloha_al' }
+
+		store.setOwnAccount(chosen)
+
+		expect(store.currentAccountHandle).toBe('aloha_al@cloud.example.org')
+		expect(store.currentAccount).toEqual(chosen)
+	})
+
 	describe('the account’s own settings', () => {
 		const credentials = (privacy = 'private') => ({
 			id: '1',

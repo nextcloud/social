@@ -302,9 +302,7 @@
 			<!-- the hashtags this account pins to itself: a claim it makes
 			     about what it is about, so it sits with the bio rather than
 			     among the numbers -->
-			<!-- `!!`: isOwnProfile is the uid comparison, which is undefined
-			     until the reader is known, and the prop is a boolean -->
-			<FeaturedTags :accountId="highlightsAccountId" :editable="!!isOwnProfile" />
+			<FeaturedTags :accountId="highlightsAccountId" :editable="isOwnProfile" />
 			<!-- The people the reader already follows who follow this account.
 			     The strongest reason there is to follow somebody, and the
 			     server has been able to answer it since `familiar_followers`
@@ -645,10 +643,10 @@ export default {
 
 	setup(props) {
 		const { serverData, hostname } = useServerData()
-		const { currentUser } = useCurrentUser()
+		const { isOwnHandle } = useCurrentUser()
 		const { profileAccount, accountInfo, isLocal, relationship } = useAccount(() => props.uid)
 
-		return { serverData, hostname, currentUser, profileAccount, accountInfo, isLocal, relationship }
+		return { serverData, hostname, isOwnHandle, profileAccount, accountInfo, isLocal, relationship }
 	},
 
 	data() {
@@ -881,7 +879,7 @@ export default {
 		},
 
 		isOwnProfile() {
-			return this.currentUser?.uid && this.localUid === this.currentUser.uid
+			return this.isOwnHandle(this.uid)
 		},
 
 		/** @return {string} when a timed mute lifts, written out, or '' */

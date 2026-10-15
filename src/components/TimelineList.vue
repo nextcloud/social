@@ -291,9 +291,9 @@ export default {
 
 	setup() {
 		const { serverData } = useServerData()
-		const { currentUser } = useCurrentUser()
+		const { isOwnHandle } = useCurrentUser()
 
-		return { serverData, currentUser }
+		return { serverData, isOwnHandle }
 	},
 
 	data() {
@@ -628,7 +628,7 @@ export default {
 				if (this.$route.name === 'timeline') {
 					return this.emptyContent.default
 				}
-				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
+				if (this.$route.name === 'profile' && (this.serverData.public || !this.isOwnHandle(this.$route.params.account))) {
 					return {
 						...byName,
 						title: t('social', '{account} hasn\'t tooted yet', { account: String(this.$route.params.account) }),

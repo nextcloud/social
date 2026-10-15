@@ -275,7 +275,14 @@ class NavigationController extends Controller {
 		 * created by `LocalController::accountCreate()` when they ask.
 		 */
 		try {
-			$this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+			// the account's own name, chosen on the setup screen, which need
+			// not be the user id: the page says this address and checks what
+			// is the reader's own by it
+			$serverData['viewer'] = [
+				'username' => $actor->getPreferredUsername(),
+				'address' => $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress(),
+			];
 		} catch (ActorDoesNotExistException $e) {
 			$serverData['needsAccount'] = true;
 			try {

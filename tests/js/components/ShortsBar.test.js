@@ -163,6 +163,21 @@ describe('ShortsBar', () => {
 		expect(tiles(wrapper).map((tile) => tile.text())).toEqual(['Your shorts', 'Bob', 'All shorts'])
 	})
 
+	/** the username, chosen on the setup screen, is not the user id `alice` */
+	it('knows the reader\'s own shorts by the account\'s username before the store has caught up', async () => {
+		const al = { ...alice, id: '8', url: 'https://cloud.example.org/@aloha_al', acct: 'aloha_al', username: 'aloha_al', display_name: 'Al' }
+		const wrapper = mountBar([short('1', al), short('2', bob), short('3', alice)], {
+			current: null,
+			serverData: { viewer: { username: 'aloha_al', address: 'aloha_al@cloud.example.org' } },
+		})
+		await flushPromises()
+
+		const own = wrapper.findAllComponents(RouterLinkStub)[0]
+		expect(own.attributes('aria-label')).toBe('Your shorts')
+		expect(own.props('to')).toEqual({ name: 'shorts', query: { account: 'aloha_al' } })
+		expect(tiles(wrapper).map((tile) => tile.text())).toEqual(['Your shorts', 'Bob', 'Alice', 'All shorts'])
+	})
+
 	it('draws no row when the carousel could not be loaded', async () => {
 		get.mockRejectedValue(new Error('nope'))
 		const pinia = createPinia()
@@ -249,7 +264,8 @@ describe('ShortsBar kept alive', () => {
 		await leaveAndComeBack(wrapper)
 
 		expect(get).toHaveBeenCalledTimes(1)
-		expect(wrapper.findComponent(ShortsBar).vm).toBe(bar)
+		// the instance itself: the proxy test-utils hands out is a new one each time
+		expect(wrapper.findComponent(ShortsBar).vm.$).toBe(bar.$)
 		expect(tiles(wrapper).length).toBeGreaterThan(0)
 	})
 

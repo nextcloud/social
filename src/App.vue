@@ -271,9 +271,8 @@ export default {
 			// then the old question is still the right one.
 			const seeded = loadState('social', 'currentAccount', null)
 			if (seeded?.url) {
-				this.accountStore.setCurrentAccount(this.cloudId)
-				this.accountStore.addAccount({ actorId: seeded.url, data: seeded })
-			} else if (!this.serverData.needsAccount) {
+				this.accountStore.setOwnAccount(seeded)
+			} else if (!this.serverData.needsAccount && this.cloudId !== '') {
 				// ...but not while the setup screen is up. Asking the API for
 				// this reader's account is what creates it, handle and all, so
 				// the question the screen is asking would already have been

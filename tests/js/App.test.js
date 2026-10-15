@@ -69,6 +69,7 @@ const baseServerData = {
 	cloudAddress: 'https://cloud.example.org',
 	cliUrl: 'https://cloud.example.org',
 	checks: { success: true, checks: { wellknown: true } },
+	viewer: { username: 'alice', address: 'alice@cloud.example.org' },
 }
 
 let pinia
@@ -255,6 +256,39 @@ describe('App', () => {
 		// the action asks the account store for the lookup itself
 		expect(accountStore.fetchAccountInfo).toHaveBeenCalledTimes(1)
 		expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('alice@cloud.example.org')
+	})
+
+	describe('when the username is not the user id', () => {
+		const chosen = { id: '1', acct: 'aloha_al', username: 'aloha_al', display_name: 'Al', url: 'https://cloud.example.org/@aloha_al' }
+
+		afterEach(() => {
+			document.getElementById('initial-state-social-currentAccount')?.remove()
+			window._nc_initial_state?.clear()
+		})
+
+		/**
+		 * The account the page carries was made current under the user id
+		 * (`alice@…`) while the store filed it under its own name, so there
+		 * was no current account at all: no profile link, no "this is mine".
+		 */
+		it('makes the account the page carries current under its own name', () => {
+			setServerData({ viewer: { username: 'aloha_al', address: 'aloha_al@cloud.example.org' } })
+			setInitialState('social', 'currentAccount', chosen)
+			window._nc_initial_state?.clear()
+			mountApp()
+
+			expect(accountStore.currentAccountHandle).toBe('aloha_al@cloud.example.org')
+			expect(accountStore.currentAccount).toEqual(chosen)
+			expect(accountStore.fetchCurrentAccountInfo).not.toHaveBeenCalled()
+		})
+
+		it('asks for the account by its own address where the page carries none', () => {
+			setServerData({ viewer: { username: 'aloha_al', address: 'aloha_al@cloud.example.org' } })
+			mountApp()
+
+			expect(accountStore.fetchCurrentAccountInfo).toHaveBeenCalledWith('aloha_al@cloud.example.org')
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('aloha_al@cloud.example.org')
+		})
 	})
 
 	it('asks for nothing while the setup screen is still asking them', () => {

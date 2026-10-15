@@ -52,6 +52,7 @@ import { useSettingsStore } from '../store/settings.js'
  * @property {Sections} [sections] - The sections this instance offers (not on a public page)
  * @property {boolean} setup - Whether the instance still needs its address confirmed
  * @property {string} [suggestedHandle] - The handle offered to somebody creating an account (only with needsAccount)
+ * @property {{username: string, address: string}} [viewer] - The reader's account: the username they chose, which need not be their user id, and their address (only once the account exists)
  */
 
 /**

@@ -2182,6 +2182,8 @@ Server-side state is not a store: it is passed through Nextcloud's initial state
 
 The reader's own account travels the same way. `NavigationController::provideViewerAccount()` puts the cached actor — the one `GET /api/v1/global/account/info` answers with, in the same export format — into the initial state as `currentAccount`, and `App.vue` seeds the account store from it. The app used to ask for it in `beforeMount()`, which cost every load a second authenticated round trip before anything could render, for something the page request was already holding. A page rendered before the account exists provides nothing, and the app asks the old way.
 
+The account's name comes with it, in `serverData.viewer`: the `username` chosen on the setup screen and the `address` (`username@` the social address). The username need not be the Nextcloud user id, so `useCurrentUser()` keeps the two apart: `currentUser` is the Nextcloud user, for what Nextcloud answers to (avatars, its profile page); `username`, `cloudId` and `socialId` are the account's, and `isOwnHandle()` is how a page tells the reader's own profile, messages and shorts from anybody else's. The store makes the seeded account current under the handle it files it by (`setOwnAccount()`), not under one built from the user id.
+
 The Mastodon and ActivityPub entities the app exchanges are described as JSDoc
 typedefs in `src/types/`, and `npm run typecheck` holds the stores, services and
 utilities to them (`jsconfig.json`). The same script runs `vue-tsc` over the

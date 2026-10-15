@@ -112,7 +112,7 @@ function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
-	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', viewer: { username: 'alice', address: 'alice@cloud.example.org' }, ...serverData })
 	for (const data of [bob, carol, alice]) {
 		accountStore.addAccount({ actorId: data.url, data })
 	}
@@ -288,6 +288,20 @@ describe('ProfileInfo', () => {
 		const other = mountProfile('bob@remote.example')
 		expect(buttonByText(other, 'Edit profile')).toBeUndefined()
 		expect(bannerOf(other).classes()).not.toContain('user-profile__banner--editable')
+	})
+
+	/**
+	 * The own profile was the one whose name matched the user id: with a
+	 * username chosen on the setup screen the reader's own was somebody
+	 * else's, and an account named like their user id was theirs. A remote
+	 * account with the same name before the @ was theirs as well.
+	 */
+	it('knows the own profile by the account\'s username, not by the user id', () => {
+		makeStore({ viewer: { username: 'carol', address: 'carol@cloud.example.org' } })
+
+		expect(buttonByText(mountProfile('carol'), 'Edit profile')).toBeDefined()
+		expect(buttonByText(mountProfile('alice'), 'Edit profile')).toBeUndefined()
+		expect(buttonByText(mountProfile('carol@remote.example'), 'Edit profile')).toBeUndefined()
 	})
 
 	it('marks the banner as visible only when the account has a header image', () => {

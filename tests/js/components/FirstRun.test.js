@@ -58,7 +58,7 @@ let accountStore
 async function mountFirstRun(serverData = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
-	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', firstrun: true, ...serverData })
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', firstrun: true, viewer: { username: 'alice', address: 'alice@cloud.example.org' }, ...serverData })
 	accountStore = useAccountStore()
 	vi.spyOn(accountStore, 'followAccount').mockResolvedValue(undefined)
 	const wrapper = mount(FirstRun, {
@@ -91,6 +91,22 @@ describe('FirstRun', () => {
 		// four steps, the first lit
 		expect(wrapper.findAll('.first-run__dot')).toHaveLength(4)
 		expect(wrapper.find('.first-run__dot--current').attributes('aria-current')).toBe('step')
+	})
+
+	/**
+	 * The setup screen lets somebody choose a username other than their user
+	 * id; the introduction built the address from the user id and showed one
+	 * that was not theirs.
+	 */
+	it('shows the account\'s own address where the username is not the user id', async () => {
+		serverHas()
+		const writeText = vi.fn().mockResolvedValue(undefined)
+		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+		const wrapper = await mountFirstRun({ viewer: { username: 'aloha_al', address: 'aloha_al@example.org' } })
+
+		expect(wrapper.find('.first-run__handle').text()).toBe('@aloha_al@example.org')
+		await button(wrapper, 'Copy').trigger('click')
+		expect(writeText).toHaveBeenCalledWith('@aloha_al@example.org')
 	})
 
 	it('copies the address', async () => {

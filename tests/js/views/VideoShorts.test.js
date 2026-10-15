@@ -830,7 +830,7 @@ describe('VideoShorts', () => {
 		async function mountDay(carousel, options = {}) {
 			get.mockResolvedValue({ data: carousel })
 
-			return mountShorts(options.statuses ?? [video('1')], options)
+			return mountShorts(options.statuses ?? [video('1')], { ...options, serverData: { viewer: { username: 'alice', address: 'alice@cloud.example' }, ...options.serverData } })
 		}
 
 		beforeEach(() => {
@@ -927,7 +927,7 @@ describe('VideoShorts', () => {
 			get.mockImplementation(async (url) => url.includes('reactions')
 				? { data: { reactions: [{ id: 'r1', type: 'reply', content: 'lovely light', account: bob }] } }
 				: { data: [day('1', alice, { view_count: 12, seen: true })] })
-			const { wrapper } = await mountShorts([video('1')])
+			const { wrapper } = await mountShorts([video('1')], { serverData: { viewer: { username: 'alice', address: 'alice@cloud.example' } } })
 			await flushPromises()
 
 			const slide = wrapper.find('article.short')
