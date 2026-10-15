@@ -1970,7 +1970,10 @@ messages by the thread they are in, shows one conversation. A direct
 message written here is queued by `AtprotoPostListener` as an
 `AtprotoPublish` `message`, and `ChatSender` sends it to its recipients on
 Bluesky in their conversation (`getConvoForMembers`, `sendMessage`), while
-the Fediverse recipients get it over ActivityPub as before. Opening
+the Fediverse recipients get it over ActivityPub as before. The attempt is
+recorded before it is sent, and a retry of the job looks for the message
+among the conversation's 100 newest (`getMessages`) before sending it
+again, as its first attempt may have sent it without recording it. Opening
 Messages wakes the account's next read (`ConversationService::getPage()`).
 
 What the account writes in a Bluesky app arrives in the same log and is

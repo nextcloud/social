@@ -50,6 +50,10 @@ class ChatStore {
 	private const CONVO = 'social.chat.convo';
 	/** a message sent from here: the message here, by its Bluesky id */
 	private const SENT = 'social.chat.sent';
+	/** a message on its way out: when it was first attempted */
+	private const ATTEMPT = 'social.chat.attempt';
+	/** how long an attempt is remembered, past the last retry of `Cron\AtprotoPublish` */
+	private const ATTEMPT_KEPT = 86400;
 
 	public function __construct(
 		private PostStore $posts,
@@ -231,10 +235,31 @@ class ChatStore {
 	 */
 	public function sent(string $did, string $convoId, string $messageId, string $noteId): void {
 		$this->remember($did, $convoId, $noteId);
-		$this->durableCache->setShared(self::CONVO, $noteId, $convoId, self::KEPT);
 		if ($messageId !== '') {
 			$this->durableCache->setShared(self::SENT, $did . "\0" . $messageId, $noteId, self::KEPT);
 		}
+		// last: a message whose conversation is known is recorded in full (`ChatSender`)
+		$this->durableCache->setShared(self::CONVO, $noteId, $convoId, self::KEPT);
+		$this->durableCache->removeShared(self::ATTEMPT, $noteId);
+	}
+
+	/**
+	 * A message here is about to be sent to Bluesky for the first time:
+	 * remembered before it goes, so a retry after a failure can tell
+	 * whether it went.
+	 */
+	public function attempting(string $noteId, int $time): void {
+		$this->durableCache->setShared(self::ATTEMPT, $noteId, $time, self::ATTEMPT_KEPT);
+	}
+
+	/**
+	 * When a message here was first attempted and not recorded as sent; 0
+	 * for none.
+	 */
+	public function attempted(string $noteId): int {
+		$time = $this->durableCache->getShared(self::ATTEMPT, $noteId);
+
+		return is_int($time) ? $time : 0;
 	}
 
 	/**

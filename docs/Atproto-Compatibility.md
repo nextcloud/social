@@ -1261,6 +1261,14 @@ like any other; nothing in it says which network it runs on.
   it, at most 1,000 graphemes, its links and hashtags as facets — is sent
   (`sendMessage`). Recipients on the Fediverse get it over ActivityPub as
   before. Pictures are not sent: a Bluesky direct message carries none.
+  `sendMessage` takes no idempotency key and a failed job is tried again,
+  so the first attempt is recorded before the message goes
+  (`ChatStore::attempting()`), and a retry of a message not recorded as
+  sent first looks among the conversation's 100 newest messages
+  (`getMessages`) for the account's own of the same text since that
+  attempt; one found is recorded as sent instead of sending it again. Only
+  a conversation with more than 100 messages since the attempt could hide
+  it.
 - **Written in a Bluesky app.** A message the account itself writes in a
   Bluesky app (signed in here or anywhere) is in the log too, and is
   stored as the account's own direct message to the conversation's other
