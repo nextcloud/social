@@ -415,9 +415,13 @@ app derives from its log), `recovery/recovery-key.py` with the word list
 (§4.4), `recovery/bluesky-recovery-tool.html` (the recovery tool, §4.4,
 where the JavaScript is built), and `README.txt`, which says what each
 file is and the steps of Moving.md's "If this server goes away". Every file goes to the
-archive as a stream — the CAR through a temporary stream that spills to
-disk — and the download is sent in pieces from the finished zip, so
-neither is ever whole in memory. Nothing is read back from these files
+archive as a stream, so none is ever whole in memory. The download is a
+zip written as it is sent (`ZipStreamWriter`: stored, CRC and sizes in a
+data descriptor after each file, ZIP64 offsets and end records past
+4 GB): its first bytes go out at once, the CAR goes in as the repository
+is read, and nothing of it is kept on disk. The Migration page's archive
+is a `ZipArchive` file, the CAR going in through a temporary stream that
+spills to disk. Nothing is read back from these files
 on import: a Bluesky account comes here by a move (§13), not from a file.
 
 ### 4.6 Switching off (D23)
@@ -1716,7 +1720,8 @@ The mirror image, so a person is not locked in. On the Migration page,
    invite code; a handle under none of them is refused before anything
    is made (`handle-not-allowed`).
 2. In the background (`AtprotoMove` job, `oc_social_atproto_move`): the
-   repository as a CAR into `importRepo`, the blobs that
+   repository as a CAR into `importRepo` (sent from a temporary stream
+   that spills to disk, never as one string), the blobs that
    `listMissingBlobs` names into `uploadBlob` (each once; the list ends at
    a cursor it named before, at a page that names no new blob, and after
    1000 pages), the preferences into `putPreferences`. While the move runs, or waits for the person, posts
@@ -1879,7 +1884,6 @@ keeps it behind *Details* for whoever helps the person.
 | `account-not-created` | The other server did not make the account, for another reason | The details say why |
 | `keys-sealed` | A key of this server cannot be opened (the instance secret changed): 503 on any route that needs one; an XRPC call answers 503 `KeysSealed` (§16.3) | Ask the administrator to run `occ social:atproto:keys:reseal` |
 | `directory-unreachable` | `control`: the PLC directory did not answer (503) | Try again later |
-| `export-failed` | `archive`: the zip could not be written (500) | Try again; the log has the details |
 | `tool-missing` | The recovery tool's script is not built on this server (503) | Ask the administrator; a release has it |
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |

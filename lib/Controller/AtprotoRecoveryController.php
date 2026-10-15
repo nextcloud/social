@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
-use Generator;
+use Closure;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Identity\DidControlService;
 use OCA\Social\Atproto\Identity\IdentityService;
@@ -18,7 +18,8 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
 use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Exceptions\AtprotoException;
-use OCA\Social\Response\StreamedPiecesResponse;
+use OCA\Social\Exceptions\ClientGoneException;
+use OCA\Social\Response\StreamedWriterResponse;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -43,9 +44,6 @@ use Throwable;
  * recovery tool that moves it with the recovery phrase.
  */
 class AtprotoRecoveryController extends Controller {
-	/** how much of the archive is read and sent at a time */
-	private const CHUNK = 1024 * 1024;
-
 	public function __construct(
 		IRequest $request,
 		private IUserSession $userSession,
@@ -130,9 +128,11 @@ class AtprotoRecoveryController extends Controller {
 	/**
 	 * `GET /api/v1/social/bluesky/archive`: the viewer's Bluesky account as
 	 * a zip file — repository, blobs, the DID's log and document, the
-	 * offline recovery script. A download the browser navigates to, so no
-	 * request token; the password is confirmed first, and an account gets
-	 * a few an hour, as each reads the whole repository.
+	 * offline recovery script — sent while it is written, so the first
+	 * bytes go out at once and nothing of it is kept on disk. A download
+	 * the browser navigates to, so no request token; the password is
+	 * confirmed first, and an account gets a few an hour, as each reads
+	 * the whole repository.
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
@@ -144,45 +144,23 @@ class AtprotoRecoveryController extends Controller {
 		if ($identity === null || !BlueskyArchiveService::exportable($identity)) {
 			return new DataResponse(['error' => 'No Bluesky account for this account', 'code' => 'no-identity'], Http::STATUS_NOT_FOUND);
 		}
-		try {
-			$path = $this->archive->zip($identity);
-		} catch (Throwable $e) {
-			$this->logger->error('Bluesky export failed', ['did' => $identity->did, 'exception' => $e]);
 
-			return new DataResponse(['error' => 'The archive could not be made', 'code' => 'export-failed'], Http::STATUS_INTERNAL_SERVER_ERROR);
-		}
-
-		return new StreamedPiecesResponse(self::pieces($path), Http::STATUS_OK, [
+		return new StreamedWriterResponse(function (Closure $sink) use ($identity): void {
+			try {
+				$this->archive->zip($identity, $sink);
+			} catch (ClientGoneException $e) {
+				throw $e;
+			} catch (Throwable $e) {
+				// the status went out with the first bytes: the archive
+				// ends without its central directory, which a zip reader
+				// reports as broken
+				$this->logger->error('Bluesky export failed', ['did' => $identity->did, 'exception' => $e]);
+			}
+		}, Http::STATUS_OK, [
 			'Content-Type' => 'application/zip',
-			'Content-Length' => (string)filesize($path),
 			// the name is reduced to [A-Za-z0-9._-] by filename()
 			'Content-Disposition' => 'attachment; filename="' . $this->archive->filename($identity) . '"',
 		]);
-	}
-
-	/**
-	 * The finished archive in chunks, removed once it is sent.
-	 *
-	 * @return Generator<int, string>
-	 */
-	private static function pieces(string $path): Generator {
-		$file = fopen($path, 'rb');
-		try {
-			while ($file !== false && !feof($file)) {
-				$chunk = fread($file, self::CHUNK);
-				if ($chunk === false || $chunk === '') {
-					break;
-				}
-				yield $chunk;
-			}
-		} finally {
-			if ($file !== false) {
-				fclose($file);
-			}
-			if (is_file($path)) {
-				unlink($path);
-			}
-		}
 	}
 
 	/**

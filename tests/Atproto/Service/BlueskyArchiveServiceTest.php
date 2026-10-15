@@ -26,11 +26,11 @@ use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Tests\Helper\MigrationArchive;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\ITempManager;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
+use ZipArchive;
 
 /**
  * The Bluesky account as files (R2): the repository as the CAR the
@@ -49,6 +49,8 @@ class BlueskyArchiveServiceTest extends TestCase {
 	private array $blobs = [];
 	/** @var array<int, array{id: int, did: string, cid: string, operation: array, creation: int, sent: int, confirmed: int, dead: int, reason: string}> */
 	private array $log = [];
+	/** @var (\Closure(BlobRef): void)|null told of every video before it is read */
+	private ?\Closure $onVideo = null;
 
 	protected function setUp(): void {
 		$this->plc = $this->createMock(PlcClient::class);
@@ -67,7 +69,10 @@ class BlueskyArchiveServiceTest extends TestCase {
 		$pictures = $this->createMock(PictureService::class);
 		$pictures->method('read')->willReturnCallback(static fn (BlobRef $blob): string => $blob->documentId === 'gone' ? throw new AtprotoException('not readable') : 'picture ' . $blob->documentId);
 		$videos = $this->createMock(VideoBlobService::class);
-		$videos->method('open')->willReturnCallback(static function (BlobRef $blob): array {
+		$videos->method('open')->willReturnCallback(function (BlobRef $blob): array {
+			if ($this->onVideo !== null) {
+				($this->onVideo)($blob);
+			}
 			$stream = fopen('php://memory', 'w+b');
 			fwrite($stream, 'video ' . $blob->documentId);
 			rewind($stream);
@@ -87,7 +92,7 @@ class BlueskyArchiveServiceTest extends TestCase {
 
 		return new BlueskyArchiveService(
 			$identities, $this->repositories, $blobs, $pictures, $videos, $this->plc, $plcLog, $config,
-			$this->createMock(ITempManager::class), $time, $tool, new NullLogger(),
+			$time, $tool, new NullLogger(),
 		);
 	}
 
@@ -142,6 +147,54 @@ class BlueskyArchiveServiceTest extends TestCase {
 		foreach ([self::DID, 'alice.social.test', 'repo.car', 'goat repo import repo.car', 'recovery-key.py', 'goat plc sign --plc-signing-key RECOVERY_KEY', 'recovery/bluesky-recovery-tool.html', '72'] as $text) {
 			$this->assertStringContainsString($text, $readme);
 		}
+	}
+
+	/** The download is the same files as one zip, written to the sink as it is made. */
+	public function testTheDownloadIsAZipOfTheSameFiles(): void {
+		$picture = new BlobRef(self::DID, Cid::forRaw('a picture'), 'p1', 'image/jpeg', 9);
+		$this->blobs = [$picture];
+		$this->plc->method('auditLog')->willReturn([]);
+		$path = (string)tempnam(sys_get_temp_dir(), 'bluesky-archive-test');
+		$file = fopen($path, 'wb');
+
+		$this->service()->zip(self::identity(), static function (string $bytes) use ($file): void {
+			fwrite($file, $bytes);
+		});
+		fclose($file);
+
+		$zip = new ZipArchive();
+		$this->assertTrue($zip->open($path, ZipArchive::RDONLY | ZipArchive::CHECKCONS));
+		$this->assertSame(8, $zip->numFiles);
+		$this->assertSame('CAR header and blocks', $zip->getFromName('bluesky/repo.car'));
+		$this->assertSame('picture p1', $zip->getFromName('bluesky/blobs/' . $picture->cid->toString()));
+		$this->assertStringContainsString(self::DID, (string)$zip->getFromName('bluesky/README.txt'));
+		$zip->close();
+		unlink($path);
+	}
+
+	/** The repository goes out as it is read, before any blob is opened. */
+	public function testTheDownloadGoesOutBeforeTheBlobsAreAllRead(): void {
+		$this->repositories = $this->createMock(RepositoryService::class);
+		$this->repositories->method('streamCar')->willReturnCallback(static function (): \Generator {
+			yield str_repeat('c', 200 * 1024);
+		});
+		for ($i = 0; $i < 3; $i++) {
+			$this->blobs[] = new BlobRef(self::DID, Cid::forRaw('video ' . $i), 'v' . $i, 'video/mp4', 7);
+		}
+		usort($this->blobs, static fn (BlobRef $a, BlobRef $b): int => strcmp($a->cid->toString(), $b->cid->toString()));
+		$sent = '';
+		$seen = [];
+		$this->onVideo = static function (BlobRef $blob) use (&$sent, &$seen): void {
+			$seen[] = strlen($sent);
+		};
+
+		$this->service()->zip(self::identity(), static function (string $bytes) use (&$sent): void {
+			$sent .= $bytes;
+		});
+
+		$this->assertCount(3, $seen);
+		$this->assertGreaterThan(200 * 1024, $seen[0], 'the repository went out before the first blob was opened');
+		$this->assertSame('PK', substr($sent, 0, 2));
 	}
 
 	/** The account export puts the same files under its own folder. */

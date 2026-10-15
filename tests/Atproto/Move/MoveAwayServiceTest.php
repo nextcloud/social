@@ -77,7 +77,8 @@ class MoveAwayServiceTest extends TestCase {
 		$pds = $this->createMock(PdsClient::class);
 		$pds->method('origin')->willReturnCallback(static fn (string $typed): string => 'https://' . preg_replace('#^https?://#', '', rtrim($typed, '/')));
 		$pds->method('call')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
-			$this->calls[] = ['method' => $method, 'verb' => $verb, 'query' => $query, 'json' => $json, 'bytes' => $bytes, 'token' => $token];
+			$stream = is_resource($bytes);
+			$this->calls[] = ['method' => $method, 'verb' => $verb, 'query' => $query, 'json' => $json, 'bytes' => $stream ? stream_get_contents($bytes) : $bytes, 'stream' => $stream, 'token' => $token];
 			if ($this->pdsHook !== null) {
 				($this->pdsHook)($method);
 			}
@@ -99,7 +100,13 @@ class MoveAwayServiceTest extends TestCase {
 		$this->identities->method('signingKey')->willReturnCallback(fn (): PrivateKey => $this->key);
 		$this->identities->method('getByDid')->willReturnCallback(fn (): Identity => $this->alice);
 		$repositories = $this->createMock(RepositoryService::class);
-		$repositories->method('exportCar')->with(self::DID)->willReturnCallback(fn (): string => 'the car at ' . ($this->head?->commitCid ?? 'nothing'));
+		$repositories->method('carStream')->with(self::DID)->willReturnCallback(function () {
+			$car = fopen('php://temp', 'w+b');
+			fwrite($car, 'the car at ' . ($this->head?->commitCid ?? 'nothing'));
+			rewind($car);
+
+			return $car;
+		});
 		$repositories->method('getHead')->willReturnCallback(fn (): ?RepoHead => $this->head);
 		$repositories->method('getRecord')->willReturnCallback(static function (string $did, string $collection, string $rkey): ?StoredRecord {
 			if ($collection !== 'app.bsky.feed.post' || $rkey !== '3kpic') {
@@ -487,6 +494,7 @@ class MoveAwayServiceTest extends TestCase {
 
 		$this->assertSame(['com.atproto.server.describeServer', 'com.atproto.server.createAccount', 'com.atproto.repo.importRepo', 'com.atproto.repo.listMissingBlobs', 'com.atproto.repo.uploadBlob', 'com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus', 'com.atproto.identity.getRecommendedDidCredentials', 'com.atproto.server.activateAccount'], array_column($this->calls, 'method'), 'in this order: the DID moves only once everything is there');
 		$this->assertSame('the car at nothing', $this->call('com.atproto.repo.importRepo')['bytes']);
+		$this->assertTrue($this->call('com.atproto.repo.importRepo')['stream'], 'the repository is sent from a stream, never as one string');
 		$this->assertSame('pixels', $this->call('com.atproto.repo.uploadBlob')['bytes']);
 		$this->assertSame(['limit' => 500, 'cursor' => 'c1'], $this->calls[5]['query']);
 		$this->assertSame('access-1', $this->call('com.atproto.server.activateAccount')['token']);
@@ -555,6 +563,8 @@ class MoveAwayServiceTest extends TestCase {
 
 		$this->assertSame('refresh-1', $this->call('com.atproto.server.refreshSession')['token']);
 		$this->assertSame('access-2', $this->call('com.atproto.server.activateAccount')['token']);
+		$imports = array_values(array_filter($this->calls, static fn (array $c): bool => $c['method'] === 'com.atproto.repo.importRepo'));
+		$this->assertSame(['the car at nothing', 'the car at nothing'], array_column($imports, 'bytes'), 'the repository is sent whole again, from its start');
 	}
 
 	public function testOnlyAMoveAwayIsStartedAgainHere(): void {

@@ -123,7 +123,9 @@ class RepositoryServiceTest extends TestCase {
 	public function testTheCarIsTheWholeRepository(): void {
 		$result = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.actor.profile', ['$type' => 'app.bsky.actor.profile', 'displayName' => 'Alice'], '', 'self')]);
 
-		$car = Car::decode($this->service->exportCar(self::DID));
+		$stream = $this->service->carStream(self::DID);
+		$car = Car::decode((string)stream_get_contents($stream));
+		fclose($stream);
 
 		$this->assertTrue($car['roots'][0]->equals($result->commitCid));
 		$tree = (new Mst($this->store->getLeaves(self::DID)))->build();

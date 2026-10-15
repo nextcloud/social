@@ -391,7 +391,12 @@ class MoveAwayService {
 	 */
 	private function importRepository(Move $move): void {
 		$head = $this->repositories->getHead($move->did);
-		$this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, $this->repositories->exportCar($move->did), 'application/vnd.ipld.car');
+		$car = $this->repositories->carStream($move->did);
+		try {
+			$this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, $car, 'application/vnd.ipld.car');
+		} finally {
+			fclose($car);
+		}
 		$move->progress['exported'] = (string)$head?->commitCid;
 	}
 

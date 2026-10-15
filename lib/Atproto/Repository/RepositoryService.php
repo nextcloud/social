@@ -315,12 +315,41 @@ class RepositoryService {
 	}
 
 	/**
-	 * The whole repository as one CAR string, for a request body.
+	 * The whole repository as a CAR in a temporary stream, for a request
+	 * body: spilled to disk past a few megabytes, so a large repository is
+	 * never whole in memory. The caller closes it.
 	 *
+	 * @return resource at its start
 	 * @throws AtprotoException when there is no repository
 	 */
-	public function exportCar(string $did): string {
-		return implode('', iterator_to_array($this->streamCar($did), false));
+	public function carStream(string $did) {
+		return self::spill($this->streamCar($did));
+	}
+
+	/**
+	 * Pieces of a CAR into a temporary stream, spilled to disk past a few
+	 * megabytes.
+	 *
+	 * @param iterable<string> $pieces
+	 * @return resource at its start
+	 * @throws AtprotoException
+	 */
+	public static function spill(iterable $pieces) {
+		$car = fopen('php://temp/maxmemory:' . (4 * 1024 * 1024), 'w+b');
+		if ($car === false) {
+			throw new AtprotoException('could not buffer the repository');
+		}
+		try {
+			foreach ($pieces as $piece) {
+				fwrite($car, $piece);
+			}
+		} catch (Throwable $e) {
+			fclose($car);
+			throw $e;
+		}
+		rewind($car);
+
+		return $car;
 	}
 
 	/**

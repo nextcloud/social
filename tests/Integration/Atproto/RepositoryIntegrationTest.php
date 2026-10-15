@@ -79,7 +79,7 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertCount(1, $records);
 		$this->assertSame('Hello Bluesky ✨', $records[0]->value()['text'], 'bytes survive the BLOB column');
 
-		$car = Car::decode($this->repositories->exportCar(self::DID));
+		$car = Car::decode(implode('', iterator_to_array($this->repositories->streamCar(self::DID), false)));
 		$this->assertTrue($car['roots'][0]->equals($second->commitCid));
 		$this->assertArrayHasKey($records[0]->cid->toString(), $car['blocks']);
 
