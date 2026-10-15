@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Atproto\Reader\SuggestedStarterPacks;
+use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\StarterPacksRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CacheActorService;
@@ -19,6 +21,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 
@@ -95,7 +98,7 @@ class CollectionPackServiceTest extends TestCase {
 		return $id;
 	}
 
-	private function service(): CollectionPackService {
+	private function service(?ContainerInterface $container = null): CollectionPackService {
 		$config = $this->createStub(ConfigService::class);
 		$config->method('getAppValue')->willReturnCallback(fn (): string => $this->sources);
 
@@ -155,13 +158,13 @@ class CollectionPackServiceTest extends TestCase {
 		$time = $this->createStub(ITimeFactory::class);
 		$time->method('getTime')->willReturn(1_790_000_000);
 
-		return new CollectionPackService($config, $actors, $curl, $request, $time, new NullLogger());
+		return new CollectionPackService($config, $actors, $curl, $request, $time, new NullLogger(), $container);
 	}
 
 	public function testACuratorsCollectionIsStoredWithTheMembersWhoseConsentHolds(): void {
 		$result = $this->service()->refresh();
 
-		$this->assertSame(['sources' => 1, 'packs' => 1, 'members' => 2, 'refused' => 0, 'failed' => 0], $result);
+		$this->assertSame(['sources' => 2, 'packs' => 1, 'members' => 2, 'refused' => 0, 'failed' => 0], $result);
 		$pack = $this->stored[self::NEWS];
 		$this->assertSame([self::PAPER, self::TIMES], $pack['members']);
 		$this->assertSame('News organizations of Mastodon', $pack['name']);
@@ -169,6 +172,7 @@ class CollectionPackServiceTest extends TestCase {
 		$this->assertSame('news', $pack['topic']);
 		$this->assertSame('en', $pack['language']);
 		$this->assertSame('Gargron@mastodon.social', $pack['curator_acct']);
+		$this->assertSame('fediverse', $pack['origin']);
 		$this->assertSame('https://mastodon.social/collections/11', $pack['url']);
 		$this->assertSame(CollectionPackService::slug('News organizations of Mastodon', self::NEWS), $pack['slug']);
 	}
@@ -297,5 +301,75 @@ class CollectionPackServiceTest extends TestCase {
 		$this->assertMatchesRegularExpression('/^artists-of-mastodon-[0-9a-f]{8}$/', $one);
 		$this->assertNotSame($one, $two);
 		$this->assertMatchesRegularExpression('/^collection-[0-9a-f]{8}$/', CollectionPackService::slug('✨', 'https://a.example/c/3'));
+	}
+
+	/** A container holding Bluesky's suggestions reader, with Bluesky on or off. */
+	private function bluesky(SuggestedStarterPacks $suggested, bool $enabled): ContainerInterface {
+		$config = $this->createStub(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn($enabled);
+		$container = $this->createStub(ContainerInterface::class);
+		$container->method('get')->willReturnCallback(
+			static fn (string $class): ?object => match ($class) {
+				AtprotoConfig::class => $config,
+				SuggestedStarterPacks::class => $suggested,
+				default => null,
+			}
+		);
+
+		return $container;
+	}
+
+	public function testBlueskysSuggestionsAreReadWithTheCollections(): void {
+		$suggested = $this->createMock(SuggestedStarterPacks::class);
+		$suggested->expects($this->once())->method('refresh')->willReturn(['packs' => 3, 'members' => 40]);
+		$suggested->expects($this->never())->method('forgetAllBut');
+
+		$result = $this->service($this->bluesky($suggested, true))->refresh();
+
+		$this->assertSame(4, $result['packs']);
+		$this->assertSame(42, $result['members']);
+	}
+
+	public function testBlueskysSuggestionsGoWhenBlueskyIsOff(): void {
+		$suggested = $this->createMock(SuggestedStarterPacks::class);
+		$suggested->expects($this->never())->method('refresh');
+		$suggested->expects($this->once())->method('forgetAllBut');
+
+		$this->service($this->bluesky($suggested, false))->refresh();
+	}
+
+	public function testBlueskysSuggestionsGoWhenTheyAreNoLongerASource(): void {
+		$this->sources = '["Gargron@mastodon.social"]';
+		$suggested = $this->createMock(SuggestedStarterPacks::class);
+		$suggested->expects($this->never())->method('refresh');
+		$suggested->expects($this->once())->method('forgetAllBut');
+
+		$this->service($this->bluesky($suggested, true))->refresh();
+	}
+
+	public function testAnAppViewThatDoesNotAnswerIsAFailedSource(): void {
+		$suggested = $this->createStub(SuggestedStarterPacks::class);
+		$suggested->method('refresh')->willThrowException(new RuntimeException('down'));
+
+		$this->assertSame(1, $this->service($this->bluesky($suggested, true))->refresh()['failed']);
+	}
+
+	public function testTheFediversesCleanupLeavesBlueskysPacksAlone(): void {
+		$this->stored['at://did:plc:a/app.bsky.graph.starterpack/1'] = [
+			'id' => 99, 'uri' => 'at://did:plc:a/app.bsky.graph.starterpack/1', 'origin' => 'bluesky',
+			'curator' => 'https://bsky.app/profile/did:plc:a', 'curator_acct' => 'a.bsky.social',
+		];
+		$this->documents[self::LIST]['orderedItems'] = [];
+
+		$this->service()->refresh();
+
+		$this->assertArrayHasKey('at://did:plc:a/app.bsky.graph.starterpack/1', $this->stored);
+		$this->assertNotContains(99, $this->deleted);
+	}
+
+	public function testBlueskysSuggestionsAreASource(): void {
+		$this->sources = '["bluesky:suggested", "bluesky:other"]';
+
+		$this->assertSame(['bluesky:suggested'], $this->service()->sources());
 	}
 }

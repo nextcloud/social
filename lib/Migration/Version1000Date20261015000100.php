@@ -16,8 +16,10 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * `social_starter_pack`: the collections other servers publish (FEP-7aa9,
- * Mastodon's Collections), read in to be offered as starter packs.
+ * `social_starter_pack`: the starter packs other servers publish, read in
+ * to be offered here: the collections of the fediverse (FEP-7aa9,
+ * Mastodon's Collections) and Bluesky's suggested starter packs, told apart
+ * by `origin`.
  *
  * One row per collection, unique on the hash of its id, which is how a
  * collection read again replaces itself, and on its slug, which is the path
@@ -41,6 +43,7 @@ class Version1000Date20261015000100 extends SimpleMigrationStep {
 		$table->addColumn('uri', Types::TEXT, ['notnull' => false]);
 		$table->addColumn('uri_prim', Types::STRING, ['length' => 32, 'notnull' => true]);
 		$table->addColumn('slug', Types::STRING, ['length' => 64, 'notnull' => true]);
+		$table->addColumn('origin', Types::STRING, ['length' => 16, 'notnull' => true, 'default' => 'fediverse']);
 		$table->addColumn('curator', Types::TEXT, ['notnull' => false]);
 		$table->addColumn('curator_acct', Types::STRING, ['length' => 255, 'notnull' => true, 'default' => '']);
 		$table->addColumn('name', Types::STRING, ['length' => 255, 'notnull' => true, 'default' => '']);

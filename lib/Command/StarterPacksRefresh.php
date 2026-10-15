@@ -14,7 +14,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * `occ social:starter-packs:refresh`: reads the collections the
+ * `occ social:starter-packs:refresh`: reads the starter packs the
  * `starter_pack_sources` app value names now, rather than at the next daily
  * run of `Cron\StarterPackSources`.
  */
@@ -29,7 +29,7 @@ class StarterPacksRefresh extends SocialCommand {
 	protected function configure() {
 		parent::configure();
 		$this->setName('social:starter-packs:refresh')
-			->setDescription('Read the collections other servers publish again, as starter packs');
+			->setDescription('Read the starter packs other servers publish again: fediverse collections and Bluesky\'s suggestions');
 	}
 
 	#[\Override]

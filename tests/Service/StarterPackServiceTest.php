@@ -317,9 +317,9 @@ class StarterPackServiceTest extends TestCase {
 	}
 
 	/** @return array<string, mixed> */
-	private static function row(string $slug, array $members): array {
+	private static function row(string $slug, array $members, string $origin = 'fediverse'): array {
 		return [
-			'id' => 1, 'uri' => 'https://mastodon.social/ap/users/1/collections/11', 'slug' => $slug,
+			'id' => 1, 'uri' => 'https://mastodon.social/ap/users/1/collections/11', 'slug' => $slug, 'origin' => $origin,
 			'curator' => 'https://mastodon.social/users/Gargron', 'curator_acct' => 'Gargron@mastodon.social',
 			'name' => 'News organizations of Mastodon', 'summary' => 'Papers', 'topic' => 'news', 'language' => 'en',
 			'url' => 'https://mastodon.social/collections/11', 'members' => $members, 'fetched' => 1,
@@ -363,5 +363,26 @@ class StarterPackServiceTest extends TestCase {
 
 		$this->assertSame([$paper], $pack->getAccounts());
 		$this->assertSame([], $pack->getUnresolved());
+	}
+
+	public function testASuggestionReadFromBlueskyIsABlueskyPack(): void {
+		$packs = $this->withCollections([self::row('street-1a2b3c4d', ['https://bsky.app/profile/did:plc:a'], 'bluesky')])->packs();
+
+		$this->assertSame(StarterPack::SOURCE_BLUESKY, end($packs)->getSource());
+	}
+
+	public function testThePeopleInAPackReadInAreFollowedAsTheActorsTheyAre(): void {
+		$member = new Person();
+		$member->setId('https://bsky.app/profile/did:plc:a');
+		$member->setAccount('a.bsky.social');
+		$this->cacheActorService->method('getFromId')->willReturn($member);
+		$follows = $this->createMock(FollowService::class);
+		$follows->expects($this->once())->method('followActor')->with($this->anything(), $member)->willReturn(true);
+		$follows->expects($this->never())->method('followAccount');
+		$request = $this->createStub(StarterPacksRequest::class);
+		$request->method('getAll')->willReturn([self::row('street-1a2b3c4d', ['https://bsky.app/profile/did:plc:a'], 'bluesky')]);
+		$service = new StarterPackService($this->configService, $this->cacheActorService, $follows, new NullLogger(), $request);
+
+		$this->assertSame(['a.bsky.social'], $service->followAll($this->viewer(), 'street-1a2b3c4d'));
 	}
 }

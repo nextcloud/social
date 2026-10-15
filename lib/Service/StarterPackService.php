@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Atproto\Reader\SuggestedStarterPacks;
 use OCA\Social\Db\StarterPacksRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -144,7 +145,8 @@ class StarterPackService {
 	}
 
 	/**
-	 * The collections `CollectionPackService` read in, as packs.
+	 * The packs `CollectionPackService` read in, fediverse collections and
+	 * Bluesky's suggestions alike.
 	 *
 	 * @return list<StarterPack>
 	 */
@@ -167,7 +169,8 @@ class StarterPackService {
 			if ($members === []) {
 				continue;
 			}
-			$packs[] = (new StarterPack($row['slug'], $row['name'], $row['summary'], $members, StarterPack::SOURCE_FEDIVERSE))
+			$source = ($row['origin'] === SuggestedStarterPacks::ORIGIN) ? StarterPack::SOURCE_BLUESKY : StarterPack::SOURCE_FEDIVERSE;
+			$packs[] = (new StarterPack($row['slug'], $row['name'], $row['summary'], $members, $source))
 				->setOrigin($row['curator_acct'], $row['url'], $row['topic'], $row['language']);
 		}
 
@@ -206,13 +209,21 @@ class StarterPackService {
 	 */
 	public function followAll(Person $viewer, string $slug): array {
 		$followed = [];
-		foreach ($this->pack($slug)->getAccounts() as $account) {
+		$pack = $this->pack($slug);
+		// a pack read in names its members by actor id and they are cached:
+		// they are followed as the actors they are, on whichever network
+		$byActor = in_array($pack->getSource(), [StarterPack::SOURCE_FEDIVERSE, StarterPack::SOURCE_BLUESKY], true);
+		foreach ($pack->getAccounts() as $account) {
 			if ($account->getId() === $viewer->getId()) {
 				continue;
 			}
 
 			try {
-				$this->followService->followAccount($viewer, $account->getAccount());
+				if ($byActor) {
+					$this->followService->followActor($viewer, $account);
+				} else {
+					$this->followService->followAccount($viewer, $account->getAccount());
+				}
 				$followed[] = $account->getAccount();
 			} catch (Throwable $e) {
 				$this->logger->info('[StarterPackService] could not follow an account from a pack', [

@@ -34,11 +34,12 @@ class StarterPacksRequestTest extends TestCase {
 		$this->cleanUp();
 	}
 
-	/** @return array{uri: string, slug: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int} */
+	/** @return array{uri: string, slug: string, origin: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int} */
 	private function pack(string $n, string $name, array $members): array {
 		return [
 			'uri' => self::URI . $this->run . '-' . $n,
 			'slug' => 'test-' . $this->run . '-' . $n,
+			'origin' => 'bluesky',
 			'curator' => 'https://packs.example/users/curator',
 			'curator_acct' => 'curator@packs.example',
 			'name' => $name,
@@ -69,6 +70,7 @@ class StarterPacksRequestTest extends TestCase {
 		$this->assertSame(['https://b.example/users/two', 'https://c.example/users/ünï'], $rows[0]['members']);
 		$this->assertSame('Wörter & <mehr>', $rows[0]['summary']);
 		$this->assertSame('curator@packs.example', $rows[0]['curator_acct']);
+		$this->assertSame('bluesky', $rows[0]['origin']);
 		$this->assertSame(1_790_000_000, $rows[0]['fetched']);
 	}
 

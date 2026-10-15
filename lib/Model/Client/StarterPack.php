@@ -26,10 +26,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
  * and it is deliberately not a table of its own: the accounts are not this
  * instance's to own, the handles are the only durable reference to them, and
  * keeping rows would mean keeping rows about accounts that may never be fetched.
- * The exception is a pack read in from another server's collection
- * (`CollectionPackService`), which is named by actor ids, carries who
- * curated it and where it lives, and is kept in `social_starter_pack`
- * between reads.
+ * The exception is a pack read in from another server, a fediverse
+ * collection or a starter pack Bluesky suggests (`CollectionPackService`),
+ * which is named by actor ids, carries who curated it and where it lives,
+ * and is kept in `social_starter_pack` between reads.
  *
  * The handles resolve to real profiles when a pack is opened -- never in the
  * index, because resolving an unknown remote handle means a WebFinger lookup and
@@ -43,6 +43,8 @@ class StarterPack implements JsonSerializable {
 	public const SOURCE_LOCAL = 'local';
 	/** A collection another server publishes, read in (FEP-7aa9). */
 	public const SOURCE_FEDIVERSE = 'fediverse';
+	/** A starter pack Bluesky suggests, read in. */
+	public const SOURCE_BLUESKY = 'bluesky';
 
 	/** Who curated a pack read in, as `user@host`; '' for the others. */
 	private string $curator = '';

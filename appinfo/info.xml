@@ -30,7 +30,7 @@ What it does:
 - 🗂️ Collections, 24-hour shorts and places
 - 📱 Pixelfed's own routes — the config its app reads on launch, discover, the story carousel, collections, mutuals, reports, direct-message threads, push (honestly off) and its admin screens — so its app finds what it looks for once the API is at the domain root
 - 🖼️ Shorts, collections and places in the web app: a Shorts bar above your feed with the people whose 24-hour shorts are up, one player for every short and a way to post one; albums as the fourth tab of a profile, each a page of its posts; a pin in the composer that says where a picture was taken, and a page for every place — with nothing ever sent to a map service
-- 🧭 A Discover page: who to follow, with starter packs you can follow in one go — the collections curators publish on Mastodon among them — and the people your follows follow drawn as a constellation you can drag around and follow from
+- 🧭 A Discover page: who to follow, with starter packs you can follow in one go — the collections curators publish on Mastodon and Bluesky's suggested packs among them — and the people your follows follow drawn as a constellation you can drag around and follow from
 - 🎲 A composer that plays: /dice, /flip and /pick are rolled when the post goes out and sent as plain text, a short post can go out as a card drawn on colour, and a new post makes an entrance at the top of the timeline
 - ✨ 24-hour shorts as words on a coloured card, or a picture with stickers dragged onto it — both drawn into the picture, so they arrive elsewhere as you made them
 - ❤️ Hearts on the video stack: a like button, and double tap to like with a heart where your finger was

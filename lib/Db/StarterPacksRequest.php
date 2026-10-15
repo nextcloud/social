@@ -12,10 +12,11 @@ namespace OCA\Social\Db;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
 /**
- * `social_starter_pack`: the collections read in from other servers, one row
- * each. See `Service\CollectionPackService` for what goes in and why.
+ * `social_starter_pack`: the starter packs read in from other servers, one
+ * row each, `origin` saying which network's (`fediverse`, `bluesky`). See
+ * `Service\CollectionPackService` for what goes in and why.
  *
- * @psalm-type StoredPack = array{id: int, uri: string, slug: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int}
+ * @psalm-type StoredPack = array{id: int, uri: string, slug: string, origin: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int}
  */
 class StarterPacksRequest extends CoreRequestBuilder {
 	/** The most packs ever read back; far more than a page of them draws. */
@@ -24,7 +25,7 @@ class StarterPacksRequest extends CoreRequestBuilder {
 	/**
 	 * Writes a collection, replacing the row of the same id if there is one.
 	 *
-	 * @param array{uri: string, slug: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int} $pack
+	 * @param array{uri: string, slug: string, origin: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int} $pack
 	 */
 	public function save(array $pack): void {
 		$prim = md5($pack['uri']);
@@ -36,6 +37,7 @@ class StarterPacksRequest extends CoreRequestBuilder {
 				->setValue('uri', $qb->createNamedParameter($pack['uri']))
 				->setValue('uri_prim', $qb->createNamedParameter($prim))
 				->setValue('slug', $qb->createNamedParameter($pack['slug']))
+				->setValue('origin', $qb->createNamedParameter($pack['origin']))
 				->setValue('curator', $qb->createNamedParameter($pack['curator']))
 				->setValue('curator_acct', $qb->createNamedParameter($pack['curator_acct']))
 				->setValue('name', $qb->createNamedParameter($pack['name']))
@@ -52,6 +54,7 @@ class StarterPacksRequest extends CoreRequestBuilder {
 
 		$qb->update(self::TABLE_STARTER_PACKS)
 			->set('slug', $qb->createNamedParameter($pack['slug']))
+			->set('origin', $qb->createNamedParameter($pack['origin']))
 			->set('curator', $qb->createNamedParameter($pack['curator']))
 			->set('curator_acct', $qb->createNamedParameter($pack['curator_acct']))
 			->set('name', $qb->createNamedParameter($pack['name']))
@@ -72,7 +75,7 @@ class StarterPacksRequest extends CoreRequestBuilder {
 	 */
 	public function getAll(): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('id', 'uri', 'slug', 'curator', 'curator_acct', 'name', 'summary', 'topic', 'language', 'url', 'members', 'fetched')
+		$qb->select('id', 'uri', 'slug', 'origin', 'curator', 'curator_acct', 'name', 'summary', 'topic', 'language', 'url', 'members', 'fetched')
 			->from(self::TABLE_STARTER_PACKS)
 			->orderBy('curator_acct', 'asc')
 			->addOrderBy('name', 'asc')
@@ -121,6 +124,7 @@ class StarterPacksRequest extends CoreRequestBuilder {
 			'id' => (int)$data['id'],
 			'uri' => (string)($data['uri'] ?? ''),
 			'slug' => (string)$data['slug'],
+			'origin' => (string)$data['origin'],
 			'curator' => (string)($data['curator'] ?? ''),
 			'curator_acct' => (string)$data['curator_acct'],
 			'name' => (string)$data['name'],

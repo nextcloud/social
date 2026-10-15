@@ -16,11 +16,11 @@ use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * Reads the collections the `starter_pack_sources` app value names once a
- * day, so the starter packs made of them follow what their curators publish
- * (`CollectionPackService`). A collection changes rarely, and the FEP asks a
- * reader to fetch again from time to time because an `Add` or `Remove` may
- * never arrive.
+ * Reads the starter packs the `starter_pack_sources` app value names once a
+ * day — the fediverse's collections and Bluesky's suggestions — so the packs
+ * offered here follow what their curators publish (`CollectionPackService`).
+ * A collection changes rarely, and FEP-7aa9 asks a reader to fetch again
+ * from time to time because an `Add` or `Remove` may never arrive.
  */
 class StarterPackSources extends TimedJob {
 	public function __construct(

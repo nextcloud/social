@@ -9,14 +9,18 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Atproto\Reader\SuggestedStarterPacks;
+use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\StarterPacksRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\AppFramework\Utility\ITimeFactory;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * The collections other servers publish, read in as starter packs.
+ * The starter packs other servers publish, read in: the collections of the
+ * fediverse, and Bluesky's suggested starter packs.
  *
  * Mastodon 4.6 calls them Collections and federates them as FEP-7aa9
  * `FeaturedCollection`s: a named, ordered list of accounts a curator
@@ -28,11 +32,13 @@ use Throwable;
  * account, or does not live on the account's own server is left out.
  *
  * Which curators are read is the `starter_pack_sources` app value: a JSON
- * array of handles (`user@host`, every public collection of that account)
- * and collection addresses (that one collection). Unset is the shipped list;
- * `[]` reads nobody and removes what was read. A collection that is not
- * `discoverable`, is marked `sensitive`, or has no verified member is not
- * offered to somebody looking for their first follows.
+ * array of handles (`user@host`, every public collection of that account),
+ * collection addresses (that one collection) and `bluesky:suggested`
+ * (Bluesky's suggested starter packs, read by `SuggestedStarterPacks` while
+ * Bluesky is on). Unset is the shipped list; `[]` reads nobody and removes
+ * what was read. A collection that is not `discoverable`, is marked
+ * `sensitive`, or has no verified member is not offered to somebody looking
+ * for their first follows.
  *
  * Read by `Cron\StarterPackSources` once a day and by
  * `occ social:starter-packs:refresh`; never on a page. A curator that cannot
@@ -42,10 +48,17 @@ class CollectionPackService {
 	/** The app value naming the curators and collections to read. */
 	public const CONFIG_KEY = 'starter_pack_sources';
 
-	/** Read when the app value is unset: @Gargron's curated collections on mastodon.social. */
+	/** The source naming Bluesky's suggested starter packs. */
+	public const BLUESKY_SUGGESTED = 'bluesky:suggested';
+
+	/** Read when the app value is unset: @Gargron's curated collections on mastodon.social, and Bluesky's suggestions. */
 	public const DEFAULT_SOURCES = [
 		'Gargron@mastodon.social',
+		self::BLUESKY_SUGGESTED,
 	];
+
+	/** The `origin` of a collection read from the fediverse. */
+	public const ORIGIN = 'fediverse';
 
 	/** The most sources read in one pass. */
 	public const MAX_SOURCES = 20;
@@ -67,6 +80,7 @@ class CollectionPackService {
 		private StarterPacksRequest $starterPacksRequest,
 		private ITimeFactory $timeFactory,
 		private LoggerInterface $logger,
+		private ?ContainerInterface $container = null,
 	) {
 	}
 
@@ -112,6 +126,9 @@ class CollectionPackService {
 		$read = [];
 
 		foreach ($sources as $source) {
+			if ($source === self::BLUESKY_SUGGESTED) {
+				continue;
+			}
 			try {
 				[$curator, $collections] = $this->collectionsOf($source);
 			} catch (Throwable $e) {
@@ -143,8 +160,38 @@ class CollectionPackService {
 		}
 
 		$this->forgetGone($sources, $seen, $read);
+		$this->refreshBluesky(in_array(self::BLUESKY_SUGGESTED, $sources, true), $result);
 
 		return $result;
+	}
+
+	/**
+	 * Bluesky's suggested starter packs, read while they are a source and
+	 * Bluesky is on, and removed when either stops being so.
+	 *
+	 * @param array{sources: int, packs: int, members: int, refused: int, failed: int} $result
+	 */
+	private function refreshBluesky(bool $wanted, array &$result): void {
+		$config = $this->container?->get(AtprotoConfig::class);
+		$suggested = $this->container?->get(SuggestedStarterPacks::class);
+		if (!$suggested instanceof SuggestedStarterPacks) {
+			return;
+		}
+
+		if (!$wanted || !$config instanceof AtprotoConfig || !$config->isEnabled()) {
+			$suggested->forgetAllBut();
+
+			return;
+		}
+
+		try {
+			$read = $suggested->refresh();
+			$result['packs'] += $read['packs'];
+			$result['members'] += $read['members'];
+		} catch (Throwable $e) {
+			$result['failed']++;
+			$this->logger->notice('[CollectionPackService] could not read Bluesky\'s suggested starter packs', ['exception' => $e]);
+		}
 	}
 
 	/**
@@ -214,7 +261,7 @@ class CollectionPackService {
 	 *
 	 * @param array<string, mixed> $collection
 	 *
-	 * @return array{uri: string, slug: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int}|null
+	 * @return array{uri: string, slug: string, origin: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int}|null
 	 */
 	private function pack(Person $curator, array $collection, int &$refused): ?array {
 		$uri = self::id($collection['id'] ?? '');
@@ -237,6 +284,7 @@ class CollectionPackService {
 		return [
 			'uri' => $uri,
 			'slug' => self::slug($name, $uri),
+			'origin' => self::ORIGIN,
 			'curator' => $curator->getId(),
 			'curator_acct' => $curator->getAccount(),
 			'name' => ($name !== '') ? $name : $curator->getAccount(),
@@ -369,7 +417,7 @@ class CollectionPackService {
 	private function forgetGone(array $sources, array $seen, array $read): void {
 		$configured = array_map('strtolower', $sources);
 		foreach ($this->starterPacksRequest->getAll() as $pack) {
-			if (isset($seen[md5($pack['uri'])])) {
+			if ($pack['origin'] !== self::ORIGIN || isset($seen[md5($pack['uri'])])) {
 				continue;
 			}
 			$stillNamed = in_array(strtolower($pack['curator_acct']), $configured, true)
@@ -383,6 +431,9 @@ class CollectionPackService {
 	/** A configured source shaped: `user@host`, or an `https://` address. */
 	public static function source(string $source): string {
 		$source = trim($source);
+		if ($source === self::BLUESKY_SUGGESTED) {
+			return $source;
+		}
 		if (str_starts_with($source, 'https://')) {
 			return filter_var($source, FILTER_VALIDATE_URL) !== false ? $source : '';
 		}

@@ -850,6 +850,7 @@ class CoreRequestBuilder {
 			'uri',
 			'uri_prim',
 			'slug',
+			'origin',
 			'curator',
 			'curator_acct',
 			'name',
