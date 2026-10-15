@@ -1016,12 +1016,85 @@ trait StreamTimelines {
 	 * @return Stream[]
 	 */
 	private function getTimelineHashtag(ProbeOptions $options): array {
-		$nids = $this->hashtagTimelineNids($options);
+		$nids = $this->hashtagNidsByWindow($options) ?? $this->hashtagTimelineNids($options);
 		if ($nids === []) {
 			return [];
 		}
 
 		return $this->streamsByNids($nids, $options);
+	}
+
+	/**
+	 * The hashtag page in two steps, as the public page is decided: the tag's
+	 * newest posts first, read off the tag's index and the stream's key alone
+	 * (`hashtagWindowNids()`), then the visibility filters applied to those
+	 * few ids by their key (`hashtagTimelineNids()` with `$among`), with
+	 * further windows when the filters empty one.
+	 *
+	 * Asked as one join, the plan was the optimizer's to pick, and with the
+	 * viewer's recipient condition an `OR` no index answers, MySQL 8.4 could
+	 * start from `social_stream_dest` — every recipient row of the instance —
+	 * rather than from the tag: 770 ms against 20 for the same page on
+	 * 100,000 posts. Neither step here leaves it that choice.
+	 *
+	 * Returns **null** for the join query where the windows ran out before
+	 * the page filled while more of the tag's posts remained, as
+	 * `narrowedNidsByKind()` does: a tag whose posts the viewer mostly may
+	 * not read is one an empty page would wrongly call finished.
+	 *
+	 * @return string[]|null
+	 */
+	private function hashtagNidsByWindow(ProbeOptions $options): ?array {
+		if ($options->getMinId() > 0) {
+			$options->setInverted(true);
+		}
+		$wanted = min(self::HOME_OVERREAD_MAX, $options->getLimit() * self::HOME_OVERREAD);
+		$window = $this->hashtagWindowNids($options, $wanted);
+		$exhausted = count($window) < $wanted;
+		$filter = fn (array $window, ProbeOptions $next): array => $this->hashtagTimelineNids($next, $window);
+
+		$nids = $this->refilledPage(
+			($window === []) ? [] : $filter($window, $options), $window, $options,
+			function (ProbeOptions $next) use (&$exhausted, $wanted): array {
+				// a window shorter than asked for held the rest of the tag:
+				// there is nothing below it to read
+				if ($exhausted) {
+					return [];
+				}
+				$window = $this->hashtagWindowNids($next, $wanted);
+				$exhausted = count($window) < $wanted;
+
+				return $window;
+			},
+			$filter
+		);
+
+		if (count($nids) < $options->getLimit() && !$exhausted) {
+			return null;
+		}
+
+		return array_slice($nids, 0, $options->getLimit());
+	}
+
+	/**
+	 * The newest posts carrying the tag, before any visibility filter: the
+	 * tag's rows and the posts they name, nothing else joined, so the only
+	 * way in is the tag's index (`social_st_ht`).
+	 *
+	 * @return string[]
+	 */
+	protected function hashtagWindowNids(ProbeOptions $options, int $wanted): array {
+		$qb = $this->getStreamNidsSelectSql(false, true);
+		$this->hideArchived($qb, false, true);
+		$qb->limitToStatusTypes();
+		$this->filterKind($qb, $options);
+		$qb->linkToStreamTags('st', 's.id_prim');
+		$qb->andWhere($qb->expr()->eq(
+			'st.hashtag', $qb->createNamedParameter(FollowedTagsRequest::normalise($options->getArgument()))
+		));
+		$this->boundNidPage($qb, 's', $options, $wanted);
+
+		return $this->getNidsFromRequest($qb);
 	}
 
 	/**
@@ -1031,9 +1104,11 @@ trait StreamTimelines {
 	 * than once, so the page is `DISTINCT` -- over one decimal identifier, which
 	 * is what this is for: it used to be over the whole post.
 	 *
+	 * @param string[]|null $among the window to choose from, by key; null for the whole tag
+	 *
 	 * @return string[]
 	 */
-	protected function hashtagTimelineNids(ProbeOptions $options): array {
+	protected function hashtagTimelineNids(ProbeOptions $options, ?array $among = null): array {
 		// the archived filter in the form that admits a row the backfill has
 		// not reached, filled or not: with the bare `archived = 0` MySQL walks
 		// `social_stream` in nid order looking for the tag, which on a large
@@ -1044,6 +1119,9 @@ trait StreamTimelines {
 		$page->limitToStatusTypes();
 		$page->paginate($options);
 		$this->filterKind($page, $options);
+		if ($among !== null) {
+			$page->andWhere($page->expr()->in('s.nid', $page->createNamedParameter($among, IQueryBuilder::PARAM_STR_ARRAY)));
+		}
 
 		$page->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
 		$page->linkToStreamTags('st', 's.id_prim');

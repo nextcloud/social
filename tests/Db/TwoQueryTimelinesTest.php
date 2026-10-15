@@ -37,9 +37,12 @@ class TwoQueryTimelinesTest extends TestCase {
 	private function request(string $pageMethod, array $page) {
 		$request = $this->getMockBuilder(StreamRequest::class)
 			->disableOriginalConstructor()
-			->onlyMethods(['directTimelineNids', 'accountTimelineNids', 'hashtagTimelineNids', 'streamsByNids'])
+			->onlyMethods(['directTimelineNids', 'accountTimelineNids', 'hashtagTimelineNids', 'hashtagWindowNids', 'streamsByNids'])
 			->getMock();
 		$request->method($pageMethod)->willReturn($page);
+		// the hashtag page is chosen from a window of the tag's newest posts;
+		// one shorter than asked for is the whole tag
+		$request->method('hashtagWindowNids')->willReturn($page);
 		$request->method('streamsByNids')->willReturnCallback(function (array $nids): array {
 			$this->read = $nids;
 

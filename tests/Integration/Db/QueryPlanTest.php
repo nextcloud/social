@@ -636,6 +636,29 @@ class QueryPlanTest extends TestCase {
 		$this->assertReadOnlyInASubquery($query, 'f');
 	}
 
+	/**
+	 * The window the hashtag page is chosen from: the tag's newest posts, read
+	 * from the tag alone. With the recipients in the same query MySQL 8.4
+	 * could start from a scan of social_stream_dest, 770 ms on 100,000 posts.
+	 *
+	 * MySQL may instead walk the stream's primary key down to the window's
+	 * last post when the tag is as common as the seed's, one post in four:
+	 * about 240 rows for a window of 60. It costs that against the tag's
+	 * index, so the stream is guarded on the other databases only.
+	 */
+	public function testTheHashtagWindowIsReadFromTheTagAlone(): void {
+		$query = $this->capture(
+			$this->timeline(ProbeOptions::HASHTAG, ['setArgument' => self::TAG]),
+			'/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM .*social_stream_tag/'
+		);
+
+		$this->assertStringNotContainsString('social_stream_dest', $query['sql']);
+		$this->assertIndexed(
+			$query, ['st' => null] + (self::$platform === 'mysql' ? [] : ['s' => null]),
+			'the tag\'s posts sorted by nid'
+		);
+	}
+
 	public function testTheNotificationPageIsReadThroughTheRecipientIndex(): void {
 		$query = $this->capture($this->timeline(ProbeOptions::NOTIFICATIONS), '/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM/');
 
