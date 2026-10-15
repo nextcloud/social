@@ -456,6 +456,12 @@ export default {
 	.switcher__short {
 		display: inline;
 	}
+
+	// a word is wider than the icon it stands in for, so five of them fit
+	// only with less room around each
+	.switcher .switcher__option--short {
+		padding: 0 10px;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {

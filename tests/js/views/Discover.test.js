@@ -5,8 +5,10 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import Discover from '../../../src/views/Discover.vue'
+import { useAccountStore } from '../../../src/store/account.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 const { showError, showSuccess } = vi.hoisted(() => ({ showError: vi.fn(), showSuccess: vi.fn() }))
@@ -53,8 +55,13 @@ function view(overrides = {}) {
 		packs: [],
 		openPack: null,
 		packLoading: false,
-		followingPack: '',
+		failedPack: '',
 		loaded: [],
+		// a visitor, so that opening a pack asks for no relationships unless
+		// a test says otherwise
+		visitor: true,
+		$refs: {},
+		$nextTick: (callback) => callback?.(),
 		...Discover.methods,
 		...overrides,
 	}
@@ -62,6 +69,7 @@ function view(overrides = {}) {
 
 describe('Discover', () => {
 	beforeEach(() => {
+		setActivePinia(createPinia())
 		get.mockReset()
 		post.mockReset()
 		showError.mockReset()
@@ -87,21 +95,37 @@ describe('Discover', () => {
 		wrapper.vm.openPack = fromElsewhere
 		await wrapper.vm.$nextTick()
 
-		const origin = wrapper.find('.discover__pack-origin')
-		expect(origin.text()).toContain('#news')
-		expect(origin.find('a').attributes('href')).toBe('https://mastodon.social/collections/11')
-		expect(origin.find('a').attributes('rel')).toContain('noopener')
+		expect(wrapper.vm.packView).toMatchObject({ curator: '@Gargron@mastodon.social', topic: 'news', url: 'https://mastodon.social/collections/11' })
+		expect(wrapper.findComponent({ name: 'StarterPackDetail' }).props('headingLevel')).toBe(2)
 
 		wrapper.vm.openPack = ours
 		await wrapper.vm.$nextTick()
-		expect(wrapper.find('.discover__pack-origin').exists()).toBe(false)
+		expect(wrapper.vm.packView).toMatchObject({ curator: '', topic: '', url: '' })
 	})
 
-	it('is headed by its one h1', () => {
+	it('is headed by its one h1, with its sections one level below', () => {
 		const wrapper = mount(Discover, { shallow: true, global: { plugins: [createPinia()] } })
 
 		expect(wrapper.find('h1').text()).toBe('Discover')
 		expect(wrapper.findAll('h1')).toHaveLength(1)
+		expect(wrapper.findAll('h2').length).toBeGreaterThan(0)
+		expect(wrapper.findAll('h3')).toHaveLength(0)
+	})
+
+	describe('an empty pack list', () => {
+		it('tells a user plainly, without the settings', () => {
+			useSettingsStore().setServerData({ isAdmin: false })
+
+			const text = Discover.computed.emptyPacksDescription.call({})
+
+			expect(text).not.toContain('starter_packs')
+		})
+
+		it('tells an administrator which settings add packs', () => {
+			useSettingsStore().setServerData({ isAdmin: true })
+
+			expect(Discover.computed.emptyPacksDescription.call({})).toContain('starter_packs')
+		})
 	})
 
 	describe('tabs', () => {
@@ -126,6 +150,18 @@ describe('Discover', () => {
 
 			expect(tabs.every((tab) => tab.to === undefined)).toBe(true)
 			expect(tabs.every((tab) => tab.icon !== undefined)).toBe(true)
+		})
+
+		/**
+		 * A phone has room for the icons only, and those alone do not say
+		 * which list is which: every tab brings a word for it instead.
+		 */
+		it('gives every tab a short word for a phone, and packs an icon of their own', () => {
+			const tabs = Discover.computed.tabs.call({})
+
+			expect(tabs.every((tab) => typeof tab.short === 'string' && tab.short !== '')).toBe(true)
+			expect(tabs[1].icon).not.toBe(tabs[0].icon)
+			expect(tabs[1].icon.name).not.toMatch(/^AccountMultiple/)
 		})
 
 		it('opens on People rather than on content', () => {
@@ -251,6 +287,94 @@ describe('Discover', () => {
 			expect(self.error).toBeNull()
 		})
 
+		it('puts the focus on the pack\'s name when it opens', async () => {
+			const focusHeading = vi.fn()
+			get.mockResolvedValue({ data: { id: 'x', name: 'X', accounts: [] } })
+			const self = view({ packs: [{ id: 'x', name: 'X' }], $refs: { pack: { focusHeading } } })
+
+			await self.loadPack.call(self, 'x')
+
+			expect(focusHeading).toHaveBeenCalledTimes(1)
+		})
+
+		it('does not move the focus when the open pack is asked again', async () => {
+			const focusHeading = vi.fn()
+			get.mockResolvedValue({ data: { id: 'x', name: 'X', accounts: [] } })
+			const self = view({ packs: [{ id: 'x', name: 'X' }], openPack: { id: 'x' }, $refs: { pack: { focusHeading } } })
+
+			await self.loadPack.call(self, 'x')
+
+			expect(focusHeading).not.toHaveBeenCalled()
+		})
+
+		it('gives the focus back to the card it was opened from', () => {
+			const card = (id) => ({ dataset: { packId: id }, focus: vi.fn() })
+			const cards = [card('a'), card('x')]
+			const self = view({ openPack: { id: 'x' }, $refs: { cards } })
+
+			self.closePack.call(self)
+
+			expect(cards[1].focus).toHaveBeenCalled()
+			expect(cards[0].focus).not.toHaveBeenCalled()
+		})
+
+		it('does not open again when the pack closed before it arrived', async () => {
+			let answer
+			get.mockImplementationOnce(() => new Promise((resolve) => {
+				answer = () => resolve({ data: { id: 'x', name: 'X', accounts: [] } })
+			}))
+			const self = view({ packs: [{ id: 'x', name: 'X' }] })
+
+			const opening = self.loadPack.call(self, 'x')
+			self.closePack.call(self)
+			answer()
+			await opening
+
+			expect(self.openPack).toBeNull()
+			expect(self.packLoading).toBe(false)
+		})
+
+		it('asks whom the reader follows already in it', async () => {
+			get.mockImplementation((url) => Promise.resolve(url.includes('relationships')
+				? { data: [{ id: '1', following: true }] }
+				: { data: { id: 'x', name: 'X', accounts: [{ id: '1', acct: 'a@b.c' }] } }))
+			const self = view({ packs: [{ id: 'x', name: 'X' }], visitor: false })
+
+			await self.loadPack.call(self, 'x')
+
+			expect(get).toHaveBeenCalledWith('/apps/social/api/v1/accounts/relationships', { params: { id: ['1'] } })
+			expect(useAccountStore().getRelationshipWith('1')).toEqual({ id: '1', following: true })
+		})
+
+		/**
+		 * "Try again" sits over the failed pack, and asking for the list
+		 * again would leave the reader where they started.
+		 */
+		it('tries the pack again, not the list, after a pack failed to open', async () => {
+			get.mockRejectedValueOnce(new Error('busy'))
+			const self = view({ active: 'packs', packs: [{ id: 'x', name: 'X' }], loaded: ['packs'] })
+
+			await self.loadPack.call(self, 'x')
+			expect(self.failedPack).toBe('x')
+
+			get.mockResolvedValueOnce({ data: { id: 'x', name: 'X', accounts: [] } })
+			await self.retry.call(self)
+
+			expect(get).toHaveBeenLastCalledWith('/apps/social/api/v1/starter_packs/x')
+			expect(self.openPack.id).toBe('x')
+			expect(self.error).toBeNull()
+			expect(self.failedPack).toBe('')
+		})
+
+		it('tries the tab again when it was the list that failed', async () => {
+			get.mockResolvedValue({ data: [] })
+			const self = view({ active: 'packs', error: 'busy' })
+
+			await self.retry.call(self)
+
+			expect(get).toHaveBeenCalledWith('/apps/social/api/v1/starter_packs')
+		})
+
 		it('does not leave half a pack on screen when the fetch fails', async () => {
 			get.mockRejectedValue(new Error('gone'))
 			const self = view({ packs: [{ id: 'x', name: 'X' }] })
@@ -263,48 +387,65 @@ describe('Discover', () => {
 		})
 	})
 
-	describe('following a pack', () => {
-		/**
-		 * The server skips whoever it cannot reach rather than failing the lot,
-		 * so the message has to say how many were actually followed — not how
-		 * many are in the pack.
-		 */
-		it('reports how many were actually followed, not how many were asked', async () => {
-			post.mockResolvedValue({ data: { followed: ['a@b.c', 'd@e.f'] } })
-			const self = view()
+	describe('following from a pack', () => {
+		const remote = { id: '1', acct: 'a@b.c', username: 'a' }
+		const local = { id: '2', acct: 'alice', username: 'alice' }
+		const other = { id: '3', acct: 'd@e.f', username: 'd' }
+		const asMember = (account) => ({ key: account.id, acct: account.acct, actor: account })
 
-			await self.followPack.call(self, 'friends')
+		/**
+		 * The server skips whoever it cannot reach rather than failing the
+		 * lot, and answers with the handles it followed, a local account's
+		 * with its host.
+		 */
+		it('says which members were followed and which were not', async () => {
+			post.mockResolvedValue({ data: { followed: ['a@b.c', 'alice@cloud.example'] } })
+			const self = view({ openPack: { id: 'friends' } })
+			const progress = vi.fn()
+
+			const result = await self.followPackMembers.call(self, [remote, local, other].map(asMember), false, progress)
 
 			expect(post).toHaveBeenCalledWith('/apps/social/api/v1/starter_packs/friends/follow')
-			expect(showSuccess).toHaveBeenCalledWith('2')
+			expect(result).toEqual({ followed: ['1', '2'], failed: ['3'] })
+			expect(progress).toHaveBeenCalledWith(3)
 		})
 
-		it('says none rather than crashing when the answer carries no list', async () => {
+		it('counts an answer with no list as nobody followed', async () => {
 			post.mockResolvedValue({ data: {} })
-			const self = view()
+			const self = view({ openPack: { id: 'friends' } })
 
-			await self.followPack.call(self, 'friends')
+			const result = await self.followPackMembers.call(self, [asMember(remote)], false, vi.fn())
 
-			expect(showSuccess).toHaveBeenCalledWith('0')
+			expect(result).toEqual({ followed: [], failed: ['1'] })
 		})
 
-		it('tells the reader when it could not follow anybody', async () => {
+		it('lets a failed request reach the pack, which says so', async () => {
 			post.mockRejectedValue(new Error('nope'))
-			const self = view()
+			const self = view({ openPack: { id: 'friends' } })
 
-			await self.followPack.call(self, 'friends')
-
-			expect(showError).toHaveBeenCalled()
-			expect(self.followingPack).toBe('')
+			await expect(self.followPackMembers.call(self, [asMember(remote)], false, vi.fn())).rejects.toThrow('nope')
 		})
 
-		it('clears the in-flight marker whichever way it ends', async () => {
-			post.mockResolvedValue({ data: { followed: [] } })
-			const self = view()
+		it('follows one member by handle, like every other list here', async () => {
+			const follow = vi.fn()
+			const isFollowed = vi.fn(() => true)
+			const self = view({ follow, isFollowed })
 
-			await self.followPack.call(self, 'friends')
+			expect(await self.followPackMember.call(self, asMember(remote))).toBe(true)
+			expect(follow).toHaveBeenCalledWith(remote)
+		})
 
-			expect(self.followingPack).toBe('')
+		it('marks the members the reader follows already, and the reader', () => {
+			const accountStore = useAccountStore()
+			accountStore.addRelationship({ actorId: '1', data: { id: '1', following: true } })
+			accountStore.addRelationship({ actorId: '3', data: { id: '3', following: false, requested: true } })
+			accountStore.setCurrentAccount('alice@cloud.example')
+			accountStore.addAccount({ actorId: 'https://cloud.example/users/alice', data: { ...local, url: 'https://cloud.example/users/alice' } })
+
+			const packView = Discover.computed.packView.call({ openPack: { name: 'Friends', accounts: [remote, local, other] } })
+
+			expect(packView.members.map((member) => [member.key, member.following, member.self]))
+				.toEqual([['1', true, false], ['2', false, true], ['3', true, false]])
 		})
 	})
 

@@ -4,9 +4,9 @@
 -->
 <template>
 	<section v-if="trends.length" class="bluesky-trends">
-		<h3 class="bluesky-trends__title">
+		<h2 class="bluesky-trends__title">
 			{{ t('social', 'Trending on Bluesky') }}
-		</h3>
+		</h2>
 		<ul class="bluesky-trends__list">
 			<li v-for="trend in trends" :key="trend.topic">
 				<router-link class="bluesky-trends__topic" :to="routeOf(trend)">

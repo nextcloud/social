@@ -69,3 +69,22 @@ export function qualifiedHandle(account, hostname) {
 
 	return '@' + acct
 }
+
+/**
+ * Whether a handle the server answered with, `user@host` as it writes every
+ * account's, names this account — whose `acct` is the bare username when it
+ * is hosted here.
+ *
+ * @param {string} handle a handle, with or without a leading `@`
+ * @param {Partial<import('../types/Mastodon.js').Account>|null|undefined} account an Account entity
+ * @return {boolean}
+ */
+export function isHandleOf(handle, account) {
+	const text = String(handle ?? '').replace(/^@/, '').toLowerCase()
+	const acct = String(account?.acct ?? '').toLowerCase()
+	if (text === '' || acct === '') {
+		return false
+	}
+
+	return text === acct || (isLocalAccount(account) && text.startsWith(acct + '@'))
+}

@@ -119,9 +119,9 @@
 			question asked of servers that have an answer to it.
 		-->
 			<section v-if="elsewhere.length > 0" class="trending__elsewhere">
-				<h3 class="trending__heading">
+				<h2 class="trending__heading">
 					{{ t('social', 'Busy elsewhere in the fediverse') }}
-				</h3>
+				</h2>
 				<p class="trending__hint">
 					{{ t('social', 'What other servers are talking about. Following one of these brings its posts into your timeline from the servers this one federates with.') }}
 				</p>
@@ -538,6 +538,7 @@ export default {
 }
 
 .trending__heading {
+	font-size: 1.6em;
 	font-weight: bold;
 }
 

@@ -4,16 +4,16 @@
 -->
 <template>
 	<section v-if="categories.length > 0" class="discover-categories">
-		<h3 class="discover-categories__heading">
+		<h2 class="discover-categories__heading">
 			{{ t('social', 'What this server is about') }}
-		</h3>
+		</h2>
 		<p class="discover-categories__lede">
 			{{ t('social', 'Chosen by the people who run it, rather than counted.') }}
 		</p>
 		<div v-for="category in categories" :key="category.id" class="discover-categories__group">
-			<h4 class="discover-categories__name">
+			<h3 class="discover-categories__name">
 				{{ category.name }}
-			</h4>
+			</h3>
 			<ul class="discover-categories__tags">
 				<li v-for="tag in category.hashtags" :key="tag">
 					<router-link
@@ -81,6 +81,7 @@ export default {
 }
 
 .discover-categories__heading {
+	font-size: 1.6em;
 	margin-block-end: 0;
 }
 
@@ -90,6 +91,7 @@ export default {
 }
 
 .discover-categories__name {
+	font-size: 1.4em;
 	margin-block: 8px 4px;
 }
 

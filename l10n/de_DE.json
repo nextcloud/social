@@ -1,5 +1,6 @@
 { "translations": {
     "Curated by @{curator}" : "Zusammengestellt von @{curator}",
+    "Curated by {curator}" : "Zusammengestellt von {curator}",
     "View on its server" : "Auf seinem Server ansehen",
     "quotes received" : "erhaltene Zitate",
     "Where the engagement comes from" : "Woher die Reaktionen kommen",
@@ -2356,6 +2357,11 @@
     "Follow everyone" : "Allen folgen",
     "Their server did not answer. That is often a passing rate limit — and permanent if this Nextcloud cannot be reached from the internet, because a server that only answers signed requests has to fetch this one’s key to check the signature." : "Der Server hat nicht geantwortet. Oft liegt das an einer vorübergehenden Ratenbegrenzung. Dauerhaft kann es sein, wenn dieser Nextcloud-Server nicht aus dem Internet erreichbar ist: Ein Server, der nur signierte Anfragen beantwortet, muss zum Prüfen der Signatur den Schlüssel dieses Servers abrufen.",
     "No starter packs" : "Keine Starterpakete",
+    "Their server did not answer. Often it is only busy for a moment. If this Nextcloud cannot be reached from the internet, some servers never answer it." : "Der Server hat nicht geantwortet. Oft ist er nur kurz ausgelastet. Ist diese Nextcloud nicht aus dem Internet erreichbar, antworten manche Server ihr nie.",
+    "This server does not suggest any starter packs yet." : "Dieser Server schlägt noch keine Starterpakete vor.",
+    "Packs" : "Pakete",
+    "Tags" : "Tags",
+    "Add some with the starter_packs app setting, or read them in from other servers with starter_pack_sources." : "Fügen Sie welche mit der App-Einstellung starter_packs hinzu oder lesen Sie sie mit starter_pack_sources von anderen Servern ein.",
     "An administrator can add some with the starter_packs app setting." : "Die Administration kann Starterpakete über die App-Einstellung starter_packs hinzufügen.",
     "Your island and its neighbours" : "Ihre Insel und ihre Nachbarn",
     "Every server in the fediverse is an island. Following somebody on another one opens a canoe route to it, and their posts travel to you along that route." : "Jeder Server im Fediverse ist eine Insel. Folgen Sie jemandem auf einer anderen, öffnet sich eine Kanu-Route dorthin, und die Beiträge reisen auf dieser Route zu Ihnen.",

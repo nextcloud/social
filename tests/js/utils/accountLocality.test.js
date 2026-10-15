@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { isBlueskyAccount, isBlueskyHandle, isLocalAccount, qualifiedHandle } from '../../../src/utils/accountLocality.js'
+import { isBlueskyAccount, isBlueskyHandle, isHandleOf, isLocalAccount, qualifiedHandle } from '../../../src/utils/accountLocality.js'
 
 const local = { acct: 'alice', username: 'alice', bluesky: null }
 const localOnBluesky = { acct: 'alice', username: 'alice', bluesky: { handle: 'alice.cloud.example', did: 'did:plc:a', url: 'https://bsky.app/profile/alice.cloud.example', native: false, active: true } }
@@ -64,5 +64,25 @@ describe('qualifiedHandle', () => {
 		expect(qualifiedHandle(remote, 'cloud.example')).toBe('@bob@remote.example')
 		expect(qualifiedHandle(bluesky, 'cloud.example')).toBe('@carol.bsky.social')
 		expect(qualifiedHandle(null, 'cloud.example')).toBe('')
+	})
+})
+
+describe('isHandleOf', () => {
+	it('matches the handle of an account elsewhere as it is', () => {
+		expect(isHandleOf('bob@remote.example', remote)).toBe(true)
+		expect(isHandleOf('@Bob@Remote.example', remote)).toBe(true)
+		expect(isHandleOf('carol.bsky.social', bluesky)).toBe(true)
+		expect(isHandleOf('bob@other.example', remote)).toBe(false)
+	})
+
+	it('matches a local account, whose acct carries no host, by its username', () => {
+		expect(isHandleOf('alice@cloud.example', local)).toBe(true)
+		expect(isHandleOf('alicia@cloud.example', local)).toBe(false)
+	})
+
+	it('does not take a remote handle for a Bluesky account of the same name', () => {
+		expect(isHandleOf('carol.bsky.social@remote.example', bluesky)).toBe(false)
+		expect(isHandleOf('', remote)).toBe(false)
+		expect(isHandleOf('bob@remote.example', null)).toBe(false)
 	})
 })
