@@ -56,7 +56,8 @@ class SuggestedStarterPacks {
 	/**
 	 * Reads the suggested packs again, stores them, and removes the ones
 	 * Bluesky no longer suggests. An AppView that does not answer throws,
-	 * and what was read last time stays.
+	 * and what was read last time stays; so does a pack still suggested
+	 * whose list could not be read.
 	 *
 	 * @return array{packs: int, members: int}
 	 */
@@ -67,11 +68,18 @@ class SuggestedStarterPacks {
 		$result = ['packs' => 0, 'members' => 0];
 		$seen = [];
 		foreach ($views as $view) {
-			$pack = is_array($view) ? $this->pack($view) : null;
-			if ($pack === null) {
+			try {
+				$pack = is_array($view) ? $this->pack($view) : null;
+			} catch (Throwable $e) {
+				$seen[(string)($view['uri'] ?? '')] = true;
+				$this->logger->notice('[SuggestedStarterPacks] the members of a suggested starter pack could not be read', [
+					'pack' => $view['uri'] ?? '', 'exception' => $e,
+				]);
 				continue;
 			}
-			$this->starterPacksRequest->save($pack);
+			if ($pack === null || !$this->starterPacksRequest->save($pack)) {
+				continue;
+			}
 			$seen[$pack['uri']] = true;
 			$result['packs']++;
 			$result['members'] += count($pack['members']);
@@ -89,11 +97,9 @@ class SuggestedStarterPacks {
 	 * @param array<string, true> $keep by `at://` URI
 	 */
 	public function forgetAllBut(array $keep = []): void {
-		foreach ($this->starterPacksRequest->getAll() as $pack) {
-			if ($pack['origin'] === self::ORIGIN && !isset($keep[$pack['uri']])) {
-				$this->starterPacksRequest->deleteById($pack['id']);
-			}
-		}
+		$this->starterPacksRequest->deleteByIds(array_column(
+			$this->starterPacksRequest->staleOf(self::ORIGIN, array_keys($keep)), 'id'
+		));
 	}
 
 	/**
@@ -102,6 +108,8 @@ class SuggestedStarterPacks {
 	 * @param array<string, mixed> $view a `starterPackView`
 	 *
 	 * @return array{uri: string, slug: string, origin: string, curator: string, curator_acct: string, name: string, summary: string, topic: string, language: string, url: string, members: list<string>, fetched: int}|null
+	 *
+	 * @throws Throwable when its list could not be read
 	 */
 	private function pack(array $view): ?array {
 		$uri = (string)($view['uri'] ?? '');
@@ -115,15 +123,7 @@ class SuggestedStarterPacks {
 			return null;
 		}
 
-		try {
-			$members = $this->members($list);
-		} catch (Throwable $e) {
-			$this->logger->notice('[SuggestedStarterPacks] the members of a suggested starter pack could not be read', [
-				'pack' => $uri, 'exception' => $e,
-			]);
-
-			return null;
-		}
+		$members = $this->members($list);
 		if ($members === []) {
 			return null;
 		}

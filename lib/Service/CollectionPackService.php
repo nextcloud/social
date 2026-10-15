@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Reader\SuggestedStarterPacks;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\StarterPacksRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
@@ -29,7 +30,10 @@ use Throwable;
  * the account's own consent to be in it (`featureAuthorization`), which the
  * FEP requires a reader to check: an item whose authorization does not
  * resolve, is not a `FeatureAuthorization`, names another collection or
- * account, or does not live on the account's own server is left out.
+ * account, or does not live on the account's own server is left out. An
+ * authorization whose server does not answer is neither: a member it
+ * vouched for before stays, and a collection none of whose members could be
+ * checked stays as it was read last time.
  *
  * Which curators are read is the `starter_pack_sources` app value: a JSON
  * array of handles (`user@host`, every public collection of that account),
@@ -38,11 +42,14 @@ use Throwable;
  * Bluesky is on). Unset is the shipped list; `[]` reads nobody and removes
  * what was read. A collection that is not `discoverable`, is marked
  * `sensitive`, or has no verified member is not offered to somebody looking
- * for their first follows.
+ * for their first follows, and neither is an account this instance's
+ * moderation keeps out (`StarterPackModeration`), as member or as curator.
  *
  * Read by `Cron\StarterPackSources` once a day and by
  * `occ social:starter-packs:refresh`; never on a page. A curator that cannot
- * be reached keeps what was read from it last time.
+ * be reached, or is not reached before the run's deadline, keeps what was
+ * read from it last time. A member not in the actor cache yet is queued to
+ * be fetched (`RemoteFetchQueue`) rather than fetched by the run.
  */
 class CollectionPackService {
 	/** The app value naming the curators and collections to read. */
@@ -66,8 +73,8 @@ class CollectionPackService {
 	/** The most collections read from one curator. */
 	public const MAX_COLLECTIONS = 20;
 
-	/** The most entries read from one collection, the FEP's own suggestion. */
-	public const MAX_ITEMS = 150;
+	/** The most members kept of one collection: as many as a starter pack offers. */
+	public const MAX_ITEMS = StarterPackService::MAX_HANDLES;
 
 	private const TYPE_COLLECTION = 'FeaturedCollection';
 	private const TYPE_ITEM = 'FeaturedItem';
@@ -80,6 +87,8 @@ class CollectionPackService {
 		private StarterPacksRequest $starterPacksRequest,
 		private ITimeFactory $timeFactory,
 		private LoggerInterface $logger,
+		private RemoteFetchQueue $remoteFetchQueue,
+		private StarterPackModeration $moderation,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -116,17 +125,30 @@ class CollectionPackService {
 	/**
 	 * Reads every source again and stores what it publishes now.
 	 *
+	 * `failed` counts the sources and the collections that could not be
+	 * read, and the sources the deadline left unread; each keeps what was
+	 * read from it last time.
+	 *
+	 * @param int $deadline the time past which no more is read; 0 for none
+	 *
 	 * @return array{sources: int, packs: int, members: int, refused: int, failed: int}
 	 */
-	public function refresh(): array {
+	public function refresh(int $deadline = 0): array {
 		$sources = $this->sources();
 		$result = ['sources' => count($sources), 'packs' => 0, 'members' => 0, 'refused' => 0, 'failed' => 0];
+		/** @var array<string, true> $seen the collections read this pass, or kept as they were, by id */
 		$seen = [];
 		/** @var array<string, true> $read the curators read in full this pass */
 		$read = [];
+		$outOfTime = false;
 
 		foreach ($sources as $source) {
 			if ($source === self::BLUESKY_SUGGESTED) {
+				continue;
+			}
+			if ($outOfTime || $this->pastDeadline($deadline)) {
+				$outOfTime = true;
+				$result['failed']++;
 				continue;
 			}
 			try {
@@ -145,33 +167,86 @@ class CollectionPackService {
 				continue;
 			}
 			$read[$curator->getId()] = true;
-			foreach ($collections as $collection) {
-				$pack = $this->pack($curator, $collection, $result['refused']);
-				if ($pack === null) {
-					continue;
-				}
+			// a curator kept out here offers nothing, and what was read from
+			// it goes with the cleanup below
+			if (!$this->moderation->admits($curator)) {
+				continue;
+			}
 
-				$this->starterPacksRequest->save($pack);
-				$seen[md5($pack['uri'])] = true;
-				$result['packs']++;
-				$result['members'] += count($pack['members']);
-				$this->cacheMembers($pack['members']);
+			foreach ($collections as $collection) {
+				if ($this->pastDeadline($deadline)) {
+					// the collections not read yet are not gone
+					$outOfTime = true;
+					unset($read[$curator->getId()]);
+					$result['failed']++;
+					break;
+				}
+				$this->readCollection($curator, $collection, $seen, $result);
 			}
 		}
 
+		if ($outOfTime) {
+			$this->logger->notice('[CollectionPackService] out of time; the starter packs not read keep what was read last time');
+		}
+
 		$this->forgetGone($sources, $seen, $read);
-		$this->refreshBluesky(in_array(self::BLUESKY_SUGGESTED, $sources, true), $result);
+		$this->refreshBluesky(in_array(self::BLUESKY_SUGGESTED, $sources, true), $outOfTime || $this->pastDeadline($deadline), $result);
 
 		return $result;
 	}
 
+	private function pastDeadline(int $deadline): bool {
+		return $deadline > 0 && $this->timeFactory->getTime() >= $deadline;
+	}
+
+	/**
+	 * Reads one collection of a curator's and stores it. One that cannot be
+	 * read keeps what was stored of it, and the run goes on with the next.
+	 *
+	 * @param array<string, mixed> $collection
+	 * @param array<string, true> $seen
+	 * @param array{sources: int, packs: int, members: int, refused: int, failed: int} $result
+	 */
+	private function readCollection(Person $curator, array $collection, array &$seen, array &$result): void {
+		$uri = self::id($collection['id'] ?? '');
+		try {
+			$pack = $this->pack($curator, $collection, $result['refused']);
+			if ($pack === null) {
+				return;
+			}
+			if (!$this->starterPacksRequest->save($pack)) {
+				$this->logger->notice('[CollectionPackService] a starter pack was not stored: its slug is another pack\'s', [
+					'collection' => $pack['uri'], 'slug' => $pack['slug'],
+				]);
+
+				return;
+			}
+		} catch (Throwable $e) {
+			if ($uri !== '') {
+				$seen[$uri] = true;
+			}
+			$result['failed']++;
+			$this->logger->notice('[CollectionPackService] could not read a collection; what was read last time stays', [
+				'collection' => $uri, 'exception' => $e,
+			]);
+
+			return;
+		}
+
+		$seen[$pack['uri']] = true;
+		$result['packs']++;
+		$result['members'] += count($pack['members']);
+		$this->queueUncached($pack['members']);
+	}
+
 	/**
 	 * Bluesky's suggested starter packs, read while they are a source and
-	 * Bluesky is on, and removed when either stops being so.
+	 * Bluesky is on, and removed when either stops being so. Out of time,
+	 * what was read last time stays.
 	 *
 	 * @param array{sources: int, packs: int, members: int, refused: int, failed: int} $result
 	 */
-	private function refreshBluesky(bool $wanted, array &$result): void {
+	private function refreshBluesky(bool $wanted, bool $outOfTime, array &$result): void {
 		$config = $this->container?->get(AtprotoConfig::class);
 		$suggested = $this->container?->get(SuggestedStarterPacks::class);
 		if (!$suggested instanceof SuggestedStarterPacks) {
@@ -180,6 +255,11 @@ class CollectionPackService {
 
 		if (!$wanted || !$config instanceof AtprotoConfig || !$config->isEnabled()) {
 			$suggested->forgetAllBut();
+
+			return;
+		}
+		if ($outOfTime) {
+			$result['failed']++;
 
 			return;
 		}
@@ -273,7 +353,7 @@ class CollectionPackService {
 			return null;
 		}
 
-		$members = $this->verifiedMembers($uri, array_slice($this->entriesOf($collection), 0, self::MAX_ITEMS), $refused);
+		$members = $this->verifiedMembers($uri, $this->entriesOf($collection), $refused);
 		if ($members === []) {
 			return null;
 		}
@@ -299,11 +379,17 @@ class CollectionPackService {
 
 	/**
 	 * The accounts of a collection whose consent to be in it holds, in the
-	 * curator's order.
+	 * curator's order: the first `MAX_ITEMS` this instance may offer.
+	 *
+	 * A member whose authorization's server did not answer stays if it was
+	 * in the pack before; when no member could be checked at all, the
+	 * collection is not read this time.
 	 *
 	 * @param list<mixed> $items
 	 *
 	 * @return list<string>
+	 *
+	 * @throws RequestNetworkException when no member could be checked
 	 */
 	private function verifiedMembers(string $collectionId, array $items, int &$refused): array {
 		$wanted = [];
@@ -318,19 +404,35 @@ class CollectionPackService {
 			}
 			$wanted[$member] = $authorization;
 		}
+		$admitted = array_slice($this->moderation->admitted(array_keys($wanted)), 0, self::MAX_ITEMS);
+		$wanted = array_intersect_key($wanted, array_flip($admitted));
 		if ($wanted === []) {
 			return [];
 		}
 
-		$documents = $this->curlService->retrieveObjectsMany(array_values(array_unique(array_values($wanted))));
+		$failed = [];
+		$documents = $this->curlService->retrieveObjectsMany(array_values(array_unique(array_values($wanted))), [], failed: $failed);
+		$failed = array_flip($failed);
 
 		$members = [];
+		$unanswered = 0;
+		$before = null;
 		foreach ($wanted as $member => $authorization) {
 			if (self::authorizes($documents[$authorization] ?? null, $authorization, $member, $collectionId, $this->sameActor(...))) {
 				$members[] = $member;
-			} else {
+			} elseif (!isset($failed[$authorization])) {
 				$refused++;
+			} else {
+				$unanswered++;
+				$before ??= array_flip($this->starterPacksRequest->getByUri($collectionId)['members'] ?? []);
+				if (isset($before[$member])) {
+					$members[] = $member;
+				}
 			}
+		}
+
+		if ($members === [] && $unanswered > 0) {
+			throw new RequestNetworkException('no member of ' . $collectionId . ' could be checked');
 		}
 
 		return $members;
@@ -383,24 +485,16 @@ class CollectionPackService {
 	}
 
 	/**
-	 * Fetches the members not cached yet, so an opened pack draws from the
-	 * cache rather than waiting on every member's server.
+	 * Queues the members not cached yet to be fetched, so an opened pack
+	 * draws from the cache rather than waiting on every member's server.
 	 *
 	 * @param list<string> $members
 	 */
-	private function cacheMembers(array $members): void {
+	private function queueUncached(array $members): void {
 		$cached = $this->cacheActorService->getCachedFromIds($members);
-		foreach ($members as $member) {
-			if (isset($cached[$member])) {
-				continue;
-			}
-			try {
-				$this->cacheActorService->getFromId($member);
-			} catch (Throwable $e) {
-				$this->logger->debug('[CollectionPackService] a member of a starter pack could not be fetched', [
-					'actor' => $member, 'exception' => $e->getMessage(),
-				]);
-			}
+		$missing = array_values(array_filter($members, static fn (string $member): bool => !isset($cached[$member])));
+		foreach (array_chunk($missing, RemoteFetchQueue::MAX_PER_CALL) as $chunk) {
+			$this->remoteFetchQueue->resolveActors($chunk);
 		}
 	}
 
@@ -416,16 +510,15 @@ class CollectionPackService {
 	 */
 	private function forgetGone(array $sources, array $seen, array $read): void {
 		$configured = array_map('strtolower', $sources);
-		foreach ($this->starterPacksRequest->getAll() as $pack) {
-			if ($pack['origin'] !== self::ORIGIN || isset($seen[md5($pack['uri'])])) {
-				continue;
-			}
+		$gone = [];
+		foreach ($this->starterPacksRequest->staleOf(self::ORIGIN, array_keys($seen)) as $pack) {
 			$stillNamed = in_array(strtolower($pack['curator_acct']), $configured, true)
 				|| in_array(strtolower($pack['uri']), $configured, true);
 			if (isset($read[$pack['curator']]) || !$stillNamed) {
-				$this->starterPacksRequest->deleteById($pack['id']);
+				$gone[] = $pack['id'];
 			}
 		}
+		$this->starterPacksRequest->deleteByIds($gone);
 	}
 
 	/** A configured source shaped: `user@host`, or an `https://` address. */
@@ -444,13 +537,14 @@ class CollectionPackService {
 
 	/**
 	 * A path segment for the pack: its name made safe, and a hash of its id
-	 * so that two collections of the same name are two packs.
+	 * so that two collections of the same name are two packs. A pack stored
+	 * before keeps the slug it was stored with (`StarterPacksRequest::save()`).
 	 */
 	public static function slug(string $name, string $uri): string {
 		$base = trim((string)preg_replace('/[^a-z0-9]+/', '-', strtolower($name)), '-');
 		$base = trim(substr($base, 0, 40), '-');
 
-		return (($base !== '') ? $base : 'collection') . '-' . substr(md5($uri), 0, 8);
+		return (($base !== '') ? $base : 'collection') . '-' . substr(md5($uri), 0, 16);
 	}
 
 	/** The id an ActivityStreams value names: a string, or an object's `id` or `href`. */

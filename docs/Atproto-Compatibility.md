@@ -1216,7 +1216,8 @@ notifications are counted as the followers a starter pack brought.
 Discover page and served at `/api/v1/starter_packs` like any other starter
 pack; the members are cached from the list's profile views, an account this
 instance blocks or that Bluesky's moderation limits is left out, and a pack
-Bluesky no longer suggests goes at the next read.
+Bluesky no longer suggests goes at the next read. A pack whose list cannot be
+read that day keeps what was read last time.
 
 ### 10.1 Direct messages
 

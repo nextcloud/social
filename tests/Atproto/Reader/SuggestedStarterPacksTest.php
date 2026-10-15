@@ -45,6 +45,8 @@ class SuggestedStarterPacksTest extends TestCase {
 	/** @var list<string> dids stored in the actor cache */
 	private array $cachedNow = [];
 	private bool $down = false;
+	/** @var list<string> lists whose reading fails */
+	private array $listsDown = [];
 
 	protected function setUp(): void {
 		$this->suggested = [$this->view(self::PACK, 'did:plc:creator', 'Street Photographers', self::LIST)];
@@ -69,7 +71,7 @@ class SuggestedStarterPacksTest extends TestCase {
 	private function reader(): SuggestedStarterPacks {
 		$appView = $this->createStub(AppViewClient::class);
 		$appView->method('query')->willReturnCallback(function (string $method, array $params): array {
-			if ($this->down) {
+			if ($this->down || in_array($params['list'] ?? '', $this->listsDown, true)) {
 				throw new RuntimeException('AppView down');
 			}
 
@@ -97,13 +99,18 @@ class SuggestedStarterPacksTest extends TestCase {
 		$blocklist->method('isBlockedDid')->willReturnCallback(fn (string $did): bool => in_array($did, $this->blocked, true));
 
 		$request = $this->createStub(StarterPacksRequest::class);
-		$request->method('save')->willReturnCallback(function (array $pack): void {
+		$request->method('save')->willReturnCallback(function (array $pack): bool {
 			$this->stored[$pack['uri']] = $pack + ['id' => $this->stored[$pack['uri']]['id'] ?? count($this->stored) + 1];
+
+			return true;
 		});
-		$request->method('getAll')->willReturnCallback(fn (): array => array_values($this->stored));
-		$request->method('deleteById')->willReturnCallback(function (int $id): void {
-			$this->deleted[] = $id;
-			$this->stored = array_filter($this->stored, static fn (array $pack): bool => $pack['id'] !== $id);
+		$request->method('staleOf')->willReturnCallback(fn (string $origin, array $keep): array => array_values(array_filter(
+			$this->stored,
+			static fn (array $pack): bool => $pack['origin'] === $origin && !in_array($pack['uri'], $keep, true)
+		)));
+		$request->method('deleteByIds')->willReturnCallback(function (array $ids): void {
+			$this->deleted = [...$this->deleted, ...$ids];
+			$this->stored = array_filter($this->stored, static fn (array $pack): bool => !in_array($pack['id'], $ids, true));
 		});
 		$time = $this->createStub(ITimeFactory::class);
 		$time->method('getTime')->willReturn(1_790_000_000);
@@ -160,6 +167,22 @@ class SuggestedStarterPacksTest extends TestCase {
 
 		$this->assertArrayNotHasKey(self::PACK, $this->stored);
 		$this->assertArrayHasKey('https://mastodon.social/ap/users/1/collections/11', $this->stored);
+	}
+
+	public function testAPackWhoseListCannotBeReadKeepsWhatWasRead(): void {
+		$other = 'at://did:plc:creator/app.bsky.graph.starterpack/other';
+		$otherList = 'at://did:plc:creator/app.bsky.graph.list/other';
+		$this->suggested[] = $this->view($other, 'did:plc:creator', 'Other', $otherList);
+		$this->lists[$otherList] = [$this->item('did:plc:three', 'three.bsky.social')];
+		$reader = $this->reader();
+		$reader->refresh();
+		$this->listsDown = [self::LIST];
+
+		$result = $reader->refresh();
+
+		$this->assertSame(['packs' => 1, 'members' => 1], $result);
+		$this->assertSame([], $this->deleted);
+		$this->assertSame(['https://bsky.app/profile/did:plc:one', 'https://bsky.app/profile/did:plc:two'], $this->stored[self::PACK]['members']);
 	}
 
 	public function testAnAppViewThatDoesNotAnswerKeepsWhatWasRead(): void {

@@ -408,10 +408,11 @@ class CurlService {
 	 * @param string[] $ids
 	 * @param array{timeout?: int} $options
 	 * @param ?array<string, int> $statuses set to id => the HTTP status of its answer, for the ids that were answered
+	 * @param list<string>|null $failed set to the ids that got no answer, as `retrieveJsonMany()` says
 	 *
 	 * @return array<string, array<string, mixed>|null> id => the document, or null
 	 */
-	public function retrieveObjectsMany(array $ids, array $options = [], ?array &$statuses = null): array {
+	public function retrieveObjectsMany(array $ids, array $options = [], ?array &$statuses = null, ?array &$failed = null): array {
 		$perUrl = [];
 		foreach ($ids as $id) {
 			$parsed = parse_url($id);
@@ -426,7 +427,8 @@ class CurlService {
 			array_keys($perUrl),
 			$this->mergeOptions($options, ['headers' => ['Accept' => 'application/activity+json']]),
 			$perUrl,
-			$statuses
+			$statuses,
+			$failed
 		);
 	}
 
@@ -449,17 +451,23 @@ class CurlService {
 	 *
 	 * Nothing here throws for one bad answer: a peer that is down, blocked or
 	 * talking nonsense is `null` in its place, which is what a caller asking
-	 * twenty servers a question has to cope with anyway.
+	 * twenty servers a question has to cope with anyway. A caller that has
+	 * to tell "no such document" from "no answer" passes `$failed`: the URLs
+	 * whose server did not answer, timed out, asked to be left alone (429)
+	 * or failed (5xx). A host the federation policy refuses is not among
+	 * them; that is an answer.
 	 *
 	 * @param string[] $urls
 	 * @param array{headers?: array<string, string>, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool} $options
 	 * @param array<string, array<string, mixed>> $perUrl options for one URL, merged over the shared ones
 	 * @param ?array<string, int> $statuses set to url => the HTTP status of its answer, for the URLs that were answered
+	 * @param list<string>|null $failed set to the URLs that got no answer
 	 *
 	 * @return array<string, array<string, mixed>|null> url => the document, or null
 	 */
-	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = [], ?array &$statuses = null): array {
+	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = [], ?array &$statuses = null, ?array &$failed = null): array {
 		$statuses = [];
+		$failed = [];
 		$urls = array_values(array_unique(array_filter($urls)));
 		if ($urls === []) {
 			return [];
@@ -478,9 +486,12 @@ class CurlService {
 			try {
 				$clientOptions = $this->pinReachable($url, $clientOptions);
 				$promises[$url] = $client->getAsync($url, $clientOptions);
+			} catch (UnauthorizedFediverseException $e) {
+				$this->logger->debug('[CurlService] not asking ' . $url, ['exception' => $e]);
 			} catch (Throwable $e) {
-				// blocked, local, or a client that cannot do this at all: the
-				// answer is "nothing from there", which is a normal answer here
+				// a host with no public address, or a client that cannot do
+				// this at all: nothing from there, and no answer either
+				$failed[] = $url;
 				$this->logger->debug('[CurlService] not asking ' . $url, ['exception' => $e]);
 			}
 		}
@@ -491,10 +502,14 @@ class CurlService {
 				if ($response !== null) {
 					$statuses[$url] = $response->getStatusCode();
 				}
+				if ($response === null || in_array($response->getStatusCode(), [408, 429], true) || $response->getStatusCode() >= 500) {
+					$failed[] = $url;
+				}
 				$answers[$url] = ($response !== null)
 					? $this->decodeOrFollow($url, $response, $this->mergeOptions($options, $perUrl[$url] ?? []))
 					: null;
 			} catch (Throwable $e) {
+				$failed[] = $url;
 				$this->logger->debug('[CurlService] no answer from ' . $url, ['exception' => $e]);
 			}
 		}

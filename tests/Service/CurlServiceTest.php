@@ -1283,6 +1283,43 @@ class CurlServiceTest extends TestCase {
 		], $statuses, 'a server that did not answer has no status');
 	}
 
+	/**
+	 * A caller that has to tell "there is no such document" from "the server
+	 * did not answer" is told which URLs got no answer: a server that is down,
+	 * one that asks to be left alone, one that fails. A 404 is an answer, and
+	 * so is a host the federation policy refuses.
+	 */
+	public function testTheUrlsThatGotNoAnswerAreReported(): void {
+		$base = 'https://' . self::PUBLIC_IP;
+		$this->client->method('getAsync')->willReturnCallback(
+			fn (string $url, array $options) => match (true) {
+				str_contains($url, '/down') => $this->promiseOf(new \RuntimeException('down')),
+				str_contains($url, '/busy') => $this->promiseOf($this->answer('{}', 429)),
+				str_contains($url, '/broken') => $this->promiseOf($this->answer('{}', 502)),
+				str_contains($url, '/missing') => $this->promiseOf($this->answer('{}', 404)),
+				default => $this->promiseOf($this->answer('{"ok":true}')),
+			}
+		);
+
+		$failed = null;
+		$answers = $this->service()->retrieveJsonMany(
+			[$base . '/ok', $base . '/down', $base . '/busy', $base . '/broken', $base . '/missing'], [], [], failed: $failed
+		);
+
+		$this->assertSame(['ok' => true], $answers[$base . '/ok']);
+		$this->assertNull($answers[$base . '/missing']);
+		$this->assertSame([$base . '/down', $base . '/busy', $base . '/broken'], $failed);
+	}
+
+	public function testABlockedHostIsNotReportedAsUnanswered(): void {
+		$this->fediverseService->method('authorized')->willThrowException(new UnauthorizedFediverseException('blocked'));
+
+		$failed = null;
+		$this->service()->retrieveObjectsMany(['https://' . self::PUBLIC_IP . '/a'], [], failed: $failed);
+
+		$this->assertSame([], $failed);
+	}
+
 	/** An answer that is not JSON is nothing, not a failure of the batch. */
 	public function testAnAnswerThatIsNotJsonIsNothing(): void {
 		$this->client->method('getAsync')->willReturnCallback(

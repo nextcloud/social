@@ -923,8 +923,10 @@ Admin.md), checks each member's consent to be in a fediverse collection
 (`featureAuthorization`), reads Bluesky's suggestions while Bluesky is on,
 and prints the sources, then `N starter pack(s)
 with M account(s) read from S source(s)`, how many accounts were left out
-without a valid authorization and how many sources could not be reached. A
-source that cannot be reached keeps the packs read from it last time.
+without a valid authorization and how many sources or collections could not
+be read. A source or collection that cannot be read keeps the packs read from
+it last time, and a member whose server does not answer stays in a pack it
+was in before. Unlike the daily job, the command has no time limit.
 
 ### `social:media:retry`
 

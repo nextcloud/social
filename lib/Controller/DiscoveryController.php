@@ -456,11 +456,12 @@ class DiscoveryController extends ClientApiController {
 	}
 
 	/**
-	 * One pack, with its handles resolved to profiles.
+	 * One pack, with its handles resolved to the profiles held here.
 	 *
-	 * This one does reach other servers, which is why it is a route of its own
-	 * rather than a fatter index: the cost is paid when somebody opens a pack,
-	 * not when they glance at the page.
+	 * A route of its own rather than a fatter index: the profiles are read
+	 * when somebody opens a pack, not when they glance at the page. Nobody is
+	 * fetched from another server to draw it; who is not held here yet is
+	 * listed as unresolved and fetched in the background.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
@@ -478,7 +479,8 @@ class DiscoveryController extends ClientApiController {
 	 *
 	 * The whole point of the button is that nobody has to follow six accounts by
 	 * hand, so one unreachable host skips that account rather than failing the
-	 * lot. The answer says who was actually followed.
+	 * lot. A member not held here yet is fetched now. The answer says who was
+	 * actually followed.
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]

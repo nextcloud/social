@@ -68,6 +68,14 @@ class StarterPackTest extends TestCase {
 		$this->assertSame(1, $entity['size']);
 	}
 
+	public function testAPackListedWithoutItsHandlesSaysTheCountItWasListedWith(): void {
+		$entity = (new StarterPack('news-1a2b3c4d', 'News', 'Papers', [], StarterPack::SOURCE_FEDIVERSE))
+			->setSize(25)
+			->jsonSerialize();
+
+		$this->assertSame(25, $entity['size']);
+	}
+
 	public function testTheAccountsAreSerialisedForAClient(): void {
 		// and not as ActivityPub, which is what a Person exports by default:
 		// an opened pack drew a row per account with no name, no handle and no
