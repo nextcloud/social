@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\Api;
 
 use OCA\Social\Controller\AccountApiController;
+use OCA\Social\Controller\ApiController;
 use OCA\Social\Controller\InstanceApiController;
 use OCA\Social\Controller\MastodonApiController;
 use OCA\Social\Controller\NotificationController;
@@ -73,6 +74,16 @@ class AppTokenTest extends ApiTestCase {
 
 		$public = $this->call(TimelineApiController::class, 'timelines', ['timeline' => 'public'], [], 'alice', bearer: $token);
 		$this->assertSame(200, $public->status, json_encode($public->body) ?: '');
+	}
+
+	public function testTheTokenVerifiesTheAppItBelongsTo(): void {
+		$token = $this->appToken();
+
+		$response = $this->call(ApiController::class, 'appsCredentials', [], [], 'alice', bearer: $token);
+
+		$this->assertSame(200, $response->status, json_encode($response->body) ?: '');
+		$this->assertSame('apictr-app-token', $response->body->name);
+		$this->assertSame('https://client.example', $response->body->website);
 	}
 
 	/** @return iterable<string, array{class-string, string, array<string, mixed>}> */
