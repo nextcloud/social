@@ -102,8 +102,9 @@ describe('fullDateTime', () => {
 })
 
 describe('timeOfDay', () => {
+	// 9:05 in the reader's own zone, which is the zone the time is written in
 	it('writes the time alone, in the reader\'s locale', () => {
-		expect(timeOfDay('2026-10-05T09:05:00Z')).toBe('9:05 AM')
+		expect(timeOfDay(new Date(2026, 9, 5, 9, 5))).toBe('9:05 AM')
 	})
 
 	it('says nothing about a date it cannot read', () => {

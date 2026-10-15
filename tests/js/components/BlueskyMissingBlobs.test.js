@@ -68,8 +68,9 @@ describe('BlueskyMissingBlobs', () => {
 	})
 
 	it('names the posts that lose them, with a link where they can be read', async () => {
+		// noon on May 1 in the reader's own zone, the zone the date is written in
 		const wrapper = mountCard(3, [
-			{ collection: 'app.bsky.feed.post', rkey: '3kone', created_at: '2026-05-01T18:00:00.000Z', text: 'Sunset at the lake', url: 'https://bsky.app/profile/did:plc:alice/post/3kone' },
+			{ collection: 'app.bsky.feed.post', rkey: '3kone', created_at: new Date(2026, 4, 1, 12).toISOString(), text: 'Sunset at the lake', url: 'https://bsky.app/profile/did:plc:alice/post/3kone' },
 			{ collection: 'app.bsky.feed.post', rkey: '3ktwo', created_at: '', text: '', url: 'https://social.test/@alice/115' },
 			{ collection: 'app.bsky.actor.profile', rkey: 'self', created_at: '', text: '', url: '' },
 		])
