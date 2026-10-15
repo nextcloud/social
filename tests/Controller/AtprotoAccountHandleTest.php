@@ -33,6 +33,7 @@ use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * A new handle is a new profile on Bluesky: it is published again, and a
@@ -78,6 +79,7 @@ class AtprotoAccountHandleTest extends TestCase {
 			$this->createMock(BridgyTwin::class),
 			$this->createMock(BlueskyBlocks::class),
 			$this->createMock(PresenceService::class),
+			new NullLogger(),
 		);
 	}
 

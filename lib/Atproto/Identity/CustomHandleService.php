@@ -21,12 +21,16 @@ use Throwable;
  * A handle on a domain the person owns (§4.2): checked before it is used,
  * written into the DID document, and checked again every day after, so a
  * record that went away shows as broken in the settings rather than only
- * on Bluesky. The assigned `alice.<host>` handle keeps resolving to the DID
- * throughout, an alias the document does not list.
+ * on Bluesky. One that fails CLEAR_AFTER checks in a row is dropped: the
+ * domain is no longer the person's to show, and this server stops
+ * answering it for them. The assigned `alice.<host>` handle keeps
+ * resolving to the DID throughout, an alias the document does not list.
  */
 class CustomHandleService {
 	/** how often a custom handle is checked again */
 	private const RECHECK = 86400;
+	/** how many daily checks in a row a custom handle fails before it is dropped: a week */
+	public const CLEAR_AFTER = 7;
 
 	public function __construct(
 		private IdentityService $identities,
@@ -78,7 +82,9 @@ class CustomHandleService {
 	}
 
 	/**
-	 * Checks the custom handles not checked for a day.
+	 * Checks the custom handles not checked for a day, and drops the ones
+	 * that failed CLEAR_AFTER checks in a row: the account has its assigned
+	 * handle again, in the DID document too.
 	 *
 	 * @return int how many no longer name their DID
 	 */
@@ -92,9 +98,19 @@ class CustomHandleService {
 				continue;
 			}
 			$this->identityRequest->customHandleChecked($identity->did, $ok);
-			if (!$ok) {
-				$failing++;
+			if ($ok) {
+				continue;
+			}
+			$failing++;
+			if ($identity->customHandleFailures + 1 < self::CLEAR_AFTER) {
 				$this->logger->info('Custom handle no longer names its DID', ['did' => $identity->did, 'handle' => $identity->customHandle]);
+				continue;
+			}
+			try {
+				$this->identities->useCustomHandle($identity, '');
+				$this->logger->warning('Custom handle dropped: it has not named its DID for ' . self::CLEAR_AFTER . ' checks', ['did' => $identity->did, 'handle' => $identity->customHandle]);
+			} catch (AtprotoException $e) {
+				$this->logger->warning('Custom handle that no longer names its DID not dropped', ['did' => $identity->did, 'handle' => $identity->customHandle, 'exception' => $e]);
 			}
 		}
 

@@ -65,7 +65,7 @@ class BlueskyFollowFromController extends Controller {
 		} catch (Throwable $e) {
 			$this->logger->warning('Bluesky follows not queued', ['exception' => $e]);
 
-			return new DataResponse(['error' => $e->getMessage(), 'code' => 'server-error'], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return new DataResponse(['error' => 'Something went wrong on this server', 'code' => 'server-error'], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 	}
 }

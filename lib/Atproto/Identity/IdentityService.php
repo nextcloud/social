@@ -57,6 +57,7 @@ class IdentityService {
 		private EventService $events,
 		private RepositoryService $repositories,
 		private PrivateKeyCipher $cipher,
+		private HandleVerifier $handles,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -698,10 +699,12 @@ class IdentityService {
 
 	/**
 	 * The identity row as the log's confirmed head has it — the directory's
-	 * latest operation, once nothing is pending: its handle, and its
-	 * recovery key only while the head still lists it. A signing key or an
-	 * instance key the head no longer names is nothing this server can put
-	 * right by itself, so it is warned of.
+	 * latest operation, once nothing is pending: its handle, when it is the
+	 * assigned one or a custom handle this server would take (one that
+	 * names the DID, CustomHandleService), and its recovery key only while
+	 * the head still lists it. A signing key or an instance key the head no
+	 * longer names is nothing this server can put right by itself, so it is
+	 * warned of.
 	 */
 	private function takeFromHead(string $did): void {
 		$state = null;
@@ -718,11 +721,15 @@ class IdentityService {
 		} catch (AtprotoIdentityNotFoundException) {
 			return;
 		}
-		$handle = (string)preg_replace('#^at://#', '', (string)($state['alsoKnownAs'][0] ?? ''));
+		$handle = HandleVerifier::normal((string)preg_replace('#^at://#', '', (string)($state['alsoKnownAs'][0] ?? '')));
 		if ($handle !== '' && $handle !== $identity->handle) {
-			$this->identityRequest->setCustomHandle($did, $handle === $identity->assignedHandle() ? '' : $handle);
-			$this->logger->warning('Bluesky handle taken from the directory', ['did' => $did, 'handle' => $handle, 'was' => $identity->handle]);
-			$this->events->identity($did, $handle);
+			if ($handle === $identity->assignedHandle() || $this->isCustomHandleFor($handle, $did)) {
+				$this->identityRequest->setCustomHandle($did, $handle === $identity->assignedHandle() ? '' : $handle);
+				$this->logger->warning('Bluesky handle taken from the directory', ['did' => $did, 'handle' => $handle, 'was' => $identity->handle]);
+				$this->events->identity($did, $handle);
+			} else {
+				$this->logger->warning('Bluesky handle the directory names not taken: it is not one this server would give the account', ['did' => $did, 'handle' => $handle, 'kept' => $identity->handle]);
+			}
 		}
 		$rotation = self::stringList($state['rotationKeys'] ?? null);
 		if ($identity->recoveryPublic !== '' && !in_array($identity->recoveryPublic, $rotation, true)) {
@@ -736,6 +743,25 @@ class IdentityService {
 		if (($state['verificationMethods']['atproto'] ?? '') !== $identity->signingPublic) {
 			$this->logger->warning('The directory names another signing key', ['did' => $did, 'listed' => $state['verificationMethods']['atproto'] ?? '']);
 		}
+	}
+
+	/**
+	 * Whether a handle may be the DID's custom handle here, as
+	 * CustomHandleService::set() would take it: a domain outside this
+	 * server's handles, nobody else's here, that names the DID.
+	 */
+	private function isCustomHandleFor(string $handle, string $did): bool {
+		if ($this->handles->refusal($handle) !== '') {
+			return false;
+		}
+		try {
+			if ($this->identityRequest->getByHandle($handle)->did !== $did) {
+				return false;
+			}
+		} catch (AtprotoIdentityNotFoundException) {
+		}
+
+		return $this->handles->verify($handle, $did) !== '';
 	}
 
 	/**

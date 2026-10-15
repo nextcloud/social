@@ -36,6 +36,7 @@ use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 /**
  * The routes of moving a Bluesky account away, as the Migration page reads
@@ -78,6 +79,7 @@ class AtprotoMoveAwayRoutesTest extends TestCase {
 			$this->createStub(LabelerService::class), $this->createStub(AppPasswordService::class), $this->createStub(AuthorizationServer::class),
 			$this->createStub(CustomHandleService::class), $this->moveAway, $this->createStub(MoveInService::class),
 			$this->inbound, $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->createStub(PresenceService::class),
+			new NullLogger(),
 		);
 	}
 

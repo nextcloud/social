@@ -212,7 +212,13 @@ handle that was never issued is a 404.
 A later phase lets a person set a **custom handle** on a domain they own
 (they place the TXT record or the well-known file; the app verifies and
 updates the DID document). The `alice.<host>` handle keeps resolving to the
-same DID forever, as an alias the DID document does not list.
+same DID forever, as an alias the DID document does not list. The domain is
+checked again every day; one that fails seven checks in a row — a week — is
+dropped, and the account has its `alice.<host>` handle again, in the DID
+document too. A handle reaches an account here by no other way unchecked:
+one the PLC directory names for a DID (after an operation signed elsewhere,
+or a move here) becomes its custom handle only when the domain names the
+DID.
 
 ### 4.3 Service identity
 
@@ -1575,12 +1581,17 @@ here*):
 2. A background job copies the **repository** (`com.atproto.sync.getRepo`,
    checked against the DID's signing key and written here byte for byte
    under a commit signed with a key made for the account here), the
-   **blobs** (`listBlobs`/`getBlob`, each checked against its CID) and the
-   **preferences**. The repository and the blobs arrive in temporary files
-   rather than in memory,
+   **blobs** the copied records name (`getBlob`, each checked against its
+   CID; a blob no record names is not asked for) and the **preferences**.
+   The repository and the blobs arrive in temporary files rather than in
+   memory,
    held to the caps the server takes from a tool too: 64 MB for the
    repository (`repo-too-large` past that), and the largest upload for a
-   blob (a larger one is not copied, and counts as missing below).
+   blob (a larger one is not copied, and counts as missing below). A move
+   downloads at most 10 GB of blobs (`progress.blob_bytes`, whether they
+   were kept or not), and at most 50,000 blobs in one run; past either,
+   the rest counts as missing below. A tool that drives a move here (below)
+   is held to the same 10 GB for what it uploads.
 3. Before that, the blobs the copied records name are compared with the
    blobs stored here (and the counts logged). When any is missing, the
    move stops in state `needs_decision` with `progress.missing` (`count`
@@ -1609,6 +1620,23 @@ here*):
    here, the posts posts in the timeline, the likes and reposts actions,
    the curate lists lists here (§9.7) — through the import path, nothing
    re-published.
+
+**A move whose job stopped.** Core drops a queued job before it runs it,
+so a job killed mid-step (out of memory, a restart) leaves its move
+`running` with nothing to carry it on. The Bluesky maintenance job
+(`Move\StaleMoves`) picks up a running move — here, away or driven by a
+tool — that has not been written to for an hour and has no job waiting:
+the first time it queues the move again, from its step; the next time it
+fails it with `move-interrupted`, so "Try again" and "Call it off" work
+again (a move driven by a tool waits for the person's decision on the
+blobs again, or is done once the account is active here). A running move
+writes as it goes — each blob, each page of follows — so a long one is not
+taken for a stopped one. A move here whose job stopped after the directory
+took the operation finds the DID pointing here with the key made for it,
+and the account takes the DID without asking the old server to sign
+again; a move away that stopped while the DID was handed over goes on
+from the activation once the directory names the other server, and can
+no longer be called off.
 
 **Driven by a tool** (Settings → Migration → *Bring your bridged Bluesky
 account here*): the person invites the DID and gets a one-time code; Bridgy
@@ -1639,8 +1667,10 @@ the move's progress says so (`handle_kept`). A handle is the person's own
 when it is not under a domain the old server gives handles under — its
 `describeServer`'s `availableUserDomains`, its own host, `bsky.social` or
 Bridgy Fed's `brid.gy` — nor under this server's host, nor another
-account's here. Any other handle becomes the account's handle here,
-`alice.<host>`. The decision is made before the code is asked for (driven
+account's here — and only when the domain names the DID, as any custom
+handle must (§4.2: the TXT record or the well-known file); the directory
+says only what the DID's owner wrote there. Any other handle becomes the
+account's handle here, `alice.<host>`. The decision is made before the code is asked for (driven
 from here) or when the tool asks for the recommended credentials.
 
 **Rotation keys.** A move here keeps the DID the person's: the operation
@@ -1681,8 +1711,9 @@ The mirror image, so a person is not locked in. On the Migration page,
    is made (`handle-not-allowed`).
 2. In the background (`AtprotoMove` job, `oc_social_atproto_move`): the
    repository as a CAR into `importRepo`, the blobs that
-   `listMissingBlobs` names into `uploadBlob`, the preferences into
-   `putPreferences`. While the move runs, or waits for the person, posts
+   `listMissingBlobs` names into `uploadBlob` (each once; the list ends at
+   a cursor it named before, at a page that names no new blob, and after
+   1000 pages), the preferences into `putPreferences`. While the move runs, or waits for the person, posts
    written here wait instead of going to the account's repository (the
    Publisher skips them with a log line). Right before the DID moves they
    are published, oldest first, and when the repository's head moved on
@@ -1718,8 +1749,8 @@ the account afterwards, so a start without one has to say
 deactivated), `repo_copied` (the repository is there, the DID has not
 moved), `identity_switched` (the DID points there, the account is not
 active there yet), `activated`, `done`. "Try again" goes on from the step
-that stopped. Before the DID moved, `DELETE …/bluesky/move` calls the move
-off: the run stops before its next step, and the account made on the other
+that stopped. Before the DID moved, `DELETE …/bluesky/move` (after the
+Nextcloud password, as for a move here) calls the move off: the run stops before its next step, and the account made on the other
 server is left there, deactivated, because deleting it takes a code that
 server e-mails (`requestAccountDelete`, then `deleteAccount` with the
 account's password and that code) — the answer says so with
@@ -1795,7 +1826,9 @@ that account follows (`FollowFrom`). Follow records are public, so no
 password is asked: the DID is resolved (the AppView's `resolveHandle`), its
 PDS read from the PLC directory and asked through `PdsClient` with its
 refusal of local addresses, and its `app.bsky.graph.follow` records are read
-with `com.atproto.repo.listRecords`, at most 5000. Each account followed
+with `com.atproto.repo.listRecords`, at most 5000. The PDS is the person's
+to name, so the reading also ends at a cursor it named before, at a page
+that adds no account, and after 100 pages. Each account followed
 there is resolved (`BlueskyActorService`) and followed from here through
 `FollowService::followActor()` — one already followed is skipped — in the
 background as an import of kind `bluesky_follows`, its progress on the
@@ -1877,8 +1910,9 @@ older clients.
 | `move-replaced` | An invitation was replaced by a newer one | — |
 | `invite-expired` / `move-expired` | An invitation, or a move driven by a tool, ran out of time | Invite again |
 | `bridgy-unreachable` | Bridgy Fed could not be sent the request | Try again later |
+| `move-interrupted` | The move's background job stopped twice without finishing (an hour without progress each time) | *Try again*, or call it off while the DID has not moved |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |
-| `server-error` | Something unexpected on this server | Try again; the log has the details |
+| `server-error` | Something unexpected on this server; the sentence is a fixed one, the details are in the log | Try again; the log has the details |
 
 ## 14. Operations
 

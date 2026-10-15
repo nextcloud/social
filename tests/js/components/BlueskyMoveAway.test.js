@@ -218,7 +218,7 @@ describe('BlueskyMoveAway', () => {
 		expect(wrapper.find('.migration__bluesky-progress').exists()).toBe(true)
 	})
 
-	it('calls a move off before the switch and says the account there is left', async () => {
+	it('calls a move off before the switch, after the password, and says the account there is left', async () => {
 		server({ moves: [moveOf('running', 'blobs', { progress: { stage: 'repo_copied' } })] })
 		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'blobs', { progress: { stage: 'repo_copied', code: 'target-account-left' } }), code: 'target-account-left', host: 'pds.example' } })
 		const wrapper = await mountCard()
@@ -226,9 +226,22 @@ describe('BlueskyMoveAway', () => {
 		await buttonNamed(wrapper, 'Call it off').trigger('click')
 		await flushPromises()
 
+		expect(confirmPassword).toHaveBeenCalledTimes(1)
 		expect(axios.delete).toHaveBeenCalledWith(`${API}/move`)
 		expect(wrapper.text()).toContain('The move was called off. The account made on pds.example is still there, switched off: delete it there if you do not want it.')
 		expect(wrapper.find('.migration__bluesky-form').exists()).toBe(true)
+		wrapper.unmount()
+	})
+
+	it('does not call a move off when the password confirmation is dismissed', async () => {
+		server({ moves: [moveOf('running', 'blobs', { progress: { stage: 'repo_copied' } })] })
+		confirmPassword.mockRejectedValueOnce(new Error('dismissed'))
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call it off').trigger('click')
+		await flushPromises()
+
+		expect(axios.delete).not.toHaveBeenCalled()
 		wrapper.unmount()
 	})
 

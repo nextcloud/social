@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Crypto\PublicKey;
 use OCA\Social\Atproto\Firehose\EventService;
+use OCA\Social\Atproto\Identity\HandleVerifier;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\Mnemonic;
@@ -74,6 +75,9 @@ class IdentityServiceTest extends TestCase {
 	private array $logged = [];
 	/** @var array<string, Identity> the rows found by actor id */
 	private array $byActor = [];
+	/** @var list<string> the domains that name their DID */
+	private array $verified = [];
+	private HandleVerifier $handles;
 
 	protected function setUp(): void {
 		$config = $this->createMock(AtprotoConfig::class);
@@ -97,6 +101,17 @@ class IdentityServiceTest extends TestCase {
 		});
 		$this->identityRequest->method('getByDid')->willReturnCallback(fn (string $did): Identity => $this->stored[$did] ?? throw new AtprotoIdentityNotFoundException());
 		$this->identityRequest->method('getByActorId')->willReturnCallback(fn (string $id): Identity => $this->byActor[$id] ?? throw new AtprotoIdentityNotFoundException());
+		$this->identityRequest->method('getByHandle')->willReturnCallback(function (string $handle): Identity {
+			foreach ($this->stored as $identity) {
+				if ($identity->handle === $handle) {
+					return $identity;
+				}
+			}
+			throw new AtprotoIdentityNotFoundException();
+		});
+		$this->handles = $this->createMock(HandleVerifier::class);
+		$this->handles->method('refusal')->willReturnCallback(static fn (string $handle): string => str_ends_with($handle, '.social.test') ? 'no' : '');
+		$this->handles->method('verify')->willReturnCallback(fn (string $handle): string => in_array($handle, $this->verified, true) ? 'dns' : '');
 
 		$this->identityRequest->method('setRecoveryPublic')->willReturnCallback(function (string $did, string $recovery): void {
 			$was = $this->stored[$did];
@@ -163,7 +178,7 @@ class IdentityServiceTest extends TestCase {
 
 	private function setUpService(): void {
 		$this->service = new IdentityService(
-			$this->config, $this->identityRequest, $this->plcLog, $this->blobs, $this->instanceKeys, $this->plc, $this->events, $this->repositories, $this->cipher, new NullLogger(),
+			$this->config, $this->identityRequest, $this->plcLog, $this->blobs, $this->instanceKeys, $this->plc, $this->events, $this->repositories, $this->cipher, $this->handles, new NullLogger(),
 		);
 	}
 
@@ -401,6 +416,7 @@ class IdentityServiceTest extends TestCase {
 	 * new head — no key of this server is named any more — is dead too.
 	 */
 	public function testANullifiedOperationIsDeadAndTheIdentityFollowsTheDirectory(): void {
+		$this->verified = ['nullified.example.org'];
 		$identity = $this->service->forActor(self::actor('nullified'));
 		$this->assertNotNull($identity);
 		$this->service->issueRecoveryKey($identity);
@@ -429,6 +445,35 @@ class IdentityServiceTest extends TestCase {
 		$this->assertSame(1, $this->logged[3]['confirmed']);
 		$this->assertStringContainsString('no rotation key of this server', $this->logged[2]['reason']);
 		$this->assertSame(['at://nullified.example.org'], $this->service->document($withRecovery)['alsoKnownAs']);
+	}
+
+	/**
+	 * A handle the directory's head names is taken as the account's only
+	 * when its domain names the DID, as a custom handle set here must:
+	 * anyone holding a rotation key can write any domain there.
+	 */
+	public function testAHandleTheDirectoryNamesIsNotTakenUnlessItNamesTheDid(): void {
+		$identity = $this->service->forActor(self::actor('claimed'));
+		$this->assertNotNull($identity);
+		$this->service->issueRecoveryKey($identity);
+		$withRecovery = $this->stored[$identity->did];
+		$theirs = PlcOperation::sign(
+			PlcOperation::build([$withRecovery->recoveryPublic], $withRecovery->signingPublic, 'victim.example.org', 'https://social.test', $this->logged[1]['cid']),
+			PrivateKey::generate(Curve::K256),
+		);
+		$this->plc->method('auditLog')->willReturn([
+			['cid' => $this->logged[0]['cid'], 'operation' => $this->logged[0]['operation'], 'nullified' => false],
+			['cid' => $this->logged[1]['cid'], 'operation' => $this->logged[1]['operation'], 'nullified' => false],
+			['cid' => PlcOperation::cid($theirs)->toString(), 'operation' => $theirs, 'nullified' => false],
+		]);
+		$this->plc->method('submit')->willThrowException(new AtprotoException('PLC directory could not be reached'));
+		$this->service->useCustomHandle($withRecovery, 'mine.example.org');
+		$this->identityRequest->expects($this->never())->method('setCustomHandle');
+
+		$this->service->repair();
+
+		$this->assertSame(1, end($this->logged)['confirmed'], 'the directory\'s operation is the head');
+		$this->assertSame('mine.example.org', $this->stored[$identity->did]->customHandle);
 	}
 
 	/**

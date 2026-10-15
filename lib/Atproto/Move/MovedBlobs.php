@@ -30,6 +30,8 @@ use Throwable;
 class MovedBlobs {
 	/** how many missing CIDs a move keeps to show */
 	public const SHOWN = 50;
+	/** the most bytes of blobs one move downloads (`progress.blob_bytes`), kept or not; past it a blob stays missing */
+	public const BUDGET = 10_000_000_000;
 
 	public function __construct(
 		private PdsClient $pds,
@@ -110,14 +112,32 @@ class MovedBlobs {
 		return false;
 	}
 
+	/** Whether the move spent its BUDGET, or $bytes more would take it past. */
+	public static function overBudget(Move $move, int $bytes = 0): bool {
+		$spent = (int)($move->progress['blob_bytes'] ?? 0);
+
+		return $spent >= self::BUDGET || $spent + $bytes > self::BUDGET;
+	}
+
+	/** Counts blob bytes downloaded against the move's BUDGET. */
+	public static function spend(Move $move, int $bytes): void {
+		$move->progress['blob_bytes'] = (int)($move->progress['blob_bytes'] ?? 0) + $bytes;
+	}
+
 	/**
 	 * Copies one blob from the old PDS, checked against its CID; nothing
-	 * is kept of one that does not arrive or does not match.
+	 * is kept of one that does not arrive or does not match, or once the
+	 * move has spent its BUDGET.
 	 *
 	 * @return int the bytes kept, 0 when nothing was
 	 * @throws MoveFailure when the old PDS cannot be reached
 	 */
 	public function copy(Move $move, string $cid): int {
+		if (self::overBudget($move)) {
+			$this->logger->info('Blob not copied: the move downloaded as many bytes as one may', ['did' => $move->did, 'cid' => $cid]);
+
+			return 0;
+		}
 		try {
 			$blob = $this->pds->bytes($move->pds, 'com.atproto.sync.getBlob', ['did' => $move->did, 'cid' => $cid], ClientXrpc::MAX_UPLOAD);
 		} catch (MoveFailure $e) {
@@ -125,9 +145,11 @@ class MovedBlobs {
 				throw $e;
 			}
 			$this->logger->info('Blob not copied: larger than any taken here', ['did' => $move->did, 'cid' => $cid]);
+			self::spend($move, ClientXrpc::MAX_UPLOAD);
 
 			return 0;
 		}
+		self::spend($move, $blob['size']);
 		try {
 			if ($blob['status'] !== 200 || !Cid::forRawDigest((string)hash_file('sha256', $blob['path'], true))->equals(Cid::parse($cid))) {
 				$this->logger->info('Blob not copied', ['did' => $move->did, 'cid' => $cid, 'status' => $blob['status']]);

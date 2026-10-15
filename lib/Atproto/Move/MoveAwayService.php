@@ -48,6 +48,8 @@ use Throwable;
 class MoveAwayService {
 	private const CREATE_ACCOUNT = 'com.atproto.server.createAccount';
 	private const MAX_BLOBS_PER_PAGE = 500;
+	/** the most pages of missing blobs one copy reads from the other PDS */
+	private const MAX_BLOB_PAGES = 1000;
 	/** what stops a move for the person to decide on, rather than failing it */
 	private const DECISIONS = ['blobs-missing', 'repo-incomplete'];
 	/** what the other PDS's `createAccount` errors mean, as codes for the page */
@@ -205,9 +207,7 @@ class MoveAwayService {
 		if ($move === null || $move->state !== Move::FAILED || $move->direction !== Move::AWAY) {
 			throw new MoveErrorException('There is no failed move to start again', 'no-failed-move');
 		}
-		$move->state = Move::RUNNING;
-		$move->error = '';
-		unset($move->progress['code']);
+		$move->resume();
 		$this->save($move);
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 
@@ -451,9 +451,7 @@ class MoveAwayService {
 		} else {
 			$move->step = ($move->progress['code'] ?? '') === 'repo-incomplete' ? Move::STEP_REPO : Move::STEP_BLOBS;
 		}
-		$move->state = Move::RUNNING;
-		$move->error = '';
-		unset($move->progress['code']);
+		$move->resume();
 		$this->save($move);
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 
@@ -475,18 +473,30 @@ class MoveAwayService {
 
 	/**
 	 * Uploads to the other PDS every blob it says the repository names and
-	 * it does not have.
+	 * it does not have, each once. The list ends at a cursor it named
+	 * before, at a page that names no blob it did not name before, or after
+	 * MAX_BLOB_PAGES pages.
 	 *
 	 * @throws AtprotoException
 	 */
 	private function copyBlobs(Move $move): void {
 		$cursor = '';
+		$cursors = [];
+		$listed = [];
 		$copied = 0;
 		do {
+			$cursors[$cursor] = true;
 			$query = ['limit' => self::MAX_BLOBS_PER_PAGE] + ($cursor !== '' ? ['cursor' => $cursor] : []);
 			$page = $this->authed($move, 'com.atproto.repo.listMissingBlobs', 'GET', $query);
+			$new = 0;
 			foreach (is_array($page['blobs'] ?? null) ? $page['blobs'] : [] as $missing) {
-				$blob = $this->blobs->get($move->did, (string)($missing['cid'] ?? ''));
+				$cid = (string)($missing['cid'] ?? '');
+				if (isset($listed[$cid])) {
+					continue;
+				}
+				$listed[$cid] = true;
+				$new++;
+				$blob = $this->blobs->get($move->did, $cid);
 				if ($blob === null) {
 					// a record names a blob this server never had; the other PDS
 					// lists it as missing, as this one would have
@@ -494,12 +504,13 @@ class MoveAwayService {
 				}
 				$bytes = str_starts_with($blob->mime, 'video/') ? $this->videos->open($blob)['stream'] : $this->pictures->read($blob);
 				$this->authed($move, 'com.atproto.repo.uploadBlob', 'POST', [], null, $bytes, $blob->mime);
-				$copied++;
+				$move->progress['blobs'] = ++$copied;
+				$this->save($move);
 			}
 			$cursor = (string)($page['cursor'] ?? '');
 			$move->progress['blobs'] = $copied;
 			$this->save($move);
-		} while ($cursor !== '');
+		} while ($cursor !== '' && $new > 0 && !isset($cursors[$cursor]) && count($cursors) < self::MAX_BLOB_PAGES);
 	}
 
 	/**

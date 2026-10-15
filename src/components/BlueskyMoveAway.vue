@@ -417,11 +417,16 @@ export default {
 		},
 
 		/**
-		 * Calls the move off before the switch.
+		 * Calls the move off before the switch, after the Nextcloud password.
 		 *
 		 * @return {Promise<void>}
 		 */
 		async callOff() {
+			try {
+				await confirmPassword()
+			} catch {
+				return
+			}
 			this.busy = true
 			this.actionError = ''
 			try {

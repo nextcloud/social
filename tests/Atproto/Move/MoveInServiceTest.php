@@ -95,12 +95,18 @@ class MoveInServiceTest extends TestCase {
 	private $duringCopy = null;
 	/** where the directory says the DID's PDS is */
 	private string $pointsAt = self::OLD;
+	/** the signing key the directory names for the DID, '' for the old server's */
+	private string $signingKeyListed = '';
 	/** the DID's handle before the move */
 	private string $oldHandle = 'alice.bsky.social';
 	/** @var list<string> the domains the old server gives handles under */
 	private array $userDomains = ['.bsky.social'];
 	/** @var list<string> the custom handles other accounts here have */
 	private array $taken = [];
+	/** @var list<string> the handles whose domain does not name the DID */
+	private array $unverified = [];
+	/** @var array<string, BlobRef> the blobs stored here, by CID */
+	private array $stored = [];
 	/** @var IdentityService&MockObject */
 	private IdentityService $identities;
 	/** @var RepositoryService&MockObject */
@@ -142,16 +148,17 @@ class MoveInServiceTest extends TestCase {
 
 			return $answer ?? ['status' => 200, 'body' => []];
 		});
-		$pds->method('expect')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = []): array {
+		$pds->method('expect')->willReturnCallback(function (string $origin, string $method): array {
 			$this->calls[] = ['method' => $method, 'json' => null, 'token' => ''];
-			if ($this->duringCopy !== null) {
-				($this->duringCopy)();
-			}
 
-			return $method === 'com.atproto.sync.listBlobs' ? ['cids' => [Cid::forRaw($this->blob)->toString(), Cid::forRaw('elsewhere')->toString()]] : [];
+			return [];
 		});
 		$pds->method('bytes')->willReturnCallback(function (string $origin, string $method, array $query, int $max): array {
 			$this->downloaded[$method] = $max;
+			$this->calls[] = ['method' => $method, 'json' => null, 'token' => ''];
+			if ($method === 'com.atproto.sync.getBlob' && $this->duringCopy !== null) {
+				($this->duringCopy)();
+			}
 
 			return self::downloaded(match ($method) {
 				'com.atproto.sync.getRepo' => $this->car,
@@ -170,7 +177,7 @@ class MoveInServiceTest extends TestCase {
 		$plc->method('data')->willReturnCallback(fn (): ?array => $this->known ? [
 			'rotationKeys' => $this->listedKeys,
 			'alsoKnownAs' => ['at://' . $this->oldHandle],
-			'verificationMethods' => ['atproto' => $this->oldKey->didKey()],
+			'verificationMethods' => ['atproto' => $this->signingKeyListed !== '' ? $this->signingKeyListed : $this->oldKey->didKey()],
 			'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => $this->pointsAt]],
 		] : null);
 		$this->identities = $this->createMock(IdentityService::class);
@@ -184,11 +191,16 @@ class MoveInServiceTest extends TestCase {
 			new StoredRecord(self::DID, 'app.bsky.graph.follow', '3kfollow', Cid::forRaw('f'), DagCbor::encode(['$type' => 'app.bsky.graph.follow', 'subject' => self::FOLLOWED, 'createdAt' => '2026-01-01T00:00:00.000Z']), '', 0),
 		]);
 		$this->blobs = $this->createMock(AtprotoBlobRequest::class);
+		$this->blobs->method('put')->willReturnCallback(function (BlobRef $blob): void {
+			$this->stored[$blob->cid->toString()] = $blob;
+		});
+		$this->blobs->method('get')->willReturnCallback(fn (string $did, string $cid): ?BlobRef => $this->stored[$cid] ?? null);
 		$this->identityRequest = $this->createMock(AtprotoIdentityRequest::class);
 		$this->republisher = $this->createMock(PostRepublisher::class);
 		$this->identityRequest->method('handleExists')->willReturnCallback(fn (string $handle): bool => in_array($handle, $this->taken, true));
 		$verifier = $this->createMock(HandleVerifier::class);
 		$verifier->method('refusal')->willReturnCallback(static fn (string $handle): string => str_ends_with($handle, '.social.test') || !str_contains($handle, '.') ? 'no' : '');
+		$verifier->method('verify')->willReturnCallback(fn (string $handle, string $did): string => $did === self::DID && !in_array($handle, $this->unverified, true) ? 'dns' : '');
 		$documents = $this->createMock(DocumentService::class);
 		$documents->method('storeAsIs')->willReturnCallback(function (Person $actor, string $path): Document {
 			$this->assertContains(file_get_contents($path), [$this->blob, 'elsewhere'], 'stored as it came');
@@ -241,6 +253,12 @@ class MoveInServiceTest extends TestCase {
 			new MovedBlobs($pds, $repoRequest, $this->blobs, $documents, $actorsRequest, new NullLogger()), $this->republisher,
 		);
 		$this->answers['com.atproto.server.createSession'] = [['status' => 200, 'body' => ['did' => self::DID, 'handle' => 'alice.bsky.social', 'accessJwt' => 'access', 'refreshJwt' => 'refresh']]];
+		$this->postNames(Cid::forRaw($this->blob));
+	}
+
+	/** The records copied here: a post with a picture. */
+	private function postNames(Cid $picture): void {
+		$this->records = ['app.bsky.feed.post/3kpost' => DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => 'look', 'embed' => ['$type' => 'app.bsky.embed.images', 'images' => [['image' => ['$type' => 'blob', 'ref' => $picture, 'mimeType' => 'image/png', 'size' => 9], 'alt' => '']]], 'createdAt' => '2026-01-01T00:00:00.000Z'])];
 	}
 
 	/**
@@ -498,6 +516,7 @@ class MoveInServiceTest extends TestCase {
 			'Bridgy\'s' => ['alice.mastodon.example.ap.brid.gy', [], ''],
 			'this server\'s' => ['bob.social.test', [], ''],
 			'another account\'s here' => ['taken.example.org', [], ''],
+			'a domain that does not name the DID' => ['claimed.example.org', [], ''],
 		];
 	}
 
@@ -505,8 +524,9 @@ class MoveInServiceTest extends TestCase {
 	public function testWhichHandleIsKept(string $handle, array $domains, string $kept): void {
 		$this->userDomains = $domains;
 		$this->taken = ['taken.example.org'];
+		$this->unverified = ['claimed.example.org'];
 
-		$this->assertSame($kept, $this->moves->keptHandle(self::OLD, ['alsoKnownAs' => ['at://' . $handle]], 'alice.social.test'));
+		$this->assertSame($kept, $this->moves->keptHandle(self::DID, self::OLD, ['alsoKnownAs' => ['at://' . $handle]], 'alice.social.test'));
 	}
 
 	/**
@@ -690,15 +710,7 @@ class MoveInServiceTest extends TestCase {
 
 	/** A post here that names a picture which did not arrive. */
 	private function aPostNamesAMissingPicture(): void {
-		$picture = ['$type' => 'blob', 'ref' => Cid::forRaw('elsewhere'), 'mimeType' => 'image/png', 'size' => 9];
-		$this->records = ['app.bsky.feed.post/3kpost' => DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => 'look', 'embed' => ['$type' => 'app.bsky.embed.images', 'images' => [['image' => $picture, 'alt' => '']]], 'createdAt' => '2026-01-01T00:00:00.000Z'])];
-		$stored = [];
-		$this->blobs->method('put')->willReturnCallback(function (BlobRef $blob) use (&$stored): void {
-			$stored[$blob->cid->toString()] = $blob;
-		});
-		$this->blobs->method('get')->willReturnCallback(function (string $did, string $cid) use (&$stored): ?BlobRef {
-			return $stored[$cid] ?? null;
-		});
+		$this->postNames(Cid::forRaw('elsewhere'));
 	}
 
 	/** Before the code is asked for, a move with pictures missing waits for the person to decide. */
@@ -760,6 +772,7 @@ class MoveInServiceTest extends TestCase {
 
 	/** A move that stopped at the follows when they came before the code asks for the code. */
 	public function testAMoveStoppedAtTheFollowsBeforeTheCodeAsksForIt(): void {
+		$this->records = [];
 		$this->moves->start('alice', 'alice.bsky.social', 'pw');
 		$this->rows[1]->step = Move::STEP_FOLLOWS;
 		$this->follows->expects($this->never())->method('adoptBlueskyFollow');
@@ -792,5 +805,71 @@ class MoveInServiceTest extends TestCase {
 
 		$this->moves->retry($this->rows[1]);
 		$this->assertSame(Move::STEP_CODE, $this->rows[1]->step, 'a new code is asked for');
+	}
+
+	/** Only the blobs the copied records name are asked for; the old server's list is not read. */
+	public function testOnlyTheBlobsTheRecordsNameAreCopied(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertNotContains('com.atproto.sync.listBlobs', $this->methods());
+		$this->assertSame(1, count(array_keys($this->methods(), 'com.atproto.sync.getBlob', true)));
+		$this->assertSame(strlen($this->blob), $this->rows[1]->progress['blob_bytes']);
+		$this->assertSame(Move::WAITING, $this->rows[1]->state);
+	}
+
+	/** A move that downloaded its budget of blobs copies no more; the rest is missing, for the person to decide on. */
+	public function testTheBlobsStopAtTheMovesBudget(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->rows[1]->progress['blob_bytes'] = MovedBlobs::BUDGET;
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertNotContains('com.atproto.sync.getBlob', $this->methods());
+		$this->assertSame([Move::NEEDS_DECISION, 'blobs-missing'], [$this->rows[1]->state, $this->rows[1]->progress['code']]);
+	}
+
+	/** The follows are written to the move page by page, so a long run is not taken for one that stopped. */
+	public function testTheFollowsAreWrittenAsTheyGo(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->follows->method('adoptBlueskyFollow')->willReturn(true);
+
+		$this->moves->adoptFollows(clone $this->rows[1]);
+
+		$this->assertSame(1, $this->rows[1]->progress['follows'] ?? null);
+	}
+
+	/**
+	 * A move whose job stopped after the directory took the operation:
+	 * the account takes the DID as the directory names it, and the old
+	 * server is not asked to sign again.
+	 */
+	public function testADidTheDirectoryPointsHereAlreadyIsTaken(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->moves->run($this->rows[1]);
+		$this->moves->code('alice', '12345');
+		$this->pointsAt = self::HERE;
+		$this->signingKeyListed = $this->keyHere();
+		$this->identities->expects($this->never())->method('adopt');
+		$this->identities->expects($this->once())->method('receive')->with($this->current, self::DID, $this->isInstanceOf(PrivateKey::class), self::OLD)->willReturn($this->current);
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertNotContains('com.atproto.identity.signPlcOperation', $this->methods());
+		$this->assertSame(Move::DONE, $this->rows[1]->state, $this->rows[1]->error);
+	}
+
+	/** "Try again" on a move that failed once the directory pointed the DID here goes on without a new code. */
+	public function testARetryAfterTheSwitchAsksForNoNewCode(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->rows[1]->step = Move::STEP_IDENTITY;
+		$this->rows[1]->state = Move::FAILED;
+		$this->pointsAt = self::HERE;
+		$this->signingKeyListed = $this->keyHere();
+
+		$this->moves->retry($this->rows[1]);
+
+		$this->assertSame([Move::STEP_IDENTITY, Move::RUNNING], [$this->rows[1]->step, $this->rows[1]->state]);
 	}
 }

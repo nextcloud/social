@@ -23,7 +23,6 @@ use OCA\Social\Atproto\Identity\PlcClient;
 use OCA\Social\Atproto\Identity\PlcOperation;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
-use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\RecordMapper;
@@ -68,7 +67,8 @@ use Throwable;
  * its lists here.
  */
 class MoveInService {
-	private const PAGE = 500;
+	/** the most blobs one run of the copy asks the old PDS for */
+	private const BLOBS = 50000;
 	/** the domains the big hosts give handles under, for an old server that does not say */
 	private const HOSTED_HANDLES = ['.bsky.social', '.brid.gy'];
 
@@ -169,7 +169,9 @@ class MoveInService {
 	}
 
 	/**
-	 * Starts a failed move again from its step; a wrong code asks for a new one.
+	 * Starts a failed move again from its step; one that failed at the
+	 * identity asks for a new code, unless the directory points the DID
+	 * here already.
 	 *
 	 * @throws MoveErrorException
 	 */
@@ -177,7 +179,7 @@ class MoveInService {
 		if ($move->direction !== Move::IN || $move->state !== Move::FAILED) {
 			throw new MoveErrorException('There is no failed move to start again', 'no-failed-move');
 		}
-		if ($move->step === Move::STEP_IDENTITY) {
+		if ($move->step === Move::STEP_IDENTITY && !$this->switchedHere($move)) {
 			$move->step = Move::STEP_CODE;
 		}
 		$move->resume();
@@ -484,28 +486,25 @@ class MoveInService {
 	}
 
 	/**
-	 * Every blob of the old repository, byte for byte.
+	 * The blobs the copied records name, byte for byte, as far as the
+	 * move's budget goes (MovedBlobs::BUDGET) and at most BLOBS in one run;
+	 * what is not copied stays missing, for the person to decide on.
 	 *
 	 * @throws AtprotoException
 	 */
 	private function copyBlobs(Move $move): void {
-		$cursor = '';
 		$copied = (int)($move->progress['blobs'] ?? 0);
-		do {
-			$page = $this->pds->expect($move->pds, 'com.atproto.sync.listBlobs', 'GET', ['did' => $move->did, 'limit' => self::PAGE] + ($cursor !== '' ? ['cursor' => $cursor] : []));
-			foreach (is_array($page['cids'] ?? null) ? $page['cids'] : [] as $cid) {
-				if (!is_string($cid) || !Cid::isValid($cid) || $this->blobs->get($move->did, $cid) !== null) {
-					continue;
-				}
-				$copied += $this->movedBlobs->copy($move, $cid) > 0 ? 1 : 0;
+		foreach (array_slice($this->movedBlobs->missing($move->did), 0, self::BLOBS) as $cid) {
+			if (MovedBlobs::overBudget($move)) {
+				break;
 			}
-			$cursor = (string)($page['cursor'] ?? '');
+			$copied += $this->movedBlobs->copy($move, $cid) > 0 ? 1 : 0;
 			$move->progress = ['blobs' => $copied] + $move->progress;
 			if ($this->calledOff($move, false)) {
 				return;
 			}
 			$this->moves->update($move);
-		} while ($cursor !== '');
+		}
 	}
 
 	/**
@@ -552,8 +551,10 @@ class MoveInService {
 				}
 			}
 			$cursor = count($page) === 100 ? end($page)->rkey : '';
+			// written as it goes, so a long run is not taken for one that died (StaleMoves)
+			$move->progress = ['follows' => $adopted] + $move->progress;
+			$this->moves->update($move);
 		} while ($cursor !== '');
-		$move->progress = ['follows' => $adopted] + $move->progress;
 	}
 
 	/**
@@ -589,7 +590,10 @@ class MoveInService {
 	/**
 	 * The old PDS signs the operation that points the DID here, and the
 	 * account takes it. The rotation keys are the person's own first, then
-	 * this server's (`RotationKeys`); the old server's are dropped.
+	 * this server's (`RotationKeys`); the old server's are dropped. A DID
+	 * the directory already points here, with the key made for the move,
+	 * is taken as it is: the job that sent the operation stopped before
+	 * the account took it.
 	 *
 	 * @throws AtprotoException
 	 */
@@ -597,10 +601,20 @@ class MoveInService {
 		$session = $this->unseal($move->session);
 		$actor = $this->actors->getFromUserId($move->userId);
 		$current = $this->identities->forActor($actor) ?? throw new MoveFailure('no-identity', 'This account has no Bluesky identity to move into');
+		if ($current->did === $move->did) {
+			return;
+		}
 		$key = $this->key($move);
-		$here = $this->instanceKeys->rotationKey()->didKey();
-		$rotation = RotationKeys::forMoveHere($this->didState($move->did)['rotationKeys'] ?? null, $this->oldServerKeys($move), $current->recoveryPublic, $here);
+		$state = $this->didState($move->did);
 		$kept = $this->settleHandle($move);
+		if ($this->pointsHere($move, $state)) {
+			$this->logger->info('A DID moving here points here already; the account takes it', ['did' => $move->did]);
+			$this->becomeAccount($move, $current, $key, $kept, null, RotationKeys::didKeys($state['rotationKeys'] ?? null));
+
+			return;
+		}
+		$here = $this->instanceKeys->rotationKey()->didKey();
+		$rotation = RotationKeys::forMoveHere($state['rotationKeys'] ?? null, $this->oldServerKeys($move), $current->recoveryPublic, $here);
 		$signed = $this->authed($move, 'com.atproto.identity.signPlcOperation', 'POST', [], [
 			'token' => (string)($session['code'] ?? ''),
 			'rotationKeys' => $rotation,
@@ -614,22 +628,57 @@ class MoveInService {
 			|| RotationKeys::didKeys($operation['rotationKeys'] ?? null) !== $rotation) {
 			throw new MoveFailure('operation-mismatch', 'The old server signed something else than was asked');
 		}
+		$this->becomeAccount($move, $current, $key, $kept, $operation, $rotation);
+	}
+
+	/**
+	 * The account takes the DID: with the signed operation, sent to the
+	 * directory first; without, as the directory names it already.
+	 *
+	 * @param list<string> $rotation the DID's rotation keys after the move
+	 * @throws AtprotoException
+	 */
+	private function becomeAccount(Move $move, Identity $current, PrivateKey $key, string $kept, ?array $operation, array $rotation): void {
 		$this->republisher->remember($move, $current);
 		try {
 			if ($kept !== '') {
 				// set before the DID moves, so the identity is announced under it
 				$this->identityRequest->setCustomHandle($current->did, $kept);
 			}
-			$this->identities->adopt($current, $move->did, $key, $move->pds, $operation);
+			if ($operation !== null) {
+				$this->identities->adopt($current, $move->did, $key, $move->pds, $operation);
+			} else {
+				$this->identities->receive($current, $move->did, $key, $move->pds);
+			}
 		} catch (AtprotoException $e) {
 			if ($kept !== '') {
 				$this->identityRequest->setCustomHandle($current->did, $current->customHandle);
 			}
 			throw $e instanceof AtprotoPlcRefusedException || !str_starts_with($e->getMessage(), 'PLC directory') ? $e : new MoveFailure('plc-unreachable', $e->getMessage(), $e);
 		}
-		if ($current->recoveryPublic !== '') {
+		if ($current->recoveryPublic !== '' && in_array($current->recoveryPublic, $rotation, true)) {
 			// the recovery key is one of the moved DID's now, as it was of the one retired
 			$this->identityRequest->setRecoveryPublic($move->did, $current->recoveryPublic);
+		}
+	}
+
+	/**
+	 * Whether the directory points the DID here, at the key made for the
+	 * move.
+	 *
+	 * @throws AtprotoException
+	 */
+	private function pointsHere(Move $move, array $state): bool {
+		return rtrim((string)($state['services']['atproto_pds']['endpoint'] ?? ''), '/') === $this->config->pdsEndpoint()
+			&& ($state['verificationMethods']['atproto'] ?? '') === $this->key($move)->didKey();
+	}
+
+	/** pointsHere(), asked of the directory now; false when it cannot be asked. */
+	private function switchedHere(Move $move): bool {
+		try {
+			return $this->pointsHere($move, $this->didState($move->did));
+		} catch (AtprotoException|MoveErrorException) {
+			return false;
 		}
 	}
 
@@ -641,7 +690,7 @@ class MoveInService {
 	private function settleHandle(Move $move): string {
 		if (!array_key_exists('handle_kept', $move->progress)) {
 			$identity = $this->identities->forActor($this->actors->getFromUserId($move->userId), false);
-			$move->progress['handle_kept'] = $this->keptHandle($move->pds, $this->didState($move->did), $identity?->handle ?? '');
+			$move->progress['handle_kept'] = $this->keptHandle($move->did, $move->pds, $this->didState($move->did), $identity?->handle ?? '');
 			$this->moves->update($move);
 		}
 
@@ -652,13 +701,16 @@ class MoveInService {
 	 * The handle a DID moving here keeps: one on a domain of the person's
 	 * own, not under a domain the old server gives handles under
 	 * (`describeServer`'s `availableUserDomains`, its own host, or Bluesky's
-	 * and Bridgy Fed's); '' when the handle is the old server's to give, is
-	 * under this server's host, or is another account's here.
+	 * and Bridgy Fed's), that names the DID as any custom handle must
+	 * (HandleVerifier); '' when the handle is the old server's to give, is
+	 * under this server's host, is another account's here, or does not
+	 * name the DID — the directory says what the DID's owner wrote there,
+	 * not that the domain is theirs.
 	 *
 	 * @param array $state the DID's state in the directory
 	 * @param string $own the handle the account has here now
 	 */
-	public function keptHandle(string $pds, array $state, string $own): string {
+	public function keptHandle(string $did, string $pds, array $state, string $own): string {
 		$handle = HandleVerifier::normal((string)preg_replace('#^at://#', '', (string)($state['alsoKnownAs'][0] ?? '')));
 		if ($handle === '' || $this->handles->refusal($handle) !== '' || ($handle !== $own && $this->identityRequest->handleExists($handle))) {
 			return '';
@@ -678,6 +730,11 @@ class MoveInService {
 			if (str_ends_with('.' . $handle, $domain)) {
 				return '';
 			}
+		}
+		if ($this->handles->verify($handle, $did) === '') {
+			$this->logger->info('Handle of a DID moving here not kept: it does not name the DID', ['did' => $did, 'handle' => $handle]);
+
+			return '';
 		}
 
 		return $handle;

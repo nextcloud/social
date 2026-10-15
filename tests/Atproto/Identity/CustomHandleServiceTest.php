@@ -97,4 +97,15 @@ class CustomHandleServiceTest extends TestCase {
 		$this->assertFalse(self::identity('gone.example.org', 1)->customHandleBroken(), 'one failed check is not yet broken');
 		$this->assertTrue(self::identity('gone.example.org', 2)->customHandleBroken());
 	}
+
+	/** A handle that failed its daily check a week in a row is dropped: the account has its assigned handle again. */
+	public function testAHandleThatKeepsFailingIsDropped(): void {
+		$lapsed = self::identity('lapsed.example.org', CustomHandleService::CLEAR_AFTER - 1);
+		$failing = self::identity('failing.example.org', CustomHandleService::CLEAR_AFTER - 2);
+		$this->request->method('getCustomHandlesDue')->willReturn([$lapsed, $failing]);
+		$this->verifier->method('verify')->willReturn('');
+		$this->identities->expects($this->once())->method('useCustomHandle')->with($lapsed, '')->willReturn($this->alice);
+
+		$this->assertSame(2, $this->handles->recheck());
+	}
 }

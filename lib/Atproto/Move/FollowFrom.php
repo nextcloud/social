@@ -35,6 +35,8 @@ class FollowFrom {
 	/** the most follows one run takes over */
 	public const MAX_FOLLOWS = 5000;
 	private const PAGE = 100;
+	/** the most pages of follow records one run reads: twice what MAX_FOLLOWS takes */
+	public const MAX_PAGES = 100;
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -139,7 +141,9 @@ class FollowFrom {
 	}
 
 	/**
-	 * The DIDs the account follows, from its public follow records.
+	 * The DIDs the account follows, from its public follow records. The
+	 * PDS is the person's to name, so the reading ends at a cursor it named
+	 * before, at a page that adds no account, and after MAX_PAGES pages.
 	 *
 	 * @return list<string>
 	 * @throws AtprotoException
@@ -149,20 +153,23 @@ class FollowFrom {
 			throw new AtprotoException('The import names no Bluesky account');
 		}
 		$subjects = [];
+		$cursors = [];
 		$cursor = '';
 		do {
+			$cursors[$cursor] = true;
 			$page = $this->pds->expect($this->pds->origin($pds), 'com.atproto.repo.listRecords', 'GET', [
 				'repo' => $did, 'collection' => RecordMapper::FOLLOW, 'limit' => self::PAGE,
 			] + ($cursor !== '' ? ['cursor' => $cursor] : []));
+			$before = count($subjects);
 			foreach (is_array($page['records'] ?? null) ? $page['records'] : [] as $record) {
 				$subject = is_array($record) ? (string)($record['value']['subject'] ?? '') : '';
 				if (Syntax::isDid($subject) && $subject !== $did) {
 					$subjects[$subject] = true;
 				}
 			}
-			$next = (string)($page['cursor'] ?? '');
-			$cursor = $next !== $cursor ? $next : '';
-		} while ($cursor !== '' && count($subjects) < self::MAX_FOLLOWS);
+			$cursor = (string)($page['cursor'] ?? '');
+		} while ($cursor !== '' && !isset($cursors[$cursor]) && count($subjects) > $before
+			&& count($subjects) < self::MAX_FOLLOWS && count($cursors) < self::MAX_PAGES);
 
 		return array_slice(array_keys($subjects), 0, self::MAX_FOLLOWS);
 	}

@@ -129,11 +129,11 @@ final class Move {
 		$this->progress = ['code' => $code] + $this->progress;
 	}
 
-	/** The move goes on: what stopped it is forgotten. */
+	/** The move goes on: what stopped it is forgotten, and how often it was picked up again (StaleMoves). */
 	public function resume(): void {
 		$this->state = self::RUNNING;
 		$this->error = '';
-		unset($this->progress['code']);
+		unset($this->progress['code'], $this->progress['resumed']);
 	}
 
 	/** what the settings show of it */

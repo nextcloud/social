@@ -468,6 +468,40 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertSame('', $this->rows[1]->session, 'the other server\'s session is not kept');
 	}
 
+	/**
+	 * The other PDS is the person's to name: a cursor it named before, or
+	 * a page that names no blob it did not name before, ends the copy, and
+	 * a blob is uploaded once.
+	 */
+	public function testAListOfMissingBlobsThatGoesRoundEndsTheCopy(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$missing = ['cid' => Cid::forRaw('pixels')->toString()];
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'a']],
+			['status' => 200, 'body' => ['blobs' => [['cid' => Cid::forRaw('never here')->toString()]], 'cursor' => 'b']],
+			['status' => 200, 'body' => ['blobs' => [['cid' => Cid::forRaw('nor here')->toString()]], 'cursor' => 'a']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'c']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'd']],
+		];
+		$this->moves->run($move->id);
+		$methods = array_column($this->calls, 'method');
+		$this->assertSame(3, count(array_keys($methods, 'com.atproto.repo.listMissingBlobs', true)), 'a cursor named before ends it');
+		$this->assertSame(1, count(array_keys($methods, 'com.atproto.repo.uploadBlob', true)));
+
+		$this->calls = [];
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'x']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'y']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'z']],
+		];
+		$this->rows[1]->step = Move::STEP_BLOBS;
+		$this->rows[1]->state = Move::RUNNING;
+		$this->moves->run($move->id);
+		$methods = array_column($this->calls, 'method');
+		$this->assertSame(2, count(array_keys($methods, 'com.atproto.repo.listMissingBlobs', true)), 'a page that names nothing new ends it');
+		$this->assertSame(1, count(array_keys($methods, 'com.atproto.repo.uploadBlob', true)));
+	}
+
 	public function testAFailedStepIsStartedAgainFromThere(): void {
 		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
 		$this->answers['com.atproto.repo.listMissingBlobs'] = [['status' => 502, 'body' => ['error' => 'UpstreamFailure']]];
