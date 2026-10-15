@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.260
+**App version:** 0.26.266
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -2623,8 +2623,13 @@ median beside the mean because one viral post makes a mean meaningless, the
 share of posts that got no answer at all, which kind of post averages best
 (media, hashtags, originals against replies, each visibility), which weekday and
 hour do, which hashtags are worth using as opposed to merely used, and where the
-audience is — the hosts the followers are on, which is what a Fediverse account
-has instead of a geography. Two sample-size rules keep those from being noise:
+audience is — the servers the followers are on, which is what a Fediverse account
+has instead of a geography — and where the engagement comes from, by the same
+servers. A server is the host of an account's id unless the account's network
+knows better: `Service\Statistics\StatisticsSource` is what a network adds to
+the page, and `Atproto\Reader\BlueskyStatistics` names a Bluesky account's PDS
+(Bluesky's own hosts as one) and counts the posts that also went out on Bluesky
+from the author's repository, which no instance path records. Two sample-size rules keep those from being noise:
 an hour is not named until three posts fall in it, and a hashtag's average is
 not reported until it has been used twice.
 

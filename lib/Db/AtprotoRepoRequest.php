@@ -293,6 +293,31 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 	}
 
 	/**
+	 * How many of these Social objects a repository holds a record of in one
+	 * collection: of a list of posts, the ones that went out on Bluesky.
+	 *
+	 * @param list<string> $localIds
+	 */
+	public function countRecordsOf(string $did, string $collection, array $localIds): int {
+		$prims = array_values(array_unique(array_map('md5', array_filter($localIds, static fn (string $id): bool => $id !== ''))));
+		$count = 0;
+		foreach (array_chunk($prims, 500) as $chunk) {
+			$qb = $this->getQueryBuilder();
+			$qb->select($qb->func()->count('id', 'n'))
+				->from(self::TABLE_ATPROTO_RECORD)
+				->where($qb->expr()->eq('did', $qb->createNamedParameter($did)))
+				->andWhere($qb->expr()->eq('collection', $qb->createNamedParameter($collection)))
+				->andWhere($qb->expr()->in('local_id_prim', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)));
+			$cursor = $qb->executeQuery();
+			$row = $cursor->fetch();
+			$cursor->closeCursor();
+			$count += (int)($row['n'] ?? 0);
+		}
+
+		return $count;
+	}
+
+	/**
 	 * Names the Social object a record stands for, as a record that moved
 	 * here learns it when its follow is made here.
 	 */

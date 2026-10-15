@@ -238,6 +238,11 @@
 						<span>{{ t('social', 'replies received') }}</span>
 						<em>{{ t('social', '{n} per post', { n: decimal(stats.engagement.replies_per_post) }) }}</em>
 					</li>
+					<li>
+						<strong>{{ number(stats.engagement.quotes ?? 0) }}</strong>
+						<span>{{ t('social', 'quotes received') }}</span>
+						<em>{{ t('social', '{n} per post', { n: decimal(stats.engagement.quotes_per_post ?? 0) }) }}</em>
+					</li>
 				</ul>
 				<ul v-if="stats.rates" class="stats__figures stats__figures--small">
 					<li>
@@ -439,6 +444,27 @@
 						{{ t('social', '{n}% of your followers are on this server.', { n: decimal(stats.audience.local_share) }) }}
 					</p>
 				</template>
+				<p v-if="starterPackJoins > 0" class="stats__note">
+					{{ n('social', '%n person followed you after joining through one of your starter packs.', '%n people followed you after joining through one of your starter packs.', starterPackJoins) }}
+				</p>
+				<template v-if="engagementServers.length">
+					<h4>{{ t('social', 'Where the engagement comes from') }}</h4>
+					<dl class="stats__rows">
+						<div v-for="server in engagementServers" :key="server.host" class="stats__row">
+							<dt>{{ server.host }}</dt>
+							<dd>
+								<span class="stats__meter" :style="{ '--share': server.share }" />
+								<span class="stats__row-value">{{ number(server.count) }}</span>
+							</dd>
+						</div>
+					</dl>
+					<p class="stats__note">
+						{{ t('social', 'Likes, boosts and replies, by the server of whoever made them. {n}% came from accounts on this server.', { n: decimal(stats.engagement_sources.local_share) }) }}
+					</p>
+				</template>
+				<p v-for="network in networksReached" :key="network.network" class="stats__note">
+					{{ n('social', '%n of these posts also went out on {network}.', '%n of these posts also went out on {network}.', network.posts, { network: network.network }) }}
+				</p>
 			</section>
 
 			<!--
@@ -475,6 +501,11 @@
 					<a :href="stats.network.source_url" target="_blank" rel="noreferrer noopener">
 						{{ stats.network.source }} ↗
 					</a>
+				</p>
+				<!-- a network the posts went out on that the survey does not
+				     count, said rather than left to be assumed -->
+				<p v-if="networksReached.length" class="stats__note">
+					{{ t('social', 'These figures are for the fediverse only. {networks} publishes no count of its accounts that could be quoted here, so it is not included.', { networks: networksReached.map((network) => network.network).join(', ') }) }}
 				</p>
 			</section>
 
@@ -1527,6 +1558,24 @@ export default {
 			const best = Math.max(1, ...rows.map((row) => row.average))
 
 			return rows.map((row) => ({ ...row, share: Math.round((row.average / best) * 100) + '%' }))
+		},
+
+		/** @return {number} the accounts that followed through a starter pack, over the window */
+		starterPackJoins() {
+			return this.stats?.audience?.starter_pack_joins ?? 0
+		},
+
+		/** @return {Array<{host: string, count: number, share: string}>} where the likes, boosts and replies came from */
+		engagementServers() {
+			const rows = this.stats?.engagement_sources?.servers ?? []
+			const biggest = Math.max(1, ...rows.map((row) => row.count))
+
+			return rows.map((row) => ({ ...row, share: Math.round((row.count / biggest) * 100) + '%' }))
+		},
+
+		/** @return {Array<{network: string, posts: number}>} the networks the posts also went out on */
+		networksReached() {
+			return this.stats?.reach?.networks ?? []
 		},
 
 		/** @return {Array<{host: string, count: number, share: string}>} */

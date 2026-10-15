@@ -401,8 +401,9 @@ The sidebar is the map:
   with **Bookmark** in a post's menu. Bookmarks are private and never leave
   this server.
 - **Statistics** — what you have posted here and what came back: likes,
-  boosts and replies per post, your best posts, when your posts do best, and
-  which of your hashtags work.
+  boosts, replies and quotes per post, your best posts, when your posts do
+  best, which of your hashtags work, which servers your followers and the
+  people who answer you are on, and where else your posts went out.
 
 Open a post (its timestamp, `o` or `Enter`) for its own page: the thread, a
 reply box, who boosted and favourited it, and the details a card leaves out —

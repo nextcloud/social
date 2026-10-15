@@ -1,6 +1,12 @@
 OC.L10N.register(
     "social",
     {
+    "quotes received" : "erhaltene Zitate",
+    "Where the engagement comes from" : "Woher die Reaktionen kommen",
+    "Likes, boosts and replies, by the server of whoever made them. {n}% came from accounts on this server." : "Likes, Boosts und Antworten, nach dem Server derer, die sie gegeben haben. {n}% kamen von Konten auf diesem Server.",
+    "These figures are for the fediverse only. {networks} publishes no count of its accounts that could be quoted here, so it is not included." : "Diese Zahlen gelten nur für das Fediverse. {networks} veröffentlicht keine Zählung seiner Konten, die hier zitiert werden könnte, und ist darum nicht enthalten.",
+    "_%n person followed you after joining through one of your starter packs._::_%n people followed you after joining through one of your starter packs._" : ["%n Person ist dir gefolgt, nachdem sie über eines deiner Starterpakete beigetreten ist.","%n Personen sind dir gefolgt, nachdem sie über eines deiner Starterpakete beigetreten sind."],
+    "_%n of these posts also went out on {network}._::_%n of these posts also went out on {network}._" : ["%n dieser Beiträge ging auch an {network}.","%n dieser Beiträge gingen auch an {network}."],
     "Welcome to Aloha Social" : "Willkommen bei Aloha Social",
     "You do not have an account here yet. Here is what this is:" : "Sie haben hier noch kein Konto. Darum geht es:",
     "What Aloha Social gives you" : "Was Aloha Social Ihnen bietet",

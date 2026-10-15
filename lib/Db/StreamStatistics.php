@@ -11,7 +11,9 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -439,5 +441,103 @@ trait StreamStatistics {
 		$cursor->closeCursor();
 
 		return array_map(static fn (array $actors): array => array_values($actors), $boosters);
+	}
+
+	/**
+	 * How many accounts raised one kind of notification for an account since
+	 * a moment: each account once, however often it did.
+	 *
+	 * Read through the recipients table, as the notifications timeline is, so
+	 * it is the account's own notifications and nobody else's.
+	 */
+	public function countNotifiersOf(string $recipientId, string $subType, int $since = 0): int {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->selectAlias($qb->createFunction('COUNT(DISTINCT s.attributed_to_prim)'), 'n')
+			->from(self::TABLE_STREAM, 's')
+			->from(self::TABLE_STREAM_DEST, 'd')
+			->where($expr->eq('s.type', $qb->createNamedParameter(SocialAppNotification::TYPE)))
+			->andWhere($expr->eq('s.subtype', $qb->createNamedParameter($subType)));
+		$qb->setDefaultSelectAlias('s');
+		$qb->limitToDest($recipientId, 'notif', '', 'd');
+		if ($since > 0) {
+			$qb->andWhere($expr->gte(
+				's.published_time', $qb->createNamedParameter(new DateTime('@' . $since), IQueryBuilder::PARAM_DATE)
+			));
+		}
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return (int)($row['n'] ?? 0);
+	}
+
+	/**
+	 * Who reacted to these posts and how often: each like, boost and reply
+	 * counted once for the account that made it, whatever network it came
+	 * from. A reaction is a row here whether it was delivered or taken in
+	 * from Bluesky's notifications.
+	 *
+	 * @param list<string> $ids the posts' ids
+	 * @param int $limit the most rows read for each kind of reaction
+	 *
+	 * @return array<string, int> reactions by actor id
+	 */
+	public function reactionsOf(array $ids, int $limit = 20000): array {
+		$prims = [];
+		$qb = $this->getQueryBuilder();
+		foreach ($ids as $id) {
+			$prim = $qb->prim($id);
+			if ($prim !== '') {
+				$prims[$prim] = $prim;
+			}
+		}
+		if ($prims === [] || $limit < 1) {
+			return [];
+		}
+
+		$reactions = [];
+		$add = static function (string $actor) use (&$reactions): void {
+			if ($actor !== '') {
+				$reactions[$actor] = ($reactions[$actor] ?? 0) + 1;
+			}
+		};
+
+		$read = ['likes' => 0, 'boosts' => 0, 'replies' => 0];
+		foreach (array_chunk(array_values($prims), 500) as $chunk) {
+			$qb = $this->getQueryBuilder();
+			$expr = $qb->expr();
+			$qb->select('actor_id')
+				->from(self::TABLE_ACTIONS)
+				->where($expr->eq('type', $qb->createNamedParameter(Like::TYPE)))
+				->andWhere($expr->in('object_id_prim', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)))
+				->setMaxResults(max(0, $limit - $read['likes']));
+			$cursor = $qb->executeQuery();
+			while ($data = $cursor->fetch()) {
+				$read['likes']++;
+				$add((string)$data['actor_id']);
+			}
+			$cursor->closeCursor();
+
+			foreach (['boosts' => 'object_id_prim', 'replies' => 'in_reply_to_prim'] as $kind => $column) {
+				$qb = $this->getQueryBuilder();
+				$expr = $qb->expr();
+				$qb->select('attributed_to')
+					->from(self::TABLE_STREAM)
+					->where($expr->in($column, $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)))
+					->setMaxResults(max(0, $limit - $read[$kind]));
+				if ($kind === 'boosts') {
+					$qb->andWhere($expr->eq('type', $qb->createNamedParameter(Announce::TYPE)));
+				}
+				$cursor = $qb->executeQuery();
+				while ($data = $cursor->fetch()) {
+					$read[$kind]++;
+					$add((string)$data['attributed_to']);
+				}
+				$cursor->closeCursor();
+			}
+		}
+
+		return $reactions;
 	}
 }

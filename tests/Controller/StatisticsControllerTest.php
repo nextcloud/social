@@ -92,6 +92,23 @@ class StatisticsControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $this->controller()->statistics(30)->getStatus());
 	}
 
+	/** Where the followers and the answers are, and the networks the posts also went out on. */
+	public function testTheFileCarriesTheServersAndNetworks(): void {
+		$csv = (new \ReflectionMethod(StatisticsController::class, 'asCsv'))->invoke($this->controller(), [
+			'account' => ['acct' => 'alice'],
+			'engagement' => ['quotes' => 2],
+			'audience' => ['instances' => [['host' => 'bsky.social', 'count' => 3]], 'starter_pack_joins' => 1],
+			'engagement_sources' => ['servers' => [['host' => 'remote.example', 'count' => 4]]],
+			'reach' => ['networks' => [['network' => 'Bluesky', 'posts' => 5]]],
+		]);
+
+		$this->assertStringContainsString("engagement,quotes,2\n", $csv);
+		$this->assertStringContainsString('"followers by server",bsky.social,3' . "\n", $csv);
+		$this->assertStringContainsString('audience,"starter pack joins",1' . "\n", $csv);
+		$this->assertStringContainsString('"engagement by server",remote.example,4' . "\n", $csv);
+		$this->assertStringContainsString('"posts also on",Bluesky,5' . "\n", $csv);
+	}
+
 	private function controller(): StatisticsController {
 		return new StatisticsController(
 			$this->request,
