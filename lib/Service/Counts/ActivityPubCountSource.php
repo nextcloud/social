@@ -12,6 +12,7 @@ namespace OCA\Social\Service\Counts;
 use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CurlService;
+use OCP\AppFramework\Http;
 
 /**
  * The counts of a post on the fediverse, from the document its own server
@@ -21,8 +22,10 @@ use OCA\Social\Service\CurlService;
  * Nothing federates a count — a `Like` travels to the post's server and is
  * totalled there — so this instance hears of no change to a remote post's
  * counts unless it asks. An answer that names some other document (a
- * redirect to a page, a post that moved) or none at all, a post deleted at
- * its source among them, leaves what is stored as it was.
+ * redirect to a page, a post that moved) or none at all leaves what is
+ * stored as it was. A post its server says is not there (404) or gone (410)
+ * is not asked about again for a long while (`CountWriter::stampGone()`):
+ * the answer will not change, and each ask is a signed request.
  */
 class ActivityPubCountSource implements CountSource {
 	/** Documents asked for in one round of requests. */
@@ -45,10 +48,15 @@ class ActivityPubCountSource implements CountSource {
 	public function refresh(array $posts): int {
 		$answered = 0;
 		foreach (array_chunk($posts, self::PARALLEL) as $chunk) {
+			$statuses = [];
 			$answers = $this->curl->retrieveObjectsMany(
-				array_map(static fn (Stream $post): string => $post->getId(), $chunk)
+				array_map(static fn (Stream $post): string => $post->getId(), $chunk), [], $statuses
 			);
 			foreach ($chunk as $post) {
+				if (in_array($statuses[$post->getId()] ?? 0, [Http::STATUS_NOT_FOUND, Http::STATUS_GONE], true)) {
+					$this->writer->stampGone($post->getId());
+					continue;
+				}
 				$data = $answers[$post->getId()] ?? null;
 				if (!is_array($data) || ($data['id'] ?? '') !== $post->getId()) {
 					$this->writer->stamp($post->getId());

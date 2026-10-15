@@ -1551,9 +1551,13 @@ export default {
 			this.fetchNewStatuses()
 		},
 
-		/** What the server's push event runs. */
+		/**
+		 * What the server's push event runs.
+		 *
+		 * @return {Promise<void>} settled once the new posts are in
+		 */
 		onPushed() {
-			this.fetchNewStatuses()
+			return this.fetchNewStatuses()
 		},
 
 		/** Catches up once, on the way back to a tab that was left. */

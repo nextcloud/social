@@ -28,15 +28,15 @@ use Psr\Log\LoggerInterface;
  * on its own side — so the only way to know a number now is to ask again.
  *
  * The posts somebody looks at are asked about as they are seen
- * (`Counts\CountService::seen()`); this is the pass over the rest: the posts
- * whose last answer has fallen due, a bounded batch of them, each asked of
- * its own network (`CountService::refreshPosts()`), and the same for this
- * instance's own posts of the last week that are on Bluesky too, whose likes
- * and reposts there reach this server only as notifications that may be
- * missed (`Atproto\Reader\BlueskyPublishedCountSource`). A post is stamped
- * whether or not the answer arrived, so a host that is gone is asked once per
- * interval rather than on every pass, and whatever was already stored stands
- * where the answer cannot be trusted.
+ * (`Counts\CountService::seen()`); this is the pass over the rest: the remote
+ * posts of the last week whose last answer has fallen due, a bounded batch of
+ * them, each asked of its own network (`CountService::refreshPosts()`), and
+ * the same for this instance's own posts of the last week that are on Bluesky
+ * too, whose likes and reposts there reach this server only as notifications
+ * that may be missed (`Atproto\Reader\BlueskyPublishedCountSource`). A post
+ * is stamped whether or not the answer arrived, so a host that is gone is
+ * asked once per interval rather than on every pass, and whatever was already
+ * stored stands where the answer cannot be trusted.
  */
 class RemoteCountService {
 	/**
@@ -56,9 +56,10 @@ class RemoteCountService {
 	public const BATCH = 50;
 
 	/**
-	 * How long one of this instance's own posts on Bluesky is asked about by
-	 * this pass, in seconds. Most of what a post collects comes in its first
-	 * days; after that it is asked about when somebody looks at it.
+	 * How long a post is asked about by this pass, in seconds: a remote post,
+	 * and one of this instance's own posts on Bluesky. Most of what a post
+	 * collects comes in its first days; after that it is asked about when
+	 * somebody looks at it.
 	 */
 	public const PUBLISHED_WINDOW = 7 * 86400;
 
@@ -90,7 +91,8 @@ class RemoteCountService {
 		$since = new DateTime('now');
 		$since->sub(new DateInterval('PT' . intdiv(self::PUBLISHED_WINDOW, 3600) . 'H'));
 		$posts = [
-			...$this->streamRequest->getRemoteStreamsDueForCounts($due, $limit),
+			// a forced run is the backfill, which asks about every remote post
+			...$this->streamRequest->getRemoteStreamsDueForCounts($due, $force ? null : $since, $limit),
 			...$this->streamRequest->getPublishedStreamsDueForCounts($due, $since, $limit),
 		];
 

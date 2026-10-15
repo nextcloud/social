@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\NotificationPolicy;
 use OCA\Social\Model\Client\NotificationRequest;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Moderation;
 use Psr\Container\ContainerInterface;
 
@@ -105,7 +106,7 @@ class NotificationPolicyService {
 	 * sender whose last notification is further back than this is not listed,
 	 * and a reader who wants it can still find the notification itself.
 	 */
-	public const LOOKBACK = 400;
+	public const LOOKBACK = ProbeOptions::MAX_LOOKBACK;
 
 	public function __construct(
 		private ConfigService $configService,

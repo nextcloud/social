@@ -194,6 +194,29 @@ class NotificationInboxServiceTest extends TestCase {
 		))->release($this->viewer(), $stranger);
 	}
 
+	/**
+	 * The requests inbox looks back over `LOOKBACK` notifications, and the
+	 * unread count over one past its cap: reads this server makes for itself,
+	 * which a client's page limit does not cut to fifty.
+	 */
+	public function testTheInboxAndTheCountLookBackPastAClientsPage(): void {
+		$this->holding();
+
+		$this->service->requests($this->viewer());
+		$this->service->unreadCount($this->viewer(), 'alice');
+
+		$this->assertSame(NotificationPolicyService::LOOKBACK, $this->asked[0]->getLimit());
+		$this->assertSame(100, $this->asked[1]->getLimit());
+		$this->assertGreaterThan(ProbeOptions::MAX_LIMIT, NotificationPolicyService::LOOKBACK);
+	}
+
+	/** A page a client asks for stays within a client's limit. */
+	public function testAClientsPageKeepsToTheClientsLimit(): void {
+		$this->service->timeline($this->viewer(), 1000);
+
+		$this->assertSame(ProbeOptions::MAX_LIMIT, $this->asked[0]->getLimit());
+	}
+
 	/** Rows Mastodon has no name for are not served: one would lose a client the whole page. */
 	public function testANamelessSubTypeIsNotServed(): void {
 		$nameless = $this->from(self::FRIEND, 130);

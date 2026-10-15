@@ -981,6 +981,8 @@ export default {
 		 * What the server's push event runs. A hidden tab does not fetch —
 		 * opening the chat is what marks it read, and a reader who is not
 		 * looking has not read anything — but remembers that something came.
+		 *
+		 * @return {Promise<void>|undefined} settled once the refresh is in
 		 */
 		onPushed() {
 			if (document.visibilityState === 'hidden') {
@@ -989,7 +991,7 @@ export default {
 				return
 			}
 
-			this.refresh()
+			return this.refresh()
 		},
 
 		/** Catches up once, on the way back to a tab that was left. */

@@ -17,6 +17,7 @@ import { useAccountStore } from '../../../src/store/account.js'
 import { useNotificationsStore } from '../../../src/store/notifications.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
+import { offTimelinePush, onTimelinePush } from '../../../src/services/timelinePush.js'
 
 vi.hoisted(() => {
 	document.head.dataset.user = 'alice'
@@ -93,6 +94,12 @@ vi.mock('../../../src/services/boot.js', () => ({
 			boot.held.push(callback)
 		}
 	},
+}))
+// what a push from the server reaches the sidebar through; no push unless a
+// test says otherwise, so the sidebar polls
+vi.mock('../../../src/services/timelinePush.js', () => ({
+	onTimelinePush: vi.fn(() => false),
+	offTimelinePush: vi.fn(),
 }))
 // the instance limits are asked for alongside; not what these tests are about
 vi.mock('../../../src/services/instanceLimits.js', () => ({
@@ -742,6 +749,53 @@ describe('Navigation', () => {
 			// the sidebar mounted by the hook above is still polling; its
 			// rounds are the only ones left
 			expect(rounds()).toBe(2)
+		})
+	})
+
+	/**
+	 * With notify_push the server says when something arrived. The sidebar
+	 * hears it through the page's one subscription (`timelinePush.js`), which
+	 * gathers a run of pushes into one and holds them while the tab is hidden,
+	 * rather than through a `listen()` of its own that ran three requests per
+	 * push and could not be undone.
+	 */
+	describe('the badges with push', () => {
+		const MINUTE = 60 * 1000
+		let fetches
+
+		beforeEach(() => {
+			vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'Date'] })
+			fetches = ['fetchUnreadNotifications', 'fetchUnreadDirectMessages', 'fetchPendingRequests']
+				.map((name) => vi.spyOn(notificationsStore, name).mockResolvedValue(true))
+			vi.mocked(onTimelinePush).mockClear()
+			vi.mocked(offTimelinePush).mockClear()
+			vi.mocked(onTimelinePush).mockReturnValueOnce(true)
+		})
+
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		it('reads the three counts when the server pushes, and does not poll', async () => {
+			mountNavigation()
+			await flushPromises()
+			fetches.forEach((fetch) => fetch.mockClear())
+
+			expect(onTimelinePush).toHaveBeenCalledTimes(1)
+			await vi.mocked(onTimelinePush).mock.calls[0][0]()
+			fetches.forEach((fetch) => expect(fetch).toHaveBeenCalledTimes(1))
+
+			await vi.advanceTimersByTimeAsync(10 * MINUTE)
+			fetches.forEach((fetch) => expect(fetch).toHaveBeenCalledTimes(1))
+		})
+
+		it('hands the push back when it leaves the page', async () => {
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			wrapper.unmount()
+
+			expect(offTimelinePush).toHaveBeenCalledWith(vi.mocked(onTimelinePush).mock.calls[0][0])
 		})
 	})
 

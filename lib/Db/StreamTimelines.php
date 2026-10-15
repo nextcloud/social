@@ -815,6 +815,45 @@ trait StreamTimelines {
 	}
 
 	/**
+	 * The direct timeline's page, each message reduced to its place in a
+	 * conversation: its id, its nid, the post it answers and its author,
+	 * newest first as `getTimeline()` answers them.
+	 *
+	 * The same page, chosen by the same query, without reading the posts
+	 * themselves: what a count over the page needs, and nothing a page that
+	 * is drawn needs.
+	 *
+	 * @return list<array{id: string, nid: string, inReplyTo: string, attributedTo: string}>
+	 */
+	public function getDirectTimelineLinks(ProbeOptions $options): array {
+		$nids = $this->directTimelineNids($options);
+		if ($nids === []) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$qb->select('s.id', 's.nid', 's.in_reply_to', 's.attributed_to')
+			->from(self::TABLE_STREAM, 's')
+			->where($qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY)))
+			->orderBy('s.nid', 'desc')
+			->setMaxResults(count($nids));
+
+		$links = [];
+		$cursor = $qb->executeQuery();
+		while ($row = $cursor->fetch()) {
+			$links[] = [
+				'id' => (string)$row['id'],
+				'nid' => (string)$row['nid'],
+				'inReplyTo' => (string)($row['in_reply_to'] ?? ''),
+				'attributedTo' => (string)($row['attributed_to'] ?? ''),
+			];
+		}
+		$cursor->closeCursor();
+
+		return $links;
+	}
+
+	/**
 	 * The page of direct messages addressed to the viewer.
 	 *
 	 * The recipient join fixes the viewer and the type `dm`, which the unique

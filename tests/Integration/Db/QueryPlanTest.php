@@ -679,6 +679,22 @@ class QueryPlanTest extends TestCase {
 	}
 
 	/**
+	 * The remote posts the counts cron asks about again: found through the
+	 * window of recent posts, not by walking every remote post ever stored.
+	 * The window here is the newest tenth of the seed, as a week is a sliver
+	 * of a real instance's table.
+	 */
+	public function testTheRemotePostsDueForCountsAreReadFromTheirWindow(): void {
+		$since = new \DateTime('@' . (time() - intdiv(count(self::$streams), 10)));
+		$query = $this->capture(
+			static fn (): array => Server::get(StreamRequest::class)->getRemoteStreamsDueForCounts(new \DateTime(), $since, 50),
+			'/counts_at/'
+		);
+
+		$this->assertIndexed($query, ['s' => null], 'the window\'s due posts sorted by when they were last asked');
+	}
+
+	/**
 	 * Who a post is delivered to: read by the followed account, not by
 	 * scanning follows.
 	 *

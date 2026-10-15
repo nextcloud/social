@@ -876,7 +876,7 @@ php occ social:counts:refresh [-f|--force] [-l|--limit LIMIT]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `-f`, `--force` | none | Ask about every post rather than only those not asked about in the last `RemoteCountService::TTL` (7200) seconds |
+| `-f`, `--force` | none | Ask about every post, remote ones of any age, rather than only those of the last seven days not asked about in the last `RemoteCountService::TTL` (7200) seconds |
 | `-l`, `--limit` | required | Stop after this many remote posts, and as many local posts on Bluesky. `0`, the default, means all that are due, which is what a backfill wants |
 
 A post's counts were a snapshot of the moment it was imported and nothing ever
@@ -889,9 +889,11 @@ the next window rather than every pass.
 
 The stated total is split as `stated - local` before it is stored, so what is
 displayed stays the origin's number while the likes, boosts and replies made
-here keep counting on top of it. Without `--force` only the posts past the
-window are asked about; with it the whole timeline is, which is the backfill
-after a version that never refreshed counts at all.
+here keep counting on top of it. Without `--force` only the remote posts of
+the last seven days not asked about within the window are, as in the cron's
+pass; with it every remote post is, however old, which is the backfill after a
+version that never refreshed counts at all. A post whose server answers that it
+is not there (404) or gone (410) is not asked about again for thirty days.
 
 Reply counts are the limit of this: ActivityPub documents publish
 `replies.totalItems` on almost no server, so the reply figure is what this

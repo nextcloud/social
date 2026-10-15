@@ -407,10 +407,11 @@ class CurlService {
 	 *
 	 * @param string[] $ids
 	 * @param array{timeout?: int} $options
+	 * @param ?array<string, int> $statuses set to id => the HTTP status of its answer, for the ids that were answered
 	 *
 	 * @return array<string, array<string, mixed>|null> id => the document, or null
 	 */
-	public function retrieveObjectsMany(array $ids, array $options = []): array {
+	public function retrieveObjectsMany(array $ids, array $options = [], ?array &$statuses = null): array {
 		$perUrl = [];
 		foreach ($ids as $id) {
 			$parsed = parse_url($id);
@@ -424,7 +425,8 @@ class CurlService {
 		return $this->retrieveJsonMany(
 			array_keys($perUrl),
 			$this->mergeOptions($options, ['headers' => ['Accept' => 'application/activity+json']]),
-			$perUrl
+			$perUrl,
+			$statuses
 		);
 	}
 
@@ -452,10 +454,12 @@ class CurlService {
 	 * @param string[] $urls
 	 * @param array{headers?: array<string, string>, timeout?: int, json_headers?: bool, allow_local_address?: bool, accept_errors?: bool} $options
 	 * @param array<string, array<string, mixed>> $perUrl options for one URL, merged over the shared ones
+	 * @param ?array<string, int> $statuses set to url => the HTTP status of its answer, for the URLs that were answered
 	 *
 	 * @return array<string, array<string, mixed>|null> url => the document, or null
 	 */
-	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = []): array {
+	public function retrieveJsonMany(array $urls, array $options = [], array $perUrl = [], ?array &$statuses = null): array {
+		$statuses = [];
 		$urls = array_values(array_unique(array_filter($urls)));
 		if ($urls === []) {
 			return [];
@@ -484,6 +488,9 @@ class CurlService {
 		foreach ($promises as $url => $promise) {
 			try {
 				$response = $this->settledResponse($promise->wait());
+				if ($response !== null) {
+					$statuses[$url] = $response->getStatusCode();
+				}
 				$answers[$url] = ($response !== null)
 					? $this->decodeOrFollow($url, $response, $this->mergeOptions($options, $perUrl[$url] ?? []))
 					: null;

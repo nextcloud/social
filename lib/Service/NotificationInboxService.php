@@ -55,6 +55,8 @@ class NotificationInboxService {
 	 *
 	 * @param string[] $types
 	 * @param string[] $excludeTypes
+	 * @param bool $lookback `$limit` is this server's own and may reach past
+	 *                       a client's page (`ProbeOptions::setLookback()`)
 	 *
 	 * @return Stream[]
 	 */
@@ -67,12 +69,17 @@ class NotificationInboxService {
 		array $types = [],
 		array $excludeTypes = [],
 		string $accountId = '',
+		bool $lookback = false,
 	): array {
 		$options = new ProbeOptions();
 		$options->setFormat(ACore::FORMAT_LOCAL);
-		$options->setProbe(ProbeOptions::NOTIFICATIONS)
-			->setLimit($limit)
-			->setMaxId($maxId)
+		$options->setProbe(ProbeOptions::NOTIFICATIONS);
+		if ($lookback) {
+			$options->setLookback($limit);
+		} else {
+			$options->setLimit($limit);
+		}
+		$options->setMaxId($maxId)
 			->setMinId($minId)
 			->setSince($sinceId)
 			->setTypes($types)
@@ -106,7 +113,7 @@ class NotificationInboxService {
 		}
 
 		return $this->notificationPolicyService->partition(
-			$viewer, $this->timeline($viewer, NotificationPolicyService::LOOKBACK, '0', 0, $sinceId)
+			$viewer, $this->timeline($viewer, NotificationPolicyService::LOOKBACK, '0', 0, $sinceId, lookback: true)
 		)['held'];
 	}
 
@@ -176,7 +183,7 @@ class NotificationInboxService {
 		} else {
 			$listed = count(
 				$this->notificationPolicyService->partition(
-					$viewer, $this->timeline($viewer, $cap + 1, '0', 0, $marker)
+					$viewer, $this->timeline($viewer, $cap + 1, '0', 0, $marker, lookback: true)
 				)['shown']
 			);
 		}

@@ -225,7 +225,7 @@ class NotificationController extends ClientApiController {
 			$this->initViewer(['read:notifications']);
 
 			$members = $this->notificationGroupService->membersOf(
-				$this->visible(NotificationPolicyService::LOOKBACK), $group_key
+				$this->visible(NotificationPolicyService::LOOKBACK, lookback: true), $group_key
 			);
 			if ($members === []) {
 				throw new ItemNotFoundException('Record not found');
@@ -252,7 +252,7 @@ class NotificationController extends ClientApiController {
 
 			$accounts = [];
 			foreach ($this->notificationGroupService->membersOf(
-				$this->visible(NotificationPolicyService::LOOKBACK), $group_key
+				$this->visible(NotificationPolicyService::LOOKBACK, lookback: true), $group_key
 			) as $notification) {
 				if (!$notification->hasActor()) {
 					continue;
@@ -284,7 +284,7 @@ class NotificationController extends ClientApiController {
 			$this->initViewer(['write:notifications']);
 
 			foreach ($this->notificationGroupService->membersOf(
-				$this->visible(NotificationPolicyService::LOOKBACK), $group_key
+				$this->visible(NotificationPolicyService::LOOKBACK, lookback: true), $group_key
 			) as $notification) {
 				try {
 					$this->notificationService->dismiss($this->viewer, $notification->getNid());
@@ -551,6 +551,8 @@ class NotificationController extends ClientApiController {
 	 *
 	 * @param string[] $types
 	 * @param string[] $excludeTypes
+	 * @param bool $lookback `$limit` is this server's own, not the client's
+	 *                       (`NotificationInboxService::timeline()`)
 	 *
 	 * @return \OCA\Social\Model\ActivityPub\Stream[]
 	 */
@@ -562,6 +564,7 @@ class NotificationController extends ClientApiController {
 		array $types = [],
 		array $excludeTypes = [],
 		string $accountId = '',
+		bool $lookback = false,
 	): array {
 		if ($accountId !== '') {
 			// the notifications one account caused: Mastodon's `account_id`
@@ -581,7 +584,7 @@ class NotificationController extends ClientApiController {
 		}
 
 		$page = $this->notificationInboxService->timeline(
-			$this->viewer, $limit, $maxId, $minId, $sinceId, $types, $excludeTypes, $accountId
+			$this->viewer, $limit, $maxId, $minId, $sinceId, $types, $excludeTypes, $accountId, $lookback
 		);
 
 		return $this->filterService->applyToNotifications(

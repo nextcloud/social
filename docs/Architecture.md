@@ -455,7 +455,7 @@ copy in app storage; the original stays where it was, untouched.
 - **AtprotoFiguresService** — The *Bluesky figures* section of the admin page (`GET /admin/bluesky/figures`, administrators only): identities and the switched-off ones, post records written in the last day and week, the repository heads' record and blob-byte sums, the watched Bluesky accounts and the stored Jetstream cursor's lag, and the firehose (the daemon's reported subscribers, the newest event, the events in the replay window). Every figure is a count over an index or a table of one row per local account, cached a minute in `DurableCache`; the record table has no index on `creation`, so the posts are counted from the first id of the window, found by a binary search over the primary key (`AtprotoRepoRequest::firstRecordIdSince()`). Nothing is counted while Bluesky is off.
 - **TestService** — Backs the WebFinger probe of `occ social:check:install`
 - **DurableCache** — Short-lived state that has to hold on an instance with no memcache. `ICacheFactory::createDistributed()` hands such an instance a `NullCache`, which forgets every write: a counter kept there reads zero for ever and a list of what was already accepted is always empty. This is the distributed cache when `isAvailable()` says there is one and the `social_durable_cache` table when there is not, behind the part of `ICache` a counter or a replay record needs, with the namespace passed on each call: `get($ns, $key)` (null for a miss), `set($ns, $key, $value, $ttl)`, `inc($ns, $key, $ttl, $step = 1)` (returns the new count; the TTL is set when the counter is created and never extended) and `remove($ns, $key)`. Values are anything `json_encode()` round-trips; a TTL of 0 is `ICache::DEFAULT_TTL`, never forever. On the table `inc()` is read-then-write, which is fine for a ceiling and wrong for anything that must be unique. APCu configured as `memcache.local` counts as a memcache and is not shared with cron or `occ`, so state a background job writes for a web request does not belong here. Used by `InboxLimiter` (namespace `social.inbox`), `SignatureService`'s LD-signature and signed-request replay records (`social.ldsig`, `social.httpsig`), the `Idempotency-Key` record of `POST /api/v1/statuses` (`social_idempotency`) and `StatisticsService`'s computed pages (`social/statistics`); the `MemcacheConfigured` setup check says which of the other caches are off without one
-- **PushService** — on a new stream, resolves the local audience through `DetailsService` (home + direct viewers) and pushes a `social_timeline` custom event per user through the notify_push app when it is installed; without notify_push every call is a cheap no-op and web clients keep polling. The web client listens via `@nextcloud/notify_push` and drops its 30-second poll to a 5-minute safety net when push is available. While the poll's requests fail the wait between attempts doubles — 60 s, 120 s, 240 s, then five minutes — and the first answer puts it back; a page request still on its way when the reader switches lists is cancelled (`AbortController`) rather than answered and thrown away
+- **PushService** — on a new stream, resolves the local audience through `DetailsService` (home + direct viewers) and pushes a `social_timeline` custom event per user through the notify_push app when it is installed; without notify_push every call is a cheap no-op and web clients keep polling. The web client listens via `@nextcloud/notify_push` once per page (`src/services/timelinePush.js`, `onTimelinePush()`) and drops its 30-second poll to a 5-minute safety net when push is available. A push arrives for every post that reaches the account, so the page gathers them before any subscriber hears of them: a run of pushes is handed on once it has been quiet for three seconds (`PUSH_SETTLE_MS`), and never more than ten seconds after the first of it (`PUSH_MAX_WAIT_MS`); a hidden tab hands on nothing and catches up once when it is looked at again; and a subscriber whose last answer is still on its way is run again once that answer is in, not alongside it. The sidebar's three badge counts, the timeline lists, the direct messages pane and the Dashboard widget all subscribe through it. While the poll's requests fail the wait between attempts doubles — 60 s, 120 s, 240 s, then five minutes — and the first answer puts it back; a page request still on its way when the reader switches lists is cancelled (`AbortController`) rather than answered and thrown away
 
 ---
 
@@ -1778,15 +1778,26 @@ the ones no longer due and hands the rest to the network each lives on
 all the same. The cron's pass over the posts nobody looked at
 (`RemoteCountService`, every two hours, fifty a pass) goes through the same
 `refreshPosts()`, so a Bluesky post there is asked of the AppView rather
-than fetched as an ActivityPub document from bsky.app. The same pass takes
+than fetched as an ActivityPub document from bsky.app. It takes the remote
+posts of the last seven days (`PUBLISHED_WINDOW`, which MySQL and PostgreSQL
+find through the `published_time` index) that are due, never asked first and then the one asked longest ago
+(`StreamRequest::getRemoteStreamsDueForCounts()`); a boost is left out, as it
+has no counts of its own. An older post is asked about when somebody looks at
+it, and `occ social:counts:refresh --force` asks about every remote post. A post
+whose server answers 404 or 410 is stamped thirty days ahead
+(`CountWriter::stampGone()`, `GONE_FOR`), so neither the pass nor a reader
+opening it asks again before then; `CurlService::retrieveObjectsMany()` reports
+each answer's status beside the documents for that. The same pass takes
 up to fifty more of this server's own posts of the last seven days that have
 a Bluesky record (`StreamRequest::getPublishedStreamsDueForCounts()`, a join
 on `social_atproto_record`); an older one is asked about when somebody looks
 at it.
 
 `CountWriter` stores an answer: the origin's total less what is counted here
-into `remote_likes`, `remote_boosts` and `remote_replies`, `counts_at` set,
-then `StreamRequest::recount()` for the columns (see **The counters are
+into `remote_likes`, `remote_boosts` and `remote_replies` — only those keys,
+by the compare-and-swap `StreamRequest::changeDetails()`, so an edit's
+mentions or a refused quote stored meanwhile stay — `counts_at` set, then
+`StreamRequest::recount()` for the columns (see **The counters are
 columns** below), so every reader — the client and Mastodon APIs alike —
 sees the new numbers. No notification is made and no action is touched.
 The last-asked time is the `counts_at` column the cron's pass already kept,
@@ -3041,13 +3052,15 @@ a column at zero adds no key the blob did not have. The JSON keys are no longer
 written by the counter writers and go stale; nothing reads them past the overlay.
 The upgrade fills the columns from the JSON in pages of `nid`.
 
-The `mentions` an edit carries still go into the blob, and that write is a
-compare-and-swap rather than a column: `StreamRequest::updateMentions()` reads
-`details`, sets the one key, and writes the result with `UPDATE … WHERE
-details = <what was read>` (`IS NULL` for none), the one form every supported
-database answers atomically without a JSON function of its own. A write that
-finds the blob changed in between reads it again and sets the key on that,
-once; a second loss is logged and the mentions wait for the next edit.
+The `mentions` an edit carries and the origin's halves of the counts still go
+into the blob, and those writes are a compare-and-swap rather than a column:
+`StreamRequest::changeDetails()` reads `details`, changes only its own keys, and
+writes the result with `UPDATE … WHERE details = <what was read>` (`IS NULL`
+for none), the one form every supported database answers atomically without a
+JSON function of its own. A write that finds the blob changed in between reads
+it again and changes its keys on that, once; a second loss is logged, the
+mentions wait for the next edit and the counts for the next ask.
+`updateMentions()` and `CountWriter` write through it.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`

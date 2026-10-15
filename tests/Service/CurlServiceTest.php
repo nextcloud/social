@@ -1253,6 +1253,36 @@ class CurlServiceTest extends TestCase {
 		$this->assertNull($answers['https://' . self::PUBLIC_IP . '/a/following']);
 	}
 
+	/**
+	 * What each server answered, beside the documents: a caller has to tell a
+	 * post that is gone (404, 410) from a server that did not answer at all,
+	 * which both are `null` among the documents.
+	 */
+	public function testTheStatusOfEachAnswerIsReported(): void {
+		$this->client->method('getAsync')->willReturnCallback(
+			function (string $url, array $options) {
+				return match (true) {
+					str_contains($url, '/gone') => $this->promiseOf($this->answer('{"error":"Gone"}', 410)),
+					str_contains($url, '/down') => $this->promiseOf(new \RuntimeException('down')),
+					default => $this->promiseOf($this->answer('{"id":"x"}')),
+				};
+			}
+		);
+
+		$statuses = null;
+		$answers = $this->service()->retrieveObjectsMany([
+			'https://' . self::PUBLIC_IP . '/notes/gone',
+			'https://' . self::PUBLIC_IP . '/notes/down',
+			'https://' . self::PUBLIC_IP . '/notes/here',
+		], [], $statuses);
+
+		$this->assertNull($answers['https://' . self::PUBLIC_IP . '/notes/gone']);
+		$this->assertSame([
+			'https://' . self::PUBLIC_IP . '/notes/gone' => 410,
+			'https://' . self::PUBLIC_IP . '/notes/here' => 200,
+		], $statuses, 'a server that did not answer has no status');
+	}
+
 	/** An answer that is not JSON is nothing, not a failure of the batch. */
 	public function testAnAnswerThatIsNotJsonIsNothing(): void {
 		$this->client->method('getAsync')->willReturnCallback(

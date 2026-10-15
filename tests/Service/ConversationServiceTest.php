@@ -55,14 +55,29 @@ class ConversationServiceTest extends TestCase {
 	/** @var array<int, array> [method, actorId, rootId, nid] of every write */
 	private array $writes = [];
 	private ?ProbeOptions $asked = null;
+	/** @var list<string> what was read to answer: `posts`, `links`, `accounts` */
+	private array $reads = [];
 
 	protected function setUp(): void {
 		$this->streamService = $this->createStub(StreamService::class);
 		$this->streamService->method('getTimeline')
 			->willReturnCallback(function (ProbeOptions $options): array {
 				$this->asked = $options;
+				$this->reads[] = 'posts';
 
 				return $this->timeline;
+			});
+		$this->streamService->method('getDirectTimelineLinks')
+			->willReturnCallback(function (ProbeOptions $options): array {
+				$this->asked = $options;
+				$this->reads[] = 'links';
+
+				return array_map(static fn (Stream $message): array => [
+					'id' => $message->getId(),
+					'nid' => (string)$message->getNid(),
+					'inReplyTo' => $message->getInReplyTo(),
+					'attributedTo' => $message->getAttributedTo(),
+				], $this->timeline);
 			});
 		$this->streamService->method('getStreamByNid')
 			->willReturnCallback(function (int $nid): Stream {
@@ -93,6 +108,7 @@ class ConversationServiceTest extends TestCase {
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
 		$this->cacheActorService->method('getCachedFromIds')
 			->willReturnCallback(function (array $ids): array {
+				$this->reads[] = 'accounts';
 				$actors = [];
 				foreach ($ids as $id) {
 					// an id that is not a cached actor — a collection, a
@@ -566,6 +582,47 @@ class ConversationServiceTest extends TestCase {
 			}
 		}
 
+		$this->assertSame($shown, $this->service()->countUnread($this->viewer()));
+	}
+
+	/**
+	 * The badge is asked for on every poll and every push, so it reads the
+	 * window's places in their threads and nothing the list draws: not the
+	 * posts with their cards and reactions, not the participants.
+	 */
+	public function testTheCountReadsTheThreadsAndNotThePosts(): void {
+		$this->given(
+			$this->note('https://a/1', 10),
+			$this->note('https://a/2', 11, 'https://a/1', self::CAROL),
+		);
+
+		$this->assertSame(1, $this->service()->countUnread($this->viewer()));
+		$this->assertSame(['links'], $this->reads);
+		$this->assertSame(ProbeOptions::DIRECT, $this->asked?->getProbe());
+		$this->assertSame(ConversationService::WINDOW, $this->asked?->getLimit(), 'the window the list is built from');
+	}
+
+	/**
+	 * A thread whose root is outside the window, or not stored here at all,
+	 * is counted as the list shows it: under its topmost stored message, and
+	 * not at all when that has no nid a client could name.
+	 */
+	public function testTheCountGroupsUnderARootOutsideTheWindowAsTheListDoes(): void {
+		$this->note('https://a/1', 5);
+		$this->given(
+			$this->note('https://a/2', 11, 'https://a/1'),
+			$this->note('https://a/3', 12, 'https://a/2'),
+			$this->note('https://b/2', 13, 'https://b/1'),
+			$this->note('https://z/1', 0),
+		);
+		$this->markers['https://b/2'] = ['readNid' => 0, 'hiddenNid' => 13];
+
+		$shown = 0;
+		foreach ($this->page() as $conversation) {
+			$shown += $conversation->isUnread() ? 1 : 0;
+		}
+
+		$this->assertSame(1, $shown);
 		$this->assertSame($shown, $this->service()->countUnread($this->viewer()));
 	}
 
