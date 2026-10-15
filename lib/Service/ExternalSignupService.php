@@ -77,6 +77,7 @@ class ExternalSignupService {
 		private ITimeFactory $timeFactory,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
+		private ConfigService $configService,
 	) {
 	}
 
@@ -108,7 +109,7 @@ class ExternalSignupService {
 			'signupNotice' => $signupNotice,
 			'signupNoticeRequired' => $this->externalUserService->requiresSignupNoticeAcceptance(),
 			'signupNoticeVersion' => hash('sha256', $signupNotice),
-			'domain' => $this->domain(),
+			'domain' => $this->addressHost(),
 			'bluesky' => $this->bluesky(),
 			'loginUrl' => $this->urlGenerator->linkToRoute('core.login.showLoginForm'),
 		];
@@ -480,6 +481,18 @@ class ExternalSignupService {
 		return (string)parse_url($this->urlGenerator->getAbsoluteURL('/'), PHP_URL_HOST);
 	}
 
+	/**
+	 * The host addresses here end in: the social address, which the
+	 * administrator may have set apart from the host this page is served on.
+	 */
+	private function addressHost(): string {
+		try {
+			return $this->configService->getSocialAddress();
+		} catch (SocialAppConfigException) {
+			return $this->domain();
+		}
+	}
+
 	private function sendVerification(string $email, string $handle, string $token): bool {
 		$link = $this->urlGenerator->linkToRouteAbsolute('social.Signup.verify', ['token' => $token]);
 		$template = $this->mailer->createEMailTemplate('social.SignupVerify', ['handle' => $handle]);
@@ -499,7 +512,7 @@ class ExternalSignupService {
 		$template->setSubject($this->l10n->t('Your account is ready'));
 		$template->addHeader();
 		$template->addHeading($this->l10n->t('Welcome, @%s', [$handle]));
-		$template->addBodyText($this->l10n->t('Your account @%1$s@%2$s is ready. Log in with your username and the password you chose.', [$handle, $this->domain()]));
+		$template->addBodyText($this->l10n->t('Your account @%1$s@%2$s is ready. Log in with your username and the password you chose.', [$handle, $this->addressHost()]));
 		$template->addBodyButton($this->l10n->t('Log in'), $this->urlGenerator->linkToRouteAbsolute('core.login.showLoginForm'));
 		$template->addFooter();
 
