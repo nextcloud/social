@@ -51,9 +51,11 @@ class FreezesTheClockTest extends TestCase {
 	public function testAServiceFirstUsedWhileFrozenIsOnTheRealClockOnceThawed(): void {
 		// a boot container that has built nothing yet, as on the first test of a run
 		new DIContainer('social');
-		$stories = Server::get(StoriesRequest::class);
 
 		$clock = $this->freezeClock(FrozenClock::at(self::FROZEN_AT));
+		// asked for while frozen: built now, or on PHP 8.4 and later a lazy
+		// object built on its first use below, frozen either way
+		$stories = Server::get(StoriesRequest::class);
 		$this->assertSame($clock->getTime() + Story::LIFETIME, $this->story($stories)->getExpiresAt(), 'stamped on the frozen clock');
 		$this->thawClock();
 
