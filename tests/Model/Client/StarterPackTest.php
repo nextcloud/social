@@ -42,14 +42,30 @@ class StarterPackTest extends TestCase {
 		$entity = (new StarterPack('friends', 'Friends', '', ['bob@remote.example']))->jsonSerialize();
 
 		$this->assertSame(
-			['id', 'name', 'description', 'source', 'size', 'accounts', 'unresolved'],
+			['id', 'name', 'description', 'source', 'curator', 'url', 'topic', 'language', 'size', 'accounts', 'unresolved'],
 			array_keys($entity)
 		);
 		$this->assertSame('friends', $entity['id']);
+		// a pack this instance wrote has no curator elsewhere
+		$this->assertNull($entity['curator']);
+		$this->assertNull($entity['url']);
 		// the size is the handles, which is what the index can say without
 		// asking anybody else's server
 		$this->assertSame(1, $entity['size']);
 		$this->assertSame([], $entity['accounts']);
+	}
+
+	public function testAPackReadInSaysWhoCuratedItAndWhereItLives(): void {
+		$entity = (new StarterPack('news-1a2b3c4d', 'News', 'Papers', ['https://news.example/users/paper'], StarterPack::SOURCE_FEDIVERSE))
+			->setOrigin('Gargron@mastodon.social', 'https://mastodon.social/collections/1', 'news', 'en')
+			->jsonSerialize();
+
+		$this->assertSame('fediverse', $entity['source']);
+		$this->assertSame('Gargron@mastodon.social', $entity['curator']);
+		$this->assertSame('https://mastodon.social/collections/1', $entity['url']);
+		$this->assertSame('news', $entity['topic']);
+		$this->assertSame('en', $entity['language']);
+		$this->assertSame(1, $entity['size']);
 	}
 
 	public function testTheAccountsAreSerialisedForAClient(): void {

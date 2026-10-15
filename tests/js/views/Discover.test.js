@@ -4,7 +4,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import Discover from '../../../src/views/Discover.vue'
 
@@ -66,6 +66,35 @@ describe('Discover', () => {
 		post.mockReset()
 		showError.mockReset()
 		showSuccess.mockReset()
+	})
+
+	it('says who curated a pack read in from another server, and links to it there', async () => {
+		get.mockResolvedValue({ data: [] })
+		const wrapper = mount(Discover, { shallow: true, global: { plugins: [createPinia()] } })
+		const fromElsewhere = { id: 'news-1a2b3c4d', name: 'News', description: '', size: 6, source: 'fediverse', curator: 'Gargron@mastodon.social', url: 'https://mastodon.social/collections/11', topic: 'news', accounts: [], unresolved: [] }
+		const ours = { id: 'friends', name: 'Friends', description: '', size: 2, source: 'local', curator: null, url: null, topic: null, accounts: [], unresolved: [] }
+
+		wrapper.vm.active = 'packs'
+		await flushPromises()
+		wrapper.vm.error = null
+		wrapper.vm.packs = [ours, fromElsewhere]
+		await wrapper.vm.$nextTick()
+
+		const curators = wrapper.findAll('.discover__pack-card-curator')
+		expect(curators).toHaveLength(1)
+		expect(curators[0].text()).toContain('Curated by')
+
+		wrapper.vm.openPack = fromElsewhere
+		await wrapper.vm.$nextTick()
+
+		const origin = wrapper.find('.discover__pack-origin')
+		expect(origin.text()).toContain('#news')
+		expect(origin.find('a').attributes('href')).toBe('https://mastodon.social/collections/11')
+		expect(origin.find('a').attributes('rel')).toContain('noopener')
+
+		wrapper.vm.openPack = ours
+		await wrapper.vm.$nextTick()
+		expect(wrapper.find('.discover__pack-origin').exists()).toBe(false)
 	})
 
 	it('is headed by its one h1', () => {

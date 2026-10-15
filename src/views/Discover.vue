@@ -70,6 +70,18 @@
 				<p v-if="openPack.description" class="discover__pack-description">
 					{{ openPack.description }}
 				</p>
+				<!-- a pack read in from another server says whose it is, and
+				     where the curator keeps it -->
+				<p v-if="openPack.curator" class="discover__pack-origin">
+					{{ t('social', 'Curated by @{curator}', { curator: openPack.curator }) }}
+					<template v-if="openPack.topic">
+						· #{{ openPack.topic }}
+					</template>
+					<template v-if="openPack.url">
+						·
+						<a :href="openPack.url" target="_blank" rel="noopener noreferrer">{{ t('social', 'View on its server') }} ↗</a>
+					</template>
+				</p>
 
 				<NcButton
 					variant="primary"
@@ -129,6 +141,9 @@
 					<button type="button" class="discover__pack-card" @click="loadPack(pack.id)">
 						<span class="discover__pack-card-name">{{ pack.name }}</span>
 						<span class="discover__pack-card-description">{{ pack.description }}</span>
+						<span v-if="pack.curator" class="discover__pack-card-curator">
+							{{ t('social', 'Curated by @{curator}', { curator: pack.curator }) }}
+						</span>
 						<span class="discover__pack-card-size">
 							{{ n('social', '%n account', '%n accounts', pack.size) }}
 						</span>
@@ -656,6 +671,12 @@ export default {
 		line-height: 1.4;
 	}
 
+	&__pack-card-curator {
+		color: var(--color-text-maxcontrast);
+		font-size: var(--font-size-small, 0.85em);
+		overflow-wrap: anywhere;
+	}
+
 	&__pack-card-size {
 		margin-top: auto;
 		padding-top: var(--default-grid-baseline);
@@ -673,6 +694,12 @@ export default {
 
 	&__pack-name {
 		margin: 0;
+	}
+
+	&__pack-origin {
+		margin: 0;
+		color: var(--color-text-maxcontrast);
+		overflow-wrap: anywhere;
 	}
 
 	&__pack-description {

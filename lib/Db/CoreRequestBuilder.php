@@ -73,6 +73,7 @@ class CoreRequestBuilder {
 	public const TABLE_POST_HOLD = 'social_post_hold';
 	public const TABLE_SCHEDULED = 'social_scheduled';
 	public const TABLE_PLACES = 'social_place';
+	public const TABLE_STARTER_PACKS = 'social_starter_pack';
 	public const TABLE_STORIES = 'social_story';
 	public const TABLE_STORY_VIEWS = 'social_story_view';
 	public const TABLE_STORY_REACTS = 'social_story_react';
@@ -843,6 +844,21 @@ class CoreRequestBuilder {
 			'head',
 			'nid',
 			'stream_id_prim'
+		],
+		self::TABLE_STARTER_PACKS => [
+			'id',
+			'uri',
+			'uri_prim',
+			'slug',
+			'curator',
+			'curator_acct',
+			'name',
+			'summary',
+			'topic',
+			'language',
+			'url',
+			'members',
+			'fetched'
 		],
 		self::TABLE_STREAM_TAGS => [
 			'stream_id',

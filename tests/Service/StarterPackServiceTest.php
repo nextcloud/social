@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\StarterPacksRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\StarterPack;
@@ -303,5 +304,64 @@ class StarterPackServiceTest extends TestCase {
 		$followed = $this->service->followAll($viewer, 'me');
 
 		$this->assertSame(['b@example.org'], $followed);
+	}
+
+	/** A service with packs read in from another server's collections. */
+	private function withCollections(array $rows): StarterPackService {
+		$request = $this->createStub(StarterPacksRequest::class);
+		$request->method('getAll')->willReturn($rows);
+
+		return new StarterPackService(
+			$this->configService, $this->cacheActorService, $this->followService, new NullLogger(), $request
+		);
+	}
+
+	/** @return array<string, mixed> */
+	private static function row(string $slug, array $members): array {
+		return [
+			'id' => 1, 'uri' => 'https://mastodon.social/ap/users/1/collections/11', 'slug' => $slug,
+			'curator' => 'https://mastodon.social/users/Gargron', 'curator_acct' => 'Gargron@mastodon.social',
+			'name' => 'News organizations of Mastodon', 'summary' => 'Papers', 'topic' => 'news', 'language' => 'en',
+			'url' => 'https://mastodon.social/collections/11', 'members' => $members, 'fetched' => 1,
+		];
+	}
+
+	public function testACollectionReadInIsAPackAfterThoseThisInstanceChose(): void {
+		$packs = $this->withCollections([self::row('news-1a2b3c4d', ['https://newsie.social/users/paper'])])->packs();
+
+		$last = end($packs);
+		$this->assertSame('news-1a2b3c4d', $last->getSlug());
+		$this->assertSame(StarterPack::SOURCE_FEDIVERSE, $last->getSource());
+		$this->assertSame('Gargron@mastodon.social', $last->getCurator());
+		$this->assertSame('news', $last->getTopic());
+		$this->assertSame(['https://newsie.social/users/paper'], $last->getHandles());
+		$this->assertNotSame(StarterPack::SOURCE_FEDIVERSE, $packs[0]->getSource());
+	}
+
+	public function testACollectionNeverReplacesAPackThisInstanceChose(): void {
+		$packs = $this->withCollections([self::row('photography', ['https://newsie.social/users/paper'])])->packs();
+
+		$photography = array_values(array_filter($packs, static fn (StarterPack $pack): bool => $pack->getSlug() === 'photography'));
+		$this->assertCount(1, $photography);
+		$this->assertSame(StarterPack::SOURCE_BUILTIN, $photography[0]->getSource());
+	}
+
+	public function testSuggestingNobodyHidesTheCollectionsToo(): void {
+		$this->configured = '[]';
+
+		$this->assertSame([], $this->withCollections([self::row('news-1a2b3c4d', ['https://newsie.social/users/paper'])])->packs());
+	}
+
+	public function testAnOpenedCollectionResolvesItsMembersByActorId(): void {
+		$paper = new Person();
+		$paper->setId('https://newsie.social/users/paper');
+		$paper->setAccount('paper@newsie.social');
+		$this->cacheActorService->expects($this->once())->method('getFromId')
+			->with('https://newsie.social/users/paper')->willReturn($paper);
+
+		$pack = $this->withCollections([self::row('news-1a2b3c4d', ['https://newsie.social/users/paper'])])->pack('news-1a2b3c4d');
+
+		$this->assertSame([$paper], $pack->getAccounts());
+		$this->assertSame([], $pack->getUnresolved());
 	}
 }

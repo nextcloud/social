@@ -1,6 +1,8 @@
 OC.L10N.register(
     "social",
     {
+    "Curated by @{curator}" : "Zusammengestellt von @{curator}",
+    "View on its server" : "Auf seinem Server ansehen",
     "quotes received" : "erhaltene Zitate",
     "Where the engagement comes from" : "Woher die Reaktionen kommen",
     "Likes, boosts and replies, by the server of whoever made them. {n}% came from accounts on this server." : "Likes, Boosts und Antworten, nach dem Server derer, die sie gegeben haben. {n}% kamen von Konten auf diesem Server.",

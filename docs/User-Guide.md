@@ -100,7 +100,9 @@ people** makes an invitation link: it works once and for a week.
   button that says who it is and why, so a keyboard gets there too.
 - **Starter packs** are named handfuls of accounts with a **Follow everyone**
   button. Two ship with the app — the projects behind the network, and
-  photography — and an administrator can curate more.
+  photography — and an administrator can curate more. The collections curators
+  publish on Mastodon are starter packs here too: they say who curated them,
+  and link to the collection on its own server.
 - **Follow** on a profile, in search results or on a Discover card sends a
   follow request. On an open account it is accepted at once; on a locked
   account the button reads **Requested** until the owner answers. **Unfollow**

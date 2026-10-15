@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
+use OCA\Social\Db\StarterPacksRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\StarterPack;
@@ -85,6 +86,7 @@ class StarterPackService {
 		private CacheActorService $cacheActorService,
 		private FollowService $followService,
 		private LoggerInterface $logger,
+		private ?StarterPacksRequest $starterPacksRequest = null,
 	) {
 	}
 
@@ -132,7 +134,44 @@ class StarterPackService {
 			}
 		}
 
+		// the collections read in from other servers come after the packs this
+		// instance chose itself, and never replace one of them
+		foreach ($this->collectionPacks() as $pack) {
+			$packs[$pack->getSlug()] ??= $pack;
+		}
+
 		return array_values($packs);
+	}
+
+	/**
+	 * The collections `CollectionPackService` read in, as packs.
+	 *
+	 * @return list<StarterPack>
+	 */
+	private function collectionPacks(): array {
+		if ($this->starterPacksRequest === null) {
+			return [];
+		}
+
+		try {
+			$stored = $this->starterPacksRequest->getAll();
+		} catch (Throwable $e) {
+			$this->logger->warning('[StarterPackService] could not read the starter packs read in from other servers', ['exception' => $e]);
+
+			return [];
+		}
+
+		$packs = [];
+		foreach ($stored as $row) {
+			$members = array_slice($row['members'], 0, self::MAX_HANDLES);
+			if ($members === []) {
+				continue;
+			}
+			$packs[] = (new StarterPack($row['slug'], $row['name'], $row['summary'], $members, StarterPack::SOURCE_FEDIVERSE))
+				->setOrigin($row['curator_acct'], $row['url'], $row['topic'], $row['language']);
+		}
+
+		return $packs;
 	}
 
 	/**
@@ -194,7 +233,11 @@ class StarterPackService {
 
 		foreach ($pack->getHandles() as $handle) {
 			try {
-				$accounts[] = $this->cacheActorService->getFromAccount($handle);
+				// a pack read in names its members by actor id, which the
+				// member read in was cached under
+				$accounts[] = str_starts_with($handle, 'https://')
+					? $this->cacheActorService->getFromId($handle)
+					: $this->cacheActorService->getFromAccount($handle);
 			} catch (Throwable $e) {
 				$unresolved[] = $handle;
 				$this->logger->debug('[StarterPackService] could not resolve a handle', [

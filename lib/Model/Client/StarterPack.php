@@ -26,6 +26,10 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
  * and it is deliberately not a table of its own: the accounts are not this
  * instance's to own, the handles are the only durable reference to them, and
  * keeping rows would mean keeping rows about accounts that may never be fetched.
+ * The exception is a pack read in from another server's collection
+ * (`CollectionPackService`), which is named by actor ids, carries who
+ * curated it and where it lives, and is kept in `social_starter_pack`
+ * between reads.
  *
  * The handles resolve to real profiles when a pack is opened -- never in the
  * index, because resolving an unknown remote handle means a WebFinger lookup and
@@ -37,6 +41,20 @@ class StarterPack implements JsonSerializable {
 	public const SOURCE_BUILTIN = 'builtin';
 	/** Written by an administrator of this instance. */
 	public const SOURCE_LOCAL = 'local';
+	/** A collection another server publishes, read in (FEP-7aa9). */
+	public const SOURCE_FEDIVERSE = 'fediverse';
+
+	/** Who curated a pack read in, as `user@host`; '' for the others. */
+	private string $curator = '';
+
+	/** Where a pack read in can be seen on its own server; '' for the others. */
+	private string $url = '';
+
+	/** The hashtag a pack read in is about, without the `#`. */
+	private string $topic = '';
+
+	/** The language a pack read in is written in, where it says. */
+	private string $language = '';
 
 	/** @var Person[] filled in only when the pack is opened */
 	private array $accounts = [];
@@ -45,7 +63,8 @@ class StarterPack implements JsonSerializable {
 	private array $unresolved = [];
 
 	/**
-	 * @param string[] $handles `user@host`, without a leading `@`
+	 * @param string[] $handles `user@host`, without a leading `@`, or the
+	 *                          actor ids of a pack read in
 	 */
 	public function __construct(
 		private string $slug,
@@ -75,6 +94,32 @@ class StarterPack implements JsonSerializable {
 
 	public function getSource(): string {
 		return $this->source;
+	}
+
+	public function getCurator(): string {
+		return $this->curator;
+	}
+
+	public function getUrl(): string {
+		return $this->url;
+	}
+
+	public function getTopic(): string {
+		return $this->topic;
+	}
+
+	public function getLanguage(): string {
+		return $this->language;
+	}
+
+	/** Where a pack read in came from. */
+	public function setOrigin(string $curator, string $url, string $topic, string $language): self {
+		$this->curator = $curator;
+		$this->url = $url;
+		$this->topic = $topic;
+		$this->language = $language;
+
+		return $this;
 	}
 
 	/** @return Person[] */
@@ -127,6 +172,10 @@ class StarterPack implements JsonSerializable {
 			'name' => $this->getName(),
 			'description' => $this->getDescription(),
 			'source' => $this->getSource(),
+			'curator' => ($this->curator !== '') ? $this->curator : null,
+			'url' => ($this->url !== '') ? $this->url : null,
+			'topic' => ($this->topic !== '') ? $this->topic : null,
+			'language' => ($this->language !== '') ? $this->language : null,
 			'size' => count($this->getHandles()),
 			'accounts' => $this->getAccounts(),
 			'unresolved' => $this->getUnresolved(),
