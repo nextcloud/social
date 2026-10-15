@@ -149,6 +149,15 @@ drives the read and matches each recipient row at most once, and they filter
 on the follow's `type`. `QueryPlanTest` asserts the hashtag page reads the
 follows only inside a subquery.
 
+The hashtag page is now two steps, like the public page: a window of the
+tag's newest posts read from `social_stream_tag` alone, then the visibility
+rule applied to just those ids, refilled from below the window when it thins
+the page out, and the one-join query only when the windows run out first. In
+one query, MySQL 8.4 could start from a full scan of `social_stream_dest`,
+because nothing indexes the viewer's recipient rule: 770 ms for the hashtag
+page in the nightly benchmark at 100,000 notes, 9 ms with the window
+(`QueryPlanTest::testTheHashtagWindowIsReadFromTheTagAlone()`).
+
 ### Lookups that cannot use an index
 
 `DomainBlocksRequestBuilder::filterDomainBlocked()` is no longer one of them:
