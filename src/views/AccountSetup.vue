@@ -171,7 +171,7 @@
 					<!-- the address as it is typed, not on the way out: the choice
 						     is permanent, so it is worth seeing before it is made -->
 					<p id="account-setup-address" class="account-setup__address">
-						@{{ handle || '…' }}@{{ hostname }}
+						@{{ handle || '…' }}@{{ addressHost }}
 					</p>
 					<!-- the second address the account gets, where the administrator
 						     has switched that on -->
@@ -310,6 +310,16 @@ export default {
 		 */
 		blueskyEnabled() {
 			return this.serverData.bluesky?.enabled === true
+		},
+
+		/**
+		 * The host the address ends in: the social address the administrator
+		 * set, which may be another than this Nextcloud's own host.
+		 *
+		 * @return {string}
+		 */
+		addressHost() {
+			return this.serverData.socialAddress || this.hostname
 		},
 
 		/**

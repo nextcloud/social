@@ -207,6 +207,9 @@ class NavigationController extends Controller {
 				'enabled' => $this->configService->getAppValueBool(ConfigService::ATPROTO_ENABLED),
 				'host' => strtolower($this->configService->getSocialAddress()),
 			],
+			// the host addresses here end in (`alice@<host>`), which the
+			// administrator may have set apart from the Nextcloud's own
+			'socialAddress' => $this->configService->getSocialAddress(),
 		];
 
 		$this->logger->debug('[NavigationController] Initial serverData', ['serverData' => $serverData]);

@@ -84,7 +84,7 @@ describe('OStatus', () => {
 			expect(wrapper.text()).toContain('Alice')
 			// the greeting avatar is the real ActorAvatar, fed the current user as a local actor
 			const greeting = wrapper.findComponent(ActorAvatarStub)
-			expect(greeting.props('actor')).toEqual({ username: 'alice', acct: 'alice' })
+			expect(greeting.props('actor')).toEqual({ username: 'alice', acct: 'alice', nextcloud_user: 'alice' })
 			expect(greeting.props('size')).toBe(16)
 			expect(wrapper.text()).toContain('Please confirm that you want to follow this account:')
 			expect(wrapper.find('form input[type="submit"]').element.value).toBe('Follow')

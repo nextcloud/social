@@ -136,7 +136,7 @@ export default {
 		 */
 		currentUserActor() {
 			const uid = this.currentUser?.uid ?? ''
-			return { username: uid, acct: uid }
+			return { username: uid, acct: uid, nextcloud_user: uid }
 		},
 
 		displayName() {

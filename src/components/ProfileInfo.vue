@@ -32,8 +32,8 @@
 			     Nextcloud's would open over the top of the profile they are
 			     already reading -->
 			<NcAvatar
-				v-if="isLocal"
-				:user="localUid"
+				v-if="nextcloudUserOf(accountInfo) !== ''"
+				:user="nextcloudUserOf(accountInfo)"
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
@@ -554,7 +554,7 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import BlueskyBadge from './BlueskyBadge.vue'
 import FollowButton from './FollowButton.vue'
-import { isBlueskyAccount, qualifiedHandle } from '../utils/accountLocality.js'
+import { isBlueskyAccount, nextcloudUserOf, qualifiedHandle } from '../utils/accountLocality.js'
 import { focusedElement, returnFocusTo } from '../utils/focus.js'
 import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
@@ -644,9 +644,9 @@ export default {
 	setup(props) {
 		const { serverData, hostname } = useServerData()
 		const { isOwnHandle } = useCurrentUser()
-		const { profileAccount, accountInfo, isLocal, relationship } = useAccount(() => props.uid)
+		const { profileAccount, accountInfo, relationship } = useAccount(() => props.uid)
 
-		return { serverData, hostname, isOwnHandle, profileAccount, accountInfo, isLocal, relationship }
+		return { serverData, hostname, isOwnHandle, profileAccount, accountInfo, relationship }
 	},
 
 	data() {
@@ -989,6 +989,8 @@ export default {
 	},
 
 	methods: {
+		nextcloudUserOf,
+
 		/**
 		 * Asks who the reader follows that also follows this account.
 		 *

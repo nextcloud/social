@@ -210,6 +210,8 @@ class NavigationControllerTest extends TestCase {
 			// and whether people may invite others to register; not here
 			'externalInvites' => false,
 			'bluesky' => ['enabled' => false, 'host' => 'cloud.example'],
+			// the host addresses end in, for the setup screen's preview
+			'socialAddress' => 'cloud.example',
 			'cloudAddress' => 'https://cloud.example/index.php',
 			// the account's own name and address, which the page says and
 			// tells the reader's own things apart by
@@ -385,6 +387,7 @@ class NavigationControllerTest extends TestCase {
 		// a suggestion now, not a decision
 		$this->accountService->method('generateHandleFromUserId')->with('alice')->willReturn('alice');
 		$this->accountService->method('linkedHandle')->with('alice')->willReturn('alice@mastodon.social');
+		$this->configService->method('getSocialAddress')->willReturn('social.example');
 		// an RSA key pair and a WebFinger identity used to appear on the first
 		// click of the app icon, with nobody asked (alohasocial/social#1130)
 		$this->accountService->expects($this->never())->method('createActor');
@@ -395,6 +398,7 @@ class NavigationControllerTest extends TestCase {
 		$this->assertTrue($data['needsAccount']);
 		$this->assertFalse($data['firstrun'], 'nothing ran for the first time: nothing exists yet');
 		$this->assertSame('alice', $data['suggestedHandle']);
+		$this->assertSame('social.example', $data['socialAddress'], 'the preview of the address ends in the host it will have');
 		$this->assertSame('alice@mastodon.social', $data['linkedHandle']);
 		$this->assertArrayNotHasKey('viewer', $data, 'there is no account to name yet');
 	}

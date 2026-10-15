@@ -9,17 +9,48 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Listeners;
 
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Listeners\ProfileSectionListener;
+use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\Accounts\UserUpdatedEvent;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\IUser;
+use OCP\L10N\IFactory;
+use OCP\Profile\BeforeTemplateRenderedEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ProfileSectionListenerTest extends TestCase {
+	private IInitialState $initialState;
+	private ActorsRequest $actorsRequest;
+	private array $states = [];
+
+	protected function setUp(): void {
+		$this->initialState = $this->createStub(IInitialState::class);
+		$this->initialState->method('provideInitialState')
+			->willReturnCallback(function (string $key, $data): void {
+				$this->states[$key] = $data;
+			});
+		$this->actorsRequest = $this->createStub(ActorsRequest::class);
+		// the script registry adds the app's translations next to its script
+		$l10n = $this->createStub(IFactory::class);
+		$l10n->method('findLanguage')->willReturn('en');
+		\OC::$server->register(IFactory::class, $l10n);
+	}
+
+	protected function tearDown(): void {
+		\OC::$server->reset();
+	}
+
+	private function listener(): ProfileSectionListener {
+		return new ProfileSectionListener($this->initialState, $this->actorsRequest);
+	}
+
 	public function testIsAnEventListener(): void {
-		$this->assertInstanceOf(IEventListener::class, new ProfileSectionListener());
+		$this->assertInstanceOf(IEventListener::class, $this->listener());
 	}
 
 	/**
@@ -33,10 +64,6 @@ class ProfileSectionListenerTest extends TestCase {
 		yield 'account update' => ['user-updated'];
 	}
 
-	/**
-	 * Registering the profile script needs the server's script registry, so an
-	 * unrelated event must return before reaching it.
-	 */
 	#[DataProvider('unrelatedEvents')]
 	public function testUnrelatedEventsAreIgnored(string $eventKind): void {
 		$event = match ($eventKind) {
@@ -44,8 +71,31 @@ class ProfileSectionListenerTest extends TestCase {
 			'user-updated' => new UserUpdatedEvent($this->createStub(IUser::class), []),
 		};
 
-		(new ProfileSectionListener())->handle($event);
+		$this->listener()->handle($event);
 
-		$this->addToAssertionCount(1);
+		$this->assertSame([], $this->states);
+	}
+
+	/**
+	 * The profile page is the Nextcloud user's, by their user id, and the
+	 * section asked the API for an account by that id. The username is chosen
+	 * when the account is made and need not be the user id, so it found
+	 * nobody, or the account somebody else had named that.
+	 */
+	public function testTheSectionIsToldTheAccountOfTheProfilesUser(): void {
+		$actor = (new Person())->setPreferredUsername('aloha_al');
+		$this->actorsRequest->method('getFromUserId')->willReturnMap([['alice', $actor]]);
+
+		$this->listener()->handle(new BeforeTemplateRenderedEvent('alice'));
+
+		$this->assertSame('aloha_al', $this->states['profileAccount']);
+	}
+
+	public function testAUserWithoutAnAccountHasNoneToShow(): void {
+		$this->actorsRequest->method('getFromUserId')->willThrowException(new ActorDoesNotExistException());
+
+		$this->listener()->handle(new BeforeTemplateRenderedEvent('bob'));
+
+		$this->assertSame('', $this->states['profileAccount']);
 	}
 }

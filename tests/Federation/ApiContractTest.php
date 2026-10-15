@@ -253,12 +253,13 @@ class ApiContractTest extends TestCase {
 		// — and so are `avatar_default` and `header_default`, which say whether
 		// either picture is a placeholder rather than one the account set,
 		// and `verification`, this instance's verification of the account or
+		// null, and `nextcloud_user`, the Nextcloud user of a local account or
 		// null
 		$expected = [
 			'acct', 'avatar', 'avatar_default', 'avatar_static', 'bluesky', 'bot', 'created_at', 'discoverable',
 			'display_name', 'emojis', 'fields', 'followers_count', 'following_count',
 			'group', 'header', 'header_default', 'header_static', 'id', 'indexable', 'last_status_at', 'locked',
-			'nid', 'note', 'pronouns', 'roles', 'statuses_count', 'support_link', 'url', 'username', 'verification',
+			'nextcloud_user', 'nid', 'note', 'pronouns', 'roles', 'statuses_count', 'support_link', 'url', 'username', 'verification',
 		];
 		$actual = array_keys($account);
 		sort($expected);

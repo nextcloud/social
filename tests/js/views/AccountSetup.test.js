@@ -85,6 +85,18 @@ describe('AccountSetup', () => {
 		expect(wrapper.find('.account-setup__body > .account-setup__answers').exists()).toBe(true)
 	})
 
+	/**
+	 * The address ends in the social address, which the administrator may
+	 * have set apart from the Nextcloud's own host; the preview showed the
+	 * Nextcloud host, an address the account would never have.
+	 */
+	it('previews the address with the host addresses here end in', () => {
+		const wrapper = mountSetup({ socialAddress: 'example.org', bluesky: { enabled: true, host: 'example.org' } })
+
+		expect(wrapper.find('.account-setup__address').text()).toBe('@alice@example.org')
+		expect(wrapper.find('.account-setup__address--bluesky').text()).toBe('On Bluesky too: @alice.example.org')
+	})
+
 	it('suggests a handle and shows the address it would make', () => {
 		const wrapper = mountSetup()
 

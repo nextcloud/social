@@ -41,9 +41,9 @@
 					<!-- `disableMenu`, or the card sprouts a second card of
 					     Nextcloud's own when the pointer reaches this face -->
 					<NcAvatar
-						v-if="isLocal"
+						v-if="nextcloudUserOf(account) !== ''"
 						:size="48"
-						:user="account.username"
+						:user="nextcloudUserOf(account)"
 						:displayName="account.display_name || account.username"
 						:hideStatus="true"
 						:disableMenu="true"
@@ -137,7 +137,7 @@ import { emojifyPlain } from './MessageContent.js'
 import BlueskyBadge from './BlueskyBadge.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
 import VerifiedCheck from './VerifiedCheck.vue'
-import { isBlueskyAccount, isLocalAccount } from '../utils/accountLocality.js'
+import { isBlueskyAccount, nextcloudUserOf } from '../utils/accountLocality.js'
 import { originOf } from '../utils/instanceIdentity.js'
 import { profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
@@ -306,11 +306,6 @@ export default {
 		},
 
 		/** @return {boolean} */
-		isLocal() {
-			return isLocalAccount(this.account ?? { acct: this.handle })
-		},
-
-		/** @return {boolean} */
 		isBluesky() {
 			return isBlueskyAccount(this.account)
 		},
@@ -444,6 +439,7 @@ export default {
 	methods: {
 		t,
 		n,
+		nextcloudUserOf,
 
 		/**
 		 * A pointer arrived. Touch never opens the card: a tap on a mention

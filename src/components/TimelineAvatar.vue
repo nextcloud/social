@@ -31,10 +31,10 @@
 			     See ActorAvatar, which says the rest. -->
 			<component :is="linkTag" v-bind="linkProps">
 				<NcAvatar
-					v-if="isLocal"
+					v-if="nextcloudUserOf(item.account) !== ''"
 					class="messages__avatar__icon"
 					:hideStatus="true"
-					:user="item.account.username"
+					:user="nextcloudUserOf(item.account)"
 					:displayName="item.account.display_name"
 					:size="size ?? undefined"
 					:disableMenu="true"
@@ -56,7 +56,7 @@ import { translate as t } from '@nextcloud/l10n'
 import AccountHoverCard from './AccountHoverCard.vue'
 import { originOf } from '../utils/instanceIdentity.js'
 import { localProfileUrl } from '../utils/accountProfileLink.js'
-import { isLocalAccount } from '../utils/accountLocality.js'
+import { isLocalAccount, nextcloudUserOf } from '../utils/accountLocality.js'
 
 export default {
 	name: 'TimelineAvatar',
@@ -145,6 +145,7 @@ export default {
 
 	methods: {
 		t,
+		nextcloudUserOf,
 	},
 }
 </script>

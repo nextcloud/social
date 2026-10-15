@@ -200,6 +200,15 @@ remote account whose picture is missing or not cached yet, and
 for an account without a banner. They are on every Account entity,
 `verify_credentials` and `update_credentials` included; `avatar` and `header`
 stay URLs, so a client that does not know the keys draws what it drew before.
+
+**An Account entity names the Nextcloud user of a local account.**
+`nextcloud_user` is the user id a local account belongs to, which its username
+need not be: the username is chosen when the account is made. The web app
+draws the account's face and links its Nextcloud profile page (`/u/{uid}`) by
+it. It is `null` for a remote account, a team account and a channel, and, for a
+reader who is not signed in, for an account whose username is not its user id,
+so an account named apart from its login does not give the login away; the
+placeholder avatar of such an account is then the app icon.
 Without them a client could only guess from the shape of the URL, which
 depends on URL rewriting, the app folder and the size argument. A local
 account's header that is its own avatar — what the header used to fall back

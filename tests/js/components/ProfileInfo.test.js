@@ -72,6 +72,7 @@ const carol = {
 	url: 'https://cloud.example.org/users/carol',
 	acct: 'carol',
 	username: 'carol',
+	nextcloud_user: 'carol',
 	display_name: null,
 	avatar: 'https://cloud.example.org/avatar/carol/128',
 	header: '',
@@ -257,6 +258,21 @@ describe('ProfileInfo', () => {
 		expect(avatar.props('user')).toBe('carol')
 		expect(avatar.props('url')).toBeUndefined()
 		expect(wrapper.find('h1').text()).toBe('carol')
+	})
+
+	/**
+	 * The username is chosen when the account is made and need not be the
+	 * user id; the face was Nextcloud's avatar of the username.
+	 */
+	it('draws a local account as its Nextcloud user, not as its username', () => {
+		accountStore.addAccount({ actorId: carol.url, data: { ...carol, nextcloud_user: 'karla' } })
+
+		expect(mountProfile('carol').findComponent(NcAvatarStub).props('user')).toBe('karla')
+
+		accountStore.addAccount({ actorId: carol.url, data: { ...carol, nextcloud_user: null } })
+		const avatar = mountProfile('carol').findComponent(NcAvatarStub)
+		expect(avatar.props('user')).toBeUndefined()
+		expect(avatar.props('url')).toBe(carol.avatar)
 	})
 
 	it('hands the uid to the follow button and does not offer the public follow flow', () => {

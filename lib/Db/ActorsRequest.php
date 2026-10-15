@@ -175,6 +175,28 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
+	 * The Nextcloud user a local username belongs to, or '' where none does.
+	 *
+	 * One column of one row: the cached copy of an account, which is what the
+	 * client is handed, does not carry it, and the username need not be it.
+	 */
+	public function userIdOf(string $username): string {
+		$qb = $this->getQueryBuilder();
+		$qb->select('a.user_id')
+			->from(self::TABLE_ACTORS, 'a');
+		$qb->setDefaultSelectAlias('a');
+		$qb->limitToPreferredUsername($username);
+		$qb->andWhere($qb->expr()->isNull('a.deleted'));
+		$qb->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$userId = $cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return is_string($userId) ? $userId : '';
+	}
+
+	/**
 	 * @throws ActorDoesNotExistException
 	 * @throws SocialAppConfigException
 	 */

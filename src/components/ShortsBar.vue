@@ -199,7 +199,8 @@ export default {
 			return {
 				id: user.uid,
 				acct: this.username || user.uid,
-				username: user.uid,
+				username: this.username || user.uid,
+				nextcloud_user: user.uid,
 				display_name: user.displayName || user.uid,
 				avatar: ownAvatarUrl(64),
 			}

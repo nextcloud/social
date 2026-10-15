@@ -25,7 +25,7 @@ import { generateUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
 import AccountHoverCard from './AccountHoverCard.vue'
 import { localProfileUrl } from '../utils/accountProfileLink.js'
-import { isLocalAccount } from '../utils/accountLocality.js'
+import { isLocalAccount, nextcloudUserOf } from '../utils/accountLocality.js'
 
 export default {
 	name: 'ActorAvatar',
@@ -153,8 +153,10 @@ export default {
 				// avatars were affected, so which card a reader got depended
 				// on which instance the account was on
 				disableMenu: true,
-				...(this.isLocal
-					? { user: this.actor.username, displayName: this.actor.acct }
+				// a local account's face is its Nextcloud user's, by the user
+				// id; where the page was not told it, the picture the server gave
+				...(this.nextcloudUser !== ''
+					? { user: this.nextcloudUser, displayName: this.actor.acct }
 					: { url: this.avatarUrl }),
 			}
 		},
@@ -173,6 +175,11 @@ export default {
 		 */
 		isLocal() {
 			return isLocalAccount(this.actor)
+		},
+
+		/** @return {string} the Nextcloud user of a local account, or '' */
+		nextcloudUser() {
+			return nextcloudUserOf(this.actor)
 		},
 	},
 }
