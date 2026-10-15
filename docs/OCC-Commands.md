@@ -905,6 +905,25 @@ an hour while a post is less than a day old, every six hours after that; see
 other moments. It prints `N post(s) asked, M answered with a
 count`.
 
+### `social:starter-packs:refresh`
+
+Read the starter packs other servers publish again — the fediverse's
+collections (Mastodon's Collections, FEP-7aa9 `FeaturedCollection`s) and
+Bluesky's suggested starter packs — now rather than at the next daily run of
+`Cron\StarterPackSources`, and store them.
+
+```
+php occ social:starter-packs:refresh
+```
+
+It reads every source the `starter_pack_sources` app value names (see
+Admin.md), checks each member's consent to be in a fediverse collection
+(`featureAuthorization`), reads Bluesky's suggestions while Bluesky is on,
+and prints the sources, then `N starter pack(s)
+with M account(s) read from S source(s)`, how many accounts were left out
+without a valid authorization and how many sources could not be reached. A
+source that cannot be reached keeps the packs read from it last time.
+
 ### `social:media:retry`
 
 Retry one remote attachment which was previously rejected by the media cache.

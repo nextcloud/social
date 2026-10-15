@@ -1197,6 +1197,16 @@ post that also went out on Bluesky is counted from its author's repository
 delivered to an instance and has no instance path. `starterpack-joined`
 notifications are counted as the followers a starter pack brought.
 
+**Suggested starter packs.** Once a day, with the fediverse's collections,
+`Atproto\Reader\SuggestedStarterPacks` asks the AppView, signed out, for
+`app.bsky.unspecced.getSuggestedStarterPacks` and each pack's list
+(`app.bsky.graph.getList`, the first 50 members), and keeps them in
+`social_starter_pack` with `origin` `bluesky`. They are listed on the
+Discover page and served at `/api/v1/starter_packs` like any other starter
+pack; the members are cached from the list's profile views, an account this
+instance blocks or that Bluesky's moderation limits is left out, and a pack
+Bluesky no longer suggests goes at the next read.
+
 ### 10.1 Direct messages
 
 A conversation with somebody on Bluesky is a conversation in **Messages**

@@ -397,7 +397,7 @@ Suggestions come from three places, each filling only the slots the one before i
 
 A named handful of accounts worth following. They answer the one question a new account has that no algorithm here can: `SuggestionService` works off the follow graph, and on day one there is none — it falls back to whoever posted recently, which is a list of strangers sorted by luck.
 
-A pack is a list of `user@host` handles and nothing else. No table: the accounts are not this instance's to own, and the handles are the only durable reference to them.
+A pack is a list of `user@host` handles and nothing else. No table: the accounts are not this instance's to own, and the handles are the only durable reference to them. The exception is a pack read in from another server: see *Collections from other servers* below.
 
 | Method | Route | Auth | Parameters | Description |
 |--------|-------|------|------------|-------------|
@@ -408,6 +408,12 @@ A pack is a list of `user@host` handles and nothing else. No table: the accounts
 **The shipped packs are an editorial choice and a deliberately narrow one**: the official accounts of the projects this app federates with. They are organisations rather than people, they are unambiguously the accounts they claim to be, and none was chosen because somebody liked them. Anything broader is a judgement an instance should make for itself.
 
 An administrator replaces or extends them with the `starter_packs` app value — a JSON array of `{slug, name, description, handles}`. Three states, deliberately distinguishable: **unset** is whatever ships; **`[]`** is no packs at all, which is the right answer for an instance that would rather suggest nobody; **a list** is the shipped packs with any same-slug entry replaced and the rest added, so a shipped pack can be edited rather than only added to. Malformed JSON is no packs and a log line, never an exception: a typo in a config value must not be why a page is blank. (A JSON *object* decodes to an array too, so each entry is checked as well as the whole.)
+
+**Collections from other servers.** Mastodon 4.6 lets an account publish Collections — named lists of up to 25 accounts it recommends — and federates them as FEP-7aa9 `FeaturedCollection`s, linked from the curator's actor as `featuredCollections`. Once a day (`Cron\StarterPackSources`, or now with `occ social:starter-packs:refresh`) `CollectionPackService` reads the collections of the curators the `starter_pack_sources` app value names — unset, the curated collections on mastodon.social — and keeps them in `social_starter_pack`. Only a collection marked discoverable and not sensitive is kept, and only the members whose own server serves a `FeatureAuthorization` naming them and this collection, as the FEP requires a reader to check. They are listed after the packs this instance chose and never replace one of them; `starter_packs` set to `[]` hides them too.
+
+**Bluesky's suggested starter packs** are read with them, the same day and into the same table, while Bluesky is on and `bluesky:suggested` is among the sources (it is by default): `SuggestedStarterPacks` asks the AppView, signed out, for `app.bsky.unspecced.getSuggestedStarterPacks` and each pack's list, keeping at most 50 members a pack, and leaving out any account this instance blocks or Bluesky's moderation limits. Bluesky asks no consent of an account to be in a starter pack, so there is nothing to verify the way a collection's members are.
+
+Such a pack answers like the others, with `source` `fediverse` (or `bluesky`) and four fields the others leave `null`: `curator` (who published it, `user@host`), `url` (where it can be seen on the curator's server), `topic` (its hashtag, without `#`) and `language`. Its members are actor ids rather than handles, resolved from the cache the daily read fills, so opening one does not wait on its members' servers, and *follow* follows each as the actor it is, on whichever network. `{slug}` is the collection's name made safe plus a hash of its id.
 
 ### Finding people in other servers' directories
 

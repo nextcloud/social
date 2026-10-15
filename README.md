@@ -313,7 +313,9 @@ six ways:
   `fediverse` field; this app fills in yours and reads everybody else's, so your
   colleagues are suggested before any algorithm has a thing to say.
 - **Starter packs** — a named handful of accounts with one button that follows all of
-  them. Administrators curate their own.
+  them. Administrators curate their own, and the Collections curators publish on
+  Mastodon (FEP-7aa9, each member's consent checked) and Bluesky's suggested starter
+  packs are read in as starter packs too, once a day.
 - **Trending hashtags**, ranked over a window you choose from one hour to ten days. The
   busiest hour and the busiest ten days are genuinely different lists, not one list
   relabelled.
