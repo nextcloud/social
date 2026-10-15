@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 
 import BlueskySettings from '../../../src/components/BlueskySettings.vue'
@@ -75,6 +75,7 @@ function mountSettings() {
 	return mount(BlueskySettings, {
 		global: {
 			stubs: {
+				RouterLink: RouterLinkStub,
 				NcDialog: {
 					name: 'NcDialog',
 					props: ['open', 'name', 'buttons'],
@@ -337,6 +338,18 @@ describe('BlueskySettings', () => {
 
 			expect(confirmPassword).toHaveBeenCalled()
 			expect(assign).toHaveBeenCalledWith('/index.php/apps/social/api/v1/social/bluesky/archive')
+		})
+
+		// the same archive is on the Migration page, a page of its own
+		it('links to the Migration page for the full archive', async () => {
+			serverHas()
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			const link = wrapper.findAllComponents(RouterLinkStub).find((candidate) => candidate.text() === 'Open Migration')
+			expect(link.props('to')).toEqual({ name: 'migration' })
+			expect(wrapper.text()).toContain('The archive from the Migration page holds the same files.')
+			expect(wrapper.text()).not.toContain('Settings → Migration')
 		})
 
 		it('is offered while the account is switched off, and does nothing when the password dialog is dismissed', async () => {

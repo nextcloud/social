@@ -40,10 +40,10 @@
 
 		<section v-else-if="!showForm" class="signup__landing" aria-labelledby="signup-introduction-title">
 			<h3 id="signup-introduction-title">
-				{{ t('social', 'A Aloha Social account, connected to the fediverse') }}
+				{{ t('social', 'An Aloha Social account') }}
 			</h3>
-			<p>{{ t('social', 'Your address will look like @{username}@{domain}. You can follow and talk with people on Mastodon, Pixelfed, PeerTube and other services that use ActivityPub.', { username: 'your name', domain: state.domain }) }}</p>
-			<p>{{ t('social', 'This is a Aloha Social-only account. It does not give you access to Files, Talk, WebDAV or other Nextcloud apps on this server.') }}</p>
+			<p>{{ reach }}</p>
+			<p>{{ t('social', 'This account is for Aloha Social only. It does not give you access to Files, Talk, WebDAV or other Nextcloud apps on this server.') }}</p>
 			<p v-if="state.twoFactorRequired">
 				{{ t('social', 'This server requires two-factor authentication. You will need to set it up when you first sign in.') }}
 			</p>
@@ -205,6 +205,7 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { signupUrl } from '../services/externalApi.js'
+import { blueskyHandle } from '../utils/blueskyHandle.js'
 
 /** What `ExternalSignupService::pageState()` provides when it provides nothing. */
 const CLOSED = {
@@ -224,6 +225,7 @@ const CLOSED = {
 	signupNoticeRequired: false,
 	signupNoticeVersion: '',
 	domain: '',
+	bluesky: { enabled: false, host: '' },
 	loginUrl: '/login',
 	result: null,
 }
@@ -314,11 +316,34 @@ export default {
 				: t('social', 'After you submit, your account will be ready to use.')
 		},
 
+		/** @return {boolean} whether an account made here gets a Bluesky handle too */
+		blueskyEnabled() {
+			return this.state.bluesky?.enabled === true && Boolean(this.state.bluesky?.host)
+		},
+
+		/** @return {string} who the account reaches, and the addresses it will have */
+		reach() {
+			const username = t('social', 'username')
+			if (this.blueskyEnabled) {
+				return t('social', 'Your address will look like @{username}@{domain}, and @{bluesky} on Bluesky. You can follow and talk with people on Mastodon, Bluesky, Pixelfed and more.', {
+					username,
+					domain: this.state.domain,
+					bluesky: blueskyHandle(username, this.state.bluesky.host),
+				})
+			}
+
+			return t('social', 'Your address will look like @{username}@{domain}. You can follow and talk with people on Mastodon, Pixelfed, PeerTube and more.', { username, domain: this.state.domain })
+		},
+
 		/** @return {string} the address the handle will be */
 		address() {
-			const handle = this.handle.trim().replace(/^@/, '').toLowerCase()
+			const handle = this.handle.trim().replace(/^@/, '').toLowerCase() || t('social', 'username')
+			const address = '@' + handle + '@' + this.state.domain
+			if (this.blueskyEnabled) {
+				return t('social', 'Your address will be {address}, and {bluesky} on Bluesky', { address, bluesky: '@' + blueskyHandle(handle, this.state.bluesky.host) })
+			}
 
-			return t('social', 'Your address will be {address}', { address: '@' + (handle || t('social', 'username')) + '@' + this.state.domain })
+			return t('social', 'Your address will be {address}', { address })
 		},
 
 		/** @return {string} */

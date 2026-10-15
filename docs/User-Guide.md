@@ -35,14 +35,24 @@ that screen — it starts out as a suggestion made from your Nextcloud user id,
 may use letters, digits and underscore with dot and dash inside, and **cannot
 be changed later** — and your address is `@handle@your-nextcloud-host`. Anyone
 on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can
-follow it.
+follow it. Where the administrator has Bluesky switched on, the screen also
+shows the Bluesky address the account gets, `@handle.your-nextcloud-host`, as
+Bluesky writes it: small letters, digits and dashes only, so `Frank_K` becomes
+`frank-k`, and a handle starting with a digit gets `u-` in front. If another
+account here already has that Bluesky address, a number is added to it.
+
+**Link an existing account** creates nothing here: it writes the address you
+already have elsewhere into your Nextcloud profile, so the people on this
+Nextcloud can find you. The screen then says it is done and offers **Back to
+Nextcloud**; opening Aloha Social again shows the same choice with a note of the
+account you linked, so you can still create an account here later.
 
 Your display name and avatar come from your Nextcloud account and are changed
 there. The rest of the profile — banner, bio, profile fields — is edited in
 Aloha Social (see [Managing your account](#managing-your-account)).
 
 On the first visit the app shows a four-step introduction: your address with a
-copy button, people to follow, a way to bring the follows you already have from
+copy button (and your Bluesky address under it, where the account has one), people to follow, a way to bring the follows you already have from
 another server, and a button that puts you in the composer. Every step can be
 skipped; once closed it stays closed, and **Settings → Help → Introduction** shows it
 again.
@@ -52,7 +62,8 @@ again.
 Where the administrators allow it, the login page has a **Create an account**
 button, and an invitation link from somebody here leads to the same form. The
 username you choose is your handle, so the same rules apply, and your address
-is `@username@your-nextcloud-host` from the start. Depending on the server you
+is `@username@your-nextcloud-host` from the start; where Bluesky is switched
+on, the form shows the Bluesky address it gets as well. Depending on the server you
 confirm your email address first, and an administrator may look at the
 registration before it becomes an account; you are emailed either way.
 
@@ -123,7 +134,7 @@ people** makes an invitation link: it works once and for a week.
 - **Coming from another server?** Every Mastodon-like server exports the
   people you follow as `following_accounts.csv`, and Pixelfed as
   `pixelfed-following.json`. Upload it in the first-run
-  introduction or under **Settings → Migration** and each account is followed
+  introduction or on the **Migration** page and each account is followed
   again from here.
 
 ## Writing a post
@@ -955,7 +966,8 @@ hand, it is picked up as one.
   phone, and the only page where signing an app out does not depend on still
   having the app.
 - **Export and migration.** The whole move, in order, is one page:
-  [Moving.md](Moving.md). **Settings → Migration** has these sections.
+  [Moving.md](Moving.md). **Migration** (in the account menu at the foot of
+  the sidebar, a page of its own) has these sections.
   **Export** downloads a zip of your profile, follows, followers, blocks,
   mutes, lists, blocked domains, bookmarks, likes and every post you wrote — your private key is
   deliberately not in it. **Import** reads such an archive (or a Nextcloud
@@ -985,7 +997,7 @@ hand, it is picked up as one.
   already have is filled rather than made a second time, and a list that
   follows a Nextcloud group is left alone — its members are the group's.
 - **Moving in from another server.** The quickest way in is the first thing
-  on **Settings → Migration**: type the handle of your old account
+  on the **Migration** page: type the handle of your old account
   (`@you@mastodon.example`) and press **Look it up**. You are shown who that
   is, how many accounts it follows and how many posts it has, and whether its
   server lets those be read — Mastodon hides them if you turned on *Hide your
@@ -1004,12 +1016,12 @@ hand, it is picked up as one.
   sent to your old Nextcloud to log in and agree, and your followers are moved
   without a visit to its settings.
 - **Naming your old account.** Your old server will not send your followers
-  here until this account says it is also you. **Settings → Migration →
+  here until this account says it is also you. **Migration →
   Accounts you also answer to** is where you say it: type the old account's
   handle (`@you@pixelfed.social`) and press Add. Nothing is sent to anybody — it is a note this server keeps about an
   account it owns — and you can take it off again whenever you like. The
   wizard above sets it for you.
-- **Moving away.** The last section of **Settings → Migration** moves this
+- **Moving away.** The last section of the **Migration** page moves this
   account to another server. First, on the new account, name this one as an
   account you also answer to — on Mastodon, *Preferences → Account → Moving
   from a different account* — then type the new account's handle here, type
@@ -1021,7 +1033,7 @@ hand, it is picked up as one.
   thirty days. **Undo the move** takes the redirect off and lets you post and
   follow from here again; your followers do not come back by themselves,
   because their servers acted on the move when it arrived.
-- **Bringing your posts.** The fourth section of **Settings → Migration** reads
+- **Bringing your posts.** The fourth section of the **Migration** page reads
   the export from your old server — this app's own archive, Mastodon's or
   GoToSocial's `outbox.json`, or Pixelfed's `pixelfed-statuses.json` — and
   writes the posts in it here as yours, dated when you wrote them, with their
@@ -1049,7 +1061,7 @@ hand, it is picked up as one.
   the account is told it is gone — a post already on somebody else's server is
   deleted by asking that server to delete it, which almost all of them do and
   none of them can be made to. You are asked to type your handle first, because
-  it cannot be undone; take an archive from **Settings → Migration → Export**
+  it cannot be undone; take an archive from **Migration → Export**
   first if you might want one. Afterwards you are back at the setup screen and
   can make a new account straight away, under a different handle: the old one
   is held for an hour so that nobody can take it the moment you let it go.
@@ -1114,7 +1126,7 @@ files after your password: your repository (every post, like, follow and the
 profile, in the CAR format other Bluesky servers import), the pictures and videos,
 the history of your identifier from the PLC directory, and a README with the
 steps to move the account with your recovery phrase, even when this server is gone;
-it carries the recovery tool too. The archive from **Settings → Migration** holds the same files
+it carries the recovery tool too. The archive from the **Migration** page holds the same files
 under `social/bluesky/`.
 
 The post menu's *Delivery status* shows whether a post is on Bluesky and opens

@@ -1566,7 +1566,7 @@ protocol's account migration (classes `Move\MoveInService`,
 `Move\InboundMoveService`, job `Cron\AtprotoMove`, table
 `social_atproto_move`).
 
-**Driven from here** (Settings → Migration → *Bring your Bluesky account
+**Driven from here** (Migration → *Bring your Bluesky account
 here*):
 
 1. The person types their Bluesky handle (or DID) and the account's own
@@ -1644,7 +1644,7 @@ again; a move away that stopped while the DID was handed over goes on
 from the activation once the directory names the other server, and can
 no longer be called off.
 
-**Driven by a tool** (Settings → Migration → *Bring your bridged Bluesky
+**Driven by a tool** (Migration → *Bring your bridged Bluesky
 account here*): the person invites the DID and gets a one-time code; Bridgy
 Fed, or a migration tool such as `goat account migrate`, then runs steps
 1–12 of the protocol's migration against this server (`createAccount`
@@ -2601,7 +2601,7 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   migration tool. A tool would need a session with account-management
   rights, which neither app passwords nor `transition:generic` give, and
   this server holds both the signing key and a rotation key of the DID.
-  So Settings → Migration → *Move your Bluesky account away* does what the
+  So Migration → *Move your Bluesky account away* does what the
   tool would: the person names the other PDS, a handle there, an e-mail
   address and a password (and an invite code if it wants one), confirms
   with their Nextcloud password, and this server makes the account there
@@ -2630,7 +2630,7 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
 `IdentityService::adopt()`, `FollowService::adoptBlueskyFollow()`,
 `DocumentService::storeAsIs()`:
 
-- **Driven from here, as moving away is.** Settings → Migration → *Bring
+- **Driven from here, as moving away is.** Migration → *Bring
   your Bluesky account here*: the person names their Bluesky account and
   types its **password** — the account's own, not an app password, because
   a PDS signs a change of the DID only for a full session (§13.1 said app
@@ -2671,7 +2671,7 @@ direction `inbound` in `social_atproto_move`:
   [invite]`, doing what a migration tool does against the new PDS. So 4d
   serves that side, and every standard tool (`goat account migrate`, say)
   can move an account here the same way.
-- **Invited first.** Settings → Migration → *Bring your bridged Bluesky
+- **Invited first.** Migration → *Bring your bridged Bluesky
   account here* finds the twin (the handle Bridgy gives the Fediverse
   address, resolving to a DID whose PDS is `atproto.brid.gy`); a person can
   also name any other account. Inviting, after the Nextcloud password, makes

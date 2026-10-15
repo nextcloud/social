@@ -10,9 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\ExternalInvitesRequest;
 use OCA\Social\Db\ExternalSignupsRequest;
 use OCA\Social\Exceptions\ExternalUserException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\HintException;
@@ -64,6 +66,7 @@ class ExternalSignupService {
 		private ExternalSignupsRequest $signupsRequest,
 		private ExternalInvitesRequest $invitesRequest,
 		private InstanceService $instanceService,
+		private AtprotoConfig $atprotoConfig,
 		private IHasher $hasher,
 		private ISecureRandom $secureRandom,
 		private IEventDispatcher $eventDispatcher,
@@ -106,8 +109,26 @@ class ExternalSignupService {
 			'signupNoticeRequired' => $this->externalUserService->requiresSignupNoticeAcceptance(),
 			'signupNoticeVersion' => hash('sha256', $signupNotice),
 			'domain' => $this->domain(),
+			'bluesky' => $this->bluesky(),
 			'loginUrl' => $this->urlGenerator->linkToRoute('core.login.showLoginForm'),
 		];
+	}
+
+	/**
+	 * Whether an account made here is on Bluesky too, and the host its
+	 * handle is issued under (`HandleMapper`), for the page to preview it.
+	 *
+	 * @return array{enabled: bool, host: string}
+	 */
+	private function bluesky(): array {
+		if (!$this->atprotoConfig->isEnabled()) {
+			return ['enabled' => false, 'host' => ''];
+		}
+		try {
+			return ['enabled' => true, 'host' => $this->atprotoConfig->handleHost()];
+		} catch (SocialAppConfigException) {
+			return ['enabled' => false, 'host' => ''];
+		}
 	}
 
 	private function closedReason(string $mode, bool $triedInvite): string {

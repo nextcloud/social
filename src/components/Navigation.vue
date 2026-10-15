@@ -1193,7 +1193,7 @@ export default {
 			if (entry.kind === 'list' && entry.list.nextcloud_group) {
 				return t(
 					'social',
-					'Everyone in the Nextcloud group {group} who has a Aloha Social account',
+					'Everyone in the Nextcloud group {group} who has an Aloha Social account',
 					{ group: entry.list.title },
 				)
 			}

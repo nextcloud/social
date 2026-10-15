@@ -1,0 +1,78 @@
+[
+    {
+        "username": "alice",
+        "label": "alice"
+    },
+    {
+        "username": "Frank_K",
+        "label": "frank-k"
+    },
+    {
+        "username": "Alice.Smith",
+        "label": "alice-smith"
+    },
+    {
+        "username": "a___b",
+        "label": "a-b"
+    },
+    {
+        "username": "___",
+        "label": "user"
+    },
+    {
+        "username": "",
+        "label": "user"
+    },
+    {
+        "username": "123",
+        "label": "u-123"
+    },
+    {
+        "username": "9lives",
+        "label": "u-9lives"
+    },
+    {
+        "username": "-dash-",
+        "label": "dash"
+    },
+    {
+        "username": "a--b",
+        "label": "a-b"
+    },
+    {
+        "username": "\u00c9mile",
+        "label": "mile"
+    },
+    {
+        "username": "\u0130stanbul",
+        "label": "stanbul"
+    },
+    {
+        "username": "\u212aelvin",
+        "label": "elvin"
+    },
+    {
+        "username": "sun\u2600\ufe0fshine",
+        "label": "sun-shine"
+    },
+    {
+        "username": "x\ud83d\ude00y",
+        "label": "x-y"
+    },
+    {
+        "username": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+        "username": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_b",
+        "label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+        "username": "11111111111111111111111111111111111111111111111111111111111111x",
+        "label": "u-1111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+        "username": "MiXeD_Case.Name-9",
+        "label": "mixed-case-name-9"
+    }
+]

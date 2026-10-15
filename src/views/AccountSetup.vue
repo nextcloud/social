@@ -58,8 +58,8 @@
 						</div>
 					</li>
 					<!-- what the administrator has switched on, not what every
-					     Aloha Social does: an instance that also speaks AT Protocol
-					     says so here, and one that does not says nothing -->
+					     Aloha Social does: an instance that is also on Bluesky
+					     says so here, and one that is not says nothing -->
 					<li v-if="blueskyEnabled" class="account-setup__point">
 						<IconAt class="account-setup__point-icon" :size="20" />
 						<div class="account-setup__point-text">
@@ -67,7 +67,7 @@
 								{{ t('social', 'Also on Bluesky') }}
 							</h3>
 							<p>
-								{{ t('social', 'This server speaks AT Protocol as well, so your account gets a Bluesky identity too and your posts are shown there. Switching that off is in Settings.') }}
+								{{ t('social', 'Your account gets a Bluesky address as well, and your posts are shown there too. You can switch that off in Settings.') }}
 							</p>
 						</div>
 					</li>
@@ -75,12 +75,40 @@
 				<details class="account-setup__more">
 					<summary>{{ t('social', 'What is the fediverse?') }}</summary>
 					<p>
-						{{ t('social', 'The fediverse is not one website but thousands of them, run by different people and communities, that all speak the same language (ActivityPub). An account on any of them can follow, like and reply to an account on any other, the way email works across providers. Nobody owns it and nobody can switch it off.') }}
+						{{ t('social', 'The fediverse is not one website but thousands of them, run by different people and communities, that all speak the same language. An account on any of them can follow, like and reply to an account on any other, the way email works across providers. Nobody owns it and nobody can switch it off.') }}
 					</p>
 				</details>
 			</div>
 
-			<div class="account-setup__answers">
+			<!-- linking creates nothing here, so the page has nowhere to go
+			     next: it says what happened and shows the way out -->
+			<div v-if="linkedNow" class="account-setup__answers">
+				<div class="account-setup__form account-setup__linked" role="status">
+					<IconCheck class="account-setup__linked-icon" :size="32" />
+					<h2 class="account-setup__heading">
+						{{ t('social', 'Done') }}
+					</h2>
+					<p>
+						{{ t('social', 'Your Nextcloud profile now says you are @{handle}, so the people on this Nextcloud can find you.', { handle: linkedNow }) }}
+					</p>
+					<p class="account-setup__hint">
+						{{ t('social', 'Nothing was created here. You can still create an account here later: open Aloha Social again and choose your username.') }}
+					</p>
+					<NcButton variant="primary" :href="homeUrl">
+						{{ t('social', 'Back to Nextcloud') }}
+					</NcButton>
+					<NcButton variant="tertiary" @click="createInstead">
+						{{ t('social', 'Create an account here now') }}
+					</NcButton>
+				</div>
+			</div>
+
+			<div v-else class="account-setup__answers">
+				<!-- a link made before, on the profile: opening the app again
+				     is not the first time, and the page says so -->
+				<p v-if="linkedBefore" class="account-setup__linked-note">
+					{{ t('social', 'Your Nextcloud profile says you are @{handle}, so the people on this Nextcloud can find you. You can still create an account here.', { handle: linkedBefore }) }}
+				</p>
 				<!-- the two answers, one at a time: the question is which of them,
 					     not two forms to read past each other -->
 				<div class="account-setup__modes" role="group" :aria-label="t('social', 'How do you want to continue?')">
@@ -149,10 +177,13 @@
 						     has switched that on -->
 					<p v-if="blueskyEnabled && handle !== ''" class="account-setup__address account-setup__address--bluesky">
 						<span class="account-setup__bluesky-label">{{ t('social', 'On Bluesky too:') }}</span>
-						@{{ handle }}.{{ blueskyHost }}
+						@{{ blueskyAddress }}
 					</p>
 					<p class="account-setup__hint">
-						{{ t('social', 'This is your address on the fediverse — letters, numbers, underscores, dots and dashes. It cannot be changed later.') }}
+						{{ t('social', 'Letters, numbers and underscores, with dots and dashes in between. Your username cannot be changed later.') }}
+					</p>
+					<p v-if="blueskyEnabled" class="account-setup__hint">
+						{{ t('social', 'A Bluesky address has only small letters, numbers and dashes, so yours is written as shown. If another account here already has it, a number is added to it.') }}
 					</p>
 					<p v-if="createError" class="account-setup__error" role="alert">
 						{{ createError }}
@@ -174,7 +205,7 @@
 						{{ t('social', 'This only shows your existing account on your Nextcloud profile so others can find it. You will not post from that external account here.') }}
 					</p>
 					<label class="account-setup__label" for="account-setup-linked">
-						{{ t('social', 'Fediverse handle') }}
+						{{ t('social', 'Your address on the other server') }}
 					</label>
 					<input
 						id="account-setup-linked"
@@ -188,9 +219,6 @@
 						:disabled="busy !== ''">
 					<p v-if="linkError" class="account-setup__error" role="alert">
 						{{ linkError }}
-					</p>
-					<p v-if="linkedNow" class="account-setup__done" role="status">
-						{{ t('social', 'Your profile now says you are @{handle}. The people on this Nextcloud will see it on Discover.', { handle: linkedNow }) }}
 					</p>
 					<NcButton type="submit" variant="secondary" :disabled="busy !== '' || linked === ''">
 						<template #icon>
@@ -216,17 +244,20 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconAccountPlus from 'vue-material-design-icons/AccountPlus.vue'
 import IconAt from 'vue-material-design-icons/At.vue'
+import IconCheck from 'vue-material-design-icons/Check.vue'
 import IconLinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import IconSwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
 import IconWeb from 'vue-material-design-icons/Web.vue'
 import logger from '../services/logger.js'
 import { useServerData } from '../composables/useServerData.js'
+import { blueskyHandle } from '../utils/blueskyHandle.js'
 
 export default {
 	name: 'AccountSetup',
 	components: {
 		IconAccountPlus,
 		IconAt,
+		IconCheck,
 		IconLinkVariant,
 		IconSwapHorizontal,
 		IconWeb,
@@ -234,7 +265,7 @@ export default {
 		NcLoadingIcon,
 	},
 
-	emits: ['created', 'linked'],
+	emits: ['created'],
 
 	/**
 	 * Exposes instance configuration and the hostname used in address previews.
@@ -258,6 +289,9 @@ export default {
 		return {
 			handle: serverData.suggestedHandle ?? '',
 			linked: serverData.linkedHandle ?? '',
+			/** the account elsewhere the profile named when the page was opened */
+			linkedBefore: serverData.linkedHandle ?? '',
+			/** the account elsewhere just put on the profile from here */
 			linkedNow: '',
 			/** which of the two answers is on screen */
 			mode: 'create',
@@ -286,6 +320,25 @@ export default {
 		blueskyHost() {
 			return this.serverData.bluesky?.host ?? this.hostname
 		},
+
+		/**
+		 * The Bluesky handle the typed username is given, as the server maps
+		 * it; a number the server adds for a taken one is not known here.
+		 *
+		 * @return {string} `label.host`
+		 */
+		blueskyAddress() {
+			return blueskyHandle(this.handle, this.blueskyHost)
+		},
+
+		/**
+		 * Where the way out of the app leads: the Nextcloud's own start page.
+		 *
+		 * @return {string}
+		 */
+		homeUrl() {
+			return generateUrl('/')
+		},
 	},
 
 	methods: {
@@ -299,6 +352,16 @@ export default {
 			this.mode = mode
 			this.createError = ''
 			this.linkError = ''
+		},
+
+		/**
+		 * Leaves the end state of linking for the creation form.
+		 *
+		 * @return {void}
+		 */
+		createInstead() {
+			this.linkedNow = ''
+			this.choose('create')
 		},
 
 		/**
@@ -331,7 +394,7 @@ export default {
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/account/link'), { handle: this.linked })
 				this.linkedNow = data?.result?.handle ?? this.linked
-				this.$emit('linked', this.linkedNow)
+				this.linkedBefore = this.linkedNow
 			} catch (error) {
 				logger.warn('Could not put the account on the profile', { error })
 				this.linkError = error?.response?.data?.error || t('social', 'Could not save that')
@@ -630,21 +693,29 @@ export default {
 		text-align: center;
 	}
 
-	&__done {
-		margin: 0;
-		font-size: 13px;
-		color: var(--color-success);
-		text-align: center;
-	}
-
 	&__error {
 		margin: 0;
 		color: var(--color-error-text);
 	}
 
-	&__done {
+	&__linked p {
 		margin: 0;
+		line-height: 1.5;
+		text-wrap: pretty;
+	}
+
+	&__linked-icon {
 		color: var(--color-success-text);
+	}
+
+	&__linked-note {
+		max-width: 600px;
+		margin: 0 auto 12px;
+		font-size: 13px;
+		line-height: 1.5;
+		color: var(--color-text-maxcontrast);
+		text-align: center;
+		text-wrap: pretty;
 	}
 
 	/* the chosen answer changing tint is the only movement on this page, and

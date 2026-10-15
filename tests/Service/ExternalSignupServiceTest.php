@@ -9,9 +9,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\ExternalInvitesRequest;
 use OCA\Social\Db\ExternalSignupsRequest;
 use OCA\Social\Exceptions\ExternalUserException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Service\ExternalSignupService;
 use OCA\Social\Service\ExternalUserService;
 use OCA\Social\Service\InstanceService;
@@ -47,6 +49,8 @@ class ExternalSignupServiceTest extends TestCase {
 	private bool $room = true;
 	private bool $twoFactorRequired = false;
 	private bool $noticeRequired = false;
+	private bool $bluesky = false;
+	private ?string $blueskyHost = 'social.example';
 	/** @var list<array{string, string}> subject, recipient */
 	private array $sent = [];
 	private bool $mailWorks = true;
@@ -133,6 +137,9 @@ class ExternalSignupServiceTest extends TestCase {
 
 		$twoFactor = $this->createStub(\OCA\Social\Service\ExternalTwoFactorService::class);
 		$twoFactor->method('state')->willReturnCallback(fn (): array => ['enforced' => $this->twoFactorRequired, 'everybody' => false]);
+		$atproto = $this->createStub(AtprotoConfig::class);
+		$atproto->method('isEnabled')->willReturnCallback(fn (): bool => $this->bluesky);
+		$atproto->method('handleHost')->willReturnCallback(fn (): string => $this->blueskyHost ?? throw new SocialAppConfigException('no address'));
 
 		return new ExternalSignupService(
 			$this->users,
@@ -140,6 +147,7 @@ class ExternalSignupServiceTest extends TestCase {
 			$this->signups,
 			$this->invites,
 			$instance,
+			$atproto,
 			$hasher,
 			$random,
 			$this->dispatcher,
@@ -405,6 +413,17 @@ class ExternalSignupServiceTest extends TestCase {
 	public function testThePageOnlySaysTwoFactorIsRequiredWhenItIs(): void {
 		$this->twoFactorRequired = true;
 		$this->assertTrue($this->service()->pageState()['twoFactorRequired']);
+	}
+
+	public function testThePageNamesTheBlueskyHostOnlyWhereAccountsGetOne(): void {
+		$this->assertSame(['enabled' => false, 'host' => ''], $this->service()->pageState()['bluesky']);
+
+		$this->bluesky = true;
+		$this->assertSame(['enabled' => true, 'host' => 'social.example'], $this->service()->pageState()['bluesky']);
+
+		// no address to issue handles under yet: nothing to preview
+		$this->blueskyHost = null;
+		$this->assertSame(['enabled' => false, 'host' => ''], $this->service()->pageState()['bluesky']);
 	}
 
 	private function pending(bool $verified, bool $approval): array {

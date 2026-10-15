@@ -698,7 +698,7 @@ Federation health widget to `#federation`.
   was off is still a video and appears again the moment it is turned back on.
   The fourth setting is the Nextcloud groups that become Aloha Social lists, and it is
   **empty by default**: everybody in a chosen group gets a list for it holding
-  the members who have a Aloha Social account, nobody is followed by it and nothing
+  the members who have an Aloha Social account, nobody is followed by it and nothing
   federates, but a group list does tell everybody in the group who else is in
   it -- which is why no group becomes one until an administrator chooses.
   Deselecting a group takes its lists away on the next cron reconcile.
@@ -881,7 +881,7 @@ user backend and the `social-external` group. They are distinct from accounts
 created by the [Guests app](https://github.com/nextcloud/guests), which uses
 the `Guests` backend and `guest_app` group. Aloha Social's account restrictions and
 collaborator filtering target only its own backend, so they do not classify a
-Guests-app account as a Aloha Social external account. The two apps can be installed
+Guests-app account as an Aloha Social external account. The two apps can be installed
 together, but the Guests app controls which Nextcloud apps its accounts may
 open: add `social` to its app whitelist if those accounts should use Aloha Social.
 This setting does not grant a Guests account the Aloha Social-only restrictions;

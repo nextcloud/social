@@ -117,8 +117,30 @@ describe('AccountSetup', () => {
 		const wrapper = mountSetup({ bluesky: { enabled: true, host: 'cloud.example.org' } })
 
 		expect(wrapper.text()).toContain('Also on Bluesky')
-		expect(wrapper.text()).toContain('AT Protocol')
+		expect(wrapper.text()).not.toContain('AT Protocol')
 		expect(wrapper.find('.account-setup__address--bluesky').text()).toBe('On Bluesky too: @alice.cloud.example.org')
+	})
+
+	// the server maps the username to a DNS label (HandleMapper::label()),
+	// and the screen that says the choice is final shows the result of that
+	it('previews the Bluesky handle the server will issue, not the name as typed', async () => {
+		const wrapper = mountSetup({ bluesky: { enabled: true, host: 'cloud.example.org' } })
+
+		await handleInput(wrapper).setValue('Frank_K')
+		expect(wrapper.find('.account-setup__address').text()).toBe('@Frank_K@cloud.example.org')
+		expect(wrapper.find('.account-setup__address--bluesky').text()).toBe('On Bluesky too: @frank-k.cloud.example.org')
+
+		await handleInput(wrapper).setValue('2Fast.Ok')
+		expect(wrapper.find('.account-setup__address--bluesky').text()).toBe('On Bluesky too: @u-2fast-ok.cloud.example.org')
+		// a taken label gets a number at creation, which the page cannot know
+		expect(wrapper.text()).toContain('If another account here already has it, a number is added to it.')
+	})
+
+	it('says nothing about Bluesky addresses where this server has none', () => {
+		const wrapper = mountSetup()
+
+		expect(wrapper.text()).not.toContain('A Bluesky address has only small letters')
+		expect(wrapper.find('.account-setup__hint').text()).toBe('Letters, numbers and underscores, with dots and dashes in between. Your username cannot be changed later.')
 	})
 
 	it('waits for a username before drawing the address it cannot show', async () => {
@@ -169,9 +191,48 @@ describe('AccountSetup', () => {
 
 		expect(axios.post).toHaveBeenCalledTimes(1)
 		expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/account/link', { handle: 'alice@mastodon.social' })
-		expect(wrapper.find('.account-setup__done').text()).toContain('@alice@mastodon.social')
-		expect(wrapper.emitted('linked')[0]).toEqual(['alice@mastodon.social'])
+		expect(wrapper.find('.account-setup__linked').text()).toContain('@alice@mastodon.social')
 		expect(wrapper.emitted('created')).toBeUndefined()
+	})
+
+	// nothing was created, so the app has no page to open: the setup screen
+	// ends there, with the way back to Nextcloud and the way to an account
+	it('ends linking on a done view with a way out', async () => {
+		axios.post.mockResolvedValue({ data: { status: 1, result: { handle: 'alice@mastodon.social' } } })
+		const wrapper = mountSetup()
+
+		await linkModeButton(wrapper).trigger('click')
+		await wrapper.find('#account-setup-linked').setValue('alice@mastodon.social')
+		await wrapper.find('form.account-setup__form').trigger('submit')
+		await flushPromises()
+
+		const done = wrapper.find('.account-setup__linked')
+		expect(done.attributes('role')).toBe('status')
+		expect(done.text()).toContain('Done')
+		expect(done.text()).toContain('You can still create an account here later')
+		expect(wrapper.find('form').exists()).toBe(false)
+		expect(wrapper.find('.account-setup__modes').exists()).toBe(false)
+		expect(done.find('a').attributes('href')).toBe('/index.php/')
+		expect(done.find('a').text()).toBe('Back to Nextcloud')
+
+		await done.findAll('button').find((b) => b.text() === 'Create an account here now').trigger('click')
+		expect(wrapper.find('.account-setup__linked').exists()).toBe(false)
+		expect(handleInput(wrapper).exists()).toBe(true)
+		// what was linked stays said above the answers
+		expect(wrapper.find('.account-setup__linked-note').text()).toContain('@alice@mastodon.social')
+	})
+
+	it('says so when the profile already names an account elsewhere', () => {
+		const wrapper = mountSetup({ linkedHandle: 'alice@mastodon.social' })
+
+		expect(wrapper.find('.account-setup__linked-note').text()).toBe('Your Nextcloud profile says you are @alice@mastodon.social, so the people on this Nextcloud can find you. You can still create an account here.')
+		expect(handleInput(wrapper).exists()).toBe(true)
+	})
+
+	it('says nothing of a link nobody made', () => {
+		const wrapper = mountSetup()
+
+		expect(wrapper.find('.account-setup__linked-note').exists()).toBe(false)
 	})
 
 	it('keeps the create path as default and only shows linking form once selected', async () => {
