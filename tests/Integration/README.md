@@ -22,7 +22,8 @@ to stop.
   follow id that is not stored changes nothing.
 - `Db/RejectFollowCountTest` — an incoming `Reject{Follow}` removes the stored
   follow it names and moves the counts back that the request and its
-  acceptance moved; one naming a follow id that is not stored changes nothing.
+  acceptance moved; one naming a follow id that is not stored, or naming the
+  follow as one of another server's account, changes nothing.
 - `Db/ApproveReplyAuthorTest` — an `ApproveReply` moves a pending reply of
   ours to approved only when it comes from the author of the video it
   answers (the account behind the channel, as PeerTube sends it).
@@ -40,6 +41,9 @@ to stop.
   plaintext tokens resolve through the hashed lookup, re-authorization
   invalidates the old token, revocation works, a legacy plaintext row is
   refused and the hashing migration converts it.
+- `Db/ClientAuthMultiUserTest` — two accounts authorize one app without
+  signing each other out; two app tokens, or two authorizations by one
+  account, written at the same moment both succeed and the last one holds.
 - `Db/StreamActionsFlagsTest` — the per-viewer flags are written field-wise and
   idempotently.
 - `Db/ReplyCountTest` — the reply counter on a post: a recount counts what is
@@ -109,6 +113,9 @@ to stop.
   `social_stream_media` links: paging by nid, `carriesUpload()` (which failed
   on every database until this test ran it), relinking on a rewrite, remote
   recovery, and rebuilding a document's copy on the posts that carry it.
+- `Db/StreamSaveAtomicityTest` — a post and its recipient rows are stored
+  together or not at all; a post saved twice is stored once without an error
+  in the log, and a post whose nid is already taken is stored under another.
 - `Db/StreamDeletionTest` — `deleteRelatedTo()` empties every table that keys
   on a post and nothing of another post, `deleteByPrims()`, a domain's authors
   for the instance purge, and the notification sweep's selection.

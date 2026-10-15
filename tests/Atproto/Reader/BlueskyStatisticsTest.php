@@ -36,6 +36,8 @@ class BlueskyStatisticsTest extends TestCase {
 			'a PDS of its own' => ['https://pds.example.org', 'pds.example.org'],
 			'upper case' => ['https://PDS.Example.org/', 'pds.example.org'],
 			'not known' => ['', 'bsky.social'],
+			'a formula where the host goes' => ['https://=HYPERLINK("https://evil.example")/', 'bsky.social'],
+			'not a hostname' => ['https://pds_one.example.org', 'bsky.social'],
 		];
 	}
 

@@ -109,6 +109,22 @@ class StatisticsControllerTest extends TestCase {
 		$this->assertStringContainsString('"posts also on",Bluesky,5' . "\n", $csv);
 	}
 
+	/**
+	 * A follower names its own server, and a spreadsheet runs a cell that
+	 * reads as a formula: such a cell is written as text, the numbers beside
+	 * it as numbers.
+	 */
+	public function testACellThatReadsAsAFormulaIsWrittenAsText(): void {
+		$csv = (new \ReflectionMethod(StatisticsController::class, 'asCsv'))->invoke($this->controller(), [
+			'account' => ['acct' => 'alice'],
+			'audience' => ['instances' => [['host' => '=HYPERLINK("https://evil.example")', 'count' => 3]]],
+			'hashtags' => [['name' => '-2+3', 'count' => -1]],
+		]);
+
+		$this->assertStringContainsString('"followers by server","\'=HYPERLINK(""https://evil.example"")",3' . "\n", $csv);
+		$this->assertStringContainsString("hashtags,'-2+3,-1\n", $csv);
+	}
+
 	private function controller(): StatisticsController {
 		return new StatisticsController(
 			$this->request,

@@ -18,6 +18,9 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
+use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 
 /**
  * Saving a post is one fact, against the real database.
@@ -53,7 +56,7 @@ class StreamSaveAtomicityTest extends TestCase {
 
 	/** @return string[] */
 	private function suffixes(): array {
-		return ['whole', 'repeated', 'partial'];
+		return ['whole', 'repeated', 'partial', 'twice', 'first', 'clash'];
 	}
 
 	private function id(string $suffix): string {
@@ -99,6 +102,50 @@ class StreamSaveAtomicityTest extends TestCase {
 		$cursor->closeCursor();
 
 		return (int)($row['c'] ?? 0);
+	}
+
+	/**
+	 * Runs `$save` with the request's logger replaced, and hands back what
+	 * was logged at error level.
+	 *
+	 * @return string[]
+	 */
+	private function errorsLoggedBy(callable $save): array {
+		$logger = new class extends AbstractLogger {
+			/** @var string[] */
+			public array $errors = [];
+
+			public function log($level, \Stringable|string $message, array $context = []): void {
+				if (in_array($level, [LogLevel::ERROR, LogLevel::CRITICAL, LogLevel::ALERT, LogLevel::EMERGENCY], true)) {
+					$this->errors[] = (string)$message;
+				}
+			}
+		};
+
+		$property = new \ReflectionProperty(StreamRequest::class, 'logger');
+		/** @var LoggerInterface $original */
+		$original = $property->getValue($this->streamRequest);
+		$property->setValue($this->streamRequest, $logger);
+		try {
+			$save();
+		} finally {
+			$property->setValue($this->streamRequest, $original);
+		}
+
+		return $logger->errors;
+	}
+
+	/** The nid a stored post was given. */
+	private function nidOf(string $id): string {
+		$qb = $this->connection->getQueryBuilder();
+		$qb->select('nid')
+			->from(CoreRequestBuilder::TABLE_STREAM)
+			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter(md5($id))));
+		$cursor = $qb->executeQuery();
+		$nid = $cursor->fetchOne();
+		$cursor->closeCursor();
+
+		return (string)$nid;
 	}
 
 	public function testAPostAndItsRecipientsAreStoredTogether(): void {
@@ -183,6 +230,54 @@ class StreamSaveAtomicityTest extends TestCase {
 			0,
 			$this->countRows(CoreRequestBuilder::TABLE_STREAM, 'id_prim', md5($note->getId())),
 			'the post was stored without its recipients: it exists and is in nobody timeline'
+		);
+	}
+
+	/**
+	 * A post delivered twice — an inbox redelivery, or two copies arriving
+	 * together — meets the unique index on `id_prim` the second time. That is
+	 * the duplicate the index is there to refuse: the second save stores
+	 * nothing and is no error worth an administrator's log.
+	 */
+	public function testAPostSavedTwiceIsStoredOnceAndQuietly(): void {
+		$this->assertTrue($this->streamRequest->save($this->note('twice')));
+
+		$saved = null;
+		$errors = $this->errorsLoggedBy(function () use (&$saved): void {
+			$saved = $this->streamRequest->save($this->note('twice'));
+		});
+
+		$this->assertFalse($saved, 'the second save wrote a row');
+		$this->assertSame([], $errors, 'a duplicate delivery was logged as an error');
+		$this->assertSame(1, $this->countRows(CoreRequestBuilder::TABLE_STREAM, 'id_prim', md5($this->id('twice'))));
+	}
+
+	/**
+	 * Two posts that draw the same nid: the second meets the primary key, and
+	 * is a post that was never stored. It is saved again under a fresh nid
+	 * rather than dropped.
+	 */
+	public function testAPostWhoseNidIsTakenIsStoredUnderAnotherOne(): void {
+		$this->assertTrue($this->streamRequest->save($this->note('first')));
+		$taken = $this->nidOf($this->id('first'));
+		$this->assertNotSame('', $taken);
+
+		$clash = $this->note('clash');
+		$clash->setNid($taken);
+		$saved = null;
+		$errors = $this->errorsLoggedBy(function () use ($clash, &$saved): void {
+			$saved = $this->streamRequest->save($clash);
+		});
+
+		$this->assertTrue($saved, 'the post whose nid was taken was dropped');
+		$this->assertSame([], $errors);
+		$this->assertSame(1, $this->countRows(CoreRequestBuilder::TABLE_STREAM, 'id_prim', md5($this->id('clash'))));
+		$this->assertNotSame($taken, $this->nidOf($this->id('clash')), 'stored under a nid of its own');
+		$this->assertSame($taken, $this->nidOf($this->id('first')), 'the post that held the nid keeps it');
+		$this->assertGreaterThan(
+			0,
+			$this->countRows(CoreRequestBuilder::TABLE_STREAM_DEST, 'stream_id', md5($this->id('clash'))),
+			'stored without the recipient rows that put it in a timeline'
 		);
 	}
 }

@@ -164,9 +164,9 @@ statement that writes the token, so two requests arriving together cannot both
 exchange it.
 
 **The `client_credentials` grant** issues an app token now — bound to no
-account, granted `read`, one per app — which Mastodon's Android and iOS apps
-take in their sign-up flow and `Mastodon.py`-based tools probe `/api/v1/instance`
-with; it used to answer 400. `/api/v1/apps/verify_credentials` answers it
+account, granted `read`, one per app (the next replaces it, where Mastodon
+keeps both) — which Mastodon's Android and iOS apps take in their sign-up flow
+and `Mastodon.py`-based tools probe `/api/v1/instance` with; it used to answer 400. `/api/v1/apps/verify_credentials` answers it
 with the app it belongs to, and a route that acts for an account answers such
 a token 401, as Mastodon does. The `/oauth/token` error bodies carry RFC 6749's
 names (`invalid_request`, `unsupported_grant_type`, `invalid_grant`,

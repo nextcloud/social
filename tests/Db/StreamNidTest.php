@@ -17,11 +17,11 @@ use ReflectionClass;
 /**
  * `nid` is the primary key of social_stream and the status id Mastodon clients
  * are given. It is drawn, not allocated, so two posts in the same second can
- * draw the same number -- and save() used to swallow the constraint violation
- * that follows without even logging it, so the post was silently lost.
+ * draw the same number.
  *
- * The draw itself needs a database to exercise, which the unit suite has none
- * of, so the arithmetic properties are checked directly and the rest is read
+ * What save() does when they do needs a database, which the unit suite has
+ * none of: `Integration/Db/StreamSaveAtomicityTest` makes the collision happen.
+ * Here the arithmetic properties are checked directly, and the draw is read
  * out of the source the way StreamSensitiveColumnTest does.
  */
 class StreamNidTest extends TestCase {
@@ -80,27 +80,6 @@ class StreamNidTest extends TestCase {
 			'/[^_a-zA-Z]rand\(/',
 			$source,
 			'rand() is still used somewhere in this file'
-		);
-	}
-
-	public function testACollidingNidIsRetriedRatherThanDropped(): void {
-		$source = (string)file_get_contents(self::SOURCE);
-
-		$this->assertGreaterThan(
-			1,
-			$this->constant('NID_ATTEMPTS'),
-			'a single attempt cannot recover from a collision'
-		);
-		$this->assertStringContainsString(
-			"\$stream->setNid('0');",
-			$source,
-			'save() does not draw a fresh nid after a constraint violation, so the post is lost'
-		);
-		$this->assertMatchesRegularExpression(
-			'/\$this->has\(\$stream->getId\(\)\)/',
-			$source,
-			'save() cannot tell a duplicate delivery from a nid collision, so it will '
-			. 'either lose posts or retry idempotent saves'
 		);
 	}
 }

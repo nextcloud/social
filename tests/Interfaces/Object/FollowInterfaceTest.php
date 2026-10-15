@@ -660,6 +660,24 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 		$this->handler->activity($reject, $other);
 	}
 
+	/**
+	 * Only the followed account's server may reject a follow: carol's server
+	 * naming alice's follow of bob, with carol as the one followed, signs for
+	 * carol and not for bob.
+	 */
+	public function testRejectNamingAFollowOfAnotherAccountChangesNothing(): void {
+		$follow = $this->ourFollowOfBob();
+		$this->stored($follow, true);
+		$ofCarol = clone $follow;
+		$ofCarol->setObjectId($this->carol->getId());
+		$reject = $this->incoming(Reject::TYPE, 'https://other.example/rejects/1', $this->carol->getId(), $ofCarol);
+
+		$this->followsRequest->expects($this->never())->method('delete');
+		$this->accountService->expects($this->never())->method('bumpActorCount');
+
+		$this->handler->activity($reject, $ofCarol);
+	}
+
 	public function testOtherActivitiesLeaveTheFollowUntouched(): void {
 		$follow = $this->ourFollowOfBob();
 		/** @var ACore $create */
