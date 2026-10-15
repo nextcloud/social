@@ -111,9 +111,12 @@ class Publisher {
 		$mapped = $this->mapper->post($post, $identity, $author, $video);
 		$rkey = Tid::next();
 		$result = $this->repositories->write($identity->did, $this->identities->signingKey($identity), [
-			RepoWrite::create(RecordMapper::POST, $mapped['record'], $post->getId(), $rkey),
+			RepoWrite::createOnce(RecordMapper::POST, $mapped['record'], $post->getId(), $rkey),
 			...$this->gateWrites($post, $identity->did, $rkey),
 		]);
+		if ($result === null) {
+			return null;
+		}
 		$this->logger->info('Post published to Bluesky', ['post' => $post->getId(), 'did' => $identity->did, 'truncated' => $mapped['truncated']]);
 
 		return $result;
@@ -237,11 +240,9 @@ class Publisher {
 		if ($identity === null || !$identity->isActive()) {
 			return false;
 		}
-		$this->repositories->write($identity->did, $this->identities->signingKey($identity), [
-			RepoWrite::create($collection, $record, $localId),
-		]);
-
-		return true;
+		return $this->repositories->write($identity->did, $this->identities->signingKey($identity), [
+			RepoWrite::createOnce($collection, $record, $localId),
+		]) !== null;
 	}
 
 	/**

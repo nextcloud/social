@@ -24,6 +24,7 @@ final class RepoWrite {
 	/**
 	 * @param array<string, mixed>|null $record the value, null for a delete
 	 * @param string $localId the Social object this record is of, '' for none
+	 * @param bool $once whether the Social object has one record of the collection at most
 	 */
 	private function __construct(
 		public readonly string $action,
@@ -31,6 +32,7 @@ final class RepoWrite {
 		public readonly string $rkey,
 		public readonly ?array $record,
 		public readonly string $localId,
+		public readonly bool $once = false,
 	) {
 		if (!Mst::isValidKey($collection . '/' . $rkey)) {
 			throw new InvalidArgumentException('Not a record path: ' . $collection . '/' . $rkey);
@@ -42,6 +44,17 @@ final class RepoWrite {
 	 */
 	public static function create(string $collection, array $record, string $localId = '', string $rkey = ''): self {
 		return new self(self::CREATE, $collection, $rkey === '' ? Tid::next() : $rkey, $record, $localId);
+	}
+
+	/**
+	 * A record that stands for its Social object alone — a post, a like:
+	 * the commit writes nothing when the object has a record of the
+	 * collection already.
+	 *
+	 * @param string $rkey '' for a fresh TID
+	 */
+	public static function createOnce(string $collection, array $record, string $localId, string $rkey = ''): self {
+		return new self(self::CREATE, $collection, $rkey === '' ? Tid::next() : $rkey, $record, $localId, $localId !== '');
 	}
 
 	public static function update(string $collection, string $rkey, array $record, string $localId = ''): self {

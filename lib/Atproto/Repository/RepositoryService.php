@@ -41,8 +41,11 @@ use Throwable;
  * one database transaction, so a failure half-way leaves the previous
  * commit as the repository. The transaction starts by locking the head
  * row, so two commits of one repository run one after the other and the
- * second builds on the first. The lexicon is checked before anything is
- * signed; nothing that does not fit reaches a relay.
+ * second builds on the first. A record made once per Social object
+ * (RepoWrite::createOnce()) is looked for under that lock, so of two
+ * commits that both found none before, the second writes nothing. The
+ * lexicon is checked before anything is signed; nothing that does not fit
+ * reaches a relay.
  */
 class RepositoryService {
 	/** what one commit may change: the firehose caps `ops` at 200 */
@@ -62,10 +65,11 @@ class RepositoryService {
 	 * Applies the writes as one commit.
 	 *
 	 * @param RepoWrite[] $writes
-	 * @return CommitResult what was written
+	 * @return CommitResult|null what was written, or null when a record made
+	 *                           once is there already and nothing was written
 	 * @throws AtprotoException when a record does not fit its lexicon or the write fails
 	 */
-	public function write(string $did, PrivateKey $signingKey, array $writes): CommitResult {
+	public function write(string $did, PrivateKey $signingKey, array $writes): ?CommitResult {
 		if ($writes === [] || count($writes) > self::MAX_WRITES) {
 			throw new AtprotoException('A commit changes between one and ' . self::MAX_WRITES . ' records');
 		}
@@ -94,8 +98,11 @@ class RepositoryService {
 	/**
 	 * @param RepoWrite[] $writes
 	 */
-	private function commit(string $did, PrivateKey $signingKey, array $writes): CommitResult {
+	private function commit(string $did, PrivateKey $signingKey, array $writes): ?CommitResult {
 		$head = $this->repoRequest->lockHead($did);
+		if ($this->madeAlready($writes)) {
+			return null;
+		}
 		$oldCommitCids = $this->repoRequest->getBlockCids($did, AtprotoRepoRequest::BLOCK_COMMIT);
 		$prevData = $head === null ? null : $this->rootOf($did, $head);
 
@@ -137,6 +144,27 @@ class RepositoryService {
 		);
 
 		return new CommitResult($did, $commitCid, $rev, $seq, $change['written']);
+	}
+
+	/**
+	 * Whether a record made once is there already: another commit wrote it
+	 * since the caller looked.
+	 *
+	 * @param RepoWrite[] $writes
+	 */
+	private function madeAlready(array $writes): bool {
+		foreach ($writes as $write) {
+			if (!$write->once) {
+				continue;
+			}
+			foreach ($this->repoRequest->getRecordsByLocalId($write->localId) as $record) {
+				if ($record->collection === $write->collection) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	/**

@@ -126,6 +126,26 @@ class RepositoryIntegrationTest extends TestCase {
 	}
 
 	/**
+	 * A post's record is looked for inside the commit's transaction, after
+	 * the head is locked: a second publish of the same post, which found no
+	 * record before it began, writes nothing and moves no head.
+	 */
+	public function testAPostIsNotWrittenTwiceForOneLocalId(): void {
+		$post = ['$type' => 'app.bsky.feed.post', 'text' => 'once', 'createdAt' => '2026-10-08T10:00:00.000Z'];
+		$before = $this->eventRequest->latestSeq();
+		$first = $this->repositories->write(self::DID, $this->key, [RepoWrite::createOnce('app.bsky.feed.post', $post, self::ACTOR . '/4', '3kznmn7xqxl44')]);
+
+		$second = $this->repositories->write(self::DID, $this->key, [RepoWrite::createOnce('app.bsky.feed.post', $post, self::ACTOR . '/4', '3kznmn7xqxl45')]);
+
+		$this->assertNotNull($first);
+		$this->assertNull($second);
+		$this->assertCount(1, $this->repositories->getRecordsByLocalId(self::ACTOR . '/4'));
+		$this->assertSame($first->commitCid->toString(), $this->repositories->getHead(self::DID)?->commitCid);
+		$this->assertCount(1, $this->eventRequest->after($before), 'one frame on the firehose');
+		$this->assertSame([], $this->repositories->verify(self::DID, $this->key->publicKey()));
+	}
+
+	/**
 	 * `getBlocks` finds a block wherever it is kept, by (did, cid): a tree
 	 * node or the commit in the block table, a record in the record table,
 	 * and nothing for a CID the repository does not have.

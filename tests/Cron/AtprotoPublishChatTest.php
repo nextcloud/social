@@ -14,10 +14,12 @@ use OCA\Social\Atproto\Chat\ChatState;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Cron\AtprotoPublish;
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\VerificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\BackgroundJob\IJobList;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -51,6 +53,7 @@ class AtprotoPublishChatTest extends TestCase {
 			$this->createMock(ITimeFactory::class), $publisher, $this->createMock(InteractionPublisher::class),
 			$this->createMock(StreamService::class), $this->createMock(CacheActorService::class), new NullLogger(),
 			$this->createMock(ChatSender::class), $state, $this->createMock(VerificationService::class),
+			$this->createMock(ActionsRequest::class), $this->createMock(IJobList::class),
 		);
 		(new ReflectionMethod($job, 'run'))->invoke($job, $argument);
 	}

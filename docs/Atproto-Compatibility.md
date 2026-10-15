@@ -531,7 +531,12 @@ transaction begins by reading that row with a row lock (`SELECT … FOR
 UPDATE`; SQLite, which has one writer at a time anyway, without the
 clause), so two commits of one repository that start together run one
 after the other and the second builds on the first's head rather than
-forking the tree.
+forking the tree. A record that stands for one object here — a post, a
+like, a repost, a follow — is looked for again after that read: when a
+second worker publishing the same post finds the first one's record
+there, its commit writes nothing, so a post never goes out twice. On
+SQLite, without the lock, the database's single writer refuses the second
+commit's first write instead, and that commit is rolled back.
 
 ### 5.4 Blobs
 
@@ -807,6 +812,10 @@ Bluesky" means the post is either a Bluesky post (its stream row carries an
 of an ActivityPub-only post writes nothing. These go through the same
 queued publisher and are reflected in the viewer flags the status entity
 already carries (`favourited`, `reblogged`) — one action, two networks.
+A write that fails for a reason that may pass — the service down, a lock
+that timed out — is tried again later, eight times over about 80 minutes;
+one Bluesky refuses as such is not. A like or boost undone before it was
+written writes nothing.
 
 ## 9. Inbound: reading Bluesky
 
