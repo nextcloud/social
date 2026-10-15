@@ -20,6 +20,8 @@ use OCA\Social\Atproto\Reader\PostMapper;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
@@ -113,6 +115,41 @@ class InteractionPublisherTest extends TestCase {
 
 		$this->assertSame(2, $this->interactions->removeAllOf('https://bsky.app/profile/x/post/1'));
 		$this->assertSame([RecordMapper::LIKE . ' https://social.test/@alice#like/1', RecordMapper::REPOST . ' https://social.test/@alice/announce/1'], $removed);
+	}
+
+	public function testARemovalThatMayPassIsThrownAfterTheOthersAreTried(): void {
+		$like = new Like();
+		$like->setId('https://social.test/@alice#like/1');
+		$boost = new Announce();
+		$boost->setId('https://social.test/@alice/announce/1');
+		$this->actions->method('getActionsOnObject')->willReturnCallback(static fn (string $post, string $type): array => $type === Like::TYPE ? [$like] : [$boost]);
+		$lockWait = new AtprotoException('Repository write failed: lock wait timeout');
+		$removed = [];
+		$this->publisher->method('removeRecord')->willReturnCallback(static function (string $collection, string $id) use (&$removed, $lockWait): bool {
+			if ($collection === RecordMapper::LIKE) {
+				throw $lockWait;
+			}
+			$removed[] = $id;
+
+			return true;
+		});
+
+		try {
+			$this->interactions->removeAllOf('https://bsky.app/profile/x/post/1');
+			$this->fail('the failure is thrown, so the job tries again');
+		} catch (AtprotoException $e) {
+			$this->assertSame($lockWait, $e);
+		}
+		$this->assertSame(['https://social.test/@alice/announce/1'], $removed, 'the repost went all the same');
+	}
+
+	public function testARemovalNoAttemptWouldChangeIsOnlyLogged(): void {
+		$like = new Like();
+		$like->setId('https://social.test/@alice#like/1');
+		$this->actions->method('getActionsOnObject')->willReturnCallback(static fn (string $post, string $type): array => $type === Like::TYPE ? [$like] : []);
+		$this->publisher->method('removeRecord')->willThrowException(new AtprotoIdentityNotFoundException());
+
+		$this->assertSame(0, $this->interactions->removeAllOf('https://bsky.app/profile/x/post/1'));
 	}
 
 	public function testUndoingRemovesTheRecordByTheSameKey(): void {

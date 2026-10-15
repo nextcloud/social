@@ -151,7 +151,7 @@ class AtprotoPublish extends QueuedJob {
 	 * timeout or too many requests), the record does not fit its lexicon,
 	 * or the keys wait for an administrator.
 	 */
-	private static function isPermanent(Throwable $e): bool {
+	public static function isPermanent(Throwable $e): bool {
 		if ($e instanceof StreamNotFoundException || $e instanceof ActionDoesNotExistException
 			|| $e instanceof AtprotoIdentityNotFoundException || $e instanceof AppViewNotFoundException
 			|| $e instanceof AtprotoKeysSealedException) {

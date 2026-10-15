@@ -793,6 +793,8 @@ depends on, uploaded as a blob (§5.4), and placed in
 
 **Delete**: `deleteRecord` of the post, and of the likes and reposts local
 actors made of it, in the same job that sends the ActivityPub `Delete`.
+Every removal is tried; when one fails for a reason that may pass, the job
+is tried again later, as in §8.6, and removes what is still there.
 
 **Edit** (D10): if the post is less than five minutes old (`created_at`),
 the record is deleted and a new one created with the new content — a new

@@ -165,6 +165,14 @@ class AtprotoPublishTest extends TestCase {
 		$this->assertCount(1, $this->requeued);
 	}
 
+	public function testADeleteWhoseLikesWereNotAllRemovedIsTriedAgain(): void {
+		$this->interactions->method('removeAllOf')->willThrowException(new AtprotoException('Repository write failed: lock wait timeout'));
+
+		$this->runJob(['action' => 'delete', 'id' => $this->post->getId()]);
+
+		$this->assertSame([[self::NOW + Backoff::bluesky()->delay(1), ['tries' => 1, 'action' => 'delete', 'id' => $this->post->getId()]]], $this->requeued);
+	}
+
 	public function testTheLastAttemptGivesUpAndSaysSo(): void {
 		$this->publisher->method('publishPost')->willThrowException(new RuntimeException('database gone'));
 		$this->logger->expects($this->once())->method('error')->with('Bluesky publication given up after the last attempt', $this->callback(

@@ -285,6 +285,15 @@ class PostStoreTest extends TestCase {
 		$this->assertSame([], $this->imported);
 	}
 
+	public function testAPostIsDeletedWhenItsRecordsCannotBeRemoved(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$this->interactions->method('removeAllOf')->willThrowException(new \RuntimeException('lock wait timeout'));
+
+		$this->assertTrue($this->store->delete($id));
+		$this->assertCount(1, $this->imported);
+	}
+
 	public function testADeleteIsSentForAKnownPostOnly(): void {
 		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
 		$this->assertFalse($this->store->delete($id));

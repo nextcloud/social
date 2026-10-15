@@ -208,7 +208,11 @@ class PostStore {
 			'object' => $postId,
 		]);
 		if ($deleted) {
-			$this->interactions->removeAllOf($postId);
+			try {
+				$this->interactions->removeAllOf($postId);
+			} catch (Throwable $e) {
+				$this->logger->warning('Bluesky records of a deleted post not removed', ['post' => $postId, 'exception' => $e]);
+			}
 		}
 
 		return $deleted;

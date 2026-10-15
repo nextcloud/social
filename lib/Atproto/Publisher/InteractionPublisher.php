@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Publisher;
 
 use OCA\Social\Atproto\Protocol\Syntax;
+use OCA\Social\Cron\AtprotoPublish;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -74,20 +75,30 @@ class InteractionPublisher {
 	/**
 	 * Removes the like and repost records local accounts made of a post that
 	 * is gone (§8.5): the likes and boosts here outlive the post, and so
-	 * would their records on Bluesky.
+	 * would their records on Bluesky. Every removal is tried; the first
+	 * failure that may pass is thrown afterwards, so the job tries again,
+	 * and a record removed already is not there to remove a second time.
 	 *
 	 * @return int how many records were removed
+	 * @throws Throwable the first failure that may pass
 	 */
 	public function removeAllOf(string $postId): int {
 		$removed = 0;
+		$retry = null;
 		foreach ([Like::TYPE => RecordMapper::LIKE, Announce::TYPE => RecordMapper::REPOST] as $type => $collection) {
 			foreach ($this->actions->getActionsOnObject($postId, $type, self::CASCADE_LIMIT) as $action) {
 				try {
 					$removed += $this->publisher->removeRecord($collection, $action->getId()) ? 1 : 0;
 				} catch (Throwable $e) {
 					$this->logger->warning('Bluesky record not removed', ['action' => $action->getId(), 'exception' => $e]);
+					if ($retry === null && !AtprotoPublish::isPermanent($e)) {
+						$retry = $e;
+					}
 				}
 			}
+		}
+		if ($retry !== null) {
+			throw $retry;
 		}
 
 		return $removed;
