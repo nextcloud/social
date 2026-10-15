@@ -112,17 +112,24 @@ public_profile = get_json(API + '/accounts/' + str(alice['id']) + '/statuses?lim
 check(find(public_profile, seed['public']) is not None, 'the public post is missing from alice\'s profile for a reader who is not logged in')
 check(find(public_profile, seed['followers']) is None, 'the followers-only post is on alice\'s profile for a reader who is not logged in')
 
-# a secret that still matches gets past the client check to the grant, which
-# this API does not offer; one that no longer does is an unknown client
+# a secret that still matches is given a token for the app itself; one that
+# no longer does is an unknown client
 client = seed['client']
-status, body = post(NC_URL + '/index.php/apps/social/oauth/token', {
-    'grant_type': 'client_credentials',
-    'client_id': client['client_id'],
-    'client_secret': client['client_secret'],
-    'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
-})
-check(status == 400 and b'unsupported_grant_type' in body,
+
+
+def app_token(secret):
+    return post(NC_URL + '/index.php/apps/social/oauth/token', {
+        'grant_type': 'client_credentials',
+        'client_id': client['client_id'],
+        'client_secret': secret,
+    })
+
+
+status, body = app_token(client['client_secret'])
+check(status == 200 and json.loads(body).get('access_token', '') != '',
       f'the client app registered before the upgrade is not recognised by its secret: {status} {body[:200]!r}')
+status, body = app_token(client['client_secret'] + 'x')
+check(status == 401, f'a wrong secret for the client registered before the upgrade is not refused: {status} {body[:200]!r}')
 
 if failures:
     print(f'{len(failures)} check(s) failed after the upgrade')
