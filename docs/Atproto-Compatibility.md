@@ -423,7 +423,9 @@ on import: a Bluesky account comes here by a move (§13), not from a file.
 ### 4.6 Switching off (D23)
 
 **Settings → Apps and account → Bluesky** has the switch **Be on Bluesky**,
-on by default, with a plain explanation beside it. It is the one setting
+on by default, with a plain explanation beside it. Switching it off asks
+first, saying that Bluesky apps are signed out and that what is written
+while off never reaches Bluesky; switching on does not. It is the one setting
 that names Bluesky, since it is about presence there and nothing else. The
 route is `POST /api/v1/social/bluesky/state` (`active`), the work
 `PresenceService` (`lib/Atproto/Identity/PresenceService.php`).
@@ -1596,8 +1598,9 @@ here*):
    blobs stored here (and the counts logged). When any is missing, the
    move stops in state `needs_decision` with `progress.missing` (`count`
    and the first 50 `cids`) and code `blobs-missing`: the person has them
-   copied again or goes on without them (`POST …/move-in/continue`), so the
-   DID never switches with pictures silently lost. Then the old PDS
+   copied again or goes on without them (`POST …/move-in/continue`), the
+   latter after a confirmation that says how many are lost, so the DID
+   never switches with pictures silently lost. Then the old PDS
    **e-mails a code** (`requestPlcOperationSignature`); the move waits for
    the person to enter it. The page says where the code went
    when the old PDS's session names the address (`progress.code_sent_to`),
@@ -1727,7 +1730,8 @@ The mirror image, so a person is not locked in. On the Migration page,
    DID moves, in `needs_decision` with `blobs-missing` and
    `progress.missing` (or `repo-incomplete`);
    `POST …/bluesky/move/continue` copies again, or with `without_missing`
-   moves the DID without what is missing.
+   moves the DID without what is missing, which the page confirms first,
+   with the count.
 3. The DID: `getRecommendedDidCredentials` there, then this server signs
    and sends the PLC operation itself (`IdentityService::handOver()`), with
    the person's recovery key first among the rotation keys and the other
@@ -1843,8 +1847,10 @@ phrase, `control` (§4.5b), `archive` (§4.5a) — and of the recovery tool
 (§4.4), carries a stable code beside the English sentence,
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
-explains the code in the person's language; the sentence is for logs and
-older clients.
+explains the code in the person's language, with what they can do next
+(`src/utils/moveError.js`), and a code it does not know with a general
+sentence; the English sentence is for logs and older clients, and the page
+keeps it behind *Details* for whoever helps the person.
 
 | Code | When | What the person can do |
 |---|---|---|

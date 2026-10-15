@@ -113,7 +113,7 @@ class AtprotoAccountControllerTest extends TestCase {
 
 	/** Calling a move off asks for the password, as starting it does; a new code is a few times an hour. */
 	public function testCallingOffAndANewCodeAreGuarded(): void {
-		foreach (['cancelMoveIn', 'cancelMoveAway'] as $cancel) {
+		foreach (['cancelMoveIn', 'cancelMoveAway', 'cancelMoveInvite'] as $cancel) {
 			$this->assertCount(1, (new \ReflectionMethod(AtprotoAccountController::class, $cancel))->getAttributes(PasswordConfirmationRequired::class), $cancel);
 		}
 		$limit = (new \ReflectionMethod(AtprotoAccountController::class, 'newMoveInCode'))->getAttributes(UserRateLimit::class)[0]->newInstance();

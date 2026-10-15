@@ -67,7 +67,7 @@
 					type="switch"
 					class="bluesky-settings__switch"
 					:disabled="switchingBluesky"
-					@update:modelValue="setBlueskyActive">
+					@update:modelValue="askBlueskyActive">
 					{{ t('social', 'Be on Bluesky') }}
 				</NcCheckboxRadioSwitch>
 				<template v-if="bluesky.active === false">
@@ -507,6 +507,14 @@
 				</dl>
 			</template>
 		</NcDialog>
+		<ConfirmDialog
+			v-if="confirmingBlueskyOff"
+			:open="true"
+			:name="t('social', 'Leave Bluesky?')"
+			:message="t('social', 'Every Bluesky app signed in to your account is signed out, and your profile and posts are no longer shown on Bluesky. Posts you write while you are off never reach Bluesky, not even after you switch back on.')"
+			:confirmLabel="t('social', 'Switch off')"
+			@update:open="closeBlueskyOff"
+			@confirm="setBlueskyActive(false)" />
 	</div>
 </template>
 
@@ -524,6 +532,7 @@ import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import KeyOutline from 'vue-material-design-icons/KeyOutline.vue'
 import { translate as t } from '@nextcloud/l10n'
+import ConfirmDialog from './admin/ConfirmDialog.vue'
 import { confirmPassword } from '../services/externalApi.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
@@ -541,6 +550,7 @@ export default {
 
 	components: {
 		Check,
+		ConfirmDialog,
 		ContentCopy,
 		Download,
 		KeyOutline,
@@ -561,9 +571,11 @@ export default {
 			 */
 			bluesky: null,
 			blueskyError: '',
-			/** the pause switch: it moves at once, and comes back if the server refuses */
+			/** the pause switch: on it moves at once, off once confirmed, and it comes back if the server refuses */
 			blueskyActive: true,
 			switchingBluesky: false,
+			/** switching off is asking to be confirmed */
+			confirmingBlueskyOff: false,
 			/** whether blocks of Bluesky accounts go to Bluesky, where they are public */
 			publishBlocks: false,
 			switchingBlocks: false,
@@ -1079,6 +1091,28 @@ export default {
 			} finally {
 				this.switchingBlocks = false
 			}
+		},
+
+		/**
+		 * Switching on happens at once; switching off signs every Bluesky
+		 * app out and keeps what is written meanwhile off Bluesky for good,
+		 * so it is confirmed first.
+		 *
+		 * @param {boolean} active whether the person should be on Bluesky
+		 */
+		askBlueskyActive(active) {
+			if (active) {
+				this.setBlueskyActive(true)
+			} else {
+				this.blueskyActive = false
+				this.confirmingBlueskyOff = true
+			}
+		},
+
+		/** The question is gone: the switch shows the server's state again until a confirmed change moves it. */
+		closeBlueskyOff() {
+			this.confirmingBlueskyOff = false
+			this.blueskyActive = this.bluesky?.active !== false
 		},
 
 		/**

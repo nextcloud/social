@@ -143,6 +143,7 @@ describe('BlueskySettings', () => {
 	describe('being on Bluesky', () => {
 		const STATE = '/index.php/apps/social/api/v1/social/bluesky/state'
 		const presenceSwitch = (wrapper) => wrapper.find('.bluesky-settings__switch input')
+		const offDialog = (wrapper) => wrapper.findComponent({ name: 'ConfirmDialog' })
 
 		it('is on while the person is there, and says what off would mean', async () => {
 			serverHas(identity({ active: true }))
@@ -163,6 +164,8 @@ describe('BlueskySettings', () => {
 
 			await presenceSwitch(wrapper).setValue(false)
 			await flushPromises()
+			offDialog(wrapper).vm.$emit('confirm')
+			await flushPromises()
 
 			expect(axios.post).toHaveBeenCalledWith(STATE, { active: false })
 			expect(presenceSwitch(wrapper).element.checked).toBe(false)
@@ -175,6 +178,40 @@ describe('BlueskySettings', () => {
 			// what only means something while on Bluesky is not offered
 			expect(wrapper.text()).not.toContain('Publish my blocks of Bluesky accounts')
 			expect(buttonByText(wrapper, 'Create a new recovery phrase')).toBeUndefined()
+		})
+
+		it('asks before switching off, and says what it costs', async () => {
+			serverHas(identity({ active: true }))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await presenceSwitch(wrapper).setValue(false)
+			await flushPromises()
+
+			expect(axios.post).not.toHaveBeenCalled()
+			expect(offDialog(wrapper).props()).toMatchObject({
+				name: 'Leave Bluesky?',
+				message: 'Every Bluesky app signed in to your account is signed out, and your profile and posts are no longer shown on Bluesky. Posts you write while you are off never reach Bluesky, not even after you switch back on.',
+				confirmLabel: 'Switch off',
+			})
+			expect(wrapper.find('.dialog-stub').text()).toContain('Every Bluesky app signed in to your account is signed out')
+		})
+
+		it('stays on when switching off is not confirmed', async () => {
+			serverHas(identity({ active: true }))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await presenceSwitch(wrapper).setValue(false)
+			await flushPromises()
+			const [cancel] = offDialog(wrapper).findComponent({ name: 'NcDialog' }).props('buttons')
+			cancel.callback()
+			await flushPromises()
+
+			expect(offDialog(wrapper).exists()).toBe(false)
+			expect(axios.post).not.toHaveBeenCalled()
+			expect(presenceSwitch(wrapper).element.checked).toBe(true)
+			expect(wrapper.text()).not.toContain('You are not on Bluesky')
 		})
 
 		it('is neither on nor off while the directory has not taken the identity', async () => {
@@ -213,6 +250,8 @@ describe('BlueskySettings', () => {
 			await flushPromises()
 
 			await presenceSwitch(wrapper).setValue(false)
+			await flushPromises()
+			offDialog(wrapper).vm.$emit('confirm')
 			await flushPromises()
 
 			expect(showError).toHaveBeenCalledWith('Could not switch your presence on Bluesky')

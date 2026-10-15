@@ -1150,10 +1150,11 @@ handle and the app password. What you post, like or follow there happens
 here too, as if you had done it in Aloha Social; blocks stay here and cannot
 be made from the app. Revoking the app password signs the app out.
 
-**Pausing.** *Show my posts on Bluesky* in Settings → Apps and account → Bluesky switches
-your presence there off: nothing new is published, Bluesky is told the account
-is inactive, and what you had posted stays until you switch it back on — same
-handle, same identity.
+**Pausing.** *Be on Bluesky* in Settings → Apps and account → Bluesky switches
+your presence there off, after asking: nothing new is published, Bluesky is told the
+account is inactive, Bluesky apps are signed out, and what you had posted comes back
+when you switch it on again — same handle, same identity. What you write while it is
+off never reaches Bluesky.
 
 ## Keyboard shortcuts
 

@@ -157,7 +157,7 @@ describe('BlueskyMoveIn', () => {
 
 	it('shows why the old server refused the sign-in', async () => {
 		server()
-		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'The Bluesky server did not let you sign in: Invalid identifier or password' } } })
+		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'The Bluesky server did not let you sign in: Invalid identifier or password', code: 'sign-in-refused' } } })
 		const wrapper = await mountCard()
 		const [handle, password] = inputs(wrapper)
 		await handle.setValue('alice.bsky.social')
@@ -166,7 +166,8 @@ describe('BlueskyMoveIn', () => {
 		await buttonNamed(wrapper, 'Bring it here').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('[role="alert"]').text()).toContain('Invalid identifier or password')
+		expect(wrapper.find('[role="alert"]').text()).toBe('The old server did not let you sign in. The details say why.')
+		expect(wrapper.find('.bluesky-move-error__details').text()).toContain('Invalid identifier or password')
 		expect(showError).not.toHaveBeenCalled()
 	})
 
@@ -219,7 +220,8 @@ describe('BlueskyMoveIn', () => {
 		await buttonNamed(wrapper, 'Call off the move').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('[role="alert"]').text()).toContain('Too late')
+		expect(wrapper.find('[role="alert"]').text()).toBe('Your account already points at the new server, so the move can no longer be called off. Use "Try again" to finish it.')
+		expect(wrapper.find('.bluesky-move-error__details code').text()).toBe('Too late')
 	})
 
 	it('lets the person decide on pictures that did not arrive', async () => {
@@ -229,6 +231,9 @@ describe('BlueskyMoveIn', () => {
 
 		expect(wrapper.text()).toContain('12 pictures or videos of your posts could not be copied here.')
 		await buttonNamed(wrapper, 'Go on without them').trigger('click')
+		await flushPromises()
+		expect(axios.post).not.toHaveBeenCalled()
+		wrapper.findComponent({ name: 'ConfirmDialog' }).vm.$emit('confirm')
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledWith(`${API}/move-in/continue`, { without_missing: true })
@@ -254,15 +259,37 @@ describe('BlueskyMoveIn', () => {
 	})
 
 	it('offers to start a failed move again', async () => {
-		server({ moves: [moveOf('failed', 'identity', { error: 'signPlcOperation answered 400 (InvalidToken)' })] })
+		server({ moves: [moveOf('failed', 'identity', { error: 'The move stopped before it was finished', progress: { code: 'move-interrupted' } })] })
 		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'code') } })
 		const wrapper = await mountCard()
 
-		expect(wrapper.text()).toContain('The move stopped: signPlcOperation answered 400 (InvalidToken)')
+		expect(wrapper.text()).toContain('The move stopped.')
+		expect(wrapper.find('.bluesky-move-error p').text()).toBe('It was cut off before it finished. Try again: it goes on from where it stopped.')
+		expect(wrapper.find('.bluesky-move-error__details code').text()).toBe('The move stopped before it was finished')
 		await buttonNamed(wrapper, 'Try again').trigger('click')
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledWith(`${API}/move/retry`)
+	})
+
+	it('says what a stopped move without a known code means, with the server\'s words behind Details', async () => {
+		server({ moves: [moveOf('failed', 'identity', { error: 'signPlcOperation answered 400 (InvalidToken)' })] })
+		const wrapper = await mountCard()
+
+		expect(wrapper.find('.bluesky-move-error p').text()).toBe('Something went wrong on the way. Try again; if it happens again, the details say what.')
+		expect(wrapper.find('.bluesky-move-error__details code').text()).toBe('signPlcOperation answered 400 (InvalidToken)')
+	})
+
+	it('says what went wrong on the server in a toast, in plain words', async () => {
+		server({ moves: [moveOf('waiting', 'code')] })
+		axios.post.mockRejectedValue({ response: { status: 500, data: { error: 'Something went wrong on this server', code: 'server-error' } } })
+		const wrapper = await mountCard()
+		await wrapper.find('.migration__bluesky-in-code input').setValue('ABCDE-12345')
+
+		await buttonNamed(wrapper, 'Confirm the move').trigger('click')
+		await flushPromises()
+
+		expect(showError).toHaveBeenCalledWith('Something went wrong on this server. Try again; if it happens again, ask your administrator.')
 	})
 
 	it('leaves a move away to the other card', async () => {

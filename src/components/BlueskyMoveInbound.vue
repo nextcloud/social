@@ -45,7 +45,8 @@
 
 		<template v-else>
 			<NcNoteCard v-if="move && move.state === 'failed'" type="error">
-				<p>{{ t('social', 'The move stopped: {error}', { error: move.error }) }}</p>
+				<p>{{ t('social', 'The move stopped.') }}</p>
+				<BlueskyMoveError :error="stoppedError" :alert="false" />
 			</NcNoteCard>
 
 			<template v-if="twin">
@@ -119,9 +120,7 @@
 					</NcButton>
 				</div>
 			</details>
-			<p v-if="inviteError" class="migration__bluesky-inbound-error" role="alert">
-				{{ inviteError }}
-			</p>
+			<BlueskyMoveError v-if="inviteError" :error="inviteError" />
 		</template>
 	</section>
 </template>
@@ -137,8 +136,10 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconBridge from 'vue-material-design-icons/Bridge.vue'
 import BlueskyMissingBlobs from './BlueskyMissingBlobs.vue'
+import BlueskyMoveError from './BlueskyMoveError.vue'
 import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
+import { moveErrorOf, stoppedMoveError } from '../utils/moveError.js'
 
 /** How often a move under way is asked about, in milliseconds. */
 const POLL_INTERVAL = 10000
@@ -154,6 +155,7 @@ export default {
 
 	components: {
 		BlueskyMissingBlobs,
+		BlueskyMoveError,
 		IconBridge,
 		NcButton,
 		NcLoadingIcon,
@@ -175,7 +177,8 @@ export default {
 			/** which confirmation is open: 'bridgy', 'tool' or none */
 			confirming: '',
 			busy: false,
-			inviteError: '',
+			/** @type {{text: string, details: string}|null} */
+			inviteError: null,
 			/** whether Bluesky's search was asked for the twin */
 			searched: false,
 			/** @type {number|null} */
@@ -187,6 +190,11 @@ export default {
 		/** @return {boolean} */
 		shown() {
 			return this.identity !== null
+		},
+
+		/** @return {{text: string, details: string}} why the move stopped */
+		stoppedError() {
+			return stoppedMoveError(this.move)
 		},
 
 		/** @return {string} where a move under way has got to, in words */
@@ -331,7 +339,7 @@ export default {
 				return
 			}
 			this.busy = true
-			this.inviteError = ''
+			this.inviteError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move-invite'), { account })
 				this.confirming = ''
@@ -341,27 +349,38 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.inviteError = error.response.data?.error || t('social', 'Could not invite the account')
+					this.inviteError = moveErrorOf(error, t('social', 'Could not invite the account'))
 					this.confirming = ''
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
-						: t('social', 'Could not invite the account'))
+						: moveErrorOf(error, t('social', 'Could not invite the account')).text)
 				}
 			} finally {
 				this.busy = false
 			}
 		},
 
-		/** @return {Promise<void>} */
+		/**
+		 * Calls the move off, after the Nextcloud password.
+		 *
+		 * @return {Promise<void>}
+		 */
 		async cancel() {
+			try {
+				await confirmPassword()
+			} catch {
+				return
+			}
 			this.busy = true
 			try {
 				const { data } = await axios.delete(generateUrl('apps/social/api/v1/social/bluesky/move-invite'))
 				this.tool = null
 				this.takeMove(data?.move)
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not call the move off'))
+				showError(error?.response?.status === 403
+					? t('social', 'Confirm your password again and retry.')
+					: moveErrorOf(error, t('social', 'Could not call the move off')).text)
 			} finally {
 				this.busy = false
 			}
@@ -452,9 +471,5 @@ export default {
 	border-inline-start: 3px solid var(--color-primary-element);
 	background: var(--color-primary-element-light);
 	font-weight: 600;
-}
-
-.migration__bluesky-inbound-error {
-	color: var(--color-error-text, var(--color-error));
 }
 </style>

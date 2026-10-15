@@ -557,6 +557,7 @@ class AtprotoAccountController extends Controller {
 	 * Calls off a move here the other side has not finished.
 	 */
 	#[NoAdminRequired]
+	#[PasswordConfirmationRequired]
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/social/bluesky/move-invite')]
 	public function cancelMoveInvite(): DataResponse {
 		try {
