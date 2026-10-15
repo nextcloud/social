@@ -13,6 +13,7 @@ use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Moderation\BlocklistManager;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Atproto\Service\AtprotoFiguresService;
 use OCA\Social\Atproto\Service\AtprotoStatusService;
 use OCA\Social\Atproto\Service\RelayClient;
 use OCA\Social\Service\ConfigService;
@@ -37,6 +38,7 @@ class AtprotoAdminController extends Controller {
 		private RelayClient $relays,
 		private Blocklist $blocklist,
 		private BlocklistManager $blocklistManager,
+		private AtprotoFiguresService $figures,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -139,6 +141,15 @@ class AtprotoAdminController extends Controller {
 		}
 
 		return new DataResponse($this->status->current());
+	}
+
+	/**
+	 * `GET /admin/bluesky/figures`: how Bluesky is doing here, counted from
+	 * this server's own tables and cached for a minute.
+	 */
+	#[FrontpageRoute(verb: 'GET', url: '/admin/bluesky/figures')]
+	public function figures(): DataResponse {
+		return new DataResponse($this->figures->figures());
 	}
 
 	/**

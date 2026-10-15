@@ -594,6 +594,18 @@ authors are followed, how many accounts' notifications are asked for, and how
 far behind the slowest of each is. `atproto_sync_ceiling` (default 200) caps
 the AppView requests one sync pass makes.
 
+**Bluesky figures.** Beside the card, under Federation, a read-only section
+shows how Bluesky is doing here: the accounts with a Bluesky identity and how
+many of their owners switched it off; the posts written to Bluesky from here
+in the last day and week; the repositories with their records and the size of
+the media in them; how many Bluesky accounts are read and, with a Jetstream
+endpoint set, how far behind its stored cursor is; and the firehose — the
+subscribers the daemon last reported, the newest event and how many events
+are kept for replay. Everything is counted from this server's own tables, at
+most a minute ago; while Bluesky is off the section says so. The number of
+blocks in the repositories is not shown, because only a count of the whole
+block table could give it.
+
 **Blocking on Bluesky.** The card's *Blocked on Bluesky* list (or `occ
 social:atproto:block`) blocks a Bluesky account by its DID, or a whole PDS
 host and the hosts under it. A blocked account is not resolved, read or heard

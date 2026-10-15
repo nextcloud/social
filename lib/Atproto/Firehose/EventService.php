@@ -121,6 +121,11 @@ class EventService {
 		return $this->eventRequest->latestSeq();
 	}
 
+	/** when the newest frame was made, 0 when there is none */
+	public function latestTime(): int {
+		return $this->eventRequest->latestTime();
+	}
+
 	public function oldestSeq(): int {
 		return $this->eventRequest->oldestSeq();
 	}

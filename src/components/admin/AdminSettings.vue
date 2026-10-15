@@ -167,6 +167,7 @@ import AnnouncementsSection from './AnnouncementsSection.vue'
 import AttentionSection from './AttentionSection.vue'
 import BackgroundSection from './BackgroundSection.vue'
 import BlocklistSection from './BlocklistSection.vue'
+import BlueskyFiguresSection from './BlueskyFiguresSection.vue'
 import BlueskySection from './BlueskySection.vue'
 import DiscoverSection from './DiscoverSection.vue'
 import EmojiSection from './EmojiSection.vue'
@@ -268,6 +269,7 @@ export default {
 		AttentionSection,
 		BackgroundSection,
 		BlocklistSection,
+		BlueskyFiguresSection,
 		BlueskySection,
 		DiscoverSection,
 		EmojiSection,
@@ -623,6 +625,14 @@ export default {
 							title: t('social', 'Bluesky'),
 							lede: t('social', 'Make every account here a Bluesky account too, reachable from any Bluesky app.'),
 							keywords: t('social', 'atproto at protocol pds did handle firehose relay appview'),
+						}, {
+							id: 'bluesky-figures',
+							group: 'federation',
+							icon: 'IconActivity',
+							component: 'BlueskyFiguresSection',
+							title: t('social', 'Bluesky figures'),
+							lede: t('social', 'How Bluesky is doing on this server: accounts, posts, repositories, the reader and the firehose.'),
+							keywords: t('social', 'atproto statistics numbers jetstream firehose subscribers repository'),
 						}]
 					: []),
 				{

@@ -346,6 +346,10 @@ to stop.
   progress and lookup by direction, the PLC operation log in order with what is
   unconfirmed, firehose rows numbered in order with their bytes whole and pruned
   past the window, the instance blocklist and labeler subscriptions added once.
+- `Atproto/AtprotoFiguresStorageTest` — the reads behind the administrators'
+  Bluesky figures: the posts written here in a window, counted from its first
+  id (a moved-in record and another collection left out), the repository
+  totals summed from the heads, and the newest event's time.
 - `Atproto/CommitBenchmarkTest` — skipped unless `SOCIAL_BENCHMARK` is set:
   seeds a repository of twenty thousand records and prints what one commit
   costs against reading every record and rebuilding the tree, asserting the

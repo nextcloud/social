@@ -276,6 +276,7 @@ import CheckCircleOutline from 'vue-material-design-icons/CheckCircleOutline.vue
 import CloseCircleOutline from 'vue-material-design-icons/CloseCircleOutline.vue'
 import { blueskyUrl, errorMessage } from '../../services/adminApi.js'
 import { showError, showSuccess } from '../../services/toast.js'
+import { duration } from '../../utils/duration.js'
 
 /**
  * @typedef {object} BlueskyAdmin what `AtprotoStatusService::current()` answers
@@ -505,23 +506,7 @@ export default {
 			}
 		},
 
-		/**
-		 * @param {number} seconds a length of time
-		 * @return {string} it in the largest unit that still says something
-		 */
-		duration(seconds) {
-			if (seconds >= 86400) {
-				return n('social', '%n day', '%n days', Math.round(seconds / 86400))
-			}
-			if (seconds >= 3600) {
-				return n('social', '%n hour', '%n hours', Math.round(seconds / 3600))
-			}
-			if (seconds >= 60) {
-				return n('social', '%n minute', '%n minutes', Math.round(seconds / 60))
-			}
-
-			return n('social', '%n second', '%n seconds', seconds)
-		},
+		duration,
 
 		/**
 		 * @param {number} seconds how far behind a reader is
