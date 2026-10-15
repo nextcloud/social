@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<section class="first-run" :aria-label="t('social', 'Getting started on the fediverse')">
+	<section class="first-run" :aria-label="t('social', 'Getting started')">
 		<header class="first-run__header">
 			<ol class="first-run__steps" :aria-label="t('social', 'Steps')">
 				<li
@@ -30,10 +30,12 @@
 			<!-- 1. the address -->
 			<div v-if="step === 0" key="address" class="first-run__body">
 				<h2 class="first-run__title">
-					{{ t('social', 'You are on the fediverse') }}
+					{{ t('social', 'Your account is ready') }}
 				</h2>
 				<p class="first-run__lead">
-					{{ t('social', 'Your Nextcloud made you an account. This is your address — anyone on Mastodon, Pixelfed, PeerTube or any other server that speaks ActivityPub can follow it:') }}
+					{{ blueskyEnabled
+						? t('social', 'People on Mastodon, Bluesky, Pixelfed and more can follow you. This is your address:')
+						: t('social', 'People on Mastodon, Pixelfed, PeerTube and more can follow you. This is your address:') }}
 				</p>
 				<div class="first-run__address">
 					<code class="first-run__handle">{{ socialId }}</code>
@@ -45,13 +47,18 @@
 						{{ copied ? t('social', 'Copied') : t('social', 'Copy') }}
 					</NcButton>
 				</div>
+				<!-- the second address, where the administrator has the
+				     account on Bluesky too -->
+				<p v-if="blueskyHandle" class="first-run__bluesky">
+					{{ t('social', 'On Bluesky:') }} <code class="first-run__bluesky-handle">@{{ blueskyHandle }}</code>
+				</p>
 				<p class="first-run__hint">
 					{{ t('social', 'Give it to people the way you would an email address. Your profile, your avatar and your name come from your Nextcloud account and can be changed on your profile page.') }}
 				</p>
 				<div class="first-run__islands">
 					<AlohaScene scene="islands" class="first-run__islands-scene" />
 					<p class="first-run__hint">
-						{{ t('social', 'Every server in the fediverse is an island, and yours is {host}. Following somebody on another one opens a canoe route to theirs, and their posts travel to you along it.', { host: homeHost }) }}
+						{{ t('social', 'Every server is an island, and yours is {host}. Following somebody on another one opens a canoe route to theirs, and their posts travel to you along it.', { host: homeHost }) }}
 					</p>
 				</div>
 			</div>
@@ -92,7 +99,7 @@
 					{{ t('social', 'Looking around …') }}
 				</p>
 				<p v-else class="first-run__hint">
-					{{ t('social', 'Nobody on this Nextcloud has said where they are on the fediverse yet. You are the first — your handle is now on your Nextcloud profile, so the next person will see you here.') }}
+					{{ t('social', 'Nobody on this Nextcloud has put their address on their profile yet. You are the first — yours is now on your Nextcloud profile, so the next person will see you here.') }}
 				</p>
 
 				<h3 class="first-run__subtitle">
@@ -130,7 +137,10 @@
 					{{ t('social', 'Already somewhere else?') }}
 				</h2>
 				<p class="first-run__lead">
-					{{ t('social', 'If you have an account on Mastodon or another server, type its handle. Everyone it follows is followed from here and its public posts are brought along, in the background. Moving your followers over as well is the last step, done on your old server; Settings → Migration tells you how.') }}
+					{{ t('social', 'If you have an account on Mastodon or another server, type its address. Everyone it follows is followed from here and its public posts are brought along, in the background. Moving your followers over as well is the last step, done on your old server; the Migration page tells you how.') }}
+					<router-link class="first-run__link" :to="{ name: 'migration' }">
+						{{ t('social', 'Open Migration') }}
+					</router-link>
 				</p>
 				<div class="first-run__move">
 					<NcTextField
@@ -177,7 +187,10 @@
 					</p>
 				</div>
 				<p class="first-run__hint">
-					{{ t('social', 'On Mastodon: Preferences → Import and export → Data export → Follows (CSV). Moving your followers over as well is in Settings, under Migration — that one is a one-way move, so it is not a button here.') }}
+					{{ t('social', 'On Mastodon: Preferences → Import and export → Data export → Follows (CSV). Moving your followers over as well is on the Migration page — that one is a one-way move, so it is not a button here.') }}
+					<router-link class="first-run__link" :to="{ name: 'migration' }">
+						{{ t('social', 'Open Migration') }}
+					</router-link>
 				</p>
 			</div>
 
@@ -188,8 +201,8 @@
 				</h2>
 				<p class="first-run__lead">
 					{{ followedAnything
-						? t('social', 'Your feed fills up as the people you follow post. Meanwhile, say hello — a first post is how the fediverse finds out you are here.')
-						: t('social', 'You have not followed anyone yet, and that is fine: Discover is always a click away in the sidebar. Say hello in the meantime — a first post is how the fediverse finds out you are here.') }}
+						? t('social', 'Your feed fills up as the people you follow post. Meanwhile, say hello — a first post is how people find out you are here.')
+						: t('social', 'You have not followed anyone yet, and that is fine: Discover is always a click away in the sidebar. Say hello in the meantime — a first post is how people find out you are here.') }}
 				</p>
 			</div>
 		</Transition>
@@ -256,6 +269,7 @@ import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
 import { useAccountStore } from '../store/account.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
+import { useServerData } from '../composables/useServerData.js'
 
 /** how many colleagues to show; Discover has the rest */
 const MAX_COLLEAGUES = 6
@@ -284,8 +298,9 @@ export default {
 
 	setup() {
 		const { socialId } = useCurrentUser()
+		const { serverData } = useServerData()
 
-		return { socialId }
+		return { socialId, serverData }
 	},
 
 	data() {
@@ -302,6 +317,8 @@ export default {
 			/** accounts on this Nextcloud that said where they are, as Discover marks them */
 			colleagues: [],
 			packs: [],
+			/** the account's handle on Bluesky, once the server has said it */
+			blueskyHandle: '',
 			/** the handles followed from here */
 			followed: [],
 			/** the pack ids followed from here */
@@ -333,6 +350,15 @@ export default {
 			return at > 0 ? this.socialId.slice(at + 1) : window.location.host
 		},
 
+		/**
+		 * Whether accounts on this instance are on Bluesky too.
+		 *
+		 * @return {boolean}
+		 */
+		blueskyEnabled() {
+			return this.serverData.bluesky?.enabled === true
+		},
+
 		followedAnything() {
 			return this.followed.length > 0 || this.followedPacks.length > 0 || this.followsResult !== '' || this.moveResult !== ''
 		},
@@ -352,13 +378,23 @@ export default {
 			/** @type {HTMLInputElement} */ (this.$refs.follows).click()
 		},
 
-		/** Who there is to follow, both kinds at once; either failing leaves the other. */
+		/**
+		 * Who there is to follow, both kinds at once, and the Bluesky handle
+		 * where the account has one; any of them failing leaves the others.
+		 */
 		async load() {
 			this.loading = true
-			const [suggestions, packs] = await Promise.allSettled([
+			const [suggestions, packs, identity] = await Promise.allSettled([
 				axios.get(generateUrl('apps/social/api/v2/suggestions')),
 				axios.get(generateUrl('apps/social/api/v1/starter_packs')),
+				this.blueskyEnabled ? axios.get(generateUrl('apps/social/api/v1/social/bluesky/identity')) : Promise.resolve(null),
 			])
+			// switched off by the person, the handle is not an address anybody can follow
+			if (identity.status === 'fulfilled' && identity.value?.data?.handle && identity.value.data.active !== false) {
+				this.blueskyHandle = identity.value.data.handle
+			} else if (identity.status === 'rejected') {
+				logger.debug('No Bluesky identity for the first run', { error: identity.reason })
+			}
 			if (suggestions.status === 'fulfilled' && Array.isArray(suggestions.value.data)) {
 				// the colleagues among the suggestions: `featured` is what
 				// Suggestion::SOURCE_COLLEAGUES is called on the wire
@@ -461,7 +497,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/migration/follows'), form)
 				const job = await this.awaitImport(data?.import?.id)
 				if (job === null) {
-					this.followsResult = t('social', 'Your follows are being imported in the background; Settings → Migration shows where it gets to.')
+					this.followsResult = t('social', 'Your follows are being imported in the background; the Migration page shows where it gets to.')
 				} else if (job.status === 'failed') {
 					showError(job.report?.error || t('social', 'Could not import those follows'))
 				} else {
@@ -504,13 +540,13 @@ export default {
 				})
 				const job = await this.awaitImport(data?.import?.id)
 				if (job === null) {
-					this.moveResult = t('social', 'Your move is running in the background; Settings → Migration shows where it gets to, and names the last step on your old server.')
+					this.moveResult = t('social', 'Your move is running in the background; the Migration page shows where it gets to, and names the last step on your old server.')
 				} else if (job.status === 'failed') {
 					showError(job.report?.error || t('social', 'Could not move that account here'))
 				} else {
 					this.moveResult = t(
 						'social',
-						'{followed} accounts followed and {imported} posts brought over. The last step is on your old server; Settings → Migration names it.',
+						'{followed} accounts followed and {imported} posts brought over. The last step is on your old server; the Migration page names it.',
 						{ followed: job.report?.followed ?? 0, imported: job.report?.imported ?? 0 },
 					)
 				}
@@ -697,6 +733,23 @@ export default {
 		font-weight: 700;
 		overflow-wrap: anywhere;
 		user-select: all;
+	}
+
+	/* the second address is the quieter one, as on the setup page */
+	&__bluesky {
+		margin: 0 0 8px;
+		color: var(--color-text-maxcontrast);
+		overflow-wrap: anywhere;
+	}
+
+	&__bluesky-handle {
+		font-weight: 600;
+		user-select: all;
+	}
+
+	&__link {
+		color: var(--color-primary-element);
+		text-decoration: underline;
 	}
 
 	&__people,

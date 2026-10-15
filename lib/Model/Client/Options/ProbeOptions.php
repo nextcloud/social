@@ -57,6 +57,13 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 	/** Upper bound on how many items one request may ask for. */
 	public const MAX_LIMIT = 50;
 
+	/**
+	 * Upper bound on how many items a read this server makes for itself may
+	 * ask for (`setLookback()`): a list derived from the notifications held,
+	 * which a client's page could never reach back far enough for.
+	 */
+	public const MAX_LOOKBACK = 400;
+
 	private int $limit = 20;
 	private bool $inverted = false;
 	private string $argument = '';
@@ -288,6 +295,17 @@ class ProbeOptions extends CoreOptions implements JsonSerializable {
 		// Clamp: the limit reaches setMaxResults() directly, so an unbounded or
 		// negative value from the request would be a memory-limit fatal or invalid SQL.
 		$this->limit = max(1, min(self::MAX_LIMIT, $limit));
+
+		return $this;
+	}
+
+	/**
+	 * The limit of a read this server makes for itself rather than for a
+	 * client, which may reach past `MAX_LIMIT` up to `MAX_LOOKBACK`. Never
+	 * set from a request: what a client asks for goes through `setLimit()`.
+	 */
+	public function setLookback(int $limit): self {
+		$this->limit = max(1, min(self::MAX_LOOKBACK, $limit));
 
 		return $this;
 	}

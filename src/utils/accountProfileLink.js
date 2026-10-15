@@ -3,12 +3,16 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { generateUrl } from '@nextcloud/router'
-import { isLocalAccount } from './accountLocality.js'
+import { isLocalAccount, nextcloudUserOf } from './accountLocality.js'
 
 /**
  * The native Nextcloud profile URL for an account hosted on this instance.
  * Remote actors have no corresponding `/u/{uid}` page and return an empty
  * string so their caller can keep the Social/Fediverse profile destination.
+ * A local account whose Nextcloud user the page was not told -- a team
+ * account, or one named apart from its login, seen by a visitor -- links
+ * its own profile page here instead: the `/u/` page is the user id's, and
+ * the username is not it.
  *
  * @param {Partial<import('../types/Mastodon.js').Account>} account a Mastodon-compatible account
  * @param {string|number|null} [statusId] optional Social status to focus
@@ -16,12 +20,15 @@ import { isLocalAccount } from './accountLocality.js'
  */
 export function localProfileUrl(account, statusId = null) {
 	const acct = String(account?.acct ?? '')
-	const username = String(account?.username || acct)
-	if (!acct || !isLocalAccount(account) || !username) {
+	if (!acct || !isLocalAccount(account)) {
 		return ''
 	}
+	const userId = nextcloudUserOf(account)
+	if (userId === '') {
+		return String(account?.url ?? '')
+	}
 
-	const url = generateUrl(`/u/${encodeURIComponent(username)}`)
+	const url = generateUrl(`/u/${encodeURIComponent(userId)}`)
 	return statusId === null || statusId === undefined
 		? url
 		: `${url}#social-profile-status-${encodeURIComponent(String(statusId))}`

@@ -21,8 +21,14 @@ use Throwable;
  * offered here follow what their curators publish (`CollectionPackService`).
  * A collection changes rarely, and FEP-7aa9 asks a reader to fetch again
  * from time to time because an `Add` or `Remove` may never arrive.
+ *
+ * One run at a time, and each stops reading after `MAX_DURATION`: what it
+ * did not get to keeps what was read last time, until the next day's run.
  */
 class StarterPackSources extends TimedJob {
+	/** How long one run may read for, in seconds; as long as `Cron\Cache` gives a pass. */
+	public const MAX_DURATION = 300;
+
 	public function __construct(
 		ITimeFactory $time,
 		private ?CollectionPackService $collectionPackService = null,
@@ -30,6 +36,7 @@ class StarterPackSources extends TimedJob {
 	) {
 		parent::__construct($time);
 		$this->setInterval(24 * 3600);
+		$this->setAllowParallelRuns(false);
 	}
 
 	#[\Override]
@@ -39,7 +46,7 @@ class StarterPackSources extends TimedJob {
 		}
 
 		try {
-			$result = $this->collectionPackService->refresh();
+			$result = $this->collectionPackService->refresh($this->time->getTime() + self::MAX_DURATION);
 		} catch (Throwable $e) {
 			$this->logger?->warning('could not read the starter packs other servers publish', ['exception' => $e]);
 

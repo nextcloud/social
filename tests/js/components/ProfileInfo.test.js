@@ -72,6 +72,7 @@ const carol = {
 	url: 'https://cloud.example.org/users/carol',
 	acct: 'carol',
 	username: 'carol',
+	nextcloud_user: 'carol',
 	display_name: null,
 	avatar: 'https://cloud.example.org/avatar/carol/128',
 	header: '',
@@ -112,7 +113,7 @@ function makeStore(serverData = {}) {
 	pinia = createPinia()
 	setActivePinia(pinia)
 	accountStore = useAccountStore()
-	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', ...serverData })
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', viewer: { username: 'alice', address: 'alice@cloud.example.org' }, ...serverData })
 	for (const data of [bob, carol, alice]) {
 		accountStore.addAccount({ actorId: data.url, data })
 	}
@@ -259,6 +260,21 @@ describe('ProfileInfo', () => {
 		expect(wrapper.find('h1').text()).toBe('carol')
 	})
 
+	/**
+	 * The username is chosen when the account is made and need not be the
+	 * user id; the face was Nextcloud's avatar of the username.
+	 */
+	it('draws a local account as its Nextcloud user, not as its username', () => {
+		accountStore.addAccount({ actorId: carol.url, data: { ...carol, nextcloud_user: 'karla' } })
+
+		expect(mountProfile('carol').findComponent(NcAvatarStub).props('user')).toBe('karla')
+
+		accountStore.addAccount({ actorId: carol.url, data: { ...carol, nextcloud_user: null } })
+		const avatar = mountProfile('carol').findComponent(NcAvatarStub)
+		expect(avatar.props('user')).toBeUndefined()
+		expect(avatar.props('url')).toBe(carol.avatar)
+	})
+
 	it('hands the uid to the follow button and does not offer the public follow flow', () => {
 		const wrapper = mountProfile('bob@remote.example')
 		expect(wrapper.findComponent(FollowButtonStub).props('uid')).toBe('bob@remote.example')
@@ -288,6 +304,20 @@ describe('ProfileInfo', () => {
 		const other = mountProfile('bob@remote.example')
 		expect(buttonByText(other, 'Edit profile')).toBeUndefined()
 		expect(bannerOf(other).classes()).not.toContain('user-profile__banner--editable')
+	})
+
+	/**
+	 * The own profile was the one whose name matched the user id: with a
+	 * username chosen on the setup screen the reader's own was somebody
+	 * else's, and an account named like their user id was theirs. A remote
+	 * account with the same name before the @ was theirs as well.
+	 */
+	it('knows the own profile by the account\'s username, not by the user id', () => {
+		makeStore({ viewer: { username: 'carol', address: 'carol@cloud.example.org' } })
+
+		expect(buttonByText(mountProfile('carol'), 'Edit profile')).toBeDefined()
+		expect(buttonByText(mountProfile('alice'), 'Edit profile')).toBeUndefined()
+		expect(buttonByText(mountProfile('carol@remote.example'), 'Edit profile')).toBeUndefined()
 	})
 
 	it('marks the banner as visible only when the account has a header image', () => {

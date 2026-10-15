@@ -156,14 +156,16 @@ class BlueskyPublishedCountSourceTest extends TestCase {
 
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->method('getStreamById')->willReturn($post);
-		$streams->expects($this->once())->method('updateDetails')->willReturnCallback(function () use ($post): void {
-			$this->assertSame(0, $post->getDetailInt(Details::REMOTE_LIKES));
-			$this->assertSame(0, $post->getDetailInt(Details::REMOTE_BOOSTS));
-			$this->assertSame(0, $post->getDetailInt(Details::REMOTE_REPLIES));
-			$this->assertSame(0, $post->getDetailInt(Details::REMOTE_QUOTES));
-		});
+		$streams->expects($this->once())->method('changeDetails')
+			->willReturnCallback(static fn (string $id, callable $change): array => $change($post->getDetailsAll()));
 		$streams->expects($this->once())->method('recount')
-			->with($this->identicalTo($post), Details::LIKES, Details::BOOSTS, Details::REPLIES, Details::QUOTES);
+			->with($this->identicalTo($post), Details::LIKES, Details::BOOSTS, Details::REPLIES, Details::QUOTES)
+			->willReturnCallback(function () use ($post): void {
+				$this->assertSame(0, $post->getDetailInt(Details::REMOTE_LIKES));
+				$this->assertSame(0, $post->getDetailInt(Details::REMOTE_BOOSTS));
+				$this->assertSame(0, $post->getDetailInt(Details::REMOTE_REPLIES));
+				$this->assertSame(0, $post->getDetailInt(Details::REMOTE_QUOTES));
+			});
 		$time = $this->createStub(ITimeFactory::class);
 		$time->method('getTime')->willReturn(1790000000);
 		$writer = new CountWriter($streams, $this->createMock(ActionsRequest::class), $time);

@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Identity\CustomHandleService;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
+use OCA\Social\Atproto\Move\StaleMoves;
 use OCA\Social\Atproto\Publisher\BlueskyLists;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Reader\DeletionSweep;
@@ -28,8 +29,9 @@ use Throwable;
 /**
  * The Bluesky housekeeping: publishes what the listener missed, resends
  * PLC operations the directory never confirmed, prunes the firehose past
- * its replay window, drops retired keys past theirs, and removes a page of
- * the Bluesky posts read here that were deleted there.
+ * its replay window, drops retired keys past theirs, removes a page of
+ * the Bluesky posts read here that were deleted there, and picks up the
+ * account moves whose job stopped (StaleMoves).
  */
 class AtprotoMaintenance extends TimedJob {
 	private const INTERVAL = 5 * 60;
@@ -46,6 +48,7 @@ class AtprotoMaintenance extends TimedJob {
 		private AtprotoClientRequest $clients,
 		private AtprotoOAuthRequest $oauth,
 		private CustomHandleService $customHandles,
+		private StaleMoves $staleMoves,
 		private LoggerInterface $logger,
 		private ?BlueskyLists $lists = null,
 	) {
@@ -69,6 +72,7 @@ class AtprotoMaintenance extends TimedJob {
 			'expired OAuth requests and sessions' => fn (): int => $this->oauth->prune($this->time->getTime()),
 			'custom handles that no longer resolve' => fn (): int => $this->customHandles->recheck(),
 			'public lists not on Bluesky yet' => fn (): int => $this->lists?->publishMissing() ?? 0,
+			'account moves whose job stopped' => fn (): int => $this->staleMoves->recover(),
 		] as $step => $run) {
 			try {
 				$run();

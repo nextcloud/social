@@ -25,7 +25,6 @@ use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\ITempManager;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -85,17 +84,22 @@ class BlueskyArchiveTest extends TestCase {
 		$service = new BlueskyArchiveService(
 			Server::get(IdentityService::class), $this->repositories, Server::get(AtprotoBlobRequest::class),
 			Server::get(PictureService::class), Server::get(VideoBlobService::class), $plc, $this->plcLog,
-			Server::get(AtprotoConfig::class), Server::get(ITempManager::class), Server::get(ITimeFactory::class), Server::get(RecoveryToolPage::class), new NullLogger(),
+			Server::get(AtprotoConfig::class), Server::get(ITimeFactory::class), Server::get(RecoveryToolPage::class), new NullLogger(),
 		);
 		$identity = new Identity(1, 'https://social.test/@archive', self::DID, 'archive.social.test', 'sealed', 'did:key:z', '', Identity::STATE_ACTIVE, '', 0);
 
-		$this->path = $service->zip($identity);
+		$this->path = (string)tempnam(sys_get_temp_dir(), 'bluesky-archive-test');
+		$file = fopen($this->path, 'wb');
+		$service->zip($identity, static function (string $bytes) use ($file): void {
+			fwrite($file, $bytes);
+		});
+		fclose($file);
 
 		$zip = new ZipArchive();
-		$this->assertTrue($zip->open($this->path, ZipArchive::RDONLY));
+		$this->assertTrue($zip->open($this->path, ZipArchive::RDONLY | ZipArchive::CHECKCONS));
 		$car = Car::decode((string)$zip->getFromName('bluesky/repo.car'));
 		$this->assertSame($this->repositories->getHead(self::DID)?->commitCid, $car['roots'][0]->toString());
-		$this->assertSame(Car::decode($this->repositories->exportCar(self::DID))['blocks'], $car['blocks']);
+		$this->assertSame(Car::decode(implode('', iterator_to_array($this->repositories->streamCar(self::DID), false)))['blocks'], $car['blocks']);
 		$this->assertGreaterThan(40, count($car['blocks']), 'the records, the tree and the commit');
 		$log = json_decode((string)$zip->getFromName('bluesky/plc-log.json'), true);
 		$this->assertSame([['bafygenesis', $genesis]], array_map(static fn (array $entry): array => [$entry['cid'], $entry['operation']], $log));

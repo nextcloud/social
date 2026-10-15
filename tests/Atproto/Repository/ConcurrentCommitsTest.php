@@ -29,7 +29,9 @@ use PHPUnit\Framework\TestCase;
  * Two commits of one repository that start from the same head run one
  * after the other: the second reads the head the first left, so the
  * stored tree holds both records and the two firehose frames chain, each
- * one's `since` and `prevData` naming the commit before it.
+ * one's `since` and `prevData` naming the commit before it. A record made
+ * once per Social object that the first commit wrote, the second does not
+ * write again.
  */
 #[AllowMockObjectsWithoutExpectations]
 class ConcurrentCommitsTest extends TestCase {
@@ -73,6 +75,38 @@ class ConcurrentCommitsTest extends TestCase {
 		$this->assertSame($this->frames[2]['commit']->toString(), $this->store->getHead(self::DID)?->commitCid);
 	}
 
+	public function testAPostPublishedMeanwhileIsNotWrittenAgain(): void {
+		$local = 'https://social.test/@alice/1';
+		$this->store->other = function () use ($local): void {
+			$this->service->write(self::DID, $this->key, [RepoWrite::createOnce('app.bsky.feed.post', self::post('one'), $local, '3kznmn7xqxl22')]);
+		};
+
+		$result = $this->service->write(self::DID, $this->key, [
+			RepoWrite::createOnce('app.bsky.feed.post', self::post('one'), $local, '3kznmn7xqxl31'),
+			RepoWrite::create('app.bsky.feed.threadgate', self::threadgate('3kznmn7xqxl31'), $local, '3kznmn7xqxl31'),
+		]);
+
+		$this->assertNull($this->store->other, 'the other commit ran');
+		$this->assertNull($result, 'the second commit wrote nothing');
+		$this->assertSame(['app.bsky.feed.post/3kznmn7xqxl22'], array_map(
+			static fn ($record): string => $record->collection . '/' . $record->rkey,
+			$this->store->getRecordsByLocalId($local),
+		));
+		$this->assertCount(1, $this->frames);
+		$this->assertSame([], $this->service->verify(self::DID, $this->key->publicKey()));
+	}
+
+	public function testALikeOfAnotherObjectIsWrittenBeside(): void {
+		$this->store->other = function (): void {
+			$this->service->write(self::DID, $this->key, [RepoWrite::createOnce('app.bsky.feed.like', self::like('3kznmn7xqxl22'), 'https://social.test/like/1')]);
+		};
+
+		$result = $this->service->write(self::DID, $this->key, [RepoWrite::createOnce('app.bsky.feed.like', self::like('3kznmn7xqxl22'), 'https://social.test/like/2')]);
+
+		$this->assertNotNull($result);
+		$this->assertCount(2, $this->frames);
+	}
+
 	private function rootOf(string $commitCid): Cid {
 		foreach ($this->frames as $frame) {
 			if ($frame['commit']->toString() === $commitCid) {
@@ -84,6 +118,10 @@ class ConcurrentCommitsTest extends TestCase {
 
 	private static function post(string $text): array {
 		return ['$type' => 'app.bsky.feed.post', 'text' => $text, 'createdAt' => '2026-10-08T10:00:00.000Z'];
+	}
+
+	private static function threadgate(string $rkey): array {
+		return ['$type' => 'app.bsky.feed.threadgate', 'post' => 'at://' . self::DID . '/app.bsky.feed.post/' . $rkey, 'allow' => [], 'createdAt' => '2026-10-08T10:00:00.000Z'];
 	}
 
 	private static function like(string $rkey): array {

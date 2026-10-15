@@ -84,6 +84,13 @@ class ProbeOptionsTest extends TestCase {
 		$this->assertSame(20, (new ProbeOptions())->setLimit(20)->getLimit());
 	}
 
+	/** A read this server makes for itself reaches past a client's page, and no further than its own bound. */
+	public function testSetLookbackClampsToItsOwnBounds(): void {
+		$this->assertSame(400, (new ProbeOptions())->setLookback(400)->getLimit());
+		$this->assertSame(ProbeOptions::MAX_LOOKBACK, (new ProbeOptions())->setLookback(1000000)->getLimit());
+		$this->assertSame(1, (new ProbeOptions())->setLookback(-5)->getLimit());
+	}
+
 	public function testRequestLimitIsClampedToMaxLimit(): void {
 		// A request asking for a million items must not reach setMaxResults() unbounded.
 		$request = $this->createStub(IRequest::class);

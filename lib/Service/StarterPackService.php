@@ -88,6 +88,8 @@ class StarterPackService {
 		private FollowService $followService,
 		private LoggerInterface $logger,
 		private ?StarterPacksRequest $starterPacksRequest = null,
+		private ?StarterPackModeration $moderation = null,
+		private ?RemoteFetchQueue $remoteFetchQueue = null,
 	) {
 	}
 
@@ -102,6 +104,27 @@ class StarterPackService {
 	 * @return StarterPack[]
 	 */
 	public function packs(): array {
+		$packs = $this->chosenPacks();
+		if ($packs === null) {
+			return [];
+		}
+
+		// the collections read in from other servers come after the packs this
+		// instance chose itself, and never replace one of them
+		foreach ($this->collectionPacks() as $pack) {
+			$packs[$pack->getSlug()] ??= $pack;
+		}
+
+		return array_values($packs);
+	}
+
+	/**
+	 * The packs this instance chose itself, shipped and configured, by slug;
+	 * null when it suggests nobody.
+	 *
+	 * @return array<string, StarterPack>|null
+	 */
+	private function chosenPacks(): ?array {
 		$configured = $this->configured();
 
 		// An explicit empty list means "suggest nobody", which is a real answer
@@ -109,7 +132,7 @@ class StarterPackService {
 		// usable here" -- unset, or malformed -- and falls back to what ships,
 		// because a typo must not be the reason a page is empty.
 		if ($configured === []) {
-			return [];
+			return null;
 		}
 
 		$packs = [];
@@ -135,18 +158,14 @@ class StarterPackService {
 			}
 		}
 
-		// the collections read in from other servers come after the packs this
-		// instance chose itself, and never replace one of them
-		foreach ($this->collectionPacks() as $pack) {
-			$packs[$pack->getSlug()] ??= $pack;
-		}
-
-		return array_values($packs);
+		return $packs;
 	}
 
 	/**
 	 * The packs `CollectionPackService` read in, fediverse collections and
-	 * Bluesky's suggestions alike.
+	 * Bluesky's suggestions alike, listed by their size alone: the index
+	 * draws no member, so none is read. A pack whose curator this instance's
+	 * moderation keeps out is not listed.
 	 *
 	 * @return list<StarterPack>
 	 */
@@ -156,44 +175,95 @@ class StarterPackService {
 		}
 
 		try {
-			$stored = $this->starterPacksRequest->getAll();
+			$stored = $this->starterPacksRequest->getIndex();
 		} catch (Throwable $e) {
 			$this->logger->warning('[StarterPackService] could not read the starter packs read in from other servers', ['exception' => $e]);
 
 			return [];
 		}
 
+		$curators = array_flip($this->admitted(array_values(array_unique(array_column($stored, 'curator')))));
 		$packs = [];
 		foreach ($stored as $row) {
-			$members = array_slice($row['members'], 0, self::MAX_HANDLES);
-			if ($members === []) {
+			if (!isset($curators[$row['curator']])) {
 				continue;
 			}
-			$source = ($row['origin'] === SuggestedStarterPacks::ORIGIN) ? StarterPack::SOURCE_BLUESKY : StarterPack::SOURCE_FEDIVERSE;
-			$packs[] = (new StarterPack($row['slug'], $row['name'], $row['summary'], $members, $source))
-				->setOrigin($row['curator_acct'], $row['url'], $row['topic'], $row['language']);
+			$packs[] = (new StarterPack($row['slug'], $row['name'], $row['summary'], [], self::sourceOf($row['origin'])))
+				->setOrigin($row['curator_acct'], $row['url'], $row['topic'], $row['language'])
+				->setSize(min($row['member_count'], self::MAX_HANDLES));
 		}
 
 		return $packs;
 	}
 
+	/** A pack read in, with its members; null when there is none to offer at that slug. */
+	private function collectionPack(string $slug): ?StarterPack {
+		if ($this->starterPacksRequest === null) {
+			return null;
+		}
+
+		try {
+			$row = $this->starterPacksRequest->getBySlug($slug);
+		} catch (Throwable $e) {
+			$this->logger->warning('[StarterPackService] could not read a starter pack read in from another server', ['exception' => $e]);
+
+			return null;
+		}
+
+		if ($row === null || $row['members'] === [] || $this->admitted([$row['curator']]) === []) {
+			return null;
+		}
+		$members = array_slice($row['members'], 0, self::MAX_HANDLES);
+
+		return (new StarterPack($row['slug'], $row['name'], $row['summary'], $members, self::sourceOf($row['origin'])))
+			->setOrigin($row['curator_acct'], $row['url'], $row['topic'], $row['language']);
+	}
+
+	private static function sourceOf(string $origin): string {
+		return ($origin === SuggestedStarterPacks::ORIGIN) ? StarterPack::SOURCE_BLUESKY : StarterPack::SOURCE_FEDIVERSE;
+	}
+
 	/**
-	 * One pack, with its handles resolved to profiles.
+	 * The actor ids this instance's moderation lets a pack offer.
 	 *
-	 * A handle that will not resolve -- the server is down, the account moved or
-	 * was deleted, the host never existed -- is reported rather than dropped
-	 * silently. A pack that quietly shrinks looks like one somebody wrote badly.
+	 * @param list<string> $actorIds
+	 *
+	 * @return list<string>
+	 */
+	private function admitted(array $actorIds): array {
+		return $this->moderation?->admitted($actorIds) ?? $actorIds;
+	}
+
+	/**
+	 * One pack, with its handles resolved to the profiles held here.
+	 *
+	 * Nothing is fetched to draw it: a handle not held here yet is reported
+	 * in `unresolved` and queued to be fetched, so the next look finds it --
+	 * as is one that will not resolve at all, because the server is down or
+	 * the account moved or was deleted. A pack that quietly shrinks looks
+	 * like one somebody wrote badly. An account this instance's moderation
+	 * keeps out is not offered.
 	 *
 	 * @throws ItemNotFoundException when there is no such pack
 	 */
 	public function pack(string $slug): StarterPack {
-		foreach ($this->packs() as $pack) {
-			if ($pack->getSlug() === $slug) {
-				return $this->resolve($pack);
-			}
+		return $this->resolve($this->find($slug), false);
+	}
+
+	/**
+	 * A pack by its slug, its handles not resolved: one this instance chose,
+	 * or else one read in.
+	 *
+	 * @throws ItemNotFoundException when there is no such pack
+	 */
+	private function find(string $slug): StarterPack {
+		$chosen = $this->chosenPacks();
+		$pack = ($chosen === null) ? null : ($chosen[$slug] ?? $this->collectionPack($slug));
+		if ($pack === null) {
+			throw new ItemNotFoundException('unknown starter pack');
 		}
 
-		throw new ItemNotFoundException('unknown starter pack');
+		return $pack;
 	}
 
 	/**
@@ -202,6 +272,8 @@ class StarterPackService {
 	 * One that cannot be reached is skipped rather than failing the lot: the
 	 * point of the button is that somebody does not have to follow six accounts
 	 * by hand, and refusing all six because one host is down would defeat it.
+	 * A member not held here yet is fetched now, once, and followed as the
+	 * actor it is, on whichever network.
 	 *
 	 * @return string[] the handles that were followed
 	 *
@@ -209,21 +281,14 @@ class StarterPackService {
 	 */
 	public function followAll(Person $viewer, string $slug): array {
 		$followed = [];
-		$pack = $this->pack($slug);
-		// a pack read in names its members by actor id and they are cached:
-		// they are followed as the actors they are, on whichever network
-		$byActor = in_array($pack->getSource(), [StarterPack::SOURCE_FEDIVERSE, StarterPack::SOURCE_BLUESKY], true);
+		$pack = $this->resolve($this->find($slug), true);
 		foreach ($pack->getAccounts() as $account) {
 			if ($account->getId() === $viewer->getId()) {
 				continue;
 			}
 
 			try {
-				if ($byActor) {
-					$this->followService->followActor($viewer, $account);
-				} else {
-					$this->followService->followAccount($viewer, $account->getAccount());
-				}
+				$this->followService->followActor($viewer, $account);
 				$followed[] = $account->getAccount();
 			} catch (Throwable $e) {
 				$this->logger->info('[StarterPackService] could not follow an account from a pack', [
@@ -237,28 +302,48 @@ class StarterPackService {
 		return $followed;
 	}
 
-	/** @return StarterPack the same pack, with `accounts` and `unresolved` filled in */
-	private function resolve(StarterPack $pack): StarterPack {
+	/**
+	 * @param bool $mayFetch whether a handle not held here is fetched now, or
+	 *                       only queued to be
+	 *
+	 * @return StarterPack the same pack, with `accounts` and `unresolved` filled in
+	 */
+	private function resolve(StarterPack $pack, bool $mayFetch): StarterPack {
+		// a pack read in names its members by actor id, all looked up at once
+		$ids = array_values(array_filter($pack->getHandles(), static fn (string $handle): bool => str_starts_with($handle, 'https://')));
+		$cached = ($ids === []) ? [] : $this->cacheActorService->getCachedFromIds($ids);
+
 		$accounts = [];
 		$unresolved = [];
-
 		foreach ($pack->getHandles() as $handle) {
+			$byId = str_starts_with($handle, 'https://');
+			$actor = $cached[$handle] ?? null;
 			try {
-				// a pack read in names its members by actor id, which the
-				// member read in was cached under
-				$accounts[] = str_starts_with($handle, 'https://')
-					? $this->cacheActorService->getFromId($handle)
-					: $this->cacheActorService->getFromAccount($handle);
+				if ($actor === null && $byId && $mayFetch) {
+					$actor = $this->cacheActorService->getFromId($handle);
+				} elseif ($actor === null && !$byId) {
+					$actor = $this->cacheActorService->getFromAccount($handle, $mayFetch);
+				}
 			} catch (Throwable $e) {
-				$unresolved[] = $handle;
 				$this->logger->debug('[StarterPackService] could not resolve a handle', [
 					'handle' => $handle,
 					'exception' => $e->getMessage(),
 				]);
 			}
+
+			if ($actor === null) {
+				$unresolved[] = $handle;
+			} else {
+				$accounts[] = $actor;
+			}
 		}
 
-		return $pack->setAccounts($accounts)->setUnresolved($unresolved);
+		if (!$mayFetch && $unresolved !== []) {
+			$this->remoteFetchQueue?->resolveActors(array_values(array_filter($unresolved, static fn (string $handle): bool => str_starts_with($handle, 'https://'))));
+			$this->remoteFetchQueue?->resolveAccounts(array_values(array_filter($unresolved, static fn (string $handle): bool => !str_starts_with($handle, 'https://'))));
+		}
+
+		return $pack->setAccounts($this->moderation?->admittedActors($accounts) ?? $accounts)->setUnresolved($unresolved);
 	}
 
 	/**

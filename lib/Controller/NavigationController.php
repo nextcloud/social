@@ -207,6 +207,9 @@ class NavigationController extends Controller {
 				'enabled' => $this->configService->getAppValueBool(ConfigService::ATPROTO_ENABLED),
 				'host' => strtolower($this->configService->getSocialAddress()),
 			],
+			// the host addresses here end in (`alice@<host>`), which the
+			// administrator may have set apart from the Nextcloud's own
+			'socialAddress' => $this->configService->getSocialAddress(),
 		];
 
 		$this->logger->debug('[NavigationController] Initial serverData', ['serverData' => $serverData]);
@@ -275,7 +278,14 @@ class NavigationController extends Controller {
 		 * created by `LocalController::accountCreate()` when they ask.
 		 */
 		try {
-			$this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->accountService->getActorFromUserId($this->userId);
+			// the account's own name, chosen on the setup screen, which need
+			// not be the user id: the page says this address and checks what
+			// is the reader's own by it
+			$serverData['viewer'] = [
+				'username' => $actor->getPreferredUsername(),
+				'address' => $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress(),
+			];
 		} catch (ActorDoesNotExistException $e) {
 			$serverData['needsAccount'] = true;
 			try {

@@ -230,7 +230,9 @@ class StreamRequest extends StreamRequestBuilder {
 
 				return true;
 			} catch (DBException $e) {
-				if ($e->getReason() !== DBException::REASON_CONSTRAINT_VIOLATION) {
+				// a primary key is a unique constraint to every database, and
+				// core reports both as this reason
+				if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
 					$this->logger->error("Couldn't save stream: " . $e->getMessage(), [
 						'exception' => $e,
 					]);

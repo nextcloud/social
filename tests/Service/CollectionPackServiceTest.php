@@ -17,6 +17,9 @@ use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\CollectionPackService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\RemoteFetchQueue;
+use OCA\Social\Service\StarterPackModeration;
+use OCA\Social\Service\StarterPackService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -29,6 +32,8 @@ use RuntimeException;
  * Reading other servers' collections (FEP-7aa9) in as starter packs, against
  * a network held in PHP: a curator on mastodon.social with collections whose
  * members live on several servers, each with an authorization of its own.
+ * `$down` are addresses whose server does not answer; any other address
+ * not in `$documents` answers that there is no such document.
  */
 #[AllowMockObjectsWithoutExpectations]
 class CollectionPackServiceTest extends TestCase {
@@ -49,6 +54,19 @@ class CollectionPackServiceTest extends TestCase {
 	private string $sources = '';
 	/** @var list<string> addresses that do not answer */
 	private array $down = [];
+	/** @var list<string> accounts this instance's moderation keeps out */
+	private array $moderated = [];
+	/** @var list<list<string>> the authorizations asked for, one list per collection */
+	private array $asked = [];
+	/** @var list<string> the actors queued to be fetched */
+	private array $queued = [];
+	/** @var list<string> the actors held in the cache */
+	private array $cached = [];
+	/** @var list<string> the collections whose row cannot be written */
+	private array $unwritable = [];
+	private int $now = 1_790_000_000;
+	/** Seconds the clock moves on with each batch of authorizations asked for. */
+	private int $tick = 0;
 
 	protected function setUp(): void {
 		$this->documents[self::CURATOR] = ['id' => self::CURATOR, 'type' => 'Person', 'featuredCollections' => self::LIST];
@@ -126,39 +144,83 @@ class CollectionPackServiceTest extends TestCase {
 
 			return $person;
 		});
-		$actors->method('getCachedFromIds')->willReturn([]);
+		$actors->method('getCachedFromIds')->willReturnCallback(fn (array $ids): array => array_fill_keys(array_intersect($ids, $this->cached), new Person()));
 
-		$curl = $this->createStub(CurlService::class);
-		$curl->method('retrieveObject')->willReturnCallback(function (string $id): array {
+		$request = $this->createStub(StarterPacksRequest::class);
+		$request->method('save')->willReturnCallback(function (array $pack): bool {
+			if (in_array($pack['uri'], $this->unwritable, true)) {
+				throw new RuntimeException('cannot write');
+			}
+			// a pack read again keeps the slug it was stored with
+			$this->stored[$pack['uri']] = ['slug' => $this->stored[$pack['uri']]['slug'] ?? $pack['slug']] + $pack
+				+ ['id' => $this->stored[$pack['uri']]['id'] ?? count($this->stored) + 1];
+
+			return true;
+		});
+		$request->method('getByUri')->willReturnCallback(fn (string $uri): ?array => $this->stored[$uri] ?? null);
+		$request->method('staleOf')->willReturnCallback(fn (string $origin, array $keep): array => array_values(array_filter(
+			$this->stored,
+			static fn (array $pack): bool => $pack['origin'] === $origin && !in_array($pack['uri'], $keep, true)
+		)));
+		$request->method('deleteByIds')->willReturnCallback(function (array $ids): void {
+			$this->deleted = [...$this->deleted, ...$ids];
+			$this->stored = array_filter($this->stored, static fn (array $pack): bool => !in_array($pack['id'], $ids, true));
+		});
+
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
+
+		$queue = $this->createStub(RemoteFetchQueue::class);
+		$queue->method('resolveActors')->willReturnCallback(function (array $ids): void {
+			$this->assertLessThanOrEqual(RemoteFetchQueue::MAX_PER_CALL, count($ids));
+			$this->queued = [...$this->queued, ...$ids];
+		});
+
+		$moderation = $this->createStub(StarterPackModeration::class);
+		$moderation->method('admitted')->willReturnCallback(fn (array $ids): array => array_values(array_diff($ids, $this->moderated)));
+		$moderation->method('admits')->willReturnCallback(fn (Person $actor): bool => !in_array($actor->getId(), $this->moderated, true));
+
+		return new CollectionPackService($config, $actors, $this->network(), $request, $time, new NullLogger(), $queue, $moderation, $container);
+	}
+
+	/** The network as `CurlService` reads it; a double, as the many-fetch reports its failures by reference. */
+	private function network(): CurlService {
+		$one = function (string $id): array {
 			if (!isset($this->documents[$id]) || in_array($id, $this->down, true)) {
 				throw new RuntimeException('not reached: ' . $id);
 			}
 
 			return $this->documents[$id];
-		});
-		$curl->method('retrieveObjectsMany')->willReturnCallback(function (array $ids): array {
+		};
+		$many = function (array $ids, ?array &$failed): array {
+			$this->asked[] = $ids;
+			$this->now += $this->tick;
+			$failed = array_values(array_intersect($ids, $this->down));
 			$answers = [];
 			foreach ($ids as $id) {
 				$answers[$id] = in_array($id, $this->down, true) ? null : ($this->documents[$id] ?? null);
 			}
 
 			return $answers;
-		});
+		};
 
-		$request = $this->createStub(StarterPacksRequest::class);
-		$request->method('save')->willReturnCallback(function (array $pack): void {
-			$this->stored[$pack['uri']] = $pack + ['id' => $this->stored[$pack['uri']]['id'] ?? count($this->stored) + 1];
-		});
-		$request->method('getAll')->willReturnCallback(fn (): array => array_values($this->stored));
-		$request->method('deleteById')->willReturnCallback(function (int $id): void {
-			$this->deleted[] = $id;
-			$this->stored = array_filter($this->stored, static fn (array $pack): bool => $pack['id'] !== $id);
-		});
+		return new class($one, $many) extends CurlService {
+			public function __construct(
+				private \Closure $one,
+				private \Closure $many,
+			) {
+			}
 
-		$time = $this->createStub(ITimeFactory::class);
-		$time->method('getTime')->willReturn(1_790_000_000);
+			#[\Override]
+			public function retrieveObject(string $id, bool $acceptActivityJson = true): array {
+				return ($this->one)($id);
+			}
 
-		return new CollectionPackService($config, $actors, $curl, $request, $time, new NullLogger(), $container);
+			#[\Override]
+			public function retrieveObjectsMany(array $ids, array $options = [], ?array &$statuses = null, ?array &$failed = null): array {
+				return ($this->many)($ids, $failed);
+			}
+		};
 	}
 
 	public function testACuratorsCollectionIsStoredWithTheMembersWhoseConsentHolds(): void {
@@ -298,9 +360,20 @@ class CollectionPackServiceTest extends TestCase {
 		$one = CollectionPackService::slug('Artists of Mastodon', 'https://a.example/c/1');
 		$two = CollectionPackService::slug('Artists of Mastodon', 'https://a.example/c/2');
 
-		$this->assertMatchesRegularExpression('/^artists-of-mastodon-[0-9a-f]{8}$/', $one);
+		$this->assertMatchesRegularExpression('/^artists-of-mastodon-[0-9a-f]{16}$/', $one);
 		$this->assertNotSame($one, $two);
-		$this->assertMatchesRegularExpression('/^collection-[0-9a-f]{8}$/', CollectionPackService::slug('✨', 'https://a.example/c/3'));
+		$this->assertMatchesRegularExpression('/^collection-[0-9a-f]{16}$/', CollectionPackService::slug('✨', 'https://a.example/c/3'));
+		$this->assertLessThanOrEqual(64, strlen(CollectionPackService::slug(str_repeat('long name ', 20), 'https://a.example/c/4')), 'the slug column is 64 wide');
+	}
+
+	public function testAPackReadAgainKeepsItsSlug(): void {
+		$service = $this->service();
+		$service->refresh();
+		$this->stored[self::NEWS]['slug'] = 'news-organizations-of-mastodon-1a2b3c4d';
+
+		$service->refresh();
+
+		$this->assertSame('news-organizations-of-mastodon-1a2b3c4d', $this->stored[self::NEWS]['slug']);
 	}
 
 	/** A container holding Bluesky's suggestions reader, with Bluesky on or off. */
@@ -365,6 +438,177 @@ class CollectionPackServiceTest extends TestCase {
 
 		$this->assertArrayHasKey('at://did:plc:a/app.bsky.graph.starterpack/1', $this->stored);
 		$this->assertNotContains(99, $this->deleted);
+	}
+
+	public function testAMemberWhoseServerDoesNotAnswerStaysWhereItWasVerifiedBefore(): void {
+		$service = $this->service();
+		$service->refresh();
+		$this->down[] = $this->documents[self::NEWS]['orderedItems'][1]['featureAuthorization'];
+
+		$result = $service->refresh();
+
+		$this->assertSame([self::PAPER, self::TIMES], $this->stored[self::NEWS]['members']);
+		$this->assertSame(0, $result['refused']);
+	}
+
+	public function testAMemberWhoseServerDoesNotAnswerIsNotAddedUnchecked(): void {
+		$this->down[] = $this->documents[self::NEWS]['orderedItems'][1]['featureAuthorization'];
+
+		$this->service()->refresh();
+
+		$this->assertSame([self::PAPER], $this->stored[self::NEWS]['members']);
+	}
+
+	public function testACollectionNoMemberOfWhichCouldBeCheckedKeepsItsMembers(): void {
+		$service = $this->service();
+		$service->refresh();
+		foreach ($this->documents[self::NEWS]['orderedItems'] as $item) {
+			$this->down[] = $item['featureAuthorization'];
+		}
+
+		$service->refresh();
+
+		$this->assertSame([], $this->deleted);
+		$this->assertSame([self::PAPER, self::TIMES], $this->stored[self::NEWS]['members']);
+	}
+
+	public function testACollectionWhosePageCannotBeReadKeepsWhatWasRead(): void {
+		$page = 'https://mastodon.social/ap/users/1/collections/11?page=1';
+		$this->documents[self::NEWS]['first'] = $page;
+		$this->documents[$page] = ['id' => $page, 'type' => 'OrderedCollectionPage', 'orderedItems' => $this->documents[self::NEWS]['orderedItems']];
+		unset($this->documents[self::NEWS]['orderedItems']);
+		$service = $this->service();
+		$service->refresh();
+		$this->down[] = $page;
+
+		$result = $service->refresh();
+
+		$this->assertSame(1, $result['failed']);
+		$this->assertSame([], $this->deleted);
+		$this->assertSame([self::PAPER, self::TIMES], $this->stored[self::NEWS]['members']);
+	}
+
+	public function testANewCollectionNoMemberOfWhichCouldBeCheckedIsReadNextTime(): void {
+		foreach ($this->documents[self::NEWS]['orderedItems'] as $item) {
+			$this->down[] = $item['featureAuthorization'];
+		}
+
+		$result = $this->service()->refresh();
+
+		$this->assertSame(1, $result['failed']);
+		$this->assertSame(0, $result['refused']);
+		$this->assertSame([], $this->stored);
+	}
+
+	public function testAMemberWhoseServerNoLongerHasTheConsentGoesThoughOthersDidNotAnswer(): void {
+		$service = $this->service();
+		$service->refresh();
+		$items = $this->documents[self::NEWS]['orderedItems'];
+		unset($this->documents[$items[0]['featureAuthorization']]);
+		$this->down[] = $items[1]['featureAuthorization'];
+
+		$result = $service->refresh();
+
+		$this->assertSame([self::TIMES], $this->stored[self::NEWS]['members']);
+		$this->assertSame(1, $result['refused']);
+	}
+
+	public function testOnlyAsManyMembersAsAPackOffersAreChecked(): void {
+		$members = [];
+		for ($n = 0; $n < 80; $n++) {
+			$member = 'https://m' . $n . '.example/users/u';
+			$members[$member] = $this->authorization($member, self::NEWS);
+		}
+		$this->documents[self::NEWS] = $this->collection(self::NEWS, 'Many', $members);
+
+		$this->service()->refresh();
+
+		$this->assertCount(StarterPackService::MAX_HANDLES, $this->asked[0]);
+		$this->assertSame(array_slice(array_keys($members), 0, StarterPackService::MAX_HANDLES), $this->stored[self::NEWS]['members']);
+	}
+
+	public function testTheMembersNotCachedAreQueuedRatherThanFetched(): void {
+		$this->cached = [self::PAPER];
+
+		$this->service()->refresh();
+
+		$this->assertSame([self::TIMES], $this->queued);
+	}
+
+	/** A second collection of the curator's, read after the first. */
+	private function withASecondCollection(): string {
+		$art = 'https://mastodon.social/ap/users/1/collections/12';
+		$this->documents[$art] = $this->collection($art, 'Art', [self::BLOG => $this->authorization(self::BLOG, $art)]);
+		$this->documents[self::LIST]['orderedItems'] = [self::NEWS, $art];
+
+		return $art;
+	}
+
+	public function testOneCollectionThatCannotBeStoredDoesNotStopTheRest(): void {
+		$art = $this->withASecondCollection();
+		$this->unwritable = [self::NEWS];
+
+		$result = $this->service()->refresh();
+
+		$this->assertSame(1, $result['failed']);
+		$this->assertSame(1, $result['packs']);
+		$this->assertArrayHasKey($art, $this->stored);
+	}
+
+	public function testTheRunStopsAtItsDeadlineAndWhatItDidNotReadStays(): void {
+		$art = $this->withASecondCollection();
+		$service = $this->service();
+		$service->refresh();
+		$this->stored[$art]['name'] = 'as read last time';
+		$this->asked = [];
+		// each batch of authorizations takes a minute; the run has thirty seconds
+		$this->tick = 60;
+
+		$result = $service->refresh($this->now + 30);
+
+		$this->assertCount(1, $this->asked, 'a collection was read after the deadline');
+		$this->assertSame([], $this->deleted);
+		$this->assertSame('as read last time', $this->stored[$art]['name']);
+		$this->assertGreaterThan(0, $result['failed']);
+	}
+
+	public function testARunPastItsDeadlineReadsNothingAndRemovesNothing(): void {
+		$service = $this->service();
+		$service->refresh();
+		$this->asked = [];
+
+		$result = $service->refresh($this->now);
+
+		$this->assertSame([], $this->asked);
+		$this->assertArrayHasKey(self::NEWS, $this->stored);
+		$this->assertSame(1, $result['failed']);
+	}
+
+	public function testAMemberThisInstanceKeepsOutIsLeftOut(): void {
+		$this->moderated = [self::TIMES];
+
+		$this->service()->refresh();
+
+		$this->assertSame([self::PAPER], $this->stored[self::NEWS]['members']);
+		$this->assertNotContains($this->documents[self::NEWS]['orderedItems'][1]['featureAuthorization'], $this->asked[0]);
+	}
+
+	public function testACuratorThisInstanceKeepsOutOffersNothing(): void {
+		$service = $this->service();
+		$service->refresh();
+		$this->moderated = [self::CURATOR];
+
+		$service->refresh();
+
+		$this->assertSame([], $this->stored);
+	}
+
+	public function testBlueskysSuggestionsStayWhenTheRunIsOutOfTime(): void {
+		$suggested = $this->createMock(SuggestedStarterPacks::class);
+		$suggested->expects($this->never())->method('refresh');
+		$suggested->expects($this->never())->method('forgetAllBut');
+
+		$this->service($this->bluesky($suggested, true))->refresh($this->now);
 	}
 
 	public function testBlueskysSuggestionsAreASource(): void {

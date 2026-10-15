@@ -212,7 +212,13 @@ handle that was never issued is a 404.
 A later phase lets a person set a **custom handle** on a domain they own
 (they place the TXT record or the well-known file; the app verifies and
 updates the DID document). The `alice.<host>` handle keeps resolving to the
-same DID forever, as an alias the DID document does not list.
+same DID forever, as an alias the DID document does not list. The domain is
+checked again every day; one that fails seven checks in a row — a week — is
+dropped, and the account has its `alice.<host>` handle again, in the DID
+document too. A handle reaches an account here by no other way unchecked:
+one the PLC directory names for a DID (after an operation signed elsewhere,
+or a move here) becomes its custom handle only when the domain names the
+DID.
 
 ### 4.3 Service identity
 
@@ -409,15 +415,21 @@ app derives from its log), `recovery/recovery-key.py` with the word list
 (§4.4), `recovery/bluesky-recovery-tool.html` (the recovery tool, §4.4,
 where the JavaScript is built), and `README.txt`, which says what each
 file is and the steps of Moving.md's "If this server goes away". Every file goes to the
-archive as a stream — the CAR through a temporary stream that spills to
-disk — and the download is sent in pieces from the finished zip, so
-neither is ever whole in memory. Nothing is read back from these files
+archive as a stream, so none is ever whole in memory. The download is a
+zip written as it is sent (`ZipStreamWriter`: stored, CRC and sizes in a
+data descriptor after each file, ZIP64 offsets and end records past
+4 GB): its first bytes go out at once, the CAR goes in as the repository
+is read, and nothing of it is kept on disk. The Migration page's archive
+is a `ZipArchive` file, the CAR going in through a temporary stream that
+spills to disk. Nothing is read back from these files
 on import: a Bluesky account comes here by a move (§13), not from a file.
 
 ### 4.6 Switching off (D23)
 
 **Settings → Apps and account → Bluesky** has the switch **Be on Bluesky**,
-on by default, with a plain explanation beside it. It is the one setting
+on by default, with a plain explanation beside it. Switching it off asks
+first, saying that Bluesky apps are signed out and that what is written
+while off never reaches Bluesky; switching on does not. It is the one setting
 that names Bluesky, since it is about presence there and nothing else. The
 route is `POST /api/v1/social/bluesky/state` (`active`), the work
 `PresenceService` (`lib/Atproto/Identity/PresenceService.php`).
@@ -531,7 +543,12 @@ transaction begins by reading that row with a row lock (`SELECT … FOR
 UPDATE`; SQLite, which has one writer at a time anyway, without the
 clause), so two commits of one repository that start together run one
 after the other and the second builds on the first's head rather than
-forking the tree.
+forking the tree. A record that stands for one object here — a post, a
+like, a repost, a follow — is looked for again after that read: when a
+second worker publishing the same post finds the first one's record
+there, its commit writes nothing, so a post never goes out twice. On
+SQLite, without the lock, the database's single writer refuses the second
+commit's first write instead, and that commit is rolled back.
 
 ### 5.4 Blobs
 
@@ -788,6 +805,8 @@ depends on, uploaded as a blob (§5.4), and placed in
 
 **Delete**: `deleteRecord` of the post, and of the likes and reposts local
 actors made of it, in the same job that sends the ActivityPub `Delete`.
+Every removal is tried; when one fails for a reason that may pass, the job
+is tried again later, as in §8.6, and removes what is still there.
 
 **Edit** (D10): if the post is less than five minutes old (`created_at`),
 the record is deleted and a new one created with the new content — a new
@@ -807,6 +826,10 @@ Bluesky" means the post is either a Bluesky post (its stream row carries an
 of an ActivityPub-only post writes nothing. These go through the same
 queued publisher and are reflected in the viewer flags the status entity
 already carries (`favourited`, `reblogged`) — one action, two networks.
+A write that fails for a reason that may pass — the service down, a lock
+that timed out — is tried again later, eight times over about 80 minutes;
+one Bluesky refuses as such is not. A like or boost undone before it was
+written writes nothing.
 
 ## 9. Inbound: reading Bluesky
 
@@ -1205,7 +1228,8 @@ notifications are counted as the followers a starter pack brought.
 Discover page and served at `/api/v1/starter_packs` like any other starter
 pack; the members are cached from the list's profile views, an account this
 instance blocks or that Bluesky's moderation limits is left out, and a pack
-Bluesky no longer suggests goes at the next read.
+Bluesky no longer suggests goes at the next read. A pack whose list cannot be
+read that day keeps what was read last time.
 
 ### 10.1 Direct messages
 
@@ -1237,6 +1261,14 @@ like any other; nothing in it says which network it runs on.
   it, at most 1,000 graphemes, its links and hashtags as facets — is sent
   (`sendMessage`). Recipients on the Fediverse get it over ActivityPub as
   before. Pictures are not sent: a Bluesky direct message carries none.
+  `sendMessage` takes no idempotency key and a failed job is tried again,
+  so the first attempt is recorded before the message goes
+  (`ChatStore::attempting()`), and a retry of a message not recorded as
+  sent first looks among the conversation's 100 newest messages
+  (`getMessages`) for the account's own of the same text since that
+  attempt; one found is recorded as sent instead of sending it again. Only
+  a conversation with more than 100 messages since the attempt could hide
+  it.
 - **Written in a Bluesky app.** A message the account itself writes in a
   Bluesky app (signed in here or anywhere) is in the log too, and is
   stored as the account's own direct message to the conversation's other
@@ -1546,7 +1578,7 @@ protocol's account migration (classes `Move\MoveInService`,
 `Move\InboundMoveService`, job `Cron\AtprotoMove`, table
 `social_atproto_move`).
 
-**Driven from here** (Settings → Migration → *Bring your Bluesky account
+**Driven from here** (Migration → *Bring your Bluesky account
 here*):
 
 1. The person types their Bluesky handle (or DID) and the account's own
@@ -1563,18 +1595,27 @@ here*):
 2. A background job copies the **repository** (`com.atproto.sync.getRepo`,
    checked against the DID's signing key and written here byte for byte
    under a commit signed with a key made for the account here), the
-   **blobs** (`listBlobs`/`getBlob`, each checked against its CID) and the
-   **preferences**. The repository and the blobs arrive in temporary files
-   rather than in memory,
+   **blobs** the copied records name (`getBlob`, each checked against its
+   CID; a blob no record names is not asked for) and the **preferences**.
+   The repository and the blobs arrive in temporary files rather than in
+   memory,
    held to the caps the server takes from a tool too: 64 MB for the
    repository (`repo-too-large` past that), and the largest upload for a
-   blob (a larger one is not copied, and counts as missing below).
+   blob (a larger one is not copied, and counts as missing below). A move
+   downloads at most 10 GB of blobs (`progress.blob_bytes`, whether they
+   were kept or not), and at most 50,000 blobs in one run; past either,
+   the rest counts as missing below. A tool that drives a move here (below)
+   is held to the same 10 GB for what it uploads.
 3. Before that, the blobs the copied records name are compared with the
    blobs stored here (and the counts logged). When any is missing, the
    move stops in state `needs_decision` with `progress.missing` (`count`
-   and the first 50 `cids`) and code `blobs-missing`: the person has them
-   copied again or goes on without them (`POST …/move-in/continue`), so the
-   DID never switches with pictures silently lost. Then the old PDS
+   and the first 50 `cids`) and code `blobs-missing`, and the first 20
+   records that name a missing one in `progress.missing_records`
+   (`MovedBlobs::named()`: a post's date, the start of its text and its
+   address; the profile by its collection): the person has them copied
+   again or goes on without them (`POST …/move-in/continue`), the latter
+   after a confirmation that says how many are lost and lists those
+   posts, so the DID never switches with pictures silently lost. Then the old PDS
    **e-mails a code** (`requestPlcOperationSignature`); the move waits for
    the person to enter it. The page says where the code went
    when the old PDS's session names the address (`progress.code_sent_to`),
@@ -1598,7 +1639,24 @@ here*):
    the curate lists lists here (§9.7) — through the import path, nothing
    re-published.
 
-**Driven by a tool** (Settings → Migration → *Bring your bridged Bluesky
+**A move whose job stopped.** Core drops a queued job before it runs it,
+so a job killed mid-step (out of memory, a restart) leaves its move
+`running` with nothing to carry it on. The Bluesky maintenance job
+(`Move\StaleMoves`) picks up a running move — here, away or driven by a
+tool — that has not been written to for an hour and has no job waiting:
+the first time it queues the move again, from its step; the next time it
+fails it with `move-interrupted`, so "Try again" and "Call it off" work
+again (a move driven by a tool waits for the person's decision on the
+blobs again, or is done once the account is active here). A running move
+writes as it goes — each blob, each page of follows — so a long one is not
+taken for a stopped one. A move here whose job stopped after the directory
+took the operation finds the DID pointing here with the key made for it,
+and the account takes the DID without asking the old server to sign
+again; a move away that stopped while the DID was handed over goes on
+from the activation once the directory names the other server, and can
+no longer be called off.
+
+**Driven by a tool** (Migration → *Bring your bridged Bluesky
 account here*): the person invites the DID and gets a one-time code; Bridgy
 Fed, or a migration tool such as `goat account migrate`, then runs steps
 1–12 of the protocol's migration against this server (`createAccount`
@@ -1627,8 +1685,10 @@ the move's progress says so (`handle_kept`). A handle is the person's own
 when it is not under a domain the old server gives handles under — its
 `describeServer`'s `availableUserDomains`, its own host, `bsky.social` or
 Bridgy Fed's `brid.gy` — nor under this server's host, nor another
-account's here. Any other handle becomes the account's handle here,
-`alice.<host>`. The decision is made before the code is asked for (driven
+account's here — and only when the domain names the DID, as any custom
+handle must (§4.2: the TXT record or the well-known file); the directory
+says only what the DID's owner wrote there. Any other handle becomes the
+account's handle here, `alice.<host>`. The decision is made before the code is asked for (driven
 from here) or when the tool asks for the recommended credentials.
 
 **Rotation keys.** A move here keeps the DID the person's: the operation
@@ -1668,9 +1728,11 @@ The mirror image, so a person is not locked in. On the Migration page,
    invite code; a handle under none of them is refused before anything
    is made (`handle-not-allowed`).
 2. In the background (`AtprotoMove` job, `oc_social_atproto_move`): the
-   repository as a CAR into `importRepo`, the blobs that
-   `listMissingBlobs` names into `uploadBlob`, the preferences into
-   `putPreferences`. While the move runs, or waits for the person, posts
+   repository as a CAR into `importRepo` (sent from a temporary stream
+   that spills to disk, never as one string), the blobs that
+   `listMissingBlobs` names into `uploadBlob` (each once; the list ends at
+   a cursor it named before, at a page that names no new blob, and after
+   1000 pages), the preferences into `putPreferences`. While the move runs, or waits for the person, posts
    written here wait instead of going to the account's repository (the
    Publisher skips them with a log line). Right before the DID moves they
    are published, oldest first, and when the repository's head moved on
@@ -1682,9 +1744,12 @@ The mirror image, so a person is not locked in. On the Migration page,
    this server's head commit with as many records, and `importedBlobs`
    equal to `expectedBlobs`. Anything missing stops the move *before* the
    DID moves, in `needs_decision` with `blobs-missing` and
-   `progress.missing` (or `repo-incomplete`);
+   `progress.missing` (or `repo-incomplete`), and the records the other
+   PDS's first page of `listMissingBlobs` names, read here, in
+   `progress.missing_records` as for a move here;
    `POST …/bluesky/move/continue` copies again, or with `without_missing`
-   moves the DID without what is missing.
+   moves the DID without what is missing, which the page confirms first,
+   with the count and those posts.
 3. The DID: `getRecommendedDidCredentials` there, then this server signs
    and sends the PLC operation itself (`IdentityService::handOver()`), with
    the person's recovery key first among the rotation keys and the other
@@ -1706,8 +1771,8 @@ the account afterwards, so a start without one has to say
 deactivated), `repo_copied` (the repository is there, the DID has not
 moved), `identity_switched` (the DID points there, the account is not
 active there yet), `activated`, `done`. "Try again" goes on from the step
-that stopped. Before the DID moved, `DELETE …/bluesky/move` calls the move
-off: the run stops before its next step, and the account made on the other
+that stopped. Before the DID moved, `DELETE …/bluesky/move` (after the
+Nextcloud password, as for a move here) calls the move off: the run stops before its next step, and the account made on the other
 server is left there, deactivated, because deleting it takes a code that
 server e-mails (`requestAccountDelete`, then `deleteAccount` with the
 account's password and that code) — the answer says so with
@@ -1783,7 +1848,9 @@ that account follows (`FollowFrom`). Follow records are public, so no
 password is asked: the DID is resolved (the AppView's `resolveHandle`), its
 PDS read from the PLC directory and asked through `PdsClient` with its
 refusal of local addresses, and its `app.bsky.graph.follow` records are read
-with `com.atproto.repo.listRecords`, at most 5000. Each account followed
+with `com.atproto.repo.listRecords`, at most 5000. The PDS is the person's
+to name, so the reading also ends at a cursor it named before, at a page
+that adds no account, and after 100 pages. Each account followed
 there is resolved (`BlueskyActorService`) and followed from here through
 `FollowService::followActor()` — one already followed is skipped — in the
 background as an import of kind `bluesky_follows`, its progress on the
@@ -1794,12 +1861,15 @@ and its followers do not come along: only a move (§13.1) brings them.
 
 Every error answer of the move routes under `/api/v1/social/bluesky/*`,
 and of the account's own Bluesky routes there — identity, recovery
-phrase, `control` (§4.5b), `archive` (§4.5a) — and of the recovery tool
+phrase, custom handle (§4.2), app passwords (§6.3), `control` (§4.5b),
+`archive` (§4.5a) — and of the recovery tool
 (§4.4), carries a stable code beside the English sentence,
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
-explains the code in the person's language; the sentence is for logs and
-older clients.
+explains the code in the person's language, with what they can do next
+(`src/utils/blueskyError.js`), and a code it does not know with a general
+sentence; the English sentence is for logs and older clients, and the page
+keeps it behind *Details* for whoever helps the person.
 
 | Code | When | What the person can do |
 |---|---|---|
@@ -1822,7 +1892,6 @@ older clients.
 | `account-not-created` | The other server did not make the account, for another reason | The details say why |
 | `keys-sealed` | A key of this server cannot be opened (the instance secret changed): 503 on any route that needs one; an XRPC call answers 503 `KeysSealed` (§16.3) | Ask the administrator to run `occ social:atproto:keys:reseal` |
 | `directory-unreachable` | `control`: the PLC directory did not answer (503) | Try again later |
-| `export-failed` | `archive`: the zip could not be written (500) | Try again; the log has the details |
 | `tool-missing` | The recovery tool's script is not built on this server (503) | Ask the administrator; a release has it |
 | `plc-unreachable` | The PLC directory did not answer | Try again later |
 | `plc-refused` | The PLC directory refused the operation | The details say why |
@@ -1865,8 +1934,16 @@ older clients.
 | `move-replaced` | An invitation was replaced by a newer one | — |
 | `invite-expired` / `move-expired` | An invitation, or a move driven by a tool, ran out of time | Invite again |
 | `bridgy-unreachable` | Bridgy Fed could not be sent the request | Try again later |
+| `handle-domain-invalid` | A custom handle that is not a domain name a handle can be | Check the domain |
+| `handle-reserved` | A custom handle under this server's handle host | Use a domain of your own |
+| `handle-in-use` | A custom handle another account here has | Use another domain |
+| `handle-not-verified` | Neither the `_atproto` TXT record nor the `.well-known` file of the domain names the DID yet | Add the record, wait for it to spread, and try again |
+| `app-password-name-invalid` | An app password's name is empty or longer than 64 characters | Give it a name |
+| `app-password-name-taken` | The account has an app password of that name | Pick another name |
+| `app-password-limit` | The account has 25 app passwords | Revoke one first |
+| `move-interrupted` | The move's background job stopped twice without finishing (an hour without progress each time) | *Try again*, or call it off while the DID has not moved |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |
-| `server-error` | Something unexpected on this server | Try again; the log has the details |
+| `server-error` | Something unexpected on this server; the sentence is a fixed one, the details are in the log | Try again; the log has the details |
 
 ## 14. Operations
 
@@ -2536,7 +2613,7 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
   migration tool. A tool would need a session with account-management
   rights, which neither app passwords nor `transition:generic` give, and
   this server holds both the signing key and a rotation key of the DID.
-  So Settings → Migration → *Move your Bluesky account away* does what the
+  So Migration → *Move your Bluesky account away* does what the
   tool would: the person names the other PDS, a handle there, an e-mail
   address and a password (and an invite code if it wants one), confirms
   with their Nextcloud password, and this server makes the account there
@@ -2565,7 +2642,7 @@ Fed twins (§13.3), **4e** the moved posts in the timeline (§13.1, step 6).
 `IdentityService::adopt()`, `FollowService::adoptBlueskyFollow()`,
 `DocumentService::storeAsIs()`:
 
-- **Driven from here, as moving away is.** Settings → Migration → *Bring
+- **Driven from here, as moving away is.** Migration → *Bring
   your Bluesky account here*: the person names their Bluesky account and
   types its **password** — the account's own, not an app password, because
   a PDS signs a change of the DID only for a full session (§13.1 said app
@@ -2606,7 +2683,7 @@ direction `inbound` in `social_atproto_move`:
   [invite]`, doing what a migration tool does against the new PDS. So 4d
   serves that side, and every standard tool (`goat account migrate`, say)
   can move an account here the same way.
-- **Invited first.** Settings → Migration → *Bring your bridged Bluesky
+- **Invited first.** Migration → *Bring your bridged Bluesky
   account here* finds the twin (the handle Bridgy gives the Fediverse
   address, resolving to a DID whose PDS is `atproto.brid.gy`); a person can
   also name any other account. Inviting, after the Nextcloud password, makes

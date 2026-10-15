@@ -67,7 +67,7 @@
 					type="switch"
 					class="bluesky-settings__switch"
 					:disabled="switchingBluesky"
-					@update:modelValue="setBlueskyActive">
+					@update:modelValue="askBlueskyActive">
 					{{ t('social', 'Be on Bluesky') }}
 				</NcCheckboxRadioSwitch>
 				<template v-if="bluesky.active === false">
@@ -165,7 +165,10 @@
 					{{ t('social', 'Download your Bluesky account') }}
 				</NcButton>
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from Settings → Migration holds the same files.') }}
+					{{ t('social', 'Your posts, pictures and the history of your Bluesky identifier, in the files Bluesky tools read, with a guide to moving the account even if this server is gone. The archive from the Migration page holds the same files.') }}
+					<router-link :to="{ name: 'migration' }">
+						{{ t('social', 'Open Migration') }}
+					</router-link>
 				</p>
 			</div>
 			<!-- the domain only has to name the DID: the account, its
@@ -210,12 +213,12 @@
 						class="bluesky-settings__custom-handle-field"
 						:label="t('social', 'Domain to use as your handle')"
 						placeholder="alice.example.org"
-						:error="customHandleError !== ''"
-						:helperText="customHandleError"
+						:error="customHandleError !== null"
 						maxlength="253"
 						:showTrailingButton="false"
-						@update:modelValue="customHandleError = ''"
+						@update:modelValue="customHandleError = null"
 						@keydown.enter.prevent="setCustomHandle" />
+					<BlueskyError v-if="customHandleError" :error="customHandleError" />
 					<div v-if="customHandleDomain !== ''" class="bluesky-settings__custom-handle-steps">
 						<p class="bluesky-settings__hint">
 							{{ t('social', 'Add one of these, then check it:') }}
@@ -391,12 +394,12 @@
 							class="bluesky-settings__app-password-field"
 							:label="t('social', 'Name of the new app password')"
 							:placeholder="t('social', 'The app it is for')"
-							:error="appPasswordNameError !== ''"
-							:helperText="appPasswordNameError"
+							:error="appPasswordNameError !== null"
 							maxlength="64"
 							:showTrailingButton="false"
-							@update:modelValue="appPasswordNameError = ''"
+							@update:modelValue="appPasswordNameError = null"
 							@keydown.enter.prevent="createAppPassword" />
+						<BlueskyError v-if="appPasswordNameError" :error="appPasswordNameError" />
 						<!-- Bluesky's own privileged app passwords: only an app
 						     signed in with one reaches the direct messages -->
 						<NcCheckboxRadioSwitch v-model="appPasswordPrivileged" class="bluesky-settings__app-password-privileged">
@@ -507,6 +510,14 @@
 				</dl>
 			</template>
 		</NcDialog>
+		<ConfirmDialog
+			v-if="confirmingBlueskyOff"
+			:open="true"
+			:name="t('social', 'Leave Bluesky?')"
+			:message="t('social', 'Every Bluesky app signed in to your account is signed out, and your profile and posts are no longer shown on Bluesky. Posts you write while you are off never reach Bluesky, not even after you switch back on.')"
+			:confirmLabel="t('social', 'Switch off')"
+			@update:open="closeBlueskyOff"
+			@confirm="setBlueskyActive(false)" />
 	</div>
 </template>
 
@@ -524,9 +535,12 @@ import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import KeyOutline from 'vue-material-design-icons/KeyOutline.vue'
 import { translate as t } from '@nextcloud/l10n'
+import BlueskyError from './BlueskyError.vue'
+import ConfirmDialog from './admin/ConfirmDialog.vue'
 import { confirmPassword } from '../services/externalApi.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { blueskyErrorOf } from '../utils/blueskyError.js'
 import { fromNow, fullDate, fullDateTime } from '../utils/relativeTime.js'
 
 /**
@@ -540,7 +554,9 @@ export default {
 	name: 'BlueskySettings',
 
 	components: {
+		BlueskyError,
 		Check,
+		ConfirmDialog,
 		ContentCopy,
 		Download,
 		KeyOutline,
@@ -561,9 +577,11 @@ export default {
 			 */
 			bluesky: null,
 			blueskyError: '',
-			/** the pause switch: it moves at once, and comes back if the server refuses */
+			/** the pause switch: on it moves at once, off once confirmed, and it comes back if the server refuses */
 			blueskyActive: true,
 			switchingBluesky: false,
+			/** switching off is asking to be confirmed */
+			confirmingBlueskyOff: false,
 			/** whether blocks of Bluesky accounts go to Bluesky, where they are public */
 			publishBlocks: false,
 			switchingBlocks: false,
@@ -588,8 +606,12 @@ export default {
 			recoveryKey: null,
 			/** the domain as typed into the own-handle field */
 			customHandle: '',
-			/** what the server said about the domain, under the field */
-			customHandleError: '',
+			/**
+			 * What the server said about the domain, under the field
+			 *
+			 * @type {{text: string, details: string}|null}
+			 */
+			customHandleError: null,
 			/** a handle change is out */
 			changingHandle: false,
 			/** going back to the assigned handle is asking to be confirmed */
@@ -607,8 +629,12 @@ export default {
 			appPasswordName: '',
 			/** whether the new app password reaches the direct messages */
 			appPasswordPrivileged: false,
-			/** what the server said about the name, under the field */
-			appPasswordNameError: '',
+			/**
+			 * What the server said about the name, under the field
+			 *
+			 * @type {{text: string, details: string}|null}
+			 */
+			appPasswordNameError: null,
 			makingAppPassword: false,
 			/**
 			 * The password just made, until it is dismissed; it is never
@@ -873,7 +899,7 @@ export default {
 				return
 			}
 			this.changingHandle = true
-			this.customHandleError = ''
+			this.customHandleError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/handle'), { handle })
 				this.takeIdentity(data)
@@ -882,7 +908,7 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.customHandleError = error.response.data?.error || t('social', 'Could not set the handle')
+					this.customHandleError = blueskyErrorOf(error, t('social', 'Could not set the handle'))
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
@@ -968,7 +994,7 @@ export default {
 				return
 			}
 			this.makingAppPassword = true
-			this.appPasswordNameError = ''
+			this.appPasswordNameError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/app-passwords'), { name, privileged: this.appPasswordPrivileged })
 				this.appPasswords = data.app_passwords
@@ -978,7 +1004,7 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.appPasswordNameError = error.response.data?.error || t('social', 'Could not make an app password with that name')
+					this.appPasswordNameError = blueskyErrorOf(error, t('social', 'Could not make an app password with that name'))
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
@@ -1079,6 +1105,28 @@ export default {
 			} finally {
 				this.switchingBlocks = false
 			}
+		},
+
+		/**
+		 * Switching on happens at once; switching off signs every Bluesky
+		 * app out and keeps what is written meanwhile off Bluesky for good,
+		 * so it is confirmed first.
+		 *
+		 * @param {boolean} active whether the person should be on Bluesky
+		 */
+		askBlueskyActive(active) {
+			if (active) {
+				this.setBlueskyActive(true)
+			} else {
+				this.blueskyActive = false
+				this.confirmingBlueskyOff = true
+			}
+		},
+
+		/** The question is gone: the switch shows the server's state again until a confirmed change moves it. */
+		closeBlueskyOff() {
+			this.confirmingBlueskyOff = false
+			this.blueskyActive = this.bluesky?.active !== false
 		},
 
 		/**

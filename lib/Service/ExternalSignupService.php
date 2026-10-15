@@ -10,9 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\ExternalInvitesRequest;
 use OCA\Social\Db\ExternalSignupsRequest;
 use OCA\Social\Exceptions\ExternalUserException;
+use OCA\Social\Exceptions\SocialAppConfigException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\HintException;
@@ -64,6 +66,7 @@ class ExternalSignupService {
 		private ExternalSignupsRequest $signupsRequest,
 		private ExternalInvitesRequest $invitesRequest,
 		private InstanceService $instanceService,
+		private AtprotoConfig $atprotoConfig,
 		private IHasher $hasher,
 		private ISecureRandom $secureRandom,
 		private IEventDispatcher $eventDispatcher,
@@ -74,6 +77,7 @@ class ExternalSignupService {
 		private ITimeFactory $timeFactory,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
+		private ConfigService $configService,
 	) {
 	}
 
@@ -105,9 +109,27 @@ class ExternalSignupService {
 			'signupNotice' => $signupNotice,
 			'signupNoticeRequired' => $this->externalUserService->requiresSignupNoticeAcceptance(),
 			'signupNoticeVersion' => hash('sha256', $signupNotice),
-			'domain' => $this->domain(),
+			'domain' => $this->addressHost(),
+			'bluesky' => $this->bluesky(),
 			'loginUrl' => $this->urlGenerator->linkToRoute('core.login.showLoginForm'),
 		];
+	}
+
+	/**
+	 * Whether an account made here is on Bluesky too, and the host its
+	 * handle is issued under (`HandleMapper`), for the page to preview it.
+	 *
+	 * @return array{enabled: bool, host: string}
+	 */
+	private function bluesky(): array {
+		if (!$this->atprotoConfig->isEnabled()) {
+			return ['enabled' => false, 'host' => ''];
+		}
+		try {
+			return ['enabled' => true, 'host' => $this->atprotoConfig->handleHost()];
+		} catch (SocialAppConfigException) {
+			return ['enabled' => false, 'host' => ''];
+		}
 	}
 
 	private function closedReason(string $mode, bool $triedInvite): string {
@@ -459,6 +481,18 @@ class ExternalSignupService {
 		return (string)parse_url($this->urlGenerator->getAbsoluteURL('/'), PHP_URL_HOST);
 	}
 
+	/**
+	 * The host addresses here end in: the social address, which the
+	 * administrator may have set apart from the host this page is served on.
+	 */
+	private function addressHost(): string {
+		try {
+			return $this->configService->getSocialAddress();
+		} catch (SocialAppConfigException) {
+			return $this->domain();
+		}
+	}
+
 	private function sendVerification(string $email, string $handle, string $token): bool {
 		$link = $this->urlGenerator->linkToRouteAbsolute('social.Signup.verify', ['token' => $token]);
 		$template = $this->mailer->createEMailTemplate('social.SignupVerify', ['handle' => $handle]);
@@ -478,7 +512,7 @@ class ExternalSignupService {
 		$template->setSubject($this->l10n->t('Your account is ready'));
 		$template->addHeader();
 		$template->addHeading($this->l10n->t('Welcome, @%s', [$handle]));
-		$template->addBodyText($this->l10n->t('Your account @%1$s@%2$s is ready. Log in with your username and the password you chose.', [$handle, $this->domain()]));
+		$template->addBodyText($this->l10n->t('Your account @%1$s@%2$s is ready. Log in with your username and the password you chose.', [$handle, $this->addressHost()]));
 		$template->addBodyButton($this->l10n->t('Log in'), $this->urlGenerator->linkToRouteAbsolute('core.login.showLoginForm'));
 		$template->addFooter();
 

@@ -26,12 +26,12 @@ export function fullHandle(account, hostname) {
  * author is talking to itself.
  *
  * @param {object} post the post being answered, as the timeline holds it
- * @param {string} selfUid the reader's user id
+ * @param {string} selfUsername the reader's username here, which need not be their user id
  * @param {string} hostname this server's host
  * @return {Array<{acct: string, url: string, avatar?: string, bluesky?: object|null}>}
  */
-export function participantsOf(post, selfUid, hostname) {
-	const self = `${selfUid}@${hostname}`.toLowerCase()
+export function participantsOf(post, selfUsername, hostname) {
+	const self = `${selfUsername}@${hostname}`.toLowerCase()
 	const seen = new Set()
 
 	return [post.account, ...(Array.isArray(post.mentions) ? post.mentions : [])]

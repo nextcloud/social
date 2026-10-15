@@ -138,7 +138,7 @@ class ReplyCountTest extends TestCase {
 	public function testARecountKeepsTheRepliesThatLiveOnTheOtherServer(): void {
 		$parent = $this->note('parent');
 		$parent->setDetailInt('remote_replies', 5);
-		$this->streamRequest->updateDetails($parent);
+		$this->streamRequest->updateDetails($parent, 'remote_replies');
 		$this->note('reply-a', $this->id('parent'));
 
 		$this->streamRequest->recountReplies($this->id('parent'));

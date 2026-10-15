@@ -10,12 +10,14 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Chat;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
+use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Lexicon\Lexicon;
 use OCA\Social\Atproto\Publisher\TextMapper;
 use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
+use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -26,11 +28,21 @@ use Psr\Log\LoggerInterface;
  * messages carry none. Answering a conversation that is a request on
  * Bluesky (somebody the person does not follow started it) accepts it
  * there, as answering it in a Bluesky app does.
+ *
+ * A message goes at most once. One recorded as sent is not sent again; as
+ * `sendMessage` takes no idempotency key, the first attempt is recorded
+ * before it goes (`ChatStore::attempting()`), and a retry looks among the
+ * conversation's newest messages for the account's own of the same text
+ * since then: found, it is recorded as sent, and only otherwise sent.
  */
 class ChatSender {
 	/** Bluesky's limit for one message */
 	public const MAX_GRAPHEMES = 1000;
 	public const MAX_BYTES = 10000;
+	/** how many of a conversation's newest messages a retry looks through */
+	public const LOOKBACK = 100;
+	/** how far the chat service's clock may be behind this one, in seconds */
+	private const SKEW = 60;
 
 	public function __construct(
 		private AppViewClient $appView,
@@ -40,6 +52,7 @@ class ChatSender {
 		private ChatStore $store,
 		private ChatPoller $poller,
 		private LoggerInterface $logger,
+		private ITimeFactory $time,
 	) {
 	}
 
@@ -94,6 +107,10 @@ class ChatSender {
 		if ($identity === null || !$identity->isActive()) {
 			return false;
 		}
+		if ($this->store->convoOf($post->getId()) !== '') {
+			// an earlier attempt sent and recorded it
+			return false;
+		}
 		$key = $this->identities->signingKey($identity);
 		$view = $this->appView->chatAs($identity->did, $key, 'chat.bsky.convo.getConvoForMembers', ['members' => $recipients])['convo'] ?? [];
 		$convo = is_array($view) ? (string)($view['id'] ?? '') : '';
@@ -105,15 +122,53 @@ class ChatSender {
 		if (($view['status'] ?? '') === ChatState::REQUEST) {
 			$this->appView->chatAs($identity->did, $key, 'chat.bsky.convo.acceptConvo', [], ['convoId' => $convo]);
 		}
-		$sent = $this->appView->chatAs($identity->did, $key, 'chat.bsky.convo.sendMessage', [], [
-			'convoId' => $convo,
-			'message' => ['text' => $message['text']] + ($message['facets'] === [] ? [] : ['facets' => $message['facets']]),
-		]);
+		$since = $this->store->attempted($post->getId());
+		$messageId = $since > 0 ? $this->sentSince($identity->did, $key, $convo, $message['text'], $since, $post->getId()) : null;
+		if ($messageId === null) {
+			if ($since === 0) {
+				$this->store->attempting($post->getId(), $this->time->getTime());
+			}
+			$sent = $this->appView->chatAs($identity->did, $key, 'chat.bsky.convo.sendMessage', [], [
+				'convoId' => $convo,
+				'message' => ['text' => $message['text']] + ($message['facets'] === [] ? [] : ['facets' => $message['facets']]),
+			]);
+			$messageId = (string)($sent['id'] ?? '');
+		}
 		// so the log's copy of it is known to be this one
-		$this->store->sent($identity->did, $convo, (string)($sent['id'] ?? ''), $post->getId());
+		$this->store->sent($identity->did, $convo, $messageId, $post->getId());
 		// the answer is likely soon
 		$this->poller->wake($identity->did);
 
 		return true;
+	}
+
+	/**
+	 * The id of the account's message of `$text` in a conversation, sent no
+	 * earlier than `$since` and not recorded as another message sent from
+	 * here: an earlier attempt's at `$noteId`, whose answer was lost or not
+	 * recorded. Null when the newest messages hold none.
+	 */
+	private function sentSince(string $did, PrivateKey $key, string $convo, string $text, int $since, string $noteId): ?string {
+		$answer = $this->appView->chatAs($did, $key, 'chat.bsky.convo.getMessages', ['convoId' => $convo, 'limit' => self::LOOKBACK]);
+		foreach (is_array($answer['messages'] ?? null) ? $answer['messages'] : [] as $message) {
+			if (!is_array($message)) {
+				continue;
+			}
+			$sentAt = strtotime((string)($message['sentAt'] ?? ''));
+			if ($sentAt === false) {
+				continue;
+			}
+			// newest first: the rest are older still
+			if ($sentAt < $since - self::SKEW) {
+				break;
+			}
+			$id = (string)($message['id'] ?? '');
+			if ($id !== '' && ($message['sender']['did'] ?? '') === $did && ($message['text'] ?? null) === $text
+				&& in_array($this->store->sentHere($did, $id), ['', $noteId], true)) {
+				return $id;
+			}
+		}
+
+		return null;
 	}
 }

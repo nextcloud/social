@@ -208,7 +208,11 @@ class PostStore {
 			'object' => $postId,
 		]);
 		if ($deleted) {
-			$this->interactions->removeAllOf($postId);
+			try {
+				$this->interactions->removeAllOf($postId);
+			} catch (Throwable $e) {
+				$this->logger->warning('Bluesky records of a deleted post not removed', ['post' => $postId, 'exception' => $e]);
+			}
 		}
 
 		return $deleted;
@@ -233,7 +237,7 @@ class PostStore {
 		$ids = array_values(array_filter(array_map(static fn (mixed $uri): string => is_string($uri) ? BlueskyIds::postIdOfUri($uri) : '', $uris)));
 		if ($ids !== $post->getHiddenReplies()) {
 			$post->setHiddenReplies($ids);
-			$this->streams->updateDetails($post);
+			$this->streams->updateDetails($post, Details::HIDDEN_REPLIES);
 		}
 	}
 

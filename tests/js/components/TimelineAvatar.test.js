@@ -25,7 +25,7 @@ function mountAvatar(item, props = {}) {
 
 const localStatus = {
 	id: '1',
-	account: { username: 'bob', acct: 'bob', display_name: 'Bob', avatar: 'https://cloud.example.org/avatar/bob/128' },
+	account: { username: 'bob', acct: 'bob', nextcloud_user: 'bob', display_name: 'Bob', avatar: 'https://cloud.example.org/avatar/bob/128' },
 }
 const remoteStatus = {
 	id: '2',
@@ -42,6 +42,15 @@ describe('TimelineAvatar', () => {
 		expect(avatar.props('url')).toBeUndefined()
 		expect(avatar.props('hideStatus')).toBe(true)
 		expect(avatar.props('disableTooltip')).toBe(true)
+	})
+
+	/** the username, chosen when the account is made, is not the user id */
+	it('shows a local author by their Nextcloud user, not by their username', () => {
+		const status = { ...localStatus, account: { ...localStatus.account, username: 'aloha_al', acct: 'aloha_al', nextcloud_user: 'alice' } }
+		const wrapper = mountAvatar(status)
+
+		expect(wrapper.findComponent(NcAvatarStub).props('user')).toBe('alice')
+		expect(wrapper.find('a').attributes('href')).toBe('/index.php/u/alice')
 	})
 
 	it('shows a remote author through the avatar URL delivered with the status', () => {

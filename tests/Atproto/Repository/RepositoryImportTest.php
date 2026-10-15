@@ -86,7 +86,7 @@ class RepositoryImportTest extends TestCase {
 		$this->assertGreaterThan(0, strcmp($head->rev, '3kzzzzzzzzz22'), 'the revision follows the old repository\'s');
 		$this->assertSame([], $this->service->verify(self::DID, $this->key->publicKey()));
 
-		$car = Car::decode($this->service->exportCar(self::DID));
+		$car = Car::decode(implode('', iterator_to_array($this->service->streamCar(self::DID), false)));
 		foreach ($records as $path => $bytes) {
 			[$collection, $rkey] = explode('/', $path);
 			$this->assertSame($bytes, $this->service->getRecord(self::DID, $collection, $rkey)?->bytes);

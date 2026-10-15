@@ -20,6 +20,7 @@ use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
@@ -159,7 +160,7 @@ class QuoteService {
 		$quoting->setSource($quoting->wireSource());
 
 		$this->streamRequest->update($quoting);
-		$this->streamRequest->updateDetails($quoting);
+		$this->streamRequest->updateDetails($quoting, Details::QUOTE_STATE);
 	}
 
 	/**
@@ -174,7 +175,7 @@ class QuoteService {
 			return;
 		}
 		$post->addDetachedQuote($uri);
-		$this->streamRequest->updateDetails($post);
+		$this->streamRequest->updateDetails($post, Details::DETACHED_QUOTES);
 		try {
 			$this->container?->get(Publisher::class)->updateGates($post);
 		} catch (Throwable $e) {

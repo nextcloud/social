@@ -120,7 +120,8 @@
             "pronouns": "",
             "support_link": "",
             "bluesky": null,
-            "verification": null
+            "verification": null,
+            "nextcloud_user": null
         }
     },
     "activitypub": {

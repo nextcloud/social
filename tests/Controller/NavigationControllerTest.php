@@ -167,6 +167,9 @@ class NavigationControllerTest extends TestCase {
 		$this->systemValues([]);
 		$this->configuredCloud();
 		$this->existingActor();
+		$this->accountService->method('getActorFromUserId')->with('alice')
+			->willReturn((new Person())->setPreferredUsername('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
 		$this->groupManager->method('isAdmin')->with('alice')->willReturn(false);
 		$this->checkService->expects($this->never())->method('checkDefault');
 		$this->checkService->expects($this->never())->method('checkInstallationStatus');
@@ -206,9 +209,35 @@ class NavigationControllerTest extends TestCase {
 			'externalMedia' => null,
 			// and whether people may invite others to register; not here
 			'externalInvites' => false,
-			'bluesky' => ['enabled' => false, 'host' => ''],
+			'bluesky' => ['enabled' => false, 'host' => 'cloud.example'],
+			// the host addresses end in, for the setup screen's preview
+			'socialAddress' => 'cloud.example',
 			'cloudAddress' => 'https://cloud.example/index.php',
+			// the account's own name and address, which the page says and
+			// tells the reader's own things apart by
+			'viewer' => ['username' => 'alice', 'address' => 'alice@cloud.example'],
 		], $this->serverData());
+	}
+
+	/**
+	 * The setup screen lets somebody pick a username of their own. The page
+	 * built their address from the user id instead, so the introduction
+	 * showed an address that was not theirs, and the app looked for their
+	 * account under a name it was never filed by.
+	 */
+	public function testThePageIsToldTheAccountsOwnNameNotTheUserId(): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->accountService->method('getActorFromUserId')->with('alice')
+			->willReturn((new Person())->setPreferredUsername('aloha_al'));
+		$this->configService->method('getSocialAddress')->willReturn('social.example');
+
+		$this->controller()->navigate();
+
+		$this->assertSame(
+			['username' => 'aloha_al', 'address' => 'aloha_al@social.example'],
+			$this->serverData()['viewer']
+		);
 	}
 
 	public function testAModeratorIsToldTheyMayVerifyAccounts(): void {
@@ -358,6 +387,7 @@ class NavigationControllerTest extends TestCase {
 		// a suggestion now, not a decision
 		$this->accountService->method('generateHandleFromUserId')->with('alice')->willReturn('alice');
 		$this->accountService->method('linkedHandle')->with('alice')->willReturn('alice@mastodon.social');
+		$this->configService->method('getSocialAddress')->willReturn('social.example');
 		// an RSA key pair and a WebFinger identity used to appear on the first
 		// click of the app icon, with nobody asked (alohasocial/social#1130)
 		$this->accountService->expects($this->never())->method('createActor');
@@ -368,7 +398,9 @@ class NavigationControllerTest extends TestCase {
 		$this->assertTrue($data['needsAccount']);
 		$this->assertFalse($data['firstrun'], 'nothing ran for the first time: nothing exists yet');
 		$this->assertSame('alice', $data['suggestedHandle']);
+		$this->assertSame('social.example', $data['socialAddress'], 'the preview of the address ends in the host it will have');
 		$this->assertSame('alice@mastodon.social', $data['linkedHandle']);
+		$this->assertArrayNotHasKey('viewer', $data, 'there is no account to name yet');
 	}
 
 	public function testNavigateAddsChecksForAdmins(): void {

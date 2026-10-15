@@ -14,10 +14,12 @@ use OCA\Social\Atproto\Chat\ChatState;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Cron\AtprotoPublish;
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\VerificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\BackgroundJob\IJobList;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use ReflectionMethod;
@@ -38,6 +40,8 @@ class AtprotoPublishVerificationsTest extends TestCase {
 			$this->createStub(ChatSender::class),
 			$this->createStub(ChatState::class),
 			$verifications,
+			$this->createStub(ActionsRequest::class),
+			$this->createStub(IJobList::class),
 		);
 		(new ReflectionMethod(AtprotoPublish::class, 'run'))->invoke($job, $argument);
 	}

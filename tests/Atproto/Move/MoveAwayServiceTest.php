@@ -18,11 +18,13 @@ use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Model\RepoHead;
+use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Move\MoveAnnouncement;
 use OCA\Social\Atproto\Move\MoveAwayService;
 use OCA\Social\Atproto\Move\MoveFailure;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Cid;
+use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Publisher\PictureService;
 use OCA\Social\Atproto\Publisher\Publisher;
@@ -75,7 +77,8 @@ class MoveAwayServiceTest extends TestCase {
 		$pds = $this->createMock(PdsClient::class);
 		$pds->method('origin')->willReturnCallback(static fn (string $typed): string => 'https://' . preg_replace('#^https?://#', '', rtrim($typed, '/')));
 		$pds->method('call')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
-			$this->calls[] = ['method' => $method, 'verb' => $verb, 'query' => $query, 'json' => $json, 'bytes' => $bytes, 'token' => $token];
+			$stream = is_resource($bytes);
+			$this->calls[] = ['method' => $method, 'verb' => $verb, 'query' => $query, 'json' => $json, 'bytes' => $stream ? stream_get_contents($bytes) : $bytes, 'stream' => $stream, 'token' => $token];
 			if ($this->pdsHook !== null) {
 				($this->pdsHook)($method);
 			}
@@ -97,8 +100,22 @@ class MoveAwayServiceTest extends TestCase {
 		$this->identities->method('signingKey')->willReturnCallback(fn (): PrivateKey => $this->key);
 		$this->identities->method('getByDid')->willReturnCallback(fn (): Identity => $this->alice);
 		$repositories = $this->createMock(RepositoryService::class);
-		$repositories->method('exportCar')->with(self::DID)->willReturnCallback(fn (): string => 'the car at ' . ($this->head?->commitCid ?? 'nothing'));
+		$repositories->method('carStream')->with(self::DID)->willReturnCallback(function () {
+			$car = fopen('php://temp', 'w+b');
+			fwrite($car, 'the car at ' . ($this->head?->commitCid ?? 'nothing'));
+			rewind($car);
+
+			return $car;
+		});
 		$repositories->method('getHead')->willReturnCallback(fn (): ?RepoHead => $this->head);
+		$repositories->method('getRecord')->willReturnCallback(static function (string $did, string $collection, string $rkey): ?StoredRecord {
+			if ($collection !== 'app.bsky.feed.post' || $rkey !== '3kpic') {
+				return null;
+			}
+			$bytes = DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => 'my cat', 'createdAt' => '2026-03-01T10:00:00.000Z']);
+
+			return new StoredRecord($did, $collection, $rkey, Cid::forDagCbor($bytes), $bytes, 'https://social.test/@alice/42', 1);
+		});
 		$cid = Cid::forRaw('pixels');
 		$blobs = $this->createMock(AtprotoBlobRequest::class);
 		$blobs->method('get')->willReturnCallback(static fn (string $did, string $c): ?BlobRef => $c === $cid->toString() ? new BlobRef(self::DID, $cid, 'doc', 'image/jpeg', 6) : null);
@@ -313,10 +330,28 @@ class MoveAwayServiceTest extends TestCase {
 		$this->answers['com.atproto.server.checkAccountStatus'] = [['status' => 200, 'body' => ['repoCommit' => 'bafyhead', 'indexedRecords' => 12, 'expectedBlobs' => 5, 'importedBlobs' => 2]]];
 		$this->identities->expects($this->never())->method('handOver');
 
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [
+			// the copy finds nothing more it can send
+			['status' => 200, 'body' => ['blobs' => []]],
+			['status' => 200, 'body' => ['blobs' => [
+				['cid' => 'bafkone', 'recordUri' => 'at://' . self::DID . '/app.bsky.feed.post/3kpic'],
+				['cid' => 'bafktwo', 'recordUri' => 'at://' . self::DID . '/app.bsky.feed.post/3kpic'],
+				['cid' => 'bafkthree', 'recordUri' => 'at://did:plc:someoneelse/app.bsky.feed.post/3kpic'],
+				['cid' => 'bafkfour', 'recordUri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone'],
+			]]],
+		];
+
 		$this->moves->run($move->id);
 
 		$row = $this->rows[1];
 		$this->assertSame([Move::NEEDS_DECISION, Move::STEP_CHECK, 'blobs-missing', 3, 'repo_copied'], [$row->state, $row->step, $row->progress['code'], $row->progress['missing'], $row->progress['stage']]);
+		$this->assertSame([[
+			'collection' => 'app.bsky.feed.post',
+			'rkey' => '3kpic',
+			'created_at' => '2026-03-01T10:00:00.000Z',
+			'text' => 'my cat',
+			'url' => 'https://social.test/@alice/42',
+		]], $row->progress['missing_records'], 'the posts that lose them are named, each once, only the account\'s own');
 		$this->assertTrue($row->isUnderWay(), 'no other move starts meanwhile');
 	}
 
@@ -332,7 +367,7 @@ class MoveAwayServiceTest extends TestCase {
 		$this->moves->proceed('alice', false);
 		$this->assertSame([Move::RUNNING, Move::STEP_BLOBS], [$this->rows[1]->state, $this->rows[1]->step]);
 		$this->moves->run($move->id);
-		$this->assertSame(['com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus'], array_column($this->calls, 'method'), 'copied again and asked again');
+		$this->assertSame(['com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus', 'com.atproto.repo.listMissingBlobs'], array_column($this->calls, 'method'), 'copied again and asked again, and which records lose what is missing');
 		$this->assertSame([Move::NEEDS_DECISION, 1], [$this->rows[1]->state, $this->rows[1]->progress['missing']]);
 
 		$this->identities->expects($this->once())->method('handOver');
@@ -459,6 +494,7 @@ class MoveAwayServiceTest extends TestCase {
 
 		$this->assertSame(['com.atproto.server.describeServer', 'com.atproto.server.createAccount', 'com.atproto.repo.importRepo', 'com.atproto.repo.listMissingBlobs', 'com.atproto.repo.uploadBlob', 'com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus', 'com.atproto.identity.getRecommendedDidCredentials', 'com.atproto.server.activateAccount'], array_column($this->calls, 'method'), 'in this order: the DID moves only once everything is there');
 		$this->assertSame('the car at nothing', $this->call('com.atproto.repo.importRepo')['bytes']);
+		$this->assertTrue($this->call('com.atproto.repo.importRepo')['stream'], 'the repository is sent from a stream, never as one string');
 		$this->assertSame('pixels', $this->call('com.atproto.repo.uploadBlob')['bytes']);
 		$this->assertSame(['limit' => 500, 'cursor' => 'c1'], $this->calls[5]['query']);
 		$this->assertSame('access-1', $this->call('com.atproto.server.activateAccount')['token']);
@@ -466,6 +502,40 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertNull($this->call('com.atproto.server.activateAccount')['bytes']);
 		$this->assertSame(Move::DONE, $this->rows[1]->state);
 		$this->assertSame('', $this->rows[1]->session, 'the other server\'s session is not kept');
+	}
+
+	/**
+	 * The other PDS is the person's to name: a cursor it named before, or
+	 * a page that names no blob it did not name before, ends the copy, and
+	 * a blob is uploaded once.
+	 */
+	public function testAListOfMissingBlobsThatGoesRoundEndsTheCopy(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$missing = ['cid' => Cid::forRaw('pixels')->toString()];
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'a']],
+			['status' => 200, 'body' => ['blobs' => [['cid' => Cid::forRaw('never here')->toString()]], 'cursor' => 'b']],
+			['status' => 200, 'body' => ['blobs' => [['cid' => Cid::forRaw('nor here')->toString()]], 'cursor' => 'a']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'c']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'd']],
+		];
+		$this->moves->run($move->id);
+		$methods = array_column($this->calls, 'method');
+		$this->assertSame(3, count(array_keys($methods, 'com.atproto.repo.listMissingBlobs', true)), 'a cursor named before ends it');
+		$this->assertSame(1, count(array_keys($methods, 'com.atproto.repo.uploadBlob', true)));
+
+		$this->calls = [];
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'x']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'y']],
+			['status' => 200, 'body' => ['blobs' => [$missing], 'cursor' => 'z']],
+		];
+		$this->rows[1]->step = Move::STEP_BLOBS;
+		$this->rows[1]->state = Move::RUNNING;
+		$this->moves->run($move->id);
+		$methods = array_column($this->calls, 'method');
+		$this->assertSame(2, count(array_keys($methods, 'com.atproto.repo.listMissingBlobs', true)), 'a page that names nothing new ends it');
+		$this->assertSame(1, count(array_keys($methods, 'com.atproto.repo.uploadBlob', true)));
 	}
 
 	public function testAFailedStepIsStartedAgainFromThere(): void {
@@ -493,6 +563,8 @@ class MoveAwayServiceTest extends TestCase {
 
 		$this->assertSame('refresh-1', $this->call('com.atproto.server.refreshSession')['token']);
 		$this->assertSame('access-2', $this->call('com.atproto.server.activateAccount')['token']);
+		$imports = array_values(array_filter($this->calls, static fn (array $c): bool => $c['method'] === 'com.atproto.repo.importRepo'));
+		$this->assertSame(['the car at nothing', 'the car at nothing'], array_column($imports, 'bytes'), 'the repository is sent whole again, from its start');
 	}
 
 	public function testOnlyAMoveAwayIsStartedAgainHere(): void {

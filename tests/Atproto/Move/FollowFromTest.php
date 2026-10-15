@@ -134,4 +134,41 @@ class FollowFromTest extends TestCase {
 
 		$this->assertSame(['followed' => 1, 'skipped' => 0, 'failed' => ['did:plc:gone' => 'not found']], $this->followFrom->run('bob', ['did' => self::DID, 'pds' => self::PDS]));
 	}
+
+	/** A PDS that hands back a cursor it named before is read no further. */
+	public function testACursorNamedBeforeEndsTheReading(): void {
+		$this->pages = [
+			'' => ['records' => [self::follow('did:plc:carol')], 'cursor' => 'a'],
+			'a' => ['records' => [self::follow('did:plc:dave')], 'cursor' => 'b'],
+			'b' => ['records' => [self::follow('did:plc:erin')], 'cursor' => 'a'],
+		];
+		$this->follows->method('followActor')->willReturn(true);
+
+		$this->assertSame(3, $this->followFrom->run('bob', ['did' => self::DID, 'pds' => self::PDS])['followed']);
+		$this->assertSame(['', 'a', 'b'], array_map(static fn (array $call): string => $call['query']['cursor'] ?? '', $this->calls));
+	}
+
+	/** A page that adds nobody ends the reading, whatever cursor it names. */
+	public function testAPageThatAddsNobodyEndsTheReading(): void {
+		$this->pages = [
+			'' => ['records' => [self::follow('did:plc:carol')], 'cursor' => 'p1'],
+			'p1' => ['records' => [self::follow('did:plc:carol'), self::follow('not a did')], 'cursor' => 'p2'],
+			'p2' => ['records' => [self::follow('did:plc:dave')], 'cursor' => 'p3'],
+		];
+		$this->follows->method('followActor')->willReturn(true);
+
+		$this->assertSame(1, $this->followFrom->run('bob', ['did' => self::DID, 'pds' => self::PDS])['followed']);
+		$this->assertCount(2, $this->calls);
+	}
+
+	/** A PDS that keeps naming new pages is read MAX_PAGES pages at most. */
+	public function testTheReadingStopsAfterSoManyPages(): void {
+		for ($i = 0; $i < 2 * FollowFrom::MAX_PAGES; $i++) {
+			$this->pages[$i === 0 ? '' : 'p' . $i] = ['records' => [self::follow('did:plc:account' . $i)], 'cursor' => 'p' . ($i + 1)];
+		}
+		$this->follows->method('followActor')->willReturn(true);
+
+		$this->assertSame(FollowFrom::MAX_PAGES, $this->followFrom->run('bob', ['did' => self::DID, 'pds' => self::PDS])['followed']);
+		$this->assertCount(FollowFrom::MAX_PAGES, $this->calls);
+	}
 }

@@ -23,6 +23,7 @@ use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\QuoteGrant;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
@@ -357,7 +358,7 @@ class QuoteRequestInterfaceTest extends ActivityPubTestCase {
 			->willReturnCallback(function (Stream $stream) use (&$stored): void {
 				$stored = $stream;
 			});
-		$this->streamRequest->expects($this->once())->method('updateDetails');
+		$this->streamRequest->expects($this->once())->method('updateDetails')->with($this->anything(), Details::QUOTE_STATE);
 
 		$this->handler->activity(
 			$this->answer(Accept::TYPE, ['result' => self::REMOTE_URL . '/approvals/1']),
@@ -380,6 +381,7 @@ class QuoteRequestInterfaceTest extends ActivityPubTestCase {
 
 		$stored = null;
 		$this->streamRequest->expects($this->once())->method('updateDetails')
+			->with($this->anything(), Details::QUOTE_STATE)
 			->willReturnCallback(function (Stream $stream) use (&$stored): void {
 				$stored = $stream;
 			});

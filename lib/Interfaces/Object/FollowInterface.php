@@ -306,8 +306,10 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			$activity->checkOrigin($item->getObjectId());
 			// As for an Undo, the stored row decides what moves back: the
 			// follower's own count moved when the row was written, the
-			// followed account's when it was accepted.
-			$stored = $this->storedFollow($item);
+			// followed account's when it was accepted. The origin check
+			// vouches for the followed account the Reject names, so the
+			// stored follow has to be of that account, as an Accept's is.
+			$stored = $this->storedFollow($item, true);
 			if ($stored !== null) {
 				$this->followsRequest->delete($stored);
 				$this->accountService->bumpActorCount(
@@ -333,17 +335,26 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 	}
 
 	/**
-	 * The stored follow an Undo names by its id, when it is the sender's own;
-	 * null when there is no such row.
+	 * The stored follow an Undo or a Reject names by its id, when it is
+	 * between the accounts the activity names; null when there is no such
+	 * row.
+	 *
+	 * @param bool $sameObject whether the followed account has to match too:
+	 *                         a Reject comes from that account's server
 	 */
-	private function storedFollow(Follow $follow): ?Follow {
+	private function storedFollow(Follow $follow, bool $sameObject = false): ?Follow {
 		try {
 			$stored = $this->followsRequest->getById($follow->getId());
 		} catch (Exception $e) {
 			return null;
 		}
 
-		return ($stored->getActorId() === $follow->getActorId()) ? $stored : null;
+		if ($stored->getActorId() !== $follow->getActorId()
+			|| ($sameObject && $stored->getObjectId() !== $follow->getObjectId())) {
+			return null;
+		}
+
+		return $stored;
 	}
 
 	/**

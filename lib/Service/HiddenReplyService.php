@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -52,7 +53,7 @@ class HiddenReplyService {
 			$ids[] = $reply->getId();
 		}
 		$root->setHiddenReplies($ids);
-		$this->streams->updateDetails($root);
+		$this->streams->updateDetails($root, Details::HIDDEN_REPLIES);
 		if ($root->isLocal()) {
 			try {
 				$this->container?->get(Publisher::class)->updateGates($root);

@@ -119,6 +119,7 @@ import logger from '../services/logger.js'
 import { ownAvatarUrl } from '../services/avatar.js'
 import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { accountStyle } from '../services/accountColour.js'
 
 // the dialog is the heavy half and most visits never open it
@@ -151,6 +152,12 @@ export default {
 		IconPlus,
 		NcButton,
 		ShortComposerDialog,
+	},
+
+	setup() {
+		const { username } = useCurrentUser()
+
+		return { username }
 	},
 
 	data() {
@@ -187,10 +194,13 @@ export default {
 				return null
 			}
 
+			// the face is Nextcloud's, drawn by the user id; the handle is the
+			// account's, which need not be the same name
 			return {
 				id: user.uid,
-				acct: user.uid,
-				username: user.uid,
+				acct: this.username || user.uid,
+				username: this.username || user.uid,
+				nextcloud_user: user.uid,
 				display_name: user.displayName || user.uid,
 				avatar: ownAvatarUrl(64),
 			}
@@ -209,7 +219,7 @@ export default {
 
 		/** @return {string} the reader's handle, for telling their own shorts apart */
 		viewerAcct() {
-			return this.accountStore.currentAccount?.acct ?? getCurrentUser()?.uid ?? ''
+			return this.accountStore.currentAccount?.acct ?? this.username
 		},
 
 		/** @return {object|undefined} the reader's own 24-hour shorts, grouped */

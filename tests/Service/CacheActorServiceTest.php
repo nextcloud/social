@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
 use OCA\Social\Atproto\Reader\ActorMapper;
+use OCA\Social\Atproto\Reader\BlueskyActorService;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -639,6 +640,45 @@ class CacheActorServiceTest extends TestCase {
 		$this->curlService->expects($this->never())->method('retrieveObject');
 
 		$this->assertSame($bob, $this->serviceWithMisses($cache)->getFromId(self::BOB));
+	}
+
+	private function serviceWithBlueskyMisses(DurableCache $cache, BlueskyActorService $bluesky): CacheActorService {
+		return new CacheActorService(
+			$this->actorsRequest, $this->cacheActorsRequest, $this->curlService, $this->configService, new NullLogger(),
+			blueskyActors: $bluesky, durableCache: $cache,
+		);
+	}
+
+	/** The same holds for a Bluesky account the AppView did not give. */
+	public function testABlueskyAccountThatWasNotFoundIsNotAskedForAgainWhileItIsRemembered(): void {
+		$id = 'https://bsky.app/profile/did:plc:gone';
+		$bluesky = $this->createMock(BlueskyActorService::class);
+		$bluesky->expects($this->once())->method('resolve')->with('did:plc:gone')
+			->willThrowException(new CacheActorDoesNotExistException('not found'));
+		$bluesky->method('cached')->willReturn(null);
+		$service = $this->serviceWithBlueskyMisses($this->durableCache(), $bluesky);
+
+		try {
+			$service->getFromId($id);
+			$this->fail('the first lookup fails as it always did');
+		} catch (CacheActorDoesNotExistException) {
+		}
+
+		$this->expectException(CacheActorDoesNotExistException::class);
+		$this->expectExceptionMessage('not fetched again yet');
+		$service->getFromId($id);
+	}
+
+	public function testABlueskyAccountStoredSinceItWasMissedIsAnswered(): void {
+		$id = 'https://bsky.app/profile/did:plc:back';
+		$cache = $this->durableCache();
+		$cache->set(CacheActorService::MISS_NAMESPACE, md5($id), 1, CacheActorService::MISS_SECONDS);
+		$back = $this->person($id, 'back.bsky.social');
+		$bluesky = $this->createStub(BlueskyActorService::class);
+		$bluesky->method('cached')->willReturn($back);
+		$bluesky->method('resolve')->willReturn($back);
+
+		$this->assertSame($back, $this->serviceWithBlueskyMisses($cache, $bluesky)->getFromId($id));
 	}
 
 	/** @return array<string, array{string}> */

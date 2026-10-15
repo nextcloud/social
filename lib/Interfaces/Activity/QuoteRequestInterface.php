@@ -21,6 +21,7 @@ use OCA\Social\Model\ActivityPub\Activity\Accept;
 use OCA\Social\Model\ActivityPub\Activity\QuoteRequest;
 use OCA\Social\Model\ActivityPub\Activity\Reject;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\QuoteGrant;
 use OCA\Social\Service\ActivityService;
@@ -298,7 +299,7 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 		$withdrawn = ($post->getQuoteAuthorization() !== '');
 		$post->setQuoteState($withdrawn ? Stream::QUOTE_REVOKED : Stream::QUOTE_REJECTED);
 		$post->setQuoteAuthorization('');
-		$this->streamRequest->updateDetails($post);
+		$this->streamRequest->updateDetails($post, Details::QUOTE_STATE);
 
 		if ($withdrawn) {
 			// the stamp has to come off the wire object as well, or every later
@@ -324,7 +325,7 @@ class QuoteRequestInterface extends AbstractActivityPubInterface implements IAct
 		$post->setSource(json_encode($post, JSON_UNESCAPED_SLASHES));
 
 		$this->streamRequest->update($post);
-		$this->streamRequest->updateDetails($post);
+		$this->streamRequest->updateDetails($post, Details::QUOTE_STATE);
 	}
 
 	/**

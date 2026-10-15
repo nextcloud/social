@@ -6,7 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
 import { showError } from '../../../src/services/toast.js'
-import { listen } from '@nextcloud/notify_push'
+import { offTimelinePush, onTimelinePush } from '../../../src/services/timelinePush.js'
 import Dashboard from '../../../src/views/Dashboard.vue'
 
 vi.hoisted(() => {
@@ -19,7 +19,10 @@ vi.mock('../../../src/services/toast.js', async (importOriginal) => ({
 	showError: vi.fn(),
 }))
 
-vi.mock('@nextcloud/notify_push', () => ({ listen: vi.fn() }))
+vi.mock('../../../src/services/timelinePush.js', () => ({
+	onTimelinePush: vi.fn(() => false),
+	offTimelinePush: vi.fn(),
+}))
 
 /** The tile keeps this many rows; see MAX_ITEMS in the component. */
 const KEPT = 10
@@ -58,7 +61,8 @@ describe('Dashboard', () => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 		get = vi.spyOn(axios, 'get')
 		// no notify_push unless a test says otherwise, so the component polls
-		vi.mocked(listen).mockReturnValue(false)
+		vi.mocked(onTimelinePush).mockReturnValue(false)
+		vi.mocked(offTimelinePush).mockClear()
 	})
 
 	afterEach(() => {
@@ -156,14 +160,14 @@ describe('Dashboard', () => {
 	it('lets the server say when something arrived instead of polling', async () => {
 		get.mockResolvedValue({ data: notifications })
 		let notify
-		vi.mocked(listen).mockImplementation((channel, callback) => {
-			notify = callback
-			return () => {}
+		vi.mocked(onTimelinePush).mockImplementation((handler) => {
+			notify = handler
+			return true
 		})
 
 		mountWidget()
 		await flushPromises()
-		expect(listen).toHaveBeenCalledWith('social_timeline', expect.any(Function))
+		expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function))
 		expect(get).toHaveBeenCalledTimes(1)
 
 		// with push there is no timer at all
@@ -201,15 +205,14 @@ describe('Dashboard', () => {
 	})
 
 	it('stops polling and unsubscribes when the widget goes away', async () => {
-		const stop = vi.fn()
-		vi.mocked(listen).mockReturnValue(stop)
 		get.mockResolvedValue({ data: notifications })
 		const wrapper = mountWidget()
 		await flushPromises()
 
 		wrapper.unmount()
 
-		expect(stop).toHaveBeenCalled()
+		// the push subscription is the one that was made, not left behind
+		expect(offTimelinePush).toHaveBeenCalledWith(vi.mocked(onTimelinePush).mock.calls.at(-1)[0])
 		vi.advanceTimersByTime(POLL_MS * 3)
 		expect(get).toHaveBeenCalledTimes(1)
 	})

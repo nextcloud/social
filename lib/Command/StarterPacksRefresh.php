@@ -37,7 +37,7 @@ class StarterPacksRefresh extends SocialCommand {
 		$output->writeln('Sources: ' . implode(', ', $this->collectionPackService->sources()));
 		$result = $this->collectionPackService->refresh();
 		$output->writeln(sprintf(
-			'%d starter pack(s) with %d account(s) read from %d source(s); %d account(s) left out without a valid authorization; %d source(s) not reached',
+			'%d starter pack(s) with %d account(s) read from %d source(s); %d account(s) left out without a valid authorization; %d source(s) or collection(s) not read',
 			$result['packs'], $result['members'], $result['sources'], $result['refused'], $result['failed']
 		));
 

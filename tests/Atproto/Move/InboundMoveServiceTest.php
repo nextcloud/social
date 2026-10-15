@@ -162,7 +162,7 @@ class InboundMoveServiceTest extends TestCase {
 		$this->moveIn = $this->createMock(MoveInService::class);
 		$this->moveIn->method('didOf')->willReturn(self::DID);
 		$this->moveIn->method('didState')->willReturnCallback(fn (): array => $this->plcState);
-		$this->moveIn->method('keptHandle')->willReturnCallback(fn (string $pds, array $state): string => ($state['alsoKnownAs'][0] ?? '') === 'at://alice.example.org' ? 'alice.example.org' : '');
+		$this->moveIn->method('keptHandle')->willReturnCallback(fn (string $did, string $pds, array $state): string => $did === self::DID && ($state['alsoKnownAs'][0] ?? '') === 'at://alice.example.org' ? 'alice.example.org' : '');
 		$bridgy = $this->createMock(BridgyTwin::class);
 		$bridgy->method('ask')->willReturnCallback(function (Person $actor, string $command): void {
 			$this->asked[] = $command;
@@ -381,6 +381,20 @@ class InboundMoveServiceTest extends TestCase {
 		$this->assertSame([], $this->moves->query('com.atproto.repo.listMissingBlobs', [], $auth)['blobs']);
 		$status = $this->moves->query('com.atproto.server.checkAccountStatus', [], $auth);
 		$this->assertSame([false, false, 1, 1], [$status['activated'], $status['validDid'], $status['expectedBlobs'], $status['importedBlobs']]);
+	}
+
+	/** What a tool uploads counts against the move's budget; past it, nothing more is kept. */
+	public function testUploadsStopAtTheMovesBudget(): void {
+		$auth = 'Bearer ' . $this->made()['accessJwt'];
+		$this->moves->importRepo($this->file($this->oldRepository($this->oldKey)), $auth);
+		$this->rows[1]->progress['blob_bytes'] = MovedBlobs::BUDGET - 1;
+
+		$this->assertSame('InvalidRequest', $this->refused(fn () => $this->moves->upload($this->file($this->picture), $auth))->error);
+		$this->assertSame([], $this->stored);
+
+		$this->rows[1]->progress['blob_bytes'] = 0;
+		$this->moves->upload($this->file($this->picture), $auth);
+		$this->assertSame(strlen($this->picture), $this->rows[1]->progress['blob_bytes']);
 	}
 
 	/**

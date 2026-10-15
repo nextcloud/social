@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 
 import BlueskySettings from '../../../src/components/BlueskySettings.vue'
@@ -75,6 +75,7 @@ function mountSettings() {
 	return mount(BlueskySettings, {
 		global: {
 			stubs: {
+				RouterLink: RouterLinkStub,
 				NcDialog: {
 					name: 'NcDialog',
 					props: ['open', 'name', 'buttons'],
@@ -143,6 +144,7 @@ describe('BlueskySettings', () => {
 	describe('being on Bluesky', () => {
 		const STATE = '/index.php/apps/social/api/v1/social/bluesky/state'
 		const presenceSwitch = (wrapper) => wrapper.find('.bluesky-settings__switch input')
+		const offDialog = (wrapper) => wrapper.findComponent({ name: 'ConfirmDialog' })
 
 		it('is on while the person is there, and says what off would mean', async () => {
 			serverHas(identity({ active: true }))
@@ -163,6 +165,8 @@ describe('BlueskySettings', () => {
 
 			await presenceSwitch(wrapper).setValue(false)
 			await flushPromises()
+			offDialog(wrapper).vm.$emit('confirm')
+			await flushPromises()
 
 			expect(axios.post).toHaveBeenCalledWith(STATE, { active: false })
 			expect(presenceSwitch(wrapper).element.checked).toBe(false)
@@ -175,6 +179,40 @@ describe('BlueskySettings', () => {
 			// what only means something while on Bluesky is not offered
 			expect(wrapper.text()).not.toContain('Publish my blocks of Bluesky accounts')
 			expect(buttonByText(wrapper, 'Create a new recovery phrase')).toBeUndefined()
+		})
+
+		it('asks before switching off, and says what it costs', async () => {
+			serverHas(identity({ active: true }))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await presenceSwitch(wrapper).setValue(false)
+			await flushPromises()
+
+			expect(axios.post).not.toHaveBeenCalled()
+			expect(offDialog(wrapper).props()).toMatchObject({
+				name: 'Leave Bluesky?',
+				message: 'Every Bluesky app signed in to your account is signed out, and your profile and posts are no longer shown on Bluesky. Posts you write while you are off never reach Bluesky, not even after you switch back on.',
+				confirmLabel: 'Switch off',
+			})
+			expect(wrapper.find('.dialog-stub').text()).toContain('Every Bluesky app signed in to your account is signed out')
+		})
+
+		it('stays on when switching off is not confirmed', async () => {
+			serverHas(identity({ active: true }))
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			await presenceSwitch(wrapper).setValue(false)
+			await flushPromises()
+			const [cancel] = offDialog(wrapper).findComponent({ name: 'NcDialog' }).props('buttons')
+			cancel.callback()
+			await flushPromises()
+
+			expect(offDialog(wrapper).exists()).toBe(false)
+			expect(axios.post).not.toHaveBeenCalled()
+			expect(presenceSwitch(wrapper).element.checked).toBe(true)
+			expect(wrapper.text()).not.toContain('You are not on Bluesky')
 		})
 
 		it('is neither on nor off while the directory has not taken the identity', async () => {
@@ -213,6 +251,8 @@ describe('BlueskySettings', () => {
 			await flushPromises()
 
 			await presenceSwitch(wrapper).setValue(false)
+			await flushPromises()
+			offDialog(wrapper).vm.$emit('confirm')
 			await flushPromises()
 
 			expect(showError).toHaveBeenCalledWith('Could not switch your presence on Bluesky')
@@ -298,6 +338,18 @@ describe('BlueskySettings', () => {
 
 			expect(confirmPassword).toHaveBeenCalled()
 			expect(assign).toHaveBeenCalledWith('/index.php/apps/social/api/v1/social/bluesky/archive')
+		})
+
+		// the same archive is on the Migration page, a page of its own
+		it('links to the Migration page for the full archive', async () => {
+			serverHas()
+			const wrapper = mountSettings()
+			await flushPromises()
+
+			const link = wrapper.findAllComponents(RouterLinkStub).find((candidate) => candidate.text() === 'Open Migration')
+			expect(link.props('to')).toEqual({ name: 'migration' })
+			expect(wrapper.text()).toContain('The archive from the Migration page holds the same files.')
+			expect(wrapper.text()).not.toContain('Settings → Migration')
 		})
 
 		it('is offered while the account is switched off, and does nothing when the password dialog is dismissed', async () => {
@@ -635,7 +687,7 @@ describe('BlueskySettings', () => {
 
 		it('says what was wrong with the name under the field', async () => {
 			serverHasPasswords()
-			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'There is an app password with that name' } } })
+			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'There is an app password with that name', code: 'app-password-name-taken' } } })
 			const wrapper = mountSettings()
 			await flushPromises()
 
@@ -643,8 +695,9 @@ describe('BlueskySettings', () => {
 			await buttonByText(wrapper, 'Make an app password').trigger('click')
 			await flushPromises()
 
-			expect(section(wrapper).find('.bluesky-settings__app-password-create').text())
-				.toContain('There is an app password with that name')
+			const create = section(wrapper).find('.bluesky-settings__app-password-create')
+			expect(create.find('[role="alert"]').text()).toBe('You have an app password with that name already. Pick another name.')
+			expect(create.find('.bluesky-error__details code').text()).toBe('There is an app password with that name')
 			expect(showError).not.toHaveBeenCalled()
 			expect(section(wrapper).find('.bluesky-settings__new-password').exists()).toBe(false)
 			expect(nameField(wrapper).element.value).toBe('Tablet')
@@ -973,7 +1026,7 @@ describe('BlueskySettings', () => {
 
 		it('says what was wrong with the domain under the field', async () => {
 			serverHas(handleIdentity())
-			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'alice.example.org does not name your account yet.' } } })
+			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'Neither _atproto.alice.example.org nor https://alice.example.org/.well-known/atproto-did names did:plc:abc123 yet', code: 'handle-not-verified' } } })
 			const wrapper = mountSettings()
 			await flushPromises()
 
@@ -981,10 +1034,15 @@ describe('BlueskySettings', () => {
 			await buttonByText(wrapper, 'Check and use it').trigger('click')
 			await flushPromises()
 
-			expect(section(wrapper).text()).toContain('alice.example.org does not name your account yet.')
+			expect(section(wrapper).find('[role="alert"]').text()).toBe('That domain does not point at your account yet. Add the record shown below, wait a few minutes for it to spread, and try again.')
+			expect(section(wrapper).find('.bluesky-error__details code').text()).toContain('_atproto.alice.example.org')
 			expect(showError).not.toHaveBeenCalled()
 			expect(showSuccess).not.toHaveBeenCalled()
 			expect(domainField(wrapper).element.value).toBe('alice.example.org')
+
+			// typing again clears what the server said
+			await domainField(wrapper).setValue('alice.example.com')
+			expect(section(wrapper).find('[role="alert"]').exists()).toBe(false)
 		})
 
 		it('asks for the password again when the server says the confirmation ran out', async () => {

@@ -29,20 +29,28 @@
 					? n('social', '{n} picture or video did not arrive on {pds}. Your account still points here.', '{n} pictures or videos did not arrive on {pds}. Your account still points here.', move.progress.missing, { n: move.progress.missing, pds: move.pds })
 					: t('social', 'Your posts did not all arrive on {pds}. Your account still points here.', { pds: move.pds }) }}
 			</p>
-			<p v-if="actionError" class="migration__bluesky-error" role="alert">
-				{{ actionError }}
-			</p>
+			<BlueskyError v-if="actionError" :error="actionError" />
 			<div class="migration__bluesky-actions">
 				<NcButton :disabled="busy" @click="decide(false)">
 					{{ t('social', 'Copy again') }}
 				</NcButton>
-				<NcButton v-if="move.progress.code === 'blobs-missing'" :disabled="busy" @click="decide(true)">
+				<NcButton v-if="move.progress.code === 'blobs-missing'" :disabled="busy" @click="confirmingWithout = true">
 					{{ t('social', 'Switch without them') }}
 				</NcButton>
 				<NcButton :disabled="busy" @click="callOff">
 					{{ t('social', 'Call it off') }}
 				</NcButton>
 			</div>
+			<ConfirmDialog
+				v-if="confirmingWithout"
+				:open="true"
+				:name="t('social', 'Switch without them?')"
+				:message="n('social', '{n} picture or video did not arrive on {pds}. Your account is pointed at {pds} without it: the posts that show it lose it there, and it is not copied later.', '{n} pictures or videos did not arrive on {pds}. Your account is pointed at {pds} without them: the posts that show them lose them there, and they are not copied later.', move.progress.missing, { n: move.progress.missing, pds: move.pds })"
+				:confirmLabel="t('social', 'Switch without them')"
+				@update:open="confirmingWithout = false"
+				@confirm="decide(true)">
+				<BlueskyMissingRecords :records="move.progress.missing_records ?? []" />
+			</ConfirmDialog>
 		</NcNoteCard>
 
 		<div v-else-if="move && move.state === 'running'" class="migration__bluesky-progress" aria-live="polite">
@@ -62,10 +70,9 @@
 
 		<template v-else>
 			<NcNoteCard v-if="move && move.state === 'failed'" type="error" class="migration__bluesky-failed">
-				<p>{{ t('social', 'The move stopped: {error}', { error: move.error }) }}</p>
-				<p v-if="retryError" class="migration__bluesky-error" role="alert">
-					{{ retryError }}
-				</p>
+				<p>{{ t('social', 'The move stopped.') }}</p>
+				<BlueskyError :error="stoppedError" :alert="false" />
+				<BlueskyError v-if="retryError" :error="retryError" />
 				<NcButton :disabled="busy" @click="retry">
 					<template v-if="busy" #icon>
 						<NcLoadingIcon :size="20" />
@@ -123,9 +130,7 @@
 				<NcCheckboxRadioSwitch v-model="announce" class="migration__bluesky-announce" :disabled="busy">
 					{{ t('social', 'Afterwards, post where my Bluesky account went') }}
 				</NcCheckboxRadioSwitch>
-				<p v-if="startError" class="migration__bluesky-error" role="alert">
-					{{ startError }}
-				</p>
+				<BlueskyError v-if="startError" :error="startError" />
 				<div v-if="confirming" class="migration__bluesky-actions">
 					<p class="migration__bluesky-confirm">
 						{{ t('social', 'Your Bluesky account is moved to {server}. This cannot be undone from here.', { server: pds.trim() }) }}
@@ -165,7 +170,11 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowRight from 'vue-material-design-icons/AccountArrowRight.vue'
 import { n, t } from '@nextcloud/l10n'
+import BlueskyError from './BlueskyError.vue'
+import BlueskyMissingRecords from './BlueskyMissingRecords.vue'
+import ConfirmDialog from './admin/ConfirmDialog.vue'
 import logger from '../services/logger.js'
+import { blueskyErrorOf, stoppedMoveError } from '../utils/blueskyError.js'
 
 /** How often a running move is asked about, in milliseconds. */
 const POLL_INTERVAL = 5000
@@ -179,6 +188,9 @@ export default {
 	name: 'BlueskyMoveAway',
 
 	components: {
+		BlueskyError,
+		BlueskyMissingRecords,
+		ConfirmDialog,
 		IconAccountArrowRight,
 		NcButton,
 		NcCheckboxRadioSwitch,
@@ -203,13 +215,15 @@ export default {
 			/** @type {string|null} the new server's host once a move away is done */
 			newHost: null,
 			confirming: false,
+			/** whether switching without what did not arrive is being asked about */
+			confirmingWithout: false,
 			busy: false,
-			/** @type {string} why the server would not start the move */
-			startError: '',
-			/** @type {string} why the server would not start it again */
-			retryError: '',
-			/** @type {string} why the server would not go on or call it off */
-			actionError: '',
+			/** @type {{text: string, details: string}|null} why the server would not start the move */
+			startError: null,
+			/** @type {{text: string, details: string}|null} why the server would not start it again */
+			retryError: null,
+			/** @type {{text: string, details: string}|null} why the server would not go on or call it off */
+			actionError: null,
 			/** @type {number|null} the timer behind the next poll, while a move runs */
 			pollTimer: null,
 		}
@@ -230,6 +244,11 @@ export default {
 		canCallOff() {
 			return ['account_created', 'repo_copied'].includes(this.move?.progress?.stage)
 				&& !(this.move?.state === 'running' && this.move?.step === 'identity')
+		},
+
+		/** @return {{text: string, details: string}} why the move stopped */
+		stoppedError() {
+			return stoppedMoveError(this.move)
 		},
 
 		/** @return {boolean} whether there is anything to show */
@@ -358,7 +377,7 @@ export default {
 				return
 			}
 			this.busy = true
-			this.startError = ''
+			this.startError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move'), {
 					pds: this.pds.trim(),
@@ -375,12 +394,12 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.startError = error.response.data?.error || t('social', 'Could not start the move')
+					this.startError = blueskyErrorOf(error, t('social', 'Could not start the move'))
 					this.confirming = false
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
-						: t('social', 'Could not start the move'))
+						: blueskyErrorOf(error, t('social', 'Could not start the move')).text)
 				}
 			} finally {
 				this.busy = false
@@ -405,31 +424,36 @@ export default {
 		 */
 		async decide(withoutMissing) {
 			this.busy = true
-			this.actionError = ''
+			this.actionError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move/continue'), { without_missing: withoutMissing })
 				this.takeMove(data?.move)
 			} catch (error) {
-				this.actionError = error?.response?.data?.error || t('social', 'Could not go on with the move')
+				this.actionError = blueskyErrorOf(error, t('social', 'Could not go on with the move'))
 			} finally {
 				this.busy = false
 			}
 		},
 
 		/**
-		 * Calls the move off before the switch.
+		 * Calls the move off before the switch, after the Nextcloud password.
 		 *
 		 * @return {Promise<void>}
 		 */
 		async callOff() {
+			try {
+				await confirmPassword()
+			} catch {
+				return
+			}
 			this.busy = true
-			this.actionError = ''
+			this.actionError = null
 			try {
 				const { data } = await axios.delete(generateUrl('apps/social/api/v1/social/bluesky/move'))
 				this.takeMove(data?.move)
 			} catch (error) {
-				this.actionError = error?.response?.data?.error || t('social', 'Could not call the move off')
-				showError(this.actionError)
+				this.actionError = blueskyErrorOf(error, t('social', 'Could not call the move off'))
+				showError(this.actionError.text)
 			} finally {
 				this.busy = false
 			}
@@ -442,15 +466,16 @@ export default {
 		 */
 		async retry() {
 			this.busy = true
-			this.retryError = ''
+			this.retryError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move/retry'))
 				this.takeMove(data?.move)
 			} catch (error) {
+				const reason = blueskyErrorOf(error, t('social', 'Could not start the move'))
 				if (error?.response?.status === 422) {
-					this.retryError = error.response.data?.error || t('social', 'Could not start the move')
+					this.retryError = reason
 				} else {
-					showError(t('social', 'Could not start the move'))
+					showError(reason.text)
 				}
 			} finally {
 				this.busy = false
@@ -528,9 +553,5 @@ export default {
 
 .migration__bluesky-announce {
 	margin-top: 8px;
-}
-
-.migration__bluesky-error {
-	color: var(--color-error-text, var(--color-error));
 }
 </style>

@@ -13,8 +13,14 @@ use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\ClientRequest;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Security\SecretHasher;
+use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\MiscService;
+use OCP\IDBConnection;
+use OCP\IURLGenerator;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * Two people, one registered app — against the real database.
@@ -220,5 +226,78 @@ class ClientAuthMultiUserTest extends TestCase {
 
 		$this->expectException(ClientNotFoundException::class);
 		$this->clientRequest->getFromClientId(self::APP . '-unused-id');
+	}
+
+	/**
+	 * A request whose own writes go to the real database, with `$other` run
+	 * once between its delete and its insert: the second of two requests
+	 * that both deleted before either inserted.
+	 */
+	private function interleaved(callable $other): ClientAuthRequest {
+		$real = Server::get(IDBConnection::class);
+		$calls = 0;
+		$step = static function () use (&$calls, $other): void {
+			// the first call builds the delete; the second is the insert
+			if (++$calls === 2) {
+				$other();
+			}
+		};
+
+		$connection = $this->createStub(IDBConnection::class);
+		$connection->method('getQueryBuilder')->willReturnCallback(function () use ($real, $step) {
+			$step();
+
+			return $real->getQueryBuilder();
+		});
+		$connection->method('insertIgnoreConflict')->willReturnCallback(
+			function (string $table, array $values) use ($real, $step): int {
+				$step();
+
+				return $real->insertIgnoreConflict($table, $values);
+			}
+		);
+		$connection->method('getDatabaseProvider')->willReturnCallback(fn (): string => $real->getDatabaseProvider());
+
+		return new ClientAuthRequest(
+			$connection,
+			Server::get(LoggerInterface::class),
+			Server::get(IURLGenerator::class),
+			Server::get(ConfigService::class),
+			Server::get(MiscService::class),
+			Server::get(SecretHasher::class),
+		);
+	}
+
+	/**
+	 * Two app tokens asked for at once — a bot's workers starting together.
+	 * Both requests are answered; the last one to write holds the app's
+	 * token.
+	 */
+	public function testTwoAppTokensIssuedAtOnceBothSucceedAndTheLastHolds(): void {
+		$second = $this->interleaved(function (): void {
+			$this->clientAuthRequest->issueAppToken($this->clientId, ['read'], 'app-token-first');
+		});
+
+		$second->issueAppToken($this->clientId, ['read'], 'app-token-second');
+
+		$this->assertSame('', $this->clientAuthRequest->getByToken('app-token-second')->getAuthUserId());
+
+		$this->expectException(ClientNotFoundException::class);
+		$this->clientAuthRequest->getByToken('app-token-first');
+	}
+
+	/** The same for one account authorizing an app twice at once: a consent form sent twice. */
+	public function testTwoAuthorizationsByOneAccountAtOnceBothSucceedAndTheLastHolds(): void {
+		$second = $this->interleaved(function (): void {
+			$this->clientAuthRequest->authorize($this->clientId, 'alice', 'alice', ['read'], 'alice-code-first');
+		});
+
+		$second->authorize($this->clientId, 'alice', 'alice', ['read', 'write'], 'alice-code-second');
+
+		$this->assertSame(['read', 'write'], $this->clientAuthRequest->getByCode($this->clientId, 'alice-code-second')->getAuthScopes());
+		$this->assertCount(1, $this->clientAuthRequest->getByUser('alice'));
+
+		$this->expectException(ClientNotFoundException::class);
+		$this->clientAuthRequest->getByCode($this->clientId, 'alice-code-first');
 	}
 }

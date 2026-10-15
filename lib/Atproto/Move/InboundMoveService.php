@@ -333,6 +333,9 @@ class InboundMoveService {
 		$cid = Cid::forRawDigest((string)hash_file('sha256', $path, true));
 		$stored = $this->blobs->get($move->did, $cid->toString());
 		if ($stored === null) {
+			if (MovedBlobs::overBudget($move, $size)) {
+				throw XrpcException::invalidRequest('The move brought as many bytes of blobs as this server takes for one');
+			}
 			try {
 				$document = $this->documents->storeAsIs($this->actors->getFromUserId($move->userId), $path);
 			} catch (Throwable $e) {
@@ -343,6 +346,7 @@ class InboundMoveService {
 			$stored = new BlobRef($move->did, $cid, $document->getId(), BlobRef::servableType($document->getMimeType()), $size);
 			$this->blobs->put($stored);
 			$this->repoRequest->addBlobBytes($move->did, $size);
+			MovedBlobs::spend($move, $size);
 			$move->progress = ['blobs' => (int)($move->progress['blobs'] ?? 0) + 1] + $move->progress;
 			$this->moves->update($move);
 		}
@@ -376,11 +380,15 @@ class InboundMoveService {
 
 	/**
 	 * Copies the missing blobs from the old PDS, for a person who asked
-	 * for that; the move then waits for the other side again, or for their
-	 * decision once more.
+	 * for that, as far as the move's budget goes (MovedBlobs::BUDGET); the
+	 * move then waits for the other side again, or for their decision once
+	 * more.
 	 */
 	private function copyMissing(Move $move): void {
 		foreach ($this->movedBlobs->missing($move->did) as $cid) {
+			if (MovedBlobs::overBudget($move)) {
+				break;
+			}
 			try {
 				if ($this->movedBlobs->copy($move, $cid) > 0) {
 					$move->progress = ['blobs' => (int)($move->progress['blobs'] ?? 0) + 1] + $move->progress;
@@ -388,6 +396,7 @@ class InboundMoveService {
 			} catch (AtprotoException $e) {
 				$this->logger->info('Blob of a move here not copied from the old PDS', ['did' => $move->did, 'cid' => $cid, 'exception' => $e]);
 			}
+			$this->moves->update($move);
 		}
 		$move->state = Move::WAITING;
 		if (!$this->movedBlobs->complete($move)) {
@@ -551,7 +560,7 @@ class InboundMoveService {
 			throw new XrpcException(400, 'UnresolvableDid', 'The DID\'s rotation keys could not be read from the directory');
 		}
 		if (!array_key_exists('handle_kept', $move->progress)) {
-			$move->progress['handle_kept'] = $this->moveIn->keptHandle($move->pds, $state, $identity?->handle ?? '');
+			$move->progress['handle_kept'] = $this->moveIn->keptHandle($move->did, $move->pds, $state, $identity?->handle ?? '');
 			$this->moves->update($move);
 		}
 		$kept = (string)$move->progress['handle_kept'];

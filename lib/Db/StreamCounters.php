@@ -29,22 +29,25 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  */
 trait StreamCounters {
 	/**
-	 * @param ?DateTime $countsAt when this instance last heard the origin's
-	 *                            totals for the post, for a write that heard
-	 *                            them; null leaves the schedule where it is
-	 *
-	 * @see \OCA\Social\Service\RemoteCountService
+	 * Writes the named keys of a post's `details` as the object holds them —
+	 * a key the object does not hold is removed — and leaves every other key
+	 * as it is stored (`changeDetails()`). The object was read some time
+	 * before: putting its whole blob back would undo whatever another writer
+	 * stored since, the origin's counts or an edit's mentions.
 	 */
-	public function updateDetails(Stream $stream, ?DateTime $countsAt = null): void {
-		$qb = $this->getStreamUpdateSql();
-		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
+	public function updateDetails(Stream $stream, string $key, string ...$keys): void {
+		$values = $stream->getDetailsAll();
+		$this->changeDetails($stream->getId(), static function (array $details) use ($values, $key, $keys): array {
+			foreach ([$key, ...$keys] as $name) {
+				if (array_key_exists($name, $values)) {
+					$details[$name] = $values[$name];
+				} else {
+					unset($details[$name]);
+				}
+			}
 
-		if ($countsAt !== null) {
-			$qb->set('counts_at', $qb->createNamedParameter($countsAt, IQueryBuilder::PARAM_DATE));
-		}
-
-		$qb->limitToIdPrim($qb->prim($stream->getId()));
-		$qb->executeStatement();
+			return $details;
+		});
 	}
 
 	/**
@@ -53,39 +56,60 @@ trait StreamCounters {
 	 * Only that key: the rest of the blob is what this instance worked out
 	 * about the post — the origin's counts, a refused quote — and an edit
 	 * read from the wire knows none of it.
-	 *
-	 * A read, a change and a write, so the write is made only if the blob is
-	 * still the one that was read (`replaceDetails()`); when another write
-	 * came in between, the blob is read again and the key set on that, once.
-	 * Two writers that each put back the whole blob they read would lose the
-	 * other's change — a quote refused, a mention.
 	 */
 	public function updateMentions(Stream $stream): void {
 		if (!$stream instanceof Note) {
 			return;
 		}
 
-		$prim = $this->getQueryBuilder()->prim($stream->getId());
+		$mentions = $stream->getDetails(Details::MENTIONS);
+		$this->changeDetails($stream->getId(), static function (array $details) use ($mentions): array {
+			$details[Details::MENTIONS] = $mentions;
+
+			return $details;
+		});
+	}
+
+	/**
+	 * Changes some keys of a post's `details` and leaves every other key as
+	 * it is stored.
+	 *
+	 * A read, a change and a write, so the write is made only if the blob is
+	 * still the one that was read (`replaceDetails()`); when another write
+	 * came in between, the blob is read again and `$change` applied to that,
+	 * once. Two writers that each put back the whole blob they read would
+	 * lose the other's change — a quote refused, a mention, the origin's
+	 * counts.
+	 *
+	 * @param callable(array<array-key, mixed>): array<array-key, mixed> $change the details as stored => the details to store
+	 *
+	 * @return ?array<array-key, mixed> the details as they are stored now;
+	 *                                  null where the post is not there, or its
+	 *                                  details kept changing under the write
+	 */
+	public function changeDetails(string $id, callable $change): ?array {
+		$prim = $this->getQueryBuilder()->prim($id);
 		if ($prim === '') {
-			return;
+			return null;
 		}
 
 		for ($attempt = 0; $attempt < 2; $attempt++) {
 			$stored = $this->storedDetails($prim);
 			if ($stored === false) {
-				return;
+				return null;
 			}
 
 			$details = json_decode((string)$stored, true);
-			$details = is_array($details) ? $details : [];
-			$details[Details::MENTIONS] = $stream->getDetails(Details::MENTIONS);
+			$details = $change(is_array($details) ? $details : []);
 			$blob = (string)json_encode($details);
 			if ($blob === $stored || $this->replaceDetails($prim, $stored, $blob)) {
-				return;
+				return $details;
 			}
 		}
 
-		$this->logger->info('the mentions of a post were not stored: its details kept changing', ['stream' => $stream->getId()]);
+		$this->logger->info('the details of a post were not stored: they kept changing', ['stream' => $id]);
+
+		return null;
 	}
 
 	/**
@@ -300,24 +324,39 @@ trait StreamCounters {
 	}
 
 	/**
-	 * The remote posts whose counts were last heard from their own server
-	 * long enough ago to be worth asking again — including every one never
-	 * asked, which has no `counts_at` at all.
+	 * The remote posts published since `$since` whose counts were last heard
+	 * from their own server long enough ago to be worth asking again —
+	 * including every one never asked, which has no `counts_at` at all.
 	 *
-	 * Oldest post first, so a pass that runs out of budget leaves the posts
-	 * that have waited longest at the front of the next one rather than
-	 * wherever they fell.
+	 * Never asked first, then the one asked longest ago, so a pass that runs
+	 * out of budget leaves the posts that have waited longest at the front of
+	 * the next one, and every post of the window takes its turn. A boost is
+	 * left out: it has no counts of its own, the post it repeats does.
+	 *
+	 * The window is what bounds the read: MySQL and PostgreSQL find it through
+	 * the `published_time` index, and the order is a sort of its due rows.
 	 *
 	 * @param DateTime $due not asked since
+	 * @param ?DateTime $since published since; null is every post, for a
+	 *                         backfill that asks about all of them
 	 * @param int $limit 0 is every post that is due
 	 *
 	 * @return Stream[]
 	 */
-	public function getRemoteStreamsDueForCounts(DateTime $due, int $limit = 0): array {
+	public function getRemoteStreamsDueForCounts(DateTime $due, ?DateTime $since, int $limit = 0): array {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToLocal(false);
+		if ($since !== null) {
+			$qb->andWhere($qb->expr()->gte('s.published_time', $qb->createNamedParameter($since, IQueryBuilder::PARAM_DATE)));
+		}
+		$qb->filterType(Announce::TYPE);
 		$qb->limitToDBFieldDateTime('counts_at', $due, true);
-		$qb->orderBy('s.published_time', 'asc');
+		// NULL sorts first on some databases and last on others; selected,
+		// because a DISTINCT query may only be ordered by what it selects
+		$countsAt = $qb->getColumnName('counts_at', 's');
+		$qb->selectAlias($qb->createFunction('CASE WHEN ' . $countsAt . ' IS NULL THEN 0 ELSE 1 END'), 'counts_asked');
+		$qb->orderBy('counts_asked', 'asc');
+		$qb->addOrderBy('s.counts_at', 'asc');
 
 		if ($limit > 0) {
 			$qb->setMaxResults($limit);
@@ -330,7 +369,7 @@ trait StreamCounters {
 	 * This instance's own posts that are records on Bluesky too, published
 	 * since `$since`, whose counts were last asked of the AppView before
 	 * `$due` or never: what the AppView counts of them that no notification
-	 * brought (`BlueskyPublishedCountSource`). Oldest first, as above.
+	 * brought (`BlueskyPublishedCountSource`). Oldest first.
 	 *
 	 * @param int $limit 0 is every post that is due
 	 *
@@ -359,7 +398,8 @@ trait StreamCounters {
 	 * Stamps a post as having been asked for its counts, leaving whatever
 	 * they are stored as alone. Written even when the answer did not come, so
 	 * that a host which is gone is asked once per interval rather than on
-	 * every pass.
+	 * every pass; a post its server says is gone is stamped ahead, with the
+	 * time it is next worth asking about.
 	 */
 	public function markCountsRefreshed(string $id, DateTime $when): void {
 		$qb = $this->getStreamUpdateSql();

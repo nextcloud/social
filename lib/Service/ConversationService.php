@@ -163,31 +163,52 @@ class ConversationService {
 	/**
 	 * How many conversations have something in them the account has not read.
 	 *
-	 * What the sidebar badge shows. It walks the same window, the same
-	 * grouping and the same `isUnread()` rule the list itself uses, rather
-	 * than counting messages with a query of its own -- a badge saying two
-	 * beside a list showing one is worse than no badge, and the only way to be
-	 * sure the two agree is for them to decide it in the same place.
+	 * What the sidebar badge shows, asked on every poll and every push. It
+	 * walks the same window, the same grouping and the same rules the list
+	 * itself uses — dismissed left out, unread past the read marker, never
+	 * for a message the account sent — rather than counting messages with a
+	 * query of its own: a badge saying two beside a list showing one is worse
+	 * than no badge. But it reads only what those rules look at, the
+	 * messages' places in their threads (`StreamService::getDirectTimelineLinks()`),
+	 * not the posts the list draws.
 	 *
 	 * Capped, because the number is drawn in a circle a few millimetres wide:
 	 * past the cap the reader is told "lots", which is all a badge can say.
-	 * Dismissed conversations are left out, as they are from the list.
 	 *
 	 * @param int $cap the most it will count to
 	 */
 	public function countUnread(Person $viewer, int $cap = self::UNREAD_CAP): int {
-		$messages = $this->directMessages($viewer, 0, 0, 0);
+		$this->readAs($viewer);
+		$messages = $this->streamService->getDirectTimelineLinks($this->windowOptions(0, 0, 0));
 		if ($messages === []) {
 			return 0;
 		}
 
+		$links = [];
+		foreach ($messages as $message) {
+			$links[$message['id']] = ['nid' => $message['nid'], 'inReplyTo' => $message['inReplyTo']];
+		}
+		$links = $this->withAncestors($links);
+
+		// newest first, so the first message seen of a thread is its newest
+		$newest = [];
+		foreach ($messages as $message) {
+			$newest[$this->rootOf($message['id'], $links)] ??= $message;
+		}
+
+		$markers = $this->conversationsRequest->getMarkers($viewer->getId(), array_keys($newest));
 		$count = 0;
-		foreach ($this->entities($viewer, $this->group($messages)) as $conversation) {
-			if ($conversation->isUnread()) {
-				$count++;
-				if ($count >= $cap) {
-					break;
-				}
+		foreach ($newest as $rootId => $last) {
+			$marker = $markers[$rootId] ?? ['readNid' => 0, 'hiddenNid' => 0];
+			if ($this->isDismissed($last['nid'], $marker['hiddenNid'])
+				|| Nid::compare((string)($links[$rootId]['nid'] ?? '0'), '0') < 1
+				|| !$this->isUnread($viewer, $last['attributedTo'], $last['nid'], $marker['readNid'])) {
+				continue;
+			}
+
+			$count++;
+			if ($count >= $cap) {
+				break;
 			}
 		}
 
@@ -307,6 +328,13 @@ class ConversationService {
 	 * @return Stream[] newest first
 	 */
 	private function directMessages(Person $viewer, int|string $maxId, int|string $minId, int|string $sinceId): array {
+		$this->readAs($viewer);
+
+		return $this->streamService->getTimeline($this->windowOptions($maxId, $minId, $sinceId));
+	}
+
+	/** What the window of direct messages is read with. */
+	private function windowOptions(int|string $maxId, int|string $minId, int|string $sinceId): ProbeOptions {
 		$options = new ProbeOptions();
 		$options->setFormat(ACore::FORMAT_LOCAL);
 		$options->setProbe(ProbeOptions::DIRECT)
@@ -315,9 +343,7 @@ class ConversationService {
 			->setMinId($minId)
 			->setSince($sinceId);
 
-		$this->readAs($viewer);
-
-		return $this->streamService->getTimeline($options);
+		return $options;
 	}
 
 	/**
@@ -440,7 +466,7 @@ class ConversationService {
 			$last = $messages[0];
 			$marker = $markers[$rootId] ?? ['readNid' => 0, 'hiddenNid' => 0];
 
-			if (Nid::compare($last->getNid(), $marker['hiddenNid']) <= 0) {
+			if ($this->isDismissed($last->getNid(), $marker['hiddenNid'])) {
 				continue;
 			}
 
@@ -455,7 +481,7 @@ class ConversationService {
 			$conversation->setId($rootNid)
 				->setRootId($rootId)
 				->setLastStatus($last)
-				->setUnread($this->isUnread($viewer, $last, $marker['readNid']))
+				->setUnread($this->isUnread($viewer, $last->getAttributedTo(), $last->getNid(), $marker['readNid']))
 				->setAccounts($this->accounts($viewer, $messages));
 
 			$conversations[] = $conversation;
@@ -469,13 +495,23 @@ class ConversationService {
 	 * point the account read it to — and never for a message the account sent
 	 * itself, which is Mastodon's rule too: writing a message is having read
 	 * the conversation.
+	 *
+	 * @param string $author who wrote the newest message
 	 */
-	private function isUnread(Person $viewer, Stream $last, int|string $readNid): bool {
-		if ($last->getAttributedTo() === $viewer->getId()) {
+	private function isUnread(Person $viewer, string $author, int|string $lastNid, int|string $readNid): bool {
+		if ($author === $viewer->getId()) {
 			return false;
 		}
 
-		return Nid::compare($last->getNid(), $readNid) > 0;
+		return Nid::compare($lastNid, $readNid) > 0;
+	}
+
+	/**
+	 * A conversation is dismissed while its newest message is one the
+	 * dismissal covered; a newer one brings it back.
+	 */
+	private function isDismissed(int|string $lastNid, int|string $hiddenNid): bool {
+		return Nid::compare($lastNid, $hiddenNid) <= 0;
 	}
 
 	/**

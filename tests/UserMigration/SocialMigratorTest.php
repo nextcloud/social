@@ -520,6 +520,34 @@ class SocialMigratorTest extends TestCase {
 		);
 	}
 
+	/** A remote account picks its own name, and a spreadsheet would run one that reads as a formula. */
+	public function testABlockedOrMutedHandleThatReadsAsAFormulaIsWrittenAsText(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->followsRequest->method('getFollowingByActorId')->willReturn([]);
+		$this->followsRequest->method('getFollowersByActorId')->willReturn([]);
+		$this->actorRelationRequest->method('getByActor')
+			->willReturnCallback(fn (string $actorId, string $type): array => match ($type) {
+				ActorRelation::TYPE_BLOCK => [$this->relation(self::CAROL, ActorRelation::TYPE_BLOCK)],
+				ActorRelation::TYPE_MUTE => [$this->relation(self::DAVE, ActorRelation::TYPE_MUTE, false)],
+				default => [],
+			});
+		$this->cacheActorService->method('getFromId')
+			->willReturnCallback(fn (string $id): Person => match ($id) {
+				self::CAROL => $this->person(self::CAROL, '=cmd@remote.example'),
+				self::DAVE => $this->person(self::DAVE, '+SUM(1)@other.example'),
+				default => throw new CacheActorDoesNotExistException($id),
+			});
+		$this->streamRequest->method('getTimeline')->willReturn([]);
+
+		$archive = $this->export();
+
+		$this->assertSame("'=cmd@remote.example\n", $archive->contents('social/blocked_accounts.csv'));
+		$this->assertSame(
+			"Account address,Hide notifications,Expires at\n'+SUM(1)@other.example,true,\n",
+			$archive->contents('social/muted_accounts.csv')
+		);
+	}
+
 	/**
 	 * A mute given a duration travelled as a permanent one: the file carried
 	 * the handle and the notifications flag and nothing else, so an account

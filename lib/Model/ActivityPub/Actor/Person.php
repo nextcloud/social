@@ -15,6 +15,7 @@ use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
 use OCA\Social\AppInfo\Application as SocialApp;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
@@ -27,6 +28,7 @@ use OCA\Social\Service\VerificationService;
 use OCA\Social\Tools\IQueryRow;
 use OCA\Social\Traits\TDetails;
 use OCP\IURLGenerator;
+use OCP\IUserSession;
 use OCP\Server;
 use Throwable;
 
@@ -50,6 +52,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	public const LINK_VIEWER = 'viewer';
 	public const LINK_REMOTE = 'remote';
 	public const LINK_LOCAL = 'local';
+
+	/** @var array<string, string> the Nextcloud user of each local username asked about */
+	private static array $userIds = [];
 
 	private string $userId = '';
 	private string $name = '';
@@ -1604,12 +1609,15 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	/**
 	 * The picture shown for an account that has none cached yet: for a local
 	 * account Nextcloud's own avatar, which every user has (generated from the
-	 * initials when nothing was uploaded), the app icon otherwise.
+	 * initials when nothing was uploaded), the app icon otherwise -- and for a
+	 * local account whose Nextcloud user this reader is not told, see
+	 * nextcloudUser().
 	 */
 	public function placeholderImage(IURLGenerator $urlGenerator): string {
-		if ($this->isLocal()) {
+		$userId = $this->nextcloudUser();
+		if ($userId !== null) {
 			return $urlGenerator->linkToRouteAbsolute(
-				'core.avatar.getAvatar', ['userId' => $this->getPreferredUsername(), 'size' => 128]
+				'core.avatar.getAvatar', ['userId' => $userId, 'size' => 128]
 			);
 		}
 
@@ -1707,6 +1715,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 				// this app's own: this instance's verification of the account,
 				// with who it is in the name of (VerificationService), or null
 				'verification' => self::verificationOf($this->getId()),
+				// this app's own: the Nextcloud user a local account belongs
+				// to, which its face and its Nextcloud profile page go by
+				'nextcloud_user' => $this->nextcloudUser(),
 			];
 
 		if ($this->getMovedTo() !== '') {
@@ -1729,6 +1740,54 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		}
 
 		return $date[0];
+	}
+
+	/**
+	 * The Nextcloud user a local account belongs to, or null: for a remote
+	 * account, a team account or a channel, which have none, and where this
+	 * reader is not to be told.
+	 *
+	 * The username is chosen when the account is made and need not be the
+	 * user id. Somebody signed in to this Nextcloud is told it; a visitor is
+	 * told it only where it is the username anyway, so an account named apart
+	 * from its login does not give the login away.
+	 */
+	public function nextcloudUser(): ?string {
+		if (!$this->isLocal() || $this->getPreferredUsername() === '') {
+			return null;
+		}
+
+		$userId = $this->getUserId() !== '' ? $this->getUserId() : self::userIdOf($this->getPreferredUsername());
+		if ($userId === '' || str_starts_with($userId, 'team/') || str_starts_with($userId, 'channel/')) {
+			return null;
+		}
+
+		return ($userId === $this->getPreferredUsername() || self::readerIsSignedIn()) ? $userId : null;
+	}
+
+	/**
+	 * The Nextcloud user of a local username, asked once per process: the
+	 * cached copy the client is handed does not carry it, and a page of
+	 * posts names the same few authors over and over.
+	 */
+	private static function userIdOf(string $username): string {
+		if (!array_key_exists($username, self::$userIds)) {
+			try {
+				self::$userIds[$username] = Server::get(ActorsRequest::class)->userIdOf($username);
+			} catch (Throwable) {
+				return '';
+			}
+		}
+
+		return self::$userIds[$username];
+	}
+
+	private static function readerIsSignedIn(): bool {
+		try {
+			return Server::get(IUserSession::class)->getUser() !== null;
+		} catch (Throwable) {
+			return false;
+		}
 	}
 
 	/**

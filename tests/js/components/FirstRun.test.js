@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { flushPromises, mount } from '@vue/test-utils'
+import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
@@ -31,9 +31,12 @@ const carol = { id: '3', acct: 'carol@cloud.example.org', username: 'carol', dis
 const stranger = { id: '9', acct: 'zed@remote.example', username: 'zed', display_name: 'Zed', avatar: '' }
 const pack = { id: 'fediverse', name: 'The fediverse', description: 'The projects this app talks to', size: 4, accounts: [] }
 
-/** what the server answers the two lookups with */
-function serverHas({ suggestions = [], packs = [] } = {}) {
+/** what the server answers the lookups with */
+function serverHas({ suggestions = [], packs = [], identity = null } = {}) {
 	axios.get.mockImplementation((url) => {
+		if (url.endsWith('/api/v1/social/bluesky/identity')) {
+			return identity === null ? Promise.reject(new Error('no identity')) : Promise.resolve({ data: identity })
+		}
 		if (url.endsWith('/api/v2/suggestions')) {
 			return Promise.resolve({ data: suggestions })
 		}
@@ -52,14 +55,14 @@ let finishedImports = []
 
 let accountStore
 
-async function mountFirstRun() {
+async function mountFirstRun(serverData = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
-	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', firstrun: true })
+	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', firstrun: true, viewer: { username: 'alice', address: 'alice@cloud.example.org' }, ...serverData })
 	accountStore = useAccountStore()
 	vi.spyOn(accountStore, 'followAccount').mockResolvedValue(undefined)
 	const wrapper = mount(FirstRun, {
-		global: { plugins: [pinia], stubs: { ActorAvatar: true, NcLoadingIcon: true } },
+		global: { plugins: [pinia], stubs: { ActorAvatar: true, NcLoadingIcon: true, RouterLink: RouterLinkStub } },
 	})
 	await flushPromises()
 	return wrapper
@@ -83,11 +86,27 @@ describe('FirstRun', () => {
 		serverHas()
 		const wrapper = await mountFirstRun()
 
-		expect(wrapper.find('h2').text()).toBe('You are on the fediverse')
+		expect(wrapper.find('h2').text()).toBe('Your account is ready')
 		expect(wrapper.find('.first-run__handle').text()).toBe('@alice@cloud.example.org')
 		// four steps, the first lit
 		expect(wrapper.findAll('.first-run__dot')).toHaveLength(4)
 		expect(wrapper.find('.first-run__dot--current').attributes('aria-current')).toBe('step')
+	})
+
+	/**
+	 * The setup screen lets somebody choose a username other than their user
+	 * id; the introduction built the address from the user id and showed one
+	 * that was not theirs.
+	 */
+	it('shows the account\'s own address where the username is not the user id', async () => {
+		serverHas()
+		const writeText = vi.fn().mockResolvedValue(undefined)
+		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+		const wrapper = await mountFirstRun({ viewer: { username: 'aloha_al', address: 'aloha_al@example.org' } })
+
+		expect(wrapper.find('.first-run__handle').text()).toBe('@aloha_al@example.org')
+		await button(wrapper, 'Copy').trigger('click')
+		expect(writeText).toHaveBeenCalledWith('@aloha_al@example.org')
 	})
 
 	it('copies the address', async () => {
@@ -290,7 +309,71 @@ describe('FirstRun', () => {
 		await button(wrapper, 'Back').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('h2').text()).toBe('You are on the fediverse')
+		expect(wrapper.find('h2').text()).toBe('Your account is ready')
 		expect(button(wrapper, 'Back')).toBeUndefined()
+	})
+
+	it('speaks of people and servers, not of protocols', async () => {
+		serverHas()
+		const wrapper = await mountFirstRun()
+
+		expect(wrapper.attributes('aria-label')).toBe('Getting started')
+		for (let step = 0; step < 4; step++) {
+			expect(wrapper.text()).not.toMatch(/fediverse|ActivityPub/)
+			if (step < 3) {
+				await next(wrapper)
+			}
+		}
+	})
+
+	it('shows the Bluesky address beside the other one, where the account has one', async () => {
+		serverHas({ identity: { handle: 'alice.cloud.example.org', active: true } })
+		const wrapper = await mountFirstRun({ bluesky: { enabled: true, host: 'cloud.example.org' } })
+
+		expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/social/bluesky/identity')
+		expect(wrapper.find('.first-run__lead').text()).toContain('Mastodon, Bluesky, Pixelfed and more')
+		expect(wrapper.find('.first-run__bluesky').text()).toBe('On Bluesky: @alice.cloud.example.org')
+	})
+
+	it('leaves Bluesky out where this server is not on it, or the person switched it off', async () => {
+		serverHas()
+		let wrapper = await mountFirstRun()
+		expect(axios.get).not.toHaveBeenCalledWith('/index.php/apps/social/api/v1/social/bluesky/identity')
+		expect(wrapper.find('.first-run__bluesky').exists()).toBe(false)
+		expect(wrapper.text()).not.toContain('Bluesky')
+
+		serverHas({ identity: { handle: 'alice.cloud.example.org', active: false } })
+		wrapper = await mountFirstRun({ bluesky: { enabled: true, host: 'cloud.example.org' } })
+		expect(wrapper.find('.first-run__bluesky').exists()).toBe(false)
+
+		// no identity to be had: the rest of the step is still there
+		serverHas({ packs: [pack] })
+		wrapper = await mountFirstRun({ bluesky: { enabled: true, host: 'cloud.example.org' } })
+		expect(wrapper.find('.first-run__bluesky').exists()).toBe(false)
+		expect(wrapper.find('.first-run__handle').text()).toBe('@alice@cloud.example.org')
+	})
+
+	// Migration is a page of its own, in the account menu; Settings has no
+	// such section to send anybody to
+	it('links to the Migration page wherever it sends the reader there', async () => {
+		serverHas()
+		axios.post.mockResolvedValue({ data: { import: { id: 9, kind: 'move_in', status: 'queued' } } })
+		finishedImports = [{ id: 9, kind: 'move_in', status: 'done', done: 15, report: { followed: 12, imported: 3 } }]
+		const wrapper = await mountFirstRun()
+		await next(wrapper)
+		await next(wrapper)
+		await wrapper.find('.first-run__move input').setValue('@alice@old.example')
+		await button(wrapper, 'Move here').trigger('click')
+		await flushPromises()
+
+		const links = wrapper.findAllComponents(RouterLinkStub)
+		expect(links).toHaveLength(2)
+		for (const link of links) {
+			expect(link.props('to')).toEqual({ name: 'migration' })
+			expect(link.text()).toBe('Open Migration')
+		}
+		expect(wrapper.text()).not.toContain('Settings → Migration')
+		expect(wrapper.text()).not.toContain('under Migration')
+		expect(wrapper.find('.first-run__result').text()).toContain('the Migration page names it')
 	})
 })

@@ -147,7 +147,7 @@ class PublisherTest extends TestCase {
 
 	public function testAPublicPostIsWrittenOnce(): void {
 		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static function (array $writes): bool {
-			return count($writes) === 1 && $writes[0]->action === RepoWrite::CREATE && $writes[0]->collection === RecordMapper::POST && $writes[0]->localId === self::POST;
+			return count($writes) === 1 && $writes[0]->action === RepoWrite::CREATE && $writes[0]->once && $writes[0]->collection === RecordMapper::POST && $writes[0]->localId === self::POST;
 		}))->willReturnCallback(function (string $did, PrivateKey $key, array $writes): CommitResult {
 			$this->records[] = new StoredRecord(self::DID, RecordMapper::POST, $writes[0]->rkey, Cid::forRaw('r'), '', self::POST, 0);
 
@@ -156,6 +156,24 @@ class PublisherTest extends TestCase {
 
 		$this->assertNotNull($this->publisher->publishPost($this->post()));
 		$this->assertNull($this->publisher->publishPost($this->post()), 'already there');
+	}
+
+	public function testAPostAnotherWorkerPublishedMeanwhileIsNotPublishedAgain(): void {
+		// the repository found the post's record under its lock and wrote nothing
+		$this->repositories->expects($this->once())->method('write')->willReturn(null);
+
+		$this->assertNull($this->publisher->publishPost($this->post()));
+	}
+
+	public function testARecordAnotherWorkerWroteMeanwhileIsNotWrittenAgain(): void {
+		$actor = new Person();
+		$actor->setId('https://social.test/@alice');
+		$actor->setLocal(true);
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(
+			static fn (array $writes): bool => $writes[0]->once && $writes[0]->localId === 'https://social.test/like/1',
+		))->willReturn(null);
+
+		$this->assertFalse($this->publisher->writeRecord($actor, RecordMapper::LIKE, ['$type' => RecordMapper::LIKE], 'https://social.test/like/1'));
 	}
 
 	public function testAPostWaitsForItsVideoAndGoesWithIt(): void {

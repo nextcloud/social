@@ -164,9 +164,9 @@ statement that writes the token, so two requests arriving together cannot both
 exchange it.
 
 **The `client_credentials` grant** issues an app token now — bound to no
-account, granted `read`, one per app — which Mastodon's Android and iOS apps
-take in their sign-up flow and `Mastodon.py`-based tools probe `/api/v1/instance`
-with; it used to answer 400. `/api/v1/apps/verify_credentials` answers it
+account, granted `read`, one per app (the next replaces it, where Mastodon
+keeps both) — which Mastodon's Android and iOS apps take in their sign-up flow
+and `Mastodon.py`-based tools probe `/api/v1/instance` with; it used to answer 400. `/api/v1/apps/verify_credentials` answers it
 with the app it belongs to, and a route that acts for an account answers such
 a token 401, as Mastodon does. The `/oauth/token` error bodies carry RFC 6749's
 names (`invalid_request`, `unsupported_grant_type`, `invalid_grant`,
@@ -425,7 +425,7 @@ this keep `[]`.
 ## 4. The peer test
 
 This is where the app is strongest, and it deserves saying plainly. A remote
-server talking to a Aloha Social instance on its own domain would find very little to
+server talking to an Aloha Social instance on its own domain would find very little to
 complain about.
 
 **Working and correct:** signed delivery and verification including RFC 9421, a
@@ -444,7 +444,7 @@ Two findings from the 0.11.63 review are fixed: outbound content is no longer
 escaped plain text, and delivery no longer sends one copy per mentioned user on
 the same host. Three more have gone since: `Add` and `Remove` federate a pin,
 `Move` is built by `occ social:account:move` with an `alsoKnownAs`
-back-reference check, and the WebFinger profile-page link points at a Aloha Social
+back-reference check, and the WebFinger profile-page link points at an Aloha Social
 profile rather than at `/index.php/u/alice`.
 
 **Mastodon 4.5 actor ids.** Since 4.5 a Mastodon account's id is
@@ -578,7 +578,7 @@ is the profile, the follows, the relations, the lists, the blocked domains,
 the marks, the banner and the files
 of the posts this server still has. That import counts the posts and does not
 write them, and the key pair is deliberately never carried. Posts are brought
-over separately: **Settings → Migration → Bring your posts with you** and
+over separately: **Migration → Bring your posts with you** and
 `occ social:account:import-posts` (`PostImportService`) read another server's
 archive and write the account's own posts as new local posts, dated when they
 were written, with their pictures, under ids of this server and with nothing
@@ -736,7 +736,7 @@ Since that paragraph was written, four more waves landed. **#2134** filled the
 small client gaps — the v1 filter routes, `instance/peers` and `instance/activity`,
 `preferences`, `familiar_followers`. **#2135** went after what a peer would
 notice — `Add` and `Remove` federate a pin, the WebFinger profile link points at
-a Aloha Social profile, and `mediaType`, which §4 has now reopened because the fix
+an Aloha Social profile, and `mediaType`, which §4 has now reopened because the fix
 never reached the object a peer is served. **#2136** is the admin and
 moderation tier almost entire: instance silencing, a moderator role that is
 Nextcloud's own settings delegation, an account browser and a takedown button,
@@ -866,7 +866,7 @@ meet. These three were it.
 | 11 | **Authorized fetch inbound** — verify the HTTP signature on GET and resolve the remote reader | Weeks | Signature verification ran on inbox POSTs only, so a followers-only object could not be served to an authorized remote reader and secure mode was impossible. It failed closed, so nothing leaked | done (`AuthorizedFetchService`) |
 | 12 | **`Add` and `Remove` outbound** for pins | Days | A pin was only visible to a peer that re-polled `featured` | done |
 | 13 | **`mediaType` on attachments** | Hours | The stored row (`MediaAttachment::asLocal()`) now carries `media_type`, `import()` reads it back — with a guess from the extension for rows written before it existed — and the Document a post is served as states it. Since 0.20.5 the Document also **leaves out what it does not know** rather than sending `"width": 0`, `"height": 0` and `"blurhash": ""`: Pixelfed validates all three as `nullable|min:…` *when the key is present* and drops the whole post when one fails, so an attachment with no stored dimensions took its post with it, silently | done |
-| 14 | **The WebFinger profile-page link** | Hours | Pointed at the Nextcloud user profile rather than a Aloha Social one | done |
+| 14 | **The WebFinger profile-page link** | Hours | Pointed at the Nextcloud user profile rather than an Aloha Social one | done |
 | 15 | **Emoji reactions** | Days | Announcement reactions are stored and served. Reactions to a *status* are a Misskey and Pleroma extension Mastodon does not handle either, and are deliberately not implemented | done (announcements) |
 | 39 | **Serve attachments as ActivityPub `Document`s** | Hours | New, and verified on the wire rather than in a unit test: everything served on request — a single status, the outbox, `featured`, `replies`, and any re-fetch by a peer — carries Mastodon's *client* shape under `attachment` (`"type": "video"`, `preview_url`, `remote_url`, `meta`) instead of `{"type": "Document", "mediaType": "video/mp4", "name": …}`. `MediaAttachment::asDocument()` is correct and `ACore::FORMAT_ACTIVITYPUB` is set on the attachments of a freshly created post, so the original `Create` goes out right; but `StreamRequest::save()` stores `asLocal()` and hydration leaves the objects in the local format, so every later read of the same post is wrong. `WireCompatibilityTest` calls `asDocument()` directly and therefore passes | done — `Stream::jsonSerialize()` maps every attachment through `asDocument()` whatever format it was hydrated in, so a re-read post goes out the same as the original `Create`; `StreamTest::testAHydratedPostServesItsAttachmentsAsDocuments` pins it |
 | 51 | **Publish a video as a `Note`, not a `Video`, by default** | Hours | `Note::asVideoIfItIsOne()` sent a sole-video post in PeerTube's shape, and Pixelfed's `HandlesCreates` processes only a `Note` with a parent or an attachment — a `Video` is dropped without a word, so no video posted here ever reached a Pixelfed follower. Mastodon draws both shapes, PeerTube only the `Video`, Pixelfed only the `Note` | done — `publish_video_objects` defaults to `0`; an instance whose audience is on PeerTube turns it on |

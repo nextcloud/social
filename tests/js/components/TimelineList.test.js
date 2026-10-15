@@ -86,7 +86,7 @@ function mountList({
 	parents = [],
 	identity = '["home","",{}]',
 	route = { name: 'timeline', params: { type: 'home' } },
-	serverData = { public: false, cloudAddress: 'https://cloud.example.org' },
+	serverData = { public: false, cloudAddress: 'https://cloud.example.org', viewer: { username: 'alice', address: 'alice@cloud.example.org' } },
 	responses = [[]],
 	props = {},
 	restored = false,
@@ -1409,6 +1409,17 @@ describe('TimelineList', () => {
 			const { wrapper } = mountList({ route: { name: 'profile', params: { account: 'alice' } } })
 			await flushPromises()
 			expect(emptyTitle(wrapper)).toBe('You have not tooted yet')
+		})
+
+		/** the username, chosen on the setup screen, is not the user id `alice` */
+		it('knows the viewer\'s own empty profile by the account\'s username', async () => {
+			const serverData = { public: false, cloudAddress: 'https://cloud.example.org', viewer: { username: 'aloha_al', address: 'aloha_al@cloud.example.org' } }
+			const { wrapper: own } = mountList({ serverData, route: { name: 'profile', params: { account: 'aloha_al' } } })
+			const { wrapper: other } = mountList({ serverData, route: { name: 'profile', params: { account: 'alice' } } })
+			await flushPromises()
+
+			expect(emptyTitle(own)).toBe('You have not tooted yet')
+			expect(emptyTitle(other)).toBe('alice hasn\'t tooted yet')
 		})
 
 		it('names the account on somebody else\'s empty profile', async () => {

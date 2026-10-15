@@ -35,6 +35,20 @@ class StarterPackSourcesTest extends TestCase {
 		$this->assertSame(24 * 3600, $job->getInterval());
 	}
 
+	public function testOneRunAtATimeReadsUntilItsDeadline(): void {
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1_790_000_000);
+		$service = $this->createMock(CollectionPackService::class);
+		$service->expects($this->once())->method('refresh')
+			->with(1_790_000_000 + StarterPackSources::MAX_DURATION)
+			->willReturn(['sources' => 1, 'packs' => 0, 'members' => 0, 'refused' => 0, 'failed' => 1]);
+		$job = new StarterPackSources($time, $service, new NullLogger());
+
+		$this->runJob($job);
+
+		$this->assertFalse($job->getAllowParallelRuns());
+	}
+
 	public function testAFailedPassIsLoggedRatherThanThrown(): void {
 		$service = $this->createStub(CollectionPackService::class);
 		$service->method('refresh')->willThrowException(new RuntimeException('down'));

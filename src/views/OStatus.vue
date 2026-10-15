@@ -35,7 +35,7 @@
 		<div v-if="serverData.local">
 			<p>{{ t('social', 'You are going to follow:') }}</p>
 			<NcAvatar
-				:user="serverData.local"
+				v-bind="localAvatar"
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
@@ -68,6 +68,7 @@ import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
 import { useServerData } from '../composables/useServerData.js'
+import { nextcloudUserOf } from '../utils/accountLocality.js'
 
 /**
  * Whether an address is one a browser may be sent to.
@@ -130,13 +131,26 @@ export default {
 		},
 
 		/**
+		 * The face of the local account to follow, once it has been looked
+		 * up: its Nextcloud user's, which its username need not be, or the
+		 * picture the server gave where this visitor is not told the user.
+		 *
+		 * @return {{user: string}|{url: string|undefined}}
+		 */
+		localAvatar() {
+			const user = nextcloudUserOf(this.account)
+
+			return user !== '' ? { user } : { url: this.account?.avatar }
+		},
+
+		/**
 		 * The logged-in user rendered as a (local) actor for ActorAvatar.
 		 *
 		 * @return {Partial<import('../types/Mastodon.js').Account>}
 		 */
 		currentUserActor() {
 			const uid = this.currentUser?.uid ?? ''
-			return { username: uid, acct: uid }
+			return { username: uid, acct: uid, nextcloud_user: uid }
 		},
 
 		displayName() {

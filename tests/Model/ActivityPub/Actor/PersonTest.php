@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Model\ActivityPub\Actor;
 
 use OCA\Social\AP;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -17,6 +18,8 @@ use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
+use OCP\IUser;
+use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -301,7 +304,7 @@ class PersonTest extends TestCase {
 	public function testALocalAccountWithoutPicturesGetsItsNextcloudAvatarAndAHeaderPlaceholder(): void {
 		$this->routerThatRefusesAnEmptyUuid();
 		$person = new Person();
-		$person->setPreferredUsername('alice')->setLocal(true);
+		$person->setPreferredUsername('alice')->setUserId('alice')->setLocal(true);
 
 		$account = $person->exportAsLocal();
 
@@ -639,6 +642,76 @@ class PersonTest extends TestCase {
 			->willReturnCallback(fn (string $path): string => 'https://cloud.example.org' . $path);
 	}
 
+	private function signedIn(bool $signedIn): void {
+		$session = $this->createStub(IUserSession::class);
+		$session->method('getUser')->willReturn($signedIn ? $this->createStub(IUser::class) : null);
+		\OC::$server->register(IUserSession::class, $session);
+	}
+
+	/**
+	 * The username is chosen when the account is made and need not be the
+	 * user id. The face was drawn by the username, which is another
+	 * Nextcloud user's or nobody's, and the client had no other name to
+	 * draw it or link the Nextcloud profile page by.
+	 */
+	public function testALocalAccountNamedApartFromItsLoginIsDrawnByItsNextcloudUser(): void {
+		$this->routerThatRefusesAnEmptyUuid();
+		$this->signedIn(true);
+		$person = new Person();
+		$person->setPreferredUsername('aloha_al')->setUserId('alice')->setLocal(true);
+
+		$account = $person->exportAsLocal();
+
+		$this->assertSame('alice', $account['nextcloud_user']);
+		$this->assertSame('https://cloud.example.org/core.avatar.getAvatar/alice/128', $account['avatar']);
+	}
+
+	/** A visitor is not told a login the account was named apart from. */
+	public function testAVisitorIsNotToldTheLoginOfAnAccountNamedApartFromIt(): void {
+		$this->routerThatRefusesAnEmptyUuid();
+		$this->signedIn(false);
+		$apart = new Person();
+		$apart->setPreferredUsername('aloha_al')->setUserId('alice')->setLocal(true);
+		$same = new Person();
+		$same->setPreferredUsername('bob')->setUserId('bob')->setLocal(true);
+
+		$account = $apart->exportAsLocal();
+
+		$this->assertNull($account['nextcloud_user']);
+		$this->assertSame('https://cloud.example.org/apps/social/img/social.svg', $account['avatar']);
+		// nothing is given away where the login is the username anyway
+		$this->assertSame('bob', $same->exportAsLocal()['nextcloud_user']);
+	}
+
+	/** The cached copy carries no user id: it is asked of the account's own row. */
+	public function testTheCachedCopyOfALocalAccountIsToldItsNextcloudUser(): void {
+		$this->routerThatRefusesAnEmptyUuid();
+		$this->signedIn(true);
+		$actors = $this->createMock(ActorsRequest::class);
+		$actors->expects($this->once())->method('userIdOf')->with('cached_al')->willReturn('carol');
+		\OC::$server->register(ActorsRequest::class, $actors);
+		$person = new Person();
+		$person->setPreferredUsername('cached_al')->setLocal(true);
+
+		$this->assertSame('carol', $person->exportAsLocal()['nextcloud_user']);
+		// and once: a page of posts names the same author many times
+		$this->assertSame('carol', $person->nextcloudUser());
+	}
+
+	public function testOnlyALocalPersonHasANextcloudUser(): void {
+		$this->signedIn(true);
+		$team = new Person();
+		$team->setPreferredUsername('crew')->setUserId('team/crew')->setLocal(true);
+		$channel = new Person();
+		$channel->setPreferredUsername('clips')->setUserId('channel/clips')->setLocal(true);
+		$remote = new Person();
+		$remote->setPreferredUsername('alice')->setUserId('alice');
+
+		$this->assertNull($team->nextcloudUser());
+		$this->assertNull($channel->nextcloudUser());
+		$this->assertNull($remote->nextcloudUser());
+	}
+
 	/**
 	 * Removing or renaming an avatar leaves the account's icon without a local
 	 * copy until the cache job runs. Building its address with an empty uuid
@@ -648,7 +721,7 @@ class PersonTest extends TestCase {
 	public function testALocalIconWithNoCopyYetShowsNextcloudsOwnAvatar(): void {
 		$this->routerThatRefusesAnEmptyUuid();
 		$person = $this->localActor();
-		$person->setLocal(true);
+		$person->setUserId('alice')->setLocal(true);
 		$icon = new Image();
 		$icon->setUrl('https://cloud.example.org/index.php/avatar/alice/128');
 		$person->setIcon($icon);

@@ -414,6 +414,7 @@ import EmptyContent from './EmptyContent.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSwitcher from './TimelineSwitcher.vue'
 import { useAccountStore } from '../store/account.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useNotificationsStore } from '../store/notifications.js'
 import { fullDateTime, shortAgo } from '../utils/relativeTime.js'
 import { nextCursor } from '../utils/linkHeader.js'
@@ -517,6 +518,15 @@ export default {
 	},
 
 	emits: ['select'],
+
+	setup() {
+		// the account's username, which is what its messages carry; not the
+		// user id, which a username chosen on the setup screen need not be
+		const { username: ownUsername } = useCurrentUser()
+
+		return { ownUsername }
+	},
+
 	data() {
 		return {
 			conversations: [],
@@ -534,7 +544,6 @@ export default {
 			missed: false,
 			searchQuery: '',
 			filterMode: 'all',
-			currentUserId: window.OC?.getCurrentUser?.()?.uid ?? '',
 			loadingList: true,
 			listError: false,
 			loadingThread: false,
@@ -627,7 +636,7 @@ export default {
 
 		/**
 		 * The reader, in the shape `isProtocolRecipient()` compares a mention
-		 * against — before the account store has them, by their user id and
+		 * against — before the account store has them, by their username and
 		 * this server.
 		 *
 		 * @return {object|null}
@@ -637,9 +646,9 @@ export default {
 				return this.ownAccount
 			}
 
-			return this.currentUserId === ''
+			return this.ownUsername === ''
 				? null
-				: { acct: this.currentUserId, username: this.currentUserId, url: `${window.location.origin}/` }
+				: { acct: this.ownUsername, username: this.ownUsername, url: `${window.location.origin}/` }
 		},
 
 		/** @return {object} the inbox with nothing in it, where it is the whole page */
@@ -846,8 +855,8 @@ export default {
 
 	methods: {
 		isOwnAccount(account) {
-			return account.acct === this.currentUserId
-				|| (account.username === this.currentUserId && isLocalAccount(account))
+			return account.acct === this.ownUsername
+				|| (account.username === this.ownUsername && isLocalAccount(account))
 		},
 
 		async loadSuggestedAccounts() {
@@ -981,6 +990,8 @@ export default {
 		 * What the server's push event runs. A hidden tab does not fetch —
 		 * opening the chat is what marks it read, and a reader who is not
 		 * looking has not read anything — but remembers that something came.
+		 *
+		 * @return {Promise<void>|undefined} settled once the refresh is in
 		 */
 		onPushed() {
 			if (document.visibilityState === 'hidden') {
@@ -989,7 +1000,7 @@ export default {
 				return
 			}
 
-			this.refresh()
+			return this.refresh()
 		},
 
 		/** Catches up once, on the way back to a tab that was left. */
@@ -1123,7 +1134,7 @@ export default {
 
 		async sendMessage() {
 			const newRecipient = this.newMessageOpen ? this.newRecipient : null
-			const recipient = newRecipient || this.activeConversation?.accounts?.find((account) => account.acct !== this.currentUserId && account.username !== this.currentUserId)
+			const recipient = newRecipient || this.activeConversation?.accounts?.find((account) => account.acct !== this.ownUsername && account.username !== this.ownUsername)
 			const text = this.messageText.trim()
 			if (!recipient?.acct || !text || this.sendingMessage) {
 				return
@@ -1230,7 +1241,7 @@ export default {
 		},
 
 		conversationPeer(conversation) {
-			return (conversation?.accounts ?? []).find((account) => account.acct !== this.currentUserId && account.username !== this.currentUserId) ?? conversation?.accounts?.[0] ?? null
+			return (conversation?.accounts ?? []).find((account) => account.acct !== this.ownUsername && account.username !== this.ownUsername) ?? conversation?.accounts?.[0] ?? null
 		},
 
 		selectConversation(id, event) {
@@ -1399,7 +1410,7 @@ export default {
 			const accounts = this.activeConversation?.accounts ?? []
 			const handles = accounts
 				.map((account) => String(account.acct ?? ''))
-				.filter((acct) => acct !== '' && acct !== this.currentUserId)
+				.filter((acct) => acct !== '' && acct !== this.ownUsername)
 
 			if (handles.length === 0) {
 				return `@${recipient.acct}`
@@ -1513,11 +1524,11 @@ export default {
 
 		isOutgoing(message) {
 			const account = message?.account
-			if (!this.currentUserId || !account) {
+			if (!this.ownUsername || !account) {
 				return false
 			}
-			return account.acct === this.currentUserId
-				|| (account.username === this.currentUserId && isLocalAccount(account))
+			return account.acct === this.ownUsername
+				|| (account.username === this.ownUsername && isLocalAccount(account))
 		},
 
 		/**

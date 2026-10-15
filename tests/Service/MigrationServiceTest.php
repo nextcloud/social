@@ -768,6 +768,18 @@ class MigrationServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A remote account picks its own name, and a spreadsheet runs one that
+	 * reads as a formula: it is written as text, and read back as it was.
+	 */
+	public function testExportFollowsCsvWritesAHandleThatReadsAsAFormulaAsText(): void {
+		$handles = ['=cmd@evil.example', '-bob@cloud.example', 'carol@remote.example'];
+		$csv = MigrationService::exportFollowsCsv($handles);
+
+		$this->assertStringContainsString("\n'=cmd@evil.example,true,false,\n'-bob@cloud.example,true,false,\n", $csv);
+		$this->assertSame($handles, MigrationService::parseFollowsCsv($csv));
+	}
+
 	// --- blocks, mutes and lists -----------------------------------------
 
 	private function relation(string $objectId, string $type, bool $notifications = true): ActorRelation {
@@ -1011,6 +1023,13 @@ class MigrationServiceTest extends TestCase {
 		);
 	}
 
+	public function testParseListsCsvReadsATitleWrittenAsTextAsItWas(): void {
+		$this->assertSame(
+			['+1 club' => ['carol@remote.example']],
+			MigrationService::parseListsCsv("'+1 club,'@carol@remote.example\n")
+		);
+	}
+
 	public function testParseListsCsvSkipsAHeaderWhereThereIsOne(): void {
 		$this->assertSame(
 			['Friends' => ['carol@remote.example']],
@@ -1139,6 +1158,19 @@ class MigrationServiceTest extends TestCase {
 
 		$this->assertSame('blocked_accounts.csv', $name);
 		$this->assertSame("carol@remote.example\n", $csv);
+	}
+
+	public function testExportCsvWritesABlockedHandleThatReadsAsAFormulaAsText(): void {
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->actorRelationRequest->method('getByActor')
+			->willReturn([$this->relation(self::CAROL, ActorRelation::TYPE_BLOCK)]);
+		$this->cacheActorService->method('getFromId')
+			->willReturn($this->person(self::CAROL, '=cmd@remote.example'));
+
+		[, $csv] = $this->service->exportCsv('alice', 'blocks');
+
+		$this->assertSame("'=cmd@remote.example\n", $csv);
+		$this->assertSame(['=cmd@remote.example'], MigrationService::parseFollowsCsv($csv));
 	}
 
 	public function testExportCsvWritesWhetherAMutesNotificationsAreHidden(): void {

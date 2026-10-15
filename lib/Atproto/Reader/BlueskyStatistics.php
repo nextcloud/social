@@ -86,9 +86,16 @@ class BlueskyStatistics implements StatisticsSource {
 	 * The server an account on Bluesky lives on, from its PDS endpoint;
 	 * Bluesky's own hosts as one, and an unknown PDS as Bluesky's, which is
 	 * where an account whose DID document was never read is all but always.
+	 *
+	 * The account writes its own DID document, so an endpoint whose host is
+	 * not a hostname is taken as unknown too: `parse_url()` hands back
+	 * whatever stands between `//` and the path, `=HYPERLINK(…)` included.
 	 */
 	public static function hostOf(string $pds): string {
 		$host = strtolower((string)parse_url($pds, PHP_URL_HOST));
+		if (filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+			$host = '';
+		}
 		if ($host === '' || $host === 'bsky.social' || $host === 'bsky.network' || str_ends_with($host, '.bsky.network')) {
 			return self::BLUESKY_HOST;
 		}

@@ -75,6 +75,7 @@
 <script>
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+import { loadState } from '@nextcloud/initial-state'
 import axios from '@nextcloud/axios'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import IconAccountCircle from 'vue-material-design-icons/AccountCircle.vue'
@@ -105,6 +106,12 @@ export default {
 
 	data() {
 		return {
+			/**
+			 * The username of the account the profile's user has here, from
+			 * the page: the profile knows them by their user id, which the
+			 * username need not be. '' where they have no account.
+			 */
+			account: loadState('social', 'profileAccount', ''),
 			accountInfo: null,
 			nativeProfileHeader: Boolean(document.querySelector('.profile__header')),
 			activeFeed: 'profile',
@@ -151,7 +158,7 @@ export default {
 	},
 
 	beforeMount() {
-		if (!this.userId) {
+		if (!this.userId || !this.account) {
 			return
 		}
 
@@ -164,7 +171,7 @@ export default {
 
 		async loadAccount() {
 			try {
-				const { data } = await axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(this.userId)}`))
+				const { data } = await axios.get(generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(this.account)}`))
 				this.accountInfo = data
 			} catch (error) {
 				// The feed still works if profile metadata is unavailable. In
@@ -182,7 +189,7 @@ export default {
 		},
 
 		async loadFeed(maxId = '') {
-			if (!this.userId || (maxId && this.feedLoading) || (this.activeFeed === 'home' && !this.isOwnProfile)) {
+			if (!this.userId || !this.account || (maxId && this.feedLoading) || (this.activeFeed === 'home' && !this.isOwnProfile)) {
 				return
 			}
 
@@ -202,7 +209,7 @@ export default {
 				}
 				let url
 				if (feed === 'profile') {
-					url = generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(this.userId)}/statuses`)
+					url = generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(this.account)}/statuses`)
 				} else if (feed === 'home') {
 					url = generateUrl('apps/social/api/v1/timelines/home')
 				} else {
@@ -258,7 +265,7 @@ export default {
 				this.anchorRequest = true
 				try {
 					const params = { limit: PAGE_SIZE, max_id: (BigInt(statusId) + 1n).toString() }
-					const url = generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(this.userId)}/statuses`)
+					const url = generateUrl(`apps/social/api/v1/accounts/${encodeURIComponent(this.account)}/statuses`)
 					const { data } = await axios.get(url, { params })
 					const page = Array.isArray(data) ? data : []
 					if (request === this.feedRequest && this.activeFeed === 'profile'

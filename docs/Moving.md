@@ -37,7 +37,7 @@ Three steps, two of them here.
 1. **Make your account here**, on the setup screen. On its third step,
    *Already somewhere else?*, type the handle of your old account —
    `@you@mastodon.example` — and press **Move here**. You can do the same
-   later, at the top of **Settings → Migration**, where you are first shown
+   later, at the top of the **Migration** page, where you are first shown
    who that account is and what its server lets us read.
 
    What happens: this account is marked as also being the old one (the
@@ -81,7 +81,7 @@ one; the thirty days between moves apply there as everywhere.
    On Mastodon: *Preferences → Account → Moving from a different account*,
    with your handle here.
 
-2. **Here, in Settings → Migration → Move your account away**, type the new
+2. **Here, in Migration → Move your account away**, type the new
    account's handle, type your own handle to confirm, and give your password
    when asked. Every server that knows you is told to follow the new account
    instead; this account is marked as moved, shows where you went, and refuses
@@ -100,7 +100,7 @@ An administrator can move an account for somebody with
 If this server puts you on Bluesky too, your Bluesky account is a second
 account of the same person, and it can move on its own.
 
-**Moving it to another Bluesky server.** In *Settings → Migration → Move
+**Moving it to another Bluesky server.** In *Migration → Move
 your Bluesky account away*, name the server, the handle you want there (one
 ending in a domain that server gives out), an e-mail address and a password
 for the account there. The account is made there at once; your posts,
@@ -155,7 +155,7 @@ for, and it works without this server.
 **While the server runs, keep two files**, both in Settings' Bluesky section:
 **Download your Bluesky account** (your repository as `repo.car`, the
 pictures and videos under `blobs/`, your DID's history; the archive from
-Settings → Migration has the same under `social/bluesky/`) and **Download the
+the Migration page has the same under `social/bluesky/`) and **Download the
 recovery tool**, one HTML page that also comes inside that archive as
 `recovery/bluesky-recovery-tool.html`. Without the archive the posts are gone
 with the server; the DID and your followers still move with the phrase.

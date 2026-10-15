@@ -73,6 +73,9 @@ async function mountCard() {
 
 const buttonNamed = (wrapper, text) => wrapper.findAll('button').find((b) => b.text() === text)
 
+/** The confirmation asked before going on without what did not arrive, if it is open. */
+const confirmDialog = (wrapper) => wrapper.findComponent({ name: 'ConfirmDialog' })
+
 /** The inputs in the order the form lists them: server, handle, e-mail, password, invite code. */
 const inputs = (wrapper) => wrapper.findAll('.migration__bluesky-form input')
 
@@ -207,18 +210,25 @@ describe('BlueskyMoveAway', () => {
 	})
 
 	it('lets a move that waits for a decision copy again, switch without what is missing, or be called off', async () => {
-		server({ moves: [moveOf('needs_decision', 'check', { progress: { code: 'blobs-missing', missing: 3, stage: 'repo_copied' } })] })
+		const lost = [{ collection: 'app.bsky.feed.post', rkey: '3kpic', created_at: '2026-03-01T10:00:00.000Z', text: 'my cat', url: 'https://social.test/@alice/42' }]
+		server({ moves: [moveOf('needs_decision', 'check', { progress: { code: 'blobs-missing', missing: 3, missing_records: lost, stage: 'repo_copied' } })] })
 		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'identity') } })
 		const wrapper = await mountCard()
 
 		expect(wrapper.text()).toContain('3 pictures or videos did not arrive on https://pds.example. Your account still points here.')
 		await buttonNamed(wrapper, 'Switch without them').trigger('click')
 		await flushPromises()
+		expect(axios.post).not.toHaveBeenCalled()
+		expect(confirmDialog(wrapper).props('message')).toBe('3 pictures or videos did not arrive on https://pds.example. Your account is pointed at https://pds.example without them: the posts that show them lose them there, and they are not copied later.')
+		expect(confirmDialog(wrapper).findComponent({ name: 'BlueskyMissingRecords' }).props('records')).toEqual(lost)
+
+		confirmDialog(wrapper).vm.$emit('confirm')
+		await flushPromises()
 		expect(axios.post).toHaveBeenCalledWith(`${API}/move/continue`, { without_missing: true })
 		expect(wrapper.find('.migration__bluesky-progress').exists()).toBe(true)
 	})
 
-	it('calls a move off before the switch and says the account there is left', async () => {
+	it('calls a move off before the switch, after the password, and says the account there is left', async () => {
 		server({ moves: [moveOf('running', 'blobs', { progress: { stage: 'repo_copied' } })] })
 		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'blobs', { progress: { stage: 'repo_copied', code: 'target-account-left' } }), code: 'target-account-left', host: 'pds.example' } })
 		const wrapper = await mountCard()
@@ -226,9 +236,22 @@ describe('BlueskyMoveAway', () => {
 		await buttonNamed(wrapper, 'Call it off').trigger('click')
 		await flushPromises()
 
+		expect(confirmPassword).toHaveBeenCalledTimes(1)
 		expect(axios.delete).toHaveBeenCalledWith(`${API}/move`)
 		expect(wrapper.text()).toContain('The move was called off. The account made on pds.example is still there, switched off: delete it there if you do not want it.')
 		expect(wrapper.find('.migration__bluesky-form').exists()).toBe(true)
+		wrapper.unmount()
+	})
+
+	it('does not call a move off when the password confirmation is dismissed', async () => {
+		server({ moves: [moveOf('running', 'blobs', { progress: { stage: 'repo_copied' } })] })
+		confirmPassword.mockRejectedValueOnce(new Error('dismissed'))
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call it off').trigger('click')
+		await flushPromises()
+
+		expect(axios.delete).not.toHaveBeenCalled()
 		wrapper.unmount()
 	})
 
@@ -282,7 +305,7 @@ describe('BlueskyMoveAway', () => {
 
 	it('says why the server would not start the move, next to the form', async () => {
 		server()
-		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'That server needs an invite code' } } })
+		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'That server needs an invite code', code: 'invite-code-required' } } })
 		const wrapper = await mountCard()
 		await fill(wrapper)
 
@@ -290,7 +313,8 @@ describe('BlueskyMoveAway', () => {
 		await buttonNamed(wrapper, 'Move it').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('.migration__bluesky-error').text()).toBe('That server needs an invite code')
+		expect(wrapper.find('[role="alert"]').text()).toBe('That server needs an invite code. Ask the people who run it for one and enter it.')
+		expect(wrapper.find('.bluesky-error__details code').text()).toBe('That server needs an invite code')
 		expect(showError).not.toHaveBeenCalled()
 		expect(wrapper.find('.migration__bluesky-form').exists()).toBe(true)
 	})
@@ -385,12 +409,14 @@ describe('BlueskyMoveAway', () => {
 	it('says why a move stopped and starts it again from there', async () => {
 		server({
 			identity: 'active',
-			moves: [moveOf('failed', 'blobs', { error: 'the other server answered 502' }), moveOf('done', 'done')],
+			moves: [moveOf('failed', 'blobs', { error: 'com.atproto.repo.uploadBlob answered 502', progress: { code: 'pds-refused', stage: 'repo_copied' } }), moveOf('done', 'done')],
 		})
 		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'blobs') } })
 		const wrapper = await mountCard()
 
-		expect(wrapper.text()).toContain('The move stopped: the other server answered 502')
+		expect(wrapper.find('.migration__bluesky-failed').text()).toContain('The move stopped.')
+		expect(wrapper.find('.bluesky-error').text()).toContain('The other server refused a step of the move. Try again; if it happens again, the details say which step.')
+		expect(wrapper.find('.bluesky-error__details code').text()).toBe('com.atproto.repo.uploadBlob answered 502')
 		await buttonNamed(wrapper, 'Try again').trigger('click')
 		await flushPromises()
 

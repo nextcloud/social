@@ -39,6 +39,11 @@ class BackoffTest extends TestCase {
 		$this->assertSame(StreamQueueRequest::MAX_TRIES, Backoff::inbound()->maxTries());
 	}
 
+	public function testTheBlueskyScheduleIsTheFourthPowerAndHalfAMinute(): void {
+		$this->assertSame([31, 46, 111, 286, 655, 1326, 2431], array_map(static fn (int $tries): int => Backoff::bluesky()->delay($tries), range(1, 7)));
+		$this->assertSame(8, Backoff::bluesky()->maxTries());
+	}
+
 	/**
 	 * The cutoffs the query compares `last` with are `now - delay(n)`, bound
 	 * as dates because the column is a DATETIME.

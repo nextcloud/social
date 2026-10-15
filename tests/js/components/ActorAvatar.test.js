@@ -29,7 +29,7 @@ function mountAvatar(props) {
 	})
 }
 
-const local = { username: 'bob', acct: 'bob', avatar: 'https://cloud.example.org/avatar/bob/128' }
+const local = { username: 'bob', acct: 'bob', nextcloud_user: 'bob', avatar: 'https://cloud.example.org/avatar/bob/128' }
 const remote = {
 	username: 'bob',
 	acct: 'bob@remote.example',
@@ -39,7 +39,7 @@ const remote = {
 const AVATAR_ENDPOINT = '/index.php/apps/social/api/v1/global/actor/avatar?id='
 
 describe('ActorAvatar', () => {
-	it('resolves a local actor through the server avatar endpoint by username', () => {
+	it('draws a local actor as its Nextcloud user', () => {
 		const avatar = mountAvatar({ actor: local }).findComponent(NcAvatarStub)
 		expect(avatar.props('user')).toBe('bob')
 		expect(avatar.props('displayName')).toBe('bob')
@@ -108,9 +108,33 @@ describe('ActorAvatar', () => {
 	})
 
 	it('works for a local actor without any avatar field', () => {
-		const avatar = mountAvatar({ actor: { username: 'bob', acct: 'bob' } }).findComponent(NcAvatarStub)
+		const avatar = mountAvatar({ actor: { username: 'bob', acct: 'bob', nextcloud_user: 'bob' } }).findComponent(NcAvatarStub)
 		expect(avatar.props('user')).toBe('bob')
 		expect(avatar.props('url')).toBeUndefined()
+	})
+
+	/**
+	 * The username is chosen when the account is made and need not be the
+	 * user id. The face was Nextcloud's avatar of the username: somebody
+	 * else's, or nobody's; and the link went to that user's profile page.
+	 */
+	it('draws and links a local actor by its Nextcloud user, not by its username', () => {
+		const wrapper = mountAvatar({ actor: { ...local, username: 'aloha_al', acct: 'aloha_al', nextcloud_user: 'alice' } })
+		const avatar = wrapper.findComponent(NcAvatarStub)
+
+		expect(avatar.props('user')).toBe('alice')
+		expect(avatar.props('displayName')).toBe('aloha_al')
+		expect(wrapper.find('a').attributes('href')).toBe('/index.php/u/alice')
+	})
+
+	/** a visitor is not told the login of an account named apart from it */
+	it('draws a local actor whose Nextcloud user the page was not told by the picture it came with', () => {
+		const wrapper = mountAvatar({ actor: { ...local, username: 'aloha_al', acct: 'aloha_al', nextcloud_user: null, url: 'https://cloud.example.org/@aloha_al' } })
+		const avatar = wrapper.findComponent(NcAvatarStub)
+
+		expect(avatar.props('user')).toBeUndefined()
+		expect(avatar.props('url')).toBe(local.avatar)
+		expect(wrapper.find('a').attributes('href')).toBe('https://cloud.example.org/@aloha_al')
 	})
 
 	it('shows a remote actor with the avatar URL that was delivered with it', () => {

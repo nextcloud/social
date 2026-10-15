@@ -21,6 +21,7 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 
 /**
  * Who has authorized which app, and with what.
@@ -35,6 +36,9 @@ use Psr\Log\LoggerInterface;
  * carrying both halves: the app it is, and the account it is acting for.
  */
 class ClientAuthRequest extends ClientRequestBuilder {
+	/** How often replace() deletes and inserts before it gives up on a busy row. */
+	private const REPLACE_ATTEMPTS = 3;
+
 	public function __construct(
 		IDBConnection $connection,
 		LoggerInterface $logger,
@@ -71,23 +75,15 @@ class ClientAuthRequest extends ClientRequestBuilder {
 		string $codeChallengeMethod = '',
 		string $redirectUri = '',
 	): void {
-		$this->forget($clientId, $userId);
-
-		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_CLIENT_AUTH)
-			->setValue('client_id', $qb->createNamedParameter($clientId, IQueryBuilder::PARAM_INT))
-			->setValue('user_id', $qb->createNamedParameter($userId))
-			->setValue('account', $qb->createNamedParameter($account))
-			->setValue('scopes', $qb->createNamedParameter((string)json_encode($scopes)))
-			->setValue('code', $qb->createNamedParameter($this->secretHasher->hash($code)))
-			->setValue('code_challenge', $qb->createNamedParameter($codeChallenge))
-			->setValue('code_challenge_method', $qb->createNamedParameter($codeChallengeMethod))
-			->setValue('redirect_uri', $qb->createNamedParameter($redirectUri))
-			->setValue('token', $qb->createNamedParameter(''))
-			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
-			->setValue('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
-
-		$qb->executeStatement();
+		$this->replace($clientId, $userId, [
+			'account' => $account,
+			'scopes' => (string)json_encode($scopes),
+			'code' => $this->secretHasher->hash($code),
+			'code_challenge' => $codeChallenge,
+			'code_challenge_method' => $codeChallengeMethod,
+			'redirect_uri' => $redirectUri,
+			'token' => '',
+		]);
 
 		// the app row's own last_update marks it as having been authorized at
 		// least once, which keeps it out of ClientRequest::deleteNeverAuthorized();
@@ -112,22 +108,15 @@ class ClientAuthRequest extends ClientRequestBuilder {
 	 * @param string[] $scopes
 	 */
 	public function issueAppToken(int $clientId, array $scopes, string $token): void {
-		$this->forget($clientId, '');
-
-		$qb = $this->getQueryBuilder();
-		$qb->insert(self::TABLE_CLIENT_AUTH)
-			->setValue('client_id', $qb->createNamedParameter($clientId, IQueryBuilder::PARAM_INT))
-			->setValue('user_id', $qb->createNamedParameter(''))
-			->setValue('account', $qb->createNamedParameter(''))
-			->setValue('scopes', $qb->createNamedParameter((string)json_encode($scopes)))
-			->setValue('code', $qb->createNamedParameter(''))
-			->setValue('code_challenge', $qb->createNamedParameter(''))
-			->setValue('code_challenge_method', $qb->createNamedParameter(''))
-			->setValue('redirect_uri', $qb->createNamedParameter(''))
-			->setValue('token', $qb->createNamedParameter($this->secretHasher->hash($token)))
-			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
-			->setValue('last_update', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
-		$qb->executeStatement();
+		$this->replace($clientId, '', [
+			'account' => '',
+			'scopes' => (string)json_encode($scopes),
+			'code' => '',
+			'code_challenge' => '',
+			'code_challenge_method' => '',
+			'redirect_uri' => '',
+			'token' => $this->secretHasher->hash($token),
+		]);
 
 		$app = $this->getQueryBuilder();
 		$app->update(self::TABLE_CLIENT)
@@ -264,6 +253,40 @@ class ClientAuthRequest extends ClientRequestBuilder {
 			$qb->executeStatement();
 		} catch (DBException $e) {
 			$this->logger->warning('could not sweep expired authorizations', ['exception' => $e]);
+		}
+	}
+
+	/**
+	 * Puts one account's authorization of an app (or the app's own token, for
+	 * an empty `$userId`) in place of whatever was there.
+	 *
+	 * Two requests can do this at once — a consent form sent twice, two
+	 * workers of a bot asking for an app token together — and both delete
+	 * before either inserts, so the second insert meets the unique
+	 * (client, user) index. It is skipped rather than refused, and the
+	 * request deletes and tries again: the last one to write wins, and
+	 * neither fails.
+	 *
+	 * @param array<string, string> $values the row's columns but its key and dates
+	 */
+	private function replace(int $clientId, string $userId, array $values): void {
+		$now = (new DateTime('now'))->format('Y-m-d H:i:s');
+		$row = [
+			'client_id' => $clientId,
+			'user_id' => $userId,
+		] + $values + [
+			'creation' => $now,
+			'last_update' => $now,
+		];
+
+		for ($attempt = 1; ; $attempt++) {
+			$this->forget($clientId, $userId);
+			if ($this->dbConnection->insertIgnoreConflict(self::TABLE_CLIENT_AUTH, $row) > 0) {
+				return;
+			}
+			if ($attempt >= self::REPLACE_ATTEMPTS) {
+				throw new RuntimeException('the authorization could not be stored');
+			}
 		}
 	}
 

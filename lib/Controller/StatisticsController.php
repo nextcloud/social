@@ -16,6 +16,7 @@ use OCA\Social\Service\ClientService;
 use OCA\Social\Service\NetworkGrowthService;
 use OCA\Social\Service\NetworkStatsService;
 use OCA\Social\Service\StatisticsService;
+use OCA\Social\Tools\Csv;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -227,7 +228,12 @@ class StatisticsController extends ClientApiController {
 		}
 
 		foreach ($rows as $row) {
-			fputcsv($handle, $row, ',', '"', '');
+			// account names, hashtags and server names are other people's
+			// words, and a spreadsheet would run one that reads as a formula
+			fputcsv($handle, array_map(
+				static fn ($cell) => is_string($cell) ? Csv::neutralise($cell) : $cell,
+				$row
+			), ',', '"', '');
 		}
 
 		rewind($handle);

@@ -131,7 +131,7 @@ class ModerationService {
 	 * A local account that moved away may not post or follow from here: its
 	 * followers were told to follow the new account, so anything written here
 	 * reaches nobody, and Mastodon locks a moved account the same way. Undoing
-	 * the move (Settings → Migration) lifts it.
+	 * the move (the Migration page) lifts it.
 	 *
 	 * @throws AccountMovedException
 	 */

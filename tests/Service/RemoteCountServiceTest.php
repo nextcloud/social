@@ -39,7 +39,7 @@ class RemoteCountServiceTest extends TestCase {
 
 	public function testTheDuePostsAreHandedOverARoundAtATime(): void {
 		$streamRequest = $this->createMock(StreamRequest::class);
-		$streamRequest->expects($this->once())->method('getRemoteStreamsDueForCounts')->with($this->anything(), 30)->willReturn($this->posts(30));
+		$streamRequest->expects($this->once())->method('getRemoteStreamsDueForCounts')->with($this->anything(), $this->anything(), 30)->willReturn($this->posts(30));
 		$counts = $this->createMock(CountService::class);
 		$counts->expects($this->exactly(2))->method('refreshPosts')
 			->willReturnCallback(static fn (array $posts): array => ['asked' => count($posts), 'answered' => 1]);
@@ -68,6 +68,40 @@ class RemoteCountServiceTest extends TestCase {
 
 		$this->assertSame(['asked' => 3, 'answered' => 3], $service->refresh(false, 30));
 		$this->assertSame(7 * 86400, RemoteCountService::PUBLISHED_WINDOW);
+	}
+
+	/**
+	 * The remote half is bounded the way the local half is: a post of the
+	 * last week. Asked about for ever, the oldest posts of the instance were
+	 * the only ones the pass ever reached.
+	 */
+	public function testRemotePostsOfTheLastWeekAreAskedAbout(): void {
+		$streamRequest = $this->createMock(StreamRequest::class);
+		$streamRequest->expects($this->once())->method('getRemoteStreamsDueForCounts')
+			->with(
+				$this->callback(static fn (\DateTime $due): bool => abs(time() - RemoteCountService::TTL - $due->getTimestamp()) < 60),
+				$this->callback(static fn (?\DateTime $since): bool => $since !== null && abs(time() - RemoteCountService::PUBLISHED_WINDOW - $since->getTimestamp()) < 60),
+				RemoteCountService::BATCH,
+			)
+			->willReturn([]);
+		$streamRequest->method('getPublishedStreamsDueForCounts')->willReturn([]);
+
+		$service = new RemoteCountService($streamRequest, $this->createStub(CountService::class), $this->createStub(ITimeFactory::class), new NullLogger());
+
+		$this->assertSame(['asked' => 0, 'answered' => 0], $service->refresh());
+	}
+
+	/** A forced run is the backfill, `social:counts:refresh --force`: every remote post, however old. */
+	public function testAForcedRunAsksAboutRemotePostsOfAnyAge(): void {
+		$streamRequest = $this->createMock(StreamRequest::class);
+		$streamRequest->expects($this->once())->method('getRemoteStreamsDueForCounts')
+			->with($this->anything(), null, 0)
+			->willReturn([]);
+		$streamRequest->method('getPublishedStreamsDueForCounts')->willReturn([]);
+
+		$service = new RemoteCountService($streamRequest, $this->createStub(CountService::class), $this->createStub(ITimeFactory::class), new NullLogger());
+
+		$service->refresh(true, 0);
 	}
 
 	private function local(): Note {

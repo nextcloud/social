@@ -16,6 +16,7 @@ use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\ApproveReply;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -82,7 +83,7 @@ class ApproveReplyInterface extends AbstractActivityPubInterface implements IAct
 		}
 
 		$reply->setReplyState(Stream::REPLY_APPROVED);
-		$this->streamRequest->updateDetails($reply);
+		$this->streamRequest->updateDetails($reply, Details::REPLY_STATE);
 
 		$this->logger->info('a reply of ours was approved', [
 			'reply' => $replyId, 'inReplyTo' => $reply->getInReplyTo(),

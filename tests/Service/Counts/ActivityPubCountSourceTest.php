@@ -67,6 +67,44 @@ class ActivityPubCountSourceTest extends TestCase {
 		$this->assertSame(['https://remote.example/notes/2', 'https://remote.example/notes/3'], $stamped);
 	}
 
+	/**
+	 * A post its server says is not there (404) or gone (410) will say so
+	 * again: it is stamped far ahead rather than asked about on every pass.
+	 * A server that did not answer at all may yet, and is asked again in the
+	 * usual interval.
+	 */
+	public function testAPostItsServerSaysIsGoneIsNotAskedAboutAgainForALongWhile(): void {
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('retrieveObjectsMany')
+			->willReturnCallback(static function (array $ids, array $options = [], ?array &$statuses = null): array {
+				$statuses = [
+					'https://remote.example/notes/1' => 404,
+					'https://remote.example/notes/2' => 410,
+				];
+
+				return array_fill_keys($ids, null);
+			});
+		$writer = $this->createMock(CountWriter::class);
+		$writer->expects($this->never())->method('write');
+		$gone = [];
+		$writer->method('stampGone')->willReturnCallback(function (string $id) use (&$gone): void {
+			$gone[] = $id;
+		});
+		$stamped = [];
+		$writer->method('stamp')->willReturnCallback(function (string $id) use (&$stamped): void {
+			$stamped[] = $id;
+		});
+
+		(new ActivityPubCountSource($curl, $writer))->refresh([
+			$this->note('https://remote.example/notes/1'),
+			$this->note('https://remote.example/notes/2'),
+			$this->note('https://remote.example/notes/3'),
+		]);
+
+		$this->assertSame(['https://remote.example/notes/1', 'https://remote.example/notes/2'], $gone);
+		$this->assertSame(['https://remote.example/notes/3'], $stamped);
+	}
+
 	public function testDocumentsAreAskedForInRounds(): void {
 		$curl = $this->createMock(CurlService::class);
 		$curl->expects($this->exactly(2))->method('retrieveObjectsMany')->willReturn([]);

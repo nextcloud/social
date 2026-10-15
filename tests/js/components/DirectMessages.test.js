@@ -10,6 +10,7 @@ import axios from '@nextcloud/axios'
 import { createPinia, setActivePinia } from 'pinia'
 import DirectMessages from '../../../src/components/DirectMessages.vue'
 import { useNotificationsStore } from '../../../src/store/notifications.js'
+import { useSettingsStore } from '../../../src/store/settings.js'
 import { offTimelinePush, onTimelinePush } from '../../../src/services/timelinePush.js'
 import { shortAgo } from '../../../src/utils/relativeTime.js'
 
@@ -61,6 +62,7 @@ describe('DirectMessages', () => {
 
 	beforeEach(() => {
 		setActivePinia(createPinia())
+		useSettingsStore().setServerData({ viewer: { username: 'alice', address: `alice@${window.location.hostname}` } })
 		onTimelinePush.mockClear()
 		onTimelinePush.mockReturnValue(false)
 		offTimelinePush.mockClear()
@@ -226,6 +228,23 @@ describe('DirectMessages', () => {
 		expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/conversations/10/read')
 		expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
 		expect(wrapper.find('.direct-messages__message-form textarea').exists()).toBe(true)
+	})
+
+	/**
+	 * The username is chosen on the setup screen and need not be the user id
+	 * (`alice` here). The reader's own messages were told apart by the user
+	 * id, so theirs looked incoming and those of an account called `alice`
+	 * looked like theirs.
+	 */
+	it('knows the reader\'s messages by the account\'s username, not by the user id', async () => {
+		useSettingsStore().setServerData({ viewer: { username: 'aloha_al', address: `aloha_al@${window.location.hostname}` } })
+		const wrapper = mountMessages('10')
+		await flushPromises()
+		const local = { url: `${window.location.origin}/index.php/apps/social/@x` }
+
+		expect(wrapper.vm.isOutgoing({ account: { ...local, acct: 'aloha_al', username: 'aloha_al' } })).toBe(true)
+		expect(wrapper.vm.isOutgoing({ account: { ...local, acct: 'alice', username: 'alice' } })).toBe(false)
+		expect(wrapper.vm.conversationPeer({ accounts: [{ acct: 'aloha_al', username: 'aloha_al' }, bob] })).toEqual(bob)
 	})
 
 	/**

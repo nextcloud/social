@@ -9,12 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Identity;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\Identity\CustomHandleService;
 use OCA\Social\Atproto\Identity\HandleVerifier;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Db\AtprotoIdentityRequest;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -38,7 +39,11 @@ class CustomHandleServiceTest extends TestCase {
 		$this->alice = self::identity();
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->verifier = $this->createMock(HandleVerifier::class);
-		$this->verifier->method('refusal')->willReturnCallback(static fn (string $h): string => str_ends_with($h, '.social.test') ? 'ours' : '');
+		$this->verifier->method('refusal')->willReturnCallback(static fn (string $h): string => match (true) {
+			!Syntax::isResolvableHandle($h) => 'That is not a domain name a handle can be',
+			str_ends_with($h, '.social.test') => 'ours',
+			default => '',
+		});
 		$this->request = $this->createMock(AtprotoIdentityRequest::class);
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturn(1760000000);
@@ -64,16 +69,26 @@ class CustomHandleServiceTest extends TestCase {
 		$this->verifier->method('verify')->willReturn('');
 		$this->request->method('handleExists')->willReturnCallback(static fn (string $h): bool => $h === 'bob.example.org');
 
-		foreach (['alice.example.org' => 'names', 'bob.example.org' => 'another account', 'x.social.test' => 'ours'] as $handle => $message) {
+		foreach ([
+			'alice.example.org' => ['names', 'handle-not-verified'],
+			'bob.example.org' => ['another account', 'handle-in-use'],
+			'x.social.test' => ['ours', 'handle-reserved'],
+			'not a domain' => ['not a domain name', 'handle-domain-invalid'],
+		] as $handle => [$message, $code]) {
 			try {
 				$this->handles->set($this->alice, $handle);
 				$this->fail('used ' . $handle);
-			} catch (InvalidArgumentException $e) {
+			} catch (MoveErrorException $e) {
 				$this->assertStringContainsString($message, $e->getMessage());
+				$this->assertSame($code, $e->errorCode, $handle);
 			}
 		}
-		$this->expectException(InvalidArgumentException::class);
-		$this->handles->set(self::identity('', 0, Identity::STATE_DEACTIVATED), 'alice.example.org');
+		try {
+			$this->handles->set(self::identity('', 0, Identity::STATE_DEACTIVATED), 'alice.example.org');
+			$this->fail('set on a switched-off account');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('identity-inactive', $e->errorCode);
+		}
 	}
 
 	public function testTheAssignedHandleComesBack(): void {
@@ -96,5 +111,16 @@ class CustomHandleServiceTest extends TestCase {
 		$this->assertSame([true, false], $checked);
 		$this->assertFalse(self::identity('gone.example.org', 1)->customHandleBroken(), 'one failed check is not yet broken');
 		$this->assertTrue(self::identity('gone.example.org', 2)->customHandleBroken());
+	}
+
+	/** A handle that failed its daily check a week in a row is dropped: the account has its assigned handle again. */
+	public function testAHandleThatKeepsFailingIsDropped(): void {
+		$lapsed = self::identity('lapsed.example.org', CustomHandleService::CLEAR_AFTER - 1);
+		$failing = self::identity('failing.example.org', CustomHandleService::CLEAR_AFTER - 2);
+		$this->request->method('getCustomHandlesDue')->willReturn([$lapsed, $failing]);
+		$this->verifier->method('verify')->willReturn('');
+		$this->identities->expects($this->once())->method('useCustomHandle')->with($lapsed, '')->willReturn($this->alice);
+
+		$this->assertSame(2, $this->handles->recheck());
 	}
 }

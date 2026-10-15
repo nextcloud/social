@@ -36,6 +36,7 @@ const alice = {
 	id: '1',
 	acct: 'alice',
 	username: 'alice',
+	nextcloud_user: 'alice',
 	display_name: 'Alice',
 	url: 'https://cloud.example.org/@alice',
 	avatar: 'https://cloud.example.org/avatar/alice/64',

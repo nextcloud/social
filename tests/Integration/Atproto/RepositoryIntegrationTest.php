@@ -79,7 +79,7 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertCount(1, $records);
 		$this->assertSame('Hello Bluesky ✨', $records[0]->value()['text'], 'bytes survive the BLOB column');
 
-		$car = Car::decode($this->repositories->exportCar(self::DID));
+		$car = Car::decode(implode('', iterator_to_array($this->repositories->streamCar(self::DID), false)));
 		$this->assertTrue($car['roots'][0]->equals($second->commitCid));
 		$this->assertArrayHasKey($records[0]->cid->toString(), $car['blocks']);
 
@@ -122,6 +122,26 @@ class RepositoryIntegrationTest extends TestCase {
 			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'after the lock', 'createdAt' => '2026-10-08T10:00:00.000Z'], self::ACTOR . '/2'),
 		]);
 		$this->assertSame($second->commitCid->toString(), $this->repositories->getHead(self::DID)?->commitCid);
+		$this->assertSame([], $this->repositories->verify(self::DID, $this->key->publicKey()));
+	}
+
+	/**
+	 * A post's record is looked for inside the commit's transaction, after
+	 * the head is locked: a second publish of the same post, which found no
+	 * record before it began, writes nothing and moves no head.
+	 */
+	public function testAPostIsNotWrittenTwiceForOneLocalId(): void {
+		$post = ['$type' => 'app.bsky.feed.post', 'text' => 'once', 'createdAt' => '2026-10-08T10:00:00.000Z'];
+		$before = $this->eventRequest->latestSeq();
+		$first = $this->repositories->write(self::DID, $this->key, [RepoWrite::createOnce('app.bsky.feed.post', $post, self::ACTOR . '/4', '3kznmn7xqxl44')]);
+
+		$second = $this->repositories->write(self::DID, $this->key, [RepoWrite::createOnce('app.bsky.feed.post', $post, self::ACTOR . '/4', '3kznmn7xqxl45')]);
+
+		$this->assertNotNull($first);
+		$this->assertNull($second);
+		$this->assertCount(1, $this->repositories->getRecordsByLocalId(self::ACTOR . '/4'));
+		$this->assertSame($first->commitCid->toString(), $this->repositories->getHead(self::DID)?->commitCid);
+		$this->assertCount(1, $this->eventRequest->after($before), 'one frame on the firehose');
 		$this->assertSame([], $this->repositories->verify(self::DID, $this->key->publicKey()));
 	}
 

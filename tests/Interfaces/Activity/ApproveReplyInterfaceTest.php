@@ -16,6 +16,7 @@ use OCA\Social\Interfaces\Activity\ApproveReplyInterface;
 use OCA\Social\Model\ActivityPub\Activity\ApproveReply;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Service\SignatureService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -100,7 +101,7 @@ class ApproveReplyInterfaceTest extends TestCase {
 	/** PeerTube sends the approval as the account the video's channel belongs to. */
 	public function testAnApprovalMovesOurReplyToApproved(): void {
 		$reply = $this->stored();
-		$this->streamRequest->expects($this->once())->method('updateDetails');
+		$this->streamRequest->expects($this->once())->method('updateDetails')->with($reply, Details::REPLY_STATE);
 
 		$this->handler->processIncomingRequest($this->approval());
 

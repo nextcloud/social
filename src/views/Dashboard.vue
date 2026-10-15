@@ -31,7 +31,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
-import { listen } from '@nextcloud/notify_push'
+import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { notificationSummary } from '../services/notifications.js'
@@ -77,7 +77,6 @@ export default {
 			polling: false,
 			/** how many asks in a row have failed */
 			failures: 0,
-			stopListening: null,
 			state: 'loading',
 			appUrl: generateUrl('/apps/social'),
 		}
@@ -129,14 +128,11 @@ export default {
 		// a slow poll keeps the tile current without hammering the instance
 		// the next ask is timed from the end of the one before, which is still
 		// in flight here, so it is the answer to that one that schedules it
-		this.stopListening = listen('social_timeline', () => this.fetchNotifications())
-		this.polling = !this.stopListening
+		this.polling = !onTimelinePush(this.fetchNotifications)
 	},
 
 	beforeUnmount() {
-		if (typeof this.stopListening === 'function') {
-			this.stopListening()
-		}
+		offTimelinePush(this.fetchNotifications)
 		this.stopPolling()
 	},
 

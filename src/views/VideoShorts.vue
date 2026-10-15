@@ -280,6 +280,7 @@ import { htmlToPlainText } from '../utils/plainText.js'
 import logger from '../services/logger.js'
 import { feel } from '../services/senses.js'
 import { useSoundAutoplay } from '../composables/useSoundAutoplay.js'
+import { useCurrentUser } from '../composables/useCurrentUser.js'
 import DayShortPanel from '../components/DayShortPanel.vue'
 import ShortComposerDialog from '../components/ShortComposerDialog.vue'
 
@@ -338,8 +339,9 @@ export default {
 
 	setup() {
 		const { muted, soundHeld, silent, playWithSound, toggleMute } = useSoundAutoplay()
+		const { username } = useCurrentUser()
 
-		return { muted, soundHeld, silent, playWithSound, toggleMute }
+		return { muted, soundHeld, silent, playWithSound, toggleMute, username }
 	},
 
 	data() {
@@ -401,7 +403,7 @@ export default {
 
 		/** @return {string} the reader's handle, for telling their own shorts apart */
 		viewerAcct() {
-			return this.accountStore.currentAccount?.acct ?? getCurrentUser()?.uid ?? ''
+			return this.accountStore.currentAccount?.acct ?? this.username
 		},
 
 		/**

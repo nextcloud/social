@@ -155,14 +155,14 @@ describe('BlueskyMoveInbound', () => {
 
 	it('says why an invitation was refused', async () => {
 		server({ twin: null })
-		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'That Bluesky account is on this server already' } } })
+		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'That Bluesky account is on this server already', code: 'account-here-already' } } })
 		const wrapper = await mountCard()
 		await wrapper.find('details input').setValue('alice.example.com')
 		await buttonNamed(wrapper, 'Invite the account').trigger('click')
 		await buttonNamed(wrapper, 'Invite it').trigger('click')
 		await flushPromises()
 
-		expect(wrapper.find('[role="alert"]').text()).toBe('That Bluesky account is on this server already')
+		expect(wrapper.find('[role="alert"]').text()).toBe('That Bluesky account is on this server already. There is nothing to move.')
 	})
 
 	it('follows the move as the posts arrive, and says when it is done', async () => {
@@ -197,7 +197,7 @@ describe('BlueskyMoveInbound', () => {
 		expect(wrapper.text()).toContain('Bringing')
 	})
 
-	it('calls a move off that has not finished', async () => {
+	it('calls a move off that has not finished, after the Nextcloud password', async () => {
 		server({ moves: [moveOf('waiting')] })
 		axios.delete.mockResolvedValue({ data: { move: moveOf('cancelled', 'invited', { error: 'Called off' }) } })
 		const wrapper = await mountCard()
@@ -205,9 +205,31 @@ describe('BlueskyMoveInbound', () => {
 		await buttonNamed(wrapper, 'Call it off').trigger('click')
 		await flushPromises()
 
+		expect(confirmPassword).toHaveBeenCalled()
 		expect(axios.delete).toHaveBeenCalledWith(`${API}/move-invite`)
 		expect(wrapper.text()).not.toContain('The move stopped')
 		expect(wrapper.text()).toContain('Invite the account')
+	})
+
+	it('does not call a move off when the password confirmation is dismissed', async () => {
+		server({ moves: [moveOf('waiting')] })
+		vi.mocked(confirmPassword).mockRejectedValueOnce(new Error('dismissed'))
+		const wrapper = await mountCard()
+
+		await buttonNamed(wrapper, 'Call it off').trigger('click')
+		await flushPromises()
+
+		expect(axios.delete).not.toHaveBeenCalled()
+		expect(wrapper.text()).toContain('Waiting for Bridgy Fed to start')
+	})
+
+	it('says why a move stopped in plain words, the server\'s behind Details', async () => {
+		server({ moves: [moveOf('failed', 'invited', { error: 'Bridgy Fed could not be asked', progress: { code: 'bridgy-unreachable' } })] })
+		const wrapper = await mountCard()
+
+		expect(wrapper.text()).toContain('The move stopped.')
+		expect(wrapper.find('.bluesky-error p').text()).toBe('Bridgy Fed could not be reached. Try again later.')
+		expect(wrapper.find('.bluesky-error__details code').text()).toBe('Bridgy Fed could not be asked')
 	})
 
 	it('leaves the other moves to their cards', async () => {

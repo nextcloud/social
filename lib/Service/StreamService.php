@@ -752,6 +752,16 @@ class StreamService {
 	}
 
 	/**
+	 * The direct timeline's page as its messages' places in a conversation,
+	 * nothing read or dressed beyond them (`StreamRequest::getDirectTimelineLinks()`).
+	 *
+	 * @return list<array{id: string, nid: string, inReplyTo: string, attributedTo: string}>
+	 */
+	public function getDirectTimelineLinks(ProbeOptions $options): array {
+		return $this->streamRequest->getDirectTimelineLinks($options);
+	}
+
+	/**
 	 * Posts named by nid, as the viewer may see them and dressed the way a
 	 * timeline page is — the page For you ranks is decided before the
 	 * posts are read, so it cannot come out of `getTimeline()`.

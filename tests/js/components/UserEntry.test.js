@@ -35,6 +35,7 @@ const local = {
 	url: 'https://cloud.example.org/users/carol',
 	acct: 'carol',
 	username: 'carol',
+	nextcloud_user: 'carol',
 	display_name: 'Carol',
 	avatar: 'https://cloud.example.org/avatar/carol/128',
 	note: '<p>Local <strong>bio</strong></p>',

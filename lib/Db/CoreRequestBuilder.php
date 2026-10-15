@@ -859,6 +859,7 @@ class CoreRequestBuilder {
 			'language',
 			'url',
 			'members',
+			'member_count',
 			'fetched'
 		],
 		self::TABLE_STREAM_TAGS => [

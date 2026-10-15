@@ -94,18 +94,22 @@ class RejectFollowCountTest extends TestCase {
 		];
 	}
 
-	/** bob's server rejects the follow it names, echoing it as Mastodon does. */
-	private function reject(string $followId): void {
+	/**
+	 * The followed account's server rejects the follow it names, echoing it
+	 * as Mastodon does: bob's, unless told otherwise.
+	 */
+	private function reject(string $followId, string $followed = self::BOB): void {
+		$host = (string)parse_url($followed, PHP_URL_HOST);
 		$follow = new Follow();
 		$follow->setId($followId);
 		$follow->setActorId(self::ALICE);
-		$follow->setObjectId(self::BOB);
+		$follow->setObjectId($followed);
 
 		$reject = new Reject();
-		$reject->setId('https://remote.example/rejectfollow/reject/' . md5($followId));
-		$reject->setActorId(self::BOB);
+		$reject->setId('https://' . $host . '/rejectfollow/reject/' . md5($followId));
+		$reject->setActorId($followed);
 		$reject->setObject($follow);
-		$reject->setOrigin('remote.example', SignatureService::ORIGIN_HEADER, time());
+		$reject->setOrigin($host, SignatureService::ORIGIN_HEADER, time());
 
 		Server::get(FollowInterface::class)->activity($reject, $follow);
 	}
@@ -145,6 +149,15 @@ class RejectFollowCountTest extends TestCase {
 		$this->reject('https://cloud.example.org/rejectfollow/follows/not-stored');
 
 		$this->assertTrue($this->stored(), 'the stored follow is still there');
+		$this->assertSame(['following' => 1, 'followers' => 1], $this->counts());
+	}
+
+	public function testARejectFromAnotherServerNamingTheFollowAsItsOwnChangesNothing(): void {
+		$this->seed(true);
+
+		$this->reject(self::FOLLOW, 'https://evil.example/rejectfollow/users/mallory');
+
+		$this->assertTrue($this->stored(), 'only bob\'s server may take alice\'s follow of bob back');
 		$this->assertSame(['following' => 1, 'followers' => 1], $this->counts());
 	}
 }

@@ -32,8 +32,8 @@
 			     Nextcloud's would open over the top of the profile they are
 			     already reading -->
 			<NcAvatar
-				v-if="isLocal"
-				:user="localUid"
+				v-if="nextcloudUserOf(accountInfo) !== ''"
+				:user="nextcloudUserOf(accountInfo)"
 				:disableMenu="true"
 				:disableTooltip="true"
 				:size="128" />
@@ -302,9 +302,7 @@
 			<!-- the hashtags this account pins to itself: a claim it makes
 			     about what it is about, so it sits with the bio rather than
 			     among the numbers -->
-			<!-- `!!`: isOwnProfile is the uid comparison, which is undefined
-			     until the reader is known, and the prop is a boolean -->
-			<FeaturedTags :accountId="highlightsAccountId" :editable="!!isOwnProfile" />
+			<FeaturedTags :accountId="highlightsAccountId" :editable="isOwnProfile" />
 			<!-- The people the reader already follows who follow this account.
 			     The strongest reason there is to follow somebody, and the
 			     server has been able to answer it since `familiar_followers`
@@ -556,7 +554,7 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import axios from '@nextcloud/axios'
 import BlueskyBadge from './BlueskyBadge.vue'
 import FollowButton from './FollowButton.vue'
-import { isBlueskyAccount, qualifiedHandle } from '../utils/accountLocality.js'
+import { isBlueskyAccount, nextcloudUserOf, qualifiedHandle } from '../utils/accountLocality.js'
 import { focusedElement, returnFocusTo } from '../utils/focus.js'
 import FeaturedTags from './FeaturedTags.vue'
 import ProfileHighlights from './ProfileHighlights.vue'
@@ -645,10 +643,10 @@ export default {
 
 	setup(props) {
 		const { serverData, hostname } = useServerData()
-		const { currentUser } = useCurrentUser()
-		const { profileAccount, accountInfo, isLocal, relationship } = useAccount(() => props.uid)
+		const { isOwnHandle } = useCurrentUser()
+		const { profileAccount, accountInfo, relationship } = useAccount(() => props.uid)
 
-		return { serverData, hostname, currentUser, profileAccount, accountInfo, isLocal, relationship }
+		return { serverData, hostname, isOwnHandle, profileAccount, accountInfo, relationship }
 	},
 
 	data() {
@@ -881,7 +879,7 @@ export default {
 		},
 
 		isOwnProfile() {
-			return this.currentUser?.uid && this.localUid === this.currentUser.uid
+			return this.isOwnHandle(this.uid)
 		},
 
 		/** @return {string} when a timed mute lifts, written out, or '' */
@@ -991,6 +989,8 @@ export default {
 	},
 
 	methods: {
+		nextcloudUserOf,
+
 		/**
 		 * Asks who the reader follows that also follows this account.
 		 *

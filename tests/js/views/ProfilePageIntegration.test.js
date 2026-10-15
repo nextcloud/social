@@ -2,6 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
+/* global setInitialState */
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
@@ -33,7 +34,15 @@ const homeStatuses = [
 
 let get
 
-function mountSection(userId) {
+/**
+ * @param {string} userId the Nextcloud user whose profile page it is
+ * @param {string} [account] the username of their account here, as the page says it
+ * @return {object} the mounted section
+ */
+function mountSection(userId, account = userId) {
+	setInitialState('social', 'profileAccount', account)
+	window._nc_initial_state?.clear()
+
 	return mount(ProfilePageIntegration, {
 		props: { userId },
 		global: { stubs: { ProfileStatusCard: ProfileStatusCardStub, TimelineSwitcher: TimelineSwitcherStub, NcButton: true } },
@@ -57,6 +66,27 @@ describe('ProfilePageIntegration', () => {
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/bob%40remote.example')
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/bob%40remote.example/statuses', { params: { limit: 20 } })
+	})
+
+	/**
+	 * The page knows its user by their user id; the account's username is
+	 * chosen when it is made and need not be it. Asked by the user id, the
+	 * API found nobody, or the account somebody else had given that name.
+	 */
+	it('asks for the account by its username, not by the profile user\'s id', async () => {
+		mountSection('alice', 'aloha_al')
+		await flushPromises()
+
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/aloha_al')
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/aloha_al/statuses', { params: { limit: 20 } })
+		expect(get).not.toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/alice')
+	})
+
+	it('asks for nothing where the profile\'s user has no account here', async () => {
+		mountSection('carol', '')
+		await flushPromises()
+
+		expect(get).not.toHaveBeenCalled()
 	})
 
 	it('renders the Aloha Social profile banner and one entry per post', async () => {

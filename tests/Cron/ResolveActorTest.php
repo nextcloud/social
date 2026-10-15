@@ -51,8 +51,18 @@ class ResolveActorTest extends TestCase {
 		$this->runJob(['id' => 'https://gone.example/users/carol']);
 	}
 
+	public function testAnAccountQueuedByItsHandleIsLookedUpByIt(): void {
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+		$this->cacheActorService->expects($this->once())->method('getFromAccount')
+			->with('bob@remote.example')
+			->willReturn(new Person());
+
+		$this->runJob(['account' => 'bob@remote.example']);
+	}
+
 	public function testAJobWithNoIdDoesNothing(): void {
 		$this->cacheActorService->expects($this->never())->method('getFromId');
+		$this->cacheActorService->expects($this->never())->method('getFromAccount');
 
 		$this->runJob(null);
 		$this->runJob(['id' => '']);

@@ -307,6 +307,27 @@ class RemoteFetchQueue {
 	}
 
 	/**
+	 * Queues a lookup of each account named by its `user@host` handle, for
+	 * a page that lists accounts by handle and shows the ones not cached
+	 * here as not found yet.
+	 *
+	 * @param string[] $handles
+	 */
+	public function resolveAccounts(array $handles): void {
+		$wanted = [];
+		foreach ($handles as $handle) {
+			$handle = ltrim(trim($handle), '@');
+			if (preg_match('/^[^@\s\/]+@[^@\s\/]+$/', $handle) === 1) {
+				$wanted[$handle] = $handle;
+			}
+		}
+
+		foreach (array_slice(array_values($wanted), 0, self::MAX_PER_CALL) as $handle) {
+			$this->queue(ResolveActor::class, ['account' => $handle]);
+		}
+	}
+
+	/**
 	 * @param class-string $job
 	 * @param array<string, string|list<string>> $argument
 	 */

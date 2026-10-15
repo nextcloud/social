@@ -160,7 +160,21 @@ class CacheActorService {
 			return $actor;
 		}
 		if (BlueskyIds::isActorId($id)) {
-			$actor = $this->blueskyActor(BlueskyIds::didOf($id), $refresh);
+			$did = BlueskyIds::didOf($id);
+			// as below: an account the AppView did not give a moment ago is
+			// not asked for again, unless it has been stored since
+			if (!$refresh && $this->durableCache?->get(self::MISS_NAMESPACE, md5($id)) !== null
+				&& $this->blueskyActors?->cached($did) === null) {
+				throw new CacheActorDoesNotExistException('not fetched again yet: ' . $id);
+			}
+
+			try {
+				$actor = $this->blueskyActor($did, $refresh);
+			} catch (Exception $e) {
+				$this->durableCache?->set(self::MISS_NAMESPACE, md5($id), 1, self::MISS_SECONDS);
+
+				throw $e;
+			}
 			$this->memo[$id] = $actor;
 
 			return $actor;

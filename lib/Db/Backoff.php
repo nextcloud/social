@@ -30,6 +30,9 @@ final class Backoff {
 	/** Inbound resolution, `social_stream_queue`. */
 	public const INBOUND_MAX_TRIES = 10;
 
+	/** Writes to Bluesky, `Cron\AtprotoPublish`, which queues itself again. */
+	public const BLUESKY_MAX_TRIES = 8;
+
 	public function __construct(
 		private int $divisor,
 		private int $offset,
@@ -45,6 +48,11 @@ final class Backoff {
 	/** `tries^4 / 3`, about an hour and a half over the ten attempts. */
 	public static function inbound(): self {
 		return new self(3, 0, self::INBOUND_MAX_TRIES);
+	}
+
+	/** `tries^4 + 30`, about an hour and twenty minutes over the eight attempts. */
+	public static function bluesky(): self {
+		return new self(1, 30, self::BLUESKY_MAX_TRIES);
 	}
 
 	/** The try count at which a row is given up on. */

@@ -22,7 +22,9 @@ use PHPUnit\Framework\TestCase;
  * `com.atproto.sync.getRepo` writes the CAR out as the repository is
  * read: what the export holds at its peak is a page of rows and one
  * piece of the CAR, the same over five times the records — not the
- * repository, which can be larger than the memory a request has.
+ * repository, which can be larger than the memory a request has. The
+ * same holds for the CAR a move sends, which goes through a temporary
+ * stream.
  */
 class RepoExportMemoryTest extends TestCase {
 	private const DID = 'did:plc:integrationexport000000';
@@ -55,7 +57,24 @@ class RepoExportMemoryTest extends TestCase {
 		$decoded = Car::decode(implode('', $pieces));
 		$this->assertSame($this->repositories->getHead(self::DID)?->commitCid, $decoded['roots'][0]->toString());
 		$this->assertGreaterThan(120, count($decoded['blocks']), 'the records and the tree');
-		$this->assertSame(Car::decode($this->repositories->exportCar(self::DID))['blocks'], $decoded['blocks']);
+		$stream = $this->repositories->carStream(self::DID);
+		$this->assertSame(Car::decode((string)stream_get_contents($stream))['blocks'], $decoded['blocks']);
+		fclose($stream);
+	}
+
+	/** The CAR a move uploads is spilled to disk as it is read, never one string. */
+	public function testTheStreamForAMoveHoldsAPageNotTheRepository(): void {
+		$this->seed(3000);
+		$size = 0;
+
+		$peak = PeakMemory::of(function () use (&$size): void {
+			$car = $this->repositories->carStream(self::DID);
+			$size = fstat($car)['size'];
+			fclose($car);
+		});
+
+		$this->assertGreaterThan(3000 * self::RECORD_BYTES, $size, 'the whole CAR is in the stream');
+		$this->assertLessThan(3000 * self::RECORD_BYTES / 2, $peak, 'the peak is below half the CAR');
 	}
 
 	private function peakOfExporting(int $records): int {

@@ -33,6 +33,7 @@ use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\InterestService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\StreamActionService;
+use OCA\Social\Tools\Csv;
 use OCP\IL10N;
 use OCP\ITempManager;
 use OCP\IURLGenerator;
@@ -548,7 +549,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			foreach ($blocks as $block) {
 				$handle = $this->handleOf($block->getObjectId());
 				if ($handle !== '') {
-					$lines[] = $handle;
+					$lines[] = Csv::cell($handle);
 				}
 			}
 			$exportDestination->addFileContents(self::PATH_BLOCKS, $this->csv($lines));
@@ -567,7 +568,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 				$handle = $this->handleOf($mute->getObjectId());
 				if ($handle !== '') {
 					$expiresAt = $expiries[$mute->getObjectId()] ?? 0;
-					$lines[] = $handle . ',' . ($mute->isNotifications() ? 'false' : 'true')
+					$lines[] = Csv::cell($handle) . ',' . ($mute->isNotifications() ? 'false' : 'true')
 						. ',' . ($expiresAt > 0 ? gmdate('c', $expiresAt) : '');
 				}
 			}
@@ -1283,7 +1284,7 @@ class SocialMigrator implements IMigrator, ISizeEstimationMigrator {
 			}
 
 			$cells = str_getcsv($line, ',', '"', '');
-			$handle = strtolower(ltrim(trim((string)($cells[0] ?? '')), '@'));
+			$handle = strtolower(ltrim(Csv::restore(trim((string)($cells[0] ?? ''))), '@'));
 			$expiresAt = strtotime(trim((string)($cells[2] ?? '')));
 			if ($handle !== '' && $expiresAt !== false && $expiresAt > 0) {
 				$expiries[$handle] = $expiresAt;

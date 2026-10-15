@@ -64,6 +64,9 @@ class StarterPack implements JsonSerializable {
 	/** @var string[] the handles that could not be resolved */
 	private array $unresolved = [];
 
+	/** How many accounts the pack holds, where its handles are not loaded. */
+	private ?int $size = null;
+
 	/**
 	 * @param string[] $handles `user@host`, without a leading `@`, or the
 	 *                          actor ids of a pack read in
@@ -124,6 +127,18 @@ class StarterPack implements JsonSerializable {
 		return $this;
 	}
 
+	/** How many accounts the pack holds: its handles, or the count it was listed with. */
+	public function getSize(): int {
+		return $this->size ?? count($this->handles);
+	}
+
+	/** For a pack listed without its handles. */
+	public function setSize(int $size): self {
+		$this->size = $size;
+
+		return $this;
+	}
+
 	/** @return Person[] */
 	public function getAccounts(): array {
 		return $this->accounts;
@@ -178,7 +193,7 @@ class StarterPack implements JsonSerializable {
 			'url' => ($this->url !== '') ? $this->url : null,
 			'topic' => ($this->topic !== '') ? $this->topic : null,
 			'language' => ($this->language !== '') ? $this->language : null,
-			'size' => count($this->getHandles()),
+			'size' => $this->getSize(),
 			'accounts' => $this->getAccounts(),
 			'unresolved' => $this->getUnresolved(),
 		];

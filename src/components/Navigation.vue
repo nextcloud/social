@@ -344,7 +344,7 @@ import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { cssUrl } from '../utils/cssUrl.js'
 import { capacityFrom, chooseEntries, entriesThatFit } from '../utils/explore.js'
-import { listen } from '@nextcloud/notify_push'
+import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
@@ -467,7 +467,6 @@ export default {
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
 			composerPaths: [],
 			showErrors: false,
-			stopListening: null,
 			pollTimer: null,
 			/** how many ticks of the poll still pass before the next attempt */
 			pollSkip: 0,
@@ -884,8 +883,7 @@ export default {
 		// server says when something arrived, and without it a slow poll is
 		// enough -- while somebody is looking; a hidden tab catches up when
 		// it comes back
-		this.stopListening = listen('social_timeline', this.refreshBadges)
-		if (!this.stopListening) {
+		if (!onTimelinePush(this.refreshBadges)) {
 			this.pollTimer = setInterval(this.pollIfVisible, UNREAD_POLL_MS)
 			document.addEventListener('visibilitychange', this.pollOnReturn)
 		}
@@ -896,9 +894,7 @@ export default {
 		eventBus.off(BLUESKY_FEEDS_CHANGED, this.fetchBlueskyFeeds)
 		window.removeEventListener('resize', this.measureViewport)
 		this.railObserver?.disconnect()
-		if (typeof this.stopListening === 'function') {
-			this.stopListening()
-		}
+		offTimelinePush(this.refreshBadges)
 		if (this.pollTimer !== null) {
 			clearInterval(this.pollTimer)
 			document.removeEventListener('visibilitychange', this.pollOnReturn)
@@ -1197,7 +1193,7 @@ export default {
 			if (entry.kind === 'list' && entry.list.nextcloud_group) {
 				return t(
 					'social',
-					'Everyone in the Nextcloud group {group} who has a Aloha Social account',
+					'Everyone in the Nextcloud group {group} who has an Aloha Social account',
 					{ group: entry.list.title },
 				)
 			}

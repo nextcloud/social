@@ -76,7 +76,7 @@ failure; the rest let the exception surface.
 
 ### `social:account:alias`
 
-Since 0.20.6 an account's own aliases are also settable by its owner, in **Settings → Migration → Accounts you also answer to** (`/api/v1/migration/aliases`) — setting one federates nothing. This command stays for an administrator acting on somebody else's account, and for scripting a migration.
+Since 0.20.6 an account's own aliases are also settable by its owner, in **Migration → Accounts you also answer to** (`/api/v1/migration/aliases`) — setting one federates nothing. This command stays for an administrator acting on somebody else's account, and for scripting a migration.
 
 Manage the `alsoKnownAs` list of a local account: the actor ids it also answers
 to. Setting one is the first step of moving an account **to** this server — a
@@ -112,7 +112,7 @@ Move a local account to one on another server, the way Mastodon's account
 migration works: the new account has to list this one in its `alsoKnownAs`, every
 follower is sent a `Move`, and the account here is marked as moved.
 
-Since 0.26.113 a person can do this themselves, in **Settings → Migration → Move
+Since 0.26.113 a person can do this themselves, in **Migration → Move
 your account away** (`POST /api/v1/migration/move`), behind their password, their
 own handle typed back and a thirty-day cooldown between moves. This command stays
 for an administrator acting on somebody else's account, and it **skips the
@@ -876,7 +876,7 @@ php occ social:counts:refresh [-f|--force] [-l|--limit LIMIT]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `-f`, `--force` | none | Ask about every post rather than only those not asked about in the last `RemoteCountService::TTL` (7200) seconds |
+| `-f`, `--force` | none | Ask about every post, remote ones of any age, rather than only those of the last seven days not asked about in the last `RemoteCountService::TTL` (7200) seconds |
 | `-l`, `--limit` | required | Stop after this many remote posts, and as many local posts on Bluesky. `0`, the default, means all that are due, which is what a backfill wants |
 
 A post's counts were a snapshot of the moment it was imported and nothing ever
@@ -889,9 +889,11 @@ the next window rather than every pass.
 
 The stated total is split as `stated - local` before it is stored, so what is
 displayed stays the origin's number while the likes, boosts and replies made
-here keep counting on top of it. Without `--force` only the posts past the
-window are asked about; with it the whole timeline is, which is the backfill
-after a version that never refreshed counts at all.
+here keep counting on top of it. Without `--force` only the remote posts of
+the last seven days not asked about within the window are, as in the cron's
+pass; with it every remote post is, however old, which is the backfill after a
+version that never refreshed counts at all. A post whose server answers that it
+is not there (404) or gone (410) is not asked about again for thirty days.
 
 Reply counts are the limit of this: ActivityPub documents publish
 `replies.totalItems` on almost no server, so the reply figure is what this
@@ -921,8 +923,10 @@ Admin.md), checks each member's consent to be in a fediverse collection
 (`featureAuthorization`), reads Bluesky's suggestions while Bluesky is on,
 and prints the sources, then `N starter pack(s)
 with M account(s) read from S source(s)`, how many accounts were left out
-without a valid authorization and how many sources could not be reached. A
-source that cannot be reached keeps the packs read from it last time.
+without a valid authorization and how many sources or collections could not
+be read. A source or collection that cannot be read keeps the packs read from
+it last time, and a member whose server does not answer stays in a pack it
+was in before. Unlike the daily job, the command has no time limit.
 
 ### `social:media:retry`
 
@@ -1618,10 +1622,10 @@ the last four are queued on demand instead:
 | Block lists | `OCA\Social\Cron\BlocklistSync` | Daily. Re-reads the block lists an administrator follows and applies what they say; does nothing while no source is on. |
 | External registrations | `OCA\Social\Cron\ExternalSignups` | Hourly. Forgets registrations of external users whose email was not confirmed within a day, and invitations that expired or were used up. A registration waiting for an administrator is kept until somebody decides on it. |
 | Bluesky sync | `OCA\Social\Cron\AtprotoSync` | Every 2 minutes, only while Bluesky is on. Reads the feeds of the Bluesky authors somebody here follows — the newest page of each due watch from the public AppView, what is new stored, the next read soon after a page with posts and doubling up to six hours after empty ones — then the AppView's notifications of each due local account, asked for as that account; both passes stop at the instance's request ceiling (`atproto_sync_ceiling`). |
-| Bluesky maintenance | `OCA\Social\Cron\AtprotoMaintenance` | Every 5 minutes, only while Bluesky is on. Reconciles the last day's public posts with their Bluesky records — a post the listener missed is published, an edit within the grace period replaced, a deleted post's record removed — resends directory operations the PLC refused, prunes the firehose past its replay window, drops retired instance keys, and checks a page of 25 Bluesky posts read here in the last week against the AppView, deleting the ones it no longer has. |
+| Bluesky maintenance | `OCA\Social\Cron\AtprotoMaintenance` | Every 5 minutes, only while Bluesky is on. Reconciles the last day's public posts with their Bluesky records — a post the listener missed is published, an edit within the grace period replaced, a deleted post's record removed — resends directory operations the PLC refused, prunes the firehose past its replay window, drops retired instance keys, checks a page of 25 Bluesky posts read here in the last week against the AppView, deleting the ones it no longer has, checks custom handles once a day (dropping one that failed a week in a row), and picks up account moves whose job stopped (queued again once after an hour without progress, then failed with `move-interrupted`). |
 | Bluesky video | `OCA\Social\Cron\AtprotoVideo` | Every minute, only while Bluesky is on and `atproto_video_service` is set. Sends up to three queued videos of posts published here to Bluesky's video service, asks after the jobs it is making, and publishes each post whose video has ended: with the video when the service stored it here, otherwise as text and a link to the post here. |
 | Domain purge | `OCA\Social\Cron\DomainPurge` | Queued with a domain when one is added to the deny list — not registered in `appinfo/info.xml`, because a job listed there is added once at install time with no argument. Does 10 batches of 50 accounts per run and re-queues itself while anything of the domain is left. |
 | External promotion | `OCA\Social\Cron\ExternalPromoted` | Queued with a user id when an external user is promoted to a local one — not in `appinfo/info.xml`, for the same reason as the domain purge. Writes the user's system address book card, which external users do not have, in a request that sees them on their new backend. |
-| Bluesky publish | `OCA\Social\Cron\AtprotoPublish` | Queued by the post listener with a post id and an action (publish, edit, delete) or by the account service for a profile — not in `appinfo/info.xml`, for the same reason. Does the work off the request that made the post; the maintenance job catches what a job that failed or was never queued left behind. |
+| Bluesky publish | `OCA\Social\Cron\AtprotoPublish` | Queued by the post listener with a post id and an action (publish, edit, delete) or by the account service for a profile — not in `appinfo/info.xml`, for the same reason. Does the work off the request that made the post. A failure that may pass is tried again later, up to eight attempts over about 80 minutes, and the last is logged as given up; the maintenance job catches the posts a job that failed or was never queued left behind. |
 | Bluesky move | `OCA\Social\Cron\AtprotoMove` | Queued when a person starts moving their Bluesky account away — not in `appinfo/info.xml`, for the same reason. Copies the repository, the blobs and the preferences to the other PDS, points the DID there, activates the account there and switches it off here; stops at a step that fails, which the person can start again. |
 | Actor cleanup | `OCA\Social\Cron\ActorCleanup` | Queued with an actor id when a deleted account is addressed by more posts than one inbox request should rewrite — not in `appinfo/info.xml`, for the same reason as the domain purge. Rewrites 2000 posts per run and re-queues itself while any remain. Without it, the rewrite ran inline in the request a peer was waiting on for its `Delete`, so the peer timed out, re-sent, and the work started over. |

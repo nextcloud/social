@@ -73,6 +73,19 @@ class AtprotoBookkeepingStorageTest extends TestCase {
 		$this->assertNull($moves->get($awayId));
 	}
 
+	/** A running move is stale once it was not written to since a time; one waiting for the person never is. */
+	public function testARunningMoveNotWrittenToSinceATimeIsStale(): void {
+		$moves = Server::get(AtprotoMoveRequest::class);
+		$running = $moves->add(new Move(0, $this->did, self::USER, Move::IN, 'https://old.example.net', '', 'alice.old.example.net', Move::STEP_BLOBS, Move::RUNNING));
+		$waiting = $moves->add(new Move(0, $this->did, self::USER, Move::IN, 'https://old.example.net', '', 'alice.old.example.net', Move::STEP_CODE, Move::WAITING));
+		$ours = static fn (array $stale): array => array_values(array_filter(array_map(static fn (Move $move): int => $move->id, $stale), static fn (int $id): bool => in_array($id, [$running, $waiting], true)));
+
+		$this->assertSame([], $ours($moves->getStale(time() - 3600, 1000)), 'written just now');
+		$stale = $moves->getStale(time() + 60, 1000);
+		$this->assertSame([$running], $ours($stale));
+		$this->assertSame(Move::STEP_BLOBS, array_values(array_filter($stale, static fn (Move $move): bool => $move->id === $running))[0]->step);
+	}
+
 	public function testThePlcLogIsReadInOrderAndConfirmationsAreKept(): void {
 		$log = Server::get(AtprotoPlcLogRequest::class);
 		$this->assertSame('', $log->latestCid($this->did));

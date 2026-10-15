@@ -291,9 +291,9 @@ export default {
 
 	setup() {
 		const { serverData } = useServerData()
-		const { currentUser } = useCurrentUser()
+		const { isOwnHandle } = useCurrentUser()
 
-		return { serverData, currentUser }
+		return { serverData, isOwnHandle }
 	},
 
 	data() {
@@ -628,7 +628,7 @@ export default {
 				if (this.$route.name === 'timeline') {
 					return this.emptyContent.default
 				}
-				if (this.$route.name === 'profile' && (this.serverData.public || this.$route.params.account !== this.currentUser.uid)) {
+				if (this.$route.name === 'profile' && (this.serverData.public || !this.isOwnHandle(this.$route.params.account))) {
 					return {
 						...byName,
 						title: t('social', '{account} hasn\'t tooted yet', { account: String(this.$route.params.account) }),
@@ -1551,9 +1551,13 @@ export default {
 			this.fetchNewStatuses()
 		},
 
-		/** What the server's push event runs. */
+		/**
+		 * What the server's push event runs.
+		 *
+		 * @return {Promise<void>} settled once the new posts are in
+		 */
 		onPushed() {
-			this.fetchNewStatuses()
+			return this.fetchNewStatuses()
 		},
 
 		/** Catches up once, on the way back to a tab that was left. */

@@ -23,7 +23,7 @@
 
 		<div v-if="error" class="discover__error" role="alert">
 			<p>{{ error }}</p>
-			<NcButton variant="primary" :disabled="loading" @click="load(active, true)">
+			<NcButton variant="primary" :disabled="loading || packLoading" @click="retry">
 				<template #icon>
 					<Refresh :size="20" />
 				</template>
@@ -64,85 +64,49 @@
 					{{ t('social', 'All starter packs') }}
 				</NcButton>
 
-				<h3 class="discover__pack-name">
-					{{ openPack.name }}
-				</h3>
-				<p v-if="openPack.description" class="discover__pack-description">
-					{{ openPack.description }}
-				</p>
-				<!-- a pack read in from another server says whose it is, and
-				     where the curator keeps it -->
-				<p v-if="openPack.curator" class="discover__pack-origin">
-					{{ t('social', 'Curated by @{curator}', { curator: openPack.curator }) }}
-					<template v-if="openPack.topic">
-						· #{{ openPack.topic }}
-					</template>
-					<template v-if="openPack.url">
-						·
-						<a :href="openPack.url" target="_blank" rel="noopener noreferrer">{{ t('social', 'View on its server') }} ↗</a>
-					</template>
-				</p>
-
-				<NcButton
-					variant="primary"
-					:disabled="followingPack === openPack.id || !openPack.accounts.length"
-					@click="followPack(openPack.id)">
-					<template #icon>
-						<NcLoadingIcon v-if="followingPack === openPack.id" :size="20" />
-						<AccountMultiplePlusOutline v-else :size="20" />
-					</template>
-					{{ t('social', 'Follow everyone') }}
-				</NcButton>
-
-				<NcLoadingIcon v-if="packLoading" class="discover__loading" :size="32" />
-				<ul v-else class="discover__accounts">
-					<li v-for="account in openPack.accounts" :key="account.id" class="discover__account">
-						<router-link
-							class="discover__account-link"
-							:to="{ name: 'profile', params: { account: account.acct } }">
-							<ActorAvatar
-								class="discover__avatar"
-								:actor="account"
-								:size="40"
-								:link="false" />
-							<span class="discover__account-names">
-								<span class="discover__account-name">{{ account.display_name || account.username }}</span>
-								<span class="discover__account-handle">@{{ account.acct }}</span>
-							</span>
-						</router-link>
-					</li>
-				</ul>
-
-				<!-- a pack that quietly shrinks looks like one somebody wrote
-				     badly; say which handles could not be reached, and why it
-				     is worth trying again. `%n` used to be the *count* and the
-				     handles were appended after it, so this read "Some
-				     accounts could not be reached: 2 a@b, c@d" -->
-				<div v-if="openPack.unresolved && openPack.unresolved.length" class="discover__unresolved">
-					<p>
-						{{ unresolvedNotice }}
-						<span class="discover__unresolved-handles">{{ openPack.unresolved.join(', ') }}</span>
-					</p>
-					<p class="discover__unresolved-why">
-						{{ t('social', 'Their server did not answer. That is often a passing rate limit — and permanent if this Nextcloud cannot be reached from the internet, because a server that only answers signed requests has to fetch this one’s key to check the signature.') }}
-					</p>
-					<NcButton variant="tertiary" :disabled="packLoading" @click="loadPack(openPack.id)">
-						<template #icon>
-							<NcLoadingIcon v-if="packLoading" :size="20" />
-							<Refresh v-else :size="20" />
-						</template>
-						{{ t('social', 'Try again') }}
-					</NcButton>
-				</div>
+				<StarterPackDetail
+					ref="pack"
+					:key="openPack.id"
+					:pack="packView"
+					:headingLevel="2"
+					:loading="packLoading"
+					:canFollow="!visitor"
+					:followMembers="followPackMembers"
+					:followMember="followPackMember">
+					<!-- a pack that quietly shrinks looks like one somebody wrote
+					     badly; say which handles could not be reached, and why it
+					     is worth trying again -->
+					<div v-if="openPack.unresolved && openPack.unresolved.length" class="discover__unresolved">
+						<p>
+							{{ unresolvedNotice }}
+							<span class="discover__unresolved-handles">{{ openPack.unresolved.join(', ') }}</span>
+						</p>
+						<p class="discover__unresolved-why">
+							{{ t('social', 'Their server did not answer. Often it is only busy for a moment. If this Nextcloud cannot be reached from the internet, some servers never answer it.') }}
+						</p>
+						<NcButton variant="tertiary" :disabled="packLoading" @click="loadPack(openPack.id)">
+							<template #icon>
+								<NcLoadingIcon v-if="packLoading" :size="20" />
+								<Refresh v-else :size="20" />
+							</template>
+							{{ t('social', 'Try again') }}
+						</NcButton>
+					</div>
+				</StarterPackDetail>
 			</div>
 
 			<ul v-else-if="packs.length" class="discover__packs">
 				<li v-for="pack in packs" :key="pack.id">
-					<button type="button" class="discover__pack-card" @click="loadPack(pack.id)">
+					<button
+						ref="cards"
+						type="button"
+						class="discover__pack-card"
+						:data-pack-id="pack.id"
+						@click="loadPack(pack.id)">
 						<span class="discover__pack-card-name">{{ pack.name }}</span>
 						<span class="discover__pack-card-description">{{ pack.description }}</span>
 						<span v-if="pack.curator" class="discover__pack-card-curator">
-							{{ t('social', 'Curated by @{curator}', { curator: pack.curator }) }}
+							{{ t('social', 'Curated by {curator}', { curator: '@' + pack.curator }) }}
 						</span>
 						<span class="discover__pack-card-size">
 							{{ n('social', '%n account', '%n accounts', pack.size) }}
@@ -154,9 +118,9 @@
 			<NcEmptyContent
 				v-else-if="!loading"
 				:name="t('social', 'No starter packs')"
-				:description="t('social', 'An administrator can add some with the starter_packs app setting.')">
+				:description="emptyPacksDescription">
 				<template #icon>
-					<AccountMultipleOutline />
+					<PackageVariantClosed />
 				</template>
 			</NcEmptyContent>
 		</template>
@@ -170,9 +134,9 @@
 				only thing that makes a list of strangers worth reading.
 			-->
 			<section class="discover__section">
-				<h3 class="discover__section-title">
+				<h2 class="discover__section-title">
 					{{ t('social', 'Your island and its neighbours') }}
-				</h3>
+				</h2>
 				<p class="discover__section-hint">
 					{{ t('social', 'Every server in the fediverse is an island. Following somebody on another one opens a canoe route to it, and their posts travel to you along that route.') }}
 				</p>
@@ -180,9 +144,9 @@
 			</section>
 
 			<section class="discover__section">
-				<h3 class="discover__section-title">
+				<h2 class="discover__section-title">
 					{{ t('social', 'Search the fediverse') }}
-				</h3>
+				</h2>
 				<p class="discover__section-hint">
 					{{ t('social', 'Any name or handle, on any server — including servers this one has never met. A full handle like @someone@example.org finds a person anywhere.') }}
 				</p>
@@ -190,9 +154,9 @@
 			</section>
 
 			<section class="discover__section">
-				<h3 class="discover__section-title">
+				<h2 class="discover__section-title">
 					{{ t('social', 'Because of who you follow') }}
-				</h3>
+				</h2>
 				<p class="discover__section-hint">
 					{{ t('social', 'The people you follow follow other people. This asks their servers who, and puts the ones several of them share first.') }}
 				</p>
@@ -200,9 +164,9 @@
 			</section>
 
 			<section v-if="bluesky" class="discover__section">
-				<h3 class="discover__section-title">
+				<h2 class="discover__section-title">
 					{{ t('social', 'Suggested on Bluesky') }}
-				</h3>
+				</h2>
 				<p class="discover__section-hint">
 					{{ t('social', 'People Bluesky suggests to you, from who you follow there. Follow them here like anybody else.') }}
 				</p>
@@ -210,9 +174,9 @@
 			</section>
 
 			<section class="discover__section">
-				<h3 class="discover__section-title">
+				<h2 class="discover__section-title">
 					{{ t('social', 'People this server knows') }}
-				</h3>
+				</h2>
 				<p class="discover__section-hint">
 					{{ t('social', 'Accounts on this Nextcloud, and the ones it has met through the people here.') }}
 				</p>
@@ -248,14 +212,13 @@
 
 <script>
 import AccountMultipleOutline from 'vue-material-design-icons/AccountMultipleOutline.vue'
-import ActorAvatar from '../components/ActorAvatar.vue'
-import AccountMultiplePlusOutline from 'vue-material-design-icons/AccountMultiplePlusOutline.vue'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import Compass from 'vue-material-design-icons/Compass.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
+import PackageVariantClosed from 'vue-material-design-icons/PackageVariantClosed.vue'
 import PlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
 import Pound from 'vue-material-design-icons/Pound.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
@@ -264,15 +227,17 @@ import DiscoverCategories from '../components/DiscoverCategories.vue'
 import FederationIslands from '../components/FederationIslands.vue'
 import FediverseSearch from '../components/FediverseSearch.vue'
 import PersonCard from '../components/PersonCard.vue'
+import StarterPackDetail from '../components/StarterPackDetail.vue'
 import { useFollowByHandle } from '../composables/useFollowByHandle.js'
 import FollowGraphSuggestions from '../components/FollowGraphSuggestions.vue'
 import TrendingHashtags from '../components/TrendingHashtags.vue'
 import BlueskySuggestions from '../components/BlueskySuggestions.vue'
 import BlueskyTrends from '../components/BlueskyTrends.vue'
+import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
+import { isHandleOf } from '../utils/accountLocality.js'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import axios from '@nextcloud/axios'
-import { showError, showSuccess } from '../services/toast.js'
 import logger from '../services/logger.js'
 import { generateUrl } from '@nextcloud/router'
 import { n, t } from '@nextcloud/l10n'
@@ -301,13 +266,12 @@ export default {
 		AccountMultipleOutline,
 		BlueskySuggestions,
 		BlueskyTrends,
-		ActorAvatar,
-		AccountMultiplePlusOutline,
 		ArrowLeft,
 		Compass,
 		NcButton,
 		NcEmptyContent,
 		NcLoadingIcon,
+		PackageVariantClosed,
 		ProfileMediaGrid,
 		TimelineSwitcher,
 		DiscoverCategories,
@@ -315,6 +279,7 @@ export default {
 		FediverseSearch,
 		FollowGraphSuggestions,
 		PersonCard,
+		StarterPackDetail,
 		TrendingHashtags,
 		Refresh,
 	},
@@ -345,7 +310,8 @@ export default {
 			/** which pack is open, and the accounts it resolved to */
 			openPack: null,
 			packLoading: false,
-			followingPack: '',
+			/** the pack that failed to open, which "Try again" opens again */
+			failedPack: '',
 			/** which tabs have been asked for, so a second visit does not re-ask */
 			loaded: [],
 		}
@@ -355,6 +321,48 @@ export default {
 		/** @return {string} the heading over the accounts the open pack could not resolve */
 		unresolvedNotice() {
 			return n('social', 'One account could not be reached from this server:', '%n accounts could not be reached from this server:', this.openPack?.unresolved?.length ?? 0)
+		},
+
+		/** @return {boolean} whether the reader is signed out, and so cannot follow */
+		visitor() {
+			return useSettingsStore().getServerData?.public === true
+		},
+
+		/** @return {string} what an empty pack list says; how to add packs only to an administrator */
+		emptyPacksDescription() {
+			return useSettingsStore().getServerData?.isAdmin === true
+				? t('social', 'Add some with the starter_packs app setting, or read them in from other servers with starter_pack_sources.')
+				: t('social', 'This server does not suggest any starter packs yet.')
+		},
+
+		/**
+		 * The open pack as `StarterPackDetail` draws one: a member is keyed
+		 * by account id, which is what the relationships are kept under.
+		 *
+		 * @return {object}
+		 */
+		packView() {
+			const pack = this.openPack
+			const accountStore = useAccountStore()
+			const self = accountStore.currentAccount?.id
+			return {
+				name: pack.name,
+				description: pack.description ?? '',
+				curator: pack.curator ? '@' + pack.curator : '',
+				topic: pack.topic ?? '',
+				url: pack.url ?? '',
+				members: (pack.accounts ?? []).map((account) => {
+					const relationship = accountStore.getRelationshipWith(account.id)
+					return {
+						key: String(account.id),
+						acct: account.acct,
+						name: account.display_name || account.username,
+						actor: account,
+						following: relationship?.following === true || relationship?.requested === true,
+						self: self !== undefined && String(account.id) === String(self),
+					}
+				}),
+			}
 		},
 
 		/** @return {boolean} whether this server gives accounts a Bluesky identity */
@@ -385,11 +393,13 @@ export default {
 			// option has one and hands the pick back where it does not, and
 			// which of these four is on screen is this page's own state
 			return [
-				{ value: 'accounts', label: t('social', 'People'), icon: AccountMultipleOutline },
-				{ value: 'packs', label: t('social', 'Starter packs'), icon: AccountMultiplePlusOutline },
-				{ value: 'posts', label: t('social', 'Pictures'), icon: ImageMultiple },
-				{ value: 'videos', label: t('social', 'Videos'), icon: PlayBoxMultiple },
-				{ value: 'tags', label: t('social', 'Hashtags'), icon: Pound },
+				// `short` is what a phone shows instead of the icons, which
+				// alone do not say which list is which
+				{ value: 'accounts', label: t('social', 'People'), short: t('social', 'People'), icon: AccountMultipleOutline },
+				{ value: 'packs', label: t('social', 'Starter packs'), short: t('social', 'Packs'), icon: PackageVariantClosed },
+				{ value: 'posts', label: t('social', 'Pictures'), short: t('social', 'Photos'), icon: ImageMultiple },
+				{ value: 'videos', label: t('social', 'Videos'), short: t('social', 'Videos'), icon: PlayBoxMultiple },
+				{ value: 'tags', label: t('social', 'Hashtags'), short: t('social', 'Tags'), icon: Pound },
 			]
 		},
 	},
@@ -405,7 +415,17 @@ export default {
 		select(tab) {
 			this.active = tab
 			this.error = null
+			this.failedPack = ''
 			this.load(tab)
+		},
+
+		/** Asks again for what failed: the pack that would not open, or the tab. */
+		retry() {
+			if (this.failedPack !== '') {
+				this.loadPack(this.failedPack)
+			} else {
+				this.load(this.active, true)
+			}
 		},
 
 		/**
@@ -420,6 +440,7 @@ export default {
 
 			this.loading = true
 			this.error = null
+			this.failedPack = ''
 			this.asked += 1
 			const generation = this.asked
 			try {
@@ -474,11 +495,16 @@ export default {
 		async loadPack(slug) {
 			this.packLoading = true
 			this.error = null
+			this.failedPack = ''
 			this.asked += 1
 			const generation = this.asked
+			const opening = this.openPack?.id !== slug
 			// shown at once so the name and description are on screen while the
 			// accounts are still being fetched
 			this.openPack = this.packs.find((pack) => pack.id === slug) ?? null
+			if (opening) {
+				this.$nextTick(() => /** @type {{focusHeading: () => void}|undefined} */ (this.$refs.pack)?.focusHeading())
+			}
 			try {
 				const { data } = await axios.get(generateUrl(`apps/social/api/v1/starter_packs/${slug}`))
 				if (generation !== this.asked) {
@@ -486,12 +512,18 @@ export default {
 				}
 
 				this.openPack = data
+				if (!this.visitor) {
+					// whom the reader follows already; the store says so itself
+					// when it cannot tell
+					await useAccountStore().fetchAccountRelationshipInfo((data.accounts ?? []).map((account) => account.id))
+				}
 			} catch (error) {
 				logger.error('Could not open the starter pack', { error, slug })
 				// a pack the reader has already closed, or left for another
 				// one, must not take the open one off the screen
 				if (generation === this.asked) {
 					this.error = t('social', 'Could not open this pack. The server may be busy.')
+					this.failedPack = slug
 					this.openPack = null
 				}
 			} finally {
@@ -501,9 +533,21 @@ export default {
 			}
 		},
 
+		/** Back to the list, with the focus on the pack that was open. */
 		closePack() {
+			const slug = this.openPack?.id
+			if (this.packLoading) {
+				// the pack still being read must not open again once it arrives
+				this.asked += 1
+				this.packLoading = false
+			}
 			this.openPack = null
 			this.error = null
+			this.failedPack = ''
+			this.$nextTick(() => {
+				const cards = /** @type {HTMLElement[]|undefined} */ (this.$refs.cards) ?? []
+				cards.find((card) => card.dataset.packId === slug)?.focus()
+			})
 		},
 
 		/**
@@ -532,26 +576,36 @@ export default {
 		},
 
 		/**
-		 * Follows everyone in the pack who can be reached.
+		 * Follows everyone in the open pack who can be reached.
 		 *
 		 * The server skips whoever it cannot reach rather than failing the lot,
-		 * and answers with who it actually followed — so the message says that
-		 * number rather than the number in the pack.
+		 * and answers with the handles it followed; the members asked for and
+		 * not among them are the ones that failed.
 		 *
-		 * @param {string} slug the pack's id
+		 * @param {object[]} members whom to follow, as `StarterPackDetail` names them
+		 * @param {boolean} feeds unused: these packs carry no feeds
+		 * @param {(done: number) => void} progress told how many have been asked for
+		 * @return {Promise<{followed: string[], failed: string[]}>} the members' keys
 		 */
-		async followPack(slug) {
-			this.followingPack = slug
-			try {
-				const { data } = await axios.post(generateUrl(`apps/social/api/v1/starter_packs/${slug}/follow`))
-				const followed = Array.isArray(data?.followed) ? data.followed.length : 0
-				showSuccess(n('social', 'Followed %n account', 'Followed %n accounts', followed))
-			} catch (error) {
-				logger.error('Could not follow the starter pack', { error, slug })
-				showError(t('social', 'Could not follow these accounts'))
-			} finally {
-				this.followingPack = ''
-			}
+		async followPackMembers(members, feeds, progress) {
+			const { data } = await axios.post(generateUrl(`apps/social/api/v1/starter_packs/${this.openPack.id}/follow`))
+			progress(members.length)
+			const handles = Array.isArray(data?.followed) ? data.followed : []
+			const followed = members
+				.filter((member) => handles.some((handle) => isHandleOf(handle, member.actor)))
+				.map((member) => member.key)
+
+			return { followed, failed: members.map((member) => member.key).filter((key) => !followed.includes(key)) }
+		},
+
+		/**
+		 * @param {object} member one member, as `StarterPackDetail` names them
+		 * @return {Promise<boolean>} whether they are followed now
+		 */
+		async followPackMember(member) {
+			await this.follow(member.actor)
+
+			return this.isFollowed(member.actor)
 		},
 
 		/**
@@ -692,23 +746,6 @@ export default {
 		gap: calc(var(--default-grid-baseline) * 2);
 	}
 
-	&__pack-name {
-		margin: 0;
-	}
-
-	&__pack-origin {
-		margin: 0;
-		color: var(--color-text-maxcontrast);
-		overflow-wrap: anywhere;
-	}
-
-	&__pack-description {
-		margin: 0;
-		max-width: 70ch;
-		color: var(--color-text-maxcontrast);
-		line-height: 1.5;
-	}
-
 	&__unresolved {
 		color: var(--color-text-maxcontrast);
 		font-size: var(--font-size-small, 0.85em);
@@ -716,53 +753,6 @@ export default {
 		span {
 			display: block;
 		}
-	}
-
-	&__accounts {
-		list-style: none;
-		width: 100%;
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-		gap: var(--default-grid-baseline);
-	}
-
-	&__account-link {
-		display: flex;
-		align-items: center;
-		gap: calc(var(--default-grid-baseline) * 2);
-		padding: calc(var(--default-grid-baseline) * 2);
-		border-radius: var(--border-radius-large);
-
-		&:hover,
-		&:focus-visible {
-			background-color: var(--color-background-hover);
-		}
-	}
-
-	&__avatar {
-		flex: 0 0 auto;
-	}
-
-	&__account-names {
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-
-	&__account-name {
-		font-weight: bold;
-	}
-
-	&__account-name,
-	&__account-handle {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	&__account-handle {
-		color: var(--color-text-maxcontrast);
-		font-size: var(--font-size-small, 0.85em);
 	}
 
 	&__colleague {

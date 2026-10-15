@@ -9,21 +9,48 @@ import { computed } from 'vue'
 import { useServerData } from './useServerData.js'
 
 /**
- * Who is reading, and the two names this app calls them by.
+ * Who is reading: the Nextcloud user, and the account they have here.
  *
- * @return {{currentUser: import('vue').ComputedRef<object>, cloudId: import('vue').ComputedRef<string>, socialId: import('vue').ComputedRef<string>}}
+ * The two are named apart. The account's username is chosen on the setup
+ * screen and need not be the user id, so the user id is for what Nextcloud
+ * itself answers to (avatars, its profile page) and never for the account.
+ *
+ * @return {{currentUser: import('vue').ComputedRef<object>, username: import('vue').ComputedRef<string>, cloudId: import('vue').ComputedRef<string>, socialId: import('vue').ComputedRef<string>, isOwnHandle: (handle: unknown) => boolean}}
  */
 export function useCurrentUser() {
-	const { hostname } = useServerData()
+	const { serverData, hostname } = useServerData()
 
 	/** the Nextcloud user, as @nextcloud/auth reads it off the page */
 	const currentUser = computed(() => getCurrentUser())
 
-	/** the reader's own handle, `user@host` */
-	const cloudId = computed(() => currentUser.value.uid + '@' + hostname.value)
+	/** the account's username, or '' where there is no account */
+	const username = computed(() => serverData.value.viewer?.username ?? '')
 
-	/** the same handle as a Fediverse mention */
-	const socialId = computed(() => '@' + cloudId.value)
+	/** the account's own address, `username@host`, or '' */
+	const cloudId = computed(() => serverData.value.viewer?.address ?? '')
 
-	return { currentUser, cloudId, socialId }
+	/** the same address as a mention, or '' */
+	const socialId = computed(() => cloudId.value === '' ? '' : '@' + cloudId.value)
+
+	/**
+	 * Whether a handle names the reader's own account: its username alone,
+	 * as a local account's profile route has it, or with this server's host
+	 * or the host its addresses end in.
+	 *
+	 * @param {unknown} handle a handle, with or without a leading `@`
+	 * @return {boolean}
+	 */
+	const isOwnHandle = (handle) => {
+		const own = username.value.toLowerCase()
+		const asked = String(handle ?? '').replace(/^@/, '').toLowerCase()
+		if (own === '' || asked === '') {
+			return false
+		}
+
+		return asked === own
+			|| asked === own + '@' + hostname.value.toLowerCase()
+			|| asked === cloudId.value.toLowerCase()
+	}
+
+	return { currentUser, username, cloudId, socialId, isOwnHandle }
 }

@@ -138,6 +138,19 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->queue->resolveActors($ids);
 	}
 
+	public function testEachAccountIsQueuedOnceByItsHandle(): void {
+		$this->jobList->method('has')->willReturn(false);
+		$added = [];
+		$this->jobList->method('add')->willReturnCallback(function (string $job, $argument) use (&$added): void {
+			$this->assertSame(ResolveActor::class, $job);
+			$added[] = $argument;
+		});
+
+		$this->queue->resolveAccounts(['@bob@remote.example', 'bob@remote.example', 'not a handle', 'https://remote.example/users/bob', '']);
+
+		$this->assertSame([['account' => 'bob@remote.example']], $added);
+	}
+
 	public function testAJobListThatFailsDoesNotFailThePage(): void {
 		$this->jobList->method('has')->willThrowException(new \RuntimeException('database gone'));
 

@@ -787,7 +787,7 @@ export default {
 	emits: ['posted'],
 	setup(props) {
 		const { hostname, serverData } = useServerData()
-		const { currentUser } = useCurrentUser()
+		const { currentUser, username } = useCurrentUser()
 		// a self-registered external user has no Files to attach from
 		const hasFiles = computed(() => !serverData.value?.externalMedia)
 
@@ -810,6 +810,7 @@ export default {
 			serverData,
 			hasFiles,
 			currentUser,
+			username,
 			openedByHand,
 			closedByHand,
 			expand,
@@ -1274,7 +1275,7 @@ export default {
 			// everyone in the conversation, not only whoever wrote the post
 			// being answered: a reply that named one of three people reached
 			// one of three people
-			this.prefillMessageWithMentions(participantsOf(data, this.currentUser.uid, this.hostname))
+			this.prefillMessageWithMentions(participantsOf(data, this.username, this.hostname))
 			this.visibility = data.visibility
 			this.visibilityChosen = true
 			// somebody pressed reply, which is a request to write one — including

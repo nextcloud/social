@@ -57,6 +57,17 @@ class BlueskyFollowFromControllerTest extends TestCase {
 		$this->assertSame([Http::STATUS_UNPROCESSABLE_ENTITY, 'import-in-progress'], [$response->getStatus(), $response->getData()['code']]);
 	}
 
+	/** What is not one of the app's own errors is answered with a fixed sentence: its message is the server's. */
+	public function testAnUnexpectedErrorSaysNothingOfTheServer(): void {
+		$this->followFrom->method('resolve')->willReturn(['did' => 'did:plc:alice', 'pds' => 'https://pds.example.com', 'handle' => 'alice.bsky.social']);
+		$this->imports->method('queue')->willThrowException(new \RuntimeException('SQLSTATE[HY000]: disk full at /var/lib/mysql'));
+
+		$response = $this->controller()->followFrom('alice.bsky.social');
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'Something went wrong on this server', 'code' => 'server-error'], $response->getData());
+	}
+
 	public function testItIsRateLimitedPerUser(): void {
 		$this->assertCount(1, (new \ReflectionMethod(BlueskyFollowFromController::class, 'followFrom'))->getAttributes(UserRateLimit::class));
 	}

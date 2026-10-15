@@ -82,6 +82,26 @@ class AtprotoMoveRequest extends CoreRequestBuilder {
 		return $this->one($qb);
 	}
 
+	/**
+	 * @return list<Move> the running moves not written to since a time, the longest silent first
+	 */
+	public function getStale(int $before, int $limit): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('*')->from(self::TABLE_ATPROTO_MOVE)
+			->where($qb->expr()->eq('state', $qb->createNamedParameter(Move::RUNNING)))
+			->andWhere($qb->expr()->lt('updated', $qb->createNamedParameter(new DateTime('@' . $before), IQueryBuilder::PARAM_DATE)))
+			->orderBy('updated', 'asc')
+			->setMaxResults($limit);
+		$moves = [];
+		$result = $qb->executeQuery();
+		while (is_array($row = $result->fetch())) {
+			$moves[] = $this->move($row);
+		}
+		$result->closeCursor();
+
+		return $moves;
+	}
+
 	public function deleteByUser(string $userId): void {
 		$qb = $this->getQueryBuilder();
 		$qb->delete(self::TABLE_ATPROTO_MOVE)
@@ -96,6 +116,11 @@ class AtprotoMoveRequest extends CoreRequestBuilder {
 		if (!is_array($row)) {
 			return null;
 		}
+
+		return $this->move($row);
+	}
+
+	private function move(array $row): Move {
 		$progress = json_decode((string)$row['progress'], true);
 
 		return new Move(

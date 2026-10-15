@@ -40,6 +40,7 @@ use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /** The switch for a person's own presence on Bluesky, and the identity the settings show. */
 #[AllowMockObjectsWithoutExpectations]
@@ -52,7 +53,9 @@ class AtprotoAccountControllerTest extends TestCase {
 	private InboundMoveService&MockObject $inbound;
 	private IdentityService&MockObject $identities;
 	private MoveAwayService&MockObject $moveAway;
+	private AppPasswordService&MockObject $appPasswords;
 	private bool $enabled = true;
+	private LoggerInterface&MockObject $logger;
 
 	protected function setUp(): void {
 		$this->presence = $this->createMock(PresenceService::class);
@@ -61,6 +64,8 @@ class AtprotoAccountControllerTest extends TestCase {
 		$this->inbound = $this->createMock(InboundMoveService::class);
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->moveAway = $this->createMock(MoveAwayService::class);
+		$this->appPasswords = $this->createMock(AppPasswordService::class);
+		$this->logger = $this->createMock(LoggerInterface::class);
 	}
 
 	private function controller(): AtprotoAccountController {
@@ -75,9 +80,10 @@ class AtprotoAccountControllerTest extends TestCase {
 
 		return new AtprotoAccountController(
 			$this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->publisher,
-			$this->createStub(LabelerService::class), $this->createStub(AppPasswordService::class), $this->createStub(AuthorizationServer::class),
+			$this->createStub(LabelerService::class), $this->appPasswords, $this->createStub(AuthorizationServer::class),
 			$this->createStub(CustomHandleService::class), $this->moveAway, $this->moveIn,
 			$this->inbound, $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
+			$this->logger,
 		);
 	}
 
@@ -109,10 +115,21 @@ class AtprotoAccountControllerTest extends TestCase {
 
 	/** Calling a move off asks for the password, as starting it does; a new code is a few times an hour. */
 	public function testCallingOffAndANewCodeAreGuarded(): void {
-		$cancel = new \ReflectionMethod(AtprotoAccountController::class, 'cancelMoveIn');
-		$this->assertCount(1, $cancel->getAttributes(PasswordConfirmationRequired::class));
+		foreach (['cancelMoveIn', 'cancelMoveAway', 'cancelMoveInvite'] as $cancel) {
+			$this->assertCount(1, (new \ReflectionMethod(AtprotoAccountController::class, $cancel))->getAttributes(PasswordConfirmationRequired::class), $cancel);
+		}
 		$limit = (new \ReflectionMethod(AtprotoAccountController::class, 'newMoveInCode'))->getAttributes(UserRateLimit::class)[0]->newInstance();
 		$this->assertSame([3, 3600], [$limit->getLimit(), $limit->getPeriod()]);
+	}
+
+	/** A refused app password answers the code the settings page explains, beside the sentence. */
+	public function testARefusedAppPasswordSaysWhyByCode(): void {
+		$this->appPasswords->method('create')->willThrowException(new MoveErrorException('There is an app password with that name', 'app-password-name-taken'));
+
+		$response = $this->controller()->createAppPassword('phone');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(['error' => 'There is an app password with that name', 'code' => 'app-password-name-taken'], $response->getData());
 	}
 
 	public function testANewCodeSaysWhereItWent(): void {
@@ -157,6 +174,18 @@ class AtprotoAccountControllerTest extends TestCase {
 
 		$this->enabled = false;
 		$this->assertSame([Http::STATUS_NOT_FOUND, 'bluesky-off'], [$this->controller()->moveIn('a', 'b')->getStatus(), $this->controller()->moveIn('a', 'b')->getData()['code']]);
+	}
+
+	/** What is not one of the app's own errors is logged, and answered with a fixed sentence: its message is the server's. */
+	public function testAnUnexpectedErrorIsLoggedAndSaysNothingOfTheServer(): void {
+		$failure = new \RuntimeException('SQLSTATE[HY000]: disk full at /var/lib/mysql');
+		$this->moveIn->method('start')->willThrowException($failure);
+		$this->logger->expects($this->once())->method('error')->with($this->anything(), ['exception' => $failure]);
+
+		$response = $this->controller()->moveIn('alice.bsky.social', 'pw');
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'Something went wrong on this server', 'code' => 'server-error'], $response->getData());
 	}
 
 	private static function identity(string $state): Identity {

@@ -29,6 +29,7 @@ use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Model\StreamAction;
+use OCA\Social\Tools\Csv;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCP\AppFramework\Http;
 use OCP\IConfig;
@@ -656,7 +657,9 @@ class MigrationService {
 					$actor->getId(), self::EXPORT_PAGE, 0, $cursor
 				)
 			))],
-			'blocks' => ['blocked_accounts.csv', self::csvOf($this->handlesOfRelations($actor, ActorRelation::TYPE_BLOCK))],
+			'blocks' => ['blocked_accounts.csv', self::csvOf(array_map(
+				Csv::cell(...), $this->handlesOfRelations($actor, ActorRelation::TYPE_BLOCK)
+			))],
 			'mutes' => ['muted_accounts.csv', $this->exportMutesCsv($actor)],
 			'lists' => ['lists.csv', $this->exportListsCsv($actor)],
 			'bookmarks' => ['bookmarks.csv', self::csvOf($this->bookmarkUrls($actor))],
@@ -766,8 +769,8 @@ class MigrationService {
 			}
 
 			$cells = str_getcsv($line, ',', '"', '');
-			$title = ListsRequest::normaliseTitle((string)($cells[0] ?? ''));
-			$handle = ltrim(trim((string)($cells[1] ?? '')), '@');
+			$title = ListsRequest::normaliseTitle(Csv::restore(trim((string)($cells[0] ?? ''))));
+			$handle = ltrim(Csv::restore(trim((string)($cells[1] ?? ''))), '@');
 			if ($index === 0 && strtolower($title) === 'list name') {
 				continue;
 			}
@@ -809,7 +812,7 @@ class MigrationService {
 			}
 
 			$cells = str_getcsv($line, ',', '"', '');
-			$handle = strtolower(ltrim(trim((string)($cells[0] ?? '')), '@'));
+			$handle = strtolower(ltrim(Csv::restore(trim((string)($cells[0] ?? ''))), '@'));
 			$hidden[$handle] = strtolower(trim((string)($cells[1] ?? ''))) === 'true';
 		}
 
@@ -879,7 +882,7 @@ class MigrationService {
 		foreach ($this->actorRelationRequest->getByActor($actor->getId(), ActorRelation::TYPE_MUTE, self::EXPORT_MAX) as $mute) {
 			$handle = $this->handleOf($mute->getObjectId());
 			if ($handle !== '') {
-				$lines[] = self::csvCell($handle) . ',' . ($mute->isNotifications() ? 'false' : 'true');
+				$lines[] = Csv::cell($handle) . ',' . ($mute->isNotifications() ? 'false' : 'true');
 			}
 		}
 
@@ -896,7 +899,7 @@ class MigrationService {
 			foreach ($this->listsRequest->getMemberIds($list) as $memberId) {
 				$handle = $this->handleOf($memberId);
 				if ($handle !== '') {
-					$lines[] = self::csvCell($list->getTitle()) . ',' . self::csvCell($handle);
+					$lines[] = Csv::cell($list->getTitle()) . ',' . Csv::cell($handle);
 				}
 			}
 		}
@@ -1022,19 +1025,10 @@ class MigrationService {
 		// implementation writes
 		$lines = ['Account address,Show boosts,Notify on new posts,Languages'];
 		foreach ($handles as $handle) {
-			$lines[] = self::csvCell($handle) . ',true,false,';
+			$lines[] = Csv::cell($handle) . ',true,false,';
 		}
 
 		return implode("\n", $lines) . "\n";
-	}
-
-	/** A value as one CSV cell: quoted only where it has to be. */
-	private static function csvCell(string $value): string {
-		if (strpbrk($value, ",\"\r\n") === false) {
-			return $value;
-		}
-
-		return '"' . str_replace('"', '""', $value) . '"';
 	}
 
 	/**
@@ -1066,7 +1060,7 @@ class MigrationService {
 			}
 
 			$cells = str_getcsv($line, ',', '"', '');
-			$handle = ltrim(trim((string)($cells[$column] ?? '')), '@');
+			$handle = ltrim(Csv::restore(trim((string)($cells[$column] ?? ''))), '@');
 			// `name@host`, with the host allowed to be a single label: a
 			// fediverse host is usually dotted, but an instance reached as
 			// `cloud` or `devel` on a private network is not, and insisting on

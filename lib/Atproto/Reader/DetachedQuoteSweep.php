@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\Utility\ITimeFactory;
 
@@ -53,7 +54,7 @@ class DetachedQuoteSweep {
 		foreach ($quoting as $post) {
 			if ($post->getQuoteState() !== Stream::QUOTE_REVOKED && $this->isDetached($post)) {
 				$post->setQuoteState(Stream::QUOTE_REVOKED);
-				$this->streams->updateDetails($post);
+				$this->streams->updateDetails($post, Details::QUOTE_STATE);
 				$detached++;
 			}
 		}

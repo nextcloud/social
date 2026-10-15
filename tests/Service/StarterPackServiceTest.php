@@ -16,6 +16,8 @@ use OCA\Social\Model\Client\StarterPack;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\FollowService;
+use OCA\Social\Service\RemoteFetchQueue;
+use OCA\Social\Service\StarterPackModeration;
 use OCA\Social\Service\StarterPackService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -34,10 +36,18 @@ class StarterPackServiceTest extends TestCase {
 	private FollowService|Stub $followService;
 	private StarterPackService $service;
 
-	/** @var string[] handles that resolve; anything else raises */
+	/** @var string[] handles held here, which resolve; anything else raises */
 	private array $resolvable = [];
-	/** @var string[] what followAccount was asked to follow */
+	/** @var string[] handles not held here, which resolve only when fetched */
+	private array $remote = [];
+	/** @var string[] handles looked up with a fetch allowed */
+	private array $fetched = [];
+	/** @var string[] what followActor was asked to follow */
 	private array $followed = [];
+	/** @var string[] actor ids this instance's moderation keeps out */
+	private array $moderated = [];
+	/** @var string[] handles and actor ids queued to be fetched */
+	private array $queued = [];
 	private string $configured = '';
 
 	protected function setUp(): void {
@@ -50,32 +60,53 @@ class StarterPackServiceTest extends TestCase {
 
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->cacheActorService->method('getFromAccount')
-			->willReturnCallback(function (string $handle): Person {
-				if (!in_array($handle, $this->resolvable, true)) {
+			->willReturnCallback(function (string $handle, bool $retrieve = true): Person {
+				if ($retrieve) {
+					$this->fetched[] = $handle;
+				}
+				if (!in_array($handle, $this->resolvable, true) && !($retrieve && in_array($handle, $this->remote, true))) {
 					throw new RuntimeException('unreachable');
 				}
 
-				$person = new Person();
-				$person->setId('https://' . explode('@', $handle)[1] . '/users/' . explode('@', $handle)[0]);
-				$person->setAccount($handle);
-
-				return $person;
+				return self::person($handle);
 			});
 
 		$this->followService = $this->createStub(FollowService::class);
-		$this->followService->method('followAccount')
-			->willReturnCallback(function (Person $actor, string $account): bool {
-				if (!in_array($account, $this->resolvable, true)) {
-					throw new RuntimeException('cannot follow');
-				}
-				$this->followed[] = $account;
+		$this->followService->method('followActor')
+			->willReturnCallback(function (Person $actor, Person $account): bool {
+				$this->followed[] = $account->getAccount();
 
 				return true;
 			});
 
-		$this->service = new StarterPackService(
-			$this->configService, $this->cacheActorService, $this->followService, new NullLogger()
+		$this->service = $this->service();
+	}
+
+	private function service(?StarterPacksRequest $request = null, ?FollowService $follows = null): StarterPackService {
+		$moderation = $this->createStub(StarterPackModeration::class);
+		$moderation->method('admitted')->willReturnCallback(fn (array $ids): array => array_values(array_diff($ids, $this->moderated)));
+		$moderation->method('admittedActors')->willReturnCallback(fn (array $actors): array => array_values(array_filter(
+			$actors, fn (Person $actor): bool => !in_array($actor->getId(), $this->moderated, true)
+		)));
+		$queue = $this->createStub(RemoteFetchQueue::class);
+		$queue->method('resolveActors')->willReturnCallback(function (array $ids): void {
+			$this->queued = [...$this->queued, ...$ids];
+		});
+		$queue->method('resolveAccounts')->willReturnCallback(function (array $handles): void {
+			$this->queued = [...$this->queued, ...$handles];
+		});
+
+		return new StarterPackService(
+			$this->configService, $this->cacheActorService, $follows ?? $this->followService, new NullLogger(), $request, $moderation, $queue
 		);
+	}
+
+	private static function person(string $handle): Person {
+		$person = new Person();
+		$person->setId('https://' . explode('@', $handle)[1] . '/users/' . explode('@', $handle)[0]);
+		$person->setAccount($handle);
+
+		return $person;
 	}
 
 	private function viewer(): Person {
@@ -138,6 +169,18 @@ class StarterPackServiceTest extends TestCase {
 			$pack->getUnresolved(),
 			'the unreachable handles were dropped instead of reported'
 		);
+	}
+
+	public function testOpeningAPackFetchesNothingAndQueuesWhoIsNotHeldHere(): void {
+		$first = $this->service->packs()[0];
+		$this->remote = $first->getHandles();
+
+		$pack = $this->service->pack($first->getSlug());
+
+		$this->assertSame([], $pack->getAccounts());
+		$this->assertSame($first->getHandles(), $pack->getUnresolved());
+		$this->assertSame([], $this->fetched);
+		$this->assertSame($first->getHandles(), $this->queued);
 	}
 
 	public function testAnUnknownSlugIsANotFound(): void {
@@ -275,6 +318,23 @@ class StarterPackServiceTest extends TestCase {
 		$this->assertSame($this->resolvable, $this->followed);
 	}
 
+	/** Each account is looked up once and followed as the actor found. */
+	public function testFollowingAPackResolvesItOnceAndFetchesWhoIsNotHeldHere(): void {
+		$this->configured = json_encode([[
+			'slug' => 'two', 'name' => 'two', 'handles' => ['a@example.org', 'b@example.org'],
+		]]);
+		$this->resolvable = ['a@example.org'];
+		$this->remote = ['b@example.org'];
+		$follows = $this->createMock(FollowService::class);
+		$follows->expects($this->exactly(2))->method('followActor')->willReturn(true);
+		$follows->expects($this->never())->method('followAccount');
+
+		$followed = $this->service(null, $follows)->followAll($this->viewer(), 'two');
+
+		$this->assertSame(['a@example.org', 'b@example.org'], $followed);
+		$this->assertSame(['a@example.org', 'b@example.org'], $this->fetched);
+	}
+
 	/**
 	 * The point of the button is that nobody follows six accounts by hand.
 	 * Refusing all six because one host is down would defeat it.
@@ -306,14 +366,31 @@ class StarterPackServiceTest extends TestCase {
 		$this->assertSame(['b@example.org'], $followed);
 	}
 
+	/** The rows a request reads, the index without the member lists. */
+	private function request(array $rows): StarterPacksRequest|Stub {
+		$request = $this->createStub(StarterPacksRequest::class);
+		$request->method('getIndex')->willReturn(array_map(static function (array $row): array {
+			$row['member_count'] = count($row['members']);
+			unset($row['members'], $row['uri'], $row['fetched']);
+
+			return $row;
+		}, $rows));
+		$request->method('getBySlug')->willReturnCallback(static function (string $slug) use ($rows): ?array {
+			foreach ($rows as $row) {
+				if ($row['slug'] === $slug) {
+					return $row;
+				}
+			}
+
+			return null;
+		});
+
+		return $request;
+	}
+
 	/** A service with packs read in from another server's collections. */
 	private function withCollections(array $rows): StarterPackService {
-		$request = $this->createStub(StarterPacksRequest::class);
-		$request->method('getAll')->willReturn($rows);
-
-		return new StarterPackService(
-			$this->configService, $this->cacheActorService, $this->followService, new NullLogger(), $request
-		);
+		return $this->service($this->request($rows));
 	}
 
 	/** @return array<string, mixed> */
@@ -334,8 +411,41 @@ class StarterPackServiceTest extends TestCase {
 		$this->assertSame(StarterPack::SOURCE_FEDIVERSE, $last->getSource());
 		$this->assertSame('Gargron@mastodon.social', $last->getCurator());
 		$this->assertSame('news', $last->getTopic());
-		$this->assertSame(['https://newsie.social/users/paper'], $last->getHandles());
+		$this->assertSame(1, $last->jsonSerialize()['size']);
 		$this->assertNotSame(StarterPack::SOURCE_FEDIVERSE, $packs[0]->getSource());
+	}
+
+	public function testTheIndexReadsNoMemberListAndCountsAsManyAsAPackOffers(): void {
+		$members = array_map(static fn (int $n): string => 'https://m' . $n . '.example/users/u', range(1, 70));
+		$request = $this->request([self::row('big-1a2b3c4d', $members)]);
+		$request->method('getBySlug')->willThrowException(new RuntimeException('the index read a member list'));
+
+		$packs = $this->service($request)->packs();
+
+		$this->assertSame(StarterPackService::MAX_HANDLES, end($packs)->jsonSerialize()['size']);
+	}
+
+	public function testAPackWhoseCuratorThisInstanceKeepsOutIsNeitherListedNorOpened(): void {
+		$this->moderated = ['https://mastodon.social/users/Gargron'];
+		$service = $this->withCollections([self::row('news-1a2b3c4d', ['https://newsie.social/users/paper'])]);
+
+		$slugs = array_map(static fn (StarterPack $pack): string => $pack->getSlug(), $service->packs());
+		$this->assertNotContains('news-1a2b3c4d', $slugs);
+
+		$this->expectException(ItemNotFoundException::class);
+		$service->pack('news-1a2b3c4d');
+	}
+
+	public function testAMemberThisInstanceKeepsOutIsNeitherOfferedNorFollowed(): void {
+		$this->configured = json_encode([[
+			'slug' => 'two', 'name' => 'two', 'handles' => ['a@example.org', 'b@example.org'],
+		]]);
+		$this->resolvable = ['a@example.org', 'b@example.org'];
+		$this->moderated = ['https://example.org/users/b'];
+
+		$this->assertSame(['a@example.org'], array_map(static fn (Person $p): string => $p->getAccount(), $this->service->pack('two')->getAccounts()));
+		$this->assertSame(['a@example.org'], $this->service->followAll($this->viewer(), 'two'));
+		$this->assertSame(['a@example.org'], $this->followed);
 	}
 
 	public function testACollectionNeverReplacesAPackThisInstanceChose(): void {
@@ -352,17 +462,20 @@ class StarterPackServiceTest extends TestCase {
 		$this->assertSame([], $this->withCollections([self::row('news-1a2b3c4d', ['https://newsie.social/users/paper'])])->packs());
 	}
 
-	public function testAnOpenedCollectionResolvesItsMembersByActorId(): void {
+	public function testAnOpenedCollectionResolvesItsMembersByActorIdInOneLookup(): void {
 		$paper = new Person();
 		$paper->setId('https://newsie.social/users/paper');
 		$paper->setAccount('paper@newsie.social');
-		$this->cacheActorService->expects($this->once())->method('getFromId')
-			->with('https://newsie.social/users/paper')->willReturn($paper);
+		$members = ['https://newsie.social/users/paper', 'https://gone.example/users/blog'];
+		$this->cacheActorService->expects($this->once())->method('getCachedFromIds')
+			->with($members)->willReturn([$paper->getId() => $paper]);
+		$this->cacheActorService->expects($this->never())->method('getFromId');
 
-		$pack = $this->withCollections([self::row('news-1a2b3c4d', ['https://newsie.social/users/paper'])])->pack('news-1a2b3c4d');
+		$pack = $this->withCollections([self::row('news-1a2b3c4d', $members)])->pack('news-1a2b3c4d');
 
 		$this->assertSame([$paper], $pack->getAccounts());
-		$this->assertSame([], $pack->getUnresolved());
+		$this->assertSame(['https://gone.example/users/blog'], $pack->getUnresolved());
+		$this->assertSame(['https://gone.example/users/blog'], $this->queued);
 	}
 
 	public function testASuggestionReadFromBlueskyIsABlueskyPack(): void {
@@ -375,13 +488,11 @@ class StarterPackServiceTest extends TestCase {
 		$member = new Person();
 		$member->setId('https://bsky.app/profile/did:plc:a');
 		$member->setAccount('a.bsky.social');
-		$this->cacheActorService->method('getFromId')->willReturn($member);
+		$this->cacheActorService->method('getCachedFromIds')->willReturn([$member->getId() => $member]);
 		$follows = $this->createMock(FollowService::class);
 		$follows->expects($this->once())->method('followActor')->with($this->anything(), $member)->willReturn(true);
 		$follows->expects($this->never())->method('followAccount');
-		$request = $this->createStub(StarterPacksRequest::class);
-		$request->method('getAll')->willReturn([self::row('street-1a2b3c4d', ['https://bsky.app/profile/did:plc:a'], 'bluesky')]);
-		$service = new StarterPackService($this->configService, $this->cacheActorService, $follows, new NullLogger(), $request);
+		$service = $this->service($this->request([self::row('street-1a2b3c4d', ['https://bsky.app/profile/did:plc:a'], 'bluesky')]), $follows);
 
 		$this->assertSame(['a.bsky.social'], $service->followAll($this->viewer(), 'street-1a2b3c4d'));
 	}

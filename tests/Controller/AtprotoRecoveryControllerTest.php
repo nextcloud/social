@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
+use Closure;
 use OCA\Social\Atproto\Identity\DidControlService;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Identity;
@@ -18,7 +19,7 @@ use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Controller\AtprotoRecoveryController;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Response\StreamedPiecesResponse;
+use OCA\Social\Response\StreamedWriterResponse;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\PasswordConfirmationRequired;
@@ -28,14 +29,16 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IRequest;
 use OCP\IUser;
 use OCP\IUserSession;
+use OCP\UserMigration\UserMigrationException;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
  * The download of a person's Bluesky account: only their own, only after
- * the password, a few an hour, sent in pieces from the finished file.
+ * the password, a few an hour, sent while it is written.
  */
 #[AllowMockObjectsWithoutExpectations]
 class AtprotoRecoveryControllerTest extends TestCase {
@@ -60,7 +63,7 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		\OC::$server->reset();
 	}
 
-	private function controller(): AtprotoRecoveryController {
+	private function controller(?LoggerInterface $logger = null): AtprotoRecoveryController {
 		$session = $this->createStub(IUserSession::class);
 		$user = $this->createStub(IUser::class);
 		$user->method('getUID')->willReturn('alice');
@@ -70,7 +73,7 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		$accounts = $this->createStub(AccountService::class);
 		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
 
-		return new AtprotoRecoveryController($this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->archive, $this->control, $this->recoveryTool, new NullLogger());
+		return new AtprotoRecoveryController($this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->archive, $this->control, $this->recoveryTool, $logger ?? new NullLogger());
 	}
 
 	private static function identity(string $state = Identity::STATE_ACTIVE): Identity {
@@ -85,31 +88,59 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		$this->assertSame([3, 3600], [$limit->getLimit(), $limit->getPeriod()]);
 	}
 
-	public function testTheArchiveIsSentInPiecesAndRemovedAfter(): void {
-		$path = (string)tempnam(sys_get_temp_dir(), 'bluesky-archive-test');
-		file_put_contents($path, str_repeat('z', 3 * 1024 * 1024 + 5));
-		$this->identities->method('forActor')->willReturn(self::identity());
-		$this->archive->expects($this->once())->method('zip')->willReturn($path);
-		$this->archive->method('filename')->willReturn('bluesky-alice.social.test-2026-10-14.zip');
-
-		$response = $this->controller()->archive();
-
-		$this->assertInstanceOf(StreamedPiecesResponse::class, $response);
-		$this->assertSame('application/zip', $response->getHeaders()['Content-Type']);
-		$this->assertSame('attachment; filename="bluesky-alice.social.test-2026-10-14.zip"', $response->getHeaders()['Content-Disposition']);
-		$this->assertSame((string)(3 * 1024 * 1024 + 5), $response->getHeaders()['Content-Length']);
-		$pieces = [];
+	/**
+	 * Runs the response's body, as the framework does after the headers,
+	 * and gives what it wrote along with $events.
+	 *
+	 * @param list<string> $events
+	 */
+	private function send(StreamedWriterResponse $response, array &$events): void {
 		$output = $this->createMock(IOutput::class);
-		$output->method('setOutput')->willReturnCallback(function (string $piece) use (&$pieces): void {
-			$pieces[] = strlen($piece);
+		$output->method('setOutput')->willReturnCallback(static function (string $piece) use (&$events): void {
+			$events[] = 'sent ' . $piece;
 		});
 		$level = ob_get_level();
 		$response->callback($output);
 		while (ob_get_level() < $level) {
 			ob_start();
 		}
-		$this->assertSame([1024 * 1024, 1024 * 1024, 1024 * 1024, 5], $pieces);
-		$this->assertFileDoesNotExist($path);
+	}
+
+	public function testTheArchiveIsSentWhileItIsWritten(): void {
+		$this->identities->method('forActor')->willReturn(self::identity());
+		$events = [];
+		$this->archive->expects($this->once())->method('zip')->willReturnCallback(static function (Identity $identity, Closure $sink) use (&$events): void {
+			$sink('PK first files');
+			$events[] = 'reading the blobs';
+			$sink('the blobs');
+		});
+		$this->archive->method('filename')->willReturn('bluesky-alice.social.test-2026-10-14.zip');
+
+		$response = $this->controller()->archive();
+
+		$this->assertInstanceOf(StreamedWriterResponse::class, $response);
+		$this->assertSame('application/zip', $response->getHeaders()['Content-Type']);
+		$this->assertSame('attachment; filename="bluesky-alice.social.test-2026-10-14.zip"', $response->getHeaders()['Content-Disposition']);
+		$this->assertArrayNotHasKey('Content-Length', $response->getHeaders());
+		$this->assertSame([], $events, 'nothing is read before the response is sent');
+		$this->send($response, $events);
+		$this->assertSame(['sent PK first files', 'reading the blobs', 'sent the blobs'], $events);
+	}
+
+	/** Once the first bytes are out the status cannot change: the failure is logged and the archive left unfinished. */
+	public function testAnArchiveThatFailsHalfwayIsLoggedAndCutShort(): void {
+		$this->identities->method('forActor')->willReturn(self::identity());
+		$this->archive->method('zip')->willReturnCallback(static function (Identity $identity, Closure $sink): void {
+			$sink('PK first files');
+			throw new UserMigrationException('could not read a blob');
+		});
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->once())->method('error')->with('Bluesky export failed');
+		$events = [];
+
+		$this->send($this->controller($logger)->archive(), $events);
+
+		$this->assertSame(['sent PK first files'], $events);
 	}
 
 	public function testThereIsNothingToDownloadWithoutAnAccountHostedHere(): void {

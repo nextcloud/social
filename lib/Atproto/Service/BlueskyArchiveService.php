@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Service;
 
+use Closure;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\PlcClient;
 use OCA\Social\Atproto\Model\BlobRef;
@@ -18,14 +19,13 @@ use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoPlcLogRequest;
-use OCA\Social\UserMigration\ZipExportDestination;
+use OCA\Social\Tools\ZipStreamWriter;
+use OCA\Social\UserMigration\ZipStreamDestination;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\ITempManager;
 use OCP\UserMigration\IExportDestination;
 use OCP\UserMigration\UserMigrationException;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use ZipArchive;
 
 /**
  * A person's Bluesky account as files, for keeping and for moving it
@@ -54,7 +54,6 @@ class BlueskyArchiveService {
 		private PlcClient $plc,
 		private AtprotoPlcLogRequest $plcLog,
 		private AtprotoConfig $config,
-		private ITempManager $tempManager,
 		private ITimeFactory $time,
 		private RecoveryToolPage $recoveryTool,
 		private LoggerInterface $logger,
@@ -99,28 +98,18 @@ class BlueskyArchiveService {
 	}
 
 	/**
-	 * The account alone, as a zip file in the temp directory, for the
-	 * download in Settings.
+	 * The account alone, as a zip file for the download in Settings,
+	 * handed to $sink while it is written: the first bytes go out before
+	 * the repository and the blobs have all been read, and none of it is
+	 * kept on disk.
 	 *
-	 * @return string the path of the finished archive
+	 * @param Closure(string): void $sink
 	 * @throws UserMigrationException
 	 */
-	public function zip(Identity $identity): string {
-		$path = $this->tempManager->getTemporaryFile('.zip');
-		if ($path === false) {
-			throw new UserMigrationException('could not make a file for the archive');
-		}
-		$zip = new ZipArchive();
-		if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-			throw new UserMigrationException('could not open the archive for writing');
-		}
-		try {
-			$this->write($identity, new ZipExportDestination($zip, $this->tempManager));
-		} finally {
-			$zip->close();
-		}
-
-		return $path;
+	public function zip(Identity $identity, Closure $sink): void {
+		$destination = new ZipStreamDestination(new ZipStreamWriter($sink, $this->time->getDateTime()));
+		$this->write($identity, $destination);
+		$destination->close();
 	}
 
 	/** What the downloaded file is called: the handle and the day, in characters any file system takes. */
@@ -139,16 +128,14 @@ class BlueskyArchiveService {
 
 			return false;
 		}
-		// spilled to disk past a few megabytes
-		$car = fopen('php://temp/maxmemory:' . (4 * 1024 * 1024), 'w+b');
-		if ($car === false) {
-			throw new UserMigrationException('could not buffer the repository');
+		if ($destination instanceof ZipStreamDestination) {
+			// into the download as it is read, never first whole on disk
+			$destination->addFileFromPieces($root . 'repo.car', $pieces);
+
+			return true;
 		}
+		$car = RepositoryService::spill($pieces);
 		try {
-			foreach ($pieces as $piece) {
-				fwrite($car, $piece);
-			}
-			rewind($car);
 			$destination->addFileAsStream($root . 'repo.car', $car);
 		} finally {
 			fclose($car);

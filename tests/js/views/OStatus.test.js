@@ -84,7 +84,7 @@ describe('OStatus', () => {
 			expect(wrapper.text()).toContain('Alice')
 			// the greeting avatar is the real ActorAvatar, fed the current user as a local actor
 			const greeting = wrapper.findComponent(ActorAvatarStub)
-			expect(greeting.props('actor')).toEqual({ username: 'alice', acct: 'alice' })
+			expect(greeting.props('actor')).toEqual({ username: 'alice', acct: 'alice', nextcloud_user: 'alice' })
 			expect(greeting.props('size')).toBe(16)
 			expect(wrapper.text()).toContain('Please confirm that you want to follow this account:')
 			expect(wrapper.find('form input[type="submit"]').element.value).toBe('Follow')
@@ -129,10 +129,27 @@ describe('OStatus', () => {
 			expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
 			expect(wrapper.text()).toContain('You are going to follow:')
 			expect(wrapper.find('h2').text()).toBe('carol')
-			expect(wrapper.findComponent(NcAvatarStub).props('user')).toBe('carol')
 			expect(wrapper.find('input[type="text"]').attributes('placeholder')).toBe('name@domain of your federation account')
 			expect(wrapper.find('input[type="submit"]').element.value).toBe('Continue')
 			expect(wrapper.text()).toContain('We will redirect you to your homeserver to follow this account.')
+		})
+
+		/**
+		 * The username is chosen when the account is made and need not be the
+		 * user id; the face was Nextcloud's avatar of the username, somebody
+		 * else's or nobody's.
+		 */
+		it('draws the account by its Nextcloud user, or by its picture where the visitor is not told the user', async () => {
+			pending = Promise.resolve({ ...bob, acct: 'carol', username: 'carol', nextcloud_user: 'karla', avatar: 'https://cloud.example.org/avatar/karla/128' })
+			const told = mountView()
+			await flushPromises()
+			expect(told.findComponent(NcAvatarStub).props('user')).toBe('karla')
+
+			pending = Promise.resolve({ ...bob, acct: 'carol', username: 'carol', nextcloud_user: null, avatar: 'https://cloud.example.org/apps/social/img/social.svg' })
+			const notTold = mountView()
+			await flushPromises()
+			expect(notTold.findComponent(NcAvatarStub).props('user')).toBeUndefined()
+			expect(notTold.findComponent(NcAvatarStub).props('url')).toBe('https://cloud.example.org/apps/social/img/social.svg')
 		})
 
 		it('resolves the remote follow link for the entered handle and redirects there', async () => {

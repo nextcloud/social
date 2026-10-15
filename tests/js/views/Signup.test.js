@@ -63,7 +63,10 @@ describe('the registration page', () => {
 
 	it('shows the rules, the age to confirm and the address the handle becomes', async () => {
 		const wrapper = await page(OPEN)
-		expect(wrapper.text()).toContain('A Aloha Social account, connected to the fediverse')
+		expect(wrapper.text()).toContain('An Aloha Social account')
+		expect(wrapper.text()).toContain('Your address will look like @username@cloud.example. You can follow and talk with people on Mastodon, Pixelfed, PeerTube and more.')
+		expect(wrapper.text()).not.toMatch(/fediverse|ActivityPub|your name|A Aloha|a Aloha/)
+		expect(wrapper.text()).not.toContain('Bluesky')
 		expect(wrapper.text()).toContain('does not give you access to Files, Talk, WebDAV')
 		expect(wrapper.text()).toContain('finish the introduction, find people and any starter packs this server offers')
 		expect(wrapper.text()).not.toContain('This server requires two-factor authentication.')
@@ -77,6 +80,18 @@ describe('the registration page', () => {
 		expect(wrapper.text()).toContain('@alice@cloud.example')
 		expect(wrapper.text()).toContain('An administrator looks at every registration')
 		expect(wrapper.find('a[href="https://cloud.example/privacy"]').exists()).toBe(true)
+	})
+
+	it('names the Bluesky address too, where this server issues one', async () => {
+		const wrapper = await page({ ...OPEN, bluesky: { enabled: true, host: 'social.example' } })
+		expect(wrapper.text()).toContain('Your address will look like @username@cloud.example, and @username.social.example on Bluesky. You can follow and talk with people on Mastodon, Bluesky, Pixelfed and more.')
+
+		await continueToForm(wrapper)
+		wrapper.vm.handle = 'Frank_K'
+		await wrapper.vm.$nextTick()
+
+		// the handle the server will issue, as HandleMapper::label() maps it
+		expect(wrapper.text()).toContain('Your address will be @frank_k@cloud.example, and @frank-k.social.example on Bluesky')
 	})
 
 	it('explains the configured two-factor requirement before collecting details', async () => {

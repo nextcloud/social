@@ -34,6 +34,18 @@ export function isLocalAccount(account) {
 }
 
 /**
+ * The Nextcloud user a local account belongs to, which its face and its
+ * Nextcloud profile page go by. The username is chosen when the account is
+ * made and need not be it, so it is never used in its place.
+ *
+ * @param {Partial<import('../types/Mastodon.js').Account>|null|undefined} account an Account entity
+ * @return {string} the user id, or '' where the account has none or the page was not told it
+ */
+export function nextcloudUserOf(account) {
+	return isLocalAccount(account) && typeof account?.nextcloud_user === 'string' ? account.nextcloud_user : ''
+}
+
+/**
  * Whether a handle on its own, with no entity behind it yet, can only be a
  * Bluesky one: no host after an `@`, and a dot in it. A local user id can
  * carry a dot too, so this is what to *ask for*, not what an account is —
@@ -68,4 +80,23 @@ export function qualifiedHandle(account, hostname) {
 	}
 
 	return '@' + acct
+}
+
+/**
+ * Whether a handle the server answered with, `user@host` as it writes every
+ * account's, names this account — whose `acct` is the bare username when it
+ * is hosted here.
+ *
+ * @param {string} handle a handle, with or without a leading `@`
+ * @param {Partial<import('../types/Mastodon.js').Account>|null|undefined} account an Account entity
+ * @return {boolean}
+ */
+export function isHandleOf(handle, account) {
+	const text = String(handle ?? '').replace(/^@/, '').toLowerCase()
+	const acct = String(account?.acct ?? '').toLowerCase()
+	if (text === '' || acct === '') {
+		return false
+	}
+
+	return text === acct || (isLocalAccount(account) && text.startsWith(acct + '@'))
 }

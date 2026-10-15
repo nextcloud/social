@@ -18,7 +18,8 @@ use Throwable;
 /**
  * Fetches and caches one remote actor a page needed and did not have.
  *
- * Queued with the actor id by `RemoteFetchQueue::resolveActors()`, so — like
+ * Queued with the actor id by `RemoteFetchQueue::resolveActors()`, or with
+ * a `user@host` handle by `RemoteFetchQueue::resolveAccounts()`, so — like
  * `DomainPurge` — it is not registered in `info.xml`. The page that asked
  * showed what was cached; the next look at it finds the actor here.
  */
@@ -34,18 +35,23 @@ class ResolveActor extends QueuedJob {
 	#[\Override]
 	protected function run($argument): void {
 		$id = is_array($argument) ? (string)($argument['id'] ?? '') : '';
-		if ($id === '') {
+		$account = is_array($argument) ? (string)($argument['account'] ?? '') : '';
+		if ($id === '' && $account === '') {
 			return;
 		}
 
 		try {
 			// a cached actor costs one query and no request
-			$this->cacheActorService->getFromId($id);
+			if ($id !== '') {
+				$this->cacheActorService->getFromId($id);
+			} else {
+				$this->cacheActorService->getFromAccount($account);
+			}
 		} catch (Throwable $e) {
 			// gone, refused or unreachable: the page goes on without it, and
 			// the next page that names it queues it again
-			$this->logger->info('[Cron\\ResolveActor] could not resolve ' . $id, [
-				'id' => $id, 'exception' => $e,
+			$this->logger->info('[Cron\\ResolveActor] could not resolve ' . ($id !== '' ? $id : $account), [
+				'id' => $id, 'account' => $account, 'exception' => $e,
 			]);
 		}
 	}
