@@ -23,7 +23,7 @@ use Throwable;
  * person reading "31 posts, 4 followers" has no idea whether the place those
  * posts went is a village or a city. These are the numbers that say.
  *
- * They come from **fedidb.org**, which counts servers by crawling their
+ * They come from **fedidb.com**, which counts servers by crawling their
  * NodeInfo, and they are quoted rather than adopted: the page names the source
  * and the date, because a figure about the whole fediverse is somebody's
  * survey and not a fact this instance can check. Nothing is sent — the request
@@ -44,7 +44,7 @@ class NetworkStatsService {
 
 	/** Where the figures come from, and what to call it on the page. */
 	public const SOURCE_NAME = 'FediDB';
-	public const SOURCE_URL = 'https://fedidb.org';
+	public const SOURCE_URL = 'https://fedidb.com';
 	private const ENDPOINT = 'https://api.fedidb.org/v1/stats';
 	private const SOFTWARE_ENDPOINT = 'https://api.fedidb.org/v1/software';
 

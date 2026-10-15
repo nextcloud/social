@@ -123,7 +123,7 @@ class NetworkStatsServiceTest extends TestCase {
 		// a figure about the whole fediverse is somebody's survey, and a page
 		// that does not say whose is claiming it
 		$this->assertSame('FediDB', $network['source']);
-		$this->assertSame('https://fedidb.org', $network['source_url']);
+		$this->assertSame('https://fedidb.com', $network['source_url']);
 		$this->assertSame('2026-09-19T22:15:03+00:00', $network['measured']);
 	}
 
