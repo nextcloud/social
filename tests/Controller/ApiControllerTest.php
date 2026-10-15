@@ -3812,6 +3812,16 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(['error' => MastodonApiController::APP_TOKEN_NAMES_NOBODY], $response->getData());
 	}
 
+	public function testAnAppTokenVerifiesTheAppItBelongsTo(): void {
+		$this->route = 'social.Api.appsCredentials';
+		$this->appToken();
+
+		$response = $this->controller('Bearer s3cret')->appsCredentials();
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('Tusky', $response->getData()['name']);
+	}
+
 	public function testNotificationsRequireAViewer(): void {
 		$this->assertUnauthorized($this->controller()->notifications());
 	}

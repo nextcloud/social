@@ -73,7 +73,9 @@ class ApiController extends MastodonApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/apps/verify_credentials')]
 	public function appsCredentials() {
 		try {
-			$this->initViewer(true);
+			// an app token names the app it belongs to, which is all this
+			// route answers with: Mastodon's apps check theirs here
+			$this->initViewer(true, true);
 
 			// `vapid_key` is always present, because a client reads it out of
 			// this response before it decides whether to offer push at all; it
