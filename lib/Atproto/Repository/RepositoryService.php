@@ -327,15 +327,15 @@ class RepositoryService {
 	}
 
 	/**
-	 * Pieces of a CAR into a temporary stream, spilled to disk past a few
-	 * megabytes.
+	 * Pieces of a CAR into a temporary stream, spilled to disk past a
+	 * megabyte.
 	 *
 	 * @param iterable<string> $pieces
 	 * @return resource at its start
 	 * @throws AtprotoException
 	 */
 	public static function spill(iterable $pieces) {
-		$car = fopen('php://temp/maxmemory:' . (4 * 1024 * 1024), 'w+b');
+		$car = fopen('php://temp/maxmemory:' . (1024 * 1024), 'w+b');
 		if ($car === false) {
 			throw new AtprotoException('could not buffer the repository');
 		}
