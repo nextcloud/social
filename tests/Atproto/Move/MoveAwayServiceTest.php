@@ -79,6 +79,10 @@ class MoveAwayServiceTest extends TestCase {
 		$pds->method('call')->willReturnCallback(function (string $origin, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = '', string $token = ''): array {
 			$stream = is_resource($bytes);
 			$this->calls[] = ['method' => $method, 'verb' => $verb, 'query' => $query, 'json' => $json, 'bytes' => $stream ? stream_get_contents($bytes) : $bytes, 'stream' => $stream, 'token' => $token];
+			if ($stream) {
+				// the HTTP client closes a stream body once it has sent it
+				fclose($bytes);
+			}
 			if ($this->pdsHook !== null) {
 				($this->pdsHook)($method);
 			}

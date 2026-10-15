@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Interop;
 
 use OCA\Social\Atproto\Identity\CustomHandleService;
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Tests\Interop\Bluesky\DevNetwork;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
@@ -43,7 +44,8 @@ class AtprotoHandleTest extends TestCase {
 		try {
 			$handles->set($identity, $this->network->customHandle);
 			$this->fail('a domain that does not name the DID was used');
-		} catch (\InvalidArgumentException $e) {
+		} catch (MoveErrorException $e) {
+			$this->assertSame('handle-not-verified', $e->errorCode);
 			$this->assertStringContainsString('names ' . $identity->did, $e->getMessage());
 		}
 

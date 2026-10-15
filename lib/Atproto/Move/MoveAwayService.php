@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
+use Closure;
 use OCA\Social\Atproto\AppView\ServiceAuth;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Client\Preferences;
@@ -391,12 +392,7 @@ class MoveAwayService {
 	 */
 	private function importRepository(Move $move): void {
 		$head = $this->repositories->getHead($move->did);
-		$car = $this->repositories->carStream($move->did);
-		try {
-			$this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, $car, 'application/vnd.ipld.car');
-		} finally {
-			fclose($car);
-		}
+		$this->authed($move, 'com.atproto.repo.importRepo', 'POST', [], null, fn () => $this->repositories->carStream($move->did), 'application/vnd.ipld.car');
 		$move->progress['exported'] = (string)$head?->commitCid;
 	}
 
@@ -542,7 +538,7 @@ class MoveAwayService {
 					// lists it as missing, as this one would have
 					continue;
 				}
-				$bytes = str_starts_with($blob->mime, 'video/') ? $this->videos->open($blob)['stream'] : $this->pictures->read($blob);
+				$bytes = str_starts_with($blob->mime, 'video/') ? fn () => $this->videos->open($blob)['stream'] : $this->pictures->read($blob);
 				$this->authed($move, 'com.atproto.repo.uploadBlob', 'POST', [], null, $bytes, $blob->mime);
 				$move->progress['blobs'] = ++$copied;
 				$this->save($move);
@@ -566,20 +562,21 @@ class MoveAwayService {
 	 * A call to the other PDS as the moving account, its session refreshed
 	 * once when it has expired.
 	 *
-	 * @param resource|string|null $bytes
+	 * A body read from a stream is given as the closure that opens it: the
+	 * HTTP client closes a stream once it has sent it, so the call after a
+	 * refreshed session opens it again.
+	 *
+	 * @param string|(Closure(): resource)|null $bytes
 	 * @throws AtprotoException
 	 */
 	private function authed(Move $move, string $method, string $verb = 'GET', array $query = [], ?array $json = null, $bytes = null, string $type = ''): array {
 		$session = $this->unseal($move->session);
-		$answer = $this->pds->call($move->pds, $method, $verb, $query, $json, $bytes, $type, (string)($session['accessJwt'] ?? ''));
+		$answer = $this->callPds($move, $method, $verb, $query, $json, $bytes, $type, (string)($session['accessJwt'] ?? ''));
 		if (in_array($answer['status'], [400, 401], true) && in_array($answer['body']['error'] ?? '', ['ExpiredToken', 'InvalidToken'], true) && is_string($session['refreshJwt'] ?? null)) {
 			$refreshed = $this->pds->expect($move->pds, 'com.atproto.server.refreshSession', 'POST', [], null, '', '', $session['refreshJwt']);
 			$move->session = $this->seal($refreshed);
 			$this->save($move);
-			if (is_resource($bytes)) {
-				rewind($bytes);
-			}
-			$answer = $this->pds->call($move->pds, $method, $verb, $query, $json, $bytes, $type, (string)($refreshed['accessJwt'] ?? ''));
+			$answer = $this->callPds($move, $method, $verb, $query, $json, $bytes, $type, (string)($refreshed['accessJwt'] ?? ''));
 		}
 		if ($answer['status'] !== 200) {
 			$error = trim((string)($answer['body']['error'] ?? '') . ': ' . (string)($answer['body']['message'] ?? ''), ': ');
@@ -587,6 +584,22 @@ class MoveAwayService {
 		}
 
 		return $answer['body'];
+	}
+
+	/**
+	 * @param string|(Closure(): resource)|null $bytes
+	 * @return array{status: int, body: array}
+	 */
+	private function callPds(Move $move, string $method, string $verb, array $query, ?array $json, $bytes, string $type, string $token): array {
+		$body = $bytes instanceof Closure ? $bytes() : $bytes;
+		try {
+			return $this->pds->call($move->pds, $method, $verb, $query, $json, $body, $type, $token);
+		} finally {
+			// the client closes what it sent; this closes what it never got to
+			if (is_resource($body)) {
+				fclose($body);
+			}
+		}
 	}
 
 	private function seal(array $session): string {
