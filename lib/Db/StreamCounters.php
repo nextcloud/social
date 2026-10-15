@@ -29,15 +29,25 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  */
 trait StreamCounters {
 	/**
-	 * Writes a post's whole `details` blob as the object holds it, over
-	 * whatever is stored. A writer that knows only some of the keys goes
-	 * through `changeDetails()`.
+	 * Writes the named keys of a post's `details` as the object holds them —
+	 * a key the object does not hold is removed — and leaves every other key
+	 * as it is stored (`changeDetails()`). The object was read some time
+	 * before: putting its whole blob back would undo whatever another writer
+	 * stored since, the origin's counts or an edit's mentions.
 	 */
-	public function updateDetails(Stream $stream): void {
-		$qb = $this->getStreamUpdateSql();
-		$qb->set('details', $qb->createNamedParameter(json_encode($stream->getDetailsAll())));
-		$qb->limitToIdPrim($qb->prim($stream->getId()));
-		$qb->executeStatement();
+	public function updateDetails(Stream $stream, string $key, string ...$keys): void {
+		$values = $stream->getDetailsAll();
+		$this->changeDetails($stream->getId(), static function (array $details) use ($values, $key, $keys): array {
+			foreach ([$key, ...$keys] as $name) {
+				if (array_key_exists($name, $values)) {
+					$details[$name] = $values[$name];
+				} else {
+					unset($details[$name]);
+				}
+			}
+
+			return $details;
+		});
 	}
 
 	/**

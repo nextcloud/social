@@ -237,7 +237,7 @@ class PostStore {
 		$ids = array_values(array_filter(array_map(static fn (mixed $uri): string => is_string($uri) ? BlueskyIds::postIdOfUri($uri) : '', $uris)));
 		if ($ids !== $post->getHiddenReplies()) {
 			$post->setHiddenReplies($ids);
-			$this->streams->updateDetails($post);
+			$this->streams->updateDetails($post, Details::HIDDEN_REPLIES);
 		}
 	}
 

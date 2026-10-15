@@ -155,7 +155,7 @@ class PostStoreTest extends TestCase {
 		$root = (new Note())->setId('https://bsky.app/profile/' . self::DID . '/post/3kroot');
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->method('getStreamById')->willReturn($root);
-		$streams->expects($this->once())->method('updateDetails')->with($root);
+		$streams->expects($this->once())->method('updateDetails')->with($root, Details::HIDDEN_REPLIES);
 		$store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $streams, $this->createMock(ITimeFactory::class), new NullLogger(), $this->cards);
 		$gate = ['uri' => 'at://x', 'record' => ['post' => 'at://' . self::DID . '/app.bsky.feed.post/3kroot', 'hiddenReplies' => ['at://' . self::OTHER . '/app.bsky.feed.post/3kr', 'not a uri']]];
 

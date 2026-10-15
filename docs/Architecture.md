@@ -3052,15 +3052,18 @@ a column at zero adds no key the blob did not have. The JSON keys are no longer
 written by the counter writers and go stale; nothing reads them past the overlay.
 The upgrade fills the columns from the JSON in pages of `nid`.
 
-The `mentions` an edit carries and the origin's halves of the counts still go
-into the blob, and those writes are a compare-and-swap rather than a column:
+Everything else in the blob — an edit's `mentions`, the origin's halves of the
+counts, a quote's or a reply's state, the hidden replies of a thread, the
+detached quotes — is written by compare-and-swap rather than as a column:
 `StreamRequest::changeDetails()` reads `details`, changes only its own keys, and
 writes the result with `UPDATE … WHERE details = <what was read>` (`IS NULL`
 for none), the one form every supported database answers atomically without a
 JSON function of its own. A write that finds the blob changed in between reads
 it again and changes its keys on that, once; a second loss is logged, the
 mentions wait for the next edit and the counts for the next ask.
-`updateMentions()` and `CountWriter` write through it.
+`updateMentions()`, `CountWriter` and `updateDetails($post, ...$keys)` — which
+writes the named keys as a post read earlier holds them — all write through it;
+nothing puts a whole blob it read back over what is stored.
 
 **A post is a link to itself.** Pressing anywhere on a post in a timeline opens
 the post with its replies — the card, its picture, its video. `TimelinePost`

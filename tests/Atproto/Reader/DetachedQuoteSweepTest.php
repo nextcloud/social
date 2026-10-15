@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Reader\Postgates;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Details;
 use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -38,7 +39,7 @@ class DetachedQuoteSweepTest extends TestCase {
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->method('getLocalQuotesOfBluesky')->willReturnOnConsecutiveCalls([$detached, $kept, $unpublished], []);
 		$streams->method('getStreamById')->willReturn($quoted);
-		$streams->expects($this->once())->method('updateDetails')->with($detached);
+		$streams->expects($this->once())->method('updateDetails')->with($detached, Details::QUOTE_STATE);
 		$refs = $this->createMock(PostRefs::class);
 		$refs->method('strongRef')->willReturnCallback(static fn (string $id): ?array => $id === $unpublished->getId() ? null : ['uri' => 'at://did:plc:alice/app.bsky.feed.post/' . md5($id), 'cid' => 'bafy']);
 		$postgates = $this->createMock(Postgates::class);

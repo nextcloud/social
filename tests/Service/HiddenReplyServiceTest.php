@@ -15,6 +15,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\Details;
 use OCA\Social\Service\HiddenReplyService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -30,7 +31,7 @@ class HiddenReplyServiceTest extends TestCase {
 		$reply = (new Note())->setId('https://bsky.app/profile/did:plc:bob/post/3k')->setAttributedTo('https://bsky.app/profile/did:plc:bob');
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->method('getStreamById')->willReturn($root);
-		$streams->expects($this->exactly(2))->method('updateDetails')->with($root);
+		$streams->expects($this->exactly(2))->method('updateDetails')->with($root, Details::HIDDEN_REPLIES);
 		$conversations = $this->createMock(ConversationsRequest::class);
 		$conversations->method('rootOf')->willReturnCallback(static fn (string $id): string => $root->getId());
 		$publisher = $this->createMock(Publisher::class);

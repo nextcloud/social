@@ -133,6 +133,35 @@ class DetailsCompareAndSwapTest extends TestCase {
 		$this->assertSame('https://remote.example/cas/users/bob', $stored[Details::MENTIONS][0]['id']);
 	}
 
+	/**
+	 * A writer holding the post as it was read — the hidden replies of a
+	 * thread, a quote's state — writes its own key only: the origin's counts
+	 * and an edit's mentions stored after it read the post stay.
+	 */
+	public function testAWriterHoldingAnOlderReadKeepsWhatWasStoredSince(): void {
+		$this->setRaw('{"quote_state":"pending","reply_state":"pending"}');
+		$read = new Note();
+		$read->setId(self::ID);
+		$read->setDetailsAll(json_decode((string)$this->stored(), true));
+		$this->streamRequest->changeDetails(self::ID, static function (array $details): array {
+			$details[Details::REMOTE_LIKES] = 7;
+			$details[Details::MENTIONS] = [['id' => 'https://remote.example/cas/users/bob']];
+
+			return $details;
+		});
+
+		$read->setHiddenReplies(['https://remote.example/cas/notes/2']);
+		$read->setDetailsAll(array_diff_key($read->getDetailsAll(), [Details::REPLY_STATE => true]));
+		$this->streamRequest->updateDetails($read, Details::HIDDEN_REPLIES, Details::REPLY_STATE);
+
+		$stored = json_decode((string)$this->stored(), true);
+		$this->assertSame(7, $stored[Details::REMOTE_LIKES]);
+		$this->assertSame('https://remote.example/cas/users/bob', $stored[Details::MENTIONS][0]['id']);
+		$this->assertSame(['https://remote.example/cas/notes/2'], $stored[Details::HIDDEN_REPLIES]);
+		$this->assertSame('pending', $stored[Details::QUOTE_STATE], 'a key not named is left as stored');
+		$this->assertArrayNotHasKey(Details::REPLY_STATE, $stored, 'a named key the post no longer holds is removed');
+	}
+
 	public function testAPostThatIsNotThereReadsAsNothing(): void {
 		$this->streamRequest->deleteById(self::ID, Note::TYPE);
 
