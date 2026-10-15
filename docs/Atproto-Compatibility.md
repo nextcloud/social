@@ -1597,10 +1597,13 @@ here*):
 3. Before that, the blobs the copied records name are compared with the
    blobs stored here (and the counts logged). When any is missing, the
    move stops in state `needs_decision` with `progress.missing` (`count`
-   and the first 50 `cids`) and code `blobs-missing`: the person has them
-   copied again or goes on without them (`POST …/move-in/continue`), the
-   latter after a confirmation that says how many are lost, so the DID
-   never switches with pictures silently lost. Then the old PDS
+   and the first 50 `cids`) and code `blobs-missing`, and the first 20
+   records that name a missing one in `progress.missing_records`
+   (`MovedBlobs::named()`: a post's date, the start of its text and its
+   address; the profile by its collection): the person has them copied
+   again or goes on without them (`POST …/move-in/continue`), the latter
+   after a confirmation that says how many are lost and lists those
+   posts, so the DID never switches with pictures silently lost. Then the old PDS
    **e-mails a code** (`requestPlcOperationSignature`); the move waits for
    the person to enter it. The page says where the code went
    when the old PDS's session names the address (`progress.code_sent_to`),
@@ -1728,10 +1731,12 @@ The mirror image, so a person is not locked in. On the Migration page,
    this server's head commit with as many records, and `importedBlobs`
    equal to `expectedBlobs`. Anything missing stops the move *before* the
    DID moves, in `needs_decision` with `blobs-missing` and
-   `progress.missing` (or `repo-incomplete`);
+   `progress.missing` (or `repo-incomplete`), and the records the other
+   PDS's first page of `listMissingBlobs` names, read here, in
+   `progress.missing_records` as for a move here;
    `POST …/bluesky/move/continue` copies again, or with `without_missing`
    moves the DID without what is missing, which the page confirms first,
-   with the count.
+   with the count and those posts.
 3. The DID: `getRecommendedDidCredentials` there, then this server signs
    and sends the PLC operation itself (`IdentityService::handOver()`), with
    the person's recovery key first among the rotation keys and the other
@@ -1843,12 +1848,13 @@ and its followers do not come along: only a move (§13.1) brings them.
 
 Every error answer of the move routes under `/api/v1/social/bluesky/*`,
 and of the account's own Bluesky routes there — identity, recovery
-phrase, `control` (§4.5b), `archive` (§4.5a) — and of the recovery tool
+phrase, custom handle (§4.2), app passwords (§6.3), `control` (§4.5b),
+`archive` (§4.5a) — and of the recovery tool
 (§4.4), carries a stable code beside the English sentence,
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
 explains the code in the person's language, with what they can do next
-(`src/utils/moveError.js`), and a code it does not know with a general
+(`src/utils/blueskyError.js`), and a code it does not know with a general
 sentence; the English sentence is for logs and older clients, and the page
 keeps it behind *Details* for whoever helps the person.
 
@@ -1916,6 +1922,13 @@ keeps it behind *Details* for whoever helps the person.
 | `move-replaced` | An invitation was replaced by a newer one | — |
 | `invite-expired` / `move-expired` | An invitation, or a move driven by a tool, ran out of time | Invite again |
 | `bridgy-unreachable` | Bridgy Fed could not be sent the request | Try again later |
+| `handle-domain-invalid` | A custom handle that is not a domain name a handle can be | Check the domain |
+| `handle-reserved` | A custom handle under this server's handle host | Use a domain of your own |
+| `handle-in-use` | A custom handle another account here has | Use another domain |
+| `handle-not-verified` | Neither the `_atproto` TXT record nor the `.well-known` file of the domain names the DID yet | Add the record, wait for it to spread, and try again |
+| `app-password-name-invalid` | An app password's name is empty or longer than 64 characters | Give it a name |
+| `app-password-name-taken` | The account has an app password of that name | Pick another name |
+| `app-password-limit` | The account has 25 app passwords | Revoke one first |
 | `move-interrupted` | The move's background job stopped twice without finishing (an hour without progress each time) | *Try again*, or call it off while the DID has not moved |
 | `move-failed` | A step stopped for a reason without its own code | The details say why |
 | `server-error` | Something unexpected on this server; the sentence is a fixed one, the details are in the log | Try again; the log has the details |

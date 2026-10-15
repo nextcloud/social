@@ -24,6 +24,7 @@ use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Controller\AtprotoAccountController;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Http;
@@ -108,9 +109,11 @@ class AtprotoAccountHandleTest extends TestCase {
 
 	public function testARefusedHandlePublishesNothing(): void {
 		$controller = $this->controller();
-		$this->handles->method('set')->willThrowException(new \InvalidArgumentException('That handle is another account\'s here'));
+		$this->handles->method('set')->willThrowException(new MoveErrorException('That handle is another account\'s here', 'handle-in-use'));
 		$this->accounts->expects($this->never())->method('queueBlueskyProfile');
 
-		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $controller->setHandle('bob.example.com')->getStatus());
+		$response = $controller->setHandle('bob.example.com');
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(['error' => 'That handle is another account\'s here', 'code' => 'handle-in-use'], $response->getData());
 	}
 }

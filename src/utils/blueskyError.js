@@ -6,9 +6,10 @@
 import { translate as t } from '@nextcloud/l10n'
 
 /**
- * What each code of a Bluesky move error (Atproto-Compatibility §13.5) says
- * to the person, with what they can do next. The server's own sentence is
- * English and names the step that failed, so it is kept for the details.
+ * What each code of an error of the Bluesky routes (Atproto-Compatibility
+ * §13.5: a move, the handle, an app password) says to the person, with what
+ * they can do next. The server's own sentence is English and names the step
+ * that failed, so it is kept for the details.
  *
  * @type {Record<string, () => string>}
  */
@@ -81,28 +82,35 @@ const SENTENCES = {
 	'move-interrupted': () => t('social', 'It was cut off before it finished. Try again: it goes on from where it stopped.'),
 	'move-failed': () => t('social', 'Something went wrong on the way. Try again; if it happens again, the details say what.'),
 	'server-error': () => t('social', 'Something went wrong on this server. Try again; if it happens again, ask your administrator.'),
+	'handle-domain-invalid': () => t('social', 'That is not a domain name. Type a domain you own, such as example.com.'),
+	'handle-reserved': () => t('social', 'Handles under this server\'s own address are given out by the server. Use a domain of your own.'),
+	'handle-in-use': () => t('social', 'Another account here already uses that domain as its handle. Use another domain.'),
+	'handle-not-verified': () => t('social', 'That domain does not point at your account yet. Add the record shown below, wait a few minutes for it to spread, and try again.'),
+	'app-password-name-invalid': () => t('social', 'Give the app password a name of up to 64 characters.'),
+	'app-password-name-taken': () => t('social', 'You have an app password with that name already. Pick another name.'),
+	'app-password-limit': () => t('social', 'You have as many app passwords as you can have. Revoke one you no longer use first.'),
 }
 
 /**
  * @param {string|null|undefined} code a code of §13.5
  * @return {string|null} what it means to the person, or null for a code this page does not know
  */
-export function moveErrorSentence(code) {
+export function blueskyErrorSentence(code) {
 	return Object.hasOwn(SENTENCES, code ?? '') ? SENTENCES[code]() : null
 }
 
 /**
- * Why a request of a move was refused, from the error axios threw.
+ * Why a request to a Bluesky route was refused, from the error axios threw.
  *
  * @param {object} error what axios threw
  * @param {string} fallback what to say when the code is none this page knows
  * @return {{text: string, details: string}} the sentence, and the server's own words for the details
  */
-export function moveErrorOf(error, fallback) {
+export function blueskyErrorOf(error, fallback) {
 	const data = error?.response?.data
 
 	return {
-		text: moveErrorSentence(data?.code) ?? fallback,
+		text: blueskyErrorSentence(data?.code) ?? fallback,
 		details: typeof data?.error === 'string' ? data.error : '',
 	}
 }
@@ -115,7 +123,7 @@ export function moveErrorOf(error, fallback) {
  */
 export function stoppedMoveError(move) {
 	return {
-		text: moveErrorSentence(move?.progress?.code) ?? SENTENCES['move-failed'](),
+		text: blueskyErrorSentence(move?.progress?.code) ?? SENTENCES['move-failed'](),
 		details: move?.error ?? '',
 	}
 }

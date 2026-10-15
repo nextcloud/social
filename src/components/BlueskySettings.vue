@@ -210,12 +210,12 @@
 						class="bluesky-settings__custom-handle-field"
 						:label="t('social', 'Domain to use as your handle')"
 						placeholder="alice.example.org"
-						:error="customHandleError !== ''"
-						:helperText="customHandleError"
+						:error="customHandleError !== null"
 						maxlength="253"
 						:showTrailingButton="false"
-						@update:modelValue="customHandleError = ''"
+						@update:modelValue="customHandleError = null"
 						@keydown.enter.prevent="setCustomHandle" />
+					<BlueskyError v-if="customHandleError" :error="customHandleError" />
 					<div v-if="customHandleDomain !== ''" class="bluesky-settings__custom-handle-steps">
 						<p class="bluesky-settings__hint">
 							{{ t('social', 'Add one of these, then check it:') }}
@@ -391,12 +391,12 @@
 							class="bluesky-settings__app-password-field"
 							:label="t('social', 'Name of the new app password')"
 							:placeholder="t('social', 'The app it is for')"
-							:error="appPasswordNameError !== ''"
-							:helperText="appPasswordNameError"
+							:error="appPasswordNameError !== null"
 							maxlength="64"
 							:showTrailingButton="false"
-							@update:modelValue="appPasswordNameError = ''"
+							@update:modelValue="appPasswordNameError = null"
 							@keydown.enter.prevent="createAppPassword" />
+						<BlueskyError v-if="appPasswordNameError" :error="appPasswordNameError" />
 						<!-- Bluesky's own privileged app passwords: only an app
 						     signed in with one reaches the direct messages -->
 						<NcCheckboxRadioSwitch v-model="appPasswordPrivileged" class="bluesky-settings__app-password-privileged">
@@ -532,10 +532,12 @@ import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import KeyOutline from 'vue-material-design-icons/KeyOutline.vue'
 import { translate as t } from '@nextcloud/l10n'
+import BlueskyError from './BlueskyError.vue'
 import ConfirmDialog from './admin/ConfirmDialog.vue'
 import { confirmPassword } from '../services/externalApi.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { blueskyErrorOf } from '../utils/blueskyError.js'
 import { fromNow, fullDate, fullDateTime } from '../utils/relativeTime.js'
 
 /**
@@ -549,6 +551,7 @@ export default {
 	name: 'BlueskySettings',
 
 	components: {
+		BlueskyError,
 		Check,
 		ConfirmDialog,
 		ContentCopy,
@@ -600,8 +603,12 @@ export default {
 			recoveryKey: null,
 			/** the domain as typed into the own-handle field */
 			customHandle: '',
-			/** what the server said about the domain, under the field */
-			customHandleError: '',
+			/**
+			 * What the server said about the domain, under the field
+			 *
+			 * @type {{text: string, details: string}|null}
+			 */
+			customHandleError: null,
 			/** a handle change is out */
 			changingHandle: false,
 			/** going back to the assigned handle is asking to be confirmed */
@@ -619,8 +626,12 @@ export default {
 			appPasswordName: '',
 			/** whether the new app password reaches the direct messages */
 			appPasswordPrivileged: false,
-			/** what the server said about the name, under the field */
-			appPasswordNameError: '',
+			/**
+			 * What the server said about the name, under the field
+			 *
+			 * @type {{text: string, details: string}|null}
+			 */
+			appPasswordNameError: null,
 			makingAppPassword: false,
 			/**
 			 * The password just made, until it is dismissed; it is never
@@ -885,7 +896,7 @@ export default {
 				return
 			}
 			this.changingHandle = true
-			this.customHandleError = ''
+			this.customHandleError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/handle'), { handle })
 				this.takeIdentity(data)
@@ -894,7 +905,7 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.customHandleError = error.response.data?.error || t('social', 'Could not set the handle')
+					this.customHandleError = blueskyErrorOf(error, t('social', 'Could not set the handle'))
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
@@ -980,7 +991,7 @@ export default {
 				return
 			}
 			this.makingAppPassword = true
-			this.appPasswordNameError = ''
+			this.appPasswordNameError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/app-passwords'), { name, privileged: this.appPasswordPrivileged })
 				this.appPasswords = data.app_passwords
@@ -990,7 +1001,7 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.appPasswordNameError = error.response.data?.error || t('social', 'Could not make an app password with that name')
+					this.appPasswordNameError = blueskyErrorOf(error, t('social', 'Could not make an app password with that name'))
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')

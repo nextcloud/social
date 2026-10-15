@@ -8,7 +8,7 @@
 			{{ n('social', '%n picture or video of your posts could not be copied here.', '%n pictures or videos of your posts could not be copied here.', count) }}
 			{{ t('social', 'Your account is not pointed at this server until you decide.') }}
 		</p>
-		<BlueskyMoveError v-if="error" :error="error" />
+		<BlueskyError v-if="error" :error="error" />
 		<div class="migration__bluesky-missing-actions">
 			<NcButton :disabled="busy" @click="decide(false)">
 				{{ t('social', 'Try copying them again') }}
@@ -24,7 +24,9 @@
 			:message="n('social', '%n picture or video of your posts could not be copied here. Your account is pointed at this server without it: the posts that show it lose it, and it is not copied later.', '%n pictures or videos of your posts could not be copied here. Your account is pointed at this server without them: the posts that show them lose them, and they are not copied later.', count)"
 			:confirmLabel="t('social', 'Go on without them')"
 			@update:open="confirming = false"
-			@confirm="decide(true)" />
+			@confirm="decide(true)">
+			<BlueskyMissingRecords :records="move.progress?.missing_records ?? []" />
+		</ConfirmDialog>
 	</NcNoteCard>
 </template>
 
@@ -34,10 +36,11 @@ import { generateUrl } from '@nextcloud/router'
 import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import BlueskyMoveError from './BlueskyMoveError.vue'
+import BlueskyError from './BlueskyError.vue'
+import BlueskyMissingRecords from './BlueskyMissingRecords.vue'
 import ConfirmDialog from './admin/ConfirmDialog.vue'
 import { showError } from '../services/toast.js'
-import { moveErrorOf } from '../utils/moveError.js'
+import { blueskyErrorOf } from '../utils/blueskyError.js'
 
 /**
  * A move here that stopped because pictures or videos did not arrive
@@ -49,7 +52,8 @@ export default {
 	name: 'BlueskyMissingBlobs',
 
 	components: {
-		BlueskyMoveError,
+		BlueskyError,
+		BlueskyMissingRecords,
 		ConfirmDialog,
 		NcButton,
 		NcNoteCard,
@@ -97,7 +101,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move-in/continue'), { without_missing: withoutMissing })
 				this.$emit('move', data?.move)
 			} catch (error) {
-				const reason = moveErrorOf(error, t('social', 'Could not go on with the move'))
+				const reason = blueskyErrorOf(error, t('social', 'Could not go on with the move'))
 				if (error?.response?.status === 422) {
 					this.error = reason
 				} else {

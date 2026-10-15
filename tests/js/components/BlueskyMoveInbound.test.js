@@ -228,8 +228,8 @@ describe('BlueskyMoveInbound', () => {
 		const wrapper = await mountCard()
 
 		expect(wrapper.text()).toContain('The move stopped.')
-		expect(wrapper.find('.bluesky-move-error p').text()).toBe('Bridgy Fed could not be reached. Try again later.')
-		expect(wrapper.find('.bluesky-move-error__details code').text()).toBe('Bridgy Fed could not be asked')
+		expect(wrapper.find('.bluesky-error p').text()).toBe('Bridgy Fed could not be reached. Try again later.')
+		expect(wrapper.find('.bluesky-error__details code').text()).toBe('Bridgy Fed could not be asked')
 	})
 
 	it('leaves the other moves to their cards', async () => {

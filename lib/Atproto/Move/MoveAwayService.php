@@ -429,9 +429,44 @@ class MoveAwayService {
 		}
 		$missing = max(0, (int)($status['expectedBlobs'] ?? 0) - (int)($status['importedBlobs'] ?? 0));
 		$move->progress['missing'] = $missing;
+		unset($move->progress['missing_records']);
 		if ($missing > 0) {
+			$move->progress['missing_records'] = $this->missingRecords($move);
 			throw new MoveErrorException($missing . ' pictures or videos did not arrive on the other server', 'blobs-missing');
 		}
+	}
+
+	/**
+	 * The records that lose what did not arrive, as the other PDS names
+	 * them on its first page of missing blobs, the way the person is shown
+	 * them (MovedBlobs::named()); none when it cannot be asked.
+	 *
+	 * @return list<array{collection: string, rkey: string, created_at: string, text: string, url: string}>
+	 */
+	private function missingRecords(Move $move): array {
+		try {
+			$page = $this->authed($move, 'com.atproto.repo.listMissingBlobs', 'GET', ['limit' => self::MAX_BLOBS_PER_PAGE]);
+		} catch (AtprotoException $e) {
+			$this->logger->info('The other server did not say which records miss blobs', ['did' => $move->did, 'exception' => $e]);
+
+			return [];
+		}
+		$records = [];
+		foreach (is_array($page['blobs'] ?? null) ? $page['blobs'] : [] as $missing) {
+			$uri = Syntax::parseAtUri(is_array($missing) ? (string)($missing['recordUri'] ?? '') : '');
+			if ($uri === null || $uri['authority'] !== $move->did || $uri['rkey'] === '' || isset($records[$uri['collection'] . '/' . $uri['rkey']])) {
+				continue;
+			}
+			$record = $this->repositories->getRecord($move->did, $uri['collection'], $uri['rkey']);
+			if ($record !== null) {
+				$records[$record->path()] = $record;
+			}
+			if (count($records) >= MovedBlobs::NAMED) {
+				break;
+			}
+		}
+
+		return MovedBlobs::named($records);
 	}
 
 	/**

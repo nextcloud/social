@@ -54,6 +54,16 @@ describe('the confirmation dialog', () => {
 			.toBe('Their posts stay, and nothing new arrives from them.')
 	})
 
+	it('lists what it touches below the message', () => {
+		const wrapper = mount(ConfirmDialog, {
+			props: { open: true, name: 'Go on?', message: 'Two are lost.', confirmLabel: 'Go on' },
+			slots: { default: '<ul class="touched"><li>one</li><li>two</li></ul>' },
+			global: { stubs: { NcDialog } },
+		})
+
+		expect(wrapper.find('.touched').text()).toBe('onetwo')
+	})
+
 	/** "Cancel" and the verb itself, never "OK": a button says what it does. */
 	it('names the action on the button that performs it', () => {
 		const [cancel, confirm] = buttons(mountDialog())

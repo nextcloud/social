@@ -29,10 +29,10 @@ const NcDialog = {
  * @param {number} count how many pictures or videos did not arrive
  * @return {object} the mounted card
  */
-function mountCard(count = 4) {
+function mountCard(count = 4, records = undefined) {
 	return mount(BlueskyMissingBlobs, {
 		props: {
-			move: { id: 1, direction: 'in', state: 'needs_decision', progress: { code: 'blobs-missing', missing: { count, cids: [] } }, error: '' },
+			move: { id: 1, direction: 'in', state: 'needs_decision', progress: { code: 'blobs-missing', missing: { count, cids: [] }, missing_records: records }, error: '' },
 		},
 		global: { stubs: { NcDialog } },
 	})
@@ -65,6 +65,30 @@ describe('BlueskyMissingBlobs', () => {
 		expect(axios.post).not.toHaveBeenCalled()
 		expect(wrapper.findComponent(NcDialog).props('name')).toBe('Go on without them?')
 		expect(wrapper.find('.dialog-stub').text()).toBe('4 pictures or videos of your posts could not be copied here. Your account is pointed at this server without them: the posts that show them lose them, and they are not copied later.')
+	})
+
+	it('names the posts that lose them, with a link where they can be read', async () => {
+		const wrapper = mountCard(3, [
+			{ collection: 'app.bsky.feed.post', rkey: '3kone', created_at: '2026-05-01T18:00:00.000Z', text: 'Sunset at the lake', url: 'https://bsky.app/profile/did:plc:alice/post/3kone' },
+			{ collection: 'app.bsky.feed.post', rkey: '3ktwo', created_at: '', text: '', url: 'https://social.test/@alice/115' },
+			{ collection: 'app.bsky.actor.profile', rkey: 'self', created_at: '', text: '', url: '' },
+		])
+
+		await buttonNamed(wrapper, 'Go on without them').trigger('click')
+
+		const items = wrapper.findAll('.dialog-stub li')
+		expect(items.map((item) => item.text())).toEqual(['May 1, 2026Sunset at the lake', 'A post without text', 'Your profile picture or header'])
+		expect(items[0].find('a').attributes('href')).toBe('https://bsky.app/profile/did:plc:alice/post/3kone')
+		expect(items[1].find('a').attributes('href')).toBe('https://social.test/@alice/115')
+		expect(items[2].find('a').exists()).toBe(false)
+	})
+
+	it('lists nothing when the server named no post', async () => {
+		const wrapper = mountCard()
+
+		await buttonNamed(wrapper, 'Go on without them').trigger('click')
+
+		expect(wrapper.find('.dialog-stub ul').exists()).toBe(false)
 	})
 
 	it('says it in the singular for one', async () => {
@@ -108,7 +132,7 @@ describe('BlueskyMissingBlobs', () => {
 		await flushPromises()
 
 		expect(wrapper.find('[role="alert"]').text()).toBe('The move is not waiting for a decision any more. Reload the page to see where it stands.')
-		expect(wrapper.find('.bluesky-move-error__details code').text()).toBe('The move does not wait for a decision')
+		expect(wrapper.find('.bluesky-error__details code').text()).toBe('The move does not wait for a decision')
 		expect(showError).not.toHaveBeenCalled()
 	})
 })

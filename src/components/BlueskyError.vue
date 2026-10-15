@@ -3,12 +3,12 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="bluesky-move-error">
-		<p :role="alert ? 'alert' : undefined" :class="{ 'bluesky-move-error__text': alert }">
+	<div class="bluesky-error">
+		<p :role="alert ? 'alert' : undefined" :class="{ 'bluesky-error__text': alert }">
 			{{ error.text }}
 		</p>
 		<!-- the server's own words, in English, for whoever helps the person -->
-		<details v-if="error.details && error.details !== error.text" class="bluesky-move-error__details">
+		<details v-if="error.details && error.details !== error.text" class="bluesky-error__details">
 			<summary>{{ t('social', 'Details') }}</summary>
 			<code>{{ error.details }}</code>
 		</details>
@@ -19,14 +19,15 @@
 import { t } from '@nextcloud/l10n'
 
 /**
- * Why a Bluesky move was refused or stopped, in the person's words
- * (utils/moveError.js), with what the server said behind "Details".
+ * Why a Bluesky move or setting was refused, or a move stopped, in the
+ * person's words (utils/blueskyError.js), with what the server said behind
+ * "Details".
  */
 export default {
-	name: 'BlueskyMoveError',
+	name: 'BlueskyError',
 
 	props: {
-		/** `{text, details}`, as utils/moveError.js makes it */
+		/** `{text, details}`, as utils/blueskyError.js makes it */
 		error: {
 			type: Object,
 			required: true,
@@ -46,7 +47,7 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.bluesky-move-error {
+.bluesky-error {
 	p {
 		margin-bottom: 4px;
 	}

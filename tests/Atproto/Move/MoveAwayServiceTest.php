@@ -18,11 +18,13 @@ use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Model\RepoHead;
+use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Move\MoveAnnouncement;
 use OCA\Social\Atproto\Move\MoveAwayService;
 use OCA\Social\Atproto\Move\MoveFailure;
 use OCA\Social\Atproto\Move\PdsClient;
 use OCA\Social\Atproto\Protocol\Cid;
+use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Atproto\Publisher\PictureService;
 use OCA\Social\Atproto\Publisher\Publisher;
@@ -99,6 +101,14 @@ class MoveAwayServiceTest extends TestCase {
 		$repositories = $this->createMock(RepositoryService::class);
 		$repositories->method('exportCar')->with(self::DID)->willReturnCallback(fn (): string => 'the car at ' . ($this->head?->commitCid ?? 'nothing'));
 		$repositories->method('getHead')->willReturnCallback(fn (): ?RepoHead => $this->head);
+		$repositories->method('getRecord')->willReturnCallback(static function (string $did, string $collection, string $rkey): ?StoredRecord {
+			if ($collection !== 'app.bsky.feed.post' || $rkey !== '3kpic') {
+				return null;
+			}
+			$bytes = DagCbor::encode(['$type' => 'app.bsky.feed.post', 'text' => 'my cat', 'createdAt' => '2026-03-01T10:00:00.000Z']);
+
+			return new StoredRecord($did, $collection, $rkey, Cid::forDagCbor($bytes), $bytes, 'https://social.test/@alice/42', 1);
+		});
 		$cid = Cid::forRaw('pixels');
 		$blobs = $this->createMock(AtprotoBlobRequest::class);
 		$blobs->method('get')->willReturnCallback(static fn (string $did, string $c): ?BlobRef => $c === $cid->toString() ? new BlobRef(self::DID, $cid, 'doc', 'image/jpeg', 6) : null);
@@ -313,10 +323,28 @@ class MoveAwayServiceTest extends TestCase {
 		$this->answers['com.atproto.server.checkAccountStatus'] = [['status' => 200, 'body' => ['repoCommit' => 'bafyhead', 'indexedRecords' => 12, 'expectedBlobs' => 5, 'importedBlobs' => 2]]];
 		$this->identities->expects($this->never())->method('handOver');
 
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [
+			// the copy finds nothing more it can send
+			['status' => 200, 'body' => ['blobs' => []]],
+			['status' => 200, 'body' => ['blobs' => [
+				['cid' => 'bafkone', 'recordUri' => 'at://' . self::DID . '/app.bsky.feed.post/3kpic'],
+				['cid' => 'bafktwo', 'recordUri' => 'at://' . self::DID . '/app.bsky.feed.post/3kpic'],
+				['cid' => 'bafkthree', 'recordUri' => 'at://did:plc:someoneelse/app.bsky.feed.post/3kpic'],
+				['cid' => 'bafkfour', 'recordUri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone'],
+			]]],
+		];
+
 		$this->moves->run($move->id);
 
 		$row = $this->rows[1];
 		$this->assertSame([Move::NEEDS_DECISION, Move::STEP_CHECK, 'blobs-missing', 3, 'repo_copied'], [$row->state, $row->step, $row->progress['code'], $row->progress['missing'], $row->progress['stage']]);
+		$this->assertSame([[
+			'collection' => 'app.bsky.feed.post',
+			'rkey' => '3kpic',
+			'created_at' => '2026-03-01T10:00:00.000Z',
+			'text' => 'my cat',
+			'url' => 'https://social.test/@alice/42',
+		]], $row->progress['missing_records'], 'the posts that lose them are named, each once, only the account\'s own');
 		$this->assertTrue($row->isUnderWay(), 'no other move starts meanwhile');
 	}
 
@@ -332,7 +360,7 @@ class MoveAwayServiceTest extends TestCase {
 		$this->moves->proceed('alice', false);
 		$this->assertSame([Move::RUNNING, Move::STEP_BLOBS], [$this->rows[1]->state, $this->rows[1]->step]);
 		$this->moves->run($move->id);
-		$this->assertSame(['com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus'], array_column($this->calls, 'method'), 'copied again and asked again');
+		$this->assertSame(['com.atproto.repo.listMissingBlobs', 'app.bsky.actor.putPreferences', 'com.atproto.server.checkAccountStatus', 'com.atproto.repo.listMissingBlobs'], array_column($this->calls, 'method'), 'copied again and asked again, and which records lose what is missing');
 		$this->assertSame([Move::NEEDS_DECISION, 1], [$this->rows[1]->state, $this->rows[1]->progress['missing']]);
 
 		$this->identities->expects($this->once())->method('handOver');

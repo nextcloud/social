@@ -9,8 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Client;
 
-use InvalidArgumentException;
 use OCA\Social\Db\AtprotoClientRequest;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCP\DB\Exception as DBException;
 use OCP\Security\ISecureRandom;
 
@@ -34,22 +34,22 @@ class AppPasswordService {
 	/**
 	 * @param bool $privileged whether an app signed in with it reaches the direct messages
 	 * @return array{id: int, name: string, password: string, privileged: bool} the password, the one time it is seen
-	 * @throws InvalidArgumentException for an empty or taken name, or too many passwords
+	 * @throws MoveErrorException for an empty or taken name, or too many passwords, with its code (§13.5)
 	 */
 	public function create(string $userId, string $name, bool $privileged = false): array {
 		$name = trim($name);
 		if ($name === '' || mb_strlen($name) > 64) {
-			throw new InvalidArgumentException('A name of 1 to 64 characters is needed');
+			throw new MoveErrorException('A name of 1 to 64 characters is needed', 'app-password-name-invalid');
 		}
 		if (count($this->request->getAppPasswords($userId)) >= self::MAX_PER_USER) {
-			throw new InvalidArgumentException('There are ' . self::MAX_PER_USER . ' app passwords already');
+			throw new MoveErrorException('There are ' . self::MAX_PER_USER . ' app passwords already', 'app-password-limit');
 		}
 		$password = implode('-', array_map(fn (int $group): string => $this->random->generate(4, self::ALPHABET), range(1, 4)));
 		try {
 			$id = $this->request->addAppPassword($userId, $name, password_hash($password, PASSWORD_DEFAULT), $privileged);
 		} catch (DBException $e) {
 			if ($e->getReason() === DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-				throw new InvalidArgumentException('There is an app password with that name');
+				throw new MoveErrorException('There is an app password with that name', 'app-password-name-taken');
 			}
 			throw $e;
 		}

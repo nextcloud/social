@@ -674,7 +674,7 @@ describe('BlueskySettings', () => {
 
 		it('says what was wrong with the name under the field', async () => {
 			serverHasPasswords()
-			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'There is an app password with that name' } } })
+			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'There is an app password with that name', code: 'app-password-name-taken' } } })
 			const wrapper = mountSettings()
 			await flushPromises()
 
@@ -682,8 +682,9 @@ describe('BlueskySettings', () => {
 			await buttonByText(wrapper, 'Make an app password').trigger('click')
 			await flushPromises()
 
-			expect(section(wrapper).find('.bluesky-settings__app-password-create').text())
-				.toContain('There is an app password with that name')
+			const create = section(wrapper).find('.bluesky-settings__app-password-create')
+			expect(create.find('[role="alert"]').text()).toBe('You have an app password with that name already. Pick another name.')
+			expect(create.find('.bluesky-error__details code').text()).toBe('There is an app password with that name')
 			expect(showError).not.toHaveBeenCalled()
 			expect(section(wrapper).find('.bluesky-settings__new-password').exists()).toBe(false)
 			expect(nameField(wrapper).element.value).toBe('Tablet')
@@ -1012,7 +1013,7 @@ describe('BlueskySettings', () => {
 
 		it('says what was wrong with the domain under the field', async () => {
 			serverHas(handleIdentity())
-			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'alice.example.org does not name your account yet.' } } })
+			axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'Neither _atproto.alice.example.org nor https://alice.example.org/.well-known/atproto-did names did:plc:abc123 yet', code: 'handle-not-verified' } } })
 			const wrapper = mountSettings()
 			await flushPromises()
 
@@ -1020,10 +1021,15 @@ describe('BlueskySettings', () => {
 			await buttonByText(wrapper, 'Check and use it').trigger('click')
 			await flushPromises()
 
-			expect(section(wrapper).text()).toContain('alice.example.org does not name your account yet.')
+			expect(section(wrapper).find('[role="alert"]').text()).toBe('That domain does not point at your account yet. Add the record shown below, wait a few minutes for it to spread, and try again.')
+			expect(section(wrapper).find('.bluesky-error__details code').text()).toContain('_atproto.alice.example.org')
 			expect(showError).not.toHaveBeenCalled()
 			expect(showSuccess).not.toHaveBeenCalled()
 			expect(domainField(wrapper).element.value).toBe('alice.example.org')
+
+			// typing again clears what the server said
+			await domainField(wrapper).setValue('alice.example.com')
+			expect(section(wrapper).find('[role="alert"]').exists()).toBe(false)
 		})
 
 		it('asks for the password again when the server says the confirmation ran out', async () => {

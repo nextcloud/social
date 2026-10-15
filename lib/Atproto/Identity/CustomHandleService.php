@@ -9,10 +9,11 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Identity;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Db\AtprotoIdentityRequest;
 use OCA\Social\Exceptions\AtprotoException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -43,26 +44,26 @@ class CustomHandleService {
 
 	/**
 	 * @return Identity the identity with its new handle
-	 * @throws InvalidArgumentException with what to tell the person
+	 * @throws MoveErrorException with what to tell the person, and its code (§13.5)
 	 * @throws AtprotoException
 	 */
 	public function set(Identity $identity, string $typed): Identity {
 		if (!$identity->isActive()) {
-			throw new InvalidArgumentException('The Bluesky account is not active');
+			throw new MoveErrorException('The Bluesky account is not active', 'identity-inactive');
 		}
 		$handle = HandleVerifier::normal($typed);
 		$refusal = $this->verifier->refusal($handle);
 		if ($refusal !== '') {
-			throw new InvalidArgumentException($refusal);
+			throw new MoveErrorException($refusal, Syntax::isResolvableHandle($handle) ? 'handle-reserved' : 'handle-domain-invalid');
 		}
 		if ($handle === $identity->handle) {
 			return $identity;
 		}
 		if ($this->identityRequest->handleExists($handle)) {
-			throw new InvalidArgumentException('That handle is another account\'s here');
+			throw new MoveErrorException('That handle is another account\'s here', 'handle-in-use');
 		}
 		if ($this->verifier->verify($handle, $identity->did) === '') {
-			throw new InvalidArgumentException('Neither _atproto.' . $handle . ' nor https://' . $handle . '/.well-known/atproto-did names ' . $identity->did . ' yet');
+			throw new MoveErrorException('Neither _atproto.' . $handle . ' nor https://' . $handle . '/.well-known/atproto-did names ' . $identity->did . ' yet', 'handle-not-verified');
 		}
 
 		return $this->identities->useCustomHandle($identity, $handle);

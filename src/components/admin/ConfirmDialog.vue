@@ -11,6 +11,8 @@
 		<p class="confirm-dialog__message">
 			{{ message }}
 		</p>
+		<!-- what it touches, when there is a list of it -->
+		<slot />
 	</NcDialog>
 </template>
 

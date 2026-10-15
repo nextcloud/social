@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { moveErrorOf, moveErrorSentence, stoppedMoveError } from '../../../src/utils/moveError.js'
+import { blueskyErrorOf, blueskyErrorSentence, stoppedMoveError } from '../../../src/utils/blueskyError.js'
 
 /** The codes the table of Atproto-Compatibility §13.5 lists, as the server sends them. */
 function documentedCodes() {
@@ -20,42 +20,42 @@ function documentedCodes() {
 /** Words a person moving their account should not have to know. */
 const JARGON = /\b(PDS|DID|PLC|XRPC|[Aa]tproto|ActivityPub|[Ff]ediverse|blobs?|repo|HTTP)\b/
 
-describe('moveErrorSentence', () => {
+describe('blueskyErrorSentence', () => {
 	it('has a plain sentence for every code the server documents', () => {
 		const codes = documentedCodes()
 		expect(codes.length).toBeGreaterThan(60)
 
 		// not an error: the answer of a move that was called off
-		const missing = codes.filter((code) => code !== 'target-account-left' && moveErrorSentence(code) === null)
+		const missing = codes.filter((code) => code !== 'target-account-left' && blueskyErrorSentence(code) === null)
 		expect(missing).toEqual([])
 	})
 
 	it('knows the codes the server sends beside the table', () => {
-		expect(moveErrorSentence('move-called-off')).toBe('The move was called off.')
-		expect(moveErrorSentence('server-error')).toBe('Something went wrong on this server. Try again; if it happens again, ask your administrator.')
-		expect(moveErrorSentence('move-interrupted')).toBe('It was cut off before it finished. Try again: it goes on from where it stopped.')
+		expect(blueskyErrorSentence('move-called-off')).toBe('The move was called off.')
+		expect(blueskyErrorSentence('server-error')).toBe('Something went wrong on this server. Try again; if it happens again, ask your administrator.')
+		expect(blueskyErrorSentence('move-interrupted')).toBe('It was cut off before it finished. Try again: it goes on from where it stopped.')
 	})
 
 	it('says nothing technical', () => {
 		const offending = documentedCodes()
-			.map((code) => moveErrorSentence(code))
+			.map((code) => blueskyErrorSentence(code))
 			.filter((sentence) => sentence !== null && JARGON.test(sentence))
 		expect(offending).toEqual([])
 	})
 
 	it('knows nothing of a code it was not given, nor of the object prototype', () => {
-		expect(moveErrorSentence('no-such-code')).toBeNull()
-		expect(moveErrorSentence('constructor')).toBeNull()
-		expect(moveErrorSentence(undefined)).toBeNull()
-		expect(moveErrorSentence('')).toBeNull()
+		expect(blueskyErrorSentence('no-such-code')).toBeNull()
+		expect(blueskyErrorSentence('constructor')).toBeNull()
+		expect(blueskyErrorSentence(undefined)).toBeNull()
+		expect(blueskyErrorSentence('')).toBeNull()
 	})
 })
 
-describe('moveErrorOf', () => {
+describe('blueskyErrorOf', () => {
 	it('says what the code means, and keeps the server\'s sentence for the details', () => {
 		const error = { response: { status: 422, data: { error: 'The PDS at https://pds.example could not be reached: Connection refused', code: 'pds-unreachable' } } }
 
-		expect(moveErrorOf(error, 'Could not start the move')).toEqual({
+		expect(blueskyErrorOf(error, 'Could not start the move')).toEqual({
 			text: 'The other server did not answer. Try again later.',
 			details: 'The PDS at https://pds.example could not be reached: Connection refused',
 		})
@@ -64,12 +64,12 @@ describe('moveErrorOf', () => {
 	it('falls back to the plain sentence it was given for a code it does not know', () => {
 		const error = { response: { status: 422, data: { error: 'Something new', code: 'brand-new' } } }
 
-		expect(moveErrorOf(error, 'Could not start the move')).toEqual({ text: 'Could not start the move', details: 'Something new' })
+		expect(blueskyErrorOf(error, 'Could not start the move')).toEqual({ text: 'Could not start the move', details: 'Something new' })
 	})
 
 	it('has no details when the server sent none', () => {
-		expect(moveErrorOf(new Error('Network Error'), 'Could not start the move')).toEqual({ text: 'Could not start the move', details: '' })
-		expect(moveErrorOf({ response: { status: 500, data: '<html>' } }, 'Could not start the move')).toEqual({ text: 'Could not start the move', details: '' })
+		expect(blueskyErrorOf(new Error('Network Error'), 'Could not start the move')).toEqual({ text: 'Could not start the move', details: '' })
+		expect(blueskyErrorOf({ response: { status: 500, data: '<html>' } }, 'Could not start the move')).toEqual({ text: 'Could not start the move', details: '' })
 	})
 })
 

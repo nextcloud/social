@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Client;
 
-use InvalidArgumentException;
 use OCA\Social\Atproto\Client\AppPasswordService;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Client\SessionService;
@@ -23,6 +22,7 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IUser;
@@ -98,8 +98,33 @@ class SessionServiceTest extends TestCase {
 		$this->assertNotSame($created['password'], $stored['hash']);
 		$this->assertTrue(password_verify($created['password'], $stored['hash']));
 		$this->assertSame([['id' => $created['id'], 'name' => 'Bluesky on my phone', 'creation' => 1, 'last_used' => 0, 'privileged' => false]], $this->appPasswords->list('alice'), 'never the hash, never the password');
-		$this->expectException(InvalidArgumentException::class);
+		$this->expectException(MoveErrorException::class);
 		$this->appPasswords->create('alice', 'Bluesky on my phone');
+	}
+
+	/** Each refusal carries the code the settings page explains (§13.5). */
+	public function testARefusedAppPasswordSaysWhyByCode(): void {
+		$this->appPasswords->create('alice', 'phone');
+		$codes = [];
+		foreach (['', str_repeat('x', 65), 'phone'] as $name) {
+			try {
+				$this->appPasswords->create('alice', $name);
+				$this->fail('made ' . $name);
+			} catch (MoveErrorException $e) {
+				$codes[] = $e->errorCode;
+			}
+		}
+		$this->assertSame(['app-password-name-invalid', 'app-password-name-invalid', 'app-password-name-taken'], $codes);
+
+		for ($i = 1; $i < AppPasswordService::MAX_PER_USER; $i++) {
+			$this->appPasswords->create('alice', 'app ' . $i);
+		}
+		try {
+			$this->appPasswords->create('alice', 'one more');
+			$this->fail('made one past the limit');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('app-password-limit', $e->errorCode);
+		}
 	}
 
 	public function testSigningInGivesTokensSignedByThisServerForThisServer(): void {

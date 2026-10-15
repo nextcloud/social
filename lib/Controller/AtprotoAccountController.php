@@ -225,8 +225,8 @@ class AtprotoAccountController extends Controller {
 		}
 		try {
 			$created = $this->appPasswords->create($this->userId(), $name, $privileged);
-		} catch (\InvalidArgumentException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (MoveErrorException $e) {
+			return $this->moveError($e);
 		}
 
 		return new DataResponse($created + ['app_passwords' => $this->appPasswords->list($this->userId())]);
@@ -259,8 +259,8 @@ class AtprotoAccountController extends Controller {
 			$this->handleChanged();
 
 			return new DataResponse(self::export($changed));
-		} catch (\InvalidArgumentException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+		} catch (MoveErrorException $e) {
+			return $this->moveError($e);
 		} catch (Throwable $e) {
 			return $this->moveError($e, Http::STATUS_INTERNAL_SERVER_ERROR);
 		}

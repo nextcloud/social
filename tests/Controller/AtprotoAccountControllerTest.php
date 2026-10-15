@@ -53,6 +53,7 @@ class AtprotoAccountControllerTest extends TestCase {
 	private InboundMoveService&MockObject $inbound;
 	private IdentityService&MockObject $identities;
 	private MoveAwayService&MockObject $moveAway;
+	private AppPasswordService&MockObject $appPasswords;
 	private bool $enabled = true;
 	private LoggerInterface&MockObject $logger;
 
@@ -63,6 +64,7 @@ class AtprotoAccountControllerTest extends TestCase {
 		$this->inbound = $this->createMock(InboundMoveService::class);
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->moveAway = $this->createMock(MoveAwayService::class);
+		$this->appPasswords = $this->createMock(AppPasswordService::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
 	}
 
@@ -78,7 +80,7 @@ class AtprotoAccountControllerTest extends TestCase {
 
 		return new AtprotoAccountController(
 			$this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->publisher,
-			$this->createStub(LabelerService::class), $this->createStub(AppPasswordService::class), $this->createStub(AuthorizationServer::class),
+			$this->createStub(LabelerService::class), $this->appPasswords, $this->createStub(AuthorizationServer::class),
 			$this->createStub(CustomHandleService::class), $this->moveAway, $this->moveIn,
 			$this->inbound, $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
 			$this->logger,
@@ -118,6 +120,16 @@ class AtprotoAccountControllerTest extends TestCase {
 		}
 		$limit = (new \ReflectionMethod(AtprotoAccountController::class, 'newMoveInCode'))->getAttributes(UserRateLimit::class)[0]->newInstance();
 		$this->assertSame([3, 3600], [$limit->getLimit(), $limit->getPeriod()]);
+	}
+
+	/** A refused app password answers the code the settings page explains, beside the sentence. */
+	public function testARefusedAppPasswordSaysWhyByCode(): void {
+		$this->appPasswords->method('create')->willThrowException(new MoveErrorException('There is an app password with that name', 'app-password-name-taken'));
+
+		$response = $this->controller()->createAppPassword('phone');
+
+		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
+		$this->assertSame(['error' => 'There is an app password with that name', 'code' => 'app-password-name-taken'], $response->getData());
 	}
 
 	public function testANewCodeSaysWhereItWent(): void {

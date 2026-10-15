@@ -210,7 +210,8 @@ describe('BlueskyMoveAway', () => {
 	})
 
 	it('lets a move that waits for a decision copy again, switch without what is missing, or be called off', async () => {
-		server({ moves: [moveOf('needs_decision', 'check', { progress: { code: 'blobs-missing', missing: 3, stage: 'repo_copied' } })] })
+		const lost = [{ collection: 'app.bsky.feed.post', rkey: '3kpic', created_at: '2026-03-01T10:00:00.000Z', text: 'my cat', url: 'https://social.test/@alice/42' }]
+		server({ moves: [moveOf('needs_decision', 'check', { progress: { code: 'blobs-missing', missing: 3, missing_records: lost, stage: 'repo_copied' } })] })
 		axios.post.mockResolvedValue({ data: { move: moveOf('running', 'identity') } })
 		const wrapper = await mountCard()
 
@@ -219,6 +220,7 @@ describe('BlueskyMoveAway', () => {
 		await flushPromises()
 		expect(axios.post).not.toHaveBeenCalled()
 		expect(confirmDialog(wrapper).props('message')).toBe('3 pictures or videos did not arrive on https://pds.example. Your account is pointed at https://pds.example without them: the posts that show them lose them there, and they are not copied later.')
+		expect(confirmDialog(wrapper).findComponent({ name: 'BlueskyMissingRecords' }).props('records')).toEqual(lost)
 
 		confirmDialog(wrapper).vm.$emit('confirm')
 		await flushPromises()
@@ -312,7 +314,7 @@ describe('BlueskyMoveAway', () => {
 		await flushPromises()
 
 		expect(wrapper.find('[role="alert"]').text()).toBe('That server needs an invite code. Ask the people who run it for one and enter it.')
-		expect(wrapper.find('.bluesky-move-error__details code').text()).toBe('That server needs an invite code')
+		expect(wrapper.find('.bluesky-error__details code').text()).toBe('That server needs an invite code')
 		expect(showError).not.toHaveBeenCalled()
 		expect(wrapper.find('.migration__bluesky-form').exists()).toBe(true)
 	})
@@ -413,8 +415,8 @@ describe('BlueskyMoveAway', () => {
 		const wrapper = await mountCard()
 
 		expect(wrapper.find('.migration__bluesky-failed').text()).toContain('The move stopped.')
-		expect(wrapper.find('.bluesky-move-error').text()).toContain('The other server refused a step of the move. Try again; if it happens again, the details say which step.')
-		expect(wrapper.find('.bluesky-move-error__details code').text()).toBe('com.atproto.repo.uploadBlob answered 502')
+		expect(wrapper.find('.bluesky-error').text()).toContain('The other server refused a step of the move. Try again; if it happens again, the details say which step.')
+		expect(wrapper.find('.bluesky-error__details code').text()).toBe('com.atproto.repo.uploadBlob answered 502')
 		await buttonNamed(wrapper, 'Try again').trigger('click')
 		await flushPromises()
 

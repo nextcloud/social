@@ -46,7 +46,7 @@
 		<template v-else>
 			<NcNoteCard v-if="move && move.state === 'failed'" type="error">
 				<p>{{ t('social', 'The move stopped.') }}</p>
-				<BlueskyMoveError :error="stoppedError" :alert="false" />
+				<BlueskyError :error="stoppedError" :alert="false" />
 			</NcNoteCard>
 
 			<template v-if="twin">
@@ -120,7 +120,7 @@
 					</NcButton>
 				</div>
 			</details>
-			<BlueskyMoveError v-if="inviteError" :error="inviteError" />
+			<BlueskyError v-if="inviteError" :error="inviteError" />
 		</template>
 	</section>
 </template>
@@ -136,10 +136,10 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconBridge from 'vue-material-design-icons/Bridge.vue'
 import BlueskyMissingBlobs from './BlueskyMissingBlobs.vue'
-import BlueskyMoveError from './BlueskyMoveError.vue'
+import BlueskyError from './BlueskyError.vue'
 import { t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
-import { moveErrorOf, stoppedMoveError } from '../utils/moveError.js'
+import { blueskyErrorOf, stoppedMoveError } from '../utils/blueskyError.js'
 
 /** How often a move under way is asked about, in milliseconds. */
 const POLL_INTERVAL = 10000
@@ -155,7 +155,7 @@ export default {
 
 	components: {
 		BlueskyMissingBlobs,
-		BlueskyMoveError,
+		BlueskyError,
 		IconBridge,
 		NcButton,
 		NcLoadingIcon,
@@ -349,12 +349,12 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.inviteError = moveErrorOf(error, t('social', 'Could not invite the account'))
+					this.inviteError = blueskyErrorOf(error, t('social', 'Could not invite the account'))
 					this.confirming = ''
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
-						: moveErrorOf(error, t('social', 'Could not invite the account')).text)
+						: blueskyErrorOf(error, t('social', 'Could not invite the account')).text)
 				}
 			} finally {
 				this.busy = false
@@ -380,7 +380,7 @@ export default {
 			} catch (error) {
 				showError(error?.response?.status === 403
 					? t('social', 'Confirm your password again and retry.')
-					: moveErrorOf(error, t('social', 'Could not call the move off')).text)
+					: blueskyErrorOf(error, t('social', 'Could not call the move off')).text)
 			} finally {
 				this.busy = false
 			}

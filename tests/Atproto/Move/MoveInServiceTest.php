@@ -246,6 +246,11 @@ class MoveInServiceTest extends TestCase {
 				$each(Cid::forDagCbor($bytes), $bytes, $path);
 			}
 		});
+		$repoRequest->method('getRecord')->willReturnCallback(function (string $did, string $collection, string $rkey): ?StoredRecord {
+			$bytes = $this->records[$collection . '/' . $rkey] ?? null;
+
+			return $bytes === null ? null : new StoredRecord($did, $collection, $rkey, Cid::forDagCbor($bytes), $bytes, '', 1);
+		});
 		$this->moves = new MoveInService(
 			$pds, $config, $appView, $plc, $this->identities, $keys, $this->repositories, $repoRequest,
 			$this->blobs, $this->createMock(Preferences::class), $actors, $this->follows, $this->history, $actorsRequest, $request,
@@ -722,6 +727,13 @@ class MoveInServiceTest extends TestCase {
 
 		$this->assertSame([Move::NEEDS_DECISION, Move::STEP_CODE, 'blobs-missing'], [$this->rows[1]->state, $this->rows[1]->step, $this->rows[1]->progress['code']]);
 		$this->assertSame(['count' => 1, 'cids' => [Cid::forRaw('elsewhere')->toString()]], $this->rows[1]->progress['missing']);
+		$this->assertSame([[
+			'collection' => 'app.bsky.feed.post',
+			'rkey' => '3kpost',
+			'created_at' => '2026-01-01T00:00:00.000Z',
+			'text' => 'look',
+			'url' => 'https://bsky.app/profile/' . self::DID . '/post/3kpost',
+		]], $this->rows[1]->progress['missing_records'], 'the post that loses it is named');
 		$this->assertNotContains('com.atproto.identity.requestPlcOperationSignature', $this->methods(), 'no code asked for');
 		$this->assertTrue($this->rows[1]->isUnderWay(), 'and no other move starts meanwhile');
 	}
@@ -751,6 +763,7 @@ class MoveInServiceTest extends TestCase {
 
 		$this->assertSame([Move::WAITING, Move::STEP_CODE], [$this->rows[1]->state, $this->rows[1]->step], $this->rows[1]->error);
 		$this->assertArrayNotHasKey('missing', $this->rows[1]->progress);
+		$this->assertArrayNotHasKey('missing_records', $this->rows[1]->progress);
 
 		$this->expectException(MoveErrorException::class);
 		$this->moves->decide($this->rows[1], true);

@@ -12,8 +12,10 @@ namespace OCA\Social\Atproto\Move;
 use OCA\Social\Atproto\Client\ClientXrpc;
 use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Move;
+use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\DagCbor;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoBlobRequest;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -30,6 +32,10 @@ use Throwable;
 class MovedBlobs {
 	/** how many missing CIDs a move keeps to show */
 	public const SHOWN = 50;
+	/** how many of the records that lose a missing blob a move names to the person */
+	public const NAMED = 20;
+	/** how much of a post's text names it */
+	private const EXCERPT = 120;
 	/** the most bytes of blobs one move downloads (`progress.blob_bytes`), kept or not; past it a blob stays missing */
 	public const BUDGET = 10_000_000_000;
 
@@ -101,15 +107,60 @@ class MovedBlobs {
 			'missingBlobs' => count($missing),
 		]);
 		if ($missing === [] || count($missing) <= (int)($move->progress['missing_accepted'] ?? -1)) {
-			unset($move->progress['missing']);
+			unset($move->progress['missing'], $move->progress['missing_records']);
 
 			return true;
 		}
 		$move->state = Move::NEEDS_DECISION;
 		$move->error = count($missing) . ' blobs the posts name could not be copied';
-		$move->progress = ['code' => 'blobs-missing', 'missing' => ['count' => count($missing), 'cids' => array_slice($missing, 0, self::SHOWN)]] + $move->progress;
+		$paths = array_slice(array_values(array_unique(array_map(static fn (string $cid): string => $referenced[$cid], $missing))), 0, self::NAMED);
+		$records = array_filter(array_map(function (string $path) use ($move): ?StoredRecord {
+			[$collection, $rkey] = explode('/', $path, 2) + ['', ''];
+
+			return $this->repoRequest->getRecord($move->did, $collection, $rkey);
+		}, $paths));
+		$move->progress = [
+			'code' => 'blobs-missing',
+			'missing' => ['count' => count($missing), 'cids' => array_slice($missing, 0, self::SHOWN)],
+			'missing_records' => self::named($records),
+		] + $move->progress;
 
 		return false;
+	}
+
+	/**
+	 * What the person is shown of records that lose a picture or video
+	 * that did not arrive, before they go on without it: a post by its date,
+	 * the start of its text and where it can be read now (the post here when
+	 * it is one, else its address on Bluesky); any other record, the
+	 * profile, by its collection alone.
+	 *
+	 * @param iterable<StoredRecord> $records
+	 * @return list<array{collection: string, rkey: string, created_at: string, text: string, url: string}>
+	 */
+	public static function named(iterable $records): array {
+		$named = [];
+		foreach ($records as $record) {
+			$value = [];
+			try {
+				$value = $record->value();
+			} catch (Throwable) {
+			}
+			$post = $record->collection === BlueskyIds::POST;
+			$text = $post && is_string($value['text'] ?? null) ? trim($value['text']) : '';
+			$named[] = [
+				'collection' => $record->collection,
+				'rkey' => $record->rkey,
+				'created_at' => is_string($value['createdAt'] ?? null) ? $value['createdAt'] : '',
+				'text' => mb_strlen($text) > self::EXCERPT ? rtrim(mb_substr($text, 0, self::EXCERPT)) . '…' : $text,
+				'url' => !$post ? '' : (str_starts_with($record->localId, 'https://') ? $record->localId : BlueskyIds::postId($record->did, $record->rkey)),
+			];
+			if (count($named) >= self::NAMED) {
+				break;
+			}
+		}
+
+		return $named;
 	}
 
 	/** Whether the move spent its BUDGET, or $bytes more would take it past. */
