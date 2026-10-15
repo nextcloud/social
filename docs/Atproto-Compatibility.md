@@ -1004,6 +1004,20 @@ of the post's quote counter, which the status entity carries as
 it. Nothing is notified. See **Counts where a post lives** in
 Architecture.md.
 
+A local post that went to Bluesky is counted here, from the likes, boosts,
+replies and quotes this server holds; the ones on Bluesky arrive as the
+author's notifications (§10), and one the poll misses would never be
+counted. So its record is asked about the same way, on the same schedule,
+and the cron's pass takes the posts of the last seven days
+(`BlueskyPublishedCountSource`). The AppView's totals already take in what
+arrived from Bluesky and the likes, boosts, replies and quotes local accounts
+wrote there as records too, so only what it counts beyond those is stored as
+the post's `remote_*` half, and everything held here is added to it as for
+any post: a post whose notifications all arrived shows the same numbers as
+before, and one the poll missed a like of shows it. An author whose presence
+on Bluesky is switched off (D23) is not asked about. See **A local post's
+counts on Bluesky** in Architecture.md.
+
 ### 9.5 Deletes and edits from Bluesky
 
 A `delete` op from Jetstream, or a post gone from the author feed on the
@@ -1156,6 +1170,10 @@ path, so **D14** holds without a second notification system:
 | `like-via-repost`, `repost-via-repost` | `bluesky:repost_liked`, `bluesky:repost_reposted`: somebody liked or reposted the person's repost, about the post that was reposted |
 | `verified`, `unverified` | `bluesky:verified`, `bluesky:unverified`: a trusted verifier verified the account on Bluesky, or no longer does |
 | `starterpack-joined` | `bluesky:starterpack_joined`: somebody joined Bluesky with the person's starter pack |
+
+A notification the poll misses is lost as a notification, but not as a
+number: the counts of the post it was about are read from the AppView too
+(§9.4e).
 
 The `bluesky:` kinds are this app's own, as Pixelfed's `story:` ones are:
 the web app words them; a Mastodon client leaves out a kind it does not

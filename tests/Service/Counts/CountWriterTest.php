@@ -117,6 +117,76 @@ class CountWriterTest extends TestCase {
 		$this->assertFalse($this->writer()->write(self::POST, 1, 1, 1));
 	}
 
+	/**
+	 * A local post on another network: its totals include part of what is
+	 * held here, so only what they state beyond that part is the origin's
+	 * half, and nothing counted here is subtracted that the network never saw.
+	 */
+	public function testALocalPostKeepsOnlyWhatTheNetworkCountsBeyondWhatIsHeldHere(): void {
+		$post = new Note();
+		$post->setId(self::POST);
+		$this->streams->method('getStreamById')->willReturn($post);
+		$this->actions->expects($this->never())->method('countActions');
+		$calls = [];
+		$this->streams->expects($this->once())->method('updateDetails')
+			->with($this->identicalTo($post), $this->callback(static fn (DateTime $at): bool => $at->getTimestamp() === self::NOW))
+			->willReturnCallback(static function () use (&$calls): void {
+				$calls[] = 'details';
+			});
+		$this->streams->expects($this->once())->method('recount')
+			->with($this->identicalTo($post), Details::LIKES, Details::BOOSTS, Details::REPLIES, Details::QUOTES)
+			->willReturnCallback(static function () use (&$calls): void {
+				$calls[] = 'recount';
+			});
+
+		$this->assertTrue($this->writer()->writeBeyond(
+			self::POST,
+			[Details::LIKES => 7, Details::BOOSTS => 2, Details::REPLIES => 3, Details::QUOTES => 1],
+			[Details::LIKES => 5, Details::BOOSTS => 2, Details::REPLIES => 1, Details::QUOTES => 0],
+		));
+
+		$this->assertSame(2, $post->getDetailInt(Details::REMOTE_LIKES), 'two likes no notification brought');
+		$this->assertSame(0, $post->getDetailInt(Details::REMOTE_BOOSTS));
+		$this->assertSame(2, $post->getDetailInt(Details::REMOTE_REPLIES));
+		$this->assertSame(1, $post->getDetailInt(Details::REMOTE_QUOTES));
+		$this->assertSame(['details', 'recount'], $calls);
+	}
+
+	public function testEverythingTheNetworkCountsHeldHereLeavesNothingBeyond(): void {
+		$post = new Note();
+		$post->setId(self::POST);
+		$this->streams->method('getStreamById')->willReturn($post);
+
+		$this->writer()->writeBeyond(
+			self::POST,
+			[Details::LIKES => 4, Details::BOOSTS => 1, Details::REPLIES => 0, Details::QUOTES => 0],
+			[Details::LIKES => 4, Details::BOOSTS => 2, Details::REPLIES => 0, Details::QUOTES => 0],
+		);
+
+		$this->assertSame(0, $post->getDetailInt(Details::REMOTE_LIKES));
+		$this->assertSame(0, $post->getDetailInt(Details::REMOTE_BOOSTS), 'never below zero: a boost not indexed there yet');
+	}
+
+	public function testACountTheNetworkDoesNotStateKeepsTheHalfStored(): void {
+		$post = new Note();
+		$post->setId(self::POST);
+		$post->setDetailInt(Details::REMOTE_LIKES, 3);
+		$post->setDetailInt(Details::BOOSTS, 6);
+		$this->streams->method('getStreamById')->willReturn($post);
+
+		$this->writer()->writeBeyond(self::POST, [Details::LIKES => null, Details::BOOSTS => null], []);
+
+		$this->assertSame(3, $post->getDetailInt(Details::REMOTE_LIKES));
+		$this->assertArrayNotHasKey(Details::REMOTE_BOOSTS, $post->getDetailsAll(), 'nothing made up from the total on the row');
+	}
+
+	public function testALocalPostThatIsGoneIsNotWritten(): void {
+		$this->streams->method('getStreamById')->willThrowException(new StreamNotFoundException());
+		$this->streams->expects($this->never())->method('updateDetails');
+
+		$this->assertFalse($this->writer()->writeBeyond(self::POST, [Details::LIKES => 1], []));
+	}
+
 	public function testAStampLeavesTheCountsAlone(): void {
 		$this->streams->expects($this->once())->method('markCountsRefreshed')
 			->with(self::POST, $this->callback(static fn (DateTime $at): bool => $at->getTimestamp() === self::NOW));

@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service\Counts;
 
 use OCA\Social\Atproto\Reader\BlueskyCountSource;
+use OCA\Social\Atproto\Reader\BlueskyPublishedCountSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Announce;
@@ -35,6 +36,11 @@ use Throwable;
  * (`CountWriter`), so every reader sees it, and `counts_at` says when it
  * was asked. The cron's pass over posts nobody looked at
  * (`RemoteCountService`) goes through `refreshPosts()` too.
+ *
+ * A post of this instance's own is counted here, except where it is also on
+ * a network that keeps counts this instance may not have heard of: a post
+ * published to Bluesky is asked about the same way
+ * (`BlueskyPublishedCountSource`).
  */
 class CountService {
 	/** how old a post is while it is asked about often */
@@ -53,7 +59,7 @@ class CountService {
 	}
 
 	/**
-	 * A page showed these posts: the remote ones whose counts are due are
+	 * A page showed these posts: the ones whose counts are due (`isDue()`) are
 	 * queued to be asked about (`RemoteFetchQueue::refreshCounts()`, which
 	 * caps a call). A boost stands for the post it boosts.
 	 *
@@ -83,10 +89,14 @@ class CountService {
 	/**
 	 * Whether a post is one whose counts are kept elsewhere and were last
 	 * asked about longer ago than its interval. A direct message has no
-	 * counts to speak of.
+	 * counts to speak of. A post of this instance's own is counted here,
+	 * unless it is on another network too that keeps counts of its own.
 	 */
 	public function isDue(Stream $post, int $now): bool {
-		if ($post->isLocal() || $post->getId() === '' || $post->getVisibility() === Stream::TYPE_DIRECT) {
+		if ($post->getId() === '' || $post->getVisibility() === Stream::TYPE_DIRECT) {
+			return false;
+		}
+		if ($post->isLocal() && !$this->isSupported($post)) {
 			return false;
 		}
 		$at = $post->getCountsAt();
@@ -165,12 +175,22 @@ class CountService {
 		}
 	}
 
+	private function isSupported(Stream $post): bool {
+		foreach ($this->sources() as $source) {
+			if ($source->supports($post)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	/**
 	 * @return list<CountSource>
 	 */
 	private function sources(): array {
 		$sources = [];
-		foreach ([ActivityPubCountSource::class, BlueskyCountSource::class] as $class) {
+		foreach ([ActivityPubCountSource::class, BlueskyCountSource::class, BlueskyPublishedCountSource::class] as $class) {
 			$source = $this->container?->get($class);
 			if ($source instanceof CountSource) {
 				$sources[] = $source;

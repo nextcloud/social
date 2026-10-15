@@ -49,6 +49,35 @@ class RemoteCountServiceTest extends TestCase {
 		$this->assertSame(['asked' => 30, 'answered' => 2], $service->refresh(false, 30));
 	}
 
+	public function testLocalPostsOnBlueskyOfTheLastWeekAreAskedAboutInTheSamePass(): void {
+		$streamRequest = $this->createMock(StreamRequest::class);
+		$streamRequest->method('getRemoteStreamsDueForCounts')->willReturn($this->posts(2));
+		$streamRequest->expects($this->once())->method('getPublishedStreamsDueForCounts')
+			->with(
+				$this->anything(),
+				$this->callback(static fn (\DateTime $since): bool => abs(time() - RemoteCountService::PUBLISHED_WINDOW - $since->getTimestamp()) < 60),
+				30,
+			)
+			->willReturn([$this->local()]);
+		$counts = $this->createMock(CountService::class);
+		$counts->expects($this->once())->method('refreshPosts')
+			->with($this->callback(static fn (array $posts): bool => count($posts) === 3 && $posts[2]->isLocal()))
+			->willReturn(['asked' => 3, 'answered' => 3]);
+
+		$service = new RemoteCountService($streamRequest, $counts, $this->createStub(ITimeFactory::class), new NullLogger());
+
+		$this->assertSame(['asked' => 3, 'answered' => 3], $service->refresh(false, 30));
+		$this->assertSame(7 * 86400, RemoteCountService::PUBLISHED_WINDOW);
+	}
+
+	private function local(): Note {
+		$post = new Note();
+		$post->setId('https://cloud.example/users/alice/statuses/1');
+		$post->setLocal(true);
+
+		return $post;
+	}
+
 	public function testAPassPastItsDeadlineLeavesTheRestForTheNext(): void {
 		$streamRequest = $this->createMock(StreamRequest::class);
 		$streamRequest->method('getRemoteStreamsDueForCounts')->willReturn($this->posts(RemoteCountService::PARALLEL + 1));
