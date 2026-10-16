@@ -69,6 +69,8 @@ class MoveAwayServiceTest extends TestCase {
 	private Identity $alice;
 	/** @var IdentityService&MockObject */
 	private IdentityService $identities;
+	/** where the directory points the DID; null when it cannot be asked */
+	private ?string $directory = 'https://social.test';
 	private MoveAwayService $moves;
 
 	protected function setUp(): void {
@@ -103,6 +105,9 @@ class MoveAwayServiceTest extends TestCase {
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->identities->method('signingKey')->willReturnCallback(fn (): PrivateKey => $this->key);
 		$this->identities->method('getByDid')->willReturnCallback(fn (): Identity => $this->alice);
+		$this->identities->method('pointsAt')->willReturnCallback(fn (string $did, string $endpoint): bool => $this->directory !== null
+			? rtrim($this->directory, '/') === rtrim($endpoint, '/')
+			: throw new AtprotoException('PLC directory could not be reached: timeout'));
 		$repositories = $this->createMock(RepositoryService::class);
 		$repositories->method('carStream')->with(self::DID)->willReturnCallback(function () {
 			$car = fopen('php://temp', 'w+b');
@@ -136,6 +141,14 @@ class MoveAwayServiceTest extends TestCase {
 		});
 		$request->method('update')->willReturnCallback(function (Move $move): void {
 			$this->rows[$move->id] = clone $move;
+		});
+		$request->method('updateIfRunning')->willReturnCallback(function (Move $move): bool {
+			if (($this->rows[$move->id] ?? null)?->state !== Move::RUNNING) {
+				return false;
+			}
+			$this->rows[$move->id] = clone $move;
+
+			return true;
 		});
 		$request->method('get')->willReturnCallback(fn (int $id): ?Move => isset($this->rows[$id]) ? clone $this->rows[$id] : null);
 		$request->method('latestOfUser')->willReturnCallback(fn (): ?Move => $this->rows === [] ? null : clone end($this->rows));
@@ -209,7 +222,7 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertRefused('pds-refused', 'describeServer answered 500');
 
 		$this->assertSame('pds-unreachable', MoveAwayService::codeOf(new AtprotoException('The PDS at https://x could not be reached: timeout')));
-		$this->assertSame('pds-not-public', MoveAwayService::codeOf(new AtprotoException('The PDS at https://x could not be reached: host does not resolve to a public address: x')));
+		$this->assertSame('pds-unreachable', MoveAwayService::codeOf(new AtprotoException('The PDS at https://x could not be reached: host does not resolve to a public address: x')), 'a host without a public address is not told apart');
 		$this->assertSame('pds-address-invalid', MoveAwayService::codeOf(new AtprotoException('That is not the https address of a PDS')));
 		$this->assertSame('keys-sealed', MoveAwayService::codeOf(new AtprotoKeysSealedException('signing key of did:plc:x')));
 		$this->assertSame('plc-refused', MoveAwayService::codeOf(new \OCA\Social\Exceptions\AtprotoPlcRefusedException('PLC directory refused the operation (400): bad')));
@@ -326,6 +339,109 @@ class MoveAwayServiceTest extends TestCase {
 				$this->assertSame($code, $e->errorCode);
 			}
 		}
+	}
+
+	/**
+	 * The directory took the handover, but its answer did not come: the
+	 * move goes on from the activation rather than stopping where "Try
+	 * again" would sign an operation the directory refuses for good.
+	 */
+	public function testAHandOverWhoseAnswerDidNotComeGoesOnWhenTheDirectoryTookIt(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->answers['com.atproto.identity.getRecommendedDidCredentials'] = [['status' => 200, 'body' => ['services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => 'https://shard.pds.example.com']]]]];
+		$this->identities->expects($this->once())->method('handOver')->willReturnCallback(function (): void {
+			$this->directory = 'https://shard.pds.example.com';
+			throw new AtprotoException('PLC directory could not be reached: timeout');
+		});
+		$this->identities->expects($this->once())->method('markMovedAway');
+
+		$this->moves->run($move->id);
+
+		$this->assertSame([Move::DONE, 'done'], [$this->rows[1]->state, $this->rows[1]->progress['stage']]);
+		$this->assertSame('https://shard.pds.example.com', $this->rows[1]->progress['endpoint'], 'the endpoint the other server recommended is what the directory is asked for');
+		$this->assertContains('com.atproto.server.activateAccount', array_column($this->calls, 'method'));
+	}
+
+	/** One whose handover the directory did not take fails there, for the person to try again or call off. */
+	public function testAHandOverTheDirectoryDidNotTakeFailsThere(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->identities->method('handOver')->willThrowException(new AtprotoException('PLC directory could not be reached: timeout'));
+
+		$this->moves->run($move->id);
+
+		$this->assertSame([Move::FAILED, Move::STEP_IDENTITY, 'plc-unreachable'], [$this->rows[1]->state, $this->rows[1]->step, $this->rows[1]->progress['code']]);
+		$this->assertNotContains('com.atproto.server.activateAccount', array_column($this->calls, 'method'));
+	}
+
+	/**
+	 * A move that failed handing the DID over is asked of the directory
+	 * before it is called off or tried again: once the DID points at the
+	 * other server it can only be finished, from the activation.
+	 */
+	public function testAFailedHandOverTheDirectoryTookIsFinishedNotCalledOff(): void {
+		$this->rows = [1 => new Move(1, self::DID, 'alice', Move::AWAY, self::PDS, self::PDS_DID, 'alice.pds.example.com', Move::STEP_IDENTITY, Move::FAILED, '', ['code' => 'plc-unreachable', 'stage' => 'repo_copied'])];
+		$this->directory = self::PDS . '/';
+		$this->publisher->expects($this->never())->method('publishBacklog');
+		$this->identities->expects($this->never())->method('handOver');
+
+		try {
+			$this->moves->cancel('alice');
+			$this->fail('called off');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('move-past-switch', $e->errorCode);
+		}
+		$this->assertSame([Move::FAILED, Move::STEP_ACTIVATE, 'identity_switched'], [$this->rows[1]->state, $this->rows[1]->step, $this->rows[1]->progress['stage']]);
+
+		$this->rows[1]->step = Move::STEP_IDENTITY;
+		$this->moves->retry('alice');
+		$this->assertSame([Move::RUNNING, Move::STEP_ACTIVATE], [$this->rows[1]->state, $this->rows[1]->step]);
+		$this->moves->run(1);
+		$this->assertSame(['com.atproto.server.activateAccount'], array_column($this->calls, 'method'), 'nothing is signed again');
+		$this->assertSame(Move::DONE, $this->rows[1]->state);
+	}
+
+	/** While the directory cannot be asked, a move that failed handing the DID over is neither called off nor tried again. */
+	public function testAFailedHandOverWaitsForTheDirectory(): void {
+		$this->rows = [1 => new Move(1, self::DID, 'alice', Move::AWAY, self::PDS, self::PDS_DID, 'alice.pds.example.com', Move::STEP_IDENTITY, Move::FAILED, '', ['code' => 'plc-unreachable'])];
+		$this->directory = null;
+
+		foreach (['cancel', 'retry'] as $action) {
+			try {
+				$this->moves->{$action}('alice');
+				$this->fail($action);
+			} catch (MoveErrorException $e) {
+				$this->assertSame('plc-unreachable', $e->errorCode, $action);
+			}
+		}
+		$this->assertSame([Move::FAILED, Move::STEP_IDENTITY], [$this->rows[1]->state, $this->rows[1]->step]);
+		$this->assertSame([], $this->queued);
+	}
+
+	/** One the directory did not take is called off, or tried again at the handover. */
+	public function testAFailedHandOverTheDirectoryDidNotTakeCanBeCalledOffOrTriedAgain(): void {
+		$this->rows = [1 => new Move(1, self::DID, 'alice', Move::AWAY, self::PDS, self::PDS_DID, 'alice.pds.example.com', Move::STEP_IDENTITY, Move::FAILED)];
+		$this->assertSame(Move::STEP_IDENTITY, $this->moves->retry('alice')->step);
+
+		$this->rows[1]->state = Move::FAILED;
+		$this->assertSame(Move::CANCELLED, $this->moves->cancel('alice')->state);
+	}
+
+	/** A move called off while a step is under way stays called off when that step then fails. */
+	public function testAMoveCalledOffWhileAStepFailsStaysCalledOff(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->answers['com.atproto.repo.listMissingBlobs'] = [['status' => 200, 'body' => ['blobs' => [['cid' => Cid::forRaw('pixels')->toString()]]]]];
+		$this->answers['com.atproto.repo.uploadBlob'] = [['status' => 500, 'body' => ['error' => 'InternalServerError']]];
+		$this->pdsHook = function (string $method): void {
+			if ($method === 'com.atproto.repo.uploadBlob') {
+				$this->moves->cancel('alice');
+			}
+		};
+
+		$this->moves->run($move->id);
+
+		$this->assertSame([Move::CANCELLED, 'target-account-left'], [$this->rows[1]->state, $this->rows[1]->progress['code']]);
+		$this->expectException(MoveErrorException::class);
+		$this->moves->retry('alice');
 	}
 
 	public function testMissingPicturesStopTheMoveBeforeTheDidMoves(): void {

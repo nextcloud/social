@@ -9,13 +9,14 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
-use OCA\Social\Atproto\Identity\PlcClient;
+use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Cron\AtprotoMove;
 use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
+use OCP\Lock\ILockingProvider;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -26,14 +27,16 @@ use Psr\Log\LoggerInterface;
  *
  * A move counts as stopped when it is `running`, has not been written to
  * for AFTER — a running move writes as it copies, blob by blob and page by
- * page of follows — and no job for it waits in the queue. It is queued
+ * page of follows and posts — no job for it waits in the queue, and no
+ * job holds its lock (Cron\AtprotoMove::lockOf()). It is queued
  * again RESUMES times (`progress.resumed`, forgotten when the person goes
  * on with it), then fails with `move-interrupted`, so the person can try
  * again or call it off. A move away that stopped while the DID was handed
  * over is first asked of the directory: once the DID points at the other
  * server, the move goes on from the activation, and can no longer be
- * called off. A move here driven by a tool waits for the person's decision
- * again before the account is active, and is done after it.
+ * called off. A move here that stopped at the follows or the posts, which
+ * come once the account is active here and are best effort, is done; one
+ * driven by a tool waits for the person's decision again before then.
  */
 class StaleMoves {
 	/** how long a running move goes without being written to before it counts as stopped */
@@ -46,7 +49,8 @@ class StaleMoves {
 	public function __construct(
 		private AtprotoMoveRequest $moves,
 		private IJobList $jobList,
-		private PlcClient $plc,
+		private ILockingProvider $locks,
+		private IdentityService $identities,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 	) {
@@ -58,7 +62,8 @@ class StaleMoves {
 	public function recover(): int {
 		$recovered = 0;
 		foreach ($this->moves->getStale($this->time->getTime() - self::AFTER, self::LIMIT) as $move) {
-			if ($this->jobList->has(AtprotoMove::class, ['move' => $move->id])) {
+			if ($this->jobList->has(AtprotoMove::class, ['move' => $move->id])
+				|| $this->locks->isLocked(AtprotoMove::lockOf($move->id), ILockingProvider::LOCK_EXCLUSIVE)) {
 				continue;
 			}
 			try {
@@ -70,12 +75,16 @@ class StaleMoves {
 			$resumed = (int)($move->progress['resumed'] ?? 0);
 			if ($resumed < self::RESUMES) {
 				$move->progress['resumed'] = $resumed + 1;
-				$this->moves->update($move);
+				if (!$this->moves->updateIfRunning($move)) {
+					continue;
+				}
 				$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
 				$this->logger->warning('Bluesky account move queued again: its job stopped', ['did' => $move->did, 'direction' => $move->direction, 'step' => $move->step]);
 			} else {
 				$this->end($move);
-				$this->moves->update($move);
+				if (!$this->moves->updateIfRunning($move)) {
+					continue;
+				}
 				$this->logger->warning('Bluesky account move ended: its job stopped again', ['did' => $move->did, 'direction' => $move->direction, 'step' => $move->step, 'state' => $move->state]);
 			}
 			$recovered++;
@@ -94,29 +103,31 @@ class StaleMoves {
 		if ($move->direction !== Move::AWAY) {
 			return;
 		}
-		if ($move->step === Move::STEP_IDENTITY) {
-			$endpoint = (string)($this->plc->data($move->did)['services']['atproto_pds']['endpoint'] ?? '');
-			if ($endpoint !== '' && rtrim($endpoint, '/') === rtrim($move->pds, '/')) {
-				$move->step = Move::STEP_ACTIVATE;
-			}
+		if ($move->step === Move::STEP_IDENTITY && $this->identities->pointsAt($move->did, MoveAwayService::endpointOf($move))) {
+			$move->step = Move::STEP_ACTIVATE;
 		}
 		$move->progress['stage'] = MoveAwayService::stageOf($move);
 	}
 
 	/**
-	 * A move stopped once too often: failed, for the person to try again or
-	 * call off; driven by a tool, waiting for the person's decision on the
-	 * blobs again, or done once the account is active here.
+	 * A move stopped once too often: here, done at the follows or the
+	 * posts, which come once the account is active here and are best
+	 * effort; else failed, for the person to try again or call off; driven
+	 * by a tool, waiting for the person's decision on the blobs again.
 	 */
 	private function end(Move $move): void {
-		if ($move->direction !== Move::INBOUND) {
-			$move->fail('The move stopped before it was finished', 'move-interrupted');
+		if ($move->direction !== Move::AWAY && in_array($move->step, [Move::STEP_FOLLOWS, Move::STEP_POSTS], true)) {
+			$move->step = Move::STEP_DONE;
+			$move->state = Move::DONE;
+			if ($move->direction === Move::IN) {
+				// the old server's session is not needed once the move is done
+				$move->session = '';
+			}
 
 			return;
 		}
-		if (in_array($move->step, [Move::STEP_FOLLOWS, Move::STEP_POSTS], true)) {
-			$move->step = Move::STEP_DONE;
-			$move->state = Move::DONE;
+		if ($move->direction !== Move::INBOUND) {
+			$move->fail('The move stopped before it was finished', 'move-interrupted');
 
 			return;
 		}

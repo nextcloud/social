@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Move;
 
+use Closure;
 use OCA\Social\Atproto\Client\WriteService;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\DagCbor;
@@ -82,9 +83,10 @@ class PostHistory {
 	 * Brings over every post of the repository that is not a Social post
 	 * yet; running it again picks up only what is left.
 	 *
+	 * @param (Closure(): void)|null $onPage told after each page of records read
 	 * @return int how many posts are in the timeline now that were not before
 	 */
-	public function import(Person $actor, string $did): int {
+	public function import(Person $actor, string $did, ?Closure $onPage = null): int {
 		$this->fetchesLeft = self::FETCHES;
 		$parsed = [];
 		$rkeys = [];
@@ -105,6 +107,9 @@ class PostHistory {
 					}
 				}
 				$cursor = count($page) === self::PAGE ? end($page)->rkey : '';
+				if ($onPage !== null) {
+					$onPage();
+				}
 			} while ($cursor !== '');
 
 			$tally = $this->imports->importParsed($actor, $parsed);
@@ -132,16 +137,20 @@ class PostHistory {
 	/**
 	 * The account's latest likes and reposts, as likes and boosts here.
 	 *
+	 * @param (Closure(): void)|null $onPage told after each page of records read
 	 * @return array{likes: int, reposts: int} how many there are here now that were not before
 	 */
-	public function importActions(Person $actor, string $did): array {
+	public function importActions(Person $actor, string $did, ?Closure $onPage = null): array {
 		return [
-			'likes' => $this->actions($actor, $did, RecordMapper::LIKE),
-			'reposts' => $this->actions($actor, $did, RecordMapper::REPOST),
+			'likes' => $this->actions($actor, $did, RecordMapper::LIKE, $onPage),
+			'reposts' => $this->actions($actor, $did, RecordMapper::REPOST, $onPage),
 		];
 	}
 
-	private function actions(Person $actor, string $did, string $collection): int {
+	/**
+	 * @param (Closure(): void)|null $onPage
+	 */
+	private function actions(Person $actor, string $did, string $collection, ?Closure $onPage): int {
 		$made = 0;
 		$seen = 0;
 		$cursor = '';
@@ -173,6 +182,9 @@ class PostHistory {
 				}
 			}
 			$cursor = count($page) === self::PAGE ? end($page)->rkey : '';
+			if ($onPage !== null) {
+				$onPage();
+			}
 		} while ($cursor !== '');
 
 		return $made;

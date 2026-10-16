@@ -39,6 +39,20 @@ class AtprotoMoveRequest extends CoreRequestBuilder {
 	}
 
 	public function update(Move $move): void {
+		$this->write($move, false);
+	}
+
+	/**
+	 * Writes a move only while it is stored as running, so a job does not
+	 * write over what the person did meanwhile (called it off).
+	 *
+	 * @return bool whether it was written
+	 */
+	public function updateIfRunning(Move $move): bool {
+		return $this->write($move, true);
+	}
+
+	private function write(Move $move, bool $ifRunning): bool {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_ATPROTO_MOVE)
 			->set('step', $qb->createNamedParameter($move->step))
@@ -48,7 +62,11 @@ class AtprotoMoveRequest extends CoreRequestBuilder {
 			->set('error', $qb->createNamedParameter(mb_substr($move->error, 0, 512)))
 			->set('updated', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($move->id, IQueryBuilder::PARAM_INT)));
-		$qb->executeStatement();
+		if ($ifRunning) {
+			$qb->andWhere($qb->expr()->eq('state', $qb->createNamedParameter(Move::RUNNING)));
+		}
+
+		return $qb->executeStatement() > 0;
 	}
 
 	public function get(int $id): ?Move {

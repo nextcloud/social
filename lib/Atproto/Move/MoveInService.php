@@ -342,6 +342,19 @@ class MoveInService {
 	}
 
 	/**
+	 * Writes where the job got, unless the move was called off meanwhile;
+	 * what the job copied is dropped then.
+	 */
+	private function written(Move $move): bool {
+		if ($this->moves->updateIfRunning($move)) {
+			return true;
+		}
+		$this->calledOff($move);
+
+		return false;
+	}
+
+	/**
 	 * Deletes what a move copied here, unless the DID is an account's here.
 	 */
 	private function dropCopy(Move $move): void {
@@ -384,22 +397,26 @@ class MoveInService {
 				}
 				if ($waitsIn !== '') {
 					$move->state = $waitsIn;
-					$this->moves->update($move);
+					$this->written($move);
 
 					return;
 				}
 				$move->step = Move::nextIn($move->step);
-				$this->moves->update($move);
+				if (!$this->written($move)) {
+					return;
+				}
 			}
 			$move->state = Move::DONE;
 			$move->session = '';
-			$this->moves->update($move);
+			$this->written($move);
 		} catch (Throwable $e) {
 			if ($this->calledOff($move)) {
 				return;
 			}
 			$move->fail($e->getMessage(), MoveFailure::codeOf($e));
-			$this->moves->update($move);
+			if (!$this->written($move)) {
+				return;
+			}
 			$this->logger->warning('Bluesky account move here stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
 		}
 	}
@@ -514,10 +531,14 @@ class MoveInService {
 	 * failure here does not fail the move.
 	 */
 	public function importPosts(Move $move): void {
+		// written as it goes, so a long run is not taken for one that died (StaleMoves)
+		$onPage = function () use ($move): void {
+			$this->moves->update($move);
+		};
 		try {
 			$actor = $this->actors->getFromUserId($move->userId);
-			$move->progress = ['posts' => $this->history->import($actor, $move->did)] + $move->progress;
-			$move->progress = $this->history->importActions($actor, $move->did) + $move->progress;
+			$move->progress = ['posts' => $this->history->import($actor, $move->did, $onPage)] + $move->progress;
+			$move->progress = $this->history->importActions($actor, $move->did, $onPage) + $move->progress;
 		} catch (Throwable $e) {
 			$this->logger->warning('Posts of a Bluesky account that moved here not imported', ['did' => $move->did, 'exception' => $e]);
 		}

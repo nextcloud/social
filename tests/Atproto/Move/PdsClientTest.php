@@ -22,6 +22,7 @@ use OCP\IConfig;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class PdsClientTest extends TestCase {
@@ -29,7 +30,7 @@ class PdsClientTest extends TestCase {
 		$config = $this->createMock(IConfig::class);
 		$config->method('getSystemValueBool')->with('allow_local_remote_servers', false)->willReturn($local);
 
-		return new PdsClient($this->createMock(CurlService::class), $config, $this->createMock(DurableCache::class));
+		return new PdsClient($this->createMock(CurlService::class), $config, $this->createMock(DurableCache::class), new NullLogger());
 	}
 
 	public function testAPdsIsItsHttpsOrigin(): void {
@@ -56,7 +57,7 @@ class PdsClientTest extends TestCase {
 
 			return '{}';
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger());
 
 		$client->call('https://pds.example.com', 'com.atproto.server.deactivateAccount', 'POST', [], []);
 		$client->call('https://pds.example.com', 'com.atproto.repo.createRecord', 'POST', [], ['repo' => 'did:plc:a']);
@@ -74,7 +75,7 @@ class PdsClientTest extends TestCase {
 
 			return '{"error":"InvalidRequest","message":"no"}';
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger());
 
 		$answer = $client->call('https://pds.example.com', 'com.atproto.server.describeServer', 'GET', ['a' => 'b'], null, null, '', 'tok');
 
@@ -101,7 +102,7 @@ class PdsClientTest extends TestCase {
 
 			return '{}';
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger());
 
 		$client->call('https://pds.example.com', 'com.atproto.server.describeServer');
 		$client->call('https://pds.example.com', 'com.atproto.server.createAccount', 'POST', [], ['did' => 'did:plc:a']);
@@ -114,29 +115,39 @@ class PdsClientTest extends TestCase {
 	public function testAServerThatCannotBeReachedIsAnAtprotoException(): void {
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('doRequest')->willThrowException(new RequestNetworkException('refused'));
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger());
 
 		$this->expectException(AtprotoException::class);
 		$client->call('https://pds.example.com', 'com.atproto.server.describeServer');
 	}
 
-	/** Why a PDS was not reached, or refused, is a code the page explains. */
+	/**
+	 * Why a PDS was not reached, or refused, is a code the page explains.
+	 * An address this server does not send requests to is said no
+	 * differently from one that did not answer, and what went wrong on the
+	 * way is not said at all: the person would learn which hosts resolve
+	 * to local addresses.
+	 */
 	public function testWhyAServerWasNotReachedIsACode(): void {
 		$failures = [
-			'pds-unreachable' => new RequestNetworkException('refused'),
-			'pds-not-public' => new RequestServerException('host does not resolve to a public address: pds.internal'),
-			'pds-blocked' => new UnauthorizedFediverseException('blocked'),
+			['pds-unreachable', new RequestNetworkException('cURL error 7: Failed to connect to 10.0.0.7 port 443')],
+			['pds-unreachable', new RequestServerException('host does not resolve to a public address: pds.example.com')],
+			['pds-blocked', new UnauthorizedFediverseException('blocked')],
 		];
-		foreach ($failures as $slug => $failure) {
+		$messages = [];
+		foreach ($failures as [$slug, $failure]) {
 			$curl = $this->createMock(CurlService::class);
 			$curl->method('doRequest')->willThrowException($failure);
 			try {
-				(new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class)))->call('https://pds.example.com', 'com.atproto.server.describeServer');
+				(new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger()))->call('https://pds.example.com', 'com.atproto.server.describeServer');
 				$this->fail('reached');
 			} catch (MoveFailure $e) {
 				$this->assertSame($slug, $e->errorCode);
+				$this->assertStringNotContainsString($failure->getMessage(), $e->getMessage());
+				$messages[] = $e->getMessage();
 			}
 		}
+		$this->assertSame(['The PDS at https://pds.example.com could not be reached', 'The PDS at https://pds.example.com could not be reached'], array_slice($messages, 0, 2));
 		try {
 			$this->client(false)->origin('http://pds.example.com');
 		} catch (MoveFailure $e) {
@@ -159,7 +170,7 @@ class PdsClientTest extends TestCase {
 
 			return ['stream' => $stream, 'status' => 200, 'headers' => ['Content-Type' => ['application/vnd.ipld.car']]];
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger());
 
 		$answer = $client->bytes('https://pds.example.com', 'com.atproto.sync.getRepo', ['did' => 'did:plc:a'], 10, 'tok');
 		$this->assertSame([200, 3, 'application/vnd.ipld.car', 'CAR'], [$answer['status'], $answer['size'], $answer['type'], file_get_contents($answer['path'])]);
@@ -185,7 +196,7 @@ class PdsClientTest extends TestCase {
 		rewind($stream);
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('openStream')->willReturn(['stream' => $stream, 'status' => 200, 'headers' => $headers]);
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger());
 		$before = glob(sys_get_temp_dir() . '/social-atproto-pds-*') ?: [];
 
 		try {
@@ -200,7 +211,7 @@ class PdsClientTest extends TestCase {
 	public function testARefusedByteAnswerCarriesItsStatus(): void {
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('openStream')->willThrowException(new RequestContentException('url', 404));
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class));
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $this->createMock(DurableCache::class), new NullLogger());
 
 		$this->assertSame(['status' => 404, 'path' => '', 'size' => 0, 'type' => ''], $client->bytes('https://pds.example.com', 'com.atproto.sync.getBlob', ['cid' => 'x'], 100));
 	}
@@ -226,7 +237,7 @@ class PdsClientTest extends TestCase {
 
 			return '{}';
 		});
-		$client = new PdsClient($curl, $this->createMock(IConfig::class), $cache);
+		$client = new PdsClient($curl, $this->createMock(IConfig::class), $cache, new NullLogger());
 
 		for ($i = 0; $i < PdsClient::SIGN_INS; $i++) {
 			$client->call('https://bsky.social', 'com.atproto.server.createSession', 'POST', [], ['identifier' => 'a', 'password' => 'b']);

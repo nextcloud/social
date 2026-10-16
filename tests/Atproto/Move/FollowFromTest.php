@@ -92,7 +92,7 @@ class FollowFromTest extends TestCase {
 		$this->plcData = null;
 		$this->assertCode('did-not-found');
 		$this->plcData = ['services' => ['atproto_pds' => ['endpoint' => 'https://localhost']]];
-		$this->assertCode('pds-not-public');
+		$this->assertCode('pds-unreachable');
 		$this->enabled = false;
 		$this->assertCode('bluesky-off');
 	}

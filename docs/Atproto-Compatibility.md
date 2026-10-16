@@ -1647,9 +1647,13 @@ tool — that has not been written to for an hour and has no job waiting:
 the first time it queues the move again, from its step; the next time it
 fails it with `move-interrupted`, so "Try again" and "Call it off" work
 again (a move driven by a tool waits for the person's decision on the
-blobs again, or is done once the account is active here). A running move
-writes as it goes — each blob, each page of follows — so a long one is not
-taken for a stopped one. A move here whose job stopped after the directory
+blobs again, or is done once the account is active here; a move here
+stopped at the follows or the posts, which come once the account is active
+here and are best effort, is done too). A running move writes as it goes —
+each blob, each page of follows and of posts — so a long one is not taken
+for a stopped one, and the job holds the move's lock while it runs: a move
+whose lock is held is left alone, and a second job queued for it finds the
+lock held and leaves the move to the first. A move here whose job stopped after the directory
 took the operation finds the DID pointing here with the key made for it,
 and the account takes the DID without asking the old server to sign
 again; a move away that stopped while the DID was handed over goes on
@@ -1753,7 +1757,12 @@ The mirror image, so a person is not locked in. On the Migration page,
 3. The DID: `getRecommendedDidCredentials` there, then this server signs
    and sends the PLC operation itself (`IdentityService::handOver()`), with
    the person's recovery key first among the rotation keys and the other
-   PDS's after it; this server keeps no rotation key of the DID.
+   PDS's after it; this server keeps no rotation key of the DID. When the
+   step fails — the directory's answer did not come, say — the directory
+   is asked where the DID points: once it names the endpoint the other
+   PDS recommended, it took the operation, which is taken into the PLC
+   log from its audit log, and the move goes on with the activation. The
+   operation is never sent again behind the person's back.
 4. `activateAccount` there; here the identity becomes `moved_away`, the
    firehose says the account is deactivated, and nothing more is published
    for it.
@@ -1777,7 +1786,12 @@ server is left there, deactivated, because deleting it takes a code that
 server e-mails (`requestAccountDelete`, then `deleteAccount` with the
 account's password and that code) — the answer says so with
 `target-account-left` and the host. Once the DID moved the move can only be
-finished (`move-past-switch`).
+finished (`move-past-switch`). A move that failed handing the DID over is
+asked of the directory before it is called off or started again: once the
+DID points at the other server, the move goes on from the activation and
+is not called off; while the directory cannot be asked, neither is done
+(`plc-unreachable`). A move called off while a step is under way stays
+called off, also when that step then fails.
 
 **Moving away with another tool.** A migration tool driven from outside
 (the reference flow, as `goat account migrate` runs it) gets what it needs
@@ -1878,8 +1892,7 @@ keeps it behind *Details* for whoever helps the person.
 | `identity-inactive` | The Bluesky account is switched off or already moved | Switch it on first |
 | `move-in-progress` | Another move of the account is under way | Wait for it, or call it off |
 | `pds-address-invalid` | The server typed is not an https address | Check the address |
-| `pds-not-public` | The server's address does not resolve to a public address | Check the address |
-| `pds-unreachable` | The other server did not answer | Try again later |
+| `pds-unreachable` | The other server did not answer, or its address is one this server does not send requests to (not told apart, and the network error is only logged, so the answer does not say which hosts resolve to local addresses) | Check the address, or try again later |
 | `pds-unknown` | The other server does not say which DID it has (`describeServer`) | It is not a Bluesky server; check the address |
 | `pds-refused` | The other server answered a step with an error | Try again; the details say which step |
 | `pds-session-expired` | The session on the other server ended and could not be renewed | Try again |
