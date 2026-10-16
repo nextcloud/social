@@ -39,7 +39,7 @@ class AtprotoMoveRequest extends CoreRequestBuilder {
 	}
 
 	public function update(Move $move): void {
-		$this->write($move, false);
+		$this->write($move);
 	}
 
 	/**
@@ -49,10 +49,21 @@ class AtprotoMoveRequest extends CoreRequestBuilder {
 	 * @return bool whether it was written
 	 */
 	public function updateIfRunning(Move $move): bool {
-		return $this->write($move, true);
+		return $this->write($move, Move::RUNNING);
 	}
 
-	private function write(Move $move, bool $ifRunning): bool {
+	/**
+	 * Writes a move only while it is stored as it was read — in $state, at
+	 * $step — so what the person does is not written over what a job did
+	 * meanwhile (moved it on to the handover).
+	 *
+	 * @return bool whether it was written
+	 */
+	public function updateIf(Move $move, string $state, string $step): bool {
+		return $this->write($move, $state, $step);
+	}
+
+	private function write(Move $move, ?string $state = null, ?string $step = null): bool {
 		$qb = $this->getQueryBuilder();
 		$qb->update(self::TABLE_ATPROTO_MOVE)
 			->set('step', $qb->createNamedParameter($move->step))
@@ -62,8 +73,11 @@ class AtprotoMoveRequest extends CoreRequestBuilder {
 			->set('error', $qb->createNamedParameter(mb_substr($move->error, 0, 512)))
 			->set('updated', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($move->id, IQueryBuilder::PARAM_INT)));
-		if ($ifRunning) {
-			$qb->andWhere($qb->expr()->eq('state', $qb->createNamedParameter(Move::RUNNING)));
+		if ($state !== null) {
+			$qb->andWhere($qb->expr()->eq('state', $qb->createNamedParameter($state)));
+		}
+		if ($step !== null) {
+			$qb->andWhere($qb->expr()->eq('step', $qb->createNamedParameter($step)));
 		}
 
 		return $qb->executeStatement() > 0;

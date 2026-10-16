@@ -95,6 +95,8 @@ class MoveInServiceTest extends TestCase {
 	private $duringCopy = null;
 	/** @var (callable(): void)|null what happens right after the move was read */
 	private $afterGet = null;
+	/** @var (callable(): void)|null what the job does right after the person's move was read */
+	private $afterRead = null;
 	/** where the directory says the DID's PDS is */
 	private string $pointsAt = self::OLD;
 	/** the signing key the directory names for the DID, '' for the old server's */
@@ -249,7 +251,23 @@ class MoveInServiceTest extends TestCase {
 
 			return $move;
 		});
-		$request->method('latestOfUser')->willReturnCallback(fn (): ?Move => $this->rows === [] ? null : clone end($this->rows));
+		$request->method('latestOfUser')->willReturnCallback(function (): ?Move {
+			$move = $this->rows === [] ? null : clone end($this->rows);
+			if ($this->afterRead !== null) {
+				($this->afterRead)();
+			}
+
+			return $move;
+		});
+		$request->method('updateIf')->willReturnCallback(function (Move $move, string $state, string $step): bool {
+			$stored = $this->rows[$move->id] ?? null;
+			if ($stored?->state !== $state || $stored->step !== $step) {
+				return false;
+			}
+			$this->rows[$move->id] = clone $move;
+
+			return true;
+		});
 		$crypto = $this->createMock(ICrypto::class);
 		$crypto->method('encrypt')->willReturnCallback(static fn (string $plain): string => 'sealed:' . base64_encode($plain));
 		$crypto->method('decrypt')->willReturnCallback(static fn (string $sealed): string => (string)base64_decode(substr($sealed, 7)));
@@ -651,6 +669,24 @@ class MoveInServiceTest extends TestCase {
 		$this->moves->run($this->rows[1]);
 
 		$this->assertSame(Move::CANCELLED, $this->rows[1]->state);
+	}
+
+	/** A move the job takes on to the identity while the person calls it off is not called off: the DID may move. */
+	public function testAMoveTheJobTakesToTheIdentityMeanwhileIsNotCalledOff(): void {
+		$this->rows[1] = new Move(1, self::DID, 'alice', Move::IN, self::OLD, '', 'alice.bsky.social', Move::STEP_CODE, Move::RUNNING);
+		$this->afterRead = function (): void {
+			$this->afterRead = null;
+			$this->rows[1]->step = Move::STEP_IDENTITY;
+		};
+		$this->repositories->expects($this->never())->method('delete');
+
+		try {
+			$this->moves->cancel('alice');
+			$this->fail('called off');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('move-past-switch', $e->errorCode);
+		}
+		$this->assertSame([Move::RUNNING, Move::STEP_IDENTITY], [$this->rows[1]->state, $this->rows[1]->step]);
 	}
 
 	/** A waiting move can get a new code, and says where the old server sent it. */

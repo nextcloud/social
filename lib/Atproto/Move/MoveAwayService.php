@@ -51,6 +51,8 @@ class MoveAwayService {
 	private const MAX_BLOBS_PER_PAGE = 500;
 	/** the most pages of missing blobs one copy reads from the other PDS */
 	private const MAX_BLOB_PAGES = 1000;
+	/** how often calling off is tried while the job moves the move on between the read and the write */
+	public const CALL_OFF_TRIES = 3;
 	/** what stops a move for the person to decide on, rather than failing it */
 	private const DECISIONS = ['blobs-missing', 'repo-incomplete'];
 	/** what the other PDS's `createAccount` errors mean, as codes for the page */
@@ -234,6 +236,29 @@ class MoveAwayService {
 	 * @throws MoveErrorException
 	 */
 	public function cancel(string $userId): Move {
+		for ($try = 1; ($move = $this->callOff($userId)) === null; $try++) {
+			if ($try === self::CALL_OFF_TRIES) {
+				throw new MoveErrorException('The move went on while it was called off', 'no-move-to-call-off');
+			}
+		}
+		$this->logger->info('Bluesky account move called off', ['did' => $move->did, 'pds' => $move->pds, 'step' => $move->step]);
+		try {
+			$this->publisher->publishBacklog($this->identities->getByDid($move->did)->actorId, $move->creation);
+		} catch (Throwable $e) {
+			$this->logger->warning('Posts held back for a move not published after it was called off', ['did' => $move->did, 'exception' => $e]);
+		}
+
+		return $move;
+	}
+
+	/**
+	 * The person's move, written as called off unless it may not be; null
+	 * when the job moved it on between the read and the write — to the
+	 * handover, say — so it is looked at again.
+	 *
+	 * @throws MoveErrorException
+	 */
+	private function callOff(string $userId): ?Move {
 		$move = $this->moves->latestOfUser($userId);
 		if ($move === null || $move->direction !== Move::AWAY || !in_array($move->state, [Move::RUNNING, Move::FAILED, Move::NEEDS_DECISION], true)) {
 			throw new MoveErrorException('There is no move away to call off', 'no-move-to-call-off');
@@ -248,20 +273,14 @@ class MoveAwayService {
 		if ($handedOver || in_array($move->step, [Move::STEP_ACTIVATE, Move::STEP_DONE], true)) {
 			throw new MoveErrorException('Your account already points at the new server; the move can only be finished', 'move-past-switch');
 		}
+		$read = $move->state;
 		$move->state = Move::CANCELLED;
 		$move->session = '';
 		$move->error = 'Called off';
 		$move->progress['code'] = 'target-account-left';
 		$move->progress['stage'] = self::stageOf($move);
-		$this->moves->update($move);
-		$this->logger->info('Bluesky account move called off', ['did' => $move->did, 'pds' => $move->pds, 'step' => $move->step]);
-		try {
-			$this->publisher->publishBacklog($this->identities->getByDid($move->did)->actorId, $move->creation);
-		} catch (Throwable $e) {
-			$this->logger->warning('Posts held back for a move not published after it was called off', ['did' => $move->did, 'exception' => $e]);
-		}
 
-		return $move;
+		return $this->moves->updateIf($move, $read, $move->step) ? $move : null;
 	}
 
 	/**
@@ -431,17 +450,23 @@ class MoveAwayService {
 
 	/**
 	 * Writes where a running move got to, with its stage — unless the
-	 * person called it off meanwhile, which stops the run here.
+	 * person called it off meanwhile, which stops the run here. The write
+	 * is conditional on the move still running, so a call-off between a
+	 * read and a write is not written over; a stopped move started again
+	 * is written as it is.
 	 *
 	 * @throws MoveErrorException when the move was called off
 	 */
 	private function save(Move $move): void {
+		$move->progress['stage'] = self::stageOf($move);
+		if ($this->moves->updateIfRunning($move)) {
+			return;
+		}
 		$stored = $this->moves->get($move->id);
 		if ($stored !== null && $stored->state === Move::CANCELLED) {
 			$move->state = Move::CANCELLED;
 			throw new MoveErrorException('The move was called off', 'move-called-off');
 		}
-		$move->progress['stage'] = self::stageOf($move);
 		$this->moves->update($move);
 	}
 

@@ -1791,7 +1791,10 @@ asked of the directory before it is called off or started again: once the
 DID points at the other server, the move goes on from the activation and
 is not called off; while the directory cannot be asked, neither is done
 (`plc-unreachable`). A move called off while a step is under way stays
-called off, also when that step then fails.
+called off, also when that step then fails; one the job takes on to the
+handover while it is being called off is not called off
+(`move-switching`): the call-off and the job's writes are each written
+only while the move is still as the other last saw it.
 
 **Moving away with another tool.** A migration tool driven from outside
 (the reference flow, as `goat account migrate` runs it) gets what it needs

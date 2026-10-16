@@ -69,6 +69,10 @@ class MoveAwayServiceTest extends TestCase {
 	private Identity $alice;
 	/** @var IdentityService&MockObject */
 	private IdentityService $identities;
+	/** @var (callable(): void)|null what the job does right after the person's move was read */
+	private $afterRead = null;
+	/** @var (callable(Move): void)|null what the person does right before the job's write of the move lands */
+	private $beforeWrite = null;
 	/** where the directory points the DID; null when it cannot be asked */
 	private ?string $directory = 'https://social.test';
 	private MoveAwayService $moves;
@@ -140,9 +144,15 @@ class MoveAwayServiceTest extends TestCase {
 			return $id;
 		});
 		$request->method('update')->willReturnCallback(function (Move $move): void {
+			if ($this->beforeWrite !== null) {
+				($this->beforeWrite)($move);
+			}
 			$this->rows[$move->id] = clone $move;
 		});
 		$request->method('updateIfRunning')->willReturnCallback(function (Move $move): bool {
+			if ($this->beforeWrite !== null) {
+				($this->beforeWrite)($move);
+			}
 			if (($this->rows[$move->id] ?? null)?->state !== Move::RUNNING) {
 				return false;
 			}
@@ -151,7 +161,23 @@ class MoveAwayServiceTest extends TestCase {
 			return true;
 		});
 		$request->method('get')->willReturnCallback(fn (int $id): ?Move => isset($this->rows[$id]) ? clone $this->rows[$id] : null);
-		$request->method('latestOfUser')->willReturnCallback(fn (): ?Move => $this->rows === [] ? null : clone end($this->rows));
+		$request->method('latestOfUser')->willReturnCallback(function (): ?Move {
+			$move = $this->rows === [] ? null : clone end($this->rows);
+			if ($this->afterRead !== null) {
+				($this->afterRead)();
+			}
+
+			return $move;
+		});
+		$request->method('updateIf')->willReturnCallback(function (Move $move, string $state, string $step): bool {
+			$stored = $this->rows[$move->id] ?? null;
+			if ($stored?->state !== $state || $stored->step !== $step) {
+				return false;
+			}
+			$this->rows[$move->id] = clone $move;
+
+			return true;
+		});
 		$crypto = $this->createMock(ICrypto::class);
 		$crypto->method('encrypt')->willReturnCallback(static fn (string $plain): string => 'sealed:' . base64_encode($plain));
 		$crypto->method('decrypt')->willReturnCallback(static fn (string $sealed): string => base64_decode(substr($sealed, 7)));
@@ -442,6 +468,40 @@ class MoveAwayServiceTest extends TestCase {
 		$this->assertSame([Move::CANCELLED, 'target-account-left'], [$this->rows[1]->state, $this->rows[1]->progress['code']]);
 		$this->expectException(MoveErrorException::class);
 		$this->moves->retry('alice');
+	}
+
+	/** A move the job takes on to the handover while the person calls it off is not called off: it is being switched. */
+	public function testAMoveTheJobTakesToTheHandOverMeanwhileIsNotCalledOff(): void {
+		$this->rows = [1 => new Move(1, self::DID, 'alice', Move::AWAY, self::PDS, self::PDS_DID, 'alice.pds.example.com', Move::STEP_CHECK, Move::RUNNING)];
+		$this->afterRead = function (): void {
+			$this->afterRead = null;
+			$this->rows[1]->step = Move::STEP_IDENTITY;
+		};
+
+		try {
+			$this->moves->cancel('alice');
+			$this->fail('called off');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('move-switching', $e->errorCode);
+		}
+		$this->assertSame([Move::RUNNING, Move::STEP_IDENTITY], [$this->rows[1]->state, $this->rows[1]->step]);
+	}
+
+	/** Called off right before the job writes that it goes on to the handover, the move stops there: the DID does not move. */
+	public function testACallOffThatLandsBeforeTheJobsWriteStopsTheHandOver(): void {
+		$move = $this->moves->start('alice', $this->alice, 'pds.example.com', 'alice.pds.example.com', 'alice@example.org', 'secret');
+		$this->identities->expects($this->never())->method('handOver');
+		$this->beforeWrite = function (Move $written): void {
+			if ($written->step === Move::STEP_IDENTITY && $written->state === Move::RUNNING) {
+				$this->beforeWrite = null;
+				$this->rows[1]->state = Move::CANCELLED;
+			}
+		};
+
+		$this->moves->run($move->id);
+
+		$this->assertSame(Move::CANCELLED, $this->rows[1]->state);
+		$this->assertNotContains('com.atproto.identity.getRecommendedDidCredentials', array_column($this->calls, 'method'));
 	}
 
 	public function testMissingPicturesStopTheMoveBeforeTheDidMoves(): void {

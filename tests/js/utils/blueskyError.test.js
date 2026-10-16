@@ -53,11 +53,11 @@ describe('blueskyErrorSentence', () => {
 
 describe('blueskyErrorOf', () => {
 	it('says what the code means, and keeps the server\'s sentence for the details', () => {
-		const error = { response: { status: 422, data: { error: 'The PDS at https://pds.example could not be reached: Connection refused', code: 'pds-unreachable' } } }
+		const error = { response: { status: 422, data: { error: 'The PDS at https://pds.example could not be reached', code: 'pds-unreachable' } } }
 
 		expect(blueskyErrorOf(error, 'Could not start the move')).toEqual({
-			text: 'The other server did not answer. Try again later.',
-			details: 'The PDS at https://pds.example could not be reached: Connection refused',
+			text: 'The other server could not be reached. Check the address, or try again later.',
+			details: 'The PDS at https://pds.example could not be reached',
 		})
 	})
 
