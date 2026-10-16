@@ -82,6 +82,87 @@ describe('the composer draft', () => {
 		expect(loadDraft()).toMatchObject({ text: '', spoilerText: 'spoilers' })
 	})
 
+	// Leaving the page used to keep the words and nothing else: four
+	// described photos, a poll and a time came back as a line of text.
+	describe('and everything else in the box', () => {
+		const photo = {
+			data: { id: '7', type: 'image', url: 'https://cloud.example/7.jpg', preview_url: 'https://cloud.example/7-small.jpg', description: '' },
+			description: 'a cat asleep on a keyboard',
+			focus: { x: 0.25, y: -0.5 },
+			filter: 'warm',
+		}
+
+		it('keeps the attachments, the poll, the time, the language and the rest', () => {
+			saveDraft({
+				text: 'look',
+				media: [photo],
+				poll: { options: ['yes', 'no', ''], multiple: true, expiresIn: 3600 },
+				scheduledAt: '2026-10-17T09:00:00.000Z',
+				language: 'de',
+				replyPolicy: 'followers',
+				place: { id: '3', name: 'The pier' },
+				video: { title: 'A film', category: 'Music', licence: 'CC BY' },
+				card: 'sunset',
+			})
+
+			expect(loadDraft()).toMatchObject({
+				text: 'look',
+				media: [photo],
+				poll: { options: ['yes', 'no', ''], multiple: true, expiresIn: 3600 },
+				scheduledAt: '2026-10-17T09:00:00.000Z',
+				language: 'de',
+				replyPolicy: 'followers',
+				place: { id: '3', name: 'The pier' },
+				video: { title: 'A film', category: 'Music', licence: 'CC BY' },
+				card: 'sunset',
+			})
+		})
+
+		it('keeps a post that is only pictures, or only a poll', () => {
+			saveDraft({ text: '', media: [photo] })
+			expect(loadDraft()?.media).toHaveLength(1)
+
+			saveDraft({ text: '', poll: { options: ['tea', ''], multiple: false, expiresIn: 86400 } })
+			expect(loadDraft()?.poll?.options).toEqual(['tea', ''])
+		})
+
+		it('keeps no draft for a language or an empty poll alone', () => {
+			saveDraft({ text: '', language: 'de', poll: { options: ['', ''], multiple: false, expiresIn: 86400 } })
+
+			expect(loadDraft()).toBeNull()
+		})
+
+		it('reads a draft from before any of this as one without it', () => {
+			localStorage.setItem(KEY, JSON.stringify({ text: 'only words', savedAt: Date.now() }))
+
+			expect(loadDraft()).toMatchObject({
+				text: 'only words',
+				media: [],
+				poll: null,
+				scheduledAt: '',
+				language: '',
+				replyPolicy: '',
+				place: null,
+				video: null,
+				card: '',
+			})
+		})
+
+		it('drops an attachment that names no upload, and keeps the words', () => {
+			localStorage.setItem(KEY, JSON.stringify({
+				text: 'still here',
+				media: [{ data: {} }, 'nonsense', { ...photo, focus: 'middle' }],
+				poll: { options: 'yes' },
+				savedAt: Date.now(),
+			}))
+
+			const draft = loadDraft()
+			expect(draft.text).toBe('still here')
+			expect(draft.media).toEqual([{ ...photo, focus: null }])
+			expect(draft.poll).toBeNull()
+		})
+	})
+
 	it('forgets the draft on request', () => {
 		saveDraft({ text: 'off it goes' })
 		clearDraft()

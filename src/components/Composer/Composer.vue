@@ -100,7 +100,7 @@
 		</div>
 		<form
 			class="new-post-form"
-			:class="{ 'new-post-form--media-first': hasAttachments }"
+			:class="{ 'new-post-form--with-media': hasAttachments }"
 			@submit.prevent>
 			<!-- a post whose only attachment is a video is a video, and a video
 			     has a name. Without this the title was guessed out of the first
@@ -170,20 +170,6 @@
 					</li>
 				</ul>
 			</div>
-			<!-- above the box, not below it: once there is a picture the post
-			     is the picture, and what is typed underneath is its caption -->
-			<PreviewGrid
-				:uploading="uploading"
-				:uploadProgress="uploadProgress"
-				:progressLabel="progressLabel"
-				:miniatures="attachments"
-				@deleted="deletePreview"
-				@describe="describeAttachment"
-				@commitDescription="commitDescription"
-				@focus="focusAttachment"
-				@commitFocus="commitFocus"
-				@filter="applyFilter" />
-
 			<div
 				ref="composerInput"
 				:contenteditable="!loading"
@@ -199,6 +185,21 @@
 				@input="updateStatusContent"
 				@paste="handlePaste"
 				@tribute-replaced="updatePostFromTribute" />
+
+			<!-- under the box, as Mastodon and Bluesky have them: above it, four
+			     pictures and their descriptions pushed the box off a phone's
+			     screen. In the DOM too, so the tab order follows the eye -->
+			<PreviewGrid
+				:uploading="uploading"
+				:uploadProgress="uploadProgress"
+				:progressLabel="progressLabel"
+				:miniatures="attachments"
+				@deleted="deletePreview"
+				@describe="describeAttachment"
+				@commitDescription="commitDescription"
+				@focus="focusAttachment"
+				@commitFocus="commitFocus"
+				@filter="applyFilter" />
 
 			<!-- /dice, /flip and /pick are played when the post goes out; this
 			     says so while one is in the box, and shows the roll itself -->
@@ -481,7 +482,10 @@
 					</option>
 				</select>
 				<LanguageSelect :language="language" @update:language="language = $event" />
-				<VisibilitySelect :visibility="visibility" @update:visibility="chooseVisibility" />
+				<VisibilitySelect
+					:visibility="visibility"
+					:reachesBluesky="reachesBluesky"
+					@update:visibility="chooseVisibility" />
 				<ReplyPolicySelect
 					v-if="visibility !== 'direct'"
 					:policy="replyPolicy"
@@ -537,6 +541,15 @@
 				{{ t('social', 'What you have written is kept, and is back in the box the next time you open it.') }}
 			</p>
 		</NcDialog>
+		<!-- everything else in the box is in the draft and comes back; an
+		     upload still on its way has no id to keep yet -->
+		<ConfirmDialog
+			:open="confirmingLeave"
+			:name="t('social', 'Leave while an attachment is uploading?')"
+			:message="t('social', 'The attachment that is still uploading will not be kept. Everything else you wrote is kept as a draft.')"
+			:confirmLabel="t('social', 'Leave')"
+			@update:open="answerLeave(false)"
+			@confirm="answerLeave(true)" />
 	</div>
 </template>
 
@@ -567,6 +580,7 @@ import { showError, showSuccess } from '../../services/toast.js'
 import FocusOnCreate from '../../directives/focusOnCreate.js'
 import axios from '@nextcloud/axios'
 import ActorAvatar from '../ActorAvatar.vue'
+import ConfirmDialog from '../admin/ConfirmDialog.vue'
 import { generateUrl } from '@nextcloud/router'
 import { ownAvatarUrl } from '../../services/avatar.js'
 import PollEditor from './PollEditor.vue'
@@ -681,6 +695,7 @@ export default {
 		NcDialog,
 		NcLoadingIcon,
 		ActorAvatar,
+		ConfirmDialog,
 		Paperclip,
 		EmoticonOutline,
 		ClockOutline,
@@ -873,6 +888,11 @@ export default {
 			 */
 			teams: [],
 			postAs: '',
+			/**
+			 * The team a restored draft was being written as, until the teams
+			 * have been asked for and it can be checked against them.
+			 */
+			pendingPostAs: '',
 			/** who may reply to it, as `reply_policy` says it */
 			replyPolicy: 'everyone',
 			/** when the post is to go out, or null for now */
@@ -898,6 +918,10 @@ export default {
 			showPreview: false,
 			/** whether Escape is being asked about, the box holding words */
 			confirmingClose: false,
+			/** whether leaving the page is being asked about, an upload being on its way */
+			confirmingLeave: false,
+			/** what answers the navigation waiting on that question */
+			resolveLeave: null,
 			/** whether the shared picture library is open */
 			showGifs: false,
 			spoilerText: '',
@@ -917,6 +941,8 @@ export default {
 			onComposerRedraft: null,
 			onComposerFocus: null,
 			onOutsideInteraction: null,
+			onBeforeUnload: null,
+			stopLeaveGuard: null,
 		}
 	},
 
@@ -959,9 +985,8 @@ export default {
 		},
 
 		/**
-		 * What the box asks for. With a picture above it, the post is the
-		 * picture and the words underneath it are its caption. A post of its
-		 * own is asked for by first name.
+		 * What the box asks for. With a picture, the words are its caption.
+		 * A post of its own is asked for by first name.
 		 *
 		 * @return {string}
 		 */
@@ -1047,6 +1072,12 @@ export default {
 			// that failed used to leave `data: undefined`, which passed this
 			// check and then threw on `preview.data.id` before the try block
 			if (this.hasPendingUploads) {
+				return false
+			}
+
+			// an attachment a draft came back with may be gone from the
+			// server, and the post would fail on it
+			if (this.checkingMedia) {
 				return false
 			}
 
@@ -1195,6 +1226,57 @@ export default {
 		},
 
 		/**
+		 * Whether a public post from this account goes to Bluesky: the server
+		 * offers it, and the account has an identity there that is in use.
+		 * Only then is there anything to say about the audiences that do not.
+		 *
+		 * @return {boolean}
+		 */
+		reachesBluesky() {
+			const identity = this.accountStore.currentAccount?.bluesky
+			return this.serverData?.bluesky?.enabled === true
+				&& identity !== null && identity !== undefined && identity.active !== false
+		},
+
+		/**
+		 * Everything in the box, as the draft on disk keeps it.
+		 *
+		 * @return {Omit<import('../../services/draft.js').ComposerDraft, 'savedAt'>}
+		 */
+		draft() {
+			const scheduled = this.scheduling && this.scheduledAt instanceof Date && !Number.isNaN(this.scheduledAt.getTime())
+			const video = { title: this.videoTitle, category: this.videoCategory, licence: this.videoLicence }
+			const poll = { options: [...this.pollOptions], multiple: this.pollMultiple, expiresIn: this.pollExpiresIn }
+
+			return {
+				text: this.statusText,
+				spoilerText: this.showWarning ? this.spoilerText : '',
+				visibility: this.visibility,
+				// who it was being written as, so a reload does not quietly
+				// turn a team post back into a personal one
+				postAs: this.postAs || this.pendingPostAs,
+				media: this.draftMedia,
+				poll: this.showPoll ? poll : null,
+				scheduledAt: scheduled ? this.scheduledAt.toISOString() : '',
+				language: this.language,
+				replyPolicy: this.replyPolicy,
+				place: this.placing ? this.place : null,
+				video: Object.values(video).some((value) => value !== '') ? video : null,
+				card: this.asCard ? this.cardGradientId : '',
+			}
+		},
+
+		/**
+		 * Whether leaving now would lose something the draft cannot keep: an
+		 * upload that has not come back has no id to keep it by.
+		 *
+		 * @return {boolean}
+		 */
+		wouldLoseOnLeave() {
+			return this.hasPendingUploads
+		},
+
+		/**
 		 * Whether to say that Bluesky will cut this post: only a public post
 		 * goes there, and only when it is longer than what Bluesky shows.
 		 *
@@ -1219,10 +1301,9 @@ export default {
 			this.replyTo = post
 		},
 
-		// the warning is part of the draft, and it has its own field
-		spoilerText: 'rememberDraft',
-		showWarning: 'rememberDraft',
-		visibility: 'rememberDraft',
+		// everything in the box but the words, which are kept as they are
+		// typed (updateStatusContent)
+		draft: 'rememberDraft',
 
 		/**
 		 * The words stay in the box when it is pointed at another post, or
@@ -1327,11 +1408,29 @@ export default {
 		this.onOutsideInteraction = (event) => this.collapseIfIdle(event)
 		document.addEventListener('pointerdown', this.onOutsideInteraction)
 		document.addEventListener('focusin', this.onOutsideInteraction)
+
+		// the draft keeps everything else; what it cannot keep is asked about
+		// before the page is left, and only then
+		this.onBeforeUnload = (event) => {
+			if (this.wouldLoseOnLeave) {
+				event.preventDefault()
+				event.returnValue = ''
+			}
+		}
+		window.addEventListener('beforeunload', this.onBeforeUnload)
+		if (typeof this.$router?.beforeEach === 'function') {
+			this.stopLeaveGuard = this.$router.beforeEach((to, from) => this.confirmLeave(to, from))
+		}
 	},
 
 	unmounted() {
 		document.removeEventListener('pointerdown', this.onOutsideInteraction)
 		document.removeEventListener('focusin', this.onOutsideInteraction)
+		window.removeEventListener('beforeunload', this.onBeforeUnload)
+		this.stopLeaveGuard?.()
+		// a navigation still waiting on the question is not held up by a
+		// composer that is gone
+		this.resolveLeave?.(true)
 		if (this.tribute && this.tributeTarget) {
 			this.tribute.detach(this.tributeTarget)
 		}
@@ -1602,23 +1701,21 @@ export default {
 			try {
 				const { data } = await axios.get(generateUrl('apps/social/api/v1.1/teams'))
 				this.teams = data.teams ?? []
+				if (this.postAs === '' && this.teams.some((team) => team.acct === this.pendingPostAs)) {
+					this.postAs = this.pendingPostAs
+				}
 			} catch (error) {
 				// an instance with none answers this too; a composer without
 				// the control is the composer it has always been
 				logger.debug('could not load the team accounts', { error })
+			} finally {
+				this.pendingPostAs = ''
 			}
 		},
 
 		/** Keeps what is in the box, so a failed post or a reload cannot eat it. */
 		rememberDraft() {
-			saveDraft({
-				text: this.statusText,
-				spoilerText: this.showWarning ? this.spoilerText : '',
-				visibility: this.visibility,
-				// who it was being written as, so a reload does not quietly
-				// turn a team post back into a personal one
-				postAs: this.postAs,
-			}, this.draftContext)
+			saveDraft(this.draft, this.draftContext)
 		},
 
 		/**
@@ -1645,15 +1742,96 @@ export default {
 				this.visibility = draft.visibility
 				this.visibilityChosen = true
 			}
-			// only a team this account is actually in: a draft can outlive
-			// leaving one, and a handle the server would refuse is worse than
-			// a draft that opens as yourself
-			if (this.teams.some((team) => team.acct === draft.postAs)) {
-				this.postAs = draft.postAs
+			// checked against the teams once they are known (loadTeams): a
+			// draft can outlive leaving one, and a handle the server would
+			// refuse is worse than a draft that opens as yourself
+			this.pendingPostAs = draft.postAs
+			if (isLanguageCode(draft.language)) {
+				this.language = draft.language
+			}
+			if (draft.replyPolicy !== '') {
+				this.replyPolicy = draft.replyPolicy
+			}
+			if (draft.poll !== null) {
+				this.showPoll = true
+				this.pollOptions = draft.poll.options.length >= 2 ? draft.poll.options : ['', '']
+				this.pollMultiple = draft.poll.multiple
+				this.pollExpiresIn = draft.poll.expiresIn
+			}
+			if (draft.scheduledAt !== '') {
+				// a time that has come too close in the meantime is shown as
+				// such by the picker, and Post waits until it is moved
+				this.scheduling = true
+				this.scheduledAt = new Date(draft.scheduledAt)
+				this.loadSchedulePicker()
+			}
+			if (draft.place !== null) {
+				this.placing = true
+				this.place = draft.place
+			}
+			if (draft.video !== null) {
+				this.videoTitle = draft.video.title
+				this.videoCategory = draft.video.category
+				this.videoLicence = draft.video.licence
+			}
+			if (draft.card !== '') {
+				this.asCard = true
+				this.cardGradientId = draft.card
+			}
+			if (draft.media.length > 0) {
+				this.restoreDraftMedia(draft.media)
 			}
 			this.updateStatusContent()
 
 			return true
+		},
+
+		/**
+		 * Asked by the router before every navigation: lets it go ahead, or
+		 * holds it on a question when leaving would lose an upload.
+		 *
+		 * @param {import('vue-router').RouteLocationNormalized} to where the reader is going
+		 * @param {import('vue-router').RouteLocationNormalized} from where they are
+		 * @return {boolean|Promise<boolean>} whether to go
+		 */
+		confirmLeave(to, from) {
+			if (!this.wouldLoseOnLeave || to.path === from.path) {
+				return true
+			}
+
+			this.resolveLeave?.(false)
+			this.confirmingLeave = true
+			return new Promise((resolve) => {
+				this.resolveLeave = resolve
+			})
+		},
+
+		/**
+		 * The answer to the question confirmLeave() asked.
+		 *
+		 * Leave closes the dialog and then confirms, in the same tick, so a
+		 * no is held until the tick is over; Cancel, Escape and the close
+		 * button come with the no alone.
+		 *
+		 * @param {boolean} leave whether to go
+		 */
+		answerLeave(leave) {
+			this.confirmingLeave = false
+			const resolve = this.resolveLeave
+			if (resolve === null) {
+				return
+			}
+			if (leave) {
+				this.resolveLeave = null
+				resolve(true)
+				return
+			}
+			this.$nextTick(() => {
+				if (this.resolveLeave === resolve) {
+					this.resolveLeave = null
+					resolve(false)
+				}
+			})
 		},
 
 		/**
@@ -2012,6 +2190,11 @@ export default {
 
 			this.scheduling = true
 			this.scheduledAt = proposedSchedule()
+			await this.loadSchedulePicker()
+		},
+
+		/** Fetches the date picker, which the clock and a restored draft both need. */
+		async loadSchedulePicker() {
 			if (this.schedulePickerLoaded || this.schedulePickerLoading) {
 				return
 			}
@@ -2412,13 +2595,12 @@ $composer-duration: 220ms;
 	}
 }
 
-// Photo-first: the picture is the post and the box under it is its caption,
-// so the box gives up the height it was holding for a post that has no picture.
-// Nothing is moved or hidden — the same controls in the same order, weighted
-// the other way round.
-.new-post-form--media-first {
-	:deep(.preview-grid) {
-		margin-bottom: 10px;
+// With a picture the words are its caption, so the box gives up the height it
+// was holding for a post that has no picture, and the pictures under it stay
+// within reach of the thumb that is typing.
+.new-post-form--with-media {
+	:deep(.upload-form) {
+		margin-top: 10px;
 	}
 
 	.message--caption {

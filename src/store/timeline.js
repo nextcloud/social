@@ -1208,6 +1208,49 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 
 		/**
+		 * One of the reader's own uploads as the server holds it now: what a
+		 * kept draft asks about each attachment it comes back with.
+		 *
+		 * @param {string} id the upload's id
+		 * @return {Promise<object|null|undefined>} the media entity; null when
+		 *         the server says there is no such upload; undefined when it
+		 *         could not be asked
+		 */
+		async fetchMedia(id) {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/media/{id}', { id }))
+				return data
+			} catch (error) {
+				if (error.response?.status === 404) {
+					return null
+				}
+				logger.warn('Could not check an attachment of a draft', { error })
+				return undefined
+			}
+		},
+
+		/**
+		 * The bytes of an upload, as a file the browser can draw from again:
+		 * a filter is baked in from the file as the post is sent, and after a
+		 * reload the file that was picked is gone.
+		 *
+		 * @param {object} media the upload
+		 * @param {string} media.url where it is
+		 * @param {string} [media.media_type] what it is
+		 * @return {Promise<File|undefined>} the file, or undefined when it could not be had
+		 */
+		async fetchMediaFile(media) {
+			try {
+				const { data } = await axios.get(media.url, { responseType: 'blob' })
+				const type = data.type || media.media_type || ''
+				return new File([data], media.url.split('/').pop() || 'attachment', { type })
+			} catch (error) {
+				logger.warn('Could not fetch an attachment of a draft', { error })
+				return undefined
+			}
+		},
+
+		/**
 		 * Uploads one attachment.
 		 *
 		 * @param {File|{file: File, onProgress?: (fraction: number) => void, thumbnail?: Blob|null}} payload the file, or `{file, onProgress, thumbnail}`, the thumbnail being a chosen cover for a video

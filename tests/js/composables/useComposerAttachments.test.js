@@ -12,9 +12,9 @@ import { useInstanceStore } from '../../../src/store/instance.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
 import { prepareImage } from '../../../src/utils/imageFilters.js'
 
-import { showError } from '../../../src/services/toast.js'
+import { showError, showWarning } from '../../../src/services/toast.js'
 
-vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
+vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn(), showWarning: vi.fn() }))
 
 // the real one needs a canvas; what is tested here is when it is asked, and
 // what is done with its answer
@@ -294,6 +294,135 @@ describe('useComposerAttachments', () => {
 			expect(store.createMedia).not.toHaveBeenCalled()
 			expect(attachments.attachments.value['blob:https://cloud.example/clip'].failed).toBe(true)
 			expect(showError).toHaveBeenCalledWith('This video is larger than the 3 MB this server takes')
+		})
+	})
+
+	/**
+	 * A draft keeps its attachments by the id of their upload, and an upload
+	 * nobody posted can be cleared away while the draft waits: each one is
+	 * asked about again when the draft comes back.
+	 */
+	describe('what a draft kept', () => {
+		const kept = (id, extra = {}) => ({
+			data: { id, type: 'image', url: `https://cloud.example/${id}.jpg`, preview_url: `https://cloud.example/${id}-small.jpg`, description: '' },
+			description: '',
+			focus: null,
+			filter: '',
+			...extra,
+		})
+
+		beforeEach(() => {
+			showWarning.mockClear()
+			useInstanceStore().maxAttachments = 4
+		})
+
+		it('is in the grid at once, and Post waits until the server has answered', async () => {
+			const store = useTimelineStore()
+			let answer
+			store.fetchMedia = vi.fn(() => new Promise((resolve) => {
+				answer = resolve
+			}))
+			const { attachments } = mountAttachments()
+
+			const restoring = attachments.restoreDraftMedia([kept('1', { description: 'a dog', focus: { x: 0.5, y: -0.25 } })])
+
+			const [restored] = Object.values(attachments.attachments.value)
+			expect(restored).toMatchObject({ data: { id: '1' }, description: 'a dog', focus: { x: 0.5, y: -0.25 }, checking: true })
+			expect(attachments.checkingMedia.value).toBe(true)
+			expect(attachments.mediaIds.value).toEqual(['1'])
+
+			answer({ id: '1', type: 'image', url: 'https://cloud.example/1.jpg', description: 'a dog' })
+			await restoring
+
+			expect(attachments.checkingMedia.value).toBe(false)
+			// the description the server holds is not written again
+			expect(Object.values(attachments.attachments.value)[0]).toMatchObject({ description: 'a dog', saved: 'a dog' })
+			expect(store.fetchMedia).toHaveBeenCalledWith('1')
+		})
+
+		it('takes off what the server no longer has, and says so once', async () => {
+			const store = useTimelineStore()
+			store.fetchMedia = vi.fn(async (id) => (id === '2' ? { id: '2', type: 'image', url: 'https://cloud.example/2.jpg' } : null))
+			const { attachments } = mountAttachments()
+
+			await attachments.restoreDraftMedia([kept('1'), kept('2'), kept('3')])
+
+			expect(attachments.mediaIds.value).toEqual(['2'])
+			expect(showWarning).toHaveBeenCalledTimes(1)
+			expect(showWarning).toHaveBeenCalledWith('2 attachments of your draft are no longer on the server and were removed')
+		})
+
+		it('keeps one the server could not be asked about, as the draft had it', async () => {
+			const store = useTimelineStore()
+			store.fetchMedia = vi.fn(async () => undefined)
+			const { attachments } = mountAttachments()
+
+			await attachments.restoreDraftMedia([kept('1', { description: 'a dog' })])
+
+			expect(Object.values(attachments.attachments.value)[0]).toMatchObject({ data: { id: '1' }, description: 'a dog', checking: false })
+			expect(showWarning).not.toHaveBeenCalled()
+		})
+
+		it('fetches a filtered picture again, so the filter can still be baked in', async () => {
+			const store = useTimelineStore()
+			const file = new File(['x'], '1.jpg', { type: 'image/jpeg' })
+			store.fetchMedia = vi.fn(async () => ({ id: '1', type: 'image', url: 'https://cloud.example/1.jpg' }))
+			store.fetchMediaFile = vi.fn(async () => file)
+			vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://cloud.example/refetched')
+			const { attachments } = mountAttachments()
+
+			await attachments.restoreDraftMedia([kept('1', { filter: 'warm' }), kept('2')])
+
+			// keyed by the file now, which the swatches draw; the order is kept
+			expect(Object.keys(attachments.attachments.value)[0]).toBe('blob:https://cloud.example/refetched')
+			expect(attachments.attachments.value['blob:https://cloud.example/refetched']).toMatchObject({ file, filter: 'warm' })
+			expect(attachments.mediaIds.value).toEqual(['1', '1'])
+		})
+
+		it('drops the filter of a picture it cannot fetch, so the preview is what would be posted', async () => {
+			const store = useTimelineStore()
+			store.fetchMedia = vi.fn(async () => ({ id: '1', type: 'image', url: 'https://cloud.example/1.jpg' }))
+			store.fetchMediaFile = vi.fn(async () => undefined)
+			const { attachments } = mountAttachments()
+
+			await attachments.restoreDraftMedia([kept('1', { filter: 'warm' })])
+
+			expect(Object.values(attachments.attachments.value)[0].filter).toBeUndefined()
+		})
+
+		it('leaves alone one that was taken off while the server was asked', async () => {
+			const store = useTimelineStore()
+			let answer
+			store.fetchMedia = vi.fn(() => new Promise((resolve) => {
+				answer = resolve
+			}))
+			const { attachments } = mountAttachments()
+
+			const restoring = attachments.restoreDraftMedia([kept('1')])
+			attachments.deletePreview(Object.keys(attachments.attachments.value)[0])
+			answer({ id: '1' })
+			await restoring
+
+			expect(attachments.attachments.value).toEqual({})
+		})
+
+		it('keeps each one by its upload, with what was written about it', async () => {
+			const store = useTimelineStore()
+			store.createMedia = vi.fn(async () => ({ id: '9', type: 'image', url: 'https://cloud.example/9.jpg', preview_url: 'https://cloud.example/9-small.jpg' }))
+			vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://cloud.example/cat')
+			const { attachments } = mountAttachments()
+			await attachments.attachFiles([new File(['x'], 'cat.png', { type: 'image/png' })])
+
+			attachments.describeAttachment({ key: 'blob:https://cloud.example/cat', description: 'a cat' })
+			attachments.focusAttachment({ key: 'blob:https://cloud.example/cat', focus: { x: 0.1, y: 0.2 } })
+			attachments.applyFilter({ key: 'blob:https://cloud.example/cat', filter: 'warm' })
+
+			expect(attachments.draftMedia.value).toEqual([{
+				data: expect.objectContaining({ id: '9', url: 'https://cloud.example/9.jpg' }),
+				description: 'a cat',
+				focus: { x: 0.1, y: 0.2 },
+				filter: 'warm',
+			}])
 		})
 	})
 })

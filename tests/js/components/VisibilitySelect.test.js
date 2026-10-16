@@ -21,10 +21,11 @@ const ICON_CLASSES = {
  *
  * @param {string} visibility - Currently selected visibility id
  * @param {Function} [errorHandler] - Vue's app-level error handler, to catch what a handler throws
+ * @param {object} [extraProps] - the other props
  */
-function mountSelect(visibility, errorHandler) {
+function mountSelect(visibility, errorHandler, extraProps = {}) {
 	return mount(VisibilitySelect, {
-		props: { visibility },
+		props: { visibility, ...extraProps },
 		attachTo: document.body,
 		global: errorHandler ? { config: { errorHandler } } : {},
 	})
@@ -141,5 +142,25 @@ describe('VisibilitySelect', () => {
 		await wrapper.setProps({ visibility: 'direct' })
 		expect(toggle(wrapper).find('.at-icon').exists()).toBe(true)
 		expect(toggle(wrapper).find('.earth-icon').exists()).toBe(false)
+	})
+
+	// Only a public post goes to Bluesky; Bluesky followers are followers
+	// too, and the menu used to say nothing about it.
+	describe('where posts reach Bluesky', () => {
+		const notes = () => menuEntries().map((entry) => entry.querySelector('.action-button__description')?.textContent ?? '')
+
+		it('says which audiences do not go there', async () => {
+			wrapper = mountSelect('public', undefined, { reachesBluesky: true })
+			await openMenu(wrapper)
+
+			expect(notes()).toEqual(['', 'Not on Bluesky', 'Not on Bluesky', 'Not on Bluesky'])
+		})
+
+		it('says nothing about Bluesky where posts do not reach it', async () => {
+			wrapper = mountSelect('public')
+			await openMenu(wrapper)
+
+			expect(notes()).toEqual(['', '', '', ''])
+		})
 	})
 })

@@ -745,7 +745,11 @@ the post here (`$post->getUrl()`) added on its own line with a `#link`
 facet — always, so the truncated post is never the whole of what somebody
 sees. The counter in the composer is unchanged (Social's own limit), but a
 hint under it says "Bluesky shows the first 280 characters and a link"
-when crossed.
+when crossed. Only a public post is published (`Publisher::goesToBluesky()`),
+so where the server has Bluesky on and the writing account has an active
+identity, the composer's audience menu says "Not on Bluesky" under Unlisted,
+Followers and Direct message (`VisibilitiesInfos.js` marks which audiences
+go there).
 
 ### 8.3 Warnings, polls, quotes, replies
 

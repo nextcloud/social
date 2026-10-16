@@ -2329,9 +2329,11 @@ whose value is no longer among the fields is dropped with it.
 `@nextcloud/dialogs` file picker, so a picture already in the user's Nextcloud
 goes straight to `POST /api/v1/media/from-file` instead of being downloaded and
 uploaded back. Both sources fill the same attachment map and share one ceiling,
-the server's (see "What the server's limits are" below), and with anything attached the preview grid moves above the text box —
-in the DOM, so the tab order follows the eye — and the box becomes a caption
-field. A picture with no alt text is marked as such on its own thumbnail, and a
+the server's (see "What the server's limits are" below). The preview grid sits
+under the text box, as Mastodon and Bluesky have it — above it, four pictures
+and their descriptions pushed the box off a phone's screen — and it is under it
+in the DOM too, so the tab order goes from the words to the descriptions. With
+anything attached the box becomes a caption field. A picture with no alt text is marked as such on its own thumbnail, and a
 description is saved on leaving the field rather than only when the post goes
 out, so it survives a post that is never sent.
 
@@ -3009,13 +3011,27 @@ narrower `Remove the place` as well — that one clears the choice and leaves th
 search open, where the close puts the panel away and leaves the post without a
 place, which is what an unpressed pin means.
 
-The draft on disk (`src/services/draft.js`) is the same promise across a reload:
-the text, the content warning, the audience and **the team account it was being
-written as** — which the store took and dropped until the field was added to it,
-so the line in the composer that reads it back could never fire. Attachments are
-deliberately not in it: they are uploaded media the server holds a handle to, and
-restoring an id whose upload has been reaped would fail on the next send. They
-survive a close, because nothing is cleared; they do not survive a reload.
+The draft on disk (`src/services/draft.js`) is the same promise across a reload
+or a navigation, and it holds everything in the box: the text, the content
+warning, the audience, the language, the reply policy, the poll, the scheduled
+time, the place, a video's title, the card, and **the team account it was being
+written as** — which is checked against the teams once `loadTeams()` has them,
+since a draft can outlive leaving one. The composer builds it as one computed
+`draft` and writes it whenever that changes. Attachments are kept by the id of
+their upload (the upload made on attaching, not a filtered copy), with the alt
+text as typed, the focal point and the filter. They come back at once, marked
+`checking`, and Post waits while `restoreDraftMedia()` asks
+`GET /api/v1/media/{id}` about each: an upload the server no longer has (a 404)
+is taken off with one toast for all of them, and one it could not be asked about
+stays as the draft had it. A filtered picture has its bytes fetched back into a
+`File`, because the filter is baked in from the file as the post is sent; when
+that fails the filter is dropped, so the preview shows what would be posted.
+
+The one thing a draft cannot hold is an upload that has not come back, which
+has no id yet. That alone is what the leave guard asks about: a `beforeunload`
+listener and a `router.beforeEach` guard the composer registers on mount and
+removes on unmount, both silent unless `hasPendingUploads`. The router's
+question is `admin/ConfirmDialog.vue`, and the navigation waits on its answer.
 
 And when the thread is shorter than the post says it is, the page says so.
 `replies_count` is what the post's own instance reported plus what has arrived

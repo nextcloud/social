@@ -6,7 +6,7 @@
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import logger from '../services/logger.js'
-import { showError } from '../services/toast.js'
+import { showError, showWarning } from '../services/toast.js'
 import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { focusParam, isFocalPoint } from '../utils/focalPoint.js'
@@ -107,6 +107,38 @@ export function useComposerAttachments({ expand, root }) {
 
 	/** whether an upload has not come back yet */
 	const hasPendingUploads = computed(() => Object.values(attachments.value).some((attachment) => attachment.failed !== true && attachment.data === null))
+
+	/** whether an attachment a draft came back with is still being asked about */
+	const checkingMedia = computed(() => Object.values(attachments.value).some((attachment) => attachment.checking === true))
+
+	/**
+	 * The attachments as a draft keeps them: by the upload, with what was
+	 * written about them, where their subject is and the filter chosen. The
+	 * upload made on attaching rather than a filtered copy of it, because
+	 * the filter is baked in again from the file when the post goes out.
+	 *
+	 * @type {import('vue').ComputedRef<import('../services/draft.js').DraftMedia[]>}
+	 */
+	const draftMedia = computed(() => Object.values(attachments.value)
+		.filter((attachment) => attachment.data?.id !== undefined)
+		.map((attachment) => {
+			const upload = attachment.unfiltered ?? attachment.data
+			return {
+				data: {
+					id: upload.id,
+					type: upload.type,
+					url: upload.url,
+					preview_url: upload.preview_url,
+					media_type: upload.media_type,
+					description: upload.description,
+					blurhash: upload.blurhash,
+					meta: upload.meta,
+				},
+				description: attachment.description ?? '',
+				focus: isFocalPoint(attachment.focus) ? attachment.focus : null,
+				filter: isFilterActive(attachment.filter) ? attachment.filter : '',
+			}
+		}))
 
 	/**
 	 * Whether this post is a video: one attachment, and it a video.
@@ -882,6 +914,101 @@ export function useComposerAttachments({ expand, root }) {
 		attachments.value = restored
 	}
 
+	/**
+	 * Puts back the attachments a draft kept, and asks the server about each
+	 * one again.
+	 *
+	 * They are in the grid at once, as the draft described them, so the post
+	 * looks the way it was left; Post waits until the server has answered for
+	 * all of them. An upload nobody posted can be cleared away while the
+	 * draft waits, and one the server no longer has is taken off with a word
+	 * about it rather than left to fail the post. One the server could not be
+	 * asked about stays as the draft had it.
+	 *
+	 * @param {import('../services/draft.js').DraftMedia[]} kept what the draft held, in order
+	 */
+	async function restoreDraftMedia(kept) {
+		const restored = { ...attachments.value }
+		const keys = []
+		for (const item of kept) {
+			if (Object.keys(restored).length >= maxAttachments.value) {
+				break
+			}
+
+			const key = `draft:${++pickCount.value}:${item.data.id}`
+			restored[key] = {
+				file: null,
+				path: item.description || item.data.url || String(item.data.id),
+				data: item.data,
+				failed: false,
+				description: item.description,
+				saved: item.data.description || '',
+				focus: item.focus,
+				filter: item.filter || undefined,
+				checking: true,
+			}
+			keys.push(key)
+		}
+		attachments.value = restored
+
+		const answers = await Promise.all(keys.map((key) => recheckDraftMedia(key)))
+		const gone = answers.filter((stillThere) => !stillThere).length
+		if (gone > 0) {
+			showWarning(n(
+				'social',
+				'%n attachment of your draft is no longer on the server and was removed',
+				'%n attachments of your draft are no longer on the server and were removed',
+				gone,
+			))
+		}
+	}
+
+	/**
+	 * Asks the server about one attachment a draft came back with.
+	 *
+	 * A filtered picture needs its file again, since the filter is baked in
+	 * from the file as the post is sent; when that cannot be had the filter
+	 * is dropped, so that the preview shows what would be posted.
+	 *
+	 * @param {string} key the attachment
+	 * @return {Promise<boolean>} false when the server no longer has it
+	 */
+	async function recheckDraftMedia(key) {
+		const kept = attachments.value[key]
+		const media = await timelineStore.fetchMedia(String(kept.data.id))
+		if (attachments.value[key] === undefined) {
+			// taken off while the server was being asked
+			return true
+		}
+		if (media === null) {
+			deletePreview(key)
+			return false
+		}
+
+		const data = media ?? kept.data
+		const file = isFilterActive(kept.filter) ? (await timelineStore.fetchMediaFile(data)) ?? null : null
+		const current = attachments.value[key]
+		if (current === undefined) {
+			return true
+		}
+
+		const checked = {
+			...current,
+			data,
+			saved: data.description || '',
+			file,
+			filter: file === null ? undefined : current.filter,
+			checking: false,
+		}
+		// a file is keyed by its object URL, which is also what the filter
+		// swatches draw; the order of the grid is kept
+		const newKey = file === null ? key : URL.createObjectURL(file)
+		attachments.value = Object.fromEntries(Object.entries(attachments.value)
+			.map(([oldKey, attachment]) => (oldKey === key ? [newKey, checked] : [oldKey, attachment])))
+
+		return true
+	}
+
 	onBeforeUnmount(() => window.clearTimeout(refusalTimer))
 
 	return {
@@ -899,6 +1026,8 @@ export function useComposerAttachments({ expand, root }) {
 		undescribed,
 		failedUploads,
 		hasPendingUploads,
+		checkingMedia,
+		draftMedia,
 		isVideoPost,
 		mediaIds,
 		undescribedWarning,
@@ -923,5 +1052,6 @@ export function useComposerAttachments({ expand, root }) {
 		commitFocus,
 		clearAttachments,
 		restoreMedia,
+		restoreDraftMedia,
 	}
 }

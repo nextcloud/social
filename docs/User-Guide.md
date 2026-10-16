@@ -144,10 +144,18 @@ people** makes an invitation link: it works once and for a week.
 **New post** at the top of the sidebar, or `n`, puts the caret in the
 composer; the composer also sits above most timelines. An empty composer greets
 you by first name: "Aloha, Frank. What’s new?" A post may be up to
-5,000 characters, content warning included. What you type is kept as a draft
-across a failed post, a reload or a navigation, so nothing is lost to a
-network hiccup. A reply keeps its own draft, under the post it answers, so
-starting one does not take the place of a post you were still writing.
+5,000 characters, content warning included. What is in the composer is kept
+as a draft across a failed post, a reload or leaving the page: the words, the
+content warning, the audience, the language, who may reply, the team account
+you write as, the poll, the time it is scheduled for, the place, a video's
+title and a card. Attachments are kept too, with their descriptions, focal
+points and filters. When the draft comes back the server is asked about each
+attachment again; one it has cleared away in the meantime is taken off, and a
+short message says so. An attachment that is still uploading cannot be kept
+yet, so leaving the page while one is on its way asks you first. A draft is
+kept for a week, for your account only. A reply keeps its own draft, under the
+post it answers, and so does a quote, so starting one does not take the place
+of a post you were still writing.
 **Ctrl+Enter** (**⌘+Enter** on a Mac) sends; once the post is out the box
 folds back to a single line. **Escape** folds an empty box away too, and asks
 first when there are words in it — they are kept either way.
@@ -165,6 +173,10 @@ first when there are words in it — they are kept either way.
   - **Direct message** — delivered to the people mentioned in it and nobody
     else. The button will not send a direct post without at least one
     `@mention`.
+
+  Where your account is on Bluesky, Unlisted, Followers and Direct message
+  say *Not on Bluesky* in the menu: only a public post goes there, so people
+  who follow you from Bluesky do not see the others.
 - **Mentions and hashtags.** Type `@` and the first letters of a name to pick
   an account, or `#` for a hashtag; both are also recognised when typed in
   full. A mention makes that person a recipient of the post; a hashtag makes
@@ -181,7 +193,8 @@ first when there are words in it — they are kept either way.
   reaches other servers when done* until it has. Drag them in, use
   **Add attachment**, or **Add from Files** to attach something already in
   your Nextcloud without uploading it again — the Files app's own menu also
-  has **Share to Aloha Social** for the same thing. Every picture has its Exif
+  has **Share to Aloha Social** for the same thing. Attachments show under the
+  box you write in. Every picture has its Exif
   metadata (including the location a phone writes) removed before it is
   stored or sent anywhere. A picture can be given one of eight mild filters,
   previewed live and baked into the copy that is posted when you press Post,
@@ -1091,8 +1104,9 @@ options with a link to vote here. These added words are in the language of
 your post. An edit within five minutes replaces the Bluesky copy; a
 later one leaves the Bluesky copy as it was, with its link leading to the
 current text here. Deleting a post deletes it there too. Followers-only,
-unlisted and direct posts never leave this server, and a reply to a post that
-is not on Bluesky goes out as a post with a link to what it answers.
+unlisted and direct posts never go to Bluesky, which the audience menu in the
+composer says beside each of them, and a reply to a post that is not on
+Bluesky goes out as a post with a link to what it answers.
 
 Your profile page shows both handles under your name, each with a Copy button,
 and the Bluesky one leads to your profile on bsky.app. **Settings → Apps and
