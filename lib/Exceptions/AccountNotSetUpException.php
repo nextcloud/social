@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Exceptions;
+
+use OCP\IURLGenerator;
+use OCP\Server;
+use Throwable;
+
+/**
+ * A signed-in Nextcloud user who has not set up their account in this app
+ * yet, with the address of the page where they do (CodedRefusal).
+ *
+ * A `ClientNotFoundException`, so a route that hands its credential failures
+ * to `error()` hands this one too; each `error()` answers it with 403 and
+ * the body of `toArray()` rather than with a 401, which a client reads as
+ * its sign-in having ended.
+ */
+class AccountNotSetUpException extends ClientNotFoundException {
+	use CodedRefusal;
+
+	public const CODE = 'account-not-set-up';
+
+	public static function withSetupUrl(?Throwable $previous = null): self {
+		return new self(
+			'Your account is not set up yet. Open Aloha Social in a web browser and choose your username, then try again.',
+			self::CODE,
+			$previous,
+			['setup_url' => Server::get(IURLGenerator::class)->linkToRouteAbsolute('social.Navigation.navigate')],
+		);
+	}
+}

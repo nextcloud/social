@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Controller;
 
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\PostReviewService;
 use OCP\AppFramework\Controller;
@@ -35,6 +36,8 @@ use Throwable;
  * (`PostHoldsRequest`), not checked afterwards.
  */
 class ReviewController extends Controller {
+	use OwnAccount;
+
 	public function __construct(
 		IRequest $request,
 		private ?string $userId,
@@ -54,7 +57,7 @@ class ReviewController extends Controller {
 		}
 
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->ownAccountOf($this->userId);
 			$held = $this->postReviewService->forActor($actor);
 
 			return new DataResponse([
@@ -64,6 +67,8 @@ class ReviewController extends Controller {
 					$held
 				),
 			], Http::STATUS_OK);
+		} catch (AccountNotSetUpException $e) {
+			return self::notSetUp($e);
 		} catch (Throwable $e) {
 			$this->logger->warning('could not read the held posts', [
 				'userId' => $this->userId, 'exception' => $e,
@@ -87,10 +92,12 @@ class ReviewController extends Controller {
 		}
 
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->ownAccountOf($this->userId);
 			$this->postReviewService->withdraw($actor, $id);
 
 			return new DataResponse(['withdrawn' => (string)$id], Http::STATUS_OK);
+		} catch (AccountNotSetUpException $e) {
+			return self::notSetUp($e);
 		} catch (Throwable $e) {
 			// somebody else's, or gone: the same answer, so that a caller
 			// cannot learn from this route what anybody else has waiting

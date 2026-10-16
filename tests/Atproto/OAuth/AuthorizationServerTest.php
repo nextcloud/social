@@ -195,6 +195,23 @@ class AuthorizationServerTest extends TestCase {
 		$this->pushed(['code_challenge' => $challenge]);
 	}
 
+	/**
+	 * The sign-in page checks the request before it asks somebody without
+	 * an account here for a username, so the check needs no identity.
+	 */
+	public function testARequestIsReadWithoutAnIdentity(): void {
+		[$requestUri] = $this->pushed();
+
+		$requested = $this->server->requested(self::CLIENT, $requestUri);
+
+		$this->assertSame(self::REDIRECT, $requested['request']->params['redirect_uri']);
+		$this->assertSame(['atproto', 'transition:generic'], $requested['scopes']);
+		$this->assertArrayNotHasKey('identity', $requested);
+
+		$this->expectException(OAuthException::class);
+		$this->server->requested('https://other.example/client.json', $requestUri);
+	}
+
 	public function testTheLoginHintMustBeTheSignedInAccount(): void {
 		[$requestUri] = $this->pushed(['login_hint' => 'bob.social.test']);
 

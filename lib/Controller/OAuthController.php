@@ -16,6 +16,7 @@ use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\OAuth\PermissionDescriber;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
@@ -258,6 +259,12 @@ class OAuthController extends Controller {
 	 * to escape, each of them reached the browser as a Nextcloud HTML error
 	 * page (with a stack trace where debug is on) rather than as something the
 	 * client can read.
+	 *
+	 * Somebody whose first visit is from an app has no account here yet; once
+	 * the request has passed every check, the page asks them for a username
+	 * first (`setup`), and reloading it after the account is made shows the
+	 * consent for that account, from the same address and so with the same
+	 * request.
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
@@ -277,9 +284,6 @@ class OAuthController extends Controller {
 		}
 		try {
 			$user = $this->userSession->getUser();
-
-			// check actor exists
-			$actor = $this->accountService->getActorFromUserId($user->getUID());
 
 			if ($response_type !== 'code') {
 				throw new ClientNotFoundException('invalid response type');
@@ -301,14 +305,19 @@ class OAuthController extends Controller {
 			// do, and where the code is about to be sent
 			$this->initialState->provideInitialState('appName', $client->getAppName());
 			$this->initialState->provideInitialState('appWebsite', $this->websiteLink($client->getAppWebsite()));
-			// which account is about to be handed over: on a server where
-			// somebody holds more than one, the name of the application alone
-			// does not answer the question being asked
-			$this->initialState->provideInitialState('account', [
-				'uid' => $user->getUID(),
-				'displayName' => $this->accountDisplayName($actor, $user),
-				'handle' => '@' . $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress(),
-			]);
+			$actor = $this->accountOrNull($user);
+			if ($actor === null) {
+				$this->provideSetup($user);
+			} else {
+				// which account is about to be handed over: on a server where
+				// somebody holds more than one, the name of the application
+				// alone does not answer the question being asked
+				$this->initialState->provideInitialState('account', [
+					'uid' => $user->getUID(),
+					'displayName' => $this->accountDisplayName($actor, $user),
+					'handle' => '@' . $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress(),
+				]);
+			}
 			$this->initialState->provideInitialState('scopes', $client->getScopesFromString($scope));
 			$this->initialState->provideInitialState('redirectUri', $redirect_uri);
 			$this->initialState->provideInitialState('denyUrl', $this->denyUrl($redirect_uri, $state));
@@ -352,6 +361,40 @@ class OAuthController extends Controller {
 		} catch (Throwable $e) {
 			return $this->authorizationFailure($e);
 		}
+	}
+
+	/**
+	 * The signed-in person's account, or null while they have not set one up.
+	 */
+	private function accountOrNull(IUser $user): ?Person {
+		try {
+			return $this->accountService->getActorFromUserId($user->getUID());
+		} catch (ActorDoesNotExistException) {
+			return null;
+		}
+	}
+
+	/**
+	 * What the sign-in page needs to ask for a username before the consent,
+	 * the way the app's own setup page asks (`NavigationController`): the
+	 * handle to suggest and the hosts the addresses end in. Creating the
+	 * account is `LocalController::accountCreate()`, as from that page.
+	 */
+	private function provideSetup(IUser $user): void {
+		try {
+			$suggested = $this->accountService->generateHandleFromUserId($user->getUID());
+		} catch (Exception) {
+			$suggested = '';
+		}
+		$address = $this->configService->getSocialAddress();
+		$this->initialState->provideInitialState('setup', [
+			'suggestedHandle' => $suggested,
+			'socialAddress' => $address,
+			'bluesky' => [
+				'enabled' => $this->atprotoConfig->isEnabled(),
+				'host' => strtolower($address),
+			],
+		]);
 	}
 
 	/**
@@ -485,7 +528,8 @@ class OAuthController extends Controller {
 	 * The client's own mistakes -- an unknown client, a response type or
 	 * scope it may not ask for, a PKCE method nobody supports -- are this
 	 * app's refusals and say what was wrong, so the client is told them. A
-	 * reader who has no account here is told so. Anything else is this
+	 * reader who has no account here is told so, and where to set one up.
+	 * Anything else is this
 	 * server's failure, and its message describes the server rather than the
 	 * request: it goes to the log, and the client gets `server_error`, as
 	 * from `token()`.
@@ -497,7 +541,7 @@ class OAuthController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 		if ($e instanceof ActorDoesNotExistException) {
-			return new DataResponse(['error' => 'no account for this user'], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(AccountNotSetUpException::withSetupUrl($e)->toArray(), Http::STATUS_FORBIDDEN);
 		}
 
 		$this->logger->error('OAuth authorization failed', ['exception' => $e]);
@@ -562,7 +606,6 @@ class OAuthController extends Controller {
 		}
 		try {
 			$user = $this->userSession->getUser();
-			$account = $this->accountService->getActorFromUserId($user->getUID());
 
 			if ($response_type !== 'code') {
 				throw new ClientNotFoundException('invalid response type');
@@ -576,6 +619,9 @@ class OAuthController extends Controller {
 			}
 
 			$this->clientService->confirmData($client, ['app_scopes' => $scope]);
+
+			// no code without an account: a token names the account it acts as
+			$account = $this->accountService->getActorFromUserId($user->getUID());
 
 			$client->setAuthScopes($client->getScopesFromString($scope));
 			$client->setAuthAccount($account->getPreferredUsername());
@@ -923,6 +969,11 @@ class OAuthController extends Controller {
 	/**
 	 * The consent page for a Bluesky app's pushed request: the same page a
 	 * Mastodon app's is shown on, told what this one asks for.
+	 *
+	 * Somebody without an account here is asked for a username first, once
+	 * the request itself has been found good, as on `authorize()`. The
+	 * account's Bluesky identity is made when the consent is drawn for it
+	 * (`AuthorizationServer::pending()`), as on any first need of one.
 	 */
 	private function atprotoAuthorize(string $clientId, string $requestUri): Response {
 		try {
@@ -930,18 +981,19 @@ class OAuthController extends Controller {
 			if ($user === null || !$this->atprotoConfig->isEnabled()) {
 				throw OAuthException::invalidRequest('Not signed in');
 			}
-			$pending = $this->atprotoOAuth->pending($clientId, $requestUri, $user->getUID());
+			$requested = $this->atprotoOAuth->requested($clientId, $requestUri);
+			$actor = $this->accountOrNull($user);
+			$identity = ($actor === null) ? null : $this->atprotoOAuth->pending($clientId, $requestUri, $user->getUID())['identity'];
 		} catch (OAuthException $e) {
 			return $this->invalidRequest($e->getMessage());
 		}
-		$request = $pending['request'];
-		$actor = $this->accountService->getActorFromUserId($user->getUID());
+		$request = $requested['request'];
 		$redirectUri = (string)$request->params['redirect_uri'];
 
 		// an app's own name and logo are what it says of itself, shown only
 		// for an app the administrator vouches for; otherwise the address its
 		// metadata is at, the one thing about it that is checked
-		$metadata = $pending['metadata'];
+		$metadata = $requested['metadata'];
 		$trusted = $this->atprotoConfig->isTrustedClient($clientId);
 		$name = $trusted && is_string($metadata['client_name'] ?? null) ? trim($metadata['client_name']) : '';
 		$logo = $trusted && is_string($metadata['logo_uri'] ?? null) && str_starts_with($metadata['logo_uri'], 'https://') ? $metadata['logo_uri'] : '';
@@ -951,14 +1003,18 @@ class OAuthController extends Controller {
 		$this->initialState->provideInitialState('trusted', $trusted);
 		$this->initialState->provideInitialState('protocol', 'atproto');
 		$this->initialState->provideInitialState('permissions', $this->permissionDescriber?->describe(
-			$pending['scopes'], $this->l10nFactory?->getUserLanguage($user) ?? 'en'
+			$requested['scopes'], $this->l10nFactory?->getUserLanguage($user) ?? 'en'
 		) ?? []);
-		$this->initialState->provideInitialState('account', [
-			'uid' => $user->getUID(),
-			'displayName' => $this->accountDisplayName($actor, $user),
-			'handle' => '@' . $pending['identity']->handle,
-		]);
-		$this->initialState->provideInitialState('scopes', $pending['scopes']);
+		if ($actor !== null && $identity !== null) {
+			$this->initialState->provideInitialState('account', [
+				'uid' => $user->getUID(),
+				'displayName' => $this->accountDisplayName($actor, $user),
+				'handle' => '@' . $identity->handle,
+			]);
+		} else {
+			$this->provideSetup($user);
+		}
+		$this->initialState->provideInitialState('scopes', $requested['scopes']);
 		$this->initialState->provideInitialState('redirectUri', $redirectUri);
 		$this->initialState->provideInitialState('denyUrl', $this->atprotoOAuth->refusal($request));
 		$response = new TemplateResponse(Application::APP_ID, 'oauth2', [], TemplateResponse::RENDER_AS_GUEST);

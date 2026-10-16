@@ -13,6 +13,7 @@ use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\AccountMovedException;
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\BlockedByException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -84,6 +85,8 @@ use Throwable;
  * controllers that extend this class.
  */
 abstract class MastodonApiController extends Controller {
+	use OwnAccount;
+
 	/**
 	 * The entity tag of the poll being answered, held between the check and
 	 * the answer so that a route that got past `notModified()` still carries
@@ -152,7 +155,11 @@ abstract class MastodonApiController extends Controller {
 			// "that handle is taken", by themselves. An account is made where
 			// somebody asks for one: LocalController::accountCreate() and
 			// `occ social:account:create`.
-			$account = $this->accountService->getActorFromUserId($userId);
+			// a token is only issued to an account, so a caller without one
+			// came with their Nextcloud session and has not set up here yet
+			$account = ($this->bearer === '')
+				? $this->ownAccountOf($userId)
+				: $this->accountService->getActorFromUserId($userId);
 			$this->logger->debug('[' . static::class . '] Actor retrieved/created', [
 				'userId' => $userId,
 				'username' => $account->getPreferredUsername()
@@ -193,6 +200,12 @@ abstract class MastodonApiController extends Controller {
 		} catch (InsufficientScopeException $e) {
 			// the token is fine, its grant is not — tell the client which scope it lacks
 			if ($exception) {
+				throw $e;
+			}
+		} catch (AccountNotSetUpException $e) {
+			// somebody to tell how to go on, not a credential to refuse; a
+			// route anybody may read answers them as it answers anybody
+			if ($exception && !$publicRoute) {
 				throw $e;
 			}
 		} catch (Exception $e) {
@@ -546,6 +559,12 @@ abstract class MastodonApiController extends Controller {
 			// no WWW-Authenticate: PHP turns any response carrying it into a 401,
 			// and a 401 tells a client its token is dead and to sign in again
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+		}
+
+		if ($e instanceof AccountNotSetUpException) {
+			// as Mastodon answers a sign-in that is not usable yet: a 403,
+			// which no client reads as its token having ended
+			return self::notSetUp($e);
 		}
 
 		foreach (self::ERROR_STATUS as [$class, $status]) {

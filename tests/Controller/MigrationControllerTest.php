@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\MigrationController;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -361,6 +362,25 @@ class MigrationControllerTest extends TestCase {
 	}
 
 	// moving away, from the page
+
+	/**
+	 * Moving away and the address to leave behind both act on the account:
+	 * somebody without one is told where to set it up.
+	 */
+	public function testTheSessionRoutesTellAReaderWithoutAnAccountWhereToSetItUp(): void {
+		$this->accountService->method('getActorFromUserId')
+			->willThrowException(new ActorDoesNotExistException('Actor not found for user: alice'));
+		$this->migrationService->expects($this->never())->method('move');
+
+		foreach ([
+			'moveOut' => fn () => $this->controller()->moveOut('@alice@new.example', 'alice@cloud.example'),
+			'switchAnnouncement' => fn () => $this->controller()->switchAnnouncement(),
+		] as $route => $call) {
+			$response = $call();
+			$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus(), $route);
+			$this->assertSame('account-not-set-up', $response->getData()['code'], $route);
+		}
+	}
 
 	private function alice(): Person {
 		$alice = new Person();

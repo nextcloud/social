@@ -333,6 +333,39 @@ class LocalControllerTest extends TestCase {
 		$this->assertNotLoggedIn($this->controller(null)->postCreate('x'));
 	}
 
+	/**
+	 * Every route that acts as the reader's own account tells somebody who
+	 * has not set one up where to do it: a 403 with the code, which the
+	 * page says in the reader's language, rather than a bare 404.
+	 */
+	public function testTheOwnAccountRoutesTellAReaderWithoutOneWhereToSetItUp(): void {
+		$this->accountService->method('getActorFromUserId')
+			->willThrowException(new ActorDoesNotExistException('Actor not found for user: alice'));
+		$this->postService->expects($this->never())->method('createPost');
+		$this->followService->expects($this->never())->method('followAccount');
+		$this->accountService->expects($this->never())->method('setFields');
+		$this->bannerService->expects($this->never())->method('setFromTempFile');
+		$this->cacheDocumentService->expects($this->never())->method('retrieveContent');
+		$this->configService->method('isLocalNetworkAllowed')->willReturn(true);
+		$_FILES['file'] = ['tmp_name' => '/tmp/php-upload-1', 'error' => UPLOAD_ERR_OK];
+
+		foreach ([
+			'postCreate' => fn () => $this->controller()->postCreate('x'),
+			'postDelete' => fn () => $this->controller()->postDelete('https://cloud.example/@alice/1'),
+			'actionFollow' => fn () => $this->controller()->actionFollow('bob@remote.example'),
+			'actionUnfollow' => fn () => $this->controller()->actionUnfollow('bob@remote.example'),
+			'accountFields' => fn () => $this->controller()->accountFields([]),
+			'uploadBanner' => fn () => $this->controller()->uploadBanner(),
+			'uploadBannerByUrl' => fn () => $this->controller()->uploadBannerByUrl('https://cdn.example/banner.png'),
+		] as $route => $call) {
+			$response = $call();
+			$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus(), $route);
+			$this->assertSame(-1, $response->getData()['status'], $route);
+			$this->assertSame('account-not-set-up', $response->getData()['code'], $route);
+			$this->assertSame('https://cloud.example.org/social.Navigation.navigate', $response->getData()['setup_url'], $route);
+		}
+	}
+
 	public function testPostCreateReportsServiceFailures(): void {
 		$this->actorForUser();
 		$this->postService->method('createPost')->willThrowException(new \RuntimeException('cannot post'));

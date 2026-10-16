@@ -3,9 +3,15 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /* global setInitialState */
-import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import axios from '@nextcloud/axios'
 import OAuth2Authorize from '../../../src/views/OAuth2Authorize.vue'
+
+vi.mock('@nextcloud/axios', () => ({ default: { post: vi.fn() } }))
+vi.mock('../../../src/services/logger.js', () => ({
+	default: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
 
 function setState(key, value) {
 	setInitialState('social', key, value)
@@ -24,6 +30,7 @@ describe('OAuth2Authorize', () => {
 		setState('permissions', [])
 		setState('appLogo', '')
 		setState('trusted', false)
+		setState('setup', null)
 		wrapper = mount(OAuth2Authorize)
 	})
 
@@ -302,6 +309,99 @@ describe('OAuth2Authorize', () => {
 
 			expect(selected).toBe(true)
 			expect(wrapper.text()).not.toContain('Copied')
+		})
+	})
+	/**
+	 * Somebody whose first visit is from an app has no account here yet:
+	 * the sign-in page asks for their username before anything else, the way
+	 * the app's own setup page does, and then shows the consent for the new
+	 * account from the same address, with the app's request unchanged.
+	 */
+	describe('for somebody without an account yet', () => {
+		beforeEach(() => {
+			setState('code', '')
+			setState('appName', 'Tusky')
+			setState('account', null)
+			setState('scopes', ['read', 'write'])
+			setState('redirectUri', 'tusky://oauth')
+			setState('denyUrl', 'tusky://oauth?error=access_denied&state=st-1')
+			setState('setup', {
+				suggestedHandle: 'jane_doe',
+				socialAddress: 'social.example',
+				bluesky: { enabled: true, host: 'social.example' },
+			})
+			wrapper = mount(OAuth2Authorize, { global: { stubs: { NcLoadingIcon: true } } })
+		})
+
+		afterEach(() => {
+			axios.post.mockReset()
+		})
+
+		it('asks for a username before it asks anything about the app', () => {
+			expect(wrapper.find('h1').text()).toBe('Set up your account')
+			expect(wrapper.find('.oauth__lead').text()).toContain('Tusky wants to sign in to your account here, and you do not have one yet.')
+			expect(wrapper.find('#account-setup-handle').element.value).toBe('jane_doe')
+			expect(wrapper.find('.account-setup__address').text()).toBe('@jane_doe@social.example')
+			expect(wrapper.find('.account-setup__address--bluesky').text()).toBe('On Bluesky too: @jane-doe.social.example')
+			// nothing to grant until there is an account to grant it for
+			expect(wrapper.find('form[method="post"]').exists()).toBe(false)
+			expect(wrapper.findAll('button').some((b) => b.text() === 'Authorize')).toBe(false)
+			// an account elsewhere is no account an app can sign in to here
+			expect(wrapper.text()).not.toContain('Link an existing account')
+		})
+
+		it('lets the person back out to the app', () => {
+			const cancel = wrapper.findAll('a').find((a) => a.text() === 'Cancel')
+
+			expect(cancel.attributes('href')).toBe('tusky://oauth?error=access_denied&state=st-1')
+		})
+
+		it('creates the account, then shows the consent from this same address', async () => {
+			axios.post.mockResolvedValue({ data: { status: 1, result: { account: { id: '1', acct: 'jane' } } } })
+			const reload = vi.spyOn(wrapper.vm, 'reloadTo').mockImplementation(() => {})
+
+			await wrapper.find('#account-setup-handle').setValue('jane')
+			await wrapper.find('form.account-setup-form').trigger('submit')
+			await flushPromises()
+
+			expect(axios.post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/account/create', { username: 'jane' })
+			// the address carries client_id, redirect_uri, scope, state and the
+			// PKCE challenge; the server draws the consent from it again
+			expect(reload).toHaveBeenCalledWith(window.location.href)
+			expect(wrapper.find('[role="status"]').text()).toContain('Your account is ready.')
+		})
+
+		it('says why a username cannot be had, in words, and stays', async () => {
+			axios.post.mockRejectedValue({ response: { status: 422, data: { status: -1, error: 'actor with that name already exist', code: 'handle-in-use-here' } } })
+			const reload = vi.spyOn(wrapper.vm, 'reloadTo').mockImplementation(() => {})
+
+			await wrapper.find('form.account-setup-form').trigger('submit')
+			await flushPromises()
+
+			expect(wrapper.find('.account-setup__error p').text()).toBe('That username is taken. Pick another one.')
+			expect(wrapper.find('.account-setup__error code').text()).toBe('actor with that name already exist')
+			expect(reload).not.toHaveBeenCalled()
+			expect(wrapper.find('#account-setup-handle').element.disabled).toBe(false)
+		})
+
+		it('previews no Bluesky address where the server has none', () => {
+			setState('setup', { suggestedHandle: 'jane_doe', socialAddress: 'social.example', bluesky: { enabled: false, host: 'social.example' } })
+			const page = mount(OAuth2Authorize, { global: { stubs: { NcLoadingIcon: true } } })
+
+			expect(page.find('.account-setup__address--bluesky').exists()).toBe(false)
+		})
+
+		/** once the account exists the server draws the consent, and no setup */
+		it('is the consent form, posting back to this address, once the account exists', () => {
+			setState('setup', null)
+			setState('account', { uid: 'jane.doe', displayName: 'Jane Doe', handle: '@jane@social.example' })
+			const page = mount(OAuth2Authorize)
+
+			const form = page.find('form.guest-box')
+			expect(form.attributes('method')).toBe('post')
+			expect(form.attributes('action')).toBeUndefined()
+			expect(page.find('.account').text()).toContain('@jane@social.example')
+			expect(page.find('#account-setup-handle').exists()).toBe(false)
 		})
 	})
 })

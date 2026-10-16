@@ -128,6 +128,16 @@ describe('errorOf', () => {
 		})
 	})
 
+	/** a reader signed in to Nextcloud who has no account in the app yet */
+	it('says the account is not set up yet, and what to do about it', () => {
+		const error = { response: { status: 403, data: { error: 'Your account is not set up yet. Open Aloha Social in a web browser and choose your username, then try again.', code: 'account-not-set-up', setup_url: 'https://cloud.example/apps/social/' } } }
+
+		expect(errorOf(error, 'Could not load this')).toEqual({
+			text: 'Your account is not set up yet. Open Aloha Social and choose your username to set it up, then try again.',
+			details: 'Your account is not set up yet. Open Aloha Social in a web browser and choose your username, then try again.',
+		})
+	})
+
 	it('keeps a message the server sent instead of an error for the details', () => {
 		const error = { response: { status: 403, data: { message: 'Password confirmation is required' } } }
 

@@ -73,6 +73,9 @@ abstract class ApiTestCase extends TestCase {
 	/** @var array<string, string> local name => bearer token */
 	private array $tokens = [];
 
+	/** @var array<string, true> local names `call()` signs in without making their account */
+	private array $withoutAccount = [];
+
 	private int $clientId = 0;
 
 	/** @var array<string, string> scope list => bearer token, for `scopedToken()` */
@@ -103,6 +106,7 @@ abstract class ApiTestCase extends TestCase {
 		$this->removeClient();
 		$this->accounts = [];
 		$this->tokens = [];
+		$this->withoutAccount = [];
 		$this->scopedTokens = [];
 		Stream::resetReplyParentCache();
 		Stream::resetQuoteCache();
@@ -139,6 +143,20 @@ abstract class ApiTestCase extends TestCase {
 		}
 
 		return $this->accounts[$name];
+	}
+
+	/**
+	 * A Nextcloud user who has not set up their account here: `call()` signs
+	 * them in as they are, and whatever account they get, they make through
+	 * the API.
+	 */
+	protected function userWithoutAccount(string $name): void {
+		$userId = self::PREFIX . $name;
+		$users = Server::get(IUserManager::class);
+		if (!$users->userExists($userId)) {
+			$users->createUser($userId, 'Api-Contract-' . bin2hex(random_bytes(12)));
+		}
+		$this->withoutAccount[$name] = true;
 	}
 
 	/** The account as it is cached now, with today's counts. */
@@ -299,11 +317,15 @@ abstract class ApiTestCase extends TestCase {
 		];
 		$session = Server::get(IUserSession::class);
 		if ($webSession && $as !== null) {
-			$this->account($as);
+			if (!isset($this->withoutAccount[$as])) {
+				$this->account($as);
+			}
 			$session->setUser(Server::get(IUserManager::class)->get(self::PREFIX . $as));
 			$server['HTTP_REQUESTTOKEN'] = Server::get(CsrfTokenManager::class)->getToken()->getEncryptedValue();
 		} elseif ($appPassword && $as !== null) {
-			$this->account($as);
+			if (!isset($this->withoutAccount[$as])) {
+				$this->account($as);
+			}
 			$password = $this->appPassword($as);
 			$server['PHP_AUTH_USER'] = self::PREFIX . $as;
 			$server['PHP_AUTH_PW'] = $password;

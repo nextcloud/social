@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Atproto\Reader\StarterPacks;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Controller\AtprotoFeedsController;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -39,6 +40,8 @@ class AtprotoFeedsControllerTest extends TestCase {
 	private bool $enabled = true;
 	private bool $signedIn = true;
 
+	private ?AccountService $accounts = null;
+
 	private function controller(): AtprotoFeedsController {
 		$session = $this->createStub(IUserSession::class);
 		$user = $this->createStub(IUser::class);
@@ -48,10 +51,23 @@ class AtprotoFeedsControllerTest extends TestCase {
 		$config->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
 		$accounts = $this->createStub(AccountService::class);
 		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice')->setId('https://cloud.example/users/alice'));
+		$accounts = $this->accounts ?? $accounts;
 
 		return new AtprotoFeedsController(
 			$this->createStub(IRequest::class), $session, $config, $accounts, $this->feeds, $this->packs, $this->discovery, $this->cards, new NullLogger(),
 		);
+	}
+
+	/** Bluesky's feeds for somebody who has not set up their account here: where to do it, not a failure of Bluesky's. */
+	public function testAViewerWithoutAnAccountIsToldWhereToSetItUp(): void {
+		$this->accounts = $this->createStub(AccountService::class);
+		$this->accounts->method('getActorFromUserId')->willThrowException(new ActorDoesNotExistException('Actor not found for user: alice'));
+		$this->feeds->expects($this->never())->method('saved');
+
+		$response = $this->controller()->saved();
+
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+		$this->assertSame('account-not-set-up', $response->getData()['code']);
 	}
 
 	protected function setUp(): void {

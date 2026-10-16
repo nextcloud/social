@@ -27,6 +27,7 @@ use OCA\Social\Atproto\OAuth\AuthorizationServer;
 use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\MoveErrorException;
@@ -48,6 +49,8 @@ use Throwable;
  * and DID, whether the person is on Bluesky at all, and the recovery phrase.
  */
 class AtprotoAccountController extends Controller {
+	use OwnAccount;
+
 	public function __construct(
 		IRequest $request,
 		private IUserSession $userSession,
@@ -72,7 +75,7 @@ class AtprotoAccountController extends Controller {
 
 	/**
 	 * `GET /api/v1/social/bluesky/identity`: the viewer's identity, made
-	 * now if there is none yet.
+	 * now if their account has none yet.
 	 */
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/identity')]
@@ -81,7 +84,7 @@ class AtprotoAccountController extends Controller {
 			return new DataResponse(['error' => 'Bluesky is not enabled on this server'], Http::STATUS_NOT_FOUND);
 		}
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId(), true);
+			$actor = $this->ownAccountOf($this->userId());
 			$identity = $this->identities->forActor($actor);
 			if ($identity === null) {
 				return new DataResponse(['error' => 'No Bluesky identity for this account'], Http::STATUS_NOT_FOUND);
@@ -107,7 +110,7 @@ class AtprotoAccountController extends Controller {
 			return new DataResponse(['error' => 'Bluesky is not enabled on this server'], Http::STATUS_NOT_FOUND);
 		}
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId(), true);
+			$actor = $this->ownAccountOf($this->userId());
 			$identity = $active ? $this->presence->switchOn($actor) : $this->presence->switchOff($actor);
 			if ($active) {
 				$this->publisher->publishProfile($actor);
@@ -130,7 +133,7 @@ class AtprotoAccountController extends Controller {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/bluesky/publish-blocks')]
 	public function publishBlocks(bool $publish): DataResponse {
 		if ($this->ownIdentity() === null) {
-			return new DataResponse(['error' => 'No Bluesky identity for this account'], Http::STATUS_NOT_FOUND);
+			return $this->withoutIdentity();
 		}
 		try {
 			$this->blocks->setPublished($this->accountService->getActorFromUserId($this->userId()), $publish);
@@ -252,7 +255,7 @@ class AtprotoAccountController extends Controller {
 	public function setHandle(string $handle): DataResponse {
 		$identity = $this->ownIdentity();
 		if ($identity === null) {
-			return new DataResponse(['error' => 'No Bluesky identity for this account'], Http::STATUS_NOT_FOUND);
+			return $this->withoutIdentity();
 		}
 		try {
 			$changed = $this->customHandles->set($identity, $handle);
@@ -274,7 +277,7 @@ class AtprotoAccountController extends Controller {
 	public function clearHandle(): DataResponse {
 		$identity = $this->ownIdentity();
 		if ($identity === null) {
-			return new DataResponse(['error' => 'No Bluesky identity for this account'], Http::STATUS_NOT_FOUND);
+			return $this->withoutIdentity();
 		}
 		try {
 			$changed = $this->customHandles->clear($identity);
@@ -523,7 +526,9 @@ class AtprotoAccountController extends Controller {
 		}
 
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId(), true);
+			$actor = $this->ownAccountOf($this->userId());
+		} catch (AccountNotSetUpException $e) {
+			return self::notSetUp($e);
 		} catch (Throwable) {
 			return new DataResponse(['twin' => null]);
 		}
@@ -606,7 +611,7 @@ class AtprotoAccountController extends Controller {
 			return new DataResponse(['error' => 'Bluesky is not enabled on this server'], Http::STATUS_NOT_FOUND);
 		}
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId(), true);
+			$actor = $this->ownAccountOf($this->userId());
 			$identity = $this->identities->forActor($actor);
 			if ($identity === null || !$identity->isActive()) {
 				return new DataResponse(['error' => 'No Bluesky identity for this account'], Http::STATUS_NOT_FOUND);
@@ -667,6 +672,9 @@ class AtprotoAccountController extends Controller {
 		if ($e instanceof AtprotoKeysSealedException) {
 			return new DataResponse(['error' => $e->getMessage(), 'code' => AtprotoKeysSealedException::ERROR_CODE], Http::STATUS_SERVICE_UNAVAILABLE);
 		}
+		if ($e instanceof AccountNotSetUpException) {
+			return self::notSetUp($e);
+		}
 		if ($e instanceof MoveErrorException) {
 			return new DataResponse($e->toArray(), $status);
 		}
@@ -683,18 +691,27 @@ class AtprotoAccountController extends Controller {
 	}
 
 	private function noIdentity(): DataResponse {
-		return $this->moveError(new MoveErrorException('No Bluesky identity for this account', 'no-identity'), Http::STATUS_NOT_FOUND);
+		return $this->unlessNotSetUp($this->userId(), $this->moveError(new MoveErrorException('No Bluesky identity for this account', 'no-identity'), Http::STATUS_NOT_FOUND));
 	}
 
 	/**
-	 * The viewer's identity, as it is; null when Bluesky is off or there is none.
+	 * What a route that needs an identity answers without one: the viewer
+	 * has no account yet, or their account has no identity.
+	 */
+	private function withoutIdentity(): DataResponse {
+		return $this->unlessNotSetUp($this->userId(), new DataResponse(['error' => 'No Bluesky identity for this account'], Http::STATUS_NOT_FOUND));
+	}
+
+	/**
+	 * The viewer's identity, as it is; null when Bluesky is off, they have no
+	 * account here or it has no identity.
 	 */
 	private function ownIdentity(): ?Identity {
 		if (!$this->config->isEnabled()) {
 			return null;
 		}
 		try {
-			return $this->identities->forActor($this->accountService->getActorFromUserId($this->userId(), true), false);
+			return $this->identities->forActor($this->accountService->getActorFromUserId($this->userId()), false);
 		} catch (Throwable) {
 			return null;
 		}

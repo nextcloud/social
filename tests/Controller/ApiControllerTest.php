@@ -1275,8 +1275,65 @@ class ApiControllerTest extends TestCase {
 
 		$response = $this->controller()->verifyCredentials();
 
-		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
 		$this->assertNotContains(true, $asked, 'reading asked for the account to be created');
+	}
+
+	/**
+	 * Somebody signed in to Nextcloud — the web session, or an app password
+	 * with `OCS-APIRequest` — who has not set up their account here is told
+	 * so, and where: a 403 with a code, which no client reads as its sign-in
+	 * having ended, rather than the 401 a dead token gets.
+	 */
+	public function testASessionWithoutAnAccountIsToldWhereToSetItUp(): void {
+		$this->signedInWithoutAnAccount();
+
+		$response = $this->controller()->verifyCredentials();
+
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+		$this->assertArrayNotHasKey('WWW-Authenticate', $response->getHeaders());
+		$this->assertSame([
+			'error' => 'Your account is not set up yet. Open Aloha Social in a web browser and choose your username, then try again.',
+			'code' => 'account-not-set-up',
+			'setup_url' => 'https://cloud.example.org/social.Navigation.navigate',
+		], $response->getData());
+	}
+
+	/** what anybody may read, they read as anybody does */
+	public function testASessionWithoutAnAccountReadsAPublicTimelineAsAnybody(): void {
+		$this->route = 'social.TimelineApi.timelines';
+		$this->signedInWithoutAnAccount();
+		$this->captureTimelineOptions([]);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->timelines('public')->getStatus());
+	}
+
+	/**
+	 * No token is issued without an account, so one whose account is gone
+	 * names nobody, as a revoked one does.
+	 */
+	public function testATokenWhoseAccountIsGoneIsStillADeadToken(): void {
+		$this->route = 'social.Api.verifyCredentials';
+		$client = new SocialClient();
+		$client->setAppName('Tusky')->setAuthUserId('gone')->setAuthScopes(['read']);
+		$this->clientService->method('getFromToken')->with('s3cret')->willReturn($client);
+		$this->accountService->method('getActorFromUserId')
+			->willThrowException(new ActorDoesNotExistException('no account for gone'));
+
+		$response = $this->controller('Bearer s3cret')->verifyCredentials();
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(['error' => 'the access_token was revoked'], $response->getData());
+	}
+
+	private function signedInWithoutAnAccount(): void {
+		$user = $this->createStub(IUser::class);
+		$user->method('getUID')->willReturn('newcomer');
+		$this->userSession->method('getUser')->willReturn($user);
+		$this->accountService->method('getActorFromUserId')
+			->willThrowException(new ActorDoesNotExistException('no account for newcomer'));
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturnCallback(static fn (string $route): string => 'https://cloud.example.org/' . $route);
 	}
 
 	public function testViewerIsCachedOnDemandWhenMissingFromCache(): void {
