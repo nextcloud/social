@@ -13,6 +13,7 @@ use InvalidArgumentException;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Protocol\Syntax;
+use OCA\Social\Exceptions\AppViewNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\FollowService;
@@ -192,13 +193,20 @@ class StarterPacks {
 
 	/**
 	 * The AppView's answer, as the person where they are on Bluesky.
+	 *
+	 * @throws InvalidArgumentException when the AppView does not know the pack
+	 *                                  or its list, or does not know it yet
 	 */
 	private function query(Person $viewer, string $method, array $params): array {
 		$identity = $this->identities->activeForActor($viewer);
-		if ($identity === null) {
-			return $this->appView->query($method, $params);
+		try {
+			if ($identity === null) {
+				return $this->appView->query($method, $params);
+			}
+			$answer = $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), $method, $params);
+		} catch (AppViewNotFoundException $e) {
+			throw new InvalidArgumentException('Bluesky does not know that starter pack', 0, $e);
 		}
-		$answer = $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), $method, $params);
 		$this->blockedBy?->learn($viewer, $answer);
 
 		return $answer;
