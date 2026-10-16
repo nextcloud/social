@@ -60,6 +60,7 @@ class LimitClampTest extends ReaderTestCase {
 		'AdminApiController::reports' => 200,
 		'AdminApiController::trendTags' => 100,
 		'ListController::accounts' => 500,
+		'NotificationController::unreadCountV2' => 399,
 		'RelationController::domainBlocks' => 200,
 	];
 

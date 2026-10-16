@@ -107,7 +107,7 @@
 
 <script>
 import { showError } from '../services/toast.js'
-import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
+import { offTimelinePush, onTimelinePush, PUSH_DIRECT, PUSH_HOME, PUSH_KINDS, PUSH_NOTIFICATION } from '../services/timelinePush.js'
 
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { fullDate, timeOfDay } from '../utils/relativeTime.js'
@@ -1560,11 +1560,19 @@ export default {
 		},
 
 		/**
-		 * What the server's push event runs.
+		 * What the server's push event runs: the activities for a
+		 * notification, every other list for a post. Asked here rather than
+		 * when subscribing, as switching timeline keeps this component.
 		 *
-		 * @return {Promise<void>} settled once the new posts are in
+		 * @param {string[]} kinds what arrived (`timelinePush.js`)
+		 * @return {Promise<void>|undefined} settled once the new posts are in
 		 */
-		onPushed() {
+		onPushed(kinds = PUSH_KINDS) {
+			const wanted = this.type === 'notifications' ? [PUSH_NOTIFICATION] : [PUSH_HOME, PUSH_DIRECT]
+			if (!kinds.some((kind) => wanted.includes(kind))) {
+				return undefined
+			}
+
 			return this.fetchNewStatuses()
 		},
 

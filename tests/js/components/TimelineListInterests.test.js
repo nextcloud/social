@@ -17,6 +17,10 @@ vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/timelinePush.js', () => ({
 	onTimelinePush: vi.fn(() => false),
 	offTimelinePush: vi.fn(),
+	PUSH_HOME: 'home',
+	PUSH_DIRECT: 'direct',
+	PUSH_NOTIFICATION: 'notification',
+	PUSH_KINDS: ['home', 'direct', 'notification'],
 }))
 vi.mock('@nextcloud/auth', async (importOriginal) => ({
 	...(await importOriginal()),

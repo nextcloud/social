@@ -21,7 +21,12 @@ async function load() {
 	listen.mockReturnValue(true)
 	const push = await import('../../../src/services/timelinePush.js')
 
-	return { ...push, listen, push: () => listen.mock.calls[0][1]() }
+	return {
+		...push,
+		listen,
+		push: () => listen.mock.calls[0][1](),
+		pushOf: (...kinds) => listen.mock.calls[0][1]('social_timeline', { kinds }),
+	}
 }
 
 describe('timelinePush', () => {
@@ -201,6 +206,85 @@ describe('timelinePush', () => {
 		push()
 		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
 		expect(handler).toHaveBeenCalledTimes(1)
+	})
+
+	it('runs a subscriber only for the kinds it named, and tells it which arrived', async () => {
+		const { onTimelinePush, pushOf, PUSH_SETTLE_MS } = await load()
+		const inbox = vi.fn()
+		const badges = vi.fn()
+		const everything = vi.fn()
+		onTimelinePush(inbox, ['direct'])
+		onTimelinePush(badges, ['direct', 'notification'])
+		onTimelinePush(everything)
+
+		pushOf('home')
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+		expect(inbox).not.toHaveBeenCalled()
+		expect(badges).not.toHaveBeenCalled()
+		expect(everything).toHaveBeenCalledWith(['home'])
+
+		pushOf('notification')
+		pushOf('home', 'direct')
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+		expect(inbox).toHaveBeenCalledTimes(1)
+		expect(inbox).toHaveBeenCalledWith(['direct'])
+		expect(badges).toHaveBeenCalledTimes(1)
+		expect(badges.mock.calls[0][0].sort()).toEqual(['direct', 'notification'])
+		expect(everything).toHaveBeenCalledTimes(2)
+	})
+
+	it('takes a push that names no kind for every kind', async () => {
+		const { onTimelinePush, push, PUSH_SETTLE_MS } = await load()
+		const inbox = vi.fn()
+		onTimelinePush(inbox, ['direct'])
+
+		push()
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+
+		expect(inbox).toHaveBeenCalledWith(['direct'])
+	})
+
+	it('catches up on the way back only those that missed something of theirs', async () => {
+		const { onTimelinePush, pushOf, PUSH_SETTLE_MS } = await load()
+		const inbox = vi.fn()
+		const timeline = vi.fn()
+		onTimelinePush(inbox, ['direct'])
+		onTimelinePush(timeline, ['home'])
+
+		lookAway()
+		pushOf('home')
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+		comeBack()
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+
+		expect(inbox).not.toHaveBeenCalled()
+		expect(timeline).toHaveBeenCalledTimes(1)
+	})
+
+	it('runs a subscriber again for its kinds pushed while its answer was on the way', async () => {
+		const { onTimelinePush, pushOf, PUSH_SETTLE_MS } = await load()
+		let answer
+		const handler = vi.fn(() => new Promise((resolve) => {
+			answer = resolve
+		}))
+		onTimelinePush(handler, ['direct', 'notification'])
+
+		pushOf('direct')
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+		pushOf('home')
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+		answer()
+		await vi.advanceTimersByTimeAsync(0)
+		expect(handler).toHaveBeenCalledTimes(1)
+
+		pushOf('notification')
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+		pushOf('direct')
+		await vi.advanceTimersByTimeAsync(PUSH_SETTLE_MS)
+		answer()
+		await vi.advanceTimersByTimeAsync(0)
+		expect(handler).toHaveBeenCalledTimes(3)
+		expect(handler).toHaveBeenLastCalledWith(['direct'])
 	})
 
 	it('reports whether push is there, so the caller knows how often to poll', async () => {

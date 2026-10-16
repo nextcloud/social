@@ -22,6 +22,10 @@ vi.mock('../../../src/services/toast.js', async (importOriginal) => ({
 vi.mock('../../../src/services/timelinePush.js', () => ({
 	onTimelinePush: vi.fn(() => false),
 	offTimelinePush: vi.fn(),
+	PUSH_HOME: 'home',
+	PUSH_DIRECT: 'direct',
+	PUSH_NOTIFICATION: 'notification',
+	PUSH_KINDS: ['home', 'direct', 'notification'],
 }))
 
 /** The tile keeps this many rows; see MAX_ITEMS in the component. */
@@ -167,7 +171,7 @@ describe('Dashboard', () => {
 
 		mountWidget()
 		await flushPromises()
-		expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function))
+		expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function), ['notification'])
 		expect(get).toHaveBeenCalledTimes(1)
 
 		// with push there is no timer at all

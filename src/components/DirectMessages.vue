@@ -436,7 +436,7 @@ import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
 import { addressFoundIn, completeAddress, isLocalAccount } from '../utils/accountLocality.js'
 import logger from '../services/logger.js'
-import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
+import { offTimelinePush, onTimelinePush, PUSH_DIRECT } from '../services/timelinePush.js'
 
 /** How many conversations one request asks for. */
 const PAGE_SIZE = 40
@@ -883,7 +883,7 @@ export default {
 		// with notify_push the server says when a direct message arrives;
 		// polling remains as a slow safety net. Without it, poll every 30
 		// seconds, as the feed does.
-		const hasPush = onTimelinePush(this.onPushed)
+		const hasPush = onTimelinePush(this.onPushed, [PUSH_DIRECT])
 		this.pollEvery = (hasPush ? 300 : 30) * 1000
 		this.intervalId = window.setInterval(() => this.pollIfVisible(), this.pollEvery)
 		document.addEventListener('visibilitychange', this.pollOnReturn)

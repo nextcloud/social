@@ -762,6 +762,16 @@ class StreamService {
 	}
 
 	/**
+	 * A page of the notification timeline as what the notification policy
+	 * asks of each row (`StreamRequest::getNotificationSenders()`).
+	 *
+	 * @return list<array{nid: string, subType: string, sender: string, creation: int, privateMention: bool}>
+	 */
+	public function getNotificationSenders(ProbeOptions $options): array {
+		return $this->streamRequest->getNotificationSenders($options);
+	}
+
+	/**
 	 * Posts named by nid, as the viewer may see them and dressed the way a
 	 * timeline page is — the page For you ranks is decided before the
 	 * posts are read, so it cannot come out of `getTimeline()`.

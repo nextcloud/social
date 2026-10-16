@@ -507,19 +507,8 @@ class TimelineApiController extends MastodonApiController {
 		try {
 			$this->initViewer(true);
 			$userId = $this->currentSession();
-			$marker = $this->markerService->lastReadId($userId, 'notifications');
 
-			// the count changes when a notification arrives, the marker
-			// moves, the reader decides about a sender (the revision), or the
-			// policy, what was released behind the marker or the muted
-			// threads change (the inbox state); all of them are in the tag
-			$newest = $this->streamRequest->newestNidFor(
-				[md5($this->viewer->getId())], 'notif'
-			);
-			$notModified = $this->notModified(
-				$newest . '-' . $marker . '-' . $this->timelineRevisionService->of($userId)
-				. '-' . $this->notificationInboxService->unreadState($this->viewer, $userId)
-			);
+			$notModified = $this->notModified($this->notificationInboxService->unreadTag($this->viewer, $userId));
 			if ($notModified !== null) {
 				return $notModified;
 			}

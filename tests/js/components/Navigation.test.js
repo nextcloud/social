@@ -100,6 +100,10 @@ vi.mock('../../../src/services/boot.js', () => ({
 vi.mock('../../../src/services/timelinePush.js', () => ({
 	onTimelinePush: vi.fn(() => false),
 	offTimelinePush: vi.fn(),
+	PUSH_HOME: 'home',
+	PUSH_DIRECT: 'direct',
+	PUSH_NOTIFICATION: 'notification',
+	PUSH_KINDS: ['home', 'direct', 'notification'],
 }))
 // the instance limits are asked for alongside; not what these tests are about
 vi.mock('../../../src/services/instanceLimits.js', () => ({
@@ -787,6 +791,32 @@ describe('Navigation', () => {
 
 			await vi.advanceTimersByTimeAsync(10 * MINUTE)
 			fetches.forEach((fetch) => expect(fetch).toHaveBeenCalledTimes(1))
+		})
+
+		it('hears of direct messages and notifications, not of posts for the home timeline', async () => {
+			mountNavigation()
+			await flushPromises()
+
+			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function), ['direct', 'notification'])
+		})
+
+		it('reads only the counts what arrived can change', async () => {
+			mountNavigation()
+			await flushPromises()
+			const [unread, direct, pending] = fetches
+			const refresh = vi.mocked(onTimelinePush).mock.calls[0][0]
+
+			fetches.forEach((fetch) => fetch.mockClear())
+			await refresh(['direct'])
+			expect(direct).toHaveBeenCalledTimes(1)
+			expect(unread).not.toHaveBeenCalled()
+			expect(pending).not.toHaveBeenCalled()
+
+			fetches.forEach((fetch) => fetch.mockClear())
+			await refresh(['notification'])
+			expect(unread).toHaveBeenCalledTimes(1)
+			expect(pending).toHaveBeenCalledTimes(1)
+			expect(direct).not.toHaveBeenCalled()
 		})
 
 		it('hands the push back when it leaves the page', async () => {

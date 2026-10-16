@@ -36,9 +36,9 @@ export const NOTIFICATION_TYPES = [
 export const NOTIFICATION_FILTERS = {
 	all: NOTIFICATION_TYPES,
 	mentions: ['mention'],
-	favourites: ['favourite'],
-	boosts: ['reblog'],
-	follows: ['follow', 'follow_request'],
+	favourites: ['favourite', 'bluesky:repost_liked'],
+	boosts: ['reblog', 'bluesky:repost_reposted'],
+	follows: ['follow', 'follow_request', 'bluesky:starterpack_joined'],
 	polls: ['poll'],
 	edits: ['update'],
 }

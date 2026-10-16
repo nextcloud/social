@@ -31,7 +31,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
-import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
+import { offTimelinePush, onTimelinePush, PUSH_NOTIFICATION } from '../services/timelinePush.js'
 import NcDashboardWidget from '@nextcloud/vue/components/NcDashboardWidget'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import { notificationSummary } from '../services/notifications.js'
@@ -128,7 +128,7 @@ export default {
 		// a slow poll keeps the tile current without hammering the instance
 		// the next ask is timed from the end of the one before, which is still
 		// in flight here, so it is the answer to that one that schedules it
-		this.polling = !onTimelinePush(this.fetchNotifications)
+		this.polling = !onTimelinePush(this.fetchNotifications, [PUSH_NOTIFICATION])
 	},
 
 	beforeUnmount() {

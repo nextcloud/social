@@ -17,6 +17,10 @@ import { shortAgo } from '../../../src/utils/relativeTime.js'
 vi.mock('../../../src/services/timelinePush.js', () => ({
 	onTimelinePush: vi.fn(() => false),
 	offTimelinePush: vi.fn(),
+	PUSH_HOME: 'home',
+	PUSH_DIRECT: 'direct',
+	PUSH_NOTIFICATION: 'notification',
+	PUSH_KINDS: ['home', 'direct', 'notification'],
 }))
 
 const bob = { id: 'https://remote.example/users/bob', acct: 'bob@remote.example', display_name: 'Bob' }
@@ -1003,12 +1007,13 @@ describe('DirectMessages', () => {
 			expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
 		})
 
-		it('listens for pushed events and slows the poll down to five minutes', async () => {
+		it('listens for pushed direct messages and slows the poll down to five minutes', async () => {
 			onTimelinePush.mockReturnValueOnce(true)
 			const wrapper = mountMessages()
 			await flushPromises()
 			get.mockClear()
-			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function))
+			// a post for the home timeline or a notification is no reason to read the inbox again
+			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function), ['direct'])
 
 			onTimelinePush.mock.calls.at(-1)[0]()
 			await flushPromises()

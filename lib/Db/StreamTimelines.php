@@ -9,11 +9,16 @@ declare(strict_types=1);
 
 namespace OCA\Social\Db;
 
+use DateTime;
+use DateTimeZone;
+use Exception;
 use InvalidArgumentException;
+use OCA\Social\AP;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Options\ProbeOptions;
@@ -1220,6 +1225,74 @@ trait StreamTimelines {
 		$qb->leftJoinObjectStatus();
 
 		return $this->getStreamsFromRequest($qb);
+	}
+
+	/**
+	 * The page `getTimelineNotifications()` chooses for the same options, as
+	 * what the notification policy asks of each row and nothing else: who sent
+	 * it, when that account was made, and whether it is a mention in a direct
+	 * message. Newest first.
+	 *
+	 * For the count of held senders the sidebar draws on every push and poll,
+	 * which looks back over hundreds of notifications: read whole, each one
+	 * is a post, its author and its object, dressed for a client, to draw one
+	 * number. The sender is the joined cached actor, as `parseStreamSelectSql()`
+	 * reads it, so a row the full read gives no actor has none here either.
+	 *
+	 * @return list<array{nid: string, subType: string, sender: string, creation: int, privateMention: bool}>
+	 */
+	public function getNotificationSenders(ProbeOptions $options): array {
+		$wanted = Stream::subTypesOfNotificationTypes($options->getTypes());
+		if ($options->getTypes() !== [] && $wanted === []) {
+			return [];
+		}
+
+		$page = $this->getStreamNidsSelectSql(false);
+		$this->notificationFilters($page, $options, $wanted, $page->getViewer()->getId(), false);
+
+		$nids = $this->getNidsFromRequest($page);
+		if ($nids === []) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$qb->select('s.nid', 's.subtype')
+			->from(self::TABLE_STREAM, 's');
+		$qb->setDefaultSelectAlias('s');
+		$qb->selectAlias('ca.id', 'ca_id')
+			->selectAlias('ca.type', 'ca_type')
+			->selectAlias('ca.creation', 'ca_creation');
+		$qb->andWhere(
+			$qb->expr()->in('s.nid', $qb->createNamedParameter($nids, IQueryBuilder::PARAM_STR_ARRAY))
+		);
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim', true, false);
+		$qb->leftJoinObjectVisibility(Mention::TYPE);
+		$qb->orderBy('s.nid', 'desc');
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$sender = new Person();
+			$sender->setType((string)($data['ca_type'] ?? ''));
+			$creation = 0;
+			try {
+				// as `Person::importFromDatabase()` reads the column
+				$creation = (new DateTime((string)($data['ca_creation'] ?? '') ?: 'yesterday', new DateTimeZone('UTC')))
+					->getTimestamp();
+			} catch (Exception) {
+			}
+
+			$rows[] = [
+				'nid' => (string)$data['nid'],
+				'subType' => (string)($data['subtype'] ?? ''),
+				'sender' => AP::instance()->isActor($sender) ? (string)($data['ca_id'] ?? '') : '',
+				'creation' => $creation,
+				'privateMention' => ($data['os_visibility'] ?? '') === Stream::TYPE_DIRECT,
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
 	}
 
 	/**

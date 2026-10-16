@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Exception;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\Server;
@@ -20,10 +21,19 @@ use Psr\Log\LoggerInterface;
  * notify_push app, so they refresh immediately instead of on their next
  * poll. Entirely optional: when notify_push is not installed every call is
  * a cheap no-op and clients keep polling.
+ *
+ * The push says what arrived, as `{"kinds": [...]}`: a post for the home
+ * timeline, a direct message, a notification. Each part of the page answers
+ * only what can change it, so a followed account posting does not reload the
+ * direct messages, and a favourite does not reload the home timeline.
  */
 class PushService {
 	/** the custom notify_push event name web clients listen on */
 	public const EVENT = 'social_timeline';
+
+	public const KIND_HOME = 'home';
+	public const KIND_DIRECT = 'direct';
+	public const KIND_NOTIFICATION = 'notification';
 
 	private const QUEUE_CLASS = 'OCA\\NotifyPush\\Queue\\IQueue';
 
@@ -33,6 +43,7 @@ class PushService {
 	public function __construct(
 		private DetailsService $detailsService,
 		private StreamService $streamService,
+		private ActorsRequest $actorsRequest,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -57,26 +68,67 @@ class PushService {
 			return;
 		}
 
-		$userIds = [];
-		foreach (array_merge($details->getHomeViewers(), $details->getDirectViewers()) as $viewer) {
-			/** @var Person $viewer */
-			if ($viewer->isLocal() && $viewer->getUserId() !== '') {
-				$userIds[$viewer->getUserId()] = true;
+		$kinds = [];
+		foreach ([
+			self::KIND_HOME => $details->getHomeViewers(),
+			self::KIND_DIRECT => $details->getDirectViewers(),
+		] as $kind => $viewers) {
+			foreach ($viewers as $viewer) {
+				/** @var Person $viewer */
+				if ($viewer->isLocal() && $viewer->getUserId() !== '') {
+					$kinds[$viewer->getUserId()][$kind] = true;
+				}
 			}
 		}
 
-		foreach (array_keys($userIds) as $userId) {
-			try {
-				$queue->push('notify_custom', [
-					'user' => (string)$userId,
-					'message' => self::EVENT,
-				]);
-			} catch (Exception $e) {
-				$this->logger->debug('notify_push delivery failed', ['exception' => $e]);
-
+		foreach (array_keys($kinds) as $userId) {
+			if (!$this->push($queue, (string)$userId, array_keys($kinds[$userId]))) {
 				return;
 			}
 		}
+	}
+
+	/**
+	 * A notification was stored for `$recipientId`: the badges of a local
+	 * account's open pages are read again, held or not, since a held one is
+	 * a request waiting.
+	 */
+	public function onNotification(string $recipientId): void {
+		$queue = $this->getQueue();
+		if ($queue === null || $recipientId === '') {
+			return;
+		}
+
+		try {
+			$userId = $this->actorsRequest->getFromId($recipientId)->getUserId();
+		} catch (Exception $e) {
+			return;
+		}
+
+		if ($userId !== '') {
+			$this->push($queue, $userId, [self::KIND_NOTIFICATION]);
+		}
+	}
+
+	/**
+	 * @param string[] $kinds
+	 *
+	 * @return bool whether notify_push took it
+	 */
+	private function push(object $queue, string $userId, array $kinds): bool {
+		try {
+			$queue->push('notify_custom', [
+				'user' => $userId,
+				'message' => self::EVENT,
+				'body' => ['kinds' => $kinds],
+			]);
+		} catch (Exception $e) {
+			$this->logger->debug('notify_push delivery failed', ['exception' => $e]);
+
+			return false;
+		}
+
+		return true;
 	}
 
 	/**

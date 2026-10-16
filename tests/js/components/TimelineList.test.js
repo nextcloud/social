@@ -23,6 +23,10 @@ vi.mock('../../../src/services/toast.js', () => ({ showError: vi.fn() }))
 vi.mock('../../../src/services/timelinePush.js', () => ({
 	onTimelinePush: vi.fn(() => false),
 	offTimelinePush: vi.fn(),
+	PUSH_HOME: 'home',
+	PUSH_DIRECT: 'direct',
+	PUSH_NOTIFICATION: 'notification',
+	PUSH_KINDS: ['home', 'direct', 'notification'],
 }))
 
 // @nextcloud/auth reads the user from <head>, which the harness does not set
@@ -1168,6 +1172,37 @@ describe('TimelineList', () => {
 			vi.advanceTimersByTime(270 * 1000)
 			await flushPromises()
 			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
+		})
+
+		it('answers a push about a post, not one about a notification', async () => {
+			const { dispatch } = mountList({ timeline: [status('30')] })
+			await flushPromises()
+			dispatch.mockClear()
+			const pushed = onTimelinePush.mock.calls.at(-1)[0]
+
+			await pushed(['notification'])
+			expect(dispatch).not.toHaveBeenCalled()
+
+			await pushed(['home'])
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '30' })
+		})
+
+		it('answers a push about a notification on the activities, not one about a post', async () => {
+			const { dispatch } = mountList({
+				timeline: [status('30')],
+				identity: '["notifications","",{}]',
+				route: { name: 'timeline', params: { type: 'notifications' } },
+				props: { type: 'notifications' },
+			})
+			await flushPromises()
+			dispatch.mockClear()
+			const pushed = onTimelinePush.mock.calls.at(-1)[0]
+
+			await pushed(['home', 'direct'])
+			expect(dispatch).not.toHaveBeenCalled()
+
+			await pushed(['notification'])
+			expect(dispatch).toHaveBeenCalled()
 		})
 
 		it('stops listening for pushed events once it is gone', async () => {

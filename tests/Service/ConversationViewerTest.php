@@ -27,6 +27,7 @@ use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\LinkPreviewService;
 use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\IURLGenerator;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -109,6 +110,9 @@ class ConversationViewerTest extends TestCase {
 			),
 			$this->createStub(CacheActorService::class),
 			$request,
+			$this->streamRequest,
+			$this->createStub(TimelineRevisionService::class),
+			$this->createStub(ConfigService::class),
 		);
 	}
 

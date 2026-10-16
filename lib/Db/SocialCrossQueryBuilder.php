@@ -370,6 +370,32 @@ class SocialCrossQueryBuilder extends SocialCoreQueryBuilder {
 	}
 
 	/**
+	 * The visibility of the status a row of `$subType` points at, as
+	 * `os_visibility`, joined on the terms `leftJoinObjectStatus()` joins it
+	 * on and nothing more of it: what the notification policy asks of a
+	 * mention. Empty where the viewer may not see the status, or the row is
+	 * of another sub-type.
+	 */
+	public function leftJoinObjectVisibility(string $subType, string $leftAlias = 'os'): void {
+		if ($this->getType() !== self::SELECT) {
+			return;
+		}
+
+		$pf = $this->getDefaultSelectAlias() . '.';
+		$this->selectAlias($leftAlias . '.visibility', $leftAlias . '_visibility');
+		$this->leftJoin(
+			$this->getDefaultSelectAlias(),
+			CoreRequestBuilder::TABLE_STREAM,
+			$leftAlias,
+			$this->expr()->andX(
+				$this->expr()->eq($pf . 'subtype', $this->createNamedParameter($subType)),
+				$this->expr()->eq($pf . 'object_id_prim', $leftAlias . '.id_prim'),
+				$this->exprVisibleToViewer($leftAlias)
+			)
+		);
+	}
+
+	/**
 	 * The rule limitToViewer() applies to the rows of a request, expressed
 	 * against another alias: addressed to the public collection (public and
 	 * unlisted), written by the viewer, addressed to the viewer, or written by

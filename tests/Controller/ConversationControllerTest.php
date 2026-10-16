@@ -354,6 +354,24 @@ class ConversationControllerTest extends TestCase {
 	}
 
 	/**
+	 * Asked on every push and poll: while its tag is the one the browser
+	 * holds, the count is not worked out again.
+	 */
+	public function testTheUnreadCountIsRevalidated(): void {
+		$this->conversationService->method('unreadTag')->willReturn('99-1-2');
+		$this->conversationService->expects($this->once())->method('countUnread')->willReturn(4);
+
+		$first = $this->controller()->unreadCount();
+		$this->assertSame('"99-1-2"', $first->getHeaders()['ETag'] ?? '');
+
+		$controller = $this->controller();
+		$this->headers['If-None-Match'] = '"99-1-2"';
+		$again = $controller->unreadCount();
+
+		$this->assertSame(Http::STATUS_NOT_MODIFIED, $again->getStatus());
+	}
+
+	/**
 	 * Nothing else in the web interface marks a conversation read, because
 	 * nothing else shows one as a thing of its own -- so without this the
 	 * badge would never come down.

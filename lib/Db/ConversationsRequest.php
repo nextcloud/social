@@ -20,7 +20,8 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * `social_stream`, and the two walks below are how it is read — up, to find
  * the root a message belongs to, and down, to find the messages of a thread
  * one account may see. Both are bounded in depth, both select four columns,
- * and both do one statement per level rather than one per message.
+ * and neither does a statement per message: the walk down does one per
+ * level, the walk up one per `ANCESTOR_LEVELS` levels.
  *
  * What is stored is what an account has *done* with a thread, in
  * `social_convo_state`: how far it has read it, and how far it has dismissed
@@ -38,6 +39,12 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	 * an endless loop holding a database connection.
 	 */
 	public const MAX_THREAD_DEPTH = 20;
+
+	/**
+	 * How many levels of `in_reply_to` one statement of a walk up reads
+	 * (`getAncestorLinks()`): the twenty levels of `MAX_THREAD_DEPTH` in four.
+	 */
+	public const ANCESTOR_LEVELS = 5;
 
 	/** How many posts one level of a thread walk may return. */
 	public const MAX_THREAD_WIDTH = 200;
@@ -70,6 +77,71 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 		$qb->setMaxResults(count($prims));
 
 		return $this->threadLinksFromRequest($qb);
+	}
+
+	/**
+	 * The posts the given ids name and up to `$levels - 1` of their ancestors
+	 * each, in one statement: the post joined to its parent, the parent to its
+	 * own, `$levels` deep. What `getThreadLinks()` answers, `$levels` levels of
+	 * a walk up at a time.
+	 *
+	 * @param string[] $ids
+	 *
+	 * @return array<string, array{id: string, idPrim: string, nid: int|string, inReplyTo: string}>
+	 */
+	public function getAncestorLinks(array $ids, int $levels): array {
+		$prims = $this->prims($ids);
+		if ($prims === [] || $levels < 1) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->from(self::TABLE_STREAM, 'a0');
+		for ($level = 0; $level < $levels; $level++) {
+			$alias = 'a' . $level;
+			if ($level > 0) {
+				$child = 'a' . ($level - 1);
+				// a parent that is no address has no prim, and must not match
+				// the posts that have none either
+				$qb->leftJoin(
+					$child, self::TABLE_STREAM, $alias,
+					$expr->andX(
+						$expr->eq($alias . '.id_prim', $child . '.in_reply_to_prim'),
+						$expr->neq($child . '.in_reply_to_prim', $qb->createNamedParameter(''))
+					)
+				);
+			}
+			$qb->selectAlias($alias . '.id', $alias . '_id')
+				->selectAlias($alias . '.id_prim', $alias . '_id_prim')
+				->selectAlias($alias . '.nid', $alias . '_nid')
+				->selectAlias($alias . '.in_reply_to', $alias . '_in_reply_to');
+		}
+		$qb->where(
+			$expr->in('a0.id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY))
+		);
+
+		$links = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			for ($level = 0; $level < $levels; $level++) {
+				$prefix = 'a' . $level . '_';
+				if (($data[$prefix . 'id'] ?? null) === null) {
+					break;
+				}
+
+				$link = $this->parseThreadLinkSelectSql([
+					'id' => $data[$prefix . 'id'],
+					'id_prim' => $data[$prefix . 'id_prim'],
+					'nid' => $data[$prefix . 'nid'],
+					'in_reply_to' => $data[$prefix . 'in_reply_to'],
+				]);
+				$links[$link['id']] = $link;
+			}
+		}
+		$cursor->closeCursor();
+
+		return $links;
 	}
 
 	/**
@@ -266,14 +338,17 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	 */
 	public function rootOf(string $statusId, int $maxDepth = 40): string {
 		$current = $statusId;
-		for ($depth = 0; $depth < $maxDepth; $depth++) {
-			$links = $this->getThreadLinks([$current]);
-			$link = $links[$current] ?? null;
-			if ($link === null || $link['inReplyTo'] === '') {
-				return $current;
-			}
+		for ($depth = 0; $depth < $maxDepth;) {
+			$levels = min(self::ANCESTOR_LEVELS, $maxDepth - $depth);
+			$links = $this->getAncestorLinks([$current], $levels);
+			for ($level = 0; $level < $levels; $level++, $depth++) {
+				$link = $links[$current] ?? null;
+				if ($link === null || $link['inReplyTo'] === '') {
+					return $current;
+				}
 
-			$current = $link['inReplyTo'];
+				$current = $link['inReplyTo'];
+			}
 		}
 
 		return $current;

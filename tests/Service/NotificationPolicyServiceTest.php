@@ -388,6 +388,63 @@ class NotificationPolicyServiceTest extends TestCase {
 		);
 	}
 
+	/**
+	 * What the sidebar's count reads instead of a page — who sent each, when
+	 * they joined, whether it is a direct mention — is judged as the page is.
+	 */
+	public function testTheSendersAloneAreJudgedAsThePageIs(): void {
+		$this->service->save('alice', NotificationPolicy::CALM);
+		$this->decisions = ['accepted' => ['https://elsewhere.example/users/dave' => true], 'dismissed' => []];
+		$direct = $this->from(self::STRANGER, Mention::TYPE, 0);
+		$post = new Note();
+		$post->setVisibility(Stream::TYPE_DIRECT);
+		$direct->setObject($post);
+		$page = [
+			$direct,
+			$this->from(self::STRANGER, Like::TYPE, time() - 86400),
+			$this->from('https://elsewhere.example/users/dave', Like::TYPE, time() - 86400),
+			$this->from('', Like::TYPE),
+		];
+
+		$rows = [];
+		foreach ($page as $index => $notification) {
+			$notification->setNid($index);
+			$rows[] = [
+				'nid' => (string)$index,
+				'subType' => $notification->getSubType(),
+				'sender' => $notification->getActor()->getId(),
+				'creation' => $notification->getActor()->getCreation(),
+				'privateMention' => $notification->getObject() instanceof Stream,
+			];
+		}
+
+		$this->assertSame(
+			[0, 1],
+			array_map(static fn (Stream $n): int => (int)$n->getNid(), $this->service->partition($this->viewer(), $page)['held'])
+		);
+		$this->assertSame(['0', '1'], array_column($this->service->heldOf($this->viewer(), $rows), 'nid'));
+	}
+
+	/** Nothing is asked for an account that holds nothing. */
+	public function testTheSendersOfAnUntouchedPolicyAreNotLookedInto(): void {
+		$this->followsRequest->expects($this->never())->method('getBetweenMany');
+
+		$this->assertSame([], $this->service->heldOf($this->viewer(), [
+			['nid' => '1', 'subType' => Like::TYPE, 'sender' => self::STRANGER, 'creation' => 0, 'privateMention' => false],
+		]));
+	}
+
+	/** The policy's `ETag` moves with what the five questions read besides the notifications. */
+	public function testTheStateMovesWithThePolicyAndTheSilenced(): void {
+		$before = $this->service->stateOf('alice');
+		$this->service->save('alice', NotificationPolicy::CALM);
+		$calm = $this->service->stateOf('alice');
+		$this->silenced = [self::STRANGER];
+
+		$this->assertNotSame($before, $calm);
+		$this->assertNotSame($calm, $this->service->stateOf('alice'));
+	}
+
 	// what a new account starts with
 
 	public function testANewAccountStartsCalm(): void {

@@ -494,6 +494,7 @@ class ApiControllerTest extends TestCase {
 				$this->notificationPolicyService,
 				$this->markerService,
 				$this->createStub(\OCA\Social\Db\ConversationsRequest::class),
+				$this->timelineRevisionService,
 			),
 			'durableCache' => $this->durableCache(),
 			'atprotoPublisher' => (function () {

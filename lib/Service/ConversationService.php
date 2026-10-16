@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use OCA\Social\Atproto\Chat\ChatPoller;
 use OCA\Social\Atproto\Chat\ChatState;
 use OCA\Social\Db\ConversationsRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -43,8 +44,11 @@ use Throwable;
  * What it costs:
  *
  *  - Grouping is work at read time. A page of conversations is one direct
- *    timeline query plus one query per level of `in_reply_to` that the page's
- *    messages have above them — bounded, and a direct message is rarely deep.
+ *    timeline query plus one query per `ConversationsRequest::ANCESTOR_LEVELS`
+ *    levels of `in_reply_to` that the page's messages have above them, up to
+ *    `MAX_THREAD_DEPTH` levels. A chat is a chain of replies, each to the
+ *    one before, so one longer than that above the window groups under the
+ *    topmost message the walk reached, which moves as the chat grows.
  *  - A thread whose root is not stored here (the exchange started on another
  *    server and this instance was brought in later) groups under the topmost
  *    message it *does* store. If the missing parent arrives afterwards, the
@@ -80,6 +84,12 @@ class ConversationService {
 	public const UNREAD_CAP = 99;
 
 	/**
+	 * Where a number is kept per account that moves whenever it marks a
+	 * conversation read or dismisses one, for the unread count's `ETag`.
+	 */
+	public const REVISION_KEY = 'conversations_revision';
+
+	/**
 	 * How many participants one conversation reports. A direct message can be
 	 * addressed to a crowd, and `accounts` is a header line in every client
 	 * that draws it.
@@ -90,8 +100,24 @@ class ConversationService {
 		private StreamService $streamService,
 		private CacheActorService $cacheActorService,
 		private ConversationsRequest $conversationsRequest,
+		private StreamRequest $streamRequest,
+		private TimelineRevisionService $timelineRevisionService,
+		private ConfigService $configService,
 		private ?ContainerInterface $container = null,
 	) {
+	}
+
+	/**
+	 * The `ETag` of the unread count: what `countUnread()` changes with. A
+	 * direct message arriving or sent moves the newest one, marking read or
+	 * dismissing moves this service's revision, and blocking or muting
+	 * somebody moves the timeline revision. One index-only probe and two
+	 * user settings, in place of the walk the count is.
+	 */
+	public function unreadTag(Person $viewer): string {
+		return $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm')
+			. '-' . $this->timelineRevisionService->of($viewer->getUserId())
+			. '-' . $this->revisionOf($viewer);
 	}
 
 	/**
@@ -128,13 +154,13 @@ class ConversationService {
 			return ['conversations' => [], 'next' => 0, 'prev' => 0];
 		}
 
-		$conversations = $this->entities($viewer, $this->group($messages));
+		$listed = $this->listed($viewer, $this->group($messages));
 
-		$filled = (count($conversations) > $limit);
+		$filled = (count($listed) > $limit);
 		// a `min_id` window is the oldest messages above the cursor, and its
 		// page is the conversations next to the cursor: the oldest of them
 		$adjacent = ((string)$minId !== '0' && (string)$minId !== '');
-		$conversations = array_slice($conversations, $adjacent ? -$limit : 0, $limit);
+		$conversations = $this->entities($viewer, array_slice($listed, $adjacent ? -$limit : 0, $limit));
 
 		$nids = [];
 		foreach ($messages as $message) {
@@ -231,17 +257,19 @@ class ConversationService {
 
 		$marked = 0;
 		$ids = [];
-		foreach ($this->entities($viewer, $this->group($messages)) as $conversation) {
-			if (!$conversation->isUnread()) {
+		foreach ($this->listed($viewer, $this->group($messages)) as $conversation) {
+			if (!$conversation['unread']) {
 				continue;
 			}
 
-			$this->conversationsRequest->markRead(
-				$viewer->getId(), $conversation->getRootId(), $conversation->getLastStatusNid()
-			);
+			$last = $conversation['messages'][0];
+			$this->conversationsRequest->markRead($viewer->getId(), $conversation['rootId'], $last->getNid());
 			$marked++;
-			$ids[] = $conversation->getRootId();
-			$ids[] = $conversation->getLastStatus()?->getId() ?? '';
+			$ids[] = $conversation['rootId'];
+			$ids[] = $last->getId();
+		}
+		if ($marked > 0) {
+			$this->changed($viewer);
 		}
 		$this->chatState()?->read($viewer, $ids, true);
 
@@ -263,6 +291,7 @@ class ConversationService {
 		$this->conversationsRequest->markRead(
 			$viewer->getId(), $root['id'], Nid::fromStorage($newest)
 		);
+		$this->changed($viewer);
 		$this->chatState()?->read($viewer, [$root['id'], $this->newestIdOf($thread)]);
 
 		return $this->single($viewer, $root, $newest, false);
@@ -283,6 +312,7 @@ class ConversationService {
 			return false;
 		}
 		$this->conversationsRequest->markRead($viewer->getId(), $root['id'], Nid::fromStorage($message->getNid()));
+		$this->changed($viewer);
 
 		return true;
 	}
@@ -304,8 +334,32 @@ class ConversationService {
 		$this->conversationsRequest->markHidden(
 			$viewer->getId(), $root['id'], Nid::fromStorage($this->newestOf($thread))
 		);
+		$this->changed($viewer);
 		// a request on Bluesky is turned down there, not accepted
 		$this->chatState()?->dismissed($viewer, [$root['id'], $this->newestIdOf($thread)]);
+	}
+
+	private function revisionOf(Person $viewer): int {
+		if ($viewer->getUserId() === '') {
+			return 0;
+		}
+
+		return (int)$this->configService->getValueForUser($viewer->getUserId(), self::REVISION_KEY);
+	}
+
+	/**
+	 * The account marked a conversation read or dismissed one. Not locked:
+	 * two changes racing may end on the same number, which is still not the
+	 * one before either of them.
+	 */
+	private function changed(Person $viewer): void {
+		if ($viewer->getUserId() === '') {
+			return;
+		}
+
+		$this->configService->setValueForUser(
+			$viewer->getUserId(), self::REVISION_KEY, (string)($this->revisionOf($viewer) + 1)
+		);
 	}
 
 	/**
@@ -366,9 +420,12 @@ class ConversationService {
 	 * the order the roots were first seen — which, the window being ordered
 	 * newest first, is the order of their newest message.
 	 *
+	 * Along with what the walk up read of their threads, which names the nid
+	 * of a root the window does not hold.
+	 *
 	 * @param Stream[] $messages
 	 *
-	 * @return array<string, Stream[]>
+	 * @return array{groups: array<string, Stream[]>, links: array<string, array{nid: int|string, inReplyTo: string}>}
 	 */
 	private function group(array $messages): array {
 		$links = [];
@@ -386,23 +443,24 @@ class ConversationService {
 			$groups[$this->rootOf($message->getId(), $links)][] = $message;
 		}
 
-		return $groups;
+		return ['groups' => $groups, 'links' => $links];
 	}
 
 	/**
 	 * The same map with every ancestor of its posts added to it.
 	 *
-	 * One query a level rather than one a post: every parent still missing is
-	 * asked for at once, and the walk ends when a level adds nothing — which
-	 * is what a thread that starts here, or a parent this instance never
-	 * stored, both look like.
+	 * One query for several levels rather than one a post: every parent still
+	 * missing is asked for at once with `ANCESTOR_LEVELS` of its own
+	 * ancestors, and the walk ends when a round adds nothing — which is what
+	 * a thread that starts here, or a parent this instance never stored, both
+	 * look like.
 	 *
-	 * @param array<string, array{nid: string, inReplyTo: string}> $links
+	 * @param array<string, array{nid: int|string, inReplyTo: string}> $links
 	 *
-	 * @return array<string, array{nid: string, inReplyTo: string}>
+	 * @return array<string, array{nid: int|string, inReplyTo: string}>
 	 */
 	private function withAncestors(array $links): array {
-		for ($depth = 0; $depth < ConversationsRequest::MAX_THREAD_DEPTH; $depth++) {
+		for ($depth = 0; $depth < ConversationsRequest::MAX_THREAD_DEPTH; $depth += ConversationsRequest::ANCESTOR_LEVELS) {
 			$wanted = [];
 			foreach ($links as $link) {
 				$parent = $link['inReplyTo'];
@@ -415,13 +473,16 @@ class ConversationService {
 				break;
 			}
 
-			$found = $this->conversationsRequest->getThreadLinks(array_values($wanted));
+			$found = $this->conversationsRequest->getAncestorLinks(
+				array_values($wanted),
+				min(ConversationsRequest::ANCESTOR_LEVELS, ConversationsRequest::MAX_THREAD_DEPTH - $depth)
+			);
 			if ($found === []) {
 				break;
 			}
 
 			foreach ($found as $id => $link) {
-				$links[$id] = ['nid' => $link['nid'], 'inReplyTo' => $link['inReplyTo']];
+				$links[$id] ??= ['nid' => $link['nid'], 'inReplyTo' => $link['inReplyTo']];
 			}
 		}
 
@@ -452,17 +513,20 @@ class ConversationService {
 	}
 
 	/**
-	 * The grouped messages as Conversation entities, dismissed ones left out.
+	 * The grouped messages that are listed, newest first: dismissed ones left
+	 * out, and those whose root is not a post this instance can name. Decided
+	 * before anything is built, so that a page is cut before its accounts are
+	 * looked up.
 	 *
-	 * @param array<string, Stream[]> $groups
+	 * @param array{groups: array<string, Stream[]>, links: array<string, array{nid: int|string, inReplyTo: string}>} $grouped
 	 *
-	 * @return Conversation[]
+	 * @return list<array{rootId: string, rootNid: string, messages: Stream[], unread: bool}>
 	 */
-	private function entities(Person $viewer, array $groups): array {
-		$markers = $this->conversationsRequest->getMarkers($viewer->getId(), array_keys($groups));
+	private function listed(Person $viewer, array $grouped): array {
+		$markers = $this->conversationsRequest->getMarkers($viewer->getId(), array_keys($grouped['groups']));
 
-		$conversations = [];
-		foreach ($groups as $rootId => $messages) {
+		$listed = [];
+		foreach ($grouped['groups'] as $rootId => $messages) {
 			$last = $messages[0];
 			$marker = $markers[$rootId] ?? ['readNid' => 0, 'hiddenNid' => 0];
 
@@ -470,21 +534,50 @@ class ConversationService {
 				continue;
 			}
 
-			$rootNid = $this->nidOf($rootId, $messages);
+			// the root is in the window, or the walk up read it
+			$rootNid = (string)($grouped['links'][$rootId]['nid'] ?? '0');
 			if (Nid::compare($rootNid, '0') < 1) {
 				// the root is not a post this instance can name, so the
 				// conversation has no id a client could send back
 				continue;
 			}
 
-			$conversation = new Conversation();
-			$conversation->setId($rootNid)
-				->setRootId($rootId)
-				->setLastStatus($last)
-				->setUnread($this->isUnread($viewer, $last->getAttributedTo(), $last->getNid(), $marker['readNid']))
-				->setAccounts($this->accounts($viewer, $messages));
+			$listed[] = [
+				'rootId' => (string)$rootId,
+				'rootNid' => $rootNid,
+				'messages' => $messages,
+				'unread' => $this->isUnread($viewer, $last->getAttributedTo(), $last->getNid(), $marker['readNid']),
+			];
+		}
 
-			$conversations[] = $conversation;
+		return $listed;
+	}
+
+	/**
+	 * Listed conversations as Conversation entities, their participants
+	 * looked up together.
+	 *
+	 * @param list<array{rootId: string, rootNid: string, messages: Stream[], unread: bool}> $listed
+	 *
+	 * @return Conversation[]
+	 */
+	private function entities(Person $viewer, array $listed): array {
+		$participants = [];
+		foreach ($listed as $index => $conversation) {
+			$participants[$index] = $this->participantsOf($viewer, $conversation['messages']);
+		}
+		$cached = $this->cachedActors(array_merge([], ...$participants));
+
+		$conversations = [];
+		foreach ($listed as $index => $conversation) {
+			$entity = new Conversation();
+			$entity->setId($conversation['rootNid'])
+				->setRootId($conversation['rootId'])
+				->setLastStatus($conversation['messages'][0])
+				->setUnread($conversation['unread'])
+				->setAccounts($this->accountsOf($participants[$index], $cached));
+
+			$conversations[] = $entity;
 		}
 
 		return $conversations;
@@ -528,9 +621,9 @@ class ConversationService {
 	 *
 	 * @param Stream[] $messages
 	 *
-	 * @return Person[]
+	 * @return string[] actor ids
 	 */
-	private function accounts(Person $viewer, array $messages): array {
+	private function participantsOf(Person $viewer, array $messages): array {
 		$ids = [];
 		foreach ($messages as $message) {
 			$correspondents = array_merge(
@@ -546,13 +639,27 @@ class ConversationService {
 			}
 		}
 
-		$ids = array_slice(array_values($ids), 0, self::MAX_ACCOUNTS);
-		if ($ids === []) {
-			return [];
-		}
+		return array_slice(array_values($ids), 0, self::MAX_ACCOUNTS);
+	}
 
-		$cached = $this->cacheActorService->getCachedFromIds($ids);
+	/**
+	 * @param string[] $ids
+	 *
+	 * @return array<string, Person> by actor id
+	 */
+	private function cachedActors(array $ids): array {
+		$ids = array_values(array_unique($ids));
 
+		return ($ids === []) ? [] : $this->cacheActorService->getCachedFromIds($ids);
+	}
+
+	/**
+	 * @param string[] $ids
+	 * @param array<string, Person> $cached
+	 *
+	 * @return Person[]
+	 */
+	private function accountsOf(array $ids, array $cached): array {
 		$accounts = [];
 		foreach ($ids as $id) {
 			if (array_key_exists($id, $cached)) {
@@ -561,24 +668,6 @@ class ConversationService {
 		}
 
 		return $accounts;
-	}
-
-	/**
-	 * The nid of the thread root, from the window when the root is in it and
-	 * from what the ancestor walk read when it is not.
-	 *
-	 * @param Stream[] $messages
-	 */
-	private function nidOf(string $rootId, array $messages): string {
-		foreach ($messages as $message) {
-			if ($message->getId() === $rootId) {
-				return (string)$message->getNid();
-			}
-		}
-
-		$links = $this->conversationsRequest->getThreadLinks([$rootId]);
-
-		return (string)($links[$rootId]['nid'] ?? '0');
 	}
 
 	/**
@@ -674,8 +763,9 @@ class ConversationService {
 		try {
 			$last = $this->streamService->getStreamByNid($lastNid);
 			$last->setExportFormat(ACore::FORMAT_LOCAL);
+			$participants = $this->participantsOf($viewer, [$last]);
 			$conversation->setLastStatus($last)
-				->setAccounts($this->accounts($viewer, [$last]));
+				->setAccounts($this->accountsOf($participants, $this->cachedActors($participants)));
 		} catch (Throwable $e) {
 			// `last_status` is nullable on Mastodon's entity, and a client has
 			// to cope with it; refusing the whole answer would leave the

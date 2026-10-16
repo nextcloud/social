@@ -14,22 +14,24 @@ use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\NotificationPolicy;
-use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\FilterService;
+use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\NotificationDeliveryService;
 use OCA\Social\Service\NotificationGroupService;
 use OCA\Social\Service\NotificationInboxService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\NotificationService;
+use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
@@ -51,6 +53,8 @@ use Throwable;
  * notification that is not the viewer's is not found.
  */
 class NotificationController extends ClientApiController {
+	/** What `unread_count` counts to unless asked otherwise: Mastodon's default. */
+	public const UNREAD_LIMIT = 100;
 
 	public function __construct(
 		IRequest $request,
@@ -65,6 +69,7 @@ class NotificationController extends ClientApiController {
 		private FilterService $filterService,
 		private CacheActorService $cacheActorService,
 		private NotificationInboxService $notificationInboxService,
+		private MarkerService $markerService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -128,32 +133,71 @@ class NotificationController extends ClientApiController {
 	// Mastodon 4.3: the same notifications, grouped
 
 	/**
-	 * `GET /api/v2/notifications`: the viewer's notifications, grouped.
-	 *
-	 * The shape is Mastodon's `GroupedNotificationsResults` — groups, plus the
-	 * accounts and statuses they refer to, each carried once. A page of forty
-	 * favourites of one post is one group and one status here, where v1 sends
-	 * forty rows and forty copies of the post.
+	 * How many groups of notifications the reader has not seen: those past the
+	 * notifications marker, as Mastodon counts them, and those released behind
+	 * it, as `/api/v1/notifications/unread_count` counts them too. Capped at
+	 * `limit`, and tagged as v1 is, so a client that polls is answered `304`
+	 * until something changed.
 	 *
 	 * Declared before the `{group_key}` routes below, because within a
 	 * controller the order the methods are written in is the order the routes
 	 * are tried in and `unread_count` would otherwise be read as a group key.
+	 *
+	 * @param string[] $types
+	 * @param string[] $exclude_types
+	 * @param string[] $grouped_types
 	 */
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v2/notifications/unread_count')]
-	public function unreadCountV2(): DataResponse {
+	public function unreadCountV2(
+		int $limit = self::UNREAD_LIMIT,
+		array $types = [],
+		array $exclude_types = [],
+		string $account_id = '',
+		array $grouped_types = [],
+	): Response {
 		try {
 			$this->initViewer(['read:notifications']);
+			$userId = $this->userId();
 
-			// counted over groups, not rows: the number a client puts on the
-			// bell should say how many things happened, and one popular post
-			// is one thing
-			$page = $this->visible(ProbeOptions::MAX_LIMIT);
-			$grouped = $this->notificationGroupService->group($page);
+			return Revalidation::byTag(
+				$this->request,
+				$this->notificationInboxService->unreadTag($this->viewer, $userId),
+				function () use ($userId, $limit, $types, $exclude_types, $account_id, $grouped_types): array {
+					$cap = max(1, min(NotificationPolicyService::LOOKBACK - 1, $limit));
+					$marker = $this->markerService->lastReadId($userId, NotificationInboxService::TIMELINE);
+					$released = array_flip($this->markerService->unreadBehind($userId, NotificationInboxService::TIMELINE));
 
-			return new DataResponse(
-				['count' => count($grouped['notification_groups'])], Http::STATUS_OK
+					// read from the marker, or from the oldest released behind
+					// it, which are among the notifications the requests inbox
+					// looked back over
+					$since = $marker;
+					foreach (array_keys($released) as $nid) {
+						if (Nid::compare((string)$nid, $since) <= 0) {
+							$since = Nid::decrement((string)$nid);
+						}
+					}
+					$page = $this->visible(
+						($released === []) ? $cap + 1 : NotificationPolicyService::LOOKBACK,
+						'0', 0, $since, $types, $exclude_types, $account_id, true
+					);
+
+					$unread = array_filter(
+						$page,
+						static fn (Stream $notification): bool => Nid::compare($notification->getNid(), $marker) > 0
+							|| isset($released[(string)$notification->getNid()])
+					);
+
+					// counted over groups, not rows: the number a client puts on
+					// the bell should say how many things happened, and one
+					// popular post is one thing
+					return [
+						'count' => min(
+							$cap, count($this->notificationGroupService->group($unread, $grouped_types)['notification_groups'])
+						),
+					];
+				}
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);
@@ -161,6 +205,13 @@ class NotificationController extends ClientApiController {
 	}
 
 	/**
+	 * `GET /api/v2/notifications`: the viewer's notifications, grouped.
+	 *
+	 * The shape is Mastodon's `GroupedNotificationsResults` — groups, plus the
+	 * accounts and statuses they refer to, each carried once. A page of forty
+	 * favourites of one post is one group and one status here, where v1 sends
+	 * forty rows and forty copies of the post.
+	 *
 	 * @param string[] $types
 	 * @param string[] $exclude_types
 	 * @param string[] $grouped_types
@@ -206,11 +257,16 @@ class NotificationController extends ClientApiController {
 	// only; the v1 spelling stays for the clients written against 4.2, which
 	// is the release this server used to announce.
 	#[FrontpageRoute(verb: 'GET', url: '/api/v2/notifications/policy', postfix: 'v2')]
-	public function policy(): DataResponse {
+	public function policy(): Response {
 		try {
 			$this->initViewer(['read:notifications']);
 
-			return new DataResponse($this->policyWithSummary(), Http::STATUS_OK);
+			// the sidebar's badge reads this on every push and poll
+			return Revalidation::byTag(
+				$this->request,
+				$this->notificationInboxService->pendingTag($this->viewer, $this->userId()),
+				fn (): NotificationPolicy => $this->policyWithSummary()
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}
@@ -604,15 +660,10 @@ class NotificationController extends ClientApiController {
 
 	/** The policy with the counts a client draws the badge from. */
 	private function policyWithSummary(): NotificationPolicy {
-		$requests = $this->heldRequests();
-
-		$notifications = 0;
-		foreach ($requests as $request) {
-			$notifications += $request->getCount();
-		}
+		$pending = $this->notificationInboxService->pending($this->viewer);
 
 		return $this->notificationPolicyService->of($this->userId())
-			->setSummary(count($requests), $notifications);
+			->setSummary($pending['requests'], $pending['notifications']);
 	}
 
 	/**

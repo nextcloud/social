@@ -15,6 +15,8 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Tests\Integration\QueryCounter;
+use OCP\IDBConnection;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -31,6 +33,9 @@ class ConversationsRequestTest extends TestCase {
 	private const REPLY = self::BASE . '/notes/reply';
 	private const DEEPER = self::BASE . '/notes/deeper';
 	private const PUBLIC = self::BASE . '/notes/public-reply';
+	private const CHAIN = self::BASE . '/notes/chain-';
+	/** a post whose id is no address, and so has no prim */
+	private const UNADDRESSED = 'at://did:plc:conversations/app.bsky.feed.post/1';
 
 	private ConversationsRequest $conversations;
 	private StreamRequest $streamRequest;
@@ -50,9 +55,14 @@ class ConversationsRequestTest extends TestCase {
 	}
 
 	private function cleanup(): void {
-		foreach ([self::ROOT, self::REPLY, self::DEEPER, self::PUBLIC] as $id) {
+		foreach ([self::ROOT, self::REPLY, self::DEEPER, self::PUBLIC, ...array_map(static fn (int $n): string => self::CHAIN . $n, range(1, 8))] as $id) {
 			$this->streamRequest->deleteById($id, Note::TYPE);
 		}
+		// by its id: a post with no prim cannot be deleted by one
+		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+		$qb->delete('social_stream')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter(self::UNADDRESSED)))
+			->executeStatement();
 		foreach ([self::READER, self::OUTSIDER, self::AUTHOR] as $id) {
 			$this->conversations->deleteRelatedId($id);
 			$this->cacheActorsRequest->deleteCacheById($id);
@@ -124,6 +134,50 @@ class ConversationsRequestTest extends TestCase {
 		$this->assertSame(self::ROOT, $this->conversations->rootOf(self::DEEPER));
 		$this->assertSame(self::ROOT, $this->conversations->rootOf(self::ROOT));
 		$this->assertSame(self::REPLY, $this->conversations->rootOf(self::DEEPER, 1), 'the walk stops at its depth');
+	}
+
+	/** A chain of eight replies, `chain-1` its root. */
+	private function seedChain(): void {
+		$this->person(self::READER, true);
+		$this->person(self::AUTHOR, false);
+		$this->note(self::CHAIN . 1, self::READER);
+		for ($n = 2; $n <= 8; $n++) {
+			$this->note(self::CHAIN . $n, self::READER, self::CHAIN . ($n - 1));
+		}
+	}
+
+	public function testAncestorsAreReadSeveralLevelsInOneStatement(): void {
+		$this->seedChain();
+
+		$run = QueryCounter::record(fn (): array => $this->conversations->getAncestorLinks([self::CHAIN . 8, self::CHAIN . 2], 5));
+
+		$this->assertSame(1, $run->count(), $run->summary());
+		$this->assertEqualsCanonicalizing(
+			array_map(static fn (int $n): string => self::CHAIN . $n, [8, 7, 6, 5, 4, 2, 1]),
+			array_keys($run->result())
+		);
+		$this->assertSame(self::CHAIN . 6, $run->result()[self::CHAIN . 7]['inReplyTo']);
+	}
+
+	public function testTheRootIsWalkedToSeveralLevelsAStatement(): void {
+		$this->seedChain();
+
+		$run = QueryCounter::record(fn (): string => $this->conversations->rootOf(self::CHAIN . 8));
+
+		$this->assertSame(self::CHAIN . 1, $run->result());
+		$this->assertSame(2, $run->count(), 'eight levels in two statements: ' . $run->summary());
+		$this->assertSame(self::CHAIN . 2, $this->conversations->rootOf(self::CHAIN . 8, 6), 'the walk stops at its depth');
+	}
+
+	/** A post whose parent is no address is a root, whatever else has no address either. */
+	public function testAParentThatIsNoAddressIsNoPost(): void {
+		$this->person(self::READER, true);
+		$this->person(self::AUTHOR, false);
+		$this->note(self::UNADDRESSED, self::READER);
+		$this->note(self::ROOT, self::READER, 'at://did:plc:conversations/app.bsky.feed.post/2');
+
+		$this->assertSame([self::ROOT], array_keys($this->conversations->getAncestorLinks([self::ROOT], 5)));
+		$this->assertSame('at://did:plc:conversations/app.bsky.feed.post/2', $this->conversations->rootOf(self::ROOT));
 	}
 
 	public function testMarkersOnlyMoveForward(): void {

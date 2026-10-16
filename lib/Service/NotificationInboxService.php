@@ -36,6 +36,7 @@ class NotificationInboxService {
 		private NotificationPolicyService $notificationPolicyService,
 		private MarkerService $markerService,
 		private ConversationsRequest $conversationsRequest,
+		private TimelineRevisionService $timelineRevisionService,
 	) {
 	}
 
@@ -139,6 +140,80 @@ class NotificationInboxService {
 		$decided = $this->notificationPolicyService->decisionsAbout($viewer->getId(), array_keys($senders));
 
 		return $this->notificationPolicyService->requestsFrom($held, $decided['dismissed']);
+	}
+
+	/**
+	 * What the policy's `summary` says: how many senders the requests inbox
+	 * lists and how many notifications they sent between them.
+	 *
+	 * The sidebar asks for this on every push and poll, so the notifications
+	 * are not read whole: only what the policy asks of each
+	 * (`StreamService::getNotificationSenders()`), over the same lookback, with
+	 * the same senders left out as dismissed — `requests()` lists exactly
+	 * what this counts.
+	 *
+	 * @return array{requests: int, notifications: int}
+	 */
+	public function pending(Person $viewer): array {
+		if ($this->notificationPolicyService->of($viewer->getUserId())->isEverythingAccepted()) {
+			return ['requests' => 0, 'notifications' => 0];
+		}
+
+		$options = new ProbeOptions();
+		$options->setProbe(ProbeOptions::NOTIFICATIONS);
+		$options->setLookback(NotificationPolicyService::LOOKBACK);
+		$this->streamService->setViewer($viewer);
+
+		$rows = array_values(
+			array_filter(
+				$this->streamService->getNotificationSenders($options),
+				static fn (array $row): bool => Stream::notificationTypeOfSubType($row['subType']) !== ''
+			)
+		);
+
+		$bySender = [];
+		foreach ($this->notificationPolicyService->heldOf($viewer, $rows) as $row) {
+			$bySender[$row['sender']] = ($bySender[$row['sender']] ?? 0) + 1;
+		}
+		if ($bySender === []) {
+			return ['requests' => 0, 'notifications' => 0];
+		}
+
+		$dismissed = $this->notificationPolicyService->decisionsAbout(
+			$viewer->getId(), array_map('strval', array_keys($bySender))
+		)['dismissed'];
+		$bySender = array_diff_key($bySender, $dismissed);
+
+		return ['requests' => count($bySender), 'notifications' => array_sum($bySender)];
+	}
+
+	/**
+	 * The `ETag` of the policy and its summary: a new notification, a decision
+	 * about a sender (the revision), the policy and the muted threads
+	 * (`unreadState()`), and what else the five questions read
+	 * (`NotificationPolicyService::stateOf()`).
+	 *
+	 * An account the reader does not follow that stops following the reader
+	 * moves none of them; what that changes shows with the next notification.
+	 */
+	public function pendingTag(Person $viewer, string $userId): string {
+		return $this->newestNotification($viewer) . '-' . $this->timelineRevisionService->of($userId)
+			. '-' . md5($this->unreadState($viewer, $userId) . $this->notificationPolicyService->stateOf($userId));
+	}
+
+	/**
+	 * The `ETag` of the unread count: a new notification, the marker, a
+	 * decision about a sender (the revision), and the policy, what was released
+	 * behind the marker and the muted threads (`unreadState()`).
+	 */
+	public function unreadTag(Person $viewer, string $userId): string {
+		return $this->newestNotification($viewer) . '-' . $this->markerService->lastReadId($userId, self::TIMELINE)
+			. '-' . $this->timelineRevisionService->of($userId) . '-' . $this->unreadState($viewer, $userId);
+	}
+
+	/** The newest notification the viewer was sent, as a nid; one index-only probe. */
+	private function newestNotification(Person $viewer): string {
+		return $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif');
 	}
 
 	/**

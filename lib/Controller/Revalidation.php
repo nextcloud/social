@@ -79,6 +79,29 @@ final class Revalidation {
 	}
 
 	/**
+	 * The answer `$answer` builds, tagged with `$tag`, or a `304` without
+	 * building it when the caller holds that tag already.
+	 *
+	 * For a count a client polls whose answer costs more than knowing whether
+	 * it changed: the tag is what the answer changes with, worked out cheaply,
+	 * as `MastodonApiController::notModified()` does for the timelines.
+	 *
+	 * @param \Closure(): mixed $answer
+	 */
+	public static function byTag(IRequest $request, string $tag, \Closure $answer): JSONResponse {
+		$etag = '"' . $tag . '"';
+		if (self::matches($request, $etag)) {
+			return self::notModified($etag);
+		}
+
+		$json = self::asJson(new DataResponse($answer(), Http::STATUS_OK));
+		$json->addHeader('ETag', $etag);
+		$json->addHeader('Cache-Control', self::CACHE_CONTROL);
+
+		return $json;
+	}
+
+	/**
 	 * An answer tagged by what it says, or a `304` when the caller has it.
 	 *
 	 * For the sidebar routes — emoji, trends, lists, followed tags, the
