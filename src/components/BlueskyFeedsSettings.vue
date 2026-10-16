@@ -38,6 +38,7 @@
 					</span>
 				</div>
 				<NcButton
+					class="bluesky-feeds__action"
 					variant="tertiary"
 					:disabled="busy"
 					:aria-label="t('social', 'Stop keeping {feed}', { feed: feed.name })"
@@ -60,8 +61,18 @@
 						<span class="bluesky-feeds__name">{{ feed.name }}</span>
 						<span v-if="feed.description" class="bluesky-feeds__creator">{{ feed.description }}</span>
 					</div>
-					<NcButton :disabled="busy" @click="add(feed.uri)">
-						{{ t('social', 'Add') }}
+					<!-- an icon, as on the kept feeds above: a text label shares
+						     the row with the description and would be cut short -->
+					<NcButton
+						class="bluesky-feeds__action"
+						variant="secondary"
+						:disabled="busy"
+						:aria-label="t('social', 'Add {feed}', { feed: feed.name })"
+						:title="t('social', 'Add {feed}', { feed: feed.name })"
+						@click="add(feed.uri)">
+						<template #icon>
+							<IconPlus :size="20" />
+						</template>
 					</NcButton>
 				</li>
 			</ul>
@@ -228,6 +239,10 @@ export default {
 	&__icon {
 		flex-shrink: 0;
 		color: var(--color-text-maxcontrast);
+	}
+
+	&__action {
+		flex-shrink: 0;
 	}
 
 	&__text {
