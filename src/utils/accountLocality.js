@@ -100,3 +100,41 @@ export function isHandleOf(handle, account) {
 
 	return text === acct || (isLocalAccount(account) && text.startsWith(acct + '@'))
 }
+
+/**
+ * What somebody typed, when it is a whole address another server can be
+ * asked about — `user@host.example`, a Bluesky handle such as
+ * `alice.bsky.social`, or a link — and '' while it is still the start of
+ * one. Searches ask other servers only for an address, and only when
+ * somebody asks them to.
+ *
+ * @param {string} text what was typed
+ * @return {string} the address, without a leading `@`, or ''
+ */
+export function completeAddress(text) {
+	const typed = String(text ?? '').trim()
+	if (/^https?:\/\/[^\s/]+\.[^\s/]+/i.test(typed)) {
+		return typed
+	}
+	const handle = typed.replace(/^@/, '')
+	if (/^[^@\s/]+@[^@\s/]+\.[^@\s/.]{2,}$/.test(handle)) {
+		return handle
+	}
+	if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z][a-z0-9-]+$/i.test(handle)) {
+		return handle
+	}
+
+	return ''
+}
+
+/**
+ * Whether the accounts found include the one an address names, by its
+ * handle or by its link.
+ *
+ * @param {Array<Partial<import('../types/Mastodon.js').Account>>} accounts Account entities
+ * @param {string} address what `completeAddress()` answered
+ * @return {boolean}
+ */
+export function addressFoundIn(accounts, address) {
+	return (accounts ?? []).some((account) => isHandleOf(address, account) || (address !== '' && account?.url === address))
+}

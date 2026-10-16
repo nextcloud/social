@@ -16,10 +16,30 @@
 			{{ t('social', 'Search results for “{term}”', { term: query }) }}
 		</h1>
 
+		<!-- Other servers are asked only when the reader asks: typing a
+		     handle searches this server, and an address it does not hold
+		     yet is offered here, one press away. -->
+		<p v-if="lookingUp" class="social__search-lookup" role="status">
+			<NcLoadingIcon :size="20" />
+			<span>{{ t('social', 'Looking up {address} …', { address: lookupLabel }) }}</span>
+		</p>
+		<div v-else-if="offerLookup" class="social__search-lookup">
+			<span>{{ t('social', '{address} is not known on this server yet.', { address: lookupLabel }) }}</span>
+			<NcButton class="social__search-lookup-button" @click="lookUp">
+				<template #icon>
+					<Magnify :size="20" />
+				</template>
+				{{ t('social', 'Look up') }}
+			</NcButton>
+		</div>
+		<p v-else-if="lookupFailed" class="social__search-lookup" role="status">
+			{{ t('social', 'Nobody was found at {address}.', { address: lookupLabel }) }}
+		</p>
+
 		<!-- only while there is nothing to show yet: a refined term replacing
 		     results with the spinner and back was a flicker, and the results
 		     that survive the new term should stay where they are -->
-		<div v-if="loading && isEmpty" class="social__search-loading">
+		<div v-if="loading && isEmpty && !lookingUp" class="social__search-loading">
 			<NcLoadingIcon :size="32" />
 			<span>{{ t('social', 'Searching …') }}</span>
 		</div>
@@ -37,7 +57,7 @@
 		<template v-else>
 			<transition name="empty">
 				<NcEmptyContent
-					v-if="isEmpty"
+					v-if="isEmpty && !lookingUp"
 					:name="t('social', 'No results found')"
 					:description="t('social', 'Nothing on this server matches “{term}”. Searching for a full handle like @user@example.org can find somebody this server has not met yet.', { term: query })">
 					<template #icon>
@@ -118,6 +138,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Refresh from 'vue-material-design-icons/Refresh.vue'
 import logger from '../services/logger.js'
+import { addressFoundIn, completeAddress } from '../utils/accountLocality.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -147,6 +168,15 @@ export default {
 		term: {
 			type: String,
 			default: '',
+		},
+
+		/**
+		 * The reader submitted the search (Enter in the search box): other
+		 * servers may be asked, see `search()`.
+		 */
+		lookup: {
+			type: Boolean,
+			default: false,
 		},
 	},
 
@@ -179,6 +209,15 @@ export default {
 			 * @type {?string}
 			 */
 			renderedTerm: null,
+			/** whether the request in flight asks other servers */
+			lookingUp: false,
+			/**
+			 * The term other servers were last asked about, so the offer to
+			 * look it up is not made again for the answer it already got.
+			 *
+			 * @type {?string}
+			 */
+			lookedUp: null,
 		}
 	},
 
@@ -225,6 +264,44 @@ export default {
 			return this.renderedTerm === this.query.trim()
 		},
 
+		/** @return {string} the address in the search box, or '' for anything else */
+		address() {
+			return completeAddress(this.query)
+		},
+
+		/** @return {string} the address as the offer names it */
+		lookupLabel() {
+			return /^https?:\/\//i.test(this.address) ? this.address : '@' + this.address
+		},
+
+		/**
+		 * Whether to offer asking the address's own server: an address the
+		 * answer on screen does not hold, and that was not asked about yet.
+		 *
+		 * @return {boolean}
+		 */
+		offerLookup() {
+			return this.address !== ''
+				&& this.resultsAreCurrent
+				&& this.lookedUp !== this.query.trim()
+				&& !addressFoundIn(this.accounts, this.address)
+				&& (!this.address.startsWith('http') || this.statusIds.length === 0)
+		},
+
+		/** @return {boolean} whether the address was looked up and found nowhere */
+		lookupFailed() {
+			return this.address !== ''
+				&& this.resultsAreCurrent
+				&& this.lookedUp === this.query.trim()
+				&& !addressFoundIn(this.accounts, this.address)
+				&& this.statusIds.length === 0
+		},
+
+		/** @return {Array} the term and whether it was submitted, as one thing to watch */
+		searchRequest() {
+			return [this.term, this.lookup]
+		},
+
 		/** @return {boolean} */
 		isEmpty() {
 			return this.accounts.length === 0 && this.statuses.length === 0 && this.hashtags.length === 0
@@ -233,12 +310,23 @@ export default {
 
 	watch: {
 		// typing re-enters the route on every keystroke; one request per word
-		// is enough, and re-sorting the whole store per letter was the old cost
-		term: 'searchDebounced',
+		// is enough, and re-sorting the whole store per letter was the old
+		// cost. A submitted search is asked at once.
+		searchRequest() {
+			if (this.lookup) {
+				this.lookUp()
+			} else {
+				this.searchDebounced()
+			}
+		},
 	},
 
 	beforeMount() {
-		this.search()
+		if (this.lookup) {
+			this.lookUp()
+		} else {
+			this.search()
+		}
 	},
 
 	unmounted() {
@@ -249,6 +337,15 @@ export default {
 
 	methods: {
 		t,
+		/** The search once more, with other servers asked: see `search()`. */
+		lookUp() {
+			if (this.debounceTimer !== null) {
+				window.clearTimeout(this.debounceTimer)
+				this.debounceTimer = null
+			}
+			this.search(true)
+		},
+
 		searchDebounced() {
 			if (this.debounceTimer !== null) {
 				window.clearTimeout(this.debounceTimer)
@@ -262,11 +359,16 @@ export default {
 		/**
 		 * Asks the server, rather than filtering the handful of posts that
 		 * happen to be loaded. `/api/v2/search` answers with accounts, posts
-		 * and hashtags in one response; `resolve` lets it ask other servers
-		 * about a handle or address it has not met, which is what this page
-		 * offers in its empty state.
+		 * and hashtags in one response.
+		 *
+		 * `resolve` lets it ask other servers about an address it has not
+		 * met. That is sent only when the reader asks — Enter, or "Look up" —
+		 * and not while they type: every keystroke of a handle would be a
+		 * lookup of another host that does not exist.
+		 *
+		 * @param {boolean} resolve whether other servers may be asked
 		 */
-		async search() {
+		async search(resolve = false) {
 			const term = this.query.trim()
 			// whatever is still in flight answers a term that is no longer
 			// the one being asked about
@@ -283,10 +385,11 @@ export default {
 			}
 
 			this.loading = true
+			this.lookingUp = resolve
 			this.error = null
 			try {
 				const { data, headers } = await axios.get(generateUrl('apps/social/api/v2/search'), {
-					params: { q: term, limit: 20, resolve: true },
+					params: { q: term, limit: 20, resolve },
 				})
 				if (sequence !== this.requestSequence) {
 					return
@@ -316,6 +419,9 @@ export default {
 				// what is on screen from here on answers this term, whether or
 				// not it is still the one being typed
 				this.renderedTerm = term
+				if (resolve) {
+					this.lookedUp = term
+				}
 			} catch (error) {
 				logger.error('Failed to perform the search', { error })
 				if (sequence === this.requestSequence) {
@@ -325,6 +431,7 @@ export default {
 				// the newer request owns `loading` now
 				if (sequence === this.requestSequence) {
 					this.loading = false
+					this.lookingUp = false
 				}
 			}
 		},
@@ -368,6 +475,16 @@ export default {
 		padding: 32px 20px;
 		color: var(--color-text-lighter);
 		text-align: center;
+	}
+
+	.social__search-lookup {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: calc(var(--default-grid-baseline) * 2);
+		margin: 0 0 calc(var(--default-grid-baseline) * 4);
+		color: var(--color-text-maxcontrast);
+		overflow-wrap: anywhere;
 	}
 
 	.social__search-tags,

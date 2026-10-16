@@ -1,4 +1,8 @@
 { "translations": {
+    "Looking up {address} …" : "{address} wird nachgeschlagen …",
+    "{address} is not known on this server yet." : "{address} ist auf diesem Server noch nicht bekannt.",
+    "Look up" : "Nachschlagen",
+    "Nobody was found at {address}." : "Unter {address} wurde niemand gefunden.",
     "Nothing was created here. You can still create an account here later: open Aloha Social again and choose your username." : "Hier wurde nichts angelegt. Du kannst später trotzdem hier ein Konto anlegen: Öffne Aloha Social erneut und wähle deinen Benutzernamen.",
     "Back to Nextcloud" : "Zurück zu Nextcloud",
     "Create an account here now" : "Jetzt hier ein Konto anlegen",

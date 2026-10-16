@@ -83,8 +83,10 @@ people** makes an invitation link: it works once and for a week.
 
 - **Search.** The search box at the top of the sidebar looks through the
   people, hashtags and posts this server knows. Somebody this server has never
-  met is found by their full handle, `@user@example.org`: the app resolves it
-  over WebFinger and shows the account.
+  met is found by their full handle, `@user@example.org`, or a profile or post
+  link: press **Enter**, or **Look up** under the heading, and their own server
+  is asked. While you type, only this server is searched. When nobody is
+  there, the page says so.
 - **Discover** (in the sidebar) has five tabs: **People** (suggestions, with
   the people who share your Nextcloud and have said where they are on the
   fediverse listed first under *On your Nextcloud*), **Starter packs**,
@@ -387,7 +389,9 @@ The sidebar is the map:
   follow. Search by name, `@handle` or profile link to find somebody else:
   the people you know — accounts you follow and people from your chats — are
   listed first under **People you know**, and every other account the search
-  finds follows under **Other accounts**. A search failure is shown separately
+  finds follows under **Other accounts**. A full handle or profile link that
+  is not known here yet is offered with **Look up** (or press **Enter**), which
+  asks that person's own server. A search failure is shown separately
   from a genuine empty result. Selecting somebody with an
   existing conversation opens that chat instead of creating another one.
   The new chat uses the same person header and message field as an existing

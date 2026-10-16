@@ -415,8 +415,10 @@ export default {
 		 * this instance was holding.
 		 *
 		 * @param {string} term what was typed
+		 * @param {boolean} submitted whether the reader pressed Enter, which
+		 *                            lets the search ask other servers
 		 */
-		search(term) {
+		search(term, submitted = false) {
 			const query = (term ?? '').trim()
 			this.timelineStore.setSearchQuery(query)
 
@@ -437,7 +439,11 @@ export default {
 			// replace while the term is being refined, so Back does not have
 			// to walk out through every keystroke
 			const navigate = this.$route.name === 'search' ? this.$router.replace : this.$router.push
-			navigate.call(this.$router, { name: 'search', params: { term: query } })
+			navigate.call(this.$router, {
+				name: 'search',
+				params: { term: query },
+				...(submitted ? { query: { lookup: '1' } } : {}),
+			})
 		},
 
 		fromPushApp(data) {

@@ -8,7 +8,8 @@
 			<NcAppNavigationSearch
 				v-model="localSearch"
 				:label="t('social', 'Search …')"
-				@update:modelValue="onSearchInput" />
+				@update:modelValue="onSearchInput"
+				@keydown.enter="onSearchSubmit" />
 		</template>
 		<template #list>
 			<!-- The mark that says where you are, as one thing that moves
@@ -1428,6 +1429,19 @@ export default {
 				this.searchTimer = null
 				this.$emit('search', this.localSearch)
 			}, SEARCH_DEBOUNCE_MS)
+		},
+
+		/**
+		 * Enter submits the search: asked at once, and with other servers
+		 * asked about an address this one has not met, which typing alone
+		 * never does.
+		 */
+		onSearchSubmit() {
+			if (this.searchTimer !== null) {
+				window.clearTimeout(this.searchTimer)
+				this.searchTimer = null
+			}
+			this.$emit('search', this.localSearch, true)
 		},
 
 		/**

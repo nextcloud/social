@@ -457,7 +457,10 @@ const router = createRouter({
 			components: {
 				default: Search,
 			},
-			props: true,
+			// `?lookup=1` is a submitted search, which may ask other servers
+			props: {
+				default: (route) => ({ term: route.params.term, lookup: route.query.lookup === '1' }),
+			},
 			name: 'search',
 		},
 		{

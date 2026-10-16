@@ -1340,6 +1340,22 @@ describe('Navigation', () => {
 		}
 	})
 
+	/** Enter is the reader asking for the search, which may then look further. */
+	it('emits a submitted search at once when Enter is pressed', async () => {
+		vi.useFakeTimers()
+		try {
+			const wrapper = mountNavigation()
+			await wrapper.find('.nav-search').setValue('@bob@remote.example')
+			await wrapper.find('.nav-search').trigger('keydown', { key: 'Enter' })
+
+			expect(wrapper.emitted('search')).toEqual([['@bob@remote.example', true]])
+			vi.advanceTimersByTime(300)
+			expect(wrapper.emitted('search')).toHaveLength(1)
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
 	// the call to action
 
 	/**

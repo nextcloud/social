@@ -71,9 +71,9 @@ let accountStore
 let timelineStore
 let get
 
-function mountSearch(term) {
+function mountSearch(term, lookup = false) {
 	return mount(Search, {
-		props: { term },
+		props: { term, lookup },
 		global: {
 			plugins: [pinia],
 			stubs: {
@@ -119,7 +119,7 @@ describe('Search', () => {
 		const wrapper = mountSearch('nextcloud')
 
 		expect(get).toHaveBeenCalledTimes(1)
-		expect(get).toHaveBeenCalledWith(SEARCH_URL, { params: { q: 'nextcloud', limit: 20, resolve: true } })
+		expect(get).toHaveBeenCalledWith(SEARCH_URL, { params: { q: 'nextcloud', limit: 20, resolve: false } })
 		expect(wrapper.find('.loading-stub').exists()).toBe(true)
 	})
 
@@ -255,7 +255,7 @@ describe('Search', () => {
 			vi.advanceTimersByTime(300)
 			await flushPromises()
 			expect(get).toHaveBeenCalledTimes(2)
-			expect(get).toHaveBeenLastCalledWith(SEARCH_URL, { params: { q: 'bob', limit: 20, resolve: true } })
+			expect(get).toHaveBeenLastCalledWith(SEARCH_URL, { params: { q: 'bob', limit: 20, resolve: false } })
 		} finally {
 			vi.useRealTimers()
 		}
@@ -277,6 +277,81 @@ describe('Search', () => {
 		} finally {
 			vi.useRealTimers()
 		}
+	})
+
+	/**
+	 * Typing a handle letter by letter must not look up `@bob@r`,
+	 * `@bob@re`, … on servers that do not exist: other servers are asked
+	 * only when the reader asks.
+	 */
+	describe('looking somebody up elsewhere', () => {
+		const lookupButton = (wrapper) => wrapper.find('.social__search-lookup-button')
+
+		it('asks other servers when the search was submitted', async () => {
+			get.mockResolvedValue(response({ accounts: [bob] }))
+			mountSearch('@bob@remote.example', true)
+			await flushPromises()
+
+			expect(get).toHaveBeenCalledTimes(1)
+			expect(get).toHaveBeenCalledWith(SEARCH_URL, { params: { q: '@bob@remote.example', limit: 20, resolve: true } })
+		})
+
+		it('asks a submitted term at once rather than after the typing settles', async () => {
+			vi.useFakeTimers()
+			try {
+				get.mockResolvedValue(response())
+				const wrapper = mountSearch('@bob@remote')
+				await flushPromises()
+				await wrapper.setProps({ term: '@bob@remote.example', lookup: true })
+				await flushPromises()
+
+				expect(get).toHaveBeenCalledTimes(2)
+				expect(get).toHaveBeenLastCalledWith(SEARCH_URL, { params: { q: '@bob@remote.example', limit: 20, resolve: true } })
+				vi.advanceTimersByTime(300)
+				await flushPromises()
+				expect(get).toHaveBeenCalledTimes(2)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('offers a whole handle it does not hold, looks it up on request, and says when nobody is there', async () => {
+			get.mockResolvedValue(response())
+			const wrapper = mountSearch('@bob@remote.example')
+			await flushPromises()
+
+			expect(get).toHaveBeenCalledWith(SEARCH_URL, { params: { q: '@bob@remote.example', limit: 20, resolve: false } })
+			expect(wrapper.text()).toContain('@bob@remote.example is not known on this server yet.')
+			await lookupButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(get).toHaveBeenLastCalledWith(SEARCH_URL, { params: { q: '@bob@remote.example', limit: 20, resolve: true } })
+			expect(lookupButton(wrapper).exists()).toBe(false)
+			expect(wrapper.text()).toContain('Nobody was found at @bob@remote.example.')
+		})
+
+		it('shows that the lookup is running', async () => {
+			get.mockResolvedValueOnce(response()).mockReturnValueOnce(new Promise(() => {}))
+			const wrapper = mountSearch('bob@remote.example')
+			await flushPromises()
+			await lookupButton(wrapper).trigger('click')
+			await nextTick()
+
+			expect(wrapper.find('[role="status"]').text()).toContain('Looking up @bob@remote.example')
+			expect(wrapper.find('.empty-stub').exists()).toBe(false)
+		})
+
+		it('offers nothing for the start of a handle, or for one it found', async () => {
+			get.mockResolvedValue(response())
+			const partial = mountSearch('@bob@remote')
+			await flushPromises()
+			expect(lookupButton(partial).exists()).toBe(false)
+
+			get.mockResolvedValue(response({ accounts: [bob] }))
+			const found = mountSearch('@Bob@remote.example')
+			await flushPromises()
+			expect(lookupButton(found).exists()).toBe(false)
+		})
 	})
 
 	it('asks nothing at all for an empty term', async () => {

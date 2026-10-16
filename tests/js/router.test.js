@@ -157,6 +157,17 @@ describe('router', () => {
 		expect(router.resolve('/search').params.term).toBeUndefined()
 	})
 
+	it('passes a submitted search on to the view', () => {
+		const props = (path) => {
+			const route = router.resolve(path)
+
+			return route.matched[0].props.default(route)
+		}
+
+		expect(props('/search/bob?lookup=1')).toEqual({ term: 'bob', lookup: true })
+		expect(props('/search/bob')).toEqual({ term: 'bob', lookup: false })
+	})
+
 	it('resolves the Shorts stack, passing the scope to the view', () => {
 		const route = router.resolve('/shorts?scope=local')
 

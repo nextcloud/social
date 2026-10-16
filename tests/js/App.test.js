@@ -342,6 +342,13 @@ describe('App', () => {
 			expect(router.push).toHaveBeenCalledWith({ name: 'search', params: { term: 'fediverse' } })
 		})
 
+		it('marks a submitted search, which may look somebody up elsewhere', () => {
+			const wrapper = mountApp()
+			wrapper.findComponent(stubs.Navigation).vm.$emit('search', '@bob@remote.example', true)
+
+			expect(router.push).toHaveBeenCalledWith({ name: 'search', params: { term: '@bob@remote.example' }, query: { lookup: '1' } })
+		})
+
 		it('refines the term in place, so Back does not walk out through the keystrokes', () => {
 			route = shallowRef({ name: 'search', params: { term: 'fedi' }, fullPath: '/search/fedi' })
 			router.replace = vi.fn()

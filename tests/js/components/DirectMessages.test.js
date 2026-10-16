@@ -365,22 +365,42 @@ describe('DirectMessages', () => {
 		await wrapper.find('.direct-messages__recipient-search input').setValue('@bob')
 		await searchImmediately(wrapper, '@bob')
 		await flushPromises()
-		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: '@bob', limit: 8, resolve: true } })
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: '@bob', limit: 8, resolve: false } })
 		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
 	})
 
-	// without `resolve` the server answers only from what it holds
-	it('asks other servers about a dotted handle, not about a plain name', async () => {
+	/**
+	 * Typing never asks other servers; a whole address the answer does not
+	 * hold is offered, and looked up with Enter or the button.
+	 */
+	it('looks an address up elsewhere only when asked, and says when nobody is there', async () => {
+		get.mockImplementation(async (url) => ({ data: url.endsWith('/conversations') ? [] : [] }))
 		const wrapper = mountMessages()
 		await flushPromises()
-		get.mockImplementation(async () => ({ data: [] }))
-		await wrapper.vm.searchAccounts('carol.bsky.social')
+		await wrapper.find('.direct-messages__list-heading button').trigger('click')
+		await flushPromises()
+		const input = wrapper.find('.direct-messages__recipient-search input')
+		await input.setValue('carol.bsky.social')
+		await searchImmediately(wrapper, 'carol.bsky.social')
+		await flushPromises()
+
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: false } })
+		expect(get).not.toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: true } })
+		expect(wrapper.text()).toContain('@carol.bsky.social is not known on this server yet.')
+		expect(wrapper.text()).not.toContain('No people found')
+
+		await wrapper.find('.direct-messages__recipient-lookup-button').trigger('click')
 		await flushPromises()
 		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: true } })
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: true, following: true } })
+		expect(wrapper.find('.direct-messages__recipient-lookup-button').exists()).toBe(false)
+		expect(wrapper.text()).toContain('Nobody was found at @carol.bsky.social.')
 
-		await wrapper.vm.searchAccounts('carol')
+		get.mockClear()
+		await input.setValue('dave@remote.example')
+		await input.trigger('keydown', { key: 'Enter' })
 		await flushPromises()
-		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol', limit: 8, resolve: false } })
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'dave@remote.example', limit: 8, resolve: true } })
 	})
 
 	describe('recipient search', () => {
@@ -901,11 +921,19 @@ describe('DirectMessages', () => {
 
 	// Pasting a profile link is how one person sends another a profile, and
 	// the account search looks at the account column, not at URLs — so without
-	// asking for it to be resolved the box finds nobody at all.
-	it('resolves a pasted profile link', async () => {
+	// asking for it to be resolved the box finds nobody at all. It is offered
+	// for a lookup like any address, and resolved when the reader asks.
+	it('resolves a pasted profile link when asked to', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
-		await wrapper.vm.searchAccounts('https://remote.example/@bob')
+		wrapper.vm.recipientQuery = 'https://remote.example/@bob'
+		await flushPromises()
+		expect(wrapper.vm.offerRecipientLookup).toBe(false)
+		await searchImmediately(wrapper, 'https://remote.example/@bob')
+		await flushPromises()
+		expect(wrapper.vm.offerRecipientLookup).toBe(true)
+		wrapper.vm.lookUpRecipient()
+		await flushPromises()
 
 		expect(get).toHaveBeenCalledWith(
 			'/index.php/apps/social/api/v1/accounts/search',
