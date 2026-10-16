@@ -2510,8 +2510,8 @@ class ApiControllerTest extends TestCase {
 		$fresh->setPreferredUsername('alice')->setLocal(true)->setNid(7);
 		$this->cacheActorService->method('getFromLocalAccount')->with('alice')->willReturn($fresh);
 		$this->urlGenerator->method('linkToRouteAbsolute')
-			->with('core.avatar.getAvatar', ['userId' => 'alice', 'size' => 128])
-			->willReturn('https://cloud.example/avatar/alice/128');
+			->with('social.Avatar.avatar', ['username' => 'alice', 'size' => 128])
+			->willReturn('https://cloud.example/apps/social/avatar/alice/128');
 		$this->urlGenerator->method('imagePath')
 			->willReturnCallback(static fn (string $app, string $file): string => '/apps/' . $app . '/img/' . $file);
 		$this->urlGenerator->method('getAbsoluteURL')
@@ -2521,8 +2521,8 @@ class ApiControllerTest extends TestCase {
 
 		$this->assertSame('alice', $data['username']);
 		$this->assertNull($data['last_status_at']);
-		$this->assertSame('https://cloud.example/avatar/alice/128', $data['avatar']);
-		$this->assertSame('https://cloud.example/avatar/alice/128', $data['avatar_static']);
+		$this->assertSame('https://cloud.example/apps/social/avatar/alice/128', $data['avatar']);
+		$this->assertSame('https://cloud.example/apps/social/avatar/alice/128', $data['avatar_static']);
 		// never the avatar: a client draws the header where a header goes
 		$this->assertSame('https://cloud.example/apps/social/img/header-missing.png', $data['header']);
 		$this->assertSame('https://cloud.example/apps/social/img/header-missing.png', $data['header_static']);

@@ -886,9 +886,11 @@ hand, it is picked up as one.
 - **Profile.** **My profile** (behind your portrait at the bottom of the
   sidebar) → **Edit profile**: a banner (upload one or give the address of
   one), a bio, and up to four name/value fields shown under it — your website,
-  your pronouns, where you work. All of it is shared with other servers. A
-  fifth field is dropped by the server without saying so, so the editor stops
-  at four, and a row with only one half filled in is dropped the same way;
+  your pronouns, where you work. All of it is shared with other servers. The
+  pronouns and the support link are two of those four, and the editor shows
+  how many are used ("2 of 4 fields used"): **Add field** goes away when
+  there is no room left, and a fifth field is refused with a message rather
+  than dropped. A row with only one half filled in is dropped;
   emptying the table and saving removes it from your profile everywhere.
 - **Your Nextcloud profile page.** The native `/u/username` page shows your
   custom Aloha Social banner across the profile header, behind your profile picture,

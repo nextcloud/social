@@ -59,6 +59,10 @@ class ExternalSignupServiceTest extends TestCase {
 	/** @var list<array{string, string}> subject, recipient */
 	private array $sent = [];
 	private bool $mailWorks = true;
+	/** whether the address belongs to a Nextcloud user or a registration waiting */
+	private bool $emailInUse = false;
+	/** whether the handle is the login of a Nextcloud user */
+	private bool $login = false;
 	/** @var array<int, string> */
 	private array $subjects = [];
 	/** @var array<int, string> */
@@ -76,6 +80,10 @@ class ExternalSignupServiceTest extends TestCase {
 		$this->users->method('requiresSignupNoticeAcceptance')->willReturnCallback(fn (): bool => $this->noticeRequired);
 		$this->users->method('assertHandleAvailable')->willReturnArgument(0);
 		$this->users->method('assertEmailAvailable')->willReturnArgument(0);
+		$this->users->method('assertHandleOpen')->willReturnArgument(0);
+		$this->users->method('assertEmailAccepted')->willReturnArgument(0);
+		$this->users->method('isEmailInUse')->willReturnCallback(fn (): bool => $this->emailInUse);
+		$this->users->method('isLogin')->willReturnCallback(fn (): bool => $this->login);
 		$this->signups = $this->createMock(ExternalSignupsRequest::class);
 		$this->signups->method('create')->willReturn(42);
 		$this->invites = $this->createMock(ExternalInvitesRequest::class);
@@ -311,6 +319,55 @@ class ExternalSignupServiceTest extends TestCase {
 
 		$result = $service->submit('alice', 'alice@example.org', 'long enough', true, true, '', '', '192.0.2.1', true, $version);
 		$this->assertSame(['state' => 'verify', 'handle' => 'alice'], $result);
+	}
+
+	/**
+	 * The form is public: whether an address is somebody's here is told to
+	 * the address, never to whoever typed it in. The answer is the one a new
+	 * registration gets.
+	 */
+	public function testAnAddressInUseIsAnsweredAsANewOneAndItsOwnerIsTold(): void {
+		$this->emailInUse = true;
+		$this->signups->expects($this->never())->method('create');
+		$this->signups->expects($this->once())->method('createPlaceholder')->with($this->anything(), self::NOW);
+		$this->invites->expects($this->never())->method('consume');
+		$this->users->expects($this->never())->method('createAccount');
+
+		$this->assertSame(['state' => 'verify', 'handle' => 'alice'], $this->submit());
+		$this->assertSame([['You already have an account', 'alice@example.org']], $this->sent);
+	}
+
+	/** A username is public once it is an account; a login with no account is not. */
+	public function testAUsernameThatIsALoginIsAnsweredAsANewOneAndTheAddressIsTold(): void {
+		$this->login = true;
+		$this->signups->expects($this->never())->method('create');
+		$this->signups->expects($this->once())->method('createPlaceholder');
+		$this->users->expects($this->never())->method('createAccount');
+
+		$this->assertSame(['state' => 'verify', 'handle' => 'alice'], $this->submit());
+		$this->assertSame([['Choose another username', 'alice@example.org']], $this->sent);
+	}
+
+	public function testAnAddressInUseIsRefusedLikeANewOneWhenNoMailCanBeSent(): void {
+		$this->emailInUse = true;
+		$this->mailWorks = false;
+		$this->signups->expects($this->never())->method('createPlaceholder');
+
+		$this->expectExceptionObject(new ExternalUserException('The confirmation email could not be sent. Please try again later.'));
+		$this->submit();
+	}
+
+	/** The rest of the form is checked first, in the order a new registration is. */
+	public function testAnAddressInUseStillHasTheFormChecked(): void {
+		$this->emailInUse = true;
+
+		try {
+			$this->submit('', '', false);
+			$this->fail('accepted without the rules');
+		} catch (ExternalUserException $e) {
+			$this->assertSame('rules', $e->getField());
+		}
+		$this->assertSame([], $this->sent);
 	}
 
 	public function testOneAddressCannotRegisterWithoutEnd(): void {

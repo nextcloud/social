@@ -16,6 +16,7 @@ use OCA\Social\Atproto\OAuth\DpopNonce;
 use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\OAuth\PermissionDescriber;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
@@ -349,9 +350,7 @@ class OAuthController extends Controller {
 
 			return $response;
 		} catch (Throwable $e) {
-			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->authorizationFailure($e);
 		}
 	}
 
@@ -481,6 +480,32 @@ class OAuthController extends Controller {
 	}
 
 	/**
+	 * Why an authorization request was not granted.
+	 *
+	 * The client's own mistakes -- an unknown client, a response type or
+	 * scope it may not ask for, a PKCE method nobody supports -- are this
+	 * app's refusals and say what was wrong, so the client is told them. A
+	 * reader who has no account here is told so. Anything else is this
+	 * server's failure, and its message describes the server rather than the
+	 * request: it goes to the log, and the client gets `server_error`, as
+	 * from `token()`.
+	 */
+	private function authorizationFailure(Throwable $e): DataResponse {
+		if ($e instanceof ClientException || $e instanceof ClientNotFoundException) {
+			$this->logger->notice('OAuth authorization refused: ' . $e->getMessage());
+
+			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+		}
+		if ($e instanceof ActorDoesNotExistException) {
+			return new DataResponse(['error' => 'no account for this user'], Http::STATUS_BAD_REQUEST);
+		}
+
+		$this->logger->error('OAuth authorization failed', ['exception' => $e]);
+
+		return new DataResponse(['error' => 'server_error'], Http::STATUS_INTERNAL_SERVER_ERROR);
+	}
+
+	/**
 	 * RFC 6749 §4.1.2.1 `invalid_request`, in the shape Mastodon answers it.
 	 * Never a redirect: the one parameter that is wrong is where the redirect
 	 * would go.
@@ -582,9 +607,7 @@ class OAuthController extends Controller {
 				Application::APP_ID, 'oauth2', [], TemplateResponse::RENDER_AS_GUEST
 			);
 		} catch (Exception $e) {
-			$this->logger->notice($e->getMessage() . ' ' . get_class($e));
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->authorizationFailure($e);
 		}
 	}
 

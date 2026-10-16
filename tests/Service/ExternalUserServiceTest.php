@@ -179,6 +179,15 @@ class ExternalUserServiceTest extends TestCase {
 		$this->assertSame('handle', $this->refusedField(fn () => $this->service()->assertHandleAvailable('bob')));
 	}
 
+	/** A login is not public: the check the public form makes does not ask about one. */
+	public function testAHandleIsOpenWhateverTheLoginsAndALoginIsToldApart(): void {
+		$this->userManager->method('userExists')->willReturnCallback(static fn (string $uid): bool => $uid === 'bob');
+
+		$this->assertSame('bob', $this->service()->assertHandleOpen('Bob'));
+		$this->assertTrue($this->service()->isLogin('bob'));
+		$this->assertFalse($this->service()->isLogin('carol'));
+	}
+
 	public function testAHandleHeldByASocialActorIsTakenDeletedOnesIncluded(): void {
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->accountService->method('getActor')->with('carol')->willReturn(new Person());
@@ -205,6 +214,20 @@ class ExternalUserServiceTest extends TestCase {
 		$this->assertSame('email', $this->refusedField(fn () => $this->service()->assertEmailAvailable('not an address')));
 		$this->assertSame('email', $this->refusedField(fn () => $this->service()->assertEmailAvailable('x@spam.example')));
 		$this->assertSame('email', $this->refusedField(fn () => $this->service()->assertEmailAvailable('used@example.org')));
+
+		// what the public form is told: the form and the domain, never the use
+		$this->assertSame('used@example.org', $this->service()->assertEmailAccepted('Used@example.org'));
+		$this->assertSame('email', $this->refusedField(fn () => $this->service()->assertEmailAccepted('x@spam.example')));
+		$this->assertTrue($this->service()->isEmailInUse('used@example.org'));
+		$this->assertFalse($this->service()->isEmailInUse('ok@example.org'));
+	}
+
+	public function testAnAddressAnotherRegistrationWaitsWithIsInUseButNotForItsOwn(): void {
+		$this->signupsRequest = $this->createMock(ExternalSignupsRequest::class);
+		$this->signupsRequest->method('getByEmail')->willReturn(['id' => 7] + $this->signupRow());
+
+		$this->assertTrue($this->service()->isEmailInUse('dave@example.org'));
+		$this->assertFalse($this->service()->isEmailInUse('dave@example.org', 7));
 	}
 
 	public function testThereIsRoomOnlyWhileSwitchedOnAndBelowTheMaximum(): void {

@@ -845,6 +845,15 @@ for local policies and any consent required.
 `support`, `social`, `postmaster` and similar). Email domains on the access
 block list are refused here as they are for every account.
 
+The form does not tell whoever fills it in whether an email address is
+already registered here, or whether a username is the login of a Nextcloud
+user without an Aloha Social account. Either is answered like a new
+registration, with "check your email", and the email goes to that address
+instead: *You already have an account*, or *Choose another username*. Such a
+registration counts towards the limit of registrations per address like any
+other. With *Confirm the email address* off a new registration is answered
+differently, so there the answers can be told apart.
+
 *Require two-factor authentication* is Nextcloud's own mandatory two-factor
 setting for the `social-external` group, the same one as in Administration →
 Security; changing it asks for your password. With it on, external users set

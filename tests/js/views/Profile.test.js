@@ -6,6 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
+import axios from '@nextcloud/axios'
 import Profile from '../../../src/views/Profile.vue'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
@@ -250,6 +251,55 @@ describe('Profile', () => {
 			expect(accountStore.fetchAccountRelationshipInfo).not.toHaveBeenCalled()
 			expect(wrapper.findComponent(ProfileInfoStub).exists()).toBe(true)
 			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
+		})
+	})
+
+	/**
+	 * `/ostatus/follow/?uri=` is a link anybody can write. For an account this
+	 * server does not hold, nothing goes to another server until the reader
+	 * asks for it.
+	 */
+	describe('a follow link for an account not held here', () => {
+		beforeEach(() => {
+			makeStore({ account: '', resolve: 'https://mastodon.xyz/users/nextcloud' })
+		})
+
+		it('asks no server until the reader has it looked up', async () => {
+			const post = vi.spyOn(axios, 'post')
+			const wrapper = mountProfile({ name: undefined, params: {} })
+			await flushPromises()
+
+			expect(post).not.toHaveBeenCalled()
+			expect(fetchAccount).not.toHaveBeenCalled()
+			expect(wrapper.classes()).not.toContain('icon-loading')
+			expect(wrapper.find('.profile-look-up').text()).toContain('https://mastodon.xyz/users/nextcloud')
+		})
+
+		it('looks it up with the request the page alone can make, then shows it', async () => {
+			const post = vi.spyOn(axios, 'post').mockResolvedValue({ data: { status: 1, result: { account: 'nextcloud@mastodon.xyz' } } })
+			const wrapper = mountProfile({ name: undefined, params: {} })
+			await flushPromises()
+
+			await wrapper.find('.profile-look-up button').trigger('click')
+			await flushPromises()
+
+			expect(post).toHaveBeenCalledWith('/index.php/apps/social/api/v1/ostatus/resolve', { uri: 'https://mastodon.xyz/users/nextcloud' })
+			expect(accountStore.fetchAccountInfo).toHaveBeenCalledWith('nextcloud@mastodon.xyz')
+			expect(wrapper.find('.profile-look-up').exists()).toBe(false)
+			expect(wrapper.findComponent(ProfileInfoStub).props('uid')).toBe('nextcloud@mastodon.xyz')
+		})
+
+		it('says the account was not found when nobody has it', async () => {
+			vi.spyOn(axios, 'post').mockRejectedValue(new Error('404'))
+			const wrapper = mountProfile({ name: undefined, params: {} })
+			await flushPromises()
+
+			await wrapper.find('.profile-look-up button').trigger('click')
+			await flushPromises()
+
+			expect(fetchAccount).not.toHaveBeenCalled()
+			expect(wrapper.find('.profile-look-up').exists()).toBe(false)
+			expect(wrapper.find('.profile-missing').exists()).toBe(true)
 		})
 	})
 

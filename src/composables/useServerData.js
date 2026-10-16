@@ -42,6 +42,7 @@ import { useSettingsStore } from '../store/settings.js'
  * @property {boolean} isAdmin - Whether the reader administers this instance
  * @property {string} [linkedHandle] - The fediverse handle the reader's profile names, or '' (only with needsAccount)
  * @property {string} local - The local part of the account that the user wants to follow
+ * @property {string} [resolve] - The account a follow link names that this server does not hold yet, for the reader to have looked up (Only on '/ostatus/follow')
  * @property {boolean} needsAccount - Whether the reader has no account in this app yet
  * @property {boolean} [hideCounts] - Whether the reader hides how many likes, dislikes, boosts and followers things have
  * @property {''|'show_all'|'default'|'hide_all'} [nsfwChoice] - What the reader chose for sensitive media; '' follows the instance (not on a public page)

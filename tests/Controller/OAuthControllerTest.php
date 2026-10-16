@@ -16,6 +16,7 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Controller\OAuthController;
 use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\ClientRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InstanceDoesNotExistException;
@@ -735,6 +736,41 @@ class OAuthControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 		$this->assertSame(['error' => 'wrong scopes'], $response->getData());
+	}
+
+	/**
+	 * A failure of this server is not the client's to read: its message names
+	 * tables, hosts and files. It is logged, and the answer is `server_error`,
+	 * as the token endpoint's is.
+	 */
+	public function testAnAuthorizationThatFailsHereSaysServerErrorAndNothingMore(): void {
+		$this->loggedIn();
+		$this->clientService->method('getFromClientId')
+			->willThrowException(new \RuntimeException('SQLSTATE[HY000]: no such table oc_social_client'));
+
+		foreach ([
+			$this->controller->authorize('client-1', self::OOB, 'code', 'read'),
+			$this->controller->authorizing('client-1', self::OOB, 'code', 'read'),
+		] as $response) {
+			$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+			$this->assertSame(['error' => 'server_error'], $response->getData());
+		}
+	}
+
+	public function testAReaderWithoutAnAccountIsToldSoWithoutTheirLogin(): void {
+		$user = $this->createStub(IUser::class);
+		$user->method('getUID')->willReturn('jane.doe');
+		$this->userSession->method('getUser')->willReturn($user);
+		$this->accountService->method('getActorFromUserId')
+			->willThrowException(new ActorDoesNotExistException('Actor not found for user: jane.doe'));
+
+		foreach ([
+			$this->controller->authorize('client-1', self::OOB, 'code', 'read'),
+			$this->controller->authorizing('client-1', self::OOB, 'code', 'read'),
+		] as $response) {
+			$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+			$this->assertSame(['error' => 'no account for this user'], $response->getData());
+		}
 	}
 
 	// token()

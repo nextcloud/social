@@ -65,6 +65,17 @@ class ExternalSignupsRequest {
 		return $qb->getLastInsertId();
 	}
 
+	/**
+	 * A row that only counts: a registration that was answered as if it had
+	 * been taken, and made nothing. It weighs on the limits per address and in
+	 * all as a real one does, so the limits do not tell the two apart. Its
+	 * handle is one no form can ask for, it holds no address and no token,
+	 * and it is purged with the unconfirmed registrations.
+	 */
+	public function createPlaceholder(string $ipHash, int $creation): void {
+		$this->create('~' . bin2hex(random_bytes(16)), '', '', '', false, false, 0, $ipHash, $creation);
+	}
+
 	/** @return ExternalSignupRow|null */
 	public function get(int $id): ?array {
 		return $this->one('id', $id, IQueryBuilder::PARAM_INT);

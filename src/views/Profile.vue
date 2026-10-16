@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div :class="{'icon-loading': !accountLoaded}" class="social__wrapper">
+	<div :class="{'icon-loading': !accountLoaded && !awaitingLookUp}" class="social__wrapper">
 		<ProfileInfo v-if="accountLoaded && accountInfo" :uid="uid" />
 
 		<!-- your own profile is a page you post from, the way the home
@@ -11,6 +11,19 @@
 		<Composer v-if="isOwnProfile" />
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
+		<!-- a follow link from another server, for an account this one does
+		     not hold: looked up when the reader asks, not when a link opens -->
+		<NcEmptyContent
+			v-if="awaitingLookUp"
+			class="profile-look-up"
+			:name="serverData.resolve"
+			:description="t('social', 'This account is not known here yet. Look it up to see it and follow it.')">
+			<template #action>
+				<NcButton variant="primary" :disabled="lookingUp" @click="lookUp">
+					{{ lookingUp ? t('social', 'Looking up…') : t('social', 'Look up') }}
+				</NcButton>
+			</template>
+		</NcEmptyContent>
 		<!-- the lookup is what says an account is missing: `accountLoaded` only
 		     says the store has it (see useAccount), so it cannot say it has not -->
 		<NcEmptyContent
@@ -26,7 +39,10 @@
 </template>
 
 <script>
+import axios from '@nextcloud/axios'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import { generateUrl } from '@nextcloud/router'
 import AlohaScene from '../components/illustrations/AlohaScene.vue'
 import ProfileInfo from './../components/ProfileInfo.vue'
 import { defineAsyncComponent, ref } from 'vue'
@@ -45,6 +61,7 @@ export default {
 	name: 'Profile',
 	components: {
 		AlohaScene,
+		NcButton,
 		NcEmptyContent,
 		ProfileInfo,
 		Composer,
@@ -64,6 +81,9 @@ export default {
 			state: [],
 			/** whether a lookup for the handle on screen has come back, either way */
 			lookupFinished: false,
+			/** the account the server found for `serverData.resolve`, once asked */
+			resolvedAccount: '',
+			lookingUp: false,
 		}
 	},
 
@@ -100,6 +120,20 @@ export default {
 				&& this.$route.name === 'profile'
 		},
 
+		/**
+		 * Whether the page is a follow link for an account this server does
+		 * not hold, waiting for the reader to have it looked up.
+		 *
+		 * @return {boolean}
+		 */
+		awaitingLookUp() {
+			return Boolean(this.serverData.resolve)
+				&& !this.$route.params.account
+				&& !this.serverData.account
+				&& this.resolvedAccount === ''
+				&& !this.lookupFinished
+		},
+
 		/** @return {string} what the tab calls this page */
 		pageTitle() {
 			const handle = String(this.uid ?? this.$route.params.account ?? '')
@@ -127,7 +161,7 @@ export default {
 
 	methods: {
 		async fetchProfileData() {
-			this.uid = this.$route.params.account || this.serverData.account
+			this.uid = this.$route.params.account || this.serverData.account || this.resolvedAccount
 			this.lookupFinished = false
 
 			if (!this.uid) {
@@ -137,7 +171,7 @@ export default {
 			// a handle with a dot and no host is asked for as it is: it is a
 			// Bluesky handle, or a local user id the server answers for either
 			// way — qualifying it with this host would make it neither
-			const requestedHandle = String(this.$route.params.account || this.serverData.account || '')
+			const requestedHandle = String(this.$route.params.account || this.serverData.account || this.resolvedAccount || '')
 			const remote = requestedHandle.includes('@') || isBlueskyHandle(requestedHandle)
 			const fetchMethod = this.serverData.public && !remote ? 'fetchPublicAccountInfo' : 'fetchAccountInfo'
 			const account = isBlueskyHandle(requestedHandle) ? requestedHandle : this.profileAccount
@@ -153,6 +187,29 @@ export default {
 					logger.debug('Not asking for a relationship', { known: Boolean(infoId), isPublic: this.serverData.public })
 				}
 			}
+		},
+
+		/**
+		 * Has the server look up the account a follow link names, which goes
+		 * to that account's own server, and then shows it.
+		 */
+		async lookUp() {
+			this.lookingUp = true
+			try {
+				const { data } = await axios.post(generateUrl('apps/social/api/v1/ostatus/resolve'), { uri: this.serverData.resolve })
+				this.resolvedAccount = String(data?.result?.account ?? '')
+			} catch (error) {
+				logger.error('Could not look up the account to follow', { error })
+			} finally {
+				this.lookingUp = false
+			}
+
+			if (this.resolvedAccount !== '') {
+				await this.fetchProfileData()
+				return
+			}
+			this.uid = this.serverData.resolve
+			this.lookupFinished = true
 		},
 	},
 }

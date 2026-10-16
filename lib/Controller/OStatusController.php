@@ -11,7 +11,6 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
-use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CacheActorService;
@@ -26,6 +25,8 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Response;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\AppFramework\Services\IInitialState;
@@ -59,24 +60,36 @@ class OStatusController extends Controller {
 		$this->userSession = $userSession;
 	}
 
+	/**
+	 * The page another server sends somebody to, to follow an account from
+	 * here: `uri` is the account, by its address or its actor URL.
+	 *
+	 * A link anybody can write, opened by a reader who is signed in, so it
+	 * looks the account up only among those this server holds. One it does
+	 * not hold is handed to the page as `resolve`, and the page asks
+	 * `resolve()` for it, with the request token only the page has.
+	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
 	#[FrontpageRoute(verb: 'GET', url: '/ostatus/follow/')]
 	public function subscribe(string $uri): Response {
 		try {
-			try {
-				$actor = $this->cacheActorService->getFromAccount($uri);
-			} catch (InvalidResourceException $e) {
-				$actor = $this->cacheActorService->getFromId($uri);
-			}
-
 			$user = $this->userSession->getUser();
 			if ($user === null) {
 				throw new Exception('Failed to retrieve current user');
 			}
 
+			try {
+				$account = $this->cacheActorService->resolve(self::reference($uri))->getAccount();
+				$resolve = '';
+			} catch (Exception) {
+				$account = '';
+				$resolve = $uri;
+			}
+
 			$this->initialState->provideInitialState('serverData', [
-				'account' => $actor->getAccount(),
+				'account' => $account,
+				'resolve' => $resolve,
 				'currentUser' => [
 					'uid' => $user->getUID(),
 					'displayName' => $user->getDisplayName(),
@@ -88,6 +101,30 @@ class OStatusController extends Controller {
 		} catch (Exception $e) {
 			return $this->failFor($e);
 		}
+	}
+
+	/**
+	 * The account a follow link names, looked up on its own server where
+	 * this one does not hold it: what `subscribe()` leaves to the page.
+	 */
+	#[NoAdminRequired]
+	#[UserRateLimit(limit: 30, period: 60)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/ostatus/resolve')]
+	public function resolve(string $uri): DataResponse {
+		try {
+			$actor = $this->cacheActorService->resolve(self::reference($uri), true);
+
+			return $this->success(['account' => $actor->getAccount()]);
+		} catch (Exception $e) {
+			return $this->failFor($e);
+		}
+	}
+
+	/** An account as a follow link names it, without the `acct:` some servers put in front. */
+	private static function reference(string $uri): string {
+		$uri = trim($uri);
+
+		return (stripos($uri, 'acct:') === 0) ? substr($uri, 5) : $uri;
 	}
 
 	#[NoCSRFRequired]

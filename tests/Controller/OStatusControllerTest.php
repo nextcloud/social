@@ -12,7 +12,6 @@ namespace OCA\Social\Tests\Controller;
 use OCA\Social\Controller\OStatusController;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
-use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\RetrieveAccountFormatException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
@@ -98,7 +97,7 @@ class OStatusControllerTest extends TestCase {
 
 	public function testSubscribeRendersTheAppWithTargetAccountAndCurrentUser(): void {
 		$this->loggedIn('alice', 'Alice A.');
-		$this->cacheActorService->method('getFromAccount')->with('bob@remote.example')
+		$this->cacheActorService->method('resolve')->with('bob@remote.example', false)
 			->willReturn($this->actorWithAccount('bob@remote.example'));
 
 		$response = $this->controller->subscribe('bob@remote.example');
@@ -107,37 +106,75 @@ class OStatusControllerTest extends TestCase {
 		$this->assertSame('main', $response->getTemplateName());
 		$this->assertSame([
 			'account' => 'bob@remote.example',
+			'resolve' => '',
 			'currentUser' => ['uid' => 'alice', 'displayName' => 'Alice A.'],
 		], $this->states['social']['serverData']);
 	}
 
-	public function testSubscribeFallsBackToActorIdWhenUriIsNotAnAccount(): void {
+	public function testSubscribeFindsAHeldAccountByItsActorUrlOrItsAcctUri(): void {
 		$this->loggedIn('alice', 'Alice');
-		$this->cacheActorService->method('getFromAccount')->willThrowException(new InvalidResourceException());
-		$this->cacheActorService->expects($this->once())->method('getFromId')->with('https://remote.example/users/bob')
+		$this->cacheActorService->expects($this->exactly(2))->method('resolve')
+			->with($this->logicalOr('https://remote.example/users/bob', 'bob@remote.example'), false)
 			->willReturn($this->actorWithAccount('bob@remote.example'));
 
-		$response = $this->controller->subscribe('https://remote.example/users/bob');
+		$this->controller->subscribe('https://remote.example/users/bob');
+		$this->assertSame('bob@remote.example', $this->states['social']['serverData']['account']);
+		$this->controller->subscribe('acct:bob@remote.example');
+		$this->assertSame('bob@remote.example', $this->states['social']['serverData']['account']);
+	}
+
+	/**
+	 * Anybody can write the link, and the reader who opens it is signed in:
+	 * the page is drawn without asking any other server, and an account not
+	 * held here is left for the page to look up.
+	 */
+	public function testSubscribeNeverFetchesAnAccountItDoesNotHold(): void {
+		$this->loggedIn('alice', 'Alice');
+		$this->cacheActorService->expects($this->once())->method('resolve')->with('ghost@remote.example', false)
+			->willThrowException(new CacheActorDoesNotExistException());
+		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->cacheActorService->expects($this->never())->method('getFromId');
+
+		$response = $this->controller->subscribe('ghost@remote.example');
 
 		$this->assertInstanceOf(TemplateResponse::class, $response);
-		$this->assertSame('bob@remote.example', $this->states['social']['serverData']['account']);
+		$this->assertSame('', $this->states['social']['serverData']['account']);
+		$this->assertSame('ghost@remote.example', $this->states['social']['serverData']['resolve']);
 	}
 
 	public function testSubscribeFailsWithoutASessionUser(): void {
 		$this->userSession->method('getUser')->willReturn(null);
-		$this->cacheActorService->method('getFromAccount')->willReturn($this->actorWithAccount('bob@remote.example'));
+		$this->cacheActorService->method('resolve')->willReturn($this->actorWithAccount('bob@remote.example'));
 
 		$response = $this->controller->subscribe('bob@remote.example');
 
 		$this->assertFailure($response, \Exception::class);
 	}
 
-	public function testSubscribeFailsForUnknownActor(): void {
-		$this->cacheActorService->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException());
+	public function testResolveLooksTheAccountUpOnItsOwnServer(): void {
+		$this->cacheActorService->expects($this->once())->method('resolve')->with('https://remote.example/users/bob', true)
+			->willReturn($this->actorWithAccount('bob@remote.example'));
+
+		$response = $this->controller->resolve(' https://remote.example/users/bob');
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('bob@remote.example', $response->getData()['result']['account']);
+	}
+
+	public function testResolveSaysSoForAnAccountNobodyHas(): void {
+		$this->cacheActorService->method('resolve')->willThrowException(new CacheActorDoesNotExistException());
 
 		$this->assertFailure(
-			$this->controller->subscribe('ghost@remote.example'), CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND
+			$this->controller->resolve('ghost@remote.example'), CacheActorDoesNotExistException::class, Http::STATUS_NOT_FOUND
 		);
+	}
+
+	/** It runs a lookup on another server: only the page, with its request token, may ask. */
+	public function testResolveIsChecked(): void {
+		$method = new \ReflectionMethod(OStatusController::class, 'resolve');
+
+		$this->assertSame([], $method->getAttributes(\OCP\AppFramework\Http\Attribute\NoCSRFRequired::class));
+		$this->assertSame([], $method->getAttributes(\OCP\AppFramework\Http\Attribute\PublicPage::class));
 	}
 
 	public function testFollowRemoteRendersAGuestPageForTheLocalAccount(): void {

@@ -21,6 +21,7 @@ use OCA\Social\Exceptions\ItemUnknownException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\Details;
 use OCA\Social\Security\HtmlSanitizer;
@@ -55,6 +56,9 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 	/** @var array<string, string> the Nextcloud user of each local username asked about */
 	private static array $userIds = [];
+
+	/** @var array<string, true> local usernames read without their user, to ask for together */
+	private static array $userIdsWanted = [];
 
 	private string $userId = '';
 	private string $name = '';
@@ -202,12 +206,16 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * @return string
+	 * The address of the account's picture: its icon's, which for a local
+	 * avatar is the address it is published at (`iconUrl()`).
 	 */
 	public function getAvatar(): string {
 		if ($this->hasIcon()) {
-			return $this->getIcon()
-				->getUrl();
+			$icon = $this->getIcon();
+
+			return ($icon->getLocalCopy() === Document::COPY_LOCAL_AVATAR)
+				? $this->iconUrl($icon, Server::get(IURLGenerator::class))
+				: $icon->getUrl();
 		}
 
 		return $this->avatar;
@@ -1416,6 +1424,13 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 		} catch (Exception $e) {
 		}
 
+		// a cached copy of a local account has no user column: its user is
+		// asked for with the rest of the page's, the first time one is wanted
+		if ($this->isLocal() && $this->getUserId() === '' && $this->getPreferredUsername() !== ''
+			&& !array_key_exists($this->getPreferredUsername(), self::$userIds)) {
+			self::$userIdsWanted[$this->getPreferredUsername()] = true;
+		}
+
 		try {
 			$deletedValue = $this->get('deleted', $data);
 			if ($deletedValue === '' || $deletedValue === '0000-00-00 00:00:00') {
@@ -1538,7 +1553,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			$data['icon'] = [
 				'type' => $icon->getType(),
 				'mediaType' => $icon->getMediaType(),
-				'url' => $icon->getUrl()
+				'url' => $this->getAvatar()
 			];
 		}
 
@@ -1608,22 +1623,51 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 
 	/**
 	 * The picture shown for an account that has none cached yet: for a local
-	 * account Nextcloud's own avatar, which every user has (generated from the
-	 * initials when nothing was uploaded), the app icon otherwise -- and for a
-	 * local account whose Nextcloud user this reader is not told, see
-	 * nextcloudUser().
+	 * account its Nextcloud avatar, which every user has (generated from the
+	 * initials when nothing was uploaded), the app icon otherwise.
 	 */
 	public function placeholderImage(IURLGenerator $urlGenerator): string {
-		$userId = $this->nextcloudUser();
-		if ($userId !== null) {
-			return $urlGenerator->linkToRouteAbsolute(
-				'core.avatar.getAvatar', ['userId' => $userId, 'size' => 128]
-			);
+		if ($this->localUserId() !== '') {
+			return self::localAvatarUrl($urlGenerator, $this->getPreferredUsername());
 		}
 
 		return $urlGenerator->getAbsoluteURL(
 			$urlGenerator->imagePath(SocialApp::APP_ID, 'social.svg')
 		);
+	}
+
+	/**
+	 * Where this app serves the Nextcloud avatar of a local account: by the
+	 * username, never by the login, which need not be the username and which
+	 * Nextcloud's own avatar route names (`AvatarController`). The version is
+	 * the avatar's, so the address changes with the picture.
+	 */
+	public static function localAvatarUrl(IURLGenerator $urlGenerator, string $username, ?int $version = null): string {
+		$parameters = ['username' => $username, 'size' => 128];
+		if ($version !== null) {
+			$parameters['v'] = $version;
+		}
+
+		return $urlGenerator->linkToRouteAbsolute('social.Avatar.avatar', $parameters);
+	}
+
+	/**
+	 * The address the icon is published at.
+	 *
+	 * A local account's avatar is always this app's avatar route of the
+	 * username, with the version the stored address carries: an icon stored
+	 * with Nextcloud's own avatar route would otherwise publish the login.
+	 */
+	private function iconUrl(Document $icon, IURLGenerator $urlGenerator): string {
+		if (!$this->isLocal() || $icon->getLocalCopy() !== Document::COPY_LOCAL_AVATAR
+			|| $this->getPreferredUsername() === '') {
+			return $icon->getMediaUrl($urlGenerator);
+		}
+
+		parse_str((string)parse_url($icon->getUrl(), PHP_URL_QUERY), $query);
+		$version = (isset($query['v']) && is_string($query['v']) && ctype_digit($query['v'])) ? (int)$query['v'] : null;
+
+		return self::localAvatarUrl($urlGenerator, $this->getPreferredUsername(), $version);
 	}
 
 	/**
@@ -1636,7 +1680,7 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 			// an icon with no local copy yet -- fetched by the next cache run,
 			// or replaced a moment ago by a removed or renamed avatar -- has
 			// no address here, and the origin is not offered in its place
-			$avatar = $this->getIcon()->getMediaUrl(Server::get(IURLGenerator::class));
+			$avatar = $this->iconUrl($this->getIcon(), Server::get(IURLGenerator::class));
 			if ($avatar === '') {
 				$avatar = $this->placeholderImage(Server::get(IURLGenerator::class));
 				$avatarDefault = true;
@@ -1753,12 +1797,8 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	 * from its login does not give the login away.
 	 */
 	public function nextcloudUser(): ?string {
-		if (!$this->isLocal() || $this->getPreferredUsername() === '') {
-			return null;
-		}
-
-		$userId = $this->getUserId() !== '' ? $this->getUserId() : self::userIdOf($this->getPreferredUsername());
-		if ($userId === '' || str_starts_with($userId, 'team/') || str_starts_with($userId, 'channel/')) {
+		$userId = $this->localUserId();
+		if ($userId === '') {
 			return null;
 		}
 
@@ -1766,16 +1806,44 @@ class Person extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The Nextcloud user of a local person account whoever reads it, or ''
+	 * for a remote account, a team account or a channel.
+	 */
+	private function localUserId(): string {
+		if (!$this->isLocal() || $this->getPreferredUsername() === '') {
+			return '';
+		}
+
+		$userId = $this->getUserId() !== '' ? $this->getUserId() : self::userIdOf($this->getPreferredUsername());
+		if ($userId === '' || str_starts_with($userId, 'team/') || str_starts_with($userId, 'channel/')) {
+			return '';
+		}
+
+		return $userId;
+	}
+
+	/**
 	 * The Nextcloud user of a local username, asked once per process: the
 	 * cached copy the client is handed does not carry it, and a page of
 	 * posts names the same few authors over and over.
+	 *
+	 * Every local account read from the database without its user since the
+	 * last lookup is asked in the same query (see importFromDatabase()), so a
+	 * page of posts by twenty authors costs one query rather than twenty. A
+	 * username nobody holds is remembered as ''.
 	 */
 	private static function userIdOf(string $username): string {
 		if (!array_key_exists($username, self::$userIds)) {
+			self::$userIdsWanted[$username] = true;
+			$usernames = array_map('strval', array_keys(self::$userIdsWanted));
+			self::$userIdsWanted = [];
 			try {
-				self::$userIds[$username] = Server::get(ActorsRequest::class)->userIdOf($username);
+				$found = Server::get(ActorsRequest::class)->userIdsOf($usernames);
 			} catch (Throwable) {
 				return '';
+			}
+			foreach ($usernames as $name) {
+				self::$userIds[$name] = $found[$name] ?? '';
 			}
 		}
 
