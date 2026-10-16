@@ -630,7 +630,7 @@ class RecordMapperTest extends TestCase {
 			return $user;
 		});
 		$actors = $this->createStub(ActorsRequest::class);
-		$actors->method('userIdOf')->willReturnCallback(fn (string $username): string => $this->userIds[$username] ?? '');
+		$actors->method('userIdsOf')->willReturnCallback(fn (array $usernames): array => array_intersect_key($this->userIds, array_flip($usernames)));
 
 		return new RecordMapper(new TextMapper(), $this->pictures, $this->documents, $this->identities, $this->repositories, $refs, $this->cards, $this->thumbnails, $this->cacheDocuments, $this->pins, $this->l10nFactory(), $users, $actors);
 	}

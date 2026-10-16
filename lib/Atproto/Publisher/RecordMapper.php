@@ -523,7 +523,8 @@ class RecordMapper {
 			}
 		}
 		// a cached actor does not carry its Nextcloud user: the account does
-		$userId = $author->getUserId() !== '' ? $author->getUserId() : $this->actors->userIdOf($author->getPreferredUsername());
+		$username = $author->getPreferredUsername();
+		$userId = $author->getUserId() !== '' ? $author->getUserId() : ($this->actors->userIdsOf([$username])[$username] ?? '');
 		$user = $userId === '' ? null : $this->userManager->get($userId);
 
 		return $this->l10nFactory->get(Application::APP_ID, $this->l10nFactory->getUserLanguage($user));
