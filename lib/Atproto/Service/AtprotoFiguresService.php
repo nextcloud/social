@@ -14,9 +14,9 @@ use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Publisher\RecordMapper;
+use OCA\Social\Atproto\Reader\Jetstream\JetstreamState;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Db\AtprotoWatchRequest;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DurableCache;
 use OCP\AppFramework\Utility\ITimeFactory;
 
@@ -38,7 +38,7 @@ class AtprotoFiguresService {
 
 	public function __construct(
 		private AtprotoConfig $config,
-		private ConfigService $configService,
+		private JetstreamState $jetstream,
 		private IdentityService $identities,
 		private AtprotoRepoRequest $repoRequest,
 		private AtprotoWatchRequest $watches,
@@ -121,7 +121,7 @@ class AtprotoFiguresService {
 		if ($this->config->jetstream() === '') {
 			return null;
 		}
-		$cursor = (int)$this->configService->getAppValue(ConfigService::ATPROTO_JETSTREAM_CURSOR);
+		$cursor = $this->jetstream->cursor();
 		if ($cursor <= 0) {
 			return null;
 		}

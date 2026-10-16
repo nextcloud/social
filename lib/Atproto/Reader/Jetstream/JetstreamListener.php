@@ -11,7 +11,6 @@ namespace OCA\Social\Atproto\Reader\Jetstream;
 
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\AtprotoWatchRequest;
-use OCA\Social\Service\ConfigService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -24,7 +23,7 @@ use Throwable;
  * `JetstreamEvents`; the poller keeps running beside it, so the listener
  * being down costs latency and nothing else. Where it got to is kept every
  * few seconds, on a lost connection and on stopping, and picked up again,
- * a few seconds early, after a restart.
+ * a few seconds early, after a restart (`JetstreamState`).
  */
 class JetstreamListener {
 	/** how many accounts one connection asks for, Jetstream's limit */
@@ -35,15 +34,14 @@ class JetstreamListener {
 	private const REWIND = 5000000;
 	/**
 	 * how long, and how many events, the cursor may run ahead of the kept
-	 * one: a kept value is an app-config write, which invalidates the
-	 * config cache of every request on the host; the rewind on a
+	 * one: each kept value is a write to the database; the rewind on a
 	 * reconnect covers what was not kept yet
 	 */
 	public const KEEP_EVERY = 5;
 	public const KEEP_EVENTS = 200;
 	/**
-	 * how often the status is reported, an app-config write too, connected
-	 * or not; the admin page counts a listener silent for a minute as gone
+	 * how often the status is reported, a write too, connected or not; the
+	 * admin page counts a listener silent for a minute as gone
 	 */
 	public const REPORT_EVERY = 15;
 	private const READ_TIMEOUT = 0.5;
@@ -53,7 +51,7 @@ class JetstreamListener {
 
 	public function __construct(
 		private AtprotoConfig $config,
-		private ConfigService $configService,
+		private JetstreamState $state,
 		private AtprotoWatchRequest $watches,
 		private JetstreamEvents $events,
 		private JetstreamClient $client,
@@ -80,7 +78,7 @@ class JetstreamListener {
 		$deadline = $maxSeconds > 0 ? $started + $maxSeconds : 0;
 		$dids = [];
 		$refreshed = 0;
-		$cursor = (int)$this->configService->getAppValue(ConfigService::ATPROTO_JETSTREAM_CURSOR);
+		$cursor = $this->state->cursor();
 		$kept = $cursor;
 		$keptAt = $started;
 		$unkept = 0;
@@ -163,7 +161,7 @@ class JetstreamListener {
 
 			$now = $this->time->getTime();
 			if ($cursor !== $kept && ($lost || $unkept >= self::KEEP_EVENTS || $now - $keptAt >= self::KEEP_EVERY)) {
-				$this->configService->setAppValue(ConfigService::ATPROTO_JETSTREAM_CURSOR, (string)$cursor);
+				$this->state->keepCursor($cursor);
 				$kept = $cursor;
 				$keptAt = $now;
 				$unkept = 0;
@@ -180,7 +178,7 @@ class JetstreamListener {
 
 		$this->client->close();
 		if ($cursor !== $kept) {
-			$this->configService->setAppValue(ConfigService::ATPROTO_JETSTREAM_CURSOR, (string)$cursor);
+			$this->state->keepCursor($cursor);
 		}
 		$this->report($started, $lastEvent, $cursor, false, count($dids), false);
 		$say('Jetstream listener stopped');
@@ -224,8 +222,8 @@ class JetstreamListener {
 	 * @return array{running: bool, connected: bool, started: int, seen: int, last_event: int, cursor: int, accounts: int}|null
 	 */
 	public function status(): ?array {
-		$status = json_decode((string)$this->configService->getAppValue(ConfigService::ATPROTO_JETSTREAM_STATUS), true);
-		if (!is_array($status)) {
+		$status = $this->state->status();
+		if ($status === null) {
 			return null;
 		}
 		$running = ($status['running'] ?? false) && $this->time->getTime() - (int)($status['seen'] ?? 0) <= 60;
@@ -252,7 +250,7 @@ class JetstreamListener {
 	}
 
 	private function report(int $started, int $lastEvent, int $cursor, bool $connected, int $accounts, bool $running = true): void {
-		$this->configService->setAppValue(ConfigService::ATPROTO_JETSTREAM_STATUS, (string)json_encode([
+		$this->state->report([
 			'running' => $running,
 			'connected' => $connected,
 			'started' => $started,
@@ -260,7 +258,7 @@ class JetstreamListener {
 			'last_event' => $lastEvent,
 			'cursor' => $cursor,
 			'accounts' => $accounts,
-		]));
+		]);
 	}
 
 	private function listenForStop(): void {

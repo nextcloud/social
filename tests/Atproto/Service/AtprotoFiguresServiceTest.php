@@ -13,12 +13,12 @@ use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Publisher\RecordMapper;
+use OCA\Social\Atproto\Reader\Jetstream\JetstreamState;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\AtprotoFiguresService;
 use OCA\Social\Controller\AtprotoAdminController;
 use OCA\Social\Db\AtprotoRepoRequest;
 use OCA\Social\Db\AtprotoWatchRequest;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\DurableCache;
 use OCP\AppFramework\Http\Attribute\AuthorizedAdminSetting;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -36,7 +36,7 @@ class AtprotoFiguresServiceTest extends TestCase {
 	private const NOW = 1760000000;
 
 	private AtprotoConfig&MockObject $config;
-	private ConfigService&MockObject $configService;
+	private JetstreamState&MockObject $jetstream;
 	private IdentityService&MockObject $identities;
 	private AtprotoRepoRequest&MockObject $repos;
 	private AtprotoWatchRequest&MockObject $watches;
@@ -48,7 +48,7 @@ class AtprotoFiguresServiceTest extends TestCase {
 		$this->config = $this->createMock(AtprotoConfig::class);
 		$this->config->method('isEnabled')->willReturn(true);
 		$this->config->method('jetstream')->willReturn('');
-		$this->configService = $this->createMock(ConfigService::class);
+		$this->jetstream = $this->createMock(JetstreamState::class);
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->repos = $this->createMock(AtprotoRepoRequest::class);
 		$this->repos->method('sumHeads')->willReturn(['records' => 0, 'blob_bytes' => 0]);
@@ -63,7 +63,7 @@ class AtprotoFiguresServiceTest extends TestCase {
 		$time->method('getTime')->willReturn(self::NOW);
 
 		return new AtprotoFiguresService(
-			$this->config, $this->configService, $this->identities, $this->repos, $this->watches,
+			$this->config, $this->jetstream, $this->identities, $this->repos, $this->watches,
 			$this->events, $this->daemon, $this->cache, $time,
 		);
 	}
@@ -122,9 +122,7 @@ class AtprotoFiguresServiceTest extends TestCase {
 	/** The cursor is the last event's time in microseconds. */
 	public function testTheJetstreamLagIsHowFarBehindTheStoredCursorIs(): void {
 		$this->jetstreamAt('wss://jetstream.example');
-		$this->configService->method('getAppValue')->willReturnMap([
-			[ConfigService::ATPROTO_JETSTREAM_CURSOR, (string)((self::NOW - 90) * 1000000 + 123456)],
-		]);
+		$this->jetstream->method('cursor')->willReturn((self::NOW - 90) * 1000000 + 123456);
 
 		$reader = $this->service()->figures()['reader'];
 
@@ -134,7 +132,7 @@ class AtprotoFiguresServiceTest extends TestCase {
 
 	public function testAJetstreamWithoutAStoredCursorHasNoLag(): void {
 		$this->jetstreamAt('wss://jetstream.example');
-		$this->configService->method('getAppValue')->willReturn('');
+		$this->jetstream->method('cursor')->willReturn(0);
 
 		$this->assertNull($this->service()->figures()['reader']['jetstream_lag']);
 	}

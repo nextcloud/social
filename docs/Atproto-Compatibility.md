@@ -949,10 +949,8 @@ one Jetstream v2 keeps wire-frozen for v1 consumers), asking for
 names the watched DIDs — at most 10,000, Jetstream's limit; an empty list
 would be the whole network, so with no watches there is no connection. The
 list is read again every minute and re-sent when it changed. The cursor
-(`time_us`) is kept in `atproto_jetstream_cursor` every five seconds or
-every 200 events, whichever comes first, and on a lost connection and on
-stopping — a kept cursor is an app-config write, which invalidates the
-config cache of every request on the host — and a reconnect starts five
+(`time_us`) is kept every five seconds or every 200 events, whichever comes
+first, and on a lost connection and on stopping, and a reconnect starts five
 seconds before it, which covers what was not kept yet; a lost connection
 is retried with backoff up to a minute. The client (`JetstreamClient`) is this app's own,
 on PHP streams: no compression is asked for, so every message is JSON.
@@ -975,7 +973,13 @@ are not in a DID-filtered stream; they keep arriving through the
 notification poller (§10). The poller keeps running beside the listener,
 so the daemon being down costs latency and nothing else. The admin page
 shows whether the listener is connected, for how many accounts, and when
-it last heard something (`atproto_jetstream_status`).
+it last heard something, from the report the listener writes every fifteen
+seconds. The cursor and the report are kept in the durable cache's table
+(`JetstreamState`, `social_durable_cache`, a year's TTL renewed by every
+write), not in app config, whose every write invalidates the config cache of
+each request on the host; the `atproto_jetstream_cursor` and
+`atproto_jetstream_status` app-config keys of older versions are moved there
+on their first read and deleted.
 
 ### 9.4a Whole threads
 

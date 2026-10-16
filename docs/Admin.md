@@ -530,7 +530,10 @@ checks, and the card refuses to switch Bluesky on while one fails:
   second unit like the one above, with
   `ExecStart=/usr/bin/php occ social:atproto:listen`. It reports to the card's
   "Reading Bluesky" part every fifteen seconds; without it, the poller does all
-  the reading, as before.
+  the reading, as before. Where it got to and its reports are kept in the
+  database rather than in the app's settings, so they cost the rest of the
+  server nothing; a value an older version kept in the settings is moved over
+  once.
 - **The relays.** The card's "Relays carry this server" check asks each
   configured relay how it sees this server: crawled or not, how many of its
   accounts it carries, and whether it throttles or bans it. A relay limits
