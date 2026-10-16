@@ -83,11 +83,12 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	 * The posts the given ids name and up to `$levels - 1` of their ancestors
 	 * each, in one statement: the post joined to its parent, the parent to its
 	 * own, `$levels` deep. What `getThreadLinks()` answers, `$levels` levels of
-	 * a walk up at a time.
+	 * a walk up at a time, and with each the root its thread has stored
+	 * (`rootPrim`, '' where none is), past which a walk need not go.
 	 *
 	 * @param string[] $ids
 	 *
-	 * @return array<string, array{id: string, idPrim: string, nid: int|string, inReplyTo: string}>
+	 * @return array<string, array{id: string, idPrim: string, nid: int|string, inReplyTo: string, rootPrim: string}>
 	 */
 	public function getAncestorLinks(array $ids, int $levels): array {
 		$prims = $this->prims($ids);
@@ -115,7 +116,8 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 			$qb->selectAlias($alias . '.id', $alias . '_id')
 				->selectAlias($alias . '.id_prim', $alias . '_id_prim')
 				->selectAlias($alias . '.nid', $alias . '_nid')
-				->selectAlias($alias . '.in_reply_to', $alias . '_in_reply_to');
+				->selectAlias($alias . '.in_reply_to', $alias . '_in_reply_to')
+				->selectAlias($alias . '.root_prim', $alias . '_root_prim');
 		}
 		$qb->where(
 			$expr->in('a0.id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY))
@@ -136,12 +138,168 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 					'nid' => $data[$prefix . 'nid'],
 					'in_reply_to' => $data[$prefix . 'in_reply_to'],
 				]);
+				$link['rootPrim'] = (string)($data[$prefix . 'root_prim'] ?? '');
 				$links[$link['id']] = $link;
 			}
 		}
 		$cursor->closeCursor();
 
 		return $links;
+	}
+
+	/**
+	 * The root of each given post's thread as it was stored with the post
+	 * (`storeRoot()`), keyed by the post's id. A post whose root was never
+	 * stored, or whose root is no longer here, is left out, and its caller
+	 * walks up instead.
+	 *
+	 * @param string[] $ids
+	 *
+	 * @return array<string, array{id: string, idPrim: string, nid: int|string, inReplyTo: string}>
+	 */
+	public function getStoredRoots(array $ids): array {
+		$prims = $this->prims($ids);
+		if ($prims === []) {
+			return [];
+		}
+
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$qb->selectAlias('s.id', 'post_id')
+			->selectAlias('r.id', 'id')
+			->selectAlias('r.id_prim', 'id_prim')
+			->selectAlias('r.nid', 'nid')
+			->selectAlias('r.in_reply_to', 'in_reply_to')
+			->from(self::TABLE_STREAM, 's')
+			->innerJoin('s', self::TABLE_STREAM, 'r', $expr->eq('r.id_prim', 's.root_prim'))
+			->where($expr->in('s.id_prim', $qb->createNamedParameter($prims, IQueryBuilder::PARAM_STR_ARRAY)));
+
+		$roots = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$roots[(string)$data['post_id']] = $this->parseThreadLinkSelectSql($data);
+		}
+		$cursor->closeCursor();
+
+		return $roots;
+	}
+
+	/**
+	 * Stores the root of the thread a direct message belongs to: its parent's
+	 * stored root, else the topmost post the walk up reaches, else itself.
+	 * The replies that arrived before it were their own roots, and they and
+	 * the replies under them are moved under this one, so a thread keeps one
+	 * root whatever order its messages came in.
+	 *
+	 * Bounded like `rootOf()`: a chain deeper than its walk that was stored
+	 * before the roots were is rooted where the walk stopped.
+	 */
+	public function storeRoot(string $id, string $inReplyTo, int $maxDepth = 40): void {
+		$prim = $this->prims([$id])[0] ?? '';
+		if ($prim === '') {
+			return;
+		}
+
+		$root = $this->rootAbove($inReplyTo, $maxDepth) ?? $prim;
+
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_STREAM)
+			->set('root_prim', $qb->createNamedParameter($root))
+			->where($qb->expr()->eq('id_prim', $qb->createNamedParameter($prim)));
+		$qb->executeStatement();
+
+		$qb = $this->getQueryBuilder();
+		$qb->select('id_prim')
+			->from(self::TABLE_STREAM)
+			->where($qb->expr()->eq('in_reply_to_prim', $qb->createNamedParameter($prim)))
+			->andWhere($qb->expr()->eq('root_prim', 'id_prim'))
+			->setMaxResults(self::MAX_THREAD_WIDTH);
+		$cursor = $qb->executeQuery();
+		$orphans = array_map(static fn (array $row): string => (string)$row['id_prim'], $cursor->fetchAll());
+		$cursor->closeCursor();
+		if ($orphans === []) {
+			return;
+		}
+
+		$qb = $this->getQueryBuilder();
+		$qb->update(self::TABLE_STREAM)
+			->set('root_prim', $qb->createNamedParameter($root))
+			->where($qb->expr()->in('root_prim', $qb->createNamedParameter($orphans, IQueryBuilder::PARAM_STR_ARRAY)));
+		$qb->executeStatement();
+	}
+
+	/**
+	 * The prim of the root above `$parentId`: the first stored root on the
+	 * way up, or the topmost post this instance holds; null when the parent
+	 * is not here at all.
+	 */
+	private function rootAbove(string $parentId, int $maxDepth): ?string {
+		$current = $parentId;
+		$topmost = null;
+		for ($depth = 0; $depth < $maxDepth;) {
+			$levels = min(self::ANCESTOR_LEVELS, $maxDepth - $depth);
+			$links = $this->getAncestorLinks([$current], $levels);
+			for ($level = 0; $level < $levels; $level++, $depth++) {
+				$link = $links[$current] ?? null;
+				if ($link === null) {
+					return $topmost;
+				}
+				if ($link['rootPrim'] !== '') {
+					return $link['rootPrim'];
+				}
+
+				$topmost = $link['idPrim'];
+				if ($link['inReplyTo'] === '') {
+					return $topmost;
+				}
+				$current = $link['inReplyTo'];
+			}
+		}
+
+		return $topmost;
+	}
+
+	/**
+	 * Stores the roots of the direct messages that were stored without one,
+	 * reading the stream from after `$after` in nid order, `$chunk` posts at
+	 * a time. Oldest first, so a parent has its root before its replies ask
+	 * for it. A post that fails is logged and passed over.
+	 *
+	 * @return array{read: int, last: string} how many posts were read, and the nid of the last
+	 */
+	public function backfillRoots(string $after, int $chunk): array {
+		$qb = $this->getQueryBuilder();
+		$expr = $qb->expr();
+		$dm = 'EXISTS (SELECT 1 FROM ' . $qb->getTableName(self::TABLE_STREAM_DEST) . ' d'
+			. ' WHERE d.stream_id = s.id_prim AND d.type = ' . (string)$qb->createNamedParameter('dm') . ')';
+		$qb->select('s.nid', 's.id', 's.in_reply_to', 's.root_prim')
+			->selectAlias($qb->createFunction('CASE WHEN ' . $dm . ' THEN 1 ELSE 0 END'), 'dm')
+			->from(self::TABLE_STREAM, 's')
+			->where($expr->gt('s.nid', $qb->createNamedParameter($after)))
+			->orderBy('s.nid', 'asc')
+			->setMaxResults($chunk);
+
+		$cursor = $qb->executeQuery();
+		$rows = $cursor->fetchAll();
+		$cursor->closeCursor();
+
+		$last = '0';
+		foreach ($rows as $row) {
+			$last = (string)$row['nid'];
+			if ((int)$row['dm'] !== 1 || (string)($row['root_prim'] ?? '') !== '') {
+				continue;
+			}
+
+			try {
+				$this->storeRoot((string)$row['id'], (string)($row['in_reply_to'] ?? ''));
+			} catch (\Throwable $e) {
+				$this->logger->warning('could not store the thread root of a direct message', [
+					'exception' => $e, 'nid' => $last,
+				]);
+			}
+		}
+
+		return ['read' => count($rows), 'last' => $last];
 	}
 
 	/**
@@ -178,6 +336,11 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	 */
 	public function getThread(string $rootId): array {
 		$thread = $this->getThreadLinks([$rootId]);
+		// the posts that stored this root, newest first and however deep; the
+		// walk below adds those stored before the roots were
+		foreach ($this->getRootedAt($rootId, self::MAX_THREAD_WIDTH) as $id => $link) {
+			$thread[$id] ??= $link;
+		}
 		$parents = array_keys($thread);
 
 		for ($depth = 0; $depth < self::MAX_THREAD_DEPTH && $parents !== []; $depth++) {
@@ -202,6 +365,25 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 		}
 
 		return $thread;
+	}
+
+	/**
+	 * The posts whose stored root is `$rootId`, newest first.
+	 *
+	 * @return array<string, array{id: string, idPrim: string, nid: int|string, inReplyTo: string}>
+	 */
+	protected function getRootedAt(string $rootId, int $limit): array {
+		$prims = $this->prims([$rootId]);
+		if ($prims === []) {
+			return [];
+		}
+
+		$qb = $this->getThreadLinkSelectSql();
+		$qb->andWhere($qb->expr()->eq('s.root_prim', $qb->createNamedParameter($prims[0])));
+		$qb->orderBy('s.nid', 'desc');
+		$qb->setMaxResults($limit);
+
+		return $this->threadLinksFromRequest($qb);
 	}
 
 	/**
@@ -334,7 +516,8 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 	 * A post that replies to nothing is its own root, and so is one whose
 	 * parent this instance does not hold — which is the ordinary case for a
 	 * reply that arrived before the post it answers. Bounded, because a
-	 * malformed chain must not walk for ever.
+	 * malformed chain must not walk for ever. A direct message's thread
+	 * answers with the root stored with it (`storeRoot()`).
 	 */
 	public function rootOf(string $statusId, int $maxDepth = 40): string {
 		$current = $statusId;
@@ -343,6 +526,13 @@ class ConversationsRequest extends ConversationsRequestBuilder {
 			$links = $this->getAncestorLinks([$current], $levels);
 			for ($level = 0; $level < $levels; $level++, $depth++) {
 				$link = $links[$current] ?? null;
+				if ($link !== null && $link['rootPrim'] !== '') {
+					// a direct message's thread, whose root was stored with it
+					$stored = $this->getStoredRoots([$current])[$current] ?? null;
+					if ($stored !== null) {
+						return $stored['id'];
+					}
+				}
 				if ($link === null || $link['inReplyTo'] === '') {
 					return $current;
 				}

@@ -112,7 +112,6 @@ class ConversationViewerTest extends TestCase {
 			$request,
 			$this->streamRequest,
 			$this->createStub(TimelineRevisionService::class),
-			$this->createStub(ConfigService::class),
 		);
 	}
 

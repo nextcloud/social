@@ -47,8 +47,10 @@ class ConversationsRequestTest extends TestCase {
 	private function request(array $replies, ?array $direct = null, bool $rootExists = true) {
 		$request = $this->getMockBuilder(ConversationsRequest::class)
 			->disableOriginalConstructor()
-			->onlyMethods(['getThreadLinks', 'getRepliesTo', 'getDirectPostsById'])
+			->onlyMethods(['getThreadLinks', 'getRepliesTo', 'getDirectPostsById', 'getRootedAt'])
 			->getMock();
+		// no thread here stored its root: these are about the walk
+		$request->method('getRootedAt')->willReturn([]);
 
 		$request->method('getThreadLinks')
 			->willReturnCallback(function (array $ids) use ($replies, $rootExists): array {

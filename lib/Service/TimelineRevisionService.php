@@ -47,28 +47,47 @@ use Throwable;
 class TimelineRevisionService {
 	public const KEY = 'timeline_revision';
 
+	/**
+	 * The same kind of number for the counts on the badges, moved whenever a
+	 * row they count is written: a notification for the account, a direct
+	 * message to or from it — and for conversations also when one is marked
+	 * read or dismissed. The newest id cannot say so alone: a nid orders by
+	 * its second first and by chance within one, so a second row in the same
+	 * second may sort below the first and move no newest id.
+	 */
+	public const NOTIFICATIONS = 'notifications_revision';
+	public const CONVERSATIONS = 'conversations_revision';
+
 	public function __construct(
 		private ActorsRequest $actorsRequest,
 		private ConfigService $configService,
 	) {
 	}
 
-	/** What the reader's timelines are at, for the tag. */
-	public function of(string $userId): int {
+	/**
+	 * What the reader's timelines are at, for the tag.
+	 *
+	 * @param string $key `KEY`, or one of the badges' numbers
+	 */
+	public function of(string $userId, string $key = self::KEY): int {
 		if ($userId === '') {
 			return 0;
 		}
 
-		return (int)$this->configService->getValueForUser($userId, self::KEY);
+		return (int)$this->configService->getValueForUser($userId, $key);
 	}
 
-	/** Something this account decided has changed what its timelines show. */
-	public function bump(string $userId): void {
+	/**
+	 * Something this account decided has changed what its timelines show.
+	 *
+	 * @param string $key `KEY`, or one of the badges' numbers
+	 */
+	public function bump(string $userId, string $key = self::KEY): void {
 		if ($userId === '') {
 			return;
 		}
 
-		$this->configService->setValueForUser($userId, self::KEY, (string)($this->of($userId) + 1));
+		$this->configService->setValueForUser($userId, $key, (string)($this->of($userId, $key) + 1));
 	}
 
 	/**
@@ -76,13 +95,13 @@ class TimelineRevisionService {
 	 * request classes write rows keyed by actor id, and a row written for a
 	 * remote actor belongs to nobody here.
 	 */
-	public function bumpForActor(string $actorId): void {
+	public function bumpForActor(string $actorId, string $key = self::KEY): void {
 		if ($actorId === '') {
 			return;
 		}
 
 		try {
-			$this->bump($this->actorsRequest->getFromId($actorId)->getUserId());
+			$this->bump($this->actorsRequest->getFromId($actorId)->getUserId(), $key);
 		} catch (Throwable $e) {
 			// not a local account, or none any more: there is no timeline here
 			// whose tag this would key, and a follow is not worth failing over

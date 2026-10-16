@@ -133,7 +133,21 @@ class ConversationsRequestTest extends TestCase {
 
 		$this->assertSame(self::ROOT, $this->conversations->rootOf(self::DEEPER));
 		$this->assertSame(self::ROOT, $this->conversations->rootOf(self::ROOT));
+		$this->assertSame(self::ROOT, $this->conversations->rootOf(self::DEEPER, 1), 'a direct message stored its root');
+
+		$this->forgetRoots();
+		$this->assertSame(self::ROOT, $this->conversations->rootOf(self::DEEPER));
 		$this->assertSame(self::REPLY, $this->conversations->rootOf(self::DEEPER, 1), 'the walk stops at its depth');
+	}
+
+	/** Forgets every stored root, as the rows stored before the column were, so the walk is what answers. */
+	private function forgetRoots(): void {
+		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
+		$qb->update('social_stream')
+			->set('root_prim', $qb->createNamedParameter(null))
+			->where($qb->expr()->like('id', $qb->createNamedParameter(self::BASE . '/notes/%')))
+			->orWhere($qb->expr()->eq('id', $qb->createNamedParameter(self::UNADDRESSED)));
+		$qb->executeStatement();
 	}
 
 	/** A chain of eight replies, `chain-1` its root. */
@@ -161,6 +175,7 @@ class ConversationsRequestTest extends TestCase {
 
 	public function testTheRootIsWalkedToSeveralLevelsAStatement(): void {
 		$this->seedChain();
+		$this->forgetRoots();
 
 		$run = QueryCounter::record(fn (): string => $this->conversations->rootOf(self::CHAIN . 8));
 
@@ -177,6 +192,9 @@ class ConversationsRequestTest extends TestCase {
 		$this->note(self::ROOT, self::READER, 'at://did:plc:conversations/app.bsky.feed.post/2');
 
 		$this->assertSame([self::ROOT], array_keys($this->conversations->getAncestorLinks([self::ROOT], 5)));
+		// stored with itself as its root, its parent not being here
+		$this->assertSame(self::ROOT, $this->conversations->rootOf(self::ROOT));
+		$this->forgetRoots();
 		$this->assertSame('at://did:plc:conversations/app.bsky.feed.post/2', $this->conversations->rootOf(self::ROOT));
 	}
 

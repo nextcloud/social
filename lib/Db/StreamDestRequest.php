@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamDest;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -38,6 +39,8 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		private CacheActorsRequest $cacheActorsRequest,
 		ConfigService $configService,
 		MiscService $miscService,
+		private ConversationsRequest $conversationsRequest,
+		private TimelineRevisionService $timelineRevisionService,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
@@ -220,11 +223,14 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 			}
 		}
 
+		$recipients = self::uniqueRecipients(['dm' => $all]);
 		$this->createRecipients(
 			$stream->getId(),
-			array_map(static fn (string $type): array => [$type, ''], self::uniqueRecipients(['dm' => $all])),
+			array_map(static fn (string $type): array => [$type, ''], $recipients),
 			$stream->getNid()
 		);
+		$this->conversationsRequest->storeRoot($stream->getId(), $stream->getInReplyTo());
+		$this->moved(array_keys($recipients), TimelineRevisionService::CONVERSATIONS);
 
 		return true;
 	}
@@ -234,13 +240,27 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 			return false;
 		}
 
+		$recipients = self::uniqueRecipients(['notif' => $stream->getToAll()]);
 		$this->createRecipients(
 			$stream->getId(),
-			array_map(static fn (string $type): array => [$type, ''], self::uniqueRecipients(['notif' => $stream->getToAll()])),
+			array_map(static fn (string $type): array => [$type, ''], $recipients),
 			$stream->getNid()
 		);
+		$this->moved(array_keys($recipients), TimelineRevisionService::NOTIFICATIONS);
 
 		return true;
+	}
+
+	/**
+	 * Moves the badge number of every local account among `$recipients`.
+	 * Inside the post's transaction, so the number is never ahead of the rows.
+	 *
+	 * @param array<array-key, string|int> $recipients actor ids
+	 */
+	private function moved(array $recipients, string $key): void {
+		foreach ($recipients as $actorId) {
+			$this->timelineRevisionService->bumpForActor((string)$actorId, $key);
+		}
 	}
 
 	public function emptyStreamDest(): void {

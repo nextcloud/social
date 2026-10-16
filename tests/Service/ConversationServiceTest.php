@@ -21,7 +21,6 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Conversation;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\CacheActorService;
-use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\ConversationService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TimelineRevisionService;
@@ -48,8 +47,7 @@ class ConversationServiceTest extends TestCase {
 	private ConversationsRequest|Stub $conversationsRequest;
 	private StreamRequest|Stub $streamRequest;
 	private TimelineRevisionService|Stub $timelineRevisionService;
-	private ConfigService|Stub $configService;
-	/** @var array<string, string> the user settings written, by key */
+	/** @var array<string, int> the revisions, by user and key */
 	private array $settings = [];
 
 	/** @var Stream[] what the direct timeline answers, newest first */
@@ -134,12 +132,13 @@ class ConversationServiceTest extends TestCase {
 
 		$this->streamRequest = $this->createStub(StreamRequest::class);
 		$this->timelineRevisionService = $this->createStub(TimelineRevisionService::class);
-		$this->configService = $this->createStub(ConfigService::class);
-		$this->configService->method('getValueForUser')
-			->willReturnCallback(fn (string $userId, string $key): string => $this->settings[$userId . '/' . $key] ?? '');
-		$this->configService->method('setValueForUser')
-			->willReturnCallback(function (string $userId, string $key, string $value): void {
-				$this->settings[$userId . '/' . $key] = $value;
+		$this->timelineRevisionService->method('of')
+			->willReturnCallback(fn (string $userId, string $key = TimelineRevisionService::KEY): int => $this->settings[$userId . '/' . $key] ?? 0);
+		$this->timelineRevisionService->method('bump')
+			->willReturnCallback(function (string $userId, string $key = TimelineRevisionService::KEY): void {
+				if ($userId !== '') {
+					$this->settings[$userId . '/' . $key] = ($this->settings[$userId . '/' . $key] ?? 0) + 1;
+				}
 			});
 
 		$this->conversationsRequest = $this->createStub(ConversationsRequest::class);
@@ -212,7 +211,7 @@ class ConversationServiceTest extends TestCase {
 
 		return new ConversationService(
 			$this->streamService, $this->cacheActorService, $this->conversationsRequest,
-			$this->streamRequest, $this->timelineRevisionService, $this->configService, $container
+			$this->streamRequest, $this->timelineRevisionService, $container
 		);
 	}
 

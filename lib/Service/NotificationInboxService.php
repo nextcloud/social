@@ -197,7 +197,7 @@ class NotificationInboxService {
 	 * moves none of them; what that changes shows with the next notification.
 	 */
 	public function pendingTag(Person $viewer, string $userId): string {
-		return $this->newestNotification($viewer) . '-' . $this->timelineRevisionService->of($userId)
+		return $this->newNotifications($viewer, $userId) . '-' . $this->timelineRevisionService->of($userId)
 			. '-' . md5($this->unreadState($viewer, $userId) . $this->notificationPolicyService->stateOf($userId));
 	}
 
@@ -207,13 +207,19 @@ class NotificationInboxService {
 	 * behind the marker and the muted threads (`unreadState()`).
 	 */
 	public function unreadTag(Person $viewer, string $userId): string {
-		return $this->newestNotification($viewer) . '-' . $this->markerService->lastReadId($userId, self::TIMELINE)
+		return $this->newNotifications($viewer, $userId) . '-' . $this->markerService->lastReadId($userId, self::TIMELINE)
 			. '-' . $this->timelineRevisionService->of($userId) . '-' . $this->unreadState($viewer, $userId);
 	}
 
-	/** The newest notification the viewer was sent, as a nid; one index-only probe. */
-	private function newestNotification(Person $viewer): string {
-		return $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif');
+	/**
+	 * What moves when a notification is stored for the viewer: the newest
+	 * one, as a nid — one index-only probe — and the number moved with each
+	 * one stored (`TimelineRevisionService::NOTIFICATIONS`), as a second in
+	 * the same second can sort below the first and move no newest id.
+	 */
+	private function newNotifications(Person $viewer, string $userId): string {
+		return $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif')
+			. '.' . $this->timelineRevisionService->of($userId, TimelineRevisionService::NOTIFICATIONS);
 	}
 
 	/**

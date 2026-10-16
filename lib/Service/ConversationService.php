@@ -43,12 +43,14 @@ use Throwable;
  *
  * What it costs:
  *
- *  - Grouping is work at read time. A page of conversations is one direct
- *    timeline query plus one query per `ConversationsRequest::ANCESTOR_LEVELS`
- *    levels of `in_reply_to` that the page's messages have above them, up to
- *    `MAX_THREAD_DEPTH` levels. A chat is a chain of replies, each to the
- *    one before, so one longer than that above the window groups under the
- *    topmost message the walk reached, which moves as the chat grows.
+ *  - Grouping is work at read time, but little of it: a direct message
+ *    stores its thread's root when it is stored (`social_stream.root_prim`,
+ *    `ConversationsRequest::storeRoot()`), so a page of conversations is one
+ *    direct timeline query and one for the roots. A chat is a chain of
+ *    replies, each to the one before, and walking it up was a query a level.
+ *    Only messages stored before the roots were — until `Cron\ThreadRoots`
+ *    has reached them — are still walked, a few levels a query up to
+ *    `MAX_THREAD_DEPTH`.
  *  - A thread whose root is not stored here (the exchange started on another
  *    server and this instance was brought in later) groups under the topmost
  *    message it *does* store. If the missing parent arrives afterwards, the
@@ -84,12 +86,6 @@ class ConversationService {
 	public const UNREAD_CAP = 99;
 
 	/**
-	 * Where a number is kept per account that moves whenever it marks a
-	 * conversation read or dismisses one, for the unread count's `ETag`.
-	 */
-	public const REVISION_KEY = 'conversations_revision';
-
-	/**
 	 * How many participants one conversation reports. A direct message can be
 	 * addressed to a crowd, and `accounts` is a header line in every client
 	 * that draws it.
@@ -102,22 +98,23 @@ class ConversationService {
 		private ConversationsRequest $conversationsRequest,
 		private StreamRequest $streamRequest,
 		private TimelineRevisionService $timelineRevisionService,
-		private ConfigService $configService,
 		private ?ContainerInterface $container = null,
 	) {
 	}
 
 	/**
 	 * The `ETag` of the unread count: what `countUnread()` changes with. A
-	 * direct message arriving or sent moves the newest one, marking read or
-	 * dismissing moves this service's revision, and blocking or muting
-	 * somebody moves the timeline revision. One index-only probe and two
-	 * user settings, in place of the walk the count is.
+	 * direct message arriving or sent moves the newest one and the
+	 * conversations' revision (`TimelineRevisionService::CONVERSATIONS`) —
+	 * the revision too, as a second message in the same second can sort
+	 * below the first — marking read or dismissing moves the revision, and
+	 * blocking or muting somebody moves the timeline revision. One
+	 * index-only probe and two user settings, in place of the count.
 	 */
 	public function unreadTag(Person $viewer): string {
 		return $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm')
 			. '-' . $this->timelineRevisionService->of($viewer->getUserId())
-			. '-' . $this->revisionOf($viewer);
+			. '-' . $this->timelineRevisionService->of($viewer->getUserId(), TimelineRevisionService::CONVERSATIONS);
 	}
 
 	/**
@@ -339,27 +336,9 @@ class ConversationService {
 		$this->chatState()?->dismissed($viewer, [$root['id'], $this->newestIdOf($thread)]);
 	}
 
-	private function revisionOf(Person $viewer): int {
-		if ($viewer->getUserId() === '') {
-			return 0;
-		}
-
-		return (int)$this->configService->getValueForUser($viewer->getUserId(), self::REVISION_KEY);
-	}
-
-	/**
-	 * The account marked a conversation read or dismissed one. Not locked:
-	 * two changes racing may end on the same number, which is still not the
-	 * one before either of them.
-	 */
+	/** The account marked a conversation read or dismissed one. */
 	private function changed(Person $viewer): void {
-		if ($viewer->getUserId() === '') {
-			return;
-		}
-
-		$this->configService->setValueForUser(
-			$viewer->getUserId(), self::REVISION_KEY, (string)($this->revisionOf($viewer) + 1)
-		);
+		$this->timelineRevisionService->bump($viewer->getUserId(), TimelineRevisionService::CONVERSATIONS);
 	}
 
 	/**
@@ -447,24 +426,29 @@ class ConversationService {
 	}
 
 	/**
-	 * The same map with every ancestor of its posts added to it.
+	 * The same map with what names the root of each of its posts added to it.
 	 *
-	 * One query for several levels rather than one a post: every parent still
-	 * missing is asked for at once with `ANCESTOR_LEVELS` of its own
-	 * ancestors, and the walk ends when a round adds nothing — which is what
-	 * a thread that starts here, or a parent this instance never stored, both
-	 * look like.
+	 * A direct message stored its thread's root (`ConversationsRequest::storeRoot()`),
+	 * and that is read for the whole map in one statement. Only the posts
+	 * stored before the roots were walk up, a few levels a statement: every
+	 * parent still missing is asked for at once with
+	 * `ConversationsRequest::ANCESTOR_LEVELS` of its own ancestors, an
+	 * ancestor that has a stored root ends its walk there, and the walk ends
+	 * when a round adds nothing — which is what a thread that starts here,
+	 * or a parent this instance never stored, both look like.
 	 *
-	 * @param array<string, array{nid: int|string, inReplyTo: string}> $links
+	 * @param array<string, array{nid: int|string, inReplyTo: string, root?: string}> $links
 	 *
-	 * @return array<string, array{nid: int|string, inReplyTo: string}>
+	 * @return array<string, array{nid: int|string, inReplyTo: string, root?: string}>
 	 */
 	private function withAncestors(array $links): array {
+		$links = $this->withStoredRoots($links, array_keys($links));
+
 		for ($depth = 0; $depth < ConversationsRequest::MAX_THREAD_DEPTH; $depth += ConversationsRequest::ANCESTOR_LEVELS) {
 			$wanted = [];
 			foreach ($links as $link) {
 				$parent = $link['inReplyTo'];
-				if ($parent !== '' && !array_key_exists($parent, $links)) {
+				if (!isset($link['root']) && $parent !== '' && !array_key_exists($parent, $links)) {
 					$wanted[$parent] = $parent;
 				}
 			}
@@ -481,24 +465,55 @@ class ConversationService {
 				break;
 			}
 
+			$rooted = [];
 			foreach ($found as $id => $link) {
 				$links[$id] ??= ['nid' => $link['nid'], 'inReplyTo' => $link['inReplyTo']];
+				if (($link['rootPrim'] ?? '') !== '') {
+					$rooted[] = (string)$id;
+				}
 			}
+			$links = $this->withStoredRoots($links, $rooted);
 		}
 
 		return $links;
 	}
 
 	/**
-	 * The topmost post of the thread `$id` is in, out of what is known about
-	 * it: the first post with no parent, or whose parent is not stored here.
+	 * Marks which of `$ids` have a stored root, and adds those roots.
 	 *
-	 * @param array<string, array{nid: string, inReplyTo: string}> $links
+	 * @param array<string, array{nid: int|string, inReplyTo: string, root?: string}> $links
+	 * @param array<array-key, string|int> $ids
+	 *
+	 * @return array<string, array{nid: int|string, inReplyTo: string, root?: string}>
+	 */
+	private function withStoredRoots(array $links, array $ids): array {
+		if ($ids === []) {
+			return $links;
+		}
+
+		foreach ($this->conversationsRequest->getStoredRoots(array_map('strval', $ids)) as $id => $root) {
+			$links[$root['id']] ??= ['nid' => $root['nid'], 'inReplyTo' => $root['inReplyTo']];
+			$links[$root['id']]['root'] = $root['id'];
+			$links[$id]['root'] = $root['id'];
+		}
+
+		return $links;
+	}
+
+	/**
+	 * The root of the thread `$id` is in, out of what is known about it: the
+	 * root its post stored, or the topmost post the walk reached — the first
+	 * with no parent, or whose parent is not stored here.
+	 *
+	 * @param array<string, array{nid: int|string, inReplyTo: string, root?: string}> $links
 	 */
 	private function rootOf(string $id, array $links): string {
 		$seen = [];
 		while (!array_key_exists($id, $seen)) {
 			$seen[$id] = true;
+			if (isset($links[$id]['root'])) {
+				return $links[$id]['root'];
+			}
 
 			$parent = $links[$id]['inReplyTo'] ?? '';
 			if ($parent === '' || !array_key_exists($parent, $links)) {
