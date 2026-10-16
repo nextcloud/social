@@ -1221,9 +1221,25 @@ describe('ProfileInfo', () => {
 			await input.trigger('change')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Failed to upload banner')
+			expect(showError).toHaveBeenCalledWith({ text: 'Failed to upload banner', details: '' })
 			expect(dispatch).not.toHaveBeenCalled()
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Upload an image').attributes('disabled')).toBeUndefined()
+		})
+
+		it('says how large a banner may be when the server says it was too large', async () => {
+			post.mockRejectedValue({ response: { status: 400, data: { status: -1, error: 'request failed', message: 'That picture is larger than this server accepts (at most 2 MB).', code: 'banner-too-large', limit: '2 MB' } } })
+			const wrapper = mountProfile('alice')
+			await openProfileEditor(wrapper)
+			const input = wrapper.find('input[type="file"]')
+			Object.defineProperty(input.element, 'files', { value: [new File(['x'], 'b.png', { type: 'image/png' })], configurable: true })
+
+			await input.trigger('change')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith({
+				text: 'That picture is larger than this server takes (at most 2 MB). Pick a smaller one.',
+				details: 'That picture is larger than this server accepts (at most 2 MB).',
+			})
 		})
 
 		it('sets the banner from a URL inside the Edit profile dialog', async () => {
@@ -1267,7 +1283,7 @@ describe('ProfileInfo', () => {
 			await buttonByText(wrapper.find('.modal-stub'), 'Apply').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Failed to set banner from URL')
+			expect(showError).toHaveBeenCalledWith({ text: 'Failed to set banner from URL', details: '' })
 			expect(wrapper.find('.modal-stub').exists()).toBe(true)
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Apply').attributes('disabled')).toBeUndefined()
 		})

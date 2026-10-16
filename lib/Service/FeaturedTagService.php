@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Model\Client\FeaturedTag;
 use OCP\IURLGenerator;
 
@@ -98,8 +99,11 @@ class FeaturedTagService {
 		}
 
 		if ($this->featuredTagsRequest->countByActor($actorId) >= self::MAX_FEATURED_TAGS) {
-			throw new InvalidResourceException(
-				'Limit of ' . self::MAX_FEATURED_TAGS . ' featured tags reached'
+			throw new RefusalException(
+				'Limit of ' . self::MAX_FEATURED_TAGS . ' featured tags reached',
+				'featured-tags-full',
+				null,
+				['limit' => self::MAX_FEATURED_TAGS]
 			);
 		}
 

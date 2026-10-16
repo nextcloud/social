@@ -154,7 +154,7 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	private function existingActor(): void {
-		$this->accountService->method('createActor')->willThrowException(new AccountAlreadyExistsException());
+		$this->accountService->method('createActor')->willThrowException(new AccountAlreadyExistsException('account for this user already exist', 'account-exists'));
 	}
 
 	private function serverData(): array {

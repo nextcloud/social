@@ -63,7 +63,7 @@ class VerificationController extends Controller {
 		try {
 			$actor = $this->cacheActorService->resolve($account, true);
 		} catch (Throwable) {
-			return new DataResponse(['error' => 'No account goes by that name'], Http::STATUS_NOT_FOUND);
+			return new DataResponse(['error' => 'No account goes by that name', 'code' => 'account-not-found'], Http::STATUS_NOT_FOUND);
 		}
 		try {
 			$this->verifications->verify($actor, $this->userSession->getUser()?->getUID() ?? '');
@@ -87,7 +87,7 @@ class VerificationController extends Controller {
 			try {
 				$actorId = $this->cacheActorService->resolve($account)->getId();
 			} catch (Throwable) {
-				return new DataResponse(['error' => 'No account goes by that name'], Http::STATUS_NOT_FOUND);
+				return new DataResponse(['error' => 'No account goes by that name', 'code' => 'account-not-found'], Http::STATUS_NOT_FOUND);
 			}
 		}
 		if (!$this->verifications->unverify($actorId)) {

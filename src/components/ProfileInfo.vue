@@ -576,6 +576,7 @@ import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
 import { moderationUrl } from '../services/adminApi.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useAccount } from '../composables/useAccount.js'
@@ -1442,10 +1443,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to upload the banner', { error })
-				await this.showError(this.uploadFailure(
-					error,
-					t('social', 'Failed to upload banner'),
-				))
+				await this.showError(errorOf(error, t('social', 'Failed to upload banner')))
 			} finally {
 				this.loading = false
 				if (event && event.target) {
@@ -1478,32 +1476,10 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to set the banner from a URL', { error })
-				await this.showError(this.uploadFailure(
-					error,
-					t('social', 'Failed to set banner from URL'),
-				))
+				await this.showError(errorOf(error, t('social', 'Failed to set banner from URL')))
 			} finally {
 				this.loadingUrl = false
 			}
-		},
-
-		/**
-		 * What to put on screen when a banner is refused.
-		 *
-		 * The server says why whenever the reason is the reader's to act on --
-		 * the picture is too big for this server, or is not one it can read --
-		 * and that is the whole of what they need. "Failed to upload banner"
-		 * is what is left when the failure was this side's, and says as much
-		 * as it honestly can: it is the fallback, not the answer.
-		 *
-		 * @param {object} error the axios failure
-		 * @param {string} fallback what to say when the server offered nothing
-		 * @return {string} the message to show
-		 */
-		uploadFailure(error, fallback) {
-			const message = error?.response?.data?.message
-
-			return (typeof message === 'string' && message !== '') ? message : fallback
 		},
 
 		// the two wrappers below are what the rest of this component calls; the

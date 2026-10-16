@@ -3,16 +3,19 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { translate as t } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 
 /**
  * What each code of an error says to the person, with what they can do next:
  * the codes of the Bluesky routes (Atproto-Compatibility §13.5: a move, the
- * handle, an app password) and of the Migration routes (API.md, Migration
- * error codes). The server's own sentence is English and names the step that
- * failed, so it is kept for the details.
+ * handle, an app password), of the Migration routes and of the other routes
+ * whose refusal is advice (API.md, Migration error codes and Other refusal
+ * codes). The server's own sentence is English and names the step that
+ * failed, so it is kept for the details. A sentence that needs a number or a
+ * name — a limit, the field refused — reads it from the answer beside the
+ * code.
  *
- * @type {Record<string, () => string>}
+ * @type {Record<string, (said: Record<string, string|number>) => string>}
  */
 const SENTENCES = {
 	'bluesky-off': () => t('social', 'Bluesky is not switched on on this server. Ask your administrator about it.'),
@@ -114,14 +117,44 @@ const SENTENCES = {
 	'video-here-already': () => t('social', 'That video is on this server already. There is nothing to bring over.'),
 	'video-unreachable': () => t('social', 'That address could not be read. Check it, or try again later.'),
 	'video-unsupported': () => t('social', 'That address is not a video that can be brought over.'),
+	'featured-tags-full': (said) => n('social', 'You can feature at most %n hashtag. Remove one first.', 'You can feature at most %n hashtags. Remove one first.', Number(said.limit) || 0),
+	'shorts-full': (said) => n('social', 'You can have at most %n 24-hour short up at a time. Wait for one to run out, or delete one first.', 'You can have at most %n 24-hour shorts up at a time. Wait for one to run out, or delete one first.', Number(said.limit) || 0),
+	'handle-length': (said) => t('social', 'A username can have at most {max} characters. Pick a shorter one.', { max: String(said.max ?? '') }),
+	'handle-characters': () => t('social', 'A username can have letters, numbers and underscores, with dots and dashes in between. Pick another one.'),
+	'handle-other-user': () => t('social', 'That is the user name of another person on this Nextcloud. Pick another one.'),
+	'handle-in-use-here': () => t('social', 'That username is taken. Pick another one.'),
+	'handle-held': () => t('social', 'That username was given up not long ago and is kept free for a while. Pick another one, or try again later.'),
+	'account-exists': () => t('social', 'You have an account here already. Reload the page.'),
+	'email-domain-refused': () => t('social', 'This server does not make accounts for email addresses at your domain. Ask your administrator about it.'),
+	'linked-handle-invalid': () => t('social', 'Write the address of your other account like you@server.example.'),
+	'linked-handle-local': () => t('social', 'That address is on this server. Create an account here instead.'),
+	'banner-too-large': (said) => t('social', 'That picture is larger than this server takes (at most {limit}). Pick a smaller one.', { limit: String(said.limit ?? '') }),
+	'banner-unusable': () => t('social', 'That file cannot be used as a banner. Pick another picture.'),
+	'upload-interrupted': () => t('social', 'The upload did not finish. Try again.'),
+	'setting-not-email': (said) => t('social', '"{field}" has to be an email address.', { field: said.field }),
+	'setting-too-long': (said) => t('social', '"{field}" can have at most {max} characters.', { field: said.field, max: String(said.max ?? '') }),
+	'setting-not-local-account': (said) => t('social', '"{field}" has to be an account on this server.', { field: said.field }),
+	'setting-out-of-range': (said) => t('social', '"{field}" has to be between {min} and {max}.', { field: said.field, min: String(said.min ?? ''), max: String(said.max ?? '') }),
+	'setting-zero-or-range': (said) => t('social', '"{field}" has to be 0, or between {min} and {max}.', { field: said.field, min: String(said.min ?? ''), max: String(said.max ?? '') }),
+	'setting-heights': (said) => t('social', '"{field}" has to list heights between {min} and {max}, separated by commas.', { field: said.field, min: String(said.min ?? ''), max: String(said.max ?? '') }),
+	'setting-not-choice': (said) => t('social', '"{field}" has to be one of: {choices}.', { field: said.field, choices: String(said.choices ?? '') }),
+	'group-unknown': (said) => t('social', 'There is no group "{group}" on this server. Pick another one.', { group: String(said.group ?? '') }),
+	'groups-too-many': (said) => n('social', 'At most %n group can become a list.', 'At most %n groups can become lists.', Number(said.max) || 0),
 }
 
 /**
  * @param {string|null|undefined} code a code the server sends beside its sentence
+ * @param {Record<string, string|number>} [said] the rest of the answer: the numbers and names the sentence needs
+ * @param {Record<string, string>} [labels] what the page calls each field a refusal can name, by the name the server uses
  * @return {string|null} what it means to the person, or null for a code this page does not know
  */
-export function errorSentence(code) {
-	return Object.hasOwn(SENTENCES, code ?? '') ? SENTENCES[code]() : null
+export function errorSentence(code, said = {}, labels = {}) {
+	if (!Object.hasOwn(SENTENCES, code ?? '')) {
+		return null
+	}
+	const field = typeof said?.field === 'string' ? said.field : ''
+
+	return SENTENCES[code]({ ...said, field: Object.hasOwn(labels, field) ? labels[field] : field })
 }
 
 /**
@@ -129,19 +162,21 @@ export function errorSentence(code) {
  *
  * A route that sends no code, or one this page does not know, gets the
  * fallback: a sentence about what the person was doing, in their language.
- * What the server said is kept for the details, as `error` or, on the routes
- * that answer the Mastodon way or from the framework, `message`.
+ * What the server said is kept for the details: `message` where the answer
+ * has one — the framework's own, and the routes whose `error` is a fixed
+ * "request failed" — and `error` otherwise.
  *
  * @param {object} error what axios threw
  * @param {string} fallback what to say when the code is none this page knows
+ * @param {Record<string, string>} [labels] what the page calls each of its fields, by the name the server uses
  * @return {{text: string, details: string}} the sentence, and the server's own words for the details
  */
-export function errorOf(error, fallback) {
+export function errorOf(error, fallback, labels = {}) {
 	const data = error?.response?.data
-	const said = typeof data?.error === 'string' ? data.error : data?.message
+	const said = typeof data?.message === 'string' && data.message !== '' ? data.message : data?.error
 
 	return {
-		text: errorSentence(data?.code) ?? fallback,
+		text: errorSentence(data?.code, data ?? {}, labels) ?? fallback,
 		details: typeof said === 'string' ? said : '',
 	}
 }
@@ -154,7 +189,7 @@ export function errorOf(error, fallback) {
  */
 export function stoppedMoveError(move) {
 	return {
-		text: errorSentence(move?.progress?.code) ?? SENTENCES['move-failed'](),
+		text: errorSentence(move?.progress?.code) ?? SENTENCES['move-failed']({}),
 		details: move?.error ?? '',
 	}
 }

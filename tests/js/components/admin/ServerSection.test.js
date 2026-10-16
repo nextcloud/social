@@ -114,6 +114,16 @@ describe('the server card', () => {
 		expect(showError).toHaveBeenCalledWith({ text: 'Could not save the server settings', details: 'contact_email is not an address' })
 	})
 
+	it('names the refused field by its label, with the range it has to be in', async () => {
+		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'image_quality must be between 40 and 100', code: 'setting-out-of-range', field: 'image_quality', min: 40, max: 100 } } })
+		const wrapper = mountServer()
+
+		await wrapper.vm.save()
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('"Stored at quality" has to be between 40 and 100.')
+	})
+
 	it('falls back to saying it could not save when the server said nothing', async () => {
 		axios.post.mockRejectedValue(new Error('network'))
 		const wrapper = mountServer()

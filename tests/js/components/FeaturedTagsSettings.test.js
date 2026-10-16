@@ -188,15 +188,15 @@ describe('FeaturedTagsSettings', () => {
 	it('asks even when the ceiling is presumably reached, and keeps the reason on the page', async () => {
 		const featured = Array.from({ length: 10 }, (_, i) => featuredTag(String(i + 1), `tag${i}`))
 		const wrapper = await mountEditor({ featured })
-		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'Limit of 10 featured tags reached' } } })
+		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'Limit of 10 featured tags reached', code: 'featured-tags-full', limit: 10 } } })
 
 		await typeTag(wrapper, 'eleven')
 		await submit(wrapper)
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledWith(`${API}/featured_tags`, { name: 'eleven' })
-		expect(showError).toHaveBeenCalledWith({ text: 'Could not feature that hashtag', details: 'Limit of 10 featured tags reached' })
-		expect(wrapper.text()).toContain('Limit of 10 featured tags reached')
+		expect(showError).toHaveBeenCalledWith({ text: 'You can feature at most 10 hashtags. Remove one first.', details: 'Limit of 10 featured tags reached' })
+		expect(wrapper.text()).toContain('You can feature at most 10 hashtags. Remove one first.')
 	})
 
 	it('drops the reason once a tag lands', async () => {

@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Service\SectionsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -53,7 +54,10 @@ class SectionsController extends Controller {
 		try {
 			return new DataResponse($this->sectionsService->save($stories, $photos, $videos, $groupLists));
 		} catch (InvalidArgumentException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(
+				$e instanceof SettingRefusedException ? $e->toArray() : ['error' => $e->getMessage()],
+				Http::STATUS_BAD_REQUEST
+			);
 		}
 	}
 }

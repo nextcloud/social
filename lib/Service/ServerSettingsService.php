@@ -9,9 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use InvalidArgumentException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 
 /**
@@ -167,7 +167,7 @@ class ServerSettingsService {
 	 * @param int $inboxThrottle requests per host per minute, 0 to MAX_INBOX_THROTTLE
 	 *
 	 * @return array what current() answers afterwards
-	 * @throws InvalidArgumentException naming the field that was refused
+	 * @throws SettingRefusedException naming the field that was refused, with its code
 	 */
 	public function save(
 		string $contactEmail,
@@ -190,10 +190,10 @@ class ServerSettingsService {
 	): array {
 		$contactEmail = trim($contactEmail);
 		if ($contactEmail !== '' && filter_var($contactEmail, FILTER_VALIDATE_EMAIL) === false) {
-			throw new InvalidArgumentException('contact_email is not an email address');
+			throw new SettingRefusedException('contact_email is not an email address', 'setting-not-email', null, ['field' => 'contact_email']);
 		}
 		if (strlen($contactEmail) > 255) {
-			throw new InvalidArgumentException('contact_email is too long');
+			throw new SettingRefusedException('contact_email is too long', 'setting-too-long', null, ['field' => 'contact_email', 'max' => 255]);
 		}
 
 		$contactAccount = trim(ltrim(trim($contactAccount), '@'));
@@ -202,47 +202,55 @@ class ServerSettingsService {
 			try {
 				$actor = $this->actorsRequest->getFromUsername($contactAccount);
 			} catch (ActorDoesNotExistException|SocialAppConfigException $e) {
-				throw new InvalidArgumentException('contact_account must be a local Social account', 0, $e);
+				throw new SettingRefusedException('contact_account must be a local Social account', 'setting-not-local-account', $e, ['field' => 'contact_account']);
 			}
 			if (!$actor->isLocal() || $actor->getUserId() === '') {
-				throw new InvalidArgumentException('contact_account must be a local Social account');
+				throw new SettingRefusedException('contact_account must be a local Social account', 'setting-not-local-account', null, ['field' => 'contact_account']);
 			}
 			$contactUserId = $actor->getUserId();
 		}
 
 		$extendedDescription = trim($extendedDescription);
 		if (mb_strlen($extendedDescription) > self::MAX_DESCRIPTION) {
-			throw new InvalidArgumentException(
-				'extended_description is longer than ' . self::MAX_DESCRIPTION . ' characters'
+			throw new SettingRefusedException(
+				'extended_description is longer than ' . self::MAX_DESCRIPTION . ' characters',
+				'setting-too-long', null, ['field' => 'extended_description', 'max' => self::MAX_DESCRIPTION]
 			);
 		}
 
 		if ($maxSize < 1 || $maxSize > self::MAX_SIZE_MB) {
-			throw new InvalidArgumentException('max_size must be between 1 and ' . self::MAX_SIZE_MB . ' MB');
+			throw new SettingRefusedException(
+				'max_size must be between 1 and ' . self::MAX_SIZE_MB . ' MB',
+				'setting-out-of-range', null, ['field' => 'max_size', 'min' => 1, 'max' => self::MAX_SIZE_MB]
+			);
 		}
 		if ($maxVideoSize < 1 || $maxVideoSize > self::MAX_VIDEO_SIZE_MB) {
-			throw new InvalidArgumentException(
-				'max_video_size must be between 1 and ' . self::MAX_VIDEO_SIZE_MB . ' MB'
+			throw new SettingRefusedException(
+				'max_video_size must be between 1 and ' . self::MAX_VIDEO_SIZE_MB . ' MB',
+				'setting-out-of-range', null, ['field' => 'max_video_size', 'min' => 1, 'max' => self::MAX_VIDEO_SIZE_MB]
 			);
 		}
 		// 0 is "store every upload exactly as it arrived", which is the default
 		// and the only value that loses nothing
 		if ($imageMaxEdge !== 0 && ($imageMaxEdge < self::MIN_IMAGE_EDGE || $imageMaxEdge > self::MAX_IMAGE_EDGE)) {
-			throw new InvalidArgumentException(
-				'image_max_edge must be 0, or between ' . self::MIN_IMAGE_EDGE . ' and ' . self::MAX_IMAGE_EDGE . ' pixels'
+			throw new SettingRefusedException(
+				'image_max_edge must be 0, or between ' . self::MIN_IMAGE_EDGE . ' and ' . self::MAX_IMAGE_EDGE . ' pixels',
+				'setting-zero-or-range', null, ['field' => 'image_max_edge', 'min' => self::MIN_IMAGE_EDGE, 'max' => self::MAX_IMAGE_EDGE]
 			);
 		}
 
 		if ($imageQuality < self::MIN_IMAGE_QUALITY || $imageQuality > 100) {
-			throw new InvalidArgumentException(
-				'image_quality must be between ' . self::MIN_IMAGE_QUALITY . ' and 100'
+			throw new SettingRefusedException(
+				'image_quality must be between ' . self::MIN_IMAGE_QUALITY . ' and 100',
+				'setting-out-of-range', null, ['field' => 'image_quality', 'min' => self::MIN_IMAGE_QUALITY, 'max' => 100]
 			);
 		}
 
 		if ($videoMaxHeight < self::MIN_VIDEO_HEIGHT || $videoMaxHeight > self::MAX_VIDEO_HEIGHT) {
-			throw new InvalidArgumentException(
+			throw new SettingRefusedException(
 				'video_max_height must be between ' . self::MIN_VIDEO_HEIGHT
-				. ' and ' . self::MAX_VIDEO_HEIGHT . ' pixels'
+				. ' and ' . self::MAX_VIDEO_HEIGHT . ' pixels',
+				'setting-out-of-range', null, ['field' => 'video_max_height', 'min' => self::MIN_VIDEO_HEIGHT, 'max' => self::MAX_VIDEO_HEIGHT]
 			);
 		}
 
@@ -262,17 +270,20 @@ class ServerSettingsService {
 		$heights = array_values(array_unique($heights));
 		sort($heights);
 		if ($heights === []) {
-			throw new InvalidArgumentException(
+			throw new SettingRefusedException(
 				'video_ladder_heights must be a comma-separated list of heights between '
-				. VideoLadderService::MIN_HEIGHT . ' and ' . VideoLadderService::MAX_HEIGHT
+				. VideoLadderService::MIN_HEIGHT . ' and ' . VideoLadderService::MAX_HEIGHT,
+				'setting-heights', null,
+				['field' => 'video_ladder_heights', 'min' => VideoLadderService::MIN_HEIGHT, 'max' => VideoLadderService::MAX_HEIGHT]
 			);
 		}
 
 		// 0 is "no quota", which is the default and what every instance
 		// running today has in effect
 		if ($videoQuota < 0 || $videoQuota > VideoQuotaService::MAX_QUOTA_MB) {
-			throw new InvalidArgumentException(
-				'video_quota must be 0, or a size in MB up to ' . VideoQuotaService::MAX_QUOTA_MB
+			throw new SettingRefusedException(
+				'video_quota must be 0, or a size in MB up to ' . VideoQuotaService::MAX_QUOTA_MB,
+				'setting-zero-or-range', null, ['field' => 'video_quota', 'min' => 1, 'max' => VideoQuotaService::MAX_QUOTA_MB]
 			);
 		}
 
@@ -281,14 +292,16 @@ class ServerSettingsService {
 		// not one of the three is a client sending something else and not a
 		// person mistyping.
 		if (!in_array($nsfwPolicy, SensitiveMediaService::POLICIES, true)) {
-			throw new InvalidArgumentException(
-				'nsfw_policy must be one of ' . implode(', ', SensitiveMediaService::POLICIES)
+			throw new SettingRefusedException(
+				'nsfw_policy must be one of ' . implode(', ', SensitiveMediaService::POLICIES),
+				'setting-not-choice', null, ['field' => 'nsfw_policy', 'choices' => implode(', ', SensitiveMediaService::POLICIES)]
 			);
 		}
 
 		if ($inboxThrottle < 0 || $inboxThrottle > self::MAX_INBOX_THROTTLE) {
-			throw new InvalidArgumentException(
-				'inbox_throttle must be between 0 and ' . self::MAX_INBOX_THROTTLE
+			throw new SettingRefusedException(
+				'inbox_throttle must be between 0 and ' . self::MAX_INBOX_THROTTLE,
+				'setting-out-of-range', null, ['field' => 'inbox_throttle', 'min' => 0, 'max' => self::MAX_INBOX_THROTTLE]
 			);
 		}
 

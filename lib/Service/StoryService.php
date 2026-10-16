@@ -13,6 +13,7 @@ use OCA\Social\Db\StoriesRequest;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Activity\Add;
@@ -121,8 +122,11 @@ class StoryService {
 		}
 
 		if ($this->storiesRequest->countLiveByActor($owner->getId()) >= Story::MAX_PER_ACTOR) {
-			throw new InvalidResourceException(
-				'this account already has ' . Story::MAX_PER_ACTOR . ' live 24-hour shorts'
+			throw new RefusalException(
+				'this account already has ' . Story::MAX_PER_ACTOR . ' live 24-hour shorts',
+				'shorts-full',
+				null,
+				['limit' => Story::MAX_PER_ACTOR]
 			);
 		}
 

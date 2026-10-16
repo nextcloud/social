@@ -32,7 +32,12 @@ function documentedCodes() {
 
 /** The codes the Migration routes answer with, as API.md lists them. */
 function migrationCodes() {
-	return codesIn('API.md', '#### Migration error codes', '\n### ')
+	return codesIn('API.md', '#### Migration error codes', '#### Other refusal codes')
+}
+
+/** The codes of the other routes whose refusal is advice, as API.md lists them. */
+function otherCodes() {
+	return codesIn('API.md', '#### Other refusal codes', '\n### ')
 }
 
 /** Words a person moving their account should not have to know. */
@@ -54,6 +59,22 @@ describe('errorSentence', () => {
 
 		expect(codes.filter((code) => errorSentence(code) === null)).toEqual([])
 		expect(codes.map((code) => errorSentence(code)).filter((sentence) => JARGON.test(sentence))).toEqual([])
+	})
+
+	it('has a plain sentence for every other refusal code API.md documents', () => {
+		const codes = otherCodes()
+		expect(codes.length).toBeGreaterThan(20)
+
+		expect(codes.filter((code) => errorSentence(code) === null)).toEqual([])
+		expect(codes.map((code) => errorSentence(code)).filter((sentence) => JARGON.test(sentence))).toEqual([])
+	})
+
+	it('keeps the advice: the limit, and the field by the page\'s own name for it', () => {
+		expect(errorSentence('featured-tags-full', { limit: 10 })).toBe('You can feature at most 10 hashtags. Remove one first.')
+		expect(errorSentence('banner-too-large', { limit: '10 MB' })).toBe('That picture is larger than this server takes (at most 10 MB). Pick a smaller one.')
+		expect(errorSentence('setting-out-of-range', { field: 'max_size', min: 1, max: 10240 }, { max_size: 'Largest picture or file (MB)' }))
+			.toBe('"Largest picture or file (MB)" has to be between 1 and 10240.')
+		expect(errorSentence('setting-out-of-range', { field: 'halfLife', min: 7, max: 180 })).toBe('"halfLife" has to be between 7 and 180.')
 	})
 
 	it('says what a Migration refusal means and what to do next', () => {
@@ -96,6 +117,15 @@ describe('errorOf', () => {
 		const error = { response: { status: 422, data: { error: 'Something new', code: 'brand-new' } } }
 
 		expect(errorOf(error, 'Could not start the move')).toEqual({ text: 'Could not start the move', details: 'Something new' })
+	})
+
+	it('reads the numbers a sentence needs from the answer, and the labels from the page', () => {
+		const error = { response: { status: 422, data: { error: 'image_quality must be between 40 and 100', code: 'setting-out-of-range', field: 'image_quality', min: 40, max: 100 } } }
+
+		expect(errorOf(error, 'Could not save the server settings', { image_quality: 'Stored at quality' })).toEqual({
+			text: '"Stored at quality" has to be between 40 and 100.',
+			details: 'image_quality must be between 40 and 100',
+		})
 	})
 
 	it('keeps a message the server sent instead of an error for the details', () => {

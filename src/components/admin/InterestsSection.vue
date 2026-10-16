@@ -208,7 +208,11 @@ export default {
 				}
 				showSuccess(t('social', 'Saved'))
 			} catch (error) {
-				showError(errorOf(error, t('social', 'Could not save the For you settings')))
+				showError(errorOf(
+					error,
+					t('social', 'Could not save the For you settings'),
+					Object.fromEntries(FIELDS.map((field) => [field.key, field.label()])),
+				))
 			} finally {
 				this.saving = false
 			}

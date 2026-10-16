@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use InvalidArgumentException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\SectionsService;
 use OCP\IGroupManager;
@@ -111,8 +112,12 @@ class SectionsServiceTest extends TestCase {
 	 * picked, without saying so, is what all-or-nothing exists to avoid.
 	 */
 	public function testAGroupThatDoesNotExistIsRefused(): void {
-		$this->expectException(InvalidArgumentException::class);
-		$this->service->save(true, true, true, ['design', 'nosuchgroup']);
+		try {
+			$this->service->save(true, true, true, ['design', 'nosuchgroup']);
+			$this->fail('a group that does not exist was saved');
+		} catch (SettingRefusedException $e) {
+			$this->assertSame(['group-unknown', ['group' => 'nosuchgroup']], [$e->errorCode, $e->params]);
+		}
 	}
 
 	public function testNothingIsWrittenWhenOneGroupIsRefused(): void {
@@ -131,8 +136,12 @@ class SectionsServiceTest extends TestCase {
 		}
 		$this->groups = $many;
 
-		$this->expectException(InvalidArgumentException::class);
-		$this->service->save(true, true, true, $many);
+		try {
+			$this->service->save(true, true, true, $many);
+			$this->fail('more groups than may become lists were saved');
+		} catch (SettingRefusedException $e) {
+			$this->assertSame(['groups-too-many', ['max' => SectionsService::MAX_GROUPS]], [$e->errorCode, $e->params]);
+		}
 	}
 
 	/**

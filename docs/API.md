@@ -1068,6 +1068,40 @@ The codes of the routes above, beside the English sentence. A move away that ask
 | `video-unsupported` | The address is not a video that can be brought over | — |
 | `server-error` | Anything else; logged, and answered **500** with a fixed sentence | Try again; ask the administrator if it repeats |
 
+#### Other refusal codes
+
+Routes elsewhere whose refusal is advice — a limit, the field to change — carry a code too, beside the English `error` (or `message`) that API clients keep reading, and the numbers or names the advice needs as fields of their own. The web page says them in the person's language (`src/utils/serverError.js`). A route not listed here answers its refusals with the sentence alone.
+
+| Code | Route | When | Beside it |
+|---|---|---|---|
+| `featured-tags-full` | `POST /api/v1/featured_tags` (**422**) | One past `max_featured_tags` | `limit` |
+| `shorts-full` | `POST /api/v1/stories` (**422**) | The account has as many live 24-hour shorts as it may | `limit` |
+| `handle-length` | `POST /api/v1/account/create` (**422**) | The handle is empty or longer than allowed | `max` |
+| `handle-characters` | `POST /api/v1/account/create` (**422**) | The handle has characters other than letters, digits and `_`, with `.` and `-` inside | — |
+| `handle-other-user` | `POST /api/v1/account/create` (**422**) | The handle is another Nextcloud user's id | — |
+| `handle-in-use-here` | `POST /api/v1/account/create` (**422**) | An actor here holds the handle | — |
+| `handle-held` | `POST /api/v1/account/create` (**422**) | The handle belonged to an account deleted within the retention time | — |
+| `account-exists` | `POST /api/v1/account/create` (**422**) | The user has an account already | — |
+| `email-domain-refused` | `POST /api/v1/account/create` (**422**) | The user's email address is at a domain this server makes no accounts for | — |
+| `linked-handle-invalid` | `POST /api/v1/account/link` (**422**) | What was typed is not `user@server.example` | — |
+| `linked-handle-local` | `POST /api/v1/account/link` (**422**) | The address is on this server | — |
+| `no-file` | `POST /api/v1/banner` (**400**) | No file arrived | — |
+| `upload-interrupted` | `POST /api/v1/banner` (**400**) | The upload did not finish | — |
+| `banner-too-large` | `POST /api/v1/banner` (**400**) | The picture is over the smallest of `upload_max_filesize`, `post_max_size` and the instance's ceiling | `limit` (as people read it, e.g. `10 MB`) |
+| `banner-unusable` | `POST /api/v1/banner` (**400**) | Not a picture, or one of a type refused | — |
+| `setting-not-email` | `POST /admin/server` (**422**) | The field is not an email address | `field` |
+| `setting-too-long` | `POST /admin/server` (**422**) | The field is longer than allowed | `field`, `max` |
+| `setting-not-local-account` | `POST /admin/server` (**422**) | The field does not name a local account | `field` |
+| `setting-out-of-range` | `POST /admin/server` (**422**), `POST /admin/interests` (**400**) | The number is outside its range | `field`, `min`, `max` |
+| `setting-zero-or-range` | `POST /admin/server` (**422**) | The number is neither 0 nor in its range | `field`, `min`, `max` |
+| `setting-heights` | `POST /admin/server` (**422**) | The list of heights has none in range | `field`, `min`, `max` |
+| `setting-not-choice` | `POST /admin/server` (**422**) | The value is not one of the choices | `field`, `choices` |
+| `group-unknown` | `POST /admin/sections` (**400**) | A group id names no group | `group` |
+| `groups-too-many` | `POST /admin/sections` (**400**) | More groups than may become lists | `max` |
+| `account-not-found` | `POST`/`DELETE /moderation/verifications` (**404**) | No account goes by the name | — |
+
+`field` is the parameter's name as the server spells it (`contact_email`, `halfLife`); the page puts its own label for the field in its place.
+
 ### Channels
 
 The `Group` actor a video is published under. PeerTube resolves a video's channel by looking for a `Group` in its `attributedTo` and refuses the video with *"Cannot find associated video channel"* when there is none — so before these existed, every `Video` this app published was thrown away on arrival, silently and in PeerTube's log rather than ours. One is made for an account the first time it posts a video (`PostService::createPost()`), named after the account, so nobody has to learn the word; these routes are for the person who wants a second one or a better name on the first. Client-API routes: the list asks a token for `read:accounts`, and making or changing one for `write:accounts` — a channel is an actor on this instance like the profile is, an address other servers will follow and cache, so a token that may not edit the profile may not mint one either. A public or unlisted video is delivered to the followers of its channel as well as the author's, and so are its edits and its deletion: a PeerTube follows the channel, never the person, and was sent nothing until this was done. A followers-only post never reaches a channel's followers, who have not followed the author.

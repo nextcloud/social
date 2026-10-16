@@ -16,7 +16,7 @@ use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InsufficientScopeException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
-use OCA\Social\Exceptions\MoveErrorException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
@@ -236,7 +236,7 @@ abstract class ClientApiController extends Controller {
 			return new DataResponse(['error' => 'Record not found'], Http::STATUS_NOT_FOUND);
 		}
 
-		if ($e instanceof MoveErrorException) {
+		if ($e instanceof RefusalException) {
 			return new DataResponse($e->toArray(), Http::STATUS_UNPROCESSABLE_ENTITY);
 		}
 

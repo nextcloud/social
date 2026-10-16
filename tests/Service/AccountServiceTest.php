@@ -421,9 +421,7 @@ class AccountServiceTest extends TestCase {
 		$this->actorsRequest->method('getFromUsername')->with('alice')->willReturn($this->alice());
 		$this->actorsRequest->expects($this->never())->method('create');
 
-		$this->expectException(AccountAlreadyExistsException::class);
-		$this->expectExceptionMessage('already exist');
-		$this->service->createActor('bob', 'alice');
+		$this->assertRefusedWith('handle-in-use-here', fn () => $this->service->createActor('bob', 'alice'));
 	}
 
 	public function testCreateActorRefusesAUsernameStillInDeletionRetention(): void {
@@ -432,9 +430,7 @@ class AccountServiceTest extends TestCase {
 		$deleted->setDeleted(time() - 10);
 		$this->actorsRequest->method('getFromUsername')->willReturn($deleted);
 
-		$this->expectException(AccountAlreadyExistsException::class);
-		$this->expectExceptionMessage('retention');
-		$this->service->createActor('bob', 'alice');
+		$this->assertRefusedWith('handle-held', fn () => $this->service->createActor('bob', 'alice'));
 	}
 
 	public function testCreateActorRefusesASecondAccountForTheSameUser(): void {
@@ -443,9 +439,7 @@ class AccountServiceTest extends TestCase {
 		$this->actorsRequest->method('getFromUserId')->with('alice')->willReturn($this->alice());
 		$this->actorsRequest->expects($this->never())->method('create');
 
-		$this->expectException(AccountAlreadyExistsException::class);
-		$this->expectExceptionMessage('account for this user already exist');
-		$this->service->createActor('alice', 'alice2');
+		$this->assertRefusedWith('account-exists', fn () => $this->service->createActor('alice', 'alice2'));
 	}
 
 	public function testDeleteActorMarksDeletesAndBroadcasts(): void {
@@ -1808,6 +1802,33 @@ class AccountServiceTest extends TestCase {
 
 		$this->expectException(AccountAlreadyExistsException::class);
 		$this->service->assertHandleAvailable('alice', 'taken');
+	}
+
+	/** Each refusal of the setup screen carries the code the page explains, and the limit where there is one. */
+	public function testTheHandleRefusalsCarryTheirCodes(): void {
+		$this->userManager->method('userExists')->willReturnCallback(fn (string $uid): bool => $uid === 'bob');
+		$this->actorsRequest->method('getFromUsername')->willReturnCallback(
+			fn (string $username): Person => $username === 'taken' ? new Person() : throw new ActorDoesNotExistException()
+		);
+
+		$this->assertRefusedWith('handle-other-user', fn () => $this->service->assertHandleAvailable('alice', 'bob'));
+		$this->assertRefusedWith('handle-in-use-here', fn () => $this->service->assertHandleAvailable('alice', 'taken'));
+		$this->assertRefusedWith('handle-characters', fn () => $this->service->assertHandleAvailable('alice', 'not a handle'));
+		$tooLong = $this->assertRefusedWith('handle-length', fn () => $this->service->assertHandleAvailable('alice', str_repeat('a', 200)));
+		$this->assertSame(['max' => 64], $tooLong->params);
+		$this->assertRefusedWith('linked-handle-invalid', fn () => $this->service->linkExternalHandle('alice', 'not a handle'));
+	}
+
+	/** @param callable(): mixed $refused */
+	private function assertRefusedWith(string $code, callable $refused): InvalidHandleException|AccountAlreadyExistsException {
+		try {
+			$refused();
+		} catch (InvalidHandleException|AccountAlreadyExistsException $e) {
+			$this->assertSame($code, $e->errorCode);
+
+			return $e;
+		}
+		$this->fail('nothing was refused, expected ' . $code);
 	}
 
 	public function testAHandleThatIsNotOneIsRefusedBeforeAnythingIsLookedUp(): void {

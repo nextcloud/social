@@ -9,9 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
-use InvalidArgumentException;
 use OCA\Social\Controller\ServerSettingsController;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Model\Client\NotificationPolicy;
 use OCA\Social\Model\Relay;
 use OCA\Social\Service\NotificationPolicyService;
@@ -108,12 +108,17 @@ class ServerSettingsControllerTest extends TestCase {
 	 */
 	public function testARefusalNamesTheFieldAndIsAnUnprocessableEntity(): void {
 		$this->serverSettingsService->method('save')
-			->willThrowException(new InvalidArgumentException('max_size must be between 1 and 10240 MB'));
+			->willThrowException(new SettingRefusedException(
+				'max_size must be between 1 and 10240 MB', 'setting-out-of-range', null, ['field' => 'max_size', 'min' => 1, 'max' => 10240]
+			));
 
 		$response = $this->controller->save(maxSize: 0);
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
-		$this->assertSame(['error' => 'max_size must be between 1 and 10240 MB'], $response->getData());
+		$this->assertSame(
+			['error' => 'max_size must be between 1 and 10240 MB', 'code' => 'setting-out-of-range', 'field' => 'max_size', 'min' => 1, 'max' => 10240],
+			$response->getData()
+		);
 	}
 
 	/**

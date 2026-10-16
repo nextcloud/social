@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use InvalidArgumentException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCP\IGroupManager;
 
 /**
@@ -117,7 +118,7 @@ class SectionsService {
 	 * @param string[] $groupLists the Nextcloud groups that become lists
 	 *
 	 * @return array what current() answers afterwards
-	 * @throws InvalidArgumentException naming the field that was refused
+	 * @throws InvalidArgumentException naming the field that was refused; SettingRefusedException with its code
 	 */
 	public function save(bool $stories, bool $photos, bool $videos, array $groupLists): array {
 		$groups = [];
@@ -134,13 +135,15 @@ class SectionsService {
 			// groups somebody picked is the failure this method exists to
 			// avoid
 			if (!$this->groupManager->groupExists($groupId)) {
-				throw new InvalidArgumentException('no such group: ' . $groupId);
+				throw new SettingRefusedException('no such group: ' . $groupId, 'group-unknown', null, ['group' => $groupId]);
 			}
 			$groups[] = $groupId;
 		}
 
 		if (count($groups) > self::MAX_GROUPS) {
-			throw new InvalidArgumentException('at most ' . self::MAX_GROUPS . ' groups may become lists');
+			throw new SettingRefusedException(
+				'at most ' . self::MAX_GROUPS . ' groups may become lists', 'groups-too-many', null, ['max' => self::MAX_GROUPS]
+			);
 		}
 
 		$this->configService->setAppValue(ConfigService::SOCIAL_STORIES, $stories ? '1' : '0');

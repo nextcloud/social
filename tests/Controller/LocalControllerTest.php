@@ -16,6 +16,7 @@ use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\BlockedByException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
+use OCA\Social\Exceptions\CacheContentMimeTypeException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\FollowLimitException;
 use OCA\Social\Exceptions\FollowSameAccountException;
@@ -514,13 +515,26 @@ class LocalControllerTest extends TestCase {
 	public function testAccountCreateSaysWhyAHandleCannotBeHad(): void {
 		// the one failure whose reason is the answer: which handle to try instead
 		$this->accountService->method('assertHandleAvailable')
-			->willThrowException(new AccountAlreadyExistsException('that handle is taken'));
+			->willThrowException(new AccountAlreadyExistsException('that handle is taken', 'handle-in-use-here'));
 		$this->accountService->expects($this->never())->method('createActor');
 
 		$response = $this->controller()->accountCreate('bob');
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
-		$this->assertSame(['status' => -1, 'error' => 'that handle is taken'], $response->getData());
+		$this->assertSame(['status' => -1, 'error' => 'that handle is taken', 'code' => 'handle-in-use-here'], $response->getData());
+	}
+
+	/** The limit the advice names travels beside the code. */
+	public function testAHandleTooLongCarriesTheLimit(): void {
+		$this->accountService->method('assertHandleAvailable')
+			->willThrowException(new InvalidHandleException('a Fediverse handle must be between 1 and 64 characters', 'handle-length', null, ['max' => 64]));
+
+		$response = $this->controller()->accountCreate(str_repeat('b', 80));
+
+		$this->assertSame(
+			['status' => -1, 'error' => 'a Fediverse handle must be between 1 and 64 characters', 'code' => 'handle-length', 'max' => 64],
+			$response->getData()
+		);
 	}
 
 	public function testAccountCreateRequiresALoggedInUser(): void {
@@ -613,12 +627,13 @@ class LocalControllerTest extends TestCase {
 
 	public function testAccountLinkSaysWhatAHandleLooksLike(): void {
 		$this->accountService->method('linkExternalHandle')
-			->willThrowException(new InvalidHandleException('a fediverse account is written user@server.example'));
+			->willThrowException(new InvalidHandleException('a fediverse account is written user@server.example', 'linked-handle-invalid'));
 
 		$response = $this->controller()->accountLink('not a handle');
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
 		$this->assertSame('a fediverse account is written user@server.example', $response->getData()['error']);
+		$this->assertSame('linked-handle-invalid', $response->getData()['code']);
 	}
 
 	// current* / account* / global*
@@ -1022,7 +1037,19 @@ class LocalControllerTest extends TestCase {
 		$_FILES['file'] = ['tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE];
 		$this->accountService->expects($this->never())->method('getActorFromUserId');
 
-		$this->assertRefused($this->controller()->uploadBanner(), 'No file was sent.');
+		$response = $this->controller()->uploadBanner();
+
+		$this->assertRefused($response, 'No file was sent.');
+		$this->assertSame('no-file', $response->getData()['code']);
+	}
+
+	public function testAnUnfinishedBannerUploadSaysToTryAgain(): void {
+		$_FILES['file'] = ['tmp_name' => '', 'error' => UPLOAD_ERR_PARTIAL];
+
+		$response = $this->controller()->uploadBanner();
+
+		$this->assertRefused($response, 'The upload did not finish. Try again.');
+		$this->assertSame('upload-interrupted', $response->getData()['code']);
 	}
 
 	/**
@@ -1041,6 +1068,8 @@ class LocalControllerTest extends TestCase {
 		$this->assertStringContainsString(
 			'larger than this server accepts', $response->getData()['message']
 		);
+		$this->assertSame('banner-too-large', $response->getData()['code']);
+		$this->assertStringContainsString($response->getData()['limit'], $response->getData()['message']);
 	}
 
 	/** @return array<string, array{int}> */
@@ -1099,6 +1128,16 @@ class LocalControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 		$this->assertSame('https://cloud.example/media/1.png', $response->getData()['result']['url']);
+	}
+
+	public function testAFileThatIsNoPictureIsRefusedWithItsCode(): void {
+		$_FILES['file'] = ['tmp_name' => '/tmp/php-upload-1', 'error' => UPLOAD_ERR_OK];
+		$this->bannerService->method('setFromTempFile')->willThrowException(new CacheContentMimeTypeException());
+
+		$response = $this->controller()->uploadBanner();
+
+		$this->assertRefused($response, 'That file cannot be used as a banner.');
+		$this->assertSame('banner-unusable', $response->getData()['code']);
 	}
 
 	public function testUploadBannerByUrlRequiresALoggedInUser(): void {
