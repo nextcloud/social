@@ -8,7 +8,7 @@
 			{{ n('social', '%n picture or video of your posts could not be copied here.', '%n pictures or videos of your posts could not be copied here.', count) }}
 			{{ t('social', 'Your account is not pointed at this server until you decide.') }}
 		</p>
-		<BlueskyError v-if="error" :error="error" />
+		<ServerError v-if="error" :error="error" />
 		<div class="migration__bluesky-missing-actions">
 			<NcButton :disabled="busy" @click="decide(false)">
 				{{ t('social', 'Try copying them again') }}
@@ -36,11 +36,11 @@ import { generateUrl } from '@nextcloud/router'
 import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
-import BlueskyError from './BlueskyError.vue'
+import ServerError from './ServerError.vue'
 import BlueskyMissingRecords from './BlueskyMissingRecords.vue'
 import ConfirmDialog from './admin/ConfirmDialog.vue'
 import { showError } from '../services/toast.js'
-import { blueskyErrorOf } from '../utils/blueskyError.js'
+import { errorOf } from '../utils/serverError.js'
 
 /**
  * A move here that stopped because pictures or videos did not arrive
@@ -52,7 +52,7 @@ export default {
 	name: 'BlueskyMissingBlobs',
 
 	components: {
-		BlueskyError,
+		ServerError,
 		BlueskyMissingRecords,
 		ConfirmDialog,
 		NcButton,
@@ -101,7 +101,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move-in/continue'), { without_missing: withoutMissing })
 				this.$emit('move', data?.move)
 			} catch (error) {
-				const reason = blueskyErrorOf(error, t('social', 'Could not go on with the move'))
+				const reason = errorOf(error, t('social', 'Could not go on with the move'))
 				if (error?.response?.status === 422) {
 					this.error = reason
 				} else {

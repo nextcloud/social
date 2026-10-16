@@ -196,6 +196,7 @@ import { accountHue } from '../services/accountColour.js'
 import logger from '../services/logger.js'
 import { feel } from '../services/senses.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { bakeStickers, cardGradients, findGradient, gradientCss, renderTextCard } from '../utils/textCard.js'
@@ -603,7 +604,7 @@ export default {
 				this.reset()
 			} catch (error) {
 				logger.error('could not post the story', { error })
-				showError(error?.response?.data?.error || t('social', 'The short could not be posted'))
+				showError(errorOf(error, t('social', 'The short could not be posted')))
 			} finally {
 				this.posting = false
 			}

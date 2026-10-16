@@ -89,20 +89,3 @@ export function blueskyUrl(path = '') {
 export function verifierUrl() {
 	return generateUrl('/apps/social/admin/verifications/verifier')
 }
-
-/**
- * What a refused request said, when it said anything.
- *
- * The endpoints of this page answer a 422 with the field they would not take,
- * and swallowing that would leave an administrator with a form that says only
- * "no".
- *
- * @param {{response?: {status?: number, data?: {error?: string}}}} error what axios threw
- * @param {string} fallback what to say when the server said nothing useful
- * @return {string} the message to show
- */
-export function errorMessage(error, fallback) {
-	const said = error?.response?.data?.error
-
-	return typeof said === 'string' && said !== '' ? said : fallback
-}

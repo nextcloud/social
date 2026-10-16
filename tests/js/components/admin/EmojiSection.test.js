@@ -75,7 +75,7 @@ describe('the custom emoji card', () => {
 		wrapper.vm.picture = new File(['x'], 'x.png', { type: 'image/png' })
 		await wrapper.vm.add()
 
-		expect(showError).toHaveBeenCalledWith('a shortcode is 2 to 64 characters')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not add that emoji', details: 'a shortcode is 2 to 64 characters' })
 	})
 
 	it('removes one by its shortcode', async () => {

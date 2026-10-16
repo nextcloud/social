@@ -112,6 +112,7 @@ import IconRss from 'vue-material-design-icons/Rss.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 /** above how many people a follow of everybody is confirmed first */
 export const CONFIRM_ABOVE = 10
@@ -298,7 +299,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Following from the starter pack failed', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not follow from the starter pack'))
+				showError(errorOf(error, t('social', 'Could not follow from the starter pack')))
 			} finally {
 				this.following = false
 			}

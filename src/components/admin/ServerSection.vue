@@ -195,7 +195,8 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import { errorMessage, serverUrl } from '../../services/adminApi.js'
+import { serverUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
 import { showError, showSuccess } from '../../services/toast.js'
 
 /**
@@ -326,7 +327,9 @@ export default {
 				// the endpoint names the field it would not take; it is the one
 				// thing that tells the administrator what to change
 				this.saved = false
-				this.message = errorMessage(error, t('social', 'Could not save the server settings'))
+				const reason = errorOf(error, t('social', 'Could not save the server settings'))
+				this.message = reason.text
+				showError(reason)
 				showError(t('social', 'Could not save the server settings'))
 
 				return false

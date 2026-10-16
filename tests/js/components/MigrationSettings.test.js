@@ -162,7 +162,7 @@ describe('Migration', () => {
 		const wrapper = mountPage()
 		await choose(wrapper, 'archive')
 
-		expect(showError).toHaveBeenCalledWith('this archive holds no Social data')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not import that archive', details: 'this archive holds no Social data' })
 	})
 
 	/** Choosing the same file twice fires no change unless the input is cleared. */
@@ -227,7 +227,7 @@ describe('Migration', () => {
 
 	it('shows the reason the server refuses a move', async () => {
 		serverSays({ moved_to: '', moved_at: null, can_move_at: 0 })
-		axios.post.mockRejectedValue({ response: { data: { error: 'type your own handle, alice@cloud.example, to confirm the move' } } })
+		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'type your own handle, alice@cloud.example, to confirm the move', code: 'confirm-handle' } } })
 
 		const wrapper = mountPage()
 		await flushPromises()
@@ -237,7 +237,10 @@ describe('Migration', () => {
 		await buttonNamed(wrapper, 'Move my followers to the new account').trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('type your own handle, alice@cloud.example, to confirm the move')
+		expect(showError).toHaveBeenCalledWith({
+			text: 'Type your own handle to confirm the move. The details show it.',
+			details: 'type your own handle, alice@cloud.example, to confirm the move',
+		})
 	})
 
 	it('offers to undo a move, and says the followers do not come back', async () => {
@@ -411,7 +414,21 @@ describe('Migration', () => {
 		expect(buttonNamed(wrapper, 'Finish the move from here')).toBeTruthy()
 	})
 
-	it('shows the reason when the old account cannot be found', async () => {
+	it('says in plain words when the old account cannot be found, with the server\'s words behind the details', async () => {
+		axios.post.mockRejectedValue({ response: { status: 422, data: { error: 'no account answers to alice@gone.example: 404', code: 'account-not-found' } } })
+
+		const wrapper = mountPage()
+		await wrapper.find('.migration__move-in-field input').setValue('alice@gone.example')
+		await buttonNamed(wrapper, 'Look it up').trigger('click')
+		await flushPromises()
+
+		expect(showError).toHaveBeenCalledWith({
+			text: 'No account answers to that address. Check it and try again.',
+			details: 'no account answers to alice@gone.example: 404',
+		})
+	})
+
+	it('falls back to its own words for a refusal without a code', async () => {
 		axios.post.mockRejectedValue({ response: { data: { error: 'no account answers to alice@gone.example' } } })
 
 		const wrapper = mountPage()
@@ -419,7 +436,7 @@ describe('Migration', () => {
 		await buttonNamed(wrapper, 'Look it up').trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('no account answers to alice@gone.example')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not find that account', details: 'no account answers to alice@gone.example' })
 	})
 
 	it('queues a follows CSV and shows what the import came to', async () => {
@@ -450,13 +467,28 @@ describe('Migration', () => {
 		expect(axios.get.mock.calls.filter(([url]) => url.endsWith('/migration/imports')).length).toBeGreaterThan(polls)
 	})
 
-	it('refuses to queue the same kind twice and says so', async () => {
-		axios.post.mockRejectedValue({ response: { status: 409, data: { error: 'an import of this kind is already running; wait for it to finish' } } })
+	it('refuses to queue the same kind twice and says what to do', async () => {
+		axios.post.mockRejectedValue({ response: { status: 409, data: { error: 'an import of this kind is already running; wait for it to finish', code: 'import-running' } } })
 
 		const wrapper = mountPage()
 		await choose(wrapper, 'follows', 'following_accounts.csv')
 
-		expect(showError).toHaveBeenCalledWith('an import of this kind is already running; wait for it to finish')
+		expect(showError).toHaveBeenCalledWith({
+			text: 'That is under way already. See how far it got on the list of imports.',
+			details: 'an import of this kind is already running; wait for it to finish',
+		})
+	})
+
+	it('says something went wrong, and nothing more, when the server failed', async () => {
+		axios.post.mockRejectedValue({ response: { status: 500, data: { error: 'Something went wrong on this server', code: 'server-error' } } })
+
+		const wrapper = mountPage()
+		await choose(wrapper, 'follows', 'following_accounts.csv')
+
+		expect(showError).toHaveBeenCalledWith({
+			text: 'Something went wrong on this server. Try again; if it happens again, ask your administrator.',
+			details: 'Something went wrong on this server',
+		})
 	})
 
 	it('dismisses a finished import through its own route', async () => {
@@ -533,7 +565,7 @@ describe('Migration', () => {
 		const wrapper = mountPage()
 		await choose(wrapper, 'posts', 'notes.txt')
 
-		expect(showError).toHaveBeenCalledWith('this file is not the JSON an export is written in')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not start that import', details: 'this file is not the JSON an export is written in' })
 	})
 
 	it('says so when the follows cannot be read', async () => {
@@ -542,7 +574,7 @@ describe('Migration', () => {
 		const wrapper = mountPage()
 		await choose(wrapper, 'follows', 'notes.txt')
 
-		expect(showError).toHaveBeenCalledWith('that is not a CSV')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not start that import', details: 'that is not a CSV' })
 	})
 
 	/**
@@ -686,7 +718,7 @@ describe('Migration', () => {
 		const wrapper = mountPage()
 		await choose(wrapper, 'blocks', 'blocked_accounts.csv')
 
-		expect(showError).toHaveBeenCalledWith('that is not a CSV')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not start that import', details: 'that is not a CSV' })
 	})
 
 	it('downloads one list at a time under the name the server gave it', async () => {
@@ -723,6 +755,6 @@ describe('Migration', () => {
 		await flushPromises()
 
 		const { showError } = await import('../../../src/services/toast.js')
-		expect(showError).toHaveBeenCalledWith('that is not an actor id')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not add the alias', details: 'that is not an actor id' })
 	})
 })

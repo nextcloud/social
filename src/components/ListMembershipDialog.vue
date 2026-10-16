@@ -39,6 +39,7 @@ import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 /**
  * Which of the reader's lists one account is in, as a row of boxes: "Add to
@@ -155,7 +156,7 @@ export default {
 				logger.error('Failed to change the list membership', { error })
 				showError(error?.response?.status === 404
 					? t('social', 'You can only add people you follow to a list')
-					: (error?.response?.data?.error || t('social', 'Could not change the list')))
+					: errorOf(error, t('social', 'Could not change the list')))
 			} finally {
 				this.busy = this.busy.filter((entry) => entry !== id)
 			}

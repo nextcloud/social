@@ -58,6 +58,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { moderationUrl } from '../../services/adminApi.js'
 import { showError } from '../../services/toast.js'
+import { errorOf } from '../../utils/serverError.js'
 
 /** The curated half of Explore. */
 export default {
@@ -109,7 +110,7 @@ export default {
 				this.name = ''
 				this.hashtags = ''
 			} catch (error) {
-				showError(error.response?.data?.error ?? t('social', 'Could not add that subject'))
+				showError(errorOf(error, t('social', 'Could not add that subject')))
 			} finally {
 				this.busy = false
 			}

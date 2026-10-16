@@ -162,7 +162,7 @@ describe('StarterPackDetail', () => {
 		await followAllButton(wrapper).trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('Could not follow from the starter pack')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not follow from the starter pack', details: '' })
 		expect(followAllButton(wrapper).attributes('disabled')).toBeUndefined()
 	})
 

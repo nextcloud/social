@@ -111,7 +111,7 @@ describe('the rules card', () => {
 	})
 
 	describe('when it does not go through', () => {
-		it('says what the server said, and keeps what was typed', async () => {
+		it('says so, keeps what the server said behind the details, and keeps what was typed', async () => {
 			post.mockRejectedValue({ response: { data: { error: 'A rule is longer than the limit' } } })
 			const wrapper = await mountCard()
 			await field(wrapper).setValue('a very long rule')
@@ -119,8 +119,8 @@ describe('the rules card', () => {
 			saveButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(wrapper.find('.social-admin__hint').text()).toBe('A rule is longer than the limit')
-			expect(showError).toHaveBeenCalledWith('A rule is longer than the limit')
+			expect(wrapper.find('.social-admin__hint').text()).toBe('Could not save the rules')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save the rules', details: 'A rule is longer than the limit' })
 			expect(field(wrapper).element.value).toBe('a very long rule')
 		})
 

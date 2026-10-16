@@ -457,7 +457,7 @@ describe('account store actions', () => {
 
 			await expect(store.updateCredentials({ display_name: 'Alice A.' })).resolves.toBeUndefined()
 
-			expect(showError).toHaveBeenCalledWith('Your name is set elsewhere')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save your account settings', details: 'Your name is set elsewhere' })
 		})
 
 		it('keeps nothing from an answer that is not an account', () => {

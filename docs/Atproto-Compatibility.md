@@ -1906,7 +1906,7 @@ phrase, custom handle (§4.2), app passwords (§6.3), `control` (§4.5b),
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
 explains the code in the person's language, with what they can do next
-(`src/utils/blueskyError.js`), and a code it does not know with a general
+(`src/utils/serverError.js`), and a code it does not know with a general
 sentence; the English sentence is for logs and older clients, and the page
 keeps it behind *Details* for whoever helps the person.
 

@@ -5,6 +5,7 @@
 
 import axios from '@nextcloud/axios'
 import { showError, showInfo, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { translate as t } from '@nextcloud/l10n'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
@@ -1283,13 +1284,8 @@ export const useTimelineStore = defineStore('timeline', {
 				return data
 			} catch (error) {
 				// a refusal says why — too large, a kind the server does not
-				// take — and the reason is worth more than a fixed line; a
-				// network failure or a 5xx has no reason worth repeating
-				const status = error.response?.status ?? 0
-				const reason = error.response?.data?.error
-				showError(status >= 400 && status < 500 && typeof reason === 'string' && reason !== ''
-					? reason
-					: t('social', 'Could not upload the attachment'))
+				// take — and that stays behind "Details"
+				showError(errorOf(error, t('social', 'Could not upload the attachment')))
 				logger.error('Failed to create a media', { error })
 			}
 		},

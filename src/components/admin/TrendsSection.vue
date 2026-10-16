@@ -84,6 +84,7 @@ import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { moderationUrl } from '../../services/adminApi.js'
 import { showError } from '../../services/toast.js'
+import { errorOf } from '../../utils/serverError.js'
 
 /**
  * Keeping something out of what is trending.
@@ -182,7 +183,7 @@ export default {
 				const { data } = await axios.post(moderationUrl('/trends'), { kind, ref })
 				this.apply(data)
 			} catch (error) {
-				showError(error.response?.data?.error ?? t('social', 'Could not keep that out'))
+				showError(errorOf(error, t('social', 'Could not keep that out')))
 			} finally {
 				this.busy = false
 			}

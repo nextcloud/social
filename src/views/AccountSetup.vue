@@ -165,7 +165,7 @@
 						maxlength="64"
 						pattern="[A-Za-z0-9_]+([A-Za-z0-9_.\-]*[A-Za-z0-9_])?"
 						aria-describedby="account-setup-address"
-						:aria-invalid="createError !== ''"
+						:aria-invalid="createError !== null"
 						:disabled="busy !== ''"
 						required>
 					<!-- the address as it is typed, not on the way out: the choice
@@ -185,9 +185,7 @@
 					<p v-if="blueskyEnabled" class="account-setup__hint">
 						{{ t('social', 'A Bluesky address has only small letters, numbers and dashes, so yours is written as shown. If another account here already has it, a number is added to it.') }}
 					</p>
-					<p v-if="createError" class="account-setup__error" role="alert">
-						{{ createError }}
-					</p>
+					<ServerError v-if="createError" class="account-setup__error" :error="createError" />
 					<NcButton type="submit" variant="primary" :disabled="busy !== '' || handle === ''">
 						<template #icon>
 							<NcLoadingIcon v-if="busy === 'create'" :size="20" />
@@ -215,11 +213,9 @@
 						autocomplete="off"
 						spellcheck="false"
 						placeholder="you@mastodon.social"
-						:aria-invalid="linkError !== ''"
+						:aria-invalid="linkError !== null"
 						:disabled="busy !== ''">
-					<p v-if="linkError" class="account-setup__error" role="alert">
-						{{ linkError }}
-					</p>
+					<ServerError v-if="linkError" class="account-setup__error" :error="linkError" />
 					<NcButton type="submit" variant="secondary" :disabled="busy !== '' || linked === ''">
 						<template #icon>
 							<NcLoadingIcon v-if="busy === 'link'" :size="20" />
@@ -248,9 +244,11 @@ import IconCheck from 'vue-material-design-icons/Check.vue'
 import IconLinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import IconSwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
 import IconWeb from 'vue-material-design-icons/Web.vue'
+import ServerError from '../components/ServerError.vue'
 import logger from '../services/logger.js'
 import { useServerData } from '../composables/useServerData.js'
 import { blueskyHandle } from '../utils/blueskyHandle.js'
+import { errorOf } from '../utils/serverError.js'
 
 export default {
 	name: 'AccountSetup',
@@ -263,6 +261,7 @@ export default {
 		IconWeb,
 		NcButton,
 		NcLoadingIcon,
+		ServerError,
 	},
 
 	emits: ['created'],
@@ -297,8 +296,10 @@ export default {
 			mode: 'create',
 			/** which of the two forms is talking to the server: 'create', 'link' or '' */
 			busy: '',
-			createError: '',
-			linkError: '',
+			/** @type {{text: string, details: string}|null} */
+			createError: null,
+			/** @type {{text: string, details: string}|null} */
+			linkError: null,
 		}
 	},
 
@@ -360,8 +361,8 @@ export default {
 		 */
 		choose(mode) {
 			this.mode = mode
-			this.createError = ''
-			this.linkError = ''
+			this.createError = null
+			this.linkError = null
 		},
 
 		/**
@@ -381,13 +382,13 @@ export default {
 		 */
 		async create() {
 			this.busy = 'create'
-			this.createError = ''
+			this.createError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/account/create'), { username: this.handle })
 				this.$emit('created', data?.result?.account ?? null)
 			} catch (error) {
 				logger.warn('Could not create the account', { error })
-				this.createError = error?.response?.data?.error || t('social', 'Could not create the account')
+				this.createError = errorOf(error, t('social', 'Could not create the account'))
 			} finally {
 				this.busy = ''
 			}
@@ -400,14 +401,14 @@ export default {
 		 */
 		async link() {
 			this.busy = 'link'
-			this.linkError = ''
+			this.linkError = null
 			try {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/account/link'), { handle: this.linked })
 				this.linkedNow = data?.result?.handle ?? this.linked
 				this.linkedBefore = this.linkedNow
 			} catch (error) {
 				logger.warn('Could not put the account on the profile', { error })
-				this.linkError = error?.response?.data?.error || t('social', 'Could not save that')
+				this.linkError = errorOf(error, t('social', 'Could not save that'))
 			} finally {
 				this.busy = ''
 			}
@@ -705,7 +706,6 @@ export default {
 
 	&__error {
 		margin: 0;
-		color: var(--color-error-text);
 	}
 
 	&__linked p {

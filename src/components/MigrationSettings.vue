@@ -524,6 +524,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { confirmPassword } from '../services/externalApi.js'
 import BlueskyMoveAway from './BlueskyMoveAway.vue'
 import BlueskyMoveIn from './BlueskyMoveIn.vue'
@@ -696,7 +697,7 @@ export default {
 				this.moveFollows = Boolean(data.account?.following?.readable)
 				this.movePosts = Boolean(data.account?.posts?.readable)
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not find that account'))
+				showError(errorOf(error, t('social', 'Could not find that account')))
 			} finally {
 				this.moveInspecting = false
 			}
@@ -750,7 +751,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/migration/move-in/finish'), { handle: '@' + from })
 				this.leaveFor(data.authorize_url)
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not start the move'))
+				showError(errorOf(error, t('social', 'Could not start the move')))
 				this.finishing = false
 			}
 		},
@@ -802,7 +803,7 @@ export default {
 
 				return true
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not start the move'))
+				showError(errorOf(error, t('social', 'Could not start the move')))
 
 				return false
 			} finally {
@@ -846,7 +847,7 @@ export default {
 				this.moveConfirm = ''
 				showSuccess(t('social', 'Your followers are being told to follow {target}', { target: data?.target?.acct ?? data?.moved_to ?? '' }))
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not move the account'))
+				showError(errorOf(error, t('social', 'Could not move the account')))
 			} finally {
 				this.moveOutBusy = false
 			}
@@ -869,7 +870,7 @@ export default {
 				this.moveStatus = data
 				showSuccess(t('social', 'This account is no longer marked as moved'))
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not undo the move'))
+				showError(errorOf(error, t('social', 'Could not undo the move')))
 			} finally {
 				this.moveOutBusy = false
 			}
@@ -933,9 +934,7 @@ export default {
 				this.aliasInput = ''
 				showSuccess(t('social', 'This account now says it is also that one'))
 			} catch (error) {
-				// the server refuses an address that is not an account's own,
-				// and says which; that sentence is the whole of the help there is
-				showError(error.response?.data?.error ?? t('social', 'Could not add the alias'))
+				showError(errorOf(error, t('social', 'Could not add the alias')))
 			} finally {
 				this.aliasBusy = false
 			}
@@ -953,8 +952,8 @@ export default {
 					{ data: { alias } },
 				)
 				this.aliases = data.aliases
-			} catch {
-				showError(t('social', 'Could not remove the alias'))
+			} catch (error) {
+				showError(errorOf(error, t('social', 'Could not remove the alias')))
 			} finally {
 				this.aliasBusy = false
 			}
@@ -1025,7 +1024,7 @@ export default {
 				showSuccess(t('social', 'Your archive has been imported'))
 			} catch (error) {
 				logger.error('The import failed', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not import that archive'))
+				showError(errorOf(error, t('social', 'Could not import that archive')))
 			} finally {
 				this.importing = false
 				// cleared, or choosing the same file twice fires no change
@@ -1150,7 +1149,7 @@ export default {
 				this.schedulePoll()
 			} catch (error) {
 				logger.error('Queueing an import failed', { error, kind })
-				showError(error?.response?.data?.error || t('social', 'Could not start that import'))
+				showError(errorOf(error, t('social', 'Could not start that import')))
 			} finally {
 				// cleared, or choosing the same file twice fires no change
 				if (input) {
@@ -1191,8 +1190,8 @@ export default {
 			try {
 				const { data } = await axios.delete(generateUrl('apps/social/api/v1/migration/imports/{id}', { id }))
 				this.imports = Array.isArray(data?.imports) ? data.imports : this.imports.filter((job) => job.id !== id)
-			} catch {
-				showError(t('social', 'Could not dismiss that import'))
+			} catch (error) {
+				showError(errorOf(error, t('social', 'Could not dismiss that import')))
 			}
 		},
 

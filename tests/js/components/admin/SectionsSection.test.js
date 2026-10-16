@@ -197,7 +197,7 @@ describe('the sections card', () => {
 			saveButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('staff is not a group on this server')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save what this instance offers', details: 'staff is not a group on this server' })
 		})
 
 		it('says something when the server said nothing', async () => {
@@ -207,7 +207,7 @@ describe('the sections card', () => {
 			saveButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Could not save what this instance offers')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save what this instance offers', details: '' })
 			expect(saveButton(wrapper).props('disabled')).toBe(false)
 		})
 	})

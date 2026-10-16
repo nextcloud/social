@@ -84,6 +84,7 @@ import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { fullDateTime } from '../utils/relativeTime.js'
 import { isTooSoon } from '../utils/schedule.js'
 import { isNewerId } from '../utils/snowflake.js'
@@ -300,7 +301,7 @@ export default {
 				showSuccess(t('social', 'Moved to {date}', { date: fullDateTime(moved.scheduled_at) }))
 			} catch (error) {
 				logger.error('Failed to reschedule a post', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not change the time of the scheduled post'))
+				showError(errorOf(error, t('social', 'Could not change the time of the scheduled post')))
 			} finally {
 				this.rescheduling = false
 			}

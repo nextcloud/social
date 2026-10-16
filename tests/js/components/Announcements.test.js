@@ -176,7 +176,7 @@ describe('the announcements above the timeline', () => {
 			await wrapper.find('.announcement__dismiss').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Record not found')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not dismiss that announcement', details: 'Record not found' })
 			expect(wrapper.find('.announcement--read').exists()).toBe(false)
 		})
 	})
@@ -262,7 +262,7 @@ describe('the announcements above the timeline', () => {
 			await wrapper.vm.send(wrapper.vm.announcements[0], '🐧', true)
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('an account may put at most 8 reactions on one announcement')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not add that reaction', details: 'an account may put at most 8 reactions on one announcement' })
 			expect(reactions(wrapper)).toHaveLength(0)
 		})
 

@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Move\FollowFrom;
 use OCA\Social\Cron\RunImport;
 use OCA\Social\Db\ImportsRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ImportJob;
 use OCA\Social\Service\AccountService;
@@ -173,8 +174,12 @@ class ImportQueueServiceTest extends TestCase {
 		$this->importsRequest->method('hasActive')->with('alice', ImportJob::KIND_POSTS)->willReturn(true);
 		$this->jobList->expects($this->never())->method('add');
 
-		$this->expectException(InvalidResourceException::class);
-		$this->service->queue('alice', ImportJob::KIND_POSTS, null, []);
+		try {
+			$this->service->queue('alice', ImportJob::KIND_POSTS, null, []);
+			$this->fail('a second import of the kind was queued');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('import-running', $e->errorCode);
+		}
 	}
 
 	public function testQueueRefusesAKindItDoesNotRun(): void {

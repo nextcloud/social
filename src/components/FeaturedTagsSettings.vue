@@ -80,8 +80,8 @@
 			     Its reason stays on the page rather than only in a toast: the
 			     way out of "you already feature ten" is to remove one of the
 			     rows above, and a message that has faded cannot say so. -->
-			<NcNoteCard v-if="refusal !== ''" type="warning">
-				{{ refusal }}
+			<NcNoteCard v-if="refusal" type="warning">
+				<ServerError :error="refusal" :alert="false" />
 			</NcNoteCard>
 		</template>
 	</div>
@@ -99,6 +99,8 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
+import ServerError from './ServerError.vue'
 import { tagStyle } from '../utils/tagColour.js'
 
 /** The width of `social_featured_tag.hashtag`; `FeaturedTagsRequest::MAX_HASHTAG_LENGTH`. */
@@ -147,6 +149,7 @@ export default {
 		NcLoadingIcon,
 		NcNoteCard,
 		NcTextField,
+		ServerError,
 	},
 
 	data() {
@@ -159,8 +162,8 @@ export default {
 			/** whether a request that changes the list is in flight */
 			busy: false,
 			newTag: '',
-			/** why the server last refused a tag, kept in view until one lands */
-			refusal: '',
+			/** @type {{text: string, details: string}|null} why the server last refused a tag, kept in view until one lands */
+			refusal: null,
 		}
 	},
 
@@ -263,14 +266,13 @@ export default {
 				if (name === this.newTag) {
 					this.newTag = ''
 				}
-				this.refusal = ''
+				this.refusal = null
 				showSuccess(t('social', '#{tag} is now featured on your profile', { tag: data.name }))
 			} catch (error) {
 				logger.error('Failed to feature the hashtag', { error })
-				const message = error?.response?.data?.error
-					|| t('social', 'Could not feature that hashtag')
-				this.refusal = message
-				showError(message)
+				const reason = errorOf(error, t('social', 'Could not feature that hashtag'))
+				this.refusal = reason
+				showError(reason)
 			} finally {
 				this.busy = false
 			}
@@ -285,15 +287,14 @@ export default {
 			try {
 				await axios.delete(generateUrl(`apps/social/api/v1/featured_tags/${tag.id}`))
 				this.featured = this.featured.filter((entry) => entry.id !== tag.id)
-				this.refusal = ''
+				this.refusal = null
 				showSuccess(t('social', '#{tag} is no longer featured', { tag: tag.name }))
 				// it can be suggested again now, and the server decides whether
 				// it is worth suggesting
 				await this.fetchSuggestions()
 			} catch (error) {
 				logger.error('Failed to stop featuring the hashtag', { error })
-				showError(error?.response?.data?.error
-					|| t('social', 'Could not stop featuring #{tag}', { tag: tag.name }))
+				showError(errorOf(error, t('social', 'Could not stop featuring #{tag}', { tag: tag.name })))
 			} finally {
 				this.busy = false
 			}

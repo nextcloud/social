@@ -80,7 +80,7 @@ describe('the refused pictures section', () => {
 		await flushPromises()
 
 		const { showError } = await import('../../../../src/services/toast.js')
-		expect(showError).toHaveBeenCalledWith('that is not a sha256 hash')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not refuse that file', details: 'that is not a sha256 hash' })
 	})
 
 	describe('more than one page', () => {

@@ -176,6 +176,7 @@ import ActorAvatar from '../components/ActorAvatar.vue'
 import ProfileMediaGrid from '../components/ProfileMediaGrid.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useAccountStore } from '../store/account.js'
 import { latestLoad } from '../utils/latestLoad.js'
 
@@ -395,7 +396,7 @@ export default {
 				showSuccess(t('social', 'Collection saved'))
 			} catch (error) {
 				logger.error('could not save the collection', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not save the collection'))
+				showError(errorOf(error, t('social', 'Could not save the collection')))
 			} finally {
 				this.saving = false
 			}

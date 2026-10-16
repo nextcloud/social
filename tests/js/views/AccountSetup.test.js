@@ -185,7 +185,8 @@ describe('AccountSetup', () => {
 		await wrapper.find('form.account-setup__form').trigger('submit')
 		await flushPromises()
 
-		expect(wrapper.find('.account-setup__error').text()).toBe('that handle is taken')
+		expect(wrapper.find('.account-setup__error p').text()).toBe('Could not create the account')
+		expect(wrapper.find('.account-setup__error code').text()).toBe('that handle is taken')
 		expect(wrapper.emitted('created')).toBeUndefined()
 		expect(handleInput(wrapper).element.disabled).toBe(false)
 		expect(handleInput(wrapper).attributes('aria-invalid')).toBe('true')
@@ -267,7 +268,7 @@ describe('AccountSetup', () => {
 
 		await wrapper.find('form.account-setup__form').trigger('submit')
 		await flushPromises()
-		expect(wrapper.find('.account-setup__error').text()).toBe('that handle is taken')
+		expect(wrapper.find('.account-setup__error code').text()).toBe('that handle is taken')
 
 		await linkModeButton(wrapper).trigger('click')
 		await createModeButton(wrapper).trigger('click')

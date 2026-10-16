@@ -160,7 +160,7 @@ describe('the Explore subjects card', () => {
 			addButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('That subject already exists')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not add that subject', details: 'That subject already exists' })
 		})
 
 		/** What was typed stays where it is, to be tried again or corrected. */
@@ -172,7 +172,7 @@ describe('the Explore subjects card', () => {
 			addButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Could not add that subject')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not add that subject', details: '' })
 			expect(nameField(wrapper).element.value).toBe('Architecture')
 		})
 

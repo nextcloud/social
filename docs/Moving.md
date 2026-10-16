@@ -97,6 +97,12 @@ Take an export from the same page first if you want a copy of everything.
 An administrator can move an account for somebody with
 `occ social:account:move`, which skips the thirty days.
 
+**When a step is refused**, the page says why in your language and what to
+do next: the old account cannot be found, the new one does not name this one
+yet, an import of that kind is still running. The server's own words, in
+English, are behind *Details*, for whoever helps you. The codes behind those
+sentences are listed in the [API reference](API.md#migration-error-codes).
+
 ## Your Bluesky account
 
 If this server puts you on Bluesky too, your Bluesky account is a second

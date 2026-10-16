@@ -7,6 +7,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
 import SwitchWizard from '../../../src/views/SwitchWizard.vue'
+import { showError } from '../../../src/services/toast.js'
 
 vi.mock('@nextcloud/axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../../../src/services/logger.js', () => ({
@@ -108,6 +109,25 @@ describe('SwitchWizard', () => {
 
 		expect(axios.post.mock.calls[0][0]).toContain('/migration/posts')
 		expect(wrapper.text()).toContain('Brought over 412 posts.')
+	})
+
+	it('says why an archive was refused in plain words, with the server\'s behind the details', async () => {
+		const wrapper = await mountWizard()
+		await pick(wrapper, 'X')
+		axios.post.mockRejectedValue({ response: { status: 413, data: { error: 'this file is larger than 100 MB', code: 'file-too-large' } } })
+
+		const input = wrapper.find('input[type="file"]')
+		Object.defineProperty(input.element, 'files', {
+			value: [new File(['zip'], 'twitter.zip')],
+			configurable: true,
+		})
+		await input.trigger('change')
+		await flushPromises()
+
+		expect(showError).toHaveBeenCalledWith({
+			text: 'That file is larger than this server takes. The details say how large it may be; ask your administrator about a larger one.',
+			details: 'this file is larger than 100 MB',
+		})
 	})
 
 	/**

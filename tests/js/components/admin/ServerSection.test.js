@@ -8,6 +8,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import axios from '@nextcloud/axios'
 
 import ServerSection from '../../../../src/components/admin/ServerSection.vue'
+import { showError } from '../../../../src/services/toast.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
@@ -100,7 +101,7 @@ describe('the server card', () => {
 		expect(wrapper.text()).toContain('Saved')
 	})
 
-	it('repeats the field the endpoint would not take', async () => {
+	it('says so, with the field the endpoint would not take behind the details', async () => {
 		axios.post.mockRejectedValue({ response: { data: { error: 'contact_email is not an address' } } })
 		const wrapper = mountServer()
 
@@ -109,7 +110,8 @@ describe('the server card', () => {
 
 		// the endpoint names the field; it is the one thing that tells an
 		// administrator what to change
-		expect(wrapper.text()).toContain('contact_email is not an address')
+		expect(wrapper.text()).toContain('Could not save the server settings')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not save the server settings', details: 'contact_email is not an address' })
 	})
 
 	it('falls back to saying it could not save when the server said nothing', async () => {

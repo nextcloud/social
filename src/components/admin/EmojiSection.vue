@@ -71,6 +71,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { moderationUrl } from '../../services/adminApi.js'
 import { showError, showSuccess } from '../../services/toast.js'
+import { errorOf } from '../../utils/serverError.js'
 
 /**
  * The instance's own emoji.
@@ -160,7 +161,7 @@ export default {
 				this.pictureName = ''
 				showSuccess(t('social', 'Added'))
 			} catch (error) {
-				showError(error.response?.data?.error ?? t('social', 'Could not add that emoji'))
+				showError(errorOf(error, t('social', 'Could not add that emoji')))
 			} finally {
 				this.busy = false
 			}

@@ -6,10 +6,11 @@
 import { translate as t } from '@nextcloud/l10n'
 
 /**
- * What each code of an error of the Bluesky routes (Atproto-Compatibility
- * §13.5: a move, the handle, an app password) says to the person, with what
- * they can do next. The server's own sentence is English and names the step
- * that failed, so it is kept for the details.
+ * What each code of an error says to the person, with what they can do next:
+ * the codes of the Bluesky routes (Atproto-Compatibility §13.5: a move, the
+ * handle, an app password) and of the Migration routes (API.md, Migration
+ * error codes). The server's own sentence is English and names the step that
+ * failed, so it is kept for the details.
  *
  * @type {Record<string, () => string>}
  */
@@ -89,29 +90,59 @@ const SENTENCES = {
 	'app-password-name-invalid': () => t('social', 'Give the app password a name of up to 64 characters.'),
 	'app-password-name-taken': () => t('social', 'You have an app password with that name already. Pick another name.'),
 	'app-password-limit': () => t('social', 'You have as many app passwords as you can have. Revoke one you no longer use first.'),
+	'not-signed-in': () => t('social', 'You are not signed in any more. Reload the page, sign in and try again.'),
+	'no-file': () => t('social', 'No file arrived. Pick the file again and try again.'),
+	'file-too-large': () => t('social', 'That file is larger than this server takes. The details say how large it may be; ask your administrator about a larger one.'),
+	'file-unreadable': () => t('social', 'That file could not be read. Pick it again and try again.'),
+	'archive-unreadable': () => t('social', 'That file is not an archive this page can read. Pick the zip file the export made.'),
+	'archive-not-social': () => t('social', 'That archive holds no account of this app. Pick the zip file the export made.'),
+	'import-running': () => t('social', 'That is under way already. See how far it got on the list of imports.'),
+	'import-not-found': () => t('social', 'That import cannot be taken off the list now. Reload the page to see where it stands.'),
+	'list-unknown': () => t('social', 'There is no such list to download.'),
+	'no-account': () => t('social', 'You have no account here yet. Make one first.'),
+	'account-address-invalid': () => t('social', 'That is not an account address. Type it like @you@example.social.'),
+	'account-not-found': () => t('social', 'No account answers to that address. Check it and try again.'),
+	'account-not-verifiable': () => t('social', 'That server only answers servers it can check, and it could not check this one. Ask your administrator to make this server reachable from the internet.'),
+	'alias-self': () => t('social', 'That is this account itself. Type the address of your other account.'),
+	'confirm-handle': () => t('social', 'Type your own handle to confirm the move. The details show it.'),
+	'move-cooldown': () => t('social', 'This account moved not long ago. The details say when it can move again.'),
+	'move-onto-self': () => t('social', 'An account cannot move onto itself. Type the address of your new account.'),
+	'alias-missing': () => t('social', 'Your new account does not name this one yet. Add this account as an alias on the new account first, then try again.'),
+	'finish-not-possible': () => t('social', 'The last step cannot be done from here for that server. Finish the move there, with its own button.'),
+	'old-server-refused': () => t('social', 'The old server did not let this one finish the move. Try again later, or finish the move there.'),
+	'video-address-invalid': () => t('social', 'That is not a video address. Copy the address of the video page and try again.'),
+	'video-here-already': () => t('social', 'That video is on this server already. There is nothing to bring over.'),
+	'video-unreachable': () => t('social', 'That address could not be read. Check it, or try again later.'),
+	'video-unsupported': () => t('social', 'That address is not a video that can be brought over.'),
 }
 
 /**
- * @param {string|null|undefined} code a code of §13.5
+ * @param {string|null|undefined} code a code the server sends beside its sentence
  * @return {string|null} what it means to the person, or null for a code this page does not know
  */
-export function blueskyErrorSentence(code) {
+export function errorSentence(code) {
 	return Object.hasOwn(SENTENCES, code ?? '') ? SENTENCES[code]() : null
 }
 
 /**
- * Why a request to a Bluesky route was refused, from the error axios threw.
+ * Why a request was refused, from the error axios threw.
+ *
+ * A route that sends no code, or one this page does not know, gets the
+ * fallback: a sentence about what the person was doing, in their language.
+ * What the server said is kept for the details, as `error` or, on the routes
+ * that answer the Mastodon way or from the framework, `message`.
  *
  * @param {object} error what axios threw
  * @param {string} fallback what to say when the code is none this page knows
  * @return {{text: string, details: string}} the sentence, and the server's own words for the details
  */
-export function blueskyErrorOf(error, fallback) {
+export function errorOf(error, fallback) {
 	const data = error?.response?.data
+	const said = typeof data?.error === 'string' ? data.error : data?.message
 
 	return {
-		text: blueskyErrorSentence(data?.code) ?? fallback,
-		details: typeof data?.error === 'string' ? data.error : '',
+		text: errorSentence(data?.code) ?? fallback,
+		details: typeof said === 'string' ? said : '',
 	}
 }
 
@@ -123,7 +154,7 @@ export function blueskyErrorOf(error, fallback) {
  */
 export function stoppedMoveError(move) {
 	return {
-		text: blueskyErrorSentence(move?.progress?.code) ?? SENTENCES['move-failed'](),
+		text: errorSentence(move?.progress?.code) ?? SENTENCES['move-failed'](),
 		details: move?.error ?? '',
 	}
 }

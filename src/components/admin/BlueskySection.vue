@@ -184,9 +184,7 @@
 				</NcButton>
 			</div>
 		</form>
-		<p v-if="blockError !== ''" class="bluesky__block-error" role="alert">
-			{{ blockError }}
-		</p>
+		<ServerError v-if="blockError" :error="blockError" />
 		<p v-else-if="purged > 0" class="social-admin__hint">
 			{{ n('social', '%n followed account removed', '%n followed accounts removed', purged) }}
 		</p>
@@ -274,7 +272,9 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import AlertOutline from 'vue-material-design-icons/AlertOutline.vue'
 import CheckCircleOutline from 'vue-material-design-icons/CheckCircleOutline.vue'
 import CloseCircleOutline from 'vue-material-design-icons/CloseCircleOutline.vue'
-import { blueskyUrl, errorMessage } from '../../services/adminApi.js'
+import { blueskyUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
+import ServerError from '../ServerError.vue'
 import { showError, showSuccess } from '../../services/toast.js'
 import { duration } from '../../utils/duration.js'
 
@@ -341,6 +341,7 @@ export default {
 		NcNoteCard,
 		NcTextArea,
 		NcTextField,
+		ServerError,
 	},
 
 	props: {
@@ -366,7 +367,8 @@ export default {
 			blockTarget: '',
 			blockReason: '',
 			blocking: false,
-			blockError: '',
+			/** @type {{text: string, details: string}|null} why the last block was refused */
+			blockError: null,
 			/** how many follows the last block took away */
 			purged: 0,
 		}
@@ -551,8 +553,9 @@ export default {
 					this.apply(error.response.data)
 				}
 				this.saved = false
-				this.message = errorMessage(error, t('social', 'Could not save the Bluesky settings'))
-				showError(this.message)
+				const reason = errorOf(error, t('social', 'Could not save the Bluesky settings'))
+				this.message = reason.text
+				showError(reason)
 
 				return false
 			} finally {
@@ -608,7 +611,7 @@ export default {
 				return
 			}
 			this.blocking = true
-			this.blockError = ''
+			this.blockError = null
 			this.purged = 0
 			try {
 				const { data } = await axios.post(blueskyUrl('/blocks'), { target, reason: this.blockReason.trim() })
@@ -617,7 +620,7 @@ export default {
 				this.blockTarget = ''
 				this.blockReason = ''
 			} catch (error) {
-				this.blockError = errorMessage(error, t('social', 'Could not block that'))
+				this.blockError = errorOf(error, t('social', 'Could not block that'))
 			} finally {
 				this.blocking = false
 			}
@@ -629,13 +632,13 @@ export default {
 		 */
 		async removeBlock(block) {
 			this.blocking = true
-			this.blockError = ''
+			this.blockError = null
 			this.purged = 0
 			try {
 				const { data } = await axios.delete(blueskyUrl('/blocks'), { data: { target: block.value } })
 				this.applyBlocks(data?.blocks)
 			} catch (error) {
-				this.blockError = errorMessage(error, t('social', 'Could not remove that block'))
+				this.blockError = errorOf(error, t('social', 'Could not remove that block'))
 			} finally {
 				this.blocking = false
 			}
@@ -649,7 +652,7 @@ export default {
 				const { data } = await axios.post(blueskyUrl('/crawl'))
 				this.crawlResults = data?.results ?? {}
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not reach the relays')))
+				showError(errorOf(error, t('social', 'Could not reach the relays')))
 			} finally {
 				this.crawling = false
 			}
@@ -818,9 +821,5 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: calc(var(--default-grid-baseline) * 2);
-}
-
-.bluesky__block-error {
-	color: var(--color-error-text, var(--color-error));
 }
 </style>

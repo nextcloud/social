@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\UserMigration\SocialMigrator;
@@ -187,9 +188,13 @@ class MigrationArchiveServiceTest extends TestCase {
 		$this->alice();
 		$path = $this->archiveWith(['photos/holiday.jpg' => 'not really a photo']);
 
-		$this->expectException(UserMigrationException::class);
-		$this->expectExceptionMessage('social/actor.json');
-		$this->service->import('alice', $path);
+		try {
+			$this->service->import('alice', $path);
+			$this->fail('an archive without social/actor.json was taken');
+		} catch (MoveErrorException $e) {
+			$this->assertStringContainsString('social/actor.json', $e->getMessage());
+			$this->assertSame('archive-not-social', $e->errorCode);
+		}
 	}
 
 	public function testSomethingThatIsNotAnArchiveIsRefused(): void {
@@ -198,9 +203,13 @@ class MigrationArchiveServiceTest extends TestCase {
 		$this->temporary[] = $path;
 		file_put_contents($path, 'this is a text file');
 
-		$this->expectException(UserMigrationException::class);
-		$this->expectExceptionMessage('not a readable archive');
-		$this->service->import('alice', $path);
+		try {
+			$this->service->import('alice', $path);
+			$this->fail('a text file was taken for an archive');
+		} catch (MoveErrorException $e) {
+			$this->assertStringContainsString('not a readable archive', $e->getMessage());
+			$this->assertSame('archive-unreadable', $e->errorCode);
+		}
 	}
 
 	public function testAFailingImportIsReported(): void {

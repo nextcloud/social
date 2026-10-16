@@ -230,6 +230,7 @@ import { nextCursor } from '../utils/linkHeader.js'
 import eventBus, { LISTS_CHANGED } from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { latestLoad } from '../utils/latestLoad.js'
 
 /** How long a pause in typing is before the search is asked. */
@@ -383,7 +384,7 @@ export default {
 				this.announce()
 			} catch (error) {
 				logger.error('Failed to create the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not create the list'))
+				showError(errorOf(error, t('social', 'Could not create the list')))
 			} finally {
 				this.creating = false
 			}
@@ -418,7 +419,7 @@ export default {
 				this.announce()
 			} catch (error) {
 				logger.error('Failed to rename the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not rename the list'))
+				showError(errorOf(error, t('social', 'Could not rename the list')))
 			} finally {
 				this.busy = false
 			}
@@ -443,7 +444,7 @@ export default {
 				this.lists = this.lists.map((entry) => (entry.id === list.id ? { ...entry, ...data } : entry))
 			} catch (error) {
 				logger.error('Failed to change who can see the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not change who can see the list'))
+				showError(errorOf(error, t('social', 'Could not change who can see the list')))
 			} finally {
 				this.busy = false
 			}
@@ -467,7 +468,7 @@ export default {
 				this.announce()
 			} catch (error) {
 				logger.error('Failed to delete the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not delete the list'))
+				showError(errorOf(error, t('social', 'Could not delete the list')))
 			} finally {
 				this.busy = false
 			}
@@ -561,7 +562,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to remove the account from the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not remove {account} from the list', { account: account.acct }))
+				showError(errorOf(error, t('social', 'Could not remove {account} from the list', { account: account.acct })))
 			} finally {
 				this.busy = false
 			}
@@ -591,7 +592,7 @@ export default {
 				// their terms; the server's wording is Mastodon's "Record not found"
 				showError(error?.response?.status === 404
 					? t('social', 'You can only add people you follow to a list')
-					: (error?.response?.data?.error || t('social', 'Could not add {account} to the list', { account: hit.acct })))
+					: errorOf(error, t('social', 'Could not add {account} to the list', { account: hit.acct })))
 			} finally {
 				this.busy = false
 			}

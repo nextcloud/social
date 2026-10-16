@@ -103,6 +103,7 @@ import TimelineSwitcher from '../components/TimelineSwitcher.vue'
 import { profileKinds } from '../composables/useProfileKinds.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useAccountStore } from '../store/account.js'
 import { latestLoad } from '../utils/latestLoad.js'
 
@@ -234,7 +235,7 @@ export default {
 				showSuccess(t('social', 'Collection created'))
 			} catch (error) {
 				logger.error('could not create the collection', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not create the collection'))
+				showError(errorOf(error, t('social', 'Could not create the collection')))
 			} finally {
 				this.creating = false
 			}

@@ -63,6 +63,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { relaysUrl } from '../../services/adminApi.js'
 import { showError, showSuccess } from '../../services/toast.js'
+import { errorOf } from '../../utils/serverError.js'
 
 /**
  * The relays this instance subscribes to.
@@ -149,7 +150,7 @@ export default {
 				await this.load()
 				showSuccess(t('social', 'The relay has been asked'))
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not subscribe to that relay'))
+				showError(errorOf(error, t('social', 'Could not subscribe to that relay')))
 			} finally {
 				this.busy = false
 			}

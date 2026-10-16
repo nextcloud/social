@@ -103,6 +103,7 @@ import MessageContent from './MessageContent.js'
 import eventBus, { REACTION_PICK } from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useServerData } from '../composables/useServerData.js'
 import { fromNow, fullDate, fullDateTime } from '../utils/relativeTime.js'
 
@@ -298,8 +299,7 @@ export default {
 				await axios.post(generateUrl(`/apps/social/api/v1/announcements/${announcement.id}/dismiss`))
 				announcement.read = true
 			} catch (error) {
-				showError(error?.response?.data?.error
-					|| t('social', 'Could not dismiss that announcement'))
+				showError(errorOf(error, t('social', 'Could not dismiss that announcement')))
 			} finally {
 				this.dismissing = ''
 			}
@@ -361,7 +361,7 @@ export default {
 				await (add ? axios.put(url) : axios.delete(url))
 				announcement.reactions = this.withReaction(announcement.reactions, name, add)
 			} catch (error) {
-				showError(error?.response?.data?.error || (add
+				showError(errorOf(error, add
 					? t('social', 'Could not add that reaction')
 					: t('social', 'Could not remove that reaction')))
 			} finally {

@@ -214,6 +214,7 @@ import {
 	saveInterestSettings,
 } from '../services/interests.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { POST_LANGUAGES, languageName } from '../utils/postLanguage.js'
 
 /**
@@ -543,8 +544,7 @@ export default {
 				this.$nextTick(() => /** @type {HTMLInputElement|undefined} */ (this.$refs.addInput)?.focus())
 			} catch (error) {
 				logger.error('Could not add the interest', { error })
-				const said = error?.response?.data?.error
-				showError(typeof said === 'string' && said !== '' ? said : t('social', 'Could not add #{tag}', { tag }))
+				showError(errorOf(error, t('social', 'Could not add #{tag}', { tag })))
 			} finally {
 				this.busy = false
 			}

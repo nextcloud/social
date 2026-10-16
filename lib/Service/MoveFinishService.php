@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCP\IConfig;
 use OCP\IURLGenerator;
@@ -76,13 +77,15 @@ class MoveFinishService {
 	 * person: the old instance's consent page, asking for the one scope.
 	 *
 	 * @return string the authorize URL
-	 * @throws InvalidResourceException when the old server is not this app, or will not register us
+	 * @throws MoveErrorException finish-not-possible when the old server is not this app,
+	 *                            old-server-refused when it will not register us
 	 */
 	public function start(string $userId, string $handle, string $bluesky = BlueskyAfterMoveOut::DEACTIVATE): string {
 		$old = $this->migrationService->resolveActor($handle);
 		if (!$this->canFinish($old)) {
-			throw new InvalidResourceException(
-				'the old account is not on an Aloha Social server; finish the move there, with its own button'
+			throw new MoveErrorException(
+				'the old account is not on an Aloha Social server; finish the move there, with its own button',
+				'finish-not-possible'
 			);
 		}
 		$base = self::baseOf($old->getId());
@@ -97,7 +100,7 @@ class MoveFinishService {
 		$clientId = (string)($app['client_id'] ?? '');
 		$clientSecret = (string)($app['client_secret'] ?? '');
 		if ($clientId === '' || $clientSecret === '') {
-			throw new InvalidResourceException('the old server would not register this one as an application');
+			throw new MoveErrorException('the old server would not register this one as an application', 'old-server-refused');
 		}
 
 		$state = $this->secureRandom->generate(32, ISecureRandom::CHAR_ALPHANUMERIC);
@@ -213,7 +216,7 @@ class MoveFinishService {
 	private static function baseOf(string $actorId): string {
 		$cut = strrpos($actorId, '/@');
 		if ($cut === false) {
-			throw new InvalidResourceException('the old account does not look like one of this app');
+			throw new MoveErrorException('the old account does not look like one of this app', 'finish-not-possible');
 		}
 
 		return substr($actorId, 0, $cut);
@@ -238,8 +241,10 @@ class MoveFinishService {
 			]);
 		} catch (Throwable $e) {
 			$status = $e->getCode() > 0 ? ' status ' . $e->getCode() : '';
-			throw new InvalidResourceException(
-				'the old server answered ' . (string)parse_url($url, PHP_URL_PATH) . ' with' . $status . ': ' . $e->getMessage(), 0, $e
+			throw new MoveErrorException(
+				'the old server answered ' . (string)parse_url($url, PHP_URL_PATH) . ' with' . $status . ': ' . $e->getMessage(),
+				'old-server-refused',
+				$e
 			);
 		}
 	}

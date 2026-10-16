@@ -51,6 +51,7 @@ import { fromNow } from '../utils/relativeTime.js'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import Check from 'vue-material-design-icons/Check.vue'
 import logger from '../services/logger.js'
@@ -147,7 +148,7 @@ export default {
 				this.$emit('update:poll', response.data)
 			} catch (error) {
 				logger.error('Failed to vote', { error })
-				showError(error.response?.data?.error ?? t('social', 'Failed to vote'))
+				showError(errorOf(error, t('social', 'Failed to vote')))
 			} finally {
 				this.voting = false
 			}

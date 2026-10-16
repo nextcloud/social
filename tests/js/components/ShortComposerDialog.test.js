@@ -427,7 +427,7 @@ describe('ShortComposerDialog', () => {
 			await button(wrapper, 'Post').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('this account already has 40 live 24-hour shorts')
+			expect(showError).toHaveBeenCalledWith({ text: 'The short could not be posted', details: 'this account already has 40 live 24-hour shorts' })
 			expect(wrapper.emitted('posted')).toBeUndefined()
 		})
 	})

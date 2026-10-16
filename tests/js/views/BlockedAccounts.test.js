@@ -382,7 +382,7 @@ describe('BlockedAccounts', () => {
 			await flushPromises()
 
 			expect(aiSwitch(wrapper).props('modelValue')).toBe(false)
-			expect(showError).toHaveBeenCalledWith('hide must be a boolean')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save that setting', details: 'hide must be a boolean' })
 		})
 
 		it('goes back with the usual words when the failure has no reason', async () => {
@@ -393,7 +393,7 @@ describe('BlockedAccounts', () => {
 			await flushPromises()
 
 			expect(aiSwitch(wrapper).props('modelValue')).toBe(true)
-			expect(showError).toHaveBeenCalledWith('Could not save that setting')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save that setting', details: '' })
 		})
 	})
 

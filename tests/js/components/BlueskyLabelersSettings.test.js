@@ -130,7 +130,8 @@ describe('BlueskyLabelersSettings', () => {
 			await wrapper.find('.labelers__add').trigger('submit')
 			await flushPromises()
 
-			expect(wrapper.find('.labelers__error').text()).toBe('alice.bsky.social is not a labeler')
+			expect(wrapper.find('.labelers__error p').text()).toBe('Could not add that labeler')
+			expect(wrapper.find('.labelers__error code').text()).toBe('alice.bsky.social is not a labeler')
 			expect(wrapper.find('.labelers__add input').element.value).toBe('alice.bsky.social')
 			expect(labelerRows(wrapper)).toHaveLength(1)
 			expect(showError).not.toHaveBeenCalled()
@@ -163,7 +164,7 @@ describe('BlueskyLabelersSettings', () => {
 			radio(wrapper, moderation.did, 'porn', 'ignore').vm.$emit('update:modelValue', 'ignore')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('setting must be ignore, warn or hide')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save that setting', details: 'setting must be ignore, warn or hide' })
 			expect(radio(wrapper, moderation.did, 'porn', 'hide').props('modelValue')).toBe('hide')
 		})
 
@@ -197,7 +198,7 @@ describe('BlueskyLabelersSettings', () => {
 			await flushPromises()
 
 			expect(labelerRows(wrapper)).toHaveLength(2)
-			expect(showError).toHaveBeenCalledWith('Could not remove that labeler')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not remove that labeler', details: '' })
 		})
 	})
 })

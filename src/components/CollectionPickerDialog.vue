@@ -65,6 +65,7 @@ import IconCheck from 'vue-material-design-icons/Check.vue'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 /**
  * Puts one of the reader's own posts into one of their collections.
@@ -179,7 +180,7 @@ export default {
 				return true
 			} catch (error) {
 				logger.error('could not add the post to the collection', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not add the post to the collection'))
+				showError(errorOf(error, t('social', 'Could not add the post to the collection')))
 
 				return false
 			} finally {
@@ -202,7 +203,7 @@ export default {
 				await this.add(data)
 			} catch (error) {
 				logger.error('could not create the collection', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not create the collection'))
+				showError(errorOf(error, t('social', 'Could not create the collection')))
 			} finally {
 				this.creating = false
 			}

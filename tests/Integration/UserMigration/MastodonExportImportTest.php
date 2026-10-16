@@ -10,12 +10,12 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Integration\UserMigration;
 
 use OCA\Social\Controller\AccountApiController;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\MigrationArchiveService;
 use OCA\Social\Service\MigrationService;
 use OCA\Social\Service\PostImportService;
 use OCP\Server;
-use OCP\UserMigration\UserMigrationException;
 
 /**
  * Moving in from Mastodon: an export shaped after Mastodon's documented
@@ -112,7 +112,7 @@ class MastodonExportImportTest extends RoundTripTestCase {
 		try {
 			Server::get(MigrationArchiveService::class)->import($userId, $archive);
 			$this->fail('a Mastodon archive is not an Aloha Social one');
-		} catch (UserMigrationException $e) {
+		} catch (MoveErrorException $e) {
 			$this->assertStringContainsString('social/actor.json is not in it', $e->getMessage());
 		}
 

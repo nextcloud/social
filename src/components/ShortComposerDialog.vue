@@ -399,6 +399,7 @@ import { knownLimits } from '../services/instanceLimits.js'
 import logger from '../services/logger.js'
 import { feel } from '../services/senses.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useSettingsStore } from '../store/settings.js'
 import { useTimelineStore } from '../store/timeline.js'
 import {
@@ -1042,7 +1043,7 @@ export default {
 			} catch (error) {
 				logger.error('the short could not be posted', { error })
 				showError(this.forDay
-					? (error?.response?.data?.error || t('social', 'The short could not be posted'))
+					? errorOf(error, t('social', 'The short could not be posted'))
 					: t('social', 'The short could not be posted'))
 			} finally {
 				this.busy = ''

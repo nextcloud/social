@@ -299,6 +299,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { fetchAiContent, saveAiContent } from '../services/aiContent.js'
 import ActorAvatar from '../components/ActorAvatar.vue'
 import BlueskyLabelersSettings from '../components/BlueskyLabelersSettings.vue'
@@ -425,7 +426,7 @@ export default {
 				this.hideAi = (await saveAiContent(hide)).hide
 			} catch (error) {
 				logger.error('Could not save whether posts made with AI are hidden', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not save that setting'))
+				showError(errorOf(error, t('social', 'Could not save that setting')))
 				this.hideAi = before
 			}
 		},

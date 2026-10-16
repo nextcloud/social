@@ -487,7 +487,7 @@ describe('ListsSettings', () => {
 			publicSwitch(wrapper).vm.$emit('update:modelValue', true)
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Could not change who can see the list')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not change who can see the list', details: '' })
 			expect(publicSwitch(wrapper).props('modelValue')).toBe(false)
 		})
 

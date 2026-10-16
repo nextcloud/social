@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -222,31 +223,32 @@ class PostImportService {
 	 * asked for it, which moderation and reporting reach like any other.
 	 *
 	 * @return array<string, mixed> the same tally an archive import answers with
-	 * @throws InvalidResourceException with a sentence saying what was wrong
+	 * @throws MoveErrorException with a sentence saying what was wrong, and its code
 	 */
 	public function importVideo(Person $actor, string $url, bool $fetchMedia = true): array {
 		$url = trim($url);
 		if (!str_starts_with($url, 'https://') && !str_starts_with($url, 'http://')) {
-			throw new InvalidResourceException('that is not a video address');
+			throw new MoveErrorException('that is not a video address', 'video-address-invalid');
 		}
 
 		$cloud = rtrim($this->configService->getCloudUrl(), '/');
 		if ($cloud !== '' && str_starts_with($url, $cloud)) {
-			throw new InvalidResourceException(
-				'that video is already on this server — an import is for bringing one over from another'
+			throw new MoveErrorException(
+				'that video is already on this server — an import is for bringing one over from another',
+				'video-here-already'
 			);
 		}
 
 		try {
 			$data = $this->curlService->retrieveObject($url);
 		} catch (Throwable $e) {
-			throw new InvalidResourceException('that address could not be read: ' . $e->getMessage());
+			throw new MoveErrorException('that address could not be read: ' . $e->getMessage(), 'video-unreachable', $e);
 		}
 
 		$post = $this->parseFetchedVideo($data, $url);
 		if ($post === null) {
-			throw new InvalidResourceException(
-				'that address is not a video this app can bring over'
+			throw new MoveErrorException(
+				'that address is not a video this app can bring over', 'video-unsupported'
 			);
 		}
 

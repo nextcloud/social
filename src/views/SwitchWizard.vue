@@ -236,6 +236,7 @@ import IconPound from 'vue-material-design-icons/Pound.vue'
 import IconUpload from 'vue-material-design-icons/Upload.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 export default {
 	name: 'SwitchWizard',
@@ -421,7 +422,7 @@ export default {
 				}
 			} catch (error) {
 				logger.warn('Could not import posts', { error })
-				showError(error?.response?.data?.error || t('social', 'That archive could not be read'))
+				showError(errorOf(error, t('social', 'That archive could not be read')))
 			} finally {
 				this.busy = ''
 				// so picking the same file again still fires a change
@@ -451,7 +452,7 @@ export default {
 				}
 			} catch (error) {
 				logger.warn('Could not read the follow list', { error })
-				showError(error?.response?.data?.error || t('social', 'That archive could not be read'))
+				showError(errorOf(error, t('social', 'That archive could not be read')))
 			} finally {
 				this.busy = ''
 			}
@@ -482,7 +483,7 @@ export default {
 				}
 			} catch (error) {
 				logger.warn('Could not look up names', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not look those names up'))
+				showError(errorOf(error, t('social', 'Could not look those names up')))
 			} finally {
 				this.busy = ''
 			}
@@ -517,7 +518,7 @@ export default {
 				))
 			} catch (error) {
 				logger.warn('Could not follow the chosen accounts', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not follow those accounts'))
+				showError(errorOf(error, t('social', 'Could not follow those accounts')))
 			} finally {
 				this.busy = ''
 			}

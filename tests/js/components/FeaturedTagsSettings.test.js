@@ -195,7 +195,7 @@ describe('FeaturedTagsSettings', () => {
 		await flushPromises()
 
 		expect(axios.post).toHaveBeenCalledWith(`${API}/featured_tags`, { name: 'eleven' })
-		expect(showError).toHaveBeenCalledWith('Limit of 10 featured tags reached')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not feature that hashtag', details: 'Limit of 10 featured tags reached' })
 		expect(wrapper.text()).toContain('Limit of 10 featured tags reached')
 	})
 
@@ -223,7 +223,7 @@ describe('FeaturedTagsSettings', () => {
 		await submit(wrapper)
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('Could not feature that hashtag')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not feature that hashtag', details: '' })
 	})
 
 	it('unfeatures a tag by its id', async () => {
@@ -258,7 +258,7 @@ describe('FeaturedTagsSettings', () => {
 		await flushPromises()
 
 		expect(rows(wrapper)).toHaveLength(1)
-		expect(showError).toHaveBeenCalledWith('Record not found')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not stop featuring #design', details: 'Record not found' })
 	})
 
 	it('says so when the list itself cannot be read', async () => {

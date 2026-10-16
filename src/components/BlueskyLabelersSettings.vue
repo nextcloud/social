@@ -68,9 +68,7 @@
 					{{ t('social', 'Add labeler') }}
 				</NcButton>
 			</form>
-			<p v-if="addError !== ''" class="labelers__error" role="alert">
-				{{ addError }}
-			</p>
+			<ServerError v-if="addError" class="labelers__error" :error="addError" />
 		</template>
 	</div>
 </template>
@@ -84,6 +82,8 @@ import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwit
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
+import ServerError from './ServerError.vue'
 
 /**
  * @typedef {object} Labeler one labeler the reader subscribes to
@@ -110,6 +110,7 @@ export default {
 		NcButton,
 		NcCheckboxRadioSwitch,
 		NcTextField,
+		ServerError,
 	},
 
 	emits: ['unavailable'],
@@ -128,7 +129,8 @@ export default {
 			removing: [],
 			draft: '',
 			adding: false,
-			addError: '',
+			/** @type {{text: string, details: string}|null} why the last labeler was not added */
+			addError: null,
 		}
 	},
 
@@ -194,14 +196,14 @@ export default {
 				return
 			}
 			this.adding = true
-			this.addError = ''
+			this.addError = null
 			try {
 				const { data } = await axios.post(generateUrl(LABELERS_URL), { labeler })
 				this.accept(data)
 				this.draft = ''
 			} catch (error) {
 				logger.error('Could not add the Bluesky labeler', { error })
-				this.addError = error?.response?.data?.error || t('social', 'Could not add that labeler')
+				this.addError = errorOf(error, t('social', 'Could not add that labeler'))
 			} finally {
 				this.adding = false
 			}
@@ -218,7 +220,7 @@ export default {
 				this.accept(data)
 			} catch (error) {
 				logger.error('Could not remove the Bluesky labeler', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not remove that labeler'))
+				showError(errorOf(error, t('social', 'Could not remove that labeler')))
 			} finally {
 				this.removing = this.removing.filter((did) => did !== labeler.did)
 			}
@@ -249,7 +251,7 @@ export default {
 				this.accept(data)
 			} catch (error) {
 				logger.error('Could not save the label setting', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not save that setting'))
+				showError(errorOf(error, t('social', 'Could not save that setting')))
 			} finally {
 				const rest = { ...this.pending }
 				delete rest[key]
@@ -354,7 +356,6 @@ export default {
 
 	&__error {
 		margin: 0;
-		color: var(--color-error-text, var(--color-error));
 		font-size: 13px;
 	}
 }

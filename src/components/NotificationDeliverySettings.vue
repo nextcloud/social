@@ -165,6 +165,7 @@ import {
 	sortTimes,
 } from '../services/notificationDelivery.js'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 /** How long a time field is left alone after a keystroke before it is saved. */
 const TYPING_PAUSE = 600
@@ -310,7 +311,7 @@ export default {
 				this.accept(await saveNotificationDelivery(changes))
 			} catch (error) {
 				logger.error('Could not save the notification delivery settings', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not save that setting'))
+				showError(errorOf(error, t('social', 'Could not save that setting')))
 				this.revert()
 			} finally {
 				this.saving = false

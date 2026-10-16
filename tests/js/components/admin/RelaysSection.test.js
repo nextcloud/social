@@ -118,7 +118,7 @@ describe('the relays card', () => {
 		await buttonByText(wrapper, 'Subscribe').trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('that address did not answer with an actor')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not subscribe to that relay', details: 'that address did not answer with an actor' })
 	})
 
 	it('unsubscribes and takes the row away', async () => {

@@ -86,7 +86,8 @@ import { translate as t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import { errorMessage, moderationUrl, verifierUrl } from '../../services/adminApi.js'
+import { moderationUrl, verifierUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
 import { showError, showSuccess } from '../../services/toast.js'
 import { fullDate } from '../../utils/relativeTime.js'
 
@@ -180,7 +181,7 @@ export default {
 				this.apply(data)
 				showSuccess(t('social', 'The verifying account was saved'))
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not save the verifying account')))
+				showError(errorOf(error, t('social', 'Could not save the verifying account')))
 			} finally {
 				this.savingVerifier = false
 			}
@@ -195,7 +196,7 @@ export default {
 				showSuccess(t('social', 'The account is verified'))
 				await this.load()
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not verify the account')))
+				showError(errorOf(error, t('social', 'Could not verify the account')))
 			} finally {
 				this.busy = false
 			}
@@ -212,7 +213,7 @@ export default {
 				this.verifications = this.verifications.filter((other) => other.actor_id !== item.actor_id)
 				showSuccess(t('social', 'The verification was removed'))
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not remove the verification')))
+				showError(errorOf(error, t('social', 'Could not remove the verification')))
 			} finally {
 				this.busy = false
 			}

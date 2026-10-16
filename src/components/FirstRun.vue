@@ -267,6 +267,7 @@ import AlohaScene from './illustrations/AlohaScene.vue'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useAccountStore } from '../store/account.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
@@ -509,7 +510,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Importing follows failed', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not import those follows'))
+				showError(errorOf(error, t('social', 'Could not import those follows')))
 			} finally {
 				this.followsBusy = false
 				if (input) {
@@ -552,7 +553,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Moving in failed', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not move that account here'))
+				showError(errorOf(error, t('social', 'Could not move that account here')))
 			} finally {
 				this.moveBusy = false
 			}

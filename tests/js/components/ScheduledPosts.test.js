@@ -343,7 +343,7 @@ describe('ScheduledPosts', () => {
 			await wrapper.find('.scheduled-posts__save').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('this account already has 25 statuses scheduled for that day')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not change the time of the scheduled post', details: 'this account already has 25 statuses scheduled for that day' })
 			expect(texts(wrapper)).toEqual(['first', 'second', 'third'])
 			expect(wrapper.findAll('time')[0].attributes('datetime')).toBe(entries[0].scheduled_at)
 			// the picker stays, so another time can be tried
@@ -359,7 +359,7 @@ describe('ScheduledPosts', () => {
 			await wrapper.find('.scheduled-posts__save').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Could not change the time of the scheduled post')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not change the time of the scheduled post', details: '' })
 		})
 
 		it('still cancels a post that has been moved', async () => {

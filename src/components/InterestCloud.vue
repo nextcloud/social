@@ -215,6 +215,7 @@ import {
 	unpinInterest,
 } from '../services/interests.js'
 import { showError, showSuccess, showUndo } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { STEP_SIZES, moveTo, sizeStep } from '../utils/interestCloud.js'
 import { userLocale } from '../utils/locale.js'
 
@@ -605,7 +606,7 @@ export default {
 				this.announceRank(entry.tag, state)
 			} catch (error) {
 				logger.error('Could not move the interest', { error })
-				showError(this.said(error, t('social', 'Could not move #{tag}', { tag: entry.tag })))
+				showError(errorOf(error, t('social', 'Could not move #{tag}', { tag: entry.tag })))
 			} finally {
 				this.pending--
 				if (this.pending === 0) {
@@ -647,7 +648,7 @@ export default {
 				this.focusTag(entry.tag)
 			} catch (error) {
 				logger.error('Could not pin the interest', { error })
-				showError(this.said(error, t('social', 'Could not change #{tag}', { tag: entry.tag })))
+				showError(errorOf(error, t('social', 'Could not change #{tag}', { tag: entry.tag })))
 			}
 		},
 
@@ -686,7 +687,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Could not remove the interest', { error })
-				showError(this.said(error, t('social', 'Could not remove #{tag}', { tag: entry.tag })))
+				showError(errorOf(error, t('social', 'Could not remove #{tag}', { tag: entry.tag })))
 			} finally {
 				this.removing = this.removing.filter((tag) => tag !== entry.tag)
 			}
@@ -703,7 +704,7 @@ export default {
 				this.reveal(entry.tag)
 			} catch (error) {
 				logger.error('Could not put the interest back', { error })
-				showError(this.said(error, t('social', 'Could not put #{tag} back', { tag: entry.tag })))
+				showError(errorOf(error, t('social', 'Could not put #{tag} back', { tag: entry.tag })))
 			}
 		},
 
@@ -791,17 +792,6 @@ export default {
 				this.preview = null
 			}
 			this.dragTag = null
-		},
-
-		/**
-		 * @param {object} error what axios threw
-		 * @param {string} fallback what to say when the server said nothing
-		 * @return {string} the message
-		 */
-		said(error, fallback) {
-			const message = error?.response?.data?.error
-
-			return typeof message === 'string' && message !== '' ? message : fallback
 		},
 	},
 }

@@ -17,8 +17,11 @@
  * in its own chunk the first time one is shown. The import is memoised by the
  * module system, so the second toast is immediate.
  *
- * The signatures are `@nextcloud/dialogs`' own, forwarded unchanged.
+ * The signatures are `@nextcloud/dialogs`' own, forwarded unchanged, except
+ * that `showError` also takes a sentence with the server's own words beside it.
  */
+
+import { t } from '@nextcloud/l10n'
 
 /**
  * The stylesheet travels with the library, in the same chunk.
@@ -46,12 +49,47 @@ function dialogs() {
 }
 
 /**
- * @param {string} text what went wrong
+ * The sentence, and the server's own words under a "Details" the person can
+ * open. Built from text nodes, so nothing the server said becomes markup.
+ *
+ * @param {{text: string, details: string}} error as utils/serverError.js makes it
+ * @return {HTMLElement} the toast's content
+ */
+function withDetails(error) {
+	const content = document.createElement('div')
+	content.append(error.text)
+
+	const details = document.createElement('details')
+	const summary = document.createElement('summary')
+	summary.textContent = t('social', 'Details')
+	const said = document.createElement('code')
+	said.textContent = error.details
+	said.style.display = 'block'
+	said.style.whiteSpace = 'pre-wrap'
+	said.style.overflowWrap = 'anywhere'
+	details.append(summary, said)
+	content.append(details)
+
+	return content
+}
+
+/**
+ * @param {string|{text: string, details: string}} text what went wrong, or that
+ *        and what the server said, as utils/serverError.js makes it; the
+ *        server's words go behind "Details"
  * @param {object} [options] as `@nextcloud/dialogs` takes them
  * @return {Promise<object>} the toast, for a caller that wants to hide it
  */
 export async function showError(text, options) {
-	return (await dialogs()).showError(text, options)
+	const toasts = await dialogs()
+	if (typeof text === 'string') {
+		return toasts.showError(text, options)
+	}
+	if (!text.details || text.details === text.text) {
+		return toasts.showError(text.text, options)
+	}
+
+	return toasts.showMessage(withDetails(text), { ...options, type: toasts.ToastType.ERROR })
 }
 
 /**

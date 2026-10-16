@@ -118,6 +118,7 @@ import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useAccountStore } from '../store/account.js'
 
 /**
@@ -246,8 +247,9 @@ export default {
 				return true
 			} catch (error) {
 				logger.error('could not save the portfolio', { error })
-				this.message = error.response?.data?.error ?? t('social', 'Could not save it')
-				showError(this.message)
+				const reason = errorOf(error, t('social', 'Could not save it'))
+				this.message = reason.text
+				showError(reason)
 
 				return false
 			} finally {

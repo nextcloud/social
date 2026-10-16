@@ -44,7 +44,7 @@
 				:label="t('social', 'Code from the e-mail')"
 				:disabled="busy"
 				@keydown.enter.prevent="sendCode" />
-			<BlueskyError v-if="codeError" :error="codeError" />
+			<ServerError v-if="codeError" :error="codeError" />
 			<NcButton variant="primary" :disabled="busy || code.trim() === ''" @click="sendCode">
 				<template v-if="busy" #icon>
 					<NcLoadingIcon :size="20" />
@@ -79,8 +79,8 @@
 		<template v-else>
 			<NcNoteCard v-if="move && move.state === 'failed'" type="error">
 				<p>{{ t('social', 'The move stopped.') }}</p>
-				<BlueskyError :error="stoppedError" :alert="false" />
-				<BlueskyError v-if="retryError" :error="retryError" />
+				<ServerError :error="stoppedError" :alert="false" />
+				<ServerError v-if="retryError" :error="retryError" />
 				<NcButton :disabled="busy" @click="retry">
 					{{ t('social', 'Try again') }}
 				</NcButton>
@@ -113,7 +113,7 @@
 			<p class="migration__bluesky-in-note">
 				{{ t('social', 'The password is used to sign in once and is not kept.') }}
 			</p>
-			<BlueskyError v-if="startError" :error="startError" />
+			<ServerError v-if="startError" :error="startError" />
 			<div v-if="confirming" class="migration__bluesky-in-actions">
 				<p class="migration__bluesky-in-confirm">
 					{{ t('social', 'The Bluesky account you bring replaces {handle}, the one this server made for you: its posts and followers on Bluesky are not kept.', { handle: identity.handle }) }}
@@ -151,10 +151,10 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowLeft from 'vue-material-design-icons/AccountArrowLeft.vue'
 import BlueskyMissingBlobs from './BlueskyMissingBlobs.vue'
-import BlueskyError from './BlueskyError.vue'
+import ServerError from './ServerError.vue'
 import { n, t } from '@nextcloud/l10n'
 import logger from '../services/logger.js'
-import { blueskyErrorOf, stoppedMoveError } from '../utils/blueskyError.js'
+import { errorOf, stoppedMoveError } from '../utils/serverError.js'
 
 /** How often a running move is asked about, in milliseconds. */
 const POLL_INTERVAL = 5000
@@ -169,7 +169,7 @@ export default {
 
 	components: {
 		BlueskyMissingBlobs,
-		BlueskyError,
+		ServerError,
 		IconAccountArrowLeft,
 		NcButton,
 		NcLoadingIcon,
@@ -357,12 +357,12 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.startError = blueskyErrorOf(error, t('social', 'Could not start the move'))
+					this.startError = errorOf(error, t('social', 'Could not start the move'))
 					this.confirming = false
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
-						: blueskyErrorOf(error, t('social', 'Could not start the move')).text)
+						: errorOf(error, t('social', 'Could not start the move')).text)
 				}
 			} finally {
 				this.busy = false
@@ -385,7 +385,7 @@ export default {
 				this.code = ''
 				this.takeMove(data?.move)
 			} catch (error) {
-				const reason = blueskyErrorOf(error, t('social', 'Could not confirm the move'))
+				const reason = errorOf(error, t('social', 'Could not confirm the move'))
 				if (error?.response?.status === 422) {
 					this.codeError = reason
 				} else {
@@ -412,7 +412,7 @@ export default {
 					? t('social', 'A new code is on its way to {address}.', { address: data.sent_to })
 					: t('social', 'A new code is on its way to the e-mail address of your Bluesky account.')
 			} catch (error) {
-				const reason = blueskyErrorOf(error, t('social', 'Could not ask for a new code'))
+				const reason = errorOf(error, t('social', 'Could not ask for a new code'))
 				if (error?.response?.status === 422) {
 					this.codeError = reason
 				} else {
@@ -441,7 +441,7 @@ export default {
 				this.codeNote = ''
 				this.takeMove(data?.move)
 			} catch (error) {
-				const reason = blueskyErrorOf(error, t('social', 'Could not call off the move'))
+				const reason = errorOf(error, t('social', 'Could not call off the move'))
 				if (error?.response?.status === 422) {
 					this.codeError = reason
 				} else {
@@ -463,7 +463,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move-in/republish'))
 				this.takeMove(data?.move)
 			} catch (error) {
-				showError(blueskyErrorOf(error, t('social', 'Could not publish the posts again')).text)
+				showError(errorOf(error, t('social', 'Could not publish the posts again')).text)
 			} finally {
 				this.busy = false
 			}
@@ -477,7 +477,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move/retry'))
 				this.takeMove(data?.move)
 			} catch (error) {
-				const reason = blueskyErrorOf(error, t('social', 'Could not start the move'))
+				const reason = errorOf(error, t('social', 'Could not start the move'))
 				if (error?.response?.status === 422) {
 					this.retryError = reason
 				} else {

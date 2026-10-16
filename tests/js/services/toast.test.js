@@ -4,7 +4,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 /**
  * The toast service, read as source.
@@ -53,3 +53,54 @@ describe('the toast service', () => {
 		}
 	})
 })
+
+describe('showError', () => {
+	/**
+	 * A refusal of a route with a code is a sentence in the person's
+	 * language, and the server's own English goes behind "Details" for
+	 * whoever helps them: as text, so nothing it says becomes markup.
+	 */
+	it('puts what the server said behind "Details", as text', async () => {
+		const { dialogs, showError } = await loadToast()
+
+		await showError({ text: 'That is under way already.', details: '<b>an import</b> is running' })
+
+		expect(dialogs.showError).not.toHaveBeenCalled()
+		const [content, options] = dialogs.showMessage.mock.calls[0]
+		expect(options).toEqual({ type: 'toast-error' })
+		expect(content.firstChild.textContent).toBe('That is under way already.')
+		expect(content.querySelector('summary').textContent).toBe('Details')
+		expect(content.querySelector('code').textContent).toBe('<b>an import</b> is running')
+		expect(content.querySelector('b')).toBeNull()
+	})
+
+	it('is a plain toast when there is nothing behind the sentence', async () => {
+		const { dialogs, showError } = await loadToast()
+
+		await showError({ text: 'Could not save that', details: '' })
+		await showError({ text: 'Could not save that', details: 'Could not save that' })
+		await showError('Could not load the timeline', { timeout: 3000 })
+
+		expect(dialogs.showMessage).not.toHaveBeenCalled()
+		expect(dialogs.showError.mock.calls).toEqual([
+			['Could not save that', undefined],
+			['Could not save that', undefined],
+			['Could not load the timeline', { timeout: 3000 }],
+		])
+	})
+})
+
+/**
+ * The service with `@nextcloud/dialogs` replaced, read fresh for each test.
+ *
+ * @return {Promise<{dialogs: object, showError: Function}>} the stand-in library, and the service's showError
+ */
+async function loadToast() {
+	vi.resetModules()
+	const dialogs = { showError: vi.fn(), showMessage: vi.fn(), ToastType: { ERROR: 'toast-error' } }
+	vi.doMock('@nextcloud/dialogs', () => dialogs)
+	vi.doMock('@nextcloud/dialogs/style.css', () => ({}))
+	const { showError } = await import('../../../src/services/toast.js')
+
+	return { dialogs, showError }
+}

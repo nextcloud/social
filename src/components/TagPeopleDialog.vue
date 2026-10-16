@@ -19,9 +19,7 @@
 			placeholder="alice@cloud.example, bob@cloud.example"
 			:disabled="saving" />
 
-		<p v-if="error" class="tag-people__error" role="alert">
-			{{ error }}
-		</p>
+		<ServerError v-if="error" class="tag-people__error" :error="error" />
 
 		<template #actions>
 			<NcButton :disabled="saving" @click="$emit('close')">
@@ -45,7 +43,9 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcDialog from '@nextcloud/vue/components/NcDialog'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
+import ServerError from './ServerError.vue'
 import logger from '../services/logger.js'
+import { errorOf } from '../utils/serverError.js'
 
 /**
  * Naming the people in a photograph.
@@ -67,6 +67,7 @@ export default {
 		NcDialog,
 		NcLoadingIcon,
 		NcTextField,
+		ServerError,
 	},
 
 	props: {
@@ -89,7 +90,8 @@ export default {
 		return {
 			draft: this.people.map((person) => person.acct).join(', '),
 			saving: false,
-			error: '',
+			/** @type {{text: string, details: string}|null} */
+			error: null,
 		}
 	},
 
@@ -99,7 +101,7 @@ export default {
 		/** @return {Promise<void>} */
 		async save() {
 			this.saving = true
-			this.error = ''
+			this.error = null
 			try {
 				const accounts = this.draft
 					.split(',')
@@ -112,7 +114,7 @@ export default {
 				this.$emit('close')
 			} catch (error) {
 				logger.error('could not name the people in a photo', { error })
-				this.error = error.response?.data?.error ?? t('social', 'Could not save that')
+				this.error = errorOf(error, t('social', 'Could not save that'))
 			} finally {
 				this.saving = false
 			}
@@ -128,7 +130,6 @@ export default {
 }
 
 .tag-people__error {
-	color: var(--color-error);
 	margin-block-start: 8px;
 }
 </style>

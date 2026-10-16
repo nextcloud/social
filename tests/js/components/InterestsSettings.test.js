@@ -251,7 +251,7 @@ describe('InterestsSettings', () => {
 			await wrapper.find('.interests-settings__add').trigger('submit')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('That is not a hashtag')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not add #ok', details: 'That is not a hashtag' })
 		})
 	})
 

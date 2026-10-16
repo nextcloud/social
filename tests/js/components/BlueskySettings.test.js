@@ -697,7 +697,7 @@ describe('BlueskySettings', () => {
 
 			const create = section(wrapper).find('.bluesky-settings__app-password-create')
 			expect(create.find('[role="alert"]').text()).toBe('You have an app password with that name already. Pick another name.')
-			expect(create.find('.bluesky-error__details code').text()).toBe('There is an app password with that name')
+			expect(create.find('.server-error__details code').text()).toBe('There is an app password with that name')
 			expect(showError).not.toHaveBeenCalled()
 			expect(section(wrapper).find('.bluesky-settings__new-password').exists()).toBe(false)
 			expect(nameField(wrapper).element.value).toBe('Tablet')
@@ -1035,7 +1035,7 @@ describe('BlueskySettings', () => {
 			await flushPromises()
 
 			expect(section(wrapper).find('[role="alert"]').text()).toBe('That domain does not point at your account yet. Add the record shown below, wait a few minutes for it to spread, and try again.')
-			expect(section(wrapper).find('.bluesky-error__details code').text()).toContain('_atproto.alice.example.org')
+			expect(section(wrapper).find('.server-error__details code').text()).toContain('_atproto.alice.example.org')
 			expect(showError).not.toHaveBeenCalled()
 			expect(showSuccess).not.toHaveBeenCalled()
 			expect(domainField(wrapper).element.value).toBe('alice.example.org')

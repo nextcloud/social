@@ -130,9 +130,7 @@ class MigrationController extends ClientApiController {
 
 			return $response;
 		} catch (Throwable $e) {
-			$this->logger->error('Social export failed', ['userId' => $userId, 'exception' => $e]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return $this->refused($e, Http::STATUS_INTERNAL_SERVER_ERROR, 'Social export failed', ['userId' => $userId]);
 		}
 	}
 
@@ -157,12 +155,13 @@ class MigrationController extends ClientApiController {
 
 		$file = $_FILES['file'] ?? [];
 		if ($file === [] || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-			return new DataResponse(['error' => 'no archive was uploaded'], Http::STATUS_BAD_REQUEST);
+			return self::refusal('no archive was uploaded', 'no-file', Http::STATUS_BAD_REQUEST);
 		}
 
 		if (($file['size'] ?? 0) > self::IMPORT_MAX_SIZE) {
-			return new DataResponse(
-				['error' => 'this archive is larger than ' . (self::IMPORT_MAX_SIZE / 1024 / 1024) . ' MB'],
+			return self::refusal(
+				'this archive is larger than ' . (self::IMPORT_MAX_SIZE / 1024 / 1024) . ' MB',
+				'file-too-large',
 				Http::STATUS_REQUEST_ENTITY_TOO_LARGE
 			);
 		}
@@ -172,9 +171,7 @@ class MigrationController extends ClientApiController {
 
 			return new DataResponse(['imported' => true, 'log' => $log], Http::STATUS_OK);
 		} catch (Throwable $e) {
-			$this->logger->warning('Social import failed', ['userId' => $userId, 'exception' => $e]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->refused($e, Http::STATUS_BAD_REQUEST, 'Social import failed', ['userId' => $userId]);
 		}
 	}
 
@@ -223,7 +220,7 @@ class MigrationController extends ClientApiController {
 		try {
 			return new DataResponse(['account' => $this->moveInService->inspect($handle)], Http::STATUS_OK);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'inspecting the old account failed');
 		}
 	}
 
@@ -245,9 +242,7 @@ class MigrationController extends ClientApiController {
 			return $this->error($e);
 		}
 		if ($this->importQueueService->hasActive($userId, ImportJob::KIND_MOVE_IN)) {
-			return new DataResponse(
-				['error' => 'a move is already running; wait for it to finish'], Http::STATUS_CONFLICT
-			);
+			return self::refusal('a move is already running; wait for it to finish', 'import-running', Http::STATUS_CONFLICT);
 		}
 
 		try {
@@ -256,7 +251,7 @@ class MigrationController extends ClientApiController {
 			);
 			$job = $this->importQueueService->queue($userId, ImportJob::KIND_MOVE_IN, null, $options);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'moving in failed', ['userId' => $userId]);
 		}
 
 		return new DataResponse(['import' => $job], Http::STATUS_ACCEPTED);
@@ -288,7 +283,7 @@ class MigrationController extends ClientApiController {
 				Http::STATUS_OK
 			);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'starting to finish a move failed', ['userId' => $userId]);
 		}
 	}
 
@@ -331,13 +326,13 @@ class MigrationController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/move')]
 	public function moveStatus(): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+			return self::refusal('not logged in', 'not-signed-in', Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
 			return new DataResponse($this->migrationService->moveStatus($this->userId), Http::STATUS_OK);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'reading the move status failed', ['userId' => $this->userId]);
 		}
 	}
 
@@ -360,23 +355,20 @@ class MigrationController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/move')]
 	public function moveOut(string $target = '', string $confirm = '', string $bluesky = BlueskyAfterMoveOut::DEACTIVATE): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in', 'code' => 'not-signed-in'], Http::STATUS_UNAUTHORIZED);
+			return self::refusal('not logged in', 'not-signed-in', Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
 			$handle = $this->accountService->getActorFromUserId($this->userId)->getAccount();
 			if ($handle === '' || strcasecmp(ltrim(trim($confirm), '@'), $handle) !== 0) {
-				return new DataResponse(
-					['error' => 'type your own handle, ' . $handle . ', to confirm the move', 'code' => 'confirm-handle'],
-					Http::STATUS_UNPROCESSABLE_ENTITY
+				return self::refusal(
+					'type your own handle, ' . $handle . ', to confirm the move', 'confirm-handle', Http::STATUS_UNPROCESSABLE_ENTITY
 				);
 			}
 
 			$moved = $this->migrationService->move($this->userId, $target, true, $bluesky);
-		} catch (MoveErrorException $e) {
-			return new DataResponse($e->toArray(), Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage(), 'code' => 'move-refused'], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'moving away failed', ['userId' => $this->userId]);
 		}
 
 		return new DataResponse(
@@ -396,7 +388,7 @@ class MigrationController extends ClientApiController {
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/migration/move')]
 	public function undoMove(): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+			return self::refusal('not logged in', 'not-signed-in', Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
@@ -404,7 +396,7 @@ class MigrationController extends ClientApiController {
 
 			return new DataResponse($this->migrationService->moveStatus($this->userId), Http::STATUS_OK);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'undoing the move failed', ['userId' => $this->userId]);
 		}
 	}
 
@@ -440,9 +432,7 @@ class MigrationController extends ClientApiController {
 		}
 
 		if (!$this->importQueueService->dismiss($userId, $id)) {
-			return new DataResponse(
-				['error' => 'no finished import of yours has that id'], Http::STATUS_NOT_FOUND
-			);
+			return self::refusal('no finished import of yours has that id', 'import-not-found', Http::STATUS_NOT_FOUND);
 		}
 
 		return new DataResponse(['imports' => $this->importQueueService->listFor($userId)], Http::STATUS_OK);
@@ -492,15 +482,13 @@ class MigrationController extends ClientApiController {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/migration/people/find')]
 	public function switchFind(array $handles = []): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+			return self::refusal('not logged in', 'not-signed-in', Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
 			return new DataResponse($this->switchService->probe($handles), Http::STATUS_OK);
 		} catch (Throwable $e) {
-			$this->logger->warning('looking up names failed', ['exception' => $e]);
-
-			return new DataResponse(['error' => 'those names could not be looked up'], Http::STATUS_BAD_REQUEST);
+			return $this->refused($e, Http::STATUS_BAD_REQUEST, 'looking up names failed', ['userId' => $this->userId]);
 		}
 	}
 
@@ -514,7 +502,7 @@ class MigrationController extends ClientApiController {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/migration/announcement')]
 	public function switchAnnouncement(): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+			return self::refusal('not logged in', 'not-signed-in', Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
@@ -522,7 +510,7 @@ class MigrationController extends ClientApiController {
 
 			return new DataResponse($this->switchService->announcement($actor), Http::STATUS_OK);
 		} catch (Throwable $e) {
-			return new DataResponse(['error' => 'no account to announce'], Http::STATUS_NOT_FOUND);
+			return self::refusal('no account to announce', 'no-account', Http::STATUS_NOT_FOUND);
 		}
 	}
 
@@ -624,14 +612,8 @@ class MigrationController extends ClientApiController {
 			$response->addHeader('Content-Disposition', 'attachment; filename="' . $name . '"');
 
 			return $response;
-		} catch (InvalidResourceException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
 		} catch (Throwable $e) {
-			$this->logger->error('a CSV export failed', [
-				'userId' => $userId, 'kind' => $kind, 'exception' => $e,
-			]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+			return $this->refused($e, Http::STATUS_NOT_FOUND, 'a CSV export failed', ['userId' => $userId, 'kind' => $kind]);
 		}
 	}
 
@@ -652,27 +634,25 @@ class MigrationController extends ClientApiController {
 
 		$file = $_FILES['file'] ?? [];
 		if ($file === [] || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-			return new DataResponse(['error' => 'no file was uploaded'], Http::STATUS_BAD_REQUEST);
+			return self::refusal('no file was uploaded', 'no-file', Http::STATUS_BAD_REQUEST);
 		}
 		if (($file['size'] ?? 0) > self::IMPORT_MAX_SIZE) {
-			return new DataResponse(
-				['error' => 'this file is larger than ' . (self::IMPORT_MAX_SIZE / 1024 / 1024) . ' MB'],
+			return self::refusal(
+				'this file is larger than ' . (self::IMPORT_MAX_SIZE / 1024 / 1024) . ' MB',
+				'file-too-large',
 				Http::STATUS_REQUEST_ENTITY_TOO_LARGE
 			);
 		}
 		if ($this->importQueueService->hasActive($userId, $kind)) {
-			return new DataResponse(
-				['error' => 'an import of this kind is already running; wait for it to finish'],
-				Http::STATUS_CONFLICT
+			return self::refusal(
+				'an import of this kind is already running; wait for it to finish', 'import-running', Http::STATUS_CONFLICT
 			);
 		}
 
 		try {
 			$job = $this->importQueueService->queue($userId, $kind, $file['tmp_name'], $options);
 		} catch (Throwable $e) {
-			$this->logger->warning('queueing an import failed', ['userId' => $userId, 'kind' => $kind, 'exception' => $e]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->refused($e, Http::STATUS_CONFLICT, 'queueing an import failed', ['userId' => $userId, 'kind' => $kind]);
 		}
 
 		return new DataResponse(['import' => $job], Http::STATUS_ACCEPTED);
@@ -683,32 +663,29 @@ class MigrationController extends ClientApiController {
 	 * the switch wizard mines for names — differs by the one call it makes:
 	 * an uploaded file, read, handed to the service, and whatever it counted
 	 * answered back. A file that could not be read is the client's problem and says so;
-	 * anything the service throws is reported with its own message, which is
-	 * the whole of the help there is.
+	 * anything the service throws is logged and answered `server-error`.
 	 *
 	 * @param callable(string, string): array $import
 	 */
 	private function fromUpload(callable $import, string $failure): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+			return self::refusal('not logged in', 'not-signed-in', Http::STATUS_UNAUTHORIZED);
 		}
 
 		$file = $_FILES['file'] ?? [];
 		if ($file === [] || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-			return new DataResponse(['error' => 'no file was uploaded'], Http::STATUS_BAD_REQUEST);
+			return self::refusal('no file was uploaded', 'no-file', Http::STATUS_BAD_REQUEST);
 		}
 
 		$csv = file_get_contents($file['tmp_name']);
 		if ($csv === false) {
-			return new DataResponse(['error' => 'the uploaded file could not be read'], Http::STATUS_BAD_REQUEST);
+			return self::refusal('the uploaded file could not be read', 'file-unreadable', Http::STATUS_BAD_REQUEST);
 		}
 
 		try {
 			return new DataResponse($import($this->userId, $csv), Http::STATUS_OK);
 		} catch (Throwable $e) {
-			$this->logger->warning($failure, ['userId' => $this->userId, 'exception' => $e]);
-
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return $this->refused($e, Http::STATUS_BAD_REQUEST, $failure, ['userId' => $this->userId]);
 		}
 	}
 
@@ -747,16 +724,8 @@ class MigrationController extends ClientApiController {
 				),
 				Http::STATUS_OK
 			);
-		} catch (InvalidResourceException $e) {
-			// the message says which of the refusals it was, and that is the
-			// whole of the help there is
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
-			$this->logger->warning('importing a video failed', [
-				'userId' => $userId, 'exception' => $e,
-			]);
-
-			return new DataResponse(['error' => 'the video could not be brought over'], Http::STATUS_BAD_REQUEST);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'importing a video failed', ['userId' => $userId]);
 		}
 	}
 
@@ -834,16 +803,37 @@ class MigrationController extends ClientApiController {
 	 */
 	private function aliasAction(callable $action): DataResponse {
 		if ($this->userId === null) {
-			return new DataResponse(['error' => 'not logged in'], Http::STATUS_UNAUTHORIZED);
+			return self::refusal('not logged in', 'not-signed-in', Http::STATUS_UNAUTHORIZED);
 		}
 
 		try {
 			return new DataResponse(['aliases' => $action($this->userId)], Http::STATUS_OK);
 		} catch (Throwable $e) {
-			// what is refused here is an address that is not an actor id, and
-			// the message says which — it is the whole of the help there is
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return $this->refused($e, Http::STATUS_UNPROCESSABLE_ENTITY, 'changing the aliases failed', ['userId' => $this->userId]);
 		}
+	}
+
+	/** A refusal this controller knows by itself, as the Migration page reads it. */
+	private static function refusal(string $error, string $code, int $status): DataResponse {
+		return new DataResponse(['error' => $error, 'code' => $code], $status);
+	}
+
+	/**
+	 * What a route answers when the work threw: a refusal of the app's own
+	 * with its code and `$status`, and anything else logged and answered
+	 * `server-error` with a fixed sentence — its message is the server's, not
+	 * the person's, and may name what only the logs should.
+	 *
+	 * @param array<string, mixed> $context for the log
+	 */
+	private function refused(Throwable $e, int $status, string $failure, array $context = []): DataResponse {
+		if ($e instanceof MoveErrorException) {
+			return new DataResponse($e->toArray(), $status);
+		}
+
+		$this->logger->error($failure, $context + ['exception' => $e]);
+
+		return self::refusal('Something went wrong on this server', 'server-error', Http::STATUS_INTERNAL_SERVER_ERROR);
 	}
 
 	/**

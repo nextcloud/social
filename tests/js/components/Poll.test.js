@@ -122,7 +122,7 @@ describe('Poll', () => {
 		await wrapper.find('button').trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('this poll has ended')
+		expect(showError).toHaveBeenCalledWith({ text: 'Failed to vote', details: 'this poll has ended' })
 		expect(wrapper.findAll('input')).toHaveLength(2)
 	})
 })
