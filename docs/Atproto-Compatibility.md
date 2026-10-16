@@ -2292,10 +2292,15 @@ Everything in the phase 2 row, in `lib/Atproto/Reader/` (`BlueskyActorService`,
   feed of anybody who follows the quoting account.
 - **Search** (§9.1) asks the typeahead only for text that is the start of a
   handle — a dot in it, no `@` — so a plain username never leaves the
-  instance; each account it finds is the cached one, or is stored as it
-  is found — at most eight per search — since an account without a
-  stored row has no id a client can open or follow it by (it used to be
-  answered with id `0`).
+  instance. Each account it finds is the cached one, or the account as
+  the AppView described it: the typeahead stores nothing, since it is
+  asked once per keystroke, and its answer to a query is reused for a
+  minute. A Mastodon client's search with `resolve` stores the accounts
+  it is answered with, at most eight, because an account without a
+  stored row has no id a client can open or follow it by; without
+  `resolve` the typeahead is not asked. The composer's mention picker and
+  the directory offer unstored accounts; one is stored when it is
+  mentioned, opened or followed.
 - **The admin's federation block list applies to a handle's domain** (the
   part after the first dot) in the directory; the per-DID/PDS-host block
   list of §12.4 is phase 3, as are labelers (§12.2) and reporting (§12.3).

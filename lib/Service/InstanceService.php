@@ -264,6 +264,14 @@ class InstanceService {
 	}
 
 	/**
+	 * How many other servers this one has met: `domain_count`, as the
+	 * instance entity reports it and from the same remembered count.
+	 */
+	public function domainCount(): int {
+		return $this->countedStats()['domain_count'];
+	}
+
+	/**
 	 * The two counted numbers, from app config when a recent count is there,
 	 * from the database otherwise — and then written back for the next
 	 * STATS_CACHE_SECONDS. Also memoised for the request, since the instance

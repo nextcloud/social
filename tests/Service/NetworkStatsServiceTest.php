@@ -9,9 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
-use OCA\Social\Db\InstanceStatsRequest;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\CurlService;
+use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\NetworkStatsService;
 use OCP\ICache;
 use OCP\ICacheFactory;
@@ -32,7 +32,7 @@ use RuntimeException;
 class NetworkStatsServiceTest extends TestCase {
 	private CurlService|Stub $curlService;
 	private ConfigService|Stub $configService;
-	private InstanceStatsRequest|Stub $instanceStatsRequest;
+	private InstanceService|Stub $instanceService;
 	private NetworkStatsService $service;
 
 	/** what the survey answers with, or a Throwable it raises */
@@ -71,8 +71,8 @@ class NetworkStatsServiceTest extends TestCase {
 			->willReturnCallback(fn (string $key): string
 				=> ($key === NetworkStatsService::CONFIG_KEY) ? $this->configured : '');
 
-		$this->instanceStatsRequest = $this->createStub(InstanceStatsRequest::class);
-		$this->instanceStatsRequest->method('countRemoteDomains')->willReturn(2841);
+		$this->instanceService = $this->createStub(InstanceService::class);
+		$this->instanceService->method('domainCount')->willReturn(2841);
 
 		$this->service = $this->build($this->createStub(ICache::class));
 	}
@@ -84,7 +84,7 @@ class NetworkStatsServiceTest extends TestCase {
 		return new NetworkStatsService(
 			$this->curlService,
 			$this->configService,
-			$this->instanceStatsRequest,
+			$this->instanceService,
 			new NullLogger(),
 			$factory
 		);

@@ -369,6 +369,20 @@ describe('DirectMessages', () => {
 		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
 	})
 
+	// without `resolve` the server answers only from what it holds
+	it('asks other servers about a dotted handle, not about a plain name', async () => {
+		const wrapper = mountMessages()
+		await flushPromises()
+		get.mockImplementation(async () => ({ data: [] }))
+		await wrapper.vm.searchAccounts('carol.bsky.social')
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: true } })
+
+		await wrapper.vm.searchAccounts('carol')
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol', limit: 8, resolve: false } })
+	})
+
 	describe('recipient search', () => {
 		const carol = { id: '31', acct: 'carol@remote.example', display_name: 'Carol' }
 		const caroline = { id: '32', acct: 'caroline@elsewhere.example', display_name: 'Caroline' }

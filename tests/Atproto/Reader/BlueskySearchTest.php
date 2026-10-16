@@ -20,6 +20,8 @@ use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Service\SearchService;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -114,33 +116,80 @@ class BlueskySearchTest extends TestCase {
 	}
 
 	/**
-	 * An account with no stored row has no id: a client could neither open
-	 * it nor follow it, and `/api/v1/accounts/0/follow` is all it would have.
+	 * A typeahead is asked once per keystroke: what it finds is offered, the
+	 * cached row for an account here, and nothing is written — no row, no
+	 * avatar for the cache job to fetch for an account nobody chose.
 	 */
-	public function testAnAccountFoundIsTheCachedOneOrIsStoredFirst(): void {
+	public function testTheTypeaheadWritesNothing(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
 		$this->appView->method('query')->willReturn(['actors' => [
 			['did' => 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'handle' => 'alice.bsky.social'],
-			['did' => 'did:plc:z72i7hdynmk6r22z27h6tvur', 'handle' => 'bsky.app'],
+			['did' => 'did:plc:z72i7hdynmk6r22z27h6tvur', 'handle' => 'bsky.app', 'avatar' => 'https://cdn.bsky.app/b@jpeg'],
 		]]);
 		$known = new Person();
 		$known->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz')->setNid(41);
+		$actors = $this->createMock(BlueskyActorService::class);
+		$actors->method('cached')->willReturnCallback(static fn (string $did): ?Person => $did === 'did:plc:ewvi7nxzyoun6zhxrhs64oiz' ? $known : null);
+		$actors->expects($this->never())->method('store');
+
+		$people = (new BlueskySearch($config, $this->appView, new ActorMapper(), $this->createMock(Blocklist::class), new NullLogger(), $actors))->typeahead('alice.');
+
+		$this->assertSame($known, $people[0]);
+		$this->assertSame('bsky.app', $people[1]->getAccount());
+		$this->assertSame(0, (int)$people[1]->getNid(), 'not stored, so no id yet');
+	}
+
+	/**
+	 * An account with no stored row has no id: a client could neither open
+	 * it nor follow it, and `/api/v1/accounts/0/follow` is all it would have.
+	 * An answer that hands out ids keeps them first.
+	 */
+	public function testKeepingStoresWhatTheTypeaheadFoundAndNothingElse(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$known = new Person();
+		$known->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz')->setNid(41);
+		$found = (new ActorMapper())->person(['did' => 'did:plc:z72i7hdynmk6r22z27h6tvur', 'handle' => 'bsky.app']);
 		$stored = [];
 		$actors = $this->createMock(BlueskyActorService::class);
-		$actors->method('cached')->willReturnCallback(static function (string $did) use ($known, &$stored): ?Person {
-			if ($did === 'did:plc:ewvi7nxzyoun6zhxrhs64oiz') {
-				return $known;
-			}
-
+		$actors->method('cached')->willReturnCallback(static function (string $did) use (&$stored): ?Person {
 			return isset($stored[$did]) ? (clone $stored[$did])->setNid(42) : null;
 		});
 		$actors->expects($this->once())->method('store')->willReturnCallback(static function (Person $person) use (&$stored): void {
 			$stored['did:plc:z72i7hdynmk6r22z27h6tvur'] = $person;
 		});
 
-		$people = (new BlueskySearch($config, $this->appView, new ActorMapper(), $this->createMock(Blocklist::class), new NullLogger(), $actors))->typeahead('alice.');
+		$people = (new BlueskySearch($config, $this->appView, new ActorMapper(), $this->createMock(Blocklist::class), new NullLogger(), $actors))->keep([$known, $found]);
 
 		$this->assertSame([41, 42], array_map(static fn (Person $p): int => (int)$p->getNid(), $people));
+	}
+
+	/** The same query a moment later — a second tab, the composer and the search at once — is answered from the cache. */
+	public function testTheAnswerToAQueryIsReusedForAMinute(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$memory = [];
+		$cache = $this->createMock(ICache::class);
+		$cache->method('get')->willReturnCallback(static function (string $key) use (&$memory): mixed {
+			return $memory[$key] ?? null;
+		});
+		$cache->expects($this->once())->method('set')
+			->with($this->anything(), $this->anything(), BlueskySearch::ANSWER_TTL)
+			->willReturnCallback(static function (string $key, mixed $value) use (&$memory): bool {
+				$memory[$key] = $value;
+
+				return true;
+			});
+		$factory = $this->createMock(ICacheFactory::class);
+		$factory->method('createDistributed')->willReturn($cache);
+		$this->appView->expects($this->once())->method('query')->willReturn(['actors' => [
+			['did' => 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'handle' => 'alice.bsky.social'],
+		]]);
+		$search = new BlueskySearch($config, $this->appView, new ActorMapper(), $this->createMock(Blocklist::class), new NullLogger(), null, $factory);
+
+		$this->assertCount(1, $search->typeahead('alice.b'));
+		$this->assertCount(1, $search->typeahead('@Alice.b'));
+		$this->assertSame(60, BlueskySearch::ANSWER_TTL);
 	}
 }

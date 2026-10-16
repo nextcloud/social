@@ -2912,6 +2912,30 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([$bob], $this->controller()->accountsSearch('bob', 8, false, true)->getData());
 	}
 
+	/**
+	 * Mastodon's `resolve=false` is what a client's autocomplete sends, once
+	 * per keystroke: the search is told not to ask other servers.
+	 */
+	public function testAccountsSearchHandsResolveToTheSearch(): void {
+		$this->loggedInAs();
+		$asked = [];
+		$this->searchService->expects($this->exactly(2))
+			->method('searchAccounts')
+			->willReturnCallback(static function (string $q, ?int $limit, string $followedBy, bool $resolve) use (&$asked): array {
+				$asked[] = [$q, $limit, $followedBy, $resolve];
+
+				return [];
+			});
+
+		$this->controller()->accountsSearch('bob@remote.example', 8);
+		$this->controller()->accountsSearch('bob@remote.example', 8, true);
+
+		$this->assertSame([
+			['bob@remote.example', 8, '', false],
+			['bob@remote.example', 8, '', true],
+		], $asked);
+	}
+
 	public function testAnOrdinaryAccountsSearchIsNotNarrowed(): void {
 		$this->loggedInAs();
 		$this->searchService->expects($this->once())
@@ -3057,6 +3081,27 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame([$status], $data['statuses']);
 		$this->assertSame('bobcats', $data['hashtags'][0]['name']);
 		$this->assertSame('https://cloud.example/tags/bobcats', $data['hashtags'][0]['url']);
+	}
+
+	/** Without `resolve`, as in Mastodon, nothing is looked up on another server. */
+	public function testSearchV2WithoutResolveKeepsTheAccountSearchHere(): void {
+		$this->loggedInAs();
+		$this->searchService->expects($this->once())->method('searchUri')
+			->with('@bob@remote.example', false)->willReturn([]);
+		$this->searchService->expects($this->once())->method('searchAccounts')
+			->with('@bob@remote.example', 20, '', false)->willReturn([]);
+
+		$this->controller()->searchV2('@bob@remote.example', 'accounts');
+	}
+
+	public function testSearchV2WithResolveLetsTheAccountSearchAskElsewhere(): void {
+		$this->loggedInAs();
+		$this->searchService->expects($this->once())->method('searchUri')
+			->with('@bob@remote.example', true)->willReturn([]);
+		$this->searchService->expects($this->once())->method('searchAccounts')
+			->with('@bob@remote.example', 20, '', true)->willReturn([]);
+
+		$this->controller()->searchV2('@bob@remote.example', 'accounts', 20, true);
 	}
 
 	public function testASearchOfPostsIsAskedBeyondThisServerAsTheReader(): void {

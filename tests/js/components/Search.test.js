@@ -119,7 +119,7 @@ describe('Search', () => {
 		const wrapper = mountSearch('nextcloud')
 
 		expect(get).toHaveBeenCalledTimes(1)
-		expect(get).toHaveBeenCalledWith(SEARCH_URL, { params: { q: 'nextcloud', limit: 20 } })
+		expect(get).toHaveBeenCalledWith(SEARCH_URL, { params: { q: 'nextcloud', limit: 20, resolve: true } })
 		expect(wrapper.find('.loading-stub').exists()).toBe(true)
 	})
 
@@ -255,7 +255,7 @@ describe('Search', () => {
 			vi.advanceTimersByTime(300)
 			await flushPromises()
 			expect(get).toHaveBeenCalledTimes(2)
-			expect(get).toHaveBeenLastCalledWith(SEARCH_URL, { params: { q: 'bob', limit: 20 } })
+			expect(get).toHaveBeenLastCalledWith(SEARCH_URL, { params: { q: 'bob', limit: 20, resolve: true } })
 		} finally {
 			vi.useRealTimers()
 		}

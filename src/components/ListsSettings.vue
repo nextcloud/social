@@ -160,7 +160,7 @@
 							:showTrailingButton="false"
 							@update:modelValue="onSearch" />
 						<ul v-if="results.length > 0" class="lists-settings__results" role="listbox">
-							<li v-for="hit in results" :key="hit.id">
+							<li v-for="hit in results" :key="hit.url">
 								<button
 									type="button"
 									class="lists-settings__result"

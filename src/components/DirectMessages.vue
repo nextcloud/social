@@ -419,7 +419,7 @@ import { useNotificationsStore } from '../store/notifications.js'
 import { fullDateTime, shortAgo } from '../utils/relativeTime.js'
 import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
-import { isLocalAccount } from '../utils/accountLocality.js'
+import { isBlueskyHandle, isLocalAccount } from '../utils/accountLocality.js'
 import logger from '../services/logger.js'
 import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
 
@@ -478,9 +478,9 @@ function hostOf(url) {
  * column, not at URLs — so pasting `https://remote.example/@bob`, which is how
  * one person sends another a profile, found nobody at all.
  *
- * Handles are here for the sake of saying what the rule is; they already
- * resolve, because the account search fetches an unknown `user@host` whether
- * or not it was asked to.
+ * Without `resolve` the account search answers from what this server holds:
+ * an unknown `user@host` is not looked up, and a dotted name such as
+ * `alice.bsky.social` is not offered from Bluesky's typeahead.
  *
  * @param {string} query what was typed
  * @return {boolean} whether to ask the other server
@@ -490,6 +490,7 @@ function isHandle(query) {
 
 	return typed.startsWith('@') || typed.startsWith('http')
 		|| /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(typed)
+		|| (isBlueskyHandle(typed) && !/\s/.test(typed))
 }
 
 export default {

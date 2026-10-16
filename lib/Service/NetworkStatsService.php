@@ -9,7 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service;
 
-use OCA\Social\Db\InstanceStatsRequest;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use Psr\Log\LoggerInterface;
@@ -69,7 +68,7 @@ class NetworkStatsService {
 	public function __construct(
 		private CurlService $curlService,
 		private ConfigService $configService,
-		private InstanceStatsRequest $instanceStatsRequest,
+		private InstanceService $instanceService,
 		private LoggerInterface $logger,
 		ICacheFactory $cacheFactory,
 	) {
@@ -96,8 +95,9 @@ class NetworkStatsService {
 		}
 
 		return array_merge($counted, [
-			// this instance's own number, counted here rather than quoted
-			'peers' => $this->instanceStatsRequest->countRemoteDomains(),
+			// this instance's own number, counted here rather than quoted:
+			// the instance entity's `domain_count`, from the same count
+			'peers' => $this->instanceService->domainCount(),
 			'source' => self::SOURCE_NAME,
 			'source_url' => self::SOURCE_URL,
 		]);

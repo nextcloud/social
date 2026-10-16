@@ -650,14 +650,28 @@ class CacheActorService {
 				throw new CacheActorDoesNotExistException();
 			}
 
-			$actor = $this->curlService->retrieveAccount($account);
-			$actor->setAccount($account);
-			try {
-				$this->logger->debug('[CacheActorService] saving an actor', ['actor' => $actor->getId()]);
+			// as in getFromId(): a handle whose lookup failed a moment ago is
+			// the same host-meta and WebFinger round, up to four requests to a
+			// host that did not answer, inside somebody's request
+			$miss = md5('acct:' . $account);
+			if ($this->durableCache?->get(self::MISS_NAMESPACE, $miss) !== null) {
+				throw new CacheActorDoesNotExistException('not fetched again yet: ' . $account);
+			}
 
-				$this->save($actor);
+			try {
+				$actor = $this->curlService->retrieveAccount($account);
+				$actor->setAccount($account);
+				try {
+					$this->logger->debug('[CacheActorService] saving an actor', ['actor' => $actor->getId()]);
+
+					$this->save($actor);
+				} catch (Exception $e) {
+					throw new InvalidResourceException($e->getMessage());
+				}
 			} catch (Exception $e) {
-				throw new InvalidResourceException($e->getMessage());
+				$this->durableCache?->set(self::MISS_NAMESPACE, $miss, 1, self::MISS_SECONDS);
+
+				throw $e;
 			}
 		}
 
@@ -904,7 +918,21 @@ class CacheActorService {
 			return $cached;
 		}
 
-		return $this->blueskyActors->resolve($handle);
+		// as in getFromId(): a handle the AppView did not give a moment ago is
+		// not asked for again, unless it has been stored since
+		$miss = md5('acct:' . $handle);
+		if ($this->durableCache?->get(self::MISS_NAMESPACE, $miss) !== null
+			&& $this->blueskyActors->cached($handle) === null) {
+			throw new CacheActorDoesNotExistException('not fetched again yet: ' . $handle);
+		}
+
+		try {
+			return $this->blueskyActors->resolve($handle);
+		} catch (Exception $e) {
+			$this->durableCache?->set(self::MISS_NAMESPACE, $miss, 1, self::MISS_SECONDS);
+
+			throw $e;
+		}
 	}
 
 	/**

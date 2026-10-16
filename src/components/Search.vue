@@ -262,7 +262,9 @@ export default {
 		/**
 		 * Asks the server, rather than filtering the handful of posts that
 		 * happen to be loaded. `/api/v2/search` answers with accounts, posts
-		 * and hashtags in one response.
+		 * and hashtags in one response; `resolve` lets it ask other servers
+		 * about a handle or address it has not met, which is what this page
+		 * offers in its empty state.
 		 */
 		async search() {
 			const term = this.query.trim()
@@ -284,7 +286,7 @@ export default {
 			this.error = null
 			try {
 				const { data, headers } = await axios.get(generateUrl('apps/social/api/v2/search'), {
-					params: { q: term, limit: 20 },
+					params: { q: term, limit: 20, resolve: true },
 				})
 				if (sequence !== this.requestSequence) {
 					return
