@@ -661,6 +661,12 @@ class LocalController extends Controller {
 	 * signed actor fetches — six outbound requests at a ten-second timeout, aimed at
 	 * a host the caller names and signed by a named local actor. `OStatusController::getLink`
 	 * throttles a single WebFinger lookup for the same reason.
+	 *
+	 * It is a GET without a CSRF check, so a page on another site can send a
+	 * signed-in reader's browser here with any handle in the address. Other
+	 * servers are therefore asked only by a request that shows it is not that
+	 * (`mayAskOtherServers()`); any other request is answered from what this
+	 * server holds.
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
@@ -724,15 +730,15 @@ class LocalController extends Controller {
 					if ($domain !== '' || !BlueskyIds::isHandle($account)) {
 						throw $e;
 					}
-					$actor = $this->cacheActorService->getFromAccount($account);
+					$actor = $this->cacheActorService->getFromAccount($account, $this->mayAskOtherServers());
 				}
 			} else {
-				$actor = $this->cacheActorService->getFromAccount($account);
+				$actor = $this->cacheActorService->getFromAccount($account, $this->mayAskOtherServers());
 			}
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
 			// For remote actors, fetch follower/following/post counts
-			if (!$actor->isLocal()) {
+			if (!$actor->isLocal() && $this->mayAskOtherServers()) {
 				try {
 					$this->cacheActorService->addRemoteActorDetailCount($actor);
 				} catch (Exception $e) {
@@ -912,6 +918,17 @@ class LocalController extends Controller {
 	/**
 	 * @throws AccountDoesNotExistException
 	 */
+	/**
+	 * Whether this request may have other servers asked on its behalf: one
+	 * the web app sent, with its request token, or one carrying a bearer
+	 * token. Neither can be made by a link or a page on another site, which
+	 * is all a GET with no CSRF check otherwise guards against.
+	 */
+	private function mayAskOtherServers(): bool {
+		return $this->request->passesCSRFCheck()
+			|| str_starts_with($this->request->getHeader('Authorization'), 'Bearer ');
+	}
+
 	private function initViewer(bool $exception = false) {
 		if (!isset($this->userId)) {
 			if ($exception) {

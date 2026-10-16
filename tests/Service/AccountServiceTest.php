@@ -1628,6 +1628,18 @@ class AccountServiceTest extends TestCase {
 		$this->service->avatarChanged('alice', 'alice');
 	}
 
+	/** A new address for the same picture: the actor is cached again and told, once. */
+	public function testRepublishingAnActorCachesItAgainAndTellsTheFollowers(): void {
+		$alice = $this->alice();
+		$this->aliceIsKnown($alice);
+		$this->actorService->expects($this->once())->method('cacheLocalActor');
+		$this->activityService->expects($this->once())->method('updateActivity')
+			->with($this->identicalTo($alice), $this->isInstanceOf(Person::class))
+			->willReturn('token');
+
+		$this->service->republishActor($alice);
+	}
+
 	public function testNothingChangedTellsNobody(): void {
 		$this->activityService->expects($this->never())->method('updateActivity');
 

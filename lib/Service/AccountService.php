@@ -851,6 +851,28 @@ class AccountService {
 	 * A failure is logged and swallowed: the change is stored either way, and
 	 * a remote server picks it up when it next refreshes the actor.
 	 */
+	/**
+	 * Re-caches a local account and tells its followers' servers the actor as
+	 * it is served now, and nothing else: for a change in how the actor is
+	 * published rather than in anything the account holds, such as the
+	 * address of its icon (`Cron\RepublishAvatars`).
+	 */
+	public function republishActor(Person $actor): void {
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+		try {
+			$served = $this->cacheActorsRequest->getFromLocalAccount($actor->getPreferredUsername());
+		} catch (Exception $e) {
+			$this->logger->warning(
+				'could not tell the followers that a local actor changed',
+				['actor' => $actor->getId(), 'exception' => $e]
+			);
+
+			return;
+		}
+
+		$this->federateActorUpdate($actor, $served);
+	}
+
 	private function federateActorUpdate(Person $actor, Person $served): void {
 		try {
 			$update = clone $served;

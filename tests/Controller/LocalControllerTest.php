@@ -756,6 +756,7 @@ class LocalControllerTest extends TestCase {
 	}
 
 	public function testGlobalAccountInfoFetchesRemoteActorsWithTheirCounters(): void {
+		$this->request->method('passesCSRFCheck')->willReturn(true);
 		$this->configService->method('getCloudHost')->willReturn('cloud.example');
 		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
 		$actor = $this->createStub(Person::class);
@@ -765,6 +766,38 @@ class LocalControllerTest extends TestCase {
 		$this->accountService->expects($this->never())->method('getActorFromUserId');
 
 		$this->assertSame($actor, $this->controller(null)->globalAccountInfo('bob@remote.example')->getData());
+	}
+
+	/**
+	 * The route is a GET without a CSRF check: a page on another site can send
+	 * a signed-in reader's browser to it with any handle. Such a request is
+	 * answered from what this server holds, and no other server is asked.
+	 */
+	public function testGlobalAccountInfoAsksNoOtherServerForARequestAnotherSiteCouldMake(): void {
+		$this->configService->method('getCloudHost')->willReturn('cloud.example');
+		$this->request->method('passesCSRFCheck')->willReturn(false);
+		$this->request->method('getHeader')->willReturn('');
+		$actor = $this->createStub(Person::class);
+		$actor->method('isLocal')->willReturn(false);
+		$this->cacheActorService->expects($this->once())->method('getFromAccount')->with('bob@remote.example', false)->willReturn($actor);
+		$this->cacheActorService->expects($this->never())->method('addRemoteActorDetailCount');
+
+		$this->assertSame($actor, $this->controller('alice')->globalAccountInfo('bob@remote.example')->getData());
+	}
+
+	/** The web app's own request, and a client's with a bearer token, may have them asked. */
+	public function testGlobalAccountInfoAsksTheAccountsServerForTheAppOrABearerToken(): void {
+		$this->configService->method('getCloudHost')->willReturn('cloud.example');
+		$this->request->method('passesCSRFCheck')->willReturn(false);
+		$this->request->method('getHeader')->willReturnCallback(
+			static fn (string $name): string => ($name === 'Authorization') ? 'Bearer abc' : ''
+		);
+		$actor = $this->createStub(Person::class);
+		$actor->method('isLocal')->willReturn(false);
+		$this->cacheActorService->expects($this->once())->method('getFromAccount')->with('bob@remote.example', true)->willReturn($actor);
+		$this->cacheActorService->expects($this->once())->method('addRemoteActorDetailCount');
+
+		$this->controller(null)->globalAccountInfo('bob@remote.example');
 	}
 
 	public function testGlobalAccountInfoToleratesCounterFailures(): void {

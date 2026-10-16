@@ -121,6 +121,7 @@ You can pin your own posts to the top of your profile, bookmark any post, and se
 			<step>OCA\Social\Migration\BackfillStreamPostFields</step>
 			<step>OCA\Social\Migration\ClearAvatarHeaders</step>
 			<step>OCA\Social\Migration\RepublishBlueskyProfiles</step>
+			<step>OCA\Social\Migration\RepublishAvatarAddresses</step>
 		</post-migration>
 		<install>
 			<step>OCA\Social\Migration\InstallBackfills</step>
