@@ -3026,6 +3026,10 @@ is taken off with one toast for all of them, and one it could not be asked about
 stays as the draft had it. A filtered picture has its bytes fetched back into a
 `File`, because the filter is baked in from the file as the post is sent; when
 that fails the filter is dropped, so the preview shows what would be posted.
+Choosing a filter for any picture with no file in the browser — added from
+Files, written again from a deleted post — fetches it the same way
+(`fetchMediaFile`, kept under `objectUrl` for the swatches), and Post waits for
+it; one that cannot be fetched stays unfiltered, with an error toast.
 
 The one thing a draft cannot hold is an upload that has not come back, which
 has no id yet. That alone is what the leave guard asks about: a `beforeunload`

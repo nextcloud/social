@@ -1076,7 +1076,8 @@ export default {
 			}
 
 			// an attachment a draft came back with may be gone from the
-			// server, and the post would fail on it
+			// server, and a picture whose file is still being fetched would
+			// go out without its filter
 			if (this.checkingMedia) {
 				return false
 			}

@@ -586,6 +586,7 @@ OC.L10N.register(
     "Leave" : "Verlassen",
     "Not on Bluesky" : "Nicht auf Bluesky",
     "_%n attachment of your draft is no longer on the server and was removed_::_%n attachments of your draft are no longer on the server and were removed_" : ["%n Anhang Ihres Entwurfs ist nicht mehr auf dem Server und wurde entfernt","%n Anhänge Ihres Entwurfs sind nicht mehr auf dem Server und wurden entfernt"],
+    "Could not load the picture to apply the filter, so it stays as it is" : "Das Bild konnte nicht geladen werden, um den Filter anzuwenden, daher bleibt es unverändert",
     "No mentions, hashtags or links yet." : "Noch keine Erwähnungen, Hashtags oder Links.",
     "_%n mention_::_%n mentions_" : ["%n Erwähnung","%n Erwähnungen"],
     "_%n hashtag_::_%n hashtags_" : ["%n Hashtag","%n Hashtags"],

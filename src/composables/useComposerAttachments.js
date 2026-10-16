@@ -108,8 +108,11 @@ export function useComposerAttachments({ expand, root }) {
 	/** whether an upload has not come back yet */
 	const hasPendingUploads = computed(() => Object.values(attachments.value).some((attachment) => attachment.failed !== true && attachment.data === null))
 
-	/** whether an attachment a draft came back with is still being asked about */
-	const checkingMedia = computed(() => Object.values(attachments.value).some((attachment) => attachment.checking === true))
+	/**
+	 * Whether an attachment is still being asked about (one a draft came
+	 * back with) or fetched (one a filter was chosen for); the post waits
+	 */
+	const checkingMedia = computed(() => Object.values(attachments.value).some((attachment) => attachment.checking === true || attachment.fetching === true))
 
 	/**
 	 * The attachments as a draft keeps them: by the upload, with what was
@@ -486,25 +489,83 @@ export function useComposerAttachments({ expand, root }) {
 		picking.value = false
 	}
 
+	/** the filter wanted for each attachment whose file is being fetched for one */
+	const wantedFilters = new Map()
+
 	/**
 	 * Remembers the filter chosen for an attachment. Nothing is uploaded:
 	 * the preview is CSS and updates at once, and the filter is baked in
 	 * once, as the post is sent (`bakeFilters()`).
 	 *
+	 * The filter is baked in from the file, and a picture added from Files,
+	 * written again from a deleted post or brought back by a draft has none
+	 * in the browser: it is fetched first, and the post waits for it. One
+	 * that cannot be had leaves the picture as it is, and says so.
+	 *
 	 * @param {object} change what was chosen
-	 * @param {string} change.key the attachment's object URL
+	 * @param {string} change.key the attachment's key
 	 * @param {string} change.filter the filter id
 	 */
-	function applyFilter({ key, filter }) {
+	async function applyFilter({ key, filter }) {
 		const attachment = attachments.value[key]
 		if (attachment === undefined) {
 			return
 		}
+		if (wantedFilters.has(key)) {
+			// the file is on its way already; the last choice is the one
+			wantedFilters.set(key, filter)
+			return
+		}
+		if (!isFilterActive(filter) || attachment.file instanceof File || !attachment.data?.url) {
+			attachments.value = {
+				...attachments.value,
+				[key]: { ...attachment, filter },
+			}
+			return
+		}
+
+		wantedFilters.set(key, filter)
+		attachments.value = {
+			...attachments.value,
+			[key]: { ...attachment, fetching: true },
+		}
+		const loaded = await loadFile(key)
+		const wanted = wantedFilters.get(key)
+		wantedFilters.delete(key)
+
+		const current = attachments.value[key]
+		if (current === undefined) {
+			return
+		}
+		if (!loaded) {
+			showError(t('social', 'Could not load the picture to apply the filter, so it stays as it is'))
+		}
+		attachments.value = {
+			...attachments.value,
+			[key]: { ...current, fetching: false, filter: loaded ? wanted : undefined },
+		}
+	}
+
+	/**
+	 * Fetches the file of an attachment that has none in the browser, and
+	 * keeps it with an object URL for the filter swatches to draw.
+	 *
+	 * @param {string} key the attachment
+	 * @return {Promise<boolean>} whether the file is there now
+	 */
+	async function loadFile(key) {
+		const file = await timelineStore.fetchMediaFile(attachments.value[key].data)
+		const current = attachments.value[key]
+		if (file === undefined || current === undefined) {
+			return false
+		}
 
 		attachments.value = {
 			...attachments.value,
-			[key]: { ...attachment, filter },
+			[key]: { ...current, file, objectUrl: URL.createObjectURL(file) },
 		}
+
+		return true
 	}
 
 	/**
@@ -739,28 +800,33 @@ export function useComposerAttachments({ expand, root }) {
 	 */
 	function deletePreview(key) {
 		const newAttachments = { ...attachments.value }
+		const attachment = newAttachments[key]
 		delete newAttachments[key]
 		attachments.value = newAttachments
-		releasePreview(key)
+		releasePreview(key, attachment)
 	}
 
 	/**
-	 * Lets go of the blob URL a preview was drawn from. Without this the
+	 * Lets go of the blob URLs a preview was drawn from. Without this the
 	 * file stays in memory for the life of the document.
 	 *
-	 * @param {string} key the attachment key, which is that URL
+	 * @param {string} key the attachment key, which is the URL of a file
+	 *                     attached from this browser
+	 * @param {import('../types/Composer.js').LocalAttachment} [attachment] the
+	 *        attachment, whose file may have been fetched later
 	 */
-	function releasePreview(key) {
+	function releasePreview(key, attachment) {
 		// an attachment picked out of Files is keyed by its path: there is
-		// no object URL behind it to let go of
-		if (!key.startsWith('blob:')) {
-			return
-		}
+		// no object URL behind the key, though there may be one for a file
+		// fetched for a filter
+		const urls = [key, attachment?.objectUrl ?? ''].filter((url) => url.startsWith('blob:'))
 
-		try {
-			URL.revokeObjectURL(key)
-		} catch (error) {
-			logger.debug('Could not release a preview URL', { error })
+		for (const url of urls) {
+			try {
+				URL.revokeObjectURL(url)
+			} catch (error) {
+				logger.debug('Could not release a preview URL', { error })
+			}
 		}
 	}
 
@@ -877,7 +943,7 @@ export function useComposerAttachments({ expand, root }) {
 
 	/** Every attachment gone, and the previews they were drawn from let go of. */
 	function clearAttachments() {
-		Object.keys(attachments.value).forEach((key) => releasePreview(key))
+		Object.entries(attachments.value).forEach(([key, attachment]) => releasePreview(key, attachment))
 		attachments.value = {}
 	}
 
@@ -986,25 +1052,26 @@ export function useComposerAttachments({ expand, root }) {
 		}
 
 		const data = media ?? kept.data
-		const file = isFilterActive(kept.filter) ? (await timelineStore.fetchMediaFile(data)) ?? null : null
+		attachments.value = {
+			...attachments.value,
+			[key]: { ...attachments.value[key], data, saved: data.description || '' },
+		}
+		if (isFilterActive(kept.filter)) {
+			await loadFile(key)
+		}
+
 		const current = attachments.value[key]
 		if (current === undefined) {
 			return true
 		}
-
-		const checked = {
-			...current,
-			data,
-			saved: data.description || '',
-			file,
-			filter: file === null ? undefined : current.filter,
-			checking: false,
+		attachments.value = {
+			...attachments.value,
+			[key]: {
+				...current,
+				filter: current.file instanceof File ? current.filter : undefined,
+				checking: false,
+			},
 		}
-		// a file is keyed by its object URL, which is also what the filter
-		// swatches draw; the order of the grid is kept
-		const newKey = file === null ? key : URL.createObjectURL(file)
-		attachments.value = Object.fromEntries(Object.entries(attachments.value)
-			.map(([oldKey, attachment]) => (oldKey === key ? [newKey, checked] : [oldKey, attachment])))
 
 		return true
 	}

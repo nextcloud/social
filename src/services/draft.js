@@ -7,10 +7,12 @@
  * What is in the composer, kept where a failed post, a reload or a navigation
  * cannot take it away.
  *
- * The composer used to clear itself in a `finally`, so an offline moment, a
- * 500 or a rate limit meant a toast and an empty box: the text was gone. The
- * app also keys its router-view on the full path, so any navigation unmounts
- * the composer — the draft has to outlive the component, not just the request.
+ * The composer is part of the page it sits on — a timeline, a profile, a
+ * post's own page, the search results — or of the New post dialog, and it is
+ * unmounted when the reader goes to a page without one, closes the dialog or
+ * reloads. The draft therefore lives outside the component: a post the server
+ * refused leaves the box as it was, and this copy is what puts the box back
+ * after any of those.
  *
  * Everything the box holds is kept: the words, the warning, the audience, the
  * language, who it is written as and who may reply, the poll, the time it is

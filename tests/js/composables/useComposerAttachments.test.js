@@ -373,9 +373,8 @@ describe('useComposerAttachments', () => {
 
 			await attachments.restoreDraftMedia([kept('1', { filter: 'warm' }), kept('2')])
 
-			// keyed by the file now, which the swatches draw; the order is kept
-			expect(Object.keys(attachments.attachments.value)[0]).toBe('blob:https://cloud.example/refetched')
-			expect(attachments.attachments.value['blob:https://cloud.example/refetched']).toMatchObject({ file, filter: 'warm' })
+			// the swatches draw the file now; the key and the order stay
+			expect(Object.values(attachments.attachments.value)[0]).toMatchObject({ file, filter: 'warm', objectUrl: 'blob:https://cloud.example/refetched' })
 			expect(attachments.mediaIds.value).toEqual(['1', '1'])
 		})
 
@@ -423,6 +422,115 @@ describe('useComposerAttachments', () => {
 				focus: { x: 0.1, y: 0.2 },
 				filter: 'warm',
 			}])
+		})
+	})
+
+	/**
+	 * A picture added from Files, written again from a deleted post or
+	 * brought back by a draft has no file in the browser, and the filter is
+	 * baked in from the file: choosing one used to change the preview and
+	 * nothing else.
+	 */
+	describe('a filter for a picture with no file in the browser', () => {
+		const fromFiles = { id: '5', type: 'image', url: 'https://cloud.example/5.jpg', preview_url: 'https://cloud.example/5-small.jpg' }
+
+		/**
+		 * @return {object} the composable, holding the picture as Files left it
+		 */
+		function withPicture() {
+			const mounted = mountAttachments()
+			mounted.attachments.attachments.value = { 'nextcloud:1:/cat.jpg': { file: null, path: '/cat.jpg', data: fromFiles, failed: false } }
+			return mounted.attachments
+		}
+
+		beforeEach(() => {
+			showError.mockClear()
+		})
+
+		it('fetches the file first, and the post waits for it', async () => {
+			const store = useTimelineStore()
+			const file = new File(['x'], '5.jpg', { type: 'image/jpeg' })
+			let answer
+			store.fetchMediaFile = vi.fn(() => new Promise((resolve) => {
+				answer = resolve
+			}))
+			vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://cloud.example/5')
+			const attachments = withPicture()
+
+			const choosing = attachments.applyFilter({ key: 'nextcloud:1:/cat.jpg', filter: 'warm' })
+			expect(attachments.checkingMedia.value).toBe(true)
+			answer(file)
+			await choosing
+
+			expect(store.fetchMediaFile).toHaveBeenCalledWith(fromFiles)
+			expect(attachments.attachments.value['nextcloud:1:/cat.jpg']).toMatchObject({ file, filter: 'warm', objectUrl: 'blob:https://cloud.example/5' })
+			expect(attachments.checkingMedia.value).toBe(false)
+		})
+
+		it('bakes the filter in when the post goes out', async () => {
+			const store = useTimelineStore()
+			store.fetchMediaFile = vi.fn(async () => new File(['x'], '5.jpg', { type: 'image/jpeg' }))
+			store.createMedia = vi.fn(async () => ({ id: '6' }))
+			vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://cloud.example/5')
+			const attachments = withPicture()
+
+			await attachments.applyFilter({ key: 'nextcloud:1:/cat.jpg', filter: 'warm' })
+			expect(await attachments.bakeFilters()).toBe(true)
+
+			expect(attachments.mediaIds.value).toEqual(['6'])
+		})
+
+		it('keeps the last choice made while the file was on its way', async () => {
+			const store = useTimelineStore()
+			let answer
+			store.fetchMediaFile = vi.fn(() => new Promise((resolve) => {
+				answer = resolve
+			}))
+			vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://cloud.example/5')
+			const attachments = withPicture()
+
+			const first = attachments.applyFilter({ key: 'nextcloud:1:/cat.jpg', filter: 'warm' })
+			await attachments.applyFilter({ key: 'nextcloud:1:/cat.jpg', filter: 'mono' })
+			answer(new File(['x'], '5.jpg', { type: 'image/jpeg' }))
+			await first
+
+			expect(store.fetchMediaFile).toHaveBeenCalledTimes(1)
+			expect(attachments.attachments.value['nextcloud:1:/cat.jpg'].filter).toBe('mono')
+		})
+
+		it('says so and leaves the picture as it is when the file cannot be had', async () => {
+			const store = useTimelineStore()
+			store.fetchMediaFile = vi.fn(async () => undefined)
+			const attachments = withPicture()
+
+			await attachments.applyFilter({ key: 'nextcloud:1:/cat.jpg', filter: 'warm' })
+
+			expect(showError).toHaveBeenCalledWith('Could not load the picture to apply the filter, so it stays as it is')
+			expect(attachments.attachments.value['nextcloud:1:/cat.jpg'].filter).toBeUndefined()
+			expect(attachments.checkingMedia.value).toBe(false)
+		})
+
+		it('fetches nothing for Original', async () => {
+			const store = useTimelineStore()
+			store.fetchMediaFile = vi.fn()
+			const attachments = withPicture()
+
+			await attachments.applyFilter({ key: 'nextcloud:1:/cat.jpg', filter: 'none' })
+
+			expect(store.fetchMediaFile).not.toHaveBeenCalled()
+		})
+
+		it('lets go of the fetched file when the picture is taken off', async () => {
+			const store = useTimelineStore()
+			store.fetchMediaFile = vi.fn(async () => new File(['x'], '5.jpg', { type: 'image/jpeg' }))
+			vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://cloud.example/5')
+			const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+			const attachments = withPicture()
+			await attachments.applyFilter({ key: 'nextcloud:1:/cat.jpg', filter: 'warm' })
+
+			attachments.deletePreview('nextcloud:1:/cat.jpg')
+
+			expect(revoke).toHaveBeenCalledWith('blob:https://cloud.example/5')
 		})
 	})
 })

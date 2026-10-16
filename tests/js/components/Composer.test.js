@@ -738,6 +738,27 @@ describe('Composer', () => {
 			expect(postedStatus(store).media_ids).toEqual(['media-filtered'])
 		})
 
+		it('is baked in for a picture added from Files, from the file fetched for it', async () => {
+			const { wrapper, store } = mountComposer()
+			store.createMedia.mockImplementation(({ file }) => Promise.resolve({ ...media, id: file.name === 'filtered.jpg' ? 'media-filtered' : media.id }))
+			get.mockImplementation(async (url, config) => (config?.responseType === 'blob'
+				? { data: new Blob(['x'], { type: 'image/png' }) }
+				: { data: { teams: [] } }))
+			filePicker(Promise.resolve(['/Photos/cat.png']))
+			await setContent(wrapper, 'From my photos')
+			await addFromFiles(wrapper)
+
+			const item = wrapper.findComponent(PreviewGridItem)
+			item.vm.$emit('filter', { key: item.props('randomKey'), filter: 'mono' })
+			await flushPromises()
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(get).toHaveBeenCalledWith(media.url, { responseType: 'blob' })
+			expect(prepareImage).toHaveBeenLastCalledWith(expect.any(File), expect.objectContaining({ filter: 'mono' }))
+			expect(postedStatus(store).media_ids).toEqual(['media-filtered'])
+		})
+
 		it('holds the post back when the filtered copy would not upload', async () => {
 			const { wrapper, store } = mountComposer()
 			await setContent(wrapper, 'In black and white')

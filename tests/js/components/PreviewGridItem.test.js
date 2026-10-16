@@ -263,4 +263,19 @@ describe('PreviewGridItem', () => {
 		expect(mountItem({ file, data: media }).find('.preview-item__focal').exists()).toBe(false)
 		expect(mountItem({ file, data: media }).find('.preview-item__crosshair').exists()).toBe(false)
 	})
+
+	describe('the filter swatches', () => {
+		const swatch = (wrapper) => wrapper.find('.filter-picker__image')
+
+		it('draw the picture a file was keyed by', () => {
+			expect(swatch(mountItem({ file, data: media, failed: false })).attributes('src')).toBe('blob:preview-1')
+		})
+
+		it('draw the file fetched for a picture that came without one, and the server\'s preview until then', () => {
+			const fromFiles = (preview) => mount(PreviewGridItem, { props: { preview, randomKey: 'nextcloud:1:/cat.png' } })
+
+			expect(swatch(fromFiles({ file: null, data: media, failed: false })).attributes('src')).toBe(media.preview_url)
+			expect(swatch(fromFiles({ file, data: media, failed: false, objectUrl: 'blob:fetched' })).attributes('src')).toBe('blob:fetched')
+		})
+	})
 })
