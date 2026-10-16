@@ -196,6 +196,24 @@ describe('App', () => {
 			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(false)
 		})
 
+		it('listens for no key once the reader has turned the shortcuts off', async () => {
+			const wrapper = mountApp()
+			const heard = vi.fn()
+			eventBus.on('shortcut:next', heard)
+
+			settingsStore.setServerDataEntry({ key: 'keyboardShortcuts', value: false })
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }))
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }))
+			await wrapper.vm.$nextTick()
+
+			expect(heard).not.toHaveBeenCalled()
+			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(false)
+
+			settingsStore.setServerDataEntry({ key: 'keyboardShortcuts', value: true })
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }))
+			expect(heard).toHaveBeenCalledTimes(1)
+		})
+
 		/**
 		 * Asserted through `ShortcutList`, which is where the list lives now:
 		 * the Settings page shows the same one, and a shortcut is a promise

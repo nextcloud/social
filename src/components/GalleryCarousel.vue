@@ -12,12 +12,13 @@
 		:aria-roledescription="t('social', 'Image gallery')"
 		:aria-label="galleryLabel"
 		tabindex="0"
-		@keydown.left.prevent="previous"
-		@keydown.right.prevent="next"
+		@keydown.left.prevent="rtl ? next() : previous()"
+		@keydown.right.prevent="rtl ? previous() : next()"
 		@keydown.home.prevent="show(0)"
 		@keydown.end.prevent="show(attachments.length - 1)">
 		<div class="gallery__stage" :style="{ aspectRatio: String(stageRatio) }">
-			<div class="gallery__track" :style="{ transform: `translateX(${-current * 100}%)` }">
+			<!-- in a right-to-left page the slides run leftwards, and so does the track -->
+			<div class="gallery__track" :style="{ transform: `translateX(${(rtl ? 1 : -1) * current * 100}%)` }">
 				<!-- every picture stays mounted, so paging to one does not start
 				     its download; the ones off stage are taken out of the tab
 				     order and off the accessibility tree -->
@@ -45,14 +46,16 @@
 				class="gallery__step gallery__step--previous"
 				:aria-label="t('social', 'Previous image')"
 				@click="previous">
-				<ChevronLeft :size="24" />
+				<ChevronRight v-if="rtl" :size="24" />
+				<ChevronLeft v-else :size="24" />
 			</button>
 			<button
 				type="button"
 				class="gallery__step gallery__step--next"
 				:aria-label="t('social', 'Next image')"
 				@click="next">
-				<ChevronRight :size="24" />
+				<ChevronLeft v-if="rtl" :size="24" />
+				<ChevronRight v-else :size="24" />
 			</button>
 		</div>
 		<div class="gallery__pager">
@@ -111,6 +114,14 @@ export default {
 	},
 
 	computed: {
+		/**
+		 * @return {boolean} whether the page reads right to left, where the
+		 * next picture is the one to the left
+		 */
+		rtl() {
+			return document.documentElement?.dir === 'rtl'
+		},
+
 		/**
 		 * @return {number} one shape for every slide. The pictures of a set
 		 * rarely share a ratio, and a stage that resized per slide would move

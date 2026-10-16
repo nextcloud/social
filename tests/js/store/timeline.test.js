@@ -747,11 +747,22 @@ describe('timeline store actions', () => {
 			}
 		})
 
-		it('answers null for a post this server does not have', async () => {
+		it.each([404, 410])('answers null for a post this server does not have (%i)', async (code) => {
 			// a deleted post and one that never arrived look the same from here
-			axios.get.mockRejectedValue(new Error('gone'))
+			axios.get.mockRejectedValue(Object.assign(new Error('gone'), { response: { status: code } }))
 
 			expect(await store.fetchStatus('42')).toBeNull()
+			expect(tl().statuses['42']).toBeUndefined()
+		})
+
+		it.each([
+			['no connection', Object.assign(new Error('Network Error'), { response: undefined })],
+			['a server error', Object.assign(new Error('boom'), { response: { status: 500 } })],
+			['a timeout', Object.assign(new Error('timeout'), { code: 'ECONNABORTED' })],
+		])('throws on %s rather than calling the post gone', async (_, error) => {
+			axios.get.mockRejectedValue(error)
+
+			await expect(store.fetchStatus('42')).rejects.toBe(error)
 			expect(tl().statuses['42']).toBeUndefined()
 		})
 	})

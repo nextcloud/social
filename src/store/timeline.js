@@ -1409,6 +1409,10 @@ export const useTimelineStore = defineStore('timeline', {
 		 * so without this the page had nothing to draw and said the post did
 		 * not exist.
 		 *
+		 * Only a 404 or a 410 says the post is not there. Anything else — no
+		 * connection, a server error, a timeout — is thrown, so the page can
+		 * offer to try again rather than call the post deleted.
+		 *
 		 * @param {string} id the status id
 		 * @return {Promise<object|null>} the status, or null if it is not there
 		 */
@@ -1431,9 +1435,13 @@ export const useTimelineStore = defineStore('timeline', {
 
 				return response.data
 			} catch (error) {
+				const status = error?.response?.status
+				if (status !== 404 && status !== 410) {
+					throw error
+				}
 				// a deleted post and one this server never had look the same
 				// from here, and the page says so either way
-				logger.debug('Could not load a single status', { error, id })
+				logger.debug('A single status is not there', { error, id })
 
 				return null
 			}

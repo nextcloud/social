@@ -43,7 +43,7 @@ const TimelineEntryStub = {
 const NcEmptyContentStub = {
 	name: 'NcEmptyContent',
 	props: ['name', 'description'],
-	template: '<div class="empty-stub"><span class="empty-name">{{ name }}</span></div>',
+	template: '<div class="empty-stub"><span class="empty-name">{{ name }}</span><slot name="action" /></div>',
 }
 
 const bob = { id: 'https://remote.example/users/bob', url: 'https://remote.example/users/bob', acct: 'bob@remote.example', username: 'bob' }
@@ -202,6 +202,7 @@ describe('TimelineSinglePost', () => {
 		// the page is rendered once and the reader goes on reading: opening a
 		// second post used to be answered with the first one again whenever the
 		// store had not loaded the second
+		vi.spyOn(store, 'fetchStatus').mockResolvedValue(null)
 		const wrapper = mountView(reactive({ name: 'single-post', params: { account: 'bob', id: '456' } }))
 		await flushPromises()
 
@@ -281,6 +282,77 @@ describe('TimelineSinglePost', () => {
 			vi.spyOn(store, 'fetchStatus').mockResolvedValue(null)
 
 			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.find('.empty-name').text()).toBe('This post is not available')
+		})
+
+		it('shows the shape of a post, not "not available", while it is asked for', async () => {
+			setState('item', undefined)
+			window._nc_initial_state?.clear()
+			document.getElementById('initial-state-social-item')?.remove()
+			let answer
+			vi.spyOn(store, 'fetchStatus').mockImplementation(() => new Promise((resolve) => {
+				answer = resolve
+			}))
+
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.findComponent({ name: 'TimelineSkeleton' }).exists()).toBe(true)
+			expect(wrapper.find('.empty-stub').exists()).toBe(false)
+
+			store.addToStatuses(status)
+			answer(status)
+			await flushPromises()
+
+			expect(wrapper.findComponent({ name: 'TimelineSkeleton' }).exists()).toBe(false)
+			expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(true)
+		})
+
+		it('offers to try again when the server did not answer, and loads the post when it does', async () => {
+			setState('item', undefined)
+			window._nc_initial_state?.clear()
+			document.getElementById('initial-state-social-item')?.remove()
+			const fetchStatus = vi.spyOn(store, 'fetchStatus').mockRejectedValueOnce(new Error('Network Error'))
+
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.find('.empty-name').text()).toBe('Could not load this post')
+			expect(accountStore.fetchAccountInfo).not.toHaveBeenCalled()
+
+			fetchStatus.mockImplementationOnce(async (id) => {
+				store.addToStatuses({ ...status, id })
+
+				return status
+			})
+			const retry = wrapper.findAll('button').find((button) => button.text() === 'Try again')
+			await retry.trigger('click')
+			await flushPromises()
+
+			expect(fetchStatus).toHaveBeenCalledTimes(2)
+			expect(wrapper.find('.empty-stub').exists()).toBe(false)
+			expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(true)
+		})
+
+		it('does not let a slow answer for one post decide the page of the next', async () => {
+			setState('item', undefined)
+			window._nc_initial_state?.clear()
+			document.getElementById('initial-state-social-item')?.remove()
+			let fail
+			vi.spyOn(store, 'fetchStatus')
+				.mockImplementationOnce(() => new Promise((resolve, reject) => {
+					fail = reject
+				}))
+				.mockResolvedValueOnce(null)
+			const route = reactive({ name: 'single-post', params: { account: 'bob', id: '123' } })
+
+			const wrapper = mountView(route)
+			await flushPromises()
+			route.params.id = '456'
+			await flushPromises()
+			fail(new Error('timeout'))
 			await flushPromises()
 
 			expect(wrapper.find('.empty-name').text()).toBe('This post is not available')
@@ -432,15 +504,17 @@ describe('TimelineSinglePost', () => {
 		})
 	})
 
-	it('renders a page rather than throwing when the post is gone', () => {
+	it('renders a page rather than throwing when the post is gone', async () => {
 		// loadState throws when the key is absent, which is what a deleted
 		// post looks like — and it threw inside beforeMount, so the view
 		// never rendered at all
 		setState('item', undefined)
 		window._nc_initial_state?.clear()
 		document.getElementById('initial-state-social-item')?.remove()
+		vi.spyOn(store, 'fetchStatus').mockResolvedValue(null)
 
 		const wrapper = mountView()
+		await flushPromises()
 
 		expect(wrapper.find('.social__wrapper').exists()).toBe(true)
 		expect(wrapper.find('.empty-name').text()).toBe('This post is not available')

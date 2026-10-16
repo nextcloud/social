@@ -149,9 +149,9 @@
 						</NcButton>
 					</div>
 
-					<!-- a list is a view of what the reader follows, so what is
-					     offered here is anybody the search knows; the server says
-					     no to somebody they do not follow, and so does the toast -->
+					<!-- a list is a view of what the reader follows, so only the
+					     people they follow are offered: the server would refuse
+					     anybody else -->
 					<div v-if="!list.nextcloud_group" class="lists-settings__add">
 						<NcTextField
 							v-model="search"
@@ -171,8 +171,15 @@
 								</button>
 							</li>
 						</ul>
+						<!-- a search that failed has not said there is nobody -->
+						<div v-else-if="searchFailed && search.trim() !== ''" class="lists-settings__search-failed" role="alert">
+							<span class="lists-settings__hint">{{ t('social', 'Search failed') }}</span>
+							<NcButton variant="tertiary" @click="runSearch(search.trim())">
+								{{ t('social', 'Try again') }}
+							</NcButton>
+						</div>
 						<p v-else-if="searched && search.trim() !== ''" class="lists-settings__hint">
-							{{ t('social', 'Nobody by that name.') }}
+							{{ t('social', 'Nobody you follow by that name.') }}
 						</p>
 					</div>
 					<!-- A group list has no box to type in, because its members
@@ -300,6 +307,8 @@ export default {
 			results: [],
 			/** whether a search has been answered for the term in the box */
 			searched: false,
+			/** whether the last search for the term in the box failed */
+			searchFailed: false,
 			/** only the newest search may answer, whether it succeeds or fails */
 			searches: latestLoad(),
 		}
@@ -474,6 +483,7 @@ export default {
 			this.search = ''
 			this.results = []
 			this.searched = false
+			this.searchFailed = false
 			if (this.members[list.id] === undefined) {
 				await this.fetchMembers(list)
 			}
@@ -573,6 +583,7 @@ export default {
 				this.search = ''
 				this.results = []
 				this.searched = false
+				this.searchFailed = false
 				await this.fetchMembers(list)
 			} catch (error) {
 				logger.error('Failed to add the account to the list', { error })
@@ -592,6 +603,7 @@ export default {
 				window.clearTimeout(this.searchTimer)
 			}
 			this.searched = false
+			this.searchFailed = false
 			if ((term ?? '').trim() === '') {
 				this.results = []
 				return
@@ -606,14 +618,18 @@ export default {
 			// search for the same words may have been asked since
 			const answers = () => isNewest() && this.search.trim() === term
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), {
-					params: { search: term },
+				// only the people the reader follows: the search is narrowed on
+				// the server, so one of them is found even when a page of
+				// strangers matches first
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/search'), {
+					params: { q: term, limit: 8, following: true },
 				})
 				if (!answers()) {
 					return
 				}
-				this.results = (data?.result?.accounts ?? []).slice(0, 8)
+				this.results = Array.isArray(data) ? data : []
 				this.searched = true
+				this.searchFailed = false
 			} catch (error) {
 				logger.error('The account search failed', { error })
 				if (!answers()) {
@@ -621,6 +637,7 @@ export default {
 				}
 				this.results = []
 				this.searched = true
+				this.searchFailed = true
 			}
 		},
 	},
@@ -647,6 +664,12 @@ export default {
 	&__hint {
 		color: var(--color-text-maxcontrast);
 		margin: 4px 0;
+	}
+
+	&__search-failed {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 	}
 
 	&__list {

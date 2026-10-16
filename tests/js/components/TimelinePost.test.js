@@ -455,6 +455,21 @@ describe('TimelinePost', () => {
 			expect(dispatch).not.toHaveBeenCalled()
 		})
 
+		it('stops answering once the list lets go of it', async () => {
+			const { wrapper, item, dispatch } = mountPost()
+			eventBus.emit('timeline:focused', item)
+			await wrapper.vm.$nextTick()
+
+			eventBus.emit('timeline:focused', null)
+			await wrapper.vm.$nextTick()
+			dispatch.mockClear()
+			eventBus.emit('shortcut:like')
+			eventBus.emit('shortcut:boost')
+			await flushPromises()
+
+			expect(dispatch).not.toHaveBeenCalled()
+		})
+
 		it('refuses to boost what cannot be boosted', async () => {
 			const { wrapper, item, dispatch } = mountPost({ item: makeItem({ visibility: 'direct' }) })
 			eventBus.emit('timeline:focused', item)

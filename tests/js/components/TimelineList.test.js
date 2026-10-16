@@ -474,6 +474,90 @@ describe('TimelineList', () => {
 			expect(() => eventBus.emit('shortcut:next')).not.toThrow()
 		})
 
+		/**
+		 * l and b act on the post j last moved to. Kept after the reader had
+		 * clicked elsewhere or scrolled on, a stray key liked or boosted a
+		 * post that was no longer on screen.
+		 */
+		describe('letting go of the post', () => {
+			const focusFirst = async () => {
+				const heard = vi.fn()
+				eventBus.on('timeline:focused', heard)
+				const { wrapper } = mountList({ timeline: [status('1'), status('22'), status('333')], attachTo: document.body })
+				await flushPromises()
+				eventBus.emit('shortcut:next')
+				await flushPromises()
+				const entry = wrapper.find('.timeline-entry--focused')
+				expect(entry.exists()).toBe(true)
+				heard.mockClear()
+
+				return { wrapper, heard, entry }
+			}
+
+			it('lets go when the keyboard leaves the post', async () => {
+				const { wrapper, heard, entry } = await focusFirst()
+				const outside = document.createElement('button')
+				document.body.appendChild(outside)
+
+				entry.element.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }))
+				await flushPromises()
+
+				expect(focusedIds(wrapper)).toEqual([])
+				expect(heard).toHaveBeenCalledWith(null)
+				outside.remove()
+				wrapper.unmount()
+			})
+
+			it('keeps the post while the keyboard moves inside it', async () => {
+				const { wrapper, heard, entry } = await focusFirst()
+				const inside = document.createElement('button')
+				entry.element.appendChild(inside)
+
+				entry.element.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: inside }))
+				await flushPromises()
+
+				expect(focusedIds(wrapper)).toEqual([entry.attributes('data-id')])
+				expect(heard).not.toHaveBeenCalled()
+				wrapper.unmount()
+			})
+
+			it('lets go once the post has been scrolled out of view, not while j scrolls it in', async () => {
+				const { wrapper, heard, entry } = await focusFirst()
+				const watching = FakeIntersectionObserver.instances.find((one) => one.observe.mock.calls.some(([target]) => target === entry.element))
+				expect(watching).toBeDefined()
+
+				// still on its way in
+				watching.callback([{ isIntersecting: false }])
+				await flushPromises()
+				expect(focusedIds(wrapper)).toEqual([entry.attributes('data-id')])
+
+				watching.callback([{ isIntersecting: true }])
+				watching.callback([{ isIntersecting: false }])
+				await flushPromises()
+
+				expect(focusedIds(wrapper)).toEqual([])
+				expect(heard).toHaveBeenCalledWith(null)
+				wrapper.unmount()
+			})
+
+			it('starts again from the first post on screen, not from where the reader was', async () => {
+				const { wrapper, entry } = await focusFirst()
+				entry.element.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }))
+				await flushPromises()
+				const entries = wrapper.findAll('.timeline-entry')
+				// the first two were scrolled past
+				entries.forEach((one, index) => {
+					one.element.getBoundingClientRect = () => (index < 2 ? { top: -400, bottom: -100 } : { top: 100, bottom: 400 })
+				})
+
+				eventBus.emit('shortcut:next')
+				await flushPromises()
+
+				expect(focusedIds(wrapper)).toEqual([entries[2].attributes('data-id')])
+				wrapper.unmount()
+			})
+		})
+
 		it('leaves the ancestors list alone, so one press moves one focus', async () => {
 			// both lists in the single-post view listened, so j walked the
 			// ancestors and the replies at the same time

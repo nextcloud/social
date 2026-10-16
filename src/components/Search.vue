@@ -59,7 +59,7 @@
 				<NcEmptyContent
 					v-if="isEmpty && !lookingUp"
 					:name="t('social', 'No results found')"
-					:description="t('social', 'Nothing on this server matches “{term}”. Searching for a full handle like @user@example.org can find somebody this server has not met yet.', { term: query })">
+					:description="t('social', 'Nothing on this server matches “{term}”. A full handle, like @someone@example.org or @someone.example.com, can find somebody this server has not met yet.', { term: query })">
 					<template #icon>
 						<Magnify :size="20" />
 					</template>

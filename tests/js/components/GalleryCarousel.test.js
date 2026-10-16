@@ -135,6 +135,57 @@ describe('GalleryCarousel', () => {
 			expect(current(wrapper)).toBe(1)
 		})
 
+		/**
+		 * In a right-to-left page the next picture is the one to the left:
+		 * the track, the chevrons and the arrow keys all run that way.
+		 */
+		describe('in a right-to-left page', () => {
+			beforeEach(() => {
+				document.documentElement.dir = 'rtl'
+			})
+
+			afterEach(() => {
+				document.documentElement.dir = ''
+			})
+
+			it('pages on with the left arrow and back with the right one', async () => {
+				const wrapper = mountCarousel(photos(4))
+				const gallery = wrapper.find('.gallery')
+
+				await gallery.trigger('keydown', { key: 'ArrowLeft' })
+				await gallery.trigger('keydown', { key: 'ArrowLeft' })
+				expect(current(wrapper)).toBe(2)
+
+				await gallery.trigger('keydown', { key: 'ArrowRight' })
+				expect(current(wrapper)).toBe(1)
+			})
+
+			it('moves the track towards the right, which is where the next slide comes from', async () => {
+				const wrapper = mountCarousel(photos(3))
+
+				await wrapper.find('.gallery__step--next').trigger('click')
+				await wrapper.find('.gallery__step--next').trigger('click')
+
+				expect(wrapper.find('.gallery__track').attributes('style')).toContain('translateX(200%)')
+			})
+
+			it('points each chevron the way it pages', () => {
+				const wrapper = mountCarousel(photos(3))
+
+				expect(wrapper.find('.gallery__step--previous').findComponent({ name: 'ChevronRightIcon' }).exists()).toBe(true)
+				expect(wrapper.find('.gallery__step--next').findComponent({ name: 'ChevronLeftIcon' }).exists()).toBe(true)
+			})
+		})
+
+		it('moves the track towards the left in a left-to-right page', async () => {
+			const wrapper = mountCarousel(photos(3))
+
+			await wrapper.find('.gallery__step--next').trigger('click')
+
+			expect(wrapper.find('.gallery__track').attributes('style')).toContain('translateX(-100%)')
+			expect(wrapper.find('.gallery__step--next').findComponent({ name: 'ChevronRightIcon' }).exists()).toBe(true)
+		})
+
 		it('goes to the first and the last picture with Home and End', async () => {
 			const wrapper = mountCarousel(photos(6))
 			const gallery = wrapper.find('.gallery')

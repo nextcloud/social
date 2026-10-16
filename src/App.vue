@@ -243,7 +243,7 @@ export default {
 	},
 
 	mounted() {
-		this.stopShortcuts = listenForShortcuts()
+		this.stopShortcuts = listenForShortcuts(() => this.settingsStore.shortcutsEnabled)
 		this.watchNavigation()
 		eventBus.on('shortcut:help', this.toggleShortcutHelp)
 		eventBus.on('shortcut:home', this.goHome)

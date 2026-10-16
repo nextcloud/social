@@ -1189,6 +1189,7 @@ you learning switches a reader sets for themselves are listed in
 | `external_signup_notice_accepted` | *(unset)* | When they accepted it, as a Unix timestamp. |
 | `external_signup_notice_snapshot` | *(unset)* | The notice's text as it was when they accepted it. |
 | `handle_publish_failed` | *(unset)* | When Nextcloud last refused the account's fediverse handle on its profile, as a Unix timestamp. Publishing the handle is not tried again for a day after that, and the value is cleared once a publish succeeds. |
+| `keyboard_shortcuts` | *(unset)* | `0` once the account turned the web app's one-key shortcuts off in Settings → Help → Keyboard shortcuts; anything else leaves them on. |
 
 ### System configuration
 

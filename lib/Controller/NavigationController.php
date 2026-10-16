@@ -185,6 +185,9 @@ class NavigationController extends Controller {
 			// resolves to
 			'nsfwChoice' => $this->sensitiveMediaService->choiceOf($this->userId),
 			'hideCounts' => $this->countsService->hides($this->userId),
+			// whether j, k, l, b and the rest act on the timeline, read before
+			// the first key can be pressed
+			'keyboardShortcuts' => $this->configService->getUserValue(ConfigService::USER_KEYBOARD_SHORTCUTS, $this->userId) !== '0',
 			// which sections this instance offers. In the page rather than
 			// behind a request for the same reason the policy above is: the
 			// sidebar is drawn before anything is fetched, and entries that

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SHORTCUTS, belongsToElement, eventFor, isTyping, listenForShortcuts } from '../../../src/services/shortcuts.js'
+import { SHORTCUTS, belongsToElement, eventFor, isDialogOpen, isTyping, listenForShortcuts } from '../../../src/services/shortcuts.js'
 import eventBus from '../../../src/services/eventBus.js'
 
 function press(key, target = document.body, extra = {}) {
@@ -157,6 +157,37 @@ describe('listenForShortcuts', () => {
 		expect(event.defaultPrevented).toBe(false)
 	})
 
+	it('does nothing while a dialog is over the page, and the key stays the dialog\'s', () => {
+		const heard = vi.fn()
+		eventBus.on('shortcut:boost', heard)
+		stop = listenForShortcuts()
+		const viewer = document.createElement('div')
+		viewer.setAttribute('role', 'dialog')
+		viewer.setAttribute('aria-modal', 'true')
+		document.body.appendChild(viewer)
+
+		const event = new KeyboardEvent('keydown', { key: 'b', cancelable: true })
+		window.dispatchEvent(event)
+		viewer.remove()
+
+		expect(heard).not.toHaveBeenCalled()
+		expect(event.defaultPrevented).toBe(false)
+	})
+
+	it('does nothing while the reader has them turned off, and asks at every press', () => {
+		const heard = vi.fn()
+		eventBus.on('shortcut:like', heard)
+		let enabled = false
+		stop = listenForShortcuts(() => enabled)
+
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'l' }))
+		expect(heard).not.toHaveBeenCalled()
+
+		enabled = true
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'l' }))
+		expect(heard).toHaveBeenCalledTimes(1)
+	})
+
 	it('stops listening when told to', () => {
 		const heard = vi.fn()
 		eventBus.on('shortcut:next', heard)
@@ -165,5 +196,34 @@ describe('listenForShortcuts', () => {
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }))
 
 		expect(heard).not.toHaveBeenCalled()
+	})
+})
+
+describe('isDialogOpen', () => {
+	afterEach(() => {
+		document.body.innerHTML = ''
+	})
+
+	it('is false with nothing open', () => {
+		expect(isDialogOpen()).toBe(false)
+	})
+
+	it('sees a modal dialog', () => {
+		document.body.innerHTML = '<div class="modal-mask" role="dialog" aria-modal="true"></div>'
+
+		expect(isDialogOpen()).toBe(true)
+	})
+
+	it('does not count a modal that is drawn but hidden', () => {
+		document.body.innerHTML = '<div class="modal-mask" role="dialog" aria-modal="true" style="display: none;"></div>'
+			+ '<div hidden><div role="dialog" aria-modal="true"></div></div>'
+
+		expect(isDialogOpen()).toBe(false)
+	})
+
+	it('does not count a card that is a dialog without being modal', () => {
+		document.body.innerHTML = '<div role="dialog"></div>'
+
+		expect(isDialogOpen()).toBe(false)
 	})
 })

@@ -222,6 +222,18 @@ describe('Search', () => {
 		expect(wrapper.find('.loading-stub').exists()).toBe(false)
 	})
 
+	/** The search finds a handle of either shape, and the hint says so without naming networks. */
+	it('suggests a full handle of either shape when nothing matches', async () => {
+		get.mockResolvedValue(response())
+		const wrapper = mountSearch('alice')
+		await flushPromises()
+
+		const hint = wrapper.find('.empty-description').text()
+		expect(hint).toContain('@someone@example.org')
+		expect(hint).toContain('@someone.example.com')
+		expect(hint).not.toMatch(/bluesky|fediverse|mastodon|activitypub/i)
+	})
+
 	it('shows a failure as an error with a retry, and does not block later searches', async () => {
 		get.mockRejectedValueOnce(new Error('boom'))
 		const wrapper = mountSearch('boom')

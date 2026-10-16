@@ -1445,7 +1445,7 @@
     "Search results for “{term}”" : "Suchergebnisse für „{term}“",
     "Searching …" : "Suche …",
     "No results found" : "Keine Ergebnisse gefunden",
-    "Nothing on this server matches “{term}”. Searching for a full handle like @user@example.org can find somebody this server has not met yet." : "Auf diesem Server gibt es keine Treffer für „{term}“. Mit einem vollständigen Handle wie @user@example.org lässt sich auch nach Personen suchen, die dieser Server noch nicht kennt.",
+    "Nothing on this server matches “{term}”. A full handle, like @someone@example.org or @someone.example.com, can find somebody this server has not met yet." : "Auf diesem Server gibt es keine Treffer für „{term}“. Mit einem vollständigen Handle wie @someone@example.org oder @someone.example.com lässt sich auch nach Personen suchen, die dieser Server noch nicht kennt.",
     "People" : "Personen",
     "Hashtags" : "Schlagwörter",
     "Play sounds" : "Töne abspielen",

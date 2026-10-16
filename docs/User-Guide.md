@@ -83,7 +83,8 @@ people** makes an invitation link: it works once and for a week.
 
 - **Search.** The search box at the top of the sidebar looks through the
   people, hashtags and posts this server knows. Somebody this server has never
-  met is found by their full handle, `@user@example.org`, or a profile or post
+  met is found by their full handle, `@someone@example.org` — or, where this
+  server is connected to Bluesky, `@someone.example.com` — or a profile or post
   link: press **Enter**, or **Look up** under the heading, and their own server
   is asked. While you type, only this server is searched. When nobody is
   there, the page says so.
@@ -1192,8 +1193,15 @@ off never reaches Bluesky.
 ## Keyboard shortcuts
 
 Press `?` anywhere, or open **Settings → Help → Keyboard shortcuts**, for the list.
-Shortcuts are off while you are typing in a field or the composer, and while a
-modifier key is held.
+Shortcuts are off while you are typing in a field or the composer, while a
+modifier key is held, and while a dialog such as the picture viewer is open.
+The switch **Use keyboard shortcuts** on the same Settings page turns them off
+altogether; the choice is kept with your account.
+
+`l`, `b`, `r` and `o` act on the post `j` or `k` moved to, and only while it is
+still the one you are on: once you click somewhere else or scroll it out of
+view, no post is in focus, and the next `j` starts from the post at the top of
+the screen.
 
 | Key | Does |
 |---|---|

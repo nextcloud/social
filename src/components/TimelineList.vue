@@ -3,7 +3,7 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="social__timeline">
+	<div class="social__timeline" @focusout="onFocusOut">
 		<!-- the timeline changes under the reader without a word otherwise: new
 		     posts appear, a page loads, the end is reached, and none of it is
 		     announced. Polite, so it waits for a gap rather than interrupting -->
@@ -349,6 +349,13 @@ export default {
 			composerObserver: null,
 			/** index of the post the keyboard is on, -1 when none */
 			focused: -1,
+			/**
+			 * Watches the post the keyboard is on, so it stops being the one
+			 * l/b/r act on once it has been scrolled away
+			 *
+			 * @type {IntersectionObserver|null}
+			 */
+			focusObserver: null,
 			loading: false,
 			allLoaded: false,
 			/**
@@ -1019,6 +1026,7 @@ export default {
 		if (this.observer) {
 			this.observer.disconnect()
 		}
+		this.focusObserver?.disconnect()
 	},
 
 	methods: {
@@ -1448,7 +1456,7 @@ export default {
 			this.allLoaded = false
 			this.error = null
 			this.arrived = 0
-			this.focused = -1
+			this.setFocus(-1)
 			this.pollFailureReported = false
 			this.pollWait = 0
 			this.pollSkip = 0
@@ -1595,9 +1603,11 @@ export default {
 				return
 			}
 
-			const next = Math.min(Math.max(this.focused + step, 0), this.entries.length - 1)
-			this.focused = next
-			eventBus.emit('timeline:focused', this.entries[next])
+			// after the focus was let go, the next press starts from what is
+			// on screen rather than from wherever the reader used to be
+			const from = this.focused >= 0 ? this.focused + step : Math.max(this.firstOnScreen(), 0)
+			const next = Math.min(Math.max(from, 0), this.entries.length - 1)
+			this.setFocus(next)
 
 			this.$nextTick(() => {
 				const entries = this.$el.querySelectorAll('.timeline-entry')
@@ -1605,6 +1615,8 @@ export default {
 				if (entry === undefined) {
 					return
 				}
+
+				this.watchFocused(entry)
 
 				// real focus, not just a highlight: without it the reader most
 				// likely to be using j/k is told nothing at all, and scrolling
@@ -1629,9 +1641,79 @@ export default {
 			// scrolling moves the page, not the keyboard: send focus to the
 			// first of the posts the reader just asked to see
 			this.$nextTick(() => {
-				this.focused = 0
-				this.$el.querySelector('.timeline-entry')?.focus({ preventScroll: true })
+				this.setFocus(0)
+				const entry = this.$el.querySelector('.timeline-entry')
+				entry?.focus({ preventScroll: true })
+				if (entry) {
+					this.watchFocused(entry)
+				}
 			})
+		},
+
+		/**
+		 * Puts the keyboard's attention on one post, or on none with -1, and
+		 * tells the posts which one it is, since that is the one l/b/r act on.
+		 *
+		 * @param {number} index the post's place in `entries`
+		 */
+		setFocus(index) {
+			this.focused = index
+			eventBus.emit('timeline:focused', index >= 0 ? this.entries[index] : null)
+			if (index < 0) {
+				this.focusObserver?.disconnect()
+			}
+		},
+
+		/**
+		 * Lets go of the focused post once it has been scrolled out of view.
+		 * Only after it was in view: j scrolls it in smoothly, and it starts
+		 * off screen.
+		 *
+		 * @param {Element} entry the focused post's element
+		 */
+		watchFocused(entry) {
+			if (typeof IntersectionObserver === 'undefined') {
+				return
+			}
+
+			this.focusObserver?.disconnect()
+			let seen = false
+			this.focusObserver = new IntersectionObserver((changes) => {
+				const visible = changes[changes.length - 1].isIntersecting
+				if (visible) {
+					seen = true
+				} else if (seen) {
+					this.setFocus(-1)
+				}
+			})
+			this.focusObserver.observe(entry)
+		},
+
+		/**
+		 * Lets go of the focused post when the keyboard leaves it: a click
+		 * elsewhere, a dialog, the composer. Not when the window itself loses
+		 * focus, since the keyboard comes back to the same post.
+		 *
+		 * @param {FocusEvent} event the focus leaving something in this list
+		 */
+		onFocusOut(event) {
+			if (this.focused < 0 || !document.hasFocus()) {
+				return
+			}
+
+			const entry = this.$el.querySelectorAll('.timeline-entry')[this.focused]
+			const to = event.relatedTarget
+			if (entry !== undefined && to instanceof Node && entry.contains(to)) {
+				return
+			}
+
+			this.setFocus(-1)
+		},
+
+		/** @return {number} the first post in view, -1 when that cannot be told */
+		firstOnScreen() {
+			return [...this.$el.querySelectorAll('.timeline-entry')]
+				.findIndex((entry) => entry.getBoundingClientRect().bottom > 0)
 		},
 
 		t,

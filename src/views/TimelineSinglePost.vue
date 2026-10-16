@@ -41,6 +41,24 @@
 				<PostReactedBy :status="singlePost" />
 				<Composer v-if="canReply" :inReplyTo="singlePost" />
 			</div>
+			<TimelineSkeleton v-else-if="postState === 'loading'" :count="1" />
+			<!-- a server that did not answer has not said the post is gone -->
+			<NcEmptyContent
+				v-else-if="postState === 'failed'"
+				:name="t('social', 'Could not load this post')"
+				:description="t('social', 'Your connection or this server may be having trouble.')">
+				<template #icon>
+					<CommentRemoveOutline :size="20" />
+				</template>
+				<template #action>
+					<NcButton variant="primary" @click="load">
+						<template #icon>
+							<Refresh :size="20" />
+						</template>
+						{{ t('social', 'Try again') }}
+					</NcButton>
+				</template>
+			</NcEmptyContent>
 			<!-- a deleted post is not an empty page: say so -->
 			<NcEmptyContent
 				v-else
@@ -78,10 +96,12 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import CommentRemoveOutline from 'vue-material-design-icons/CommentRemoveOutline.vue'
+import Refresh from 'vue-material-design-icons/Refresh.vue'
 import PostDetails from '../components/PostDetails.vue'
 import PostReactedBy from '../components/PostReactedBy.vue'
 import TimelineEntry from '../components/TimelineEntry.vue'
 import TimelineList from '../components/TimelineList.vue'
+import TimelineSkeleton from '../components/TimelineSkeleton.vue'
 import { isTracking } from '../services/interests.js'
 import { signalNow } from '../services/interestTracker.js'
 // its own chunk: it brings a player and a follow button, and almost every post
@@ -108,8 +128,10 @@ export default {
 		NcEmptyContent,
 		PostDetails,
 		PostReactedBy,
+		Refresh,
 		TimelineEntry,
 		TimelineList,
+		TimelineSkeleton,
 		VideoHeader,
 	},
 
@@ -127,6 +149,15 @@ export default {
 			 * so while they are on their way would be counting the loading.
 			 */
 			repliesSettled: false,
+			/**
+			 * Where asking the server for a post nothing had loaded stands:
+			 * 'loading' while it is asked, 'failed' when it did not answer,
+			 * and '' otherwise — the post is there, or the server said it is
+			 * not.
+			 *
+			 * @type {''|'loading'|'failed'}
+			 */
+			postState: '',
 			/** the composer-reply handler, kept so only this one is removed */
 			onComposerReply: null,
 		}
@@ -361,7 +392,26 @@ export default {
 			// through the store. `/context` answers with what is around a post
 			// and never with the post, so the page used to say it did not exist.
 			if (singlePost === undefined || singlePost === null) {
-				await this.timelineStore.fetchStatus(String(this.$route.params.id))
+				const routeId = String(this.$route.params.id)
+				/** @type {''|'failed'} */
+				let state = ''
+				this.postState = 'loading'
+				try {
+					await this.timelineStore.fetchStatus(routeId)
+				} catch (error) {
+					logger.debug('Could not load a single status', { error, id: routeId })
+					state = 'failed'
+				}
+				// the reader went on to another post while this one was asked for
+				if (String(this.$route.params.id) !== routeId) {
+					return
+				}
+				this.postState = state
+				if (state === 'failed') {
+					return
+				}
+			} else {
+				this.postState = ''
 			}
 
 			this.reportOpened()

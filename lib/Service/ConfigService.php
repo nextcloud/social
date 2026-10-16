@@ -492,6 +492,8 @@ class ConfigService {
 	public const USER_EXTERNAL_SIGNUP_NOTICE_SNAPSHOT = 'external_signup_notice_snapshot';
 	/** when writing the handle into the profile's `fediverse` field last failed, as a unix time */
 	public const USER_HANDLE_PUBLISH_FAILED = 'handle_publish_failed';
+	/** whether the web app's one-key shortcuts are on: `'0'` turns them off, anything else leaves them on */
+	public const USER_KEYBOARD_SHORTCUTS = 'keyboard_shortcuts';
 
 	/**
 	 * Bluesky (`Atproto\Service\AtprotoConfig`): whether this instance is a
