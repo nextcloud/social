@@ -175,7 +175,7 @@ describe('putting somebody in a list', () => {
 
 			expect(boxes(wrapper)[0].props('modelValue')).toBe(false)
 			expect(boxes(wrapper)[0].props('disabled')).toBe(false)
-			expect(showError).toHaveBeenCalledWith('Could not change the list')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not change the list', details: '' })
 		})
 
 		/**
@@ -199,7 +199,7 @@ describe('putting somebody in a list', () => {
 			boxes(wrapper)[0].vm.$emit('update:modelValue', true)
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('That list is full')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not change the list', details: 'That list is full' })
 		})
 	})
 

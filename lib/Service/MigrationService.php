@@ -125,7 +125,7 @@ class MigrationService {
 	 * Adds an actor id to `alsoKnownAs`. Idempotent.
 	 *
 	 * @return string[] the list afterwards
-	 * @throws InvalidResourceException when `$alias` is not an actor id
+	 * @throws MoveErrorException when `$alias` is not an actor id, or is this account's own
 	 */
 	public function addAlias(string $userId, string $alias): array {
 		$actor = $this->accountService->getActorFromUserId($userId);
@@ -639,7 +639,7 @@ class MigrationService {
 	 * point of writing it is that it is read somewhere else.
 	 *
 	 * @return array{0: string, 1: string} the file name and its contents
-	 * @throws InvalidResourceException when `$kind` is not one of CSV_KINDS
+	 * @throws MoveErrorException list-unknown when `$kind` is not one of CSV_KINDS
 	 */
 	public function exportCsv(string $userId, string $kind): array {
 		$actor = $this->accountService->getActorFromUserId($userId);
@@ -666,8 +666,8 @@ class MigrationService {
 			'domain_blocks' => ['blocked_domains.csv', self::csvOf(
 				$this->domainBlockService->getBlocked($actor, self::EXPORT_DOMAINS)
 			)],
-			default => throw new InvalidResourceException(
-				'"' . $kind . '" is not something this account keeps a list of'
+			default => throw new MoveErrorException(
+				'"' . $kind . '" is not something this account keeps a list of', 'list-unknown'
 			),
 		};
 	}
@@ -1092,7 +1092,7 @@ class MigrationService {
 	 * that is the id its Move check looks for. A URL nobody answers is kept
 	 * as typed.
 	 *
-	 * @throws InvalidResourceException
+	 * @throws MoveErrorException
 	 */
 	private function actorIdOrThrow(string $alias, Person $actor): string {
 		$alias = trim($alias);
@@ -1109,7 +1109,7 @@ class MigrationService {
 		}
 
 		if ($alias === $actor->getId()) {
-			throw new InvalidResourceException('an account is not an alias of itself');
+			throw new MoveErrorException('an account is not an alias of itself', 'alias-self');
 		}
 
 		return $alias;
@@ -1119,31 +1119,37 @@ class MigrationService {
 	 * The account a person named, fetched fresh from its server: by its
 	 * `@user@host` handle through WebFinger, or by its actor id.
 	 *
-	 * @throws InvalidResourceException when it is neither, or nobody answers
+	 * @throws MoveErrorException account-address-invalid when it is neither,
+	 *                            account-not-found or account-not-verifiable when nobody answers
 	 */
 	public function resolveActor(string $reference): Person {
 		$reference = trim($reference);
 		if (self::isActorUrl($reference)) {
-			return $this->cacheActorService->getFromId($reference, true);
+			try {
+				return $this->cacheActorService->getFromId($reference, true);
+			} catch (Throwable $e) {
+				throw self::nobodyAnswered($reference, (string)parse_url($reference, PHP_URL_HOST), $e);
+			}
 		}
 
 		$handle = ltrim($reference, '@');
 		if (preg_match('/^[^@\s\/]+@[^@\s\/]+\.[^@\s\/]+$/', $handle) !== 1) {
-			throw new InvalidResourceException(
+			throw new MoveErrorException(
 				'"' . $reference . '" is neither a handle like @you@old.example'
-				. ' nor the https:// address of an account'
+				. ' nor the https:// address of an account',
+				'account-address-invalid'
 			);
 		}
 
 		try {
 			return $this->cacheActorService->getFromAccount($handle);
 		} catch (Throwable $e) {
-			throw new InvalidResourceException(self::whyNobodyAnswered($handle, $e), 0, $e);
+			throw self::nobodyAnswered($handle, substr($handle, (int)strrpos($handle, '@') + 1), $e);
 		}
 	}
 
 	/**
-	 * What to tell the person when a handle resolved to nobody.
+	 * What to tell the person when a handle or an address resolved to nobody.
 	 *
 	 * A 401 or 403 from the actor fetch is not "nobody there": that server
 	 * answers only requests it can verify — Mastodon's AUTHORIZED_FETCH,
@@ -1152,19 +1158,21 @@ class MigrationService {
 	 * https. Said as such, because "no account answers" sends the person off
 	 * to check a handle that was right.
 	 */
-	private static function whyNobodyAnswered(string $handle, Throwable $e): string {
+	private static function nobodyAnswered(string $name, string $host, Throwable $e): MoveErrorException {
 		for ($cause = $e; $cause !== null; $cause = $cause->getPrevious()) {
 			if ($cause instanceof RequestContentException
 				&& in_array($cause->getCode(), [Http::STATUS_UNAUTHORIZED, Http::STATUS_FORBIDDEN], true)) {
-				$host = substr($handle, (int)strrpos($handle, '@') + 1);
-
-				return $host . ' only answers servers it can verify, and it could not verify this one:'
+				return new MoveErrorException(
+					$host . ' only answers servers it can verify, and it could not verify this one:'
 					. ' this Nextcloud has to be reachable from the internet over https before '
-					. $handle . ' can be read from here';
+					. $name . ' can be read from here',
+					'account-not-verifiable',
+					$e
+				);
 			}
 		}
 
-		return 'no account answers to ' . $handle . ': ' . $e->getMessage();
+		return new MoveErrorException('no account answers to ' . $name . ': ' . $e->getMessage(), 'account-not-found', $e);
 	}
 
 	/**

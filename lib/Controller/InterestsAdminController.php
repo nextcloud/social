@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Service\InterestService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -57,7 +58,10 @@ class InterestsAdminController extends Controller {
 				$enabled, $learningDefault, $halfLife, $threshold, $cap, $window
 			));
 		} catch (InvalidArgumentException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+			return new DataResponse(
+				$e instanceof SettingRefusedException ? $e->toArray() : ['error' => $e->getMessage()],
+				Http::STATUS_BAD_REQUEST
+			);
 		}
 	}
 }

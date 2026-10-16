@@ -195,21 +195,3 @@ export function filterCoverLabel(status) {
 		? t('social', 'Filtered')
 		: t('social', 'Filtered: {filters}', { filters: titles.join(', ') })
 }
-
-/**
- * What a refused request said, when it said anything.
- *
- * `/api/v2/filters` answers a 422 with the thing it would not take — "title is
- * required", "context must name at least one of …" — and swallowing that
- * leaves the form saying only "no". The messages are the API's own English;
- * the form is written so that none of them should ever be reached.
- *
- * @param {{response?: {data?: {error?: string}}}} error what axios threw
- * @param {string} fallback what to say when the server said nothing useful
- * @return {string} the message to show
- */
-export function errorSaid(error, fallback) {
-	const said = error?.response?.data?.error
-
-	return typeof said === 'string' && said !== '' ? said : fallback
-}

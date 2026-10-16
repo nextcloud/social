@@ -79,6 +79,7 @@ class RouteAuthMatrixTest extends TestCase {
 		'AtprotoXrpcController::query' => 'XRPC, authenticated by its own access token',
 		'AtprotoXrpcController::procedure' => 'XRPC, authenticated by its own access token',
 		'AtprotoXrpcController::preflight' => 'CORS preflight, answers headers only',
+		'AvatarController::avatar' => 'the avatar of a local actor, by protocol; a visitor gets initials where it is not published',
 		'ConfigController::local' => 'version and setup flag',
 		'ConfigController::remote' => 'WebFinger self-test, inert unless the social.tests system value is set',
 		'LocalController::accountInfo' => 'public profile of a local account',

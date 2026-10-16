@@ -218,7 +218,7 @@
 						:showTrailingButton="false"
 						@update:modelValue="customHandleError = null"
 						@keydown.enter.prevent="setCustomHandle" />
-					<BlueskyError v-if="customHandleError" :error="customHandleError" />
+					<ServerError v-if="customHandleError" :error="customHandleError" />
 					<div v-if="customHandleDomain !== ''" class="bluesky-settings__custom-handle-steps">
 						<p class="bluesky-settings__hint">
 							{{ t('social', 'Add one of these, then check it:') }}
@@ -399,7 +399,7 @@
 							:showTrailingButton="false"
 							@update:modelValue="appPasswordNameError = null"
 							@keydown.enter.prevent="createAppPassword" />
-						<BlueskyError v-if="appPasswordNameError" :error="appPasswordNameError" />
+						<ServerError v-if="appPasswordNameError" :error="appPasswordNameError" />
 						<!-- Bluesky's own privileged app passwords: only an app
 						     signed in with one reaches the direct messages -->
 						<NcCheckboxRadioSwitch v-model="appPasswordPrivileged" class="bluesky-settings__app-password-privileged">
@@ -535,12 +535,12 @@ import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import Download from 'vue-material-design-icons/Download.vue'
 import KeyOutline from 'vue-material-design-icons/KeyOutline.vue'
 import { translate as t } from '@nextcloud/l10n'
-import BlueskyError from './BlueskyError.vue'
+import ServerError from './ServerError.vue'
 import ConfirmDialog from './admin/ConfirmDialog.vue'
 import { confirmPassword } from '../services/externalApi.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
-import { blueskyErrorOf } from '../utils/blueskyError.js'
+import { errorOf } from '../utils/serverError.js'
 import { fromNow, fullDate, fullDateTime } from '../utils/relativeTime.js'
 
 /**
@@ -554,7 +554,7 @@ export default {
 	name: 'BlueskySettings',
 
 	components: {
-		BlueskyError,
+		ServerError,
 		Check,
 		ConfirmDialog,
 		ContentCopy,
@@ -908,7 +908,7 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.customHandleError = blueskyErrorOf(error, t('social', 'Could not set the handle'))
+					this.customHandleError = errorOf(error, t('social', 'Could not set the handle'))
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
@@ -1004,7 +1004,7 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.appPasswordNameError = blueskyErrorOf(error, t('social', 'Could not make an app password with that name'))
+					this.appPasswordNameError = errorOf(error, t('social', 'Could not make an app password with that name'))
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')

@@ -16,7 +16,7 @@ use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
 /**
- * `ActorsRequest::userIdOf()` against the real database: the Nextcloud user a
+ * `ActorsRequest::userIdsOf()` against the real database: the Nextcloud user a
  * username belongs to, which the username need not be, and nobody's once the
  * account is deleted.
  */
@@ -44,15 +44,24 @@ class ActorUserIdTest extends TestCase {
 	}
 
 	public function testAUsernameNamesTheNextcloudUserItBelongsTo(): void {
-		$this->assertSame(self::USER_ID, $this->actorsRequest->userIdOf(self::USERNAME));
-		// a handle is case-insensitive, as every other lookup by it is
-		$this->assertSame(self::USER_ID, $this->actorsRequest->userIdOf(strtoupper(self::USERNAME)));
-		$this->assertSame('', $this->actorsRequest->userIdOf('uid-itest-nobody'));
+		$this->assertSame(
+			[self::USERNAME => self::USER_ID],
+			$this->actorsRequest->userIdsOf([self::USERNAME, 'uid-itest-nobody', self::USERNAME])
+		);
+		$this->assertSame([], $this->actorsRequest->userIdsOf([]));
+	}
+
+	/** A page names more authors than one `IN ()` is given. */
+	public function testManyUsernamesAreAskedInChunks(): void {
+		$usernames = array_map(static fn (int $i): string => 'uid-itest-nobody-' . $i, range(1, 1200));
+		$usernames[] = self::USERNAME;
+
+		$this->assertSame([self::USERNAME => self::USER_ID], $this->actorsRequest->userIdsOf($usernames));
 	}
 
 	public function testADeletedAccountBelongsToNobody(): void {
 		$this->actorsRequest->setAsDeleted(self::USERNAME);
 
-		$this->assertSame('', $this->actorsRequest->userIdOf(self::USERNAME));
+		$this->assertSame([], $this->actorsRequest->userIdsOf([self::USERNAME]));
 	}
 }

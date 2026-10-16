@@ -93,6 +93,7 @@ import eventBus, { BLUESKY_FEEDS_CHANGED } from '../services/eventBus.js'
 import { fetchSavedFeeds, fetchSuggestedFeeds, forgetFeed, routeFor, saveFeed } from '../services/blueskyFeeds.js'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 /**
  * The Bluesky feeds and lists the reader keeps, a section of Settings: added
@@ -171,7 +172,7 @@ export default {
 				this.typed = ''
 				eventBus.emit(BLUESKY_FEEDS_CHANGED)
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not add the feed'))
+				showError(errorOf(error, t('social', 'Could not add the feed')))
 			} finally {
 				this.busy = false
 			}
@@ -187,7 +188,7 @@ export default {
 				this.feeds = this.feeds.filter((one) => one.uri !== feed.uri)
 				eventBus.emit(BLUESKY_FEEDS_CHANGED)
 			} catch (error) {
-				showError(error?.response?.data?.error || t('social', 'Could not remove the feed'))
+				showError(errorOf(error, t('social', 'Could not remove the feed')))
 			} finally {
 				this.busy = false
 			}

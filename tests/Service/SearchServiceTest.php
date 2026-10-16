@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\AP;
 use OCA\Social\Atproto\Reader\ActorMapper;
+use OCA\Social\Atproto\Reader\BlueskySearch;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -246,7 +247,7 @@ class SearchServiceTest extends TestCase {
 			->with('bob@remote.example')
 			->willReturn([$bob]);
 
-		$this->assertSame([$bob], $this->service->searchAccounts('@bob@remote.example'));
+		$this->assertSame([$bob], $this->service->searchAccounts('@bob@remote.example', null, '', true));
 	}
 
 	public function testSearchAccountsStillSearchesTheCacheWhenTheExactLookupFails(): void {
@@ -256,7 +257,87 @@ class SearchServiceTest extends TestCase {
 			->with('bob')
 			->willReturn([]);
 
-		$this->assertSame([], $this->service->searchAccounts('bob'));
+		$this->assertSame([], $this->service->searchAccounts('bob', null, '', true));
+	}
+
+	/**
+	 * Mastodon's `resolve=false`, which a client's autocomplete sends once
+	 * per keystroke: no other server is asked, neither by WebFinger nor by
+	 * Bluesky's typeahead. A whole handle not held here is queued, so a
+	 * search a little later finds it.
+	 */
+	public function testWithoutResolveNoOtherServerIsAskedAndAWholeHandleIsQueued(): void {
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$bluesky = $this->createMock(BlueskySearch::class);
+		$service = new SearchService(
+			$this->cacheActorService, $this->hashtagService, $this->streamRequest, new NullLogger(), $this->curlService,
+			$bluesky, $queue
+		);
+		$this->cacheActorService->expects($this->never())->method('getFromAccount');
+		$this->curlService->expects($this->never())->method($this->anything());
+		$bluesky->expects($this->never())->method('typeahead');
+		$bluesky->expects($this->never())->method('keep');
+		$this->cacheActorService->method('searchCachedAccounts')->willReturn([]);
+		$queue->expects($this->once())->method('resolveAccounts')->with(['bob@remote.example']);
+
+		$this->assertSame([], $service->searchAccounts('@bob@remote.example'));
+	}
+
+	/** @return array<string, array{string}> */
+	public static function partialHandleProvider(): array {
+		return [
+			'a name' => ['bob'],
+			'no host yet' => ['bob@'],
+			'a host without a dot' => ['bob@mastodon'],
+			'a host still being typed' => ['bob@mastodon.s'],
+		];
+	}
+
+	/** Every keystroke of a handle is a search; only a whole one is worth a job. */
+	#[DataProvider('partialHandleProvider')]
+	public function testWithoutResolveTheStartOfAHandleIsNotQueued(string $search): void {
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$service = new SearchService(
+			$this->cacheActorService, $this->hashtagService, $this->streamRequest, new NullLogger(), $this->curlService,
+			null, $queue
+		);
+		$this->cacheActorService->method('searchCachedAccounts')->willReturn([]);
+		$queue->expects($this->never())->method('resolveAccounts');
+
+		$service->searchAccounts($search);
+	}
+
+	public function testWithoutResolveAHandleHeldHereIsNotQueued(): void {
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$service = new SearchService(
+			$this->cacheActorService, $this->hashtagService, $this->streamRequest, new NullLogger(), $this->curlService,
+			null, $queue
+		);
+		$bob = new Person();
+		$bob->setAccount('Bob@Remote.example');
+		$this->cacheActorService->method('searchCachedAccounts')->willReturn([$bob]);
+		$queue->expects($this->never())->method('resolveAccounts');
+
+		$this->assertSame([$bob], $service->searchAccounts('bob@remote.example'));
+	}
+
+	/**
+	 * With `resolve` the typeahead's accounts are stored, since the answer
+	 * hands a client an id for each.
+	 */
+	public function testWithResolveTheTypeaheadsAccountsAreKept(): void {
+		$bluesky = $this->createMock(BlueskySearch::class);
+		$service = new SearchService(
+			$this->cacheActorService, $this->hashtagService, $this->streamRequest, new NullLogger(), $this->curlService,
+			$bluesky
+		);
+		$found = (new Person())->setId('https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz');
+		$kept = (new Person())->setId($found->getId())->setNid(42);
+		$this->cacheActorService->method('searchCachedAccounts')->willReturn([]);
+		$bluesky->expects($this->once())->method('typeahead')->with('alice.b')->willReturn([$found]);
+		$bluesky->expects($this->once())->method('keep')->with([$found])->willReturn([$kept]);
+
+		$this->assertSame([$kept], $service->searchAccounts('alice.b', 8, '', true));
 	}
 
 	/** Nobody here follows an account this instance has never seen. */

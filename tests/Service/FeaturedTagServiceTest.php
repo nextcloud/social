@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Db\FeaturedTagsRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Model\Client\FeaturedTag;
 use OCA\Social\Service\FeaturedTagService;
 use OCA\Social\Service\HashtagService;
@@ -145,8 +146,15 @@ class FeaturedTagServiceTest extends TestCase {
 			$this->service->feature(self::ACTOR, 'tag' . $i);
 		}
 
-		$this->expectException(InvalidResourceException::class);
-		$this->service->feature(self::ACTOR, 'onetoomany');
+		try {
+			$this->service->feature(self::ACTOR, 'onetoomany');
+			$this->fail('one tag past the ceiling was featured');
+		} catch (RefusalException $e) {
+			$this->assertSame(
+				['error' => 'Limit of 10 featured tags reached', 'code' => 'featured-tags-full', 'limit' => FeaturedTagService::MAX_FEATURED_TAGS],
+				$e->toArray()
+			);
+		}
 	}
 
 	/** An existing tag does not count against the ceiling a second time. */

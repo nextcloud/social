@@ -20,6 +20,7 @@ use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\NotificationInboxService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TimelineRevisionService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
@@ -38,6 +39,7 @@ class NotificationInboxServiceTest extends TestCase {
 	private const ALICE = 'https://cloud.example/users/alice';
 	private const STRANGER = 'https://elsewhere.example/users/carol';
 	private const FRIEND = 'https://elsewhere.example/users/dave';
+	private const OTHER = 'https://elsewhere.example/users/erin';
 
 	private StreamService|Stub $streamService;
 	private StreamRequest|MockObject $streamRequest;
@@ -52,6 +54,12 @@ class NotificationInboxServiceTest extends TestCase {
 	private array $asked = [];
 	/** @var string[] what was released behind the marker */
 	private array $released = [];
+	/** @var ProbeOptions[] every page of senders asked for */
+	private array $senderReads = [];
+	/** @var array<string, bool> the senders the reader dismissed */
+	private array $dismissed = [];
+	/** the newest notification the viewer was sent */
+	private string $newest = '130';
 
 	protected function setUp(): void {
 		$this->policy = new NotificationPolicy();
@@ -63,7 +71,21 @@ class NotificationInboxServiceTest extends TestCase {
 			return array_slice($this->page, 0, $options->getLimit());
 		});
 
+		// what the sidebar's count reads instead: the page as senders only
+		$this->streamService->method('getNotificationSenders')->willReturnCallback(function (ProbeOptions $options): array {
+			$this->senderReads[] = $options;
+
+			return array_map(static fn (Stream $n): array => [
+				'nid' => (string)$n->getNid(),
+				'subType' => $n->getSubType(),
+				'sender' => $n->getActor()->getId(),
+				'creation' => 0,
+				'privateMention' => false,
+			], array_slice($this->page, 0, $options->getLimit()));
+		});
+
 		$this->streamRequest = $this->createMock(StreamRequest::class);
+		$this->streamRequest->method('newestNidFor')->willReturnCallback(fn (): string => $this->newest);
 
 		$this->markerService = $this->createMock(MarkerService::class);
 		$this->markerService->method('lastReadId')->willReturn('100');
@@ -78,7 +100,11 @@ class NotificationInboxServiceTest extends TestCase {
 				'held' => array_values(array_filter($page, static fn (Stream $n): bool => $n->getActor()->getId() === self::STRANGER)),
 			]
 		);
-		$this->policyService->method('decisionsAbout')->willReturn(['accepted' => [], 'dismissed' => []]);
+		$this->policyService->method('heldOf')->willReturnCallback(
+			fn (Person $viewer, array $rows): array => array_values(array_filter($rows, static fn (array $row): bool => $row['sender'] === self::STRANGER || $row['sender'] === self::OTHER))
+		);
+		$this->policyService->method('decisionsAbout')
+			->willReturnCallback(fn (): array => ['accepted' => [], 'dismissed' => $this->dismissed]);
 		$this->policyService->method('requestsFrom')->willReturnCallback(
 			fn (array $held): array => array_map(
 				static fn (Stream $n): \OCA\Social\Model\Client\NotificationRequest
@@ -92,7 +118,8 @@ class NotificationInboxServiceTest extends TestCase {
 			$this->streamRequest,
 			$this->policyService,
 			$this->markerService,
-			$this->createStub(ConversationsRequest::class)
+			$this->createStub(ConversationsRequest::class),
+			$this->createStub(TimelineRevisionService::class)
 		);
 	}
 
@@ -190,7 +217,7 @@ class NotificationInboxServiceTest extends TestCase {
 
 		(new NotificationInboxService(
 			$this->streamService, $this->streamRequest, $policy, $this->markerService,
-			$this->createStub(ConversationsRequest::class)
+			$this->createStub(ConversationsRequest::class), $this->createStub(TimelineRevisionService::class)
 		))->release($this->viewer(), $stranger);
 	}
 
@@ -224,6 +251,57 @@ class NotificationInboxServiceTest extends TestCase {
 		$this->page = [$nameless, $this->from(self::FRIEND, 120)];
 
 		$this->assertCount(1, $this->service->timeline($this->viewer(), 40));
+	}
+
+	/**
+	 * The sidebar's count of senders waiting reads who sent what, not the
+	 * notifications themselves, over the lookback the inbox reads.
+	 */
+	public function testThePendingAreCountedFromTheSendersAlone(): void {
+		$this->holding();
+		$this->page = [
+			$this->from(self::STRANGER, 130), $this->from(self::FRIEND, 120),
+			$this->from(self::STRANGER, 110), $this->from(self::OTHER, 100),
+		];
+
+		$this->assertSame(['requests' => 2, 'notifications' => 3], $this->service->pending($this->viewer()));
+		$this->assertSame([], $this->asked, 'no notification was read whole');
+		$this->assertSame(NotificationPolicyService::LOOKBACK, $this->senderReads[0]->getLimit());
+	}
+
+	public function testADismissedSenderIsNotPending(): void {
+		$this->holding();
+		$this->page = [$this->from(self::STRANGER, 130), $this->from(self::OTHER, 120)];
+		$this->dismissed = [self::STRANGER => true];
+
+		$this->assertSame(['requests' => 1, 'notifications' => 1], $this->service->pending($this->viewer()));
+	}
+
+	public function testNothingIsPendingOrReadWhileThePolicyAcceptsEverything(): void {
+		$this->page = [$this->from(self::STRANGER, 130)];
+
+		$this->assertSame(['requests' => 0, 'notifications' => 0], $this->service->pending($this->viewer()));
+		$this->assertSame([], $this->senderReads);
+	}
+
+	public function testANamelessSubTypeIsNotPending(): void {
+		$this->holding();
+		$nameless = $this->from(self::STRANGER, 130);
+		$nameless->setSubType('SomethingNobodyNamed');
+		$this->page = [$nameless, $this->from(self::STRANGER, 120)];
+
+		$this->assertSame(['requests' => 1, 'notifications' => 1], $this->service->pending($this->viewer()));
+	}
+
+	/** The tags move when a notification arrives, and the count's when the marker moves too. */
+	public function testTheTagsMoveWithANewNotification(): void {
+		$unread = $this->service->unreadTag($this->viewer(), 'alice');
+		$pending = $this->service->pendingTag($this->viewer(), 'alice');
+
+		$this->newest = '140';
+
+		$this->assertNotSame($unread, $this->service->unreadTag($this->viewer(), 'alice'));
+		$this->assertNotSame($pending, $this->service->pendingTag($this->viewer(), 'alice'));
 	}
 
 	/** The count's tag moves with the policy and with what was released. */

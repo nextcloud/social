@@ -17,6 +17,10 @@ import { shortAgo } from '../../../src/utils/relativeTime.js'
 vi.mock('../../../src/services/timelinePush.js', () => ({
 	onTimelinePush: vi.fn(() => false),
 	offTimelinePush: vi.fn(),
+	PUSH_HOME: 'home',
+	PUSH_DIRECT: 'direct',
+	PUSH_NOTIFICATION: 'notification',
+	PUSH_KINDS: ['home', 'direct', 'notification'],
 }))
 
 const bob = { id: 'https://remote.example/users/bob', acct: 'bob@remote.example', display_name: 'Bob' }
@@ -365,8 +369,42 @@ describe('DirectMessages', () => {
 		await wrapper.find('.direct-messages__recipient-search input').setValue('@bob')
 		await searchImmediately(wrapper, '@bob')
 		await flushPromises()
-		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: '@bob', limit: 8, resolve: true } })
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: '@bob', limit: 8, resolve: false } })
 		expect(wrapper.find('.direct-messages__recipient-results').text()).toContain('Bob')
+	})
+
+	/**
+	 * Typing never asks other servers; a whole address the answer does not
+	 * hold is offered, and looked up with Enter or the button.
+	 */
+	it('looks an address up elsewhere only when asked, and says when nobody is there', async () => {
+		get.mockImplementation(async (url) => ({ data: url.endsWith('/conversations') ? [] : [] }))
+		const wrapper = mountMessages()
+		await flushPromises()
+		await wrapper.find('.direct-messages__list-heading button').trigger('click')
+		await flushPromises()
+		const input = wrapper.find('.direct-messages__recipient-search input')
+		await input.setValue('carol.bsky.social')
+		await searchImmediately(wrapper, 'carol.bsky.social')
+		await flushPromises()
+
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: false } })
+		expect(get).not.toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: true } })
+		expect(wrapper.text()).toContain('@carol.bsky.social is not known on this server yet.')
+		expect(wrapper.text()).not.toContain('No people found')
+
+		await wrapper.find('.direct-messages__recipient-lookup-button').trigger('click')
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: true } })
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'carol.bsky.social', limit: 8, resolve: true, following: true } })
+		expect(wrapper.find('.direct-messages__recipient-lookup-button').exists()).toBe(false)
+		expect(wrapper.text()).toContain('Nobody was found at @carol.bsky.social.')
+
+		get.mockClear()
+		await input.setValue('dave@remote.example')
+		await input.trigger('keydown', { key: 'Enter' })
+		await flushPromises()
+		expect(get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/accounts/search', { params: { q: 'dave@remote.example', limit: 8, resolve: true } })
 	})
 
 	describe('recipient search', () => {
@@ -887,11 +925,19 @@ describe('DirectMessages', () => {
 
 	// Pasting a profile link is how one person sends another a profile, and
 	// the account search looks at the account column, not at URLs — so without
-	// asking for it to be resolved the box finds nobody at all.
-	it('resolves a pasted profile link', async () => {
+	// asking for it to be resolved the box finds nobody at all. It is offered
+	// for a lookup like any address, and resolved when the reader asks.
+	it('resolves a pasted profile link when asked to', async () => {
 		const wrapper = mountMessages()
 		await flushPromises()
-		await wrapper.vm.searchAccounts('https://remote.example/@bob')
+		wrapper.vm.recipientQuery = 'https://remote.example/@bob'
+		await flushPromises()
+		expect(wrapper.vm.offerRecipientLookup).toBe(false)
+		await searchImmediately(wrapper, 'https://remote.example/@bob')
+		await flushPromises()
+		expect(wrapper.vm.offerRecipientLookup).toBe(true)
+		wrapper.vm.lookUpRecipient()
+		await flushPromises()
 
 		expect(get).toHaveBeenCalledWith(
 			'/index.php/apps/social/api/v1/accounts/search',
@@ -961,12 +1007,13 @@ describe('DirectMessages', () => {
 			expect(wrapper.find('.direct-messages__unread-dot').exists()).toBe(false)
 		})
 
-		it('listens for pushed events and slows the poll down to five minutes', async () => {
+		it('listens for pushed direct messages and slows the poll down to five minutes', async () => {
 			onTimelinePush.mockReturnValueOnce(true)
 			const wrapper = mountMessages()
 			await flushPromises()
 			get.mockClear()
-			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function))
+			// a post for the home timeline or a notification is no reason to read the inbox again
+			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function), ['direct'])
 
 			onTimelinePush.mock.calls.at(-1)[0]()
 			await flushPromises()

@@ -29,7 +29,7 @@
 					? n('social', '{n} picture or video did not arrive on {pds}. Your account still points here.', '{n} pictures or videos did not arrive on {pds}. Your account still points here.', move.progress.missing, { n: move.progress.missing, pds: move.pds })
 					: t('social', 'Your posts did not all arrive on {pds}. Your account still points here.', { pds: move.pds }) }}
 			</p>
-			<BlueskyError v-if="actionError" :error="actionError" />
+			<ServerError v-if="actionError" :error="actionError" />
 			<div class="migration__bluesky-actions">
 				<NcButton :disabled="busy" @click="decide(false)">
 					{{ t('social', 'Copy again') }}
@@ -71,8 +71,8 @@
 		<template v-else>
 			<NcNoteCard v-if="move && move.state === 'failed'" type="error" class="migration__bluesky-failed">
 				<p>{{ t('social', 'The move stopped.') }}</p>
-				<BlueskyError :error="stoppedError" :alert="false" />
-				<BlueskyError v-if="retryError" :error="retryError" />
+				<ServerError :error="stoppedError" :alert="false" />
+				<ServerError v-if="retryError" :error="retryError" />
 				<NcButton :disabled="busy" @click="retry">
 					<template v-if="busy" #icon>
 						<NcLoadingIcon :size="20" />
@@ -130,7 +130,7 @@
 				<NcCheckboxRadioSwitch v-model="announce" class="migration__bluesky-announce" :disabled="busy">
 					{{ t('social', 'Afterwards, post where my Bluesky account went') }}
 				</NcCheckboxRadioSwitch>
-				<BlueskyError v-if="startError" :error="startError" />
+				<ServerError v-if="startError" :error="startError" />
 				<div v-if="confirming" class="migration__bluesky-actions">
 					<p class="migration__bluesky-confirm">
 						{{ t('social', 'Your Bluesky account is moved to {server}. This cannot be undone from here.', { server: pds.trim() }) }}
@@ -170,11 +170,11 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccountArrowRight from 'vue-material-design-icons/AccountArrowRight.vue'
 import { n, t } from '@nextcloud/l10n'
-import BlueskyError from './BlueskyError.vue'
+import ServerError from './ServerError.vue'
 import BlueskyMissingRecords from './BlueskyMissingRecords.vue'
 import ConfirmDialog from './admin/ConfirmDialog.vue'
 import logger from '../services/logger.js'
-import { blueskyErrorOf, stoppedMoveError } from '../utils/blueskyError.js'
+import { errorOf, stoppedMoveError } from '../utils/serverError.js'
 
 /** How often a running move is asked about, in milliseconds. */
 const POLL_INTERVAL = 5000
@@ -188,7 +188,7 @@ export default {
 	name: 'BlueskyMoveAway',
 
 	components: {
-		BlueskyError,
+		ServerError,
 		BlueskyMissingRecords,
 		ConfirmDialog,
 		IconAccountArrowRight,
@@ -394,12 +394,12 @@ export default {
 			} catch (error) {
 				const status = error?.response?.status
 				if (status === 422) {
-					this.startError = blueskyErrorOf(error, t('social', 'Could not start the move'))
+					this.startError = errorOf(error, t('social', 'Could not start the move'))
 					this.confirming = false
 				} else {
 					showError(status === 403
 						? t('social', 'Confirm your password again and retry.')
-						: blueskyErrorOf(error, t('social', 'Could not start the move')).text)
+						: errorOf(error, t('social', 'Could not start the move')).text)
 				}
 			} finally {
 				this.busy = false
@@ -429,7 +429,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move/continue'), { without_missing: withoutMissing })
 				this.takeMove(data?.move)
 			} catch (error) {
-				this.actionError = blueskyErrorOf(error, t('social', 'Could not go on with the move'))
+				this.actionError = errorOf(error, t('social', 'Could not go on with the move'))
 			} finally {
 				this.busy = false
 			}
@@ -452,7 +452,7 @@ export default {
 				const { data } = await axios.delete(generateUrl('apps/social/api/v1/social/bluesky/move'))
 				this.takeMove(data?.move)
 			} catch (error) {
-				this.actionError = blueskyErrorOf(error, t('social', 'Could not call the move off'))
+				this.actionError = errorOf(error, t('social', 'Could not call the move off'))
 				showError(this.actionError.text)
 			} finally {
 				this.busy = false
@@ -471,7 +471,7 @@ export default {
 				const { data } = await axios.post(generateUrl('apps/social/api/v1/social/bluesky/move/retry'))
 				this.takeMove(data?.move)
 			} catch (error) {
-				const reason = blueskyErrorOf(error, t('social', 'Could not start the move'))
+				const reason = errorOf(error, t('social', 'Could not start the move'))
 				if (error?.response?.status === 422) {
 					this.retryError = reason
 				} else {

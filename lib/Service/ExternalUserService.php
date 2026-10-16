@@ -286,6 +286,25 @@ class ExternalUserService {
 	 * @throws ExternalUserException
 	 */
 	public function assertHandleAvailable(string $handle, int $signupId = 0): string {
+		$handle = $this->assertHandleOpen($handle, $signupId);
+		if ($this->isLogin($handle)) {
+			throw new ExternalUserException($this->l10n->t('This username is already taken.'), 'handle');
+		}
+
+		return $handle;
+	}
+
+	/**
+	 * A handle as it would be registered, or why it cannot be as far as
+	 * anybody may be told: its form, the names held back, the accounts and
+	 * the registrations waiting. Whether it is the login of a Nextcloud user
+	 * is left to `isLogin()`, because a login is not public and the sign-up
+	 * form is.
+	 *
+	 * @param int $signupId a pending registration that may hold the handle already
+	 * @throws ExternalUserException
+	 */
+	public function assertHandleOpen(string $handle, int $signupId = 0): string {
 		$handle = mb_strtolower(trim(ltrim($handle, '@')));
 
 		if ($handle === '' || strlen($handle) > self::HANDLE_MAX_LENGTH) {
@@ -311,9 +330,6 @@ class ExternalUserService {
 		if (in_array($handle, self::RESERVED_HANDLES, true) || in_array($handle, $this->reservedHandles(), true)) {
 			throw new ExternalUserException($taken, 'handle');
 		}
-		if ($this->userManager->userExists($handle)) {
-			throw new ExternalUserException($taken, 'handle');
-		}
 
 		try {
 			// deleted ones included: a handle in retention is still somebody's
@@ -330,12 +346,32 @@ class ExternalUserService {
 		return $handle;
 	}
 
+	/** Whether a handle is the login of a Nextcloud user, which no new account can have. */
+	public function isLogin(string $handle): bool {
+		return $this->userManager->userExists($handle);
+	}
+
 	/**
 	 * An email address as it would be registered, or why it cannot be.
 	 *
 	 * @throws ExternalUserException
 	 */
 	public function assertEmailAvailable(string $email, int $signupId = 0): string {
+		$email = $this->assertEmailAccepted($email);
+		if ($this->isEmailInUse($email, $signupId)) {
+			throw new ExternalUserException($this->l10n->t('This email address is already in use.'), 'email');
+		}
+
+		return $email;
+	}
+
+	/**
+	 * An email address as it would be registered, or why this server would
+	 * not take it from anybody. Whether it is in use is `isEmailInUse()`.
+	 *
+	 * @throws ExternalUserException
+	 */
+	public function assertEmailAccepted(string $email): string {
 		$email = mb_strtolower(trim($email));
 		if ($email === '' || strlen($email) > 255 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
 			throw new ExternalUserException($this->l10n->t('Please enter a valid email address.'), 'email');
@@ -344,16 +380,22 @@ class ExternalUserService {
 			throw new ExternalUserException($this->l10n->t('This server does not accept registrations from that email domain.'), 'email');
 		}
 
-		$used = $this->l10n->t('This email address is already in use.');
+		return $email;
+	}
+
+	/**
+	 * Whether an address belongs to a Nextcloud user, or to a registration
+	 * waiting other than this one.
+	 *
+	 * @param int $signupId a pending registration that may hold the address already
+	 */
+	public function isEmailInUse(string $email, int $signupId = 0): bool {
 		if ($this->userManager->getByEmail($email) !== []) {
-			throw new ExternalUserException($used, 'email');
+			return true;
 		}
 		$pending = $this->signupsRequest->getByEmail($email);
-		if ($pending !== null && $pending['id'] !== $signupId) {
-			throw new ExternalUserException($used, 'email');
-		}
 
-		return $email;
+		return $pending !== null && $pending['id'] !== $signupId;
 	}
 
 	/**

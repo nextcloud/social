@@ -22,7 +22,8 @@ use Throwable;
  * Every request goes through the app's guarded HTTP client. A submission
  * is tried three times on a network failure, a 5xx or a 429, because the
  * operation is deterministic and resending it is harmless; any other 4xx
- * is the directory's verdict and is reported as such.
+ * is the directory's verdict and is reported as such. What went wrong on
+ * the way is logged, not put in the message, which reaches the person.
  */
 class PlcClient {
 	private const ATTEMPTS = 3;
@@ -44,12 +45,14 @@ class PlcClient {
 	public function submit(string $did, array $signedOperation): void {
 		$body = (string)json_encode($signedOperation, JSON_UNESCAPED_SLASHES);
 		$last = null;
+		$reason = '';
 		for ($attempt = 1; $attempt <= self::ATTEMPTS; $attempt++) {
 			$status = 0;
 			try {
 				$answer = $this->curlService->doRequest('post', $this->url($did), $this->options($body), $contentType, $status);
 			} catch (Throwable $e) {
 				$last = $e;
+				$reason = '';
 				$this->logger->notice('PLC directory not reached', ['did' => $did, 'attempt' => $attempt, 'exception' => $e]);
 				continue;
 			}
@@ -57,14 +60,15 @@ class PlcClient {
 				return;
 			}
 			if ($status >= 500 || $status === 429) {
-				$last = new AtprotoException('PLC directory answered ' . $status);
+				$reason = 'PLC directory answered ' . $status;
+				$last = new AtprotoException($reason);
 				continue;
 			}
 
 			throw new AtprotoPlcRefusedException('PLC directory refused the operation (' . (int)$status . '): ' . self::reason($answer));
 		}
 
-		throw new AtprotoException('PLC directory could not be reached: ' . ($last?->getMessage() ?? ''), 0, $last);
+		throw new AtprotoException('PLC directory could not be reached' . ($reason !== '' ? ': ' . $reason : ''), 0, $last);
 	}
 
 	/**
@@ -103,7 +107,8 @@ class PlcClient {
 		try {
 			$answer = $this->curlService->doRequest('get', $url, $this->options(), $contentType, $status);
 		} catch (Throwable $e) {
-			throw new AtprotoException('PLC directory could not be reached: ' . $e->getMessage(), 0, $e);
+			$this->logger->info('PLC directory not reached', ['url' => $url, 'exception' => $e]);
+			throw new AtprotoException('PLC directory could not be reached', 0, $e);
 		}
 		if ($status === 404) {
 			return null;

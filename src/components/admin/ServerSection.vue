@@ -195,7 +195,8 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import { errorMessage, serverUrl } from '../../services/adminApi.js'
+import { serverUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
 import { showError, showSuccess } from '../../services/toast.js'
 
 /**
@@ -326,8 +327,22 @@ export default {
 				// the endpoint names the field it would not take; it is the one
 				// thing that tells the administrator what to change
 				this.saved = false
-				this.message = errorMessage(error, t('social', 'Could not save the server settings'))
-				showError(t('social', 'Could not save the server settings'))
+				const reason = errorOf(error, t('social', 'Could not save the server settings'), {
+					contact_email: t('social', 'Contact address'),
+					contact_account: t('social', 'Contact account'),
+					extended_description: t('social', 'About this instance'),
+					max_size: t('social', 'Largest picture or file (MB)'),
+					max_video_size: t('social', 'Largest video (MB)'),
+					image_max_edge: t('social', 'Shrink pictures to (pixels)'),
+					image_quality: t('social', 'Stored at quality'),
+					video_max_height: t('social', 'Shrink videos to (pixels tall)'),
+					video_ladder_heights: t('social', 'Sizes to write (pixels tall, comma-separated)'),
+					video_quota: t('social', 'Video one account may keep (MB)'),
+					nsfw_policy: t('social', 'Default for media marked sensitive'),
+					inbox_throttle: t('social', 'Inbox requests allowed per instance per minute'),
+				})
+				this.message = reason.text
+				showError(reason)
 
 				return false
 			} finally {

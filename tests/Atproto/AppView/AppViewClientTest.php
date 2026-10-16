@@ -62,6 +62,22 @@ class AppViewClientTest extends TestCase {
 		$client->query('app.bsky.actor.getProfile', ['actor' => 'did:plc:bob']);
 	}
 
+	/** An AppView not reached says so, for which call, and not what went wrong on the way: that is logged. */
+	public function testAnAppViewNotReachedSaysNoMoreThanThat(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appView')->willReturn('https://public.api.bsky.app');
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('doRequest')->willThrowException(new \RuntimeException('cURL error 7: Failed to connect to 10.0.0.7 port 443'));
+		$client = new AppViewClient($config, $this->createMock(ServiceAuth::class), $curl, new NullLogger());
+
+		try {
+			$client->query('app.bsky.actor.getProfile', ['actor' => 'did:plc:bob']);
+			$this->fail('answered');
+		} catch (AtprotoException $e) {
+			$this->assertSame('AppView could not be reached for app.bsky.actor.getProfile', $e->getMessage());
+		}
+	}
+
 	/** An account the AppView no longer serves is not there, and the refusal says why. */
 	public function testAnAccountNoLongerServedIsNotFoundWithTheErrorNamed(): void {
 		$config = $this->createMock(AtprotoConfig::class);

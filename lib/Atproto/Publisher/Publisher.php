@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Publisher;
 
+use Closure;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\PresenceService;
 use OCA\Social\Atproto\Model\Identity;
@@ -28,6 +29,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\VerificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Container\ContainerInterface;
@@ -49,6 +51,8 @@ class Publisher {
 	/** how far back the reconcile pass looks */
 	public const RECONCILE_WINDOW = 86400;
 	public const RECONCILE_BATCH = 100;
+	/** where the reconcile pass got to in the older part of its window, by walk */
+	public const RECONCILE_WALK = 'social.atproto.reconcile';
 	/** how many posts written during a move away are published before the DID moves, at most */
 	public const MOVE_BACKLOG = 500;
 
@@ -66,6 +70,7 @@ class Publisher {
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 		private ImportedPostsRequest $imported,
+		private DurableCache $durableCache,
 		private ?PresenceService $presence = null,
 		private ?ContainerInterface $container = null,
 		private ?AtprotoMoveRequest $moves = null,
@@ -327,7 +332,8 @@ class Publisher {
 	 * Brings Bluesky up to date with the recent public posts: what a missed
 	 * event or a failed write left behind — a post without a record, an edit
 	 * within the grace period the record does not show, a record whose post
-	 * is gone.
+	 * is gone. Each pass looks at two pages of the posts and two of the
+	 * records at most (walkWindow()).
 	 *
 	 * @return int how many records were written or removed
 	 */
@@ -337,7 +343,15 @@ class Publisher {
 		}
 		$done = 0;
 		$since = $this->time->getTime() - self::RECONCILE_WINDOW;
-		foreach ($this->streamRequest->getLocalPublicSince($since, $limit) as $post) {
+		$posts = $this->walkWindow('posts', $limit, function (int $before) use ($since, $limit): array {
+			$page = [];
+			foreach ($this->streamRequest->getLocalPublicSince($since, $limit, $before) as $post) {
+				$page[(int)$post->getNid()] = $post;
+			}
+
+			return $page;
+		});
+		foreach ($posts as $post) {
 			try {
 				// an import is federated nowhere, and one that came with its
 				// record keeps that record as it was
@@ -354,7 +368,8 @@ class Publisher {
 				$this->logger->warning('Post not published to Bluesky', ['post' => $post->getId(), 'exception' => $e]);
 			}
 		}
-		foreach ($this->repositories->getRecordsSince(RecordMapper::POST, $since, $limit) as $record) {
+		$records = $this->walkWindow('records', $limit, fn (int $before): array => $this->repositories->getRecordsSince(RecordMapper::POST, $since, $limit, $before));
+		foreach ($records as $record) {
 			try {
 				$this->streamRequest->getStreamById($record->localId);
 			} catch (StreamNotFoundException) {
@@ -367,6 +382,41 @@ class Publisher {
 		}
 
 		return $done;
+	}
+
+	/**
+	 * What one reconcile pass looks at of its window, newest first: the
+	 * newest page, where what was missed a moment ago is, and the next page
+	 * of the rest of the window from where the last pass stopped, so a
+	 * window of more than a page is looked at whole over a few passes. Once
+	 * the walk reaches the end of the window it starts below the newest page
+	 * again.
+	 *
+	 * @template T
+	 * @param string $walk which walk, posts or records
+	 * @param Closure(int): array<int, T> $page a page of the window by a
+	 *                                          rising position, newest first,
+	 *                                          below a position or from the
+	 *                                          newest for 0
+	 * @return array<int, T>
+	 */
+	private function walkWindow(string $walk, int $limit, Closure $page): array {
+		$newest = $page(0);
+		if (count($newest) < $limit) {
+			return $newest;
+		}
+		$floor = min(array_keys($newest));
+		// the table, whatever memcache there is: cron runs from the command
+		// line one time and from a web request the next
+		$cursor = (int)($this->durableCache->getShared(self::RECONCILE_WALK, $walk) ?? 0);
+		$older = $page($cursor > 0 && $cursor < $floor ? $cursor : $floor);
+		if (count($older) < $limit) {
+			$this->durableCache->removeShared(self::RECONCILE_WALK, $walk);
+		} else {
+			$this->durableCache->setShared(self::RECONCILE_WALK, $walk, min(array_keys($older)), self::RECONCILE_WINDOW);
+		}
+
+		return $newest + $older;
 	}
 
 	/**

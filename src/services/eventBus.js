@@ -58,5 +58,6 @@ export const NOTIFICATIONS_READ = 'social:notifications-read'
  * notify_push is subscribed to once for the page — see `timelinePush.js`,
  * and `listen()` cannot be undone — and every timeline list on screen hears
  * about it here, so a list that is gone stops listening with its component.
+ * The payload is the kinds that arrived (`PUSH_KINDS`).
  */
 export const TIMELINE_PUSHED = 'social:timeline-pushed'

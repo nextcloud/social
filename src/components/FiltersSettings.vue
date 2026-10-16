@@ -130,7 +130,8 @@ import IconPlus from 'vue-material-design-icons/Plus.vue'
 import FilterForm from './FilterForm.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
-import { contextLabel, errorSaid, expiryLabel, isActive } from '../utils/filters.js'
+import { contextLabel, expiryLabel, isActive } from '../utils/filters.js'
+import { errorOf } from '../utils/serverError.js'
 
 /**
  * The reader's keyword filters: what they are, and everything that can be done
@@ -306,7 +307,7 @@ export default {
 				showSuccess(t('social', 'The filter {title} is now applied', { title: data?.title ?? payload.title }))
 			} catch (error) {
 				logger.error('Failed to create the keyword filter', { error })
-				showError(errorSaid(error, t('social', 'Could not create the filter')))
+				showError(errorOf(error, t('social', 'Could not create the filter')))
 			} finally {
 				this.busy = false
 			}
@@ -328,7 +329,7 @@ export default {
 				await this.fetchFilters()
 			} catch (error) {
 				logger.error('Failed to change the keyword filter', { error })
-				showError(errorSaid(error, t('social', 'Could not save the filter')))
+				showError(errorOf(error, t('social', 'Could not save the filter')))
 			} finally {
 				this.busy = false
 			}
@@ -355,7 +356,7 @@ export default {
 				showSuccess(t('social', 'The filter {title} is gone', { title: filter.title }))
 			} catch (error) {
 				logger.error('Failed to delete the keyword filter', { error })
-				showError(errorSaid(error, t('social', 'Could not delete the filter')))
+				showError(errorOf(error, t('social', 'Could not delete the filter')))
 			} finally {
 				this.busy = false
 			}

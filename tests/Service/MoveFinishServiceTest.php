@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ConfigService;
@@ -147,9 +148,29 @@ class MoveFinishServiceTest extends TestCase {
 			$this->createStub(ISecureRandom::class), new NullLogger()
 		);
 
-		$this->expectException(InvalidResourceException::class);
+		$this->expectException(MoveErrorException::class);
 		$this->expectExceptionMessage('finish the move there');
-		$service->start('bob', '@alice@old.example');
+		try {
+			$service->start('bob', '@alice@old.example');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('finish-not-possible', $e->errorCode);
+			throw $e;
+		}
+	}
+
+	/** Whether the old server answered with an error or with no credentials, it refused. */
+	public function testAnOldServerThatWillNotRegisterThisOneIsARefusal(): void {
+		$codes = [];
+		foreach ([new \RuntimeException('Forbidden', 403), ['client_id' => 'cid']] as $answer) {
+			$this->answers['https://old.example/index.php/apps/social/api/v1/apps'] = $answer;
+			try {
+				$this->service->start('bob', '@alice@old.example');
+			} catch (MoveErrorException $e) {
+				$codes[] = $e->errorCode;
+			}
+		}
+
+		$this->assertSame(['old-server-refused', 'old-server-refused'], $codes);
 	}
 
 	public function testFinishTurnsTheCodeIntoATokenAndHasTheOldServerMoveTheFollowersHere(): void {

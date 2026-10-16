@@ -16,6 +16,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\StreamDest;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Tools\Traits\TStringTools;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -38,6 +39,8 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		private CacheActorsRequest $cacheActorsRequest,
 		ConfigService $configService,
 		MiscService $miscService,
+		private ConversationsRequest $conversationsRequest,
+		private TimelineRevisionService $timelineRevisionService,
 	) {
 		parent::__construct($connection, $logger, $urlGenerator, $configService, $miscService);
 	}
@@ -220,11 +223,14 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 			}
 		}
 
+		$recipients = self::uniqueRecipients(['dm' => $all]);
 		$this->createRecipients(
 			$stream->getId(),
-			array_map(static fn (string $type): array => [$type, ''], self::uniqueRecipients(['dm' => $all])),
+			array_map(static fn (string $type): array => [$type, ''], $recipients),
 			$stream->getNid()
 		);
+		$this->conversationsRequest->storeRoot($stream->getId(), $stream->getInReplyTo());
+		$this->moved(array_keys($recipients), TimelineRevisionService::CONVERSATIONS);
 
 		return true;
 	}
@@ -234,13 +240,27 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 			return false;
 		}
 
+		$recipients = self::uniqueRecipients(['notif' => $stream->getToAll()]);
 		$this->createRecipients(
 			$stream->getId(),
-			array_map(static fn (string $type): array => [$type, ''], self::uniqueRecipients(['notif' => $stream->getToAll()])),
+			array_map(static fn (string $type): array => [$type, ''], $recipients),
 			$stream->getNid()
 		);
+		$this->moved(array_keys($recipients), TimelineRevisionService::NOTIFICATIONS);
 
 		return true;
+	}
+
+	/**
+	 * Moves the badge number of every local account among `$recipients`.
+	 * Inside the post's transaction, so the number is never ahead of the rows.
+	 *
+	 * @param array<array-key, string|int> $recipients actor ids
+	 */
+	private function moved(array $recipients, string $key): void {
+		foreach ($recipients as $actorId) {
+			$this->timelineRevisionService->bumpForActor((string)$actorId, $key);
+		}
 	}
 
 	public function emptyStreamDest(): void {
@@ -309,13 +329,44 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	}
 
 	/**
-	 * @param string $actorId
+	 * Readdresses every post addressed to `$actorId` to `$newId`.
+	 *
+	 * Copied, a page at a time, and then removed rather than updated in
+	 * place: a post addressed to both already has a row for the new one,
+	 * `sat` makes (stream_id, actor_id, type) unique, and an UPDATE onto such
+	 * a row is refused, and the whole Move with it. The copy skips those, and
+	 * nothing here is a statement the database refuses, so it can run inside
+	 * a transaction on PostgreSQL.
 	 */
 	public function moveActor(string $actorId, string $newId): void {
-		$qb = $this->getStreamDestUpdateSql();
-		$qb->set('actor_id', $qb->createNamedParameter($qb->prim($newId)));
-		$qb->limitToDBField('actor_id', $qb->prim($actorId));
+		$newPrim = $this->getQueryBuilder()->prim($newId);
+		$afterId = 0;
+		do {
+			$qb = $this->getQueryBuilder();
+			$qb->select('id', 'stream_id', 'type', 'subtype', 'nid')
+				->from(self::TABLE_STREAM_DEST)
+				->where($qb->expr()->eq('actor_id', $qb->createNamedParameter($qb->prim($actorId))))
+				->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
+				->orderBy('id', 'asc')
+				->setMaxResults(self::INSERT_IGNORE_CHUNK);
 
-		$qb->executeStatement();
+			$rows = [];
+			$cursor = $qb->executeQuery();
+			while ($data = $cursor->fetch()) {
+				$afterId = (int)$data['id'];
+				$rows[] = [
+					'stream_id' => (string)$data['stream_id'],
+					'actor_id' => $newPrim,
+					'type' => (string)$data['type'],
+					'subtype' => (string)$data['subtype'],
+					'nid' => (int)$data['nid'],
+				];
+			}
+			$cursor->closeCursor();
+
+			$this->insertIgnoringConflicts(self::TABLE_STREAM_DEST, $rows);
+		} while (count($rows) === self::INSERT_IGNORE_CHUNK);
+
+		$this->deleteRelatedToActor($actorId);
 	}
 }

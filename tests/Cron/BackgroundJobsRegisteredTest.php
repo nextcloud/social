@@ -28,7 +28,8 @@ class BackgroundJobsRegisteredTest extends TestCase {
 	/**
 	 * Jobs that are added on demand with an argument and must not be in
 	 * info.xml, which would add them once, at install, with none — and
-	 * `SearchIndex`, a one-off queued by the migration that creates its table.
+	 * `SearchIndex` and `ThreadRoots`, one-offs queued by the migrations that
+	 * add what they fill.
 	 */
 	private const QUEUED_ONLY = [
 		'OCA\\Social\\Cron\\ActorCleanup',
@@ -42,11 +43,13 @@ class BackgroundJobsRegisteredTest extends TestCase {
 		'OCA\\Social\\Cron\\FillPosts',
 		'OCA\\Social\\Cron\\FillThread',
 		'OCA\\Social\\Cron\\RefreshCounts',
+		'OCA\\Social\\Cron\\RepublishAvatars',
 		'OCA\\Social\\Cron\\ResolveActor',
 		'OCA\\Social\\Cron\\RunImport',
 		'OCA\\Social\\Cron\\SearchIndex',
 		'OCA\\Social\\Cron\\StreamAuthorHosts',
 		'OCA\\Social\\Cron\\SyncRemoteTimeline',
+		'OCA\\Social\\Cron\\ThreadRoots',
 		'OCA\\Social\\Cron\\TranscodeBeforeDelivery',
 	];
 

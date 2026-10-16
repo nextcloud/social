@@ -648,15 +648,17 @@ class DocumentServiceTest extends TestCase {
 		$alice = new Person();
 		$alice->setId('https://cloud.example.com/apps/social/@alice');
 		$alice->setUserId('alice');
+		$alice->setPreferredUsername('aloha_al');
 		$alice->setAvatarVersion($avatarVersion);
 
 		return $alice;
 	}
 
+	/** This app's avatar route of the username: Nextcloud's own names the login. */
 	private function avatarUrl(int $version): string {
-		$url = 'https://cloud.example.com/avatar/alice/128?v=' . $version;
+		$url = 'https://cloud.example.com/apps/social/avatar/aloha_al/128?v=' . $version;
 		$this->urlGenerator->method('linkToRouteAbsolute')
-			->with('core.avatar.getAvatar', ['userId' => 'alice', 'size' => 128, 'v' => $version])
+			->with('social.Avatar.avatar', ['username' => 'aloha_al', 'size' => 128, 'v' => $version])
 			->willReturn($url);
 
 		return $url;

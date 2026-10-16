@@ -17,6 +17,7 @@ use OCA\Social\Db\InterestsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InterestNotRemovableException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\AttachmentMeta;
@@ -588,7 +589,14 @@ class InterestServiceTest extends TestCase {
 		$saved = $this->service()->saveAdminSettings(true, false, 14, 2.5, 40, 3);
 		$this->assertSame(['enabled' => true, 'learningDefault' => false, 'halfLife' => 14, 'threshold' => 2.5, 'cap' => 40, 'window' => 3], $saved);
 
-		$this->expectException(InvalidArgumentException::class);
-		$this->service()->saveAdminSettings(true, true, 30, 3, 30, 90);
+		try {
+			$this->service()->saveAdminSettings(true, true, 30, 3, 30, 90);
+			$this->fail('a window of 90 days was saved');
+		} catch (SettingRefusedException $e) {
+			$this->assertSame(
+				['error' => 'window must be between 1 and 30', 'code' => 'setting-out-of-range', 'field' => 'window', 'min' => 1, 'max' => 30],
+				$e->toArray()
+			);
+		}
 	}
 }

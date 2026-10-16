@@ -15,6 +15,9 @@
  * @property {string} [filter] - the picture filter chosen, 'none' or absent for the picture as it was
  * @property {string} [bakedFilter] - the filter `data` was uploaded with, absent for none; the filter is baked in as the post is sent
  * @property {?import('./Mastodon.js').MediaAttachment} [unfiltered] - the upload made on attaching, kept once a filtered copy has replaced it
+ * @property {boolean} [checking] - kept in a draft and not yet confirmed by the server since; the post waits for it
+ * @property {boolean} [fetching] - its file is being fetched for a filter; the post waits for it
+ * @property {string} [objectUrl] - the object URL of a file fetched after it was attached, for the filter swatches
  */
 
 export {}

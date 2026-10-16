@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\RelayService;
 use OCA\Social\Service\ServerSettingsService;
@@ -103,7 +104,10 @@ class ServerSettingsController extends Controller {
 				$contactAccount,
 			));
 		} catch (InvalidArgumentException $e) {
-			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return new DataResponse(
+				$e instanceof SettingRefusedException ? $e->toArray() : ['error' => $e->getMessage()],
+				Http::STATUS_UNPROCESSABLE_ENTITY
+			);
 		}
 	}
 

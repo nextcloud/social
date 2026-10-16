@@ -267,7 +267,7 @@ class AccountService {
 		]);
 
 		throw new InvalidHandleException(
-			'this server does not create fediverse accounts for addresses at that domain'
+			'this server does not create fediverse accounts for addresses at that domain', 'email-domain-refused'
 		);
 	}
 
@@ -309,17 +309,17 @@ class AccountService {
 			$actor = $this->actorsRequest->getFromUsername($username);
 			if ($actor->getDeleted() > 0) {
 				throw new AccountAlreadyExistsException(
-					'actor with that name was deleted but is still in retention. Please try again later'
+					'actor with that name was deleted but is still in retention. Please try again later', 'handle-held'
 				);
 			}
-			throw new AccountAlreadyExistsException('actor with that name already exist');
+			throw new AccountAlreadyExistsException('actor with that name already exist', 'handle-in-use-here');
 		} catch (ActorDoesNotExistException $e) {
 			/* we do nohtin */
 		}
 
 		try {
 			$this->actorsRequest->getFromUserId($userId);
-			throw new AccountAlreadyExistsException('account for this user already exist');
+			throw new AccountAlreadyExistsException('account for this user already exist', 'account-exists');
 		} catch (ActorDoesNotExistException $e) {
 			/* we do nohtin */
 		}
@@ -851,6 +851,28 @@ class AccountService {
 	 * A failure is logged and swallowed: the change is stored either way, and
 	 * a remote server picks it up when it next refreshes the actor.
 	 */
+	/**
+	 * Re-caches a local account and tells its followers' servers the actor as
+	 * it is served now, and nothing else: for a change in how the actor is
+	 * published rather than in anything the account holds, such as the
+	 * address of its icon (`Cron\RepublishAvatars`).
+	 */
+	public function republishActor(Person $actor): void {
+		$this->cacheLocalActorByUsername($actor->getPreferredUsername());
+		try {
+			$served = $this->cacheActorsRequest->getFromLocalAccount($actor->getPreferredUsername());
+		} catch (Exception $e) {
+			$this->logger->warning(
+				'could not tell the followers that a local actor changed',
+				['actor' => $actor->getId(), 'exception' => $e]
+			);
+
+			return;
+		}
+
+		$this->federateActorUpdate($actor, $served);
+	}
+
 	private function federateActorUpdate(Person $actor, Person $served): void {
 		try {
 			$update = clone $served;
@@ -1246,14 +1268,14 @@ class AccountService {
 	public function assertHandleAvailable(string $userId, string $username): void {
 		$this->checkActorUsername($username);
 		if (strtolower($username) !== strtolower($userId) && $this->userManager->userExists($username)) {
-			throw new InvalidHandleException('that is another person\'s user name on this Nextcloud');
+			throw new InvalidHandleException('that is another person\'s user name on this Nextcloud', 'handle-other-user');
 		}
 		try {
 			$this->actorsRequest->getFromUsername($username);
 		} catch (ActorDoesNotExistException $e) {
 			return;
 		}
-		throw new AccountAlreadyExistsException('that handle is taken');
+		throw new AccountAlreadyExistsException('that handle is taken', 'handle-in-use-here');
 	}
 
 	/**
@@ -1287,11 +1309,11 @@ class AccountService {
 	public function linkExternalHandle(string $userId, string $handle): string {
 		$handle = ltrim(trim($handle), '@');
 		if (preg_match('/^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,63}@([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/', $handle) !== 1) {
-			throw new InvalidHandleException('a fediverse account is written user@server.example');
+			throw new InvalidHandleException('a fediverse account is written user@server.example', 'linked-handle-invalid');
 		}
 		try {
 			if (strcasecmp(substr($handle, strpos($handle, '@') + 1), $this->configService->getSocialAddress()) === 0) {
-				throw new InvalidHandleException('that would be an account on this server; create one instead');
+				throw new InvalidHandleException('that would be an account on this server; create one instead', 'linked-handle-local');
 			}
 		} catch (SocialAppConfigException $e) {
 			// no address configured yet: nothing to compare against
@@ -1329,14 +1351,18 @@ class AccountService {
 	private function checkActorUsername(string $username): void {
 		if ($username === '' || strlen($username) > self::HANDLE_MAX_LENGTH) {
 			throw new InvalidHandleException(
-				'a Fediverse handle must be between 1 and ' . self::HANDLE_MAX_LENGTH . ' characters'
+				'a Fediverse handle must be between 1 and ' . self::HANDLE_MAX_LENGTH . ' characters',
+				'handle-length',
+				null,
+				['max' => self::HANDLE_MAX_LENGTH]
 			);
 		}
 
 		if (preg_match(self::HANDLE_PATTERN, $username) !== 1) {
 			throw new InvalidHandleException(
 				'"' . $username . '" cannot be used as a Fediverse handle: only letters, digits and '
-				. 'underscore are allowed, with dot and dash inside'
+				. 'underscore are allowed, with dot and dash inside',
+				'handle-characters'
 			);
 		}
 	}

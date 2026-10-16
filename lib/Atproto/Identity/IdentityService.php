@@ -272,12 +272,35 @@ class IdentityService {
 		try {
 			$this->plc->submit($identity->did, $operation);
 		} catch (AtprotoException $e) {
-			// not left for repair(): a move is started again by the person,
-			// never finished behind their back
+			// not left for repair(), which would send it again: a move is
+			// started again by the person, never finished behind their back.
+			// When no answer came the directory may have taken it all the
+			// same; the move asks it (pointsAt()) before it goes on.
 			$this->plcLog->remove($logId);
 			throw $e;
 		}
 		$this->plcLog->markConfirmed($logId);
+	}
+
+	/**
+	 * Whether the directory points the DID at a PDS's endpoint. When it
+	 * does, what moved it there is taken into the log from the directory's
+	 * (reconcile()): a handover whose answer never came is not in it.
+	 *
+	 * @throws AtprotoException when the directory cannot be asked
+	 */
+	public function pointsAt(string $did, string $endpoint): bool {
+		$named = (string)($this->plc->data($did)['services']['atproto_pds']['endpoint'] ?? '');
+		if ($named === '' || rtrim($named, '/') !== rtrim($endpoint, '/')) {
+			return false;
+		}
+		try {
+			$this->reconcile($did);
+		} catch (AtprotoException $e) {
+			$this->logger->warning('PLC log not compared with the directory', ['did' => $did, 'exception' => $e]);
+		}
+
+		return true;
 	}
 
 	/**

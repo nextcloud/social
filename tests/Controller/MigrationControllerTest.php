@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\MigrationController;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ImportJob;
 use OCA\Social\Service\AccountService;
@@ -33,6 +34,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
@@ -87,9 +89,9 @@ class MigrationControllerTest extends TestCase {
 	/**
 	 * Built for `$userId` signed in to Nextcloud, as the Migration page calls
 	 * it, or for nobody; a test that calls with a token sets one up first and
-	 * passes null.
+	 * passes null. `$logger` for a test that reads what was logged.
 	 */
-	private function controller(?string $userId = 'alice'): MigrationController {
+	private function controller(?string $userId = 'alice', ?LoggerInterface $logger = null): MigrationController {
 		if ($userId !== null) {
 			$this->asSession($userId);
 		} elseif ($this->authorization === '') {
@@ -99,7 +101,7 @@ class MigrationControllerTest extends TestCase {
 		return new MigrationController(
 			$this->request,
 			$this->userSession,
-			new NullLogger(),
+			$logger ?? new NullLogger(),
 			$this->accountService,
 			$this->clientService,
 			$userId,
@@ -150,15 +152,18 @@ class MigrationControllerTest extends TestCase {
 		$this->assertSame([], $this->controller()->aliasRemove('https://old.example/users/me')->getData()['aliases']);
 	}
 
-	/** An address that is not an account's own is refused, and the reason is the whole of the help there is. */
+	/** An address that is not an account's own is refused with its code, and the sentence for the details. */
 	public function testAnAddressThatIsNotAnActorIsRefusedWithItsReason(): void {
 		$this->migrationService->method('addAlias')
-			->willThrowException(new \OCA\Social\Exceptions\InvalidResourceException('that is not an actor id'));
+			->willThrowException(new MoveErrorException('"pixelfed.social" is neither a handle nor an address', 'account-address-invalid'));
 
 		$response = $this->controller()->aliasAdd('pixelfed.social');
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
-		$this->assertSame('that is not an actor id', $response->getData()['error']);
+		$this->assertSame(
+			['error' => '"pixelfed.social" is neither a handle nor an address', 'code' => 'account-address-invalid'],
+			$response->getData()
+		);
 	}
 
 	public function testNobodyWithoutASessionReadsOrChangesAnAlias(): void {
@@ -220,7 +225,7 @@ class MigrationControllerTest extends TestCase {
 		$response = $this->controller()->export();
 
 		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
-		$this->assertSame(['error' => 'no room on the disk'], $response->getData());
+		$this->assertSame(['error' => 'Something went wrong on this server', 'code' => 'server-error'], $response->getData());
 	}
 
 	// import
@@ -241,7 +246,7 @@ class MigrationControllerTest extends TestCase {
 		$response = $this->controller()->import();
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'no archive was uploaded'], $response->getData());
+		$this->assertSame(['error' => 'no archive was uploaded', 'code' => 'no-file'], $response->getData());
 	}
 
 	public function testAFailedUploadIsNotTreatedAsAnArchive(): void {
@@ -260,17 +265,36 @@ class MigrationControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_REQUEST_ENTITY_TOO_LARGE, $response->getStatus());
 		$this->assertStringContainsString('100 MB', $response->getData()['error']);
+		$this->assertSame('file-too-large', $response->getData()['code']);
 	}
 
 	public function testAnArchiveWithoutSocialDataIsABadRequest(): void {
 		$this->upload([]);
 		$this->archiveService->method('import')
-			->willThrowException(new UserMigrationException('this archive holds no Social data'));
+			->willThrowException(new MoveErrorException('this archive holds no Social data', 'archive-not-social'));
 
 		$response = $this->controller()->import();
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'this archive holds no Social data'], $response->getData());
+		$this->assertSame(['error' => 'this archive holds no Social data', 'code' => 'archive-not-social'], $response->getData());
+	}
+
+	/**
+	 * What the migrator itself threw is the server's to know: it can name a
+	 * table or a path, and the person can do nothing with it.
+	 */
+	public function testAnImportThatFailsUnexpectedlyAnswersAFixedSentence(): void {
+		$this->upload([]);
+		$this->archiveService->method('import')
+			->willThrowException(new UserMigrationException('the import failed: SQLSTATE[23000] on oc_social_actor'));
+		$logger = $this->createMock(LoggerInterface::class);
+		$logger->expects($this->once())->method('error')
+			->with('Social import failed', $this->callback(static fn (array $context): bool => $context['exception'] instanceof UserMigrationException));
+
+		$response = $this->controller('alice', $logger)->import();
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'Something went wrong on this server', 'code' => 'server-error'], $response->getData());
 	}
 
 	public function testImportWithoutAnAccountIsUnauthorized(): void {
@@ -307,6 +331,33 @@ class MigrationControllerTest extends TestCase {
 		$response = $this->controller()->importFollows();
 
 		$this->assertSame(Http::STATUS_CONFLICT, $response->getStatus());
+		$this->assertSame('import-running', $response->getData()['code']);
+	}
+
+	/** The same refusal when the second press wins the race to the queue. */
+	public function testAnImportQueuedMeanwhileIsRefusedWithTheSameCode(): void {
+		$this->uploadWith("Account address\nbob@remote.example\n");
+		$this->importQueueService->method('hasActive')->willReturn(false);
+		$this->importQueueService->method('queue')
+			->willThrowException(new MoveErrorException('an import of this kind is already running; wait for it to finish', 'import-running'));
+
+		$response = $this->controller()->importFollows();
+
+		$this->assertSame(Http::STATUS_CONFLICT, $response->getStatus());
+		$this->assertSame('import-running', $response->getData()['code']);
+	}
+
+	/** Keeping the upload can fail on a full disk; that path is the server's own. */
+	public function testAnImportThatCannotBeQueuedAnswersAFixedSentence(): void {
+		$this->uploadWith("Account address\nbob@remote.example\n");
+		$this->importQueueService->method('hasActive')->willReturn(false);
+		$this->importQueueService->method('queue')
+			->willThrowException(new InvalidResourceException('no room for a temporary copy of the upload'));
+
+		$response = $this->controller()->importFollows();
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'Something went wrong on this server', 'code' => 'server-error'], $response->getData());
 	}
 
 	// moving away, from the page
@@ -362,12 +413,25 @@ class MigrationControllerTest extends TestCase {
 		$this->accountService = $this->createStub(AccountService::class);
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->migrationService->method('move')
-			->willThrowException(new \OCA\Social\Exceptions\InvalidResourceException('this account moved on 2026-10-01 and can move again on 2026-10-31'));
+			->willThrowException(new MoveErrorException('this account moved on 2026-10-01 and can move again on 2026-10-31', 'move-cooldown'));
 
 		$response = $this->controller()->moveOut('@alice@new.example', 'alice@cloud.example');
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
 		$this->assertStringContainsString('can move again', $response->getData()['error']);
+		$this->assertSame('move-cooldown', $response->getData()['code']);
+	}
+
+	/** A failure that is not a refusal keeps its message in the log. */
+	public function testAMoveThatFailsUnexpectedlyAnswersAFixedSentence(): void {
+		$this->accountService = $this->createStub(AccountService::class);
+		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
+		$this->migrationService->method('move')->willThrowException(new \RuntimeException('queue is down'));
+
+		$response = $this->controller()->moveOut('@alice@new.example', 'alice@cloud.example');
+
+		$this->assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $response->getStatus());
+		$this->assertSame(['error' => 'Something went wrong on this server', 'code' => 'server-error'], $response->getData());
 	}
 
 	public function testMovingAwayRefusalsCarryACode(): void {
@@ -392,6 +456,7 @@ class MigrationControllerTest extends TestCase {
 		$this->assertSame('', $response->getData()['moved_to']);
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->undoMove()->getStatus());
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->moveOut('x', 'y')->getStatus());
+		$this->assertSame('not-signed-in', $this->controller(null)->undoMove()->getData()['code']);
 	}
 
 	/** The irreversible routes are behind Nextcloud's password confirmation. */
@@ -421,12 +486,12 @@ class MigrationControllerTest extends TestCase {
 
 	public function testInspectingNobodyIsRefusedWithTheReason(): void {
 		$this->moveInService->method('inspect')
-			->willThrowException(new \OCA\Social\Exceptions\InvalidResourceException('no account answers to alice@gone.example'));
+			->willThrowException(new MoveErrorException('no account answers to alice@gone.example', 'account-not-found'));
 
 		$response = $this->controller()->moveInInspect('alice@gone.example');
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
-		$this->assertSame('no account answers to alice@gone.example', $response->getData()['error']);
+		$this->assertSame(['error' => 'no account answers to alice@gone.example', 'code' => 'account-not-found'], $response->getData());
 	}
 
 	/** The alias is set in the request; the follows and the posts are the queued run's. */
@@ -441,12 +506,13 @@ class MigrationControllerTest extends TestCase {
 	}
 
 	public function testFinishingFromAServerThatIsNotThisAppIsRefusedWithTheReason(): void {
-		$this->moveFinishService->method('start')->willThrowException(new InvalidResourceException('the old account is not on an Aloha Social server; finish the move there, with its own button'));
+		$this->moveFinishService->method('start')->willThrowException(new MoveErrorException('the old account is not on an Aloha Social server; finish the move there, with its own button', 'finish-not-possible'));
 
 		$response = $this->controller()->moveInFinishStart('@alice@mastodon.example');
 
 		$this->assertSame(Http::STATUS_UNPROCESSABLE_ENTITY, $response->getStatus());
 		$this->assertStringContainsString('finish the move there', $response->getData()['error']);
+		$this->assertSame('finish-not-possible', $response->getData()['code']);
 	}
 
 	public function testTheCallbackSpendsTheCodeAndLandsOnTheMigrationPageEitherWay(): void {
@@ -515,6 +581,7 @@ class MigrationControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_OK, $this->controller()->dismissImport(7)->getStatus());
 		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->dismissImport(8)->getStatus());
+		$this->assertSame('import-not-found', $this->controller()->dismissImport(8)->getData()['code']);
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $this->controller(null)->dismissImport(7)->getStatus());
 	}
 
@@ -522,7 +589,7 @@ class MigrationControllerTest extends TestCase {
 		$response = $this->controller()->importFollows();
 
 		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-		$this->assertSame(['error' => 'no file was uploaded'], $response->getData());
+		$this->assertSame(['error' => 'no file was uploaded', 'code' => 'no-file'], $response->getData());
 	}
 
 	public function testFollowsWithoutAnAccountIsUnauthorized(): void {
@@ -568,7 +635,7 @@ class MigrationControllerTest extends TestCase {
 		] as $call) {
 			$response = $call();
 			$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-			$this->assertSame(['error' => 'no file was uploaded'], $response->getData());
+			$this->assertSame(['error' => 'no file was uploaded', 'code' => 'no-file'], $response->getData());
 		}
 	}
 
@@ -600,11 +667,12 @@ class MigrationControllerTest extends TestCase {
 	/** A kind this account keeps no list of is a 404, not a server error. */
 	public function testAnUnknownKindIsNotFound(): void {
 		$this->migrationService->method('exportCsv')
-			->willThrowException(new InvalidResourceException('"secrets" is not something this account keeps a list of'));
+			->willThrowException(new MoveErrorException('"secrets" is not something this account keeps a list of', 'list-unknown'));
 
 		$response = $this->controller()->exportCsv('secrets');
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
+		$this->assertSame('list-unknown', $response->getData()['code']);
 	}
 
 	public function testExportingAListWithoutAnAccountIsUnauthorized(): void {
@@ -800,7 +868,7 @@ class MigrationControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_FORBIDDEN, $this->controller(null)->exportCsv('likes')->getStatus());
 
 		$this->asToken(['read']);
-		$this->migrationService->method('exportCsv')->willThrowException(new InvalidResourceException('no such list'));
+		$this->migrationService->method('exportCsv')->willThrowException(new MoveErrorException('no such list', 'list-unknown'));
 		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller(null)->exportCsv('likes')->getStatus());
 	}
 }

@@ -44,6 +44,7 @@ use OCA\Social\Service\AccountRelationService;
 use OCA\Social\Service\NotificationDeliveryService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\NotificationService;
+use OCA\Social\Service\PushService;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Tests\Model\TActivityPubMocks;
 use OCP\IURLGenerator;
@@ -52,6 +53,7 @@ use OCP\Notification\INotification;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
 use Psr\Log\NullLogger;
 
 require_once __DIR__ . '/../Model/TActivityPubMocks.php';
@@ -108,6 +110,9 @@ class NotificationServiceTest extends TestCase {
 	private array $actions = [];
 	/** @var array<int, array> every notification handed to the notification manager */
 	private array $raised = [];
+	/** @var string[] who the open pages were pushed to, by actor id */
+	private array $pushed = [];
+	private PushService|Stub $pushService;
 	/** @var array<int, array> every notification withdrawn from the bell */
 	private array $withdrawn = [];
 	/** @var array<int, array{string, string}> [id, type] of every deleted row */
@@ -255,6 +260,12 @@ class NotificationServiceTest extends TestCase {
 			}
 		);
 
+		$this->pushService = $this->createStub(PushService::class);
+		$this->pushService->method('onNotification')
+			->willReturnCallback(function (string $recipientId): void {
+				$this->pushed[] = $recipientId;
+			});
+
 		$this->service = $this->build();
 	}
 
@@ -266,6 +277,11 @@ class NotificationServiceTest extends TestCase {
 
 				return in_array($senderId, $this->heldSenders, true);
 			}
+		);
+
+		$container = $this->createStub(ContainerInterface::class);
+		$container->method('get')->willReturnCallback(
+			fn (string $id): ?object => ($id === PushService::class) ? $this->pushService : null
 		);
 
 		$conversations = $this->createStub(ConversationsRequest::class);
@@ -287,7 +303,8 @@ class NotificationServiceTest extends TestCase {
 			new NullLogger(),
 			$this->urlGenerator(),
 			$policy,
-			$conversations
+			$conversations,
+			$container
 		);
 	}
 
@@ -427,6 +444,18 @@ class NotificationServiceTest extends TestCase {
 
 		$this->assertSame([], $this->raised);
 		$this->assertSame([], $this->activities);
+	}
+
+	/**
+	 * The recipient's open pages are told, held or not: what is held is a
+	 * request waiting, which the sidebar counts too.
+	 */
+	public function testEveryStoredNotificationIsPushedToTheRecipient(): void {
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+		$this->heldSenders = [self::BOB];
+		$this->service->onNotification($this->row(Like::TYPE, self::ALICE, self::BOB));
+
+		$this->assertSame([self::ALICE, self::ALICE], $this->pushed);
 	}
 
 	/** The policy is asked about the sender, with what its rules need, for the recipient. */

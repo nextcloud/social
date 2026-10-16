@@ -15,6 +15,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\ConversationService;
+use OCA\Social\Tests\Integration\QueryCounter;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -59,7 +60,7 @@ class ConversationUnreadCountTest extends TestCase {
 	}
 
 	private function cleanup(): void {
-		foreach ([...$this->notes, ...array_map(fn (string $n): string => self::NOTES . $n, ['a1', 'a2', 'a3', 'b1', 'b2', 'c1', 'd1', 'd2', 'e1', 'f2', 'g1', 'g2'])] as $id) {
+		foreach ([...$this->notes, ...array_map(fn (string $n): string => self::NOTES . $n, ['a1', 'a2', 'a3', 'b1', 'b2', 'c1', 'd1', 'd2', 'e1', 'f2', 'g1', 'g2', ...array_map(static fn (int $n): string => 'l' . $n, range(1, 60))])] as $id) {
 			$this->streamRequest->deleteById($id, Note::TYPE);
 		}
 		foreach ([self::READER, self::BOB, self::CAROL] as $id) {
@@ -143,6 +144,32 @@ class ConversationUnreadCountTest extends TestCase {
 		$this->assertSame(['a1', 'd1', 'f2', 'g1'], $unread);
 		$this->assertSame(count($unread), $service->countUnread($this->viewer()));
 		$this->assertSame(2, $service->countUnread($this->viewer(), 2), 'capped');
+	}
+
+	/**
+	 * A chat is a chain of replies, each to the one before, and one longer
+	 * than the window has its start outside it. The walk up from the window
+	 * reads several levels a statement, and the badge and the list still
+	 * agree about where the chain starts.
+	 */
+	public function testALongChatIsWalkedUpSeveralLevelsAStatement(): void {
+		$this->message('l1', self::BOB, self::READER);
+		for ($n = 2; $n <= 59; $n++) {
+			$this->message('l' . $n, ($n % 2 === 0) ? self::READER : self::BOB, ($n % 2 === 0) ? self::BOB : self::READER, 'l' . ($n - 1));
+		}
+		$this->message('l60', self::BOB, self::READER, 'l59');
+		$service = Server::get(ConversationService::class);
+
+		$viewer = $this->viewer();
+
+		$list = $service->getPage($viewer, ConversationService::MAX_LIMIT)['conversations'];
+		$run = QueryCounter::record(fn (): int => $service->countUnread($viewer));
+
+		$this->assertCount(1, $list);
+		$this->assertSame('l1', basename($list[0]->getRootId()));
+		$this->assertSame(1, $run->result());
+		// the window, the ten levels above it in two statements, the markers
+		$this->assertLessThanOrEqual(5, $run->count(), $run->summary());
 	}
 
 	public function testNoMessagesIsNoBadge(): void {

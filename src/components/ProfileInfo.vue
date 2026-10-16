@@ -420,6 +420,14 @@
 						</span>
 					</div>
 					<p>{{ t('social', 'Up to four name/value pairs, shown on your profile and shared with other servers.') }}</p>
+					<!-- the pronouns and the support link are two of the four, so
+					     the count is what tells somebody why "Add field" went away -->
+					<p
+						class="user-profile__fields-count"
+						:class="{ 'user-profile__fields-count--over': tooManyFields }"
+						role="status">
+						{{ fieldsUsedLabel }}
+					</p>
 					<!-- Two of those four rows are worth naming, because this app
 					     draws them differently: the pronouns beside your name, and
 					     a support address as a button. Filling either in writes an
@@ -504,12 +512,12 @@
 					</div>
 					<div class="user-profile__fields-modal-actions">
 						<NcButton
-							v-if="fieldRows.length < 4"
+							v-if="namedFields.length + fieldRows.length < maxProfileFields"
 							variant="tertiary"
 							@click="fieldRows.push({ name: '', value: '' })">
 							{{ t('social', 'Add field') }}
 						</NcButton>
-						<NcButton variant="primary" :disabled="savingProfile || bioTooLong" @click="saveProfile">
+						<NcButton variant="primary" :disabled="savingProfile || bioTooLong || tooManyFields" @click="saveProfile">
 							{{ savingProfile ? t('social', 'Saving…') : t('social', 'Save') }}
 						</NcButton>
 					</div>
@@ -568,6 +576,7 @@ import { sanitizeHtml } from '../utils/sanitizeHtml.js'
 import logger from '../services/logger.js'
 import { moderationUrl } from '../services/adminApi.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useAccount } from '../composables/useAccount.js'
@@ -585,6 +594,9 @@ const MuteDialog = defineAsyncComponent(() => import(/* webpackChunkName: "accou
 
 /** Mirrors `AccountService::SUMMARY_MAX_LENGTH`, which truncates beyond it. */
 const BIO_MAX_LENGTH = 500
+
+/** Mirrors `Person::setFields()`, which keeps the first four and drops the rest. */
+const MAX_PROFILE_FIELDS = 4
 
 /** How long the copy button says it copied. */
 const SNIPPET_COPIED_MS = 2000
@@ -871,6 +883,49 @@ export default {
 			return this.bioTooLong
 				? this.n('social', '%n character too many', '%n characters too many', -this.bioCharsLeft)
 				: this.n('social', '%n character left', '%n characters left', this.bioCharsLeft)
+		},
+
+		/** @return {number} */
+		maxProfileFields() {
+			return MAX_PROFILE_FIELDS
+		},
+
+		/** @return {Array<{name: string, value: string}>} the rows the pronouns and support boxes write */
+		namedFields() {
+			const named = []
+			if (this.pronounsDraft.trim() !== '') {
+				named.push({ name: 'Pronouns', value: this.pronounsDraft.trim() })
+			}
+			if (this.supportDraft.trim() !== '') {
+				named.push({ name: 'Support', value: this.supportDraft.trim() })
+			}
+			return named
+		},
+
+		/**
+		 * The fields a save sends: the named rows first, then every table row
+		 * with both a label and a content. A row with only one of them is not
+		 * a field, and is left out.
+		 *
+		 * @return {Array<{name: string, value: string}>}
+		 */
+		fieldsToSave() {
+			return this.namedFields.concat(this.fieldRows
+				.map((row) => ({ name: row.name.trim(), value: row.value.trim() }))
+				.filter((row) => row.name !== '' && row.value !== ''))
+		},
+
+		/** @return {boolean} whether the server would have to drop some of the fields */
+		tooManyFields() {
+			return this.fieldsToSave.length > MAX_PROFILE_FIELDS
+		},
+
+		/** @return {string} */
+		fieldsUsedLabel() {
+			const counts = { used: this.fieldsToSave.length, max: MAX_PROFILE_FIELDS }
+			return this.tooManyFields
+				? t('social', '{used} of {max} fields used. Remove one, or empty the pronouns or the support link, to save.', counts)
+				: t('social', '{used} of {max} fields used', counts)
 		},
 
 		/** @return {boolean} whether the bio is worth mentioning in the request */
@@ -1320,23 +1375,16 @@ export default {
 			if (this.savingProfile || this.bioTooLong) {
 				return
 			}
+			// the server keeps the first four and drops the rest without a
+			// word, so a fifth is refused here rather than lost there
+			if (this.tooManyFields) {
+				await this.showError(t('social', 'A profile has room for four fields. Remove one, or empty the pronouns or the support link, and save again.'))
+				return
+			}
 
 			this.savingProfile = true
 			try {
-				const named = []
-				if (this.pronounsDraft.trim() !== '') {
-					named.push({ name: 'Pronouns', value: this.pronounsDraft.trim() })
-				}
-				if (this.supportDraft.trim() !== '') {
-					named.push({ name: 'Support', value: this.supportDraft.trim() })
-				}
-				// the named rows first, so that an account with four rows already
-				// keeps the two it just filled in rather than losing them to the
-				// server's cap
-				const fields = named.concat(this.fieldRows
-					.map((row) => ({ name: row.name.trim(), value: row.value.trim() }))
-					.filter((row) => row.name !== '' && row.value !== '')).slice(0, 4)
-				await axios.put(generateUrl('apps/social/api/v1/account/fields'), { fields })
+				await axios.put(generateUrl('apps/social/api/v1/account/fields'), { fields: this.fieldsToSave })
 				// an absent `note` leaves the stored bio alone, so it is sent
 				// only when this editor actually changed it
 				if (this.bioChanged) {
@@ -1395,10 +1443,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to upload the banner', { error })
-				await this.showError(this.uploadFailure(
-					error,
-					t('social', 'Failed to upload banner'),
-				))
+				await this.showError(errorOf(error, t('social', 'Failed to upload banner')))
 			} finally {
 				this.loading = false
 				if (event && event.target) {
@@ -1431,32 +1476,10 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to set the banner from a URL', { error })
-				await this.showError(this.uploadFailure(
-					error,
-					t('social', 'Failed to set banner from URL'),
-				))
+				await this.showError(errorOf(error, t('social', 'Failed to set banner from URL')))
 			} finally {
 				this.loadingUrl = false
 			}
-		},
-
-		/**
-		 * What to put on screen when a banner is refused.
-		 *
-		 * The server says why whenever the reason is the reader's to act on --
-		 * the picture is too big for this server, or is not one it can read --
-		 * and that is the whole of what they need. "Failed to upload banner"
-		 * is what is left when the failure was this side's, and says as much
-		 * as it honestly can: it is the fallback, not the answer.
-		 *
-		 * @param {object} error the axios failure
-		 * @param {string} fallback what to say when the server offered nothing
-		 * @return {string} the message to show
-		 */
-		uploadFailure(error, fallback) {
-			const message = error?.response?.data?.message
-
-			return (typeof message === 'string' && message !== '') ? message : fallback
 		},
 
 		// the two wrappers below are what the rest of this component calls; the
@@ -1975,6 +1998,16 @@ export default {
 
 	&__bio-count {
 		align-self: flex-end;
+		font-size: 13px;
+		color: var(--color-text-lighter);
+
+		&--over {
+			color: var(--color-error-text, var(--color-error));
+			font-weight: 600;
+		}
+	}
+
+	&__fields-count {
 		font-size: 13px;
 		color: var(--color-text-lighter);
 

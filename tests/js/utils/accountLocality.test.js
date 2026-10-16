@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { describe, expect, it } from 'vitest'
-import { isBlueskyAccount, isBlueskyHandle, isHandleOf, isLocalAccount, qualifiedHandle } from '../../../src/utils/accountLocality.js'
+import { addressFoundIn, completeAddress, isBlueskyAccount, isBlueskyHandle, isHandleOf, isLocalAccount, qualifiedHandle } from '../../../src/utils/accountLocality.js'
 
 const local = { acct: 'alice', username: 'alice', bluesky: null }
 const localOnBluesky = { acct: 'alice', username: 'alice', bluesky: { handle: 'alice.cloud.example', did: 'did:plc:a', url: 'https://bsky.app/profile/alice.cloud.example', native: false, active: true } }
@@ -84,5 +84,30 @@ describe('isHandleOf', () => {
 		expect(isHandleOf('carol.bsky.social@remote.example', bluesky)).toBe(false)
 		expect(isHandleOf('', remote)).toBe(false)
 		expect(isHandleOf('bob@remote.example', null)).toBe(false)
+	})
+})
+
+describe('completeAddress', () => {
+	it('is the address once it is whole', () => {
+		expect(completeAddress('@bob@remote.example')).toBe('bob@remote.example')
+		expect(completeAddress(' bob@remote.example ')).toBe('bob@remote.example')
+		expect(completeAddress('carol.bsky.social')).toBe('carol.bsky.social')
+		expect(completeAddress('https://remote.example/@bob')).toBe('https://remote.example/@bob')
+	})
+
+	it('is empty while it is still the start of one, or is not one', () => {
+		for (const text of ['bob', '@bob', 'bob@', 'bob@remote', 'bob@remote.e', 'carol.b', 'two words', 'https://', '']) {
+			expect(completeAddress(text)).toBe('')
+		}
+	})
+})
+
+describe('addressFoundIn', () => {
+	it('finds an account by its handle, however it is written, or by its link', () => {
+		expect(addressFoundIn([remote], 'Bob@Remote.example')).toBe(true)
+		expect(addressFoundIn([bluesky], 'carol.bsky.social')).toBe(true)
+		expect(addressFoundIn([{ ...remote, url: 'https://remote.example/@bob' }], 'https://remote.example/@bob')).toBe(true)
+		expect(addressFoundIn([remote], 'dave@remote.example')).toBe(false)
+		expect(addressFoundIn([], 'bob@remote.example')).toBe(false)
 	})
 })

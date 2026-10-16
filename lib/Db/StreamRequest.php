@@ -944,16 +944,20 @@ class StreamRequest extends StreamRequestBuilder {
 
 	/**
 	 * The public posts local accounts made since a point in time, newest
-	 * first: what the Bluesky reconcile pass checks for a missing record.
+	 * first and below a stream number when one is given: what the Bluesky
+	 * reconcile pass checks for a missing record, a page at a time.
 	 *
 	 * @return Stream[]
 	 */
-	public function getLocalPublicSince(int $since, int $limit): array {
+	public function getLocalPublicSince(int $since, int $limit, int $beforeNid = 0): array {
 		$qb = $this->getStreamSelectSql();
 		$qb->limitToStatusTypes();
 		$qb->limitToLocal(true);
 		$qb->andWhere($qb->expr()->eq('s.visibility', $qb->createNamedParameter(Stream::TYPE_PUBLIC)));
 		$qb->andWhere($qb->expr()->gt('s.published_time', $qb->createNamedParameter(new \DateTime('@' . $since), IQueryBuilder::PARAM_DATE)));
+		if ($beforeNid > 0) {
+			$qb->andWhere($qb->expr()->lt('s.nid', $qb->createNamedParameter($beforeNid, IQueryBuilder::PARAM_INT)));
+		}
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
 		$qb->orderBy('s.nid', 'desc');
 		$qb->setMaxResults(max(1, $limit));
@@ -1178,19 +1182,6 @@ class StreamRequest extends StreamRequestBuilder {
 		$cursor->closeCursor();
 
 		return $counts;
-	}
-
-	/**
-	 * @param string $actorId
-	 */
-	public function updateAuthor(string $actorId, string $newId) {
-		$qb = $this->getStreamUpdateSql();
-		$qb->set('attributed_to', $qb->createNamedParameter($newId))
-			->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($newId)))
-			->set('author_host', $qb->createNamedParameter(DomainBlocksRequestBuilder::authorHostOf($newId)));
-		$qb->limitToAttributedTo($actorId, true);
-
-		$qb->executeStatement();
 	}
 
 	/**

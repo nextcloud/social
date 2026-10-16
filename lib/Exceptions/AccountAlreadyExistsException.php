@@ -11,5 +11,7 @@ namespace OCA\Social\Exceptions;
 
 use Exception;
 
+/** With its code (CodedRefusal), so the setup page can say what to pick instead. */
 class AccountAlreadyExistsException extends Exception {
+	use CodedRefusal;
 }

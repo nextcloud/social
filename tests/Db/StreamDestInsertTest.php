@@ -10,10 +10,12 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Db;
 
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\MiscService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
@@ -67,6 +69,8 @@ class StreamDestInsertTest extends TestCase {
 			$this->createStub(CacheActorsRequest::class),
 			$this->createStub(ConfigService::class),
 			$this->createStub(MiscService::class),
+			$this->createStub(ConversationsRequest::class),
+			$this->createStub(TimelineRevisionService::class),
 		);
 	}
 
@@ -146,6 +150,8 @@ class StreamDestInsertTest extends TestCase {
 			$this->createStub(CacheActorsRequest::class),
 			$this->createStub(ConfigService::class),
 			$this->createStub(MiscService::class),
+			$this->createStub(ConversationsRequest::class),
+			$this->createStub(TimelineRevisionService::class),
 		);
 
 		$this->expectException(DBException::class);

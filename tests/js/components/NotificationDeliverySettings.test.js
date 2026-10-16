@@ -217,7 +217,7 @@ describe('the notification delivery section', () => {
 		vi.advanceTimersByTime(PAUSE)
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('At most four times a day')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not save that setting', details: 'At most four times a day' })
 		expect(timeInputs(wrapper).map((input) => input.element.value)).toEqual(['08:00', '18:00'])
 	})
 
@@ -228,7 +228,7 @@ describe('the notification delivery section', () => {
 		radio(wrapper, 'digest').vm.$emit('update:modelValue', 'digest')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('Could not save that setting')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not save that setting', details: '' })
 		expect(radio(wrapper, 'instant').props('modelValue')).toBe('instant')
 		expect(timeInputs(wrapper)).toHaveLength(0)
 	})

@@ -716,6 +716,17 @@ followers-only, direct, a post held for review, a post from a moved account
 archived post. A team account (§Architecture, teams) publishes like a
 person.
 
+What a missed event or a failed write left behind is caught by the reconcile
+pass (`Publisher::reconcile()`, every five minutes from
+`Cron\AtprotoMaintenance`): it checks the last day's public posts for a
+missing record or an edit within the grace period, and the post records
+written here in that day for a post that is gone. Each run looks at the
+newest 100 of each and at the next 100 of the rest of the day, from where the
+last run stopped (`walkWindow()`, the position kept in
+`social_durable_cache`), so a busy day is looked at whole over a few runs and
+a post missed a moment ago is never waiting behind it. The records a moving
+repository brought (no local object) are not checked.
+
 ### 8.2 Text
 
 Social posts are HTML; Bluesky posts are plain text with **facets**. The
@@ -734,16 +745,23 @@ the post here (`$post->getUrl()`) added on its own line with a `#link`
 facet — always, so the truncated post is never the whole of what somebody
 sees. The counter in the composer is unchanged (Social's own limit), but a
 hint under it says "Bluesky shows the first 280 characters and a link"
-when crossed.
+when crossed. Only a public post is published (`Publisher::goesToBluesky()`),
+so where the server has Bluesky on and the writing account has an active
+identity, the composer's audience menu says "Not on Bluesky" under Unlisted,
+Followers and Direct message (`VisibilitiesInfos.js` marks which audiences
+go there).
 
 ### 8.3 Warnings, polls, quotes, replies
 
 - **Content warning** (`spoiler_text`): self-label `!warn` plus the warning
-  as the first line, `CW: <warning>` then a blank line, counted against the
-  300. A Social post marked sensitive also gets `graphic-media` on its
+  as the first line, `Content warning: <warning>` then a blank line, counted
+  against the 300. A Social post marked sensitive also gets `graphic-media` on its
   pictures as a self-label when it carries pictures. *verify label set*
-- **Poll**: the question and options as text (`Poll: … — A / B / C`), then
+- **Poll**: the question and options as text (`Poll: A / B / C`), then
   the link; results are not synchronised.
+- The words these add ("Content warning", "Poll", "+N more pictures" in
+  §8.4) are in the post's language, from the app's translations, else in the
+  author's Nextcloud language (`RecordMapper::l10nOf()`).
 - **Quote** of a Bluesky post, or of a local post that was published:
   `embed` `app.bsky.embed.record` with the quoted {uri, cid}; of anything
   else: the quoted post's URL as a `#link` and an `app.bsky.embed.external`
@@ -935,10 +953,8 @@ one Jetstream v2 keeps wire-frozen for v1 consumers), asking for
 names the watched DIDs — at most 10,000, Jetstream's limit; an empty list
 would be the whole network, so with no watches there is no connection. The
 list is read again every minute and re-sent when it changed. The cursor
-(`time_us`) is kept in `atproto_jetstream_cursor` every five seconds or
-every 200 events, whichever comes first, and on a lost connection and on
-stopping — a kept cursor is an app-config write, which invalidates the
-config cache of every request on the host — and a reconnect starts five
+(`time_us`) is kept every five seconds or every 200 events, whichever comes
+first, and on a lost connection and on stopping, and a reconnect starts five
 seconds before it, which covers what was not kept yet; a lost connection
 is retried with backoff up to a minute. The client (`JetstreamClient`) is this app's own,
 on PHP streams: no compression is asked for, so every message is JSON.
@@ -961,7 +977,13 @@ are not in a DID-filtered stream; they keep arriving through the
 notification poller (§10). The poller keeps running beside the listener,
 so the daemon being down costs latency and nothing else. The admin page
 shows whether the listener is connected, for how many accounts, and when
-it last heard something (`atproto_jetstream_status`).
+it last heard something, from the report the listener writes every fifteen
+seconds. The cursor and the report are kept in the durable cache's table
+(`JetstreamState`, `social_durable_cache`, a year's TTL renewed by every
+write), not in app config, whose every write invalidates the config cache of
+each request on the host; the `atproto_jetstream_cursor` and
+`atproto_jetstream_status` app-config keys of older versions are moved there
+on their first read and deleted.
 
 ### 9.4a Whole threads
 
@@ -1647,9 +1669,13 @@ tool — that has not been written to for an hour and has no job waiting:
 the first time it queues the move again, from its step; the next time it
 fails it with `move-interrupted`, so "Try again" and "Call it off" work
 again (a move driven by a tool waits for the person's decision on the
-blobs again, or is done once the account is active here). A running move
-writes as it goes — each blob, each page of follows — so a long one is not
-taken for a stopped one. A move here whose job stopped after the directory
+blobs again, or is done once the account is active here; a move here
+stopped at the follows or the posts, which come once the account is active
+here and are best effort, is done too). A running move writes as it goes —
+each blob, each page of follows and of posts — so a long one is not taken
+for a stopped one, and the job holds the move's lock while it runs: a move
+whose lock is held is left alone, and a second job queued for it finds the
+lock held and leaves the move to the first. A move here whose job stopped after the directory
 took the operation finds the DID pointing here with the key made for it,
 and the account takes the DID without asking the old server to sign
 again; a move away that stopped while the DID was handed over goes on
@@ -1753,7 +1779,12 @@ The mirror image, so a person is not locked in. On the Migration page,
 3. The DID: `getRecommendedDidCredentials` there, then this server signs
    and sends the PLC operation itself (`IdentityService::handOver()`), with
    the person's recovery key first among the rotation keys and the other
-   PDS's after it; this server keeps no rotation key of the DID.
+   PDS's after it; this server keeps no rotation key of the DID. When the
+   step fails — the directory's answer did not come, say — the directory
+   is asked where the DID points: once it names the endpoint the other
+   PDS recommended, it took the operation, which is taken into the PLC
+   log from its audit log, and the move goes on with the activation. The
+   operation is never sent again behind the person's back.
 4. `activateAccount` there; here the identity becomes `moved_away`, the
    firehose says the account is deactivated, and nothing more is published
    for it.
@@ -1777,7 +1808,15 @@ server is left there, deactivated, because deleting it takes a code that
 server e-mails (`requestAccountDelete`, then `deleteAccount` with the
 account's password and that code) — the answer says so with
 `target-account-left` and the host. Once the DID moved the move can only be
-finished (`move-past-switch`).
+finished (`move-past-switch`). A move that failed handing the DID over is
+asked of the directory before it is called off or started again: once the
+DID points at the other server, the move goes on from the activation and
+is not called off; while the directory cannot be asked, neither is done
+(`plc-unreachable`). A move called off while a step is under way stays
+called off, also when that step then fails; one the job takes on to the
+handover while it is being called off is not called off
+(`move-switching`): the call-off and the job's writes are each written
+only while the move is still as the other last saw it.
 
 **Moving away with another tool.** A migration tool driven from outside
 (the reference flow, as `goat account migrate` runs it) gets what it needs
@@ -1867,7 +1906,7 @@ phrase, custom handle (§4.2), app passwords (§6.3), `control` (§4.5b),
 `{"error": "…", "code": "<slug>"}`, and a move that stopped keeps the same
 code in its progress (`progress.code`) next to `error`. The Migration page
 explains the code in the person's language, with what they can do next
-(`src/utils/blueskyError.js`), and a code it does not know with a general
+(`src/utils/serverError.js`), and a code it does not know with a general
 sentence; the English sentence is for logs and older clients, and the page
 keeps it behind *Details* for whoever helps the person.
 
@@ -1878,8 +1917,7 @@ keeps it behind *Details* for whoever helps the person.
 | `identity-inactive` | The Bluesky account is switched off or already moved | Switch it on first |
 | `move-in-progress` | Another move of the account is under way | Wait for it, or call it off |
 | `pds-address-invalid` | The server typed is not an https address | Check the address |
-| `pds-not-public` | The server's address does not resolve to a public address | Check the address |
-| `pds-unreachable` | The other server did not answer | Try again later |
+| `pds-unreachable` | The other server did not answer, or its address is one this server does not send requests to (not told apart, and the network error is only logged, so the answer does not say which hosts resolve to local addresses) | Check the address, or try again later |
 | `pds-unknown` | The other server does not say which DID it has (`describeServer`) | It is not a Bluesky server; check the address |
 | `pds-refused` | The other server answered a step with an error | Try again; the details say which step |
 | `pds-session-expired` | The session on the other server ended and could not be renewed | Try again |
@@ -2258,10 +2296,15 @@ Everything in the phase 2 row, in `lib/Atproto/Reader/` (`BlueskyActorService`,
   feed of anybody who follows the quoting account.
 - **Search** (§9.1) asks the typeahead only for text that is the start of a
   handle — a dot in it, no `@` — so a plain username never leaves the
-  instance; each account it finds is the cached one, or is stored as it
-  is found — at most eight per search — since an account without a
-  stored row has no id a client can open or follow it by (it used to be
-  answered with id `0`).
+  instance. Each account it finds is the cached one, or the account as
+  the AppView described it: the typeahead stores nothing, since it is
+  asked once per keystroke, and its answer to a query is reused for a
+  minute. A Mastodon client's search with `resolve` stores the accounts
+  it is answered with, at most eight, because an account without a
+  stored row has no id a client can open or follow it by; without
+  `resolve` the typeahead is not asked. The composer's mention picker and
+  the directory offer unstored accounts; one is stored when it is
+  mentioned, opened or followed.
 - **The admin's federation block list applies to a handle's domain** (the
   part after the first dot) in the directory; the per-DID/PDS-host block
   list of §12.4 is phase 3, as are labelers (§12.2) and reporting (§12.3).

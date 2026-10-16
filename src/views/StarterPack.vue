@@ -7,7 +7,7 @@
 		<NcLoadingIcon v-if="loading" class="starter-pack__loading" :size="44" />
 
 		<div v-else-if="error" class="starter-pack__error" role="alert">
-			<p>{{ error }}</p>
+			<ServerError :error="error" :alert="false" />
 			<NcButton variant="primary" @click="load">
 				<template #icon>
 					<IconRefresh :size="20" />
@@ -32,6 +32,7 @@ import { t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import IconRefresh from 'vue-material-design-icons/Refresh.vue'
+import ServerError from '../components/ServerError.vue'
 import StarterPackDetail from '../components/StarterPackDetail.vue'
 import { routeFor } from '../services/blueskyFeeds.js'
 import eventBus, { BLUESKY_FEEDS_CHANGED } from '../services/eventBus.js'
@@ -39,6 +40,7 @@ import logger from '../services/logger.js'
 import { fetchStarterPack, followFromStarterPack } from '../services/starterPacks.js'
 import { showError } from '../services/toast.js'
 import { useSettingsStore } from '../store/settings.js'
+import { errorOf } from '../utils/serverError.js'
 import { starterPackUrl } from '../utils/starterPack.js'
 
 /**
@@ -54,6 +56,7 @@ export default {
 		IconRefresh,
 		NcButton,
 		NcLoadingIcon,
+		ServerError,
 		StarterPackDetail,
 	},
 
@@ -61,7 +64,8 @@ export default {
 		return {
 			pack: null,
 			loading: true,
-			error: '',
+			/** @type {{text: string, details: string}|null} why the pack could not be shown */
+			error: null,
 		}
 	},
 
@@ -112,12 +116,12 @@ export default {
 
 		async load() {
 			this.loading = true
-			this.error = ''
+			this.error = null
 			try {
 				this.pack = await fetchStarterPack(this.address)
 			} catch (error) {
 				logger.error('Could not load the starter pack', { error })
-				this.error = error?.response?.data?.error || t('social', 'Could not load the starter pack')
+				this.error = errorOf(error, t('social', 'Could not load the starter pack'))
 			} finally {
 				this.loading = false
 			}

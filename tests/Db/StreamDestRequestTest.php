@@ -10,11 +10,14 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Db;
 
 use OCA\Social\Db\CacheActorsRequest;
+use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\TimelineRevisionService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -38,6 +41,10 @@ class StreamDestRequestTest extends TestCase {
 	private CacheActorsRequest|MockObject $cacheActorsRequest;
 	/** @var list<array{string, string, string}> actor, type, subtype of every dest row written */
 	private array $rows = [];
+	/** @var list<array{string, string}> post, parent of every thread root stored */
+	private array $roots = [];
+	/** @var list<array{string, string}> actor, key of every badge number moved */
+	private array $bumped = [];
 
 	private function request(): StreamDestRequest {
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
@@ -55,6 +62,17 @@ class StreamDestRequestTest extends TestCase {
 		);
 		(new ReflectionProperty(StreamDestRequest::class, 'cacheActorsRequest'))->setValue($request, $this->cacheActorsRequest);
 		(new ReflectionProperty(StreamDestRequest::class, 'logger'))->setValue($request, new NullLogger());
+
+		$conversations = $this->createStub(ConversationsRequest::class);
+		$conversations->method('storeRoot')->willReturnCallback(function (string $id, string $inReplyTo): void {
+			$this->roots[] = [$id, $inReplyTo];
+		});
+		(new ReflectionProperty(StreamDestRequest::class, 'conversationsRequest'))->setValue($request, $conversations);
+		$revisions = $this->createStub(TimelineRevisionService::class);
+		$revisions->method('bumpForActor')->willReturnCallback(function (string $actorId, string $key): void {
+			$this->bumped[] = [$actorId, $key];
+		});
+		(new ReflectionProperty(StreamDestRequest::class, 'timelineRevisionService'))->setValue($request, $revisions);
 
 		return $request;
 	}
@@ -85,6 +103,48 @@ class StreamDestRequestTest extends TestCase {
 		$request->generateStreamDest($this->note([self::BOB]));
 
 		$this->assertSame([[self::BOB, 'dm', ''], [self::ALICE, 'dm', '']], $this->rows);
+	}
+
+	/**
+	 * A direct message stores its thread's root, and the badge of everybody
+	 * it reaches moves — the author's other devices included.
+	 */
+	public function testADirectMessageStoresItsRootAndMovesTheConversationsBadge(): void {
+		$request = $this->request();
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->alice());
+		$note = $this->note([self::BOB]);
+		$note->setInReplyTo(self::BOB . '/1');
+
+		$request->generateStreamDest($note);
+
+		$this->assertSame([[self::ALICE . '/1', self::BOB . '/1']], $this->roots);
+		$this->assertSame([
+			[self::BOB, TimelineRevisionService::CONVERSATIONS],
+			[self::ALICE, TimelineRevisionService::CONVERSATIONS],
+		], $this->bumped);
+	}
+
+	public function testANotificationMovesTheNotificationsBadge(): void {
+		$request = $this->request();
+		$notification = new SocialAppNotification();
+		$notification->setId(self::ALICE . '/notification/1');
+		$notification->setTo(self::ALICE);
+
+		$request->generateStreamDest($notification);
+
+		$this->assertSame([[self::ALICE, 'notif', '']], $this->rows);
+		$this->assertSame([[self::ALICE, TimelineRevisionService::NOTIFICATIONS]], $this->bumped);
+		$this->assertSame([], $this->roots);
+	}
+
+	public function testAPostForTheHomeTimelineStoresNoRootAndMovesNoBadge(): void {
+		$request = $this->request();
+		$this->cacheActorsRequest->method('getFromId')->willReturn($this->alice());
+
+		$request->generateStreamDest($this->note([Stream::CONTEXT_PUBLIC]));
+
+		$this->assertSame([], $this->roots);
+		$this->assertSame([], $this->bumped);
 	}
 
 	public function testAPostToTheFollowersIsNotDirect(): void {

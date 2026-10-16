@@ -196,6 +196,24 @@ describe('App', () => {
 			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(false)
 		})
 
+		it('listens for no key once the reader has turned the shortcuts off', async () => {
+			const wrapper = mountApp()
+			const heard = vi.fn()
+			eventBus.on('shortcut:next', heard)
+
+			settingsStore.setServerDataEntry({ key: 'keyboardShortcuts', value: false })
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }))
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }))
+			await wrapper.vm.$nextTick()
+
+			expect(heard).not.toHaveBeenCalled()
+			expect(wrapper.findComponent(ShortcutHelp).props('open')).toBe(false)
+
+			settingsStore.setServerDataEntry({ key: 'keyboardShortcuts', value: true })
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j' }))
+			expect(heard).toHaveBeenCalledTimes(1)
+		})
+
 		/**
 		 * Asserted through `ShortcutList`, which is where the list lives now:
 		 * the Settings page shows the same one, and a shortcut is a promise
@@ -340,6 +358,13 @@ describe('App', () => {
 
 			expect(timelineStore.searchQuery).toBe('fediverse')
 			expect(router.push).toHaveBeenCalledWith({ name: 'search', params: { term: 'fediverse' } })
+		})
+
+		it('marks a submitted search, which may look somebody up elsewhere', () => {
+			const wrapper = mountApp()
+			wrapper.findComponent(stubs.Navigation).vm.$emit('search', '@bob@remote.example', true)
+
+			expect(router.push).toHaveBeenCalledWith({ name: 'search', params: { term: '@bob@remote.example' }, query: { lookup: '1' } })
 		})
 
 		it('refines the term in place, so Back does not walk out through the keystrokes', () => {

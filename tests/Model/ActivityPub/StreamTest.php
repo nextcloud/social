@@ -635,6 +635,19 @@ class StreamTest extends TestCase {
 		);
 	}
 
+	/** The web app's Favourites, Boosts and Follows filters ask for these by name. */
+	public function testWhatOnlyBlueskyTellsCanBeAskedForByType(): void {
+		$this->assertSame(
+			[Stream::SUBTYPE_BLUESKY_REPOST_LIKED, Stream::SUBTYPE_BLUESKY_REPOST_REPOSTED, Stream::SUBTYPE_BLUESKY_STARTER_PACK],
+			Stream::subTypesOfNotificationTypes(['bluesky:repost_liked', 'bluesky:repost_reposted', 'bluesky:starterpack_joined'])
+		);
+		$this->assertSame(
+			[],
+			Stream::notificationTypesKeptFromClients(['bluesky:repost_liked', 'bluesky:repost_reposted', 'bluesky:starterpack_joined', 'bluesky:verified', 'bluesky:unverified', 'story:react', 'story:comment', 'tagged']),
+			'a client that names them is served them'
+		);
+	}
+
 	public function testAnUnknownNotificationTypeSelectsNothing(): void {
 		// `status` used to be one of these; it is a real type now, so the
 		// unknown one here is a type Mastodon has and this app does not

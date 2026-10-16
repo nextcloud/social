@@ -76,8 +76,9 @@ class BlockInterfaceTest extends TestCase {
 	public function testIncomingBlockIsStoredAndSeversTheFollowsBothWays(): void {
 		$this->cacheActorsRequest->method('getFromId')->with(self::LOCAL_ALICE)
 			->willReturn($this->localAlice());
+		// with the Block's id, which is all an Undo of it may name
 		$this->actorRelationRequest->expects($this->once())->method('save')
-			->with(self::LOCAL_ALICE, self::REMOTE_BOB, ActorRelation::TYPE_BLOCKED_BY);
+			->with(self::LOCAL_ALICE, self::REMOTE_BOB, ActorRelation::TYPE_BLOCKED_BY, true, self::REMOTE_BOB . '#block/1');
 
 		$follow = new Follow();
 		$deleted = [];

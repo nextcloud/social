@@ -31,9 +31,7 @@
 			</NcButton>
 		</div>
 
-		<p v-if="fileError" class="blocklist__error" role="alert">
-			{{ fileError }}
-		</p>
+		<ServerError v-if="fileError" :error="fileError" />
 
 		<!-- The number in front of an administrator before they agree is the
 		     whole point: a file from somebody else naming two hundred servers
@@ -102,7 +100,9 @@ import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import { errorMessage, moderationUrl } from '../../services/adminApi.js'
+import { moderationUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
+import ServerError from '../ServerError.vue'
 import { showError, showSuccess } from '../../services/toast.js'
 
 /** How many rows of a preview are drawn before it says "and n more". */
@@ -124,6 +124,7 @@ export default {
 		NcButton,
 		NcCheckboxRadioSwitch,
 		NcLoadingIcon,
+		ServerError,
 	},
 
 	/** the access list above this card has to be told when one is applied */
@@ -137,7 +138,8 @@ export default {
 			preview: null,
 			/** what was uploaded, kept so Apply does not need the file again */
 			csv: '',
-			fileError: '',
+			/** @type {{text: string, details: string}|null} why the uploaded file was not taken */
+			fileError: null,
 			sources: [],
 			/** what a Check now answered, by source id */
 			results: {},
@@ -168,13 +170,13 @@ export default {
 		async read(event) {
 			const file = /** @type {HTMLInputElement|null} */ (event?.target ?? null)?.files?.[0]
 			this.preview = null
-			this.fileError = ''
+			this.fileError = null
 			if (!file) {
 				return
 			}
 
 			if (file.size > MAX_BYTES) {
-				this.fileError = t('social', 'That file is larger than 8 MB.')
+				this.fileError = { text: t('social', 'That file is larger than 8 MB.'), details: '' }
 
 				return
 			}
@@ -185,11 +187,11 @@ export default {
 				const { data } = await axios.post(moderationUrl('/fediverse/blocklist/preview'), { csv: this.csv })
 				this.preview = data
 				if (data.rejected?.length) {
-					this.fileError = t('social', 'These rows name no server: {rows}', { rows: data.rejected.join(', ') })
+					this.fileError = { text: t('social', 'These rows name no server: {rows}', { rows: data.rejected.join(', ') }), details: '' }
 					this.preview = null
 				}
 			} catch (error) {
-				this.fileError = errorMessage(error, t('social', 'Could not read that file'))
+				this.fileError = errorOf(error, t('social', 'Could not read that file'))
 			} finally {
 				this.busy = false
 			}
@@ -207,7 +209,7 @@ export default {
 				this.csv = ''
 				this.$emit('changed', data.list)
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not apply that list')))
+				showError(errorOf(error, t('social', 'Could not apply that list')))
 			} finally {
 				this.busy = false
 			}
@@ -218,7 +220,7 @@ export default {
 				const { data } = await axios.get(moderationUrl('/fediverse/blocklist/sources'))
 				this.sources = data.sources ?? []
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not read the block list sources')))
+				showError(errorOf(error, t('social', 'Could not read the block list sources')))
 			}
 		},
 
@@ -241,7 +243,7 @@ export default {
 					await this.check(this.sources.find((one) => one.id === source.id) ?? { ...source, enabled })
 				}
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not change that source')))
+				showError(errorOf(error, t('social', 'Could not change that source')))
 			} finally {
 				this.busy = false
 			}
@@ -264,7 +266,7 @@ export default {
 				this.sources = data.sources ?? this.sources
 				this.$emit('changed', data.list)
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not read that list')))
+				showError(errorOf(error, t('social', 'Could not read that list')))
 			} finally {
 				this.busy = false
 			}
@@ -330,10 +332,6 @@ export default {
 	overflow: hidden;
 	clip-path: inset(50%);
 	white-space: nowrap;
-}
-
-.blocklist__error {
-	color: var(--color-error-text, var(--color-error));
 }
 
 .blocklist__preview {

@@ -194,11 +194,14 @@ describe('ListsSettings', () => {
 		await rowFor(wrapper, 'Book club').findAll('button').find((b) => b.text() === 'Members').trigger('click')
 		await flushPromises()
 
-		// the search answers as the global account search does: Mastodon
-		// Account entities, whose `id` the list route takes
-		axios.get.mockResolvedValue({ data: { result: { accounts: [bob] } } })
+		// the search answers as the account search does: Mastodon Account
+		// entities, whose `id` the list route takes
+		axios.get.mockResolvedValue({ data: [bob] })
 		await wrapper.findAll('input').at(-1).setValue('bob')
 		await vi.waitUntil(() => wrapper.find('.lists-settings__result').exists(), { timeout: 5000 })
+
+		// only the people the reader follows: anybody else the list refuses
+		expect(axios.get).toHaveBeenCalledWith(`${API}/accounts/search`, { params: { q: 'bob', limit: 8, following: true } })
 
 		axios.post.mockResolvedValue({ data: {} })
 		axios.get.mockResolvedValue({ data: [bob] })
@@ -226,7 +229,7 @@ describe('ListsSettings', () => {
 				return calls.at(-1)
 			}
 		}
-		const found = (name) => ({ data: { result: { accounts: [{ id: `id-${name}`, username: name, acct: `${name}@remote.example`, display_name: name }] } } })
+		const found = (name) => ({ data: [{ id: `id-${name}`, username: name, acct: `${name}@remote.example`, display_name: name }] })
 
 		it('keeps the newer answer when an older search fails last', async () => {
 			const wrapper = await mountLists([list('1', 'Book club')])
@@ -240,7 +243,7 @@ describe('ListsSettings', () => {
 			await flushPromises()
 
 			expect(wrapper.findAll('.lists-settings__result').map((hit) => hit.text())).toEqual([expect.stringContaining('bob')])
-			expect(wrapper.text()).not.toContain('Nobody by that name.')
+			expect(wrapper.text()).not.toContain('Search failed')
 		})
 
 		it('lets only the newest of two asks for the same words own the answer', async () => {
@@ -266,7 +269,7 @@ describe('ListsSettings', () => {
 			expect(wrapper.find('.lists-settings__result').text()).toContain('robert')
 		})
 
-		it('still says so when the newest search itself fails', async () => {
+		it('says the search failed, not that there is nobody, and tries again', async () => {
 			const wrapper = await mountLists([list('1', 'Book club')])
 			const ask = await openSearch(wrapper)
 
@@ -274,7 +277,27 @@ describe('ListsSettings', () => {
 			await flushPromises()
 
 			expect(wrapper.findAll('.lists-settings__result')).toHaveLength(0)
-			expect(wrapper.text()).toContain('Nobody by that name.')
+			expect(wrapper.text()).toContain('Search failed')
+			expect(wrapper.text()).not.toContain('Nobody you follow by that name.')
+
+			axios.get.mockResolvedValue(found('bob'))
+			await wrapper.findAll('button').find((button) => button.text() === 'Try again').trigger('click')
+			await flushPromises()
+
+			expect(axios.get.mock.calls.at(-1)[1].params.q).toBe('bob')
+			expect(wrapper.findAll('.lists-settings__result')).toHaveLength(1)
+			expect(wrapper.text()).not.toContain('Search failed')
+		})
+
+		it('says there is nobody only when the search answered so', async () => {
+			const wrapper = await mountLists([list('1', 'Book club')])
+			const ask = await openSearch(wrapper)
+
+			ask('zed').resolve({ data: [] })
+			await flushPromises()
+
+			expect(wrapper.text()).toContain('Nobody you follow by that name.')
+			expect(wrapper.text()).not.toContain('Search failed')
 		})
 	})
 
@@ -464,7 +487,7 @@ describe('ListsSettings', () => {
 			publicSwitch(wrapper).vm.$emit('update:modelValue', true)
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Could not change who can see the list')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not change who can see the list', details: '' })
 			expect(publicSwitch(wrapper).props('modelValue')).toBe(false)
 		})
 

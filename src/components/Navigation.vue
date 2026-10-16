@@ -8,7 +8,8 @@
 			<NcAppNavigationSearch
 				v-model="localSearch"
 				:label="t('social', 'Search …')"
-				@update:modelValue="onSearchInput" />
+				@update:modelValue="onSearchInput"
+				@keydown.enter="onSearchSubmit" />
 		</template>
 		<template #list>
 			<!-- The mark that says where you are, as one thing that moves
@@ -344,7 +345,7 @@ import IconChartBox from 'vue-material-design-icons/ChartBox.vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { cssUrl } from '../utils/cssUrl.js'
 import { capacityFrom, chooseEntries, entriesThatFit } from '../utils/explore.js'
-import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
+import { offTimelinePush, onTimelinePush, PUSH_DIRECT, PUSH_KINDS, PUSH_NOTIFICATION } from '../services/timelinePush.js'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import IconCancel from 'vue-material-design-icons/Cancel.vue'
@@ -882,8 +883,8 @@ export default {
 		// the badges are only honest if they keep up: with notify_push the
 		// server says when something arrived, and without it a slow poll is
 		// enough -- while somebody is looking; a hidden tab catches up when
-		// it comes back
-		if (!onTimelinePush(this.refreshBadges)) {
+		// it comes back. A post for the home timeline changes none of them.
+		if (!onTimelinePush(this.refreshBadges, [PUSH_DIRECT, PUSH_NOTIFICATION])) {
 			this.pollTimer = setInterval(this.pollIfVisible, UNREAD_POLL_MS)
 			document.addEventListener('visibilitychange', this.pollOnReturn)
 		}
@@ -918,17 +919,26 @@ export default {
 		},
 
 		/**
-		 * Reads the three counts the sidebar badges show. One request each:
-		 * the server has no route that answers all three together.
+		 * Reads the counts the sidebar badges show, of the three those kinds
+		 * of news can change. One request each: the server has no route that
+		 * answers them together.
 		 *
+		 * @param {string[]} kinds what arrived (`timelinePush.js`); everything
+		 *                         for a poll
 		 * @return {Promise<boolean>} whether the server answered any of them
 		 */
-		async refreshBadges() {
-			const answered = await Promise.all([
-				this.notificationsStore.fetchUnreadNotifications(),
-				this.notificationsStore.fetchUnreadDirectMessages(),
-				this.notificationsStore.fetchPendingRequests(),
-			])
+		async refreshBadges(kinds = PUSH_KINDS) {
+			const asked = []
+			if (kinds.includes(PUSH_NOTIFICATION)) {
+				asked.push(
+					this.notificationsStore.fetchUnreadNotifications(),
+					this.notificationsStore.fetchPendingRequests(),
+				)
+			}
+			if (kinds.includes(PUSH_DIRECT)) {
+				asked.push(this.notificationsStore.fetchUnreadDirectMessages())
+			}
+			const answered = await Promise.all(asked)
 
 			return answered.some(Boolean)
 		},
@@ -1428,6 +1438,19 @@ export default {
 				this.searchTimer = null
 				this.$emit('search', this.localSearch)
 			}, SEARCH_DEBOUNCE_MS)
+		},
+
+		/**
+		 * Enter submits the search: asked at once, and with other servers
+		 * asked about an address this one has not met, which typing alone
+		 * never does.
+		 */
+		onSearchSubmit() {
+			if (this.searchTimer !== null) {
+				window.clearTimeout(this.searchTimer)
+				this.searchTimer = null
+			}
+			this.$emit('search', this.localSearch, true)
 		},
 
 		/**

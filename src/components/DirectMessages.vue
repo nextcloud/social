@@ -193,10 +193,22 @@
 						type="search"
 						autocomplete="off"
 						:aria-label="t('social', 'Search for a person by name or @username')"
-						:placeholder="t('social', 'Search for a person by name or @username')">
+						:placeholder="t('social', 'Search for a person by name or @username')"
+						@keydown.enter.prevent="lookUpRecipient">
 				</label>
 				<p v-if="searchError" class="direct-messages__state direct-messages__recipient-feedback" role="alert">
 					{{ t('social', 'Could not search for people. Please try again.') }}
+				</p>
+				<!-- Typing searches this server; the address's own server is
+				     asked only when the reader asks, with Enter or here. -->
+				<div v-if="offerRecipientLookup" class="direct-messages__state direct-messages__recipient-feedback direct-messages__recipient-lookup">
+					<span>{{ t('social', '{address} is not known on this server yet.', { address: recipientLookupLabel }) }}</span>
+					<NcButton class="direct-messages__recipient-lookup-button" @click="lookUpRecipient">
+						{{ t('social', 'Look up') }}
+					</NcButton>
+				</div>
+				<p v-else-if="recipientLookupFailed" class="direct-messages__state direct-messages__recipient-feedback" role="status">
+					{{ t('social', 'Nobody was found at {address}.', { address: recipientLookupLabel }) }}
 				</p>
 				<template v-for="group in recipientGroups" :key="group.key">
 					<div class="direct-messages__people-heading">
@@ -227,10 +239,13 @@
 						</li>
 					</ul>
 				</template>
-				<p v-if="searchingAccounts || loadingSuggestions" class="direct-messages__state direct-messages__recipient-feedback" role="status">
+				<p v-if="lookingUpRecipient" class="direct-messages__state direct-messages__recipient-feedback" role="status">
+					{{ t('social', 'Looking up {address} …', { address: recipientLookupLabel }) }}
+				</p>
+				<p v-else-if="searchingAccounts || loadingSuggestions" class="direct-messages__state direct-messages__recipient-feedback" role="status">
 					{{ t('social', 'Searching…') }}
 				</p>
-				<p v-else-if="hasRecipientQuery && !recipientGroups.length && !searchError" class="direct-messages__state direct-messages__recipient-feedback">
+				<p v-else-if="hasRecipientQuery && !recipientGroups.length && !searchError && !offerRecipientLookup && !recipientLookupFailed" class="direct-messages__state direct-messages__recipient-feedback">
 					{{ t('social', 'No people found') }}
 				</p>
 				<p v-else-if="!hasRecipientQuery && !recipientGroups.length" class="direct-messages__state direct-messages__recipient-feedback">
@@ -419,9 +434,9 @@ import { useNotificationsStore } from '../store/notifications.js'
 import { fullDateTime, shortAgo } from '../utils/relativeTime.js'
 import { nextCursor } from '../utils/linkHeader.js'
 import { htmlToPlainText } from '../utils/plainText.js'
-import { isLocalAccount } from '../utils/accountLocality.js'
+import { addressFoundIn, completeAddress, isLocalAccount } from '../utils/accountLocality.js'
 import logger from '../services/logger.js'
-import { offTimelinePush, onTimelinePush } from '../services/timelinePush.js'
+import { offTimelinePush, onTimelinePush, PUSH_DIRECT } from '../services/timelinePush.js'
 
 /** How many conversations one request asks for. */
 const PAGE_SIZE = 40
@@ -467,29 +482,6 @@ function hostOf(url) {
 	} catch {
 		return ''
 	}
-}
-
-/**
- * Whether what somebody typed addresses an account elsewhere, and so is worth
- * asking the other server about.
- *
- * A pasted profile link was the one that did not work: `resolve` was sent only
- * for a leading '@', and the account search behind it looks at the account
- * column, not at URLs — so pasting `https://remote.example/@bob`, which is how
- * one person sends another a profile, found nobody at all.
- *
- * Handles are here for the sake of saying what the rule is; they already
- * resolve, because the account search fetches an unknown `user@host` whether
- * or not it was asked to.
- *
- * @param {string} query what was typed
- * @return {boolean} whether to ask the other server
- */
-function isHandle(query) {
-	const typed = query.trim()
-
-	return typed.startsWith('@') || typed.startsWith('http')
-		|| /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(typed)
 }
 
 export default {
@@ -563,6 +555,15 @@ export default {
 			sendError: false,
 			accountSearchTimer: null,
 			accountSearchRequest: 0,
+			/** whether the search in flight asks other servers */
+			lookingUpRecipient: false,
+			/**
+			 * What other servers were last asked about, so the offer to look
+			 * it up is not made again for the answer it already got.
+			 *
+			 * @type {?string}
+			 */
+			recipientLookedUp: null,
 			suggestionsRequest: 0,
 			threadRequest: 0,
 			removingConversationId: '',
@@ -695,6 +696,45 @@ export default {
 			return this.recipientQuery.trim().replace(/^@/, '').length >= 2
 		},
 
+		/** @return {string} the address in the recipient box, or '' for a name */
+		recipientAddress() {
+			return completeAddress(this.recipientQuery)
+		},
+
+		/** @return {string} the address as the offer names it */
+		recipientLookupLabel() {
+			return /^https?:\/\//i.test(this.recipientAddress) ? this.recipientAddress : '@' + this.recipientAddress
+		},
+
+		/** @return {boolean} whether the address was found in either answer */
+		recipientAddressFound() {
+			return addressFoundIn([...this.followedResults, ...this.accountResults], this.recipientAddress)
+		},
+
+		/**
+		 * Whether to offer asking the address's own server: an address that
+		 * neither answer holds and that was not asked about yet. A pasted
+		 * profile link counts: the account search matches handles, not links.
+		 *
+		 * @return {boolean}
+		 */
+		offerRecipientLookup() {
+			return this.recipientAddress !== ''
+				&& !this.searchingAccounts
+				&& !this.searchError
+				&& this.recipientLookedUp !== this.recipientQuery.trim()
+				&& !this.recipientAddressFound
+		},
+
+		/** @return {boolean} whether the address was looked up and found nowhere */
+		recipientLookupFailed() {
+			return this.recipientAddress !== ''
+				&& !this.searchingAccounts
+				&& !this.searchError
+				&& this.recipientLookedUp === this.recipientQuery.trim()
+				&& !this.recipientAddressFound
+		},
+
 		/**
 		 * Who the recipient box offers, in two groups: the people the reader
 		 * knows — accounts they follow and the people they already talk to —
@@ -781,6 +821,7 @@ export default {
 				this.accountSearchRequest++
 				this.suggestionsRequest++
 				this.searchingAccounts = false
+				this.lookingUpRecipient = false
 				this.newRecipient = null
 			}
 		},
@@ -791,6 +832,7 @@ export default {
 			this.accountResults = []
 			this.followedResults = []
 			this.searchError = false
+			this.lookingUpRecipient = false
 			if (!this.hasRecipientQuery) {
 				this.searchingAccounts = false
 				return
@@ -841,7 +883,7 @@ export default {
 		// with notify_push the server says when a direct message arrives;
 		// polling remains as a slow safety net. Without it, poll every 30
 		// seconds, as the feed does.
-		const hasPush = onTimelinePush(this.onPushed)
+		const hasPush = onTimelinePush(this.onPushed, [PUSH_DIRECT])
 		this.pollEvery = (hasPush ? 300 : 30) * 1000
 		this.intervalId = window.setInterval(() => this.pollIfVisible(), this.pollEvery)
 		document.addEventListener('visibilitychange', this.pollOnReturn)
@@ -1055,12 +1097,17 @@ export default {
 		 * other — the server searches the follows themselves — so somebody the
 		 * reader follows is found even when a page of strangers matches first.
 		 *
+		 * `resolve` lets the server ask the address's own server. It is sent
+		 * only when the reader asks — Enter, or "Look up" — and not while they
+		 * type: every keystroke of a handle would be a lookup of another host.
+		 *
 		 * @param {string} query what was typed
+		 * @param {boolean} resolve whether other servers may be asked
 		 */
-		async searchAccounts(query) {
+		async searchAccounts(query, resolve = false) {
 			const request = ++this.accountSearchRequest
 			const url = generateUrl('apps/social/api/v1/accounts/search')
-			const resolve = isHandle(query)
+			this.lookingUpRecipient = resolve
 			try {
 				const [followed, all] = await Promise.all([
 					axios.get(url, { params: { q: query, limit: 8, resolve, following: true } }),
@@ -1071,6 +1118,9 @@ export default {
 				}
 				this.followedResults = Array.isArray(followed.data) ? followed.data : []
 				this.accountResults = Array.isArray(all.data) ? all.data : []
+				if (resolve) {
+					this.recipientLookedUp = query
+				}
 			} catch (error) {
 				if (request === this.accountSearchRequest) {
 					this.searchError = true
@@ -1079,8 +1129,19 @@ export default {
 			} finally {
 				if (request === this.accountSearchRequest) {
 					this.searchingAccounts = false
+					this.lookingUpRecipient = false
 				}
 			}
+		},
+
+		/** The recipient search once more, with other servers asked: see `searchAccounts()`. */
+		lookUpRecipient() {
+			if (!this.hasRecipientQuery) {
+				return
+			}
+			clearTimeout(this.accountSearchTimer)
+			this.searchingAccounts = true
+			this.searchAccounts(this.recipientQuery.trim(), true)
 		},
 
 		/**
@@ -2092,6 +2153,14 @@ export default {
 	margin: 0;
 	padding: 1.25rem 0.5rem;
 	text-align: start;
+}
+
+.direct-messages__recipient-lookup {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	overflow-wrap: anywhere;
 }
 
 .direct-messages__new-chat {

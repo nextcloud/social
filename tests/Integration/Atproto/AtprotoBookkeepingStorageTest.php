@@ -86,6 +86,46 @@ class AtprotoBookkeepingStorageTest extends TestCase {
 		$this->assertSame(Move::STEP_BLOBS, array_values(array_filter($stale, static fn (Move $move): bool => $move->id === $running))[0]->step);
 	}
 
+	/** A job writes a move only while it runs: what the person did meanwhile (called it off) stays. */
+	public function testAMoveIsWrittenIfRunningOnlyWhileItRuns(): void {
+		$moves = Server::get(AtprotoMoveRequest::class);
+		$id = $moves->add(new Move(0, $this->did, self::USER, Move::AWAY, 'https://pds.example.org', 'did:web:pds.example.org', 'alice.example.org', Move::STEP_BLOBS, Move::RUNNING));
+		$job = $moves->get($id);
+		$this->assertNotNull($job);
+
+		$job->progress = ['blobs' => 3];
+		$this->assertTrue($moves->updateIfRunning($job), 'written while it runs, also when nothing but the time changed');
+		$this->assertTrue($moves->updateIfRunning($job));
+		$this->assertSame(['blobs' => 3], $moves->get($id)?->progress);
+
+		$person = $moves->get($id);
+		$person->state = Move::CANCELLED;
+		$moves->update($person);
+		$job->fail('uploadBlob answered 500', 'pds-refused');
+		$this->assertFalse($moves->updateIfRunning($job));
+
+		$stored = $moves->get($id);
+		$this->assertSame([Move::CANCELLED, ['blobs' => 3], ''], [$stored?->state, $stored?->progress, $stored?->error]);
+	}
+
+	/** The person's write lands only while the move is as they read it: not once a job moved it on. */
+	public function testAMoveIsWrittenIfOnlyWhileItIsAsItWasRead(): void {
+		$moves = Server::get(AtprotoMoveRequest::class);
+		$id = $moves->add(new Move(0, $this->did, self::USER, Move::AWAY, 'https://pds.example.org', 'did:web:pds.example.org', 'alice.example.org', Move::STEP_CHECK, Move::RUNNING));
+		$person = $moves->get($id);
+		$this->assertNotNull($person);
+		$job = $moves->get($id);
+		$job->step = Move::STEP_IDENTITY;
+		$this->assertTrue($moves->updateIfRunning($job));
+
+		$person->state = Move::CANCELLED;
+		$this->assertFalse($moves->updateIf($person, Move::RUNNING, Move::STEP_CHECK));
+		$this->assertSame([Move::RUNNING, Move::STEP_IDENTITY], [$moves->get($id)?->state, $moves->get($id)?->step]);
+
+		$this->assertTrue($moves->updateIf($person, Move::RUNNING, Move::STEP_IDENTITY));
+		$this->assertSame(Move::CANCELLED, $moves->get($id)?->state);
+	}
+
 	public function testThePlcLogIsReadInOrderAndConfirmationsAreKept(): void {
 		$log = Server::get(AtprotoPlcLogRequest::class);
 		$this->assertSame('', $log->latestCid($this->did));

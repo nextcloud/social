@@ -124,7 +124,9 @@ class AppViewClient {
 				'allow_local_address' => !str_starts_with($base, 'https://'),
 			] + ($input === null ? [] : ['body' => (string)json_encode($input === [] ? new \stdClass() : $input, JSON_UNESCAPED_SLASHES)]), $contentType, $status);
 		} catch (Throwable $e) {
-			throw new AtprotoException('AppView could not be reached for ' . $method . ': ' . $e->getMessage(), 0, $e);
+			// the message reaches the person; what went wrong on the way is logged
+			$this->logger->info('AppView not reached', ['method' => $method, 'exception' => $e]);
+			throw new AtprotoException('AppView could not be reached for ' . $method, 0, $e);
 		}
 		$decoded = json_decode($answer, true);
 		if ($status >= 200 && $status < 300) {

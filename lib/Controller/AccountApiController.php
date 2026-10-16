@@ -651,7 +651,9 @@ class AccountApiController extends MastodonApiController {
 	 * `resolve` asks this instance to go and find an account it has never seen,
 	 * which is what makes completing a handle from another server work at all.
 	 * It fires only for a viewer, and only for something shaped like an
-	 * address or a handle, the same rule `/api/v2/search` follows.
+	 * address or a handle, the same rule `/api/v2/search` follows. Without it
+	 * nothing is asked of another server, as in Mastodon: an autocomplete
+	 * asks once per keystroke.
 	 *
 	 * `following` narrows the answer to accounts the viewer follows, which is
 	 * what a client asks for when it is completing a reply rather than a search.
@@ -682,7 +684,7 @@ class AccountApiController extends MastodonApiController {
 			// itself is narrowed rather than its answer: filtering the first
 			// `limit` matches found nobody whenever the followed account was
 			// not among them.
-			$found = $this->searchService->searchAccounts($q, $limit, $following ? $this->viewer->getId() : '');
+			$found = $this->searchService->searchAccounts($q, $limit, $following ? $this->viewer->getId() : '', $resolve);
 			if ($resolve && (str_starts_with($q, '@') || str_starts_with($q, 'http'))) {
 				$resolved = $this->searchService->searchUri($q);
 				if ($following) {

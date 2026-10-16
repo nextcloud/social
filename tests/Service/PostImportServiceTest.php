@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Db\ImportedPostsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -711,10 +712,32 @@ class PostImportServiceTest extends TestCase {
 
 	/** Bringing a neighbour's post over as your own is not an import. */
 	public function testAVideoAlreadyOnThisServerIsRefused(): void {
-		$this->expectException(InvalidResourceException::class);
-		$this->expectExceptionMessageMatches('/already on this server/');
+		try {
+			$this->service->importVideo($this->alice(), 'https://cloud.example/apps/social/@bob/7');
+			$this->fail('a video of this server was brought over');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('video-here-already', $e->errorCode);
+			$this->assertStringContainsString('already on this server', $e->getMessage());
+		}
+	}
 
-		$this->service->importVideo($this->alice(), 'https://cloud.example/apps/social/@bob/7');
+	/** Each refusal carries the code the Migration page explains. */
+	public function testTheVideoRefusalsCarryTheirCodes(): void {
+		$this->curlService->method('retrieveObject')->willReturnCallback(fn (string $url): array => match ($url) {
+			'https://old.example/users/bob/statuses/1' => $this->note('https://old.example/users/bob/statuses/1'),
+			default => throw new \RuntimeException('connection refused'),
+		});
+
+		$codes = [];
+		foreach (['tube.example/w/abc', 'https://old.example/users/bob/statuses/1', 'https://gone.example/w/abc'] as $url) {
+			try {
+				$this->service->importVideo($this->alice(), $url);
+			} catch (MoveErrorException $e) {
+				$codes[] = $e->errorCode;
+			}
+		}
+
+		$this->assertSame(['video-address-invalid', 'video-unsupported', 'video-unreachable'], $codes);
 	}
 
 	public function testSomethingThatIsNotAVideoIsRefused(): void {

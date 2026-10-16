@@ -266,6 +266,23 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame(2, $stats['domain_count']);
 	}
 
+	/**
+	 * The statistics page's "servers this one talks to" is the instance
+	 * entity's `domain_count`: the same remembered number, not a walk over
+	 * every cached actor per page load.
+	 */
+	public function testTheDomainCountIsTheRememberedOne(): void {
+		$this->theming([
+			'social.' . InstanceService::STATS_CACHE_KEY => json_encode(
+				['status_count' => 5, 'domain_count' => 2, 'computed_at' => time() - 60]
+			),
+		]);
+		$this->statsRequest->expects($this->never())->method('countRemoteDomains');
+
+		$this->assertSame(2, $this->service->domainCount());
+		$this->assertSame(2, $this->service->createLocal()->getStats()['domain_count']);
+	}
+
 	public function testStaleRememberedStatsAreRecomputed(): void {
 		$this->theming([
 			'social.' . InstanceService::STATS_CACHE_KEY => json_encode(

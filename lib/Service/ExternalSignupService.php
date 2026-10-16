@@ -160,6 +160,13 @@ class ExternalSignupService {
 	 * A filled-in honeypot is answered as if the registration had worked and
 	 * nothing is stored: a bot learns nothing from the answer.
 	 *
+	 * The form is public, so it does not say whether an email address is
+	 * somebody's here, or whether a username is a Nextcloud login that has no
+	 * account of its own: either is answered as a new registration is, with
+	 * "check your email", and the mail goes to the address instead, saying
+	 * why nothing was made. With email confirmation off a new registration is
+	 * answered differently, and the two can be told apart.
+	 *
 	 * @return array{state: string, handle: string}
 	 * @throws ExternalUserException
 	 */
@@ -194,8 +201,8 @@ class ExternalSignupService {
 			throw new ExternalUserException($this->l10n->t('Too many registrations right now, please try again later.'));
 		}
 
-		$handle = $this->externalUserService->assertHandleAvailable($handle);
-		$email = $this->externalUserService->assertEmailAvailable($email);
+		$handle = $this->externalUserService->assertHandleOpen($handle);
+		$email = $this->externalUserService->assertEmailAccepted($email);
 		$this->assertPassword($password);
 		if (!$acceptsRules) {
 			throw new ExternalUserException($this->l10n->t('Please accept the server rules.'), 'rules');
@@ -220,13 +227,29 @@ class ExternalSignupService {
 			$noticeAcceptedAt = $now;
 		}
 
-		if ($invite !== null && !$this->invitesRequest->consume($invite['id'])) {
-			throw new ExternalUserException($this->l10n->t('This invitation link is no longer valid.'));
-		}
-
+		// hashed on both paths below, so that the time an answer takes does
+		// not tell them apart either
 		$passwordHash = $this->hasher->hash($password);
 		$needsApproval = $mode === ExternalUserService::MODE_APPROVAL && $invite === null;
 		$inviteId = ($invite === null) ? 0 : $invite['id'];
+
+		$emailInUse = $this->externalUserService->isEmailInUse($email);
+		if ($emailInUse || $this->externalUserService->isLogin($handle)) {
+			if (!$this->sendUnavailable($email, $handle, $emailInUse)) {
+				throw new ExternalUserException($this->l10n->t('The confirmation email could not be sent. Please try again later.'));
+			}
+			// a registration that is taken leaves a row the limits count,
+			// so this leaves one too
+			if ($this->externalUserService->verifiesEmail() || $needsApproval) {
+				$this->signupsRequest->createPlaceholder($ipHash, $now);
+			}
+
+			return ['state' => self::STATE_VERIFY, 'handle' => $handle];
+		}
+
+		if ($invite !== null && !$this->invitesRequest->consume($invite['id'])) {
+			throw new ExternalUserException($this->l10n->t('This invitation link is no longer valid.'));
+		}
 
 		if ($this->externalUserService->verifiesEmail()) {
 			$token = $this->secureRandom->generate(40, ISecureRandom::CHAR_ALPHANUMERIC);
@@ -501,6 +524,33 @@ class ExternalSignupService {
 		$template->addHeading($this->l10n->t('Welcome, @%s', [$handle]));
 		$template->addBodyText($this->l10n->t('Please confirm your email address to finish creating your account on %s. The link works for 24 hours.', [$this->domain()]));
 		$template->addBodyButton($this->l10n->t('Confirm email address'), $link);
+		$template->addBodyText($this->l10n->t('If you did not register, you can ignore this email.'));
+		$template->addFooter();
+
+		return $this->send($email, $template);
+	}
+
+	/**
+	 * Tells the owner of an address why the registration made with it made
+	 * nothing: the address is registered here already, or the username
+	 * cannot be had.
+	 */
+	private function sendUnavailable(string $email, string $handle, bool $emailInUse): bool {
+		$template = $this->mailer->createEMailTemplate('social.SignupUnavailable', ['handle' => $handle, 'emailInUse' => $emailInUse]);
+		if ($emailInUse) {
+			$template->setSubject($this->l10n->t('You already have an account'));
+			$template->addHeader();
+			$template->addHeading($this->l10n->t('You already have an account'));
+			$template->addBodyText($this->l10n->t('Somebody, probably you, tried to register on %s with this email address. It is registered there already, so no new account was made.', [$this->domain()]));
+			$template->addBodyText($this->l10n->t('Log in with the account you have. If you forgot its password, you can reset it on the login page. If you registered recently, confirm the registration with the link in the earlier email.'));
+			$template->addBodyButton($this->l10n->t('Log in'), $this->urlGenerator->linkToRouteAbsolute('core.login.showLoginForm'));
+		} else {
+			$template->setSubject($this->l10n->t('Choose another username'));
+			$template->addHeader();
+			$template->addHeading($this->l10n->t('Choose another username'));
+			$template->addBodyText($this->l10n->t('The username @%1$s cannot be used on %2$s, so no account was made. Please register again with another username.', [$handle, $this->domain()]));
+			$template->addBodyButton($this->l10n->t('Register'), $this->urlGenerator->linkToRouteAbsolute('social.Signup.page'));
+		}
 		$template->addBodyText($this->l10n->t('If you did not register, you can ignore this email.'));
 		$template->addFooter();
 

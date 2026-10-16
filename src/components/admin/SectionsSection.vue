@@ -61,7 +61,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
-import { errorMessage, sectionsUrl } from '../../services/adminApi.js'
+import { sectionsUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
 import { showError, showSuccess } from '../../services/toast.js'
 
 /**
@@ -140,7 +141,7 @@ export default {
 				})
 				showSuccess(t('social', 'Saved'))
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not save what this instance offers')))
+				showError(errorOf(error, t('social', 'Could not save what this instance offers')))
 			} finally {
 				this.saving = false
 			}

@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Move\FollowFrom;
 use OCA\Social\Cron\RunImport;
 use OCA\Social\Db\ImportsRequest;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ImportJob;
 use OCP\BackgroundJob\IJobList;
 use OCP\Files\IAppData;
@@ -74,14 +75,14 @@ class ImportQueueService {
 	 * @param string|null $uploadPath the uploaded file as PHP left it, or null for an import with no file
 	 * @param array<string, mixed> $options what the run should know: `fetch_media`, a source account
 	 *
-	 * @throws InvalidResourceException for a kind this does not run, or one already under way
+	 * @throws InvalidResourceException for a kind this does not run; MoveErrorException import-running for one already under way
 	 */
 	public function queue(string $userId, string $kind, ?string $uploadPath, array $options = []): ImportJob {
 		if (!in_array($kind, ImportJob::KINDS, true)) {
 			throw new InvalidResourceException('"' . $kind . '" is not something that can be imported');
 		}
 		if ($this->importsRequest->hasActive($userId, $kind)) {
-			throw new InvalidResourceException('an import of this kind is already running; wait for it to finish');
+			throw new MoveErrorException('an import of this kind is already running; wait for it to finish', 'import-running');
 		}
 
 		$job = new ImportJob();

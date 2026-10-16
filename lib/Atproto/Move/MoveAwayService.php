@@ -51,6 +51,8 @@ class MoveAwayService {
 	private const MAX_BLOBS_PER_PAGE = 500;
 	/** the most pages of missing blobs one copy reads from the other PDS */
 	private const MAX_BLOB_PAGES = 1000;
+	/** how often calling off is tried while the job moves the move on between the read and the write */
+	public const CALL_OFF_TRIES = 3;
 	/** what stops a move for the person to decide on, rather than failing it */
 	private const DECISIONS = ['blobs-missing', 'repo-incomplete'];
 	/** what the other PDS's `createAccount` errors mean, as codes for the page */
@@ -190,7 +192,6 @@ class MoveAwayService {
 			str_starts_with($message, 'PLC directory could not be reached') => 'plc-unreachable',
 			$e instanceof AtprotoKeysSealedException => AtprotoKeysSealedException::ERROR_CODE,
 			str_starts_with($message, 'That is not the https address') => 'pds-address-invalid',
-			str_contains($message, 'public address') => 'pds-not-public',
 			str_contains($message, 'could not be reached') => 'pds-unreachable',
 			str_contains($message, '(ExpiredToken') || str_contains($message, '(InvalidToken') => 'pds-session-expired',
 			preg_match('/ answered \d{3}/', $message) === 1 => 'pds-refused',
@@ -199,7 +200,9 @@ class MoveAwayService {
 	}
 
 	/**
-	 * Starts a failed move again, from the step it failed at.
+	 * Starts a failed move again, from the step it failed at; one that
+	 * failed handing the DID over goes on from the activation when the
+	 * directory points the DID at the other PDS already.
 	 *
 	 * @throws MoveErrorException
 	 */
@@ -208,6 +211,7 @@ class MoveAwayService {
 		if ($move === null || $move->state !== Move::FAILED || $move->direction !== Move::AWAY) {
 			throw new MoveErrorException('There is no failed move to start again', 'no-failed-move');
 		}
+		$this->settleHandOver($move);
 		$move->resume();
 		$this->save($move);
 		$this->jobList->add(AtprotoMove::class, ['move' => $move->id]);
@@ -226,27 +230,17 @@ class MoveAwayService {
 	 * server e-mails to the address given there
 	 * (`com.atproto.server.requestAccountDelete`, then `deleteAccount`), so
 	 * the person is told to delete it there. Once the DID moved, or while
-	 * it is being moved, a move is not called off but finished.
+	 * it is being moved, a move is not called off but finished; one that
+	 * failed handing the DID over is first asked of the directory.
 	 *
 	 * @throws MoveErrorException
 	 */
 	public function cancel(string $userId): Move {
-		$move = $this->moves->latestOfUser($userId);
-		if ($move === null || $move->direction !== Move::AWAY || !in_array($move->state, [Move::RUNNING, Move::FAILED, Move::NEEDS_DECISION], true)) {
-			throw new MoveErrorException('There is no move away to call off', 'no-move-to-call-off');
+		for ($try = 1; ($move = $this->callOff($userId)) === null; $try++) {
+			if ($try === self::CALL_OFF_TRIES) {
+				throw new MoveErrorException('The move went on while it was called off', 'no-move-to-call-off');
+			}
 		}
-		if (in_array($move->step, [Move::STEP_ACTIVATE, Move::STEP_DONE], true)) {
-			throw new MoveErrorException('Your account already points at the new server; the move can only be finished', 'move-past-switch');
-		}
-		if ($move->step === Move::STEP_IDENTITY && $move->state === Move::RUNNING) {
-			throw new MoveErrorException('Your account is being pointed at the new server right now; wait for it', 'move-switching');
-		}
-		$move->state = Move::CANCELLED;
-		$move->session = '';
-		$move->error = 'Called off';
-		$move->progress['code'] = 'target-account-left';
-		$move->progress['stage'] = self::stageOf($move);
-		$this->moves->update($move);
 		$this->logger->info('Bluesky account move called off', ['did' => $move->did, 'pds' => $move->pds, 'step' => $move->step]);
 		try {
 			$this->publisher->publishBacklog($this->identities->getByDid($move->did)->actorId, $move->creation);
@@ -255,6 +249,38 @@ class MoveAwayService {
 		}
 
 		return $move;
+	}
+
+	/**
+	 * The person's move, written as called off unless it may not be; null
+	 * when the job moved it on between the read and the write — to the
+	 * handover, say — so it is looked at again.
+	 *
+	 * @throws MoveErrorException
+	 */
+	private function callOff(string $userId): ?Move {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::AWAY || !in_array($move->state, [Move::RUNNING, Move::FAILED, Move::NEEDS_DECISION], true)) {
+			throw new MoveErrorException('There is no move away to call off', 'no-move-to-call-off');
+		}
+		if ($move->step === Move::STEP_IDENTITY && $move->state === Move::RUNNING) {
+			throw new MoveErrorException('Your account is being pointed at the new server right now; wait for it', 'move-switching');
+		}
+		$handedOver = $this->settleHandOver($move);
+		if ($handedOver) {
+			$this->moves->update($move);
+		}
+		if ($handedOver || in_array($move->step, [Move::STEP_ACTIVATE, Move::STEP_DONE], true)) {
+			throw new MoveErrorException('Your account already points at the new server; the move can only be finished', 'move-past-switch');
+		}
+		$read = $move->state;
+		$move->state = Move::CANCELLED;
+		$move->session = '';
+		$move->error = 'Called off';
+		$move->progress['code'] = 'target-account-left';
+		$move->progress['stage'] = self::stageOf($move);
+
+		return $this->moves->updateIf($move, $read, $move->step) ? $move : null;
 	}
 
 	/**
@@ -308,8 +334,14 @@ class MoveAwayService {
 		try {
 			$identity = $this->identities->getByDid($move->did);
 			while ($move->step !== Move::STEP_DONE) {
-				$this->step($move, $identity);
-				$move->step = Move::next($move->step);
+				try {
+					$this->step($move, $identity);
+					$move->step = Move::next($move->step);
+				} catch (Throwable $e) {
+					if (!$this->handedOverDespite($move, $e)) {
+						throw $e;
+					}
+				}
 				$this->save($move);
 			}
 			$move->state = Move::DONE;
@@ -327,9 +359,72 @@ class MoveAwayService {
 			$move->error = $e->getMessage();
 			$move->progress['code'] = self::codeOf($e);
 			$move->progress['stage'] = self::stageOf($move);
-			$this->moves->update($move);
+			if (!$this->moves->updateIfRunning($move)) {
+				$this->logger->info('Bluesky account move stopped: called off', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
+
+				return;
+			}
 			$this->logger->warning('Bluesky account move stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
 		}
+	}
+
+	/**
+	 * The endpoint the DID of a move is pointed at: the one the other PDS
+	 * recommended, once it was asked, else its address.
+	 */
+	public static function endpointOf(Move $move): string {
+		return (string)($move->progress['endpoint'] ?? $move->pds);
+	}
+
+	/**
+	 * A move that stopped handing the DID over goes on from the
+	 * activation when the directory points the DID at the other PDS
+	 * already: it took the operation although its answer did not come.
+	 * Signed again, the operation would be refused for good — this
+	 * server's key no longer rotates the DID — and called off, the account
+	 * would be left on a server where it is not active.
+	 *
+	 * @return bool whether it goes on from the activation now
+	 * @throws MoveErrorException `plc-unreachable` when the directory cannot be asked
+	 */
+	private function settleHandOver(Move $move): bool {
+		if ($move->step !== Move::STEP_IDENTITY) {
+			return false;
+		}
+		try {
+			$handedOver = $this->identities->pointsAt($move->did, self::endpointOf($move));
+		} catch (AtprotoException $e) {
+			throw new MoveErrorException('The directory could not be asked where the account points', 'plc-unreachable', $e);
+		}
+		if ($handedOver) {
+			$move->step = Move::STEP_ACTIVATE;
+			$move->progress['stage'] = self::stageOf($move);
+			$this->logger->info('Bluesky account move found handed over', ['did' => $move->did, 'pds' => $move->pds]);
+		}
+
+		return $handedOver;
+	}
+
+	/**
+	 * Whether the handover went through although its step failed, as far
+	 * as the directory can be asked now; the move is at the activation then.
+	 */
+	private function handedOverDespite(Move $move, Throwable $e): bool {
+		if ($move->state === Move::CANCELLED) {
+			return false;
+		}
+		try {
+			if (!$this->settleHandOver($move)) {
+				return false;
+			}
+		} catch (MoveErrorException $unknown) {
+			$this->logger->info('Whether the directory took the handover is not known', ['did' => $move->did, 'exception' => $unknown]);
+
+			return false;
+		}
+		$this->logger->notice('The directory took the handover of a Bluesky account move although the step failed', ['did' => $move->did, 'exception' => $e]);
+
+		return true;
 	}
 
 	/**
@@ -355,17 +450,23 @@ class MoveAwayService {
 
 	/**
 	 * Writes where a running move got to, with its stage — unless the
-	 * person called it off meanwhile, which stops the run here.
+	 * person called it off meanwhile, which stops the run here. The write
+	 * is conditional on the move still running, so a call-off between a
+	 * read and a write is not written over; a stopped move started again
+	 * is written as it is.
 	 *
 	 * @throws MoveErrorException when the move was called off
 	 */
 	private function save(Move $move): void {
+		$move->progress['stage'] = self::stageOf($move);
+		if ($this->moves->updateIfRunning($move)) {
+			return;
+		}
 		$stored = $this->moves->get($move->id);
 		if ($stored !== null && $stored->state === Move::CANCELLED) {
 			$move->state = Move::CANCELLED;
 			throw new MoveErrorException('The move was called off', 'move-called-off');
 		}
-		$move->progress['stage'] = self::stageOf($move);
 		$this->moves->update($move);
 	}
 
@@ -503,6 +604,10 @@ class MoveAwayService {
 	 */
 	private function handOver(Move $move, Identity $identity): void {
 		$credentials = $this->authed($move, 'com.atproto.identity.getRecommendedDidCredentials');
+		$endpoint = $credentials['services']['atproto_pds']['endpoint'] ?? null;
+		if (is_string($endpoint) && $endpoint !== '') {
+			$move->progress['endpoint'] = $endpoint;
+		}
 		$this->save($move);
 		$this->identities->handOver($identity, $credentials);
 	}

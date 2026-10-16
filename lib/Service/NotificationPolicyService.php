@@ -317,49 +317,113 @@ class NotificationPolicyService {
 	 * Splits a page of notifications into the ones to show and the ones the
 	 * policy holds back.
 	 *
-	 * Every fact the five questions need is gathered once for the whole page
-	 * rather than per notification: a page is tens of rows from a handful of
-	 * senders, and asking "do I follow this account" per row would be tens of
-	 * queries for an answer that does not change inside one page.
-	 *
 	 * @param Stream[] $notifications
 	 *
 	 * @return array{shown: Stream[], held: Stream[]}
 	 */
 	public function partition(Person $viewer, array $notifications): array {
-		$policy = $this->of($viewer->getUserId());
-		if ($policy->isEverythingAccepted() || $notifications === []) {
-			// the common case, and it costs nothing: no account that has not
-			// touched the policy pays a query for it
-			return ['shown' => array_values($notifications), 'held' => []];
+		$about = [];
+		foreach ($notifications as $index => $notification) {
+			$sender = $this->senderOf($notification);
+			$about[$index] = [
+				'sender' => $sender?->getId() ?? '',
+				'creation' => $sender?->getCreation() ?? 0,
+				'privateMention' => $this->isPrivateMention($notification),
+			];
 		}
 
-		$senders = $this->sendersOf($notifications);
-		if ($senders === []) {
-			return ['shown' => array_values($notifications), 'held' => []];
-		}
-
-		$facts = $this->factsAbout($viewer, $senders);
-		$nobody = $this->directMessagesFrom($viewer->getUserId()) === self::DIRECT_NONE;
+		$heldOnes = $this->heldAmong($viewer, $about);
 
 		$shown = [];
 		$held = [];
-		foreach ($notifications as $notification) {
-			$sender = $this->senderOf($notification);
-			$senderId = $sender?->getId() ?? '';
-			if ($senderId === ''
-				|| !$this->isHeld(
-					$policy, $senderId, $sender?->getCreation() ?? 0, $this->isPrivateMention($notification), $facts, $nobody
-				)) {
+		foreach ($notifications as $index => $notification) {
+			if (isset($heldOnes[$index])) {
+				$held[] = $notification;
+			} else {
 				$shown[] = $notification;
-
-				continue;
 			}
-
-			$held[] = $notification;
 		}
 
 		return ['shown' => $shown, 'held' => $held];
+	}
+
+	/**
+	 * The rows the policy holds back, out of what the sidebar's count reads
+	 * instead of whole notifications (`StreamRequest::getNotificationSenders()`):
+	 * the same rules as `partition()`, asked of the same facts.
+	 *
+	 * @param list<array{nid: string, subType: string, sender: string, creation: int, privateMention: bool}> $rows
+	 *
+	 * @return list<array{nid: string, subType: string, sender: string, creation: int, privateMention: bool}>
+	 */
+	public function heldOf(Person $viewer, array $rows): array {
+		$heldOnes = $this->heldAmong($viewer, $rows);
+
+		return array_values(array_intersect_key($rows, $heldOnes));
+	}
+
+	/**
+	 * Which of the described notifications the policy holds back.
+	 *
+	 * Every fact the five questions need is gathered once for the whole page
+	 * rather than per notification: a page is tens of rows from a handful of
+	 * senders, and asking "do I follow this account" per row would be tens of
+	 * queries for an answer that does not change inside one page.
+	 *
+	 * @param array<array-key, array{sender: string, creation: int, privateMention: bool, ...}> $about
+	 *
+	 * @return array<array-key, true> the keys of `$about` that are held
+	 */
+	private function heldAmong(Person $viewer, array $about): array {
+		$policy = $this->of($viewer->getUserId());
+		if ($policy->isEverythingAccepted() || $about === []) {
+			// the common case, and it costs nothing: no account that has not
+			// touched the policy pays a query for it
+			return [];
+		}
+
+		$senders = [];
+		foreach ($about as $notification) {
+			if ($notification['sender'] !== '') {
+				$senders[$notification['sender']] = true;
+			}
+		}
+		if ($senders === []) {
+			return [];
+		}
+
+		$facts = $this->factsAbout($viewer, array_keys($senders));
+		$nobody = $this->directMessagesFrom($viewer->getUserId()) === self::DIRECT_NONE;
+
+		$held = [];
+		foreach ($about as $index => $notification) {
+			if ($notification['sender'] !== ''
+				&& $this->isHeld(
+					$policy, $notification['sender'], $notification['creation'], $notification['privateMention'], $facts, $nobody
+				)) {
+				$held[$index] = true;
+			}
+		}
+
+		return $held;
+	}
+
+	/**
+	 * What the policy's answer depends on besides the notifications and the
+	 * reader's decisions, for an `ETag`: the policy and its notice, who may
+	 * send direct messages, the accounts this instance silenced, and the day,
+	 * since an account stops being new without anybody doing anything.
+	 */
+	public function stateOf(string $userId): string {
+		$policy = $this->of($userId);
+
+		return md5((string)json_encode([
+			$policy->getDecisions(),
+			$policy->hasNotice(),
+			$this->directMessagesFrom($userId),
+			$this->moderationRequest->getActorIdsAt(Moderation::SILENCE),
+			gmdate('Y-m-d'),
+		]));
 	}
 
 	/**
@@ -515,23 +579,6 @@ class NotificationPolicyService {
 	 */
 	public function decisionsAbout(string $viewerId, array $senders): array {
 		return $this->accountRelationService->notificationDecisions($viewerId, $senders);
-	}
-
-	/**
-	 * @param Stream[] $notifications
-	 *
-	 * @return string[] actor ids
-	 */
-	private function sendersOf(array $notifications): array {
-		$senders = [];
-		foreach ($notifications as $notification) {
-			$sender = $this->senderOf($notification);
-			if ($sender !== null) {
-				$senders[$sender->getId()] = true;
-			}
-		}
-
-		return array_keys($senders);
 	}
 
 	private function senderOf(Stream $notification): ?Person {

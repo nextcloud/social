@@ -93,6 +93,10 @@ class MoveInServiceTest extends TestCase {
 	private array $listedKeys = [];
 	/** @var (callable(): void)|null what happens while the blobs are listed */
 	private $duringCopy = null;
+	/** @var (callable(): void)|null what happens right after the move was read */
+	private $afterGet = null;
+	/** @var (callable(): void)|null what the job does right after the person's move was read */
+	private $afterRead = null;
 	/** where the directory says the DID's PDS is */
 	private string $pointsAt = self::OLD;
 	/** the signing key the directory names for the DID, '' for the old server's */
@@ -231,8 +235,39 @@ class MoveInServiceTest extends TestCase {
 		$request->method('update')->willReturnCallback(function (Move $move): void {
 			$this->rows[$move->id] = clone $move;
 		});
-		$request->method('get')->willReturnCallback(fn (int $id): ?Move => isset($this->rows[$id]) ? clone $this->rows[$id] : null);
-		$request->method('latestOfUser')->willReturnCallback(fn (): ?Move => $this->rows === [] ? null : clone end($this->rows));
+		$request->method('updateIfRunning')->willReturnCallback(function (Move $move): bool {
+			if (($this->rows[$move->id] ?? null)?->state !== Move::RUNNING) {
+				return false;
+			}
+			$this->rows[$move->id] = clone $move;
+
+			return true;
+		});
+		$request->method('get')->willReturnCallback(function (int $id): ?Move {
+			$move = isset($this->rows[$id]) ? clone $this->rows[$id] : null;
+			if ($this->afterGet !== null) {
+				($this->afterGet)();
+			}
+
+			return $move;
+		});
+		$request->method('latestOfUser')->willReturnCallback(function (): ?Move {
+			$move = $this->rows === [] ? null : clone end($this->rows);
+			if ($this->afterRead !== null) {
+				($this->afterRead)();
+			}
+
+			return $move;
+		});
+		$request->method('updateIf')->willReturnCallback(function (Move $move, string $state, string $step): bool {
+			$stored = $this->rows[$move->id] ?? null;
+			if ($stored?->state !== $state || $stored->step !== $step) {
+				return false;
+			}
+			$this->rows[$move->id] = clone $move;
+
+			return true;
+		});
 		$crypto = $this->createMock(ICrypto::class);
 		$crypto->method('encrypt')->willReturnCallback(static fn (string $plain): string => 'sealed:' . base64_encode($plain));
 		$crypto->method('decrypt')->willReturnCallback(static fn (string $sealed): string => (string)base64_decode(substr($sealed, 7)));
@@ -615,6 +650,45 @@ class MoveInServiceTest extends TestCase {
 		$this->assertNotContains('com.atproto.identity.requestPlcOperationSignature', $this->methods());
 	}
 
+	/**
+	 * A move called off right after the job saw it running, while a step
+	 * fails, stays called off, and what the job copied is dropped.
+	 */
+	public function testAMoveCalledOffWhileAStepFailsStaysCalledOff(): void {
+		$this->moves->start('alice', 'alice.bsky.social', 'pw');
+		$this->duringCopy = function (): void {
+			$this->duringCopy = null;
+			$this->afterGet = function (): void {
+				$this->afterGet = null;
+				$this->rows[1]->state = Move::CANCELLED;
+			};
+			throw new \RuntimeException('disk full');
+		};
+		$this->repositories->expects($this->once())->method('delete')->with(self::DID);
+
+		$this->moves->run($this->rows[1]);
+
+		$this->assertSame(Move::CANCELLED, $this->rows[1]->state);
+	}
+
+	/** A move the job takes on to the identity while the person calls it off is not called off: the DID may move. */
+	public function testAMoveTheJobTakesToTheIdentityMeanwhileIsNotCalledOff(): void {
+		$this->rows[1] = new Move(1, self::DID, 'alice', Move::IN, self::OLD, '', 'alice.bsky.social', Move::STEP_CODE, Move::RUNNING);
+		$this->afterRead = function (): void {
+			$this->afterRead = null;
+			$this->rows[1]->step = Move::STEP_IDENTITY;
+		};
+		$this->repositories->expects($this->never())->method('delete');
+
+		try {
+			$this->moves->cancel('alice');
+			$this->fail('called off');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('move-past-switch', $e->errorCode);
+		}
+		$this->assertSame([Move::RUNNING, Move::STEP_IDENTITY], [$this->rows[1]->state, $this->rows[1]->step]);
+	}
+
 	/** A waiting move can get a new code, and says where the old server sent it. */
 	public function testAWaitingMoveGetsANewCode(): void {
 		$this->moves->start('alice', 'alice.bsky.social', 'pw');
@@ -793,6 +867,32 @@ class MoveInServiceTest extends TestCase {
 		$this->moves->run($this->rows[1]);
 
 		$this->assertSame([Move::STEP_CODE, Move::WAITING], [$this->rows[1]->step, $this->rows[1]->state]);
+	}
+
+	/** The posts are written to the move page by page, so a long import is not taken for one that stopped. */
+	public function testThePostsAreWrittenAsTheyGo(): void {
+		$this->rows[1] = new Move(1, self::DID, 'alice', Move::IN, self::OLD, '', 'alice.bsky.social', Move::STEP_POSTS, Move::RUNNING);
+		$written = [];
+		$page = function (?\Closure $onPage) use (&$written): void {
+			$this->rows = [];
+			$this->assertNotNull($onPage);
+			$onPage();
+			$written[] = isset($this->rows[1]);
+		};
+		$this->history->method('import')->willReturnCallback(function (Person $actor, string $did, ?\Closure $onPage = null) use ($page): int {
+			$page($onPage);
+
+			return 0;
+		});
+		$this->history->method('importActions')->willReturnCallback(function (Person $actor, string $did, ?\Closure $onPage = null) use ($page): array {
+			$page($onPage);
+
+			return ['likes' => 0, 'reposts' => 0];
+		});
+
+		$this->moves->importPosts(clone $this->rows[1]);
+
+		$this->assertSame([true, true], $written);
 	}
 
 	public function testAMoveIsDoneEvenWhenItsPostsCannotBeImported(): void {

@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Atproto\Chat\ChatState;
 use OCA\Social\Db\ConversationsRequest;
+use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -22,6 +23,7 @@ use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\ConversationService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TimelineRevisionService;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -43,6 +45,10 @@ class ConversationServiceTest extends TestCase {
 	private StreamService|Stub $streamService;
 	private CacheActorService|Stub $cacheActorService;
 	private ConversationsRequest|Stub $conversationsRequest;
+	private StreamRequest|Stub $streamRequest;
+	private TimelineRevisionService|Stub $timelineRevisionService;
+	/** @var array<string, int> the revisions, by user and key */
+	private array $settings = [];
 
 	/** @var Stream[] what the direct timeline answers, newest first */
 	private array $timeline = [];
@@ -55,8 +61,10 @@ class ConversationServiceTest extends TestCase {
 	/** @var array<int, array> [method, actorId, rootId, nid] of every write */
 	private array $writes = [];
 	private ?ProbeOptions $asked = null;
-	/** @var list<string> what was read to answer: `posts`, `links`, `accounts` */
+	/** @var list<string> what was read to answer: `posts`, `links`, `accounts`, `walk`, `thread` */
 	private array $reads = [];
+	/** @var list<string[]> the actor ids of every cache lookup */
+	private array $lookedUp = [];
 
 	protected function setUp(): void {
 		$this->streamService = $this->createStub(StreamService::class);
@@ -109,6 +117,7 @@ class ConversationServiceTest extends TestCase {
 		$this->cacheActorService->method('getCachedFromIds')
 			->willReturnCallback(function (array $ids): array {
 				$this->reads[] = 'accounts';
+				$this->lookedUp[] = $ids;
 				$actors = [];
 				foreach ($ids as $id) {
 					// an id that is not a cached actor — a collection, a
@@ -121,9 +130,21 @@ class ConversationServiceTest extends TestCase {
 				return $actors;
 			});
 
+		$this->streamRequest = $this->createStub(StreamRequest::class);
+		$this->timelineRevisionService = $this->createStub(TimelineRevisionService::class);
+		$this->timelineRevisionService->method('of')
+			->willReturnCallback(fn (string $userId, string $key = TimelineRevisionService::KEY): int => $this->settings[$userId . '/' . $key] ?? 0);
+		$this->timelineRevisionService->method('bump')
+			->willReturnCallback(function (string $userId, string $key = TimelineRevisionService::KEY): void {
+				if ($userId !== '') {
+					$this->settings[$userId . '/' . $key] = ($this->settings[$userId . '/' . $key] ?? 0) + 1;
+				}
+			});
+
 		$this->conversationsRequest = $this->createStub(ConversationsRequest::class);
 		$this->conversationsRequest->method('getThreadLinks')
 			->willReturnCallback(function (array $ids): array {
+				$this->reads[] = 'thread';
 				$links = [];
 				foreach ($ids as $id) {
 					if (array_key_exists($id, $this->stored)) {
@@ -133,6 +154,26 @@ class ConversationServiceTest extends TestCase {
 							'nid' => $this->stored[$id]['nid'],
 							'inReplyTo' => $this->stored[$id]['inReplyTo'],
 						];
+					}
+				}
+
+				return $links;
+			});
+		// the database's walk up: each id asked for and its ancestors, as far
+		// as `$levels` and what is stored reach
+		$this->conversationsRequest->method('getAncestorLinks')
+			->willReturnCallback(function (array $ids, int $levels): array {
+				$this->reads[] = 'walk';
+				$links = [];
+				foreach ($ids as $id) {
+					for ($level = 0; $level < $levels && array_key_exists($id, $this->stored); $level++) {
+						$links[$id] = [
+							'id' => $id,
+							'idPrim' => md5($id),
+							'nid' => $this->stored[$id]['nid'],
+							'inReplyTo' => $this->stored[$id]['inReplyTo'],
+						];
+						$id = $this->stored[$id]['inReplyTo'];
 					}
 				}
 
@@ -169,7 +210,8 @@ class ConversationServiceTest extends TestCase {
 		}
 
 		return new ConversationService(
-			$this->streamService, $this->cacheActorService, $this->conversationsRequest, $container
+			$this->streamService, $this->cacheActorService, $this->conversationsRequest,
+			$this->streamRequest, $this->timelineRevisionService, $container
 		);
 	}
 
@@ -274,6 +316,75 @@ class ConversationServiceTest extends TestCase {
 
 		$this->assertCount(1, $conversations);
 		$this->assertSame(10, $conversations[0]->getId());
+	}
+
+	/** What the walk up read names the root's nid: nothing is asked for it again. */
+	public function testARootOutsideThePageIsNotLookedUpTwice(): void {
+		$this->note('https://a/1', 10);
+		$this->given($this->note('https://a/9', 19, 'https://a/1'));
+
+		$this->page();
+
+		$this->assertNotContains('thread', $this->reads);
+	}
+
+	/** The walk up reads several levels a statement, not one. */
+	public function testALongThreadIsWalkedUpSeveralLevelsAtATime(): void {
+		$parent = '';
+		for ($nid = 1; $nid <= 12; $nid++) {
+			$this->note('https://a/' . $nid, $nid, $parent);
+			$parent = 'https://a/' . $nid;
+		}
+		$this->given($this->note('https://a/13', 13, $parent));
+
+		$this->assertSame(1, $this->page()[0]->getId(), 'the root, twelve levels up');
+		$this->assertCount(3, array_keys($this->reads, 'walk', true), 'twelve levels in three statements, the last finding the end');
+	}
+
+	/** One cache lookup for the participants of the whole page, and only of the page. */
+	public function testTheParticipantsOfThePageAreLookedUpOnceAndOnlyForThePage(): void {
+		$this->given(
+			$this->note('https://a/1', 10, '', self::BOB),
+			$this->note('https://b/1', 11, '', self::CAROL),
+			$this->note('https://c/1', 12, '', self::BOB),
+		);
+
+		$conversations = $this->page(2);
+
+		$this->assertCount(2, $conversations);
+		$this->assertCount(1, array_keys($this->reads, 'accounts', true));
+		$this->assertSame([self::BOB, self::CAROL], $this->lookedUp[0], 'the two conversations listed, not the third');
+		$this->assertSame(self::CAROL, $conversations[1]->getAccounts()[0]->getId());
+	}
+
+	public function testReadingEverythingLooksUpNobody(): void {
+		$this->given($this->note('https://a/1', 10), $this->note('https://b/1', 11, '', self::CAROL));
+
+		$this->service()->markAllRead($this->viewer());
+
+		$this->assertNotContains('accounts', $this->reads);
+	}
+
+	/** The badge's tag moves whenever a conversation is read or dismissed, and only then. */
+	public function testTheTagMovesWithEveryReadAndDismissal(): void {
+		$viewer = $this->viewer()->setUserId('alice');
+		$this->given($this->note('https://a/1', 10), $this->note('https://b/1', 11, '', self::CAROL));
+		$this->threads['https://a/1'] = ['https://a/1' => 10];
+		$service = $this->service();
+
+		$tags = [$service->unreadTag($viewer)];
+		$service->markRead($viewer, 10);
+		$tags[] = $service->unreadTag($viewer);
+		$service->remove($viewer, 10);
+		$tags[] = $service->unreadTag($viewer);
+		$service->markAllRead($viewer);
+		$tags[] = $service->unreadTag($viewer);
+		$service->countUnread($viewer);
+		$service->getPage($viewer, 20);
+		$tags[] = $service->unreadTag($viewer);
+
+		$this->assertCount(4, array_unique($tags));
+		$this->assertSame($tags[3], $tags[4], 'reading changes nothing');
 	}
 
 	public function testAThreadWhoseParentIsNotStoredHereRootsAtTheTopmostMessageThatIs(): void {

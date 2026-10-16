@@ -314,7 +314,7 @@ describe('BlueskyMoveAway', () => {
 		await flushPromises()
 
 		expect(wrapper.find('[role="alert"]').text()).toBe('That server needs an invite code. Ask the people who run it for one and enter it.')
-		expect(wrapper.find('.bluesky-error__details code').text()).toBe('That server needs an invite code')
+		expect(wrapper.find('.server-error__details code').text()).toBe('That server needs an invite code')
 		expect(showError).not.toHaveBeenCalled()
 		expect(wrapper.find('.migration__bluesky-form').exists()).toBe(true)
 	})
@@ -415,8 +415,8 @@ describe('BlueskyMoveAway', () => {
 		const wrapper = await mountCard()
 
 		expect(wrapper.find('.migration__bluesky-failed').text()).toContain('The move stopped.')
-		expect(wrapper.find('.bluesky-error').text()).toContain('The other server refused a step of the move. Try again; if it happens again, the details say which step.')
-		expect(wrapper.find('.bluesky-error__details code').text()).toBe('com.atproto.repo.uploadBlob answered 502')
+		expect(wrapper.find('.server-error').text()).toContain('The other server refused a step of the move. Try again; if it happens again, the details say which step.')
+		expect(wrapper.find('.server-error__details code').text()).toBe('com.atproto.repo.uploadBlob answered 502')
 		await buttonNamed(wrapper, 'Try again').trigger('click')
 		await flushPromises()
 

@@ -41,6 +41,17 @@ export const useSettingsStore = defineStore('settings', {
 		hidesCounts(state) {
 			return state.serverData?.hideCounts === true
 		},
+
+		/**
+		 * Whether the one-key shortcuts are on. They are unless the reader
+		 * turned them off.
+		 *
+		 * @param {SettingsState} state the store state
+		 * @return {boolean}
+		 */
+		shortcutsEnabled(state) {
+			return state.serverData?.keyboardShortcuts !== false
+		},
 	},
 
 	actions: {

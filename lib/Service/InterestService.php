@@ -17,6 +17,7 @@ use OCA\Social\Db\InterestsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\InterestNotRemovableException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Interest;
@@ -128,7 +129,7 @@ class InterestService {
 	/**
 	 * Writes the whole card, or nothing when a value is out of range.
 	 *
-	 * @throws InvalidArgumentException naming the value
+	 * @throws SettingRefusedException naming the value, with its code
 	 */
 	public function saveAdminSettings(
 		bool $enabled, bool $learningDefault, int $halfLife, float $threshold, int $cap, int $window,
@@ -140,7 +141,10 @@ class InterestService {
 			'window' => [$window, 1, 30],
 		] as $name => [$value, $min, $max]) {
 			if ($value < $min || $value > $max) {
-				throw new InvalidArgumentException($name . ' must be between ' . (string)$min . ' and ' . (string)$max);
+				throw new SettingRefusedException(
+					$name . ' must be between ' . (string)$min . ' and ' . (string)$max,
+					'setting-out-of-range', null, ['field' => $name, 'min' => $min, 'max' => $max]
+				);
 			}
 		}
 

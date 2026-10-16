@@ -272,8 +272,10 @@ export default {
 
 			// across, not down: a vertical drag on a picture is a page scroll
 			// that happened to start here
+			// in a right-to-left page the next picture comes in from the left
 			if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
-				this.$emit(dx > 0 ? 'previous' : 'next')
+				const towardsStart = document.documentElement?.dir === 'rtl' ? dx < 0 : dx > 0
+				this.$emit(towardsStart ? 'previous' : 'next')
 			}
 		},
 

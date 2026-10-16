@@ -530,7 +530,10 @@ checks, and the card refuses to switch Bluesky on while one fails:
   second unit like the one above, with
   `ExecStart=/usr/bin/php occ social:atproto:listen`. It reports to the card's
   "Reading Bluesky" part every fifteen seconds; without it, the poller does all
-  the reading, as before.
+  the reading, as before. Where it got to and its reports are kept in the
+  database rather than in the app's settings, so they cost the rest of the
+  server nothing; a value an older version kept in the settings is moved over
+  once.
 - **The relays.** The card's "Relays carry this server" check asks each
   configured relay how it sees this server: crawled or not, how many of its
   accounts it carries, and whether it throttles or bans it. A relay limits
@@ -841,6 +844,15 @@ for local policies and any consent required.
 *Usernames nobody may register* adds to a built-in list (`admin`, `root`,
 `support`, `social`, `postmaster` and similar). Email domains on the access
 block list are refused here as they are for every account.
+
+The form does not tell whoever fills it in whether an email address is
+already registered here, or whether a username is the login of a Nextcloud
+user without an Aloha Social account. Either is answered like a new
+registration, with "check your email", and the email goes to that address
+instead: *You already have an account*, or *Choose another username*. Such a
+registration counts towards the limit of registrations per address like any
+other. With *Confirm the email address* off a new registration is answered
+differently, so there the answers can be told apart.
 
 *Require two-factor authentication* is Nextcloud's own mandatory two-factor
 setting for the `social-external` group, the same one as in Administration →
@@ -1177,6 +1189,7 @@ you learning switches a reader sets for themselves are listed in
 | `external_signup_notice_accepted` | *(unset)* | When they accepted it, as a Unix timestamp. |
 | `external_signup_notice_snapshot` | *(unset)* | The notice's text as it was when they accepted it. |
 | `handle_publish_failed` | *(unset)* | When Nextcloud last refused the account's fediverse handle on its profile, as a Unix timestamp. Publishing the handle is not tried again for a day after that, and the value is cleared once a publish succeeds. |
+| `keyboard_shortcuts` | *(unset)* | `0` once the account turned the web app's one-key shortcuts off in Settings → Help → Keyboard shortcuts; anything else leaves them on. |
 
 ### System configuration
 

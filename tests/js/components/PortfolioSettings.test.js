@@ -245,16 +245,15 @@ describe('the portfolio editor', () => {
 	})
 
 	describe('when it does not go through', () => {
-		it('says what the server said, in place and in a toast', async () => {
+		it('says it in place, and in a toast with what the server said', async () => {
 			const wrapper = await mountEditor()
 			axios.post.mockRejectedValue({ response: { data: { error: 'That collection is not yours' } } })
 
 			saveButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(wrapper.find('.portfolio-settings__message').text())
-				.toBe('That collection is not yours')
-			expect(showError).toHaveBeenCalledWith('That collection is not yours')
+			expect(wrapper.find('.portfolio-settings__message').text()).toBe('Could not save it')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save it', details: 'That collection is not yours' })
 			expect(saveButton(wrapper).props('disabled')).toBe(false)
 		})
 

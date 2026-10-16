@@ -329,7 +329,7 @@ describe('InterestCloud', () => {
 			await itemNamed(wrapper, 'photography').trigger('drop')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Nope')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not move #coffee', details: 'Nope' })
 			expect(tags(wrapper).map((tag) => tag.attributes('data-tag'))).toEqual(TAGS.map(([tag]) => tag))
 		})
 	})
@@ -464,7 +464,7 @@ describe('InterestCloud', () => {
 			await itemNamed(wrapper, 'film').find('.interest-cloud__remove').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Unfollow #film to remove it')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not remove #film', details: 'Unfollow #film to remove it' })
 			expect(tagNamed(wrapper, 'film')).toBeDefined()
 		})
 

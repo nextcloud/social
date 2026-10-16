@@ -12,6 +12,7 @@
 			:key="visibilityDetails.id"
 			:class="{'selected-visibility': visibilityDetails.id === selectedVisibilityDetails.id}"
 			:closeAfterClick="true"
+			:description="reachesBluesky && !visibilityDetails.bluesky ? t('social', 'Not on Bluesky') : ''"
 			@click="switchType(visibilityDetails)">
 			<template #icon>
 				<VisibilityIcon :visibility="visibilityDetails.id" :size="20" />
@@ -42,6 +43,16 @@ export default {
 		visibility: {
 			type: String,
 			required: true,
+		},
+
+		/**
+		 * Whether a public post from this account goes to Bluesky. The other
+		 * audiences then say that they do not: Bluesky followers are
+		 * followers too, and a followers-only post never reaches them.
+		 */
+		reachesBluesky: {
+			type: Boolean,
+			default: false,
 		},
 	},
 

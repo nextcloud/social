@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Move;
 
-use OCA\Social\Atproto\Identity\PlcClient;
+use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\Move;
 use OCA\Social\Atproto\Move\StaleMoves;
 use OCA\Social\Cron\AtprotoMove;
@@ -17,6 +17,7 @@ use OCA\Social\Db\AtprotoMoveRequest;
 use OCA\Social\Exceptions\AtprotoException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\IJobList;
+use OCP\Lock\ILockingProvider;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -25,7 +26,9 @@ use Psr\Log\NullLogger;
 /**
  * A move whose job died while it ran is queued again once, then ended so
  * the person can act on it; a move away that died while the DID was handed
- * over goes on from where the directory says it is.
+ * over goes on from where the directory says it is. A move whose job
+ * still holds its lock is alive, and one the person called off meanwhile
+ * is left as they left it.
  */
 #[AllowMockObjectsWithoutExpectations]
 class StaleMovesTest extends TestCase {
@@ -40,6 +43,10 @@ class StaleMovesTest extends TestCase {
 	private array $queued = [];
 	/** @var list<int> the moves a job waits in the queue for */
 	private array $waiting = [];
+	/** @var list<int> the moves a running job holds the lock of */
+	private array $locked = [];
+	/** @var array<int, string> the state the table holds a move in now, when the person changed it */
+	private array $storedState = [];
 	private int $before = 0;
 	/** where the directory says the DID's PDS is; null when it cannot be asked */
 	private ?string $pointsAt = 'https://social.test';
@@ -52,21 +59,28 @@ class StaleMovesTest extends TestCase {
 
 			return $this->stale;
 		});
-		$moves->method('update')->willReturnCallback(function (Move $move): void {
+		$moves->method('updateIfRunning')->willReturnCallback(function (Move $move): bool {
+			if (($this->storedState[$move->id] ?? Move::RUNNING) !== Move::RUNNING) {
+				return false;
+			}
 			$this->written[$move->id] = clone $move;
+
+			return true;
 		});
 		$jobs = $this->createMock(IJobList::class);
 		$jobs->method('has')->willReturnCallback(fn (string $job, mixed $argument): bool => $job === AtprotoMove::class && in_array($argument['move'] ?? 0, $this->waiting, true));
 		$jobs->method('add')->willReturnCallback(function (string $job, mixed $argument): void {
 			$this->queued[] = [$job, $argument];
 		});
-		$plc = $this->createMock(PlcClient::class);
-		$plc->method('data')->willReturnCallback(fn (): array => $this->pointsAt !== null
-			? ['services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => $this->pointsAt]]]
+		$locks = $this->createMock(ILockingProvider::class);
+		$locks->method('isLocked')->willReturnCallback(fn (string $path, int $type): bool => $type === ILockingProvider::LOCK_EXCLUSIVE && in_array($path, array_map(AtprotoMove::lockOf(...), $this->locked), true));
+		$identities = $this->createMock(IdentityService::class);
+		$identities->method('pointsAt')->willReturnCallback(fn (string $did, string $endpoint): bool => $this->pointsAt !== null
+			? rtrim($this->pointsAt, '/') === rtrim($endpoint, '/')
 			: throw new AtprotoException('PLC directory could not be reached'));
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturn(self::NOW);
-		$this->staleMoves = new StaleMoves($moves, $jobs, $plc, $time, new NullLogger());
+		$this->staleMoves = new StaleMoves($moves, $jobs, $locks, $identities, $time, new NullLogger());
 	}
 
 	private static function move(string $direction, string $step, array $progress = []): Move {
@@ -137,6 +151,16 @@ class StaleMovesTest extends TestCase {
 		$this->assertCount(1, $this->queued);
 	}
 
+	/** The directory is asked for the endpoint the other server recommended, which need not be its address. */
+	public function testAMoveAwayIsAskedForTheEndpointTheOtherServerRecommended(): void {
+		$this->stale = [self::move(Move::AWAY, Move::STEP_IDENTITY, ['endpoint' => 'https://shard.pds.example.com'])];
+		$this->pointsAt = 'https://shard.pds.example.com';
+
+		$this->staleMoves->recover();
+
+		$this->assertSame(Move::STEP_ACTIVATE, $this->written[7]->step);
+	}
+
 	/** One the directory does not name the other server for is started again at the hand-over; failed, it can be called off. */
 	public function testAMoveAwayBeforeTheHandOverStaysThere(): void {
 		$this->stale = [self::move(Move::AWAY, Move::STEP_IDENTITY, ['resumed' => 1])];
@@ -165,5 +189,39 @@ class StaleMovesTest extends TestCase {
 		$this->stale = [self::move(Move::INBOUND, Move::STEP_POSTS, ['resumed' => 1])];
 		$this->staleMoves->recover();
 		$this->assertSame([Move::DONE, Move::STEP_DONE], [$this->written[7]->state, $this->written[7]->step]);
+	}
+
+	/** A move here stopped at the follows or the posts is done: the account lives here by then, and those are best effort. */
+	public function testAMoveHerePastTheSwitchIsDone(): void {
+		foreach ([Move::STEP_FOLLOWS, Move::STEP_POSTS] as $step) {
+			$this->stale = [self::move(Move::IN, $step, ['resumed' => 1])];
+
+			$this->staleMoves->recover();
+
+			$this->assertSame([Move::DONE, Move::STEP_DONE, ''], [$this->written[7]->state, $this->written[7]->step, $this->written[7]->session], $step);
+			$this->assertArrayNotHasKey('code', $this->written[7]->progress);
+		}
+	}
+
+	/** A move whose job still runs holds its lock: it is not queued a second time, however long it went without a write. */
+	public function testAMoveWhoseJobHoldsItsLockIsLeft(): void {
+		$this->stale = [self::move(Move::IN, Move::STEP_POSTS)];
+		$this->locked = [7];
+
+		$this->assertSame(0, $this->staleMoves->recover());
+
+		$this->assertSame([[], []], [$this->queued, $this->written]);
+	}
+
+	/** A move the person called off since it was read is neither queued again nor written over. */
+	public function testAMoveCalledOffMeanwhileIsLeftAsThePersonLeftIt(): void {
+		$this->storedState = [7 => Move::CANCELLED];
+		foreach ([[], ['resumed' => 1]] as $progress) {
+			$this->stale = [self::move(Move::AWAY, Move::STEP_BLOBS, $progress)];
+
+			$this->assertSame(0, $this->staleMoves->recover());
+
+			$this->assertSame([[], []], [$this->queued, $this->written]);
+		}
 	}
 }

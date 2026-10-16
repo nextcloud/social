@@ -5,6 +5,7 @@
 
 import axios from '@nextcloud/axios'
 import { showError, showInfo, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { translate as t } from '@nextcloud/l10n'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
@@ -1208,6 +1209,49 @@ export const useTimelineStore = defineStore('timeline', {
 		},
 
 		/**
+		 * One of the reader's own uploads as the server holds it now: what a
+		 * kept draft asks about each attachment it comes back with.
+		 *
+		 * @param {string} id the upload's id
+		 * @return {Promise<object|null|undefined>} the media entity; null when
+		 *         the server says there is no such upload; undefined when it
+		 *         could not be asked
+		 */
+		async fetchMedia(id) {
+			try {
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/media/{id}', { id }))
+				return data
+			} catch (error) {
+				if (error.response?.status === 404) {
+					return null
+				}
+				logger.warn('Could not check an attachment of a draft', { error })
+				return undefined
+			}
+		},
+
+		/**
+		 * The bytes of an upload, as a file the browser can draw from again:
+		 * a filter is baked in from the file as the post is sent, and after a
+		 * reload the file that was picked is gone.
+		 *
+		 * @param {object} media the upload
+		 * @param {string} media.url where it is
+		 * @param {string} [media.media_type] what it is
+		 * @return {Promise<File|undefined>} the file, or undefined when it could not be had
+		 */
+		async fetchMediaFile(media) {
+			try {
+				const { data } = await axios.get(media.url, { responseType: 'blob' })
+				const type = data.type || media.media_type || ''
+				return new File([data], media.url.split('/').pop() || 'attachment', { type })
+			} catch (error) {
+				logger.warn('Could not fetch an attachment of a draft', { error })
+				return undefined
+			}
+		},
+
+		/**
 		 * Uploads one attachment.
 		 *
 		 * @param {File|{file: File, onProgress?: (fraction: number) => void, thumbnail?: Blob|null}} payload the file, or `{file, onProgress, thumbnail}`, the thumbnail being a chosen cover for a video
@@ -1240,13 +1284,8 @@ export const useTimelineStore = defineStore('timeline', {
 				return data
 			} catch (error) {
 				// a refusal says why — too large, a kind the server does not
-				// take — and the reason is worth more than a fixed line; a
-				// network failure or a 5xx has no reason worth repeating
-				const status = error.response?.status ?? 0
-				const reason = error.response?.data?.error
-				showError(status >= 400 && status < 500 && typeof reason === 'string' && reason !== ''
-					? reason
-					: t('social', 'Could not upload the attachment'))
+				// take — and that stays behind "Details"
+				showError(errorOf(error, t('social', 'Could not upload the attachment')))
 				logger.error('Failed to create a media', { error })
 			}
 		},
@@ -1366,6 +1405,10 @@ export const useTimelineStore = defineStore('timeline', {
 		 * so without this the page had nothing to draw and said the post did
 		 * not exist.
 		 *
+		 * Only a 404 or a 410 says the post is not there. Anything else — no
+		 * connection, a server error, a timeout — is thrown, so the page can
+		 * offer to try again rather than call the post deleted.
+		 *
 		 * @param {string} id the status id
 		 * @return {Promise<object|null>} the status, or null if it is not there
 		 */
@@ -1388,9 +1431,13 @@ export const useTimelineStore = defineStore('timeline', {
 
 				return response.data
 			} catch (error) {
+				const status = error?.response?.status
+				if (status !== 404 && status !== 410) {
+					throw error
+				}
 				// a deleted post and one this server never had look the same
 				// from here, and the page says so either way
-				logger.debug('Could not load a single status', { error, id })
+				logger.debug('A single status is not there', { error, id })
 
 				return null
 			}

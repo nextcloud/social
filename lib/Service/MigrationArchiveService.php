@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Exceptions\ItemUnknownException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\UserMigration\SocialMigrator;
 use OCA\Social\UserMigration\ZipExportDestination;
 use OCA\Social\UserMigration\ZipImportSource;
@@ -94,6 +95,7 @@ class MigrationArchiveService {
 	 * @param string $userId who is importing
 	 * @param string $path the uploaded archive
 	 * @return string[] what the migrator said it did, line by line
+	 * @throws MoveErrorException archive-unreadable or archive-not-social for a file that is not this app's archive
 	 * @throws UserMigrationException|ItemUnknownException
 	 */
 	public function import(string $userId, string $path): array {
@@ -101,7 +103,7 @@ class MigrationArchiveService {
 
 		$zip = new ZipArchive();
 		if ($zip->open($path, ZipArchive::RDONLY) !== true) {
-			throw new UserMigrationException('this file is not a readable archive');
+			throw new MoveErrorException('this file is not a readable archive', 'archive-unreadable');
 		}
 
 		$source = new ZipImportSource($zip, $userId);
@@ -111,8 +113,9 @@ class MigrationArchiveService {
 			// said plainly rather than as "nothing was imported": the likeliest
 			// mistake is picking the wrong zip, and only naming what was missing
 			// tells somebody that
-			throw new UserMigrationException(
-				'this archive holds no Aloha Social data (' . SocialMigrator::PATH_ACTOR_PUBLIC . ' is not in it)'
+			throw new MoveErrorException(
+				'this archive holds no Aloha Social data (' . SocialMigrator::PATH_ACTOR_PUBLIC . ' is not in it)',
+				'archive-not-social'
 			);
 		}
 

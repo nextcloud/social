@@ -39,6 +39,7 @@ use OCA\Social\Model\NotificationDelivery;
 use OCA\Social\Reference\PostReferenceProvider;
 use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -126,6 +127,7 @@ class NotificationService {
 		private IURLGenerator $urlGenerator,
 		private NotificationPolicyService $notificationPolicyService,
 		private ConversationsRequest $conversationsRequest,
+		private ?ContainerInterface $container = null,
 	) {
 	}
 
@@ -142,6 +144,22 @@ class NotificationService {
 		} catch (Exception $e) {
 			$this->logger->warning('could not raise a notification', ['exception' => $e]);
 		}
+		// the open pages' badges are read again, whatever the bell does
+		$this->pushService()?->onNotification($notification->getTo());
+	}
+
+	/**
+	 * Resolved when needed: what the push needs to know about a post needs
+	 * services that need this one.
+	 */
+	private function pushService(): ?PushService {
+		try {
+			$push = $this->container?->get(PushService::class);
+		} catch (\Throwable) {
+			return null;
+		}
+
+		return $push instanceof PushService ? $push : null;
 	}
 
 	/**

@@ -145,15 +145,28 @@ class PlcClientTest extends TestCase {
 		}
 	}
 
+	/** Given up on, the message does not say what went wrong on the way: it reaches the person, the cause is logged. */
 	public function testThreeFailuresAreGivenUpOn(): void {
-		$this->answers = [[502, ''], [502, ''], new RuntimeException('connection refused'), [200, '']];
+		$this->answers = [[502, ''], [502, ''], new RuntimeException('connection refused by 10.0.0.7'), [200, '']];
 
 		try {
 			$this->client()->submit(self::DID, ['sig' => 'x']);
 			$this->fail('accepted');
 		} catch (AtprotoException $e) {
-			$this->assertStringContainsString('connection refused', $e->getMessage());
+			$this->assertSame('PLC directory could not be reached', $e->getMessage());
+			$this->assertSame('connection refused by 10.0.0.7', $e->getPrevious()?->getMessage());
 		}
 		$this->assertCount(3, $this->requests);
+	}
+
+	public function testAReadThatFailsOnTheWaySaysNoMoreThanThat(): void {
+		$this->answers = [new RuntimeException('cURL error 6: Could not resolve host: plc.directory')];
+
+		try {
+			$this->client()->data(self::DID);
+			$this->fail('answered');
+		} catch (AtprotoException $e) {
+			$this->assertSame('PLC directory could not be reached', $e->getMessage());
+		}
 	}
 }

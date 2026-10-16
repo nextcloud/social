@@ -204,26 +204,44 @@ class MigrationServiceTest extends TestCase {
 		);
 	}
 
+	/** Each refusal carries the code the Migration page explains (API.md, Migration error codes). */
 	#[DataProvider('notAnActorIdProvider')]
-	public function testAddAliasRefusesWhatIsNotAnActorId(string $alias): void {
+	public function testAddAliasRefusesWhatIsNotAnActorId(string $alias, string $code): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->accountService->expects($this->never())->method('setAlsoKnownAs');
 		$this->cacheActorService->method('getFromAccount')->willThrowException(new \Exception('nobody there'));
 		$this->cacheActorService->method('getFromId')->willThrowException(new \Exception('nobody there'));
 
-		$this->expectException(InvalidResourceException::class);
-		$this->service->addAlias('alice', $alias);
+		try {
+			$this->service->addAlias('alice', $alias);
+			$this->fail('"' . $alias . '" was taken as an alias');
+		} catch (MoveErrorException $e) {
+			$this->assertSame($code, $e->errorCode);
+		}
 	}
 
 	public static function notAnActorIdProvider(): array {
 		return [
-			'a handle nobody answers to' => ['alice@gone.example'],
-			'a word' => ['alice'],
-			'empty' => [''],
-			'no host' => ['https:///users/alice'],
-			'not http' => ['ftp://old.example/users/alice'],
-			'itself' => [self::ALICE],
+			'a handle nobody answers to' => ['alice@gone.example', 'account-not-found'],
+			'a word' => ['alice', 'account-address-invalid'],
+			'empty' => ['', 'account-address-invalid'],
+			'no host' => ['https:///users/alice', 'account-address-invalid'],
+			'not http' => ['ftp://old.example/users/alice', 'account-address-invalid'],
+			'itself' => [self::ALICE, 'alias-self'],
 		];
+	}
+
+	/** An address nobody answers at is refused like a handle nobody answers to. */
+	public function testAnAddressNobodyAnswersAtIsNotFound(): void {
+		$this->cacheActorService->method('getFromId')->willThrowException(new \Exception('nobody there'));
+
+		try {
+			$this->service->resolveActor('https://gone.example/users/alice');
+			$this->fail('expected the address to be refused');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('account-not-found', $e->errorCode);
+			$this->assertStringContainsString('no account answers to https://gone.example/users/alice', $e->getMessage());
+		}
 	}
 
 	/**
@@ -257,8 +275,12 @@ class MigrationServiceTest extends TestCase {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 		$this->activityService->expects($this->never())->method('request');
 
-		$this->expectException(InvalidResourceException::class);
-		$this->service->move('alice', 'new.example');
+		try {
+			$this->service->move('alice', 'new.example');
+			$this->fail('a bare host was taken as the target');
+		} catch (MoveErrorException $e) {
+			$this->assertSame('account-address-invalid', $e->errorCode);
+		}
 	}
 
 	public function testRemoveAliasDropsItFromTheList(): void {
@@ -808,7 +830,8 @@ class MigrationServiceTest extends TestCase {
 		try {
 			$this->service->resolveActor('@gargron@mastodon.social');
 			$this->fail('expected the handle to be refused');
-		} catch (InvalidResourceException $e) {
+		} catch (MoveErrorException $e) {
+			$this->assertSame('account-not-verifiable', $e->errorCode);
 			$this->assertStringContainsString('mastodon.social only answers servers it can verify', $e->getMessage());
 			$this->assertStringContainsString('reachable from the internet over https', $e->getMessage());
 			$this->assertStringNotContainsString('no account answers', $e->getMessage());
@@ -1211,7 +1234,7 @@ class MigrationServiceTest extends TestCase {
 	public function testExportCsvRefusesAKindThisAccountKeepsNoListOf(): void {
 		$this->accountService->method('getActorFromUserId')->willReturn($this->alice());
 
-		$this->expectException(InvalidResourceException::class);
+		$this->expectException(MoveErrorException::class);
 
 		$this->service->exportCsv('alice', 'secrets');
 	}

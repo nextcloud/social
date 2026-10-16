@@ -211,9 +211,19 @@ export default {
 				: type === 'image'
 		},
 
-		/** @return {string} the object URL the swatches draw, which is the key */
+		/**
+		 * What the swatches draw: the file in the browser, by the object URL
+		 * it is keyed by or was fetched under, and the server's preview for
+		 * a picture that has none yet.
+		 *
+		 * @return {string}
+		 */
 		previewUrl() {
-			return this.randomKey
+			if (this.preview.objectUrl) {
+				return this.preview.objectUrl
+			}
+
+			return this.randomKey.startsWith('blob:') ? this.randomKey : (this.preview.data?.preview_url ?? '')
 		},
 	},
 

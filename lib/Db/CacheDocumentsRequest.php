@@ -1021,14 +1021,4 @@ class CacheDocumentsRequest extends CacheDocumentsRequestBuilder {
 
 		$qb->executeStatement();
 	}
-
-	public function moveAccount(string $actorId, string $newId): void {
-		$qb = $this->getCacheDocumentsUpdateSql();
-		$qb->set('parent_id', $qb->createNamedParameter($newId))
-			->set('parent_id_prim', $qb->createNamedParameter($qb->prim($newId)));
-
-		$qb->limitToDBField('parent_id_prim', $qb->prim($actorId));
-
-		$qb->executeStatement();
-	}
 }

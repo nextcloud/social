@@ -111,6 +111,25 @@ class ExternalRequestsTest extends TestCase {
 		$this->assertSame(2, $this->signups->count());
 	}
 
+	/**
+	 * A registration answered as if it had been taken weighs on the limits as
+	 * one does, and holds nothing anybody can register or confirm.
+	 */
+	public function testAPlaceholderCountsAndHoldsNothing(): void {
+		$this->signups->createPlaceholder('ip', 1000);
+		$this->signups->createPlaceholder('ip', 1000);
+
+		$this->assertSame(2, $this->signups->countFromIpSince('ip', 1000));
+		$this->assertSame(2, $this->signups->count());
+		$this->assertNull($this->signups->getByEmail('dave@example.org'));
+		$this->assertNull($this->signups->getByTokenHash(''));
+		$this->assertSame(0, $this->signups->countAwaitingApproval());
+		$this->signups->create('itest_dave', 'dave@example.org', 'H', 'x', false, false, 0, 'ip', 1000);
+		$this->assertSame(3, $this->signups->countFromIpSince('ip', 1000));
+
+		$this->assertSame(3, $this->signups->purgeUnverifiedBefore(1001));
+	}
+
 	public function testAnInvitationIsUsedUpAtItsLimitAndNotPastIt(): void {
 		$once = $this->invites->create('tok-once', 'admin', 'note', 1, 0, 1000);
 		$twice = $this->invites->create('tok-twice', 'carol', '', 2, 0, 1001);

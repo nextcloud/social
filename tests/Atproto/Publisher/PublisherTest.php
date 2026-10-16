@@ -34,6 +34,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\CacheActorService;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\VerificationService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -77,6 +78,11 @@ class PublisherTest extends TestCase {
 	private int $onSince = 0;
 	/** the account's latest move away, as the moves table has it */
 	private ?Move $moveAway = null;
+	/** what the durable cache's table holds, by namespace and key */
+	private array $shared = [];
+	private DurableCache $durableCache;
+	/** the stream number of the last post made */
+	private int $nid = 0;
 
 	protected function setUp(): void {
 		$config = $this->createMock(AtprotoConfig::class);
@@ -107,7 +113,15 @@ class PublisherTest extends TestCase {
 		$presence->method('writtenWhileOff')->willReturnCallback(fn (Person $author, Stream $post): bool => $post->getPublishedTime() < $this->onSince);
 		$moves = $this->createMock(AtprotoMoveRequest::class);
 		$moves->method('latestOfDid')->willReturnCallback(fn (string $did, string $direction): ?Move => $direction === Move::AWAY ? $this->moveAway : null);
-		$this->publisher = new Publisher($config, $identities, $this->repositories, $this->mapper, $this->videos, $this->streamRequest, $actors, $this->time, new NullLogger(), $this->imported, $presence, null, $moves);
+		$this->durableCache = $this->createStub(DurableCache::class);
+		$this->durableCache->method('getShared')->willReturnCallback(fn (string $namespace, string $key): mixed => $this->shared[$namespace . '/' . $key] ?? null);
+		$this->durableCache->method('setShared')->willReturnCallback(function (string $namespace, string $key, mixed $value): void {
+			$this->shared[$namespace . '/' . $key] = $value;
+		});
+		$this->durableCache->method('removeShared')->willReturnCallback(function (string $namespace, string $key): void {
+			unset($this->shared[$namespace . '/' . $key]);
+		});
+		$this->publisher = new Publisher($config, $identities, $this->repositories, $this->mapper, $this->videos, $this->streamRequest, $actors, $this->time, new NullLogger(), $this->imported, $this->durableCache, $presence, null, $moves);
 	}
 
 	public function testAPostWaitsWhileTheAccountMovesAwayAndGoesBeforeTheDidMoves(): void {
@@ -308,6 +322,72 @@ class PublisherTest extends TestCase {
 		$this->assertSame(1, $this->publisher->reconcile());
 	}
 
+	/**
+	 * A day of more posts than a pass takes is looked at whole over a few
+	 * passes: the newest page every time, for what was missed a moment ago,
+	 * and the older ones a page per pass, from the top again at the end.
+	 */
+	public function testReconcileWalksEveryPostOfTheWindowOverAFewPasses(): void {
+		$posts = [];
+		for ($i = 1; $i <= 7; $i++) {
+			$post = $this->post();
+			$post->setId(self::POST . '/' . $i);
+			$posts[$i] = $post;
+		}
+		$this->streamRequest->method('getLocalPublicSince')->willReturnCallback(static function (int $since, int $limit, int $before) use ($posts): array {
+			$below = array_filter($posts, static fn (Note $post): bool => $before === 0 || (int)$post->getNid() < $before);
+
+			return array_slice(array_reverse($below), 0, $limit);
+		});
+		$written = [];
+		$this->repositories->method('write')->willReturnCallback(function (string $did, PrivateKey $key, array $writes) use (&$written): CommitResult {
+			$written[] = (int)substr($writes[0]->localId, strlen(self::POST . '/'));
+
+			return $this->written();
+		});
+
+		$passes = [];
+		for ($pass = 0; $pass < 4; $pass++) {
+			$written = [];
+			$this->publisher->reconcile(2);
+			$passes[] = $written;
+		}
+
+		$this->assertSame([[7, 6, 5, 4], [7, 6, 3, 2], [7, 6, 1], [7, 6, 5, 4]], $passes);
+	}
+
+	/**
+	 * The records are walked the same way, newest first; a record a moving
+	 * repository brought is not one of them (the query leaves it out).
+	 */
+	public function testReconcileWalksEveryRecordOfTheWindowNewestFirst(): void {
+		$this->streamRequest->method('getLocalPublicSince')->willReturn([]);
+		$records = [];
+		for ($id = 1; $id <= 5; $id++) {
+			$records[$id] = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl2' . $id, Cid::forRaw('r' . $id), $this->mappedBytes(), self::POST . '/' . $id, 0);
+		}
+		$this->repositories->method('getRecordsSince')->willReturnCallback(static function (string $collection, int $since, int $limit, int $before) use ($records): array {
+			$below = array_filter($records, static fn (int $id): bool => $before === 0 || $id < $before, ARRAY_FILTER_USE_KEY);
+
+			return array_slice(array_reverse($below, true), 0, $limit, true);
+		});
+		$checked = [];
+		$this->streamRequest->method('getStreamById')->willReturnCallback(function (string $id) use (&$checked): Note {
+			$checked[] = (int)substr($id, strlen(self::POST . '/'));
+
+			return $this->post();
+		});
+
+		$passes = [];
+		for ($pass = 0; $pass < 3; $pass++) {
+			$checked = [];
+			$this->publisher->reconcile(2);
+			$passes[] = $checked;
+		}
+
+		$this->assertSame([[5, 4, 3, 2], [5, 4, 1], [5, 4, 3, 2]], $passes);
+	}
+
 	public function testReconcileReplacesAMissedEditAndRemovesADeletedPost(): void {
 		$edited = $this->post(1760000000 - 60);
 		$stale = new StoredRecord(self::DID, RecordMapper::POST, '3kznmn7xqxl22', Cid::forRaw('r'), DagCbor::encode(['$type' => RecordMapper::POST, 'text' => 'before']), self::POST, 0);
@@ -457,7 +537,7 @@ class PublisherTest extends TestCase {
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('forActor')->willReturn($this->identity);
 		$identities->method('signingKey')->willReturn(PrivateKey::generate(Curve::K256));
-		$publisher = new Publisher($config, $identities, $repositories, $this->mapper, $this->videos, $this->streamRequest, $this->createMock(CacheActorService::class), $this->time, new NullLogger(), $this->imported);
+		$publisher = new Publisher($config, $identities, $repositories, $this->mapper, $this->videos, $this->streamRequest, $this->createMock(CacheActorService::class), $this->time, new NullLogger(), $this->imported, $this->durableCache);
 		$alice = new Person();
 		$alice->setId('https://social.test/@alice');
 		$alice->setLocal(true);
@@ -520,6 +600,7 @@ class PublisherTest extends TestCase {
 
 	private function post(int $published = 1760000000 - 10): Note {
 		$note = new Note();
+		$note->setNid(++$this->nid);
 		$note->setId(self::POST);
 		$note->setLocal(true);
 		$note->setAttributedTo('https://social.test/@alice');

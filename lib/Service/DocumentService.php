@@ -872,12 +872,14 @@ class DocumentService {
 	}
 
 	/**
-	 * The icon document of a local account: Nextcloud's avatar route with
-	 * the avatar's version in the address. Each version is a document of its
-	 * own, so the address changes with the picture — a peer fetches the
-	 * picture again only when the address changes, and the avatar route is
-	 * served unchanged for a day. The document is local and points at the
-	 * avatar itself; nothing is downloaded from this server's own address.
+	 * The icon document of a local account: this app's avatar route of the
+	 * username (`Person::localAvatarUrl()`), never Nextcloud's own, which
+	 * names the login. The avatar's version is in the address and each
+	 * version is a document of its own, so the address changes with the
+	 * picture — a peer fetches the picture again only when the address
+	 * changes, and the avatar route is served unchanged for a day. The
+	 * document is local and points at the avatar itself; nothing is
+	 * downloaded from this server's own address.
 	 *
 	 * @return string the document's id
 	 * @throws SocialAppConfigException
@@ -887,9 +889,7 @@ class DocumentService {
 	 */
 	public function cacheLocalAvatarByUsername(Person $actor): string {
 		$version = $this->configService->getUserValueInt('version', $actor->getUserId(), 'avatar');
-		$url = $this->urlGenerator->linkToRouteAbsolute(
-			'core.avatar.getAvatar', ['userId' => $actor->getUserId(), 'size' => 128, 'v' => $version]
-		);
+		$url = Person::localAvatarUrl($this->urlGenerator, $actor->getPreferredUsername(), $version);
 
 		try {
 			$icon = $this->cacheDocumentsRequest->getByUrl($url);

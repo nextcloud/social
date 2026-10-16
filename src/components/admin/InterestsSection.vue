@@ -52,7 +52,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import { errorMessage, interestsUrl } from '../../services/adminApi.js'
+import { interestsUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
 import { showError, showSuccess } from '../../services/toast.js'
 
 /**
@@ -207,7 +208,11 @@ export default {
 				}
 				showSuccess(t('social', 'Saved'))
 			} catch (error) {
-				showError(errorMessage(error, t('social', 'Could not save the For you settings')))
+				showError(errorOf(
+					error,
+					t('social', 'Could not save the For you settings'),
+					Object.fromEntries(FIELDS.map((field) => [field.key, field.label()])),
+				))
 			} finally {
 				this.saving = false
 			}

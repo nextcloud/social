@@ -10,12 +10,9 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Activity;
 
 use Exception;
-use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -28,20 +25,20 @@ use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\InstancePath;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
+use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class MoveInterface extends AbstractActivityPubInterface implements IActivityPubInterface {
 	public function __construct(
-		private ActionsRequest $actionsRequest,
-		private ReactionsRequest $reactionsRequest,
 		private CacheActorsRequest $cacheActorsRequest,
-		private CacheDocumentsRequest $cacheDocumentsRequest,
 		private FollowsRequest $followsRequest,
 		private StreamRequest $streamRequest,
 		private StreamDestRequest $streamDestRequest,
 		private CacheActorService $cacheActorService,
 		private ActorsRequest $actorsRequest,
 		private ActivityService $activityService,
+		private IDBConnection $connection,
 		private LoggerInterface $logger,
 	) {
 	}
@@ -68,7 +65,7 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 
 		// The signature only proves the Move comes from the old account's
 		// server. Without the back-reference, anyone could re-point another
-		// actor's followers and posts at an account they control.
+		// actor's followers at an account they control.
 		if (!in_array($old->getId(), $new->getAlsoKnownAs(), true)) {
 			throw new InvalidOriginException(
 				'MoveInterface - target ' . $new->getId()
@@ -77,40 +74,60 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 		}
 
 		$this->moveAccount($old, $new);
-
-		// The redirect a profile here shows is the cached actor's `movedTo`.
-		// Written from the Move, as Mastodon does, rather than fetched: the
-		// old server may serve the pre-move document for minutes yet.
-		$this->cacheActorsRequest->markMoved($old->getId(), $new->getId());
 	}
 
+	/**
+	 * Carries an account's relationships over to the account it moved to:
+	 * who follows it, whom it follows, and the posts addressed to it or to its
+	 * collections.
+	 *
+	 * What the old account did stays its own — its posts, likes, boosts,
+	 * reactions and documents — as on Mastodon. Its server goes on editing and
+	 * deleting those as the old account, which only the stored author may do,
+	 * and an actor `Delete` of the old account removes them.
+	 *
+	 * One transaction: a Move that fails leaves nothing half done, so the
+	 * sender's retry starts from where the first attempt did, and a retry of
+	 * a Move that went through finds nothing left to move.
+	 */
 	public function moveAccount(Person $actor, Person $target): void {
 		// Collected before the rows are rewritten: afterwards they name the new
 		// account and there is nothing left to say who had followed the old one.
-		$followers = $this->localFollowsTowards($actor->getId());
+		$followers = $this->localFollowsTowards($actor->getId(), $target->getId());
 
-		$this->actionsRequest->moveAccount($actor->getId(), $target->getId());
-		$this->reactionsRequest->moveAccount($actor->getId(), $target->getId());
-		$this->cacheDocumentsRequest->moveAccount($actor->getId(), $target->getId());
+		$this->connection->beginTransaction();
+		try {
+			$this->followsRequest->moveAccountFollowers($actor->getId(), $target);
+			$this->followsRequest->moveAccountFollowing($actor->getId(), $target);
 
-		$this->followsRequest->moveAccountFollowers($actor->getId(), $target);
-		$this->followsRequest->moveAccountFollowing($actor->getId(), $target);
+			$this->updateStreamFromActor($actor, $target);
 
-		$this->updateStreamFromActor($actor, $target);
+			// The redirect a profile here shows is the cached actor's `movedTo`.
+			// Written from the Move, as Mastodon does, rather than fetched: the
+			// old server may serve the pre-move document for minutes yet.
+			$this->cacheActorsRequest->markMoved($actor->getId(), $target->getId());
+
+			$this->connection->commit();
+		} catch (Throwable $t) {
+			$this->connection->rollBack();
+
+			throw $t;
+		}
 
 		$this->refollow($followers, $target);
 	}
 
 	/**
 	 * The accepted follows from a *local* actor towards the account that is
-	 * moving.
+	 * moving, of the actors that have not asked to follow the new one yet.
 	 *
 	 * Only local ones: a remote follower's own instance receives the same Move
-	 * and re-follows for itself.
+	 * and re-follows for itself. One that already follows the new account, or
+	 * asked to, keeps that follow and has nothing to send.
 	 *
 	 * @return Follow[]
 	 */
-	private function localFollowsTowards(string $actorId): array {
+	private function localFollowsTowards(string $actorId, string $targetId): array {
 		$local = [];
 		foreach ($this->followsRequest->getFollowersByActorId($actorId) as $follow) {
 			try {
@@ -120,10 +137,12 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 				continue;
 			}
 
-			$local[] = $follow;
+			$local[$follow->getActorId()] = $follow;
 		}
 
-		return $local;
+		$asked = $this->followsRequest->getBetweenMany($targetId, array_keys($local))['followedBy'];
+
+		return array_values(array_diff_key($local, $asked));
 	}
 
 	/**
@@ -176,13 +195,9 @@ class MoveInterface extends AbstractActivityPubInterface implements IActivityPub
 	}
 
 	/**
-	 * @param Person $actor
+	 * Readdresses the posts that name the old account or its collections.
 	 */
 	private function updateStreamFromActor(Person $actor, Person $new): void {
-		// first, we delete all post generate by actor
-		$this->streamRequest->updateAuthor($actor->getId(), $new->getId());
-
-		// then we look for link to the actor as dest
 		foreach ($this->streamDestRequest->getRelatedToActor($actor) as $streamDest) {
 			if ($streamDest->getType() !== 'recipient') {
 				continue;

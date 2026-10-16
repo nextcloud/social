@@ -33,4 +33,8 @@ describe('VisibilitiesInfos', () => {
 		const texts = visibilitiesInfo.map(({ text }) => text)
 		expect(new Set(texts).size).toBe(texts.length)
 	})
+
+	it('knows that only a public post goes to Bluesky', () => {
+		expect(visibilitiesInfo.filter(({ bluesky }) => bluesky).map(({ id }) => id)).toEqual(['public'])
+	})
 })

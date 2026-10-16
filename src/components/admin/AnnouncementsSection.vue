@@ -105,7 +105,8 @@ import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import ConfirmDialog from './ConfirmDialog.vue'
-import { announcementsUrl, errorMessage } from '../../services/adminApi.js'
+import { announcementsUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
 import { showError } from '../../services/toast.js'
 
 /**
@@ -230,8 +231,7 @@ export default {
 			} catch (error) {
 				// a refused announcement says why: which bound it would not
 				// take, or that a window needs both of them
-				showError(t('social', 'Could not post the announcement')
-					+ ': ' + errorMessage(error, t('social', 'request failed')))
+				showError(errorOf(error, t('social', 'Could not post the announcement')))
 			} finally {
 				this.posting = false
 			}

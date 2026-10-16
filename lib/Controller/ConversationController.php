@@ -17,6 +17,7 @@ use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
@@ -129,13 +130,15 @@ class ConversationController extends ClientApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/conversations/unread_count')]
-	public function unreadCount(): DataResponse {
+	public function unreadCount(): Response {
 		try {
 			$this->initViewer(['read:statuses']);
 
-			return new DataResponse(
-				['count' => $this->conversationService->countUnread($this->viewer)],
-				Http::STATUS_OK
+			// asked on every push and poll, and nearly always unchanged
+			return Revalidation::byTag(
+				$this->request,
+				$this->conversationService->unreadTag($this->viewer),
+				fn (): array => ['count' => $this->conversationService->countUnread($this->viewer)]
 			);
 		} catch (Throwable $e) {
 			return $this->error($e);

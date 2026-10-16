@@ -154,7 +154,7 @@ class NavigationControllerTest extends TestCase {
 	}
 
 	private function existingActor(): void {
-		$this->accountService->method('createActor')->willThrowException(new AccountAlreadyExistsException());
+		$this->accountService->method('createActor')->willThrowException(new AccountAlreadyExistsException('account for this user already exist', 'account-exists'));
 	}
 
 	private function serverData(): array {
@@ -194,6 +194,8 @@ class NavigationControllerTest extends TestCase {
 			// whether the like, boost and follower numbers are hidden, which
 			// the page needs before it draws a post
 			'hideCounts' => true,
+			// whether the one-key shortcuts are on, before the first key
+			'keyboardShortcuts' => true,
 			// which sections this instance offers, so the sidebar is drawn
 			// right the first time rather than losing entries a moment later
 			'sections' => [
@@ -238,6 +240,21 @@ class NavigationControllerTest extends TestCase {
 			['username' => 'aloha_al', 'address' => 'aloha_al@social.example'],
 			$this->serverData()['viewer']
 		);
+	}
+
+	public function testAReaderWhoTurnedTheShortcutsOffIsToldSo(): void {
+		$this->systemValues([]);
+		$this->configuredCloud();
+		$this->accountService->method('getActorFromUserId')->with('alice')
+			->willReturn((new Person())->setPreferredUsername('alice'));
+		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->configService->method('getUserValue')->willReturnCallback(
+			fn (string $key, string $userId = ''): string => $key === ConfigService::USER_KEYBOARD_SHORTCUTS && $userId === 'alice' ? '0' : ''
+		);
+
+		$this->controller()->navigate();
+
+		$this->assertFalse($this->serverData()['keyboardShortcuts']);
 	}
 
 	public function testAModeratorIsToldTheyMayVerifyAccounts(): void {

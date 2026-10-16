@@ -492,6 +492,8 @@ class ConfigService {
 	public const USER_EXTERNAL_SIGNUP_NOTICE_SNAPSHOT = 'external_signup_notice_snapshot';
 	/** when writing the handle into the profile's `fediverse` field last failed, as a unix time */
 	public const USER_HANDLE_PUBLISH_FAILED = 'handle_publish_failed';
+	/** whether the web app's one-key shortcuts are on: `'0'` turns them off, anything else leaves them on */
+	public const USER_KEYBOARD_SHORTCUTS = 'keyboard_shortcuts';
 
 	/**
 	 * Bluesky (`Atproto\Service\AtprotoConfig`): whether this instance is a
@@ -512,6 +514,7 @@ class ConfigService {
 	public const ATPROTO_SYNC_CEILING = 'atproto_sync_ceiling';
 	/** the firehose daemon's last report (JSON), written by `occ social:atproto:serve` */
 	public const ATPROTO_FIREHOSE_STATUS = 'atproto_firehose_status';
+	/** where older versions kept the Jetstream listener's report and cursor; JetstreamState moves them out */
 	public const ATPROTO_JETSTREAM_STATUS = 'atproto_jetstream_status';
 	public const ATPROTO_JETSTREAM_CURSOR = 'atproto_jetstream_cursor';
 	public const ATPROTO_DELETE_CURSOR = 'atproto_delete_cursor';
@@ -539,8 +542,6 @@ class ConfigService {
 		self::ATPROTO_CHAT => 'https://api.bsky.chat',
 		self::ATPROTO_SYNC_CEILING => '200',
 		self::ATPROTO_FIREHOSE_STATUS => '',
-		self::ATPROTO_JETSTREAM_STATUS => '',
-		self::ATPROTO_JETSTREAM_CURSOR => '',
 		self::ATPROTO_DELETE_CURSOR => '0',
 		self::ATPROTO_DETACH_CURSOR => '0',
 		self::ATPROTO_MODERATION_DID => 'did:plc:ar7c4by46qjdydhdevvrndac',

@@ -47,7 +47,7 @@ class BlockInterface extends AbstractActivityPubInterface implements IActivityPu
 		}
 
 		$this->actorRelationRequest->save(
-			$local, $item->getActorId(), ActorRelation::TYPE_BLOCKED_BY
+			$local, $item->getActorId(), ActorRelation::TYPE_BLOCKED_BY, true, $item->getId()
 		);
 
 		foreach ([[$local, $item->getActorId()], [$item->getActorId(), $local]] as $pair) {

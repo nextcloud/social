@@ -113,15 +113,15 @@ describe('naming the people in a photo', () => {
 	})
 
 	describe('when the save does not take', () => {
-		it('stays open, and says what the server said', async () => {
+		it('stays open, and keeps what the server said behind the details', async () => {
 			axios.post.mockRejectedValue({ response: { data: { error: 'alice@cloud.example is not a real account' } } })
 			const wrapper = mountDialog()
 
 			saveButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(wrapper.find('.tag-people__error').text())
-				.toBe('alice@cloud.example is not a real account')
+			expect(wrapper.find('.tag-people__error p').text()).toBe('Could not save that')
+			expect(wrapper.find('.tag-people__error code').text()).toBe('alice@cloud.example is not a real account')
 			expect(wrapper.emitted('close')).toBeUndefined()
 		})
 
@@ -157,7 +157,7 @@ describe('naming the people in a photo', () => {
 			saveButton(wrapper).vm.$emit('click')
 			await flushPromises()
 
-			expect(wrapper.find('.tag-people__error').attributes('role')).toBe('alert')
+			expect(wrapper.find('.tag-people__error p').attributes('role')).toBe('alert')
 		})
 	})
 

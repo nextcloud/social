@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Interfaces\Activity;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -19,7 +21,9 @@ use OCA\Social\Exceptions\FollowNotFoundException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Interfaces\Activity\ActivityObjectResolver;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\EmojiReact;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Stream;
 
@@ -62,7 +66,8 @@ trait TResolvesActivityObjects {
 			function (string $id) use ($stored) {
 				$item = $stored[$id] ?? null;
 				if ($item instanceof ACore && !($item instanceof Follow)
-					&& !($item instanceof Stream) && !($item instanceof Person)) {
+					&& !($item instanceof Stream) && !($item instanceof Person)
+					&& !($item instanceof EmojiReact) && !($item instanceof Block)) {
 					return $item;
 				}
 
@@ -82,6 +87,27 @@ trait TResolvesActivityObjects {
 			}
 		);
 
-		return new ActivityObjectResolver($streams, $follows, $actions, $actors);
+		$reactions = $this->createMock(ReactionsRequest::class);
+		$reactions->method('getById')->willReturnCallback(
+			function (string $id) use ($stored) {
+				$item = $stored[$id] ?? null;
+				if ($item instanceof EmojiReact) {
+					return $item;
+				}
+
+				throw new ActionDoesNotExistException($id);
+			}
+		);
+
+		$relations = $this->createMock(ActorRelationRequest::class);
+		$relations->method('getBlockByActivityId')->willReturnCallback(
+			function (string $id) use ($stored): ?Block {
+				$item = $stored[$id] ?? null;
+
+				return ($item instanceof Block) ? $item : null;
+			}
+		);
+
+		return new ActivityObjectResolver($streams, $follows, $actions, $actors, $reactions, $relations);
 	}
 }

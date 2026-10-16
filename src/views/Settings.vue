@@ -132,7 +132,7 @@ import HeldPosts from '../components/HeldPosts.vue'
 import IntroductionSettings from '../components/IntroductionSettings.vue'
 import PortfolioSettings from '../components/PortfolioSettings.vue'
 import ScheduledPosts from '../components/ScheduledPosts.vue'
-import ShortcutList from '../components/ShortcutList.vue'
+import ShortcutsSettings from '../components/ShortcutsSettings.vue'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import IconAccount from 'vue-material-design-icons/AccountCircleOutline.vue'
 import IconAccountCheck from 'vue-material-design-icons/AccountCheckOutline.vue'
@@ -269,7 +269,7 @@ export default {
 		SensesSettings,
 		SensitiveMediaSettings,
 		ScheduledPosts,
-		ShortcutList,
+		ShortcutsSettings,
 	},
 
 	setup() {
@@ -512,9 +512,9 @@ export default {
 					id: 'shortcuts',
 					group: 'help',
 					icon: 'IconKeyboard',
-					component: 'ShortcutList',
+					component: 'ShortcutsSettings',
 					title: t('social', 'Keyboard shortcuts'),
-					lede: t('social', 'The keys this app listens for while you are reading.'),
+					lede: t('social', 'The keys this app listens for while you are reading, and the switch that turns them off.'),
 				},
 			]
 		},

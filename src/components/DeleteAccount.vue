@@ -66,6 +66,7 @@ import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 /**
  * Deleting your own Social account, and the hosting account when it exists
@@ -146,7 +147,7 @@ export default {
 				window.location.reload()
 			} catch (error) {
 				logger.error('could not delete the account', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not delete your account'))
+				showError(errorOf(error, t('social', 'Could not delete your account')))
 				this.deleting = false
 			}
 		},

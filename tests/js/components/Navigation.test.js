@@ -100,6 +100,10 @@ vi.mock('../../../src/services/boot.js', () => ({
 vi.mock('../../../src/services/timelinePush.js', () => ({
 	onTimelinePush: vi.fn(() => false),
 	offTimelinePush: vi.fn(),
+	PUSH_HOME: 'home',
+	PUSH_DIRECT: 'direct',
+	PUSH_NOTIFICATION: 'notification',
+	PUSH_KINDS: ['home', 'direct', 'notification'],
 }))
 // the instance limits are asked for alongside; not what these tests are about
 vi.mock('../../../src/services/instanceLimits.js', () => ({
@@ -789,6 +793,32 @@ describe('Navigation', () => {
 			fetches.forEach((fetch) => expect(fetch).toHaveBeenCalledTimes(1))
 		})
 
+		it('hears of direct messages and notifications, not of posts for the home timeline', async () => {
+			mountNavigation()
+			await flushPromises()
+
+			expect(onTimelinePush).toHaveBeenCalledWith(expect.any(Function), ['direct', 'notification'])
+		})
+
+		it('reads only the counts what arrived can change', async () => {
+			mountNavigation()
+			await flushPromises()
+			const [unread, direct, pending] = fetches
+			const refresh = vi.mocked(onTimelinePush).mock.calls[0][0]
+
+			fetches.forEach((fetch) => fetch.mockClear())
+			await refresh(['direct'])
+			expect(direct).toHaveBeenCalledTimes(1)
+			expect(unread).not.toHaveBeenCalled()
+			expect(pending).not.toHaveBeenCalled()
+
+			fetches.forEach((fetch) => fetch.mockClear())
+			await refresh(['notification'])
+			expect(unread).toHaveBeenCalledTimes(1)
+			expect(pending).toHaveBeenCalledTimes(1)
+			expect(direct).not.toHaveBeenCalled()
+		})
+
 		it('hands the push back when it leaves the page', async () => {
 			const wrapper = mountNavigation()
 			await flushPromises()
@@ -1335,6 +1365,22 @@ describe('Navigation', () => {
 
 			vi.advanceTimersByTime(300)
 			expect(wrapper.emitted('search')).toEqual([['nextcloud']])
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
+	/** Enter is the reader asking for the search, which may then look further. */
+	it('emits a submitted search at once when Enter is pressed', async () => {
+		vi.useFakeTimers()
+		try {
+			const wrapper = mountNavigation()
+			await wrapper.find('.nav-search').setValue('@bob@remote.example')
+			await wrapper.find('.nav-search').trigger('keydown', { key: 'Enter' })
+
+			expect(wrapper.emitted('search')).toEqual([['@bob@remote.example', true]])
+			vi.advanceTimersByTime(300)
+			expect(wrapper.emitted('search')).toHaveLength(1)
 		} finally {
 			vi.useRealTimers()
 		}

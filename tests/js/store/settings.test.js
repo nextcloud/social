@@ -65,4 +65,15 @@ describe('settings store', () => {
 		store.setServerDataEntry({ key: 'hideCounts', value: false })
 		expect(store.hidesCounts).toBe(false)
 	})
+
+	it('has the keyboard shortcuts on unless the page says they are off', () => {
+		const store = useSettingsStore()
+		expect(store.shortcutsEnabled).toBe(true)
+
+		store.setServerData({ keyboardShortcuts: false })
+		expect(store.shortcutsEnabled).toBe(false)
+
+		store.setServerDataEntry({ key: 'keyboardShortcuts', value: true })
+		expect(store.shortcutsEnabled).toBe(true)
+	})
 })

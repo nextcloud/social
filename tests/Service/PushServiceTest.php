@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -18,6 +20,7 @@ use OCA\Social\Service\PushService;
 use OCA\Social\Service\StreamService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
+use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
@@ -37,6 +40,7 @@ class TestablePushService extends PushService {
 class PushServiceTest extends TestCase {
 	private DetailsService|MockObject $detailsService;
 	private StreamService|MockObject $streamService;
+	private ActorsRequest|Stub $actorsRequest;
 	private TestablePushService $service;
 	/** @var array<int, array{string, array}> */
 	private array $pushed = [];
@@ -44,8 +48,20 @@ class PushServiceTest extends TestCase {
 	protected function setUp(): void {
 		$this->detailsService = $this->createMock(DetailsService::class);
 		$this->streamService = $this->createMock(StreamService::class);
+		$this->actorsRequest = $this->createStub(ActorsRequest::class);
+		$this->actorsRequest->method('getFromId')->willReturnCallback(
+			function (string $id): Person {
+				foreach ([$this->person('alice'), $this->person('', false)] as $person) {
+					if ($person->getId() === $id) {
+						return $person;
+					}
+				}
+
+				throw new ActorDoesNotExistException('Actor not found');
+			}
+		);
 		$this->service = new TestablePushService(
-			$this->detailsService, $this->streamService, new NullLogger()
+			$this->detailsService, $this->streamService, $this->actorsRequest, new NullLogger()
 		);
 
 		$pushed = &$this->pushed;
@@ -90,9 +106,48 @@ class PushServiceTest extends TestCase {
 		$this->service->onNewStream('https://remote.example/notes/1');
 
 		$this->assertSame([
-			['notify_custom', ['user' => 'alice', 'message' => 'social_timeline']],
-			['notify_custom', ['user' => 'bob', 'message' => 'social_timeline']],
+			['notify_custom', ['user' => 'alice', 'message' => 'social_timeline', 'body' => ['kinds' => ['home', 'direct']]]],
+			['notify_custom', ['user' => 'bob', 'message' => 'social_timeline', 'body' => ['kinds' => ['home']]]],
 		], $this->pushed, 'alice once despite home+direct, the remote viewer never');
+	}
+
+	/** A page that shows direct messages only hears of the posts that are some. */
+	public function testAPushSaysWhatArrived(): void {
+		$this->withDetails([], [$this->person('carol')]);
+
+		$this->service->onNewStream('https://remote.example/notes/1');
+
+		$this->assertSame(
+			[['notify_custom', ['user' => 'carol', 'message' => 'social_timeline', 'body' => ['kinds' => ['direct']]]]],
+			$this->pushed
+		);
+	}
+
+	public function testANotificationIsPushedToItsLocalRecipient(): void {
+		$this->service->onNotification('https://cloud.example/@alice');
+
+		$this->assertSame(
+			[['notify_custom', ['user' => 'alice', 'message' => 'social_timeline', 'body' => ['kinds' => ['notification']]]]],
+			$this->pushed
+		);
+	}
+
+	public function testANotificationForNobodyHereIsPushedNowhere(): void {
+		$this->service->onNotification('https://cloud.example/@remote');
+		$this->service->onNotification('https://elsewhere.example/users/dave');
+
+		$this->assertSame([], $this->pushed);
+	}
+
+	public function testWithoutNotifyPushANotificationLooksNobodyUp(): void {
+		$this->service->testQueue = null;
+		$actorsRequest = $this->createMock(ActorsRequest::class);
+		$actorsRequest->expects($this->never())->method('getFromId');
+		$service = new TestablePushService($this->detailsService, $this->streamService, $actorsRequest, new NullLogger());
+
+		$service->onNotification('https://cloud.example/@alice');
+
+		$this->assertSame([], $this->pushed);
 	}
 
 	public function testWithoutNotifyPushNothingHappens(): void {

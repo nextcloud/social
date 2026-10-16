@@ -37,6 +37,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextArea from '@nextcloud/vue/components/NcTextArea'
 import { moderationUrl } from '../../services/adminApi.js'
 import { showError, showSuccess } from '../../services/toast.js'
+import { errorOf } from '../../utils/serverError.js'
 
 /**
  * The rules an instance asks people to follow.
@@ -101,8 +102,9 @@ export default {
 
 				return true
 			} catch (error) {
-				this.message = error.response?.data?.error ?? t('social', 'Could not save the rules')
-				showError(this.message)
+				const reason = errorOf(error, t('social', 'Could not save the rules'))
+				this.message = reason.text
+				showError(reason)
 
 				return false
 			} finally {

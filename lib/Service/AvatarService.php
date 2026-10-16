@@ -10,10 +10,17 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use Gumlet\ImageResize;
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\SocialAppConfigException;
+use OCP\Accounts\IAccountManager;
 use OCP\Config\IUserConfig;
+use OCP\Files\NotFoundException;
+use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IAvatarManager;
 use OCP\IUserManager;
+use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -21,9 +28,10 @@ use Psr\Log\LoggerInterface;
  *
  * Unlike the banner, this is not the app's own picture: it is the Nextcloud
  * account's avatar, the one the whole server shows, and the actor document
- * points at `core.avatar.getAvatar` for it. So it is written where it lives
- * and the actor cache is refreshed; `DocumentService::cacheLocalAvatarByUsername()`
- * notices the version core bumped and re-caches the icon.
+ * points at this app's avatar route of the username for it (`published()`).
+ * So it is written where it lives and the actor cache is refreshed;
+ * `DocumentService::cacheLocalAvatarByUsername()` notices the version core
+ * bumped and re-caches the icon.
  *
  * `avatar` used to be accepted and dropped. A client's profile editor sends the
  * whole form in one PATCH, so somebody changing their picture and their bio
@@ -46,7 +54,43 @@ class AvatarService {
 		private LoggerInterface $logger,
 		private MultipartBodyService $multipartBodyService,
 		private IUserConfig $userConfig,
+		private ActorsRequest $actorsRequest,
+		private IUserSession $userSession,
 	) {
+	}
+
+	/**
+	 * The avatar a local account publishes, found by its username.
+	 *
+	 * Nextcloud's own avatar route is addressed by the login, which need not
+	 * be the username, so the account's icon points here instead. What is
+	 * served is what that route would serve this reader -- core keeps a
+	 * private avatar to the people who know the user -- except that a visitor
+	 * gets the generated initials where the account does not publish its
+	 * picture (`AccountService::mayPublish()`), which is the same rule that
+	 * decides whether the actor has an icon at all.
+	 *
+	 * @throws NotFoundException no account here by that name has a Nextcloud avatar
+	 * @throws SocialAppConfigException
+	 */
+	public function published(string $username, int $size): ISimpleFile {
+		try {
+			$actor = $this->actorsRequest->getFromUsername($username);
+		} catch (ActorDoesNotExistException) {
+			throw new NotFoundException('no avatar for this account');
+		}
+		$userId = $actor->getUserId();
+		if ($actor->getDeleted() > 0 || $userId === ''
+			|| str_starts_with($userId, 'team/') || str_starts_with($userId, 'channel/')) {
+			throw new NotFoundException('no avatar for this account');
+		}
+
+		$avatar = ($this->userSession->getUser() !== null
+			|| $this->accountService->mayPublish($actor, IAccountManager::PROPERTY_AVATAR))
+			? $this->avatarManager->getAvatar($userId)
+			: $this->avatarManager->getGuestAvatar($username);
+
+		return $avatar->getFile($size);
 	}
 
 	/**

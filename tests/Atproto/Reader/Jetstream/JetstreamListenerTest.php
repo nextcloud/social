@@ -13,9 +13,11 @@ use OCA\Social\Atproto\Model\Watch;
 use OCA\Social\Atproto\Reader\Jetstream\JetstreamClient;
 use OCA\Social\Atproto\Reader\Jetstream\JetstreamEvents;
 use OCA\Social\Atproto\Reader\Jetstream\JetstreamListener;
+use OCA\Social\Atproto\Reader\Jetstream\JetstreamState;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Db\AtprotoWatchRequest;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DurableCache;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -27,8 +29,14 @@ class JetstreamListenerTest extends TestCase {
 	private const START = 1760000000;
 
 	private int $now = self::START;
+	/** how far the clock moves on each reading */
+	private int $tick = 0;
+	/** @var list<int> when each status report says it was made, from the start */
+	private array $reports = [];
 	/** @var array<string, string> app values */
 	private array $values = [];
+	/** @var array<string, mixed> what the durable cache's table holds, by key */
+	private array $shared = [];
 	/** @var list<array{0: string, 1: int}> each cursor kept, with the clock it was kept at */
 	private array $kept = [];
 	/** @var Watch[] */
@@ -45,19 +53,35 @@ class JetstreamListenerTest extends TestCase {
 		$config->method('jetstream')->willReturn('wss://jetstream.test');
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getAppValue')->willReturnCallback(fn (string $key): string => $this->values[$key] ?? '');
-		$configService->method('setAppValue')->willReturnCallback(function (string $key, string $value): void {
-			$this->values[$key] = $value;
-			if ($key === ConfigService::ATPROTO_JETSTREAM_CURSOR) {
-				$this->kept[] = [$value, $this->now - self::START];
+		$configService->method('deleteAppValue')->willReturnCallback(function (string $key): void {
+			unset($this->values[$key]);
+		});
+		// an app-config write invalidates the config cache of every request
+		$configService->expects($this->never())->method('setAppValue');
+		$durableCache = $this->createStub(DurableCache::class);
+		$durableCache->method('getShared')->willReturnCallback(fn (string $namespace, string $key): mixed => $this->shared[$key] ?? null);
+		$durableCache->method('setShared')->willReturnCallback(function (string $namespace, string $key, mixed $value, int $ttl): void {
+			$this->shared[$key] = $value;
+			if ($key === 'cursor') {
+				$this->kept[] = [(string)$value, $this->now - self::START];
+			}
+			if ($key === 'status') {
+				$this->reports[] = $value['seen'] - self::START;
 			}
 		});
+		$state = new JetstreamState($durableCache, $configService);
 		$watches = $this->createMock(AtprotoWatchRequest::class);
 		$watches->method('getAll')->willReturnCallback(fn (): array => $this->watched);
 		$this->client = $this->createMock(JetstreamClient::class);
 		$this->events = $this->createMock(JetstreamEvents::class);
 		$time = $this->createMock(ITimeFactory::class);
-		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
-		$this->listener = new JetstreamListener($config, $configService, $watches, $this->events, $this->client, $time, new NullLogger());
+		$time->method('getTime')->willReturnCallback(function (): int {
+			$now = $this->now;
+			$this->now += $this->tick;
+
+			return $now;
+		});
+		$this->listener = new JetstreamListener($config, $state, $watches, $this->events, $this->client, $time, new NullLogger());
 	}
 
 	/**
@@ -98,10 +122,9 @@ class JetstreamListenerTest extends TestCase {
 	}
 
 	/**
-	 * A kept cursor is an app-config write that invalidates the config cache
-	 * of every request on the host, so one is written every few seconds, on
-	 * stopping, on a lost connection, and after a burst of events — not on
-	 * every read.
+	 * A kept cursor is a database write, so one is written every few
+	 * seconds, on stopping, on a lost connection, and after a burst of
+	 * events — not on every read.
 	 */
 	public function testTheCursorIsKeptOnStoppingNotOnEveryRead(): void {
 		$this->connected([[self::event(1)], [self::event(2)], [self::event(3)], []]);
@@ -142,8 +165,22 @@ class JetstreamListenerTest extends TestCase {
 		$this->assertFalse($this->listener->status()['connected']);
 	}
 
+	/**
+	 * A report is a write as well: watching nobody, the listener reports
+	 * as seldom as when connected, not on every idle second.
+	 */
+	public function testAnIdleListenerReportsEveryFewSecondsNotEverySecond(): void {
+		$this->tick = 1;
+
+		$this->listener->listen(static fn (): null => null, 4);
+
+		$this->assertSame([2, 5], $this->reports, 'once on starting, then only on stopping');
+		$this->assertFalse($this->listener->status()['running']);
+	}
+
 	public function testTheFollowedAccountsAreAskedForFromAFewSecondsBeforeWhereItStopped(): void {
 		$this->watched = [new Watch('did:plc:b', 'b.test', '', 0, 0, 0, '', 0), new Watch('did:plc:a', 'a.test', '', 0, 0, 0, '', 0)];
+		// kept in app config by an older version, and moved over once
 		$this->values[ConfigService::ATPROTO_JETSTREAM_CURSOR] = '1760000000000000';
 		$connected = false;
 		$this->client->method('isConnected')->willReturnCallback(static function () use (&$connected): bool {
@@ -159,7 +196,8 @@ class JetstreamListenerTest extends TestCase {
 
 		$this->assertSame(0, $this->listener->listen(static fn (): null => null, 0, true));
 
-		$this->assertSame('1760000001000000', $this->values[ConfigService::ATPROTO_JETSTREAM_CURSOR], 'where it got to is kept');
+		$this->assertSame(1760000001000000, $this->shared['cursor'], 'where it got to is kept');
+		$this->assertArrayNotHasKey(ConfigService::ATPROTO_JETSTREAM_CURSOR, $this->values, 'and no longer in app config');
 		$this->assertSame(2, $this->listener->status()['accounts']);
 		$this->assertFalse($this->listener->status()['running'], 'and it says it stopped');
 	}

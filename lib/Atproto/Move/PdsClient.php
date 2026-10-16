@@ -13,8 +13,8 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Service\CurlService;
 use OCA\Social\Service\DurableCache;
 use OCA\Social\Tools\Exceptions\RequestContentException;
-use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\IConfig;
+use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -40,6 +40,7 @@ class PdsClient {
 		private CurlService $curl,
 		private IConfig $systemConfig,
 		private DurableCache $cache,
+		private LoggerInterface $logger,
 	) {
 	}
 
@@ -98,7 +99,7 @@ class PdsClient {
 		try {
 			$body = json_decode($this->curl->doRequest($verb === 'GET' ? 'get' : 'post', $url, $options, $contentType, $status), true);
 		} catch (Throwable $e) {
-			throw self::unreachable($pds, $e);
+			throw $this->unreachable($pds, $e);
 		}
 
 		return ['status' => (int)$status, 'body' => is_array($body) ? $body : []];
@@ -122,7 +123,7 @@ class PdsClient {
 		} catch (RequestContentException $e) {
 			return ['status' => $e->getCode(), 'path' => '', 'size' => 0, 'type' => ''];
 		} catch (Throwable $e) {
-			throw self::unreachable($pds, $e);
+			throw $this->unreachable($pds, $e);
 		}
 		$type = '';
 		$length = -1;
@@ -182,18 +183,19 @@ class PdsClient {
 	}
 
 	/**
-	 * Why a PDS was not reached: `pds-not-public` for an address this server
-	 * does not send requests to, `pds-blocked` for an instance it does not
-	 * federate with, `pds-unreachable` for anything else.
+	 * Why a PDS was not reached: `pds-blocked` for an instance this server
+	 * does not federate with, `pds-unreachable` for anything else. An
+	 * address this server does not send requests to is not reached either,
+	 * and said no differently: the person must not learn which hosts
+	 * resolve to local addresses. What went wrong is logged, not said.
 	 */
-	private static function unreachable(string $pds, Throwable $e): MoveFailure {
-		$slug = match (true) {
-			$e instanceof RequestServerException && str_contains($e->getMessage(), 'public address') => 'pds-not-public',
-			$e instanceof UnauthorizedFediverseException => 'pds-blocked',
-			default => 'pds-unreachable',
-		};
+	private function unreachable(string $pds, Throwable $e): MoveFailure {
+		$this->logger->info('PDS not reached', ['pds' => $pds, 'exception' => $e]);
+		if ($e instanceof UnauthorizedFediverseException) {
+			return new MoveFailure('pds-blocked', 'This server does not talk to the PDS at ' . $pds, $e);
+		}
 
-		return new MoveFailure($slug, 'The PDS at ' . $pds . ' could not be reached: ' . $e->getMessage(), $e);
+		return new MoveFailure('pds-unreachable', 'The PDS at ' . $pds . ' could not be reached', $e);
 	}
 
 	/**

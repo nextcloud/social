@@ -88,6 +88,12 @@ class NotificationControllerTest extends TestCase {
 	/** @var Stream[] the page of notifications the stream service serves */
 	private array $page = [];
 	private MarkerService|MockObject $markerService;
+	/** where the viewer's notifications marker is */
+	private string $marker = '0';
+	/** @var string[] what was released behind the marker */
+	private array $released = [];
+	/** how many times the policy's summary was read */
+	private int $summaries = 0;
 
 	protected function setUp(): void {
 		$this->request = $this->createStub(IRequest::class);
@@ -155,6 +161,8 @@ class NotificationControllerTest extends TestCase {
 		$this->filterService->method('applyToNotifications')->willReturnArgument(0);
 		$this->cacheActorService = $this->createStub(CacheActorService::class);
 		$this->markerService = $this->createMock(MarkerService::class);
+		$this->markerService->method('lastReadId')->willReturnCallback(fn (): string => $this->marker);
+		$this->markerService->method('unreadBehind')->willReturnCallback(fn (): array => $this->released);
 
 		// Response::getHeaders() asks the container for the request
 		\OC::$server->register(IRequest::class, $this->request);
@@ -182,7 +190,8 @@ class NotificationControllerTest extends TestCase {
 			$this->notificationDeliveryService,
 			$this->filterService,
 			$this->cacheActorService,
-			$this->inbox()
+			$this->inbox(),
+			$this->markerService
 		);
 	}
 
@@ -192,7 +201,16 @@ class NotificationControllerTest extends TestCase {
 		$streamService->method('getTimeline')->willReturnCallback(function (ProbeOptions $options): array {
 			$this->options = $options;
 
-			return $this->page;
+			return array_values(array_filter(
+				$this->page,
+				static fn (Stream $notification): bool => (string)$options->getSince() === '0'
+					|| \OCA\Social\Tools\Nid::compare($notification->getNid(), $options->getSince()) > 0
+			));
+		});
+		$streamService->method('getNotificationSenders')->willReturnCallback(function (): array {
+			$this->summaries++;
+
+			return [];
 		});
 
 		return new NotificationInboxService(
@@ -200,7 +218,8 @@ class NotificationControllerTest extends TestCase {
 			$this->createStub(StreamRequest::class),
 			$this->notificationPolicyService,
 			$this->markerService,
-			$this->createStub(ConversationsRequest::class)
+			$this->createStub(ConversationsRequest::class),
+			$this->createStub(TimelineRevisionService::class)
 		);
 	}
 
@@ -474,6 +493,64 @@ class NotificationControllerTest extends TestCase {
 		$this->timeline([$this->favourite(2, 200, 10), $this->favourite(1, 100, 10)]);
 
 		$this->assertSame(['count' => 1], $this->controller()->unreadCountV2()->getData());
+	}
+
+	/** Mastodon's rule: what is newer than the marker is unread, and nothing older. */
+	public function testTheUnreadCountIsWhatIsPastTheMarker(): void {
+		$this->marker = '150';
+		$this->timeline([$this->favourite(200, 200, 10), $this->favourite(100, 100, 11)]);
+
+		$this->assertSame(['count' => 1], $this->controller()->unreadCountV2()->getData());
+		$this->assertSame('150', (string)$this->options?->getSince(), 'read from the marker on');
+	}
+
+	/** What accepting a sender released counts behind the marker, as on v1. */
+	public function testTheUnreadCountCountsWhatWasReleasedBehindTheMarker(): void {
+		$this->marker = '150';
+		$this->released = ['100'];
+		$this->timeline([$this->favourite(200, 200, 10), $this->favourite(100, 100, 11), $this->favourite(90, 90, 12)]);
+
+		$this->assertSame(['count' => 2], $this->controller()->unreadCountV2()->getData());
+	}
+
+	public function testTheUnreadCountStopsAtTheLimit(): void {
+		$this->timeline([$this->favourite(3, 300, 10), $this->favourite(2, 200, 11), $this->favourite(1, 100, 12)]);
+
+		$this->assertSame(['count' => 2], $this->controller()->unreadCountV2(2)->getData());
+	}
+
+	/** A client that polls holds the answer already, and is told so without anything being read. */
+	public function testTheUnreadCountIsRevalidated(): void {
+		$this->timeline([$this->favourite(2, 200, 10)]);
+		$first = $this->controller()->unreadCountV2();
+		$this->assertSame(Http::STATUS_OK, $first->getStatus());
+		$etag = $first->getHeaders()['ETag'] ?? '';
+		$this->assertNotSame('', $etag);
+		$this->assertStringContainsString('no-cache', $first->getHeaders()['Cache-Control'] ?? '');
+
+		$this->options = null;
+		$this->headers['If-None-Match'] = $etag;
+		$again = $this->controller()->unreadCountV2();
+
+		$this->assertSame(Http::STATUS_NOT_MODIFIED, $again->getStatus());
+		$this->assertNull($this->options, 'nothing was read');
+	}
+
+	/** The sidebar asks for the policy on every push: the summary is not counted again while nothing changed. */
+	public function testThePolicyIsRevalidated(): void {
+		$this->notificationPolicyService = $this->createMock(NotificationPolicyService::class);
+		$this->notificationPolicyService->method('of')
+			->willReturn((new NotificationPolicy())->set(NotificationPolicy::NOT_FOLLOWING, NotificationPolicy::FILTER));
+		$this->notificationPolicyService->method('heldOf')->willReturn([]);
+		$first = $this->controller()->policy();
+		$this->assertSame(Http::STATUS_OK, $first->getStatus());
+		$this->assertSame(1, $this->summaries);
+
+		$this->headers['If-None-Match'] = $first->getHeaders()['ETag'] ?? '';
+		$again = $this->controller()->policy();
+
+		$this->assertSame(Http::STATUS_NOT_MODIFIED, $again->getStatus());
+		$this->assertSame(1, $this->summaries, 'nothing was read');
 	}
 
 	public function testOneGroupCanBeFetched(): void {

@@ -208,8 +208,12 @@ class ApiController extends MastodonApiController {
 	 * instance does not know finds no posts rather than an error, and is not
 	 * looked up elsewhere. `offset`, `max_id` and `min_id` page `statuses`.
 	 *
-	 * `resolve` fetches a post named by its address, only on the first page of
-	 * an unnarrowed search that found nothing here.
+	 * `resolve` is the reader asking for other servers to be asked: an
+	 * account named by its address or handle is looked up there, and a post
+	 * named by its address is fetched, only on the first page of an
+	 * unnarrowed search that found nothing here. Without it, as in Mastodon,
+	 * the accounts are the ones this instance holds; one it does not is
+	 * queued, and found by a later search.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
@@ -228,8 +232,8 @@ class ApiController extends MastodonApiController {
 			$accounts = [];
 			if ($type === '' || $type === 'accounts') {
 				$found = array_merge(
-					$this->searchService->searchUri($q),
-					$this->searchService->searchAccounts($q)
+					$this->searchService->searchUri($q, $resolve),
+					$this->searchService->searchAccounts($q, $limit, '', $resolve)
 				);
 				$unique = [];
 				foreach ($found as $account) {

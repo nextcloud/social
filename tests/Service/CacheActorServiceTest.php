@@ -760,6 +760,69 @@ class CacheActorServiceTest extends TestCase {
 		$this->service->getFromAccount('bob@remote.example', false);
 	}
 
+	/**
+	 * A handle typed into a search is looked up once per keystroke; a
+	 * lookup that failed is remembered for ten minutes, as an id is, so the
+	 * same host-meta and WebFinger round is not made again.
+	 */
+	public function testAnAccountLookupThatFailedIsNotRepeatedWhileItIsRemembered(): void {
+		$service = $this->serviceWithMisses($this->durableCache());
+		$this->cacheActorsRequest->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException());
+		$this->curlService->expects($this->once())->method('retrieveAccount')->with('bob@remote.example')
+			->willThrowException(new RequestNetworkException('connect timed out'));
+
+		try {
+			$service->getFromAccount('bob@remote.example');
+			$this->fail('the first lookup fails as it always did');
+		} catch (RequestNetworkException) {
+		}
+
+		$this->expectException(CacheActorDoesNotExistException::class);
+		$this->expectExceptionMessage('not fetched again yet');
+		$service->getFromAccount('bob@remote.example');
+	}
+
+	public function testAnAccountMissIsRememberedForTenMinutes(): void {
+		$cache = $this->createMock(DurableCache::class);
+		$cache->method('get')->willReturn(null);
+		$cache->expects($this->once())->method('set')
+			->with(CacheActorService::MISS_NAMESPACE, md5('acct:bob@remote.example'), 1, CacheActorService::MISS_SECONDS);
+		$this->cacheActorsRequest->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException());
+		$this->curlService->method('retrieveAccount')->willThrowException(new RequestContentException('not found', 404));
+
+		$this->expectException(RequestContentException::class);
+		$this->serviceWithMisses($cache)->getFromAccount('bob@remote.example');
+	}
+
+	public function testACachedAccountIsAnsweredWhateverWasRemembered(): void {
+		$cache = $this->durableCache();
+		$cache->set(CacheActorService::MISS_NAMESPACE, md5('acct:bob@remote.example'), 1, CacheActorService::MISS_SECONDS);
+		$bob = $this->person(self::BOB);
+		$this->cacheActorsRequest->method('getFromAccount')->willReturn($bob);
+		$this->curlService->expects($this->never())->method('retrieveAccount');
+
+		$this->assertSame($bob, $this->serviceWithMisses($cache)->getFromAccount('bob@remote.example'));
+	}
+
+	/** The same holds for a Bluesky handle the AppView did not give. */
+	public function testABlueskyHandleThatWasNotFoundIsNotAskedForAgainWhileItIsRemembered(): void {
+		$bluesky = $this->createMock(BlueskyActorService::class);
+		$bluesky->expects($this->once())->method('resolve')->with('gone.bsky.social')
+			->willThrowException(new CacheActorDoesNotExistException('not found'));
+		$bluesky->method('cached')->willReturn(null);
+		$service = $this->serviceWithBlueskyMisses($this->durableCache(), $bluesky);
+
+		try {
+			$service->getFromAccount('gone.bsky.social');
+			$this->fail('the first lookup fails as it always did');
+		} catch (CacheActorDoesNotExistException) {
+		}
+
+		$this->expectException(CacheActorDoesNotExistException::class);
+		$this->expectExceptionMessage('not fetched again yet');
+		$service->getFromAccount('gone.bsky.social');
+	}
+
 	public function testGetFromAccountWrapsSaveFailures(): void {
 		$this->cacheActorsRequest->method('getFromAccount')->willThrowException(new CacheActorDoesNotExistException());
 		$this->curlService->method('retrieveAccount')->willReturn($this->person(self::BOB));

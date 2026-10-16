@@ -308,7 +308,7 @@ class PersonTest extends TestCase {
 
 		$account = $person->exportAsLocal();
 
-		$this->assertSame('https://cloud.example.org/core.avatar.getAvatar/alice/128', $account['avatar']);
+		$this->assertSame('https://cloud.example.org/social.Avatar.avatar/alice/128', $account['avatar']);
 		$this->assertSame($account['avatar'], $account['avatar_static']);
 		$this->assertSame('https://cloud.example.org/apps/social/img/header-missing.png', $account['header']);
 		$this->assertSame($account['header'], $account['header_static']);
@@ -642,6 +642,13 @@ class PersonTest extends TestCase {
 			->willReturnCallback(fn (string $path): string => 'https://cloud.example.org' . $path);
 	}
 
+	/** Forgets the users `Person` looked up, which it keeps for the process. */
+	private function forgetUserIds(): void {
+		foreach (['userIds', 'userIdsWanted'] as $property) {
+			(new \ReflectionProperty(Person::class, $property))->setValue(null, []);
+		}
+	}
+
 	private function signedIn(bool $signedIn): void {
 		$session = $this->createStub(IUserSession::class);
 		$session->method('getUser')->willReturn($signedIn ? $this->createStub(IUser::class) : null);
@@ -663,7 +670,7 @@ class PersonTest extends TestCase {
 		$account = $person->exportAsLocal();
 
 		$this->assertSame('alice', $account['nextcloud_user']);
-		$this->assertSame('https://cloud.example.org/core.avatar.getAvatar/alice/128', $account['avatar']);
+		$this->assertSame('https://cloud.example.org/social.Avatar.avatar/aloha_al/128', $account['avatar']);
 	}
 
 	/** A visitor is not told a login the account was named apart from. */
@@ -678,17 +685,19 @@ class PersonTest extends TestCase {
 		$account = $apart->exportAsLocal();
 
 		$this->assertNull($account['nextcloud_user']);
-		$this->assertSame('https://cloud.example.org/apps/social/img/social.svg', $account['avatar']);
+		// the face is drawn by the username, which is public anyway
+		$this->assertSame('https://cloud.example.org/social.Avatar.avatar/aloha_al/128', $account['avatar']);
 		// nothing is given away where the login is the username anyway
 		$this->assertSame('bob', $same->exportAsLocal()['nextcloud_user']);
 	}
 
 	/** The cached copy carries no user id: it is asked of the account's own row. */
 	public function testTheCachedCopyOfALocalAccountIsToldItsNextcloudUser(): void {
+		$this->forgetUserIds();
 		$this->routerThatRefusesAnEmptyUuid();
 		$this->signedIn(true);
 		$actors = $this->createMock(ActorsRequest::class);
-		$actors->expects($this->once())->method('userIdOf')->with('cached_al')->willReturn('carol');
+		$actors->expects($this->once())->method('userIdsOf')->with(['cached_al'])->willReturn(['cached_al' => 'carol']);
 		\OC::$server->register(ActorsRequest::class, $actors);
 		$person = new Person();
 		$person->setPreferredUsername('cached_al')->setLocal(true);
@@ -696,6 +705,38 @@ class PersonTest extends TestCase {
 		$this->assertSame('carol', $person->exportAsLocal()['nextcloud_user']);
 		// and once: a page of posts names the same author many times
 		$this->assertSame('carol', $person->nextcloudUser());
+	}
+
+	/**
+	 * A page of posts is read in one query and then exported author by
+	 * author: the users of every local author it read are asked for at once,
+	 * and a username nobody holds is not asked for again.
+	 */
+	public function testTheUsersOfAPageOfCachedLocalAccountsAreAskedForInOneQuery(): void {
+		$this->forgetUserIds();
+		$this->signedIn(true);
+		$actors = $this->createMock(ActorsRequest::class);
+		$actors->expects($this->once())->method('userIdsOf')
+			->with($this->callback(static function (array $usernames): bool {
+				sort($usernames);
+
+				return $usernames === ['cached_a', 'cached_b', 'cached_gone'];
+			}))
+			->willReturn(['cached_a' => 'anna', 'cached_b' => 'bert']);
+		\OC::$server->register(ActorsRequest::class, $actors);
+
+		$page = array_map(static function (string $username): Person {
+			$person = new Person();
+			$person->importFromDatabase(['preferred_username' => $username, 'local' => 1]);
+
+			return $person;
+		}, ['cached_a', 'cached_b', 'cached_gone', 'cached_a']);
+
+		$this->assertSame(
+			['anna', 'bert', null, 'anna'],
+			array_map(static fn (Person $person): ?string => $person->nextcloudUser(), $page)
+		);
+		$this->assertNull($page[2]->nextcloudUser());
 	}
 
 	public function testOnlyALocalPersonHasANextcloudUser(): void {
@@ -728,8 +769,35 @@ class PersonTest extends TestCase {
 
 		$account = $person->exportAsLocal();
 
-		$this->assertSame('https://cloud.example.org/core.avatar.getAvatar/alice/128', $account['avatar']);
+		$this->assertSame('https://cloud.example.org/social.Avatar.avatar/alice/128', $account['avatar']);
 		$this->assertSame($account['avatar'], $account['avatar_static']);
+	}
+
+	/**
+	 * An icon stored with Nextcloud's own avatar route names the login. It is
+	 * published, to a visitor and on the wire, as this app's avatar route of
+	 * the username, keeping the picture's version.
+	 */
+	public function testALocalAvatarStoredUnderTheLoginIsPublishedUnderTheUsername(): void {
+		$this->routerThatRefusesAnEmptyUuid();
+		$this->signedIn(false);
+		$person = new Person();
+		$person->setPreferredUsername('sunflower')->setUserId('jane.doe')->setLocal(true);
+		$icon = new Image();
+		$icon->setUrl('https://cloud.example.org/index.php/avatar/jane.doe/128?v=7');
+		$icon->setLocalCopy(Document::COPY_LOCAL_AVATAR);
+		$icon->setMediaType('image/png');
+		$person->setIcon($icon);
+
+		$account = $person->exportAsLocal();
+		$actor = $person->exportAsActivityPub();
+
+		$this->assertSame('https://cloud.example.org/social.Avatar.avatar/sunflower/128/7', $account['avatar']);
+		$this->assertSame($account['avatar'], $account['avatar_static']);
+		$this->assertSame($account['avatar'], $actor['icon']['url']);
+		// what the PeerTube API, the directory and the dashboard read
+		$this->assertSame($account['avatar'], $person->getAvatar());
+		$this->assertStringNotContainsString('jane.doe', json_encode([$account, $actor]));
 	}
 
 	/** The origin is not offered in its place: that hands the reader's address to another server. */

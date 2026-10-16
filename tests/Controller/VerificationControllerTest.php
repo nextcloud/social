@@ -91,6 +91,7 @@ class VerificationControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->verify('nobody')->getStatus());
 		$this->assertSame(Http::STATUS_NOT_FOUND, $this->controller()->unverify('nobody')->getStatus());
+		$this->assertSame('account-not-found', $this->controller()->verify('nobody')->getData()['code']);
 	}
 
 	public function testAFailedVerificationIsA500(): void {

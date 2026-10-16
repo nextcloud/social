@@ -911,10 +911,16 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * @param string $actorId
-	 * @param Person $new
+	 * Repoints the follows of an account that moved at the account it moved
+	 * to, after clearing the rows that would collide (see clearMoveConflicts()).
+	 *
+	 * A follower that already follows the new account keeps that row, and it
+	 * counts as accepted when either of the two was: the follower had been
+	 * let in by the old account, which is what this move carries over.
 	 */
 	public function moveAccountFollowers(string $actorId, Person $new): void {
+		$this->clearMoveConflicts('object_id_prim', 'actor_id_prim', $actorId, $new->getId(), true);
+
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('object_id', $qb->createNamedParameter($new->getId()))
 			->set('object_id_prim', $qb->createNamedParameter($qb->prim($new->getId())))
@@ -927,10 +933,18 @@ class FollowsRequest extends FollowsRequestBuilder {
 	}
 
 	/**
-	 * @param string $actorId
-	 * @param Person $new
+	 * Repoints the follows an account that moved had made at the account it
+	 * moved to, after clearing the rows that would collide (see
+	 * clearMoveConflicts()).
+	 *
+	 * A follow the new account already has is kept as it is, pending
+	 * included: its server is waiting for the Accept only the followed
+	 * account here can send, and marking it accepted would leave that server
+	 * waiting for good.
 	 */
 	public function moveAccountFollowing(string $actorId, Person $new): void {
+		$this->clearMoveConflicts('actor_id_prim', 'object_id_prim', $actorId, $new->getId(), false);
+
 		$qb = $this->getFollowsUpdateSql();
 		$qb->set('actor_id', $qb->createNamedParameter($new->getId()))
 			->set('actor_id_prim', $qb->createNamedParameter($qb->prim($new->getId())));
@@ -938,6 +952,98 @@ class FollowsRequest extends FollowsRequestBuilder {
 		$this->limitToPrim($qb, 'actor_id_prim', $actorId);
 
 		$qb->executeStatement();
+	}
+
+	/** Rows per statement of clearMoveConflicts(): one bound parameter each. */
+	private const MOVE_CHUNK = 500;
+
+	/**
+	 * Drops the old account's rows that repointing one end of its follows
+	 * would turn into a duplicate: `social_f_oa_u` makes (object, actor)
+	 * unique, and an UPDATE onto a pair that exists is refused, and the whole
+	 * Move with it. That is the usual case, not a corner: a migration starts
+	 * by creating the new account and importing the old one's follow list
+	 * into it.
+	 *
+	 * Dropped are a follow between the two accounts, which would become the
+	 * new account following itself, and every row whose other end already
+	 * has a row with the new account; that row stays, being the one the
+	 * other server knows by its id. Every statement here is one the database
+	 * cannot refuse, so the move can run inside a transaction on PostgreSQL.
+	 *
+	 * @param string $end the column naming the account that moved
+	 * @param string $other the column naming the account at the other end
+	 * @param bool $acceptedWins whether a kept pending row becomes accepted
+	 *                           when the dropped one was
+	 */
+	private function clearMoveConflicts(
+		string $end, string $other, string $oldId, string $newId, bool $acceptedWins,
+	): void {
+		$old = $this->rowsAtEnd($end, $other, $oldId);
+		if ($old === []) {
+			return;
+		}
+
+		$drop = [];
+		$accept = [];
+		$newPrim = $this->getQueryBuilder()->prim($newId);
+		if (array_key_exists($newPrim, $old)) {
+			$drop[] = $old[$newPrim]['id_prim'];
+			unset($old[$newPrim]);
+		}
+
+		foreach (array_chunk(array_keys($old), self::MOVE_CHUNK) as $chunk) {
+			foreach ($this->rowsAtEnd($end, $other, $newId, $chunk) as $prim => $kept) {
+				$drop[] = $old[$prim]['id_prim'];
+				if ($acceptedWins && $old[$prim]['accepted'] && !$kept['accepted']) {
+					$accept[] = $kept['id_prim'];
+				}
+			}
+		}
+
+		foreach (array_chunk($accept, self::MOVE_CHUNK) as $chunk) {
+			$qb = $this->getFollowsUpdateSql();
+			$qb->set('accepted', $qb->createNamedParameter('1'))
+				->where($qb->expr()->in('id_prim', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)));
+			$qb->executeStatement();
+		}
+
+		foreach (array_chunk($drop, self::MOVE_CHUNK) as $chunk) {
+			$qb = $this->getFollowsDeleteSql();
+			$qb->where($qb->expr()->in('id_prim', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)));
+			$qb->executeStatement();
+		}
+	}
+
+	/**
+	 * The follows with `$actorId` at one end, keyed by the prim of the
+	 * account at the other.
+	 *
+	 * @param string[]|null $others prims of the accounts at the other end to
+	 *                              limit to; null for all of them
+	 *
+	 * @return array<string, array{id_prim: string, accepted: bool}>
+	 */
+	private function rowsAtEnd(string $end, string $other, string $actorId, ?array $others = null): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('id_prim', 'accepted', $other)
+			->from(self::TABLE_FOLLOWS)
+			->where($qb->expr()->eq($end, $qb->createNamedParameter($qb->prim($actorId))));
+		if ($others !== null) {
+			$qb->andWhere($qb->expr()->in($other, $qb->createNamedParameter($others, IQueryBuilder::PARAM_STR_ARRAY)));
+		}
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$rows[(string)$data[$other]] = [
+				'id_prim' => (string)$data['id_prim'],
+				'accepted' => $this->getBool('accepted', $data),
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
 	}
 
 	/**

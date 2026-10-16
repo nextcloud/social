@@ -91,6 +91,14 @@ describe('the notifications filter', () => {
 		expect(excluded).not.toContain('follow_request')
 	})
 
+	it('keeps what Bluesky alone tells with the filter it belongs to', () => {
+		// a like or a repost of your repost, somebody joining with your starter pack
+		expect(excludeTypesFor('favourites')).not.toContain('bluesky:repost_liked')
+		expect(excludeTypesFor('boosts')).not.toContain('bluesky:repost_reposted')
+		expect(excludeTypesFor('follows')).not.toContain('bluesky:starterpack_joined')
+		expect(excludeTypesFor('mentions')).toContain('bluesky:repost_liked')
+	})
+
 	it('filters nothing for a name it does not know', () => {
 		expect(excludeTypesFor('nonsense')).toEqual([])
 	})

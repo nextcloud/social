@@ -27,6 +27,7 @@ use OCA\Social\Exceptions\CacheContentSizeException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Exceptions\InvalidHandleException;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\External\ExternalUserBackend;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -150,7 +151,7 @@ class LocalController extends Controller {
 			// and "not an image" reached the page as the same blank failure.
 			return $this->fail(
 				$e,
-				['message' => $this->uploadFailureMessage($e)],
+				['message' => $this->uploadFailureMessage($e)] + $this->uploadFailureCode($e),
 				Http::STATUS_BAD_REQUEST,
 				false
 			);
@@ -178,7 +179,7 @@ class LocalController extends Controller {
 	 * the one this app advertises, so it is read rather than assumed.
 	 *
 	 * @throws CacheContentSizeException the file is larger than this server takes
-	 * @throws InvalidResourceException there is no usable file in the request
+	 * @throws RefusalException there is no usable file in the request: no-file, upload-interrupted
 	 * @throws Exception the upload failed on this side
 	 */
 	private function uploadedBannerPath(): string {
@@ -190,16 +191,16 @@ class LocalController extends Controller {
 				throw new CacheContentSizeException($this->tooBig());
 			}
 
-			throw new InvalidResourceException('No file was sent.');
+			throw new RefusalException('No file was sent.', 'no-file');
 		}
 
 		return match ($file['error'] ?? UPLOAD_ERR_NO_FILE) {
 			UPLOAD_ERR_OK => $file['tmp_name'] ?? '',
 			UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE
 				=> throw new CacheContentSizeException($this->tooBig()),
-			UPLOAD_ERR_NO_FILE => throw new InvalidResourceException('No file was sent.'),
-			UPLOAD_ERR_PARTIAL => throw new InvalidResourceException(
-				'The upload did not finish. Try again.'
+			UPLOAD_ERR_NO_FILE => throw new RefusalException('No file was sent.', 'no-file'),
+			UPLOAD_ERR_PARTIAL => throw new RefusalException(
+				'The upload did not finish. Try again.', 'upload-interrupted'
 			),
 			// no tmp dir, cannot write, an extension refused it: this side's
 			// problem, and the only one of these that is a 500
@@ -211,14 +212,17 @@ class LocalController extends Controller {
 
 	/** The largest banner this server will take, as the reader should read it. */
 	private function tooBig(): string {
-		$ceiling = min(
+		return 'That picture is larger than this server accepts (at most '
+			. Util::humanFileSize($this->bannerCeiling()) . ').';
+	}
+
+	/** The largest banner this server will take, in bytes. */
+	private function bannerCeiling(): int {
+		return min(
 			$this->iniBytes('upload_max_filesize'),
 			$this->iniBytes('post_max_size'),
 			$this->configService->getAppValueInt(ConfigService::SOCIAL_MAX_SIZE) * 1024 * 1024
 		);
-
-		return 'That picture is larger than this server accepts (at most '
-			. Util::humanFileSize($ceiling) . ').';
 	}
 
 	/** A php.ini size, in bytes. `0` there means no limit, which min() must not win. */
@@ -227,6 +231,23 @@ class LocalController extends Controller {
 		$size = ($size === false) ? 0 : (int)$size;
 
 		return ($size > 0) ? $size : PHP_INT_MAX;
+	}
+
+	/**
+	 * The code of a file this app would not take (API.md), with the largest
+	 * size there is for one that was too big.
+	 *
+	 * @return array<string, string>
+	 */
+	private function uploadFailureCode(Exception $e): array {
+		return match (true) {
+			$e instanceof RefusalException => ['code' => $e->errorCode] + array_map('strval', $e->params),
+			$e instanceof CacheContentSizeException => [
+				'code' => 'banner-too-large',
+				'limit' => Util::humanFileSize($this->bannerCeiling()),
+			],
+			default => ['code' => 'banner-unusable'],
+		};
 	}
 
 	/** What to tell the caller about a file this app would not take. */
@@ -448,7 +469,7 @@ class LocalController extends Controller {
 			return $this->success(['account' => $viewer]);
 		} catch (InvalidHandleException|AccountAlreadyExistsException $e) {
 			// the reason is the answer: which handle to try instead
-			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return new DataResponse(['status' => -1] + $e->toArray(), Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
 			return $this->failFor($e);
 		}
@@ -470,7 +491,7 @@ class LocalController extends Controller {
 
 			return $this->success(['handle' => $this->accountService->linkExternalHandle($this->userId, $handle)]);
 		} catch (InvalidHandleException $e) {
-			return new DataResponse(['status' => -1, 'error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
+			return new DataResponse(['status' => -1] + $e->toArray(), Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Exception $e) {
 			return $this->failFor($e);
 		}
@@ -661,6 +682,12 @@ class LocalController extends Controller {
 	 * signed actor fetches — six outbound requests at a ten-second timeout, aimed at
 	 * a host the caller names and signed by a named local actor. `OStatusController::getLink`
 	 * throttles a single WebFinger lookup for the same reason.
+	 *
+	 * It is a GET without a CSRF check, so a page on another site can send a
+	 * signed-in reader's browser here with any handle in the address. Other
+	 * servers are therefore asked only by a request that shows it is not that
+	 * (`mayAskOtherServers()`); any other request is answered from what this
+	 * server holds.
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
@@ -724,15 +751,15 @@ class LocalController extends Controller {
 					if ($domain !== '' || !BlueskyIds::isHandle($account)) {
 						throw $e;
 					}
-					$actor = $this->cacheActorService->getFromAccount($account);
+					$actor = $this->cacheActorService->getFromAccount($account, $this->mayAskOtherServers());
 				}
 			} else {
-				$actor = $this->cacheActorService->getFromAccount($account);
+				$actor = $this->cacheActorService->getFromAccount($account, $this->mayAskOtherServers());
 			}
 			$actor->setExportFormat(ACore::FORMAT_LOCAL);
 
 			// For remote actors, fetch follower/following/post counts
-			if (!$actor->isLocal()) {
+			if (!$actor->isLocal() && $this->mayAskOtherServers()) {
 				try {
 					$this->cacheActorService->addRemoteActorDetailCount($actor);
 				} catch (Exception $e) {
@@ -912,6 +939,17 @@ class LocalController extends Controller {
 	/**
 	 * @throws AccountDoesNotExistException
 	 */
+	/**
+	 * Whether this request may have other servers asked on its behalf: one
+	 * the web app sent, with its request token, or one carrying a bearer
+	 * token. Neither can be made by a link or a page on another site, which
+	 * is all a GET with no CSRF check otherwise guards against.
+	 */
+	private function mayAskOtherServers(): bool {
+		return $this->request->passesCSRFCheck()
+			|| str_starts_with($this->request->getHeader('Authorization'), 'Bearer ');
+	}
+
 	private function initViewer(bool $exception = false) {
 		if (!isset($this->userId)) {
 			if ($exception) {

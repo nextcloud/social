@@ -9,8 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Integration\Federation;
 
+use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\CoreRequestBuilder;
 use OCA\Social\Interfaces\Activity\DeleteInterface;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\LinkedDataSignature;
 use OCA\Social\Service\DurableCache;
@@ -203,6 +205,88 @@ class RedeliveryOrderTest extends InboxTestCase {
 
 		$this->assertSame(1, $this->statusEntity($this->localPostId())['favourites_count']);
 		$this->assertConnectionUsable();
+	}
+
+	/** Carol's poll as her server sends it, with the tallies so far. */
+	private function poll(int $tea, int $coffee, string $content = '<p>tea or coffee?</p>'): array {
+		return [
+			'id' => self::POST,
+			'type' => 'Question',
+			'attributedTo' => self::CAROL,
+			'to' => ['https://www.w3.org/ns/activitystreams#Public'],
+			'content' => $content,
+			'published' => '2026-05-01T10:00:00Z',
+			'endTime' => '2026-05-02T10:00:00Z',
+			'votersCount' => $tea + $coffee,
+			'oneOf' => [
+				['type' => 'Note', 'name' => 'tea', 'replies' => ['type' => 'Collection', 'totalItems' => $tea]],
+				['type' => 'Note', 'name' => 'coffee', 'replies' => ['type' => 'Collection', 'totalItems' => $coffee]],
+			],
+		];
+	}
+
+	/**
+	 * Mastodon sends `Update{Question}` as the votes come in, without
+	 * `updated`. Stored as an edit, each one would be a revision and a new
+	 * "edited a post you boosted" for whoever here boosted the poll.
+	 */
+	public function testNewPollTalliesAreStoredWithoutCountingAsAnEdit(): void {
+		$this->assertTrue($this->deliver($this->activity('Create', self::POST . '/activity', $this->poll(0, 0))));
+		$boost = new Announce();
+		$boost->setId($this->alice() . '/boosts/1');
+		$boost->setActorId($this->alice());
+		$boost->setObjectId(self::POST);
+		$this->assertTrue(Server::get(ActionsRequest::class)->save($boost));
+
+		$this->assertTrue($this->deliver($this->activity('Update', self::POST . '#updates/1', $this->poll(1, 0))));
+		$this->assertTrue($this->deliver($this->activity('Update', self::POST . '#updates/2', $this->poll(1, 2))));
+
+		$poll = $this->statusEntity(self::POST)['poll'];
+		$this->assertSame([1, 2], array_column($poll['options'], 'votes_count'));
+		$this->assertSame(3, $poll['voters_count']);
+		$this->assertNull($this->statusEntity(self::POST)['edited_at']);
+		$revisions = fn (): array => $this->rows(CoreRequestBuilder::TABLE_STATUS_REVISIONS, 'stream_id_prim', md5(self::POST));
+		$notifications = fn (): array => $this->rows(CoreRequestBuilder::TABLE_STREAM, 'id', self::POST . '/notification+update/');
+		$this->assertSame([], $revisions());
+		$this->assertSame([], $notifications());
+
+		$this->assertTrue($this->deliver($this->activity(
+			'Update', self::POST . '#updates/3', $this->poll(1, 2, '<p>tea, or coffee?</p>') + ['updated' => '2026-05-01T11:00:00Z']
+		)));
+
+		$this->assertCount(2, $revisions(), 'the original and the edit');
+		$this->assertCount(1, $notifications());
+	}
+
+	/** An Akkoma reaction taken back by an Undo that names it by its id alone. */
+	public function testAnUndoNamingAReactionByItsIdTakesItBack(): void {
+		$reaction = json_decode($this->fixture('akkoma-emoji-react'), true);
+		$reaction['content'] = '🍅';
+		unset($reaction['tag']);
+		$this->remoteActor($reaction['actor'], 'frank');
+		$this->assertTrue($this->deliver((string)json_encode($reaction)));
+		$this->assertCount(1, $this->rows(CoreRequestBuilder::TABLE_REACTIONS, 'actor_id', 'https://akkoma.example/'));
+
+		$this->assertTrue($this->deliver((string)json_encode([
+			'@context' => 'https://www.w3.org/ns/activitystreams',
+			'id' => $reaction['id'] . '/undo',
+			'type' => 'Undo',
+			'actor' => $reaction['actor'],
+			'object' => $reaction['id'],
+		])));
+
+		$this->assertSame([], $this->rows(CoreRequestBuilder::TABLE_REACTIONS, 'actor_id', 'https://akkoma.example/'));
+	}
+
+	/** A block lifted by an Undo that names the Block by its id alone. */
+	public function testAnUndoNamingABlockByItsIdLiftsIt(): void {
+		$block = json_decode($this->fixture('mastodon-block'), true);
+		$this->assertTrue($this->deliver($this->fixture('mastodon-block')));
+		$this->assertCount(1, $this->rows(CoreRequestBuilder::TABLE_ACTOR_RELATION, 'object_id', self::CAROL));
+
+		$this->assertTrue($this->deliver($this->activity('Undo', $block['id'] . '/undo', $block['id'])));
+
+		$this->assertSame([], $this->rows(CoreRequestBuilder::TABLE_ACTOR_RELATION, 'object_id', self::CAROL));
 	}
 
 	/**

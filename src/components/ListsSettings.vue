@@ -149,9 +149,9 @@
 						</NcButton>
 					</div>
 
-					<!-- a list is a view of what the reader follows, so what is
-					     offered here is anybody the search knows; the server says
-					     no to somebody they do not follow, and so does the toast -->
+					<!-- a list is a view of what the reader follows, so only the
+					     people they follow are offered: the server would refuse
+					     anybody else -->
 					<div v-if="!list.nextcloud_group" class="lists-settings__add">
 						<NcTextField
 							v-model="search"
@@ -160,7 +160,7 @@
 							:showTrailingButton="false"
 							@update:modelValue="onSearch" />
 						<ul v-if="results.length > 0" class="lists-settings__results" role="listbox">
-							<li v-for="hit in results" :key="hit.id">
+							<li v-for="hit in results" :key="hit.url">
 								<button
 									type="button"
 									class="lists-settings__result"
@@ -171,8 +171,15 @@
 								</button>
 							</li>
 						</ul>
+						<!-- a search that failed has not said there is nobody -->
+						<div v-else-if="searchFailed && search.trim() !== ''" class="lists-settings__search-failed" role="alert">
+							<span class="lists-settings__hint">{{ t('social', 'Search failed') }}</span>
+							<NcButton variant="tertiary" @click="runSearch(search.trim())">
+								{{ t('social', 'Try again') }}
+							</NcButton>
+						</div>
 						<p v-else-if="searched && search.trim() !== ''" class="lists-settings__hint">
-							{{ t('social', 'Nobody by that name.') }}
+							{{ t('social', 'Nobody you follow by that name.') }}
 						</p>
 					</div>
 					<!-- A group list has no box to type in, because its members
@@ -223,6 +230,7 @@ import { nextCursor } from '../utils/linkHeader.js'
 import eventBus, { LISTS_CHANGED } from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { latestLoad } from '../utils/latestLoad.js'
 
 /** How long a pause in typing is before the search is asked. */
@@ -300,6 +308,8 @@ export default {
 			results: [],
 			/** whether a search has been answered for the term in the box */
 			searched: false,
+			/** whether the last search for the term in the box failed */
+			searchFailed: false,
 			/** only the newest search may answer, whether it succeeds or fails */
 			searches: latestLoad(),
 		}
@@ -374,7 +384,7 @@ export default {
 				this.announce()
 			} catch (error) {
 				logger.error('Failed to create the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not create the list'))
+				showError(errorOf(error, t('social', 'Could not create the list')))
 			} finally {
 				this.creating = false
 			}
@@ -409,7 +419,7 @@ export default {
 				this.announce()
 			} catch (error) {
 				logger.error('Failed to rename the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not rename the list'))
+				showError(errorOf(error, t('social', 'Could not rename the list')))
 			} finally {
 				this.busy = false
 			}
@@ -434,7 +444,7 @@ export default {
 				this.lists = this.lists.map((entry) => (entry.id === list.id ? { ...entry, ...data } : entry))
 			} catch (error) {
 				logger.error('Failed to change who can see the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not change who can see the list'))
+				showError(errorOf(error, t('social', 'Could not change who can see the list')))
 			} finally {
 				this.busy = false
 			}
@@ -458,7 +468,7 @@ export default {
 				this.announce()
 			} catch (error) {
 				logger.error('Failed to delete the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not delete the list'))
+				showError(errorOf(error, t('social', 'Could not delete the list')))
 			} finally {
 				this.busy = false
 			}
@@ -474,6 +484,7 @@ export default {
 			this.search = ''
 			this.results = []
 			this.searched = false
+			this.searchFailed = false
 			if (this.members[list.id] === undefined) {
 				await this.fetchMembers(list)
 			}
@@ -551,7 +562,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('Failed to remove the account from the list', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not remove {account} from the list', { account: account.acct }))
+				showError(errorOf(error, t('social', 'Could not remove {account} from the list', { account: account.acct })))
 			} finally {
 				this.busy = false
 			}
@@ -573,6 +584,7 @@ export default {
 				this.search = ''
 				this.results = []
 				this.searched = false
+				this.searchFailed = false
 				await this.fetchMembers(list)
 			} catch (error) {
 				logger.error('Failed to add the account to the list', { error })
@@ -580,7 +592,7 @@ export default {
 				// their terms; the server's wording is Mastodon's "Record not found"
 				showError(error?.response?.status === 404
 					? t('social', 'You can only add people you follow to a list')
-					: (error?.response?.data?.error || t('social', 'Could not add {account} to the list', { account: hit.acct })))
+					: errorOf(error, t('social', 'Could not add {account} to the list', { account: hit.acct })))
 			} finally {
 				this.busy = false
 			}
@@ -592,6 +604,7 @@ export default {
 				window.clearTimeout(this.searchTimer)
 			}
 			this.searched = false
+			this.searchFailed = false
 			if ((term ?? '').trim() === '') {
 				this.results = []
 				return
@@ -606,14 +619,18 @@ export default {
 			// search for the same words may have been asked since
 			const answers = () => isNewest() && this.search.trim() === term
 			try {
-				const { data } = await axios.get(generateUrl('apps/social/api/v1/global/accounts/search'), {
-					params: { search: term },
+				// only the people the reader follows: the search is narrowed on
+				// the server, so one of them is found even when a page of
+				// strangers matches first
+				const { data } = await axios.get(generateUrl('apps/social/api/v1/accounts/search'), {
+					params: { q: term, limit: 8, following: true },
 				})
 				if (!answers()) {
 					return
 				}
-				this.results = (data?.result?.accounts ?? []).slice(0, 8)
+				this.results = Array.isArray(data) ? data : []
 				this.searched = true
+				this.searchFailed = false
 			} catch (error) {
 				logger.error('The account search failed', { error })
 				if (!answers()) {
@@ -621,6 +638,7 @@ export default {
 				}
 				this.results = []
 				this.searched = true
+				this.searchFailed = true
 			}
 		},
 	},
@@ -647,6 +665,12 @@ export default {
 	&__hint {
 		color: var(--color-text-maxcontrast);
 		margin: 4px 0;
+	}
+
+	&__search-failed {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 	}
 
 	&__list {

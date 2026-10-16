@@ -243,18 +243,12 @@ class MoveInService {
 	 * @throws MoveErrorException `move-past-switch` once the DID may have moved
 	 */
 	public function cancel(string $userId): Move {
-		$move = $this->moves->latestOfUser($userId);
-		if ($move === null || $move->direction !== Move::IN || in_array($move->state, [Move::DONE, Move::CANCELLED], true)) {
-			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
+		for ($try = 1; ($called = $this->callOff($userId)) === null; $try++) {
+			if ($try === MoveAwayService::CALL_OFF_TRIES) {
+				throw new MoveErrorException('The move went on while it was called off', 'no-move-to-call-off');
+			}
 		}
-		if ($this->pastSwitch($move)) {
-			throw new MoveErrorException('The account has been pointed at this server already; the move can no longer be called off', 'move-past-switch');
-		}
-		$refresh = (string)($this->unseal($move->session)['refreshJwt'] ?? '');
-		$move->state = Move::CANCELLED;
-		$move->error = 'Called off';
-		$move->session = '';
-		$this->moves->update($move);
+		['move' => $move, 'refresh' => $refresh] = $called;
 		if ($refresh !== '') {
 			try {
 				$this->pds->call($move->pds, 'com.atproto.server.deleteSession', 'POST', [], null, null, '', $refresh);
@@ -265,6 +259,32 @@ class MoveInService {
 		$this->dropCopy($move);
 
 		return $move;
+	}
+
+	/**
+	 * The person's move, written as called off unless it may not be, with
+	 * the old server's refresh token it held; null when the job moved it on
+	 * between the read and the write — to the identity, say — so it is
+	 * looked at again.
+	 *
+	 * @return array{move: Move, refresh: string}|null
+	 * @throws MoveErrorException
+	 */
+	private function callOff(string $userId): ?array {
+		$move = $this->moves->latestOfUser($userId);
+		if ($move === null || $move->direction !== Move::IN || in_array($move->state, [Move::DONE, Move::CANCELLED], true)) {
+			throw new MoveErrorException('There is no move here to call off', 'no-move-to-call-off');
+		}
+		if ($this->pastSwitch($move)) {
+			throw new MoveErrorException('The account has been pointed at this server already; the move can no longer be called off', 'move-past-switch');
+		}
+		$refresh = (string)($this->unseal($move->session)['refreshJwt'] ?? '');
+		$read = $move->state;
+		$move->state = Move::CANCELLED;
+		$move->error = 'Called off';
+		$move->session = '';
+
+		return $this->moves->updateIf($move, $read, $move->step) ? ['move' => $move, 'refresh' => $refresh] : null;
 	}
 
 	/**
@@ -342,6 +362,19 @@ class MoveInService {
 	}
 
 	/**
+	 * Writes where the job got, unless the move was called off meanwhile;
+	 * what the job copied is dropped then.
+	 */
+	private function written(Move $move): bool {
+		if ($this->moves->updateIfRunning($move)) {
+			return true;
+		}
+		$this->calledOff($move);
+
+		return false;
+	}
+
+	/**
 	 * Deletes what a move copied here, unless the DID is an account's here.
 	 */
 	private function dropCopy(Move $move): void {
@@ -384,22 +417,26 @@ class MoveInService {
 				}
 				if ($waitsIn !== '') {
 					$move->state = $waitsIn;
-					$this->moves->update($move);
+					$this->written($move);
 
 					return;
 				}
 				$move->step = Move::nextIn($move->step);
-				$this->moves->update($move);
+				if (!$this->written($move)) {
+					return;
+				}
 			}
 			$move->state = Move::DONE;
 			$move->session = '';
-			$this->moves->update($move);
+			$this->written($move);
 		} catch (Throwable $e) {
 			if ($this->calledOff($move)) {
 				return;
 			}
 			$move->fail($e->getMessage(), MoveFailure::codeOf($e));
-			$this->moves->update($move);
+			if (!$this->written($move)) {
+				return;
+			}
 			$this->logger->warning('Bluesky account move here stopped', ['did' => $move->did, 'step' => $move->step, 'exception' => $e]);
 		}
 	}
@@ -514,10 +551,14 @@ class MoveInService {
 	 * failure here does not fail the move.
 	 */
 	public function importPosts(Move $move): void {
+		// written as it goes, so a long run is not taken for one that died (StaleMoves)
+		$onPage = function () use ($move): void {
+			$this->moves->update($move);
+		};
 		try {
 			$actor = $this->actors->getFromUserId($move->userId);
-			$move->progress = ['posts' => $this->history->import($actor, $move->did)] + $move->progress;
-			$move->progress = $this->history->importActions($actor, $move->did) + $move->progress;
+			$move->progress = ['posts' => $this->history->import($actor, $move->did, $onPage)] + $move->progress;
+			$move->progress = $this->history->importActions($actor, $move->did, $onPage) + $move->progress;
 		} catch (Throwable $e) {
 			$this->logger->warning('Posts of a Bluesky account that moved here not imported', ['did' => $move->did, 'exception' => $e]);
 		}

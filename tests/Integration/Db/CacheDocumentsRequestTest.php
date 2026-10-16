@@ -27,7 +27,6 @@ class CacheDocumentsRequestTest extends TestCase {
 	private const BASE = 'https://remote.example/cachedocs';
 	private const POST = self::BASE . '/notes/1';
 	private const ACTOR = self::BASE . '/users/owner';
-	private const MOVED = self::BASE . '/users/owner-new';
 	private const ACCOUNT = 'itest-cachedocs';
 
 	private CacheDocumentsRequest $documents;
@@ -312,15 +311,12 @@ class CacheDocumentsRequestTest extends TestCase {
 		$this->assertSame(['second'], $this->ours($this->documents->getOrphanedByParent(7, 1000, (int)$first->getNid())));
 	}
 
-	public function testDocumentsFollowAnAccountThatMovesAndGoWithTheirParent(): void {
+	public function testDocumentsGoWithTheirParent(): void {
 		$this->document('avatar', ['parent' => self::ACTOR]);
+		$this->assertSame(['avatar'], $this->ours($this->documents->getByParent(self::ACTOR)));
 
-		$this->documents->moveAccount(self::ACTOR, self::MOVED);
+		$this->documents->deleteByParent(self::ACTOR);
 		$this->assertSame([], $this->documents->getByParent(self::ACTOR));
-		$this->assertSame(['avatar'], $this->ours($this->documents->getByParent(self::MOVED)));
-
-		$this->documents->deleteByParent(self::MOVED);
-		$this->assertSame([], $this->documents->getByParent(self::MOVED));
 
 		$doc = $this->document('by-url');
 		$this->documents->deleteByUrl($doc->getUrl());

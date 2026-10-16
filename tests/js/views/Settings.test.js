@@ -311,6 +311,12 @@ describe('Settings', () => {
 			expect(rows[0].find('dd').text()).toBe(SHORTCUTS[0].label)
 		})
 
+		it('offers the switch that turns them off', async () => {
+			const wrapper = await mountSettings({ hash: '#shortcuts' })
+
+			expect(wrapper.find('#shortcuts').text()).toContain('Use keyboard shortcuts')
+		})
+
 		/** A shortcut with two keys is two keys, not "j/k" in one box. */
 		it('gives every key of a shortcut its own cap', async () => {
 			const wrapper = await mountSettings({ hash: '#shortcuts' })

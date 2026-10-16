@@ -128,6 +128,24 @@ describe('ZoomableImage', () => {
 			expect(wrapper.emitted('next')).toHaveLength(1)
 		})
 
+		it('pages the other way in a right-to-left page, where the next picture is to the left', async () => {
+			document.documentElement.dir = 'rtl'
+			try {
+				const wrapper = mountImage()
+
+				await send(wrapper, 'pointerdown', { clientX: 200 })
+				await send(wrapper, 'pointerup', { clientX: 300 })
+				expect(wrapper.emitted('next')).toHaveLength(1)
+				expect(wrapper.emitted('previous')).toBeUndefined()
+
+				await send(wrapper, 'pointerdown', { clientX: 300 })
+				await send(wrapper, 'pointerup', { clientX: 200 })
+				expect(wrapper.emitted('previous')).toHaveLength(1)
+			} finally {
+				document.documentElement.dir = ''
+			}
+		})
+
 		// a press that wandered a few pixels is a press, not a swipe
 		it('ignores a short drag', async () => {
 			const wrapper = mountImage()

@@ -83,6 +83,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
 import { moderationUrl } from '../../services/adminApi.js'
 import { showError } from '../../services/toast.js'
+import { errorOf } from '../../utils/serverError.js'
 
 /**
  * The files this instance refuses.
@@ -201,7 +202,7 @@ export default {
 				this.hash = ''
 				this.reason = ''
 			} catch (error) {
-				showError(error.response?.data?.error ?? t('social', 'Could not refuse that file'))
+				showError(errorOf(error, t('social', 'Could not refuse that file')))
 			} finally {
 				this.busy = false
 			}

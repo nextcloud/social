@@ -102,6 +102,7 @@ import IconEye from 'vue-material-design-icons/Eye.vue'
 import IconSend from 'vue-material-design-icons/Send.vue'
 import logger from '../services/logger.js'
 import { showError, showSuccess } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 
 /** how often a picture's clock moves, in ms */
 const TICK = 100
@@ -348,7 +349,7 @@ export default {
 				return true
 			} catch (error) {
 				logger.debug('could not answer the short', { error })
-				showError(error.response?.data?.error ?? t('social', 'Could not send that'))
+				showError(errorOf(error, t('social', 'Could not send that')))
 
 				return false
 			} finally {

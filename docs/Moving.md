@@ -28,7 +28,9 @@ survives it.
 The same happens in the other direction when somebody *you* follow moves:
 their old server sends the move here, this server checks that the new account
 names the old one, follows the new account on your behalf, and shows the
-redirect on the old account's profile from then on.
+redirect on the old account's profile from then on. Their old posts stay on
+the old account, where their old server can still edit or delete them. If you
+already followed the new account too, you keep that one follow.
 
 ## Moving to Aloha Social
 
@@ -94,6 +96,12 @@ Take an export from the same page first if you want a copy of everything.
 
 An administrator can move an account for somebody with
 `occ social:account:move`, which skips the thirty days.
+
+**When a step is refused**, the page says why in your language and what to
+do next: the old account cannot be found, the new one does not name this one
+yet, an import of that kind is still running. The server's own words, in
+English, are behind *Details*, for whoever helps you. The codes behind those
+sentences are listed in the [API reference](API.md#migration-error-codes).
 
 ## Your Bluesky account
 

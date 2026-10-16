@@ -749,6 +749,45 @@ class IdentityServiceTest extends TestCase {
 		]);
 	}
 
+	/**
+	 * A handover whose answer never came is not in the log, but the
+	 * directory may have taken it: once it points the DID at the other
+	 * server, the operation is taken into the log from the directory's.
+	 */
+	public function testAHandOverTheDirectoryTookWithoutAnAnswerIsTakenIntoTheLog(): void {
+		$identity = $this->service->forActor(self::actor('leaver'));
+		$this->assertNotNull($identity);
+		$sent = [];
+		$this->plc->method('submit')->willReturnCallback(static function (string $did, array $operation) use (&$sent): never {
+			$sent[] = $operation;
+			throw new AtprotoException('PLC directory could not be reached: timeout');
+		});
+		try {
+			$this->service->handOver($identity, [
+				'rotationKeys' => [PrivateKey::generate(Curve::K256)->didKey()],
+				'verificationMethods' => ['atproto' => PrivateKey::generate(Curve::K256)->didKey()],
+				'alsoKnownAs' => ['at://leaver.pds.example.com'],
+				'services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => 'https://pds.example.com']],
+			]);
+			$this->fail('handed over');
+		} catch (AtprotoException) {
+		}
+		$this->assertCount(1, $this->rows(static fn (array $row): bool => true), 'not left for repair() to send again');
+		$genesis = $this->logged[0];
+		$handOver = PlcOperation::cid($sent[0])->toString();
+		$this->plc->method('auditLog')->willReturn([
+			['cid' => $genesis['cid'], 'operation' => $genesis['operation'], 'nullified' => false],
+			['cid' => $handOver, 'operation' => $sent[0], 'nullified' => false],
+		]);
+		$this->plc->method('data')->willReturn(['services' => ['atproto_pds' => ['type' => 'AtprotoPersonalDataServer', 'endpoint' => 'https://pds.example.com']]]);
+
+		$this->assertFalse($this->service->pointsAt($identity->did, 'https://other.example.com'));
+		$this->assertCount(1, $this->rows(static fn (array $row): bool => true), 'the log is left alone for another server');
+		$this->assertTrue($this->service->pointsAt($identity->did, 'https://pds.example.com/'));
+
+		$this->assertSame($handOver, $this->lastCid($identity->did, true), 'the log\'s confirmed head is the directory\'s');
+	}
+
 	public function testSwitchingOffAnnouncesTheAccountInactiveAndOnAgainActive(): void {
 		$identity = $this->service->forActor(self::actor('erin'));
 		$this->assertNotNull($identity);

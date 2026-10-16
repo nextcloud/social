@@ -14,6 +14,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\ItemNotFoundException;
+use OCA\Social\Exceptions\RefusalException;
 use OCA\Social\Interfaces\Object\DocumentInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -182,10 +183,13 @@ class StoryServiceTest extends TestCase {
 		$this->documentService->method('getMediaFromArray')->willReturn([new Document()]);
 		$this->storiesRequest->method('countLiveByActor')->willReturn(Story::MAX_PER_ACTOR);
 
-		$this->expectException(InvalidResourceException::class);
-		$this->expectExceptionMessageMatches('/already has/');
-
-		$this->service->add($this->person(self::ALICE), 99, '', 5);
+		try {
+			$this->service->add($this->person(self::ALICE), 99, '', 5);
+			$this->fail('a story past the ceiling was added');
+		} catch (RefusalException $e) {
+			$this->assertStringContainsString('already has', $e->getMessage());
+			$this->assertSame(['shorts-full', Story::MAX_PER_ACTOR], [$e->errorCode, $e->params['limit']]);
+		}
 	}
 
 	public function testDeletingSomebodyElsesStoryIsANotFoundAndDeletesNothing(): void {

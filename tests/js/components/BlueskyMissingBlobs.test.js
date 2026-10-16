@@ -133,7 +133,7 @@ describe('BlueskyMissingBlobs', () => {
 		await flushPromises()
 
 		expect(wrapper.find('[role="alert"]').text()).toBe('The move is not waiting for a decision any more. Reload the page to see where it stands.')
-		expect(wrapper.find('.bluesky-error__details code').text()).toBe('The move does not wait for a decision')
+		expect(wrapper.find('.server-error__details code').text()).toBe('The move does not wait for a decision')
 		expect(showError).not.toHaveBeenCalled()
 	})
 })

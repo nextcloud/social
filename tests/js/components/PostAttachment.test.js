@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PostAttachment from '../../../src/components/PostAttachment.vue'
 import MediaAttachment from '../../../src/components/MediaAttachment.vue'
@@ -34,9 +34,10 @@ const NcModalStub = {
 		hasPrevious: { type: Boolean, default: false },
 		hasNext: { type: Boolean, default: false },
 		size: { type: String, default: '' },
+		disableSwipe: { type: Boolean, default: false },
 	},
 	emits: ['close', 'previous', 'next'],
-	template: `<div class="modal-stub" :data-size="size">
+	template: `<div class="modal-stub" :data-size="size" :data-swipe="disableSwipe ? 'off' : 'on'">
 		<button class="modal-stub__previous" :disabled="!hasPrevious" @click="$emit('previous')">previous</button>
 		<button class="modal-stub__next" :disabled="!hasNext" @click="$emit('next')">next</button>
 		<button class="modal-stub__close" @click="$emit('close')">close</button>
@@ -44,18 +45,24 @@ const NcModalStub = {
 	</div>`,
 }
 
+// unmounted after each test, so a viewer left open cannot answer the next one's keys
+const mounted = []
+
 function mountAttachments(items, props = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: false })
 
-	return mount(PostAttachment, {
+	const wrapper = mount(PostAttachment, {
 		props: { attachments: items, ...props },
 		global: {
 			plugins: [pinia],
 			stubs: { NcModal: NcModalStub },
 		},
 	})
+	mounted.push(wrapper)
+
+	return wrapper
 }
 
 const mountMediaFirst = (items) => mountAttachments(items, { mediaFirst: true })
@@ -77,6 +84,9 @@ describe('PostAttachment', () => {
 
 	afterEach(() => {
 		getContext.mockRestore()
+		while (mounted.length > 0) {
+			mounted.pop().unmount()
+		}
 	})
 
 	it('lists files under the pictures instead of tiling them', () => {
@@ -161,6 +171,39 @@ describe('PostAttachment', () => {
 
 		await wrapper.find('.modal-stub__previous').trigger('click')
 		expect(viewerImage(wrapper).attributes('src')).toBe(items[1].url)
+	})
+
+	/**
+	 * The modal pages on the arrow keys itself, in the reading direction. A
+	 * second listener of the app's own paged as well, so one press skipped a
+	 * picture — and in a right-to-left page the two cancelled out.
+	 */
+	it('pages one picture per arrow key, with the real modal', async () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		useSettingsStore().setServerData({ public: false })
+		const items = attachments(5)
+		const wrapper = mount(PostAttachment, { attachTo: document.body, props: { attachments: items }, global: { plugins: [pinia] } })
+		await wrapper.vm.showModal(1)
+		await flushPromises()
+		const mask = document.querySelector('.modal-mask')
+		mask.focus()
+
+		mask.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+		await flushPromises()
+		expect(wrapper.vm.current).toBe(2)
+
+		mask.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }))
+		await flushPromises()
+		expect(wrapper.vm.current).toBe(1)
+		wrapper.unmount()
+	})
+
+	it('leaves a picture\'s swipe to the picture, which knows when it is zoomed', async () => {
+		const wrapper = mountAttachments(attachments(2))
+		await tiles(wrapper)[0].trigger('click')
+
+		expect(wrapper.find('.modal-stub').attributes('data-swipe')).toBe('off')
 	})
 
 	it('disables both directions for a single attachment', async () => {
@@ -295,6 +338,15 @@ describe('PostAttachment', () => {
 			await wrapper.vm.$nextTick()
 
 			expect(wrapper.find('.attachment__viewer video').attributes('playsinline')).toBeDefined()
+		})
+
+		it('lets the modal page a video on a swipe, since nothing else does', async () => {
+			const wrapper = mountAttachments([clip])
+
+			wrapper.vm.openMedia(0)
+			await wrapper.vm.$nextTick()
+
+			expect(wrapper.find('.modal-stub').attributes('data-swipe')).toBe('on')
 		})
 	})
 

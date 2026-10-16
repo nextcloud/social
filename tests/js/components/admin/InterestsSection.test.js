@@ -135,6 +135,6 @@ describe('the For you card', () => {
 		await saveButton(wrapper).trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('halfLife out of range')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not save the For you settings', details: 'halfLife out of range' })
 	})
 })

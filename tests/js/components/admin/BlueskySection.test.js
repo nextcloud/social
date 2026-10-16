@@ -203,10 +203,12 @@ describe('the Bluesky card', () => {
 			await flushPromises()
 
 			expect(toggle(wrapper).props('modelValue')).toBe(false)
-			expect(wrapper.findComponent({ name: 'NcNoteCard' }).text())
-				.toBe('Bluesky cannot be switched on while a requirement fails')
+			expect(wrapper.findComponent({ name: 'NcNoteCard' }).text()).toBe('Could not save the Bluesky settings')
 			expect(wrapper.text()).toContain('occ social:atproto:serve is not running')
-			expect(showError).toHaveBeenCalledWith('Bluesky cannot be switched on while a requirement fails')
+			expect(showError).toHaveBeenCalledWith({
+				text: 'Could not save the Bluesky settings',
+				details: 'Bluesky cannot be switched on while a requirement fails',
+			})
 		})
 	})
 
@@ -255,7 +257,8 @@ describe('the Bluesky card', () => {
 			await buttonByText(wrapper, 'Save').trigger('click')
 			await flushPromises()
 
-			expect(wrapper.findComponent({ name: 'NcNoteCard' }).text()).toBe('That is not a relay address')
+			expect(wrapper.findComponent({ name: 'NcNoteCard' }).text()).toBe('Could not save the Bluesky settings')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save the Bluesky settings', details: 'That is not a relay address' })
 		})
 	})
 
@@ -354,7 +357,8 @@ describe('the Bluesky card', () => {
 			await blockForm(wrapper).trigger('submit')
 			await flushPromises()
 
-			expect(wrapper.find('.bluesky__block-error').text()).toBe('not a DID or a host')
+			expect(wrapper.find('.server-error p').text()).toBe('Could not block that')
+			expect(wrapper.find('.server-error code').text()).toBe('not a DID or a host')
 			expect(fieldByLabel(wrapper, 'DID or host to block').find('input').element.value).toBe('nonsense here')
 		})
 

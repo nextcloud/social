@@ -9,16 +9,22 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service;
 
+use OCA\Social\Db\ActorsRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\MultipartBodyService;
+use OCP\Accounts\IAccountManager;
 use OCP\Config\IUserConfig;
+use OCP\Files\NotFoundException;
+use OCP\Files\SimpleFS\ISimpleFile;
 use OCP\IAvatar;
 use OCP\IAvatarManager;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
@@ -55,6 +61,9 @@ class AvatarServiceTest extends TestCase {
 	private array $uploaded = [];
 	/** @var string[] what happened to core's picture, in order: a settings reload, a set, a remove */
 	private array $pictureEvents = [];
+	/** @var array<string, Person> the local accounts, by username */
+	private array $actors = [];
+	private ?IUser $reader = null;
 
 	protected function setUp(): void {
 		parent::setUp();
@@ -107,8 +116,16 @@ class AvatarServiceTest extends TestCase {
 			$this->pictureEvents[] = 'reload ' . $userId . ($reload ? ' from the database' : '');
 		});
 
+		$actorsRequest = $this->createStub(ActorsRequest::class);
+		$actorsRequest->method('getFromUsername')->willReturnCallback(
+			fn (string $username): Person => $this->actors[$username] ?? throw new ActorDoesNotExistException()
+		);
+		$userSession = $this->createStub(IUserSession::class);
+		$userSession->method('getUser')->willReturnCallback(fn (): ?IUser => $this->reader);
+
 		return new AvatarService(
-			$this->avatarManager, $this->userManager, $this->accountService, new NullLogger(), $multipartBodyService, $userConfig
+			$this->avatarManager, $this->userManager, $this->accountService, new NullLogger(), $multipartBodyService, $userConfig,
+			$actorsRequest, $userSession
 		);
 	}
 
@@ -336,5 +353,83 @@ class AvatarServiceTest extends TestCase {
 
 		$this->assertFalse($service->restoreFromArchive(self::USER, $this->png()));
 		$this->assertNull($this->stored);
+	}
+
+	/**
+	 * A local account, its username apart from its login, and the pictures
+	 * core holds: the user's own, and the initials drawn for a name.
+	 *
+	 * @return array{IAvatarManager&MockObject, ISimpleFile, ISimpleFile}
+	 */
+	private function publishedSetup(string $userId = 'jane.doe', int $deleted = 0): array {
+		$sunflower = new Person();
+		$sunflower->setPreferredUsername('sunflower')->setUserId($userId)->setLocal(true);
+		if ($deleted > 0) {
+			$sunflower->setDeleted($deleted);
+		}
+		$this->actors['sunflower'] = $sunflower;
+
+		$own = $this->createStub(ISimpleFile::class);
+		$initials = $this->createStub(ISimpleFile::class);
+		$ownAvatar = $this->createStub(IAvatar::class);
+		$ownAvatar->method('getFile')->willReturn($own);
+		$initialsAvatar = $this->createStub(IAvatar::class);
+		$initialsAvatar->method('getFile')->willReturn($initials);
+
+		$avatarManager = $this->createMock(IAvatarManager::class);
+		$avatarManager->method('getAvatar')->with($userId)->willReturn($ownAvatar);
+		$avatarManager->method('getGuestAvatar')->with('sunflower')->willReturn($initialsAvatar);
+		$this->avatarManager = $avatarManager;
+
+		return [$avatarManager, $own, $initials];
+	}
+
+	private function publishes(bool $publishes): void {
+		$this->accountService->method('mayPublish')->willReturnCallback(
+			static fn (Person $actor, string $property): bool => $property === IAccountManager::PROPERTY_AVATAR ? $publishes : true
+		);
+	}
+
+	public function testThePublishedAvatarIsTheNextcloudUsersFoundByTheUsername(): void {
+		[, $own] = $this->publishedSetup();
+		$this->publishes(true);
+
+		$this->assertSame($own, $this->build()->published('sunflower', 512));
+	}
+
+	/** The scope that keeps the picture off the actor keeps it from a visitor here too. */
+	public function testAVisitorGetsTheInitialsOfAnAccountThatDoesNotPublishItsPicture(): void {
+		[, , $initials] = $this->publishedSetup();
+		$this->publishes(false);
+
+		$this->assertSame($initials, $this->build()->published('sunflower', 512));
+	}
+
+	public function testASignedInReaderGetsWhatNextcloudShowsThem(): void {
+		[, $own] = $this->publishedSetup();
+		$this->publishes(false);
+		$this->reader = $this->createStub(IUser::class);
+
+		$this->assertSame($own, $this->build()->published('sunflower', 512));
+	}
+
+	public static function accountsWithoutAPicture(): array {
+		return [
+			'nobody by that name' => ['nobody', 'jane.doe', 0],
+			'a team account' => ['sunflower', 'team/garden', 0],
+			'a channel' => ['sunflower', 'channel/garden', 0],
+			'a deleted account' => ['sunflower', 'jane.doe', 1700000000],
+		];
+	}
+
+	#[\PHPUnit\Framework\Attributes\DataProvider('accountsWithoutAPicture')]
+	public function testOnlyALocalPersonAccountHasAPublishedAvatar(string $username, string $userId, int $deleted): void {
+		[$avatarManager] = $this->publishedSetup($userId, $deleted);
+		$this->publishes(true);
+		$avatarManager->expects($this->never())->method('getAvatar');
+
+		$this->expectException(NotFoundException::class);
+
+		$this->build()->published($username, 512);
 	}
 }

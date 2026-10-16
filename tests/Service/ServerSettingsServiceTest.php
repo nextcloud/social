@@ -12,9 +12,12 @@ namespace OCA\Social\Tests\Service;
 use InvalidArgumentException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
+use OCA\Social\Exceptions\SettingRefusedException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\SensitiveMediaService;
 use OCA\Social\Service\ServerSettingsService;
+use OCA\Social\Service\VideoLadderService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -140,6 +143,34 @@ class ServerSettingsServiceTest extends TestCase {
 
 		$this->assertSame('admin', $this->save(['contactAccount' => '@admin'])['contact_account']);
 		$this->assertSame('admin', $this->stored[ConfigService::SOCIAL_CONTACT_ACCOUNT]);
+	}
+
+	/**
+	 * Each refusal names its field and carries the numbers the advice needs,
+	 * so the page can say it in the administrator's language.
+	 *
+	 * @param array<string, mixed> $overrides
+	 * @param array<string, string|int> $expected
+	 */
+	#[DataProvider('provideRefusedValues')]
+	public function testARefusedValueCarriesItsCodeAndTheNumbersItNeeds(array $overrides, array $expected): void {
+		try {
+			$this->save($overrides);
+			$this->fail('the value was taken');
+		} catch (SettingRefusedException $e) {
+			$this->assertSame($expected, ['code' => $e->errorCode] + $e->params);
+		}
+	}
+
+	/** @return array<string, array{array<string, mixed>, array<string, string|int>}> */
+	public static function provideRefusedValues(): array {
+		return [
+			'not an address' => [['contactEmail' => 'nobody'], ['code' => 'setting-not-email', 'field' => 'contact_email']],
+			'too big' => [['maxSize' => 0], ['code' => 'setting-out-of-range', 'field' => 'max_size', 'min' => 1, 'max' => ServerSettingsService::MAX_SIZE_MB]],
+			'neither 0 nor in range' => [['imageMaxEdge' => 1], ['code' => 'setting-zero-or-range', 'field' => 'image_max_edge', 'min' => ServerSettingsService::MIN_IMAGE_EDGE, 'max' => ServerSettingsService::MAX_IMAGE_EDGE]],
+			'no height left' => [['videoLadderHeights' => 'tall'], ['code' => 'setting-heights', 'field' => 'video_ladder_heights', 'min' => VideoLadderService::MIN_HEIGHT, 'max' => VideoLadderService::MAX_HEIGHT]],
+			'not a choice' => [['nsfwPolicy' => 'maybe'], ['code' => 'setting-not-choice', 'field' => 'nsfw_policy', 'choices' => implode(', ', SensitiveMediaService::POLICIES)]],
+		];
 	}
 
 	public function testARemoteAccountCannotBeTheLocalInstanceContact(): void {

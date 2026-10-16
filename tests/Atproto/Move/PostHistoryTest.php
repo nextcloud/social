@@ -61,7 +61,12 @@ class PostHistoryTest extends TestCase {
 
 	private function history(): PostHistory {
 		$repositories = $this->createMock(RepositoryService::class);
-		$repositories->method('listRecords')->willReturnCallback(fn (string $did, string $collection): array => $collection === RecordMapper::POST ? $this->records : ($this->actionRecords[$collection] ?? []));
+		$repositories->method('listRecords')->willReturnCallback(function (string $did, string $collection, int $limit, string $cursor = ''): array {
+			$records = $collection === RecordMapper::POST ? $this->records : ($this->actionRecords[$collection] ?? []);
+			$after = array_filter($records, static fn (StoredRecord $record): bool => $cursor === '' || strcmp($record->rkey, $cursor) > 0);
+
+			return array_slice(array_values($after), 0, $limit);
+		});
 		$repoRequest = $this->createMock(AtprotoRepoRequest::class);
 		$repoRequest->method('setLocalId')->willReturnCallback(function (string $did, string $collection, string $rkey, string $localId): void {
 			$this->tied[$rkey] = $localId;
@@ -160,6 +165,24 @@ class PostHistoryTest extends TestCase {
 		$this->assertCount(3, $this->parsed, 'an empty post is left out, and one that is a post here already');
 		$this->assertSame(['3kaaa', '3kbbb', '3kccc'], array_keys($this->tied));
 		$this->assertSame('https://social.test/@alice/' . md5($first['source']), $this->tied['3kaaa']);
+	}
+
+	/** Whoever runs the import is told after each page, to write that it goes on. */
+	public function testEachPageIsToldOf(): void {
+		for ($i = 0; $i < 150; $i++) {
+			$this->records[] = $this->record(sprintf('3kpost%04d', $i), ['text' => 'post ' . $i]);
+		}
+		$pages = 0;
+		$onPage = static function () use (&$pages): void {
+			$pages++;
+		};
+		$history = $this->history();
+
+		$this->assertSame(150, $history->import(new Person(), self::DID, $onPage));
+		$this->assertSame(2, $pages);
+
+		$history->importActions(new Person(), self::DID, $onPage);
+		$this->assertSame(4, $pages, 'a page of likes, a page of reposts');
 	}
 
 	public function testTheLatestLikesAndRepostsBecomeLikesAndBoostsTiedToTheirRecords(): void {

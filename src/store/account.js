@@ -5,6 +5,7 @@
 
 import axios from '@nextcloud/axios'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import { defineStore } from 'pinia'
@@ -539,7 +540,7 @@ export const useAccountStore = defineStore('account', {
 				return response.data
 			} catch (error) {
 				logger.error('Failed to save the account settings', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not save your account settings'))
+				showError(errorOf(error, t('social', 'Could not save your account settings')))
 			}
 		},
 		/**

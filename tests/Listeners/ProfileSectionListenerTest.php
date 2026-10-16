@@ -18,6 +18,7 @@ use OCP\AppFramework\Services\IInitialState;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\IUser;
+use OCP\IUserSession;
 use OCP\L10N\IFactory;
 use OCP\Profile\BeforeTemplateRenderedEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -27,6 +28,7 @@ class ProfileSectionListenerTest extends TestCase {
 	private IInitialState $initialState;
 	private ActorsRequest $actorsRequest;
 	private array $states = [];
+	private ?IUser $reader = null;
 
 	protected function setUp(): void {
 		$this->initialState = $this->createStub(IInitialState::class);
@@ -46,7 +48,10 @@ class ProfileSectionListenerTest extends TestCase {
 	}
 
 	private function listener(): ProfileSectionListener {
-		return new ProfileSectionListener($this->initialState, $this->actorsRequest);
+		$userSession = $this->createStub(IUserSession::class);
+		$userSession->method('getUser')->willReturnCallback(fn (): ?IUser => $this->reader);
+
+		return new ProfileSectionListener($this->initialState, $this->actorsRequest, $userSession);
 	}
 
 	public function testIsAnEventListener(): void {
@@ -83,12 +88,37 @@ class ProfileSectionListenerTest extends TestCase {
 	 * nobody, or the account somebody else had named that.
 	 */
 	public function testTheSectionIsToldTheAccountOfTheProfilesUser(): void {
+		$this->reader = $this->createStub(IUser::class);
 		$actor = (new Person())->setPreferredUsername('aloha_al');
 		$this->actorsRequest->method('getFromUserId')->willReturnMap([['alice', $actor]]);
 
 		$this->listener()->handle(new BeforeTemplateRenderedEvent('alice'));
 
 		$this->assertSame('aloha_al', $this->states['profileAccount']);
+	}
+
+	/**
+	 * Nextcloud renders the profile page, and fires the event, for a visitor
+	 * who is not signed in. Telling them the username would map the login in
+	 * the page's address to the account named apart from it.
+	 */
+	public function testAVisitorIsNotToldTheAccountOfALoginItIsNamedApartFrom(): void {
+		$actor = (new Person())->setPreferredUsername('aloha_al');
+		$this->actorsRequest->method('getFromUserId')->willReturnMap([['alice', $actor]]);
+
+		$this->listener()->handle(new BeforeTemplateRenderedEvent('alice'));
+
+		$this->assertSame([], $this->states);
+	}
+
+	/** Where the username is the login, the visitor learns nothing new. */
+	public function testAVisitorIsToldAnAccountNamedAsItsLogin(): void {
+		$actor = (new Person())->setPreferredUsername('alice');
+		$this->actorsRequest->method('getFromUserId')->willReturnMap([['alice', $actor]]);
+
+		$this->listener()->handle(new BeforeTemplateRenderedEvent('alice'));
+
+		$this->assertSame('alice', $this->states['profileAccount']);
 	}
 
 	public function testAUserWithoutAnAccountHasNoneToShow(): void {

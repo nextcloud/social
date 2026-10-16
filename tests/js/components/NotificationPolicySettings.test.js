@@ -112,7 +112,7 @@ describe('NotificationPolicySettings', () => {
 		radio(wrapper, 'for_private_mentions', 'filter').vm.$emit('update:modelValue', 'filter')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('not now')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not save that setting', details: 'not now' })
 		expect(radio(wrapper, 'for_private_mentions', 'accept').props('modelValue')).toBe('accept')
 	})
 
@@ -201,7 +201,7 @@ describe('NotificationPolicySettings', () => {
 			await wrapper.find('.policy-settings__person').findComponent({ name: 'NcButton' }).trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('gone wrong')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not save that setting', details: 'gone wrong' })
 			expect(wrapper.findAll('.policy-settings__person')).toHaveLength(1)
 		})
 	})

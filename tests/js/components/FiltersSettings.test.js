@@ -261,7 +261,7 @@ describe('FiltersSettings', () => {
 			await buttonIn(wrapper, 'Add a filter').trigger('click')
 			await fillIn(wrapper)
 
-			expect(showError).toHaveBeenCalledWith('title is required')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not create the filter', details: 'title is required' })
 			// still open, with what was typed in it, so it can be corrected
 			expect(wrapper.find('.filter-form__title input').element.value).toBe('Politics')
 		})
@@ -273,7 +273,7 @@ describe('FiltersSettings', () => {
 			await buttonIn(wrapper, 'Add a filter').trigger('click')
 			await fillIn(wrapper)
 
-			expect(showError).toHaveBeenCalledWith('Could not create the filter')
+			expect(showError).toHaveBeenCalledWith({ text: 'Could not create the filter', details: '' })
 		})
 
 		it('says so when the filters cannot be read at all', async () => {

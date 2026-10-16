@@ -89,7 +89,7 @@ describe('deleting your own account', () => {
 		await buttonByText(wrapper, 'Delete it for good').trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('type alice@cloud.example to confirm')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not delete your account', details: 'type alice@cloud.example to confirm' })
 		expect(wrapper.vm.deleting).toBe(false)
 	})
 

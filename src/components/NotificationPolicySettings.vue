@@ -83,6 +83,7 @@ import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwit
 import ActorAvatar from './ActorAvatar.vue'
 import logger from '../services/logger.js'
 import { showError } from '../services/toast.js'
+import { errorOf } from '../utils/serverError.js'
 import { useNotificationsStore } from '../store/notifications.js'
 
 /** The five keys, in the order Mastodon's own settings list them. */
@@ -243,7 +244,7 @@ export default {
 				this.notificationsStore.setPolicyNotice(false)
 			} catch (error) {
 				logger.error('Could not save the notification policy', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not save that setting'))
+				showError(errorOf(error, t('social', 'Could not save that setting')))
 			} finally {
 				const rest = { ...this.pending }
 				delete rest[key]
@@ -265,7 +266,7 @@ export default {
 				this.allowed = this.allowed.filter((one) => one.id !== account.id)
 			} catch (error) {
 				logger.error('Could not stop allowing an account', { error })
-				showError(error?.response?.data?.error || t('social', 'Could not save that setting'))
+				showError(errorOf(error, t('social', 'Could not save that setting')))
 			} finally {
 				this.stopping = this.stopping.filter((id) => id !== account.id)
 			}

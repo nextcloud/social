@@ -787,6 +787,65 @@ describe('ProfileInfo', () => {
 			expect(buttonByText(modal, 'Add field')).toBeUndefined()
 		})
 
+		it('counts the pronouns and the support link against the four', async () => {
+			accountStore.addAccount({
+				actorId: alice.url,
+				data: { pronouns: 'she/her', support_link: 'https://example.org/tip' },
+			})
+			credentials = {
+				source: {
+					note: '',
+					fields: [
+						{ name: 'Pronouns', value: 'she/her' },
+						{ name: 'Support', value: 'https://example.org/tip' },
+					],
+				},
+			}
+			const wrapper = mountProfile('alice')
+
+			const modal = await openProfileEditor(wrapper)
+			expect(modal.find('.user-profile__fields-count').text()).toBe('2 of 4 fields used')
+			// the empty row the editor opens with is the third of four
+			expect(modal.findAll('.user-profile__fields-row')).toHaveLength(1)
+			await buttonByText(modal, 'Add field').trigger('click')
+
+			expect(wrapper.find('.modal-stub').findAll('.user-profile__fields-row')).toHaveLength(2)
+			expect(buttonByText(wrapper.find('.modal-stub'), 'Add field')).toBeUndefined()
+		})
+
+		it('refuses to save more than four fields rather than dropping some', async () => {
+			credentials = {
+				source: {
+					note: '',
+					fields: [
+						{ name: 'One', value: '1' },
+						{ name: 'Two', value: '2' },
+						{ name: 'Three', value: '3' },
+						{ name: 'Four', value: '4' },
+					],
+				},
+			}
+			const put = vi.spyOn(axios, 'put').mockResolvedValue({ data: { result: { account: alice } } })
+			const wrapper = mountProfile('alice')
+
+			const modal = await openProfileEditor(wrapper)
+			expect(modal.find('.user-profile__fields-count').text()).toBe('4 of 4 fields used')
+			await modal.find('input[aria-label="Your pronouns"]').setValue('they/them')
+
+			const count = wrapper.find('.modal-stub .user-profile__fields-count')
+			expect(count.text()).toBe('5 of 4 fields used. Remove one, or empty the pronouns or the support link, to save.')
+			expect(count.classes()).toContain('user-profile__fields-count--over')
+			expect(buttonByText(wrapper.find('.modal-stub'), 'Save').attributes('disabled')).toBeDefined()
+
+			await wrapper.findComponent(ProfileInfo).vm.saveProfile()
+			await flushPromises()
+
+			expect(put).not.toHaveBeenCalled()
+			expect(showSuccess).not.toHaveBeenCalled()
+			expect(showError).toHaveBeenCalledWith('A profile has room for four fields. Remove one, or empty the pronouns or the support link, and save again.')
+			expect(wrapper.find('.modal-stub').exists()).toBe(true)
+		})
+
 		it('keeps the editor open and reports a failed save', async () => {
 			vi.spyOn(axios, 'put').mockRejectedValue(new Error('500'))
 			const wrapper = mountProfile('alice')
@@ -1162,9 +1221,25 @@ describe('ProfileInfo', () => {
 			await input.trigger('change')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Failed to upload banner')
+			expect(showError).toHaveBeenCalledWith({ text: 'Failed to upload banner', details: '' })
 			expect(dispatch).not.toHaveBeenCalled()
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Upload an image').attributes('disabled')).toBeUndefined()
+		})
+
+		it('says how large a banner may be when the server says it was too large', async () => {
+			post.mockRejectedValue({ response: { status: 400, data: { status: -1, error: 'request failed', message: 'That picture is larger than this server accepts (at most 2 MB).', code: 'banner-too-large', limit: '2 MB' } } })
+			const wrapper = mountProfile('alice')
+			await openProfileEditor(wrapper)
+			const input = wrapper.find('input[type="file"]')
+			Object.defineProperty(input.element, 'files', { value: [new File(['x'], 'b.png', { type: 'image/png' })], configurable: true })
+
+			await input.trigger('change')
+			await flushPromises()
+
+			expect(showError).toHaveBeenCalledWith({
+				text: 'That picture is larger than this server takes (at most 2 MB). Pick a smaller one.',
+				details: 'That picture is larger than this server accepts (at most 2 MB).',
+			})
 		})
 
 		it('sets the banner from a URL inside the Edit profile dialog', async () => {
@@ -1208,7 +1283,7 @@ describe('ProfileInfo', () => {
 			await buttonByText(wrapper.find('.modal-stub'), 'Apply').trigger('click')
 			await flushPromises()
 
-			expect(showError).toHaveBeenCalledWith('Failed to set banner from URL')
+			expect(showError).toHaveBeenCalledWith({ text: 'Failed to set banner from URL', details: '' })
 			expect(wrapper.find('.modal-stub').exists()).toBe(true)
 			expect(buttonByText(wrapper.find('.modal-stub'), 'Apply').attributes('disabled')).toBeUndefined()
 		})

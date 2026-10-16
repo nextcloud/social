@@ -101,6 +101,7 @@ import Earth from 'vue-material-design-icons/Earth.vue'
 import PersonCard from './PersonCard.vue'
 import { useFollowByHandle } from '../composables/useFollowByHandle.js'
 import logger from '../services/logger.js'
+import { useSettingsStore } from '../store/settings.js'
 
 /** How long the box waits after the last keystroke before it asks anybody. */
 const DEBOUNCE = 400
@@ -210,7 +211,11 @@ export default {
 				return t('social', 'Nobody there matched. Try the other directories.')
 			}
 
-			return t('social', 'Nobody in these directories matched. A full handle — like @someone@example.org — finds a person on any server, listed or not.')
+			// the directories hold who is listed in them; somebody who is not
+			// is found by the sidebar's search, which looks a handle up
+			return useSettingsStore().getServerData?.bluesky?.enabled === true
+				? t('social', 'Nobody in these directories matched. To find somebody who is not listed, put their full handle, like @someone@example.org or @someone.example.com, into the search at the top of the sidebar.')
+				: t('social', 'Nobody in these directories matched. To find somebody who is not listed, put their full handle, like @someone@example.org, into the search at the top of the sidebar.')
 		},
 	},
 

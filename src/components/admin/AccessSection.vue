@@ -56,7 +56,8 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcSelect from '@nextcloud/vue/components/NcSelect'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
-import { errorMessage, moderationUrl } from '../../services/adminApi.js'
+import { moderationUrl } from '../../services/adminApi.js'
+import { errorOf } from '../../utils/serverError.js'
 import { showError } from '../../services/toast.js'
 
 /**
@@ -156,7 +157,7 @@ export default {
 				this.list = data.list
 			} catch (error) {
 				// the route refuses an address that is not one, and says so
-				showError(errorMessage(error, t('social', 'Could not add the instance')))
+				showError(errorOf(error, t('social', 'Could not add the instance')))
 			} finally {
 				this.busy = false
 			}

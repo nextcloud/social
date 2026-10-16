@@ -81,7 +81,7 @@ describe('the verified accounts section', () => {
 		await wrapper.findAll('form')[1].trigger('submit')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith('No account goes by that name')
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not verify the account', details: 'No account goes by that name' })
 	})
 
 	it('takes a verification back', async () => {

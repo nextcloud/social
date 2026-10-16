@@ -7,18 +7,25 @@
  * What is in the composer, kept where a failed post, a reload or a navigation
  * cannot take it away.
  *
- * The composer used to clear itself in a `finally`, so an offline moment, a
- * 500 or a rate limit meant a toast and an empty box: the text was gone. The
- * app also keys its router-view on the full path, so any navigation unmounts
- * the composer — the draft has to outlive the component, not just the request.
+ * The composer is part of the page it sits on — a timeline, a profile, a
+ * post's own page, the search results — or of the New post dialog, and it is
+ * unmounted when the reader goes to a page without one, closes the dialog or
+ * reloads. The draft therefore lives outside the component: a post the server
+ * refused leaves the box as it was, and this copy is what puts the box back
+ * after any of those.
  *
- * Only the words are kept. Attachments are uploaded media the server already
- * holds a handle to, and restoring an id whose upload may have been reaped
- * would fail on the next send; a draft that says what you wrote is the part
- * worth keeping.
+ * Everything the box holds is kept: the words, the warning, the audience, the
+ * language, who it is written as and who may reply, the poll, the time it is
+ * scheduled for, the place, a video's title and the card. Attachments are kept
+ * by the id of their upload, with what was written about them, where their
+ * subject is and the filter chosen for them; the composer asks the server
+ * about each id again when the draft comes back, since an upload nobody posted
+ * may have been cleared away in the meantime. An upload that has not come
+ * back yet has no id to keep, which is what the composer's leave guard is for.
  */
 
 import { forgetUnscoped, userKey } from '../utils/browserStore.js'
+import { isFocalPoint } from '../utils/focalPoint.js'
 
 const NAME = 'social.composer.draft'
 
@@ -55,28 +62,70 @@ function key(context) {
 const MAX_AGE_MS = 7 * 24 * 3600 * 1000
 
 /**
+ * @typedef {object} DraftMedia
+ * @property {import('../types/Mastodon.js').MediaAttachment} data the upload,
+ *   as the server last described it
+ * @property {string} description the alt text as typed, which may not be
+ *   saved on the server yet
+ * @property {?import('../utils/focalPoint.js').FocalPoint} focus where the
+ *   subject is, null for none
+ * @property {string} filter the filter chosen, '' for none
+ */
+
+/**
+ * @typedef {object} DraftPoll
+ * @property {string[]} options the options as typed, empty ones included
+ * @property {boolean} multiple whether more than one may be chosen
+ * @property {number} expiresIn how long it runs, in seconds
+ */
+
+/**
  * @typedef {object} ComposerDraft
  * @property {string} text what was typed, as plain text
  * @property {string} spoilerText the content warning, '' when there is none
  * @property {string} visibility who it was going to
  * @property {string} postAs the team account it was being written as, '' for
  *   the reader's own
+ * @property {DraftMedia[]} media the attachments, in order
+ * @property {?DraftPoll} poll the poll, null when there is none
+ * @property {string} scheduledAt when it is to go out, as an ISO date, '' for now
+ * @property {string} language the language it is written in, '' for the default
+ * @property {string} replyPolicy who may reply, '' for the default
+ * @property {?object} place where it was taken, as the place picker holds it
+ * @property {?{title: string, category: string, licence: string}} video what
+ *   a video post is called, null when nothing was written
+ * @property {string} card the background of a post sent as a card, '' for a
+ *   plain post
  * @property {number} savedAt when it was last written, epoch milliseconds
  */
 
 /**
  * Remembers a draft, replacing any previous one in the same context.
  *
- * @param {object} draft the draft to keep
- * @param {string} draft.text what was typed
- * @param {string} [draft.spoilerText] the content warning
- * @param {string} [draft.visibility] who it is going to
- * @param {string} [draft.postAs] the team account it is being written as
+ * Kept while it holds anything that would be missed: words, a warning, an
+ * attachment or a poll option. The audience or the language alone is a
+ * setting, not a draft.
+ *
+ * @param {Partial<ComposerDraft>} draft the draft to keep; `text` is required
  * @param {string} [context] what it belongs to — see `key()`
  * @return {boolean} whether it could be stored
  */
-export function saveDraft({ text, spoilerText = '', visibility = '', postAs = '' }, context = '') {
-	if ((text ?? '').trim() === '' && spoilerText.trim() === '') {
+export function saveDraft({
+	text,
+	spoilerText = '',
+	visibility = '',
+	postAs = '',
+	media = [],
+	poll = null,
+	scheduledAt = '',
+	language = '',
+	replyPolicy = '',
+	place = null,
+	video = null,
+	card = '',
+}, context = '') {
+	const pollWritten = poll !== null && poll.options.some((option) => option.trim() !== '')
+	if ((text ?? '').trim() === '' && spoilerText.trim() === '' && media.length === 0 && !pollWritten) {
 		return clearDraft(context)
 	}
 
@@ -90,6 +139,14 @@ export function saveDraft({ text, spoilerText = '', visibility = '', postAs = ''
 			// does not quietly turn a team post back into a personal one" —
 			// could never be true
 			postAs,
+			media,
+			poll,
+			scheduledAt,
+			language,
+			replyPolicy,
+			place,
+			video,
+			card,
 			savedAt: Date.now(),
 		}))
 		return true
@@ -141,12 +198,83 @@ export function loadDraft(context = '') {
 		return null
 	}
 
+	// each field is checked on its own: a draft written by another version
+	// of the composer may lack one or hold it in another shape, and that is
+	// no reason to throw away the words that came with it
 	return {
 		text: draft.text,
-		spoilerText: typeof draft.spoilerText === 'string' ? draft.spoilerText : '',
-		visibility: typeof draft.visibility === 'string' ? draft.visibility : '',
-		postAs: typeof draft.postAs === 'string' ? draft.postAs : '',
+		spoilerText: stringOr(draft.spoilerText),
+		visibility: stringOr(draft.visibility),
+		postAs: stringOr(draft.postAs),
+		media: Array.isArray(draft.media) ? draft.media.map(mediaOf).filter((item) => item !== null) : [],
+		poll: pollOf(draft.poll),
+		scheduledAt: stringOr(draft.scheduledAt),
+		language: stringOr(draft.language),
+		replyPolicy: stringOr(draft.replyPolicy),
+		place: isObject(draft.place) ? draft.place : null,
+		video: isObject(draft.video)
+			? { title: stringOr(draft.video.title), category: stringOr(draft.video.category), licence: stringOr(draft.video.licence) }
+			: null,
+		card: stringOr(draft.card),
 		savedAt: typeof draft.savedAt === 'number' ? draft.savedAt : 0,
+	}
+}
+
+/**
+ * @param {unknown} value anything
+ * @return {string} it when it is a string, '' otherwise
+ */
+function stringOr(value) {
+	return typeof value === 'string' ? value : ''
+}
+
+/**
+ * @param {unknown} value anything
+ * @return {value is Record<string, unknown>} whether it is a plain object rather
+ *   than null or a list
+ */
+function isObject(value) {
+	return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * @param {unknown} item one kept attachment
+ * @return {DraftMedia|null} it, or null when it names no upload
+ */
+function mediaOf(item) {
+	if (!isObject(item) || !isObject(item.data)) {
+		return null
+	}
+	const id = item.data.id
+	if ((typeof id !== 'string' && typeof id !== 'number') || String(id) === '') {
+		return null
+	}
+
+	return {
+		data: /** @type {import('../types/Mastodon.js').MediaAttachment} */ (item.data),
+		description: stringOr(item.description),
+		focus: isFocalPoint(item.focus) ? /** @type {import('../utils/focalPoint.js').FocalPoint} */ (item.focus) : null,
+		filter: stringOr(item.filter),
+	}
+}
+
+/**
+ * @param {unknown} poll the kept poll
+ * @return {DraftPoll|null} it, or null when there is none
+ */
+function pollOf(poll) {
+	if (!isObject(poll) || !Array.isArray(poll.options)) {
+		return null
+	}
+
+	const expiresIn = typeof poll.expiresIn === 'number' && Number.isFinite(poll.expiresIn) && poll.expiresIn > 0
+		? poll.expiresIn
+		: 86400
+
+	return {
+		options: poll.options.map(stringOr),
+		multiple: poll.multiple === true,
+		expiresIn,
 	}
 }
 

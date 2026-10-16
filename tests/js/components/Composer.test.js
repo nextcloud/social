@@ -7,10 +7,11 @@ import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getFilePickerBuilder } from '@nextcloud/dialogs'
 import { setLanguage } from '@nextcloud/l10n'
-import { showError, showSuccess } from '../../../src/services/toast.js'
+import { showError, showSuccess, showWarning } from '../../../src/services/toast.js'
 import Composer from '../../../src/components/Composer/Composer.vue'
 import ComposerPreview from '../../../src/components/Composer/ComposerPreview.vue'
 import LanguageSelect from '../../../src/components/Composer/LanguageSelect.vue'
+import PollEditor from '../../../src/components/Composer/PollEditor.vue'
 import PreviewGridItem from '../../../src/components/Composer/PreviewGridItem.vue'
 import SubmitStatusButton from '../../../src/components/Composer/SubmitStatusButton.vue'
 import VisibilitySelect from '../../../src/components/Visibility/VisibilitySelect.vue'
@@ -40,6 +41,7 @@ vi.mock('@nextcloud/dialogs', () => ({
 vi.mock('../../../src/services/toast.js', () => ({
 	showError: vi.fn(),
 	showSuccess: vi.fn(),
+	showWarning: vi.fn(),
 }))
 
 // sound and touch are the device's business, and jsdom has neither
@@ -162,9 +164,10 @@ const NcDialogStub = {
  *   settings have not arrived
  * @param {HTMLElement} [options.attachTo] an element in the document, for a
  *   test about where the focus goes
+ * @param {object} [options.router] what stands in for `$router`
  * @return {object} the wrapper and the timeline store
  */
-function mountComposer(props = {}, { accountPrivacy, attachTo } = {}) {
+function mountComposer(props = {}, { accountPrivacy, attachTo, router } = {}) {
 	const pinia = createPinia()
 	setActivePinia(pinia)
 	useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', viewer: { username: 'alice', address: 'alice@cloud.example.org' } })
@@ -190,6 +193,7 @@ function mountComposer(props = {}, { accountPrivacy, attachTo } = {}) {
 		attachTo,
 		global: {
 			plugins: [pinia],
+			mocks: router === undefined ? {} : { $router: router },
 			stubs: {
 				NcEmojiPicker: { name: 'NcEmojiPicker', emits: ['select'], template: '<div class="emoji-picker-stub"><slot /></div>' },
 				NcDialog: NcDialogStub,
@@ -367,6 +371,7 @@ describe('Composer', () => {
 		// module mocks, which restoreAllMocks() does not touch
 		showError.mockClear()
 		showSuccess.mockClear()
+		showWarning.mockClear()
 		getFilePickerBuilder.mockReset()
 		vi.spyOn(console, 'debug').mockImplementation(() => {})
 		getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
@@ -729,6 +734,27 @@ describe('Composer', () => {
 			await flushPromises()
 
 			expect(store.createMedia).toHaveBeenCalledTimes(2)
+			expect(prepareImage).toHaveBeenLastCalledWith(expect.any(File), expect.objectContaining({ filter: 'mono' }))
+			expect(postedStatus(store).media_ids).toEqual(['media-filtered'])
+		})
+
+		it('is baked in for a picture added from Files, from the file fetched for it', async () => {
+			const { wrapper, store } = mountComposer()
+			store.createMedia.mockImplementation(({ file }) => Promise.resolve({ ...media, id: file.name === 'filtered.jpg' ? 'media-filtered' : media.id }))
+			get.mockImplementation(async (url, config) => (config?.responseType === 'blob'
+				? { data: new Blob(['x'], { type: 'image/png' }) }
+				: { data: { teams: [] } }))
+			filePicker(Promise.resolve(['/Photos/cat.png']))
+			await setContent(wrapper, 'From my photos')
+			await addFromFiles(wrapper)
+
+			const item = wrapper.findComponent(PreviewGridItem)
+			item.vm.$emit('filter', { key: item.props('randomKey'), filter: 'mono' })
+			await flushPromises()
+			await submitButton(wrapper).trigger('click')
+			await flushPromises()
+
+			expect(get).toHaveBeenCalledWith(media.url, { responseType: 'blob' })
 			expect(prepareImage).toHaveBeenLastCalledWith(expect.any(File), expect.objectContaining({ filter: 'mono' }))
 			expect(postedStatus(store).media_ids).toEqual(['media-filtered'])
 		})
@@ -1118,6 +1144,142 @@ describe('Composer', () => {
 			setItem.mockRestore()
 		})
 
+		/**
+		 * Leaving the page kept the words and nothing else: four described
+		 * photos, a poll and a time came back as a line of text, while the
+		 * guide said nothing was lost.
+		 */
+		describe('and everything else in the box', () => {
+			/**
+			 * What the server answers: the teams, the uploads it still holds
+			 * (a 404 for any other), and the bytes of an upload.
+			 *
+			 * @param {object} uploads the uploads by id
+			 */
+			function serverHolds(uploads) {
+				get.mockImplementation(async (url, config) => {
+					if (url.includes('api/v1.1/teams')) {
+						return { data: { teams: [] } }
+					}
+					const id = url.match(/api\/v1\/media\/([^/?]+)$/)?.[1]
+					if (id !== undefined) {
+						if (uploads[id] !== undefined) {
+							return { data: uploads[id] }
+						}
+						throw Object.assign(new Error('not found'), { response: { status: 404 } })
+					}
+					if (config?.responseType === 'blob') {
+						return { data: new Blob(['x'], { type: 'image/png' }) }
+					}
+					return { data: [] }
+				})
+			}
+
+			const keptMedia = (id) => ({ data: { ...media, id }, description: '', focus: null, filter: '' })
+
+			it('comes back with the pictures, what was written about them, the poll, the time and the language', async () => {
+				const first = mountComposer()
+				await setContent(first.wrapper, 'look at this')
+				await attachFile(first.wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+				await flushPromises()
+				const item = first.wrapper.findComponent(PreviewGridItem)
+				await item.find('textarea').setValue('a cat asleep')
+				item.vm.$emit('focus', { key: item.props('randomKey'), focus: { x: 0.5, y: -0.5 } })
+				item.vm.$emit('filter', { key: item.props('randomKey'), filter: 'mono' })
+				await first.wrapper.find('button[aria-label="Add poll"]').trigger('click')
+				const options = first.wrapper.findAll('.poll-editor__option input')
+				await options[0].setValue('Cats')
+				await options[1].setValue('Dogs')
+				first.wrapper.findComponent(LanguageSelect).vm.$emit('update:language', 'fr')
+				await first.wrapper.find('.schedule-toggle').trigger('click')
+				await flushPromises()
+				const when = new Date(Date.now() + 2 * 60 * 60 * 1000)
+				first.wrapper.findComponent({ name: 'NcDateTimePicker' }).vm.$emit('update:modelValue', when)
+				await flushPromises()
+				first.wrapper.unmount()
+
+				serverHolds({ 'media-1': media })
+				const { wrapper, store } = mountComposer()
+				await flushPromises()
+
+				const restored = wrapper.findComponent(PreviewGridItem)
+				expect(restored.find('textarea').element.value).toBe('a cat asleep')
+				expect(restored.props('preview')).toMatchObject({ data: { id: 'media-1' }, focus: { x: 0.5, y: -0.5 }, filter: 'mono' })
+				expect(wrapper.findComponent(PollEditor).props('options')).toEqual(['Cats', 'Dogs'])
+				expect(wrapper.findComponent(LanguageSelect).props('language')).toBe('fr')
+				expect(wrapper.findComponent({ name: 'NcDateTimePicker' }).props('modelValue').getTime()).toBe(when.getTime())
+
+				await submitButton(wrapper).trigger('click')
+				await flushPromises()
+
+				// the filter is baked in from the picture fetched back
+				expect(prepareImage).toHaveBeenLastCalledWith(expect.any(File), expect.objectContaining({ filter: 'mono' }))
+				expect(postedStatus(store)).toMatchObject({
+					status: 'look at this',
+					media_ids: ['media-1'],
+					poll: { options: ['Cats', 'Dogs'] },
+					language: 'fr',
+					scheduled_at: when.toISOString(),
+				})
+				expect(store.describeMedia).toHaveBeenCalledWith({ id: 'media-1', description: 'a cat asleep' })
+			})
+
+			it('takes off a picture the server no longer has, and says so', async () => {
+				localStorage.setItem('social.composer.draft::alice', JSON.stringify({
+					text: 'two pictures',
+					media: [keptMedia('gone-1'), keptMedia('media-1')],
+					savedAt: Date.now(),
+				}))
+				serverHolds({ 'media-1': media })
+
+				const { wrapper, store } = mountComposer()
+				await flushPromises()
+
+				expect(wrapper.findAllComponents(PreviewGridItem)).toHaveLength(1)
+				expect(showWarning).toHaveBeenCalledWith('1 attachment of your draft is no longer on the server and was removed')
+				expect(typed(wrapper)).toBe('two pictures')
+				await submitButton(wrapper).trigger('click')
+				await flushPromises()
+				expect(postedStatus(store).media_ids).toEqual(['media-1'])
+			})
+
+			it('holds Post back until the server has answered for each picture', async () => {
+				localStorage.setItem('social.composer.draft::alice', JSON.stringify({
+					text: 'one picture',
+					media: [keptMedia('media-1')],
+					savedAt: Date.now(),
+				}))
+				let answer
+				get.mockImplementation((url) => (url.includes('api/v1/media/')
+					? new Promise((resolve) => {
+							answer = resolve
+						})
+					: Promise.resolve({ data: { teams: [] } })))
+
+				const { wrapper } = mountComposer()
+				await flushPromises()
+				expect(canPost(wrapper)).toBe(false)
+
+				answer({ data: media })
+				await flushPromises()
+				expect(canPost(wrapper)).toBe(true)
+			})
+
+			it('comes back written as the team it was written as, once the teams are known', async () => {
+				localStorage.setItem('social.composer.draft::alice', JSON.stringify({
+					text: 'from the office',
+					postAs: 'press',
+					savedAt: Date.now(),
+				}))
+				get.mockResolvedValue({ data: { teams: [{ acct: 'press', username: 'press', display_name: 'The press office' }] } })
+
+				const { wrapper } = mountComposer()
+				await flushPromises()
+
+				expect(wrapper.find('.composer-post-as').element.value).toBe('press')
+			})
+		})
+
 		// one slot meant a reply opened over a half-written post took its
 		// place on disk, and sending either threw the other away
 		describe('of a reply', () => {
@@ -1439,7 +1601,7 @@ describe('Composer', () => {
 	})
 
 	describe('a post built around a picture', () => {
-		const mediaFirst = (wrapper) => wrapper.find('.new-post-form').classes().includes('new-post-form--media-first')
+		const mediaFirst = (wrapper) => wrapper.find('.new-post-form').classes().includes('new-post-form--with-media')
 
 		it('reads as a caption box only once there is something to caption', async () => {
 			const { wrapper } = mountComposer()
@@ -1455,15 +1617,21 @@ describe('Composer', () => {
 			expect(input(wrapper).classes()).toContain('message--caption')
 		})
 
-		it('puts the picture ahead of the box it is captioned in', async () => {
+		/**
+		 * Above the box, four pictures and their descriptions pushed it off a
+		 * phone's screen. Under it, as Mastodon and Bluesky have them, and in
+		 * the DOM, so the tab order goes from the words to the descriptions.
+		 */
+		it('puts the box ahead of the pictures, for the eye and the tab key', async () => {
 			const { wrapper } = mountComposer()
 			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
 			await flushPromises()
 
 			const form = wrapper.find('.new-post-form').element
-			const order = [...form.querySelectorAll('.preview-grid, .message')].map((el) => el.className)
-			expect(order[0]).toContain('preview-grid')
-			expect(order[1]).toContain('message')
+			const order = [...form.querySelectorAll('.preview-grid, .message, .preview-item__description')].map((el) => el.className)
+			expect(order[0]).toContain('message')
+			expect(order[1]).toContain('preview-grid')
+			expect(order[2]).toContain('preview-item__description')
 		})
 
 		it('is a text box again once the last picture is taken out', async () => {
@@ -3218,6 +3386,155 @@ describe('Composer', () => {
 			expect(markArrived).toHaveBeenCalledWith('new-1')
 			expect(feel).toHaveBeenCalledWith('post')
 			expect(wrapper.find('.new-post').classes()).toContain('new-post--posted')
+		})
+	})
+
+	/**
+	 * The draft keeps everything in the box but an upload that has not come
+	 * back, which has no id to keep it by: leaving is asked about then, and
+	 * only then.
+	 */
+	describe('leaving the page', () => {
+		/** a router that keeps the guard it was given, the way vue-router does */
+		function fakeRouter() {
+			const router = { guard: null, removed: false }
+			router.beforeEach = (guard) => {
+				router.guard = guard
+				return () => {
+					router.removed = true
+				}
+			}
+			return router
+		}
+
+		const away = [{ path: '/notifications' }, { path: '/timeline/home' }]
+		const unload = () => {
+			const event = new Event('beforeunload', { cancelable: true })
+			window.dispatchEvent(event)
+			return event
+		}
+
+		/**
+		 * Attaches a picture whose upload has not answered yet.
+		 *
+		 * @param {object} wrapper the mounted composer
+		 * @param {object} store the timeline store
+		 * @return {Function} what answers the upload
+		 */
+		async function startUpload(wrapper, store) {
+			let answer
+			store.createMedia.mockImplementation(() => new Promise((resolve) => {
+				answer = resolve
+			}))
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			return (value) => answer(value)
+		}
+
+		it('goes ahead without a word when everything is in the draft', async () => {
+			const router = fakeRouter()
+			const { wrapper } = mountComposer({}, { router })
+			await setContent(wrapper, 'kept anyway')
+			await attachFile(wrapper, new File(['x'], 'cat.png', { type: 'image/png' }))
+			await flushPromises()
+
+			expect(router.guard(...away)).toBe(true)
+			expect(unload().defaultPrevented).toBe(false)
+		})
+
+		it('asks while an upload is on its way, and stays when told to', async () => {
+			const router = fakeRouter()
+			const { wrapper, store } = mountComposer({}, { router })
+			await startUpload(wrapper, store)
+
+			expect(unload().defaultPrevented).toBe(true)
+			const going = router.guard(...away)
+			await flushPromises()
+			expect(wrapper.find('.nc-dialog__name').text()).toBe('Leave while an attachment is uploading?')
+
+			const cancel = wrapper.findAll('.nc-dialog__button').find((button) => button.text() === 'Cancel')
+			await cancel.trigger('click')
+
+			expect(await going).toBe(false)
+			expect(wrapper.find('.nc-dialog').exists()).toBe(false)
+		})
+
+		it('lets the reader go when they say so', async () => {
+			const router = fakeRouter()
+			const { wrapper, store } = mountComposer({}, { router })
+			await startUpload(wrapper, store)
+
+			const going = router.guard(...away)
+			await flushPromises()
+			const leave = wrapper.findAll('.nc-dialog__button').find((button) => button.text() === 'Leave')
+			await leave.trigger('click')
+
+			expect(await going).toBe(true)
+		})
+
+		it('stops asking once the upload is back', async () => {
+			const router = fakeRouter()
+			const { wrapper, store } = mountComposer({}, { router })
+			const answer = await startUpload(wrapper, store)
+
+			answer(media)
+			await flushPromises()
+
+			expect(router.guard(...away)).toBe(true)
+			expect(unload().defaultPrevented).toBe(false)
+		})
+
+		it('lets go of the router and the page when it is gone', async () => {
+			const router = fakeRouter()
+			const { wrapper, store } = mountComposer({}, { router })
+			await startUpload(wrapper, store)
+
+			wrapper.unmount()
+			wrappers.splice(wrappers.indexOf(wrapper), 1)
+
+			expect(router.removed).toBe(true)
+			expect(unload().defaultPrevented).toBe(false)
+		})
+	})
+
+	// Only a public post goes to Bluesky, and Bluesky followers are followers
+	// too: a followers-only post that never reaches them has to say so.
+	describe('the audiences that do not reach Bluesky', () => {
+		const reaches = (wrapper) => wrapper.findComponent(VisibilitySelect).props('reachesBluesky')
+
+		/**
+		 * @param {object|null} identity the account's Bluesky identity, as the account info carries it
+		 * @param {boolean} [enabled] whether the server offers Bluesky
+		 * @return {object} the mounted composer
+		 */
+		function mountWith(identity, enabled = true) {
+			const { wrapper } = mountComposer()
+			useSettingsStore().setServerDataEntry({ key: 'bluesky', value: { enabled, host: 'cloud.example.org' } })
+			const accounts = useAccountStore()
+			accounts.addAccount({
+				actorId: 'https://cloud.example.org/@alice',
+				data: { id: '1', acct: 'alice', username: 'alice', url: 'https://cloud.example.org/@alice', bluesky: identity },
+			})
+			accounts.setCurrentAccount('alice@cloud.example.org')
+
+			return wrapper
+		}
+
+		it('are named where the account is on Bluesky', async () => {
+			const wrapper = mountWith({ handle: 'alice.cloud.example.org', did: 'did:plc:alice', active: true })
+			await nextTick()
+
+			expect(reaches(wrapper)).toBe(true)
+		})
+
+		it('are not named where the account has no Bluesky identity, or a paused one', async () => {
+			expect(reaches(mountWith(null))).toBe(false)
+			expect(reaches(mountWith({ handle: 'alice.cloud.example.org', active: false }))).toBe(false)
+		})
+
+		it('are not named on a server that offers no Bluesky', () => {
+			expect(reaches(mountWith({ handle: 'alice.cloud.example.org', active: true }, false))).toBe(false)
 		})
 	})
 })

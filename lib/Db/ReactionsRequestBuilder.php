@@ -75,6 +75,9 @@ class ReactionsRequestBuilder extends CoreRequestBuilder {
 	public function parseReactionsSelectSql(array $data, SocialQueryBuilder $qb): EmojiReact {
 		$reaction = new EmojiReact();
 		$reaction->importFromDatabase($data);
+		// the table has no `type` column, so the import leaves it empty, and
+		// an `Undo` that finds the row is routed by it
+		$reaction->setType(EmojiReact::TYPE);
 
 		return $reaction;
 	}

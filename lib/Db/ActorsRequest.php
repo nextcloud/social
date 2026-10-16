@@ -175,25 +175,33 @@ class ActorsRequest extends ActorsRequestBuilder {
 	}
 
 	/**
-	 * The Nextcloud user a local username belongs to, or '' where none does.
+	 * The Nextcloud users of these local usernames, one query per 500 of them:
+	 * the usernames that are held by an account not deleted, each with its
+	 * user. The cached copy of an account, which is what the client is handed,
+	 * does not carry the user, and the username need not be it. A cached copy
+	 * carries the username exactly as this table does, so they are compared
+	 * as they are.
 	 *
-	 * One column of one row: the cached copy of an account, which is what the
-	 * client is handed, does not carry it, and the username need not be it.
+	 * @param string[] $usernames
+	 * @return array<string, string> user id by username
 	 */
-	public function userIdOf(string $username): string {
-		$qb = $this->getQueryBuilder();
-		$qb->select('a.user_id')
-			->from(self::TABLE_ACTORS, 'a');
-		$qb->setDefaultSelectAlias('a');
-		$qb->limitToPreferredUsername($username);
-		$qb->andWhere($qb->expr()->isNull('a.deleted'));
-		$qb->setMaxResults(1);
+	public function userIdsOf(array $usernames): array {
+		$userIds = [];
+		foreach (array_chunk(array_values(array_unique($usernames)), 500) as $chunk) {
+			$qb = $this->getQueryBuilder();
+			$qb->select('a.preferred_username', 'a.user_id')
+				->from(self::TABLE_ACTORS, 'a')
+				->where($qb->expr()->in('a.preferred_username', $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_STR_ARRAY)))
+				->andWhere($qb->expr()->isNull('a.deleted'));
 
-		$cursor = $qb->executeQuery();
-		$userId = $cursor->fetchOne();
-		$cursor->closeCursor();
+			$cursor = $qb->executeQuery();
+			while ($row = $cursor->fetch()) {
+				$userIds[(string)$row['preferred_username']] = (string)$row['user_id'];
+			}
+			$cursor->closeCursor();
+		}
 
-		return is_string($userId) ? $userId : '';
+		return $userIds;
 	}
 
 	/**

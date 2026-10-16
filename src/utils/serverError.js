@@ -3,15 +3,19 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
-import { translate as t } from '@nextcloud/l10n'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 
 /**
- * What each code of an error of the Bluesky routes (Atproto-Compatibility
- * §13.5: a move, the handle, an app password) says to the person, with what
- * they can do next. The server's own sentence is English and names the step
- * that failed, so it is kept for the details.
+ * What each code of an error says to the person, with what they can do next:
+ * the codes of the Bluesky routes (Atproto-Compatibility §13.5: a move, the
+ * handle, an app password), of the Migration routes and of the other routes
+ * whose refusal is advice (API.md, Migration error codes and Other refusal
+ * codes). The server's own sentence is English and names the step that
+ * failed, so it is kept for the details. A sentence that needs a number or a
+ * name — a limit, the field refused — reads it from the answer beside the
+ * code.
  *
- * @type {Record<string, () => string>}
+ * @type {Record<string, (said: Record<string, string|number>) => string>}
  */
 const SENTENCES = {
 	'bluesky-off': () => t('social', 'Bluesky is not switched on on this server. Ask your administrator about it.'),
@@ -20,7 +24,7 @@ const SENTENCES = {
 	'move-in-progress': () => t('social', 'Another move of your account is under way. Wait for it to finish, or call it off first.'),
 	'pds-address-invalid': () => t('social', 'That server address does not look right. Check it and try again.'),
 	'pds-not-public': () => t('social', 'That server cannot be reached from the internet. Check the address and try again.'),
-	'pds-unreachable': () => t('social', 'The other server did not answer. Try again later.'),
+	'pds-unreachable': () => t('social', 'The other server could not be reached. Check the address, or try again later.'),
 	'pds-unknown': () => t('social', 'That address is not a server Bluesky accounts can live on. Check it and try again.'),
 	'pds-refused': () => t('social', 'The other server refused a step of the move. Try again; if it happens again, the details say which step.'),
 	'pds-session-expired': () => t('social', 'The sign-in on the other server ran out. Try again.'),
@@ -89,29 +93,91 @@ const SENTENCES = {
 	'app-password-name-invalid': () => t('social', 'Give the app password a name of up to 64 characters.'),
 	'app-password-name-taken': () => t('social', 'You have an app password with that name already. Pick another name.'),
 	'app-password-limit': () => t('social', 'You have as many app passwords as you can have. Revoke one you no longer use first.'),
+	'not-signed-in': () => t('social', 'You are not signed in any more. Reload the page, sign in and try again.'),
+	'no-file': () => t('social', 'No file arrived. Pick the file again and try again.'),
+	'file-too-large': () => t('social', 'That file is larger than this server takes. The details say how large it may be; ask your administrator about a larger one.'),
+	'file-unreadable': () => t('social', 'That file could not be read. Pick it again and try again.'),
+	'archive-unreadable': () => t('social', 'That file is not an archive this page can read. Pick the zip file the export made.'),
+	'archive-not-social': () => t('social', 'That archive holds no account of this app. Pick the zip file the export made.'),
+	'import-running': () => t('social', 'That is under way already. See how far it got on the list of imports.'),
+	'import-not-found': () => t('social', 'That import cannot be taken off the list now. Reload the page to see where it stands.'),
+	'list-unknown': () => t('social', 'There is no such list to download.'),
+	'no-account': () => t('social', 'You have no account here yet. Make one first.'),
+	'account-address-invalid': () => t('social', 'That is not an account address. Type it like @you@example.social.'),
+	'account-not-found': () => t('social', 'No account answers to that address. Check it and try again.'),
+	'account-not-verifiable': () => t('social', 'That server only answers servers it can check, and it could not check this one. Ask your administrator to make this server reachable from the internet.'),
+	'alias-self': () => t('social', 'That is this account itself. Type the address of your other account.'),
+	'confirm-handle': () => t('social', 'Type your own handle to confirm the move. The details show it.'),
+	'move-cooldown': () => t('social', 'This account moved not long ago. The details say when it can move again.'),
+	'move-onto-self': () => t('social', 'An account cannot move onto itself. Type the address of your new account.'),
+	'alias-missing': () => t('social', 'Your new account does not name this one yet. Add this account as an alias on the new account first, then try again.'),
+	'finish-not-possible': () => t('social', 'The last step cannot be done from here for that server. Finish the move there, with its own button.'),
+	'old-server-refused': () => t('social', 'The old server did not let this one finish the move. Try again later, or finish the move there.'),
+	'video-address-invalid': () => t('social', 'That is not a video address. Copy the address of the video page and try again.'),
+	'video-here-already': () => t('social', 'That video is on this server already. There is nothing to bring over.'),
+	'video-unreachable': () => t('social', 'That address could not be read. Check it, or try again later.'),
+	'video-unsupported': () => t('social', 'That address is not a video that can be brought over.'),
+	'featured-tags-full': (said) => n('social', 'You can feature at most %n hashtag. Remove one first.', 'You can feature at most %n hashtags. Remove one first.', Number(said.limit) || 0),
+	'shorts-full': (said) => n('social', 'You can have at most %n 24-hour short up at a time. Wait for one to run out, or delete one first.', 'You can have at most %n 24-hour shorts up at a time. Wait for one to run out, or delete one first.', Number(said.limit) || 0),
+	'handle-length': (said) => t('social', 'A username can have at most {max} characters. Pick a shorter one.', { max: String(said.max ?? '') }),
+	'handle-characters': () => t('social', 'A username can have letters, numbers and underscores, with dots and dashes in between. Pick another one.'),
+	'handle-other-user': () => t('social', 'That is the user name of another person on this Nextcloud. Pick another one.'),
+	'handle-in-use-here': () => t('social', 'That username is taken. Pick another one.'),
+	'handle-held': () => t('social', 'That username was given up not long ago and is kept free for a while. Pick another one, or try again later.'),
+	'account-exists': () => t('social', 'You have an account here already. Reload the page.'),
+	'email-domain-refused': () => t('social', 'This server does not make accounts for email addresses at your domain. Ask your administrator about it.'),
+	'linked-handle-invalid': () => t('social', 'Write the address of your other account like you@server.example.'),
+	'linked-handle-local': () => t('social', 'That address is on this server. Create an account here instead.'),
+	'banner-too-large': (said) => t('social', 'That picture is larger than this server takes (at most {limit}). Pick a smaller one.', { limit: String(said.limit ?? '') }),
+	'banner-unusable': () => t('social', 'That file cannot be used as a banner. Pick another picture.'),
+	'upload-interrupted': () => t('social', 'The upload did not finish. Try again.'),
+	'setting-not-email': (said) => t('social', '"{field}" has to be an email address.', { field: said.field }),
+	'setting-too-long': (said) => t('social', '"{field}" can have at most {max} characters.', { field: said.field, max: String(said.max ?? '') }),
+	'setting-not-local-account': (said) => t('social', '"{field}" has to be an account on this server.', { field: said.field }),
+	'setting-out-of-range': (said) => t('social', '"{field}" has to be between {min} and {max}.', { field: said.field, min: String(said.min ?? ''), max: String(said.max ?? '') }),
+	'setting-zero-or-range': (said) => t('social', '"{field}" has to be 0, or between {min} and {max}.', { field: said.field, min: String(said.min ?? ''), max: String(said.max ?? '') }),
+	'setting-heights': (said) => t('social', '"{field}" has to list heights between {min} and {max}, separated by commas.', { field: said.field, min: String(said.min ?? ''), max: String(said.max ?? '') }),
+	'setting-not-choice': (said) => t('social', '"{field}" has to be one of: {choices}.', { field: said.field, choices: String(said.choices ?? '') }),
+	'group-unknown': (said) => t('social', 'There is no group "{group}" on this server. Pick another one.', { group: String(said.group ?? '') }),
+	'groups-too-many': (said) => n('social', 'At most %n group can become a list.', 'At most %n groups can become lists.', Number(said.max) || 0),
 }
 
 /**
- * @param {string|null|undefined} code a code of §13.5
+ * @param {string|null|undefined} code a code the server sends beside its sentence
+ * @param {Record<string, string|number>} [said] the rest of the answer: the numbers and names the sentence needs
+ * @param {Record<string, string>} [labels] what the page calls each field a refusal can name, by the name the server uses
  * @return {string|null} what it means to the person, or null for a code this page does not know
  */
-export function blueskyErrorSentence(code) {
-	return Object.hasOwn(SENTENCES, code ?? '') ? SENTENCES[code]() : null
+export function errorSentence(code, said = {}, labels = {}) {
+	if (!Object.hasOwn(SENTENCES, code ?? '')) {
+		return null
+	}
+	const field = typeof said?.field === 'string' ? said.field : ''
+
+	return SENTENCES[code]({ ...said, field: Object.hasOwn(labels, field) ? labels[field] : field })
 }
 
 /**
- * Why a request to a Bluesky route was refused, from the error axios threw.
+ * Why a request was refused, from the error axios threw.
+ *
+ * A route that sends no code, or one this page does not know, gets the
+ * fallback: a sentence about what the person was doing, in their language.
+ * What the server said is kept for the details: `message` where the answer
+ * has one — the framework's own, and the routes whose `error` is a fixed
+ * "request failed" — and `error` otherwise.
  *
  * @param {object} error what axios threw
  * @param {string} fallback what to say when the code is none this page knows
+ * @param {Record<string, string>} [labels] what the page calls each of its fields, by the name the server uses
  * @return {{text: string, details: string}} the sentence, and the server's own words for the details
  */
-export function blueskyErrorOf(error, fallback) {
+export function errorOf(error, fallback, labels = {}) {
 	const data = error?.response?.data
+	const said = typeof data?.message === 'string' && data.message !== '' ? data.message : data?.error
 
 	return {
-		text: blueskyErrorSentence(data?.code) ?? fallback,
-		details: typeof data?.error === 'string' ? data.error : '',
+		text: errorSentence(data?.code, data ?? {}, labels) ?? fallback,
+		details: typeof said === 'string' ? said : '',
 	}
 }
 
@@ -123,7 +189,7 @@ export function blueskyErrorOf(error, fallback) {
  */
 export function stoppedMoveError(move) {
 	return {
-		text: blueskyErrorSentence(move?.progress?.code) ?? SENTENCES['move-failed'](),
+		text: errorSentence(move?.progress?.code) ?? SENTENCES['move-failed']({}),
 		details: move?.error ?? '',
 	}
 }

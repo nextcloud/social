@@ -115,7 +115,7 @@ describe('the block list section', () => {
 		await wrapper.vm.read({ target: { files: [{ size: 40, text: async () => 'com\n' }] } })
 		await flushPromises()
 
-		expect(wrapper.find('.blocklist__error').text()).toContain('com')
+		expect(wrapper.find('.server-error').text()).toContain('com')
 		expect(wrapper.find('.blocklist__preview').exists()).toBe(false)
 	})
 
@@ -125,7 +125,7 @@ describe('the block list section', () => {
 		await wrapper.vm.read({ target: { files: [{ size: 9 * 1024 * 1024, text: async () => '' }] } })
 		await flushPromises()
 
-		expect(wrapper.find('.blocklist__error').text()).toContain('8 MB')
+		expect(wrapper.find('.server-error').text()).toContain('8 MB')
 		expect(axios.post).not.toHaveBeenCalled()
 	})
 
