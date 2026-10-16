@@ -11,6 +11,8 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\AccountNotSetUpException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InsufficientScopeException;
@@ -45,6 +47,9 @@ use Throwable;
  *  - A bearer token identifies the caller. Failing that, a Nextcloud session
  *    that passes its CSRF check does -- which is what lets the app's own
  *    frontend call these routes without minting a token for itself.
+ *  - A session of somebody who has not set up their account here is told
+ *    where to do that (`AccountNotSetUpException`, a 403), not refused as if
+ *    the sign-in had failed.
  *  - A granular scope is satisfied by itself or by the broad scope containing
  *    it (`read:lists` by `read:lists` or by `read`), and by nothing else. Not
  *    by another granular variant of the same parent: a token granted
@@ -90,9 +95,21 @@ abstract class ClientApiController extends Controller {
 	protected function initViewer(array $scopes, bool $required = true): void {
 		try {
 			$userId = $this->currentSession($scopes);
-			$this->viewer = $this->prepareViewer($this->accountService->getActorFromUserId($userId));
+			try {
+				$account = $this->accountService->getActorFromUserId($userId);
+			} catch (ActorDoesNotExistException $e) {
+				// a token is only issued to an account, so this caller came
+				// with their Nextcloud session and has not set up here yet
+				throw ($this->bearer === '') ? AccountNotSetUpException::withSetupUrl($e) : $e;
+			}
+			$this->viewer = $this->prepareViewer($account);
 		} catch (InsufficientScopeException $e) {
 			throw $e;
+		} catch (AccountNotSetUpException $e) {
+			// somebody to tell how to go on, not a credential to refuse
+			if ($required) {
+				throw $e;
+			}
 		} catch (Exception $e) {
 			// a missing, stale or made-up token is ordinary internet noise and
 			// is answered with a 401, not logged as a fault
@@ -220,6 +237,12 @@ abstract class ClientApiController extends Controller {
 			// no WWW-Authenticate: PHP turns any response carrying it into a 401,
 			// and a 401 tells a client its token is dead and to sign in again
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+		}
+
+		if ($e instanceof AccountNotSetUpException) {
+			// as Mastodon answers a sign-in that is not usable yet: a 403,
+			// which no client reads as its token having ended
+			return new DataResponse($e->toArray(), Http::STATUS_FORBIDDEN);
 		}
 
 		if ($e instanceof ClientNotFoundException) {

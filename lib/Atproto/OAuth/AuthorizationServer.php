@@ -176,25 +176,38 @@ class AuthorizationServer {
 	}
 
 	/**
+	 * A request waiting for an answer, whoever is to give it: what the app
+	 * asks for and what it says of itself, checked as far as it can be
+	 * without an account.
+	 *
+	 * @return array{request: OAuthRequest, metadata: array, scopes: string[]}
+	 * @throws OAuthException
+	 */
+	public function requested(string $clientId, string $requestUri): array {
+		$request = $this->waiting($clientId, $requestUri);
+
+		return [
+			'request' => $request,
+			'metadata' => $this->clients->get($clientId),
+			'scopes' => self::granted($request->params['scope'] ?? ''),
+		];
+	}
+
+	/**
 	 * A request waiting for a person's answer, for the consent page.
 	 *
 	 * @return array{request: OAuthRequest, metadata: array, identity: Identity, scopes: string[]}
 	 * @throws OAuthException
 	 */
 	public function pending(string $clientId, string $requestUri, string $userId): array {
-		$request = $this->waiting($clientId, $requestUri);
+		$requested = $this->requested($clientId, $requestUri);
 		$identity = $this->identityOfUser($userId);
-		$hint = strtolower(ltrim(trim((string)($request->params['login_hint'] ?? '')), '@'));
+		$hint = strtolower(ltrim(trim((string)($requested['request']->params['login_hint'] ?? '')), '@'));
 		if ($hint !== '' && $hint !== strtolower($identity->handle) && $hint !== $identity->did) {
 			throw new OAuthException('login_required', 'The app asked to sign in ' . $hint . ', and you are signed in as ' . $identity->handle);
 		}
 
-		return [
-			'request' => $request,
-			'metadata' => $this->clients->get($clientId),
-			'identity' => $identity,
-			'scopes' => self::granted($request->params['scope'] ?? ''),
-		];
+		return $requested + ['identity' => $identity];
 	}
 
 	/**

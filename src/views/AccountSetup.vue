@@ -148,52 +148,15 @@
 					</button>
 				</div>
 
-				<form v-if="mode === 'create'" class="account-setup__form" @submit.prevent="create">
-					<h2 class="account-setup__heading">
-						{{ t('social', 'Choose your username') }}
-					</h2>
-					<label class="account-setup__label" for="account-setup-handle">
-						{{ t('social', 'Username') }}
-					</label>
-					<input
-						id="account-setup-handle"
-						v-model.trim="handle"
-						type="text"
-						class="account-setup__input"
-						autocomplete="off"
-						spellcheck="false"
-						maxlength="64"
-						pattern="[A-Za-z0-9_]+([A-Za-z0-9_.\-]*[A-Za-z0-9_])?"
-						aria-describedby="account-setup-address"
-						:aria-invalid="createError !== null"
-						:disabled="busy !== ''"
-						required>
-					<!-- the address as it is typed, not on the way out: the choice
-						     is permanent, so it is worth seeing before it is made -->
-					<p id="account-setup-address" class="account-setup__address">
-						@{{ handle || '…' }}@{{ addressHost }}
-					</p>
-					<!-- the second address the account gets, where the administrator
-						     has switched that on -->
-					<p v-if="blueskyEnabled && handle !== ''" class="account-setup__address account-setup__address--bluesky">
-						<span class="account-setup__bluesky-label">{{ t('social', 'On Bluesky too:') }}</span>
-						@{{ blueskyAddress }}
-					</p>
-					<p class="account-setup__hint">
-						{{ t('social', 'Letters, numbers and underscores, with dots and dashes in between. Your username cannot be changed later.') }}
-					</p>
-					<p v-if="blueskyEnabled" class="account-setup__hint">
-						{{ t('social', 'A Bluesky address has only small letters, numbers and dashes, so yours is written as shown. If another account here already has it, a number is added to it.') }}
-					</p>
-					<ServerError v-if="createError" class="account-setup__error" :error="createError" />
-					<NcButton type="submit" variant="primary" :disabled="busy !== '' || handle === ''">
-						<template #icon>
-							<NcLoadingIcon v-if="busy === 'create'" :size="20" />
-							<IconAccountPlus v-else :size="20" />
-						</template>
-						{{ t('social', 'Create account') }}
-					</NcButton>
-				</form>
+				<AccountSetupForm
+					v-if="mode === 'create'"
+					v-model="handle"
+					class="account-setup__form"
+					:addressHost="addressHost"
+					:blueskyEnabled="blueskyEnabled"
+					:blueskyHost="blueskyHost"
+					@busy="busy = $event ? 'create' : ''"
+					@created="$emit('created', $event)" />
 
 				<form v-else class="account-setup__form" @submit.prevent="link">
 					<h2 class="account-setup__heading">
@@ -244,15 +207,16 @@ import IconCheck from 'vue-material-design-icons/Check.vue'
 import IconLinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import IconSwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue'
 import IconWeb from 'vue-material-design-icons/Web.vue'
+import AccountSetupForm from '../components/AccountSetupForm.vue'
 import ServerError from '../components/ServerError.vue'
 import logger from '../services/logger.js'
 import { useServerData } from '../composables/useServerData.js'
-import { blueskyHandle } from '../utils/blueskyHandle.js'
 import { errorOf } from '../utils/serverError.js'
 
 export default {
 	name: 'AccountSetup',
 	components: {
+		AccountSetupForm,
 		IconAccountPlus,
 		IconAt,
 		IconCheck,
@@ -297,8 +261,6 @@ export default {
 			/** which of the two forms is talking to the server: 'create', 'link' or '' */
 			busy: '',
 			/** @type {{text: string, details: string}|null} */
-			createError: null,
-			/** @type {{text: string, details: string}|null} */
 			linkError: null,
 		}
 	},
@@ -333,16 +295,6 @@ export default {
 		},
 
 		/**
-		 * The Bluesky handle the typed username is given, as the server maps
-		 * it; a number the server adds for a taken one is not known here.
-		 *
-		 * @return {string} `label.host`
-		 */
-		blueskyAddress() {
-			return blueskyHandle(this.handle, this.blueskyHost)
-		},
-
-		/**
 		 * Where the way out of the app leads: the Nextcloud's own start page.
 		 *
 		 * @return {string}
@@ -361,7 +313,6 @@ export default {
 		 */
 		choose(mode) {
 			this.mode = mode
-			this.createError = null
 			this.linkError = null
 		},
 
@@ -373,25 +324,6 @@ export default {
 		createInstead() {
 			this.linkedNow = ''
 			this.choose('create')
-		},
-
-		/**
-		 * Creates the chosen local identity and emits it, or displays the refusal.
-		 *
-		 * @return {Promise<void>}
-		 */
-		async create() {
-			this.busy = 'create'
-			this.createError = null
-			try {
-				const { data } = await axios.post(generateUrl('apps/social/api/v1/account/create'), { username: this.handle })
-				this.$emit('created', data?.result?.account ?? null)
-			} catch (error) {
-				logger.warn('Could not create the account', { error })
-				this.createError = errorOf(error, t('social', 'Could not create the account'))
-			} finally {
-				this.busy = ''
-			}
 		},
 
 		/**
@@ -657,36 +589,6 @@ export default {
 		min-width: 0;
 		margin: 0;
 		text-align: center;
-	}
-
-	/* the address the username would make, in the shape FirstRun shows the
-	   one an account has */
-	&__address {
-		margin: 0 auto;
-		padding: 10px 14px;
-		border-radius: var(--border-radius-element, 8px);
-		background: var(--color-primary-element-light);
-		color: var(--color-primary-element-light-text);
-		font-size: 16px;
-		font-weight: 700;
-		overflow-wrap: anywhere;
-		text-align: center;
-		max-width: 100%;
-	}
-
-	/* the second address is the quieter one: the fediverse address is the
-	   one the username is for */
-	&__address--bluesky {
-		background: none;
-		border: 1px solid var(--color-border);
-		color: var(--color-text-maxcontrast);
-		font-size: 13px;
-		font-weight: 600;
-		text-align: center;
-	}
-
-	&__bluesky-label {
-		font-weight: 400;
 	}
 
 	&__hint {

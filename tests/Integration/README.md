@@ -240,6 +240,13 @@ to stop.
   origin, the preflight answered without credentials, a web-app route outside
   the API bases closed, and a session cookie from another origin without its
   CSRF token answered 401 while the web app's own call still signs in.
+- `Api/FirstSignInFromAppTest` — a Nextcloud user with no account here signs
+  in from an app: `GET /oauth/authorize` asks for a username with the request
+  kept, a forged `redirect_uri` is refused without that, the account made
+  through `accountCreate()` gets the consent from the same request, then a
+  code, a token and `verify_credentials`; before that, a Mastodon route, a
+  client-API route and a web-app route answer 403 `account-not-set-up` with
+  the setup page's address, by web session and by app password.
 - `Db/DetailsCompareAndSwapTest` — the compare-and-swap an edit's `mentions`
   are written with: a `details` blob still as it was read is replaced, one
   changed in between (or NULL against `{}`) is left alone, and the mentions

@@ -10,8 +10,11 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use ArrayObject;
+use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Model\OAuthRequest;
 use OCA\Social\Atproto\OAuth\AuthorizationServer;
 use OCA\Social\Atproto\OAuth\DpopNonce;
+use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Controller\OAuthController;
 use OCA\Social\Db\ClientAuthRequest;
@@ -41,6 +44,7 @@ use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\MockObject\Stub;
 use PHPUnit\Framework\TestCase;
@@ -757,20 +761,201 @@ class OAuthControllerTest extends TestCase {
 		}
 	}
 
-	public function testAReaderWithoutAnAccountIsToldSoWithoutTheirLogin(): void {
+	/** Somebody signed in to Nextcloud who has not set up their account here. */
+	private function signedInWithoutAnAccount(string $uid = 'jane.doe'): void {
 		$user = $this->createStub(IUser::class);
-		$user->method('getUID')->willReturn('jane.doe');
+		$user->method('getUID')->willReturn($uid);
+		$user->method('getDisplayName')->willReturn('Jane Doe');
 		$this->userSession->method('getUser')->willReturn($user);
 		$this->accountService->method('getActorFromUserId')
-			->willThrowException(new ActorDoesNotExistException('Actor not found for user: jane.doe'));
+			->willThrowException(new ActorDoesNotExistException('Actor not found for user: ' . $uid));
+		$this->accountService->method('generateHandleFromUserId')->with($uid)->willReturn('jane_doe');
+		$this->configService->method('getSocialAddress')->willReturn('Social.Example');
+	}
 
-		foreach ([
-			$this->controller->authorize('client-1', self::OOB, 'code', 'read'),
-			$this->controller->authorizing('client-1', self::OOB, 'code', 'read'),
-		] as $response) {
-			$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
-			$this->assertSame(['error' => 'no account for this user'], $response->getData());
-		}
+	/**
+	 * Somebody whose first visit is from an app is asked for a username on
+	 * the sign-in page itself, once the request has passed every check, and
+	 * the page carries the app's request exactly as it came: reloading it
+	 * after the account is made is what shows the consent.
+	 */
+	public function testAuthorizeOffersSetupToAReaderWithoutAnAccount(): void {
+		$this->signedInWithoutAnAccount();
+		$this->knownClient('client-1', 'Tusky', ['tusky://oauth']);
+		$this->clientService->expects($this->once())->method('confirmData');
+		$this->atprotoConfig->method('isEnabled')->willReturn(true);
+		$states = $this->recordInitialState();
+
+		$response = $this->controller->authorize(
+			'client-1', 'tusky://oauth', 'code', 'read write', 'st-1', 'the-challenge', 'S256'
+		);
+
+		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertSame('oauth2', $response->getTemplateName());
+		$this->assertSame(TemplateResponse::RENDER_AS_GUEST, $response->getRenderAs());
+		$this->assertSame([
+			'request' => [
+				'clientId' => 'client-1',
+				'redirectUri' => 'tusky://oauth',
+				'responseType' => 'code',
+				'scope' => 'read write',
+				'state' => 'st-1',
+				'codeChallenge' => 'the-challenge',
+				'codeChallengeMethod' => 'S256',
+			],
+		], $response->getParams());
+		$this->assertSame([
+			'suggestedHandle' => 'jane_doe',
+			'socialAddress' => 'Social.Example',
+			'bluesky' => ['enabled' => true, 'host' => 'social.example'],
+		], $states['setup']);
+		$this->assertArrayNotHasKey('account', $states->getArrayCopy());
+		$this->assertSame('Tusky', $states['appName']);
+		$this->assertSame(['read', 'write'], $states['scopes']);
+		$this->assertSame('tusky://oauth', $states['redirectUri']);
+		$this->assertSame('tusky://oauth?error=access_denied&state=st-1', $states['denyUrl']);
+		$this->assertStringContainsString('tusky:', $response->getContentSecurityPolicy()->buildPolicy());
+	}
+
+	/**
+	 * A request that would be refused with an account is refused without
+	 * one, and nothing about an account is offered on the way.
+	 *
+	 * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4: string}>
+	 */
+	public static function invalidRequests(): array {
+		return [
+			'an unregistered redirect_uri' => ['client-1', 'https://evil.example/steal', 'code', '', 'invalid_request'],
+			'another response type' => ['client-1', 'tusky://oauth', 'token', '', 'invalid response type'],
+			'a PKCE method nobody implements' => ['client-1', 'tusky://oauth', 'code', 'plain', 'unsupported code_challenge_method'],
+			'an unknown client' => ['nope', 'tusky://oauth', 'code', '', 'unknown'],
+		];
+	}
+
+	#[DataProvider('invalidRequests')]
+	public function testAnInvalidRequestIsRefusedWithoutOfferingSetup(
+		string $clientId, string $redirectUri, string $responseType, string $method, string $error,
+	): void {
+		$this->signedInWithoutAnAccount();
+		$client = new SocialClient();
+		$client->setAppClientId('client-1')->setAppName('Tusky')->setAppRedirectUris(['tusky://oauth']);
+		$this->clientService->method('getFromClientId')->willReturnCallback(
+			static fn (string $id): SocialClient => ($id === 'client-1') ? $client : throw new ClientNotFoundException('unknown')
+		);
+		$this->initialState->expects($this->never())->method('provideInitialState');
+		$this->accountService->expects($this->never())->method('generateHandleFromUserId');
+
+		$response = $this->controller->authorize(
+			$clientId, $redirectUri, $responseType, 'read', '', $method === '' ? '' : 'the-challenge', $method
+		);
+
+		$this->assertInstanceOf(DataResponse::class, $response);
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame($error, $response->getData()['error']);
+	}
+
+	public function testAReaderWithAnAccountIsShownTheConsentAndNoSetup(): void {
+		$this->loggedIn();
+		$this->knownClient();
+		$states = $this->recordInitialState();
+		$this->accountService->expects($this->never())->method('generateHandleFromUserId');
+
+		$this->controller->authorize('client-1', self::OOB, 'code', 'read');
+
+		$this->assertArrayHasKey('account', $states->getArrayCopy());
+		$this->assertArrayNotHasKey('setup', $states->getArrayCopy());
+	}
+
+	/**
+	 * No code without an account: the token it becomes would name nobody.
+	 * The consent form answered without one is told where to set it up.
+	 */
+	public function testAuthorizingIssuesNoCodeWithoutAnAccount(): void {
+		$this->signedInWithoutAnAccount();
+		$this->knownClient('client-1', 'Tusky', [self::OOB]);
+		$this->clientService->expects($this->never())->method('authClient');
+		$this->urlGenerator->method('linkToRouteAbsolute')
+			->willReturnCallback(static fn (string $route): string => 'https://cloud.example/' . $route);
+		\OC::$server->register(IURLGenerator::class, $this->urlGenerator);
+
+		$response = $this->controller->authorizing('client-1', self::OOB, 'code', 'read');
+
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+		$this->assertSame('account-not-set-up', $response->getData()['code']);
+		$this->assertSame('https://cloud.example/social.Navigation.navigate', $response->getData()['setup_url']);
+		// what Nextcloud calls them is not the app's to read
+		$this->assertStringNotContainsString('jane.doe', json_encode($response->getData()) ?: '');
+	}
+
+	// the Bluesky app's sign-in
+
+	private const REQUEST_URI = 'urn:ietf:params:oauth:request_uri:req-1';
+	private const ATPROTO_CLIENT = 'https://app.example/client-metadata.json';
+
+	/** A pushed request of a Bluesky app, waiting for an answer. */
+	private function atprotoRequest(): array {
+		$this->atprotoConfig->method('isEnabled')->willReturn(true);
+		$request = new OAuthRequest(1, 'req-1', self::ATPROTO_CLIENT, [], [
+			'redirect_uri' => 'https://app.example/callback',
+			'scope' => 'atproto transition:generic',
+			'state' => 'st-2',
+		], 'jkt');
+		$requested = ['request' => $request, 'metadata' => ['client_name' => 'Skeets'], 'scopes' => ['atproto', 'transition:generic']];
+		$this->atprotoOAuth->method('requested')->with(self::ATPROTO_CLIENT, self::REQUEST_URI)->willReturn($requested);
+		$this->atprotoOAuth->method('refusal')->willReturn('https://app.example/callback?error=access_denied');
+
+		return $requested;
+	}
+
+	public function testABlueskyAppsSignInOffersSetupToAReaderWithoutAnAccount(): void {
+		$this->signedInWithoutAnAccount();
+		$this->atprotoRequest();
+		$this->atprotoOAuth->expects($this->never())->method('pending');
+		$states = $this->recordInitialState();
+
+		$response = $this->controller->authorize(self::ATPROTO_CLIENT, '', '', 'read', '', '', '', self::REQUEST_URI);
+
+		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertSame('oauth2', $response->getTemplateName());
+		$this->assertSame('jane_doe', $states['setup']['suggestedHandle']);
+		$this->assertTrue($states['setup']['bluesky']['enabled']);
+		$this->assertArrayNotHasKey('account', $states->getArrayCopy());
+		$this->assertSame('atproto', $states['protocol']);
+		$this->assertSame(['atproto', 'transition:generic'], $states['scopes']);
+		$this->assertSame('https://app.example/callback?error=access_denied', $states['denyUrl']);
+		$this->assertStringContainsString('https://app.example', $response->getContentSecurityPolicy()->buildPolicy());
+	}
+
+	/**
+	 * Once the account exists, the consent names its Bluesky handle, which
+	 * `pending()` makes for it when it has none yet.
+	 */
+	public function testABlueskyAppsSignInShowsTheConsentForAnAccount(): void {
+		$this->loggedIn('alice');
+		$requested = $this->atprotoRequest();
+		$identity = new Identity(1, 'https://cloud.example/@alice', 'did:plc:alice', 'alice.cloud.example', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$this->atprotoOAuth->expects($this->once())->method('pending')
+			->with(self::ATPROTO_CLIENT, self::REQUEST_URI, 'alice')
+			->willReturn($requested + ['identity' => $identity]);
+		$states = $this->recordInitialState();
+
+		$this->controller->authorize(self::ATPROTO_CLIENT, '', '', 'read', '', '', '', self::REQUEST_URI);
+
+		$this->assertSame('@alice.cloud.example', $states['account']['handle']);
+		$this->assertArrayNotHasKey('setup', $states->getArrayCopy());
+	}
+
+	public function testABlueskyAppsSpentRequestIsRefusedWithoutOfferingSetup(): void {
+		$this->signedInWithoutAnAccount();
+		$this->atprotoConfig->method('isEnabled')->willReturn(true);
+		$this->atprotoOAuth->method('requested')
+			->willThrowException(OAuthException::invalidRequest('This sign-in request has expired or was answered already; start again from the app'));
+		$this->initialState->expects($this->never())->method('provideInitialState');
+
+		$response = $this->controller->authorize(self::ATPROTO_CLIENT, '', '', 'read', '', '', '', self::REQUEST_URI);
+
+		$this->assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
+		$this->assertSame('invalid_request', $response->getData()['error']);
 	}
 
 	// token()

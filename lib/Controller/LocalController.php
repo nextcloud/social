@@ -18,6 +18,8 @@ use OCA\Social\Atproto\Reader\BlueskySearch;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
+use OCA\Social\Exceptions\AccountNotSetUpException;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\BlockedByException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -118,10 +120,10 @@ class LocalController extends Controller {
 			if ($this->userId === null) {
 				throw new AccountDoesNotExistException('User not logged in');
 			}
+			$path = $this->uploadedBannerPath();
+			$this->ownAccount();
 
-			$image = $this->bannerService->setFromTempFile(
-				$this->userId, $this->uploadedBannerPath()
-			);
+			$image = $this->bannerService->setFromTempFile($this->userId, $path);
 
 			$this->logger->info('[LocalController] Banner uploaded', [
 				'userId' => $this->userId,
@@ -293,6 +295,7 @@ class LocalController extends Controller {
 				throw new Exception('Unsupported banner URL');
 			}
 
+			$this->ownAccount();
 			$this->logger->info('[LocalController] Banner upload by URL', [
 				'userId' => $this->userId,
 				'host' => $host,
@@ -362,11 +365,7 @@ class LocalController extends Controller {
 		]);
 
 		try {
-			if ($this->userId === null) {
-				$this->logger->error('[LocalController] postCreate: User not logged in');
-				throw new AccountDoesNotExistException('User not logged in');
-			}
-			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->ownAccount();
 			$this->logger->debug('[LocalController] Actor retrieved', ['actorId' => $actor->getId()]);
 
 			$post = new Post($actor);
@@ -422,11 +421,8 @@ class LocalController extends Controller {
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/post')]
 	public function postDelete(string $id): DataResponse {
 		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
+			$actor = $this->ownAccount();
 			$note = $this->streamService->getStreamById($id);
-			$actor = $this->accountService->getActorFromUserId($this->userId);
 			if ($note->getAttributedTo() !== $actor->getId()) {
 				throw new InvalidResourceException('user have no rights');
 			}
@@ -581,10 +577,7 @@ class LocalController extends Controller {
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/current/follow')]
 	public function actionFollow(string $account): DataResponse {
 		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
-			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->ownAccount();
 			if ($this->followService->followAccount($actor, $account)) {
 				$this->accountService->bumpActorCount($actor->getId(), 'count_following', 1);
 			}
@@ -602,10 +595,7 @@ class LocalController extends Controller {
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/current/follow')]
 	public function actionUnfollow(string $account): DataResponse {
 		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
-			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->ownAccount();
 			if ($this->followService->unfollowAccount($actor, $account)) {
 				$this->accountService->bumpActorCount($actor->getId(), 'count_following', -1);
 			}
@@ -626,12 +616,9 @@ class LocalController extends Controller {
 	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/account/fields')]
 	public function accountFields(array $fields = []): DataResponse {
 		try {
-			if ($this->userId === null) {
-				throw new AccountDoesNotExistException('User not logged in');
-			}
+			$local = $this->ownAccount();
 			$this->accountService->setFields($this->userId, $fields);
 
-			$local = $this->accountService->getActorFromUserId($this->userId);
 			$actor = $this->cacheActorService->getFromLocalAccount($local->getPreferredUsername());
 
 			return $this->success(['account' => $actor]);
@@ -948,6 +935,23 @@ class LocalController extends Controller {
 	private function mayAskOtherServers(): bool {
 		return $this->request->passesCSRFCheck()
 			|| str_starts_with($this->request->getHeader('Authorization'), 'Bearer ');
+	}
+
+	/**
+	 * The reader's own account, for a route that acts as them.
+	 *
+	 * @throws AccountDoesNotExistException nobody is signed in
+	 * @throws AccountNotSetUpException they have not set up their account here yet
+	 */
+	private function ownAccount(): Person {
+		if ($this->userId === null) {
+			throw new AccountDoesNotExistException('User not logged in');
+		}
+		try {
+			return $this->accountService->getActorFromUserId($this->userId);
+		} catch (ActorDoesNotExistException $e) {
+			throw AccountNotSetUpException::withSetupUrl($e);
+		}
 	}
 
 	private function initViewer(bool $exception = false) {

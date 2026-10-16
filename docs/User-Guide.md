@@ -57,6 +57,23 @@ another server, and a button that puts you in the composer. Every step can be
 skipped; once closed it stays closed, and **Settings → Help → Introduction** shows it
 again.
 
+### Signing in from an app for the first time
+
+You can start with an app on your phone or computer instead of the web page:
+a Mastodon app, or a Bluesky app where the administrator has Bluesky switched
+on. The app opens a sign-in page in your browser, and after you log in to
+Nextcloud that page first asks you to choose your username, with the same
+rules and the same address preview as the screen above. **Create account**
+makes your account, and the page goes straight on to asking whether to let
+the app in. **Cancel** sends you back to the app, and nothing is created.
+Linking an account you have somewhere else is not offered there: the app
+needs an account on this server to sign in to.
+
+An app that signs in with a Nextcloud app password instead is told, until you
+have an account here, that your account is not set up yet, with the address
+of the setup page: open it in a browser, choose your username, and try the
+app again.
+
 ### Registering without a Nextcloud account
 
 Where the administrators allow it, the login page has a **Create an account**

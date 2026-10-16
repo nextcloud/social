@@ -10,6 +10,8 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\ClientApiController;
+use OCA\Social\Controller\MastodonApiController;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InvalidResourceException;
@@ -45,6 +47,9 @@ class ClientApiControllerTest extends TestCase {
 		$this->clientService = $this->createMock(ClientService::class);
 		$this->accountService = $this->createMock(AccountService::class);
 		$this->accountService->method('getActorFromUserId')->willReturnCallback(function (string $userId): Person {
+			if ($userId === 'newcomer') {
+				throw new ActorDoesNotExistException('Actor not found for user: newcomer');
+			}
 			$person = new Person();
 			$person->setId('https://cloud.example/users/' . $userId);
 			$person->setPreferredUsername($userId);
@@ -113,6 +118,58 @@ class ClientApiControllerTest extends TestCase {
 
 		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		$this->assertSame('Bearer error="invalid_token"', $response->getHeaders()['WWW-Authenticate']);
+	}
+
+	/**
+	 * Signed in to Nextcloud and not set up here: told so and where, with a
+	 * 403 that no client reads as its sign-in having ended.
+	 */
+	public function testASessionWithoutAnAccountIsToldWhereToSetItUp(): void {
+		$this->user = $this->createMock(IUser::class);
+		$this->user->method('getUID')->willReturn('newcomer');
+
+		$response = $this->controller()->probe(['read']);
+
+		$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
+		$this->assertArrayNotHasKey('WWW-Authenticate', $response->getHeaders());
+		$this->assertSame('account-not-set-up', $response->getData()['code']);
+		$this->assertSame('https://cloud.example.org/social.Navigation.navigate', $response->getData()['setup_url']);
+		$this->assertNotSame('', $response->getData()['error']);
+	}
+
+	public function testAnOptionalViewerLeavesASessionWithoutAnAccountAnonymous(): void {
+		$this->user = $this->createMock(IUser::class);
+		$this->user->method('getUID')->willReturn('newcomer');
+
+		$response = $this->controller()->probe(['read'], false);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertNull($response->getData()['viewer']);
+	}
+
+	/** no token is issued without an account, so one whose account is gone is a dead one */
+	public function testATokenWhoseAccountIsGoneIsStillADeadToken(): void {
+		$client = new SocialClient();
+		$client->setAuthUserId('newcomer');
+		$client->setAuthScopes(['read']);
+		$this->clientService->method('getFromToken')->with('t')->willReturn($client);
+
+		$response = $this->controller('Bearer t')->probe(['read']);
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame('the access_token was revoked', $response->getData()['error']);
+	}
+
+	public function testAnAppTokenStillNamesNobody(): void {
+		$client = new SocialClient();
+		$client->setAuthUserId('');
+		$client->setAuthScopes(['read']);
+		$this->clientService->method('getFromToken')->with('t')->willReturn($client);
+
+		$response = $this->controller('Bearer t')->probe(['read']);
+
+		$this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		$this->assertSame(MastodonApiController::APP_TOKEN_NAMES_NOBODY, $response->getData()['error']);
 	}
 
 	public function testAnOptionalViewerLeavesACallerWithoutCredentialsAnonymous(): void {

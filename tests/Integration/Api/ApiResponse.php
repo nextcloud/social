@@ -14,6 +14,7 @@ use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Response;
+use OCP\AppFramework\Http\TemplateResponse;
 
 /**
  * One answer of the API, as a client receives it.
@@ -26,6 +27,8 @@ final class ApiResponse {
 	public readonly array $headers;
 	/** the body as it goes onto the wire, for a JSON, RSS or other data response */
 	public readonly string $raw;
+	/** the template a page is drawn from, or '' for anything that is not a page */
+	public readonly string $template;
 
 	public function __construct(Response $response) {
 		$this->status = $response->getStatus();
@@ -42,6 +45,7 @@ final class ApiResponse {
 			$response instanceof JSONResponse, $response instanceof DataDisplayResponse => $response->render(),
 			default => '',
 		};
+		$this->template = ($response instanceof TemplateResponse) ? $response->getTemplateName() : '';
 	}
 
 	/**

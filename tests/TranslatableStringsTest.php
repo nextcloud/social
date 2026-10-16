@@ -182,6 +182,7 @@ class TranslatableStringsTest extends TestCase {
 			'src/components/admin/ExternalRequestsSection.vue',
 			'src/views/Signup.vue',
 			'src/views/AccountSetup.vue',
+			'src/components/AccountSetupForm.vue',
 			'src/components/TimelinePost.vue',
 			'src/views/Timeline.vue',
 			'src/components/Search.vue',

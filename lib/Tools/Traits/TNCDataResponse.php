@@ -11,6 +11,7 @@ namespace OCA\Social\Tools\Traits;
 
 use Exception;
 use JsonSerializable;
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheDocumentDoesNotExistException;
@@ -70,6 +71,11 @@ trait TNCDataResponse {
 	 * or a mistyped handle is not something for the admin's log.
 	 */
 	protected function failFor(Exception $e): DataResponse {
+		if ($e instanceof AccountNotSetUpException) {
+			// where to set it up is the answer, so it is said rather than logged
+			return new DataResponse(['status' => -1] + $e->toArray(), Http::STATUS_FORBIDDEN);
+		}
+
 		foreach (self::CALLER_ERROR_STATUS as [$class, $status]) {
 			if ($e instanceof $class) {
 				return $this->fail($e, [], $status, false);

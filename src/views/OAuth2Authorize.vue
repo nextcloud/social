@@ -47,6 +47,45 @@
 			</div>
 		</div>
 
+		<!--
+			Somebody whose first visit is from an app has no account here
+			yet: they choose their username before they are asked anything
+			about the app. Reloading then draws the consent for the new
+			account, from this same address and so with the app's request
+			unchanged.
+		-->
+		<div v-else-if="setup" class="guest-box oauth__box">
+			<header class="oauth__header">
+				<img
+					v-if="appLogo"
+					class="oauth__seal oauth__seal--logo"
+					:src="appLogo"
+					alt="">
+				<span v-else class="oauth__seal oauth__seal--app" aria-hidden="true">
+					{{ appInitial }}
+				</span>
+				<h1>{{ t('social', 'Set up your account') }}</h1>
+			</header>
+			<p class="oauth__lead">
+				{{ t('social', '{appDisplayName} wants to sign in to your account here, and you do not have one yet. Choose your username first; then you decide whether to let {appDisplayName} in.', { appDisplayName: appName }) }}
+			</p>
+			<p v-if="created" class="oauth__lead" role="status">
+				{{ t('social', 'Your account is ready. Taking you on to {appDisplayName}…', { appDisplayName: appName }) }}
+			</p>
+			<AccountSetupForm
+				v-else
+				v-model="handle"
+				:addressHost="setup.socialAddress"
+				:blueskyEnabled="setup.bluesky?.enabled === true"
+				:blueskyHost="setup.bluesky?.host ?? setup.socialAddress"
+				@created="continueToConsent" />
+			<div class="button-row">
+				<NcButton :href="denyUrl">
+					{{ t('social', 'Cancel') }}
+				</NcButton>
+			</div>
+		</div>
+
 		<form v-else class="guest-box oauth__box" method="post">
 			<header class="oauth__header">
 				<!--
@@ -189,11 +228,13 @@ import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import { loadState } from '@nextcloud/initial-state'
 import { t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+import AccountSetupForm from '../components/AccountSetupForm.vue'
 
 const OUT_OF_BAND = 'urn:ietf:wg:oauth:2.0:oob'
 export default {
 	name: 'OAuth2Authorize',
 	components: {
+		AccountSetupForm,
 		ArrowRightThin,
 		Check,
 		ContentCopy,
@@ -206,7 +247,15 @@ export default {
 	},
 
 	data() {
+		const setup = loadState('social', 'setup', null)
+
 		return {
+			// what the username question needs, where the reader has no
+			// account here yet; null once they have one
+			setup,
+			handle: setup?.suggestedHandle ?? '',
+			// the account was made, and the consent is on its way
+			created: false,
 			// present only on the page the consent form submits to, in the
 			// out-of-band flow
 			code: loadState('social', 'code', ''),
@@ -360,6 +409,20 @@ export default {
 				|| scope === 'transition:generic'
 				|| scope.startsWith('write:')
 				|| scope.startsWith('admin')
+		},
+
+		/**
+		 * Draws the page again for the account just made: the consent, for
+		 * the same request, which is all in this page's address.
+		 */
+		continueToConsent() {
+			this.created = true
+			this.reloadTo(window.location.href)
+		},
+
+		/** @param {string} url where to send the browser; a test replaces this */
+		reloadTo(url) {
+			window.location.assign(url)
 		},
 
 		/** Focusing the field selects the whole code, so one tap picks it up. */
