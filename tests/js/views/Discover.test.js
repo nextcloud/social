@@ -112,6 +112,23 @@ describe('Discover', () => {
 		expect(wrapper.findAll('h3')).toHaveLength(0)
 	})
 
+	/** The directory search finds who is listed; it does not promise more. */
+	it.each([
+		[false, ['@someone@example.org'], ['@someone.example.com']],
+		[true, ['@someone@example.org', '@someone.example.com'], []],
+	])('points somebody who is not listed to the sidebar search (Bluesky %s)', (bluesky, named, unnamed) => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		useSettingsStore().setServerData({ bluesky: { enabled: bluesky, host: 'cloud.example.org' } })
+
+		const text = mount(Discover, { shallow: true, global: { plugins: [pinia] } }).text()
+
+		expect(text).toContain('search at the top of the sidebar')
+		expect(text).not.toContain('finds a person anywhere')
+		named.forEach((shape) => expect(text).toContain(shape))
+		unnamed.forEach((shape) => expect(text).not.toContain(shape))
+	})
+
 	describe('an empty pack list', () => {
 		it('tells a user plainly, without the settings', () => {
 			useSettingsStore().setServerData({ isAdmin: false })

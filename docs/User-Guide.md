@@ -104,7 +104,9 @@ people** makes an invitation link: it works once and for a week.
   **Follow** on every row. Pick one directory with the buttons under the box to
   ask only that one. Servers that did not answer are named under the results, so
   a short list is never mistaken for an empty fediverse. Somebody this server
-  already knows opens here; a stranger opens on their own server.
+  already knows opens here; a stranger opens on their own server. Somebody who
+  is in none of these directories is found by their full handle in the search
+  at the top of the sidebar.
 - **Look at who they follow**, on the People tab, suggests the people the
   people you follow follow. Once it has answered, **Constellation** shows the
   same suggestions as a small sky: you in the middle, the people you follow who
@@ -1196,7 +1198,9 @@ Press `?` anywhere, or open **Settings → Help → Keyboard shortcuts**, for th
 Shortcuts are off while you are typing in a field or the composer, while a
 modifier key is held, and while a dialog such as the picture viewer is open.
 The switch **Use keyboard shortcuts** on the same Settings page turns them off
-altogether; the choice is kept with your account.
+altogether; the choice is kept with your account. Turning keyboard shortcuts
+off in Nextcloud's own **Personal settings → Accessibility** turns them off here
+too.
 
 `l`, `b`, `r` and `o` act on the post `j` or `k` moved to, and only while it is
 still the one you are on: once you click somewhere else or scroll it out of

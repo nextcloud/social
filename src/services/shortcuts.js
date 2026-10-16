@@ -13,9 +13,9 @@ import eventBus from './eventBus.js'
  * Nothing fires while the viewer is typing — in a field, a contenteditable
  * composer, or with a modifier held — because a shortcut that eats a keystroke
  * mid-sentence is worse than no shortcut at all. Nor while a dialog is open:
- * the post a key would act on is behind it. And the reader can turn them off
- * in Settings, since a single key that likes or boosts is easy to press by
- * mistake.
+ * the post a key would act on is behind it. And the reader can turn them off,
+ * in Settings here or for all of Nextcloud in its Accessibility settings,
+ * since a single key that likes or boosts is easy to press by mistake.
  */
 
 /** @type {Array<{keys: string[], event: string, label: string}>} */
@@ -131,6 +131,16 @@ export function isDialogOpen() {
 }
 
 /**
+ * Whether the reader turned keyboard shortcuts off for all of Nextcloud, in
+ * its Accessibility settings. Read the way the Nextcloud components read it.
+ *
+ * @return {boolean}
+ */
+export function offInNextcloud() {
+	return window.OCP?.Accessibility?.disableKeyboardShortcuts?.() === true
+}
+
+/**
  * Starts listening for shortcuts.
  *
  * @param {() => boolean} [isEnabled] whether the reader has them on, asked at every press
@@ -138,7 +148,7 @@ export function isDialogOpen() {
  */
 export function listenForShortcuts(isEnabled = () => true) {
 	const handler = (event) => {
-		if (!isEnabled() || isDialogOpen()) {
+		if (!isEnabled() || offInNextcloud() || isDialogOpen()) {
 			return
 		}
 

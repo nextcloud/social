@@ -188,6 +188,23 @@ describe('listenForShortcuts', () => {
 		expect(heard).toHaveBeenCalledTimes(1)
 	})
 
+	it('does nothing while the reader turned shortcuts off for all of Nextcloud', () => {
+		const heard = vi.fn()
+		eventBus.on('shortcut:like', heard)
+		stop = listenForShortcuts()
+		window.OCP.Accessibility = { disableKeyboardShortcuts: () => true }
+
+		try {
+			const event = new KeyboardEvent('keydown', { key: 'l', cancelable: true })
+			window.dispatchEvent(event)
+
+			expect(heard).not.toHaveBeenCalled()
+			expect(event.defaultPrevented).toBe(false)
+		} finally {
+			delete window.OCP.Accessibility
+		}
+	})
+
 	it('stops listening when told to', () => {
 		const heard = vi.fn()
 		eventBus.on('shortcut:next', heard)

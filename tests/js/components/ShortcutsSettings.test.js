@@ -44,6 +44,17 @@ describe('ShortcutsSettings', () => {
 		expect(wrapper.findComponent(ShortcutList).exists()).toBe(true)
 	})
 
+	it('says when Nextcloud\'s own Accessibility setting keeps them off', () => {
+		expect(mountSettings().text()).not.toContain('Accessibility settings')
+
+		window.OCP.Accessibility = { disableKeyboardShortcuts: () => true }
+		try {
+			expect(mountSettings().text()).toContain('turned off for all of Nextcloud in your Accessibility settings')
+		} finally {
+			delete window.OCP.Accessibility
+		}
+	})
+
 	it('shows the stored choice', () => {
 		expect(toggle(mountSettings({ keyboardShortcuts: false })).props('modelValue')).toBe(false)
 	})

@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { useSettingsStore } from '../../../src/store/settings.js'
 import axios from '@nextcloud/axios'
 
 import FediverseSearch from '../../../src/components/FediverseSearch.vue'
@@ -282,6 +283,29 @@ describe('FediverseSearch', () => {
 		await type(wrapper, 'nobody')
 
 		expect(wrapper.text()).toContain('Nobody by that name')
+	})
+
+	/**
+	 * The directories hold who is listed in them. The hint used to promise
+	 * that a full handle finds anybody on any server, listed or not, which
+	 * only the sidebar's search does.
+	 */
+	it.each([
+		[false, ['@someone@example.org'], ['@someone.example.com']],
+		[true, ['@someone@example.org', '@someone.example.com'], []],
+	])('sends somebody who is not listed to the sidebar search (Bluesky %s)', async (bluesky, named, unnamed) => {
+		serve([])
+		const wrapper = mountSearch()
+		useSettingsStore().setServerData({ bluesky: { enabled: bluesky, host: 'cloud.example.org' } })
+		await flushPromises()
+
+		await type(wrapper, 'nobody')
+
+		const text = wrapper.text()
+		expect(text).toContain('search at the top of the sidebar')
+		expect(text).not.toContain('listed or not')
+		named.forEach((shape) => expect(text).toContain(shape))
+		unnamed.forEach((shape) => expect(text).not.toContain(shape))
 	})
 
 	/**

@@ -224,6 +224,7 @@ describe('Search', () => {
 
 	/** The search finds a handle of either shape, and the hint says so without naming networks. */
 	it('suggests a full handle of either shape when nothing matches', async () => {
+		useSettingsStore().setServerData({ public: false, bluesky: { enabled: true, host: 'cloud.example.org' } })
 		get.mockResolvedValue(response())
 		const wrapper = mountSearch('alice')
 		await flushPromises()
@@ -232,6 +233,17 @@ describe('Search', () => {
 		expect(hint).toContain('@someone@example.org')
 		expect(hint).toContain('@someone.example.com')
 		expect(hint).not.toMatch(/bluesky|fediverse|mastodon|activitypub/i)
+	})
+
+	/** A handle shaped like a domain is looked up only where this server reads Bluesky. */
+	it('does not suggest a domain-shaped handle the server will not look up', async () => {
+		get.mockResolvedValue(response())
+		const wrapper = mountSearch('alice')
+		await flushPromises()
+
+		const hint = wrapper.find('.empty-description').text()
+		expect(hint).toContain('@user@example.org')
+		expect(hint).not.toContain('@someone.example.com')
 	})
 
 	it('shows a failure as an error with a retry, and does not block later searches', async () => {

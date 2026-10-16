@@ -27,6 +27,12 @@ declare let __webpack_public_path__: string
 interface Window {
 	OC: any
 	OCA: any
+	/** the server's public API; `Accessibility` is the reader's accessibility settings */
+	OCP?: {
+		Accessibility?: {
+			disableKeyboardShortcuts?: () => boolean
+		}
+	}
 	_oc_webroot: string
 	/**
 	 * What the server says about the reader's own avatar. The version is

@@ -16,6 +16,9 @@
 				? t('social', 'On: a single key likes, boosts or opens the post you moved to with j or k.')
 				: t('social', 'Off: keys do nothing here except what your browser does with them.') }}
 		</p>
+		<p v-if="offInNextcloud" class="shortcuts-settings__hint">
+			{{ t('social', 'Keyboard shortcuts are turned off for all of Nextcloud in your Accessibility settings, so they stay off here whatever this switch says.') }}
+		</p>
 		<ShortcutList />
 	</div>
 </template>
@@ -27,13 +30,14 @@ import { generateUrl } from '@nextcloud/router'
 import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
 import ShortcutList from './ShortcutList.vue'
 import logger from '../services/logger.js'
+import { offInNextcloud } from '../services/shortcuts.js'
 import { showError } from '../services/toast.js'
 import { useSettingsStore } from '../store/settings.js'
 
 /**
  * The switch for the one-key shortcuts, above the list of them. Kept with the
  * account rather than in the browser, so turning them off holds wherever the
- * reader signs in.
+ * reader signs in. Nextcloud's own Accessibility setting turns them off too.
  */
 export default {
 	name: 'ShortcutsSettings',
@@ -46,6 +50,7 @@ export default {
 	data() {
 		return {
 			saving: false,
+			offInNextcloud: offInNextcloud(),
 		}
 	},
 

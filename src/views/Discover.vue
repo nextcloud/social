@@ -148,7 +148,9 @@
 					{{ t('social', 'Search the fediverse') }}
 				</h2>
 				<p class="discover__section-hint">
-					{{ t('social', 'Any name or handle, on any server — including servers this one has never met. A full handle like @someone@example.org finds a person anywhere.') }}
+					{{ bluesky
+						? t('social', 'Names and handles in public directories, including people on servers this one has never met. Somebody who is not listed is found by their full handle, like @someone@example.org or @someone.example.com, in the search at the top of the sidebar.')
+						: t('social', 'Names and handles in public directories, including people on servers this one has never met. Somebody who is not listed is found by their full handle, like @someone@example.org, in the search at the top of the sidebar.') }}
 				</p>
 				<FediverseSearch />
 			</section>

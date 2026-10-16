@@ -59,7 +59,7 @@
 				<NcEmptyContent
 					v-if="isEmpty && !lookingUp"
 					:name="t('social', 'No results found')"
-					:description="t('social', 'Nothing on this server matches “{term}”. A full handle, like @someone@example.org or @someone.example.com, can find somebody this server has not met yet.', { term: query })">
+					:description="emptyDescription">
 					<template #icon>
 						<Magnify :size="20" />
 					</template>
@@ -141,6 +141,7 @@ import logger from '../services/logger.js'
 import { addressFoundIn, completeAddress } from '../utils/accountLocality.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
+import { useSettingsStore } from '../store/settings.js'
 import { useTimelineStore } from '../store/timeline.js'
 
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'./Composer/Composer.vue'))
@@ -223,6 +224,18 @@ export default {
 
 	computed: {
 		...mapStores(useAccountStore, useTimelineStore),
+		/**
+		 * What to try when nothing matched. A handle shaped like a domain is
+		 * only looked up where this server reads Bluesky.
+		 *
+		 * @return {string}
+		 */
+		emptyDescription() {
+			return useSettingsStore().getServerData?.bluesky?.enabled === true
+				? t('social', 'Nothing on this server matches “{term}”. A full handle, like @someone@example.org or @someone.example.com, can find somebody this server has not met yet.', { term: this.query })
+				: t('social', 'Nothing on this server matches “{term}”. Searching for a full handle like @user@example.org can find somebody this server has not met yet.', { term: this.query })
+		},
+
 		/** @return {string} the term, as somebody typed it rather than as a URL */
 		query() {
 			try {
