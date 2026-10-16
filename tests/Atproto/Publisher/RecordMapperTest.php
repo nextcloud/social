@@ -24,6 +24,7 @@ use OCA\Social\Atproto\Publisher\RecordMapper;
 use OCA\Social\Atproto\Publisher\TextMapper;
 use OCA\Social\Atproto\Reader\PostMapper;
 use OCA\Social\Atproto\Repository\RepositoryService;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamCardsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -39,6 +40,10 @@ use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\PinService;
+use OCP\IL10N;
+use OCP\IUser;
+use OCP\IUserManager;
+use OCP\L10N\IFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -74,6 +79,10 @@ class RecordMapperTest extends TestCase {
 	private CacheDocumentsRequest $cacheDocuments;
 	/** @var PinService&MockObject */
 	private PinService $pins;
+	/** the Nextcloud user an account belongs to, by username */
+	private array $userIds = [];
+	/** the Nextcloud language of each user; the instance's is English */
+	private array $userLanguages = [];
 	private RecordMapper $mapper;
 	private Identity $identity;
 	private Person $author;
@@ -125,11 +134,64 @@ class RecordMapperTest extends TestCase {
 
 		$record = $this->mapper->post($post, $this->identity, $this->author)['record'];
 
-		$this->assertSame("CW: Spoilers\n\nthe spoiler (https://x.example)", $record['text']);
+		$this->assertSame("Content warning: Spoilers\n\nthe spoiler (https://x.example)", $record['text']);
 		$this->assertSame(['$type' => 'com.atproto.label.defs#selfLabels', 'values' => [['val' => '!warn']]], $record['labels']);
 		$this->assertSame('https://x.example', $record['facets'][0]['features'][0]['uri']);
-		$this->assertSame(['byteStart' => 27, 'byteEnd' => 44], $record['facets'][0]['index'], 'the facet moved with the prefix');
+		$this->assertSame(['byteStart' => 40, 'byteEnd' => 57], $record['facets'][0]['index'], 'the facet moved with the prefix');
 		$this->lexicon->validateRecord($record);
+	}
+
+	/**
+	 * What a post gains on its way — the warning's line, the poll's, the
+	 * count of pictures left out — is in the language of the post, from the
+	 * app's own catalogue, and the facets move by the bytes it takes.
+	 */
+	public function testTheAddedWordsAreInThePostsLanguage(): void {
+		$post = $this->post('<p>the <a href="https://x.example">spoiler</a></p>');
+		$post->setLanguage('ru');
+		$post->setSpoilerText('Спойлеры');
+
+		$record = $this->mapper->post($post, $this->identity, $this->author)['record'];
+
+		$prefix = "Предупреждение о содержимом: Спойлеры\n\n";
+		$this->assertSame($prefix . 'the spoiler (https://x.example)', $record['text']);
+		$this->assertSame(['byteStart' => strlen($prefix) + 13, 'byteEnd' => strlen($prefix) + 30], $record['facets'][0]['index'], 'the facet moved by the bytes of the line');
+		$this->lexicon->validateRecord($record);
+
+		$poll = new Question();
+		$poll->setId(self::POST_ID);
+		$poll->setContent('<p>Tee oder Kaffee?</p>');
+		$poll->setPublished('2026-10-08T10:00:00+00:00');
+		$poll->setLanguage('de');
+		$poll->setPollData(['Tee', 'Kaffee'], false, 3600);
+
+		$this->assertSame("Tee oder Kaffee?\n\nUmfrage: Tee / Kaffee\n\n" . self::POST_ID, $this->mapper->post($poll, $this->identity, $this->author)['record']['text']);
+
+		$pictures = $this->post('<p>Sechs Bilder</p>');
+		$pictures->setLanguage('de');
+		$this->withPictures($pictures, 6);
+
+		$this->assertSame("Sechs Bilder\n\n+2 weitere Bilder\n\n" . self::POST_ID, $this->mapper->post($pictures, $this->identity, $this->author)['record']['text']);
+	}
+
+	/**
+	 * `pt-PT` is Nextcloud's `pt_PT`; a post in a language the app has no
+	 * catalogue for, or of no language, takes its author's language.
+	 */
+	public function testTheLanguageIsNextcloudsOrElseTheAuthors(): void {
+		$this->userIds['alice'] = 'alice-login';
+		$this->userLanguages['alice-login'] = 'fr';
+		$post = $this->post('<p>texto</p>');
+		$post->setSpoilerText('aviso');
+
+		$post->setLanguage('pt-PT');
+		$this->assertSame("Aviso de conteúdo: aviso\n\ntexto", $this->mapper->post($post, $this->identity, $this->author)['record']['text']);
+
+		$post->setLanguage('tlh');
+		$this->assertSame("Avertissement de contenu : aviso\n\ntexto", $this->mapper->post($post, $this->identity, $this->author)['record']['text']);
+
+		$post->setLanguage('');
+		$this->assertSame("Avertissement de contenu : aviso\n\ntexto", $this->mapper->post($post, $this->identity, $this->author)['record']['text']);
 	}
 
 	public function testALongPostIsCutAndLinked(): void {
@@ -160,25 +222,7 @@ class RecordMapperTest extends TestCase {
 
 	public function testUpToFourPicturesGoAndTheRestAreCounted(): void {
 		$post = $this->post('<p>Six pictures</p>');
-		$documents = [];
-		$attachments = [];
-		for ($i = 1; $i <= 6; $i++) {
-			$document = new Document();
-			$document->setNid($i);
-			$document->setId('https://social.test/doc/' . $i);
-			$document->setDescription('picture ' . $i);
-			$documents[] = $document;
-			$attachment = new MediaAttachment();
-			$attachment->setId((string)$i);
-			$attachment->setType('image');
-			$attachments[] = $attachment;
-		}
-		$post->setAttachments($attachments);
-		$this->documents->expects($this->once())->method('getMediaFromArray')
-			->with(['1', '2', '3', '4', '5', '6'], 'alice')->willReturn($documents);
-		$this->pictures->method('blobFor')->willReturnCallback(function (Identity $identity, Person $owner, Document $document): array {
-			return ['blob' => new BlobRef(self::DID, Cid::forRaw($document->getId()), $document->getId(), 'image/jpeg', 100), 'width' => 40, 'height' => 30];
-		});
+		$this->withPictures($post, 6);
 
 		$record = $this->mapper->post($post, $this->identity, $this->author)['record'];
 
@@ -578,8 +622,68 @@ class RecordMapperTest extends TestCase {
 
 	private function mapper(): RecordMapper {
 		$refs = new PostRefs($this->repositories, $this->streams, $this->appView, new NullLogger());
+		$users = $this->createStub(IUserManager::class);
+		$users->method('get')->willReturnCallback(function (string $uid): IUser {
+			$user = $this->createStub(IUser::class);
+			$user->method('getUID')->willReturn($uid);
 
-		return new RecordMapper(new TextMapper(), $this->pictures, $this->documents, $this->identities, $this->repositories, $refs, $this->cards, $this->thumbnails, $this->cacheDocuments, $this->pins);
+			return $user;
+		});
+		$actors = $this->createStub(ActorsRequest::class);
+		$actors->method('userIdOf')->willReturnCallback(fn (string $username): string => $this->userIds[$username] ?? '');
+
+		return new RecordMapper(new TextMapper(), $this->pictures, $this->documents, $this->identities, $this->repositories, $refs, $this->cards, $this->thumbnails, $this->cacheDocuments, $this->pins, $this->l10nFactory(), $users, $actors);
+	}
+
+	/**
+	 * The app's translations as its catalogues in `l10n/` have them, and a
+	 * user's language as `$userLanguages` says.
+	 */
+	private function l10nFactory(): IFactory {
+		$factory = $this->createStub(IFactory::class);
+		$catalogue = static fn (string $language): ?string => is_file($file = dirname(__DIR__, 3) . '/l10n/' . $language . '.json') ? $file : null;
+		$factory->method('languageExists')->willReturnCallback(static fn (string $app, string $language): bool => $language === 'en' || $catalogue($language) !== null);
+		$factory->method('getUserLanguage')->willReturnCallback(fn (?IUser $user = null): string => $user === null ? 'en' : ($this->userLanguages[$user->getUID()] ?? 'en'));
+		$factory->method('get')->willReturnCallback(function (string $app, ?string $language = null) use ($catalogue): IL10N {
+			$file = $catalogue((string)$language);
+			$translations = $file === null ? [] : json_decode((string)file_get_contents($file), true)['translations'];
+			$l10n = $this->createStub(IL10N::class);
+			$l10n->method('t')->willReturnCallback(static fn (string $text, array $params = []): string => vsprintf($translations[$text] ?? $text, $params));
+			$l10n->method('n')->willReturnCallback(static function (string $one, string $many, int $count) use ($translations): string {
+				$forms = $translations['_' . $one . '_::_' . $many . '_'] ?? [$one, $many];
+
+				return str_replace('%n', (string)$count, $count === 1 ? $forms[0] : $forms[1]);
+			});
+
+			return $l10n;
+		});
+
+		return $factory;
+	}
+
+	/**
+	 * Gives a post of alice's this many pictures, each a blob when asked.
+	 */
+	private function withPictures(Note $post, int $count): void {
+		$documents = [];
+		$attachments = [];
+		for ($i = 1; $i <= $count; $i++) {
+			$document = new Document();
+			$document->setNid($i);
+			$document->setId('https://social.test/doc/' . $i);
+			$document->setDescription('picture ' . $i);
+			$documents[] = $document;
+			$attachment = new MediaAttachment();
+			$attachment->setId((string)$i);
+			$attachment->setType('image');
+			$attachments[] = $attachment;
+		}
+		$post->setAttachments($attachments);
+		$this->documents->method('getMediaFromArray')
+			->with(array_map('strval', range(1, $count)), 'alice')->willReturn($documents);
+		$this->pictures->method('blobFor')->willReturnCallback(function (Identity $identity, Person $owner, Document $document): array {
+			return ['blob' => new BlobRef(self::DID, Cid::forRaw($document->getId()), $document->getId(), 'image/jpeg', 100), 'width' => 40, 'height' => 30];
+		});
 	}
 
 	private function blueskyPost(string $rkey, ?array $replyRoot = null): Note {

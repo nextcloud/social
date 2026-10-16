@@ -27,6 +27,10 @@ class JetstreamListenerTest extends TestCase {
 	private const START = 1760000000;
 
 	private int $now = self::START;
+	/** how far the clock moves on each reading */
+	private int $tick = 0;
+	/** @var list<int> when each status report says it was made, from the start */
+	private array $reports = [];
 	/** @var array<string, string> app values */
 	private array $values = [];
 	/** @var list<array{0: string, 1: int}> each cursor kept, with the clock it was kept at */
@@ -50,13 +54,21 @@ class JetstreamListenerTest extends TestCase {
 			if ($key === ConfigService::ATPROTO_JETSTREAM_CURSOR) {
 				$this->kept[] = [$value, $this->now - self::START];
 			}
+			if ($key === ConfigService::ATPROTO_JETSTREAM_STATUS) {
+				$this->reports[] = json_decode($value, true)['seen'] - self::START;
+			}
 		});
 		$watches = $this->createMock(AtprotoWatchRequest::class);
 		$watches->method('getAll')->willReturnCallback(fn (): array => $this->watched);
 		$this->client = $this->createMock(JetstreamClient::class);
 		$this->events = $this->createMock(JetstreamEvents::class);
 		$time = $this->createMock(ITimeFactory::class);
-		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
+		$time->method('getTime')->willReturnCallback(function (): int {
+			$now = $this->now;
+			$this->now += $this->tick;
+
+			return $now;
+		});
 		$this->listener = new JetstreamListener($config, $configService, $watches, $this->events, $this->client, $time, new NullLogger());
 	}
 
@@ -140,6 +152,20 @@ class JetstreamListenerTest extends TestCase {
 
 		$this->assertSame(0, $this->listener->listen(static fn (): null => null, 0, true));
 		$this->assertFalse($this->listener->status()['connected']);
+	}
+
+	/**
+	 * A report is an app-config write as well: watching nobody, the
+	 * listener reports as seldom as when connected, not on every idle
+	 * second.
+	 */
+	public function testAnIdleListenerReportsEveryFewSecondsNotEverySecond(): void {
+		$this->tick = 1;
+
+		$this->listener->listen(static fn (): null => null, 4);
+
+		$this->assertSame([2, 5], $this->reports, 'once on starting, then only on stopping');
+		$this->assertFalse($this->listener->status()['running']);
 	}
 
 	public function testTheFollowedAccountsAreAskedForFromAFewSecondsBeforeWhereItStopped(): void {

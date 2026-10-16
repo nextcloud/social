@@ -601,6 +601,8 @@ OC.L10N.register(
     "Use \"{name}\"" : "„{name}“ verwenden",
     "Only places people here have posted from are suggested. Nothing is sent to a map service." : "Vorgeschlagen werden nur Orte, von denen aus Personen hier bereits gepostet haben. Es wird nichts an einen Kartendienst gesendet.",
     "Poll" : "Umfrage",
+    "Poll: %s" : "Umfrage: %s",
+    "_+%n more picture_::_+%n more pictures_" : ["+%n weiteres Bild","+%n weitere Bilder"],
     "Remove the poll" : "Umfrage entfernen",
     "Poll option {number}" : "Umfrageoption {number}",
     "Remove option" : "Option entfernen",

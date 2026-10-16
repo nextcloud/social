@@ -219,23 +219,35 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 	}
 
 	/**
-	 * A collection's records made since a moment, across every repository;
-	 * what the reconcile pass checks against the posts.
+	 * A collection's records written here since a moment, across every
+	 * repository, newest first and below a record id when one is given:
+	 * what the reconcile pass checks against the posts, a page at a time.
+	 * Records a moving repository brought stand for no object here and are
+	 * left out. The window is cut on the id, as countRecordsWrittenSince()
+	 * explains.
 	 *
-	 * @return StoredRecord[]
+	 * @return array<int, StoredRecord> by record id
 	 */
-	public function getRecordsSince(string $collection, int $since, int $limit): array {
+	public function getRecordsSince(string $collection, int $since, int $limit, int $beforeId = 0): array {
+		$from = $this->firstRecordIdSince($since);
+		if ($from === 0) {
+			return [];
+		}
 		$qb = $this->getQueryBuilder();
-		$qb->select('did', 'collection', 'rkey', 'cid', 'bytes', 'local_id', 'creation')
+		$qb->select('id', 'did', 'collection', 'rkey', 'cid', 'bytes', 'local_id', 'creation')
 			->from(self::TABLE_ATPROTO_RECORD)
-			->where($qb->expr()->eq('collection', $qb->createNamedParameter($collection)))
-			->andWhere($qb->expr()->gte('creation', $qb->createNamedParameter(new DateTime('@' . $since), IQueryBuilder::PARAM_DATE)))
-			->orderBy('creation', 'asc')
-			->setMaxResults($limit);
+			->where($qb->expr()->gte('id', $qb->createNamedParameter($from, IQueryBuilder::PARAM_INT)))
+			->andWhere($qb->expr()->eq('collection', $qb->createNamedParameter($collection)))
+			->andWhere($qb->expr()->neq('local_id_prim', $qb->createNamedParameter('')))
+			->orderBy('id', 'desc')
+			->setMaxResults(max(1, $limit));
+		if ($beforeId > 0) {
+			$qb->andWhere($qb->expr()->lt('id', $qb->createNamedParameter($beforeId, IQueryBuilder::PARAM_INT)));
+		}
 		$records = [];
 		$result = $qb->executeQuery();
 		while ($row = $result->fetch()) {
-			$records[] = $this->record($row);
+			$records[(int)$row['id']] = $this->record($row);
 		}
 		$result->closeCursor();
 

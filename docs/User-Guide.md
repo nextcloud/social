@@ -1080,8 +1080,9 @@ Every **public** post goes to Bluesky as you publish it. Bluesky posts hold 300
 characters, so a longer post is cut at a word before 280 and the rest is a link
 to the post here; the composer tells you so under the counter. The first four
 pictures go with it, with their descriptions; a content warning becomes a
-warning label and a `CW:` line; a poll becomes its question and options with a
-link to vote here. An edit within five minutes replaces the Bluesky copy; a
+warning label and a "Content warning:" line; a poll becomes its question and
+options with a link to vote here. These added words are in the language of
+your post. An edit within five minutes replaces the Bluesky copy; a
 later one leaves the Bluesky copy as it was, with its link leading to the
 current text here. Deleting a post deletes it there too. Followers-only,
 unlisted and direct posts never leave this server, and a reply to a post that

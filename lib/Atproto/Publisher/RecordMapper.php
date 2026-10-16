@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Publisher;
 
+use OCA\Social\AppInfo\Application;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Model\BlobRef;
 use OCA\Social\Atproto\Model\Identity;
@@ -16,6 +17,7 @@ use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Repository\RepositoryService;
+use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamCardsRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
@@ -26,6 +28,9 @@ use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\PinService;
+use OCP\IL10N;
+use OCP\IUserManager;
+use OCP\L10N\IFactory;
 use Throwable;
 
 /**
@@ -33,8 +38,9 @@ use Throwable;
  *
  * This is the one place that decides what leaves for Bluesky: a public
  * post's text with facets, cut to fit and linked back when it does not;
- * `CW: …` and a `!warn` self-label for a content warning; a poll as its
- * question and options; the first four pictures as blobs; a reply to or
+ * a "Content warning: …" line and a `!warn` self-label for a content
+ * warning; a poll as its question and options; the first four pictures as
+ * blobs, the words added for these in the post's language; a reply to or
  * quote of a post that is on Bluesky — a published local post or a
  * Bluesky post read here — as a reply or record embed there, any other as
  * a link; a link preview as an external card. Nothing else is ever written.
@@ -60,6 +66,9 @@ class RecordMapper {
 		private CardThumbnail $thumbnails,
 		private CacheDocumentsRequest $cacheDocuments,
 		private PinService $pins,
+		private IFactory $l10nFactory,
+		private IUserManager $userManager,
+		private ActorsRequest $actors,
 	) {
 	}
 
@@ -72,17 +81,18 @@ class RecordMapper {
 		$facets = $mapped['facets'];
 		$extra = [];
 		$labels = [];
+		$l10n = $this->l10nOf($post, $author);
 
 		$isPoll = $post instanceof Question;
 		if ($isPoll) {
-			$poll = self::pollText($post);
+			$poll = self::pollText($post, $l10n);
 			$text = $text === '' ? $poll : $text . "\n\n" . $poll;
 			$facets = array_merge($facets, self::shifted(TextMapper::facetsOf($poll), strlen($text) - strlen($poll)));
 		}
 
 		$warning = trim($post->getSpoilerText());
 		if ($warning !== '') {
-			$prefix = 'CW: ' . $warning . "\n\n";
+			$prefix = $l10n->t('Content warning: %s', [$warning]) . "\n\n";
 			$text = $prefix . $text;
 			$facets = self::shifted($facets, strlen($prefix));
 			$labels[] = ['val' => '!warn'];
@@ -125,7 +135,7 @@ class RecordMapper {
 			$images[] = $image;
 		}
 		if ($dropped > 0) {
-			$extra[] = '+' . $dropped . ' more ' . ($dropped === 1 ? 'picture' : 'pictures');
+			$extra[] = $l10n->n('+%n more picture', '+%n more pictures', $dropped);
 		}
 		if (($images !== [] || $videoEmbed !== null) && $post->isSensitive() && $warning === '') {
 			$labels[] = ['val' => 'graphic-media'];
@@ -488,10 +498,35 @@ class RecordMapper {
 		return $parsed === false || $parsed <= 0 ? time() : $parsed;
 	}
 
-	private static function pollText(Question $poll): string {
+	private static function pollText(Question $poll, IL10N $l10n): string {
 		$options = array_map(static fn (array $option): string => trim((string)($option['title'] ?? '')), $poll->getOptions());
 
-		return 'Poll: ' . implode(' / ', array_filter($options, static fn (string $o): bool => $o !== ''));
+		return $l10n->t('Poll: %s', [implode(' / ', array_filter($options, static fn (string $o): bool => $o !== ''))]);
+	}
+
+	/**
+	 * The app's translations in the language the post is written in, else
+	 * in its author's Nextcloud language: the words a post gains on its way
+	 * to Bluesky are read with the post.
+	 */
+	private function l10nOf(Stream $post, Person $author): IL10N {
+		$language = Stream::normalizeLanguage($post->getLanguage());
+		if ($language !== '') {
+			// `pt-BR` is Nextcloud's `pt_BR` and `zh-Hant-TW` its `zh_TW`;
+			// failing those, the language without its region
+			$parts = explode('-', $language);
+			$regional = count($parts) > 1 ? $parts[0] . '_' . end($parts) : $parts[0];
+			foreach (array_unique([implode('_', $parts), $regional, $parts[0]]) as $candidate) {
+				if ($this->l10nFactory->languageExists(Application::APP_ID, $candidate)) {
+					return $this->l10nFactory->get(Application::APP_ID, $candidate);
+				}
+			}
+		}
+		// a cached actor does not carry its Nextcloud user: the account does
+		$userId = $author->getUserId() !== '' ? $author->getUserId() : $this->actors->userIdOf($author->getPreferredUsername());
+		$user = $userId === '' ? null : $this->userManager->get($userId);
+
+		return $this->l10nFactory->get(Application::APP_ID, $this->l10nFactory->getUserLanguage($user));
 	}
 
 	private static function shifted(array $facets, int $by): array {

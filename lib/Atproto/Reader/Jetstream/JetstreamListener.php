@@ -41,6 +41,11 @@ class JetstreamListener {
 	 */
 	public const KEEP_EVERY = 5;
 	public const KEEP_EVENTS = 200;
+	/**
+	 * how often the status is reported, an app-config write too, connected
+	 * or not; the admin page counts a listener silent for a minute as gone
+	 */
+	public const REPORT_EVERY = 15;
 	private const READ_TIMEOUT = 0.5;
 	private const MAX_BACKOFF = 60;
 
@@ -83,6 +88,7 @@ class JetstreamListener {
 		$backoff = 1;
 		$retryAt = 0;
 		$reported = 0;
+		$reportedConnected = false;
 
 		while (!$this->stopping) {
 			$now = $this->time->getTime();
@@ -101,7 +107,12 @@ class JetstreamListener {
 				}
 			}
 			if ($dids === []) {
-				$this->report($started, $lastEvent, $cursor, false, count($dids));
+				// at once when it last said it was connected
+				if ($now - $reported >= self::REPORT_EVERY || $reportedConnected) {
+					$this->report($started, $lastEvent, $cursor, false, count($dids));
+					$reported = $now;
+					$reportedConnected = false;
+				}
 				if ($once) {
 					break;
 				}
@@ -157,8 +168,9 @@ class JetstreamListener {
 				$keptAt = $now;
 				$unkept = 0;
 			}
-			if ($now - $reported >= 15) {
-				$this->report($started, $lastEvent, $cursor, $this->client->isConnected(), count($dids));
+			if ($now - $reported >= self::REPORT_EVERY) {
+				$reportedConnected = $this->client->isConnected();
+				$this->report($started, $lastEvent, $cursor, $reportedConnected, count($dids));
 				$reported = $now;
 			}
 			if ($once && $messages === [] && !$this->events->hasPending()) {

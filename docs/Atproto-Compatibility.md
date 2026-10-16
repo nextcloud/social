@@ -716,6 +716,17 @@ followers-only, direct, a post held for review, a post from a moved account
 archived post. A team account (§Architecture, teams) publishes like a
 person.
 
+What a missed event or a failed write left behind is caught by the reconcile
+pass (`Publisher::reconcile()`, every five minutes from
+`Cron\AtprotoMaintenance`): it checks the last day's public posts for a
+missing record or an edit within the grace period, and the post records
+written here in that day for a post that is gone. Each run looks at the
+newest 100 of each and at the next 100 of the rest of the day, from where the
+last run stopped (`walkWindow()`, the position kept in
+`social_durable_cache`), so a busy day is looked at whole over a few runs and
+a post missed a moment ago is never waiting behind it. The records a moving
+repository brought (no local object) are not checked.
+
 ### 8.2 Text
 
 Social posts are HTML; Bluesky posts are plain text with **facets**. The
@@ -739,11 +750,14 @@ when crossed.
 ### 8.3 Warnings, polls, quotes, replies
 
 - **Content warning** (`spoiler_text`): self-label `!warn` plus the warning
-  as the first line, `CW: <warning>` then a blank line, counted against the
-  300. A Social post marked sensitive also gets `graphic-media` on its
+  as the first line, `Content warning: <warning>` then a blank line, counted
+  against the 300. A Social post marked sensitive also gets `graphic-media` on its
   pictures as a self-label when it carries pictures. *verify label set*
-- **Poll**: the question and options as text (`Poll: … — A / B / C`), then
+- **Poll**: the question and options as text (`Poll: A / B / C`), then
   the link; results are not synchronised.
+- The words these add ("Content warning", "Poll", "+N more pictures" in
+  §8.4) are in the post's language, from the app's translations, else in the
+  author's Nextcloud language (`RecordMapper::l10nOf()`).
 - **Quote** of a Bluesky post, or of a local post that was published:
   `embed` `app.bsky.embed.record` with the quoted {uri, cid}; of anything
   else: the quoted post's URL as a `#link` and an `app.bsky.embed.external`

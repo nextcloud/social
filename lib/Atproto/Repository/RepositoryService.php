@@ -280,10 +280,10 @@ class RepositoryService {
 	}
 
 	/**
-	 * @return StoredRecord[]
+	 * @return array<int, StoredRecord> by record id, newest first
 	 */
-	public function getRecordsSince(string $collection, int $since, int $limit): array {
-		return $this->repoRequest->getRecordsSince($collection, $since, $limit);
+	public function getRecordsSince(string $collection, int $since, int $limit, int $beforeId = 0): array {
+		return $this->repoRequest->getRecordsSince($collection, $since, $limit, $beforeId);
 	}
 
 	/**
