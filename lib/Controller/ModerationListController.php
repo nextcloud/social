@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Exceptions\InvalidActionException;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ModerationList\ModerationListService;
@@ -28,6 +29,8 @@ use Throwable;
  * (`ModerationListService`): this app's own, for its settings.
  */
 class ModerationListController extends Controller {
+	use OwnAccount;
+
 	public function __construct(
 		IRequest $request,
 		private IUserSession $userSession,
@@ -52,7 +55,9 @@ class ModerationListController extends Controller {
 	#[FrontpageRoute(verb: 'POST', url: '/api/v1/social/moderation_lists')]
 	public function subscribe(string $url = '', string $kind = 'mute'): DataResponse {
 		try {
-			return new DataResponse($this->lists->subscribe($this->accountService->getActorFromUserId($this->userId()), $url, $kind));
+			return new DataResponse($this->lists->subscribe($this->ownAccountOf($this->userId()), $url, $kind));
+		} catch (AccountNotSetUpException $e) {
+			return self::notSetUp($e);
 		} catch (InvalidActionException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {
@@ -69,9 +74,11 @@ class ModerationListController extends Controller {
 	#[FrontpageRoute(verb: 'DELETE', url: '/api/v1/social/moderation_lists')]
 	public function unsubscribe(string $uri = ''): DataResponse {
 		try {
-			$this->lists->unsubscribe($this->accountService->getActorFromUserId($this->userId()), $uri);
+			$this->lists->unsubscribe($this->ownAccountOf($this->userId()), $uri);
 
 			return new DataResponse($this->lists->list($this->userId()));
+		} catch (AccountNotSetUpException $e) {
+			return self::notSetUp($e);
 		} catch (Throwable $e) {
 			$this->logger->warning('Unsubscribing from a moderation list failed', ['exception' => $e]);
 

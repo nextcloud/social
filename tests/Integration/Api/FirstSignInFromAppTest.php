@@ -13,9 +13,14 @@ use OCA\Social\Atproto\Protocol\Encoding;
 use OCA\Social\Controller\AccountApiController;
 use OCA\Social\Controller\ListController;
 use OCA\Social\Controller\LocalController;
+use OCA\Social\Controller\MigrationController;
+use OCA\Social\Controller\ModerationListController;
 use OCA\Social\Controller\OAuthController;
+use OCA\Social\Controller\ReviewController;
 use OCA\Social\Db\ClientRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Service\AccountService;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\Server;
 
@@ -165,6 +170,9 @@ class FirstSignInFromAppTest extends ApiTestCase {
 			'a client-API route, web session' => $this->call(ListController::class, 'index', [], [], 'dora', webSession: true),
 			'a client-API route, app password' => $this->call(ListController::class, 'index', [], [], 'dora', appPassword: true),
 			'a route of the web app' => $this->call(LocalController::class, 'postCreate', [], ['content' => 'hello'], 'dora', 'POST', webSession: true),
+			'held posts' => $this->call(ReviewController::class, 'held', [], [], 'dora', webSession: true),
+			'a shared moderation list' => $this->call(ModerationListController::class, 'subscribe', [], ['url' => 'https://lists.example/mute.csv'], 'dora', 'POST', webSession: true),
+			'the address to leave behind' => $this->call(MigrationController::class, 'switchAnnouncement', [], [], 'dora', webSession: true),
 		];
 
 		foreach ($answers as $what => $answer) {
@@ -173,5 +181,9 @@ class FirstSignInFromAppTest extends ApiTestCase {
 			$this->assertStringEndsWith('/apps/social/', $answer->body->setup_url, $what);
 			$this->assertStringStartsWith('http', $answer->body->setup_url, $what);
 		}
+
+		// and none of them made one on the way
+		$this->expectException(ActorDoesNotExistException::class);
+		Server::get(AccountService::class)->getActorFromUserId(self::PREFIX . 'dora');
 	}
 }

@@ -27,6 +27,7 @@ use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\Publisher;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Controller\AtprotoAccountController;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\AtprotoKeysSealedException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
@@ -68,6 +69,8 @@ class AtprotoAccountControllerTest extends TestCase {
 		$this->logger = $this->createMock(LoggerInterface::class);
 	}
 
+	private ?AccountService $accounts = null;
+
 	private function controller(): AtprotoAccountController {
 		$session = $this->createStub(IUserSession::class);
 		$user = $this->createStub(IUser::class);
@@ -75,8 +78,11 @@ class AtprotoAccountControllerTest extends TestCase {
 		$session->method('getUser')->willReturn($user);
 		$config = $this->createStub(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturnCallback(fn (): bool => $this->enabled);
-		$accounts = $this->createStub(AccountService::class);
-		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
+		$accounts = $this->accounts;
+		if ($accounts === null) {
+			$accounts = $this->createStub(AccountService::class);
+			$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
+		}
 
 		return new AtprotoAccountController(
 			$this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->publisher,
@@ -85,6 +91,45 @@ class AtprotoAccountControllerTest extends TestCase {
 			$this->inbound, $this->createStub(BridgyTwin::class), $this->createStub(BlueskyBlocks::class), $this->presence,
 			$this->logger,
 		);
+	}
+
+	/**
+	 * Reading or changing the Bluesky side of an account never makes the
+	 * account: somebody who has not set one up is told so and where, with
+	 * the answer every client route gives, and no handle is chosen for them.
+	 */
+	public function testNoRouteMakesTheAccountItActsOn(): void {
+		$asked = [];
+		$accounts = $this->createMock(AccountService::class);
+		$accounts->method('getActorFromUserId')->willReturnCallback(
+			function (string $userId, bool $create = false) use (&$asked): Person {
+				$asked[] = $create;
+
+				throw new ActorDoesNotExistException('Actor not found for user: ' . $userId);
+			}
+		);
+		$accounts->expects($this->never())->method('createActor');
+		$this->accounts = $accounts;
+		$this->identities->expects($this->never())->method('create');
+		$this->publisher->expects($this->never())->method('publishProfile');
+		$controller = $this->controller();
+
+		foreach ([
+			'identity' => fn () => $controller->identity(),
+			'state' => fn () => $controller->state(true),
+			'recovery' => fn () => $controller->recovery(),
+			'bridgyTwin' => fn () => $controller->bridgyTwin(),
+			'publishBlocks' => fn () => $controller->publishBlocks(true),
+			'setHandle' => fn () => $controller->setHandle('alice.example.org'),
+			'clearHandle' => fn () => $controller->clearHandle(),
+			'moveTarget' => fn () => $controller->moveTarget('https://pds.example'),
+		] as $route => $call) {
+			$response = $call();
+			$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus(), $route);
+			$this->assertSame('account-not-set-up', $response->getData()['code'], $route);
+			$this->assertArrayHasKey('setup_url', $response->getData(), $route);
+		}
+		$this->assertNotContains(true, $asked, 'a route asked for the account to be made');
 	}
 
 	/**

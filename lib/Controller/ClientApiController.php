@@ -12,7 +12,6 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AppInfo\Application;
 use OCA\Social\Exceptions\AccountNotSetUpException;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InsufficientScopeException;
@@ -58,6 +57,8 @@ use Throwable;
  *    that none of them can be told apart from the others by someone probing.
  */
 abstract class ClientApiController extends Controller {
+	use OwnAccount;
+
 	protected string $bearer = '';
 	protected ?SocialClient $client = null;
 	protected ?Person $viewer = null;
@@ -95,13 +96,11 @@ abstract class ClientApiController extends Controller {
 	protected function initViewer(array $scopes, bool $required = true): void {
 		try {
 			$userId = $this->currentSession($scopes);
-			try {
-				$account = $this->accountService->getActorFromUserId($userId);
-			} catch (ActorDoesNotExistException $e) {
-				// a token is only issued to an account, so this caller came
-				// with their Nextcloud session and has not set up here yet
-				throw ($this->bearer === '') ? AccountNotSetUpException::withSetupUrl($e) : $e;
-			}
+			// a token is only issued to an account, so a caller without one
+			// came with their Nextcloud session and has not set up here yet
+			$account = ($this->bearer === '')
+				? $this->ownAccountOf($userId)
+				: $this->accountService->getActorFromUserId($userId);
 			$this->viewer = $this->prepareViewer($account);
 		} catch (InsufficientScopeException $e) {
 			throw $e;
@@ -242,7 +241,7 @@ abstract class ClientApiController extends Controller {
 		if ($e instanceof AccountNotSetUpException) {
 			// as Mastodon answers a sign-in that is not usable yet: a 403,
 			// which no client reads as its token having ended
-			return new DataResponse($e->toArray(), Http::STATUS_FORBIDDEN);
+			return self::notSetUp($e);
 		}
 
 		if ($e instanceof ClientNotFoundException) {

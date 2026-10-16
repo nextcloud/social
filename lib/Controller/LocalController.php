@@ -19,7 +19,6 @@ use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
 use OCA\Social\Exceptions\AccountNotSetUpException;
-use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\BlockedByException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -79,6 +78,7 @@ class LocalController extends Controller {
 	/** Ceiling for a banner fetched by URL. */
 	private const BANNER_MAX_SIZE = 10 * 1024 * 1024;
 
+	use OwnAccount;
 	use TArrayTools;
 	use TNCDataResponse;
 
@@ -947,11 +947,8 @@ class LocalController extends Controller {
 		if ($this->userId === null) {
 			throw new AccountDoesNotExistException('User not logged in');
 		}
-		try {
-			return $this->accountService->getActorFromUserId($this->userId);
-		} catch (ActorDoesNotExistException $e) {
-			throw AccountNotSetUpException::withSetupUrl($e);
-		}
+
+		return $this->ownAccountOf($this->userId);
 	}
 
 	private function initViewer(bool $exception = false) {

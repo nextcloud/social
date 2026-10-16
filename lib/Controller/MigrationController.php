@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Controller;
 
 use OCA\Social\Atproto\Move\BlueskyAfterMoveOut;
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Exceptions\InvalidResourceException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ImportJob;
@@ -359,7 +360,7 @@ class MigrationController extends ClientApiController {
 		}
 
 		try {
-			$handle = $this->accountService->getActorFromUserId($this->userId)->getAccount();
+			$handle = $this->ownAccountOf($this->userId)->getAccount();
 			if ($handle === '' || strcasecmp(ltrim(trim($confirm), '@'), $handle) !== 0) {
 				return self::refusal(
 					'type your own handle, ' . $handle . ', to confirm the move', 'confirm-handle', Http::STATUS_UNPROCESSABLE_ENTITY
@@ -506,11 +507,11 @@ class MigrationController extends ClientApiController {
 		}
 
 		try {
-			$actor = $this->accountService->getActorFromUserId($this->userId);
+			$actor = $this->ownAccountOf($this->userId);
 
 			return new DataResponse($this->switchService->announcement($actor), Http::STATUS_OK);
 		} catch (Throwable $e) {
-			return self::refusal('no account to announce', 'no-account', Http::STATUS_NOT_FOUND);
+			return $this->refused($e, Http::STATUS_INTERNAL_SERVER_ERROR, 'building the announcement failed', ['userId' => $this->userId]);
 		}
 	}
 
@@ -829,6 +830,9 @@ class MigrationController extends ClientApiController {
 	private function refused(Throwable $e, int $status, string $failure, array $context = []): DataResponse {
 		if ($e instanceof MoveErrorException) {
 			return new DataResponse($e->toArray(), $status);
+		}
+		if ($e instanceof AccountNotSetUpException) {
+			return self::notSetUp($e);
 		}
 
 		$this->logger->error($failure, $context + ['exception' => $e]);

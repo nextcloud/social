@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use OCA\Social\Controller\ReviewController;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\HeldPost;
@@ -56,6 +57,19 @@ class ReviewControllerTest extends TestCase {
 			$this->postReviewService,
 			new NullLogger()
 		);
+	}
+
+	/** Held posts of somebody who has no account here: where to set one up, for both routes. */
+	public function testAReaderWithoutAnAccountIsToldWhereToSetItUp(): void {
+		$this->accountService->method('getActorFromUserId')
+			->willThrowException(new ActorDoesNotExistException('Actor not found for user: alice'));
+		$this->postReviewService->expects($this->never())->method('withdraw');
+
+		foreach (['held' => fn () => $this->controller()->held(), 'withdraw' => fn () => $this->controller()->withdraw(7)] as $route => $call) {
+			$response = $call();
+			$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus(), $route);
+			$this->assertSame('account-not-set-up', $response->getData()['code'], $route);
+		}
 	}
 
 	private function alice(): Person {

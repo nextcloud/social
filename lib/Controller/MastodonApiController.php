@@ -85,6 +85,8 @@ use Throwable;
  * controllers that extend this class.
  */
 abstract class MastodonApiController extends Controller {
+	use OwnAccount;
+
 	/**
 	 * The entity tag of the poll being answered, held between the check and
 	 * the answer so that a route that got past `notModified()` still carries
@@ -153,13 +155,11 @@ abstract class MastodonApiController extends Controller {
 			// "that handle is taken", by themselves. An account is made where
 			// somebody asks for one: LocalController::accountCreate() and
 			// `occ social:account:create`.
-			try {
-				$account = $this->accountService->getActorFromUserId($userId);
-			} catch (ActorDoesNotExistException $e) {
-				// a token is only issued to an account, so this caller came
-				// with their Nextcloud session and has not set up here yet
-				throw ($this->bearer === '') ? AccountNotSetUpException::withSetupUrl($e) : $e;
-			}
+			// a token is only issued to an account, so a caller without one
+			// came with their Nextcloud session and has not set up here yet
+			$account = ($this->bearer === '')
+				? $this->ownAccountOf($userId)
+				: $this->accountService->getActorFromUserId($userId);
 			$this->logger->debug('[' . static::class . '] Actor retrieved/created', [
 				'userId' => $userId,
 				'username' => $account->getPreferredUsername()
@@ -564,7 +564,7 @@ abstract class MastodonApiController extends Controller {
 		if ($e instanceof AccountNotSetUpException) {
 			// as Mastodon answers a sign-in that is not usable yet: a 403,
 			// which no client reads as its token having ended
-			return new DataResponse($e->toArray(), Http::STATUS_FORBIDDEN);
+			return self::notSetUp($e);
 		}
 
 		foreach (self::ERROR_STATUS as [$class, $status]) {

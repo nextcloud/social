@@ -44,6 +44,8 @@ use Throwable;
  * recovery tool that moves it with the recovery phrase.
  */
 class AtprotoRecoveryController extends Controller {
+	use OwnAccount;
+
 	public function __construct(
 		IRequest $request,
 		private IUserSession $userSession,
@@ -112,7 +114,7 @@ class AtprotoRecoveryController extends Controller {
 	public function control(): DataResponse {
 		$identity = $this->ownIdentity();
 		if ($identity === null || !BlueskyArchiveService::exportable($identity)) {
-			return new DataResponse(['error' => 'No Bluesky account for this account', 'code' => 'no-identity'], Http::STATUS_NOT_FOUND);
+			return $this->withoutIdentity();
 		}
 		try {
 			return new DataResponse($this->control->forIdentity($identity));
@@ -142,7 +144,7 @@ class AtprotoRecoveryController extends Controller {
 	public function archive(): Response {
 		$identity = $this->ownIdentity();
 		if ($identity === null || !BlueskyArchiveService::exportable($identity)) {
-			return new DataResponse(['error' => 'No Bluesky account for this account', 'code' => 'no-identity'], Http::STATUS_NOT_FOUND);
+			return $this->withoutIdentity();
 		}
 
 		return new StreamedWriterResponse(function (Closure $sink) use ($identity): void {
@@ -164,8 +166,19 @@ class AtprotoRecoveryController extends Controller {
 	}
 
 	/**
-	 * The viewer's identity as it is, never made; null when Bluesky is off
-	 * or there is none.
+	 * What a route answers for a viewer with no identity to export: no
+	 * account here yet, or an account without one.
+	 */
+	private function withoutIdentity(): DataResponse {
+		$answer = new DataResponse(['error' => 'No Bluesky account for this account', 'code' => 'no-identity'], Http::STATUS_NOT_FOUND);
+		$user = $this->userSession->getUser();
+
+		return ($user === null) ? $answer : $this->unlessNotSetUp($user->getUID(), $answer);
+	}
+
+	/**
+	 * The viewer's identity as it is, never made, nor their account; null
+	 * when Bluesky is off or there is none.
 	 */
 	private function ownIdentity(): ?Identity {
 		if (!$this->config->isEnabled()) {
@@ -176,7 +189,7 @@ class AtprotoRecoveryController extends Controller {
 			return null;
 		}
 		try {
-			return $this->identities->forActor($this->accountService->getActorFromUserId($user->getUID(), true), false);
+			return $this->identities->forActor($this->accountService->getActorFromUserId($user->getUID()), false);
 		} catch (Throwable) {
 			return null;
 		}

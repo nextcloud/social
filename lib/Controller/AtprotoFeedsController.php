@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Reader\BlueskyDiscovery;
 use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Atproto\Reader\StarterPacks;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Exceptions\AccountNotSetUpException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\PostDecorationService;
@@ -34,6 +35,8 @@ use Throwable;
  * page of one as a timeline; and starter packs, opened and followed.
  */
 class AtprotoFeedsController extends Controller {
+	use OwnAccount;
+
 	public function __construct(
 		IRequest $request,
 		private IUserSession $userSession,
@@ -152,7 +155,9 @@ class AtprotoFeedsController extends Controller {
 			return new DataResponse(['error' => 'Bluesky is not enabled on this server'], Http::STATUS_NOT_FOUND);
 		}
 		try {
-			return new DataResponse($work($this->accountService->getActorFromUserId($user->getUID())));
+			return new DataResponse($work($this->ownAccountOf($user->getUID())));
+		} catch (AccountNotSetUpException $e) {
+			return self::notSetUp($e);
 		} catch (InvalidArgumentException $e) {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_UNPROCESSABLE_ENTITY);
 		} catch (Throwable $e) {

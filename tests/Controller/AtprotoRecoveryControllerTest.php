@@ -17,6 +17,7 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\BlueskyArchiveService;
 use OCA\Social\Atproto\Service\RecoveryToolPage;
 use OCA\Social\Controller\AtprotoRecoveryController;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Response\StreamedWriterResponse;
@@ -63,6 +64,8 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		\OC::$server->reset();
 	}
 
+	private ?AccountService $accounts = null;
+
 	private function controller(?LoggerInterface $logger = null): AtprotoRecoveryController {
 		$session = $this->createStub(IUserSession::class);
 		$user = $this->createStub(IUser::class);
@@ -70,10 +73,34 @@ class AtprotoRecoveryControllerTest extends TestCase {
 		$session->method('getUser')->willReturn($user);
 		$config = $this->createStub(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
-		$accounts = $this->createStub(AccountService::class);
-		$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
+		$accounts = $this->accounts;
+		if ($accounts === null) {
+			$accounts = $this->createStub(AccountService::class);
+			$accounts->method('getActorFromUserId')->willReturn((new Person())->setUserId('alice'));
+		}
 
 		return new AtprotoRecoveryController($this->createStub(IRequest::class), $session, $config, $accounts, $this->identities, $this->archive, $this->control, $this->recoveryTool, $logger ?? new NullLogger());
+	}
+
+	/** Reading who controls an account never makes the account it reads. */
+	public function testAViewerWithoutAnAccountIsToldWhereToSetItUp(): void {
+		$asked = [];
+		$this->accounts = $this->createMock(AccountService::class);
+		$this->accounts->method('getActorFromUserId')->willReturnCallback(
+			function (string $userId, bool $create = false) use (&$asked): Person {
+				$asked[] = $create;
+
+				throw new ActorDoesNotExistException('Actor not found for user: ' . $userId);
+			}
+		);
+		$this->identities->expects($this->never())->method('create');
+
+		foreach (['control' => fn () => $this->controller()->control(), 'archive' => fn () => $this->controller()->archive()] as $route => $call) {
+			$response = $call();
+			$this->assertSame(Http::STATUS_FORBIDDEN, $response->getStatus(), $route);
+			$this->assertSame('account-not-set-up', $response->getData()['code'], $route);
+		}
+		$this->assertNotContains(true, $asked, 'a route asked for the account to be made');
 	}
 
 	private static function identity(string $state = Identity::STATE_ACTIVE): Identity {
