@@ -99,12 +99,12 @@ final class RowSeeder {
 		}
 	}
 
-	/** @param array<string, mixed> $where column => value, all of them */
+	/** @param array<string, mixed> $where column => value, all of them; null is IS NULL */
 	public static function count(string $table, array $where): int {
 		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
 		$qb->select($qb->func()->count('*', 'n'))->from($table);
 		foreach ($where as $column => $value) {
-			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter($value, self::typeOf($value))));
+			$qb->andWhere(self::matching($qb, $column, $value));
 		}
 		$result = $qb->executeQuery();
 		$count = (int)$result->fetchOne();
@@ -113,14 +113,21 @@ final class RowSeeder {
 		return $count;
 	}
 
-	/** @param array<string, mixed> $where column => value, all of them */
+	/** @param array<string, mixed> $where column => value, all of them; null is IS NULL */
 	public static function delete(string $table, array $where): void {
 		$qb = Server::get(IDBConnection::class)->getQueryBuilder();
 		$qb->delete($table);
 		foreach ($where as $column => $value) {
-			$qb->andWhere($qb->expr()->eq($column, $qb->createNamedParameter($value, self::typeOf($value))));
+			$qb->andWhere(self::matching($qb, $column, $value));
 		}
 		$qb->executeStatement();
+	}
+
+	/** `= NULL` is never true in SQL: a null value is asked for as IS NULL. */
+	private static function matching(IQueryBuilder $qb, string $column, mixed $value): string {
+		return $value === null
+			? $qb->expr()->isNull($column)
+			: $qb->expr()->eq($column, $qb->createNamedParameter($value, self::typeOf($value)));
 	}
 
 	private static function typeOf(mixed $value): int|string {
