@@ -453,7 +453,7 @@ describe('Statistics', () => {
 
 	it('says the survey of the network leaves out a network the posts also went out on', async () => {
 		const base = answer()
-		const network = { peers: 2, servers: 42809, accounts: 1, active: 1, measured: '', source: 'FediDB', source_url: 'https://fedidb.org' }
+		const network = { peers: 2, servers: 42809, accounts: 1, active: 1, measured: '', source: 'FediDB', source_url: 'https://fedidb.com' }
 		axios.get.mockResolvedValue({ data: answer({ network, reach: { ...base.reach, networks: [{ network: 'Bluesky', posts: 9 }] } }) })
 
 		const wrapper = mountPage()
@@ -705,7 +705,7 @@ describe('Statistics', () => {
 		 */
 		it('counts the servers it reaches when the share rounds to nothing', async () => {
 			axios.get.mockResolvedValue({
-				data: answer({ growth: GROWTH, network: { peers: 2, servers: 42809, accounts: 1, active: 1, measured: '', source: 'FediDB', source_url: 'https://fedidb.org' } }),
+				data: answer({ growth: GROWTH, network: { peers: 2, servers: 42809, accounts: 1, active: 1, measured: '', source: 'FediDB', source_url: 'https://fedidb.com' } }),
 			})
 			const wrapper = mountPage()
 			await flushPromises()
@@ -766,7 +766,7 @@ describe('Statistics', () => {
 			],
 			accounts: 13610382,
 			source: 'FediDB',
-			source_url: 'https://fedidb.org',
+			source_url: 'https://fedidb.com',
 		}
 
 		/**

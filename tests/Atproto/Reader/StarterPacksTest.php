@@ -18,6 +18,7 @@ use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Reader\BlueskyBlockedBy;
 use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Atproto\Reader\StarterPacks;
+use OCA\Social\Exceptions\AppViewNotFoundException;
 use OCA\Social\Exceptions\FollowSameAccountException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Service\CacheActorService;
@@ -45,11 +46,15 @@ class StarterPacksTest extends TestCase {
 	/** @var string[] kept through BlueskyFeeds */
 	private array $kept = [];
 	private ?BlueskyBlockedBy $blockedBy = null;
+	private bool $packKnown = true;
 
 	private function packs(): StarterPacks {
 		$appView = $this->createMock(AppViewClient::class);
 		$answer = function (string $method, array $params, bool $asViewer): array {
 			$this->asked[] = [$method, $params, $asViewer];
+			if ($method === 'app.bsky.graph.getStarterPack' && !$this->packKnown) {
+				throw new AppViewNotFoundException($method . ': Starter pack not found', 'NotFound');
+			}
 
 			return match ($method) {
 				'com.atproto.identity.resolveHandle' => ['did' => self::BOB],
@@ -95,6 +100,15 @@ class StarterPacksTest extends TestCase {
 		$this->assertSame([['did:plc:a', false], ['did:plc:b', true]], array_map(static fn (array $m): array => [$m['did'], $m['following']], $pack['members']), 'whom the viewer follows already, marked');
 		$this->assertSame([self::FEED], array_column($pack['feeds'], 'uri'));
 		$this->assertSame(['app.bsky.graph.getStarterPack', ['starterPack' => self::PACK], true], $this->asked[1]);
+	}
+
+	/** The AppView not knowing the pack, or not yet, is said to the person as such. */
+	public function testAPackTheAppViewDoesNotKnowIsSaidToBeUnknown(): void {
+		$this->packKnown = false;
+
+		$this->expectException(InvalidArgumentException::class);
+		$this->expectExceptionMessage('Bluesky does not know that starter pack');
+		$this->packs()->read(new Person(), 'https://bsky.app/starter-pack/bob.test/3ks');
 	}
 
 	public function testOnlyAStarterPacksAddressIsOne(): void {
