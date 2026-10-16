@@ -309,13 +309,44 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 	}
 
 	/**
-	 * @param string $actorId
+	 * Readdresses every post addressed to `$actorId` to `$newId`.
+	 *
+	 * Copied, a page at a time, and then removed rather than updated in
+	 * place: a post addressed to both already has a row for the new one,
+	 * `sat` makes (stream_id, actor_id, type) unique, and an UPDATE onto such
+	 * a row is refused, and the whole Move with it. The copy skips those, and
+	 * nothing here is a statement the database refuses, so it can run inside
+	 * a transaction on PostgreSQL.
 	 */
 	public function moveActor(string $actorId, string $newId): void {
-		$qb = $this->getStreamDestUpdateSql();
-		$qb->set('actor_id', $qb->createNamedParameter($qb->prim($newId)));
-		$qb->limitToDBField('actor_id', $qb->prim($actorId));
+		$newPrim = $this->getQueryBuilder()->prim($newId);
+		$afterId = 0;
+		do {
+			$qb = $this->getQueryBuilder();
+			$qb->select('id', 'stream_id', 'type', 'subtype', 'nid')
+				->from(self::TABLE_STREAM_DEST)
+				->where($qb->expr()->eq('actor_id', $qb->createNamedParameter($qb->prim($actorId))))
+				->andWhere($qb->expr()->gt('id', $qb->createNamedParameter($afterId, IQueryBuilder::PARAM_INT)))
+				->orderBy('id', 'asc')
+				->setMaxResults(self::INSERT_IGNORE_CHUNK);
 
-		$qb->executeStatement();
+			$rows = [];
+			$cursor = $qb->executeQuery();
+			while ($data = $cursor->fetch()) {
+				$afterId = (int)$data['id'];
+				$rows[] = [
+					'stream_id' => (string)$data['stream_id'],
+					'actor_id' => $newPrim,
+					'type' => (string)$data['type'],
+					'subtype' => (string)$data['subtype'],
+					'nid' => (int)$data['nid'],
+				];
+			}
+			$cursor->closeCursor();
+
+			$this->insertIgnoringConflicts(self::TABLE_STREAM_DEST, $rows);
+		} while (count($rows) === self::INSERT_IGNORE_CHUNK);
+
+		$this->deleteRelatedToActor($actorId);
 	}
 }

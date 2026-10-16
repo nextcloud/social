@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActorRelation;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -21,9 +22,16 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
 class ActorRelationRequest extends ActorRelationRequestBuilder {
 	/**
 	 * Idempotent: saving an already-existing relation only refreshes its
-	 * `notifications` flag (relevant when re-muting with a different setting).
+	 * `notifications` flag (relevant when re-muting with a different setting)
+	 * and the activity it came from.
+	 *
+	 * @param string $activityId the id of the activity that made the relation
+	 *                           (an incoming `Block`), so an `Undo` naming
+	 *                           only that id finds it; '' for none
 	 */
-	public function save(string $actorId, string $objectId, string $type, bool $notifications = true): void {
+	public function save(
+		string $actorId, string $objectId, string $type, bool $notifications = true, string $activityId = '',
+	): void {
 		$qb = $this->getActorRelationInsertSql();
 		$qb->setValue('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
 			->setValue('object_id', $qb->createNamedParameter($objectId))
@@ -31,6 +39,9 @@ class ActorRelationRequest extends ActorRelationRequestBuilder {
 			->setValue('type', $qb->createNamedParameter($type))
 			->setValue('notifications', $qb->createNamedParameter($notifications, IQueryBuilder::PARAM_BOOL))
 			->setValue('creation', $qb->createNamedParameter(new DateTime('now'), IQueryBuilder::PARAM_DATE));
+		if ($activityId !== '') {
+			$qb->setValue('activity_id_prim', $qb->createNamedParameter($qb->prim($activityId)));
+		}
 
 		try {
 			$qb->executeStatement();
@@ -41,6 +52,9 @@ class ActorRelationRequest extends ActorRelationRequestBuilder {
 			$update = $this->getQueryBuilder();
 			$update->update(self::TABLE_ACTOR_RELATION)
 				->set('notifications', $update->createNamedParameter($notifications, IQueryBuilder::PARAM_BOOL));
+			if ($activityId !== '') {
+				$update->set('activity_id_prim', $update->createNamedParameter($update->prim($activityId)));
+			}
 			$update->where(
 				$update->expr()->eq('actor_id_prim', $update->createNamedParameter($update->prim($actorId))),
 				$update->expr()->eq('object_id_prim', $update->createNamedParameter($update->prim($objectId))),
@@ -59,6 +73,36 @@ class ActorRelationRequest extends ActorRelationRequestBuilder {
 		);
 
 		$qb->executeStatement();
+	}
+
+	/**
+	 * The incoming `Block` a `blocked_by` relation was written from, found by
+	 * the block's id: the blocker as its actor, the local account it blocked
+	 * as its object. Null when no relation came from that activity.
+	 */
+	public function getBlockByActivityId(string $activityId): ?Block {
+		$qb = $this->getQueryBuilder();
+		$qb->select('ar.object_id', 'a.id')
+			->from(self::TABLE_ACTOR_RELATION, 'ar')
+			->innerJoin('ar', self::TABLE_ACTORS, 'a', $qb->expr()->eq('a.id_prim', 'ar.actor_id_prim'))
+			->where($qb->expr()->eq('ar.activity_id_prim', $qb->createNamedParameter($qb->prim($activityId))))
+			->andWhere($qb->expr()->eq('ar.type', $qb->createNamedParameter(ActorRelation::TYPE_BLOCKED_BY)))
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		if ($data === false) {
+			return null;
+		}
+
+		$block = new Block();
+		$block->setId($activityId);
+		$block->setActorId((string)$data['object_id']);
+		$block->setObjectId((string)$data['id']);
+
+		return $block;
 	}
 
 	public function exists(string $actorId, string $objectId, string $type): bool {

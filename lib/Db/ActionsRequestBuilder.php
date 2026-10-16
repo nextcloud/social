@@ -31,16 +31,6 @@ class ActionsRequestBuilder extends CoreRequestBuilder {
 	}
 
 	/**
-	 * Base of the Sql Update request
-	 */
-	protected function getActionsUpdateSql(): SocialQueryBuilder {
-		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_ACTIONS);
-
-		return $qb;
-	}
-
-	/**
 	 * Base of the Sql Select request for Shares
 	 */
 	protected function getActionsSelectSql(): SocialQueryBuilder {

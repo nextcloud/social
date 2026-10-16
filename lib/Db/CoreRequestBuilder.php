@@ -185,7 +185,8 @@ class CoreRequestBuilder {
 			'object_id_prim',
 			'type',
 			'notifications',
-			'creation'
+			'creation',
+			'activity_id_prim'
 		],
 		self::TABLE_ACTORS => [
 			'id_prim',

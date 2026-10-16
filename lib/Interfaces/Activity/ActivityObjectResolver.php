@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace OCA\Social\Interfaces\Activity;
 
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -33,9 +35,10 @@ use OCA\Social\Model\ActivityPub\ACore;
  *
  * The URI is looked up in what this instance already stores, in the order the
  * wrapping activities need it: a follow, then a post, then an action (a Like or
- * a pin), then an actor. Nothing is fetched over the network — the id names
- * something we were told about before, and a wrapping activity that refers to
- * something unknown here has nothing to undo or accept.
+ * a pin), an emoji reaction, a block, then an actor. Nothing is fetched over
+ * the network — the id names something we were told about before, and a
+ * wrapping activity that refers to something unknown here has nothing to undo
+ * or accept.
  */
 class ActivityObjectResolver {
 	public function __construct(
@@ -43,6 +46,8 @@ class ActivityObjectResolver {
 		private FollowsRequest $followsRequest,
 		private ActionsRequest $actionsRequest,
 		private CacheActorsRequest $cacheActorsRequest,
+		private ReactionsRequest $reactionsRequest,
+		private ActorRelationRequest $actorRelationRequest,
 	) {
 	}
 
@@ -99,6 +104,16 @@ class ActivityObjectResolver {
 		try {
 			return $this->actionsRequest->getById($objectId);
 		} catch (ActionDoesNotExistException $e) {
+		}
+
+		try {
+			return $this->reactionsRequest->getById($objectId);
+		} catch (ActionDoesNotExistException $e) {
+		}
+
+		$block = $this->actorRelationRequest->getBlockByActivityId($objectId);
+		if ($block !== null) {
+			return $block;
 		}
 
 		try {

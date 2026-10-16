@@ -11,8 +11,10 @@ namespace OCA\Social\Tests\Federation;
 
 use OCA\Social\AP;
 use OCA\Social\Db\ActionsRequest;
+use OCA\Social\Db\ActorRelationRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActionDoesNotExistException;
 use OCA\Social\Exceptions\CacheActorDoesNotExistException;
@@ -317,7 +319,9 @@ class InteropRegressionTest extends TestCase {
 			$this->createStub(StreamRequest::class),
 			$follows,
 			$this->createStub(ActionsRequest::class),
-			$this->createStub(CacheActorsRequest::class)
+			$this->createStub(CacheActorsRequest::class),
+			$this->reactionsWithout(),
+			$this->createStub(ActorRelationRequest::class)
 		);
 
 		$this->apInterface(FollowInterface::class)
@@ -475,7 +479,9 @@ class InteropRegressionTest extends TestCase {
 			$this->streamsWithout(),
 			$this->followsWithout(),
 			$this->actionsWithout(),
-			$this->actorsWithout()
+			$this->actorsWithout(),
+			$this->reactionsWithout(),
+			$this->createStub(ActorRelationRequest::class)
 		);
 
 		$accept = new Accept();
@@ -502,6 +508,13 @@ class InteropRegressionTest extends TestCase {
 
 	private function actionsWithout(): ActionsRequest {
 		$mock = $this->createMock(ActionsRequest::class);
+		$mock->method('getById')->willThrowException(new ActionDoesNotExistException());
+
+		return $mock;
+	}
+
+	private function reactionsWithout(): ReactionsRequest {
+		$mock = $this->createMock(ReactionsRequest::class);
 		$mock->method('getById')->willThrowException(new ActionDoesNotExistException());
 
 		return $mock;

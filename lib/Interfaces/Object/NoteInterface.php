@@ -30,6 +30,7 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\DurableCache;
@@ -127,7 +128,15 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 				return;
 			}
 			$item->setActivityId($activity->getId());
+			$edited = self::isEdit($stored, $item);
+			if (!$edited) {
+				// not an edit: the post keeps the edit time it had, if any
+				$item->setUpdated($stored->getUpdated());
+			}
 			$this->streamRequest->update($item);
+			if (!$edited) {
+				return;
+			}
 			// the version being replaced, recorded the way a local edit records
 			// one: without it `GET /statuses/{nid}/history` answered a remote
 			// post edited three times with a single synthetic version, and the
@@ -136,6 +145,46 @@ class NoteInterface extends AbstractActivityPubInterface implements IActivityPub
 			$this->notificationService->onStatusEdited($item);
 			$this->fileCommentsService->onReplyUpdated($item);
 		}
+	}
+
+	/**
+	 * Whether an incoming Update changes what the post says, as against only
+	 * the tallies of its poll.
+	 *
+	 * Mastodon sends `Update{Question}` as the votes come in, without
+	 * `updated`. Taken for an edit, each one would record an identical
+	 * revision and tell everyone here who boosted the poll that it had been
+	 * edited. An edit is what Mastodon counts as one: a change to the text,
+	 * the content warning, the sensitivity, the attachments or the poll's
+	 * options.
+	 */
+	private static function isEdit(Stream $stored, Stream $incoming): bool {
+		return $stored->getContent() !== $incoming->getContent()
+			|| $stored->getSummary() !== $incoming->getSummary()
+			|| $stored->isSensitive() !== $incoming->isSensitive()
+			|| self::attachmentsOf($stored) !== self::attachmentsOf($incoming)
+			|| self::pollOf($stored) !== self::pollOf($incoming);
+	}
+
+	/** @return list<array{?string, string}> each attachment's origin and description */
+	private static function attachmentsOf(Stream $stream): array {
+		$attachments = [];
+		foreach ($stream->getAttachments() as $attachment) {
+			if ($attachment instanceof MediaAttachment) {
+				$attachments[] = [$attachment->getRemoteUrl(), $attachment->getDescription()];
+			}
+		}
+
+		return $attachments;
+	}
+
+	/** @return array{}|array{bool, list<string>} whether the poll takes several answers, and its options */
+	private static function pollOf(Stream $stream): array {
+		if (!($stream instanceof Question)) {
+			return [];
+		}
+
+		return [$stream->isMultiple(), array_column($stream->getOptions(), 'title')];
 	}
 
 	/**

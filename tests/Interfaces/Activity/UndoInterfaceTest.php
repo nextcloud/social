@@ -13,8 +13,10 @@ use OCA\Social\Exceptions\InvalidOriginException;
 use OCA\Social\Interfaces\Activity\ActivityObjectResolver;
 use OCA\Social\Interfaces\Activity\UndoInterface;
 use OCA\Social\Interfaces\IActivityPubInterface;
+use OCA\Social\Model\ActivityPub\Activity\Block;
 use OCA\Social\Model\ActivityPub\Activity\Undo;
 use OCA\Social\Model\ActivityPub\Object\Announce;
+use OCA\Social\Model\ActivityPub\Object\EmojiReact;
 use OCA\Social\Model\ActivityPub\Object\Follow;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -85,6 +87,59 @@ class UndoInterfaceTest extends DispatchingActivityTestCase {
 		$this->followInterface->expects($this->once())
 			->method('activity')
 			->with($this->identicalTo($undo), $this->identicalTo($follow));
+
+		$this->createHandler()->processIncomingRequest($undo);
+	}
+
+	/** An emoji reaction taken back by a peer that links it instead of embedding it. */
+	public function testUndoCarryingAReactionAsALinkReachesTheEmojiReactInterface(): void {
+		$reaction = new EmojiReact();
+		$reaction->setId(self::REMOTE_URL . '/reactions/1');
+		$reaction->setActorId(self::REMOTE_URL . '/users/bob');
+		$this->objectResolver = $this->objectResolverOver([self::REMOTE_URL . '/reactions/1' => $reaction]);
+
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/bob');
+		$undo->setObjectId(self::REMOTE_URL . '/reactions/1');
+
+		$this->emojiReactInterface->expects($this->once())
+			->method('activity')
+			->with($this->identicalTo($undo), $this->identicalTo($reaction));
+
+		$this->createHandler()->processIncomingRequest($undo);
+	}
+
+	/** A block lifted by a peer that links the Block instead of embedding it. */
+	public function testUndoCarryingABlockAsALinkReachesTheBlockInterface(): void {
+		$block = new Block();
+		$block->setId(self::REMOTE_URL . '/blocks/1');
+		$block->setActorId(self::REMOTE_URL . '/users/bob');
+		$block->setObjectId(self::LOCAL_URL . '/users/alice');
+		$this->objectResolver = $this->objectResolverOver([self::REMOTE_URL . '/blocks/1' => $block]);
+
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/bob');
+		$undo->setObjectId(self::REMOTE_URL . '/blocks/1');
+
+		$this->blockInterface->expects($this->once())
+			->method('activity')
+			->with($this->identicalTo($undo), $this->identicalTo($block));
+
+		$this->createHandler()->processIncomingRequest($undo);
+	}
+
+	/** Somebody else's block, named by its id, is not theirs to lift. */
+	public function testUndoOfANeighboursBlockNamedByItsIdIsRefused(): void {
+		$block = new Block();
+		$block->setId(self::REMOTE_URL . '/blocks/1');
+		$block->setActorId(self::REMOTE_URL . '/users/bob');
+		$block->setObjectId(self::LOCAL_URL . '/users/alice');
+		$this->objectResolver = $this->objectResolverOver([self::REMOTE_URL . '/blocks/1' => $block]);
+
+		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/1', self::REMOTE_URL . '/users/mallory');
+		$undo->setObjectId(self::REMOTE_URL . '/blocks/1');
+
+		$this->blockInterface->expects($this->never())->method('activity');
+
+		$this->expectException(InvalidOriginException::class);
 
 		$this->createHandler()->processIncomingRequest($undo);
 	}

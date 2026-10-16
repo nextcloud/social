@@ -22,7 +22,6 @@ use PHPUnit\Framework\TestCase;
 class ReactionsRequestTest extends TestCase {
 	private const ALICE = 'https://itest.example/users/react-alice';
 	private const BOB = 'https://itest.example/users/react-bob';
-	private const MOVED = 'https://itest.example/users/react-alice-new';
 	private const POST = 'https://itest.example/posts/react-1';
 	private const OTHER = 'https://itest.example/posts/react-2';
 
@@ -83,15 +82,5 @@ class ReactionsRequestTest extends TestCase {
 		$this->assertCount(1, $this->reactions->getByObjectId(self::POST));
 		$this->expectException(ActionDoesNotExistException::class);
 		$this->reactions->getReaction(self::ALICE, self::POST, "\u{1F525}");
-	}
-
-	public function testReactionsFollowAnAccountThatMoves(): void {
-		$this->react(self::ALICE, self::POST, "\u{1F525}");
-
-		$this->reactions->moveAccount(self::ALICE, self::MOVED);
-
-		$this->assertSame(self::MOVED, $this->reactions->getReaction(self::MOVED, self::POST, "\u{1F525}")->getActorId());
-		$this->reactions->deleteByActor(self::MOVED);
-		$this->assertSame([], $this->reactions->getByObjectId(self::POST));
 	}
 }

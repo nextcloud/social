@@ -28,6 +28,7 @@ use OCA\Social\Model\ActivityPub\Object\Mention;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Question;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamQueue;
 use OCA\Social\Service\FileCommentsService;
@@ -677,6 +678,7 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 
 	public function testAnUpdateRewritesTheCommentsThatStandForTheNote(): void {
 		$note = $this->incomingNote();
+		$note->setContent('<p>edited</p>');
 		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($this->storedCopy());
 
 		$this->fileCommentsService->expects($this->once())->method('onReplyUpdated')->with($this->identicalTo($note));
@@ -749,6 +751,90 @@ class NoteInterfaceTest extends ActivityPubTestCase {
 
 		$this->streamRequest->expects($applied ? $this->once() : $this->never())->method('update');
 		$this->revisionService->expects($applied ? $this->once() : $this->never())->method('recordEdit');
+
+		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
+	}
+
+	/** A poll by bob, as stored or as an Update carries it. */
+	private function poll(array $titles = ['tea', 'coffee'], bool $multiple = false): Question {
+		$poll = new Question();
+		$poll->setId(self::NOTE);
+		$poll->setAttributedTo($this->bob->getId());
+		$poll->setContent('<p>tea or coffee?</p>');
+		$poll->setPollData($titles, $multiple, 3600, 1700000000);
+
+		return $poll;
+	}
+
+	/**
+	 * Mastodon sends `Update{Question}` as the votes come in, without
+	 * `updated`. New tallies are stored and that is all: no identical
+	 * revision, no word to everyone who boosted the poll that it was edited.
+	 */
+	public function testNewPollTalliesAreStoredWithoutCountingAsAnEdit(): void {
+		$stored = $this->poll();
+		$stored->setUpdated('2026-05-01T11:00:00Z');
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($stored);
+		$poll = $this->poll();
+		$poll->countVote(0, true);
+		$poll->countVote(1, true);
+
+		$this->streamRequest->expects($this->once())->method('update')->with($this->identicalTo($poll));
+		$this->revisionService->expects($this->never())->method('recordEdit');
+		$this->fileCommentsService->expects($this->never())->method('onReplyUpdated');
+
+		$this->handler->activity($this->wrap(Update::TYPE, $poll), $poll);
+
+		$this->assertSame(2, $poll->getVotersCount());
+		$this->assertSame('2026-05-01T11:00:00Z', $poll->getUpdated(), 'still edited when it was');
+	}
+
+	/** @return iterable<string, array{\Closure(Question): void}> */
+	public static function pollEdits(): iterable {
+		yield 'the text' => [static function (Question $poll): void {
+			$poll->setContent('<p>coffee or tea?</p>');
+		}];
+		yield 'the content warning' => [static function (Question $poll): void {
+			$poll->setSummary('hot drinks');
+		}];
+		yield 'the sensitivity' => [static function (Question $poll): void {
+			$poll->setSensitive(true);
+		}];
+		yield 'an option' => [static function (Question $poll): void {
+			$poll->setPollData(['tea', 'cocoa'], false, 3600, 1700000000);
+		}];
+		yield 'several answers allowed' => [static function (Question $poll): void {
+			$poll->setPollData(['tea', 'coffee'], true, 3600, 1700000000);
+		}];
+		yield 'an attachment' => [static function (Question $poll): void {
+			$poll->setAttachments([(new MediaAttachment())->setRemoteUrl('https://remote.example/cup.jpg')]);
+		}];
+	}
+
+	/** @param \Closure(Question): void $edit */
+	#[DataProvider('pollEdits')]
+	public function testAPollWhoseContentChangedIsAnEdit(\Closure $edit): void {
+		$stored = $this->poll();
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($stored);
+		$poll = $this->poll();
+		$edit($poll);
+
+		$this->revisionService->expects($this->once())
+			->method('recordEdit')->with($this->identicalTo($stored), $this->identicalTo($poll));
+
+		$this->handler->activity($this->wrap(Update::TYPE, $poll), $poll);
+	}
+
+	public function testAChangedAttachmentDescriptionIsAnEdit(): void {
+		$stored = $this->incomingNote();
+		$stored->setAttachments([(new MediaAttachment())->setRemoteUrl('https://remote.example/cup.jpg')]);
+		$this->streamRequest->method('getStreamById')->with(self::NOTE)->willReturn($stored);
+		$note = $this->incomingNote();
+		$note->setAttachments([
+			(new MediaAttachment())->setRemoteUrl('https://remote.example/cup.jpg')->setDescription('a cup of tea'),
+		]);
+
+		$this->revisionService->expects($this->once())->method('recordEdit');
 
 		$this->handler->activity($this->wrap(Update::TYPE, $note), $note);
 	}

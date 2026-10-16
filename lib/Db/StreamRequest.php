@@ -1181,19 +1181,6 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
-	 * @param string $actorId
-	 */
-	public function updateAuthor(string $actorId, string $newId) {
-		$qb = $this->getStreamUpdateSql();
-		$qb->set('attributed_to', $qb->createNamedParameter($newId))
-			->set('attributed_to_prim', $qb->createNamedParameter($qb->prim($newId)))
-			->set('author_host', $qb->createNamedParameter(DomainBlocksRequestBuilder::authorHostOf($newId)));
-		$qb->limitToAttributedTo($actorId, true);
-
-		$qb->executeStatement();
-	}
-
-	/**
 	 * The fields that used to live only inside the stored wire object,
 	 * written to the columns Version1000Date20260912000007 added.
 	 *

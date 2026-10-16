@@ -28,7 +28,9 @@ survives it.
 The same happens in the other direction when somebody *you* follow moves:
 their old server sends the move here, this server checks that the new account
 names the old one, follows the new account on your behalf, and shows the
-redirect on the old account's profile from then on.
+redirect on the old account's profile from then on. Their old posts stay on
+the old account, where their old server can still edit or delete them. If you
+already followed the new account too, you keep that one follow.
 
 ## Moving to Aloha Social
 

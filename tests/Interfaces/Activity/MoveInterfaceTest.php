@@ -9,12 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interfaces\Activity;
 
-use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
-use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\FollowsRequest;
-use OCA\Social\Db\ReactionsRequest;
 use OCA\Social\Db\StreamDestRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
@@ -33,10 +30,11 @@ use OCA\Social\Model\StreamDest;
 use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Tests\Interfaces\ActivityPubTestCase;
+use OCP\IDBConnection;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
-use PHPUnit\Framework\MockObject\Stub;
 use Psr\Log\NullLogger;
+use RuntimeException;
 
 require_once __DIR__ . '/../ActivityPubTestCase.php';
 
@@ -45,14 +43,8 @@ require_once __DIR__ . '/../ActivityPubTestCase.php';
 class MoveInterfaceTest extends ActivityPubTestCase {
 	private const CAROL = 'https://other.example/users/carol';
 
-	/** @var ActionsRequest&MockObject */
-	private $actionsRequest;
-	/** @var ReactionsRequest&Stub */
-	private $reactionsRequest;
 	/** @var CacheActorsRequest&MockObject */
 	private $cacheActorsRequest;
-	/** @var CacheDocumentsRequest&MockObject */
-	private $cacheDocumentsRequest;
 	/** @var FollowsRequest&MockObject */
 	private $followsRequest;
 	/** @var StreamRequest&MockObject */
@@ -65,7 +57,11 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 	private $actorsRequest;
 	/** @var ActivityService&MockObject */
 	private $activityService;
+	/** @var IDBConnection&MockObject */
+	private $connection;
 	private MoveInterface $handler;
+	/** @var array<string, Follow> the follows towards the new account, by follower */
+	private array $followingNew = [];
 
 	private Person $old;
 	private Person $new;
@@ -73,28 +69,30 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 	protected function setUp(): void {
 		parent::setUp();
 
-		$this->actionsRequest = $this->createMock(ActionsRequest::class);
-		$this->reactionsRequest = $this->createStub(ReactionsRequest::class);
 		$this->cacheActorsRequest = $this->createMock(CacheActorsRequest::class);
-		$this->cacheDocumentsRequest = $this->createMock(CacheDocumentsRequest::class);
 		$this->followsRequest = $this->createMock(FollowsRequest::class);
 		$this->streamRequest = $this->createMock(StreamRequest::class);
 		$this->streamDestRequest = $this->createMock(StreamDestRequest::class);
 		$this->cacheActorService = $this->createMock(CacheActorService::class);
 		$this->actorsRequest = $this->createMock(ActorsRequest::class);
 		$this->activityService = $this->createMock(ActivityService::class);
+		$this->connection = $this->createMock(IDBConnection::class);
+		$this->followsRequest->method('getBetweenMany')->willReturnCallback(
+			fn (string $actorId, array $others): array => [
+				'following' => [],
+				'followedBy' => array_intersect_key($this->followingNew, array_flip($others)),
+			]
+		);
 
 		$this->handler = new MoveInterface(
-			$this->actionsRequest,
-			$this->reactionsRequest,
 			$this->cacheActorsRequest,
-			$this->cacheDocumentsRequest,
 			$this->followsRequest,
 			$this->streamRequest,
 			$this->streamDestRequest,
 			$this->cacheActorService,
 			$this->actorsRequest,
 			$this->activityService,
+			$this->connection,
 			new NullLogger(),
 		);
 
@@ -122,13 +120,9 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		return $move;
 	}
 
-	public function testMoveAccountRepointsActionsDocumentsAndFollowsToTheNewActor(): void {
+	public function testMoveAccountRepointsFollowsToTheNewActor(): void {
 		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
 
-		$this->actionsRequest->expects($this->once())
-			->method('moveAccount')->with($this->old->getId(), $this->new->getId());
-		$this->cacheDocumentsRequest->expects($this->once())
-			->method('moveAccount')->with($this->old->getId(), $this->new->getId());
 		$this->followsRequest->expects($this->once())
 			->method('moveAccountFollowers')->with($this->old->getId(), $this->identicalTo($this->new));
 		$this->followsRequest->expects($this->once())
@@ -137,13 +131,69 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		$this->handler->moveAccount($this->old, $this->new);
 	}
 
-	public function testMoveAccountReattributesTheOldActorsPosts(): void {
+	/**
+	 * What the old account did stays its own, as on Mastodon: re-attributed,
+	 * its server's edits and deletes of its posts would be refused as coming
+	 * from somebody other than the author, and an actor Delete of it would
+	 * remove nothing.
+	 */
+	public function testMoveAccountLeavesTheOldActorsPostsAttributedToIt(): void {
 		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
 
-		$this->streamRequest->expects($this->once())
-			->method('updateAuthor')->with($this->old->getId(), $this->new->getId());
+		$this->streamRequest->expects($this->never())->method($this->anything());
 
 		$this->handler->moveAccount($this->old, $this->new);
+	}
+
+	public function testTheMoveIsOneTransaction(): void {
+		$this->streamDestRequest->method('getRelatedToActor')->willReturn([]);
+
+		$calls = [];
+		$this->connection->method('beginTransaction')
+			->willReturnCallback(function () use (&$calls): void {
+				$calls[] = 'begin';
+			});
+		$this->followsRequest->method('moveAccountFollowers')
+			->willReturnCallback(function () use (&$calls): void {
+				$calls[] = 'followers';
+			});
+		$this->cacheActorsRequest->method('markMoved')
+			->willReturnCallback(function () use (&$calls): void {
+				$calls[] = 'markMoved';
+			});
+		$this->connection->method('commit')
+			->willReturnCallback(function () use (&$calls): void {
+				$calls[] = 'commit';
+			});
+
+		$this->handler->moveAccount($this->old, $this->new);
+
+		$this->assertSame(['begin', 'followers', 'markMoved', 'commit'], $calls);
+	}
+
+	/**
+	 * A step that fails takes the steps before it back with it, so the
+	 * sender's retry finds the account as the first attempt did, and nothing
+	 * is sent for a move that did not happen.
+	 */
+	public function testAFailingStepRollsTheMoveBack(): void {
+		$this->acceptMove();
+		$alice = self::LOCAL_URL . '/users/alice';
+		$this->followsRequest->method('getFollowersByActorId')
+			->willReturn([$this->follow($alice, $this->old->getId())]);
+		$this->actorsRequest->method('getFromId')->willReturn($this->person($alice, true));
+		$this->followsRequest->method('moveAccountFollowing')
+			->willThrowException(new RuntimeException('refused'));
+
+		$this->connection->expects($this->once())->method('beginTransaction');
+		$this->connection->expects($this->once())->method('rollBack');
+		$this->connection->expects($this->never())->method('commit');
+		$this->cacheActorsRequest->expects($this->never())->method('markMoved');
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->expectException(RuntimeException::class);
+
+		$this->handler->processIncomingRequest($this->move());
 	}
 
 	public function testMoveAccountRepointsRecipientReferencesIncludingTheCollections(): void {
@@ -249,7 +299,6 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 			->willThrowException(new CacheActorDoesNotExistException());
 
 		$this->cacheActorService->expects($this->never())->method('getFromId');
-		$this->actionsRequest->expects($this->never())->method('moveAccount');
 		$this->followsRequest->expects($this->never())->method('moveAccountFollowers');
 
 		$this->handler->processIncomingRequest($this->move());
@@ -280,9 +329,8 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		$this->cacheActorsRequest->method('getFromId')->willReturn($this->old);
 		$this->cacheActorService->method('getFromId')->willReturn($this->new);
 
-		$this->actionsRequest->expects($this->never())->method('moveAccount');
 		$this->followsRequest->expects($this->never())->method('moveAccountFollowers');
-		$this->streamRequest->expects($this->never())->method('updateAuthor');
+		$this->cacheActorsRequest->expects($this->never())->method('markMoved');
 
 		$this->expectException(InvalidOriginException::class);
 
@@ -360,6 +408,23 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		$this->assertSame($this->new->getInbox(), $paths[0]->getUri());
 	}
 
+	/**
+	 * A follower that already follows the new account, or asked to, has
+	 * nothing to send: the move keeps that follow.
+	 */
+	public function testAFollowerOfTheNewAccountIsNotFollowedOverAgain(): void {
+		$this->acceptMove();
+		$alice = self::LOCAL_URL . '/users/alice';
+		$this->followsRequest->method('getFollowersByActorId')
+			->willReturn([$this->follow($alice, $this->old->getId())]);
+		$this->actorsRequest->method('getFromId')->willReturn($this->person($alice, true));
+		$this->followingNew = [$alice => $this->follow($alice, $this->new->getId())];
+
+		$this->activityService->expects($this->never())->method('request');
+
+		$this->handler->processIncomingRequest($this->move());
+	}
+
 	/** A remote follower's own instance receives the same Move and acts on it. */
 	public function testARemoteFollowerIsNotFollowedOverOnTheirBehalf(): void {
 		$this->acceptMove();
@@ -397,7 +462,7 @@ class MoveInterfaceTest extends ActivityPubTestCase {
 		$this->activityService->method('request')
 			->willThrowException(new SocialAppConfigException());
 
-		$this->streamRequest->expects($this->once())->method('updateAuthor');
+		$this->cacheActorsRequest->expects($this->once())->method('markMoved');
 
 		$this->handler->processIncomingRequest($this->move());
 	}

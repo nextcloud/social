@@ -62,6 +62,18 @@ class ReactionsRequest extends ReactionsRequestBuilder {
 	}
 
 	/**
+	 * The reaction a URI names, for an `Undo` that names it by its id alone.
+	 *
+	 * @throws ActionDoesNotExistException
+	 */
+	public function getById(string $id): EmojiReact {
+		$qb = $this->getReactionsSelectSql();
+		$qb->andWhere($qb->expr()->eq('r.id_prim', $qb->createNamedParameter($qb->prim($id))));
+
+		return $this->getReactionFromRequest($qb);
+	}
+
+	/**
 	 * One account's reaction to one post with one emoji.
 	 *
 	 * @throws ActionDoesNotExistException
@@ -177,19 +189,6 @@ class ReactionsRequest extends ReactionsRequestBuilder {
 		$qb->where(
 			$qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId)))
 		);
-
-		$qb->executeStatement();
-	}
-
-	/** Follows an account that moved, the way the other tables do. */
-	public function moveAccount(string $actorId, string $newId): void {
-		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_REACTIONS)
-			->set('actor_id', $qb->createNamedParameter($newId))
-			->set('actor_id_prim', $qb->createNamedParameter($qb->prim($newId)))
-			->where($qb->expr()->eq(
-				'actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))
-			));
 
 		$qb->executeStatement();
 	}

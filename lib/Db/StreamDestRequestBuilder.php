@@ -33,18 +33,6 @@ class StreamDestRequestBuilder extends CoreRequestBuilder {
 	}
 
 	/**
-	 * Base of the Sql Update request
-	 *
-	 * @return SocialQueryBuilder
-	 */
-	protected function getStreamDestUpdateSql(): SocialQueryBuilder {
-		$qb = $this->getQueryBuilder();
-		$qb->update(self::TABLE_STREAM_DEST);
-
-		return $qb;
-	}
-
-	/**
 	 * Base of the Sql Select request for Shares
 	 *
 	 * @return SocialQueryBuilder
