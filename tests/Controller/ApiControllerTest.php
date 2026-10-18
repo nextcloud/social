@@ -484,6 +484,7 @@ class ApiControllerTest extends TestCase {
 			'quoteService' => $this->quoteService,
 			'annualReportService' => $this->annualReportService,
 			'watchService' => $this->createMock(\OCA\Social\Service\WatchService::class),
+			'relatedVideosService' => $this->createMock(\OCA\Social\Service\RelatedVideosService::class),
 			'l10nFactory' => $this->l10nFactory,
 			'timelineRevisionService' => $this->timelineRevisionService,
 			// the real one over the doubles above, so the badge is counted by

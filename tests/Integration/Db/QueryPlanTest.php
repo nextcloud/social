@@ -659,6 +659,29 @@ class QueryPlanTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A video's Up next (`RelatedVideosService`) asks the hashtag page
+	 * narrowed to videos; the channel and the category are the account and
+	 * public pages narrowed the same way, asked above. The kind is one more
+	 * condition on the rows the tag names, not a reason to read the stream
+	 * another way.
+	 */
+	public function testTheHashtagPageNarrowedToVideosIsReadThroughIndexes(): void {
+		$this->useMediaKindIndex(true);
+		$page = $this->timeline(ProbeOptions::HASHTAG, ['setArgument' => self::TAG, 'setOnlyVideo' => true]);
+
+		$this->assertIndexed(
+			$this->capture($page, '/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM .*social_stream_tag/'),
+			['st' => null] + (self::$platform === 'mysql' ? [] : ['s' => null]),
+			'the tag\'s videos sorted by nid'
+		);
+		$this->assertIndexed(
+			$this->capture($page, '/^SELECT DISTINCT [`"]?s[`"]?\.[`"]?nid[`"]? FROM .*social_stream_tag/'),
+			['st' => null, 's' => null, 'sd' => null, 'f' => null],
+			'the DISTINCT over the recipient rows, then the sort by nid'
+		);
+	}
+
 	public function testTheNotificationPageIsReadThroughTheRecipientIndex(): void {
 		$query = $this->capture($this->timeline(ProbeOptions::NOTIFICATIONS), '/^SELECT [`"]?s[`"]?\.[`"]?nid[`"]? FROM/');
 

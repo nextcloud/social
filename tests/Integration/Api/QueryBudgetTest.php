@@ -18,6 +18,7 @@ use OCA\Social\Db\CacheDocumentsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\CacheDocumentService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Tests\Integration\QueryCounter;
@@ -261,6 +262,40 @@ class QueryBudgetTest extends ReaderTestCase {
 			// the thread is not paged: all forty replies, of which twenty is the
 			// part the comparison needs
 			static fn (array $context): int => min(self::PAGE, count($context['descendants'] ?? [])),
+		);
+	}
+
+	/**
+	 * Up next on a video's page, filled from the hashtag the video carries
+	 * by videos each with an author of its own: the channel, the tag and the
+	 * page they make are read once, not once per video. A page short of the
+	 * limit reads the tag's windows further, as the hashtag page does.
+	 */
+	public function testUpNextCostsTheSameForAPageOfFiveAndAPageOfTwenty(): void {
+		$tag = 'budgetvideos' . bin2hex(random_bytes(3));
+		$video = static function (Note $note) use ($tag): void {
+			$media = new MediaAttachment();
+			$media->setId((string)random_int(1, PHP_INT_MAX));
+			$media->setType('video');
+			$media->setMediaType('video/mp4');
+			$media->setUrl('https://remote.example/media/' . bin2hex(random_bytes(4)) . '.mp4');
+			$note->setAttachments([$media]);
+			$note->setHashtags([$tag]);
+		};
+		$watched = $this->post($this->remoteActor('watched'), 'the video being watched', $video);
+		$nid = (string)Server::get(StreamRequest::class)->getStreamById($watched->getId())->getNid();
+		$authors = 0;
+
+		$this->assertFlatCostWithin(
+			'up next', 17,
+			function (int $count) use (&$authors, $video): void {
+				for ($i = 0; $i < $count; $i++, $authors++) {
+					$this->post($this->remoteActor('video' . $authors), 'video ' . $authors, $video);
+				}
+			},
+			fn (): Response => $this->controller(TimelineApiController::class)->videosRelated($nid, self::PAGE),
+			static fn (array $page): int => count($page),
+			true,
 		);
 	}
 

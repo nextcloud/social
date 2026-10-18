@@ -27,10 +27,12 @@ use OCA\Social\Service\MarkerService;
 use OCA\Social\Service\NotificationInboxService;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\PostDecorationService;
+use OCA\Social\Service\RelatedVideosService;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\WatchService;
+use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
@@ -48,7 +50,8 @@ use Throwable;
 /**
  * The streams a reader reads: the timelines, a hashtag, their favourites and
  * bookmarks, the videos they are in the middle of, the v1 notifications, and
- * the markers that remember how far they got.
+ * the markers that remember how far they got, and what a video's page offers
+ * to watch next.
  */
 class TimelineApiController extends MastodonApiController {
 	public function __construct(
@@ -70,6 +73,7 @@ class TimelineApiController extends MastodonApiController {
 		private TimelineRevisionService $timelineRevisionService,
 		private NotificationInboxService $notificationInboxService,
 		private RemoteFetchQueue $remoteFetchQueue,
+		private RelatedVideosService $relatedVideosService,
 	) {
 		parent::__construct($request, $urlGenerator, $userSession, $logger, $clientService, $accountService, $cacheActorService, $streamService, $followService);
 	}
@@ -540,6 +544,32 @@ class TimelineApiController extends MastodonApiController {
 			$this->postDecorationService->decorate($posts, $this->viewer->getId());
 
 			return new DataResponse($posts, Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * What a video's page offers to watch next: more from the same channel,
+	 * then videos sharing a hashtag or the category with it. Each comes from a
+	 * timeline the reader could ask for, with what that timeline leaves out
+	 * left out here too (`RelatedVideosService`).
+	 *
+	 * A post the reader may not see is a 404, as it is on its own route.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/videos/{nid}/related', requirements: ['nid' => '\d+'])]
+	public function videosRelated(string $nid, int $limit = RelatedVideosService::LIMIT): DataResponse {
+		try {
+			$this->initViewer(false);
+			$post = $this->streamService->getStreamByNid(Nid::fromStorage($nid));
+
+			return new DataResponse(
+				$this->relatedVideosService->related($post, $this->viewer, $limit), Http::STATUS_OK
+			);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

@@ -194,6 +194,7 @@ final class VisibilityMatrix {
 		'StatusApiController::statusReactions' => 'emoji reactions of a post, read through the same getStreamByNid() as status',
 		'StatusApiController::statusSource' => 'the viewer\'s own post',
 		'TimelineApiController::videosContinue' => 'the viewer\'s own watch history',
+		'TimelineApiController::videosRelated' => 'the post through getStreamByNid() as the status path, then the account, hashtag and public timelines narrowed to videos, each a path of the matrix (account_statuses, tag, home); RelatedVideosTest',
 	];
 
 	/** Whether the viewer may read the post at all, on any path. */
