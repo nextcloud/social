@@ -505,6 +505,14 @@ export default {
 	margin-inline: auto;
 }
 
+/* A video's page is a player with a column beside it, as wide as a video
+   site's; the reading column above would leave the player postcard-sized. */
+#app-content-vue .social__wrapper--watch {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 1720px;
+}
+
 /* Direct messages need the full app-content width for the conversation list
    and the active chat to sit side by side. Other Social pages keep the reading
    column above. */

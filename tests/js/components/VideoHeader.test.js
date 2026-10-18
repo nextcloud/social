@@ -8,7 +8,7 @@ import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 import VideoHeader from '../../../src/components/VideoHeader.vue'
-import { useTimelineStore } from '../../../src/store/timeline.js'
+import { useAccountStore } from '../../../src/store/account.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
 vi.mock('@nextcloud/axios', () => ({
@@ -20,6 +20,7 @@ const ACCOUNT = {
 	acct: 'films@peer.tube',
 	username: 'films',
 	display_name: 'Films',
+	followers_count: 1234,
 }
 
 /**
@@ -38,33 +39,48 @@ function status(video = {}, overrides = {}) {
 	}
 }
 
+const VideoDescriptionStub = {
+	name: 'VideoDescription',
+	props: ['status'],
+	emits: ['seek'],
+	template: '<div class="description-stub" />',
+}
+const VideoActionsStub = {
+	name: 'VideoActions',
+	props: ['status', 'theater'],
+	emits: ['toggleTheater'],
+	template: '<div class="actions-stub" />',
+}
+
 /**
  * @param {object} theStatus the post to draw
+ * @param {object} serverData what the page was told
+ * @param {object} props further props
  * @return {object} the mounted page
  */
-function mountHeader(theStatus = status(), serverData = {}) {
+function mountHeader(theStatus = status(), serverData = {}, props = {}) {
 	setActivePinia(createPinia())
 	useSettingsStore().setServerData(serverData)
+	vi.spyOn(useAccountStore(), 'fetchRelationship').mockResolvedValue([])
 
 	return mount(VideoHeader, {
-		props: { status: theStatus },
+		props: { status: theStatus, ...props },
 		global: {
 			stubs: {
 				RouterLink: RouterLinkStub,
-				PostAttachment: true,
+				PostAttachment: { template: '<div class="player-stub"><slot /></div>' },
 				ActorAvatar: true,
 				FollowButton: true,
+				VideoDescription: VideoDescriptionStub,
+				VideoActions: VideoActionsStub,
 			},
 		},
 	})
 }
 
-const facts = (wrapper) => wrapper.findAll('.watch__facts span').map((fact) => fact.text())
-const chapters = (wrapper) => wrapper.findAll('.watch__chapter')
-
 /**
- * A video's own page: the same route a post opens on, showing what a `Video`
- * object carries and a timeline card has no room for.
+ * A video's own page: the same route a post opens on, drawn as a video site
+ * draws one — player, title, channel and actions, then the description.
  */
 describe('the video page', () => {
 	beforeEach(() => {
@@ -72,8 +88,10 @@ describe('the video page', () => {
 	})
 
 	describe('what it is called', () => {
-		it('uses the video own title where there is one', () => {
-			expect(mountHeader().find('.watch__title').text()).toBe('Stairwells')
+		it('uses the video own title where there is one, as the page heading', () => {
+			const title = mountHeader().find('h1.watch__title')
+
+			expect(title.text()).toBe('Stairwells')
 		})
 
 		/**
@@ -108,53 +126,38 @@ describe('the video page', () => {
 		})
 	})
 
-	describe('the facts under the title', () => {
-		it('shows the counters, the category, the language and the licence', () => {
-			const wrapper = mountHeader(status({
-				views: 2,
-				likes: 1,
-				category: 'Art',
-				language: 'de',
-				licence: 'CC BY-SA',
-			}))
-
-			expect(facts(wrapper)).toEqual(['2 views', '1 like', 'Art', 'de', 'CC BY-SA'])
-		})
-
-		/** Nothing known about it: a blank line, not a row of zeroes. */
-		it('says nothing about what the video did not carry', () => {
-			expect(facts(mountHeader())).toEqual([])
-		})
-
-		/** A video with no views yet has a count, and it is worth showing. */
-		it('shows a count of nothing, which is different from no count', () => {
-			expect(facts(mountHeader(status({ views: 0 })))).toEqual(['0 views'])
-		})
-
-		/**
-		 * This server counts the `Dislike` activities it received; PeerTube
-		 * states a number covering everybody who watched it there.
-		 */
-		it('prefers this server own dislike count over the one PeerTube stated', () => {
-			expect(facts(mountHeader(status({ dislikes: 9 }, { dislikes_count: 2 }))))
-				.toEqual(['2 dislikes'])
-			expect(facts(mountHeader(status({ dislikes: 9 })))).toEqual(['9 dislikes'])
-		})
-
-		it('says nothing about dislikes to a reader who hides the numbers', () => {
-			expect(facts(mountHeader(status({ dislikes: 9 }, { dislikes_count: 2 }), { hideCounts: true }))).toEqual([])
-		})
-	})
-
 	/** On PeerTube a video is listed under its channel, not under a person. */
 	describe('the channel', () => {
-		it('names it and links to it', () => {
+		it('names it, links to it and says how many follow it', () => {
 			const wrapper = mountHeader()
 
 			expect(wrapper.find('.watch__channel-name').text()).toBe('Films')
-			expect(wrapper.find('.watch__channel-acct').text()).toBe('films@peer.tube')
+			expect(wrapper.find('.watch__channel-followers').text()).toBe('1.2K followers')
 			expect(wrapper.findComponent(RouterLinkStub).props('to'))
 				.toEqual({ name: 'profile', params: { account: 'films@peer.tube' } })
+			expect(wrapper.findComponent({ name: 'FollowButton' }).attributes('uid')).toBe('films@peer.tube')
+		})
+
+		/** The follow button draws the relationship, which nothing else on the page asks for. */
+		it('asks for the reader\'s relationship with the channel, for the follow button', () => {
+			const wrapper = mountHeader(status({}, { account: { ...ACCOUNT, url: 'https://peer.tube/c/films' } }))
+			const accounts = useAccountStore()
+
+			expect(accounts.getAccount('films@peer.tube')?.id).toBe('1')
+			expect(accounts.fetchRelationship).toHaveBeenCalledWith('1')
+			wrapper.unmount()
+		})
+
+		it('asks nothing for a reader who is not signed in', () => {
+			mountHeader(status({}, { account: { ...ACCOUNT, url: 'https://peer.tube/c/films' } }), { public: true })
+
+			expect(useAccountStore().fetchRelationship).not.toHaveBeenCalled()
+		})
+
+		it('says nothing of the followers to a reader who hides the numbers, or when nobody counted', () => {
+			expect(mountHeader(status(), { hideCounts: true }).find('.watch__channel-followers').exists()).toBe(false)
+			expect(mountHeader(status({}, { account: { ...ACCOUNT, followers_count: undefined } }))
+				.find('.watch__channel-followers').exists()).toBe(false)
 		})
 
 		it('falls back to the username when the channel has no name', () => {
@@ -166,124 +169,59 @@ describe('the video page', () => {
 		})
 	})
 
-	/**
-	 * PeerTube's other counter, and only here: a dislike button under a written
-	 * post is a product this app is not.
-	 */
-	describe('disliking', () => {
-		it('sends a dislike, and takes it back', async () => {
-			const wrapper = mountHeader()
-			const store = useTimelineStore()
-			store.postDislike = vi.fn().mockResolvedValue(undefined)
-			store.postUndislike = vi.fn().mockResolvedValue(undefined)
+	describe('around the player', () => {
+		it('hands the actions the post and whether the wide player is on, and passes their switch on', async () => {
+			const wrapper = mountHeader(status(), {}, { theater: true })
+			const actions = wrapper.findComponent(VideoActionsStub)
 
-			wrapper.find('.watch__dislike').trigger('click')
-			await flushPromises()
-			expect(store.postDislike).toHaveBeenCalledWith({ status: wrapper.props('status') })
-
-			await wrapper.setProps({ status: status({}, { disliked: true }) })
-			wrapper.find('.watch__dislike').trigger('click')
-			await flushPromises()
-			expect(store.postUndislike).toHaveBeenCalled()
-		})
-
-		it('says which way it is pressed', () => {
-			expect(mountHeader().find('.watch__dislike').attributes('aria-pressed')).toBe('false')
-
-			const pressed = mountHeader(status({}, { disliked: true }))
-			expect(pressed.find('.watch__dislike').attributes('aria-pressed')).toBe('true')
-			expect(pressed.findComponent({ name: 'NcButton' }).props('ariaLabel')).toBe('Undo dislike')
-		})
-
-		it('cannot be pressed twice while it is in flight', async () => {
-			const wrapper = mountHeader()
-			const store = useTimelineStore()
-			store.postDislike = vi.fn().mockReturnValue(new Promise(() => {}))
-
-			wrapper.find('.watch__dislike').trigger('click')
-			await wrapper.vm.$nextTick()
-			wrapper.find('.watch__dislike').trigger('click')
-			await flushPromises()
-
-			expect(store.postDislike).toHaveBeenCalledTimes(1)
-			expect(wrapper.findComponent({ name: 'NcButton' }).props('disabled')).toBe(true)
-		})
-	})
-
-	describe('the chapters', () => {
-		const CHAPTERS = [
-			{ start: 0, title: 'Before' },
-			{ start: 125, title: 'The stairwell' },
-			{ start: 3725, title: 'After' },
-		]
-
-		it('lists them, each as a moment to press', () => {
-			const wrapper = mountHeader(status({ chapters: CHAPTERS }))
-
-			expect(chapters(wrapper).map((chapter) => [
-				chapter.find('.watch__chapter-time').text(),
-				chapter.find('.watch__chapter-title').text(),
-			])).toEqual([
-				['0:00', 'Before'],
-				['2:05', 'The stairwell'],
-				['1:02:05', 'After'],
-			])
-		})
-
-		it('says nothing at all when the video has none', () => {
-			expect(mountHeader().find('.watch__chapters').exists()).toBe(false)
-			expect(mountHeader(status({ chapters: 'soon' })).find('.watch__chapters').exists())
-				.toBe(false)
+			expect(actions.props('theater')).toBe(true)
+			await actions.vm.$emit('toggleTheater')
+			expect(wrapper.emitted('toggleTheater')).toHaveLength(1)
 		})
 
 		/**
-		 * The player is several components below this one, so it is found
-		 * rather than passed down: threading a ref through each of them to
-		 * seek would tie all of them to this page.
+		 * `ended` does not bubble; it is heard on its way down to the element,
+		 * so the page needs nothing from the player but a `<video>`.
 		 */
-		it('moves the player to the chapter, and plays it', async () => {
-			const wrapper = mountHeader(status({ chapters: CHAPTERS }))
+		it('says when the video has played to its end, and not when anything else ends', () => {
+			const wrapper = mountHeader()
+			const stage = wrapper.find('.watch__stage').element
+			const video = document.createElement('video')
+			const audio = document.createElement('audio')
+			stage.appendChild(video)
+			stage.appendChild(audio)
+
+			audio.dispatchEvent(new Event('ended'))
+			expect(wrapper.emitted('ended')).toBeUndefined()
+
+			video.dispatchEvent(new Event('ended'))
+			expect(wrapper.emitted('ended')).toHaveLength(1)
+		})
+
+		it('moves the player to a chapter pressed in the description, and plays it', async () => {
+			const wrapper = mountHeader()
 			const player = document.createElement('video')
 			player.play = vi.fn().mockResolvedValue(undefined)
-			wrapper.element.appendChild(player)
+			wrapper.find('.watch__stage').element.appendChild(player)
 
-			await chapters(wrapper)[1].trigger('click')
+			await wrapper.findComponent(VideoDescriptionStub).vm.$emit('seek', 125)
 
 			expect(player.currentTime).toBe(125)
 			expect(player.play).toHaveBeenCalled()
 		})
 
 		/** A browser that refuses to play unprompted must not throw here. */
-		it('does not fail when the browser refuses to play', async () => {
-			const wrapper = mountHeader(status({ chapters: CHAPTERS }))
+		it('does not fail when the browser refuses to play, or when there is no player yet', async () => {
+			const wrapper = mountHeader()
+			expect(() => wrapper.findComponent(VideoDescriptionStub).vm.$emit('seek', 3)).not.toThrow()
+
 			const player = document.createElement('video')
 			player.play = vi.fn().mockRejectedValue(new Error('not allowed'))
-			wrapper.element.appendChild(player)
-
-			await chapters(wrapper)[0].trigger('click')
+			wrapper.find('.watch__stage').element.appendChild(player)
+			wrapper.findComponent(VideoDescriptionStub).vm.$emit('seek', 7)
 			await flushPromises()
 
-			expect(player.currentTime).toBe(0)
+			expect(player.currentTime).toBe(7)
 		})
-
-		it('does nothing when the player is not there yet', async () => {
-			const wrapper = mountHeader(status({ chapters: CHAPTERS }))
-
-			await expect(chapters(wrapper)[0].trigger('click')).resolves.not.toThrow()
-		})
-	})
-
-	it('shows the line the author wrote asking for support', () => {
-		expect(mountHeader(status({ support: 'Paid for by the people who watch it' }))
-			.find('.watch__support').text()).toBe('Paid for by the people who watch it')
-		expect(mountHeader().find('.watch__support').exists()).toBe(false)
-	})
-
-	/** A request, not a lock: the file is still served, and the page says so. */
-	it('passes on a request that the video not be downloaded', () => {
-		expect(mountHeader(status({ download: false })).find('.watch__note').text())
-			.toContain('not be downloaded')
-		expect(mountHeader(status({ download: true })).find('.watch__note').exists()).toBe(false)
-		expect(mountHeader().find('.watch__note').exists()).toBe(false)
 	})
 })

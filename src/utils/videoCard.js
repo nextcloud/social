@@ -145,3 +145,26 @@ export function filterByChip(entries, chip, now = Date.now()) {
 
 	return videos
 }
+
+/**
+ * Whether the author lets the video be saved, so the watch page offers a
+ * download.
+ *
+ * Only where something says so. A PeerTube video states it (`downloadEnabled`,
+ * kept as `video.download`), and a video posted here is published with it
+ * set, so both are offered unless the author said no. A video from anywhere
+ * else carries no word either way, and silence is not taken for a yes. The
+ * file has to be here too: a video streamed from its origin has no `url`.
+ *
+ * @param {import('../types/Mastodon.js').Status} post the video post
+ * @param {boolean} local whether the author's account is on this instance
+ * @return {boolean}
+ */
+export function allowsDownload(post, local) {
+	const said = post?.video?.download
+	if (said === false || !videoAttachmentOf(post)?.url) {
+		return false
+	}
+
+	return said === true || local
+}

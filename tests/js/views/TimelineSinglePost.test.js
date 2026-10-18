@@ -32,13 +32,26 @@ const ComposerStub = {
 }
 const TimelineListStub = {
 	name: 'TimelineList',
-	props: { type: String, showParents: Boolean, reverseOrder: Boolean },
+	props: { type: String, showParents: Boolean, reverseOrder: Boolean, threadOrder: String },
 	template: '<ul class="timeline-list-stub"><li data-social-status="reply-1" /></ul>',
 }
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
 	props: ['item', 'type', 'element'],
 	template: '<div class="timeline-entry-stub" />',
+}
+const VideoHeaderStub = {
+	name: 'VideoHeader',
+	props: ['status', 'theater'],
+	emits: ['ended', 'toggleTheater'],
+	template: '<div class="video-header-stub" />',
+}
+const videoEnded = vi.fn()
+const VideoUpNextStub = {
+	name: 'VideoUpNext',
+	props: ['status'],
+	methods: { videoEnded },
+	template: '<aside class="up-next-stub" />',
 }
 const NcEmptyContentStub = {
 	name: 'NcEmptyContent',
@@ -91,6 +104,8 @@ function mountView(route = reactive({ name: 'single-post', params: { account: 'b
 				TimelineList: TimelineListStub,
 				TimelineEntry: TimelineEntryStub,
 				NcEmptyContent: NcEmptyContentStub,
+				VideoHeader: VideoHeaderStub,
+				VideoUpNext: VideoUpNextStub,
 			},
 		},
 	})
@@ -545,6 +560,107 @@ describe('TimelineSinglePost', () => {
 
 		expect(other).toHaveBeenCalledTimes(1)
 		eventBus.off('composer-reply', other)
+	})
+
+	/**
+	 * A video's page: the player and what is said about it, Up next beside
+	 * them, and the comments under them.
+	 */
+	describe('a video', () => {
+		const video = {
+			...status,
+			replies_count: 4,
+			media_attachments: [{ id: 'm', type: 'video', url: 'https://remote.example/v.mp4' }],
+			video_card: { title: 'Building a boat', duration: 60, thumbnail: null, views: 3, live: false, category: null, published: '2026-01-01T00:00:00Z' },
+		}
+		const mountVideo = async () => {
+			setState('item', video)
+			const wrapper = mountView()
+			await flushPromises()
+
+			return wrapper
+		}
+
+		afterEach(() => {
+			window.localStorage.clear()
+			videoEnded.mockClear()
+		})
+
+		it('is laid out as a watch page rather than a thread, with Up next for the same video', async () => {
+			const wrapper = await mountVideo()
+
+			expect(wrapper.find('.social__wrapper').classes()).toContain('social__wrapper--watch')
+			expect(wrapper.find('.watch-page').exists()).toBe(true)
+			expect(wrapper.find('.thread').exists()).toBe(false)
+			expect(wrapper.findComponent(VideoHeaderStub).props('status').id).toBe('123')
+			expect(wrapper.findComponent(VideoUpNextStub).props('status').id).toBe('123')
+			expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(false)
+		})
+
+		it('names the tab after the video', async () => {
+			await mountVideo()
+
+			expect(document.title).toContain('Building a boat')
+		})
+
+		it('puts the comments under their own heading, the reply box above them, most liked first', async () => {
+			const wrapper = await mountVideo()
+			const replies = wrapper.findAllComponents(TimelineListStub).at(-1)
+
+			expect(wrapper.find('.watch-comments__title').text()).toBe('4 comments')
+			expect(wrapper.findComponent(ComposerStub).element.closest('.watch-page__comments')).not.toBeNull()
+			expect(wrapper.find('.main-post__under').exists()).toBe(false)
+			expect(replies.props('threadOrder')).toBe('top')
+		})
+
+		it('reads the comments newest first when asked, and says which order is on', async () => {
+			const wrapper = await mountVideo()
+			const chips = wrapper.findAll('.watch-comments__chip')
+
+			expect(chips.map((chip) => [chip.text(), chip.attributes('aria-pressed')])).toEqual([['Top', 'true'], ['Newest', 'false']])
+			await chips[1].trigger('click')
+
+			expect(wrapper.findAllComponents(TimelineListStub).at(-1).props('threadOrder')).toBe('newest')
+			expect(wrapper.findAll('.watch-comments__chip')[1].attributes('aria-pressed')).toBe('true')
+		})
+
+		it('says no number of comments to a reader who hides the counts', async () => {
+			makeStore({ hideCounts: true })
+			const wrapper = await mountVideo()
+
+			expect(wrapper.find('.watch-comments__title').text()).toBe('Comments')
+		})
+
+		it('switches the wide player, and remembers it in this browser', async () => {
+			const wrapper = await mountVideo()
+			const header = wrapper.findComponent(VideoHeaderStub)
+			expect(header.props('theater')).toBe(false)
+
+			await header.vm.$emit('toggleTheater')
+			expect(wrapper.find('.watch-page').classes()).toContain('watch-page--theater')
+			expect(header.props('theater')).toBe(true)
+
+			const again = mountView()
+			await flushPromises()
+			expect(again.find('.watch-page').classes()).toContain('watch-page--theater')
+		})
+
+		it('tells Up next when the video has played to its end', async () => {
+			const wrapper = await mountVideo()
+
+			await wrapper.findComponent(VideoHeaderStub).vm.$emit('ended')
+
+			expect(videoEnded).toHaveBeenCalledTimes(1)
+		})
+
+		it('keeps an ordinary post an ordinary thread, its comments in time', async () => {
+			const wrapper = mountView()
+			await flushPromises()
+
+			expect(wrapper.find('.watch-page').exists()).toBe(false)
+			expect(wrapper.findComponent(VideoUpNextStub).exists()).toBe(false)
+			expect(wrapper.findAllComponents(TimelineListStub).at(-1).props('threadOrder')).toBe('oldest')
+		})
 	})
 
 	describe('the spine', () => {

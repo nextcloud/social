@@ -3,7 +3,7 @@
  - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div ref="socialWrapper" class="social__wrapper">
+	<div ref="socialWrapper" class="social__wrapper" :class="{ 'social__wrapper--watch': isVideo }">
 		<!-- a post opened from a timeline is a place the reader went into, and
 		     the way out of it was the browser's own button or the sidebar -->
 		<NcButton
@@ -16,8 +16,10 @@
 			</template>
 			{{ t('social', 'Back') }}
 		</NcButton>
-		<!-- the three lists are one conversation; the spine says so -->
-		<div class="thread" :class="{ 'thread--connected': hasThread }">
+		<!-- the three lists are one conversation; the spine says so. A video
+		     is a page of its own instead: the player and what is said about
+		     it, Up next beside them, and the comments under them -->
+		<div :class="isVideo ? ['watch-page', { 'watch-page--theater': theater }] : ['thread', { 'thread--connected': hasThread }]">
 			<TimelineList
 				v-if="timeline"
 				class="thread__ancestors"
@@ -26,7 +28,13 @@
 			<!-- a video gets a page about the video: the same route, because
 			     every link to one already leads here, with a heading, the
 			     channel to subscribe to and its chapters instead of a card -->
-			<VideoHeader v-if="isVideo" :status="singlePost" />
+			<VideoHeader
+				v-if="isVideo"
+				class="watch-page__main"
+				:status="singlePost"
+				:theater="theater"
+				@toggleTheater="toggleTheater"
+				@ended="onVideoEnded" />
 			<TimelineEntry
 				v-else-if="singlePost"
 				ref="mainPost"
@@ -36,11 +44,16 @@
 				element="div" />
 			<!-- what a post's own page can say that a card in a list should
 			     not: the fine print, who reacted, and the box for answering -->
-			<div v-if="singlePost" class="main-post__under">
+			<div v-if="singlePost && !isVideo" class="main-post__under">
 				<PostDetails :status="singlePost" />
 				<PostReactedBy :status="singlePost" />
 				<Composer v-if="canReply" :inReplyTo="singlePost" />
 			</div>
+			<VideoUpNext
+				v-else-if="singlePost"
+				ref="upNext"
+				class="watch-page__side"
+				:status="singlePost" />
 			<TimelineSkeleton v-else-if="postState === 'loading'" :count="1" />
 			<!-- a server that did not answer has not said the post is gone -->
 			<NcEmptyContent
@@ -68,23 +81,45 @@
 					<CommentRemoveOutline :size="20" />
 				</template>
 			</NcEmptyContent>
-			<TimelineList
-				v-if="timeline"
-				class="descendants thread__descendants"
-				@settled="repliesSettled = true" />
-			<!-- a thread this instance holds only part of should say so rather
-			     than present what it has as the whole of it -->
-			<p v-if="hiddenReplies > 0" class="thread__hidden">
-				{{ hiddenRepliesText }}
-			</p>
-			<!-- the replies the conversation's author hid: there, behind a button -->
-			<NcButton
-				v-if="hiddenByAuthor > 0"
-				class="thread__hidden-by-author"
-				variant="tertiary"
-				@click="showHiddenReplies">
-				{{ n('social', 'Show %n reply hidden by the author', 'Show %n replies hidden by the author', hiddenByAuthor) }}
-			</NcButton>
+			<div class="thread__replies" :class="{ 'watch-page__comments': isVideo }">
+				<!-- a video's replies are its comments, read most liked first
+				     unless the reader asks for the newest -->
+				<div v-if="isVideo" class="watch-comments__head">
+					<h2 class="watch-comments__title">
+						{{ commentsTitle }}
+					</h2>
+					<div class="watch-comments__order" role="group" :aria-label="t('social', 'Sort comments')">
+						<button
+							v-for="order in commentOrders"
+							:key="order.value"
+							type="button"
+							class="watch-comments__chip"
+							:aria-pressed="commentOrder === order.value ? 'true' : 'false'"
+							@click="commentOrder = order.value">
+							{{ order.label }}
+						</button>
+					</div>
+				</div>
+				<Composer v-if="isVideo && canReply" :inReplyTo="singlePost" />
+				<TimelineList
+					v-if="timeline"
+					class="descendants thread__descendants"
+					:threadOrder="isVideo ? commentOrder : 'oldest'"
+					@settled="repliesSettled = true" />
+				<!-- a thread this instance holds only part of should say so rather
+				     than present what it has as the whole of it -->
+				<p v-if="hiddenReplies > 0" class="thread__hidden">
+					{{ hiddenRepliesText }}
+				</p>
+				<!-- the replies the conversation's author hid: there, behind a button -->
+				<NcButton
+					v-if="hiddenByAuthor > 0"
+					class="thread__hidden-by-author"
+					variant="tertiary"
+					@click="showHiddenReplies">
+					{{ n('social', 'Show %n reply hidden by the author', 'Show %n replies hidden by the author', hiddenByAuthor) }}
+				</NcButton>
+			</div>
 		</div>
 	</div>
 </template>
@@ -104,13 +139,16 @@ import TimelineList from '../components/TimelineList.vue'
 import TimelineSkeleton from '../components/TimelineSkeleton.vue'
 import { isTracking } from '../services/interests.js'
 import { signalNow } from '../services/interestTracker.js'
-// its own chunk: it brings a player and a follow button, and almost every post
-// opened is not a video
+// their own chunk: they bring a player, a follow button and Up next, and almost
+// every post opened is not a video
 const VideoHeader = defineAsyncComponent(() => import(/* webpackChunkName: "watch" */'../components/VideoHeader.vue'))
+const VideoUpNext = defineAsyncComponent(() => import(/* webpackChunkName: "watch" */'../components/VideoUpNext.vue'))
 import { loadState } from '@nextcloud/initial-state'
 import eventBus from '../services/eventBus.js'
 import logger from '../services/logger.js'
 import { setPageTitle } from '../services/pageTitle.js'
+import { setTheaterMode, theaterMode } from '../services/watchPreferences.js'
+import { useSettingsStore } from '../store/settings.js'
 import { mapStores } from 'pinia'
 import { useAccountStore } from '../store/account.js'
 import { useTimelineStore } from '../store/timeline.js'
@@ -133,6 +171,7 @@ export default {
 		TimelineList,
 		TimelineSkeleton,
 		VideoHeader,
+		VideoUpNext,
 	},
 
 	setup() {
@@ -160,6 +199,14 @@ export default {
 			postState: '',
 			/** the composer-reply handler, kept so only this one is removed */
 			onComposerReply: null,
+			/** a video's player drawn wide, with Up next under it; remembered in this browser */
+			theater: theaterMode(),
+			/**
+			 * The order of a video's comments.
+			 *
+			 * @type {import('../utils/replyOrder.js').ReplyOrder}
+			 */
+			commentOrder: 'top',
 		}
 	},
 
@@ -190,6 +237,24 @@ export default {
 			const media = this.singlePost.media_attachments || []
 
 			return media.length === 1 && media[0].type === 'video'
+		},
+
+		/** @return {Array<{value: import('../utils/replyOrder.js').ReplyOrder, label: string}>} the orders a video's comments can be read in */
+		commentOrders() {
+			return [
+				{ value: /** @type {'top'} */ ('top'), label: t('social', 'Top') },
+				{ value: /** @type {'newest'} */ ('newest'), label: t('social', 'Newest') },
+			]
+		},
+
+		/** @return {string} the heading over a video's comments, with their number unless the reader hides counts */
+		commentsTitle() {
+			const count = this.singlePost?.replies_count
+			if (typeof count !== 'number' || useSettingsStore().hidesCounts) {
+				return t('social', 'Comments')
+			}
+
+			return n('social', '%n comment', '%n comments', count)
 		},
 
 		composerDisplayStatus() {
@@ -284,10 +349,17 @@ export default {
 	watch: {
 		'$route.params.id': 'load',
 
-		// the author names the page: a post has no title of its own
+		// the author names the page: a post has no title of its own. A video
+		// has one, and it is what a video site's tab says
 		singlePost: {
 			immediate: true,
 			handler(post) {
+				const title = String(post?.video_card?.title ?? '')
+				if (title !== '') {
+					setPageTitle(title)
+
+					return
+				}
 				const author = post?.account?.display_name || post?.account?.acct || ''
 				setPageTitle(author === '' ? t('social', 'Post') : t('social', 'Post by {name}', { name: author }))
 			},
@@ -328,6 +400,17 @@ export default {
 	methods: {
 		t,
 		n,
+
+		/** The wide player, or back to the column beside it. */
+		toggleTheater() {
+			this.theater = !this.theater
+			setTheaterMode(this.theater)
+		},
+
+		/** The video played to its end: Up next may open the next one. */
+		onVideoEnded() {
+			/** @type {{videoEnded?: () => void}|undefined} */ (this.$refs.upNext)?.videoEnded?.()
+		},
 
 		/** The replies the conversation's author hid, shown after all. */
 		async showHiddenReplies() {
@@ -573,6 +656,96 @@ export default {
 	.thread__hidden {
 		margin-inline-start: 0;
 		padding-inline-start: 12px;
+	}
+}
+
+/*
+ * A video's page, as a video site lays one out: the player and what is said
+ * about it, Up next in a column beside them, the comments under them. In one
+ * column — a phone, a tablet, or theater mode on a desk — Up next comes
+ * after the description and before the comments, which is also the order
+ * the page is read in by a keyboard and a screen reader.
+ */
+.watch-page {
+	display: grid;
+	grid-template-areas: 'above' 'main' 'side' 'comments';
+	grid-template-columns: minmax(0, 1fr);
+	column-gap: calc(var(--default-grid-baseline) * 6);
+	row-gap: calc(var(--default-grid-baseline) * 4);
+
+	.thread__ancestors {
+		grid-area: above;
+	}
+
+	&__main {
+		grid-area: main;
+	}
+
+	&__side {
+		grid-area: side;
+	}
+
+	&__comments {
+		grid-area: comments;
+	}
+
+	/* the comments read flush with the description above them */
+	.social__timeline {
+		margin-inline-start: 0;
+		padding: 0;
+	}
+}
+
+@include layout.from(layout.$wide) {
+	.watch-page:not(.watch-page--theater) {
+		grid-template-areas: 'above above' 'main side' 'comments side';
+		grid-template-columns: minmax(0, 1fr) minmax(300px, 402px);
+		grid-template-rows: auto auto 1fr;
+	}
+}
+
+.watch-comments__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: calc(var(--default-grid-baseline) * 4);
+	margin-block-end: calc(var(--default-grid-baseline) * 3);
+}
+
+.watch-comments__title {
+	margin: 0;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.watch-comments__order {
+	display: flex;
+	gap: calc(var(--default-grid-baseline) * 2);
+}
+
+.watch-comments__chip {
+	min-block-size: var(--default-clickable-area);
+	margin: 0;
+	padding: 0 calc(var(--default-grid-baseline) * 3);
+	border: none;
+	border-radius: var(--border-radius-element, var(--border-radius-large));
+	background: var(--color-background-dark);
+	color: var(--color-main-text);
+	font-weight: 600;
+	cursor: pointer;
+
+	&:hover {
+		background: var(--color-background-darker);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--color-primary-element);
+		outline-offset: 2px;
+	}
+
+	&[aria-pressed='true'] {
+		background: var(--color-main-text);
+		color: var(--color-main-background);
 	}
 }
 

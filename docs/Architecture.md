@@ -3311,6 +3311,90 @@ with null for what its origin did not say. The channel is the status's
   composer in a dialog with the file handed over as `initialFiles`, which it
   attaches through the same code as a drop.
 
+**The watch page.** A video opens on the post's own route (`single-post`), not
+a second one, and `TimelineSinglePost` draws it as a video site's watch page
+rather than a thread when the post is a video (a `video` block, or a single
+video attachment). The wrapper widens to 1720 px (`social__wrapper--watch`,
+in `App.vue` because the reading column's rule is an id selector), and the page
+is one CSS grid with four named areas: the ancestors, if any, across the top;
+`main` (`VideoHeader`); `side` (`VideoUpNext`); and `comments`. From 1100 px
+(`layout.$wide`) the grid has two columns, `main` over `comments` on the
+left and `side` spanning both on the right. Below that, and in theater mode,
+it has one column in DOM order: player and description, then Up next, then
+the comments. That is also the order a keyboard and a screen reader go
+through the page. Theater mode and autoplay are kept per browser
+(`services/watchPreferences.js`, `localStorage`, both off by default). The
+page title is the video's title.
+
+- **The player is `PostAttachment`, in one place.** `VideoHeader` wraps it in
+  `.watch__stage` and does nothing else with the element. A player that
+  swaps it out only has to keep a `<video>` inside the stage, because two
+  things reach the element through the DOM. The chapter buttons seek
+  `.watch__stage video`. The page hears the end of the video through a
+  **capturing** `ended` listener on the stage: media events do not bubble,
+  but every event passes the ancestors of its target on the way down. Only a
+  `<video>` target counts. `VideoHeader` emits `ended`, and
+  `TimelineSinglePost` calls `VideoUpNext.videoEnded()`.
+- **Under the player** (`VideoHeader`): the title as the `h1`; the channel
+  row (avatar, name, follower count unless counts are hidden, and the
+  existing `FollowButton`); and `VideoActions`. The actions call the same
+  store actions as a post card: `postLike`/`postUnlike`,
+  `postDislike`/`postUndislike` (every video can be disliked, see API.md),
+  `postBoost`/`postUnBoost`, and `postBookmark`. The author's
+  `interaction_policy` and `isShareable()` decide whether Like and Boost are
+  offered, as on a card. **Share** uses `navigator.share` and falls back to
+  copying the link, as `PhotoPost` does. **Download** follows
+  `allowsDownload()`: a stated `video.download` (PeerTube's
+  `downloadEnabled`) decides, a local video counts as yes because this
+  server publishes it with `downloadEnabled: true`, and anything else
+  (Mastodon, Bluesky) is left out because nothing says the author allows
+  it. It also needs a local copy (`url`). A reader who is not signed in
+  gets Share and Download only. The theater button sets the page's class
+  and does nothing else, and is hidden below `$wide`.
+- **The description** (`VideoDescription`) shows "1.2K views · 3 days ago"
+  from `video_card`, then the post text clamped to three lines with
+  `line-clamp`. Opened from its button (`aria-expanded`, `aria-controls`)
+  or a press on the box that is not a link, it shows the exact numbers and
+  date, the category, language and licence chips, the chapters, the support
+  line, `PostDetails` and `PostReactedBy`. A content warning is shown in
+  place of the text until the box is opened.
+- **Up next** (`VideoUpNext`) asks `GET /api/v1/videos/{nid}/related` once
+  per video and drops an answer that arrives for a video already left. Each
+  row is `VideoCard` with `compact`. The statuses go into the store index
+  (`addToStatuses()`), so a pressed row opens without a request. With
+  autoplay on, `videoEnded()` starts a five-second countdown to the first
+  row. A live region announces the countdown once, not every second, and it
+  can be skipped (**Play now**) or stopped (**Cancel**). Switching autoplay
+  off, opening another video or leaving the page stops it too.
+- **The related list** is `RelatedVideosService`. It reads three timelines
+  narrowed to `only_video`, each with `StreamService::getTimeline()` and
+  each filtered with `FilterService::apply()` in the context that timeline
+  uses: the author's statuses (`ACCOUNT`, `account` context), the hashtag
+  page for up to three of the post's hashtags (`HASHTAG`, `public`), and,
+  when the video has a category, the newest 40 public videos (`PUBLIC`,
+  `public`), matched in PHP on `video_card.category`. The category has no
+  column (it sits in `details`), so it is matched in a bounded window rather
+  than searched for. The channel takes at most half the list first, the
+  tag and category matches come next, and the rest of the channel fills
+  what remains. Each video appears once and the post itself never does.
+  Visibility, blocks, mutes, silenced accounts and `hide` filters are
+  whatever those timelines do: nothing is decided here. Every query is a
+  timeline query that `QueryPlanTest` already pins on its indexes
+  (`testANarrowedTimelineReadsNoTableInFull` for the account and public
+  pages narrowed to videos, and
+  `testTheHashtagPageNarrowedToVideosIsReadThroughIndexes` for the hashtag
+  page), and `QueryBudgetTest` holds the route to 17 queries for a page of
+  five or twenty. No migration was needed.
+- **Comments** are the existing replies (`TimelineList` in its thread form)
+  under a heading with their count, with the reply composer above them and
+  **Top** / **Newest** switches. `TimelineList`'s new `threadOrder` prop
+  orders only the top level of the thread (`utils/replyOrder.js`: `oldest`,
+  `newest`, or `top`, most `favourites_count` first and stable in time).
+  Answers stay under their comment, oldest first. The server hands a thread
+  over in one order only, so Top is decided over the loaded replies. With
+  counts hidden there are no like counts, and Top keeps the order in time.
+  Other posts keep `oldest`.
+
 **News, on the server only.** The web interface used to have a News timeline
 in the sidebar, a News tab in Discover and a switch for it in the Features section of the administration page.
 All three are gone, and `/timeline/news` redirects to My Feed. What stays is

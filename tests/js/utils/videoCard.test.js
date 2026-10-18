@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { chipsOf, compactCount, filterByChip, mayPreview, RECENT_FOR, videoAttachmentOf, videoCardOf } from '../../../src/utils/videoCard.js'
+import { allowsDownload, chipsOf, compactCount, filterByChip, mayPreview, RECENT_FOR, videoAttachmentOf, videoCardOf } from '../../../src/utils/videoCard.js'
 
 const NOW = Date.parse('2026-10-16T12:00:00Z')
 
@@ -121,5 +121,33 @@ describe('the video card helpers', () => {
 			const post = video('1')
 			expect(ids(filterByChip([{ id: 'boost', reblog: post, video_card: null }, post], 'all', NOW))).toEqual(['boost'])
 		})
+	})
+})
+
+/** Only where something says the author allows it, and only a file that is here. */
+describe('whether a video may be downloaded', () => {
+	const post = (video, url = 'https://cloud.example/media/v.mp4') => ({
+		id: '1',
+		video,
+		media_attachments: [{ id: 'm', type: 'video', url }],
+	})
+
+	it('is yes where the author said yes', () => {
+		expect(allowsDownload(post({ download: true }), false)).toBe(true)
+	})
+
+	it('is yes for a video posted here, which is published downloadable, unless the author said no', () => {
+		expect(allowsDownload(post(null), true)).toBe(true)
+		expect(allowsDownload(post({ download: false }), true)).toBe(false)
+	})
+
+	it('is no where nothing says so', () => {
+		expect(allowsDownload(post(null), false)).toBe(false)
+		expect(allowsDownload(post({ title: 'Boats' }), false)).toBe(false)
+	})
+
+	it('is no where the file is not here', () => {
+		expect(allowsDownload(post({ download: true }, null), true)).toBe(false)
+		expect(allowsDownload({ id: '1', video: { download: true }, media_attachments: [] }, true)).toBe(false)
 	})
 })

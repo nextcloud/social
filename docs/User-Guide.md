@@ -486,6 +486,42 @@ original on its home server. **Like**, **Boost** and **Reply** sit under every
 post; a post's `…` menu adds **Bookmark**, **Open on original instance** and
 **Report**.
 
+**A video opens on a watch page**, laid out like a video site's. The player
+is on top, with the title under it. Under the title are the channel (its
+picture, its name, how many people follow it, and **Follow** or **Following**)
+and a row of buttons: **Like** and **Dislike** with their counts, **Boost**,
+**Share** (your device's share menu, or a copied link where there is none),
+**Save** (bookmarks the video) and **Download**. Download is there only where
+the author allows it: on videos posted here, and on videos whose own server
+says the author allows downloads. A video from a server that says nothing
+about it has no Download button, because silence is not a yes. Counts are
+left out if you hide counts. Someone who is not signed in sees Share and
+Download only.
+
+Under the buttons is the **description**, closed to three lines, with how
+many views the video has and how long ago it was published. Press **…more**
+(or anywhere on the box) to open it. Open, it shows the whole text, the
+category, language and licence, the **chapters** (press one to jump to it),
+the author's support message and the exact date and audience. A content
+warning is shown first, and what it covers only once you open the box.
+
+**Up next** sits beside the player on a wide screen, and below the
+description on a phone or tablet. It lists more videos from the same
+channel first, then videos that share a hashtag or the category, with the
+same posts left out as on your timelines: posts you are not allowed to see,
+accounts you blocked or muted, and posts your filters hide. With
+**Autoplay** on, the next video opens five seconds after the current one
+ends; **Play now** skips the wait and **Cancel** stops it. **Theater mode**
+(the last button in the row, on wide screens) makes the player as wide as
+the page and moves Up next under it. This browser remembers both Autoplay
+and Theater mode; both start off.
+
+The **comments** are the video's replies. They come under their own heading
+with a reply box, and open on **Top**: the most-liked first, counted among
+the comments that are loaded. **Newest** puts the newest first. Answers to
+a comment stay under it, oldest first. If you hide counts, the server sends
+no like counts, so Top keeps the comments in the order they were written.
+
 A post that links somewhere gets a preview card, read by this server rather
 than by your browser. With the `notify_push` app installed, new posts arrive
 live; without it the page checks every 30 seconds.

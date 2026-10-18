@@ -143,6 +143,7 @@ import EmptyContent from './EmptyContent.vue'
 import logger from '../services/logger.js'
 import eventBus, { NOTIFICATIONS_READ } from '../services/eventBus.js'
 import { groupNotifications, newestIdOf } from '../services/notifications.js'
+import { REPLY_ORDERS, orderReplies } from '../utils/replyOrder.js'
 import { isNewerId, newerId, newestId, oldestId } from '../utils/snowflake.js'
 import { scrollOffset, scroller } from '../utils/scroller.js'
 import { mapStores } from 'pinia'
@@ -272,6 +273,17 @@ export default {
 			type: String,
 			default: 'list',
 			validator: (value) => ['list', 'grid', 'videos'].includes(String(value)),
+		},
+
+		/**
+		 * The order of the replies directly under a post, on its own page:
+		 * `oldest` first as a conversation, `newest` first, or `top`, the most
+		 * liked first (`orderReplies()`).
+		 */
+		threadOrder: {
+			type: String,
+			default: 'oldest',
+			validator: (value) => REPLY_ORDERS.includes(/** @type {import('../utils/replyOrder.js').ReplyOrder} */ (value)),
 		},
 
 		/** Whose profile the grid links its tiles into. */
@@ -465,7 +477,7 @@ export default {
 				videos: {
 					scene: 'wave',
 					title: t('social', 'No videos found'),
-					description: t('social', 'Videos posted here, and videos from the PeerTube channels you follow, will show up here'),
+					description: t('social', 'Videos posted here, and videos from the channels you follow, will show up here'),
 				},
 
 				photos: {
@@ -709,25 +721,38 @@ export default {
 			const order = []
 			const depth = /** @type {Record<string, number>} */ ({})
 			const seen = new Set()
+			const visitOne = (status, level) => {
+				if (seen.has(status.id)) {
+					return
+				}
+				seen.add(status.id)
+				order.push(status)
+				depth[status.id] = level
+				visit(status.id, level + 1)
+			}
 			const visit = (parentId, level) => {
 				for (const status of byParent.get(parentId) ?? []) {
-					if (seen.has(status.id)) {
-						continue
-					}
-					seen.add(status.id)
-					order.push(status)
-					depth[status.id] = level
-					visit(status.id, level + 1)
+					visitOne(status, level)
 				}
 			}
-			visit(root, 0)
+
+			// the top level is the replies to the post and those whose parent
+			// is not here; only they are put in `threadOrder`, and what answers
+			// each stays under it in time
+			const present = new Set(chronological.map((status) => String(status.id)))
+			const top = [
+				...(byParent.get(root) ?? []),
+				...chronological.filter((status) => {
+					const parent = String(status.in_reply_to_id ?? '')
+
+					return parent !== root && !present.has(parent)
+				}),
+			]
+			for (const status of orderReplies(top, this.threadOrder)) {
+				visitOne(status, 0)
+			}
 			for (const status of chronological) {
-				if (!seen.has(status.id)) {
-					seen.add(status.id)
-					order.push(status)
-					depth[status.id] = 0
-					visit(status.id, 1)
-				}
+				visitOne(status, 0)
 			}
 
 			return { order, depth }

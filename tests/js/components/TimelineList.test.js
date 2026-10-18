@@ -189,6 +189,14 @@ describe('TimelineList', () => {
 			expect(dispatch.mock.calls[0][0]).toEqual({ max_id: '1' })
 		})
 
+		it('names no network in its empty state', async () => {
+			const { wrapper } = videos({ timeline: [] })
+			await flushPromises()
+
+			const empty = wrapper.findComponent(EmptyContent).props('item')
+			expect(empty.description).toBe('Videos posted here, and videos from the channels you follow, will show up here')
+		})
+
 		it('catches up on a pushed post, as every other list does', async () => {
 			onTimelinePush.mockReturnValue(true)
 			const { dispatch } = videos()
@@ -231,6 +239,27 @@ describe('TimelineList', () => {
 			await flushPromises()
 
 			expect(entryDepths(wrapper)).toEqual([['20', 0], ['50', 0], ['51', 1]])
+		})
+
+		/**
+		 * A video's comments: the replies to the video put in the order asked
+		 * for, and what answers each still under it, in time.
+		 */
+		it.each([
+			['oldest', [['20', 0], ['21', 1], ['30', 0], ['50', 0]]],
+			['newest', [['50', 0], ['30', 0], ['20', 0], ['21', 1]]],
+			['top', [['30', 0], ['20', 0], ['21', 1], ['50', 0]]],
+		])('reads the replies to the post %s first', async (order, depths) => {
+			const liked = (id, inReplyTo, day, likes) => ({ ...reply(id, inReplyTo, day), favourites_count: likes })
+			const { wrapper } = mountList({
+				timeline: [liked('50', '99', '14', 3), liked('30', '1', '13', 7), liked('21', '20', '12', 9), liked('20', '1', '11', 3)],
+				identity: '["single-post","",{"id":"1","singlePost":"1"}]',
+				route: { name: 'single-post', params: { type: 'single-post', id: '1' } },
+				props: { type: 'single-post', threadOrder: order },
+			})
+			await flushPromises()
+
+			expect(entryDepths(wrapper)).toEqual(depths)
 		})
 
 		it('indents nothing in an ordinary timeline', async () => {

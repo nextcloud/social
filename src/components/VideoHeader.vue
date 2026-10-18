@@ -4,111 +4,71 @@
 -->
 <template>
 	<div class="watch">
-		<PostAttachment
-			class="watch__player"
-			mediaFirst
-			:to="null"
-			:video="video"
-			:attachments="status.media_attachments || []" />
+		<!-- the player, in one place. `ended` does not bubble, so it is
+		     caught on its way down to whatever plays the video, and passed
+		     on for Up next -->
+		<div class="watch__stage" @ended.capture="onEnded">
+			<PostAttachment
+				class="watch__player"
+				mediaFirst
+				:to="null"
+				:video="video"
+				:attachments="status.media_attachments || []" />
+		</div>
 
 		<h1 class="watch__title">
 			{{ title }}
 			<span v-if="video.live" class="watch__live">{{ t('social', 'Live') }}</span>
 		</h1>
 
-		<p class="watch__facts">
-			<span v-if="video.views !== undefined">
-				{{ n('social', '%n view', '%n views', video.views) }}
-			</span>
-			<span v-if="video.likes !== undefined">
-				{{ n('social', '%n like', '%n likes', video.likes) }}
-			</span>
-			<span v-if="dislikes && !hidesCounts">
-				{{ n('social', '%n dislike', '%n dislikes', dislikes) }}
-			</span>
-			<span v-if="video.category">{{ video.category }}</span>
-			<span v-if="video.language">{{ video.language }}</span>
-			<span v-if="video.licence">{{ video.licence }}</span>
-		</p>
+		<div class="watch__bar">
+			<!-- the channel, which is what a reader subscribes to: on PeerTube a
+			     video is listed under it rather than under the person -->
+			<div class="watch__channel">
+				<ActorAvatar :actor="status.account" :size="40" />
+				<router-link
+					class="watch__channel-link"
+					:to="{ name: 'profile', params: { account: status.account.acct } }">
+					<span class="watch__channel-name">
+						{{ status.account.display_name || status.account.username }}
+					</span>
+					<span v-if="followers !== ''" class="watch__channel-followers">{{ followers }}</span>
+				</router-link>
+				<FollowButton :uid="status.account.acct" />
+			</div>
 
-		<!-- the channel, which is what a reader subscribes to: on PeerTube a
-		     video is listed under it rather than under the person -->
-		<div class="watch__channel">
-			<ActorAvatar :actor="status.account" />
-			<router-link
-				class="watch__channel-link"
-				:to="{ name: 'profile', params: { account: status.account.acct } }">
-				<span class="watch__channel-name">
-					{{ status.account.display_name || status.account.username }}
-				</span>
-				<span class="watch__channel-acct">{{ status.account.acct }}</span>
-			</router-link>
-			<FollowButton :uid="status.account.acct" />
-			<!-- PeerTube's other counter, and only here: a dislike button
-			     under a written post is a product this app is not, and a
-			     `Dislike` sent to a server with no model for it is dropped -->
-			<NcButton
-				class="watch__dislike"
-				:title="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
-				:aria-label="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
-				:aria-pressed="disliked ? 'true' : 'false'"
-				:disabled="sending"
-				variant="tertiary"
-				@click="toggleDislike">
-				<template #icon>
-					<ThumbDown :size="20" :fillColor="disliked ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-				</template>
-			</NcButton>
+			<VideoActions :status="status" :theater="theater" @toggleTheater="$emit('toggleTheater')" />
 		</div>
 
-		<div v-if="chapters.length" class="watch__chapters">
-			<h2 class="watch__heading">
-				{{ t('social', 'Chapters') }}
-			</h2>
-			<ol class="watch__chapter-list">
-				<li v-for="chapter in chapters" :key="chapter.start">
-					<button class="watch__chapter" type="button" @click="seekTo(chapter.start)">
-						<span class="watch__chapter-time">{{ clock(chapter.start) }}</span>
-						<span class="watch__chapter-title">{{ chapter.title }}</span>
-					</button>
-				</li>
-			</ol>
-		</div>
-
-		<p v-if="video.support" class="watch__support">
-			{{ video.support }}
-		</p>
-
-		<p v-if="video.download === false" class="watch__note">
-			{{ t('social', 'The author has asked that this video not be downloaded.') }}
-		</p>
+		<VideoDescription :status="status" @seek="seekTo" />
 	</div>
 </template>
 
 <script>
-import { n, t } from '@nextcloud/l10n'
-import NcButton from '@nextcloud/vue/components/NcButton'
-import ThumbDown from 'vue-material-design-icons/ThumbDown.vue'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import ActorAvatar from './ActorAvatar.vue'
 import FollowButton from './FollowButton.vue'
 import PostAttachment from './PostAttachment.vue'
-import { useTimelineStore } from '../store/timeline.js'
+import VideoActions from './VideoActions.vue'
+import VideoDescription from './VideoDescription.vue'
+import { useServerData } from '../composables/useServerData.js'
+import { useAccountStore } from '../store/account.js'
 import { useSettingsStore } from '../store/settings.js'
-import { formatTime } from '../utils/shortVideo.js'
+import { compactCount } from '../utils/videoCard.js'
 
 /**
- * A video's own page, rather than a post with a rectangle in it.
+ * A video's own page, rather than a post with a rectangle in it, drawn the
+ * way a video site draws one: the player, the title as the heading, the
+ * channel with its follow button beside the row of actions, and the
+ * description box under them.
  *
  * It is the same route a post opens on, not a second one somebody has to find:
  * every link to a video already leads here, and what changes is what the page
  * says about it. Underneath, the conversation is the conversation — a video's
  * comments are replies, and this app already has replies.
  *
- * What is on it is what a `Video` object actually carries and a timeline card
- * has no room for: the title as a heading (a `Note` has no title, so the reader
- * used to get it as the first line of a paragraph), the counters, the category
- * and licence, the chapters as something to press, and the line the author
- * wrote asking for support.
+ * The player is `PostAttachment` and nothing else here touches the element it
+ * draws, beyond moving it to a chapter and hearing that it ended.
  */
 export default {
 	name: 'VideoHeader',
@@ -116,9 +76,9 @@ export default {
 	components: {
 		ActorAvatar,
 		FollowButton,
-		NcButton,
 		PostAttachment,
-		ThumbDown,
+		VideoActions,
+		VideoDescription,
 	},
 
 	props: {
@@ -126,46 +86,27 @@ export default {
 			type: /** @type {import('vue').PropType<object>} */ (Object),
 			required: true,
 		},
+
+		/** Whether the wide player is on; the page lays itself out for it. */
+		theater: {
+			type: Boolean,
+			default: false,
+		},
 	},
+
+	/** `ended` when the video played to its end; `toggleTheater` from the switch. */
+	emits: ['ended', 'toggleTheater'],
 
 	setup() {
-		return { timelineStore: useTimelineStore() }
-	},
+		const { serverData } = useServerData()
 
-	data() {
-		return {
-			/** whether a dislike of ours is in flight */
-			sending: false,
-		}
+		return { serverData }
 	},
 
 	computed: {
-		/** @return {boolean} whether the reader has the like, boost and follower numbers hidden */
-		hidesCounts() {
-			return useSettingsStore().hidesCounts
-		},
-
 		/** @return {object} what the post said about the video */
 		video() {
 			return this.status.video ?? {}
-		},
-
-		/**
-		 * How many people disliked it.
-		 *
-		 * The post's own count where this server has one — it counts the
-		 * `Dislike` activities it received — and the number PeerTube stated
-		 * otherwise, which covers everybody who watched it there.
-		 *
-		 * @return {number}
-		 */
-		dislikes() {
-			return this.status.dislikes_count || this.video.dislikes || 0
-		},
-
-		/** @return {boolean} whether this reader has disliked it */
-		disliked() {
-			return this.status.disliked === true
 		},
 
 		/**
@@ -188,42 +129,53 @@ export default {
 			return (text.split('\n').find((line) => line.trim() !== '') || '').trim()
 		},
 
-		/** @return {Array<{title: string, start: number}>} */
-		chapters() {
-			return Array.isArray(this.video.chapters) ? this.video.chapters : []
+		/** @return {string} "1.2K followers", '' when the reader hides counts or there is no count */
+		followers() {
+			const count = this.status.account?.followers_count
+			if (useSettingsStore().hidesCounts || typeof count !== 'number') {
+				return ''
+			}
+
+			return n('social', '{count} follower', '{count} followers', count, { count: compactCount(count) })
+		},
+	},
+
+	watch: {
+		/**
+		 * The follow button draws what the reader's relationship with the
+		 * channel is, and nothing on a post's page asked for it: the channel
+		 * is put in the store as the post carries it, and the relationship
+		 * asked for with whatever else the page asks for at the same moment.
+		 */
+		'status.account.id': {
+			immediate: true,
+			handler(id) {
+				const account = this.status.account
+				if (this.serverData.public || !id || !account?.url) {
+					return
+				}
+				const accounts = useAccountStore()
+				if (accounts.getAccount(account.acct) === undefined) {
+					accounts.addAccount({ actorId: account.url, data: account })
+				}
+				accounts.fetchRelationship(id)
+			},
 		},
 	},
 
 	methods: {
 		t,
-		n,
 
 		/**
-		 * Sends the dislike, or takes it back.
+		 * Passes on that the video ended, and only the video: a picture or a
+		 * clip somewhere else on the page ending is not this.
 		 *
-		 * @return {Promise<void>} when the server has answered
+		 * @param {Event} event the `ended` on its way to its element
 		 */
-		async toggleDislike() {
-			if (this.sending) {
-				return
+		onEnded(event) {
+			if (/** @type {Element} */ (event.target)?.tagName === 'VIDEO') {
+				this.$emit('ended')
 			}
-
-			this.sending = true
-			try {
-				await (this.disliked
-					? this.timelineStore.postUndislike({ status: this.status })
-					: this.timelineStore.postDislike({ status: this.status }))
-			} finally {
-				this.sending = false
-			}
-		},
-
-		/**
-		 * @param {number} seconds a moment in the video
-		 * @return {string} it as a clock, `1:02:03` or `2:03`
-		 */
-		clock(seconds) {
-			return formatTime(seconds)
 		},
 
 		/**
@@ -236,7 +188,7 @@ export default {
 		 * @param {number} seconds where to go
 		 */
 		seekTo(seconds) {
-			const player = this.$el?.querySelector('video')
+			const player = this.$el?.querySelector('.watch__stage video')
 			if (!player) {
 				return
 			}
@@ -250,10 +202,18 @@ export default {
 </script>
 
 <style scoped lang="scss">
+.watch__stage {
+	overflow: hidden;
+	border-radius: var(--border-radius-large);
+	background: #000;
+}
+
 .watch__title {
-	margin-block: 12px 4px;
+	margin-block: calc(var(--default-grid-baseline) * 3) calc(var(--default-grid-baseline) * 2);
 	font-size: 20px;
-	line-height: 1.3;
+	font-weight: 700;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
 }
 
 .watch__live {
@@ -267,78 +227,43 @@ export default {
 	vertical-align: middle;
 }
 
-.watch__facts {
+.watch__bar {
 	display: flex;
-	gap: 12px;
 	flex-wrap: wrap;
-	color: var(--color-text-maxcontrast);
-	margin: 0 0 12px;
+	align-items: center;
+	justify-content: space-between;
+	gap: calc(var(--default-grid-baseline) * 3);
 }
 
 .watch__channel {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	flex-wrap: wrap;
-	padding-block: 12px;
-	border-block: 1px solid var(--color-border);
+	gap: calc(var(--default-grid-baseline) * 3);
+	min-inline-size: 0;
 }
 
 .watch__channel-link {
 	display: flex;
 	flex-direction: column;
+	min-inline-size: 0;
+	color: inherit;
 	text-decoration: none;
-	color: inherit;
-	margin-inline-end: auto;
-}
 
-.watch__channel-name {
-	font-weight: bold;
-}
-
-.watch__channel-acct {
-	color: var(--color-text-maxcontrast);
-}
-
-.watch__heading {
-	font-size: 15px;
-	margin-block: 16px 4px;
-}
-
-.watch__chapter-list {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-
-.watch__chapter {
-	display: flex;
-	gap: 8px;
-	width: 100%;
-	padding: 4px 8px;
-	border: none;
-	border-radius: var(--border-radius);
-	background: transparent;
-	color: inherit;
-	text-align: start;
-	cursor: pointer;
-
-	&:hover,
 	&:focus-visible {
-		background: var(--color-background-hover);
+		outline: 2px solid var(--color-primary-element);
+		outline-offset: 2px;
 	}
 }
 
-.watch__chapter-time {
-	font-variant-numeric: tabular-nums;
-	color: var(--color-text-maxcontrast);
-	min-width: 4em;
+.watch__channel-name {
+	overflow: hidden;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.watch__support,
-.watch__note {
+.watch__channel-followers {
 	color: var(--color-text-maxcontrast);
-	margin-block: 12px 0;
-	overflow-wrap: anywhere;
+	font-size: var(--font-size-small, 13px);
 }
 </style>

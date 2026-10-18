@@ -206,4 +206,15 @@ describe('a video card', () => {
 			expect(wrapper.find('video').exists()).toBe(false)
 		})
 	})
+
+	/** A row of Up next: the picture beside the words, and no face. */
+	it('draws a compact row with the title, the channel and the facts, and no face', () => {
+		const wrapper = mountCard(status(), { compact: true })
+
+		expect(wrapper.classes()).toContain('video-card--compact')
+		expect(wrapper.find('.video-card__avatar').exists()).toBe(false)
+		expect(wrapper.find('.video-card__title').text()).toBe('Building a boat')
+		expect(wrapper.find('.video-card__channel').text()).toBe('Films')
+		expect(wrapper.find('.video-card__badge').text()).toBe('12:34')
+	})
 })

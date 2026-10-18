@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="video-card" :class="{ 'video-card--short': upright }">
+	<div class="video-card" :class="{ 'video-card--short': upright, 'video-card--compact': compact }">
 		<!-- one link for the whole card: the picture, the title and the
 		     channel all open the video, so the face is drawn without a link
 		     of its own rather than nesting one inside this one -->
@@ -45,7 +45,7 @@
 			</span>
 			<span class="video-card__details">
 				<ActorAvatar
-					v-if="!upright"
+					v-if="!upright && !compact"
 					class="video-card__avatar"
 					:actor="post.account"
 					:size="36"
@@ -79,7 +79,8 @@ export const PREVIEW_AFTER = 600
  * One video in the Videos page's grid, as a video site draws one: a 16:9
  * picture with its running time on it, the channel's face, the title, the
  * channel and "1.2K views · 3 days ago". `upright` is the Shorts shelf's
- * kind, a tall picture with the title under it.
+ * kind, a tall picture with the title under it; `compact` is a row of Up
+ * next, the picture small beside the words and no face.
  *
  * Everything it says comes from the status's `video_card`
  * (`Stream::exportVideoCard()`), so a PeerTube video, an upload here and a
@@ -109,6 +110,12 @@ export default {
 
 		/** The Shorts shelf's tall card rather than the grid's wide one. */
 		upright: {
+			type: Boolean,
+			default: false,
+		},
+
+		/** A row of a list beside the player: the picture small, the words beside it. */
+		compact: {
 			type: Boolean,
 			default: false,
 		},
@@ -388,6 +395,29 @@ export default {
 		font-size: var(--font-size-small, 13px);
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+}
+
+.video-card--compact {
+	.video-card__link {
+		flex-direction: row;
+		align-items: flex-start;
+		gap: calc(var(--default-grid-baseline) * 2);
+	}
+
+	.video-card__thumb {
+		flex: 0 0 auto;
+		inline-size: min(168px, 42%);
+		border-radius: var(--border-radius-element, 8px);
+	}
+
+	.video-card__details {
+		flex: 1 1 auto;
+		min-inline-size: 0;
+	}
+
+	.video-card__title {
+		font-size: var(--font-size-small, 13px);
 	}
 }
 
