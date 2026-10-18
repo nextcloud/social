@@ -51,21 +51,21 @@ jobs:
           require: write
 
       - name: Checkout release tag
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: ${{ env.APP_NAME }}
           persist-credentials: false
 
       - name: Read Node.js and npm versions from package.json
         id: versions
-        uses: skjnldsv/read-package-engines-version-actions@06d6baf7d8f41934ab630e97d9e6c0bc9c9ac5e4 # v3
+        uses: skjnldsv/read-package-engines-version-actions@06d6db44aa62f4609ba070f556ec24bc99fb85cb # v4
         with:
           path: ${{ env.APP_NAME }}
           fallbackNode: '^20'
           fallbackNpm: '^10'
 
       - name: Set up Node.js ${{ steps.versions.outputs.nodeVersion }}
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ steps.versions.outputs.nodeVersion }}
           cache: npm
@@ -91,7 +91,7 @@ jobs:
           echo "php-min=$php_min" >> "$GITHUB_OUTPUT"
 
       - name: Set up PHP ${{ steps.php-versions.outputs.php-min }}
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
           php-version: ${{ steps.php-versions.outputs.php-min }}
           tools: composer:v2
@@ -206,7 +206,7 @@ jobs:
 
       - name: Attach signed tarball to GitHub release
         id: attach_to_release
-        uses: svenstaro/upload-release-action@04733e069f2d7f7f0b4aebc4fbdbce8613b03ccd # v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ${{ env.APP_NAME }}/build/artifacts/${{ env.APP_NAME }}.tar.gz

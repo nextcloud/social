@@ -79,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout server
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: true
           repository: nextcloud/server
@@ -87,19 +87,19 @@ jobs:
           ref: master
 
       - name: Checkout app
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: apps/social
 
       - name: Checkout Loops
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: joinloops/loops-server
           ref: ${{ env.LOOPS_REF }}
           path: loops-server
 
       - name: Set up php
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.3'
           # Nextcloud's set and Loops' together: bcmath, pcntl, posix, sodium
@@ -195,7 +195,7 @@ jobs:
           ./occ log:manage --level=info
 
       - name: Restore Loops' PHP dependencies
-        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: loops-server/vendor
           key: loops-vendor-${{ env.LOOPS_REF }}-php8.3
