@@ -1,0 +1,310 @@
+# SPDX-FileCopyrightText: 2021-2024 Nextcloud GmbH and Nextcloud contributors
+# SPDX-FileCopyrightText: 2026 Aloha Social contributors
+# SPDX-License-Identifier: MIT
+
+name: Compile Command
+on:
+  issue_comment: # zizmor: ignore[dangerous-triggers]
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+
+    # On pull requests and if the comment starts with `/compile`
+    if: github.event.issue.pull_request != '' && startsWith(github.event.comment.body, '/compile')
+
+    outputs:
+      git_path: ${{ steps.git-path.outputs.path }}
+      arg1: ${{ steps.command.outputs.arg1 }}
+      arg2: ${{ steps.command.outputs.arg2 }}
+      head_ref: ${{ steps.comment-branch.outputs.head_ref }}
+      base_ref: ${{ steps.comment-branch.outputs.base_ref }}
+
+    steps:
+      - name: Get repository from pull request comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: get-repository
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const pull = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            const repositoryName = pull.data.head?.repo?.full_name
+            console.log(repositoryName)
+            return repositoryName
+
+      - name: Explain why forks are not compiled
+        if: ${{ fromJSON(steps.get-repository.outputs.result) != github.repository }}
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+        with:
+          token: ${{ secrets.COMMAND_BOT_PAT }}
+          repository: ${{ github.event.repository.full_name }}
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            `/compile` does not run on pull requests from forks: it pushes the rebuilt assets to the pull request's branch, and it can only push to branches of this repository.
+
+            Rebuild `js/` yourself with `npm run build` (Node 24, from a checkout with LF line endings) and push it to your branch.
+
+      - name: Disabled on forks
+        if: ${{ fromJSON(steps.get-repository.outputs.result) != github.repository }}
+        run: |
+          echo 'Can not execute /compile on forks'
+          exit 1
+
+      - name: Check actor permission
+        uses: skjnldsv/check-actor-permission@69e92a3c4711150929bca9fcf34448c5bf5526e7 # v3.0
+        with:
+          require: write
+
+      - name: Add reaction on start
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+        with:
+          token: ${{ secrets.COMMAND_BOT_PAT }}
+          repository: ${{ github.event.repository.full_name }}
+          comment-id: ${{ github.event.comment.id }}
+          reactions: '+1'
+
+      - name: Parse command
+        uses: skjnldsv/parse-command-comment@5c955203c52424151e6d0e58fb9de8a9f6a605a1 # v3.1
+        id: command
+
+      # Init path depending on which command is run
+      - name: Init path
+        id: git-path
+        env:
+          ARG1: ${{ steps.command.outputs.arg1 }}
+          ARG2: ${{ steps.command.outputs.arg2 }}
+        run: |
+          if [[ "$ARG1" == /* ]]; then
+            echo "path=${ARG1}" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=${ARG2}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Init branch
+        uses: xt0rted/pull-request-comment-branch@e8b8daa837e8ea7331c0003c9c316a64c6d8b0b1 # v3.0.0
+        id: comment-branch
+
+      - name: Add reaction on failure
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+        if: failure()
+        with:
+          token: ${{ secrets.COMMAND_BOT_PAT }}
+          repository: ${{ github.event.repository.full_name }}
+          comment-id: ${{ github.event.comment.id }}
+          reactions: '-1'
+
+  # Runs the pull request's dependencies and build scripts, so it gets no secrets
+  build:
+    runs-on: ubuntu-latest
+    needs: init
+
+    outputs:
+      start: ${{ steps.start.outputs.sha }}
+      changed: ${{ steps.bundle.outputs.changed }}
+
+    steps:
+      - name: Checkout ${{ needs.init.outputs.head_ref }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ needs.init.outputs.head_ref }}
+
+      - name: Remember the starting commit
+        id: start
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Setup git
+        run: |
+          git config --local user.email 'nextcloud-command@users.noreply.github.com'
+          git config --local user.name 'nextcloud-command'
+
+      - name: Read package.json node and npm engines version
+        uses: nextcloud-libraries/parse-package-engines-action@39fcc545a815c353dd0a3fd8fd2ef6e59fd02b92 # v0.2.0
+        id: package-engines-versions
+
+      - name: Set up node ${{ steps.package-engines-versions.outputs.node-version }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.package-engines-versions.outputs.node-version }}
+          cache: npm
+
+      - name: Set up npm ${{ steps.package-engines-versions.outputs.package-manager-version }}
+        env:
+          NPM_VERSION: ${{ steps.package-engines-versions.outputs.package-manager-version }}
+        run: npm i -g "npm@${NPM_VERSION}"  # zizmor: ignore[adhoc-packages]
+
+      - name: Rebase to ${{ needs.init.outputs.base_ref }}
+        if: ${{ contains(needs.init.outputs.arg1, 'rebase') }}
+        env:
+          BASE_REF: ${{ needs.init.outputs.base_ref }}
+        run: |
+          # Start the rebase
+          git rebase "origin/${BASE_REF}" || {
+            # Handle rebase conflicts in a loop
+            while [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; do
+              echo "Handling rebase conflict..."
+
+              # Remove and checkout /dist and /js folders from the base branch
+              if [ -d "dist" ]; then
+                rm -rf dist
+                git checkout "origin/${BASE_REF}" -- dist/ 2>/dev/null || echo "No dist folder in base branch"
+              fi
+              if [ -d "js" ]; then
+                rm -rf js
+                git checkout "origin/${BASE_REF}" -- js/ 2>/dev/null || echo "No js folder in base branch"
+              fi
+
+              # Only generated assets are resolved here; any other conflict needs a human
+              if git diff --name-only --diff-filter=U | grep -vE '^(dist|js)/' | grep -q .; then
+                echo "Conflicts outside dist/ and js/, aborting the rebase:"
+                git diff --name-only --diff-filter=U | grep -vE '^(dist|js)/'
+                git rebase --abort
+                exit 1
+              fi
+
+              # Stage all changes
+              git add .
+
+              # Check if there are any changes after resolving conflicts
+              if git diff --cached --quiet; then
+                echo "No changes after conflict resolution, skipping commit"
+                git rebase --skip || true
+              else
+                echo "Changes found, continuing rebase without editing commit message"
+                git -c core.editor=true rebase --continue || true
+              fi
+
+              # Break if rebase is complete
+              if [ ! -d .git/rebase-merge ] && [ ! -d .git/rebase-apply ]; then
+                break
+              fi
+            done
+          }
+
+      - name: Install dependencies & build
+        env:
+          CYPRESS_INSTALL_BINARY: 0
+          PUPPETEER_SKIP_DOWNLOAD: true
+        run: |
+          npm ci
+          npm run build --if-present
+
+      - name: Commit default
+        if: ${{ !contains(needs.init.outputs.arg1, 'fixup') && !contains(needs.init.outputs.arg1, 'amend') }}
+        env:
+          GIT_PATH: ${{ needs.init.outputs.git_path }}
+        run: |
+          git add "${GITHUB_WORKSPACE}${GIT_PATH}"
+          git diff --cached --quiet || git commit --signoff -m 'chore(assets): Recompile assets'
+
+      - name: Commit fixup
+        if: ${{ contains(needs.init.outputs.arg1, 'fixup') }}
+        env:
+          GIT_PATH: ${{ needs.init.outputs.git_path }}
+        run: |
+          git add "${GITHUB_WORKSPACE}${GIT_PATH}"
+          git diff --cached --quiet || git commit --fixup=HEAD --signoff
+
+      - name: Commit amend
+        if: ${{ contains(needs.init.outputs.arg1, 'amend') }}
+        env:
+          GIT_PATH: ${{ needs.init.outputs.git_path }}
+        run: |
+          git add "${GITHUB_WORKSPACE}${GIT_PATH}"
+          git commit --amend --no-edit --signoff
+          # Remove any [skip ci] from the amended commit
+          git commit --amend -m "$(git log -1 --format='%B' | sed '/\[skip ci\]/d')"
+
+      - name: Bundle the new commits
+        id: bundle
+        env:
+          START: ${{ steps.start.outputs.sha }}
+          BASE_REF: ${{ needs.init.outputs.base_ref }}
+        run: |
+          if [ "$(git rev-parse HEAD)" = "$START" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          git branch -f compiled HEAD
+          git bundle create compiled.bundle compiled --not "$START" "origin/${BASE_REF}"
+          echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Upload the bundle
+        if: steps.bundle.outputs.changed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compiled
+          path: compiled.bundle
+          retention-days: 1
+
+  # Holds the bot token and runs no code from the pull request
+  push:
+    runs-on: ubuntu-latest
+    needs: [init, build]
+    if: needs.build.outputs.changed == 'true'
+
+    steps:
+      - name: Checkout ${{ needs.init.outputs.head_ref }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ needs.init.outputs.head_ref }}
+
+      - name: Download the bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: compiled
+
+      # The lease fails the push when the branch moved after the build started
+      - name: Push to ${{ needs.init.outputs.head_ref }}
+        env:
+          HEAD_REF: ${{ needs.init.outputs.head_ref }}
+          START: ${{ needs.build.outputs.start }}
+          BASE_REF: ${{ needs.init.outputs.base_ref }}
+          ARG1: ${{ needs.init.outputs.arg1 }}
+          BOT_TOKEN: ${{ secrets.COMMAND_BOT_PAT }}  # zizmor: ignore[secrets-outside-env]
+        run: |
+          git bundle verify compiled.bundle
+          git fetch compiled.bundle refs/heads/compiled
+
+          # The build ran the pull request's scripts: outside dist/ and js/, its result must be
+          # the starting commit, or for a rebase the merge of it into the base branch
+          if [[ "$ARG1" == *rebase* ]]; then
+            expected=$({ git merge-tree --write-tree "origin/${BASE_REF}" "$START" || true; } | head -1)
+          else
+            expected="$START"
+          fi
+          unexpected=$(git diff --name-only "$expected" FETCH_HEAD -- . ':(exclude)dist' ':(exclude)js')
+          if [ -n "$unexpected" ]; then
+            echo "The build changed files outside dist/ and js/, not pushing:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+          git remote set-url origin "https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }}.git"
+          git push --force-with-lease="refs/heads/${HEAD_REF}:${START}" origin "FETCH_HEAD:refs/heads/${HEAD_REF}"
+
+  failed:
+    runs-on: ubuntu-latest
+    needs: [init, build, push]
+    if: failure()
+
+    steps:
+      - name: Add reaction on failure
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9 # v5.0.0
+        with:
+          token: ${{ secrets.COMMAND_BOT_PAT }}
+          repository: ${{ github.event.repository.full_name }}
+          comment-id: ${{ github.event.comment.id }}
+          reactions: '-1'
