@@ -172,13 +172,19 @@ describe('router', () => {
 		const route = router.resolve('/shorts?scope=local')
 
 		expect(route.name).toBe('shorts')
-		expect(route.matched[0].props.default(route)).toEqual({ scope: 'local', account: '' })
+		expect(route.matched[0].props.default(route)).toEqual({ scope: 'local', account: '', start: '' })
 	})
 
 	it('passes whose 24-hour shorts to start at, from a face in the Home bar', () => {
 		const route = router.resolve('/shorts?account=bob@remote.example')
 
-		expect(route.matched[0].props.default(route)).toEqual({ scope: '', account: 'bob@remote.example' })
+		expect(route.matched[0].props.default(route)).toEqual({ scope: '', account: 'bob@remote.example', start: '' })
+	})
+
+	it('passes which short to start at, from the Videos page\'s Shorts shelf', () => {
+		const route = router.resolve('/shorts?scope=federated&start=1789344497747043682')
+
+		expect(route.matched[0].props.default(route)).toEqual({ scope: 'federated', account: '', start: '1789344497747043682' })
 	})
 
 	it('sends the earlier /reels address on to /shorts, keeping the scope', async () => {

@@ -428,7 +428,10 @@ answer for five minutes.
 Nothing needs restarting. Videos uploaded before ffmpeg was there are picked up
 by the background sweep, one every quarter of an hour, or all at once with
 `occ social:media:transcode`. Posts that already went out with the old file are
-not sent again.
+not sent again. Their poster frames — the still the Videos page and the player
+show before anything is played — are made by another background job
+(`Cron\VideoPosters`), five videos every quarter of an hour, or all at once
+with `occ social:media:posters`.
 
 ### Raising the upload limit
 
@@ -1074,6 +1077,7 @@ the moderation routes accept.
 | `stream_author_hosts_filled` | `0` | Set to `1` by `Cron\StreamAuthorHosts` once every post carries the host of its author in `social_stream.author_host`. Until then the domain-block and silenced-instance filters also match a post by its actor id, which is slower. Bookkeeping, not a setting. |
 | `story_secret` | *(generated)* | The secret a 24-hour short's fetch capability (the bearcap Pixelfed fetches it with) is derived from, made the first time one is published. Changing it invalidates every outstanding capability at once, which is the only revocation it needs: a 24-hour short lives a day. Never set this by hand. |
 | `cache_cron_start` | `0` | Which of `Cron\Cache`'s steps the next pass begins with. Written by the job when it runs out of its five-minute budget, so the steps at the end of its list are not the ones that never run on a busy instance; a pass that finishes starts from the top again. Bookkeeping, not a setting. |
+| `poster_backfill_cursor` | `0` | The nid of the last stored video `Cron\VideoPosters` looked at for a poster frame. Written by the job, five videos every fifteen minutes; a video it could not take a frame from is behind it and is not tried again by the job — `occ social:media:posters` tries every video that still has none. Bookkeeping, not a setting: delete it to have the job go through every video again. |
 | `client_api_root` | *(unset)* | Whether the client API answered at the domain root the last time the *Mastodon apps cannot connect* setup check probed it: `1`, `0`, or unset where nothing has asked yet. Written down rather than only cached because the OAuth discovery document is built from it, and that is a route any client may call. |
 | `client_api_scheme` | *(unset)* | Whether that probe's answer carried addresses in the scheme it was asked over: `0` once a proxy that drops the scheme has been seen (every absolute URL says `http` on an `https` site), which the same setup check reports. |
 | `dest_nid_filled` | `0` | Set to `1` by `Version1000Date20260917000001` once every recipient row carries the post's numeric id, which is what lets the home timeline use its fast page query; a flag, because asking the table for a row with a zero nid is a full scan of the largest table the app has. Bookkeeping, not a setting. |

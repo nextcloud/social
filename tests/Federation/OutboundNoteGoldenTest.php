@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\EmojiRequest;
 use OCA\Social\Db\StreamRequest;
+use OCA\Social\Db\VideoViewsRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
@@ -414,5 +415,40 @@ class OutboundNoteGoldenTest extends TestCase {
 		]);
 
 		GoldenFile::assertMatches('create-video', $this->publish($post));
+	}
+
+	/**
+	 * A `Video` says how many times it was watched here, which is the number
+	 * PeerTube shows under it — not the author-only count of who opened it.
+	 */
+	public function testAVideoSaysHowManyTimesItWasWatchedHere(): void {
+		$this->appValues[ConfigService::SOCIAL_PUBLISH_VIDEO] = '1';
+		\OC::$server->register(ConfigService::class, $this->config());
+		$channels = $this->createStub(ChannelService::class);
+		$channels->method('attributionOf')->willReturn([
+			['type' => 'Person', 'id' => $this->alice->getId()],
+			['type' => 'Group', 'id' => self::$social . '@alice_videos'],
+		]);
+		\OC::$server->register(ChannelService::class, $channels);
+		$views = $this->createStub(VideoViewsRequest::class);
+		$views->method('countsFor')->willReturnCallback(
+			static fn (array $ids): array => [md5((string)$ids[0]) => 37]
+		);
+		\OC::$server->register(VideoViewsRequest::class, $views);
+
+		$post = $this->post('Second harvest');
+		$post->setMedias([
+			(new MediaAttachment())->import([
+				'id' => '22', 'type' => 'video', 'media_type' => 'video/mp4',
+				'url' => self::$social . 'media/harvest2.mp4',
+				'preview_url' => self::$social . 'media/harvest2.jpg',
+				'meta' => ['original' => ['width' => 1280, 'height' => 720], 'duration' => 12],
+			]),
+		]);
+
+		$object = $this->publish($post)['object'];
+
+		$this->assertSame('Video', $object['type']);
+		$this->assertSame(37, $object['views']);
 	}
 }

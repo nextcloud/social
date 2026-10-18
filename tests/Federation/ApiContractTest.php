@@ -78,6 +78,10 @@ class ApiContractTest extends TestCase {
 		// 'video' is everything a PeerTube `Video` says that a post has nowhere
 		// to put — category, licence, chapters, captions, counters. Null for
 		// every post that is not one, which is almost all of them.
+		// 'video_card' is the same few facts about every video post, whatever
+		// it arrived as, for a grid of videos; null for every other post.
+		// 'watch_progress' is where the reader stopped in a video, only on
+		// "continue watching"; null everywhere else.
 		// 'reply_approval' says whether replies here have to be approved and,
 		// on a reply of ours, whether this one has been — FEP-5624, which
 		// PeerTube ≥ 6.2 moderates comments with. Null on almost every post.
@@ -111,7 +115,7 @@ class ApiContractTest extends TestCase {
 			'application', 'archived', 'bookmarked', 'card', 'content', 'created_at', 'edited_at', 'emojis', 'favourited', 'filtered', 'text',
 			'favourites_count', 'id', 'in_reply_to_account_id', 'in_reply_to_id', 'language',
 			'local', 'media_attachments', 'mentions', 'muted', 'nid', 'noindex', 'pinned', 'place', 'poll', 'quote', 'quotes_count',
-			'quote_approval', 'reply_approval', 'reply_policy', 'interaction_policy', 'video', 'hidden_by_author', 'can_hide',
+			'quote_approval', 'reply_approval', 'reply_policy', 'interaction_policy', 'video', 'video_card', 'watch_progress', 'hidden_by_author', 'can_hide',
 			'dislikes_count', 'disliked',
 			'reactions', 'reblog', 'reblogged', 'reblogs_count', 'replies_count', 'sensitive', 'spoiler_text',
 			'tagged_people', 'tags', 'uri', 'url', 'view_count', 'visibility', 'interest', 'ai_generated', 'bluesky',

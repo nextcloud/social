@@ -89,6 +89,8 @@ class CoreRequestBuilder {
 	public const TABLE_CHANNELS = 'social_channel';
 	public const TABLE_WATCH = 'social_watch';
 	public const TABLE_RENDITIONS = 'social_video_rendition';
+	public const TABLE_VIDEO_VIEWS = 'social_video_views';
+	public const TABLE_VIDEO_SEEN = 'social_video_seen';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -491,6 +493,17 @@ class CoreRequestBuilder {
 			'position',
 			'duration',
 			'last_update'
+		],
+		self::TABLE_VIDEO_VIEWS => [
+			'id',
+			'stream_id_prim',
+			'views'
+		],
+		self::TABLE_VIDEO_SEEN => [
+			'id',
+			'stream_id_prim',
+			'viewer_hash',
+			'day'
 		],
 		self::TABLE_RENDITIONS => [
 			'id',

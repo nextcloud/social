@@ -28,6 +28,8 @@
         "dislikes_count": null,
         "disliked": null,
         "video": null,
+        "video_card": null,
+        "watch_progress": null,
         "mentions": [],
         "emojis": [],
         "tags": [

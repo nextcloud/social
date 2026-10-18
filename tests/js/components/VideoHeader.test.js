@@ -51,7 +51,8 @@ function mountHeader(theStatus = status(), serverData = {}) {
 		global: {
 			stubs: {
 				RouterLink: RouterLinkStub,
-				PostAttachment: true,
+				VideoPlayer: { name: 'VideoPlayer', props: ['status'], template: '<div class="video-player-stub" />' },
+				PostAttachment: { name: 'PostAttachment', props: ['attachments', 'to', 'mediaFirst'], template: '<div class="post-attachment-stub" />' },
 				ActorAvatar: true,
 				FollowButton: true,
 			},
@@ -69,6 +70,27 @@ const chapters = (wrapper) => wrapper.findAll('.watch__chapter')
 describe('the video page', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
+	})
+
+	/** The video plays in the player of its own, with everything it does. */
+	it('plays the video in the video player', () => {
+		const theStatus = status({}, { media_attachments: [{ id: '1', type: 'video', url: 'https://cloud.example/v.mp4' }] })
+		const wrapper = mountHeader(theStatus)
+
+		expect(wrapper.findComponent({ name: 'VideoPlayer' }).props('status')).toStrictEqual(theStatus)
+		expect(wrapper.findComponent({ name: 'PostAttachment' }).exists()).toBe(false)
+	})
+
+	/** Nothing the post carries is lost, and the video is not shown twice. */
+	it('shows the pictures and files beside the video under the player', () => {
+		const video = { id: '1', type: 'video', url: 'https://cloud.example/v.mp4' }
+		const picture = { id: '2', type: 'image', url: 'https://cloud.example/p.jpg' }
+		const file = { id: '3', type: 'unknown', url: 'https://cloud.example/f.pdf' }
+		const wrapper = mountHeader(status({}, { media_attachments: [picture, video, file] }))
+
+		const beside = wrapper.findComponent({ name: 'PostAttachment' })
+		expect(beside.props('attachments')).toStrictEqual([picture, file])
+		expect(beside.props('to')).toBeNull()
 	})
 
 	describe('what it is called', () => {

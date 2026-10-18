@@ -23,12 +23,16 @@ export const RECORD_LIMITS = [15, 60, 180]
 
 /**
  * @param {number} seconds a time
- * @return {string} it as `m:ss`
+ * @return {string} it as `m:ss`, or `h:mm:ss` from an hour on
  */
 export function formatTime(seconds) {
 	const whole = Math.max(0, Math.floor(Number(seconds) || 0))
+	const rest = `${String(whole % 60).padStart(2, '0')}`
+	if (whole >= 3600) {
+		return `${Math.floor(whole / 3600)}:${String(Math.floor(whole / 60) % 60).padStart(2, '0')}:${rest}`
+	}
 
-	return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
+	return `${Math.floor(whole / 60)}:${rest}`
 }
 
 /**

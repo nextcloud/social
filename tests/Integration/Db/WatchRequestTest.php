@@ -69,11 +69,39 @@ class WatchRequestTest extends TestCase {
 		$this->assertSame([md5(self::SHORT), md5(self::VIDEO)], $this->watch->unfinished(self::ALICE));
 	}
 
+	public function testTheUnfinishedComeWithWhereTheyStopped(): void {
+		$before = time() - 5;
+		$this->watch->remember(self::VIDEO, self::ALICE, 120, 600);
+
+		$rows = $this->watch->unfinishedProgress(self::ALICE);
+
+		$this->assertCount(1, $rows);
+		$this->assertSame(md5(self::VIDEO), $rows[0]['prim']);
+		$this->assertSame(120, $rows[0]['position']);
+		$this->assertSame(600, $rows[0]['duration']);
+		$this->assertGreaterThanOrEqual($before, $rows[0]['updated']);
+		$this->assertLessThanOrEqual(time() + 5, $rows[0]['updated']);
+	}
+
 	public function testForgettingRemovesThePosition(): void {
 		$this->watch->remember(self::VIDEO, self::ALICE, 120, 600);
 
 		$this->assertTrue($this->watch->forget(self::VIDEO, self::ALICE));
 		$this->assertFalse($this->watch->forget(self::VIDEO, self::ALICE));
 		$this->assertSame(0, $this->watch->positionOf(self::VIDEO, self::ALICE));
+	}
+
+	/** What a player resumes from: the reader's own place in this one video, with its length. */
+	public function testOneVideosProgressIsReadForItsReader(): void {
+		$before = time() - 5;
+		$this->watch->remember(self::VIDEO, self::ALICE, 75, 600);
+
+		$progress = $this->watch->progressOf(self::VIDEO, self::ALICE);
+
+		$this->assertSame(75, $progress['position'] ?? null);
+		$this->assertSame(600, $progress['duration'] ?? null);
+		$this->assertGreaterThanOrEqual($before, $progress['updated'] ?? 0);
+		$this->assertNull($this->watch->progressOf(self::VIDEO, self::BOB), 'bob has not opened it');
+		$this->assertNull($this->watch->progressOf(self::SHORT, self::ALICE));
 	}
 }

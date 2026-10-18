@@ -28,6 +28,7 @@ use OCA\Social\Exceptions\UrlCloudException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Image;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\VideoRendition;
 use OCA\Social\Tools\Exceptions\MalformedArrayException;
@@ -58,6 +59,9 @@ class DocumentService {
 
 	/** A playlist is text and is read whole; this is the ceiling on that. */
 	private const MAX_PLAYLIST = 2 * 1024 * 1024;
+
+	/** The largest subtitle track passed on: an hour of dense dialogue is a few hundred kilobytes. */
+	public const MAX_CAPTION = 1024 * 1024;
 
 	/**
 	 * Seconds one attachment download may take when nobody is waiting for it.
@@ -517,6 +521,54 @@ class DocumentService {
 			['type' => $segment->getMediaType()],
 			$this->cacheService->openRemoteFile($segment, $range)
 		);
+	}
+
+	/**
+	 * One of a video's subtitle tracks, read from where it was published.
+	 *
+	 * The page may not load a track from another host (`media-src 'self'`),
+	 * and a reader who turns subtitles on should not be introduced to the
+	 * video's server for it, so the track comes through here like the video
+	 * does, stored nowhere. Which track is a position in the list the post
+	 * itself carries (`video.captions`), never a url from the caller, which
+	 * is what keeps this from fetching anything anybody names.
+	 *
+	 * WebVTT only — the one format a `<track>` plays — read whole up to
+	 * `MAX_CAPTION`; anything else is refused rather than passed on.
+	 *
+	 * @param Stream $post the video, already read as the viewer may see it
+	 *
+	 * @return string the track, as WebVTT
+	 * @throws NotFoundException when the post has no such track, or what is there is not one
+	 */
+	public function caption(Stream $post, int $index): string {
+		$captions = $post->getVideoMeta()['captions'] ?? null;
+		$caption = is_array($captions) ? (array_values($captions)[$index] ?? null) : null;
+		$url = is_array($caption) && is_string($caption['url'] ?? null) ? $caption['url'] : '';
+		if ($url === '') {
+			throw new NotFoundException('no such caption');
+		}
+
+		$track = new Document();
+		$track->setId($url);
+		$track->setUrl($url);
+		$track->setParentId($post->getId());
+		$track->setMediaType('text/vtt');
+		$track->setLocalCopy(Document::COPY_STREAMED);
+
+		try {
+			$body = $this->cacheService->readRemoteFile($track, self::MAX_CAPTION);
+		} catch (RequestServerException|RequestContentException|RequestNetworkException|UnauthorizedFediverseException|SocialAppConfigException $e) {
+			throw new NotFoundException('the caption could not be read');
+		}
+
+		// a byte-order mark is allowed before the signature, and nothing else
+		$body = str_starts_with($body, "\u{FEFF}") ? substr($body, 3) : $body;
+		if (preg_match('/^WEBVTT(?:[ \t\r\n]|$)/', $body) !== 1 || !mb_check_encoding($body, 'UTF-8')) {
+			throw new NotFoundException('the caption is not WebVTT');
+		}
+
+		return $body;
 	}
 
 	/** Whether a media type is one of the two spellings of an HLS playlist. */

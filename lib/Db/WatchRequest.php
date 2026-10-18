@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use DateTimeZone;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -89,8 +90,18 @@ class WatchRequest extends CoreRequestBuilder {
 	 * @return string[] the prims of the posts
 	 */
 	public function unfinished(string $actorId, int $limit = 20): array {
+		return array_column($this->unfinishedProgress($actorId, $limit), 'prim');
+	}
+
+	/**
+	 * The same, each with where the person got to: what draws the bar under
+	 * a video they began.
+	 *
+	 * @return list<array{prim: string, position: int, duration: int, updated: int}> `updated` a timestamp, 0 when it is not known
+	 */
+	public function unfinishedProgress(string $actorId, int $limit = 20): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('stream_id_prim')
+		$qb->select('stream_id_prim', 'position', 'duration', 'last_update')
 			->from(self::TABLE_WATCH)
 			->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
 			->andWhere($qb->expr()->gte('position', $qb->createNamedParameter(self::STARTED_SECONDS, IQueryBuilder::PARAM_INT)))
@@ -98,14 +109,56 @@ class WatchRequest extends CoreRequestBuilder {
 			->orderBy('last_update', 'desc')
 			->setMaxResults(max(1, min($limit, 40)));
 
-		$prims = [];
+		$rows = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$prims[] = (string)$data['stream_id_prim'];
+			$rows[] = ['prim' => (string)$data['stream_id_prim']] + self::progressFrom($data);
 		}
 		$cursor->closeCursor();
 
-		return $prims;
+		return $rows;
+	}
+
+	/**
+	 * Where this person got to in this video, with how long it runs and when
+	 * they were last in it: what a player resumes from.
+	 *
+	 * @return array{position: int, duration: int, updated: int}|null null for a video they have not opened
+	 */
+	public function progressOf(string $streamId, string $actorId): ?array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('position', 'duration', 'last_update')
+			->from(self::TABLE_WATCH)
+			->where($qb->expr()->eq('stream_id_prim', $qb->createNamedParameter($qb->prim($streamId))))
+			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($data === false) ? null : self::progressFrom($data);
+	}
+
+	/**
+	 * @param array<string, mixed> $data a row
+	 *
+	 * @return array{position: int, duration: int, updated: int} `updated` a timestamp, 0 when it is not known
+	 */
+	private static function progressFrom(array $data): array {
+		$updated = 0;
+		if (($data['last_update'] ?? null) !== null) {
+			try {
+				$updated = (new DateTime((string)$data['last_update'], new DateTimeZone('UTC')))->getTimestamp();
+			} catch (\Exception $e) {
+			}
+		}
+
+		return [
+			'position' => (int)$data['position'],
+			'duration' => (int)$data['duration'],
+			'updated' => $updated,
+		];
 	}
 
 	/** Forgets one, for somebody taking a video off their own list. */

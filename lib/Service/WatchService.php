@@ -88,17 +88,40 @@ class WatchService {
 	}
 
 	/**
-	 * The videos this person was in the middle of, newest first.
+	 * Puts where the reader got to on a video they are opening, so its player
+	 * starts there (`watch_progress`). Nothing for a post that is not a video,
+	 * an anonymous reader, or a video they have not begun.
+	 */
+	public function attachProgress(Stream $post, ?Person $viewer): void {
+		if ($viewer === null || $post->getId() === '' || !$post->isVideo()) {
+			return;
+		}
+
+		try {
+			$progress = $this->watchRequest->progressOf($post->getId(), $viewer->getId());
+		} catch (Throwable $e) {
+			return;
+		}
+
+		if ($progress !== null && $progress['position'] > 0) {
+			$post->setWatchProgress($progress['position'], $progress['duration'], $progress['updated']);
+		}
+	}
+
+	/**
+	 * The videos this person was in the middle of, newest first, each
+	 * carrying where they got to (`watch_progress`).
 	 *
 	 * @return Stream[]
 	 */
 	public function unfinished(Person $viewer, int $limit = 20): array {
 		$posts = [];
 
-		foreach ($this->watchRequest->unfinished($viewer->getId(), $limit) as $prim) {
+		foreach ($this->watchRequest->unfinishedProgress($viewer->getId(), $limit) as $watch) {
 			try {
-				$post = $this->streamRequest->getStream($prim);
+				$post = $this->streamRequest->getStream($watch['prim']);
 				$post->setExportFormat(ACore::FORMAT_LOCAL);
+				$post->setWatchProgress($watch['position'], $watch['duration'], $watch['updated']);
 				$posts[] = $post;
 			} catch (Throwable $e) {
 				// a video that has been deleted since: the bookmark outlives

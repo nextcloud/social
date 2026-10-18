@@ -29,7 +29,7 @@ Aloha Social is a federated social networking app built on the W3C ActivityPub s
 **App ID:** `social`  
 **Namespace:** `OCA\Social`  
 **License:** AGPL-3.0-or-later  
-**App version:** 0.26.277
+**App version:** 0.26.278
 **Supported Nextcloud versions:** 34 – 36  
 **Supported PHP versions:** 8.3 – 8.5  
 
@@ -196,6 +196,8 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_relay` | The relays this instance subscribes to: one row per subscription, with the `Follow` it sent, the inbox to deliver to and whether the relay answered |
 | `social_channel` | The `Group` actors an account publishes videos under: one row per channel, binding it to the account that owns it. A channel is deleted with the account that owns it, as an account of its own (`AccountService::deleteActor()`) |
 | `social_watch` | Where a reader stopped watching a video: one row per (post, viewer), never federated |
+| `social_video_views` | How many times each video posted here was watched: one row per post, unique on it, a counter moved in SQL (`VideoViewService`), deleted with the post |
+| `social_video_seen` | Who has already been counted watching a video today: one row per (post, viewer hash), unique on the pair, where the hash is keyed with the instance secret over (day, post, account or session); the rows of earlier days are deleted by `Cron\Cache`, so nothing about who watched outlives the day |
 | `social_video_rendition` | The rungs of a local video's ladder: one row per (video, height), each naming one fragmented MP4 and the playlist that addresses it |
 | `social_file_post` | Which Nextcloud file a post was made from: one row per (file, post), written with the attachment's nid when the file is copied in and given its post when the post is published; a row still without a post after two days is cleared |
 | `social_file_comment` | Which comment on a file stands for which reply: one row per (reply, file), marked `outbound` when the comment was written in Files and went out as the reply |
@@ -295,6 +297,8 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 
 `Version1000Date20261016100400` adds `social_stream.root_prim`, indexed — the root of the thread a direct message belongs to, stored with it: its parent's stored root, else the topmost post a walk up reaches, else itself; replies that arrived before their parent are moved under its root when it comes. A chat is a chain of replies each to the one before, and the conversations walked it up a query a level on every read and every poll of their badge, and grouped a chat longer than the walk under wherever the walk stopped, so its conversation id moved with every message. Now the page reads the roots of its messages in one statement, and the thread of a conversation is read from its root however deep it is (`ConversationsRequest::getThread()`); a message without one — stored before the column, until `Cron\ThreadRoots` (queued here) reaches it — is walked as before. Posts that are not direct messages keep NULL: the muted-thread and hidden-reply checks walk them as they did.
 
+`Version1000Date20261016103300` adds `social_video_views` and `social_video_seen` — the public view count of a video posted here, and the day's dedupe behind it (see the schema table and **Where somebody stopped watching**). Two tables because they keep different things for different lengths of time: the number for as long as the post exists, the viewers for the day they were counted on.
+
 `Version1000Date20261006000010` adds `social_stream_rev.media`, the attachments of each recorded version of a status (see the schema table).
 
 Two of those deserve a warning.
@@ -387,7 +391,7 @@ The business logic lives in `lib/Service/`.
 
 - **DocumentService** — Owns the cached document lifecycle: caching a remote document by id, serving originals and resized copies out of app storage, and caching the local actor's avatar and header. Serving applies a viewer bound: a cached attachment is handed to a logged-in user only if it hangs off a post they may read or is their own upload, and the unauthenticated `/media/{uuid}` route only for a row marked public
 - **CacheDocumentService** — Writes uploads, remote downloads and temp files into app storage, filters MIME types against an allow-list, and reads content back out. An image and a video take deliberately different paths: an image is read into a string, because the metadata stripping, the HEIC conversion and the resize all work on one, while a video is streamed to storage a chunk at a time and never held whole — `fread()` of a two-gigabyte upload is two gigabytes of memory, and PHP's limit was the only thing that ever stopped it. That split is also why there are two size ceilings (`max_size`, `max_video_size`) and why the second is applied again against the *sniffed* type: the request-time check can only go on what the client declared. An upload is created non-public; it takes the visibility of the post it is attached to when that post is created (`StatusApiController::scopeMediaToVisibility()`, public for public and unlisted, non-public otherwise), because which post an upload belongs to is only known then
-- **VideoThumbnailService** — One frame out of a video, so a timeline of them is not a wall of black rectangles each of which has to be downloaded before it shows anything. ffmpeg where the server has it, skipped silently where it does not (an app that refused uploads without ffmpeg would be worse than one that shows no poster), and **not transcoding**: it decodes one frame and asks ffprobe how long the video runs. The poster becomes the video's `resized_copy` — which is what that column means, the small image standing in for the file — and from there the player's `poster`, which is what lets a page of videos be scrolled without fetching one. The frame is taken from the bytes as they are written and they are only written once, so a video stored before posters existed (or while the server had no ffmpeg) would never get one: `occ social:media:posters` is the backfill, and it has to do two things rather than one, because a post keeps its own copy of its attachments. Making the poster changes the *document*; rewriting the copies the posts carry is what a reader sees
+- **VideoThumbnailService** — One frame out of a video, so a timeline of them is not a wall of black rectangles each of which has to be downloaded before it shows anything. ffmpeg where the server has it, skipped silently where it does not (an app that refused uploads without ffmpeg would be worse than one that shows no poster), and **not transcoding**: it decodes one frame and asks ffprobe how long the video runs. The poster becomes the video's `resized_copy` — which is what that column means, the small image standing in for the file — and from there the player's `poster`, which is what lets a page of videos be scrolled without fetching one. The frame is taken from the bytes as they are written and they are only written once, so a video stored before posters existed (or while the server had no ffmpeg) would never get one: `Cron\VideoPosters` is the backfill (`VideoPosterBackfill`: five videos a run, in nid order from the `poster_backfill_cursor` app setting, each video once, nothing while the server has no ffmpeg) and `occ social:media:posters` does all of them at once. Both have to do two things rather than one, because a post keeps its own copy of its attachments. Making the poster changes the *document*; rewriting the copies the posts carry is what a reader sees
 - **VideoTranscodeService / VideoTranscodingWorker / VideoDeliveryHold** — Turning a video uploaded here into H.264 in an MP4, the one format Pixelfed accepts (`video/mp4` and nothing else) and every browser plays. Local uploads only (`getVideosToTranscode()` requires a non-empty `account`, which the upload paths write and a cached remote attachment never has): a peer's video is that peer's to encode, and the worker marks one that reaches it anyway as not needed rather than converting it. `video_transcode` is on by default and a no-op without ffmpeg (`isEnabled()` is the setting *and* the binary). What is converted: the types in `CONVERTIBLE` on their type alone, and a `video/mp4` whose first video stream ffprobe does not name `h264` — HEVC, which phones write — including one ffprobe cannot read; an H.264 MP4 is never re-encoded, and without ffprobe an MP4 is left as it is. An upload is probed while its bytes are still on disk (`CacheDocumentService::saveMediaFromTemp()`), so an H.264 MP4 is written with `transcoded = 2` and nothing waits for it. The worker writes the converted file, points the row at it (`replaceVideo()`), rewrites the attachment copy of every local post that carries it (`StreamRequest::updateLocalAttachmentCopies()`, which finds those posts through `social_stream_media` by the document's nid: the copy names the file by its uuid and type, and one left alone 404'd the moment the original was deleted), and deletes the original last. `Cron\Transcode` sweeps one video a quarter-hour and reads at most five MP4s' codecs per run; `Cron\TranscodeBeforeDelivery` converts the video a new post is waiting on — see **Held for a video** under Outgoing Flow. `VideoDeliveryHold` decides which posts wait.
 - **StoredMediaMetadataService** — `occ social:media:strip-metadata`: a local video or sound file stored before uploads lost their container metadata is remuxed by `VideoTranscodeService::withoutMetadata()`, stored under a new uuid (`replaceLocalCopy()` updates the size and sends a video back to the ladder), the posts carrying it are repointed as the transcoder does and the original is deleted. A document that is a blob in a Bluesky repository or was handed to Bluesky's video service (`AtprotoBlobRequest::hasDocument()`, `AtprotoVideoRequest::hasDocument()`) is left alone, because its CID is the hash of its bytes; so is one whose rewrite is the same bytes or that ffmpeg cannot rewrite.
 - **BlurService** — Generates a blurhash string from a GD image. The 4×3-component hash is taken from a copy scaled to 32 px on its longest side (`SAMPLE_SIZE`), not from the resized preview: the encoder holds one PHP array per pixel, and an 800-px preview cost near 200 MB and a second per picture for the same placeholder. Both the picture preview and a video's poster go through it
@@ -885,7 +889,40 @@ fact about a **reader**: never federated, never shown to anybody else, never
 counted into anything, one row per (post, viewer) moved rather than appended. A
 video watched past 95% is **forgotten** rather than bookmarked at the credits,
 and one under ten seconds in was never really started — a "continue watching"
-row that offers back either is a row nobody presses twice.
+row that offers back either is a row nobody presses twice. A video read on its
+own (`GET /api/v1/statuses/{id}`) carries the reader's `watch_progress` as well
+(`WatchService::attachProgress()`: one indexed read, only for a video and a
+signed-in reader), which is where the player starts it again.
+
+**How many times a video posted here was watched** is `VideoViewService` — the
+public number under a video on a video site, and a different thing from
+`social_stream_view`, which counts the accounts that opened a post and is told
+to its author alone. The player reports a view (`POST
+/api/v1/statuses/{id}/view`) once somebody has played `MIN_SECONDS` (5) of it,
+and the count moves at most once per viewer, video and day: the viewer is the
+account, or the Nextcloud session of somebody who is not signed in, and the
+author watching their own video is not counted. Only a keyed hash of (day,
+video, viewer) is kept, in `social_video_seen`, for the day it was counted on —
+the key is the instance's `secret`, so a row cannot be worked back to a person
+without it, and the day and the video are inside the hash, so two rows of one
+person cannot be matched — and `Cron\Cache` deletes the rows of earlier days.
+The number is a counter in `social_video_views`, put on every local video a
+client is handed by `PostDecorationService` in one query per page: as
+`video_card.views` and, where the post has a `video` block, `video.views`. It
+also goes out as the `views` of the `Video` this app publishes, which is the
+number PeerTube shows under it. A reader who hides the numbers
+(`/api/v1/social/counts`) is sent no view count at all. A video from another
+server is never counted here: its own server counts it and the number arrives
+with it.
+
+**Subtitle tracks** come through this server like the video does. A `<track>`
+may not be loaded from another host (`media-src 'self'`), and a reader turning
+subtitles on should not be announced to the video's server for it, so
+`video.captions[].url` is this server's `/media/captions/{nid}/{index}.vtt`
+(`DocumentService::caption()`): keyed on the post and the track's place in the
+list it stored, never on a url from the caller, read as the viewer may see the
+post, fetched whole up to 1 MB, refused unless it is WebVTT, and stored
+nowhere.
 
 ## Reading a timeline at scale
 
@@ -3215,7 +3252,7 @@ that is not one of the two named scopes is the default. It is also part of what
 `Timeline.vue` reports as the timeline's params, which is what makes changing it
 refetch instead of leaving the previous photos on screen.
 
-**Posts, Photos and Videos on a profile.** The same switcher, above the account's posts, asking the server a different question rather than filtering the page on screen — a page filtered in the client is a page that can come back empty while there are still videos to find. The tab rides in the query (`/@alice?media=video`) so a profile stays one route and every link to it still names the same one, and the word is the API's own.
+**Posts, Photos and Videos on a profile.** The same switcher, above the account's posts, asking the server a different question rather than filtering the page on screen — a page filtered in the client is a page that can come back empty while there are still videos to find. (The Videos page's chips are the one place that filters in the client, and they ask for further pages themselves to keep from coming back empty; see **The Videos view**.) The tab rides in the query (`/@alice?media=video`) so a profile stays one route and every link to it still names the same one, and the word is the API's own.
 
 Behind it: `only_media` is Mastodon's own parameter on `/api/v1/accounts/{id}/statuses` and had never been passed on; `media_type` is a **Aloha Social extension** that narrows it to one kind, because Mastodon has nothing finer and two tabs need the difference. `ProbeOptions::setMediaType()` takes only the three kinds an attachment can be — `image`, `video`, `audio`, which are the first half of its MIME type and so the only values the column can hold — and reads anything else as no preference, since the value arrives from a query string. `media_type` implies `only_media`: a post with no attachments cannot be one carrying a video. The predicate is `SocialLimitsQueryBuilder::limitToMediaType()`, a `LIKE` on `"type":"video"` in the stored attachments — the column holds them as the client sees them, there is no column to compare and no JSON support to rely on across the three databases this app supports, and a description containing the same text is stored with its quotes escaped so it cannot collide. Unindexed, like the silenced-instance filter and for the same reason: it runs on a list something else has already narrowed to one account. Pinned posts are left out of a filtered tab, being about the account rather than about a kind of attachment.
 
@@ -3253,6 +3290,130 @@ attachment whose Mastodon `type` is `video`, or a post that arrived as a PeerTub
 `Video`. The second counts whether or not this instance found a playable file in
 it — the post is a video either way, and a timeline that hid the ones it could
 not play would be hiding exactly the videos worth reporting.
+
+**It is drawn as a video site's front page.** `Timeline.vue` gives the Videos
+page `display: 'videos'` (Photos keeps `grid`), a wider column
+(`social__wrapper--videos`) and no composer; `TimelineList` keeps the paging,
+the new-post pill, the push and poll catch-up, the errors and the empty state,
+and hands the timeline to `VideoBrowse.vue`, which draws it and emits `more`
+when it wants another page. Each card is `VideoCard.vue`, and everything it
+says comes from the status's `video_card` (`Stream::exportVideoCard()`, the
+contract in API.md): the title, running time, thumbnail, views, live flag,
+category and publication date of every video post, whatever it arrived as,
+with null for what its origin did not say. The channel is the status's
+`account`.
+
+- **Rows.** The number of columns comes from the component's measured width
+  (`columnsFor()`: one below 560 px, two below 880, three below 1180, four
+  above) and is the one number the CSS grid and the keyboard both use. The grid
+  is cut into runs of whole rows with a shelf after each run rather than one
+  grid with the shelves inside, so no row has a hole and the DOM order is the
+  reading order. The arrow keys move a card or a row (left and right swap in a
+  right-to-left language), Home and End to the ends.
+- **Chips filter in the client.** All, Live (only when a loaded video is
+  live), the categories of the loaded videos and Recently uploaded (posted in
+  the last seven days, by `created_at`) choose among what the timeline holds
+  (`utils/videoCard.js`). Category and live sit in the `details` JSON, with no
+  column and no index, and a chip is offered only for what is loaded, so the
+  server is not asked; instead a chip that leaves fewer than `FILL_TARGET` (12)
+  cards asks for further pages, at most `MAX_FILL_PAGES` (5) before it offers
+  **Look further**, so a filter cannot page through a whole timeline by itself.
+  A boost and the post it boosts are one card.
+- **Shelves** are each fetched once per scope the page is read at, beside the
+  timeline (`timelineStore.fetchSideList()`, which asks the way that list
+  would and holds nothing): **Shorts** (`only_short` in the same scope; a card
+  opens `/shorts?scope=…&start={id}`, and `VideoShorts` jumps to that post
+  once it has arrived), **From channels you follow** (the home scope with
+  `only_video`, not on My Feed, which is the grid itself, and not without a
+  session), and **Continue watching** (`GET /api/v1/videos/continue`, read
+  once per page view and only with a session). Under a chip there are no
+  shelves.
+- **Watch progress** is the server's (`WatchService`, one `social_watch` row
+  per video and reader). `/api/v1/videos/continue` hands each status back
+  with `watch_progress` (`WatchRequest::unfinishedProgress()`, the same query
+  as before with the row's position, duration and time); every other list
+  carries it as null. `services/videoProgress.js` keeps what that answer said
+  by post, and `progressOf(status)` — `{position, duration, fraction,
+  updatedAt}` or null — is the one place a card asks for its red bar, so a
+  player that reports positions with `POST /api/v1/statuses/{id}/watched`
+  needs nothing more on this page.
+- **Hover preview.** After 600 ms of the pointer on a card, a muted, looping
+  `<video>` of the first video attachment plays over the picture and is
+  removed when the pointer leaves. Only for `(hover: hover) and (pointer:
+  fine)`, never with `prefers-reduced-motion`, `prefers-reduced-data` or
+  Save-Data (`mayPreview()`), and never for a live, sensitive or filtered post.
+- **Upload a video** (`VideoUploadButton.vue`) opens a `video/*` file picker
+  from the press itself — a picker opened after the composer had loaded would
+  no longer be in answer to the press, and browsers refuse it — then opens the
+  composer in a dialog with the file handed over as `initialFiles`, which it
+  attaches through the same code as a drop.
+
+**The player.** A video's own page (`VideoHeader.vue`) plays it in
+`VideoPlayer.vue` rather than in a post's attachment. Where the bytes come from
+is decided in one place for every player in the app,
+`services/videoSource.js`, which `MediaAttachment` uses too: the file; a remote
+HLS playlist, proxied, through hls.js (fetched lazily) everywhere but Safari;
+or a local video's ladder beside its file, which falls back to the file on a
+fatal error. Around that:
+
+- **Resume and progress.** It starts at `progressOf(status)` — the single
+  status's `watch_progress`, or what the page already knew — unless that is
+  within ten seconds of the end or past 95%, and reports with `POST
+  /api/v1/statuses/{id}/watched` at most every `REPORT_EVERY` (10 s) of playing,
+  on pause, at the end (the whole duration, which the server forgets) and on
+  `pagehide` by `navigator.sendBeacon` (the route takes no CSRF token, which a
+  beacon cannot carry). Only for somebody signed in, never for a live video.
+  Each report also goes into `videoProgress.js` (`rememberProgress()`), and
+  `progressOf()` takes the newer of that and what the server said, so every
+  card of the video on the page moves with it and a finished one loses its
+  bar.
+- **Views.** After `VIEW_AFTER` (5) seconds actually played — the deltas of
+  `timeupdate`, a seek not counting — it sends `POST /api/v1/statuses/{id}/view`
+  once per video it plays.
+- **Menus inside the player**, so that they work in full screen: speed
+  (0.5–2×, kept in `localStorage` under `social.video.speed` and set as the
+  element's default rate so a new source keeps it), quality (hls.js's levels,
+  largest first, each height once, Auto first; offered only where there are
+  two or more — PeerTube publishes one MP4 per resolution, but the app keeps
+  the largest as the attachment, so a choice exists for HLS playlists and local
+  ladders) and subtitles (the `<track>`s of `video.captions`, which point at
+  this server, plus any subtitle tracks hls.js finds in a playlist). Each is a
+  `role="menu"` of `menuitemradio`s that the arrows walk and Escape closes,
+  giving the focus back to its button.
+- **Keys** (`PLAYER_SHORTCUTS` in `services/shortcuts.js`, also listed by
+  `ShortcutList`). One `keydown` listener on the window in the capture phase,
+  so it runs before the app's own shortcuts, and a key it takes is not passed
+  on (`stopImmediatePropagation`) — on the watch page `j`, `k`, `l` and `f`
+  are the player's. The watch page's player answers wherever the focus is on
+  the page; the small player only while it has the focus, and the watch page's
+  player leaves alone a key pressed inside another player. Nothing while the
+  reader types (a field, a contenteditable, a modifier held — the player's own
+  sliders excepted, which keep their arrows), behind an open dialog, with
+  shortcuts off in Settings (`shortcutsEnabled`) or in Nextcloud's
+  Accessibility settings (`offInNextcloud()`), and Space and Enter stay with a
+  focused button (`belongsToElement()`). The up and down arrows change the
+  volume only while the player has the focus.
+- **Picture in picture** where `document.pictureInPictureEnabled`, and full
+  screen on the player itself (so the controls stay), with Safari's prefixed
+  API and an iPhone's `webkitEnterFullscreen()` on the video as fallbacks.
+- **Accessibility.** The player is a focusable `region`; every control is a
+  labelled button or slider with a visible focus ring; a polite live region
+  says what a key or a menu changed (speed, quality, subtitles, sound,
+  volume, where it went on from). The controls fade while it plays untouched,
+  never while it has the focus or a menu is open, and without the fade under
+  `prefers-reduced-motion`.
+
+**The small player.** Leaving a video's page while it plays hands the video
+(`handOff()` in `services/miniPlayer.js`, the post and the position) to
+`MiniPlayer.vue`, which `App.vue` draws in the bottom corner — loaded with the
+`watch` chunk, keyed by the post — for as long as the state holds a video, so
+it survives every navigation inside the app. It plays on from there with a
+`VideoPlayer` in `mini` mode and reports where it is as the page's did.
+**Back to the video** opens the post's route; the watch page's player takes
+the video back (`takeBack()`) and goes on from the same moment, playing or
+paused as it was. **Close the player** clears the state, which unmounts it and
+stops the video. Nothing starts a video in it: it only ever holds one that was
+playing, and a watch page that starts another video closes it.
 
 **News, on the server only.** The web interface used to have a News timeline
 in the sidebar, a News tab in Discover and a switch for it in the Features section of the administration page.
@@ -3458,7 +3619,7 @@ $context->registerEventListener(PostPublishedEvent::class, MyListener::class);
 | Group Events | `GroupListListener` | `Application::register()` (on `UserAddedEvent`, `UserRemovedEvent`, `GroupDeletedEvent`, `GroupChangedEvent`) | Keeps the group lists in step with the groups; never fails the group operation, a failure is logged and the cron's reconcile settles it |
 | WebFinger / NodeInfo / host-meta | `WebfingerHandler` | `Application::register()` | ActivityPub discovery at the server root |
 | Contacts Menu | `ContactsMenuProvider` | `appinfo/info.xml` | "Follow %s on Aloha Social" entry linking to the actor page |
-| Background Jobs | `Cron\Cache` | `appinfo/info.xml` | 12-minute interval, `MAX_DURATION` of 300 seconds: reaps deleted actors, refreshes local and remote actor caches, caches documents, recomputes hashtag trends, closes polls, prunes remote statuses past retention (bounded to 5000 per run), sweeps cached remote actors nobody refers to (bounded to 500), syncs the timelines of the remote actors a local account follows (`getRemoteActorsToSync()` — accepted follows only, because a synced outbox feeds its followers' home timelines and nothing else reads it; its own batch — the refresh now stamps what it touched, so a shared selection would leave the sync nothing to do on a small instance), verifies profile links, reconciles group lists, finds out which servers the Discover page may ask (`FediverseDirectoryService::refresh()`) deletes the expired rows of `social_durable_cache`, and sweeps the OAuth tables (`ClientService::sweep()`: authorizations idle past the token TTL, and app registrations nobody authorized within seven days — `social_client.last_update` moving off `creation` at the first authorization is what marks one as used). The budget is threaded through the steps and into the three loops that make a request per remote actor — the actor refresh and the details refresh each get at most `REMOTE_ACTOR_SECONDS` (90) of it and take batch after batch of `SYNC_BATCH` until then (`CacheActorService::walkDue()`), where one batch of fifty a pass could not keep the ten-day lifetime past about 60,000 cached actors; a step that has no time left is skipped and named in the log, and the next run **starts with the first step it skipped** (`cache_cron_start`), so the tail of the list is not the part that never runs |
+| Background Jobs | `Cron\Cache` | `appinfo/info.xml` | 12-minute interval, `MAX_DURATION` of 300 seconds: reaps deleted actors, refreshes local and remote actor caches, caches documents, recomputes hashtag trends, closes polls, prunes remote statuses past retention (bounded to 5000 per run), sweeps cached remote actors nobody refers to (bounded to 500), syncs the timelines of the remote actors a local account follows (`getRemoteActorsToSync()` — accepted follows only, because a synced outbox feeds its followers' home timelines and nothing else reads it; its own batch — the refresh now stamps what it touched, so a shared selection would leave the sync nothing to do on a small instance), verifies profile links, reconciles group lists, finds out which servers the Discover page may ask (`FediverseDirectoryService::refresh()`) deletes the expired rows of `social_durable_cache`, forgets who was counted watching a video on the days before today (`VideoViewService::forgetEarlierDays()`), and sweeps the OAuth tables (`ClientService::sweep()`: authorizations idle past the token TTL, and app registrations nobody authorized within seven days — `social_client.last_update` moving off `creation` at the first authorization is what marks one as used). The budget is threaded through the steps and into the three loops that make a request per remote actor — the actor refresh and the details refresh each get at most `REMOTE_ACTOR_SECONDS` (90) of it and take batch after batch of `SYNC_BATCH` until then (`CacheActorService::walkDue()`), where one batch of fifty a pass could not keep the ten-day lifetime past about 60,000 cached actors; a step that has no time left is skipped and named in the log, and the next run **starts with the first step it skipped** (`cache_cron_start`), so the tail of the list is not the part that never runs |
 | Background Jobs | `Cron\Queue` | `appinfo/info.xml` | 12-minute interval: drains the outbound request queue and the inbound stream queue, each on a budget of its own (240 and 120 seconds) |
 | Background Jobs | `Cron\BlocklistSync` | `appinfo/info.xml` | Daily: re-reads the block lists an administrator follows (`BlocklistSubscriptionService::fetchEnabled()`); one app-setting read and nothing else while no source is on |
 | Background Jobs | `Cron\StarterPackSources` | `appinfo/info.xml` | Daily: reads the starter packs the `starter_pack_sources` app value names (`CollectionPackService::refresh()`) — the fediverse's collections, checking every member's `featureAuthorization`, and Bluesky's suggested starter packs while Bluesky is on — and stores them; a source that cannot be reached keeps what was read from it last time. One run at a time (`setAllowParallelRuns(false)`), reading for at most `MAX_DURATION` (300 seconds); what it did not get to keeps what was read last time |
@@ -3479,6 +3640,7 @@ $context->registerEventListener(PostPublishedEvent::class, MyListener::class);
 | Background Jobs | `Cron\AtprotoVideo` | `appinfo/info.xml` | 1-minute interval, only while Bluesky is on and a video service is set: sends up to three queued videos to Bluesky's video service in their accounts' names, asks after the jobs being made, and publishes each post whose video has ended — with the video, or as a link (`social_atproto_video`) |
 | Background Jobs | `Cron\FillFollowedTags` | `appinfo/info.xml` | 15-minute interval: reads the new posts with ten of the hashtags people here follow from every network (`FollowedTagsFill`), the ones read longest ago first — see **Hashtags and searches beyond this server** |
 | Background Jobs | `Cron\Transcode` | `appinfo/info.xml` | 15-minute interval, one video per run: re-encodes a stored video that is not an H.264 MP4 into one (`video_transcode`), the sweep behind `Cron\TranscodeBeforeDelivery`, which converts the video a held post is waiting on; a no-op without ffmpeg |
+| Background Jobs | `Cron\VideoPosters` | `appinfo/info.xml` | 15-minute interval: makes the poster frames of up to five stored videos that have none (`VideoPosterBackfill`), in nid order from the `poster_backfill_cursor` app setting, each video once, and rewrites the attachment copies of the posts carrying each; does nothing while the server has no ffmpeg, so the cursor waits for it |
 | Background Jobs | `Cron\Ladder` | `appinfo/info.xml` | 30-minute interval, one video per run, only while `video_ladder` is on: writes a stored MP4 at the ladder of smaller sizes as HLS (`video_ladder_heights`) |
 | Background Jobs | `Cron\GifPack` | `appinfo/info.xml` | 15-minute interval, a few pictures per run, only while `gif_pack` is on: fetches the first screenful of the animated emoji into appdata before anybody opens the picker, then does nothing but one appdata listing |
 | Background Jobs | `Cron\MediaSweep` | `appinfo/info.xml` | Daily, 500 rows of each kind per run: deletes the stored files whose parent — the post, the cached actor or the story — is gone for more than `DAYS` (30), and fills in the media type of rows stored before it was recorded, without which a client hides the attachment |

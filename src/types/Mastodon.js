@@ -166,9 +166,22 @@
  * @property {?boolean} [hidden_by_author] - in a conversation: whether its author hid this reply; null elsewhere
  * @property {?boolean} [can_hide] - in a conversation: whether the reader is its author and may hide this reply; null elsewhere
  * @property {?object} [video] - PeerTube's metadata for a video post, null for anything else
+ * @property {?VideoCard} [video_card] - the same few facts about every video post, for a grid of them; null for anything that is not a video
+ * @property {?{position: number, duration: number, updated_at: ?string}} [watch_progress] - where the reader stopped in the video; only on `GET /api/v1/videos/continue`, null elsewhere
  * @property {string} [type] - set when a timeline entry is a notification about the post rather than the post itself
  * @property {string} [delivery] - `held` while a video is being converted before the post goes to other servers; only ever on the author's own copy
  * @property {boolean} [ai_generated] - made with AI, by the author's mark (`#AIgenerated`), the tag or a picture's metadata
+ */
+
+/**
+ * @typedef VideoCard - what a card in a grid of videos draws; this app's own (`Stream::exportVideoCard()`). The channel is the status's `account`
+ * @property {string} title - the video's own title, else the content warning, else the first line of the post as plain text; '' when it has no words; at most 120 characters
+ * @property {?number} duration - how long it runs, in whole seconds; null when nobody said
+ * @property {?string} thumbnail - a picture of it (the poster frame, or the origin's thumbnail); null when there is none
+ * @property {?number} views - how many times it was watched, as its origin counts; null when nobody counted
+ * @property {boolean} live - a live broadcast
+ * @property {?string} category - its category, as its origin names it; null when it has none
+ * @property {string} published - when it was published: the date its author gave it, else when the post was made
  */
 
 /**

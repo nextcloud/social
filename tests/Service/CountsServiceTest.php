@@ -88,6 +88,23 @@ class CountsServiceTest extends TestCase {
 		$this->assertSame(0, $out[0]->status->quote->quoted_status->reblogs_count);
 	}
 
+	/** How many watched a video ranks it as much as its likes do, boosted or not. */
+	public function testHowManyWatchedAVideoGoesToo(): void {
+		$out = $this->service->strip($this->decoded([
+			'favourites_count' => 1, 'reblogs_count' => 0,
+			'video' => ['title' => 'Mine', 'views' => 40],
+			'video_card' => ['title' => 'Mine', 'views' => 40, 'duration' => 9],
+			'reblog' => ['favourites_count' => 2, 'reblogs_count' => 1, 'video_card' => ['views' => 3], 'video' => null],
+		]));
+
+		$this->assertNull($out->video_card->views, 'null is what says nobody counted, and the card leaves it out');
+		$this->assertSame(9, $out->video_card->duration);
+		$this->assertFalse(property_exists($out->video, 'views'));
+		$this->assertSame('Mine', $out->video->title);
+		$this->assertNull($out->reblog->video_card->views);
+		$this->assertNull($out->reblog->video);
+	}
+
 	/** A status is an object with `favourites_count` beside `reblogs_count`; a statistic named alike is left alone. */
 	public function testANumberThatIsNotOnAnEntityIsLeftAlone(): void {
 		$out = $this->service->strip($this->decoded(['followers_count' => 10, 'favourites_count' => 3, 'empty' => new \stdClass()]));

@@ -13,6 +13,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Db\WatchRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\WatchService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -57,6 +58,35 @@ class WatchServiceTest extends TestCase {
 		$bob->setId(self::BOB);
 
 		return $bob;
+	}
+
+	/** "continue watching" says where in each video the reader stopped */
+	public function testTheUnfinishedVideosCarryWhereTheReaderStopped(): void {
+		$this->watchRequest->method('unfinishedProgress')->willReturn([
+			['prim' => md5(self::POST), 'position' => 90, 'duration' => 600, 'updated' => 1714564800],
+			['prim' => md5('gone'), 'position' => 30, 'duration' => 60, 'updated' => 0],
+		]);
+		$streams = $this->createStub(StreamRequest::class);
+		$streams->method('getStream')->willReturnCallback(function (string $prim): Note {
+			if ($prim !== md5(self::POST)) {
+				throw new \Exception('deleted since');
+			}
+
+			return $this->post();
+		});
+		$service = new WatchService($this->watchRequest, $streams, new NullLogger());
+
+		$posts = $service->unfinished($this->bob());
+
+		$this->assertCount(1, $posts, 'a video deleted since is not offered');
+		$this->assertSame(
+			['position' => 90, 'duration' => 600, 'updated_at' => '2024-05-01T12:00:00.000Z'],
+			$posts[0]->exportAsLocal()['watch_progress']
+		);
+	}
+
+	public function testAPostOffThatListSaysNothingOfWatching(): void {
+		$this->assertNull($this->post()->exportAsLocal()['watch_progress']);
 	}
 
 	public function testWhereSomebodyGotToIsRemembered(): void {
@@ -119,5 +149,51 @@ class WatchServiceTest extends TestCase {
 
 		$this->assertSame(0, $this->service->positionOf($this->post(), $this->bob()));
 		$this->assertSame(0, $this->service->positionOf($this->post(), null));
+	}
+
+	private function video(): Note {
+		$note = $this->post();
+		$note->setAttachments([(new MediaAttachment())->import([
+			'id' => '1', 'type' => 'video', 'media_type' => 'video/mp4', 'url' => 'https://cloud.example/media/1',
+		])]);
+
+		return $note;
+	}
+
+	/** A video opened on its own starts where the reader left it. */
+	public function testAVideoOpenedOnItsOwnCarriesWhereTheReaderStopped(): void {
+		$this->watchRequest->method('progressOf')->with(self::POST, self::BOB)
+			->willReturn(['position' => 90, 'duration' => 600, 'updated' => 1714564800]);
+		$video = $this->video();
+
+		$this->service->attachProgress($video, $this->bob());
+
+		$this->assertSame(['position' => 90, 'duration' => 600, 'updated_at' => '2024-05-01T12:00:00.000Z'], $video->getWatchProgress());
+	}
+
+	public function testNothingIsReadForAPostThatIsNotAVideoOrSomebodyNotSignedIn(): void {
+		$this->watchRequest->expects($this->never())->method('progressOf');
+
+		$post = $this->post();
+		$this->service->attachProgress($post, $this->bob());
+		$video = $this->video();
+		$this->service->attachProgress($video, null);
+
+		$this->assertNull($post->getWatchProgress());
+		$this->assertNull($video->getWatchProgress());
+	}
+
+	public function testAVideoNotBegunOrUnreadableCarriesNothing(): void {
+		$this->watchRequest->method('progressOf')->willReturnOnConsecutiveCalls(
+			null,
+			['position' => 0, 'duration' => 600, 'updated' => 0],
+			$this->throwException(new \RuntimeException('nope')),
+		);
+
+		foreach ([1, 2, 3] as $attempt) {
+			$video = $this->video();
+			$this->service->attachProgress($video, $this->bob());
+			$this->assertNull($video->getWatchProgress(), 'attempt ' . $attempt);
+		}
 	}
 }

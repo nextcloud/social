@@ -127,6 +127,32 @@ describe('VideoShorts', () => {
 		expect(store.params.scope).toBe('federated')
 	})
 
+	/** a short chosen on the Videos page's Shorts shelf is the one the stack opens at */
+	it('starts at the post it was asked to start at', async () => {
+		const scrolled = []
+		const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function() {
+			scrolled.push(this)
+		})
+		try {
+			const { wrapper } = await mountShorts([video('1'), video('2'), video('3')], { props: { start: '1' } })
+			await flushPromises()
+
+			// newest first, so the oldest of the three is the third slide
+			expect(wrapper.vm.playing).toBe(2)
+			expect(scrolled).toHaveLength(1)
+		} finally {
+			scroll.mockRestore()
+		}
+	})
+
+	it('starts at the top when the post it was asked for is not there', async () => {
+		const { wrapper } = await mountShorts([video('1'), video('2')], { props: { start: '99' } })
+		await flushPromises()
+
+		expect(wrapper.vm.playing).toBe(0)
+		expect(wrapper.vm.startAt).toBe('')
+	})
+
 	/**
 	 * A post with three videos on it is three things to watch, and a stack
 	 * that showed only the first would hide two of them.

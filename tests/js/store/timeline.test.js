@@ -1629,6 +1629,38 @@ describe('the home read marker', () => {
  * so switching puts a list on screen at once instead of a skeleton or the
  * posts being left.
  */
+/** A shelf beside the Videos grid: another list's first page, not held anywhere. */
+describe('fetching a list for a shelf', () => {
+	let store
+
+	beforeEach(async () => {
+		setActivePinia(createPinia())
+		store = useTimelineStore()
+		axios.get.mockReset()
+		await store.changeTimelineType({ type: 'videos', params: { scope: 'federated' } })
+		store.addToTimeline([makeStatus('1')])
+	})
+
+	it('asks the way that list would, and leaves the list on screen alone', async () => {
+		axios.get.mockResolvedValue({ data: [makeStatus('2')] })
+
+		const posts = await store.fetchSideList({ type: 'shorts', params: { scope: 'federated' } }, 12)
+
+		expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/public`, { params: { limit: 12, only_media: true, only_short: true } })
+		expect(posts.map((post) => post.id)).toEqual(['2'])
+		expect(store.timeline).toEqual(['1'])
+		expect(store.type).toBe('videos')
+		expect(store.remembered.some((entry) => entry.identity.includes('shorts'))).toBe(false)
+	})
+
+	it('answers nothing when the server would not say', async () => {
+		axios.get.mockRejectedValue(new Error('down'))
+
+		expect(await store.fetchSideList({ type: 'videos', params: { scope: 'home' } })).toEqual([])
+		expect(axios.get).toHaveBeenCalledWith(`${API}/timelines/home`, { params: { limit: 12, only_media: true, only_video: true } })
+	})
+})
+
 describe('fetching a scope ahead', () => {
 	let store
 

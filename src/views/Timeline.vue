@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="social__wrapper" :class="{ 'social__wrapper--direct': type === 'direct', 'social__wrapper--reading': display === 'list' && type !== 'direct' }">
+	<div class="social__wrapper" :class="{ 'social__wrapper--direct': type === 'direct', 'social__wrapper--reading': display === 'list' && type !== 'direct', 'social__wrapper--videos': display === 'videos' }">
 		<!-- the first thing a new account sees; gone for good once closed -->
 		<FirstRun v-if="showInfo" @done="hideInfo" />
 
@@ -16,7 +16,7 @@
 		<!-- said once, on the pages where the reading it describes happens -->
 		<InterestsNotice v-if="showInterestsNotice" />
 
-		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct'" :offerShort="isHome && settingsStore.getServerData.sections?.stories !== false" />
+		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct' && type !== 'videos'" :offerShort="isHome && settingsStore.getServerData.sections?.stories !== false" />
 
 		<!-- the three timelines that are the same place seen from three
 		     distances: switching between them is something a reader does while
@@ -366,10 +366,16 @@ export default {
 		 * look like a list would be asking the reader to settle something the
 		 * page has already answered by being Photos.
 		 *
-		 * @return {string} 'grid' or 'list'
+		 * @return {string} 'grid', 'videos' or 'list'
 		 */
 		display() {
-			return ['photos', 'videos'].includes(this.type) ? 'grid' : 'list'
+			// the Videos page is a video site's front page; it has its own
+			// "Upload a video" in place of the composer
+			if (this.type === 'videos') {
+				return 'videos'
+			}
+
+			return this.type === 'photos' ? 'grid' : 'list'
 		},
 
 		/**
@@ -1062,5 +1068,10 @@ export default {
    the Shorts bar, posts — follows the one property. */
 .social__wrapper--reading {
 	--social-column: 616px;
+}
+
+/* video cards are looked at four to a row on a desk */
+.social__wrapper--videos {
+	--social-column: 1440px;
 }
 </style>

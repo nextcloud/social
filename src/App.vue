@@ -78,6 +78,9 @@
 				</transition>
 			</div>
 		</NcAppContent>
+		<!-- a video the reader left the page of while it played, going on in
+		     the corner across every page of the app -->
+		<MiniPlayer v-if="miniPlayer.status" :key="miniPlayer.status.id" />
 	</NcContent>
 	<NcContent v-else appName="social">
 		<NcAppContent v-if="serverData.isAdmin" class="setup">
@@ -129,6 +132,7 @@ import TimelineSkeleton from './components/TimelineSkeleton.vue'
 import { isSamePage, pageDirection } from './services/pageOrder.js'
 import { canViewTransition, markDirection, startPageTransition } from './services/pageTransition.js'
 import eventBus, { REACTION_PICK } from './services/eventBus.js'
+import { miniPlayer } from './services/miniPlayer.js'
 
 import axios from '@nextcloud/axios'
 import { loadState } from '@nextcloud/initial-state'
@@ -146,6 +150,8 @@ const AccountSetup = defineAsyncComponent(() => import(/* webpackChunkName: "acc
 // the emoji picker is most of a megabyte; it travels in its own chunk and is
 // fetched the first time somebody presses "add a reaction"
 const ReactionPicker = defineAsyncComponent(() => import(/* webpackChunkName: "reaction-picker" */'./components/ReactionPicker.vue'))
+// only ever shown after a video's own page, so it travels with that page
+const MiniPlayer = defineAsyncComponent(() => import(/* webpackChunkName: "watch" */'./components/MiniPlayer.vue'))
 
 /**
  * How long a page may take to arrive before the wait is drawn. Below this a
@@ -160,6 +166,7 @@ export default {
 		NcContent,
 		NcAppContent,
 		NcButton,
+		MiniPlayer,
 		Navigation,
 		ReactionPicker,
 		ShortcutHelp,
@@ -171,7 +178,7 @@ export default {
 		const { serverData } = useServerData()
 		const { cloudId } = useCurrentUser()
 
-		return { serverData, cloudId }
+		return { serverData, cloudId, miniPlayer }
 	},
 
 	data() {

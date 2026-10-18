@@ -10,7 +10,7 @@ import MigrationSettings from '../../../src/components/MigrationSettings.vue'
 import ScheduledPosts from '../../../src/components/ScheduledPosts.vue'
 import ShortcutList from '../../../src/components/ShortcutList.vue'
 import ShortcutHelp from '../../../src/components/ShortcutHelp.vue'
-import { SHORTCUTS } from '../../../src/services/shortcuts.js'
+import { PLAYER_SHORTCUTS, SHORTCUTS } from '../../../src/services/shortcuts.js'
 import { useSettingsStore } from '../../../src/store/settings.js'
 
 // the scheduled list asks the server for its entries as soon as it is drawn
@@ -306,7 +306,7 @@ describe('Settings', () => {
 			const wrapper = await mountSettings({ hash: '#shortcuts' })
 			const rows = wrapper.findAll('.shortcut-list__row')
 
-			expect(rows).toHaveLength(SHORTCUTS.length)
+			expect(rows).toHaveLength(SHORTCUTS.length + PLAYER_SHORTCUTS.length)
 			expect(rows[0].find('kbd').text()).toBe(SHORTCUTS[0].keys[0])
 			expect(rows[0].find('dd').text()).toBe(SHORTCUTS[0].label)
 		})

@@ -997,9 +997,11 @@ Exits 1 without doing anything if ffmpeg is not on the server. A video ffmpeg
 cannot read is counted, reported and left alone, so the run finishes and the
 video can be tried again after whatever was wrong with it is fixed.
 
-It is a command rather than a background job on purpose: it is a one-off after
-an upgrade, it spends a subprocess and a temporary copy of each video, and an
-instance with a large media library should choose when that happens.
+The background job `Cron\VideoPosters` does the same on its own, five videos
+every fifteen minutes and each video once, so an instance gets its posters
+without anybody running this. The command is for doing all of them at once, and
+for trying again the videos the job could not take a frame from: it reads every
+video that still has no poster, however far the job has got.
 
 ### `social:team`
 

@@ -13,8 +13,8 @@ use stdClass;
 
 /**
  * Whether a reader is shown how many likes, dislikes, boosts and followers
- * things have — and, when not, the status numbers taken out of what they
- * are sent.
+ * things have, and how many times a video was watched — and, when not, the
+ * status numbers taken out of what they are sent.
  *
  * Hidden unless the reader turned them back on: a number next to a post is
  * a score, and a score is pressure. The switch is stored the other way round
@@ -96,6 +96,16 @@ class CountsService {
 				if (property_exists($data, $field) && $data->{$field} !== null) {
 					$data->{$field} = 0;
 				}
+			}
+
+			// how many watched a video ranks it as much as its likes do. Not
+			// zeroed: the video blocks are this app's own, and a missing
+			// number there means "nobody counted", which a client leaves out
+			if (($data->video_card ?? null) instanceof stdClass) {
+				$data->video_card->views = null;
+			}
+			if (($data->video ?? null) instanceof stdClass) {
+				unset($data->video->views);
 			}
 		}
 		foreach (get_object_vars($data) as $key => $value) {

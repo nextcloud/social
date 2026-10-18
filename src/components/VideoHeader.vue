@@ -4,12 +4,14 @@
 -->
 <template>
 	<div class="watch">
+		<VideoPlayer class="watch__player" :status="status" />
+		<!-- what the post carries beside the video, which plays above -->
 		<PostAttachment
-			class="watch__player"
+			v-if="besideVideo.length"
+			class="watch__beside"
 			mediaFirst
 			:to="null"
-			:video="video"
-			:attachments="status.media_attachments || []" />
+			:attachments="besideVideo" />
 
 		<h1 class="watch__title">
 			{{ title }}
@@ -92,8 +94,11 @@ import ThumbDown from 'vue-material-design-icons/ThumbDown.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import FollowButton from './FollowButton.vue'
 import PostAttachment from './PostAttachment.vue'
+import VideoPlayer from './VideoPlayer.vue'
+import { playedAttachmentOf } from '../services/videoSource.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useSettingsStore } from '../store/settings.js'
+import { formatTime } from '../utils/shortVideo.js'
 
 /**
  * A video's own page, rather than a post with a rectangle in it.
@@ -118,6 +123,7 @@ export default {
 		NcButton,
 		PostAttachment,
 		ThumbDown,
+		VideoPlayer,
 	},
 
 	props: {
@@ -187,6 +193,19 @@ export default {
 			return (text.split('\n').find((line) => line.trim() !== '') || '').trim()
 		},
 
+		/**
+		 * The pictures and files of the post other than the video the player
+		 * plays, so that nothing it carries is lost and the video is not
+		 * shown twice.
+		 *
+		 * @return {object[]}
+		 */
+		besideVideo() {
+			const played = playedAttachmentOf(this.status)
+
+			return (this.status.media_attachments || []).filter((item) => item !== played)
+		},
+
 		/** @return {Array<{title: string, start: number}>} */
 		chapters() {
 			return Array.isArray(this.video.chapters) ? this.video.chapters : []
@@ -222,15 +241,7 @@ export default {
 		 * @return {string} it as a clock, `1:02:03` or `2:03`
 		 */
 		clock(seconds) {
-			const whole = Math.max(0, Math.floor(seconds))
-			const parts = [Math.floor(whole / 60) % 60, whole % 60]
-			if (whole >= 3600) {
-				parts.unshift(Math.floor(whole / 3600))
-			}
-
-			return parts
-				.map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, '0')))
-				.join(':')
+			return formatTime(seconds)
 		},
 
 		/**

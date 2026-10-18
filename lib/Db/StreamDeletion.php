@@ -234,6 +234,9 @@ trait StreamDeletion {
 			// where readers had got to in it, which is a bookmark into a video
 			// that no longer exists
 			[self::TABLE_WATCH, 'stream_id_prim'],
+			// and how many times it was watched, and by whom today
+			[self::TABLE_VIDEO_VIEWS, 'stream_id_prim'],
+			[self::TABLE_VIDEO_SEEN, 'stream_id_prim'],
 			// and which member of a team wrote it, which is the trail a team
 			// account keeps and has nothing left to be about
 			[self::TABLE_TEAM_POSTS, 'stream_id_prim'],

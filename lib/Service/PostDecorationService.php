@@ -15,8 +15,8 @@ use OCA\Social\Model\ActivityPub\Stream;
 
 /**
  * What a client is shown on a post that is not part of the stored post: its
- * link preview, its place, its reaction bar and the people named in its
- * pictures.
+ * link preview, its place, its reaction bar, the people named in its
+ * pictures and, on a video posted here, how many times it was watched.
  *
  * Every route that serves posts to a client calls `decorate()`, whether it
  * serves a timeline page, a thread or one status, so a post looks the same
@@ -35,6 +35,7 @@ class PostDecorationService {
 		private MediaTagsRequest $mediaTagsRequest,
 		private CacheActorService $cacheActorService,
 		private RemoteFetchQueue $remoteFetchQueue,
+		private ?VideoViewService $videoViewService = null,
 	) {
 	}
 
@@ -52,6 +53,7 @@ class PostDecorationService {
 		$this->placeService->attachPlaces($posts);
 		$this->reactionSummaryService->attachReactions($posts, $viewerId);
 		$this->attachTaggedPeople($posts);
+		$this->videoViewService?->attach($posts);
 	}
 
 	/**

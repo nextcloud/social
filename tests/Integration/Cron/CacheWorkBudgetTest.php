@@ -415,9 +415,9 @@ class CacheWorkBudgetTest extends TestCase {
 		$this->assertGreaterThan(0, $pruned);
 		// the chunk's candidates and the ids no rule keeps, their documents,
 		// every table that names a post and the place the walk got to, per
-		// chunk of five hundred, and the queue and notification sweeps: 224
+		// chunk of five hundred, and the queue and notification sweeps: 244
 		// today, for ten chunks
-		$this->assertWithinBudget($run, intdiv($cap, StreamPruneService::CHUNK), 23, 10);
+		$this->assertWithinBudget($run, intdiv($cap, StreamPruneService::CHUNK), 25, 10);
 	}
 
 	/** One batch of remote posts asked for their counts, each stamped once. */

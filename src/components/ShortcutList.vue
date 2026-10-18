@@ -12,6 +12,17 @@
 				<dd>{{ shortcut.label }}</dd>
 			</div>
 		</dl>
+		<h3 class="shortcut-list__heading">
+			{{ t('social', 'Watching a video') }}
+		</h3>
+		<dl>
+			<div v-for="shortcut in playerShortcuts" :key="shortcut.label" class="shortcut-list__row">
+				<dt>
+					<kbd v-for="key in shortcut.keys" :key="key">{{ key }}</kbd>
+				</dt>
+				<dd>{{ shortcut.label }}</dd>
+			</div>
+		</dl>
 		<p class="shortcut-list__hint">
 			{{ t('social', 'Shortcuts are off while you are writing.') }}
 		</p>
@@ -20,7 +31,7 @@
 
 <script>
 import { translate as t } from '@nextcloud/l10n'
-import { SHORTCUTS } from '../services/shortcuts.js'
+import { PLAYER_SHORTCUTS, SHORTCUTS } from '../services/shortcuts.js'
 
 /**
  * The keys and what they do, as one list.
@@ -36,6 +47,10 @@ export default {
 	computed: {
 		shortcuts() {
 			return SHORTCUTS
+		},
+
+		playerShortcuts() {
+			return PLAYER_SHORTCUTS
 		},
 	},
 
@@ -63,6 +78,12 @@ export default {
 		dd {
 			margin: 0;
 		}
+	}
+
+	&__heading {
+		margin-block: 16px 4px;
+		font-size: 15px;
+		font-weight: bold;
 	}
 
 	&__hint {

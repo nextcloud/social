@@ -12,6 +12,7 @@ namespace OCA\Social\Model\ActivityPub\Object;
 use JsonSerializable;
 use OCA\Social\AP;
 use OCA\Social\Db\RenditionsRequest;
+use OCA\Social\Db\VideoViewsRequest;
 use OCA\Social\Exceptions\ItemAlreadyExistsException;
 use OCA\Social\Exceptions\ItemNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -254,7 +255,9 @@ class Note extends Stream implements JsonSerializable {
 			$video,
 			$this->getId(),
 			$attributedTo,
-			$this->getViewCount() ?? 0,
+			// how many times it was watched here, which is what PeerTube shows
+			// under a video; one query, on the same single-post path as below
+			$this->getLocalVideoViews() ?? self::viewsOf($this->getId()),
 			// what the author said it is, where they said anything: a title
 			// taken out of the first line is a guess, and a guess is only worth
 			// making when nobody has answered
@@ -280,6 +283,15 @@ class Note extends Stream implements JsonSerializable {
 	 *
 	 * @return array<array{height: int, size: int, bandwidth: int, href: string}>
 	 */
+	/** How many times a video posted here was watched; 0 when that cannot be read. */
+	private static function viewsOf(string $id): int {
+		try {
+			return Server::get(VideoViewsRequest::class)->countsFor([$id])[md5($id)] ?? 0;
+		} catch (Throwable $e) {
+			return 0;
+		}
+	}
+
 	private static function rungsOf(MediaAttachment $video): array {
 		if ($video->getHlsUrl() === '') {
 			return [];

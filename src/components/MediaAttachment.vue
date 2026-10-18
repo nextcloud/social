@@ -106,6 +106,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import ImageOff from 'vue-material-design-icons/ImageOff.vue'
 import logger from '../services/logger.js'
+import { attachHls, isPlaylist, ladderSourceOf, posterOf } from '../services/videoSource.js'
 
 /**
  * The address the element is pointed at: the still of a picture, the file
@@ -203,36 +204,23 @@ export default {
 		},
 
 		/**
-		 * Whether this needs hls.js rather than a `src` a browser can open.
-		 *
-		 * A PeerTube transcoding to HLS — its default — publishes a `.m3u8`
-		 * playlist and nothing else, which Safari plays natively and no other
-		 * browser opens at all. Until this, those videos showed a poster and a
-		 * player that did nothing.
+		 * Whether this needs hls.js rather than a `src` a browser can open: a
+		 * remote video that is nothing but an HLS playlist.
 		 *
 		 * @return {boolean}
 		 */
 		isPlaylist() {
-			const type = (this.attachment?.media_type || '').toLowerCase()
-
-			return type === 'application/x-mpegurl' || type === 'application/vnd.apple.mpegurl'
+			return isPlaylist(this.attachment)
 		},
 
 		/**
-		 * The master playlist of a *local* video's ladder, where there is one.
-		 *
-		 * Different from `isPlaylist` in the one way that matters: there is a
-		 * plain file beside it. A remote HLS video is a playlist and nothing
-		 * else, so failing to load it is failing to play the video; a ladder is
-		 * an addition to a file that plays perfectly well on its own, which is
-		 * why this one falls back rather than giving up.
+		 * The master playlist of a *local* video's ladder, where there is one;
+		 * see `ladderSourceOf()`.
 		 *
 		 * @return {string}
 		 */
 		ladderSource() {
-			return (!this.isPlaylist && this.attachment?.type === 'video')
-				? (this.attachment?.hls_url || '')
-				: ''
+			return ladderSourceOf(this.attachment)
 		},
 
 		/**
@@ -302,24 +290,13 @@ export default {
 
 		/**
 		 * The still to show before anything is played. A federated video has
-		 * one -- PeerTube publishes it and this instance mirrors it -- and it
-		 * is the whole reason a video timeline can be scrolled without
-		 * fetching a frame of anything.
-		 *
-		 * `preview_url` is the file itself for a video uploaded here, which is
-		 * no use as a poster: a browser handed a video for one downloads it to
-		 * find a frame, which is what the poster exists to avoid. So only a
-		 * preview that differs from the source counts as one.
+		 * one -- PeerTube publishes it and this instance mirrors it -- and an
+		 * upload here has its poster frame; see `posterOf()`.
 		 *
 		 * @return {string|undefined} undefined leaves the attribute off
 		 */
 		poster() {
-			const preview = this.attachment?.preview_url
-			if (typeof preview !== 'string' || preview === '' || preview === this.attachment?.url) {
-				return undefined
-			}
-
-			return preview
+			return posterOf(this.attachment)
 		},
 
 		/**
@@ -428,18 +405,10 @@ export default {
 		t,
 
 		/**
-		 * Points the element at an HLS playlist, through hls.js where the
-		 * browser cannot open one itself.
-		 *
-		 * Safari plays a `.m3u8` natively and nothing else does, so everywhere
-		 * else the library is fetched — **lazily**, the first time somebody
-		 * actually opens such a video, because it is a few hundred kilobytes
-		 * and almost every post is not a video at all.
-		 *
-		 * The playlist it is given is the proxied one: a playlist names its
-		 * segments relative to itself, so pointing the player at the origin's
-		 * copy would have every segment fetched from there — the very thing
-		 * the media proxy exists to prevent.
+		 * Points the element at an HLS playlist or a ladder, through hls.js
+		 * where the browser cannot open one itself (`attachHls()`). Only where
+		 * the media is the thing on screen: a thumbnail in a timeline must not
+		 * start fetching an adaptive stream.
 		 *
 		 * @return {Promise<void>}
 		 */
@@ -451,61 +420,15 @@ export default {
 			}
 
 			const element = /** @type {HTMLVideoElement} */ (this.$refs.video)
-			// a remote video that is nothing but a playlist, or a local one
-			// that has a ladder beside its file
-			const source = this.isPlaylist ? this.attachment.url : this.ladderSource
-			if (!element || !source) {
-				return
-			}
-
-			// Safari opens a playlist itself, and for a remote one that is the
-			// whole answer. A ladder is left to the plain file there instead:
-			// pointing the element at the master would throw away the fallback
-			// for an adaptive stream of the same video, which is not a trade
-			// worth making when the file is already playing.
-			if (element.canPlayType('application/vnd.apple.mpegurl')) {
-				if (this.isPlaylist) {
-					element.src = source
-				}
-
-				return
-			}
-
-			try {
-				const { default: Hls } = await import(/* webpackChunkName: "hls" */'hls.js')
-				if (!Hls.isSupported()) {
-					return
-				}
-
+			this.hls = await attachHls(element, this.attachment, {
 				// the component may have been torn down while the library was
 				// being fetched; attaching then would leak a player nobody can
 				// reach
-				if (this.$refs.video !== element) {
-					return
-				}
-
-				const hls = new Hls({ enableWorker: false })
-				this.hls = hls
-
-				// A ladder that cannot be loaded must not be the reason a video
-				// stops playing: there is a whole file behind it, and going back
-				// to it is better than a player that stops. A remote playlist
-				// has nothing to fall back to, so it is left to report itself.
-				if (!this.isPlaylist) {
-					hls.on(Hls.Events.ERROR, (event, data) => {
-						if (data?.fatal) {
-							logger.debug('falling back to the plain file', { data })
-							this.detachPlaylist()
-							element.src = this.attachment.url
-						}
-					})
-				}
-
-				hls.loadSource(source)
-				hls.attachMedia(element)
-			} catch (error) {
-				logger.error('could not start an HLS video', { error })
-			}
+				isCurrent: () => this.$refs.video === element,
+				onFallback: () => {
+					this.hls = null
+				},
+			})
 		},
 
 		/** Lets go of the player, which otherwise goes on fetching segments. */
