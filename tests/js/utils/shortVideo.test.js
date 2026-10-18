@@ -15,6 +15,12 @@ describe('formatTime', () => {
 		expect(formatTime(-3)).toBe('0:00')
 		expect(formatTime(NaN)).toBe('0:00')
 	})
+
+	it('writes hours from an hour on', () => {
+		expect(formatTime(3599)).toBe('59:59')
+		expect(formatTime(3600)).toBe('1:00:00')
+		expect(formatTime(3725)).toBe('1:02:05')
+	})
 })
 
 describe('clampTrim', () => {

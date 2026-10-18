@@ -94,6 +94,7 @@ import FollowButton from './FollowButton.vue'
 import PostAttachment from './PostAttachment.vue'
 import { useTimelineStore } from '../store/timeline.js'
 import { useSettingsStore } from '../store/settings.js'
+import { formatTime } from '../utils/shortVideo.js'
 
 /**
  * A video's own page, rather than a post with a rectangle in it.
@@ -222,15 +223,7 @@ export default {
 		 * @return {string} it as a clock, `1:02:03` or `2:03`
 		 */
 		clock(seconds) {
-			const whole = Math.max(0, Math.floor(seconds))
-			const parts = [Math.floor(whole / 60) % 60, whole % 60]
-			if (whole >= 3600) {
-				parts.unshift(Math.floor(whole / 3600))
-			}
-
-			return parts
-				.map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, '0')))
-				.join(':')
+			return formatTime(seconds)
 		},
 
 		/**

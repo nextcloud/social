@@ -3215,7 +3215,7 @@ that is not one of the two named scopes is the default. It is also part of what
 `Timeline.vue` reports as the timeline's params, which is what makes changing it
 refetch instead of leaving the previous photos on screen.
 
-**Posts, Photos and Videos on a profile.** The same switcher, above the account's posts, asking the server a different question rather than filtering the page on screen — a page filtered in the client is a page that can come back empty while there are still videos to find. The tab rides in the query (`/@alice?media=video`) so a profile stays one route and every link to it still names the same one, and the word is the API's own.
+**Posts, Photos and Videos on a profile.** The same switcher, above the account's posts, asking the server a different question rather than filtering the page on screen — a page filtered in the client is a page that can come back empty while there are still videos to find. (The Videos page's chips are the one place that filters in the client, and they ask for further pages themselves to keep from coming back empty; see **The Videos view**.) The tab rides in the query (`/@alice?media=video`) so a profile stays one route and every link to it still names the same one, and the word is the API's own.
 
 Behind it: `only_media` is Mastodon's own parameter on `/api/v1/accounts/{id}/statuses` and had never been passed on; `media_type` is a **Aloha Social extension** that narrows it to one kind, because Mastodon has nothing finer and two tabs need the difference. `ProbeOptions::setMediaType()` takes only the three kinds an attachment can be — `image`, `video`, `audio`, which are the first half of its MIME type and so the only values the column can hold — and reads anything else as no preference, since the value arrives from a query string. `media_type` implies `only_media`: a post with no attachments cannot be one carrying a video. The predicate is `SocialLimitsQueryBuilder::limitToMediaType()`, a `LIKE` on `"type":"video"` in the stored attachments — the column holds them as the client sees them, there is no column to compare and no JSON support to rely on across the three databases this app supports, and a description containing the same text is stored with its quotes escaped so it cannot collide. Unindexed, like the silenced-instance filter and for the same reason: it runs on a list something else has already narrowed to one account. Pinned posts are left out of a filtered tab, being about the account rather than about a kind of attachment.
 
@@ -3253,6 +3253,63 @@ attachment whose Mastodon `type` is `video`, or a post that arrived as a PeerTub
 `Video`. The second counts whether or not this instance found a playable file in
 it — the post is a video either way, and a timeline that hid the ones it could
 not play would be hiding exactly the videos worth reporting.
+
+**It is drawn as a video site's front page.** `Timeline.vue` gives the Videos
+page `display: 'videos'` (Photos keeps `grid`), a wider column
+(`social__wrapper--videos`) and no composer; `TimelineList` keeps the paging,
+the new-post pill, the push and poll catch-up, the errors and the empty state,
+and hands the timeline to `VideoBrowse.vue`, which draws it and emits `more`
+when it wants another page. Each card is `VideoCard.vue`, and everything it
+says comes from the status's `video_card` (`Stream::exportVideoCard()`, the
+contract in API.md): the title, running time, thumbnail, views, live flag,
+category and publication date of every video post, whatever it arrived as,
+with null for what its origin did not say. The channel is the status's
+`account`.
+
+- **Rows.** The number of columns comes from the component's measured width
+  (`columnsFor()`: one below 560 px, two below 880, three below 1180, four
+  above) and is the one number the CSS grid and the keyboard both use. The grid
+  is cut into runs of whole rows with a shelf after each run rather than one
+  grid with the shelves inside, so no row has a hole and the DOM order is the
+  reading order. The arrow keys move a card or a row (left and right swap in a
+  right-to-left language), Home and End to the ends.
+- **Chips filter in the client.** All, Live (only when a loaded video is
+  live), the categories of the loaded videos and Recently uploaded (posted in
+  the last seven days, by `created_at`) choose among what the timeline holds
+  (`utils/videoCard.js`). Category and live sit in the `details` JSON, with no
+  column and no index, and a chip is offered only for what is loaded, so the
+  server is not asked; instead a chip that leaves fewer than `FILL_TARGET` (12)
+  cards asks for further pages, at most `MAX_FILL_PAGES` (5) before it offers
+  **Look further**, so a filter cannot page through a whole timeline by itself.
+  A boost and the post it boosts are one card.
+- **Shelves** are each fetched once per scope the page is read at, beside the
+  timeline (`timelineStore.fetchSideList()`, which asks the way that list
+  would and holds nothing): **Shorts** (`only_short` in the same scope; a card
+  opens `/shorts?scope=…&start={id}`, and `VideoShorts` jumps to that post
+  once it has arrived), **From channels you follow** (the home scope with
+  `only_video`, not on My Feed, which is the grid itself, and not without a
+  session), and **Continue watching** (`GET /api/v1/videos/continue`, read
+  once per page view and only with a session). Under a chip there are no
+  shelves.
+- **Watch progress** is the server's (`WatchService`, one `social_watch` row
+  per video and reader). `/api/v1/videos/continue` hands each status back
+  with `watch_progress` (`WatchRequest::unfinishedProgress()`, the same query
+  as before with the row's position, duration and time); every other list
+  carries it as null. `services/videoProgress.js` keeps what that answer said
+  by post, and `progressOf(status)` — `{position, duration, fraction,
+  updatedAt}` or null — is the one place a card asks for its red bar, so a
+  player that reports positions with `POST /api/v1/statuses/{id}/watched`
+  needs nothing more on this page.
+- **Hover preview.** After 600 ms of the pointer on a card, a muted, looping
+  `<video>` of the first video attachment plays over the picture and is
+  removed when the pointer leaves. Only for `(hover: hover) and (pointer:
+  fine)`, never with `prefers-reduced-motion`, `prefers-reduced-data` or
+  Save-Data (`mayPreview()`), and never for a live, sensitive or filtered post.
+- **Upload a video** (`VideoUploadButton.vue`) opens a `video/*` file picker
+  from the press itself — a picker opened after the composer had loaded would
+  no longer be in answer to the press, and browsers refuse it — then opens the
+  composer in a dialog with the file handed over as `initialFiles`, which it
+  attaches through the same code as a drop.
 
 **News, on the server only.** The web interface used to have a News timeline
 in the sidebar, a News tab in Discover and a switch for it in the Features section of the administration page.

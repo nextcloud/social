@@ -1435,6 +1435,18 @@ describe('Composer', () => {
 			await flushPromises()
 
 			expect(store.createMediaFromFile).not.toHaveBeenCalled()
+			expect(store.createMedia).not.toHaveBeenCalled()
+		})
+
+		/** "Upload a video" on the Videos page: the file was picked before the composer opened */
+		it('uploads the files it was handed, open and without a click', async () => {
+			const file = new File(['x'], 'harbour.png', { type: 'image/png' })
+			const { wrapper, store } = mountComposer({ initialFiles: [file] })
+			await flushPromises()
+
+			expect(store.createMedia).toHaveBeenCalledTimes(1)
+			expect(store.createMedia.mock.calls[0][0].file.name).toBe('harbour.png')
+			expect(wrapper.find('.new-post').classes()).not.toContain('new-post--collapsed')
 		})
 
 		it('offers the pictures and videos the reader already has, several at a time', async () => {

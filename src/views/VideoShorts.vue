@@ -335,6 +335,16 @@ export default {
 			type: String,
 			default: '',
 		},
+
+		/**
+		 * Which post to start at, by id: a short chosen on the Videos page's
+		 * Shorts shelf. '' starts at the top; a post the first page does not
+		 * hold starts there too.
+		 */
+		start: {
+			type: String,
+			default: '',
+		},
 	},
 
 	setup() {
@@ -348,6 +358,8 @@ export default {
 		return {
 			/** the New short dialog is open */
 			composing: false,
+			/** the post still to be started at, '' once there is none */
+			startAt: '',
 			/** the slide on screen, which the player is over */
 			playing: 0,
 			/** the 24-hour shorts, in the order they are watched */
@@ -524,6 +536,22 @@ export default {
 			this.dayShorts = this.orderDay(this.dayShorts, now)
 			this.toTop()
 		},
+
+		start(now) {
+			this.startAt = now
+			this.jumpToStart()
+		},
+
+		// the slides arrive after the stack opens; the one to start at with them
+		shorts() {
+			this.jumpToStart()
+		},
+
+		loading(now) {
+			if (!now) {
+				this.jumpToStart()
+			}
+		},
 	},
 
 	mounted() {
@@ -574,7 +602,34 @@ export default {
 			this.failed = false
 			this.allLoaded = false
 			this.playing = 0
+			this.startAt = this.start
 			this.load()
+		},
+
+		/**
+		 * Brings the slide `start` asked for on screen, at once rather than
+		 * scrolled to through every slide above it, once it has arrived.
+		 * Given up when the first page has come without it.
+		 */
+		async jumpToStart() {
+			if (this.startAt === '' || !this.dayReady) {
+				return
+			}
+
+			const index = this.shorts.findIndex((entry) => !entry.day && String(entry.status?.id) === this.startAt)
+			if (index === -1) {
+				if (!this.loading) {
+					this.startAt = ''
+				}
+
+				return
+			}
+
+			this.startAt = ''
+			this.playing = index
+			await this.$nextTick()
+			this.slides[index]?.scrollIntoView?.({ behavior: 'auto' })
+			this.play(index)
 		},
 
 		/**

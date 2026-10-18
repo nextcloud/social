@@ -155,6 +155,52 @@ describe('TimelineList', () => {
 		vi.unstubAllGlobals()
 	})
 
+	describe('the Videos page', () => {
+		const videoPost = (id) => ({ ...status(id), video_card: { title: 'Video ' + id, duration: 60, thumbnail: null, views: null, live: false, category: null, published: '2026-10-15T12:00:00.000Z' } })
+		const videos = (options = {}) => mountList({
+			timeline: [videoPost('2'), videoPost('1')],
+			identity: '["videos","",{"scope":"home"}]',
+			route: { name: 'timeline', params: { type: 'videos' } },
+			props: { type: 'videos', display: 'videos' },
+			...options,
+		})
+
+		it('draws the timeline as video cards rather than a list or a grid', async () => {
+			const { wrapper } = videos()
+			await flushPromises()
+
+			const browse = wrapper.findComponent({ name: 'VideoBrowse' })
+			expect(browse.exists()).toBe(true)
+			expect(browse.props('posts').map((post) => post.id)).toEqual(['2', '1'])
+			expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(false)
+			expect(wrapper.findComponent({ name: 'ProfileMediaGrid' }).exists()).toBe(false)
+			expect(wrapper.findComponent({ name: 'TimelineSkeleton' }).exists()).toBe(false)
+		})
+
+		it('fetches the next page when the cards ask for one', async () => {
+			const { wrapper, dispatch } = videos()
+			await flushPromises()
+			dispatch.mockClear()
+
+			wrapper.findComponent({ name: 'VideoBrowse' }).vm.$emit('more')
+			await flushPromises()
+
+			expect(dispatch).toHaveBeenCalledTimes(1)
+			expect(dispatch.mock.calls[0][0]).toEqual({ max_id: '1' })
+		})
+
+		it('catches up on a pushed post, as every other list does', async () => {
+			onTimelinePush.mockReturnValue(true)
+			const { dispatch } = videos()
+			await flushPromises()
+			dispatch.mockClear()
+
+			await onTimelinePush.mock.calls[0][0](['home'])
+
+			expect(dispatch).toHaveBeenCalledWith({ min_id: '2' })
+		})
+	})
+
 	describe('the replies under a post', () => {
 		// the post being read is 1; replies carry the id of what they answer
 		const reply = (id, inReplyTo, day) => ({ ...status(id), created_at: `2026-09-${day}T10:00:00Z`, in_reply_to_id: inReplyTo })

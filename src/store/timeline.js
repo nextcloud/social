@@ -1177,6 +1177,32 @@ export const useTimelineStore = defineStore('timeline', {
 			].slice(0, REMEMBERED)
 			pruneIndex(this)
 		},
+		/**
+		 * The first page of another list, for a shelf drawn beside the one on
+		 * screen: the Shorts and the channels the reader follows, above the
+		 * Videos grid. Asked the way that list would ask for itself, and not
+		 * held — the list on screen, its paging and the lists remembered for
+		 * a switch are left exactly as they were.
+		 *
+		 * @param {object} list which list
+		 * @param {string} list.type the timeline type, as the store names it
+		 * @param {object} [list.params] what narrows it
+		 * @param {number} [limit] how many posts
+		 * @return {Promise<import('../types/Mastodon.js').Status[]>} the posts; [] when the server would not say
+		 */
+		async fetchSideList({ type, params = {} }, limit = 12) {
+			const query = { limit }
+			const url = timelineRequest({ type, account: '', params }, query)
+			try {
+				const { data } = await axios.get(url, { params: query })
+
+				return Array.isArray(data) ? data : []
+			} catch (error) {
+				logger.debug('Could not fetch a list for a shelf', { type, params, error })
+
+				return []
+			}
+		},
 		async describeMedia({ id, description }) {
 			try {
 				await axios.put(generateUrl('apps/social/api/v1/media/' + id), { description })

@@ -352,6 +352,22 @@ The sidebar is the map:
   time, and the posts below it are drawn a shade quieter. It is the position
   Mastodon apps keep too: read your feed on your phone and the line here has
   moved, and the other way round.
+- **Videos** looks like a video site's front page: large cards, four to a
+  row on a wide screen, two on a tablet and one on a phone. Each card shows the
+  video's picture with its running time (or **Live**), the channel's face, the
+  title, the channel, and how many views it has and how long ago it was
+  published — the views only where the video's own site counts them. Rest the
+  mouse on a card and after a moment it plays a silent preview; it does not on
+  a touch screen, when your device asks for less motion, or when it asks to
+  save data. Press a card to watch the video. Chips above the cards narrow
+  what you see: **All**, **Live** when anything is live, the categories of the
+  videos shown, and **Recently uploaded** (the last seven days). Between the
+  rows are shelves: **Shorts** (press one to watch it in Shorts), **From
+  channels you follow** when you are looking at Local, Global or For you, and
+  **Continue watching** once there is something you started. **Upload a
+  video** next to the chips picks the file first and then opens the post
+  around it, with the video's title and category. The arrow keys move from
+  card to card.
 - **Shorts** — short videos watched one at a time, full height, each
   playing as it comes up and pausing as you scroll past. A short is kept on
   its poster's profile like any other post, or lasts **24 hours** and is seen
