@@ -12,6 +12,8 @@ updates:
   open-pull-requests-limit: 10
   cooldown:
     default-days: 10
+    exclude:
+      - "@nextcloud/*"
 - package-ecosystem: composer
   directory: "/"
   schedule:
@@ -22,6 +24,8 @@ updates:
   open-pull-requests-limit: 10
   cooldown:
     default-days: 10
+    exclude:
+      - "nextcloud/*"
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
@@ -32,6 +36,10 @@ updates:
   open-pull-requests-limit: 10
   cooldown:
     default-days: 10
+    exclude:
+      - "nextcloud/*"
+      - "nextcloud-libraries/*"
+      - "nextcloud-releases/*"
   groups:
     github-actions:
       patterns:
