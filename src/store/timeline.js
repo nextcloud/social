@@ -298,6 +298,14 @@ function timelineRequest(list, params) {
 			if (list.params.media === 'image' || list.params.media === 'video') {
 				params.only_media = true
 				params.media_type = list.params.media
+			} else if (list.params.media === 'short') {
+				// a channel's Shorts tab, by the rule the timelines use
+				params.only_short = true
+			} else if (list.params.media === 'live') {
+				// a channel's Live tab: its videos, of which the page keeps the
+				// live ones; no column says which are
+				params.only_media = true
+				params.media_type = 'video'
 			}
 			break
 		case 'tags':

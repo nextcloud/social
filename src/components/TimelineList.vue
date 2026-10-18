@@ -32,6 +32,7 @@
 			:loading="loading" />
 		<VideoBrowse
 			v-else-if="display === 'videos'"
+			v-bind="browse"
 			:posts="timeline"
 			:loading="loading"
 			:allLoaded="allLoaded"
@@ -284,6 +285,12 @@ export default {
 			type: String,
 			default: 'oldest',
 			validator: (value) => REPLY_ORDERS.includes(/** @type {import('../utils/replyOrder.js').ReplyOrder} */ (value)),
+		},
+
+		/** What the Videos layout is told beyond the timeline (`VideoBrowse`'s props). */
+		browse: {
+			type: Object,
+			default: () => ({}),
 		},
 
 		/** Whose profile the grid links its tiles into. */
@@ -623,6 +630,18 @@ export default {
 					scene: 'wave',
 					title: t('social', 'No videos yet'),
 					description: t('social', 'Posts with videos appear here.'),
+				},
+
+				short: {
+					scene: 'wave',
+					title: t('social', 'No shorts yet'),
+					description: t('social', 'Short upright videos appear here.'),
+				},
+
+				live: {
+					scene: 'wave',
+					title: t('social', 'No videos yet'),
+					description: t('social', 'Live broadcasts appear here.'),
 				},
 			}[media]
 			if (this.$route.name === 'profile' && emptyTab !== undefined) {

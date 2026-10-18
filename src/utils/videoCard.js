@@ -168,3 +168,21 @@ export function allowsDownload(post, local) {
 
 	return said === true || local
 }
+
+/** How many of an account's own newest posts the channel rule looks at. */
+export const CHANNEL_SAMPLE = 20
+
+/**
+ * Whether an account is a channel, by what it posts: at least half of its
+ * newest posts of its own are videos, and at least two are. Boosts are not
+ * what an account makes, and are left out before counting.
+ *
+ * @param {import('../types/Mastodon.js').Status[]} statuses the account's newest posts
+ * @return {boolean}
+ */
+export function looksLikeChannel(statuses) {
+	const own = (statuses ?? []).filter((status) => status && !status.reblog).slice(0, CHANNEL_SAMPLE)
+	const videos = own.filter((status) => videoCardOf(status) !== null).length
+
+	return videos >= 2 && videos * 2 >= own.length
+}

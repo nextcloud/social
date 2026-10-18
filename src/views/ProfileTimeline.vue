@@ -23,7 +23,7 @@
 				type="account" />
 		</ul>
 
-		<TimelineList :display="display" :account="routeAccount" />
+		<TimelineList :display="display" :browse="browse" :account="routeAccount" />
 	</div>
 </template>
 
@@ -38,6 +38,7 @@ import logger from '../services/logger.js'
 import { mapStores } from 'pinia'
 import { useTimelineStore } from '../store/timeline.js'
 import { profileKinds } from '../composables/useProfileKinds.js'
+import { isVideoChannel } from '../services/videoChannel.js'
 
 export default {
 	name: 'ProfileTimeline',
@@ -57,6 +58,8 @@ export default {
 			 * the same counter `TimelineList` keeps, for the same reason.
 			 */
 			generation: 0,
+			/** whether the account mostly posts videos, so it has a channel's tabs */
+			channel: false,
 		}
 	},
 
@@ -76,12 +79,20 @@ export default {
 		 * It arrives from the address bar, so anything else is read as all of
 		 * them.
 		 *
-		 * @return {string} '', 'image' or 'video'
+		 * A channel's Shorts and Live are kinds too; opened from a link they
+		 * are honoured on any profile.
+		 *
+		 * @return {string} '', 'image', 'video', 'short' or 'live'
 		 */
 		kind() {
 			const media = String(this.$route.query?.media ?? '')
 
-			return ['image', 'video'].includes(media) ? media : ''
+			return ['image', 'video', 'short', 'live'].includes(media) ? media : ''
+		},
+
+		/** @return {boolean} whether the account's videos are drawn as a channel's */
+		isChannel() {
+			return this.channel || this.kind === 'short' || this.kind === 'live'
 		},
 
 		/**
@@ -94,19 +105,37 @@ export default {
 		 * list and three as a grid, and nothing said where the other thirteen
 		 * had gone. Posts is what somebody wrote, which is a list; Photos and
 		 * Videos are what they showed, which is a grid. One question, one
-		 * answer.
+		 * answer. A channel's videos are what it is for, and are drawn as a
+		 * video site draws them, in cards with their titles.
 		 *
-		 * @return {string} 'grid' or 'timeline'
+		 * @return {string} 'grid', 'videos' or 'timeline'
 		 */
 		display() {
-			return (this.kind === '') ? 'timeline' : 'grid'
+			if (this.kind === '') {
+				return 'timeline'
+			}
+			if (this.kind === 'image' || (this.kind === 'video' && !this.isChannel)) {
+				return 'grid'
+			}
+
+			return 'videos'
+		},
+
+		/** @return {object} what a channel's tabs ask of the cards: no shelves, no upload, Live chosen on Live, tall cards on Shorts */
+		browse() {
+			return {
+				shelves: false,
+				upload: false,
+				fixedChip: this.kind === 'live' ? 'live' : '',
+				upright: this.kind === 'short',
+			}
 		},
 
 		/**
-		 * @return {object[]} the three tabs, for the switcher
+		 * @return {object[]} the tabs, for the switcher
 		 */
 		kinds() {
-			return profileKinds(this.routeAccount)
+			return profileKinds(this.routeAccount, this.isChannel)
 		},
 
 		/**
@@ -146,6 +175,17 @@ export default {
 		load() {
 			this.loadTimeline()
 			this.loadPinned()
+			this.loadChannel()
+		},
+
+		/** Whether this profile is a channel; the tabs are the ordinary ones until it is known. */
+		async loadChannel() {
+			const account = this.routeAccount
+			this.channel = false
+			const channel = await isVideoChannel(account)
+			if (this.routeAccount === account) {
+				this.channel = channel
+			}
 		},
 
 		loadTimeline() {

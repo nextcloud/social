@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { allowsDownload, chipsOf, compactCount, filterByChip, mayPreview, RECENT_FOR, videoAttachmentOf, videoCardOf } from '../../../src/utils/videoCard.js'
+import { allowsDownload, chipsOf, compactCount, filterByChip, looksLikeChannel, mayPreview, RECENT_FOR, videoAttachmentOf, videoCardOf } from '../../../src/utils/videoCard.js'
 
 const NOW = Date.parse('2026-10-16T12:00:00Z')
 
@@ -149,5 +149,28 @@ describe('whether a video may be downloaded', () => {
 	it('is no where the file is not here', () => {
 		expect(allowsDownload(post({ download: true }, null), true)).toBe(false)
 		expect(allowsDownload({ id: '1', video: { download: true }, media_attachments: [] }, true)).toBe(false)
+	})
+})
+
+describe('whether an account is a channel', () => {
+	const videoPost = (id) => video(id)
+	const text = (id) => ({ id, video_card: null })
+
+	it('is one when at least half its newest posts are videos, and two at least', () => {
+		expect(looksLikeChannel([videoPost('1'), text('2'), videoPost('3'), text('4')])).toBe(true)
+		expect(looksLikeChannel([videoPost('1'), videoPost('2')])).toBe(true)
+	})
+
+	it('is none when fewer than half are, or only one video was ever posted', () => {
+		expect(looksLikeChannel([videoPost('1'), text('2'), text('3'), videoPost('4'), text('5')])).toBe(false)
+		expect(looksLikeChannel([videoPost('1')])).toBe(false)
+		expect(looksLikeChannel([])).toBe(false)
+	})
+
+	it('counts what the account made, not what it boosted', () => {
+		const boost = (id) => ({ id, video_card: null, reblog: videoPost('r' + id) })
+
+		expect(looksLikeChannel([boost('1'), boost('2'), boost('3'), text('4')])).toBe(false)
+		expect(looksLikeChannel([videoPost('1'), videoPost('2'), boost('3'), boost('4'), boost('5')])).toBe(true)
 	})
 })

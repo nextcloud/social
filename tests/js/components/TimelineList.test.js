@@ -189,6 +189,15 @@ describe('TimelineList', () => {
 			expect(dispatch.mock.calls[0][0]).toEqual({ max_id: '1' })
 		})
 
+		it('hands the cards what the page asks of them', async () => {
+			const { wrapper } = videos({ props: { type: 'videos', display: 'videos', browse: { shelves: false, fixedChip: 'live' } } })
+			await flushPromises()
+
+			const browse = wrapper.findComponent({ name: 'VideoBrowse' })
+			expect(browse.props('shelves')).toBe(false)
+			expect(browse.props('fixedChip')).toBe('live')
+		})
+
 		it('names no network in its empty state', async () => {
 			const { wrapper } = videos({ timeline: [] })
 			await flushPromises()
@@ -1654,6 +1663,8 @@ describe('TimelineList', () => {
 		it.each([
 			['image', 'No photos yet'],
 			['video', 'No videos yet'],
+			['short', 'No shorts yet'],
+			['live', 'No videos yet'],
 		])('says what the %s tab of a profile is missing', async (media, title) => {
 			const { wrapper } = mountList({
 				route: { name: 'profile', params: { account: 'bob' }, query: { media } },

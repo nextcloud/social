@@ -4,6 +4,8 @@
  */
 
 import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
+import IconBroadcast from 'vue-material-design-icons/Broadcast.vue'
+import IconCellphonePlay from 'vue-material-design-icons/CellphonePlay.vue'
 import IconFolderMultipleImage from 'vue-material-design-icons/FolderMultipleImage.vue'
 import IconImageMultiple from 'vue-material-design-icons/ImageMultiple.vue'
 import IconPlayBoxMultiple from 'vue-material-design-icons/PlayBoxMultiple.vue'
@@ -23,10 +25,15 @@ import { t } from '@nextcloud/l10n'
  * account's at all — they are everybody else's photographs that it is named
  * in, which is why it is the last of the five rather than beside Photos.
  *
+ * A channel — an account that mostly posts videos (`isVideoChannel()`) — has
+ * Shorts and Live beside Videos, and the three are drawn as a video site's
+ * grid of cards rather than as squares.
+ *
  * @param {string} account the handle in the route
+ * @param {boolean} [channel] whether the account is a channel
  * @return {Array<{value: string, label: string, icon: object, to: object}>}
  */
-export function profileKinds(account) {
+export function profileKinds(account, channel = false) {
 	const to = (media) => ({
 		name: 'profile',
 		params: { account },
@@ -37,6 +44,12 @@ export function profileKinds(account) {
 		{ value: '', label: t('social', 'Posts'), icon: IconTextBoxMultiple, to: to('') },
 		{ value: 'image', label: t('social', 'Photos'), icon: IconImageMultiple, to: to('image') },
 		{ value: 'video', label: t('social', 'Videos'), icon: IconPlayBoxMultiple, to: to('video') },
+		...(channel
+			? [
+					{ value: 'short', label: t('social', 'Shorts'), icon: IconCellphonePlay, to: to('short') },
+					{ value: 'live', label: t('social', 'Live'), icon: IconBroadcast, to: to('live') },
+				]
+			: []),
 		{
 			value: 'tagged',
 			label: t('social', 'Tagged'),

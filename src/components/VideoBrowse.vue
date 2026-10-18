@@ -8,8 +8,12 @@
 		class="video-browse"
 		:style="{ '--video-columns': columns }"
 		@keydown="onKeydown">
-		<div class="video-browse__bar">
-			<div class="video-browse__chips" role="group" :aria-label="t('social', 'Show only')">
+		<div v-if="fixedChip === '' || (signedIn && upload)" class="video-browse__bar">
+			<div
+				v-if="fixedChip === ''"
+				class="video-browse__chips"
+				role="group"
+				:aria-label="t('social', 'Show only')">
 				<button
 					v-for="chip in chips"
 					:key="chip.value"
@@ -21,7 +25,7 @@
 					{{ chipLabel(chip) }}
 				</button>
 			</div>
-			<VideoUploadButton v-if="signedIn" />
+			<VideoUploadButton v-if="signedIn && upload" />
 		</div>
 
 		<template v-for="section in sections" :key="section.key">
@@ -30,7 +34,7 @@
 				class="video-browse__grid"
 				:aria-label="section.start === 0 ? t('social', 'Videos') : undefined">
 				<li v-for="(entry, offset) in section.items" :key="entry.id" class="video-browse__cell">
-					<VideoCard :entry="entry" :data-card-index="section.start + offset" />
+					<VideoCard :entry="entry" :upright="upright" :data-card-index="section.start + offset" />
 				</li>
 			</ul>
 			<section
@@ -172,6 +176,33 @@ export default {
 			type: Boolean,
 			default: false,
 		},
+
+		/** Whether the shelves stand between the rows; a channel's tabs have none. */
+		shelves: {
+			type: Boolean,
+			default: true,
+		},
+
+		/** Whether "Upload a video" is offered. */
+		upload: {
+			type: Boolean,
+			default: true,
+		},
+
+		/**
+		 * One chip chosen for good, its bar not drawn: a channel's Live tab is
+		 * its videos with `live` chosen, and pages on until it finds them.
+		 */
+		fixedChip: {
+			type: String,
+			default: '',
+		},
+
+		/** Tall cards, more to a row: a channel's Shorts tab. */
+		upright: {
+			type: Boolean,
+			default: false,
+		},
 	},
 
 	/** `more` asks the list for its next page. */
@@ -233,7 +264,10 @@ export default {
 		},
 
 		/** @return {Shelf[]} the shelves with something on them, in the order they stand */
-		shelves() {
+		shelfList() {
+			if (!this.shelves) {
+				return []
+			}
 			const scope = this.scope
 			const shelves = [
 				{ id: 'continue', title: t('social', 'Continue watching'), items: this.continuing, upright: false },
@@ -261,7 +295,7 @@ export default {
 		 * @return {Array<{key: string, kind: string, items?: import('../types/Mastodon.js').Status[], start?: number, shelf?: Shelf}>}
 		 */
 		sections() {
-			const shelves = this.chosen === 'all' ? this.shelves : []
+			const shelves = this.chosen === 'all' ? this.shelfList : []
 			const sections = []
 			let start = 0
 			for (const shelf of shelves) {
@@ -281,9 +315,22 @@ export default {
 	},
 
 	watch: {
+		// a channel's Live tab looks for its live videos from the start, and
+		// another tab of the channel shares the cards
+		fixedChip: {
+			immediate: true,
+			handler(value) {
+				this.choose(value || 'all')
+			},
+		},
+
+		upright() {
+			this.measure()
+		},
+
 		// a chip whose videos have gone, with a new scope say, is no chip
 		chips(chips) {
-			if (!chips.some((chip) => chip.value === this.chosen)) {
+			if (this.fixedChip === '' && !chips.some((chip) => chip.value === this.chosen)) {
 				this.choose('all')
 			}
 		},
@@ -373,7 +420,8 @@ export default {
 
 		measure() {
 			const width = /** @type {HTMLElement|undefined} */ (this.$refs.root)?.clientWidth ?? 0
-			this.columns = columnsFor(width)
+			// a tall card is half as wide, so twice as many fit
+			this.columns = this.upright ? Math.min(6, columnsFor(width) * 2) : columnsFor(width)
 		},
 
 		/**
@@ -383,7 +431,7 @@ export default {
 		 */
 		async loadShelves() {
 			const scope = this.scope
-			if (this.shelvesFor === scope) {
+			if (!this.shelves || this.shelvesFor === scope) {
 				return
 			}
 			this.shelvesFor = scope
@@ -411,7 +459,7 @@ export default {
 		 * session has watched anything here.
 		 */
 		async loadContinuing() {
-			if (!this.signedIn) {
+			if (!this.signedIn || !this.shelves) {
 				return
 			}
 

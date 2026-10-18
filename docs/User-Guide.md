@@ -693,6 +693,18 @@ all. Watching one from another server sends a receipt to its author so that
 their own server can count it, and reactions and replies travel the same way
 in both directions, in the shape Pixelfed's own inbox reads.
 
+### Channels
+
+An account that mostly posts videos is drawn as a **channel**: at least half
+of its 20 newest posts of its own are videos, and at least two are (boosts
+do not count). Its profile shows **Shorts** and **Live** beside **Videos**,
+and these three tabs show video cards like the Videos page, with the title,
+running time and views, instead of squares. Videos has the same chips as
+the Videos page. Shorts shows upright cards. Live shows the channel's live
+videos, and looks further back by itself for a few pages before it offers
+**Look further**. The other tabs and everyone else's profiles are
+unchanged.
+
 ### Collections
 
 A profile has a **Collections** tab beside Posts, Photos, Videos and Tagged: the

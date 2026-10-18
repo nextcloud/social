@@ -9,11 +9,16 @@ import { createPinia, setActivePinia } from 'pinia'
 import axios from '@nextcloud/axios'
 import ProfileTimeline from '../../../src/views/ProfileTimeline.vue'
 import TimelineSwitcher from '../../../src/components/TimelineSwitcher.vue'
+import { isVideoChannel } from '../../../src/services/videoChannel.js'
 import { useTimelineStore } from '../../../src/store/timeline.js'
+
+vi.mock('../../../src/services/videoChannel.js', () => ({
+	isVideoChannel: vi.fn(() => Promise.resolve(false)),
+}))
 
 const TimelineListStub = {
 	name: 'TimelineList',
-	props: ['type', 'display', 'account'],
+	props: ['type', 'display', 'account', 'browse'],
 	template: '<ul class="timeline-list-stub" />',
 }
 const TimelineEntryStub = {
@@ -115,7 +120,7 @@ describe('ProfileTimeline', () => {
 		})
 
 		/** It arrives from the address bar, so it is read rather than trusted. */
-		it.each(['photos', 'audio', 'IMAGE', ''])('falls back to every post for the tab %s', (media) => {
+		it.each(['photos', 'audio', 'IMAGE', 'SHORT', ''])('falls back to every post for the tab %s', (media) => {
 			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: { media } })
 
 			expect(switcher(wrapper).props('value')).toBe('')
@@ -168,6 +173,99 @@ describe('ProfileTimeline', () => {
 			route.query = {}
 			await nextTick()
 			expect(list().props('display')).toBe('timeline')
+		})
+
+		/**
+		 * An account that mostly posts videos is a channel: Shorts and Live
+		 * beside Videos, all three drawn as a video site's cards.
+		 */
+		describe('a channel', () => {
+			const channelView = async (query = {}) => {
+				vi.mocked(isVideoChannel).mockResolvedValueOnce(true)
+				const route = reactive({ name: 'profile', params: { account: 'films@tube.example' }, query })
+				const wrapper = mountView(route)
+				await flushPromises()
+
+				return { route, wrapper, list: () => wrapper.findComponent(TimelineListStub) }
+			}
+
+			afterEach(() => {
+				vi.mocked(isVideoChannel).mockReset()
+				vi.mocked(isVideoChannel).mockResolvedValue(false)
+			})
+
+			it('is asked about for the account the page is about', async () => {
+				await channelView()
+
+				expect(isVideoChannel).toHaveBeenCalledWith('films@tube.example')
+			})
+
+			it('has Shorts and Live beside Videos, on the same route', async () => {
+				const { wrapper } = await channelView()
+
+				expect(switcher(wrapper).props('options').map((option) => option.label))
+					.toEqual(['Posts', 'Photos', 'Videos', 'Shorts', 'Live', 'Tagged', 'Collections'])
+				expect(switcher(wrapper).props('options')[3].to)
+					.toEqual({ name: 'profile', params: { account: 'films@tube.example' }, query: { media: 'short' } })
+			})
+
+			it('draws its videos as cards, with no shelves and no upload, and its other tabs as before', async () => {
+				const { route, list } = await channelView({ media: 'video' })
+
+				expect(list().props('display')).toBe('videos')
+				expect(list().props('browse')).toEqual({ shelves: false, upload: false, fixedChip: '', upright: false })
+
+				route.query = { media: 'image' }
+				await nextTick()
+				expect(list().props('display')).toBe('grid')
+				route.query = {}
+				await nextTick()
+				expect(list().props('display')).toBe('timeline')
+			})
+
+			it('draws Shorts as tall cards and Live as its live videos', async () => {
+				const { route, list } = await channelView({ media: 'short' })
+
+				expect(dispatch).toHaveBeenLastCalledWith('films@tube.example', 'short')
+				expect(list().props('browse')).toMatchObject({ upright: true, fixedChip: '' })
+
+				route.query = { media: 'live' }
+				await nextTick()
+				expect(dispatch).toHaveBeenLastCalledWith('films@tube.example', 'live')
+				expect(list().props('browse')).toMatchObject({ upright: false, fixedChip: 'live' })
+			})
+
+			it('keeps a profile that is not one as it was, Videos a grid of squares', async () => {
+				const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: { media: 'video' } })
+				await flushPromises()
+
+				expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('grid')
+				expect(switcher(wrapper).props('options').map((option) => option.label)).not.toContain('Shorts')
+			})
+
+			it('honours a link to the Shorts tab of any profile', async () => {
+				const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: { media: 'short' } })
+				await flushPromises()
+
+				expect(switcher(wrapper).props('value')).toBe('short')
+				expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('videos')
+			})
+
+			it('does not hand one profile\'s answer to the next', async () => {
+				let answer
+				vi.mocked(isVideoChannel).mockImplementationOnce(() => new Promise((resolve) => {
+					answer = resolve
+				}))
+				const route = reactive({ name: 'profile', params: { account: 'films@tube.example' }, query: {} })
+				const wrapper = mountView(route)
+
+				route.params.account = 'bob@remote.example'
+				await flushPromises()
+				answer(true)
+				await flushPromises()
+
+				expect(switcher(wrapper).props('options').map((option) => option.label)).not.toContain('Shorts')
+			})
 		})
 
 		it('offers nothing to switch the view with, because the tab decides it', () => {

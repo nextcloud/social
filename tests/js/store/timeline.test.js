@@ -1467,6 +1467,21 @@ describe('timeline store actions', () => {
 			)
 		})
 
+		/** A channel's Shorts and Live tabs. */
+		it.each([
+			['short', { limit: 15, only_short: true }],
+			['live', { limit: 15, only_media: true, media_type: 'video' }],
+		])('asks for what the %s tab of a channel shows', async (media, params) => {
+			await store.changeTimelineTypeAccount('bob@remote.tld', media)
+
+			await store.fetchTimeline()
+
+			expect(axios.get).toHaveBeenCalledWith(
+				`${API}/accounts/bob@remote.tld/statuses`,
+				{ params, signal: expect.any(AbortSignal) },
+			)
+		})
+
 		/** A tab that asks for everything must not quietly filter. */
 		it.each([
 			[''],

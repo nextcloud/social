@@ -3395,6 +3395,22 @@ page title is the video's title.
   counts hidden there are no like counts, and Top keeps the order in time.
   Other posts keep `oldest`.
 
+**Channel pages.** A profile is a channel when
+`services/videoChannel.js` says so: the account's 20 newest posts of its own
+(`exclude_reblogs`, one request per account per page load, memoised) are at
+least half videos and at least two of them are (`looksLikeChannel()`).
+PeerTube channel actors are not singled out by type: a `Group` is also a
+Lemmy community, and the rule by content covers both kinds of channel.
+`profileKinds(account, channel)` then adds **Shorts** (`?media=short`) and
+**Live** (`?media=live`) after Videos. The account timeline asks `only_short`
+for the first, and the account's videos for the second, because no column
+says which videos are live. On a channel the three tabs draw `VideoBrowse`
+through `TimelineList`'s `browse` prop: no shelves, no upload button,
+`upright` cards on Shorts, and `fixedChip: 'live'` on Live. Live therefore
+pages on by itself (`MAX_FILL_PAGES`) until it finds live videos. A
+`?media=short` or `?media=live` link is honoured on any profile. Every other
+profile, and every other tab, is drawn as before.
+
 **News, on the server only.** The web interface used to have a News timeline
 in the sidebar, a News tab in Discover and a switch for it in the Features section of the administration page.
 All three are gone, and `/timeline/news` redirects to My Feed. What stays is

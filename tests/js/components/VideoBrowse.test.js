@@ -256,6 +256,42 @@ describe('the Videos page', () => {
 		})
 	})
 
+	/** A channel's tabs on its profile: the same cards, without what belongs to the Videos page. */
+	describe('on a channel\'s profile', () => {
+		it('stands no shelves between the rows and offers no upload', async () => {
+			wrapper = mountBrowse({ posts: videos(10), shelves: false, upload: false }, { scope: 'federated', shelves: { shorts: [video('s1')] } })
+			await flushPromises()
+
+			expect(wrapper.find('.video-browse__shelf').exists()).toBe(false)
+			expect(timelineStore.fetchSideList).not.toHaveBeenCalled()
+			expect(loadUnfinished).not.toHaveBeenCalled()
+			expect(wrapper.find('.upload-stub').exists()).toBe(false)
+		})
+
+		it('keeps to the live videos on Live, without chips, and pages on to find them', async () => {
+			const posts = [video('1'), video('2', { live: true }), video('3')]
+			wrapper = mountBrowse({ posts, shelves: false, upload: false, fixedChip: 'live' })
+			await flushPromises()
+
+			expect(wrapper.find('.video-browse__chips').exists()).toBe(false)
+			expect(cardTitles(wrapper)).toEqual(['Video 2'])
+			expect(wrapper.emitted('more')).toHaveLength(1)
+		})
+
+		it('goes back to every video when the tab changes to Videos', async () => {
+			wrapper = mountBrowse({ posts: [video('1'), video('2', { live: true })], allLoaded: true, shelves: false, fixedChip: 'live' })
+			await wrapper.setProps({ fixedChip: '' })
+
+			expect(cardTitles(wrapper)).toEqual(['Video 1', 'Video 2'])
+		})
+
+		it('draws Shorts as tall cards', () => {
+			wrapper = mountBrowse({ posts: videos(2), allLoaded: true, shelves: false, upright: true })
+
+			expect(wrapper.findAll('.video-browse__grid .video-card--short')).toHaveLength(2)
+		})
+	})
+
 	it('offers Upload a video to somebody signed in, and only to them', () => {
 		wrapper = mountBrowse()
 		expect(wrapper.find('.upload-stub').exists()).toBe(true)
