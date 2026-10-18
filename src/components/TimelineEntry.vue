@@ -14,6 +14,7 @@
 			'timeline-entry--unread': unread,
 			'timeline-entry--settled': !staggered,
 			'timeline-entry--direct': type === 'direct',
+			'timeline-entry--photo': photo,
 		}"
 		:style="entryStyle"
 		:data-status-id="entryContent?.id"
@@ -136,7 +137,11 @@
 			</router-link>
 		</div>
 		<template v-else>
-			<div v-if="entryContent" class="wrapper">
+			<PhotoPost
+				v-if="photo && entryContent"
+				:item="entryContent"
+				:type="type" />
+			<div v-else-if="entryContent" class="wrapper">
 				<TimelineAvatar
 					v-if="!isNotification && !hideAvatar"
 					class="entry__avatar"
@@ -179,6 +184,7 @@ import Pound from 'vue-material-design-icons/Pound.vue'
 import TrendingUp from 'vue-material-design-icons/TrendingUp.vue'
 import { translate as t } from '@nextcloud/l10n'
 import TimelinePost from './TimelinePost.vue'
+import { defineAsyncComponent } from 'vue'
 import ActorAvatar from './ActorAvatar.vue'
 import BlueskyBadge from './BlueskyBadge.vue'
 import { isBlueskyAccount } from '../utils/accountLocality.js'
@@ -196,6 +202,10 @@ import { isPhone, onPhoneChange } from '../services/phone.js'
 import { mapStores } from 'pinia'
 import { useSettingsStore } from '../store/settings.js'
 import { useTimelineStore } from '../store/timeline.js'
+
+// only the Photos page draws a post this way, so the other pages and the
+// profile page's entry do not carry it
+const PhotoPost = defineAsyncComponent(() => import(/* webpackChunkName: "photo-post" */'./PhotoPost.vue'))
 
 /** the face's size inside the card, on a phone */
 const PHONE_AVATAR = 36
@@ -221,6 +231,7 @@ const STAGGER_STEP = 45
 export default {
 	name: 'TimelineEntry',
 	components: {
+		PhotoPost,
 		TimelinePost,
 		ActorAvatar,
 		BlueskyBadge,
@@ -313,6 +324,16 @@ export default {
 		element: {
 			type: String,
 			default: 'li',
+		},
+
+		/**
+		 * Whether the post is drawn as a photo feed draws one: the picture
+		 * the width of the column, its actions and caption under it. See
+		 * `PhotoPost`.
+		 */
+		photo: {
+			type: Boolean,
+			default: false,
 		},
 
 		/**
@@ -997,6 +1018,27 @@ export default {
 	// the whole row opens the thread, so the whole row answers the pointer
 	&:hover {
 		background-color: var(--color-background-hover);
+	}
+
+	// a photo opens from its own controls, not from the row: a press on the
+	// picture is half of a double tap. A photo post is taller than the
+	// placeholder a row keeps off screen, so it keeps one its own height
+	&.timeline-entry--photo {
+		padding-block: 4px 16px;
+		padding-inline: 0;
+		contain-intrinsic-size: auto 760px;
+
+		&:hover {
+			background-color: transparent;
+		}
+
+		// on a phone the row is the screen's width, so the picture in it can
+		// be: a row clips what it draws (`content-visibility`), and the
+		// column's gutters would otherwise frame every picture
+		@include layout.below(layout.$phone) {
+			width: 100vw;
+			margin-inline: calc(50% - 50vw);
+		}
 	}
 
 	.wrapper {

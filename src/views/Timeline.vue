@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="social__wrapper" :class="{ 'social__wrapper--direct': type === 'direct', 'social__wrapper--reading': display === 'list' && type !== 'direct' }">
+	<div class="social__wrapper" :class="{ 'social__wrapper--direct': type === 'direct', 'social__wrapper--reading': display !== 'grid' && type !== 'direct' }">
 		<!-- the first thing a new account sees; gone for good once closed -->
 		<FirstRun v-if="showInfo" @done="hideInfo" />
 
@@ -16,7 +16,11 @@
 		<!-- said once, on the pages where the reading it describes happens -->
 		<InterestsNotice v-if="showInterestsNotice" />
 
-		<Composer v-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct'" :offerShort="isHome && settingsStore.getServerData.sections?.stories !== false" />
+		<!-- a photo starts with the picture: on Photos the box is a button
+		     that opens the device's picker, and the composer once something
+		     was picked -->
+		<SharePhotoButton v-if="!settingsStore.getServerData.public && type === 'photos'" />
+		<Composer v-else-if="!settingsStore.getServerData.public && type !== 'notifications' && type !== 'single-post' && type !== 'direct'" :offerShort="isHome && settingsStore.getServerData.sections?.stories !== false" />
 
 		<!-- the three timelines that are the same place seen from three
 		     distances: switching between them is something a reader does while
@@ -118,13 +122,14 @@
 		     week went if they asked to be told; only over their own home feed,
 		     which is the one page that is about them -->
 		<!-- whose 24-hour shorts are up: a row of faces above the reader's
-		     own feed, and only there; they are for the people who follow.
+		     own feed and above Photos, which is read the way a photo feed is
+		     and has its stories on top; they are for the people who follow.
 		     Kept while the reader is on another scope of the feed, like the
 		     two cards below, so that coming back to My Feed draws them at
 		     once rather than asking the server again and pushing the posts
 		     down when it answers -->
 		<KeepAlive>
-			<ShortsBar v-if="isHome" />
+			<ShortsBar v-if="isHome || type === 'photos'" />
 		</KeepAlive>
 
 		<KeepAlive>
@@ -176,6 +181,7 @@ import HashtagFollowButton from './../components/HashtagFollowButton.vue'
 import InterestsLearningBanner from './../components/InterestsLearningBanner.vue'
 import InterestsNotice from './../components/InterestsNotice.vue'
 import OnThisDay from './../components/OnThisDay.vue'
+import SharePhotoButton from './../components/SharePhotoButton.vue'
 import ShortsBar from './../components/ShortsBar.vue'
 import WeeklyRecap from './../components/WeeklyRecap.vue'
 import { tagStyle } from '../utils/tagColour.js'
@@ -216,6 +222,7 @@ export default {
 		InterestsLearningBanner,
 		InterestsNotice,
 		OnThisDay,
+		SharePhotoButton,
 		ShortsBar,
 		WeeklyRecap,
 		TimelineList,
@@ -356,20 +363,25 @@ export default {
 		/**
 		 * How the posts are drawn here.
 		 *
-		 * The same rule the profile follows, and for the same reason it gives:
-		 * Posts is what somebody wrote, which is a list; Photos and Videos are
-		 * what they showed, which is a grid. Those two pages were a list here
-		 * and a grid on a profile, so the same picture was a row in one place
-		 * and a tile in the other.
+		 * Photos is a photo feed: one picture after another, the width of the
+		 * column, the way a home feed of pictures is read. A grid is how one
+		 * account's pictures are shown — a profile's Photos tab, and Explore's,
+		 * which is everybody's — where the reader is choosing what to open
+		 * rather than reading down a feed. Videos is still a grid. Everything
+		 * else is a list.
 		 *
 		 * Not a toggle. One question, one answer — a control to make Photos
 		 * look like a list would be asking the reader to settle something the
 		 * page has already answered by being Photos.
 		 *
-		 * @return {string} 'grid' or 'list'
+		 * @return {string} 'photos', 'grid' or 'list'
 		 */
 		display() {
-			return ['photos', 'videos'].includes(this.type) ? 'grid' : 'list'
+			if (this.type === 'photos') {
+				return 'photos'
+			}
+
+			return this.type === 'videos' ? 'grid' : 'list'
 		},
 
 		/**
@@ -1057,9 +1069,10 @@ export default {
 }
 
 /* A feed of text is read, and a line much wider than 600 pixels is hard to
-   follow back to its start. The grids keep the wider column: a picture is
-   looked at, not read. Everything in the column — composer, switcher,
-   the Shorts bar, posts — follows the one property. */
+   follow back to its start; the photo feed is one picture wide, and its
+   captions are read the same way. The grids keep the wider column: a wall
+   of tiles is looked at, not read. Everything in the column — composer,
+   switcher, the Shorts bar, posts — follows the one property. */
 .social__wrapper--reading {
 	--social-column: 616px;
 }

@@ -11,7 +11,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import Navigation from '../../../src/components/Navigation.vue'
 import appRouter from '../../../src/router.js'
 import axios from '@nextcloud/axios'
-import eventBus, { LISTS_CHANGED } from '../../../src/services/eventBus.js'
+import eventBus, { COMPOSE_MEDIA, LISTS_CHANGED } from '../../../src/services/eventBus.js'
 import { useErrorsStore } from '../../../src/store/errors.js'
 import { useAccountStore } from '../../../src/store/account.js'
 import { useNotificationsStore } from '../../../src/store/notifications.js'
@@ -51,7 +51,7 @@ const stubs = {
 	NcAppNavigationSettings: { props: ['name'], template: '<div class="nav-settings" :data-name="name"><slot /></div>' },
 	NcAvatar: { props: ['user', 'displayName', 'size'], template: '<span class="nc-avatar-stub" :data-user="user" :data-size="size" />' },
 	NcModal: { props: { name: String, labelId: String, closeOnClickOutside: Boolean }, emits: ['close'], template: '<div class="modal-stub" :data-name="name" :data-label-id="labelId" :data-closes-on-outside-click="closeOnClickOutside ? \'yes\' : \'no\'"><slot /></div>' },
-	Composer: { props: ['initialPaths'], emits: ['posted'], template: '<div class="composer-stub" :data-paths="JSON.stringify(initialPaths)" @click="$emit(\'posted\')" />' },
+	Composer: { props: ['initialPaths', 'initialFiles'], emits: ['posted'], template: '<div class="composer-stub" :data-paths="JSON.stringify(initialPaths)" :data-files="(initialFiles ?? []).map((file) => file.name).join(\',\')" @click="$emit(\'posted\')" />' },
 }
 
 let pinia
@@ -156,6 +156,58 @@ describe('Navigation', () => {
 			expect(axios.get).toHaveBeenCalledWith('/index.php/apps/social/api/v1/lists')
 			expect(fetchUnread).toHaveBeenCalledTimes(1)
 			expect(fetchRequests).toHaveBeenCalledTimes(1)
+		})
+	})
+
+	// the Photos page's "Share a photo" picks first and asks for the dialog
+	// with what was picked; the sidebar owns the dialog
+	describe('"Share a photo"', () => {
+		const beach = new File(['x'], 'beach.png', { type: 'image/png' })
+
+		it('opens the New post dialog with the pictures that were picked', async () => {
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			eventBus.emit(COMPOSE_MEDIA, { files: [beach] })
+			await nextTick()
+
+			const dialog = wrapper.find('.modal-stub[data-label-id="social-new-post-title"]')
+			expect(dialog.exists()).toBe(true)
+			expect(dialog.find('.composer-stub').attributes('data-files')).toBe('beach.png')
+		})
+
+		it('opens nothing for a picker closed without a choice', async () => {
+			const wrapper = mountNavigation()
+			await flushPromises()
+
+			eventBus.emit(COMPOSE_MEDIA, { files: [] })
+			await nextTick()
+
+			expect(wrapper.find('.modal-stub[data-label-id="social-new-post-title"]').exists()).toBe(false)
+		})
+
+		it('starts the next New post empty', async () => {
+			const wrapper = mountNavigation()
+			await flushPromises()
+			eventBus.emit(COMPOSE_MEDIA, { files: [beach] })
+			await nextTick()
+
+			await wrapper.find('.composer-stub').trigger('click')
+			await wrapper.find('.navigation__compose').trigger('click')
+
+			expect(wrapper.find('.composer-stub').attributes('data-files')).toBe('')
+		})
+
+		it('stops listening once the sidebar is gone', async () => {
+			const listeners = () => (eventBus.all.get(COMPOSE_MEDIA) ?? []).length
+			const before = listeners()
+			const wrapper = mountNavigation()
+			await flushPromises()
+			expect(listeners()).toBe(before + 1)
+
+			wrapper.unmount()
+
+			expect(listeners()).toBe(before)
 		})
 	})
 

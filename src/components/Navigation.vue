@@ -278,6 +278,7 @@
 			<Composer
 				startExpanded
 				:initialPaths="composerPaths"
+				:initialFiles="composerFiles"
 				emojiPickerContainer=".modal-wrapper"
 				@posted="showComposer = false" />
 		</div>
@@ -363,7 +364,7 @@ import { pageIdentity } from '../services/pageOrder.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { afterFirstTimeline } from '../services/boot.js'
-import eventBus, { BLUESKY_FEEDS_CHANGED, LISTS_CHANGED } from '../services/eventBus.js'
+import eventBus, { BLUESKY_FEEDS_CHANGED, COMPOSE_MEDIA, LISTS_CHANGED } from '../services/eventBus.js'
 import { fetchSavedFeeds, routeFor as feedRoute, uriOf } from '../services/blueskyFeeds.js'
 import { ownAvatarUrl } from '../services/avatar.js'
 
@@ -467,6 +468,8 @@ export default {
 			showComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
 			composerPaths: [],
+			/** @type {File[]} files from the device the New post dialog opens with */
+			composerFiles: [],
 			showErrors: false,
 			pollTimer: null,
 			/** how many ticks of the poll still pass before the next attempt */
@@ -834,6 +837,7 @@ export default {
 			// the paths were for that one dialog; a later "New post" starts empty
 			if (!open) {
 				this.composerPaths = []
+				this.composerFiles = []
 			}
 		},
 
@@ -867,6 +871,7 @@ export default {
 		this.onListsChanged = () => this.fetchLists()
 		eventBus.on(LISTS_CHANGED, this.onListsChanged)
 		eventBus.on(BLUESKY_FEEDS_CHANGED, this.fetchBlueskyFeeds)
+		eventBus.on(COMPOSE_MEDIA, this.openComposerWithFiles)
 
 		// how many entries Explore shows depends on how much room the rail has
 		this.measureViewport()
@@ -893,6 +898,7 @@ export default {
 	beforeUnmount() {
 		eventBus.off(LISTS_CHANGED, this.onListsChanged)
 		eventBus.off(BLUESKY_FEEDS_CHANGED, this.fetchBlueskyFeeds)
+		eventBus.off(COMPOSE_MEDIA, this.openComposerWithFiles)
 		window.removeEventListener('resize', this.measureViewport)
 		this.railObserver?.disconnect()
 		offTimelinePush(this.refreshBadges)
@@ -1117,6 +1123,20 @@ export default {
 			const query = { ...this.$route.query }
 			delete query.attach
 			this.$router?.replace?.({ ...this.$route, query })
+		},
+
+		/**
+		 * Opens the New post dialog with files the reader already picked.
+		 *
+		 * @param {{files?: File[]}} payload what COMPOSE_MEDIA carries
+		 */
+		openComposerWithFiles({ files = [] } = {}) {
+			if (files.length === 0) {
+				return
+			}
+
+			this.composerFiles = files
+			this.showComposer = true
 		},
 
 		t,

@@ -67,10 +67,10 @@ function status(id) {
 
 const TimelineEntryStub = {
 	name: 'TimelineEntry',
-	props: ['item', 'type', 'depth', 'unread', 'immediate'],
+	props: ['item', 'type', 'depth', 'unread', 'immediate', 'photo'],
 	// carries the real component's class and tabindex, because the list finds
 	// entries by that class and sends focus to them
-	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-depth="depth" :data-unread="unread ? \'yes\' : \'no\'" />',
+	template: '<li class="timeline-entry timeline-entry-stub" tabindex="-1" :data-id="item.id" :data-depth="depth" :data-unread="unread ? \'yes\' : \'no\'" :data-photo="photo ? \'yes\' : \'no\'" />',
 }
 const entryDepths = (wrapper) => wrapper.findAll('.timeline-entry-stub').map((entry) => [entry.attributes('data-id'), Number(entry.attributes('data-depth'))])
 
@@ -415,6 +415,59 @@ describe('TimelineList', () => {
 			wrapper.unmount()
 
 			expect(() => setVisibility('hidden')).not.toThrow()
+		})
+	})
+
+	// Photos is a photo feed: the same entries, each drawn the way a photo
+	// feed draws a post, and everything the list does around them unchanged
+	describe('the photo feed', () => {
+		afterEach(() => {
+			eventBus.all.clear()
+		})
+
+		const photoFeed = () => mountList({
+			timeline: [status('1'), status('22')],
+			identity: '["photos","",{"scope":"home"}]',
+			route: { name: 'timeline', params: { type: 'photos' } },
+			props: { type: 'photos', display: 'photos' },
+		})
+
+		it('draws its posts as photo posts, one entry each, and no grid', async () => {
+			const { wrapper } = photoFeed()
+			await flushPromises()
+
+			const entries = wrapper.findAll('.timeline-entry-stub')
+			expect(entries).toHaveLength(2)
+			expect(entries.every((entry) => entry.attributes('data-photo') === 'yes')).toBe(true)
+			expect(wrapper.findComponent({ name: 'ProfileMediaGrid' }).exists()).toBe(false)
+		})
+
+		it('draws a list\'s posts as they always were', async () => {
+			const { wrapper } = mountList({ timeline: [status('1')] })
+			await flushPromises()
+
+			expect(wrapper.find('.timeline-entry-stub').attributes('data-photo')).toBe('no')
+		})
+
+		it('walks the photos with j', async () => {
+			const { wrapper } = photoFeed()
+			await flushPromises()
+			const order = entryIds(wrapper)
+
+			eventBus.emit('shortcut:next')
+			await wrapper.vm.$nextTick()
+
+			expect(wrapper.findAll('.timeline-entry--focused').map((entry) => entry.attributes('data-id'))).toEqual([order[0]])
+		})
+
+		it('keeps asking for the next page as the reader scrolls', async () => {
+			const { wrapper, dispatch } = photoFeed()
+			await flushPromises()
+			dispatch.mockClear()
+
+			await wrapper.vm.infiniteHandler()
+
+			expect(dispatch).toHaveBeenCalled()
 		})
 	})
 

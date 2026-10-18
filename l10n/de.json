@@ -3076,6 +3076,14 @@
     "Other Bluesky tools do not read the words themselves: the recovery tool below does, and when they are made you also see the key they stand for, written the way tools such as goat take it. This server's key ranks above it, so for 72 hours the server can undo a change made with the phrase, a move to another server included." : "Andere Bluesky-Werkzeuge lesen die Wörter selbst nicht: Das Wiederherstellungswerkzeug unten schon, und beim Erstellen siehst du auch den Schlüssel, für den sie stehen, so geschrieben, wie Werkzeuge wie goat ihn annehmen. Der Schlüssel dieses Servers steht über ihm: 72 Stunden lang kann der Server eine Änderung rückgängig machen, die mit der Phrase vorgenommen wurde, auch einen Umzug auf einen anderen Server.",
     "Download the recovery tool" : "Wiederherstellungswerkzeug herunterladen",
     "One page that moves your Bluesky identifier to another server with your twelve words, in your browser, even when this server is gone. Keep it with your words." : "Eine Seite, die deine Bluesky-Kennung mit deinen zwölf Wörtern in deinem Browser auf einen anderen Server umzieht, auch wenn es diesen Server nicht mehr gibt. Bewahre sie zusammen mit deinen Wörtern auf.",
-    "Open it here" : "Hier öffnen"
+    "Open it here" : "Hier öffnen",
+    "Share a photo" : "Foto teilen",
+    "Share" : "Teilen",
+    "more" : "mehr",
+    "View comments" : "Kommentare ansehen",
+    "Add a comment…" : "Kommentar hinzufügen …",
+    "Add a comment" : "Kommentar hinzufügen",
+    "Could not copy the link" : "Der Link konnte nicht kopiert werden",
+    "_View %n comment_::_View all %n comments_" : ["%n Kommentar ansehen","Alle %n Kommentare ansehen"]
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }

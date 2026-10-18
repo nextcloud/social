@@ -172,8 +172,12 @@ you follow, of this instance and of the whole Fediverse are one click apart.
   — and a picture can carry stickers: eight emoji and a line of your own words, dragged
   where you want them (or moved with the arrow keys) and baked into the picture before
   it goes up, so they arrive on Pixelfed where you put them.
-- **Photos and Videos are timelines of their own**, drawn as grids and asked of the
-  server rather than filtered out of a page you already have.
+- **Photos and Videos are timelines of their own**, asked of the server rather than
+  filtered out of a page you already have. Photos reads like a photo feed: one
+  picture after another at the width of the column, the 24-hour shorts on top, a
+  double-tap to like, the comments beside the picture (a sheet from the bottom
+  on a phone) and **Share a photo** in place of the composer box. Videos is a
+  grid, as a profile's Photos tab is.
 - **Shorts**, in the sidebar under Videos, is a stack: one at a
   time, full height, playing as it comes past and stopping as it goes — the shape
   somebody arriving from TikTok or YouTube Shorts already knows. The 24-hour shorts of

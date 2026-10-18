@@ -42,6 +42,15 @@ export const REACTION_PICK = 'social:reaction-pick'
 export const SHORT_COMPOSE = 'social:short-compose'
 
 /**
+ * Asks for New post with files already picked: the payload is `{ files }`,
+ * the `File`s the reader chose. "Share a photo" on the Photos page opens the
+ * device's picker from its own press, which is when a browser lets a page
+ * open one, and the sidebar, which owns the New post dialog, opens it with
+ * what was picked.
+ */
+export const COMPOSE_MEDIA = 'social:compose-media'
+
+/**
  * The reader pressed "Mark all as read" on the Activities page.
  *
  * The payload is the id the marker was moved to. The page owns that button

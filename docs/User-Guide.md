@@ -499,8 +499,9 @@ match. A short says so, or *Trending here*, only once the clip has gathered
 about ten likes, boosts and views between them; one nobody has touched yet
 carries the author line alone. In Shorts, what counts is how much of each video you watch: all of it,
 or most, counts for a lot, half of it for a little, and swiping it away within
-about two seconds counts against its hashtags. In the Photos and Videos grids,
-opening a post counts.
+about two seconds counts against its hashtags. On Photos, as on the feed, the
+time a picture is in front of you counts, and so does pressing it; in the
+Videos grid, opening a post counts.
 
 **Less like this**, in a post's menu, takes that post out of the feed and
 counts its hashtags down. On the feed itself the post goes at once and *Undo*
@@ -577,6 +578,49 @@ of a followers-only post, a reply the author does not take — is greyed out and
 says why. To react with an emoji, hold the heart (or right-click it), or choose
 **Add a reaction** in the post's menu; the reactions people left are shown under
 the post.
+
+### The Photos page
+
+**Photos** reads like a photo feed: one post after another, each picture the
+full width of the column (from edge to edge on a phone), whoever posted it and
+from wherever. Above the posts is the row of faces of the people you follow
+whose 24-hour shorts are up, as on My Feed, and the same **My Feed** / **For you** / **Local** / **Global**
+switcher. A post reads from the top:
+
+- **Who posted it**, how long ago, and the **…** menu with everything a post's
+  menu offers anywhere else.
+- **The picture.** Pictures are shown between upright 4:5 and wide 1.91:1;
+  anything taller or wider is cropped around the point the poster marked as
+  the subject, or around the middle. A small picture is shown at its own size
+  rather than stretched into a blur. Several pictures are one swipe (or the
+  arrows, or the arrow keys) apart, with dots underneath. **Double-tap** (or
+  double-click) the picture to like the post; a heart says so. Doing it again
+  never takes the like back — the heart under the picture does that. A picture
+  with a description carries an **ALT** badge that shows it. A sensitive
+  picture, or one under a content warning, is covered until you press
+  **Show**, unless your settings hide sensitive media altogether.
+- **Like, comment, boost, share**, and **bookmark** at the far end. Share
+  hands the post's link to your device's share sheet, or copies it.
+- **How many likes** (*23 likes*), unless you hide counts.
+- **The caption**, after the poster's name, cut at two lines with **more** to
+  read the rest.
+- **View all 12 comments** opens the comments — beside the feed on a wide
+  screen, as a sheet from the bottom on a phone — with the post's caption first,
+  the replies under it and a reply box at the bottom. With counts hidden it is
+  **View comments**, on every post. Your place in the feed
+  stays where it was; Escape, the close button or a tap on the feed outside
+  the sheet puts them away.
+- **Add a comment…** answers the post straight from the feed; what you sent is
+  shown under the caption.
+
+Instead of the composer box, Photos has **Share a photo**: it opens your
+device's picture picker first, and the New post dialog once you have chosen,
+with the pictures already uploading. The grid stays where you are choosing what
+to open rather than reading down a feed: on a profile's Photos tab and on
+Explore's Pictures tab. **Videos** is a grid too.
+
+If you have asked your browser to save data, Photos does not fetch the pictures
+of the next posts ahead of you; they arrive as they come into view.
 
 ### Shorts that last 24 hours
 
@@ -861,8 +905,9 @@ A filter is four things:
 - **What happens to a matching post.** Either it is **folded away** — the post keeps
   its place in the timeline, with the name of the filter where its text would be and
   a **Show anyway** button; nothing of the post is on the page until you press it, so
-  the words you filtered cannot be read on the way past. In the Photos and Videos
-  grids the same post shows a covered tile with no picture. Or it is **taken out of
+  the words you filtered cannot be read on the way past. On Photos the cover takes
+  the picture's place, and in the Videos grid the same post shows a covered tile
+  with no picture. Or it is **taken out of
   the timeline**, and never reaches this app at all. Either way nothing is deleted
   and nobody is told; lift the filter and the post is back as it was.
 
@@ -1230,7 +1275,7 @@ the screen.
 | `k` | Previous post |
 | `l` or `f` | Like the post in focus |
 | `b` | Boost the post in focus |
-| `r` | Reply to the post in focus |
+| `r` | Reply to the post in focus (on Photos: open its comments) |
 | `o` or `Enter` | Open the post in focus |
 | `n` | Write a new post |
 | `g` | Go to the home timeline |

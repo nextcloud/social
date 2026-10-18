@@ -216,6 +216,34 @@ describe('TimelineList and For you', () => {
 			expect(fake.record.mock.calls.map(([status, kind]) => [status.id, kind])).toEqual([['1', 'media']])
 		})
 
+		// one picture at a time, read down like any feed: time in view counts,
+		// and so does a press on the picture
+		it('counts reading on the photo feed as it does on a list', async () => {
+			const PhotoEntryStub = {
+				name: 'TimelineEntry',
+				props: ['item', 'type', 'photo'],
+				template: '<li class="timeline-entry" :data-status-id="item.id"><div class="photo-post__media"><img class="shot" alt=""></div></li>',
+			}
+			const pinia = createPinia()
+			setActivePinia(pinia)
+			useSettingsStore().setServerData({ public: false, cloudAddress: 'https://cloud.example.org', interests: ON })
+			store = useTimelineStore()
+			vi.spyOn(store, 'fetchTimeline').mockResolvedValue([])
+			store.$patch({ type: 'photos', statuses: { 1: post('1', '10') }, timeline: ['1'] })
+			wrapper = mount(TimelineList, {
+				attachTo: document.body,
+				props: { type: 'photos', display: 'photos' },
+				global: { plugins: [pinia], mocks: { $route: { name: 'timeline', params: { type: 'photos' } } }, stubs: { TimelineEntry: PhotoEntryStub } },
+			})
+			await flushPromises()
+
+			expect(fake.sync).toHaveBeenCalled()
+
+			wrapper.find('.shot').element.click()
+
+			expect(fake.record.mock.calls.map(([status, kind]) => [status.id, kind])).toEqual([['1', 'media']])
+		})
+
 		it('counts a thread as the detail view', async () => {
 			({ wrapper } = mountList({ type: 'home', route: { name: 'single-post', params: { id: '1' } } }))
 			await flushPromises()

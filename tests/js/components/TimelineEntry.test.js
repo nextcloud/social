@@ -132,6 +132,46 @@ function mountEntry(item, props = {}) {
 }
 
 describe('TimelineEntry', () => {
+	// only the Photos page asks for it, and it arrives as a chunk of its own
+	describe('a post on the photo feed', () => {
+		const PhotoPostStub = { name: 'PhotoPost', props: ['item', 'type'], template: '<article class="photo-post-stub" />' }
+
+		const mountPhoto = (props = {}) => {
+			setActivePinia(createPinia())
+			return mount(TimelineEntry, {
+				props: { item: post, type: 'photos', photo: true, ...props },
+				global: {
+					mocks: { $route: { name: 'timeline', params: { type: 'photos' } } },
+					stubs: { PhotoPost: PhotoPostStub, TimelinePost: TimelinePostStub, TimelineAvatar: TimelineAvatarStub, RouterLink: RouterLinkStub },
+				},
+			})
+		}
+
+		it('is drawn as a photo post, without the face column beside it', () => {
+			const wrapper = mountPhoto()
+
+			expect(wrapper.findComponent(PhotoPostStub).props()).toMatchObject({ item: post, type: 'photos' })
+			expect(wrapper.findComponent(TimelinePostStub).exists()).toBe(false)
+			expect(wrapper.findComponent(TimelineAvatarStub).exists()).toBe(false)
+			expect(wrapper.classes()).toContain('timeline-entry--photo')
+		})
+
+		it('stays an entry the list can focus and find its post by', () => {
+			const wrapper = mountPhoto()
+
+			expect(wrapper.classes()).toContain('timeline-entry')
+			expect(wrapper.attributes('tabindex')).toBe('-1')
+			expect(wrapper.attributes('data-status-id')).toBe(post.id)
+		})
+
+		it('is a post like any other everywhere else', () => {
+			const wrapper = mountPhoto({ photo: false })
+
+			expect(wrapper.findComponent(PhotoPostStub).exists()).toBe(false)
+			expect(wrapper.findComponent(TimelinePostStub).exists()).toBe(true)
+		})
+	})
+
 	describe('a plain post', () => {
 		it('renders the avatar and the post itself without any header', () => {
 			const { wrapper } = mountEntry(post)

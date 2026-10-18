@@ -60,6 +60,7 @@
 					}"
 					:item="entry"
 					:type="type"
+					:photo="display === 'photos'"
 					:index="index"
 					:immediate="swapping"
 					:depth="depths[entry.id] ?? 0"
@@ -254,14 +255,15 @@ export default {
 		},
 
 		/**
-		 * How to draw the posts: as a list of entries, or as the grid of
-		 * squares a profile shows on Pixelfed. Only the drawing differs --
-		 * the timeline, its paging and its states are the same.
+		 * How to draw the posts: as a list of entries, as the grid of
+		 * squares a profile shows on Pixelfed, or as a photo feed — one
+		 * picture after another, the width of the column. Only the drawing
+		 * differs -- the timeline, its paging and its states are the same.
 		 */
 		display: {
 			type: String,
 			default: 'list',
-			validator: (value) => ['list', 'grid'].includes(String(value)),
+			validator: (value) => ['list', 'grid', 'photos'].includes(String(value)),
 		},
 
 		/** Whose profile the grid links its tiles into. */
@@ -1274,7 +1276,7 @@ export default {
 				return
 			}
 
-			if (/** @type {HTMLElement} */ (event.target).closest('.post-attachments, .media-grid__link')) {
+			if (/** @type {HTMLElement} */ (event.target).closest('.post-attachments, .photo-post__media, .media-grid__link')) {
 				this.tracker?.record(status, 'media')
 				return
 			}
@@ -1971,6 +1973,13 @@ export default {
 .timeline-entry--focused :deep(.main-post) {
 	border-color: var(--color-primary-element);
 	box-shadow: 0 0 0 2px var(--color-primary-element-light);
+}
+
+/* a photo post has no frame to colour, so it is ringed instead */
+.timeline-entry--focused :deep(.photo-post) {
+	outline: 2px solid var(--color-primary-element);
+	outline-offset: 4px;
+	border-radius: var(--border-radius-large, 8px);
 }
 
 /*

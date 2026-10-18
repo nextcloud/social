@@ -143,11 +143,19 @@ describe('Timeline', () => {
 			['federated'],
 			['notifications'],
 			['direct'],
-			['photos'],
+			['videos'],
 		])('draws none of them on %s', (type) => {
 			const wrapper = mountTimeline({ name: 'timeline', params: { type } })
 
 			expect(cards(wrapper)).toEqual({ shorts: false, recap: false, memories: false })
+		})
+
+		// read the way a photo feed is read, with the stories on top; the
+		// recap and the memories are still the home feed's alone
+		it('draws the Shorts bar, and only that, on photos', () => {
+			const wrapper = mountTimeline({ name: 'timeline', params: { type: 'photos' } })
+
+			expect(cards(wrapper)).toEqual({ shorts: true, recap: false, memories: false })
 		})
 
 		it('keeps them while the reader is on another scope of the feed', async () => {
@@ -355,10 +363,41 @@ describe('Timeline', () => {
 		expect(wrapper.findComponent(DirectMessagesStub).exists()).toBe(true)
 	})
 
-	/** A feed of text is read in a narrower column; a grid of pictures keeps the wide one. */
-	it('reads a list in the narrow column and shows a grid in the wide one', () => {
+	/** A feed of text, or of one picture at a time, is read in a narrower column; a grid of pictures keeps the wide one. */
+	it('reads a list and the photo feed in the narrow column and shows a grid in the wide one', () => {
 		expect(mountTimeline({ params: { type: 'home' } }).find('.social__wrapper').classes()).toContain('social__wrapper--reading')
-		expect(mountTimeline({ params: { type: 'photos' } }).find('.social__wrapper').classes()).not.toContain('social__wrapper--reading')
+		expect(mountTimeline({ params: { type: 'photos' } }).find('.social__wrapper').classes()).toContain('social__wrapper--reading')
+		expect(mountTimeline({ params: { type: 'videos' } }).find('.social__wrapper').classes()).not.toContain('social__wrapper--reading')
+	})
+
+	describe('sharing a photo', () => {
+		it('offers "Share a photo" on Photos in place of the composer box', () => {
+			const wrapper = mountTimeline({ params: { type: 'photos' } })
+
+			expect(wrapper.findComponent({ name: 'SharePhotoButton' }).exists()).toBe(true)
+			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
+		})
+
+		it.each(['home', 'timeline', 'videos'])('keeps the composer box on %s', (type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent({ name: 'SharePhotoButton' }).exists()).toBe(false)
+			expect(wrapper.findComponent(ComposerStub).exists()).toBe(true)
+		})
+
+		it('offers neither on a page nobody is signed in to', () => {
+			makeStore({ public: true })
+			const wrapper = mountTimeline({ params: { type: 'photos' } })
+
+			expect(wrapper.findComponent({ name: 'SharePhotoButton' }).exists()).toBe(false)
+			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
+		})
+
+		it('keeps the scope switcher on Photos', () => {
+			const wrapper = mountTimeline({ params: { type: 'photos' } })
+
+			expect(wrapper.findComponent(TimelineSwitcher).exists()).toBe(true)
+		})
 	})
 
 	it('offers the New short camera in the composer on the home feed only', () => {
@@ -1010,12 +1049,16 @@ describe('Timeline', () => {
 	})
 
 	describe('how the posts are drawn', () => {
-		// the same rule the profile follows: Posts is what somebody wrote, which
-		// is a list; Photos and Videos are what they showed, which is a grid.
-		// These two pages were a list here and a grid on a profile, so the same
-		// picture was a row in one place and a tile in the other.
-		it.each(['photos', 'videos'])('draws %s as a grid', (type) => {
-			const wrapper = mountTimeline({ params: { type } })
+		// Photos is read as a photo feed, one picture after another; a grid
+		// is how one account's pictures are browsed, on a profile
+		it('draws photos as a photo feed', () => {
+			const wrapper = mountTimeline({ params: { type: 'photos' } })
+
+			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('photos')
+		})
+
+		it('draws videos as a grid', () => {
+			const wrapper = mountTimeline({ params: { type: 'videos' } })
 
 			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('grid')
 		})

@@ -781,6 +781,16 @@ export default {
 		},
 
 		/**
+		 * Files from the reader's device to attach as soon as the composer is
+		 * up: what "Share a photo" on the Photos page picked before the
+		 * composer opened. Attached the way the file dialog's are.
+		 */
+		initialFiles: {
+			type: /** @type {import('vue').PropType<File[]>} */ (Array),
+			default: () => [],
+		},
+
+		/**
 		 * Where floating-vue teleports the emoji picker popper. The inline
 		 * composer keeps it in the themed app root (`#content`): inside the
 		 * toolbar row (`.options`, `max-height` + `overflow: hidden`) an
@@ -1401,6 +1411,10 @@ export default {
 		if (paths.length > 0) {
 			this.expand()
 			this.attachPaths(paths)
+		}
+		if (this.initialFiles.length > 0) {
+			this.expand()
+			this.attachFiles(this.initialFiles)
 		}
 
 		// a click anywhere else closes it again, which focusout cannot do on its

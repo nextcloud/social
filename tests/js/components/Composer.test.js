@@ -1437,6 +1437,25 @@ describe('Composer', () => {
 			expect(store.createMediaFromFile).not.toHaveBeenCalled()
 		})
 
+		// "Share a photo" on Photos: the device's picker first, then the
+		// composer, open, with the pictures on their way up
+		it('uploads the files it was opened with, open and without a click', async () => {
+			const picked = [new File(['x'], 'beach.png', { type: 'image/png' }), new File(['y'], 'dunes.png', { type: 'image/png' })]
+			const { wrapper, store } = mountComposer({ initialFiles: picked })
+			await flushPromises()
+
+			expect(store.createMedia).toHaveBeenCalledTimes(2)
+			expect(wrapper.find('.new-post').classes()).not.toContain('new-post--collapsed')
+			expect(wrapper.findComponent(PreviewGridItem).exists()).toBe(true)
+		})
+
+		it('uploads nothing when it was opened with no files', async () => {
+			const { store } = mountComposer()
+			await flushPromises()
+
+			expect(store.createMedia).not.toHaveBeenCalled()
+		})
+
 		it('offers the pictures and videos the reader already has, several at a time', async () => {
 			const { wrapper, store } = mountComposer()
 			const builder = filePicker(Promise.resolve([beach]))
