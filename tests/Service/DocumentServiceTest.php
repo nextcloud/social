@@ -22,6 +22,7 @@ use OCA\Social\Exceptions\UnauthorizedFediverseException;
 use OCA\Social\Interfaces\Object\ImageInterface;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Document;
+use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Object\Image;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
@@ -32,6 +33,7 @@ use OCA\Social\Service\MiscService;
 use OCA\Social\Tools\Exceptions\RequestContentException;
 use OCA\Social\Tools\Exceptions\RequestNetworkException;
 use OCA\Social\Tools\Exceptions\RequestResultSizeException;
+use OCA\Social\Tools\Exceptions\RequestServerException;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\Files\SimpleFS\ISimpleFile;
@@ -920,5 +922,86 @@ class DocumentServiceTest extends TestCase {
 		$this->expectException(NotFoundException::class);
 
 		$this->service->openPlaylistFile('42', 'https://peer.example/static/other.mp4');
+	}
+
+	// a video's subtitle tracks, passed through from their origin
+
+	private function subtitled(): Note {
+		$post = new Note();
+		$post->setId('https://peer.example/videos/watch/1');
+		$post->setVideoMeta(['title' => 'Subtitled', 'captions' => [
+			['language' => 'en', 'url' => 'https://peer.example/lazy-static/video-captions/en.vtt'],
+			['language' => 'fr', 'url' => 'https://peer.example/lazy-static/video-captions/fr.vtt'],
+		]]);
+
+		return $post;
+	}
+
+	/** Which track is a place in the list the post stored, never an address the caller names. */
+	public function testACaptionIsReadFromTheAddressThePostStored(): void {
+		$this->cacheService->expects($this->once())->method('readRemoteFile')
+			->with(
+				$this->callback(static fn (Document $track): bool => $track->getUrl() === 'https://peer.example/lazy-static/video-captions/fr.vtt'
+					&& $track->isStreamed()
+					&& $track->getParentId() === 'https://peer.example/videos/watch/1'),
+				DocumentService::MAX_CAPTION
+			)
+			->willReturn("\u{FEFF}WEBVTT\n\n00:00.000 --> 00:01.000\nBonjour\n");
+
+		$this->assertSame("WEBVTT\n\n00:00.000 --> 00:01.000\nBonjour\n", $this->service->caption($this->subtitled(), 1));
+	}
+
+	/** @return array<string, array{int}> */
+	public static function tracksThatAreNotThere(): array {
+		return ['past the end' => [2], 'before the start' => [-1]];
+	}
+
+	#[DataProvider('tracksThatAreNotThere')]
+	public function testATrackThatIsNotThereIsNotFetched(int $index): void {
+		$this->cacheService->expects($this->never())->method('readRemoteFile');
+
+		$this->expectException(NotFoundException::class);
+
+		$this->service->caption($this->subtitled(), $index);
+	}
+
+	public function testAVideoWithoutTracksHasNone(): void {
+		$this->cacheService->expects($this->never())->method('readRemoteFile');
+		$post = new Note();
+		$post->setVideoMeta(['title' => 'Silent', 'captions' => 'soon']);
+
+		$this->expectException(NotFoundException::class);
+
+		$this->service->caption($post, 0);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function notWebVtt(): array {
+		return [
+			'an SRT file' => ["1\n00:00:00,000 --> 00:00:01,000\nHello\n"],
+			'a page' => ['<!DOCTYPE html><title>404</title>'],
+			'a signature run on' => ["WEBVTTX\n"],
+			'not text' => ["WEBVTT\n\xff\xfe\x00"],
+		];
+	}
+
+	/** Only what a `<track>` plays is passed on, and nothing else under its name. */
+	#[DataProvider('notWebVtt')]
+	public function testWhatIsNotWebVttIsRefused(string $body): void {
+		$this->cacheService->method('readRemoteFile')->willReturn($body);
+
+		$this->expectException(NotFoundException::class);
+
+		$this->service->caption($this->subtitled(), 0);
+	}
+
+	/** A track over the ceiling, or an origin that does not answer, is no track. */
+	public function testATrackThatCannotBeReadIsNotFound(): void {
+		$this->cacheService->method('readRemoteFile')
+			->willThrowException(new RequestServerException('that file is larger than a playlist should be'));
+
+		$this->expectException(NotFoundException::class);
+
+		$this->service->caption($this->subtitled(), 0);
 	}
 }

@@ -192,6 +192,8 @@ class ApiControllerTest extends TestCase {
 	/** @var array<string, mixed> what the delivery service answers for the viewer */
 	private array $delivery = [];
 	private ViewCountService|Stub $viewCountService;
+	private \OCA\Social\Service\WatchService|MockObject $watchService;
+	private \OCA\Social\Service\VideoViewService|MockObject $videoViewService;
 	private TeamService|Stub $teamService;
 	private EmojiService|Stub $emojiService;
 	private PlaceService|Stub $placeService;
@@ -341,6 +343,8 @@ class ApiControllerTest extends TestCase {
 		$this->sensitiveMediaService->method('policyFor')->willReturn('default');
 		$this->sensitiveMediaService->method('instancePolicy')->willReturn('default');
 		$this->viewCountService = $this->createStub(ViewCountService::class);
+		$this->watchService = $this->createMock(\OCA\Social\Service\WatchService::class);
+		$this->videoViewService = $this->createMock(\OCA\Social\Service\VideoViewService::class);
 		$this->teamService = $this->createStub(TeamService::class);
 		$this->emojiService = $this->createStub(EmojiService::class);
 		$this->placeService = $this->createStub(PlaceService::class);
@@ -483,7 +487,8 @@ class ApiControllerTest extends TestCase {
 			'notificationPolicyService' => $this->notificationPolicyService,
 			'quoteService' => $this->quoteService,
 			'annualReportService' => $this->annualReportService,
-			'watchService' => $this->createMock(\OCA\Social\Service\WatchService::class),
+			'watchService' => $this->watchService,
+			'videoViewService' => $this->videoViewService,
 			'l10nFactory' => $this->l10nFactory,
 			'timelineRevisionService' => $this->timelineRevisionService,
 			// the real one over the doubles above, so the badge is counted by
@@ -909,6 +914,8 @@ class ApiControllerTest extends TestCase {
 			'mediaLadderRung' => 'GET',
 			'mediaLadderFile' => 'GET',
 			'statusWatched' => 'POST',
+			'statusView' => 'POST',
+			'mediaCaption' => 'GET',
 			'statusUnwatched' => 'DELETE',
 			'videosContinue' => 'GET',
 		] as $route => $verb) {
@@ -1490,6 +1497,74 @@ class ApiControllerTest extends TestCase {
 		$this->counts->method('seen')->willReturn(false);
 
 		$this->assertArrayNotHasKey('X-Social-Filling', $this->controller()->statusGet(42)->getHeaders());
+	}
+
+	/** A video opened on its own starts where this reader left it. */
+	public function testAStatusServedToASignedInReaderCarriesWhereTheyStopped(): void {
+		$viewer = $this->loggedInAs();
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->watchService->expects($this->once())->method('attachProgress')->with($item, $viewer);
+
+		$this->assertSame(Http::STATUS_OK, $this->controller()->statusGet(42)->getStatus());
+	}
+
+	public function testAViewIsCountedForWhoeverIsWatching(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->with(42)->willReturn($item);
+		$this->videoViewService->expects($this->once())->method('count')->with($item, null)->willReturn(true);
+
+		$response = $this->controller()->statusView(42);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame(['counted' => true], $response->getData());
+	}
+
+	/** Counted is read as the viewer may see the post: one they may not is not there. */
+	public function testAViewOfAPostTheViewerMayNotSeeIsNotFound(): void {
+		$this->streamService->method('getStreamByNid')->willThrowException(new StreamNotFoundException('not found'));
+		$this->videoViewService->expects($this->never())->method('count');
+
+		$this->assertNotFound($this->controller()->statusView(42), 'not found');
+	}
+
+	/** A subtitle track is served as the one format a `<track>` plays, and never sniffed. */
+	public function testACaptionIsServedAsWebVtt(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->with(42)->willReturn($item);
+		$this->documentService->expects($this->once())->method('caption')->with($item, 1)->willReturn("WEBVTT\n");
+
+		$response = $this->controller()->mediaCaption(42, 1);
+
+		$this->assertSame(Http::STATUS_OK, $response->getStatus());
+		$this->assertSame('text/vtt; charset=utf-8', $response->getHeaders()['Content-Type']);
+		$this->assertSame('nosniff', $response->getHeaders()['X-Content-Type-Options']);
+		$this->assertSame("WEBVTT\n", $response->render());
+	}
+
+	/** @return array<string, array{\Throwable}> */
+	public static function captionsThatAreNotThere(): array {
+		return [
+			'a post the viewer may not see' => [new StreamNotFoundException('not found')],
+			'a track that is not there' => [new NotFoundException('no such caption')],
+		];
+	}
+
+	#[DataProvider('captionsThatAreNotThere')]
+	public function testACaptionThatIsNotThereIsNotFound(\Throwable $why): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		if ($why instanceof StreamNotFoundException) {
+			$this->streamService->method('getStreamByNid')->willThrowException($why);
+		} else {
+			$this->streamService->method('getStreamByNid')->willReturn($this->createStub(Stream::class));
+			$this->documentService->method('caption')->willThrowException($why);
+		}
+
+		$response = $this->controller()->mediaCaption(42, 0);
+
+		$this->assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 	}
 
 	public function testStatusGetOfUnknownStatusIsAnError(): void {

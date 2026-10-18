@@ -112,24 +112,53 @@ class WatchRequest extends CoreRequestBuilder {
 		$rows = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$updated = 0;
-			if (($data['last_update'] ?? null) !== null) {
-				try {
-					$updated = (new DateTime((string)$data['last_update'], new DateTimeZone('UTC')))->getTimestamp();
-				} catch (\Exception $e) {
-				}
-			}
-
-			$rows[] = [
-				'prim' => (string)$data['stream_id_prim'],
-				'position' => (int)$data['position'],
-				'duration' => (int)$data['duration'],
-				'updated' => $updated,
-			];
+			$rows[] = ['prim' => (string)$data['stream_id_prim']] + self::progressFrom($data);
 		}
 		$cursor->closeCursor();
 
 		return $rows;
+	}
+
+	/**
+	 * Where this person got to in this video, with how long it runs and when
+	 * they were last in it: what a player resumes from.
+	 *
+	 * @return array{position: int, duration: int, updated: int}|null null for a video they have not opened
+	 */
+	public function progressOf(string $streamId, string $actorId): ?array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('position', 'duration', 'last_update')
+			->from(self::TABLE_WATCH)
+			->where($qb->expr()->eq('stream_id_prim', $qb->createNamedParameter($qb->prim($streamId))))
+			->andWhere($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
+			->setMaxResults(1);
+
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return ($data === false) ? null : self::progressFrom($data);
+	}
+
+	/**
+	 * @param array<string, mixed> $data a row
+	 *
+	 * @return array{position: int, duration: int, updated: int} `updated` a timestamp, 0 when it is not known
+	 */
+	private static function progressFrom(array $data): array {
+		$updated = 0;
+		if (($data['last_update'] ?? null) !== null) {
+			try {
+				$updated = (new DateTime((string)$data['last_update'], new DateTimeZone('UTC')))->getTimestamp();
+			} catch (\Exception $e) {
+			}
+		}
+
+		return [
+			'position' => (int)$data['position'],
+			'duration' => (int)$data['duration'],
+			'updated' => $updated,
+		];
 	}
 
 	/** Forgets one, for somebody taking a video off their own list. */

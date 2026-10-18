@@ -4,12 +4,14 @@
 -->
 <template>
 	<div class="watch">
+		<VideoPlayer class="watch__player" :status="status" />
+		<!-- what the post carries beside the video, which plays above -->
 		<PostAttachment
-			class="watch__player"
+			v-if="besideVideo.length"
+			class="watch__beside"
 			mediaFirst
 			:to="null"
-			:video="video"
-			:attachments="status.media_attachments || []" />
+			:attachments="besideVideo" />
 
 		<h1 class="watch__title">
 			{{ title }}
@@ -92,6 +94,8 @@ import ThumbDown from 'vue-material-design-icons/ThumbDown.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import FollowButton from './FollowButton.vue'
 import PostAttachment from './PostAttachment.vue'
+import VideoPlayer from './VideoPlayer.vue'
+import { playedAttachmentOf } from '../services/videoSource.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useSettingsStore } from '../store/settings.js'
 import { formatTime } from '../utils/shortVideo.js'
@@ -119,6 +123,7 @@ export default {
 		NcButton,
 		PostAttachment,
 		ThumbDown,
+		VideoPlayer,
 	},
 
 	props: {
@@ -186,6 +191,19 @@ export default {
 			const text = (this.status.content || '').replace(/<[^>]*>/g, '\n')
 
 			return (text.split('\n').find((line) => line.trim() !== '') || '').trim()
+		},
+
+		/**
+		 * The pictures and files of the post other than the video the player
+		 * plays, so that nothing it carries is lost and the video is not
+		 * shown twice.
+		 *
+		 * @return {object[]}
+		 */
+		besideVideo() {
+			const played = playedAttachmentOf(this.status)
+
+			return (this.status.media_attachments || []).filter((item) => item !== played)
 		},
 
 		/** @return {Array<{title: string, start: number}>} */

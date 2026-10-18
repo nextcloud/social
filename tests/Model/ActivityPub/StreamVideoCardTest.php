@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Model\ActivityPub;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\MediaAttachment;
+use OCP\IURLGenerator;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -162,6 +163,65 @@ class StreamVideoCardTest extends TestCase {
 
 		$this->assertSame('https://files.example/v.jpg', $card['thumbnail']);
 		$this->assertSame(9, $card['duration']);
+	}
+
+	/** A video posted here shows this server's own count, and 0 is a count. */
+	public function testAVideoPostedHereShowsHowManyWatchedItHere(): void {
+		$note = $this->post('<p>mine</p>', [$this->video('https://cloud.example/m.mp4', '')], ['title' => 'Mine', 'views' => 99]);
+		$note->setLocal(true);
+		$note->setLocalVideoViews(4);
+		$status = $note->exportAsLocal();
+
+		$this->assertSame(4, $status['video_card']['views']);
+		$this->assertSame(4, $status['video']['views'], 'the block says the same number, not one somebody typed');
+
+		$note->setLocalVideoViews(0);
+		$this->assertSame(0, $note->exportAsLocal()['video_card']['views']);
+	}
+
+	/** A count that was not read is not zero. */
+	public function testAVideoPostedHereWithNoCountReadSaysNothing(): void {
+		$note = $this->post('<p>mine</p>', [$this->video('https://cloud.example/m.mp4', '')]);
+		$note->setLocal(true);
+
+		$this->assertNull($note->exportAsLocal()['video_card']['views']);
+	}
+
+	/** A count put on another server's copy is never shown in place of its own. */
+	public function testAVideoFromElsewhereKeepsItsOriginsCount(): void {
+		$note = $this->post('', [$this->video('https://tube.example/1.mp4', '')], ['title' => 'Theirs', 'views' => 1234]);
+		$note->setLocalVideoViews(5);
+		$status = $note->exportAsLocal();
+
+		$this->assertSame(1234, $status['video_card']['views']);
+		$this->assertSame(1234, $status['video']['views']);
+	}
+
+	/**
+	 * A subtitle track is handed out as this server's address, never the
+	 * origin's: the page may not load one from another host.
+	 */
+	public function testSubtitleTracksArePlayedThroughThisServer(): void {
+		$urls = $this->createStub(IURLGenerator::class);
+		$urls->method('linkToRouteAbsolute')->willReturnCallback(
+			static fn (string $route, array $parameters): string => 'https://cloud.example/' . $route . '/' . $parameters['nid'] . '/' . $parameters['index']
+		);
+		\OC::$server->register(IURLGenerator::class, $urls);
+
+		try {
+			$video = $this->post('', [], ['title' => 'Subtitled', 'captions' => [
+				['language' => 'en', 'url' => 'https://tube.example/captions/en.vtt'],
+				['language' => 'fr'],
+				['language' => 'de', 'url' => 'https://tube.example/captions/de.vtt'],
+			]])->exportAsLocal()['video'];
+		} finally {
+			\OC::$server->reset();
+		}
+
+		$this->assertSame([
+			['language' => 'en', 'url' => 'https://cloud.example/social.MediaApi.mediaCaption/7/0'],
+			['language' => 'de', 'url' => 'https://cloud.example/social.MediaApi.mediaCaption/7/2'],
+		], $video['captions'], 'each by its place in the stored list, which is what the route reads');
 	}
 
 	public function testAPostThatIsNotAVideoHasNoCard(): void {

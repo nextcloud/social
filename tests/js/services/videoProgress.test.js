@@ -5,7 +5,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import axios from '@nextcloud/axios'
-import { forgetProgress, isUnfinished, loadUnfinished, progressOf } from '../../../src/services/videoProgress.js'
+import { forgetProgress, isUnfinished, loadUnfinished, progressOf, rememberProgress } from '../../../src/services/videoProgress.js'
 
 vi.mock('@nextcloud/axios', () => ({
 	default: { get: vi.fn() },
@@ -56,6 +56,33 @@ describe('where the reader stopped in a video', () => {
 		vi.mocked(axios.get).mockRejectedValue(new Error('down'))
 
 		expect(await loadUnfinished()).toEqual([])
+	})
+
+	/** A player on the page moves the bar of every card for the same video. */
+	it('takes what a player reported over an older answer of the server', () => {
+		rememberProgress('1', 90, 120)
+
+		expect(progressOf(watching('1', 30, 120)).position).toBe(90)
+		expect(progressOf({ id: '1' }).fraction).toBe(0.75)
+	})
+
+	it('takes a newer answer of the server over what a player reported', () => {
+		vi.useFakeTimers({ now: Date.parse('2026-10-16T11:00:00.000Z') })
+		try {
+			rememberProgress('1', 90, 120)
+		} finally {
+			vi.useRealTimers()
+		}
+
+		expect(progressOf(watching('1', 30, 120)).position).toBe(30)
+	})
+
+	/** Finished is finished: the bar goes, and an older bookmark does not come back. */
+	it('forgets a video watched to the end', () => {
+		rememberProgress('1', 118, 120)
+
+		expect(progressOf(watching('1', 30, 120))).toBeNull()
+		expect(progressOf({ id: '1' })).toBeNull()
 	})
 
 	it('counts begun and not finished as unfinished', () => {

@@ -31,6 +31,27 @@ export const SHORTCUTS = [
 	{ keys: ['?'], event: 'shortcut:help', label: t('social', 'Show these shortcuts') },
 ]
 
+/**
+ * The keys of the video player, YouTube's: on a video's own page wherever the
+ * focus is outside a text field, and in the small player while it has the
+ * focus. The volume keys only while the player has the focus, so the arrows
+ * still scroll the page. Listed here for the `?` dialog and the settings; the
+ * player itself is `VideoPlayer.vue`.
+ *
+ * @type {Array<{keys: string[], label: string}>}
+ */
+export const PLAYER_SHORTCUTS = [
+	{ keys: ['k', 'Space'], label: t('social', 'Play or pause the video') },
+	{ keys: ['j', 'l'], label: t('social', 'Go back or forward 10 seconds') },
+	{ keys: ['←', '→'], label: t('social', 'Go back or forward 5 seconds') },
+	{ keys: ['↑', '↓'], label: t('social', 'Louder or quieter, while the player has the focus') },
+	{ keys: ['m'], label: t('social', 'Sound off or on') },
+	{ keys: ['f'], label: t('social', 'Full screen') },
+	{ keys: ['c'], label: t('social', 'Subtitles on or off') },
+	{ keys: ['<', '>'], label: t('social', 'Slower or faster') },
+	{ keys: ['0', '…', '9'], label: t('social', 'Jump to the start, or to 10% to 90% of the video') },
+]
+
 const EDITABLE = ['input', 'textarea', 'select']
 
 /**

@@ -53,6 +53,7 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TranslationService;
 use OCA\Social\Service\ViewCountService;
+use OCA\Social\Service\VideoViewService;
 use OCA\Social\Service\WatchService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -116,6 +117,7 @@ class StatusApiController extends MastodonApiController {
 		private TranslationService $translationService,
 		private QuoteService $quoteService,
 		private WatchService $watchService,
+		private VideoViewService $videoViewService,
 		private IFactory $l10nFactory,
 		private DurableCache $durableCache,
 		private Publisher $atprotoPublisher,
@@ -512,6 +514,8 @@ class StatusApiController extends MastodonApiController {
 			// having read it: not an impression in a timeline, which is a post
 			// scrolled past rather than read
 			$this->viewCountService->seen($item, $this->viewer);
+			// and a video starts where the reader left it
+			$this->watchService->attachProgress($item, $this->viewer);
 			// and what its likes, boosts and replies are now where it lives,
 			// asked in the background; a client that knows the header asks
 			// for the post again a little later
@@ -875,6 +879,31 @@ class StatusApiController extends MastodonApiController {
 			$this->watchService->remember($post, $this->viewer, $position, $duration);
 
 			return new DataResponse([], Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/**
+	 * Counts a view of a video posted here, once the reader has watched a few
+	 * seconds of it (`VideoViewService::MIN_SECONDS`, the player's side of the
+	 * rule). At most one per viewer — the account, or the session of somebody
+	 * who is not signed in — per video and day; see `VideoViewService`.
+	 *
+	 * Answers whether the count moved, which is nothing a client has to act
+	 * on: a view that was not counted is not an error.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 3600)]
+	#[UserRateLimit(limit: 600, period: 3600)]
+	#[FrontpageRoute(verb: 'POST', url: '/api/v1/statuses/{nid}/view')]
+	public function statusView(int|string $nid): DataResponse {
+		try {
+			$this->initViewer(false);
+			$post = $this->streamService->getStreamByNid($nid);
+
+			return new DataResponse(['counted' => $this->videoViewService->count($post, $this->viewer)], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

@@ -90,4 +90,18 @@ class WatchRequestTest extends TestCase {
 		$this->assertFalse($this->watch->forget(self::VIDEO, self::ALICE));
 		$this->assertSame(0, $this->watch->positionOf(self::VIDEO, self::ALICE));
 	}
+
+	/** What a player resumes from: the reader's own place in this one video, with its length. */
+	public function testOneVideosProgressIsReadForItsReader(): void {
+		$before = time() - 5;
+		$this->watch->remember(self::VIDEO, self::ALICE, 75, 600);
+
+		$progress = $this->watch->progressOf(self::VIDEO, self::ALICE);
+
+		$this->assertSame(75, $progress['position'] ?? null);
+		$this->assertSame(600, $progress['duration'] ?? null);
+		$this->assertGreaterThanOrEqual($before, $progress['updated'] ?? 0);
+		$this->assertNull($this->watch->progressOf(self::VIDEO, self::BOB), 'bob has not opened it');
+		$this->assertNull($this->watch->progressOf(self::SHORT, self::ALICE));
+	}
 }

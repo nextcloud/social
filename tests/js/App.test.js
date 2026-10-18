@@ -14,6 +14,7 @@ import App from '../../src/App.vue'
 import ShortcutHelp from '../../src/components/ShortcutHelp.vue'
 import ShortcutList from '../../src/components/ShortcutList.vue'
 import eventBus, { REACTION_PICK } from '../../src/services/eventBus.js'
+import { closeMiniPlayer, handOff } from '../../src/services/miniPlayer.js'
 import { useAccountStore } from '../../src/store/account.js'
 import { useSettingsStore } from '../../src/store/settings.js'
 import { useTimelineStore } from '../../src/store/timeline.js'
@@ -58,6 +59,7 @@ const stubs = {
 	// EnvironmentTeardownError that names no test.
 	ReactionPicker: { name: 'ReactionPicker', template: '<div class="reaction-picker-stub" />' },
 	RouterView: { template: '<div class="router-view-stub" />' },
+	MiniPlayer: { name: 'MiniPlayer', template: '<aside class="mini-player-stub" />' },
 }
 
 const baseServerData = {
@@ -233,6 +235,16 @@ describe('App', () => {
 			}
 		})
 
+		it('lists the video player\'s keys as well', async () => {
+			const wrapper = mountApp()
+			eventBus.emit('shortcut:help')
+			await wrapper.vm.$nextTick()
+			const list = wrapper.findComponent(ShortcutList)
+
+			expect(list.text()).toContain('Watching a video')
+			expect(list.vm.playerShortcuts.map((shortcut) => shortcut.keys[0])).toEqual(['k', 'j', '←', '↑', 'm', 'f', 'c', '<', '0'])
+		})
+
 		it('stops listening once the app is gone', () => {
 			const wrapper = mountApp()
 			wrapper.unmount()
@@ -318,6 +330,32 @@ describe('App', () => {
 		mountApp()
 
 		expect(accountStore.fetchCurrentAccountInfo).not.toHaveBeenCalled()
+	})
+
+	/** A video the reader left the page of while it played goes on in the corner, whatever the page. */
+	describe('the small player', () => {
+		afterEach(() => {
+			closeMiniPlayer()
+		})
+
+		it('is drawn while it holds a video, keyed by it, and goes when it is closed', async () => {
+			const wrapper = mountApp()
+			expect(wrapper.findComponent({ name: 'MiniPlayer' }).exists()).toBe(false)
+
+			handOff({ id: '42', account: { acct: 'alice' } }, 12)
+			await flushPromises()
+			const player = wrapper.findComponent({ name: 'MiniPlayer' })
+			expect(player.exists()).toBe(true)
+			expect(player.vm.$.vnode.key).toBe('42')
+
+			route.value = { name: 'profile', params: {}, fullPath: '/@bob' }
+			await flushPromises()
+			expect(wrapper.findComponent({ name: 'MiniPlayer' }).exists()).toBe(true)
+
+			closeMiniPlayer()
+			await flushPromises()
+			expect(wrapper.findComponent({ name: 'MiniPlayer' }).exists()).toBe(false)
+		})
 	})
 
 	it('renders the navigation and the routed view inside the app content', () => {

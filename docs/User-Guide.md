@@ -356,7 +356,9 @@ The sidebar is the map:
   row on a wide screen, two on a tablet and one on a phone. Each card shows the
   video's picture with its running time (or **Live**), the channel's face, the
   title, the channel, and how many views it has and how long ago it was
-  published — the views only where the video's own site counts them. Rest the
+  published — the views of a video posted here are counted here, those of a
+  video from elsewhere only where its own site counts them, and none at all
+  while you hide the numbers (see **Likes and followers** below). Rest the
   mouse on a card and after a moment it plays a silent preview; it does not on
   a touch screen, when your device asks for less motion, or when it asks to
   save data. Press a card to watch the video. Chips above the cards narrow
@@ -368,6 +370,24 @@ The sidebar is the map:
   video** next to the chips picks the file first and then opens the post
   around it, with the video's title and category. The arrow keys move from
   card to card.
+- **Watching a video.** A video's page plays it in a player of its own. It
+  starts where you stopped last time, unless you had nearly finished it, and
+  remembers where you are as you watch, so **Continue watching** offers it
+  back. Under the picture are play and pause, the sound and its volume, the
+  time, and on the right **Subtitles** (when the video has them, in your own
+  language first), the **speed** (half to double; this browser remembers
+  your choice), **Quality** (Auto, or one size, when the video comes in
+  several), **Play in a floating window** where your browser can, and **Full
+  screen**. The keys are the ones video sites use — see **Keyboard
+  shortcuts** below. A view is counted once you have watched five seconds of
+  a video posted here, once a day per person; nothing about who watched is
+  kept past the day.
+- **The small player.** Leave a video's page while it plays — open the
+  timeline, a profile, anything in the app — and it goes on in a small
+  player in the bottom corner, with play and pause, **Back to the video** and
+  **Close the player**. Back to the video goes on from the same moment on its
+  page; closing it stops the video. It only ever holds a video you were
+  watching: nothing starts in it on its own.
 - **Shorts** — short videos watched one at a time, full height, each
   playing as it comes up and pausing as you scroll past. A short is kept on
   its poster's profile like any other post, or lasts **24 hours** and is seen
@@ -916,7 +936,8 @@ hand, it is picked up as one.
 
 
 - **Likes and followers.** You are not shown how many likes, dislikes, boosts
-  or replies anything has — not on your posts, not on anybody else's — and
+  or replies anything has, or how many times a video was watched — not on your
+  posts, not on anybody else's — and
   other people's profiles show **Followers** without a number. A number next
   to a post is a score, and a score is pressure.
   **Settings → Reading → Likes and followers → Show the numbers** brings them back. It
@@ -1251,6 +1272,25 @@ the screen.
 | `n` | Write a new post |
 | `g` | Go to the home timeline |
 | `?` | Show these shortcuts |
+
+On a video's own page the video player has keys of its own, the ones video
+sites use. They work wherever the focus is on that page, except in a text
+field or behind a dialog; in the small player they work while it has the
+focus. `j`, `k`, `l` and `f` are the player's there, not the timeline's, and
+the up and down arrows change the volume only while the player has the focus,
+so they still scroll the page otherwise. The same switches turn them off.
+
+| Key | Does |
+|---|---|
+| `k` or `Space` | Play or pause |
+| `j` / `l` | Back / forward 10 seconds |
+| `←` / `→` | Back / forward 5 seconds |
+| `↑` / `↓` | Louder / quieter, while the player has the focus |
+| `m` | Sound off or on |
+| `f` | Full screen |
+| `c` | Subtitles on or off |
+| `<` / `>` | Slower / faster |
+| `0` … `9` | Jump to the start, or to 10% … 90% of the video |
 
 `Enter` on a focused button or link still presses it — the shortcut only
 applies where nothing else claims the key. Nextcloud's own **Skip to main

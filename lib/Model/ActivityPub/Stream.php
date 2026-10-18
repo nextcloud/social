@@ -481,6 +481,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private ?array $watchProgress = null;
 
 	/**
+	 * How many times this video, posted here, was watched — the public number
+	 * `VideoViewService` keeps, put here by `attach()`. `null` where it was
+	 * not read: every post from elsewhere, and a post that is not a video.
+	 */
+	private ?int $localVideoViews = null;
+
+	/**
 	 * Whether the author has put this post away.
 	 *
 	 * Local and never federated: an archived post is still on every server
@@ -1148,11 +1155,84 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'title' => $this->videoTitle(),
 			'duration' => ($duration > 0) ? $duration : null,
 			'thumbnail' => $thumbnail,
-			'views' => is_numeric($meta['views'] ?? null) ? max(0, (int)$meta['views']) : null,
+			'views' => $this->videoViews($meta),
 			'live' => ($meta['live'] ?? false) === true,
 			'category' => ($category === '') ? null : $category,
 			'published' => $this->videoPublished((string)($meta['originally_published_at'] ?? '')),
 		];
+	}
+
+	/**
+	 * How many times it was watched: for a video posted here, the count this
+	 * server keeps (`VideoViewService`), and for one from elsewhere what its
+	 * origin said. Null when neither is known.
+	 *
+	 * @param array<string, mixed> $meta the video block
+	 */
+	private function videoViews(array $meta): ?int {
+		if ($this->isLocal()) {
+			return $this->getLocalVideoViews();
+		}
+
+		return is_numeric($meta['views'] ?? null) ? max(0, (int)$meta['views']) : null;
+	}
+
+	/**
+	 * The video block as a client is handed it: what the post said about the
+	 * video, with this server's own count as `views` on a video posted here,
+	 * and each subtitle track pointed at this server
+	 * (`MediaApiController::mediaCaption()`) rather than at its origin — the
+	 * page may not load a track from another host, and a reader turning
+	 * subtitles on should not be announced to it either.
+	 *
+	 * @return array<string, mixed>|null null for a post that is not a video
+	 */
+	private function exportVideoMeta(): ?array {
+		$video = $this->getVideoMeta();
+		if ($video === []) {
+			return null;
+		}
+
+		if ($this->isLocal() && $this->getLocalVideoViews() !== null) {
+			$video['views'] = $this->getLocalVideoViews();
+		}
+
+		if (is_array($video['captions'] ?? null)) {
+			$video['captions'] = $this->exportCaptions($video['captions']);
+		}
+
+		return $video;
+	}
+
+	/**
+	 * @param array<mixed> $captions as stored: `{language, url}` with the origin's url
+	 *
+	 * @return list<array{language: string, url: string}> the same, each url this server's
+	 */
+	private function exportCaptions(array $captions): array {
+		$exported = [];
+		foreach (array_values($captions) as $index => $caption) {
+			if (!is_array($caption) || !is_string($caption['url'] ?? null) || $caption['url'] === '') {
+				continue;
+			}
+
+			$url = '';
+			if (!in_array((string)$this->getNid(), ['', '0'], true)) {
+				try {
+					$url = Server::get(IURLGenerator::class)->linkToRouteAbsolute(
+						'social.MediaApi.mediaCaption', ['nid' => (string)$this->getNid(), 'index' => $index]
+					);
+				} catch (Throwable $e) {
+				}
+			}
+			if ($url === '') {
+				continue;
+			}
+
+			$exported[] = ['language' => (string)($caption['language'] ?? ''), 'url' => $url];
+		}
+
+		return $exported;
 	}
 
 	/**
@@ -1605,8 +1685,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
-	 * Where the reader got to in this video, on the one list that says so
-	 * (`WatchService::unfinished()`).
+	 * Where the reader got to in this video, on the two reads that say so:
+	 * "continue watching" (`WatchService::unfinished()`) and the video opened
+	 * on its own (`WatchService::attachProgress()`).
 	 *
 	 * @param int $updated when it was last moved, as a timestamp; 0 when not known
 	 */
@@ -1616,6 +1697,16 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'duration' => max(0, $duration),
 			'updated_at' => ($updated > 0) ? gmdate('Y-m-d\TH:i:s', $updated) . '.000Z' : null,
 		];
+
+		return $this;
+	}
+
+	public function getLocalVideoViews(): ?int {
+		return $this->localVideoViews;
+	}
+
+	public function setLocalVideoViews(?int $views): self {
+		$this->localVideoViews = ($views === null) ? null : max(0, $views);
 
 		return $this;
 	}
@@ -2481,13 +2572,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			'disliked' => $this->isVideo() ? $disliked : null,
 			// what a video is, beyond being a post with a file on it: null for
 			// every post that is not one, which is almost all of them
-			'video' => ($video = $this->getVideoMeta()) === [] ? null : $video,
+			'video' => $this->exportVideoMeta(),
 			// Aloha Social's own: the same seven facts about every video,
 			// for a grid of them to draw — see `exportVideoCard()`. Null for
 			// every post that is not a video
 			'video_card' => $this->exportVideoCard(),
 			// where the reader stopped in this video: only on "continue
-			// watching" (`/api/v1/videos/continue`), null everywhere else
+			// watching" (`/api/v1/videos/continue`) and on the video read on
+			// its own, null everywhere else
 			'watch_progress' => $this->getWatchProgress(),
 			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),

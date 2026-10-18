@@ -33,10 +33,10 @@ use Throwable;
  * same JPEG and the same `resized_copy` an upload gets, and it changes nothing
  * about the video itself.
  *
- * Deliberately a command rather than a background job: it is a one-off after
- * an upgrade, it spends a subprocess and a temporary copy per video, and an
- * administrator with ten thousand of them should be the one deciding when that
- * happens.
+ * `Cron\VideoPosters` does the same a few videos a run, each video once. This
+ * is for doing all of them now, and for trying again the ones the job could
+ * not make a frame of: it reads every video that still has no poster, however
+ * far the job has got.
  */
 class MediaPosters extends SocialCommand {
 	/** How many are read per query. The work is per video, not per page. */

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 import ShortcutList from '../../../src/components/ShortcutList.vue'
-import { SHORTCUTS } from '../../../src/services/shortcuts.js'
+import { PLAYER_SHORTCUTS, SHORTCUTS } from '../../../src/services/shortcuts.js'
 
 /**
  * The list the `?` dialog and the Settings page both show.
@@ -21,7 +21,19 @@ describe('the shortcut list', () => {
 	it('shows every shortcut the handler listens for', () => {
 		const wrapper = mount(ShortcutList)
 
-		expect(wrapper.findAll('.shortcut-list__row')).toHaveLength(SHORTCUTS.length)
+		expect(wrapper.findAll('.shortcut-list__row')).toHaveLength(SHORTCUTS.length + PLAYER_SHORTCUTS.length)
+	})
+
+	/** The player's keys are their own list, under its own heading. */
+	it('shows the video player\'s keys after the others', () => {
+		const wrapper = mount(ShortcutList)
+		const rows = wrapper.findAll('.shortcut-list__row').slice(SHORTCUTS.length)
+
+		expect(wrapper.find('.shortcut-list__heading').text()).toBe('Watching a video')
+		PLAYER_SHORTCUTS.forEach((shortcut, index) => {
+			expect(rows[index].findAll('kbd').map((key) => key.text())).toEqual(shortcut.keys)
+			expect(rows[index].find('dd').text()).toBe(shortcut.label)
+		})
 	})
 
 	it('shows each key next to what it does', () => {
@@ -52,7 +64,8 @@ describe('the shortcut list', () => {
 		const wrapper = mount(ShortcutList)
 
 		expect(wrapper.find('dl').exists()).toBe(true)
-		expect(wrapper.findAll('dt')).toHaveLength(SHORTCUTS.length)
-		expect(wrapper.findAll('dd')).toHaveLength(SHORTCUTS.length)
+		expect(wrapper.findAll('dl')).toHaveLength(2)
+		expect(wrapper.findAll('dt')).toHaveLength(SHORTCUTS.length + PLAYER_SHORTCUTS.length)
+		expect(wrapper.findAll('dd')).toHaveLength(SHORTCUTS.length + PLAYER_SHORTCUTS.length)
 	})
 })

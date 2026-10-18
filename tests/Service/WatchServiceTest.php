@@ -13,6 +13,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Db\WatchRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\WatchService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -148,5 +149,51 @@ class WatchServiceTest extends TestCase {
 
 		$this->assertSame(0, $this->service->positionOf($this->post(), $this->bob()));
 		$this->assertSame(0, $this->service->positionOf($this->post(), null));
+	}
+
+	private function video(): Note {
+		$note = $this->post();
+		$note->setAttachments([(new MediaAttachment())->import([
+			'id' => '1', 'type' => 'video', 'media_type' => 'video/mp4', 'url' => 'https://cloud.example/media/1',
+		])]);
+
+		return $note;
+	}
+
+	/** A video opened on its own starts where the reader left it. */
+	public function testAVideoOpenedOnItsOwnCarriesWhereTheReaderStopped(): void {
+		$this->watchRequest->method('progressOf')->with(self::POST, self::BOB)
+			->willReturn(['position' => 90, 'duration' => 600, 'updated' => 1714564800]);
+		$video = $this->video();
+
+		$this->service->attachProgress($video, $this->bob());
+
+		$this->assertSame(['position' => 90, 'duration' => 600, 'updated_at' => '2024-05-01T12:00:00.000Z'], $video->getWatchProgress());
+	}
+
+	public function testNothingIsReadForAPostThatIsNotAVideoOrSomebodyNotSignedIn(): void {
+		$this->watchRequest->expects($this->never())->method('progressOf');
+
+		$post = $this->post();
+		$this->service->attachProgress($post, $this->bob());
+		$video = $this->video();
+		$this->service->attachProgress($video, null);
+
+		$this->assertNull($post->getWatchProgress());
+		$this->assertNull($video->getWatchProgress());
+	}
+
+	public function testAVideoNotBegunOrUnreadableCarriesNothing(): void {
+		$this->watchRequest->method('progressOf')->willReturnOnConsecutiveCalls(
+			null,
+			['position' => 0, 'duration' => 600, 'updated' => 0],
+			$this->throwException(new \RuntimeException('nope')),
+		);
+
+		foreach ([1, 2, 3] as $attempt) {
+			$video = $this->video();
+			$this->service->attachProgress($video, $this->bob());
+			$this->assertNull($video->getWatchProgress(), 'attempt ' . $attempt);
+		}
 	}
 }

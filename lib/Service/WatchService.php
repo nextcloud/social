@@ -88,6 +88,27 @@ class WatchService {
 	}
 
 	/**
+	 * Puts where the reader got to on a video they are opening, so its player
+	 * starts there (`watch_progress`). Nothing for a post that is not a video,
+	 * an anonymous reader, or a video they have not begun.
+	 */
+	public function attachProgress(Stream $post, ?Person $viewer): void {
+		if ($viewer === null || $post->getId() === '' || !$post->isVideo()) {
+			return;
+		}
+
+		try {
+			$progress = $this->watchRequest->progressOf($post->getId(), $viewer->getId());
+		} catch (Throwable $e) {
+			return;
+		}
+
+		if ($progress !== null && $progress['position'] > 0) {
+			$post->setWatchProgress($progress['position'], $progress['duration'], $progress['updated']);
+		}
+	}
+
+	/**
 	 * The videos this person was in the middle of, newest first, each
 	 * carrying where they got to (`watch_progress`).
 	 *

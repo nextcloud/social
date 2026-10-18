@@ -27,6 +27,7 @@ use OCA\Social\Service\ProfileLinkVerifier;
 use OCA\Social\Service\RemoteCountService;
 use OCA\Social\Service\StreamPruneService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\VideoViewService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\TimedJob;
 use Psr\Log\LoggerInterface;
@@ -100,6 +101,7 @@ class Cache extends TimedJob {
 		private ?FediverseDirectoryService $fediverseDirectoryService = null,
 		private ?RemoteCountService $remoteCountService = null,
 		private ?ClientService $clientService = null,
+		private ?VideoViewService $videoViewService = null,
 	) {
 		parent::__construct($time);
 		$this->setInterval(12 * 60);
@@ -196,6 +198,11 @@ class Cache extends TimedJob {
 				// expired authorizations, and the registrations the public
 				// app endpoint left that nobody ever signed in with
 				$this->clientService?->sweep();
+			},
+			'forgetVideoViewers' => function (): void {
+				// who was counted watching a video is kept for the day it was
+				// counted on, and not a day longer
+				$this->videoViewService?->forgetEarlierDays();
 			},
 		];
 	}

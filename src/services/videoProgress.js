@@ -26,8 +26,16 @@ import logger from './logger.js'
  * @property {number} updatedAt - when it was last moved, as a timestamp in milliseconds; 0 when not known
  */
 
-/** What is known, by post id. @type {Map<string, VideoProgress>} */
+/**
+ * What is known, by post id. `null` progress is a video the reader finished
+ * here, which no older answer of the server's may bring back.
+ *
+ * @type {Map<string, {progress: VideoProgress|null, updatedAt: number}>}
+ */
 const known = reactive(new Map())
+
+/** Past this share of a video it is watched, as the server counts it too. */
+export const FINISHED = 0.95
 
 /**
  * @param {{position?: number, duration?: number, updated_at?: ?string}|null|undefined} watch a status's `watch_progress`
@@ -53,7 +61,29 @@ function fromWatch(watch) {
  * @return {VideoProgress|null} how far the reader got, or null when they never started it or finished it
  */
 export function progressOf(status) {
-	return fromWatch(status?.watch_progress) ?? known.get(String(status?.id ?? '')) ?? null
+	const told = fromWatch(status?.watch_progress)
+	const here = known.get(String(status?.id ?? ''))
+	if (here === undefined || (told !== null && told.updatedAt > here.updatedAt)) {
+		return told
+	}
+
+	return here.progress
+}
+
+/**
+ * Remembers where the reader is in a video as a player reports it, so every
+ * card for it on the page draws the same bar without asking the server.
+ *
+ * @param {string} id the post
+ * @param {number} position where the reader is, in seconds
+ * @param {number} duration how long it runs, in seconds
+ */
+export function rememberProgress(id, position, duration) {
+	const progress = fromWatch({ position, duration, updated_at: new Date().toISOString() })
+	known.set(String(id), {
+		progress: (progress !== null && progress.fraction < FINISHED) ? progress : null,
+		updatedAt: Date.now(),
+	})
 }
 
 /**
@@ -64,7 +94,7 @@ export function progressOf(status) {
  * @return {boolean}
  */
 export function isUnfinished(progress) {
-	return progress !== null && progress.fraction > 0 && progress.fraction < 0.95
+	return progress !== null && progress.fraction > 0 && progress.fraction < FINISHED
 }
 
 /**
@@ -81,7 +111,7 @@ export async function loadUnfinished(limit = 12) {
 		for (const status of statuses) {
 			const progress = fromWatch(status.watch_progress)
 			if (progress !== null) {
-				known.set(String(status.id), progress)
+				known.set(String(status.id), { progress, updatedAt: progress.updatedAt })
 			}
 		}
 

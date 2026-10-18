@@ -12,6 +12,7 @@ namespace OCA\Social\Controller;
 use Exception;
 use OCA\Social\AP;
 use OCA\Social\Exceptions\InvalidActionException;
+use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\Client\MediaAttachment;
@@ -588,6 +589,40 @@ class MediaApiController extends MastodonApiController {
 			$this->logger->warning('issues while mediaPlaylist', ['exception' => $e]);
 
 			return new DataResponse(['error' => 'could not reach the origin'], Http::STATUS_BAD_GATEWAY);
+		}
+	}
+
+	/**
+	 * One of a video's subtitle tracks, passed through from where it was
+	 * published, as `text/vtt` (`DocumentService::caption()`).
+	 *
+	 * Keyed on the post and the track's place in its list, never on a url,
+	 * and the post is read as the viewer may see it: a track is no easier to
+	 * reach than the video it belongs to. 404 for a post the viewer may not
+	 * see, a track that is not there, and one that is not WebVTT.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	#[AnonRateLimit(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 300, period: 60)]
+	#[FrontpageRoute(verb: 'GET', url: '/media/captions/{nid}/{index}.vtt')]
+	public function mediaCaption(int|string $nid, int $index): Response {
+		try {
+			$this->initViewer(false);
+			$post = $this->streamService->getStreamByNid($nid);
+			$track = $this->documentService->caption($post, $index);
+
+			return new DataDisplayResponse($track, Http::STATUS_OK, [
+				'Content-Type' => 'text/vtt; charset=utf-8',
+				'Cache-Control' => 'private, max-age=3600',
+				'X-Content-Type-Options' => 'nosniff',
+			]);
+		} catch (NotFoundException|StreamNotFoundException $e) {
+			return new DataResponse(['error' => 'no such caption'], Http::STATUS_NOT_FOUND);
+		} catch (Exception $e) {
+			$this->logger->warning('issues while mediaCaption', ['exception' => $e]);
+
+			return new DataResponse(['error' => 'no such caption'], Http::STATUS_NOT_FOUND);
 		}
 	}
 

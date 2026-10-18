@@ -117,6 +117,14 @@ class ConfigService {
 	public const SOCIAL_CACHE_CRON_START = 'cache_cron_start';
 
 	/**
+	 * The nid of the last stored video `Cron\VideoPosters` looked at for a
+	 * poster frame — bookkeeping, not a setting. A video it could not make
+	 * one of is behind it and not tried again; `occ social:media:posters`
+	 * tries every video that still has none.
+	 */
+	public const SOCIAL_POSTER_CURSOR = 'poster_backfill_cursor';
+
+	/**
 	 * Instances whose accounts are silenced rather than blocked: out of the
 	 * public and global timelines, still readable by whoever follows them.
 	 *

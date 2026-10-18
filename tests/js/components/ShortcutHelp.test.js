@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 import ShortcutHelp from '../../../src/components/ShortcutHelp.vue'
-import { SHORTCUTS } from '../../../src/services/shortcuts.js'
+import { PLAYER_SHORTCUTS, SHORTCUTS } from '../../../src/services/shortcuts.js'
 
 const NcModal = {
 	name: 'NcModal',
@@ -33,7 +33,7 @@ describe('the ? dialog', () => {
 		const wrapper = mountHelp(true)
 
 		expect(wrapper.findComponent(NcModal).props('name')).toBe('Keyboard shortcuts')
-		expect(wrapper.findAll('.shortcut-list__row')).toHaveLength(SHORTCUTS.length)
+		expect(wrapper.findAll('.shortcut-list__row')).toHaveLength(SHORTCUTS.length + PLAYER_SHORTCUTS.length)
 	})
 
 	it('tells the page when it is dismissed', () => {

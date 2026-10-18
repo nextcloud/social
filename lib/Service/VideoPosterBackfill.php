@@ -1,0 +1,96 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * SPDX-FileCopyrightText: 2026 Nextcloud GmbH and Nextcloud contributors
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ */
+
+namespace OCA\Social\Service;
+
+use OCA\Social\Db\CacheDocumentsRequest;
+use OCA\Social\Db\StreamRequest;
+use OCA\Social\Tools\Nid;
+use Psr\Log\LoggerInterface;
+use Throwable;
+
+/**
+ * Poster frames for the stored videos that have none, a few at a time.
+ *
+ * A video uploaded here is given its poster on the way in
+ * (`CacheDocumentService`); one stored before that existed, or while the
+ * server had no ffmpeg, has none, and a card of it on the Videos page is a
+ * black rectangle. `Cron\VideoPosters` calls this every run until it has been
+ * through them all, so nobody has to know that `occ social:media:posters`
+ * exists — the command is still there for doing it all at once.
+ *
+ * It walks the videos in nid order from a cursor in the app settings
+ * (`poster_backfill_cursor`), so a video it could not take a frame from is
+ * tried once and left behind rather than retried every run. Nothing is
+ * walked while the server has no ffmpeg: the cursor waits there, and the
+ * videos are done once an administrator installs it.
+ *
+ * The poster is the same frame, JPEG and `resized_copy` an upload gets
+ * (`CacheDocumentService::generatePoster()`, which takes no metadata from the
+ * file), and only the posts that carry each video are rewritten to show it.
+ */
+class VideoPosterBackfill {
+	/** How many videos one run looks at: each is a copy out of storage and an ffmpeg. */
+	public const BATCH = 5;
+
+	public function __construct(
+		private CacheDocumentsRequest $cacheDocumentsRequest,
+		private CacheDocumentService $cacheDocumentService,
+		private VideoThumbnailService $videoThumbnailService,
+		private StreamRequest $streamRequest,
+		private ConfigService $configService,
+		private LoggerInterface $logger,
+	) {
+	}
+
+	/**
+	 * Makes the posters of the next few videos that have none.
+	 *
+	 * @return int how many were made
+	 */
+	public function next(int $limit = self::BATCH): int {
+		if (!$this->videoThumbnailService->isAvailable()) {
+			return 0;
+		}
+
+		$cursor = (string)$this->configService->getAppValue(ConfigService::SOCIAL_POSTER_CURSOR);
+		$cursor = ctype_digit($cursor) ? $cursor : '0';
+
+		$made = 0;
+		foreach ($this->cacheDocumentsRequest->getVideosWithoutPoster(max(1, $limit), $cursor) as $document) {
+			if (Nid::compare($document->getNid(), $cursor) > 0) {
+				$cursor = (string)$document->getNid();
+			}
+
+			try {
+				if (!$this->cacheDocumentService->generatePoster($document)) {
+					continue;
+				}
+
+				$this->cacheDocumentsRequest->updatePoster($document);
+				$made++;
+
+				// a post keeps its own copy of its attachments, and that copy
+				// is what a client is shown
+				$this->streamRequest->updateLocalAttachmentCopies($document);
+				if ($document->getParentId() !== '') {
+					$this->streamRequest->updateAttachments($document);
+				}
+			} catch (Throwable $e) {
+				$this->logger->info('no poster could be made for a stored video', [
+					'document' => $document->getId(), 'exception' => $e->getMessage(),
+				]);
+			}
+		}
+
+		$this->configService->setAppValue(ConfigService::SOCIAL_POSTER_CURSOR, $cursor);
+
+		return $made;
+	}
+}

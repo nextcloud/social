@@ -155,6 +155,7 @@ final class VisibilityMatrix {
 	 * @var array<string, string>
 	 */
 	public const ROUTES_OUTSIDE = [
+		'MediaApiController::mediaCaption' => 'a subtitle track, no post: the post is read through the same getStreamByNid() gate as status, and one the viewer may not see is a 404',
 		'ActivityPubController::dislikes' => 'the same openLocalPost() gate as likes, which is in the matrix',
 		'ActivityPubController::displayQuoteAuthorization' => 'a stamp naming two post ids, served for public quoted posts only; QuoteAuthorizationTest',
 		'ActivityPubController::outbox' => 'public posts only, built from an anonymous read; OutboundCollectionGoldenTest',

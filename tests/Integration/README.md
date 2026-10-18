@@ -211,6 +211,18 @@ to stop.
   after another process (`Helper/rename-elsewhere.php`, a rename that makes
   Nextcloud draw the initials again) moved the picture's version where this
   process's copy of the account's settings could not see it.
+- `Db/VideoViewsRequestTest` — the view count of a video posted here on the
+  real unique indexes: a viewer seen twice on a day is a no-op rather than an
+  error, the counter moves by one and is read for a page at once, and only the
+  dedupe rows of earlier days are forgotten, never the number.
+- `Service/VideoViewCountingTest` — `VideoViewService` against the database:
+  a viewer (account or session) counts once a day and again the next, the
+  author does not count, the stored rows name neither the account nor the
+  session, and once the day is swept nothing about who watched is left.
+- `Service/VideoPosterBackfillTest` — a stored video with no poster, a real
+  ffmpeg and the real database: the video gets its frame, the post carrying it
+  is rewritten to show it, and a file with no frame in it is passed over once
+  and not tried again. Skipped where ffmpeg is not installed.
 - `Api/FollowerCountsTest` — a new account's follower count moves from its
   first follow (its first cached row carries the counters rather than "never
   counted"), and a reader who hides the numbers is still sent every account's

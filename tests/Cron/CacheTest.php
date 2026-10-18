@@ -344,6 +344,30 @@ class CacheTest extends TestCase {
 		$job->start($this->jobList);
 	}
 
+	/** Who was counted watching a video is kept for the day it was counted on. */
+	public function testTheVideoViewersOfEarlierDaysAreForgottenOnEveryPass(): void {
+		$videoViewService = $this->createMock(\OCA\Social\Service\VideoViewService::class);
+		$videoViewService->expects($this->once())->method('forgetEarlierDays')->willReturn(4);
+		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
+
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(self::NOW);
+		$job = new Cache(
+			$time,
+			$this->accountService,
+			$this->cacheActorService,
+			$this->documentService,
+			$this->hashtagService,
+			$this->streamService,
+			$this->streamPruneService,
+			$this->cacheActorsRequest,
+			$this->pollService,
+			$this->logger,
+			videoViewService: $videoViewService,
+		);
+		$job->start($this->jobList);
+	}
+
 	/** The Discover page reads what this finds out, and never asks itself. */
 	public function testTheDirectorySourcesAreRefreshedHere(): void {
 		$this->cacheActorsRequest->method('getRemoteActorsToSync')->willReturn([]);
@@ -382,7 +406,7 @@ class CacheTest extends TestCase {
 			'nothing after the step that ran out of time may run'
 		);
 		$this->assertCount(1, $this->warnings);
-		$this->assertStringContainsString('16 step(s) skipped', $this->warnings[0]['message']);
+		$this->assertStringContainsString('17 step(s) skipped', $this->warnings[0]['message']);
 		$this->assertStringContainsString('manageCacheLocalActors', $this->warnings[0]['message']);
 	}
 

@@ -42,6 +42,8 @@ class StreamDeletionTest extends TestCase {
 		[CoreRequestBuilder::TABLE_MEDIA_TAGS, 'stream_id_prim'],
 		[CoreRequestBuilder::TABLE_STREAM_MEDIA, 'stream_id_prim'],
 		[CoreRequestBuilder::TABLE_WATCH, 'stream_id_prim'],
+		[CoreRequestBuilder::TABLE_VIDEO_VIEWS, 'stream_id_prim'],
+		[CoreRequestBuilder::TABLE_VIDEO_SEEN, 'stream_id_prim'],
 		[CoreRequestBuilder::TABLE_TEAM_POSTS, 'stream_id_prim'],
 		[CoreRequestBuilder::TABLE_IMPORTED_POSTS, 'stream_id_prim'],
 		[CoreRequestBuilder::TABLE_SEARCH_TERMS, 'stream_id_prim'],
