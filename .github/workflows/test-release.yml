@@ -71,7 +71,7 @@ jobs:
           echo "php-min=$php_min" >> "$GITHUB_OUTPUT"
 
       - name: Set up PHP ${{ steps.php-versions.outputs.php-min }}
-        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ steps.php-versions.outputs.php-min }}
           tools: composer:v2
@@ -221,7 +221,7 @@ jobs:
             | grep -Fx "${APP_NAME}/appinfo/signature.json" > /dev/null
 
       - name: Upload signed package as temporary Actions artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: aloha-social-signed-dry-run
           path: ${{ env.APP_NAME }}/build/artifacts/${{ env.APP_NAME }}.tar.gz
