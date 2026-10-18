@@ -123,46 +123,7 @@
 				{{ t('social', 'Remove me') }}
 			</NcButton>
 		</p>
-		<div v-if="isEditing" class="post-edit-inline">
-			<input
-				v-model="editSpoiler"
-				type="text"
-				class="post-edit-warning"
-				dir="auto"
-				maxlength="200"
-				:aria-label="t('social', 'Content warning')"
-				:placeholder="t('social', 'Content warning, e.g. what the post is about')">
-			<textarea
-				ref="editInput"
-				v-model="editContent"
-				class="post-edit-textarea"
-				dir="auto"
-				:maxlength="maxLength"
-				:aria-describedby="editIsTooLong ? `post-edit-count-${item.id}` : undefined"
-				:placeholder="t('social', 'Edit your post')"
-				@keydown.ctrl.enter="saveEdit" />
-			<div class="post-edit-actions">
-				<span
-					:id="`post-edit-count-${item.id}`"
-					class="post-edit-count"
-					:class="{ 'post-edit-count--over': editIsTooLong }"
-					role="status">
-					{{ editCharactersLeftLabel }}
-				</span>
-				<NcButton
-					variant="primary"
-					:disabled="!editCanSave"
-					:aria-label="t('social', 'Save')"
-					@click="saveEdit">
-					{{ t('social', 'Save') }}
-				</NcButton>
-				<NcButton
-					:aria-label="t('social', 'Cancel')"
-					@click="cancelEdit">
-					{{ t('social', 'Cancel') }}
-				</NcButton>
-			</div>
-		</div>
+		<PostEditForm v-if="isEditing" :item="item" @close="isEditing = false" />
 		<!--
 		  A filter the reader wrote themselves matched this post. Same shape as
 		  the content warning below, and for the same reason: the body is not in
@@ -311,36 +272,7 @@
 					     with the card's right edge. The menu opens in a portal, so the
 					     pointer leaving the card while it is open would take the row it
 					     belongs to away -->
-					<PostMenu
-						:item="item"
-						:currentAccount="currentAccount"
-						:isPublic="serverData.public"
-						:canTranslate="canTranslate"
-						:translating="translating"
-						:translated="translation !== null"
-						:archiving="archiving"
-						:interests="serverData.interests"
-						@update:open="onMenuToggle"
-						@quote="quote"
-						@edit="editPost"
-						@archive="toggleArchive"
-						@manageQuotes="managingQuotes = true"
-						@manageReplies="managingReplies = true"
-						@hideReply="hideReply"
-						@tagPeople="taggingPeople = true"
-						@delete="askToDelete(false)"
-						@redraft="askToDelete(true)"
-						@translate="toggleTranslation"
-						@delivery="showDeliveryDialog = true"
-						@bookmark="toggleBookmark"
-						@react="askForReaction"
-						@muteConversation="toggleConversationMute"
-						@collect="showCollectionDialog = true"
-						@pin="togglePin"
-						@lessLikeThis="lessLikeThis"
-						@mute="showMuteDialog = true"
-						@block="showBlockDialog = true"
-						@report="showReportDialog = true" />
+					<PostMenu v-bind="menuProps" v-on="menuListeners" />
 					<div class="post-actions__groups">
 						<!-- the same three controls on every post, so nothing moves
 						     from one post to the next: one that cannot be used
@@ -434,81 +366,7 @@
 		<div v-if="embeddedActions" class="post-footer post-footer--profile-actions">
 			<slot name="profileActions" />
 		</div>
-		<MuteDialog
-			v-if="showMuteDialog"
-			v-model:open="showMuteDialog"
-			:account="item.account"
-			:status="item"
-			:timelineType="type" />
-		<CollectionPickerDialog
-			v-if="showCollectionDialog"
-			v-model:open="showCollectionDialog"
-			:status="item" />
-		<TagPeopleDialog
-			v-if="taggingPeople"
-			:nid="item.nid"
-			:people="taggedPeople"
-			@close="taggingPeople = false"
-			@tagged="onTagged" />
-		<QuoteControlDialog
-			v-if="managingQuotes"
-			:nid="item.nid"
-			:approval="item.quote_approval"
-			@close="managingQuotes = false" />
-		<ReplyControlDialog
-			v-if="managingReplies"
-			:nid="item.nid"
-			:replyPolicy="item.reply_policy ?? 'everyone'"
-			@changed="onReplyPolicy"
-			@close="managingReplies = false" />
-		<NcDialog
-			v-model:open="showBlockDialog"
-			:name="t('social', 'Block {account}?', { account: item.account.acct })"
-			:buttons="blockButtons">
-			<p class="report-hint">
-				{{ t('social', 'Their posts leave your timelines, they are unfollowed both ways, and they can no longer follow you or see your posts.') }}
-			</p>
-		</NcDialog>
-		<NcDialog
-			v-model:open="showReportDialog"
-			:name="t('social', 'Report {account}', { account: item.account.acct })"
-			:buttons="reportButtons">
-			<!-- a Bluesky account has nowhere here to be reported but this
-			     server's moderators and Bluesky's own moderation service, so
-			     passing it on is offered, and ticked, for that one only -->
-			<p v-if="reportsToBluesky" class="report-hint">
-				{{ t('social', 'The report goes to the moderators of this instance. With the box below ticked, this server also passes it on to Bluesky\'s moderation service, in its own name and not yours.') }}
-			</p>
-			<p v-else class="report-hint">
-				{{ t('social', 'The report goes to the moderators of this instance. It is never sent to the reported account or their server.') }}
-			</p>
-			<textarea
-				v-model="reportComment"
-				class="report-comment"
-				:placeholder="t('social', 'Why are you reporting this post? (optional)')"
-				rows="3" />
-			<NcCheckboxRadioSwitch
-				v-if="reportsToBluesky"
-				v-model="reportForward"
-				class="report-forward">
-				{{ t('social', 'Also report to Bluesky\'s moderation service') }}
-			</NcCheckboxRadioSwitch>
-		</NcDialog>
-		<DeliveryDialog
-			v-model:open="showDeliveryDialog"
-			:statusId="item.id" />
-		<!-- deleting is irreversible and federates: it is not something to
-		     do on the first click of a menu item sitting under "Edit" -->
-		<NcDialog
-			v-model:open="showDeleteDialog"
-			:name="deleteToRedraft ? t('social', 'Delete and write it again?') : t('social', 'Delete this post?')"
-			:buttons="deleteButtons">
-			<p class="delete-hint">
-				{{ deleteToRedraft
-					? t('social', 'The post is removed everywhere it reached, and its words, pictures and content warning are put back in the composer. What you post next is a new post: the boosts, likes and replies this one collected stay with it and are gone.')
-					: t('social', 'The post is removed from this server and a deletion is sent to every server that received it. This cannot be undone.') }}
-			</p>
-		</NcDialog>
+		<PostDialogs v-model:open="dialog" :item="item" :type="type" />
 	</article>
 </template>
 
@@ -518,14 +376,13 @@ import { shortAgo, fullDateTime } from '../utils/relativeTime.js'
 import IconAccountBoxMultiple from 'vue-material-design-icons/AccountBoxMultiple.vue'
 import Pin from 'vue-material-design-icons/Pin.vue'
 import CreationOutline from 'vue-material-design-icons/CreationOutline.vue'
-import DeliveryDialog from './DeliveryDialog.vue'
 import PostAttachment from './PostAttachment.vue'
+import PostDialogs from './PostDialogs.vue'
+import PostEditForm from './PostEditForm.vue'
 import PostMenu from './PostMenu.vue'
 import PostCard from './PostCard.vue'
 import ReactionBar from './ReactionBar.vue'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwitch'
-import NcDialog from '@nextcloud/vue/components/NcDialog'
 import EyeOff from 'vue-material-design-icons/EyeOff.vue'
 import IconEyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import MapMarkerOutline from 'vue-material-design-icons/MapMarkerOutline.vue'
@@ -556,7 +413,6 @@ import visibilitiesInfo from './Visibility/VisibilitiesInfos.js'
 import VisibilityIcon from './Visibility/VisibilityIcon.vue'
 import { mapStores } from 'pinia'
 import { focusedElement, returnFocusTo } from '../utils/focus.js'
-import { htmlToPlainText } from '../utils/plainText.js'
 import { defaultLanguage, languageName } from '../utils/postLanguage.js'
 import { useAccountStore } from '../store/account.js'
 import { feel } from '../services/senses.js'
@@ -564,21 +420,6 @@ import { useInstanceStore } from '../store/instance.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useCurrentUser } from '../composables/useCurrentUser.js'
 import { useServerData } from '../composables/useServerData.js'
-import { defineAsyncComponent } from 'vue'
-
-// The mute dialog is the same one the profile opens, and it is worth nothing
-// until somebody asks for it: the post menu is on every post on the page.
-const MuteDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./MuteDialog.vue'))
-// fetched with the other dialogs a post rarely opens, for the same reason
-const CollectionPickerDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./CollectionPickerDialog.vue'))
-// and the same for naming the people in a photograph, which is a thing an
-// author does once per post and no reader ever does
-const TagPeopleDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./TagPeopleDialog.vue'))
-// same chunk, and for the same reason: a dialog nobody opens until they ask for
-// it, which brings framework form controls with it
-const QuoteControlDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./QuoteControlDialog.vue'))
-const ReplyControlDialog = defineAsyncComponent(() => import(/* webpackChunkName: "account-dialogs" */'./ReplyControlDialog.vue'))
-
 /** How long the heart is held before it offers the reactions. */
 const HOLD_MS = 450
 
@@ -588,25 +429,19 @@ const CONTROLS = 'a, button, input, textarea, select, label, video, audio, [role
 export default {
 	name: 'TimelinePost',
 	components: {
-		DeliveryDialog,
 		IconAccountBoxMultiple,
 		Pin,
 		CreationOutline,
-		QuoteControlDialog,
-		ReplyControlDialog,
-		TagPeopleDialog,
 		IconEyeOutline,
-		CollectionPickerDialog,
 		MapMarkerOutline,
-		MuteDialog,
 		ReactionBar,
 		PostAttachment,
+		PostDialogs,
+		PostEditForm,
 		PostMenu,
 		PostCard,
-		NcDialog,
 		EyeOff,
 		NcButton,
-		NcCheckboxRadioSwitch,
 		Repeat,
 		Reply,
 		Heart,
@@ -683,30 +518,16 @@ export default {
 			warningLifted: false,
 			/** and so does one the reader's own keyword filters matched */
 			filterLifted: false,
-			editContent: '',
-			editSpoiler: '',
-			showReportDialog: false,
-			showMuteDialog: false,
+			/** which of the menu's dialogs is up, '' for none; see PostDialogs */
+			dialog: '',
 			/** the menu's own button, which the focus goes back to after a dialog */
 			menuOpener: null,
-			showCollectionDialog: false,
-			showBlockDialog: false,
-			showDeleteDialog: false,
 			archiving: false,
 			untagging: false,
-			taggingPeople: false,
-			managingQuotes: false,
-			managingReplies: false,
-			/** whether the delete on screen is the first half of a re-draft */
-			deleteToRedraft: false,
 			/** the Translation entity once it has arrived, null before */
 			translation: null,
 			/** whether the provider is working on it right now */
 			translating: false,
-			showDeliveryDialog: false,
-			reportComment: '',
-			/** whether a report about a Bluesky account also goes to Bluesky's moderation service */
-			reportForward: true,
 			localPoll: this.item?.poll ?? null,
 			/** re-read from the shared clock, so "5 minutes ago" stays true */
 			now: Date.now(),
@@ -731,11 +552,6 @@ export default {
 		 */
 		hasJustArrived() {
 			return this.timelineStore.arrivedId !== '' && this.timelineStore.arrivedId === String(this.item?.id ?? '')
-		},
-
-		/** @return {number} what the server accepts in one status, as the composer shows it */
-		maxLength() {
-			return this.instanceStore.maxCharacters
 		},
 
 		/**
@@ -882,28 +698,6 @@ export default {
 			return this.hasAttachments && !this.hasSpoiler && !this.isEditing
 		},
 
-		/** @return {number} how many characters the edit has left */
-		editCharsLeft() {
-			return this.maxLength - this.editContent.length
-		},
-
-		/** @return {boolean} */
-		editIsTooLong() {
-			return this.editCharsLeft < 0
-		},
-
-		/** @return {boolean} */
-		editCanSave() {
-			return this.editContent.trim() !== '' && !this.editIsTooLong
-		},
-
-		/** @return {string} */
-		editCharactersLeftLabel() {
-			return this.editIsTooLong
-				? n('social', '%n character too many', '%n characters too many', -this.editCharsLeft)
-				: n('social', '%n character left', '%n characters left', this.editCharsLeft)
-		},
-
 		/** Who wrote it, so moving between posts by landmark says something. */
 		postLabel() {
 			return t('social', 'Post by {account}', { account: this.item.account?.acct ?? '' })
@@ -968,46 +762,57 @@ export default {
 		 * edit form, is on screen
 		 */
 		dialogOpen() {
-			return this.showBlockDialog || this.showReportDialog || this.showDeleteDialog || this.isEditing
+			return ['block', 'report', 'delete', 'redraft'].includes(this.dialog) || this.isEditing
 		},
 
-		/** @return {import('../types/Nextcloud.js').DialogButton[]} */
-		blockButtons() {
-			return [
-				{
-					label: t('social', 'Cancel'),
-					callback: () => {
-						this.showBlockDialog = false
-					},
-				},
-				{
-					label: t('social', 'Block'),
-					variant: 'error',
-					callback: () => this.blockAuthor(),
-				},
-			]
+		/** @return {object} what the post menu is told about this post */
+		menuProps() {
+			return {
+				item: this.item,
+				currentAccount: this.currentAccount,
+				isPublic: this.serverData.public,
+				canTranslate: this.canTranslate,
+				translating: this.translating,
+				translated: this.translation !== null,
+				archiving: this.archiving,
+				interests: this.serverData.interests,
+			}
 		},
 
-		/** @return {boolean} whether a report can be passed on to Bluesky's moderation service */
-		reportsToBluesky() {
-			return isBlueskyAccount(this.item.account)
-		},
+		/**
+		 * What each of the post menu's entries does, for every layout that
+		 * draws the menu.
+		 *
+		 * @return {Record<string, (...args: unknown[]) => unknown>} handlers by event name
+		 */
+		menuListeners() {
+			const open = (dialog) => () => {
+				this.dialog = dialog
+			}
 
-		/** @return {import('../types/Nextcloud.js').DialogButton[]} */
-		reportButtons() {
-			return [
-				{
-					label: t('social', 'Cancel'),
-					callback: () => {
-						this.showReportDialog = false
-					},
-				},
-				{
-					label: t('social', 'Report'),
-					variant: 'error',
-					callback: () => this.sendReport(),
-				},
-			]
+			return {
+				'update:open': this.onMenuToggle,
+				quote: this.quote,
+				edit: this.editPost,
+				archive: this.toggleArchive,
+				manageQuotes: open('quotes'),
+				manageReplies: open('replies'),
+				hideReply: this.hideReply,
+				tagPeople: open('tag'),
+				delete: open('delete'),
+				redraft: open('redraft'),
+				translate: this.toggleTranslation,
+				delivery: open('delivery'),
+				bookmark: this.toggleBookmark,
+				react: this.askForReaction,
+				muteConversation: this.toggleConversationMute,
+				collect: open('collect'),
+				pin: this.togglePin,
+				lessLikeThis: this.lessLikeThis,
+				mute: open('mute'),
+				block: open('block'),
+				report: open('report'),
+			}
 		},
 
 		/**
@@ -1056,23 +861,6 @@ export default {
 			const code = this.translation?.detected_source_language || this.item.language || ''
 
 			return code === '' || code === 'und' ? '' : languageName(code)
-		},
-
-		/** @return {import('../types/Nextcloud.js').DialogButton[]} */
-		deleteButtons() {
-			return [
-				{
-					label: t('social', 'Cancel'),
-					callback: () => {
-						this.showDeleteDialog = false
-					},
-				},
-				{
-					label: this.deleteToRedraft ? t('social', 'Delete & re-draft') : t('social', 'Delete'),
-					variant: 'error',
-					callback: () => this.remove(),
-				},
-			]
 		},
 
 		/**
@@ -1248,20 +1036,6 @@ export default {
 				logger.error('Could not hide or show a reply', { error })
 				showError(t('social', 'Could not change whether the reply is shown'))
 			}
-		},
-
-		/**
-		 * @param {string} policy who may reply now
-		 */
-		onReplyPolicy(policy) {
-			this.timelineStore.updateStatusReplyPolicy({ statusId: this.item.id, replyPolicy: policy })
-		},
-
-		/**
-		 * @param {Array} people who the post names now, as the server says
-		 */
-		onTagged(people) {
-			this.timelineStore.updateStatusTagged({ statusId: this.item.id, taggedPeople: people })
 		},
 
 		/**
@@ -1475,38 +1249,6 @@ export default {
 			eventBus.emit('composer-quote', this.item)
 		},
 
-		/**
-		 * Blocks the author, once the dialog has agreed. The store takes their
-		 * posts out of every timeline, this one included, so there is nothing
-		 * left here to say afterwards.
-		 */
-		async blockAuthor() {
-			const relationship = await this.accountStore.blockAccount({ id: this.item.account.id })
-			// the store said what went wrong; the dialog stays for another try
-			if (relationship?.id) {
-				this.showBlockDialog = false
-				showSuccess(t('social', 'You have blocked {account}', { account: this.item.account.acct }))
-			}
-		},
-
-		async sendReport() {
-			try {
-				await axios.post(generateUrl('apps/social/api/v1/reports'), {
-					account_id: this.item.account.id,
-					status_ids: [this.item.id],
-					comment: this.reportComment,
-					...(this.reportsToBluesky ? { forward: this.reportForward } : {}),
-				})
-				showSuccess(t('social', 'Post reported to the moderators'))
-				this.showReportDialog = false
-				this.reportComment = ''
-				this.reportForward = true
-			} catch (error) {
-				logger.error('Failed to report the post', { error })
-				showError(t('social', 'Failed to report the post'))
-			}
-		},
-
 		async boost() {
 			const undo = this.isBoosted
 			await this.act('boost', undo ? 'postUnBoost' : 'postBoost', !undo)
@@ -1523,82 +1265,7 @@ export default {
 		},
 
 		editPost() {
-			// never the author's bio: an image-only post has no content, and
-			// seeding the editor from account.note offered to publish it
-			this.editContent = htmlToPlainText(this.item.content || '')
-			this.editSpoiler = this.item.spoiler_text || ''
 			this.isEditing = true
-			this.$nextTick(() => {
-				if (this.$refs.editInput) {
-					/** @type {HTMLElement} */ (this.$refs.editInput).focus()
-				}
-			})
-		},
-
-		async saveEdit() {
-			if (!this.editCanSave) {
-				return
-			}
-
-			const warning = this.editSpoiler.trim()
-			const response = await this.timelineStore.postEdit({
-				status: this.item,
-				content: this.editContent.trim(),
-				// fixing a typo used to un-hide sensitive content for every
-				// follower, because the warning was always sent back empty
-				spoiler_text: warning,
-				sensitive: warning !== '' || this.item.sensitive === true,
-			})
-			if (response === undefined) {
-				// the store already said so; keep what was typed
-				return
-			}
-
-			this.isEditing = false
-			this.editContent = ''
-			this.editSpoiler = ''
-		},
-
-		cancelEdit() {
-			this.isEditing = false
-			this.editContent = ''
-			this.editSpoiler = ''
-		},
-
-		/**
-		 * Opens the confirmation. Deleting federates and cannot be undone, so
-		 * neither half of this happens on the first click of a menu item.
-		 *
-		 * @param {boolean} redraft whether the words come back in the composer
-		 */
-		askToDelete(redraft) {
-			this.deleteToRedraft = redraft
-			this.showDeleteDialog = true
-		},
-
-		/**
-		 * Deletes the post, and — for a re-draft — hands its words, pictures
-		 * and warning to the composer.
-		 *
-		 * The composer is filled *after* the delete rather than before: a
-		 * delete the server refuses leaves the post where it is, and a
-		 * composer already holding its words would invite somebody to post it
-		 * twice.
-		 */
-		async remove() {
-			this.showDeleteDialog = false
-			const redraft = this.deleteToRedraft
-			this.deleteToRedraft = false
-
-			// the post as it stands, kept before the store forgets it
-			const draft = redraft ? this.item : null
-
-			await this.timelineStore.postDelete(this.item)
-
-			if (draft !== null) {
-				this.timelineStore.setComposerDisplayStatus(true)
-				eventBus.emit('composer-redraft', draft)
-			}
 		},
 
 		/**
@@ -2059,68 +1726,6 @@ export default {
 		}
 	}
 
-	.post-edit-inline {
-		margin-bottom: 10px;
-
-		.post-edit-textarea {
-			width: 100%;
-			min-height: 100px;
-			padding: 8px;
-			border: 1px solid var(--color-border);
-			border-radius: 8px;
-			background: var(--color-main-background);
-			color: var(--color-main-text);
-			font-family: inherit;
-			font-size: 15px;
-			line-height: 1.65;
-			resize: vertical;
-			box-sizing: border-box;
-
-			&:focus-visible {
-				border-color: var(--color-primary-element);
-				outline: 2px solid var(--color-primary-element);
-				outline-offset: 1px;
-			}
-		}
-
-		.post-edit-warning {
-			width: 100%;
-			margin-bottom: 6px;
-			padding: 8px 10px;
-			border: 1px solid var(--color-border);
-			border-radius: var(--border-radius, 8px);
-			background: var(--color-main-background);
-			color: var(--color-main-text);
-			font-size: 14px;
-			box-sizing: border-box;
-
-			&:focus-visible {
-				border-color: var(--color-primary-element);
-				outline: 2px solid var(--color-primary-element);
-				outline-offset: 1px;
-			}
-		}
-
-		.post-edit-actions {
-			display: flex;
-			gap: 8px;
-			margin-top: 8px;
-			align-items: center;
-			justify-content: flex-end;
-		}
-
-		.post-edit-count {
-			margin-inline-end: auto;
-			font-size: 12px;
-			color: var(--color-text-lighter);
-
-			&--over {
-				color: var(--color-error);
-				font-weight: 600;
-			}
-		}
-	}
-
 	/*
 	 * The action row is the loudest thing in a card and the least often used:
 	 * somebody scrolling a timeline is reading, not boosting. So a card at rest
@@ -2489,12 +2094,6 @@ export default {
 	border: 1px dashed var(--color-border-dark);
 	border-radius: 12px;
 	background: var(--color-background-dark);
-}
-
-.delete-hint {
-	padding: 0 12px 12px;
-	color: var(--color-text-lighter);
-	line-height: 1.5;
 }
 
 /*
