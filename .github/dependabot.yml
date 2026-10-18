@@ -10,6 +10,8 @@ updates:
     time: "03:00"
     timezone: Europe/Paris
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 10
 - package-ecosystem: composer
   directory: "/"
   schedule:
@@ -18,3 +20,5 @@ updates:
     time: "03:00"
     timezone: Europe/Paris
   open-pull-requests-limit: 10
+  cooldown:
+    default-days: 10
