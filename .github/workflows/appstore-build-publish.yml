@@ -91,7 +91,7 @@ jobs:
           echo "php-min=$php_min" >> "$GITHUB_OUTPUT"
 
       - name: Set up PHP ${{ steps.php-versions.outputs.php-min }}
-        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ steps.php-versions.outputs.php-min }}
           tools: composer:v2
@@ -206,7 +206,7 @@ jobs:
 
       - name: Attach signed tarball to GitHub release
         id: attach_to_release
-        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: ${{ env.APP_NAME }}/build/artifacts/${{ env.APP_NAME }}.tar.gz
@@ -259,7 +259,7 @@ jobs:
           fi
 
       - name: Upload app to Nextcloud App Store
-        uses: nextcloud-releases/nextcloud-appstore-push-action@a011fe619bcf6e77ddebc96f9908e1af4071b9c1 # v1
+        uses: nextcloud-releases/nextcloud-appstore-push-action@a011fe619bcf6e77ddebc96f9908e1af4071b9c1 # v1.0.3
         with:
           app_name: ${{ env.APP_NAME }}
           appstore_token: ${{ secrets.APPSTORE_TOKEN }}

@@ -45,7 +45,7 @@ jobs:
           echo "$SCHEMA_SHA256  info.xsd" | sha256sum -c -
 
       - name: Lint info.xml
-        uses: ChristophWurst/xmllint-action@36f2a302f84f8c83fceea0b9c59e1eb4a616d3c1 # v1.2
+        uses: ChristophWurst/xmllint-action@7c54ff113fc0f6d4588a15cb4dfe31b6ecca5212 # v1.2.1
         with:
           xml-file: ./appinfo/info.xml
           xml-schema-file: ./info.xsd
