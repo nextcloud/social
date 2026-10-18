@@ -80,7 +80,7 @@ describe('CollectionPickerDialog', () => {
 		await wrapper.find('.collection-picker__row button').trigger('click')
 		await flushPromises()
 
-		expect(showError).toHaveBeenCalledWith({ text: 'Could not add the post to the collection', details: 'a collection may only hold your own posts' })
+		expect(showError).toHaveBeenCalledWith({ text: 'Could not add the post to the album', details: 'a collection may only hold your own posts' })
 		expect(wrapper.find('.collection-picker__row').text()).not.toContain('Added')
 	})
 })

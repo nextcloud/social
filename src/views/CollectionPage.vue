@@ -23,7 +23,7 @@
 					class="collection__back"
 					:to="{ name: 'profile.collections', params: { account: ownerAcct } }">
 					<IconArrowLeft :size="20" />
-					{{ t('social', 'All collections') }}
+					{{ t('social', 'All albums') }}
 				</router-link>
 
 				<div class="collection__titles">
@@ -89,7 +89,7 @@
 					<NcButton
 						class="collection__manage-remove"
 						variant="error"
-						:ariaLabel="t('social', 'Remove from the collection')"
+						:ariaLabel="t('social', 'Remove from the album')"
 						:disabled="removing.includes(post.id)"
 						@click="removePost(post)">
 						<template #icon>
@@ -107,9 +107,9 @@
 			<NcEmptyContent
 				v-if="!posts.length && !loadingMore"
 				class="collection__empty"
-				:name="t('social', 'Nothing in this collection yet')"
+				:name="t('social', 'Nothing in this album yet')"
 				:description="isOwn
-					? t('social', 'Add posts to it from their menu: … → Add to a collection.')
+					? t('social', 'Add posts to it from their menu: … → Add to album.')
 					: ''">
 				<template #icon>
 					<IconFolderMultipleImage :size="20" />
@@ -124,7 +124,7 @@
 
 			<NcDialog
 				v-model:open="showEdit"
-				:name="t('social', 'Edit collection')"
+				:name="t('social', 'Edit album')"
 				:buttons="editButtons">
 				<form class="collection__form" @submit.prevent="saveEdit">
 					<NcTextField
@@ -143,10 +143,10 @@
 
 			<NcDialog
 				v-model:open="showDelete"
-				:name="t('social', 'Delete this collection?')"
+				:name="t('social', 'Delete this album?')"
 				:buttons="deleteButtons">
 				<p class="collection__hint">
-					{{ t('social', 'The collection goes; the posts in it stay where they are.') }}
+					{{ t('social', 'The album goes; the posts in it stay where they are.') }}
 				</p>
 			</NcDialog>
 		</template>
@@ -331,8 +331,8 @@ export default {
 				logger.error('could not load the collection', { error })
 				if (isNewest()) {
 					this.error = (error?.response?.status === 404)
-						? t('social', 'There is no such collection, or it is not one you can see.')
-						: t('social', 'The collection could not be loaded.')
+						? t('social', 'There is no such album, or it is not one you can see.')
+						: t('social', 'The album could not be loaded.')
 				}
 			} finally {
 				if (isNewest()) {
@@ -360,7 +360,7 @@ export default {
 			} catch (error) {
 				logger.error('could not load the collection\'s posts', { error })
 				if (isNewest()) {
-					showError(t('social', 'The posts of the collection could not be loaded'))
+					showError(t('social', 'The posts of the album could not be loaded'))
 				}
 			} finally {
 				if (isNewest()) {
@@ -393,10 +393,10 @@ export default {
 				// the answer carries no owner; keep the one the page has
 				this.collection = { ...this.collection, ...data, account: data.account ?? this.collection.account }
 				this.showEdit = false
-				showSuccess(t('social', 'Collection saved'))
+				showSuccess(t('social', 'Album saved'))
 			} catch (error) {
 				logger.error('could not save the collection', { error })
-				showError(errorOf(error, t('social', 'Could not save the collection')))
+				showError(errorOf(error, t('social', 'Could not save the album')))
 			} finally {
 				this.saving = false
 			}
@@ -411,7 +411,7 @@ export default {
 			this.deleting = true
 			try {
 				await axios.delete(this.url())
-				showSuccess(t('social', 'Collection deleted'))
+				showSuccess(t('social', 'Album deleted'))
 				this.showDelete = false
 				if (this.ownerAcct) {
 					this.$router.push({ name: 'profile.collections', params: { account: this.ownerAcct } })
@@ -420,7 +420,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('could not delete the collection', { error })
-				showError(t('social', 'Could not delete the collection'))
+				showError(t('social', 'Could not delete the album'))
 			} finally {
 				this.deleting = false
 			}
@@ -444,7 +444,7 @@ export default {
 				}
 			} catch (error) {
 				logger.error('could not take the post out of the collection', { error })
-				showError(t('social', 'Could not remove the post from the collection'))
+				showError(t('social', 'Could not remove the post from the album'))
 			} finally {
 				this.removing = this.removing.filter((id) => id !== post.id)
 			}

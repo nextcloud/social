@@ -149,7 +149,7 @@
 			<template #icon>
 				<FolderMultiplePlusOutline :size="20" />
 			</template>
-			{{ t('social', 'Add to a collection') }}
+			{{ t('social', 'Add to album') }}
 		</NcActionButton>
 		<NcActionButton v-if="canPin" closeAfterClick @click="$emit('pin')">
 			<template #icon>

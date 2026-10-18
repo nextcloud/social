@@ -85,7 +85,7 @@ describe('ProfileTimeline', () => {
 			const wrapper = mountView({ name: 'profile', params: { account: 'bob@remote.example' }, query: {} })
 
 			expect(switcher(wrapper).props('options').map((option) => option.label))
-				.toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Collections'])
+				.toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Albums'])
 		})
 
 		/**

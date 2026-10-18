@@ -5,7 +5,7 @@
 <template>
 	<NcDialog
 		:open="open"
-		:name="t('social', 'Add to a collection')"
+		:name="t('social', 'Add to album')"
 		:buttons="buttons"
 		class="collection-picker"
 		@update:open="$emit('update:open', $event)">
@@ -32,13 +32,13 @@
 				</li>
 			</ul>
 			<p v-else class="collection-picker__hint">
-				{{ t('social', 'You have no collections yet. Name one below and the post goes straight into it.') }}
+				{{ t('social', 'You have no albums yet. Name one below and the post goes straight into it.') }}
 			</p>
 
 			<form class="collection-picker__create" @submit.prevent="createAndAdd">
 				<NcTextField
 					v-model="newTitle"
-					:label="t('social', 'New collection')"
+					:label="t('social', 'New album')"
 					:placeholder="t('social', 'What to call it')"
 					maxlength="255" />
 				<NcButton type="submit" variant="primary" :disabled="newTitle.trim() === '' || creating">
@@ -150,7 +150,7 @@ export default {
 				this.collections = Array.isArray(data) ? data : []
 			} catch (error) {
 				logger.error('could not load the collections', { error })
-				showError(t('social', 'Your collections could not be loaded'))
+				showError(t('social', 'Your albums could not be loaded'))
 				this.collections = []
 			} finally {
 				this.loading = false
@@ -180,7 +180,7 @@ export default {
 				return true
 			} catch (error) {
 				logger.error('could not add the post to the collection', { error })
-				showError(errorOf(error, t('social', 'Could not add the post to the collection')))
+				showError(errorOf(error, t('social', 'Could not add the post to the album')))
 
 				return false
 			} finally {
@@ -203,7 +203,7 @@ export default {
 				await this.add(data)
 			} catch (error) {
 				logger.error('could not create the collection', { error })
-				showError(errorOf(error, t('social', 'Could not create the collection')))
+				showError(errorOf(error, t('social', 'Could not create the album')))
 			} finally {
 				this.creating = false
 			}

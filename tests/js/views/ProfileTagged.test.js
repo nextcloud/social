@@ -72,7 +72,7 @@ describe('ProfileTagged', () => {
 		const switcher = wrapper.findComponent(TimelineSwitcher)
 		expect(switcher.props('value')).toBe('tagged')
 		expect(switcher.props('options').map((option) => option.label))
-			.toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Collections'])
+			.toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Albums'])
 	})
 
 	it('offers a way back when the server could not answer', async () => {

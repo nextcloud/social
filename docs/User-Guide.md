@@ -641,19 +641,19 @@ all. Watching one from another server sends a receipt to its author so that
 their own server can count it, and reactions and replies travel the same way
 in both directions, in the shape Pixelfed's own inbox reads.
 
-### Collections
+### Albums
 
-A profile has a **Collections** tab beside Posts, Photos, Videos and Tagged: the
-account's albums. Each is a page of the posts the owner gathered into it, drawn
-as the same grid of squares the Photos tab uses, with a lock on the ones that
-are for followers only.
+A profile has an **Albums** tab beside Posts, Photos, Videos and Tagged. Each
+album is a page of the posts the owner gathered into it, drawn as the same grid
+of squares the Photos tab uses, with a lock on the ones that are for followers
+only.
 
-Your own shelf has a **New collection** field at the top. To put a post into
-one, open the post's menu (**…**) and choose **Add to a collection**; only your
-own posts with a picture or a video in them offer it, because that is all a
-collection may hold. On a collection's page you can **Edit** its title,
-description and audience, **Remove posts** from their own squares, or
-**Delete** it — the posts stay where they are.
+Your own shelf has a **New album** field at the top. To put a post into one,
+open the post's menu (**…**) and choose **Add to album**; only your own posts
+with a picture or a video in them offer it, because that is all an album may
+hold. On an album's page you can **Edit** its title, description and audience,
+**Remove posts** from their own squares, or **Delete** it — the posts stay
+where they are.
 
 ### Posting as a team
 
@@ -681,7 +681,7 @@ a title, a sentence, the pictures you chose, and nothing else on it.
 
 Give it a title and a line about the work, choose a grid of squares or one
 picture at a time, and say where the pictures come from: your most recent
-public photos, or one of your collections. Then decide what goes under each
+public photos, or one of your albums. Then decide what goes under each
 one — the caption, where it was taken, the year — and whether your own picture
 is at the top.
 

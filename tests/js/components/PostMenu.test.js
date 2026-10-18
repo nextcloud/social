@@ -143,7 +143,7 @@ describe('the post menu', () => {
 				'Bookmark',
 				'Add a reaction',
 				'Mute conversation',
-				'Add to a collection',
+				'Add to album',
 				'Pin to profile',
 			])
 		})
@@ -167,7 +167,7 @@ describe('the post menu', () => {
 			const offered = items(mountMenu({ ...MINE, media_attachments: [] }))
 
 			expect(offered).not.toContain('Tag people')
-			expect(offered).not.toContain('Add to a collection')
+			expect(offered).not.toContain('Add to album')
 		})
 
 		/**
@@ -313,7 +313,7 @@ describe('the post menu', () => {
 			['Delete', 'delete'],
 			['Delete & re-draft', 'redraft'],
 			['Delivery status', 'delivery'],
-			['Add to a collection', 'collect'],
+			['Add to album', 'collect'],
 			['Pin to profile', 'pin'],
 		])('asks for %s', (label, event) => {
 			const wrapper = mountMenu(MINE)

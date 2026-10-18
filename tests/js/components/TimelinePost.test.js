@@ -1474,18 +1474,18 @@ describe('TimelinePost', () => {
 			expect(mountPost({ item: makeItem({ place: null }) }).wrapper.find('.post-place').exists()).toBe(false)
 		})
 
-		it('offers Add to a collection only for an own post that has a picture in it', () => {
-			expect(menuItem(mountPost({ item: makeItem({ media_attachments: [photo()] }) }).wrapper, 'Add to a collection')).toBeDefined()
+		it('offers Add to album only for an own post that has a picture in it', () => {
+			expect(menuItem(mountPost({ item: makeItem({ media_attachments: [photo()] }) }).wrapper, 'Add to album')).toBeDefined()
 			// a collection holds only its owner's own media posts
-			expect(menuItem(mountPost({ item: makeItem() }).wrapper, 'Add to a collection')).toBeUndefined()
-			expect(menuItem(mountPost({ item: makeItem({ account: bob, media_attachments: [photo()] }) }).wrapper, 'Add to a collection')).toBeUndefined()
-			expect(menuItem(mountPost({ item: makeItem({ local: false, media_attachments: [photo()] }) }).wrapper, 'Add to a collection')).toBeUndefined()
+			expect(menuItem(mountPost({ item: makeItem() }).wrapper, 'Add to album')).toBeUndefined()
+			expect(menuItem(mountPost({ item: makeItem({ account: bob, media_attachments: [photo()] }) }).wrapper, 'Add to album')).toBeUndefined()
+			expect(menuItem(mountPost({ item: makeItem({ local: false, media_attachments: [photo()] }) }).wrapper, 'Add to album')).toBeUndefined()
 		})
 
 		it('opens the collection picker for the post', async () => {
 			const { wrapper } = mountPost({ item: makeItem({ media_attachments: [photo()] }) })
 
-			await menuItem(wrapper, 'Add to a collection').trigger('click')
+			await menuItem(wrapper, 'Add to album').trigger('click')
 
 			const picker = wrapper.findComponent({ name: 'CollectionPickerDialog' })
 			expect(picker.exists()).toBe(true)

@@ -64,7 +64,7 @@
 					value="collection"
 					name="source"
 					type="radio">
-					{{ t('social', 'One of my collections') }}
+					{{ t('social', 'One of my albums') }}
 				</NcCheckboxRadioSwitch>
 				<NcSelect
 					v-if="form.source === 'collection'"
@@ -72,7 +72,7 @@
 					class="portfolio-settings__select"
 					:options="collections"
 					label="title"
-					:placeholder="t('social', 'Which collection')" />
+					:placeholder="t('social', 'Which album')" />
 			</fieldset>
 
 			<fieldset class="portfolio-settings__group">

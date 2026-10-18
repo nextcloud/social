@@ -161,6 +161,6 @@ describe('CollectionPage', () => {
 		const { wrapper } = mountPage({ id: '99' })
 		await flushPromises()
 
-		expect(wrapper.find('.collection__error').text()).toContain('no such collection')
+		expect(wrapper.find('.collection__error').text()).toContain('no such album')
 	})
 })

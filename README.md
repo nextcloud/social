@@ -362,14 +362,14 @@ own unified search. No external search engine to run.
   an empty box, and your profile links straight there.
 - **Highlights** — a twelve-week posting chart and the tags somebody keeps coming back
   to.
-![Collections](img/readme/collections.png)
+![Albums](img/readme/collections.png)
 
-- **Collections** — Pixelfed's albums, as a tab of a profile: a shelf of the
-  account's collections, each a page of its posts drawn as the profile grid. You make
-  one on your own shelf, put a post into it from the post's menu (**… → Add to a
-  collection**), and edit, empty or delete it on its page. A collection holds only
-  its owner's own posts with a picture or a video in them, and a followers-only one
-  is shown to followers and nobody else.
+- **Albums** — as a tab of a profile, like Pixelfed's: a shelf of the account's
+  albums, each a page of its posts drawn as the profile grid. You make one on your
+  own shelf, put a post into it from the post's menu (**… → Add to album**), and
+  edit, empty or delete it on its page. An album holds only its owner's own posts
+  with a picture or a video in them, and a followers-only one is shown to followers
+  and nobody else.
 - **Team accounts** — an administrator can give a Nextcloud group an account to
   post from, and everybody in the group finds it in the composer beside the
   audience picker. It is an actor like any other: followable from Mastodon and

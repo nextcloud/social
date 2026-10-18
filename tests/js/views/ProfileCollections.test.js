@@ -85,7 +85,7 @@ describe('ProfileCollections', () => {
 
 		const switcher = wrapper.findComponent(TimelineSwitcher)
 		expect(switcher.props('value')).toBe('collections')
-		expect(switcher.props('options').map((option) => option.label)).toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Collections'])
+		expect(switcher.props('options').map((option) => option.label)).toEqual(['Posts', 'Photos', 'Videos', 'Tagged', 'Albums'])
 	})
 
 	it('lets the owner make a new one where the others are, and nobody else', async () => {

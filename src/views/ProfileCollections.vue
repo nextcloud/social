@@ -15,7 +15,7 @@
 			<NcTextField
 				v-model="newTitle"
 				class="collections__create-title"
-				:label="t('social', 'New collection')"
+				:label="t('social', 'New album')"
 				:placeholder="t('social', 'What to call it')"
 				maxlength="255" />
 			<NcCheckboxRadioSwitch
@@ -74,7 +74,7 @@
 
 		<NcEmptyContent
 			v-else
-			:name="t('social', 'No collections yet')"
+			:name="t('social', 'No albums yet')"
 			:description="isOwn
 				? t('social', 'Gather some of your posts into an album: name one above, then add posts to it from their menu.')
 				: t('social', 'Albums this account makes out of its posts will show up here.')">
@@ -206,7 +206,7 @@ export default {
 			} catch (error) {
 				logger.error('could not load the collections', { error })
 				if (isNewest()) {
-					this.error = t('social', 'The collections could not be loaded.')
+					this.error = t('social', 'The albums could not be loaded.')
 				}
 			} finally {
 				if (isNewest()) {
@@ -232,10 +232,10 @@ export default {
 				this.collections = [data, ...this.collections]
 				this.newTitle = ''
 				this.newFollowersOnly = false
-				showSuccess(t('social', 'Collection created'))
+				showSuccess(t('social', 'Album created'))
 			} catch (error) {
 				logger.error('could not create the collection', { error })
-				showError(errorOf(error, t('social', 'Could not create the collection')))
+				showError(errorOf(error, t('social', 'Could not create the album')))
 			} finally {
 				this.creating = false
 			}

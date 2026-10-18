@@ -45,7 +45,7 @@ export function profileKinds(account) {
 		},
 		{
 			value: 'collections',
-			label: t('social', 'Collections'),
+			label: t('social', 'Albums'),
 			icon: IconFolderMultipleImage,
 			to: { name: 'profile.collections', params: { account } },
 		},
