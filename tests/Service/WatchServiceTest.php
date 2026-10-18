@@ -59,6 +59,35 @@ class WatchServiceTest extends TestCase {
 		return $bob;
 	}
 
+	/** "continue watching" says where in each video the reader stopped */
+	public function testTheUnfinishedVideosCarryWhereTheReaderStopped(): void {
+		$this->watchRequest->method('unfinishedProgress')->willReturn([
+			['prim' => md5(self::POST), 'position' => 90, 'duration' => 600, 'updated' => 1714564800],
+			['prim' => md5('gone'), 'position' => 30, 'duration' => 60, 'updated' => 0],
+		]);
+		$streams = $this->createStub(StreamRequest::class);
+		$streams->method('getStream')->willReturnCallback(function (string $prim): Note {
+			if ($prim !== md5(self::POST)) {
+				throw new \Exception('deleted since');
+			}
+
+			return $this->post();
+		});
+		$service = new WatchService($this->watchRequest, $streams, new NullLogger());
+
+		$posts = $service->unfinished($this->bob());
+
+		$this->assertCount(1, $posts, 'a video deleted since is not offered');
+		$this->assertSame(
+			['position' => 90, 'duration' => 600, 'updated_at' => '2024-05-01T12:00:00.000Z'],
+			$posts[0]->exportAsLocal()['watch_progress']
+		);
+	}
+
+	public function testAPostOffThatListSaysNothingOfWatching(): void {
+		$this->assertNull($this->post()->exportAsLocal()['watch_progress']);
+	}
+
 	public function testWhereSomebodyGotToIsRemembered(): void {
 		$this->watchRequest->expects($this->once())->method('remember')
 			->with(self::POST, self::BOB, 300, 3600);

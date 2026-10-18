@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Db;
 
 use DateTime;
+use DateTimeZone;
 use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 
@@ -89,8 +90,18 @@ class WatchRequest extends CoreRequestBuilder {
 	 * @return string[] the prims of the posts
 	 */
 	public function unfinished(string $actorId, int $limit = 20): array {
+		return array_column($this->unfinishedProgress($actorId, $limit), 'prim');
+	}
+
+	/**
+	 * The same, each with where the person got to: what draws the bar under
+	 * a video they began.
+	 *
+	 * @return list<array{prim: string, position: int, duration: int, updated: int}> `updated` a timestamp, 0 when it is not known
+	 */
+	public function unfinishedProgress(string $actorId, int $limit = 20): array {
 		$qb = $this->getQueryBuilder();
-		$qb->select('stream_id_prim')
+		$qb->select('stream_id_prim', 'position', 'duration', 'last_update')
 			->from(self::TABLE_WATCH)
 			->where($qb->expr()->eq('actor_id_prim', $qb->createNamedParameter($qb->prim($actorId))))
 			->andWhere($qb->expr()->gte('position', $qb->createNamedParameter(self::STARTED_SECONDS, IQueryBuilder::PARAM_INT)))
@@ -98,14 +109,27 @@ class WatchRequest extends CoreRequestBuilder {
 			->orderBy('last_update', 'desc')
 			->setMaxResults(max(1, min($limit, 40)));
 
-		$prims = [];
+		$rows = [];
 		$cursor = $qb->executeQuery();
 		while ($data = $cursor->fetch()) {
-			$prims[] = (string)$data['stream_id_prim'];
+			$updated = 0;
+			if (($data['last_update'] ?? null) !== null) {
+				try {
+					$updated = (new DateTime((string)$data['last_update'], new DateTimeZone('UTC')))->getTimestamp();
+				} catch (\Exception $e) {
+				}
+			}
+
+			$rows[] = [
+				'prim' => (string)$data['stream_id_prim'],
+				'position' => (int)$data['position'],
+				'duration' => (int)$data['duration'],
+				'updated' => $updated,
+			];
 		}
 		$cursor->closeCursor();
 
-		return $prims;
+		return $rows;
 	}
 
 	/** Forgets one, for somebody taking a video off their own list. */

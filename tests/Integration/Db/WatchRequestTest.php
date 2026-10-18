@@ -69,6 +69,20 @@ class WatchRequestTest extends TestCase {
 		$this->assertSame([md5(self::SHORT), md5(self::VIDEO)], $this->watch->unfinished(self::ALICE));
 	}
 
+	public function testTheUnfinishedComeWithWhereTheyStopped(): void {
+		$before = time() - 5;
+		$this->watch->remember(self::VIDEO, self::ALICE, 120, 600);
+
+		$rows = $this->watch->unfinishedProgress(self::ALICE);
+
+		$this->assertCount(1, $rows);
+		$this->assertSame(md5(self::VIDEO), $rows[0]['prim']);
+		$this->assertSame(120, $rows[0]['position']);
+		$this->assertSame(600, $rows[0]['duration']);
+		$this->assertGreaterThanOrEqual($before, $rows[0]['updated']);
+		$this->assertLessThanOrEqual(time() + 5, $rows[0]['updated']);
+	}
+
 	public function testForgettingRemovesThePosition(): void {
 		$this->watch->remember(self::VIDEO, self::ALICE, 120, 600);
 
