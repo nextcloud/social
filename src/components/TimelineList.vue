@@ -30,6 +30,13 @@
 			:posts="timeline"
 			:account="account"
 			:loading="loading" />
+		<VideoBrowse
+			v-else-if="display === 'videos'"
+			:posts="timeline"
+			:loading="loading"
+			:allLoaded="allLoaded"
+			:failed="error !== null"
+			@more="infiniteHandler" />
 		<transition-group
 			v-else
 			name="list"
@@ -75,7 +82,7 @@
 			moment ago keeps them, dimmed and inert, until the new ones arrive;
 			only a genuinely cold list draws bones.
 		-->
-		<TimelineSkeleton v-if="display !== 'grid' && loading && timeline.length === 0 && !holding" />
+		<TimelineSkeleton v-if="display === 'list' && loading && timeline.length === 0 && !holding" />
 		<!--
 		  A failure used to set allLoaded, so the reader was shown "No posts
 		  found / Posts from people you follow will show up here" for what was
@@ -117,6 +124,7 @@ import NcButton from '@nextcloud/vue/components/NcButton'
 import ProfileMediaGrid from './ProfileMediaGrid.vue'
 import TimelineEntry from './TimelineEntry.vue'
 import TimelineSkeleton from './TimelineSkeleton.vue'
+import VideoBrowse from './VideoBrowse.vue'
 import WaveLoading from './WaveLoading.vue'
 
 /**
@@ -233,6 +241,7 @@ export default {
 		NcButton,
 		TimelineEntry,
 		TimelineSkeleton,
+		VideoBrowse,
 		WaveLoading,
 		EmptyContent,
 	},
@@ -254,14 +263,15 @@ export default {
 		},
 
 		/**
-		 * How to draw the posts: as a list of entries, or as the grid of
-		 * squares a profile shows on Pixelfed. Only the drawing differs --
-		 * the timeline, its paging and its states are the same.
+		 * How to draw the posts: as a list of entries, as the grid of
+		 * squares a profile shows on Pixelfed, or as the Videos page's
+		 * cards. Only the drawing differs -- the timeline, its paging and
+		 * its states are the same.
 		 */
 		display: {
 			type: String,
 			default: 'list',
-			validator: (value) => ['list', 'grid'].includes(String(value)),
+			validator: (value) => ['list', 'grid', 'videos'].includes(String(value)),
 		},
 
 		/** Whose profile the grid links its tiles into. */
@@ -1236,7 +1246,7 @@ export default {
 			// a grid is a wall of tiles, all of them on screen together, so
 			// time in view says nothing about any one: there, only opening a
 			// tile counts (`onTrackedClick`)
-			if (!this.tracker || !this.$el || this.holding || this.display === 'grid') {
+			if (!this.tracker || !this.$el || this.holding || this.display !== 'list') {
 				return
 			}
 
@@ -1274,7 +1284,7 @@ export default {
 				return
 			}
 
-			if (/** @type {HTMLElement} */ (event.target).closest('.post-attachments, .media-grid__link')) {
+			if (/** @type {HTMLElement} */ (event.target).closest('.post-attachments, .media-grid__link, .video-card__link')) {
 				this.tracker?.record(status, 'media')
 				return
 			}

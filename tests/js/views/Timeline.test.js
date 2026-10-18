@@ -1014,10 +1014,27 @@ describe('Timeline', () => {
 		// is a list; Photos and Videos are what they showed, which is a grid.
 		// These two pages were a list here and a grid on a profile, so the same
 		// picture was a row in one place and a tile in the other.
-		it.each(['photos', 'videos'])('draws %s as a grid', (type) => {
+		it.each(['photos'])('draws %s as a grid', (type) => {
 			const wrapper = mountTimeline({ params: { type } })
 
 			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('grid')
+		})
+
+		/** Videos is a video site's front page, with an upload button in place of the composer */
+		it('draws Videos as cards, in the wide column, without the composer', () => {
+			const wrapper = mountTimeline({ params: { type: 'videos' } })
+
+			expect(wrapper.findComponent(TimelineListStub).props('display')).toBe('videos')
+			expect(wrapper.find('.social__wrapper').classes()).toContain('social__wrapper--videos')
+			expect(wrapper.findComponent(ComposerStub).exists()).toBe(false)
+		})
+
+		it.each(['photos', '', 'timeline'])('keeps %s off the video layout and keeps its composer', (type) => {
+			const wrapper = mountTimeline({ params: { type } })
+
+			expect(wrapper.findComponent(TimelineListStub).props('display')).not.toBe('videos')
+			expect(wrapper.find('.social__wrapper').classes()).not.toContain('social__wrapper--videos')
+			expect(wrapper.findComponent(ComposerStub).exists()).toBe(true)
 		})
 
 		it.each(['', 'timeline', 'federated', 'notifications'])('draws %s as a list', (type) => {
