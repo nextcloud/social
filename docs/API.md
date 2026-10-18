@@ -164,6 +164,22 @@ An incoming **`interactionPolicy.canQuote`** is honoured. GoToSocial defined the
 
 A Status entity also carries **`archived`**, which is true only on the author's own archived posts — nobody else is ever handed one, because no list this server builds contains one.
 
+A Status entity also carries **`video_card`** — **Aloha Social's own**, the same few facts about every video post whatever it arrived as, which is what the web interface's Videos page draws its cards from. `null` on every post that is not a video; a video is a post that arrived as a PeerTube `Video` (it has a `video` block) or carries an attachment served as `video/*`, the same rule the dislike button follows. On a boost it is on the boosted post in `reblog`. Every key is always present:
+
+| Field | Type | What it is |
+|---|---|---|
+| `title` | string | The video's own title (`video.title`); else the content warning, so the words behind one are not on the card either; else the first line of the post as plain text, markup and entities resolved. At most 120 characters. `''` for a post with no words at all. |
+| `duration` | integer or null | How long it runs, in whole seconds: `video.duration`, else the video attachment's `meta.duration`. `null` when neither says. |
+| `thumbnail` | string or null | A picture of it: the video attachment's `preview_url` — the poster frame of an upload here, the thumbnail a PeerTube video publishes. `null` when there is none, including when `preview_url` is the video file itself, as it is for an older upload with no poster. |
+| `views` | integer or null | How many times it was watched, as its origin counts it (`video.views`). `null` when nobody counted — never invented, and never this instance's `view_count`, which only the author is told. |
+| `live` | boolean | A live broadcast (`video.live`). |
+| `category` | string or null | Its category, as its origin names it (`video.category`); `null` when it has none. |
+| `published` | string | When the video was published, in `created_at`'s format: `video.originally_published_at` where it is there and can be read, else `created_at`. |
+
+The channel is the status's own `account` and is not repeated. The attachment that is the video is the first of `type` `video` in `media_attachments`, else the first served as `video/*`; `duration` and `thumbnail` come from it. Mastodon clients ignore the key. No query parameter filters on these fields: the Videos page chooses among the videos it has loaded.
+
+A Status entity also carries **`watch_progress`** — **Aloha Social's own** — `{position, duration, updated_at}`: where in a video the reader stopped, in seconds, out of how many, and when it was last moved (in `created_at`'s format, or `null`). Only on the statuses `GET /api/v1/videos/continue` answers; `null` on every other list. It is the reader's own and is never federated.
+
 A Status entity's **`muted`** is real and per viewer: `true` when the viewer muted the conversation the post belongs to (`POST /api/v1/statuses/{nid}/mute`, below), else `false`; anonymous readers always get `false`. It used to be hard-coded `false`, so no client could show or toggle the state. It is computed for a whole page in one pass by `StreamRequestBuilder::markMutedConversations()`: the page's reply chains are walked up to their roots and compared with the viewer's muted roots in `social_convo_state`. Those roots are memoised for the request, and every mute or unmute drops the memo first (`ConversationsRequest::setMuted()`), so the status a mute answers with already says `muted: true`.
 
 **Two of the four profile fields are also sent as their own keys.** An Account
@@ -885,7 +901,7 @@ remote one, as on Mastodon: both describe a user of *this* instance.
 | GET | `/media/hls/{uuid}/{height}/video.mp4` | public, no-csrf | `uuid`, `height` (path); the request's own `Range` header is honoured | One rung's fragmented MP4, whole, with ranges. Every segment of a rung is a byte range into this one file (`-hls_flags single_file`), so a player watching a ten-minute video asks this a few hundred times with a different `Range` each time — hence the generous limits. Cached on the same terms as the video itself: for ever in the reader's own cache, and in a shared one only where the post is public. |
 | POST | `/api/v1/statuses/{nid}/watched` | public, no-csrf (viewer required) | `position`, `duration` (seconds) | **Remembers where the reader got to in a video.** A two-hour talk watched in three sittings is three sittings of finding the place again. A fact about the *reader*: never federated, never shown to anybody else, never counted into anything, one row per (post, viewer). A video watched to past 95% is **forgotten** rather than bookmarked at the credits, because a "continue watching" row that offers back a finished video is one nobody presses twice. 600 a minute — a player reports as it goes. |
 | DELETE | `/api/v1/statuses/{nid}/watched` | public, no-csrf (viewer required) | `nid` | Takes a video off the reader's own list. |
-| GET | `/api/v1/videos/continue` | public, no-csrf (viewer required) | `limit` (20, max 40) | The videos the reader was in the middle of, newest first — neither the ones they barely started (under 10 seconds) nor the ones they finished. |
+| GET | `/api/v1/videos/continue` | public, no-csrf (viewer required) | `limit` (20, max 40) | The videos the reader was in the middle of, newest first — neither the ones they barely started (under 10 seconds) nor the ones they finished. Each status carries `watch_progress`, where the reader stopped in it. |
 
 `POST /api/v1/media` and `POST /api/v2/media` are both served by `MediaApiController::mediaNew()`, and it and `mediaFromFile()` share the storing half (`storeAttachment()`) so the two ways in cannot drift apart on the things that matter — the mime filter, the resizing, and the row not being public. On the wire an attachment's alt text travels as the ActivityPub `name`, both incoming and outgoing.
 

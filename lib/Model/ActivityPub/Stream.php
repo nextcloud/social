@@ -124,6 +124,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 
 	use TDetails;
 
+	/** The longest `video_card.title`, in characters: as long as a video's own title is kept. */
+	public const VIDEO_CARD_TITLE = 120;
+
 	public const TYPE = 'Stream';
 
 	public const TYPE_PUBLIC = 'public';
@@ -473,6 +476,9 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 * @var array{tags: string[], reason: string}|null
 	 */
 	private ?array $interest = null;
+
+	/** @var array{position: int, duration: int, updated_at: ?string}|null */
+	private ?array $watchProgress = null;
 
 	/**
 	 * Whether the author has put this post away.
@@ -1104,6 +1110,111 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	}
 
 	/**
+	 * The same few facts about every video, whatever it arrived as: what a
+	 * card in a grid of videos draws. A PeerTube `Video` says most of them
+	 * itself; an upload here or a video from Mastodon or Bluesky has only its
+	 * attachment and its words, and gets what those say and null for the rest.
+	 * Nothing is invented: a count nobody sent is null, not zero.
+	 *
+	 * Null for a post that is not a video (`isVideo()`). The channel is the
+	 * status's own `account`, and is not repeated here.
+	 *
+	 * @return array{title: string, duration: ?int, thumbnail: ?string, views: ?int, live: bool, category: ?string, published: string}|null
+	 */
+	private function exportVideoCard(): ?array {
+		if (!$this->isVideo()) {
+			return null;
+		}
+
+		$meta = $this->getVideoMeta();
+		$attachment = $this->videoAttachment();
+		$media = $attachment?->asLocal() ?? [];
+
+		$duration = is_numeric($meta['duration'] ?? null) ? (int)$meta['duration'] : 0;
+		if ($duration <= 0) {
+			$duration = (int)round((float)($attachment?->getMeta()?->getDuration() ?? 0));
+		}
+
+		// the preview of a video with no poster frame is the video itself,
+		// which no `<img>` can draw
+		$thumbnail = $media['preview_url'] ?? null;
+		if (!is_string($thumbnail) || $thumbnail === '' || $thumbnail === ($media['url'] ?? null)) {
+			$thumbnail = null;
+		}
+
+		$category = trim((string)($meta['category'] ?? ''));
+
+		return [
+			'title' => $this->videoTitle(),
+			'duration' => ($duration > 0) ? $duration : null,
+			'thumbnail' => $thumbnail,
+			'views' => is_numeric($meta['views'] ?? null) ? max(0, (int)$meta['views']) : null,
+			'live' => ($meta['live'] ?? false) === true,
+			'category' => ($category === '') ? null : $category,
+			'published' => $this->videoPublished((string)($meta['originally_published_at'] ?? '')),
+		];
+	}
+
+	/**
+	 * The attachment that is the video: the first of type `video`, else the
+	 * first file served as one (a GIF a peer converted).
+	 */
+	private function videoAttachment(): ?MediaAttachment {
+		$fallback = null;
+		foreach ($this->getAttachments() as $attachment) {
+			if ($attachment->getType() === 'video') {
+				return $attachment;
+			}
+			if ($fallback === null && str_starts_with($attachment->getMediaType(), 'video/')) {
+				$fallback = $attachment;
+			}
+		}
+
+		return $fallback;
+	}
+
+	/**
+	 * What the video is called: its own title, else the content warning —
+	 * the words the author chose to show before the rest — else the first
+	 * line of the post, as plain text. '' for a post with no words at all.
+	 */
+	private function videoTitle(): string {
+		$title = trim((string)($this->getVideoMeta()['title'] ?? ''));
+		if ($title === '') {
+			$title = trim($this->getSpoilerText());
+		}
+		if ($title === '') {
+			$text = (string)preg_replace('/<br\s*\/?>|<\/p>|<\/li>|<\/h[1-6]>/i', "\n", $this->getContent());
+			$text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+			foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+				$line = trim((string)preg_replace('/\s+/u', ' ', $line));
+				if ($line !== '') {
+					$title = $line;
+					break;
+				}
+			}
+		}
+
+		return mb_substr($title, 0, self::VIDEO_CARD_TITLE);
+	}
+
+	/**
+	 * When the video was published, in `created_at`'s format: the date its
+	 * author gave it where there is one (PeerTube's `originallyPublishedAt`),
+	 * else when the post was made.
+	 */
+	private function videoPublished(string $original): string {
+		if ($original !== '') {
+			try {
+				return gmdate('Y-m-d\TH:i:s', (new DateTime($original))->getTimestamp()) . '.000Z';
+			} catch (Exception $e) {
+			}
+		}
+
+		return gmdate('Y-m-d\TH:i:s', $this->getPublishedTime()) . '.000Z';
+	}
+
+	/**
 	 * @param array<string, mixed> $meta
 	 */
 	public function setVideoMeta(array $meta): self {
@@ -1484,6 +1595,27 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	/** @param array{tags: string[], reason: string}|null $interest */
 	public function setInterest(?array $interest): self {
 		$this->interest = $interest;
+
+		return $this;
+	}
+
+	/** @return array{position: int, duration: int, updated_at: ?string}|null */
+	public function getWatchProgress(): ?array {
+		return $this->watchProgress;
+	}
+
+	/**
+	 * Where the reader got to in this video, on the one list that says so
+	 * (`WatchService::unfinished()`).
+	 *
+	 * @param int $updated when it was last moved, as a timestamp; 0 when not known
+	 */
+	public function setWatchProgress(int $position, int $duration, int $updated): self {
+		$this->watchProgress = [
+			'position' => max(0, $position),
+			'duration' => max(0, $duration),
+			'updated_at' => ($updated > 0) ? gmdate('Y-m-d\TH:i:s', $updated) . '.000Z' : null,
+		];
 
 		return $this;
 	}
@@ -2350,6 +2482,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			// what a video is, beyond being a post with a file on it: null for
 			// every post that is not one, which is almost all of them
 			'video' => ($video = $this->getVideoMeta()) === [] ? null : $video,
+			// Aloha Social's own: the same seven facts about every video,
+			// for a grid of them to draw — see `exportVideoCard()`. Null for
+			// every post that is not a video
+			'video_card' => $this->exportVideoCard(),
+			// where the reader stopped in this video: only on "continue
+			// watching" (`/api/v1/videos/continue`), null everywhere else
+			'watch_progress' => $this->getWatchProgress(),
 			'mentions' => $this->exportMentionsAsLocal(),
 			'emojis' => $this->getEmojis(),
 			'tags' => $this->exportTagsAsLocal(),

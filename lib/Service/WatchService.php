@@ -88,17 +88,19 @@ class WatchService {
 	}
 
 	/**
-	 * The videos this person was in the middle of, newest first.
+	 * The videos this person was in the middle of, newest first, each
+	 * carrying where they got to (`watch_progress`).
 	 *
 	 * @return Stream[]
 	 */
 	public function unfinished(Person $viewer, int $limit = 20): array {
 		$posts = [];
 
-		foreach ($this->watchRequest->unfinished($viewer->getId(), $limit) as $prim) {
+		foreach ($this->watchRequest->unfinishedProgress($viewer->getId(), $limit) as $watch) {
 			try {
-				$post = $this->streamRequest->getStream($prim);
+				$post = $this->streamRequest->getStream($watch['prim']);
 				$post->setExportFormat(ACore::FORMAT_LOCAL);
+				$post->setWatchProgress($watch['position'], $watch['duration'], $watch['updated']);
 				$posts[] = $post;
 			} catch (Throwable $e) {
 				// a video that has been deleted since: the bookmark outlives
