@@ -22,3 +22,17 @@ updates:
   open-pull-requests-limit: 10
   cooldown:
     default-days: 10
+- package-ecosystem: github-actions
+  directory: "/"
+  schedule:
+    interval: weekly
+    day: saturday
+    time: "03:00"
+    timezone: Europe/Paris
+  open-pull-requests-limit: 10
+  cooldown:
+    default-days: 10
+  groups:
+    github-actions:
+      patterns:
+        - "*"
