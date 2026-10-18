@@ -16,7 +16,6 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Service\VideoViewService;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\ISession;

@@ -44,14 +44,16 @@ class VideoPosterBackfillTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
-		if (Server::get(IBinaryFinder::class)->findBinaryPath('ffmpeg') === false) {
-			$this->markTestSkipped('ffmpeg is not installed');
-		}
-
 		$this->documents = Server::get(CacheDocumentsRequest::class);
 		$this->streamRequest = Server::get(StreamRequest::class);
 		$this->config = Server::get(ConfigService::class);
 		$this->cursorBefore = (string)$this->config->getAppValue(ConfigService::SOCIAL_POSTER_CURSOR);
+
+		// tearDown() also runs after a skip, so the services are set first.
+		if (Server::get(IBinaryFinder::class)->findBinaryPath('ffmpeg') === false) {
+			$this->markTestSkipped('ffmpeg is not installed');
+		}
+
 		$this->cleanup();
 	}
 
