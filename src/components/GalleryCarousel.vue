@@ -16,7 +16,14 @@
 		@keydown.right.prevent="rtl ? previous() : next()"
 		@keydown.home.prevent="show(0)"
 		@keydown.end.prevent="show(attachments.length - 1)">
-		<div class="gallery__stage" :style="{ aspectRatio: String(stageRatio) }">
+		<!-- a finger pages by swiping across the picture; a pointer has the
+		     arrows, and dragging a picture with a mouse is not paging it -->
+		<div
+			class="gallery__stage"
+			:style="{ aspectRatio: String(stageRatio) }"
+			@pointerdown="startSwipe"
+			@pointerup="endSwipe"
+			@pointercancel="swipeFrom = null">
 			<!-- in a right-to-left page the slides run leftwards, and so does the track -->
 			<div class="gallery__track" :style="{ transform: `translateX(${(rtl ? 1 : -1) * current * 100}%)` }">
 				<!-- every picture stays mounted, so paging to one does not start
@@ -35,7 +42,8 @@
 						:index="index"
 						:total="attachments.length"
 						:ratio="stageRatio"
-						fit="contain"
+						:fit="fit"
+						:openable="openable"
 						@open="$emit('open', index)" />
 				</div>
 			</div>
@@ -85,6 +93,9 @@ import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import GalleryMedia from './GalleryMedia.vue'
 import { ratioOf } from './GalleryRatio.js'
 
+/** how far a finger has to travel across the picture before it pages */
+const SWIPE_PX = 40
+
 export default {
 	name: 'GalleryCarousel',
 	components: {
@@ -104,12 +115,33 @@ export default {
 			type: /** @type {import('vue').PropType<import('../types/Mastodon.js').MediaAttachment[]>} */ (Array),
 			required: true,
 		},
+
+		/** the stage's shape, overriding the first picture's own; 0 to derive it */
+		ratio: {
+			type: Number,
+			default: 0,
+		},
+
+		/** how each picture meets the stage; see `GalleryMedia` */
+		fit: {
+			type: String,
+			default: 'contain',
+			validator: (value) => ['cover', 'contain'].includes(String(value)),
+		},
+
+		/** whether pressing a picture opens it; see `GalleryMedia` */
+		openable: {
+			type: Boolean,
+			default: true,
+		},
 	},
 
 	emits: ['open'],
 	data() {
 		return {
 			current: 0,
+			/** where a touch on the stage began, null when none is under way */
+			swipeFrom: null,
 		}
 	},
 
@@ -126,10 +158,11 @@ export default {
 		 * @return {number} one shape for every slide. The pictures of a set
 		 * rarely share a ratio, and a stage that resized per slide would move
 		 * the rest of the timeline on every step, so they are fitted into the
-		 * shape of the first one instead of cropped to it.
+		 * shape of the first one instead of cropped to it — or into the shape
+		 * the caller gives, cropped where it says `fit: cover`.
 		 */
 		stageRatio() {
-			return ratioOf(this.attachments[0] ?? null)
+			return this.ratio > 0 ? this.ratio : ratioOf(this.attachments[0] ?? null)
 		},
 
 		/** @return {string} */
@@ -170,6 +203,38 @@ export default {
 			this.show(this.current - 1)
 		},
 
+		/** @param {PointerEvent} event a pointer going down on the stage */
+		startSwipe(event) {
+			this.swipeFrom = event.pointerType === 'mouse' ? null : { x: event.clientX, y: event.clientY }
+		},
+
+		/**
+		 * A finger lifted: a sideways stroke pages, in the reading direction.
+		 * Mostly downwards is the page being scrolled, and is left alone.
+		 *
+		 * @param {PointerEvent} event the pointer coming up
+		 */
+		endSwipe(event) {
+			const from = this.swipeFrom
+			this.swipeFrom = null
+			if (from === null) {
+				return
+			}
+
+			const across = event.clientX - from.x
+			if (Math.abs(across) < SWIPE_PX || Math.abs(across) < Math.abs(event.clientY - from.y)) {
+				return
+			}
+
+			// towards the start of the line is onward, whichever side that is
+			const onward = this.rtl ? across > 0 : across < 0
+			if (onward) {
+				this.next()
+			} else {
+				this.previous()
+			}
+		},
+
 		next() {
 			this.show(this.current + 1)
 		},
@@ -199,6 +264,7 @@ export default {
 
 	&__stage {
 		position: relative;
+		touch-action: pan-y;
 		width: 100%;
 		overflow: hidden;
 		border-radius: var(--border-radius-large, 12px);

@@ -48,3 +48,61 @@ export function ratioOf(attachment, fallback = DEFAULT_RATIO) {
 
 	return width / height
 }
+
+/**
+ * The tallest shape the photo feed gives a picture: 4:5, portrait.
+ *
+ * The photo feed is the one place a picture is cut to fit. Every picture there
+ * is drawn the full width of the column, one after another, so a skyscraper
+ * would be the only thing on the screen and a panorama a strip; Instagram's
+ * feed holds them between these same two shapes, and people posting from
+ * there frame their pictures for it.
+ */
+export const FEED_TALLEST = 4 / 5
+
+/** The widest shape the photo feed gives a picture: 1.91:1, landscape. */
+export const FEED_WIDEST = 1.91
+
+/**
+ * The shape of a picture's frame in the photo feed: its own, held between
+ * `FEED_TALLEST` and `FEED_WIDEST`. What is outside is cropped, around the
+ * focal point the poster chose.
+ *
+ * @param {import('../types/Mastodon.js').MediaAttachment} attachment the attachment
+ * @return {number} width divided by height
+ */
+export function feedRatioOf(attachment) {
+	return Math.min(FEED_WIDEST, Math.max(FEED_TALLEST, ratioOf(attachment)))
+}
+
+/**
+ * How wide a frame of the given shape can be drawn before the picture
+ * filling it is stretched past its own pixels.
+ *
+ * A picture fills its frame (`cover`), so it is scaled by whichever of the
+ * two sides has further to go: the frame's width against the picture's, or
+ * its height against the picture's. Neither may be more than the picture
+ * has, which is what makes the answer the smaller of the picture's width and
+ * its height times the frame's shape.
+ *
+ * The size is the original's: a picture is small when it was taken or
+ * posted small. The preview the browser is given is the server's copy at
+ * most 800 pixels on its long side, and holding an upright picture to that
+ * would draw every one of them narrower than the column. The preview's size
+ * stands in only where the original's is not known.
+ *
+ * @param {import('../types/Mastodon.js').MediaAttachment} attachment the attachment
+ * @param {number} ratio the frame's width divided by its height
+ * @return {number} pixels, or Infinity when the picture's size is not known
+ */
+export function unscaledWidth(attachment, ratio) {
+	const size = attachment?.meta?.original ?? attachment?.meta?.small ?? null
+	const width = Number(size?.width)
+	const height = Number(size?.height)
+
+	if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || !(ratio > 0)) {
+		return Infinity
+	}
+
+	return Math.floor(Math.min(width, height * ratio))
+}

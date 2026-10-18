@@ -247,4 +247,78 @@ describe('GalleryCarousel', () => {
 			expect(current(wrapper)).toBe(0)
 		})
 	})
+
+	describe('in the photo feed', () => {
+		it('takes the shape, the crop and the openness it is given', () => {
+			const wrapper = mount(GalleryCarousel, { props: { attachments: photos(3), ratio: 0.8, fit: 'cover', openable: false } })
+
+			expect(wrapper.find('.gallery__stage').attributes('style')).toContain('aspect-ratio: 0.8')
+			expect(wrapper.findAllComponents(GalleryMedia).every((media) => media.props('fit') === 'cover' && media.props('ratio') === 0.8)).toBe(true)
+			expect(wrapper.find('button.photo__open').exists()).toBe(false)
+		})
+	})
+
+	describe('swiping', () => {
+		// jsdom has no PointerEvent: a mouse event carries the coordinates,
+		// and the kind of pointer is put on it the way a browser would
+		const pointer = (type, pointerType, [clientX, clientY]) => {
+			const event = new MouseEvent(type, { bubbles: true, clientX, clientY })
+			Object.defineProperty(event, 'pointerType', { value: pointerType })
+
+			return event
+		}
+
+		const swipe = async (wrapper, { from = [200, 100], to, pointerType = 'touch' }) => {
+			const stage = wrapper.find('.gallery__stage').element
+			stage.dispatchEvent(pointer('pointerdown', pointerType, from))
+			stage.dispatchEvent(pointer('pointerup', pointerType, to))
+			await wrapper.vm.$nextTick()
+		}
+
+		it('pages onward when a finger strokes towards the start of the line', async () => {
+			const wrapper = mountCarousel(photos(3))
+
+			await swipe(wrapper, { to: [100, 105] })
+			expect(current(wrapper)).toBe(1)
+
+			await swipe(wrapper, { to: [300, 95] })
+			expect(current(wrapper)).toBe(0)
+		})
+
+		it('pages the other way round in a right-to-left page', async () => {
+			document.documentElement.dir = 'rtl'
+			try {
+				const wrapper = mountCarousel(photos(3))
+
+				await swipe(wrapper, { to: [300, 100] })
+				expect(current(wrapper)).toBe(1)
+			} finally {
+				document.documentElement.dir = ''
+			}
+		})
+
+		it('leaves a stroke that is mostly down to the page, which is scrolling', async () => {
+			const wrapper = mountCarousel(photos(3))
+
+			await swipe(wrapper, { to: [150, 300] })
+
+			expect(current(wrapper)).toBe(0)
+		})
+
+		it('ignores a nudge too short to mean anything', async () => {
+			const wrapper = mountCarousel(photos(3))
+
+			await swipe(wrapper, { to: [180, 100] })
+
+			expect(current(wrapper)).toBe(0)
+		})
+
+		it('leaves a mouse drag alone: a pointer has the arrows', async () => {
+			const wrapper = mountCarousel(photos(3))
+
+			await swipe(wrapper, { to: [100, 100], pointerType: 'mouse' })
+
+			expect(current(wrapper)).toBe(0)
+		})
+	})
 })

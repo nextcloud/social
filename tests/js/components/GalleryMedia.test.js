@@ -170,4 +170,25 @@ describe('GalleryMedia', () => {
 			expect(wrapper.findComponent(MediaAttachment).exists()).toBe(true)
 		})
 	})
+
+	describe('in the photo feed', () => {
+		it('draws no button when the media does not open, where a press is half of a double tap', () => {
+			const wrapper = mountMedia({ openable: false })
+
+			expect(wrapper.find('button.photo__open').exists()).toBe(false)
+			expect(wrapper.findComponent(MediaAttachment).exists()).toBe(true)
+		})
+
+		it('crops around the focal point the poster chose', () => {
+			const wrapper = mountMedia({ fit: 'cover', attachment: photo({ meta: { original: { width: 1600, height: 1200 }, focus: { x: 0.5, y: 0.5 } } }) })
+
+			expect(wrapper.find('.photo').attributes('style')).toContain('--focal-position: 75.00% 25.00%')
+		})
+
+		it('says nothing about a focal point a picture fitted whole does not need', () => {
+			const wrapper = mountMedia({ fit: 'contain', attachment: photo({ meta: { original: { width: 1600, height: 1200 }, focus: { x: 0.5, y: 0.5 } } }) })
+
+			expect(wrapper.find('.photo').attributes('style')).not.toContain('--focal-position')
+		})
+	})
 })

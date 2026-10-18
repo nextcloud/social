@@ -12,7 +12,7 @@
 		     not — a timeline, where the post is a link to itself — they carry
 		     none, so everything here is pressable -->
 		<button
-			v-if="pressable || !interactive"
+			v-if="openable && (pressable || !interactive)"
 			type="button"
 			class="photo__open"
 			:aria-label="openLabel"
@@ -31,6 +31,7 @@ import { translate as t } from '@nextcloud/l10n'
 import AltBadge from './AltBadge.vue'
 import MediaAttachment from './MediaAttachment.vue'
 import { ratioOf } from './GalleryRatio.js'
+import { isFocalPoint, positionOfFocus } from '../utils/focalPoint.js'
 
 export default {
 	name: 'GalleryMedia',
@@ -82,6 +83,16 @@ export default {
 			type: Number,
 			default: 0,
 		},
+
+		/**
+		 * Whether pressing the media opens it. Off in the photo feed, where a
+		 * press on the picture is half of a double tap and the post's own
+		 * controls are what open it.
+		 */
+		openable: {
+			type: Boolean,
+			default: true,
+		},
 	},
 
 	emits: ['open'],
@@ -108,7 +119,15 @@ export default {
 				return {}
 			}
 
-			return { aspectRatio: String(this.ratio > 0 ? this.ratio : ratioOf(this.attachment)) }
+			const style = { aspectRatio: String(this.ratio > 0 ? this.ratio : ratioOf(this.attachment)) }
+			// a cropped picture is cropped around its subject, where the
+			// poster said it is
+			const focus = this.attachment.meta?.focus
+			if (this.fit === 'cover' && isFocalPoint(focus)) {
+				style['--focal-position'] = positionOfFocus(focus).objectPosition
+			}
+
+			return style
 		},
 
 		/** @return {string} what opening this attachment will show */
@@ -146,6 +165,13 @@ export default {
 	&--contain {
 		:deep(.attachment__preview) {
 			object-fit: contain;
+		}
+	}
+
+	&--cover {
+		:deep(.attachment__preview),
+		:deep(.attachment__blurhash) {
+			object-position: var(--focal-position, 50% 50%);
 		}
 	}
 
