@@ -123,11 +123,17 @@ test.describe('Continue watching, in a browser', () => {
 		await api.dispose()
 	})
 
-	test.beforeEach(async ({ page }) => {
+	test.beforeEach(async () => {
 		test.skip(!ready, 'needs ffmpeg to make the video and the server\'s ffprobe to measure it')
 		await clearWatching(/** @type {import('@playwright/test').APIRequestContext} */ (api))
-		await login(page, WATCHER, BYSTANDER_PASSWORD)
 	})
+
+	/**
+	 * @param {import('@playwright/test').Page} page
+	 */
+	async function openAsWatcher(page) {
+		await login(page, WATCHER, BYSTANDER_PASSWORD)
+	}
 
 	/**
 	 * Plays the video for a moment, moves it to `seconds` and pauses it,
@@ -137,6 +143,7 @@ test.describe('Continue watching, in a browser', () => {
 	 * @param {number} seconds
 	 */
 	async function stopAt(page, seconds) {
+		await openAsWatcher(page)
 		await openApp(page, `/@${WATCHER}/${video.id}`)
 		const player = page.locator('.video-player__video')
 		await expect(player).toBeVisible()
