@@ -5,36 +5,40 @@
 <template>
 	<div
 		class="switcher"
+		:class="{ 'switcher--more-left': overflowLeft, 'switcher--more-right': overflowRight }"
 		role="radiogroup"
 		:aria-label="label"
-		@keydown="onKeydown">
-		<!-- the pill that slides: one element that moves, rather than several
-		     that light up, so the eye follows the change instead of finding it -->
-		<span
-			class="switcher__glider"
-			:style="gliderStyle"
-			aria-hidden="true" />
+		@keydown="onKeydown"
+		@scroll.passive="updateOverflow">
+		<div ref="track" class="switcher__track">
+			<!-- the pill that slides: one element that moves, rather than several
+			     that light up, so the eye follows the change instead of finding it -->
+			<span
+				class="switcher__glider"
+				:style="gliderStyle"
+				aria-hidden="true" />
 
-		<button
-			v-for="(option, index) in options"
-			:key="option.value"
-			ref="options"
-			class="switcher__option"
-			:class="{ 'switcher__option--active': option.value === value, 'switcher__option--short': Boolean(option.short) }"
-			role="radio"
-			type="button"
-			:aria-checked="option.value === value"
-			:tabindex="option.value === value ? 0 : -1"
-			@click="show(index)">
-			<component
-				:is="option.icon"
-				class="switcher__icon"
-				:size="18" />
-			<span class="switcher__label">{{ option.label }}</span>
-			<!-- what a phone shows where there is no room for the label, for
-			     choices an icon cannot tell apart; the label stays the name -->
-			<span v-if="option.short" class="switcher__short" aria-hidden="true">{{ option.short }}</span>
-		</button>
+			<button
+				v-for="(option, index) in options"
+				:key="option.value"
+				ref="options"
+				class="switcher__option"
+				:class="{ 'switcher__option--active': option.value === value, 'switcher__option--short': Boolean(option.short) }"
+				role="radio"
+				type="button"
+				:aria-checked="option.value === value"
+				:tabindex="option.value === value ? 0 : -1"
+				@click="show(index)">
+				<component
+					:is="option.icon"
+					class="switcher__icon"
+					:size="18" />
+				<span class="switcher__label">{{ option.label }}</span>
+				<!-- what a phone shows where there is no room for the label, for
+				     choices an icon cannot tell apart; the label stays the name -->
+				<span v-if="option.short" class="switcher__short" aria-hidden="true">{{ option.short }}</span>
+			</button>
+		</div>
 	</div>
 </template>
 
@@ -111,6 +115,9 @@ export default {
 			measured: null,
 			/** re-measures when the track or an option changes size */
 			observer: null,
+			/** whether the track runs past the control on either side */
+			overflowLeft: false,
+			overflowRight: false,
 		}
 	},
 
@@ -155,28 +162,43 @@ export default {
 
 	watch: {
 		value() {
-			this.$nextTick(() => this.measure())
+			this.$nextTick(() => {
+				this.measure()
+				this.bringIntoView(this.activeIndex)
+			})
 		},
 
 		options() {
-			this.$nextTick(() => this.measure())
+			this.$nextTick(() => {
+				this.measure()
+				this.updateOverflow()
+			})
 		},
 	},
 
 	mounted() {
 		this.measure()
+		this.updateOverflow()
+		this.$nextTick(() => this.bringIntoView(this.activeIndex))
 
-		// the options change width without the track changing size — a
+		// the options change width without the control changing size — a
 		// translation arriving, a font loading, the labels giving way to their
 		// icons at a breakpoint — so the observer watches an option rather
-		// than only the track
+		// than only the scroll container
 		if (typeof ResizeObserver === 'function') {
 			this.observer = new ResizeObserver(() => {
 				// off the observer's own callback: measuring inside it would
 				// re-enter it on the next frame
-				window.requestAnimationFrame(() => this.measure())
+				window.requestAnimationFrame(() => {
+					this.measure()
+					this.updateOverflow()
+				})
 			})
 			this.observer.observe(this.$el)
+			const track = /** @type {HTMLElement|undefined} */ (this.$refs.track)
+			if (track) {
+				this.observer.observe(track)
+			}
 			for (const option of this.optionElements()) {
 				this.observer.observe(option)
 			}
@@ -197,7 +219,7 @@ export default {
 		 * first paint, or jsdom — and the share-of-the-track fallback stands.
 		 */
 		measure() {
-			const track = this.$el
+			const track = /** @type {HTMLElement|undefined} */ (this.$refs.track)
 			const elements = this.optionElements()
 			const option = elements[this.activeIndex]
 			const first = elements[0]
@@ -228,6 +250,40 @@ export default {
 				offset: rightToLeft ? -distance : distance,
 				width,
 			}
+		},
+
+		/**
+		 * Marks the side of the control that has options beyond it.
+		 *
+		 * The track is physically wider than the scroll container when there
+		 * are more options than fit; comparing the two boxes says which edges
+		 * are cut off without relying on `scrollLeft`, whose sign differs
+		 * between browsers in a right-to-left interface.
+		 */
+		updateOverflow() {
+			const track = /** @type {HTMLElement|undefined} */ (this.$refs.track)
+			if (!track) {
+				this.overflowLeft = false
+				this.overflowRight = false
+
+				return
+			}
+
+			const control = this.$el.getBoundingClientRect()
+			const content = track.getBoundingClientRect()
+			const edge = 1
+			this.overflowLeft = content.left < control.left - edge
+			this.overflowRight = content.right > control.right + edge
+		},
+
+		/**
+		 * Keeps the chosen option on screen without moving the page.
+		 *
+		 * @param {number} index the option to bring into view
+		 */
+		bringIntoView(index) {
+			const option = this.optionElements()[index]
+			option?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
 		},
 
 		/** @return {HTMLElement[]} the option buttons, in order */
@@ -292,13 +348,57 @@ export default {
 <style scoped lang="scss">
 @use '../styles/layout.scss' as layout;
 
+/*
+ * The control scrolls rather than squeezes. Seven translated labels do not fit
+ * a reading column, and letting the options share the width makes each of them
+ * narrower than the words in it; the words then run into the next option.
+ * Natural widths and a scroll container keep every option readable, and a fade
+ * on the edge says there is more than what is on screen.
+ */
 .switcher {
+	// the width to ask about is the column the control is drawn in, not the
+	// window: a wide window still has a reading column, and the labels give
+	// way at the same point in both
+	container-type: inline-size;
+	container-name: timeline-switcher;
+	width: 100%;
+	max-width: 100%;
+	margin: 0 auto 14px;
+	overflow-x: auto;
+	overflow-y: hidden;
+	// a scrollbar inside the pill would change its height; the fades say the
+	// same thing without taking room
+	scrollbar-width: none;
+	scroll-behavior: smooth;
+	overscroll-behavior-x: contain;
+	-webkit-overflow-scrolling: touch;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+
+	// the mask is transparent on the side that has more options beyond it
+	&.switcher--more-left {
+		mask-image: linear-gradient(to right, transparent, #000 28px);
+	}
+
+	&.switcher--more-right {
+		mask-image: linear-gradient(to left, transparent, #000 28px);
+	}
+
+	&.switcher--more-left.switcher--more-right {
+		mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+	}
+}
+
+/* the track is as wide as all of its options, and is what the pill measures
+   against; the control above is only the window onto it */
+.switcher__track {
 	position: relative;
 	display: flex;
 	align-items: stretch;
-	width: fit-content;
-	max-width: 100%;
-	margin: 0 auto 14px;
+	width: max-content;
+	margin-inline: auto;
 	padding: 3px;
 	border-radius: var(--border-radius-pill, 100px);
 	// the track is a well rather than a surface: darker than the page, with no
@@ -334,17 +434,15 @@ export default {
 .switcher .switcher__option {
 	position: relative;
 	z-index: 1;
-	/* As wide as its own words, not as wide as the longest of them.
-	   Equal widths made every option as wide as "Favourites", which at seven
-	   options in a timeline column left each of them about a pixel of padding
-	   — the row read as one solid block of words. The pill is measured off the
-	   option it sits under (`measure()`), so it no longer needs them equal. */
-	flex: 0 1 auto;
+	/* As wide as its own words, and never narrower. Sharing the width made
+	   every option as wide as the longest of them; shrinking into the column
+	   then made each of them narrower than the words in it, so the words ran
+	   into the next option. What does not fit scrolls instead. */
+	flex: 0 0 auto;
 	display: flex;
 	gap: 8px;
 	align-items: center;
 	justify-content: center;
-	min-width: 0;
 	/* 30, with the track's 3px of padding either side, is a 36px control. It
 	   was 36 — a 48px control, taller than a Nextcloud button and the loudest
 	   thing above a timeline it only labels */
@@ -399,6 +497,9 @@ export default {
 
 .switcher__icon {
 	display: flex;
+	// an icon is a fixed glyph: squeezing it to fit is how it ends up drawn
+	// over the words beside it
+	flex: 0 0 auto;
 	transition: transform .2s cubic-bezier(.22, 1.2, .48, 1);
 }
 
@@ -431,14 +532,14 @@ export default {
 /*
  * Five of these do not fit a phone.
  *
- * The track is `fit-content` up to the width of its column, and an option is
- * `nowrap` with no room to shrink into, so past that point the labels would run
- * over one another rather than the control admitting it has run out of room.
- * Below this width the labels give way to the icons they sit beside — and stay
- * in the accessibility tree, because the label is the option's name and a
- * radiogroup of five unnamed buttons is not a control anybody can use.
+ * The control is barely wider than the thumb there, so the labels give way to
+ * the icons they sit beside. The query is the control's own width rather than
+ * the window's: a narrow column in a wide window keeps its labels and scrolls
+ * under the fades instead. The labels stay in the accessibility tree, because
+ * the label is the option's name and a radiogroup of five unnamed buttons is
+ * not a control anybody can use.
  */
-@include layout.below(layout.$phone) {
+@container timeline-switcher (max-width: #{layout.$phone}) {
 	.switcher .switcher__option {
 		padding: 0 14px;
 	}
@@ -465,6 +566,11 @@ export default {
 }
 
 @media (prefers-reduced-motion: reduce) {
+	// the option being brought into view jumps rather than slides
+	.switcher {
+		scroll-behavior: auto;
+	}
+
 	.switcher__glider,
 	.switcher .switcher__option,
 	.switcher__icon {

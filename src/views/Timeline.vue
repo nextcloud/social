@@ -1036,13 +1036,11 @@ export default {
 	color: var(--color-primary-element-light-text);
 }
 
-// the notification filter has more options than the timeline switcher does, so
-// its labels run out of room before that one's do
-@include layout.below(layout.$crowded) {
-	.notifications-filter :deep(.switcher__label) {
-		@include layout.visually-hidden;
-	}
-}
+// The notification filter has twice the options of the timeline switcher, and
+// no rule of its own any more: the switcher scrolls rather than hides its
+// labels, so the seven of them stay readable in the reading column and the
+// fades say there is more to the side. Only the phone width takes the labels
+// away, and the switcher decides that from its own width.
 
 #app-content {
 	position: relative;

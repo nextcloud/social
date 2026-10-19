@@ -186,6 +186,65 @@ describe('TimelineSwitcher', () => {
 		expect(wrapper.find('.switcher__glider').attributes('aria-hidden')).toBe('true')
 	})
 
+	// the scroll container
+
+	/**
+	 * The options sit in a track as wide as all of them; the control around it
+	 * is the window onto that track, and scrolls when the track is wider. This
+	 * is what keeps seven translated labels readable in a reading column
+	 * instead of each of them shrinking under its neighbours' words.
+	 */
+	it('draws the options in a track inside the control', () => {
+		const { wrapper } = mountSwitcher('first')
+		const track = wrapper.find('.switcher__track')
+
+		expect(track.exists()).toBe(true)
+		expect(track.element.parentElement).toBe(wrapper.element)
+		expect(track.findAll('.switcher__option')).toHaveLength(3)
+		expect(track.find('.switcher__glider').exists()).toBe(true)
+	})
+
+	/**
+	 * @param {object} wrapper the mounted switcher
+	 * @param {{left: number, right: number}} boxes where the track reaches
+	 */
+	function place(wrapper, boxes) {
+		wrapper.element.getBoundingClientRect = () => ({ left: 0, right: 400, top: 0, bottom: 36, width: 400, height: 36 })
+		const track = wrapper.find('.switcher__track').element
+		track.getBoundingClientRect = () => ({ ...boxes, top: 0, bottom: 36, width: boxes.right - boxes.left, height: 36 })
+		wrapper.vm.updateOverflow()
+	}
+
+	it.each([
+		['both edges', { left: -20, right: 420 }, ['switcher--more-left', 'switcher--more-right']],
+		['the start only', { left: 0, right: 420 }, ['switcher--more-right']],
+		['the end only', { left: -20, right: 400 }, ['switcher--more-left']],
+		['neither, when it fits', { left: 20, right: 380 }, []],
+	])('marks %s as having more options', async (_, boxes, expected) => {
+		const { wrapper } = mountSwitcher('first')
+		place(wrapper, boxes)
+		await wrapper.vm.$nextTick()
+
+		const unexpected = ['switcher--more-left', 'switcher--more-right'].filter((name) => !expected.includes(name))
+		expect(wrapper.classes().filter((name) => unexpected.includes(name))).toEqual([])
+		expect(wrapper.classes()).toEqual(expect.arrayContaining(expected))
+	})
+
+	/**
+	 * An option chosen with the keyboard or a route can be off to the side; it
+	 * is scrolled to rather than left off screen, and only as far as it needs.
+	 */
+	it('brings the option it shows into view', async () => {
+		const { wrapper } = mountSwitcher('first')
+		const scrollIntoView = vi.fn()
+		options(wrapper)[1].element.scrollIntoView = scrollIntoView
+
+		await wrapper.setProps({ value: 'second' })
+		await wrapper.vm.$nextTick()
+
+		expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
+	})
+
 	// routing
 
 	it.each([
