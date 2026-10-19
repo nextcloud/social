@@ -876,9 +876,9 @@ class StatusApiController extends MastodonApiController {
 		try {
 			$this->initViewer(true);
 			$post = $this->streamService->getStreamByNid($nid);
-			$this->watchService->remember($post, $this->viewer, $position, $duration);
+			$stored = $this->watchService->remember($post, $this->viewer, $position, $duration);
 
-			return new DataResponse([], Http::STATUS_OK);
+			return new DataResponse(['stored' => $stored], Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

@@ -41,7 +41,19 @@
 				<h2 :id="'video-shelf-' + section.shelf.id" class="video-browse__shelf-title">
 					{{ section.shelf.title }}
 				</h2>
-				<ul class="video-browse__shelf-row">
+				<p v-if="section.shelf.state === 'loading'" class="video-browse__shelf-note">
+					{{ t('social', 'Loading…') }}
+				</p>
+				<p v-else-if="section.shelf.state === 'empty'" class="video-browse__shelf-note">
+					{{ t('social', 'Videos you start watching show up here so you can pick them up again.') }}
+				</p>
+				<div v-else-if="section.shelf.state === 'failed'" class="video-browse__shelf-note">
+					<span>{{ t('social', 'Could not read what you were watching.') }}</span>
+					<NcButton variant="tertiary" @click="loadContinuing">
+						{{ t('social', 'Retry') }}
+					</NcButton>
+				</div>
+				<ul v-else class="video-browse__shelf-row">
 					<li v-for="entry in section.shelf.items" :key="entry.id" class="video-browse__shelf-item">
 						<VideoCard
 							:entry="entry"
@@ -96,6 +108,7 @@ export const MAX_FILL_PAGES = 5
  * @property {string} title - its heading
  * @property {import('../types/Mastodon.js').Status[]} items - what is on it
  * @property {boolean} upright - drawn as Shorts are
+ * @property {'loading'|'empty'|'failed'|'ready'|'hidden'} [state] - what Continue watching is doing, when it has nothing to draw yet
  * @property {(entry: import('../types/Mastodon.js').Status) => object} [routeOf] - where a card leads, when not to the video's own page
  */
 
@@ -195,6 +208,10 @@ export default {
 			followed: [],
 			/** @type {import('../types/Mastodon.js').Status[]} the videos the reader is in the middle of */
 			continuing: [],
+			/** whether the list the reader is in the middle of is still on its way */
+			continuingLoading: true,
+			/** whether reading that list failed, so that it can be asked again */
+			continuingFailed: false,
 			/** which scope the shelves were asked for, so they are asked once */
 			shelvesFor: '',
 		}
@@ -232,11 +249,32 @@ export default {
 			return this.chosen !== 'all' && !this.allLoaded && !this.failed && this.filled >= MAX_FILL_PAGES && this.shown.length < FILL_TARGET
 		},
 
-		/** @return {Shelf[]} the shelves with something on them, in the order they stand */
+		/** @return {'loading'|'empty'|'failed'|'ready'|'hidden'} what Continue watching has to say */
+		continueState() {
+			if (!this.signedIn) {
+				return 'hidden'
+			}
+			if (this.continuingLoading) {
+				return 'loading'
+			}
+			if (this.continuingFailed) {
+				return 'failed'
+			}
+
+			return this.continuing.length > 0 ? 'ready' : 'empty'
+		},
+
+		/** @return {Shelf[]} the shelves with something to say, in the order they stand */
 		shelves() {
 			const scope = this.scope
 			const shelves = [
-				{ id: 'continue', title: t('social', 'Continue watching'), items: this.continuing, upright: false },
+				{
+					id: 'continue',
+					title: t('social', 'Continue watching'),
+					items: this.continuing,
+					upright: false,
+					state: this.continueState,
+				},
 				{
 					id: 'shorts',
 					title: t('social', 'Shorts'),
@@ -248,7 +286,9 @@ export default {
 				{ id: 'followed', title: t('social', 'From channels you follow'), items: this.followed, upright: false },
 			]
 
-			return shelves.filter((shelf) => shelf.items.length > 0)
+			return shelves.filter((shelf) => shelf.state === undefined
+				? shelf.items.length > 0
+				: shelf.state !== 'hidden')
 		},
 
 		/**
@@ -265,7 +305,10 @@ export default {
 			const sections = []
 			let start = 0
 			for (const shelf of shelves) {
-				const end = Math.min(this.shown.length, Math.max(start, SHELF_AFTER_ROWS[shelf.id] * this.columns))
+				// a shelf with nothing on it yet says its piece without cutting
+				// the grid of cards short before it has drawn a row
+				const rows = shelf.state !== undefined && shelf.state !== 'ready' ? 0 : SHELF_AFTER_ROWS[shelf.id]
+				const end = Math.min(this.shown.length, Math.max(start, rows * this.columns))
 				if (end > start) {
 					sections.push({ key: 'cards:' + start, kind: 'cards', items: this.shown.slice(start, end), start })
 					start = end
@@ -415,8 +458,17 @@ export default {
 				return
 			}
 
-			const statuses = await loadUnfinished(SHELF_SIZE)
-			this.continuing = statuses.filter((entry) => videoPostOf(entry)?.video_card)
+			this.continuingLoading = true
+			this.continuingFailed = false
+			try {
+				const statuses = await loadUnfinished(SHELF_SIZE)
+				this.continuing = statuses.filter((entry) => videoPostOf(entry)?.video_card)
+			} catch {
+				this.continuing = []
+				this.continuingFailed = true
+			} finally {
+				this.continuingLoading = false
+			}
 		},
 
 		/**
@@ -533,6 +585,14 @@ export default {
 		margin: 0 0 calc(var(--default-grid-baseline) * 3);
 		font-size: 20px;
 		font-weight: 700;
+	}
+
+	&__shelf-note {
+		display: flex;
+		align-items: center;
+		gap: calc(var(--default-grid-baseline) * 2);
+		margin: 0;
+		color: var(--color-text-maxcontrast);
 	}
 
 	&__shelf-row {

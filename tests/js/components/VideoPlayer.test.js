@@ -302,11 +302,30 @@ describe('VideoPlayer', () => {
 			expect(progressOf({ id: POST_ID }), 'finished is forgotten here too').toBeNull()
 		})
 
-		it('keeps every card of the video in step with what it reported', () => {
+		it('keeps every card of the video in step with what the server confirmed', async () => {
 			const player = mountPlayer()
 			player.media.currentTime = 300
 			player.video.pause()
+			await flushPromises()
 
+			expect(progressOf({ id: POST_ID }).fraction).toBe(0.5)
+		})
+
+		/** A place the server did not take is not a place the reader is at. */
+		it('says so when the server did not take the place, and tries the next one', async () => {
+			post.mockRejectedValueOnce(new Error('down'))
+			const player = mountPlayer()
+			player.media.currentTime = 300
+			player.video.pause()
+			await flushPromises()
+
+			expect(player.wrapper.find('.video-player__save-failed').exists()).toBe(true)
+			expect(progressOf({ id: POST_ID })).toBeNull()
+
+			player.video.dispatchEvent(new Event('pause'))
+			await flushPromises()
+
+			expect(player.wrapper.find('.video-player__save-failed').exists()).toBe(false)
 			expect(progressOf({ id: POST_ID }).fraction).toBe(0.5)
 		})
 

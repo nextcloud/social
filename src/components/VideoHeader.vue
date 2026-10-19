@@ -46,21 +46,61 @@
 				<span class="watch__channel-acct">{{ status.account.acct }}</span>
 			</router-link>
 			<FollowButton :uid="status.account.acct" />
-			<!-- PeerTube's other counter, and only here: a dislike button
-			     under a written post is a product this app is not, and a
-			     `Dislike` sent to a server with no model for it is dropped -->
-			<NcButton
-				class="watch__dislike"
-				:title="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
-				:aria-label="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
-				:aria-pressed="disliked ? 'true' : 'false'"
-				:disabled="sending"
-				variant="tertiary"
-				@click="toggleDislike">
-				<template #icon>
-					<ThumbDown :size="20" :fillColor="disliked ? 'var(--color-primary)' : 'var(--color-main-text)'" />
-				</template>
-			</NcButton>
+			<!-- a visitor has no account to like, boost or dislike with -->
+			<template v-if="signedIn">
+				<div
+					class="watch__action"
+					:title="likeRefusal || undefined">
+					<NcButton
+						class="watch__like"
+						:title="likeRefusal || (isLiked ? t('social', 'Undo Like') : t('social', 'Like'))"
+						:aria-label="isLiked ? t('social', 'Undo Like') : t('social', 'Like')"
+						:aria-pressed="isLiked ? 'true' : 'false'"
+						:disabled="sending || (!canLike && !isLiked)"
+						variant="tertiary"
+						@click="toggleLike">
+						<template #icon>
+							<Heart v-if="isLiked" :size="20" fillColor="var(--color-element-error)" />
+							<HeartOutline v-else :size="20" />
+						</template>
+					</NcButton>
+					<RollingCount v-if="!hidesCounts" :count="status.favourites_count || 0" />
+				</div>
+				<div
+					class="watch__action"
+					:title="boostRefusal || undefined">
+					<NcButton
+						class="watch__boost"
+						:title="boostRefusal || (isBoosted ? t('social', 'Undo boost') : t('social', 'Boost'))"
+						:aria-label="isBoosted ? t('social', 'Undo boost') : t('social', 'Boost')"
+						:aria-pressed="isBoosted ? 'true' : 'false'"
+						:disabled="sending || (!canBoost && !isBoosted)"
+						variant="tertiary"
+						@click="toggleBoost">
+						<template #icon>
+							<Repeat :size="20" :fillColor="isBoosted ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+						</template>
+					</NcButton>
+					<RollingCount v-if="!hidesCounts" :count="status.reblogs_count || 0" />
+				</div>
+				<!-- PeerTube's other counter, and only here: a dislike button
+				     under a written post is a product this app is not, and a
+				     `Dislike` sent to a server with no model for it is dropped -->
+				<div class="watch__action">
+					<NcButton
+						class="watch__dislike"
+						:title="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
+						:aria-label="disliked ? t('social', 'Undo dislike') : t('social', 'Dislike')"
+						:aria-pressed="disliked ? 'true' : 'false'"
+						:disabled="sending"
+						variant="tertiary"
+						@click="toggleDislike">
+						<template #icon>
+							<ThumbDown :size="20" :fillColor="disliked ? 'var(--color-primary)' : 'var(--color-main-text)'" />
+						</template>
+					</NcButton>
+				</div>
+			</template>
 		</div>
 
 		<div v-if="chapters.length" class="watch__chapters">
@@ -90,14 +130,19 @@
 <script>
 import { n, t } from '@nextcloud/l10n'
 import NcButton from '@nextcloud/vue/components/NcButton'
+import Heart from 'vue-material-design-icons/Heart.vue'
+import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
+import Repeat from 'vue-material-design-icons/Repeat.vue'
 import ThumbDown from 'vue-material-design-icons/ThumbDown.vue'
 import ActorAvatar from './ActorAvatar.vue'
 import FollowButton from './FollowButton.vue'
 import PostAttachment from './PostAttachment.vue'
+import RollingCount from './RollingCount.vue'
 import VideoPlayer from './VideoPlayer.vue'
 import { playedAttachmentOf } from '../services/videoSource.js'
 import { useTimelineStore } from '../store/timeline.js'
 import { useSettingsStore } from '../store/settings.js'
+import { allowedByAuthor, isShareable } from '../utils/interactionPolicy.js'
 import { formatTime } from '../utils/shortVideo.js'
 
 /**
@@ -120,8 +165,12 @@ export default {
 	components: {
 		ActorAvatar,
 		FollowButton,
+		Heart,
+		HeartOutline,
 		NcButton,
 		PostAttachment,
+		Repeat,
+		RollingCount,
 		ThumbDown,
 		VideoPlayer,
 	},
@@ -139,12 +188,17 @@ export default {
 
 	data() {
 		return {
-			/** whether a dislike of ours is in flight */
+			/** whether a like, boost or dislike of ours is in flight */
 			sending: false,
 		}
 	},
 
 	computed: {
+		/** @return {boolean} whether there is an account here to react with */
+		signedIn() {
+			return !useSettingsStore().getServerData.public
+		},
+
 		/** @return {boolean} whether the reader has the like, boost and follower numbers hidden */
 		hidesCounts() {
 			return useSettingsStore().hidesCounts
@@ -171,6 +225,44 @@ export default {
 		/** @return {boolean} whether this reader has disliked it */
 		disliked() {
 			return this.status.disliked === true
+		},
+
+		/** @return {boolean} whether this reader has liked it */
+		isLiked() {
+			return this.status.favourited === true
+		},
+
+		/** @return {boolean} whether this reader has boosted it */
+		isBoosted() {
+			return this.status.reblogged === true
+		},
+
+		/** @return {boolean} whether the author allows this video to be liked */
+		canLike() {
+			return allowedByAuthor(this.status, 'like')
+		},
+
+		/** @return {boolean} whether this video may be boosted */
+		canBoost() {
+			return isShareable(this.status) && allowedByAuthor(this.status, 'boost')
+		},
+
+		/** @return {string} why the like is not on offer; empty when it is */
+		likeRefusal() {
+			return this.canLike || this.isLiked
+				? ''
+				: t('social', 'The author does not allow likes of this post')
+		},
+
+		/** @return {string} why the boost is not on offer; empty when it is or can be undone */
+		boostRefusal() {
+			if (this.canBoost || this.isBoosted) {
+				return ''
+			}
+
+			return isShareable(this.status)
+				? t('social', 'The author does not allow boosts of this post')
+				: t('social', 'Only public and unlisted posts can be boosted')
 		},
 
 		/**
@@ -217,23 +309,41 @@ export default {
 		n,
 
 		/**
-		 * Sends the dislike, or takes it back.
-		 *
+		 * @param {() => Promise<unknown>} action the request to send
 		 * @return {Promise<void>} when the server has answered
 		 */
-		async toggleDislike() {
+		async send(action) {
 			if (this.sending) {
 				return
 			}
 
 			this.sending = true
 			try {
-				await (this.disliked
-					? this.timelineStore.postUndislike({ status: this.status })
-					: this.timelineStore.postDislike({ status: this.status }))
+				await action()
 			} finally {
 				this.sending = false
 			}
+		},
+
+		/** Sends a like, or takes it back. */
+		async toggleLike() {
+			await this.send(() => (this.isLiked
+				? this.timelineStore.postUnlike({ status: this.status })
+				: this.timelineStore.postLike({ status: this.status })))
+		},
+
+		/** Sends a boost, or takes it back. */
+		async toggleBoost() {
+			await this.send(() => (this.isBoosted
+				? this.timelineStore.postUnBoost({ status: this.status })
+				: this.timelineStore.postBoost({ status: this.status })))
+		},
+
+		/** Sends the dislike, or takes it back. */
+		async toggleDislike() {
+			await this.send(() => (this.disliked
+				? this.timelineStore.postUndislike({ status: this.status })
+				: this.timelineStore.postDislike({ status: this.status })))
 		},
 
 		/**
@@ -316,6 +426,12 @@ export default {
 
 .watch__channel-acct {
 	color: var(--color-text-maxcontrast);
+}
+
+.watch__action {
+	display: flex;
+	align-items: center;
+	gap: 4px;
 }
 
 .watch__heading {

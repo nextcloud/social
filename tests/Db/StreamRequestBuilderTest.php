@@ -53,4 +53,38 @@ class StreamRequestBuilderTest extends TestCase {
 			'parseStreamSelectSql() reads a column no stream query selects, so it silently parses as its default'
 		);
 	}
+
+	/**
+	 * The stream-action join is read the same way: a missing alias leaves the
+	 * action at its default, which is how an undo dislike came back as a
+	 * dislike that was never there.
+	 */
+	public function testEveryStreamActionColumnTheParserReadsIsSelected(): void {
+		$source = (string)file_get_contents(__DIR__ . '/../../lib/Model/StreamAction.php');
+		preg_match('/public function importFromDatabase\(array \\$data\): void \{(.*?)\n\t\}/s', $source, $method);
+		preg_match_all(
+			"/\\\$this->get(?:Int|Bool|Array)?\(\s*'([^']+)'\s*,\s*\\\$data/",
+			$method[1] ?? '',
+			$matches
+		);
+
+		$aliases = array_map(
+			static fn (string $column): string => "'streamaction_" . $column . "'",
+			array_unique($matches[1])
+		);
+
+		foreach ([
+			__DIR__ . '/../../lib/Db/CoreRequestBuilder.php',
+			__DIR__ . '/../../lib/Db/SocialCrossQueryBuilder.php',
+		] as $builder) {
+			$builderSource = (string)file_get_contents($builder);
+			foreach ($aliases as $alias) {
+				$this->assertStringContainsString(
+					$alias,
+					$builderSource,
+					$alias . ' is read from a stream-action row but never selected in ' . basename($builder)
+				);
+			}
+		}
+	}
 }
