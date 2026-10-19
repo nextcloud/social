@@ -61,6 +61,12 @@ class ProfileLinkVerifier {
 	 * The web address a field value names, or '' when it names none. A remote
 	 * field arrives as HTML (`<a href="…">…</a>`); a local one is what the
 	 * account typed.
+	 *
+	 * What comes back is the address to fetch rather than the one to display:
+	 * an internationalised host is spelled the way DNS does, since
+	 * `FILTER_VALIDATE_URL` reads ASCII only, and a host with no path is
+	 * given the root — the request refuses an address without a path, and the
+	 * root is that same page.
 	 */
 	public static function linkOf(string $value): string {
 		if (preg_match('/href=["\']([^"\']+)["\']/i', $value, $match) === 1) {
@@ -71,7 +77,47 @@ class ProfileLinkVerifier {
 			return '';
 		}
 
-		return (filter_var($link, FILTER_VALIDATE_URL) === false) ? '' : $link;
+		$link = self::asciiHost($link);
+		if (filter_var($link, FILTER_VALIDATE_URL) === false) {
+			return '';
+		}
+
+		if (($path = parse_url($link, PHP_URL_PATH)) === null || $path === '') {
+			$link = preg_replace('~^((?:[a-z][a-z0-9+.\-]*:)?//[^/?#]*)~i', '$1/', $link) ?? $link;
+		}
+
+		return $link;
+	}
+
+	/**
+	 * The address with its host in punycode, which is both what DNS spells
+	 * and the only form `FILTER_VALIDATE_URL` accepts. The mapping is
+	 * nontransitional, so a character such as `ß` keeps its own code point
+	 * rather than being folded to `ss`. Everything outside the host is left
+	 * exactly as it was.
+	 */
+	private static function asciiHost(string $url): string {
+		if (preg_match('/[^\x20-\x7e]/', $url) !== 1 || function_exists('idn_to_ascii') === false) {
+			return $url;
+		}
+
+		$parsed = parse_url($url);
+		$host = is_array($parsed) ? ($parsed['host'] ?? '') : '';
+		if ($host === '') {
+			return $url;
+		}
+		$ascii = idn_to_ascii($host, IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46);
+		if ($ascii === false || $ascii === $host) {
+			return $url;
+		}
+
+		$authority = (isset($parsed['user']) ? $parsed['user'] . (isset($parsed['pass']) ? ':' . $parsed['pass'] : '') . '@' : '')
+			. $ascii . (isset($parsed['port']) ? ':' . $parsed['port'] : '');
+		$rest = ($parsed['path'] ?? '')
+			. (isset($parsed['query']) ? '?' . $parsed['query'] : '')
+			. (isset($parsed['fragment']) ? '#' . $parsed['fragment'] : '');
+
+		return (isset($parsed['scheme']) ? $parsed['scheme'] . ':' : '') . '//' . $authority . $rest;
 	}
 
 	/**

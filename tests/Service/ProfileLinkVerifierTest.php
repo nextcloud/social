@@ -74,6 +74,9 @@ class ProfileLinkVerifierTest extends TestCase {
 		yield 'entities decoded' => ['<a href="https://alice.example/?a=1&amp;b=2">x</a>', 'https://alice.example/?a=1&b=2'];
 		yield 'bare url' => ['https://alice.example/about', 'https://alice.example/about'];
 		yield 'url in text' => ['see https://alice.example/about for more', 'https://alice.example/about'];
+		yield 'host without a path' => ['https://alice.example', 'https://alice.example/'];
+		yield 'host without a path, before the query' => ['https://alice.example?a=1', 'https://alice.example/?a=1'];
+		yield 'host without a path, before the fragment' => ['https://alice.example#me', 'https://alice.example/#me'];
 		yield 'no link' => ['Berlin', ''];
 		yield 'not a url' => ['<a href="javascript:alert(1)">x</a>', ''];
 	}
@@ -81,6 +84,28 @@ class ProfileLinkVerifierTest extends TestCase {
 	#[DataProvider('values')]
 	public function testTheLinkIsReadOffTheValueHoweverItArrived(string $value, string $link): void {
 		$this->assertSame($link, ProfileLinkVerifier::linkOf($value));
+	}
+
+	public function testAnInternationalisedHostIsSpelledTheWayDnsSpellsIt(): void {
+		if (function_exists('idn_to_ascii') === false) {
+			$this->markTestSkipped('the intl extension is required to spell a host the way DNS does');
+		}
+
+		$this->assertSame(
+			'https://xn--mnchen-3ya.example/',
+			ProfileLinkVerifier::linkOf('https://münchen.example')
+		);
+	}
+
+	public function testADeviatingCharacterKeepsItsOwnCodePoint(): void {
+		if (function_exists('idn_to_ascii') === false) {
+			$this->markTestSkipped('the intl extension is required to spell a host the way DNS does');
+		}
+
+		$this->assertSame(
+			'https://xn--fa-hia.example/',
+			ProfileLinkVerifier::linkOf('https://faß.example')
+		);
 	}
 
 	public function testAPageThatLinksBackWithRelMeVerifies(): void {
