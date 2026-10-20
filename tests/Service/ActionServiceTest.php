@@ -232,9 +232,9 @@ class ActionServiceTest extends TestCase {
 		$this->threadRoot = $postId;
 		$sentMutes = [];
 		$threadMutes = $this->createMock(\OCA\Social\Atproto\Publisher\BlueskyThreadMutes::class);
-		$threadMutes->expects($this->exactly(2))->method('fromSocial')->willReturnCallback(function (Person $actor, Note $post, bool $muted) use ($postId, &$sentMutes): void {
+		$threadMutes->expects($this->exactly(2))->method('fromSocial')->willReturnCallback(function (Person $actor, string $rootId, bool $muted) use ($postId, &$sentMutes): void {
 			$this->assertSame($this->actor, $actor);
-			$this->assertSame($postId, $post->getId());
+			$this->assertSame($postId, $rootId);
 			$sentMutes[] = $muted;
 		});
 		$container = $this->createMock(\Psr\Container\ContainerInterface::class);

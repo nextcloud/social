@@ -18,7 +18,6 @@ use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\AccountService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -29,11 +28,8 @@ class BlueskyThreadMutesTest extends TestCase {
 	public function testASocialThreadMuteUsesTheBlueskyRoot(string $method, bool $muted): void {
 		$viewer = new Person();
 		$viewer->setId('https://social.example/@alice');
-		$post = new Note();
-		$post->setId('https://bsky.app/profile/did:plc:bob/post/reply');
 		$rootId = 'https://bsky.app/profile/did:plc:bob/post/root';
-		$conversations = $this->createMock(ConversationsRequest::class);
-		$conversations->expects($this->once())->method('rootOf')->with($post->getId())->willReturn($rootId);
+		$conversations = $this->createStub(ConversationsRequest::class);
 		$identity = new Identity(1, $viewer->getId(), 'did:plc:alice', 'alice.example', '', '', '', Identity::STATE_ACTIVE, '', 0);
 		$key = new PrivateKey(Curve::K256, str_repeat("\0", 31) . "\1");
 		$identities = $this->createMock(IdentityService::class);
@@ -55,7 +51,7 @@ class BlueskyThreadMutesTest extends TestCase {
 			$conversations,
 			$this->createStub(LoggerInterface::class),
 		);
-		$service->fromSocial($viewer, $post, $muted);
+		$service->fromSocial($viewer, $rootId, $muted);
 	}
 
 	/** @return array<string, array{string, bool}> */

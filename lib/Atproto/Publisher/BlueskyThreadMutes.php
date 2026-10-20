@@ -18,7 +18,6 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
-use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -66,9 +65,9 @@ class BlueskyThreadMutes {
 	}
 
 	/** Tell Bluesky about a local mute or unmute of a Bluesky thread. */
-	public function fromSocial(Person $viewer, Stream $post, bool $muted): void {
+	public function fromSocial(Person $viewer, string $rootId, bool $muted): void {
 		try {
-			$root = BlueskyIds::parsePostId($this->conversations->rootOf($post->getId()));
+			$root = BlueskyIds::parsePostId($rootId);
 			$identity = $root === null ? null : $this->identities->activeForActor($viewer);
 			if ($root === null || $identity === null) {
 				return;
@@ -80,7 +79,7 @@ class BlueskyThreadMutes {
 				['root' => BlueskyIds::atUri($root['did'], BlueskyIds::POST, $root['rkey'])]
 			);
 		} catch (Throwable $e) {
-			$this->logger->warning('Thread mute not told to Bluesky', ['post' => $post->getId(), 'muted' => $muted, 'exception' => $e]);
+			$this->logger->warning('Thread mute not told to Bluesky', ['root' => $rootId, 'muted' => $muted, 'exception' => $e]);
 		}
 	}
 }

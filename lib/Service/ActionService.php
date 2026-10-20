@@ -131,7 +131,7 @@ class ActionService {
 		if (BlueskyIds::isPostId($rootId)) {
 			$threadMutes = $this->container?->get(BlueskyThreadMutes::class);
 			if ($threadMutes instanceof BlueskyThreadMutes) {
-				$threadMutes->fromSocial($actor, $post, $muted);
+				$threadMutes->fromSocial($actor, $rootId, $muted);
 			}
 		}
 	}
