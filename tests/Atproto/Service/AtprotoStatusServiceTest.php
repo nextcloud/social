@@ -37,13 +37,18 @@ class AtprotoStatusServiceTest extends TestCase {
 	/** how many keys do not open with the instance secret */
 	private int $sealedKeys = 0;
 
-	private function service(array $relays): AtprotoStatusService {
+	private function service(array $relays, bool $firehoseUpgraded = false): AtprotoStatusService {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
 		$config->method('pdsEndpoint')->willReturn('https://social.example');
 		$config->method('handleHost')->willReturn('social.example');
 		$config->method('relays')->willReturn($relays);
 		$curl = $this->createMock(CurlService::class);
+		$curl->method('doWebSocketHandshake')->willReturnCallback(static function (string $url, &$status) use ($firehoseUpgraded): bool {
+			$status = $firehoseUpgraded ? 101 : 426;
+
+			return $firehoseUpgraded;
+		});
 		$curl->method('doRequest')->willReturnCallback(function (string $verb, string $url, array $options, &$contentType, &$status): string {
 			if (str_ends_with($url, '/xrpc/com.atproto.sync.subscribeRepos')) {
 				$status = 426;
@@ -119,11 +124,17 @@ class AtprotoStatusServiceTest extends TestCase {
 		$this->assertSame('warning', $this->relayCheck([])['state']);
 	}
 
-	public function testHttp426DoesNotClaimTheFirehoseWebsocketIsProxied(): void {
+	public function testHttp426WarnsThatTheFirehoseWebsocketIsNotProxied(): void {
 		$firehose = array_values(array_filter($this->service([])->checks(true), static fn (array $check): bool => $check['id'] === 'firehose'))[0];
 
 		$this->assertSame('warning', $firehose['state']);
-		$this->assertStringContainsString('cannot prove the WebSocket upgrade reaches the daemon', $firehose['detail']);
+		$this->assertStringContainsString('did not accept a WebSocket upgrade', $firehose['detail']);
+	}
+
+	public function testAValidFirehoseWebsocketUpgradeIsHealthy(): void {
+		$firehose = array_values(array_filter($this->service([], true)->checks(true), static fn (array $check): bool => $check['id'] === 'firehose'))[0];
+
+		$this->assertSame(['id' => 'firehose', 'state' => 'ok', 'detail' => ''], $firehose);
 	}
 
 	public function testPublicDidProfileAndPostVisibilityAreChecked(): void {

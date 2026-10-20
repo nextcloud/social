@@ -2053,11 +2053,11 @@ that capability instead of reporting success. These checks establish
 reachability and visibility for the sampled identity and post, not universal
 indexing by every Bluesky relay or AppView.
 
-The firehose HTTP route currently answers `426` to a normal HTTP request. Since
-the app and daemon can both answer that status, this is not evidence that the
-public WebSocket upgrade reaches the daemon. The admin check reports this as a
-warning and asks the operator to verify the upgrade externally rather than
-showing a misleading green result.
+The admin health check sends an RFC 6455 upgrade request to the public
+`subscribeRepos` route. It validates the `101` response, `Upgrade`, `Connection`
+and `Sec-WebSocket-Accept` headers, using the same public-address guard and DNS
+pinning as other outbound requests. An HTTP `426` is only a warning: it proves
+the route answers, but not that the reverse proxy reached the daemon.
 
 ### 14.3 Commands
 

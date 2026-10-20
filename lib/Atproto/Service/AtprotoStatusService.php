@@ -199,21 +199,24 @@ class AtprotoStatusService {
 	private function firehoseCheck(): array {
 		$endpoint = $this->safe(fn (): string => $this->config->pdsEndpoint());
 		$status = 0;
+		$upgraded = false;
 		try {
-			$this->curlService->doRequest('get', $endpoint . '/xrpc/com.atproto.sync.subscribeRepos', ['timeout' => 5, 'json_headers' => false, 'allow_local_address' => !str_starts_with($endpoint, 'https://')], $contentType, $status);
+			$upgraded = $this->curlService->doWebSocketHandshake($endpoint . '/xrpc/com.atproto.sync.subscribeRepos', $status);
 		} catch (Throwable) {
 		}
-		// without the upgrade the daemon answers 426; the app answers 426 too,
-		// so a 426 says only that something is there — the daemon check says
-		// whether it is the daemon
-		$responds = $status === 426;
+		// HTTP 426 confirms the XRPC path exists, but only a valid WebSocket
+		// accept response proves the reverse proxy reached the firehose daemon.
+		$responds = $upgraded || $status === 426;
 
 		return [
 			'id' => 'firehose',
-			'state' => $responds ? 'warning' : 'error',
-			'detail' => $responds
-				? 'The endpoint answers HTTP 426, but this check cannot prove the WebSocket upgrade reaches the daemon; verify it from outside the server'
-				: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . (int)$status . '): the web server must proxy the WebSocket to the daemon',
+			'state' => $upgraded ? 'ok' : ($responds ? 'warning' : 'error'),
+			'detail' => $upgraded
+				? ''
+				: ($responds
+					? 'The endpoint answers HTTP 426 but did not accept a WebSocket upgrade; verify the reverse proxy and firehose daemon'
+					: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . (int)$status . '): the web server must proxy the WebSocket to the daemon'
+				),
 		];
 	}
 
