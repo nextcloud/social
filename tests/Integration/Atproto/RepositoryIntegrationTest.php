@@ -222,16 +222,18 @@ class RepositoryIntegrationTest extends TestCase {
 
 	public function testAppPasswordOwnershipAndRefreshTokenConsumptionAreAtomic(): void {
 		$clients = Server::get(AtprotoClientRequest::class);
-		$userId = 'atproto-integration-alice';
-		$passwordId = $clients->addAppPassword($userId, 'integration refresh', password_hash('secret', PASSWORD_DEFAULT));
+		$suffix = bin2hex(random_bytes(8));
+		$userId = 'atproto-integration-' . $suffix;
+		$sessionId = 'integration-refresh-' . $suffix;
+		$passwordId = $clients->addAppPassword($userId, 'integration refresh ' . $suffix, password_hash('secret', PASSWORD_DEFAULT));
 		try {
 			$this->assertTrue($clients->hasAppPassword($userId, $passwordId));
 			$this->assertFalse($clients->hasAppPassword('atproto-integration-bob', $passwordId));
-			$clients->addSession('integration-refresh', $userId, self::DID, $passwordId, time() + 3600);
-			$this->assertTrue($clients->removeSession('integration-refresh'), 'the first refresh consumes the session');
-			$this->assertFalse($clients->removeSession('integration-refresh'), 'a concurrent or replayed refresh cannot consume it twice');
+			$clients->addSession($sessionId, $userId, self::DID, $passwordId, time() + 3600);
+			$this->assertTrue($clients->removeSession($sessionId), 'the first refresh consumes the session');
+			$this->assertFalse($clients->removeSession($sessionId), 'a concurrent or replayed refresh cannot consume it twice');
 		} finally {
-			$clients->removeSession('integration-refresh');
+			$clients->removeSession($sessionId);
 			$clients->removeAppPassword($userId, $passwordId);
 		}
 	}
