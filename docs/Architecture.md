@@ -471,6 +471,29 @@ copy in app storage; the original stays where it was, untouched.
 
 ActivityPub is the federation protocol this app speaks; it is also a Bluesky host (AT Protocol), with every local account a `did:plc` identity whose repository, firehose and XRPC surface live in `lib/Atproto/` — [Atproto-Compatibility.md](Atproto-Compatibility.md) is the specification, with "as built" notes per phase. Reading Bluesky (`lib/Atproto/Reader/`) goes through the ActivityPub import path: a Bluesky account is a cached actor with id `https://bsky.app/profile/<did>` and the bare handle as account (`BlueskyActorService`, `ActorMapper`), a post read off the public AppView by `FeedPoller` arrives as the `Create` of a `Note` from that actor (`PostMapper`, `FacetRenderer`, `PostStore` — `ImportService::parseIncomingRequest()` with origin `bsky.app`), a repost as the reposter's `Announce`, and what Bluesky did to a local account — follows, likes, reposts, replies, mentions, quotes — comes from the AppView's notifications asked for as that user (`NotificationPoller`, `AppViewClient::queryAs()` with a token `ServiceAuth` mints) and arrives as the `Follow`, `Like`, `Announce` or post it stands for. A local follow, like or boost of something that exists on Bluesky is a record in the local repository (`BlueskyGraphService`, `InteractionPublisher`, through the queued `AtprotoPublish`). `LocalRecordResolver` turns an `at://` reference to one of this instance's own records back into the local post or account.
 
+### Resuming Bluesky synchronization
+
+`FeedPoller` and `NotificationPoller` read at most one AppView page per due
+account and pass. `Reader\PollCursor` keeps their committed timestamp separate
+from the AppView's opaque pagination cursor. While walking a backlog, the
+existing cursor column holds JSON with `since` (the previous committed
+timestamp), `newest` (the newest timestamp seen in this walk) and `page` (the
+next AppView cursor). Only reaching `since` or the end commits `newest` and
+returns the column to its legacy timestamp format. No schema change is needed.
+Empty intermediate pages still continue, while malformed responses, repeated
+cursors and failed reads retain the existing checkpoint and use failure
+backoff. A pending walk stays on the ordinary two-minute interval even when
+its current page stores no new rows. An account's first read takes only its
+newest page, so following somebody does not import their whole history.
+Pinned feed entries do not participate in chronological synchronization:
+`BlueskyPins` handles them separately, and an old pin must not end the walk.
+
+Custom-feed and list timelines (`BlueskyFeeds`) keep the AppView continuation
+for one hour, keyed by viewer, feed URI and the last visible post. They use
+`DurableCache`, including its database fallback on instances without a
+memcache, so subsequent web requests can read the next page. A cursor from
+another viewer or feed cannot be reused, and an expired cursor ends the list.
+
 The app is an ActivityPub **Server** that both produces and consumes ActivityPub messages.
 
 ### Actor Identity

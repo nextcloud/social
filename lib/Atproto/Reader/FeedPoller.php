@@ -19,10 +19,11 @@ use OCA\Social\Exceptions\AppViewNotFoundException;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use UnexpectedValueException;
 
 /**
  * Reads the feeds of the Bluesky authors somebody here follows (D12): the
- * watches due, each asked the public AppView for its newest page, every
+ * watches due, each asked the public AppView for its next page, every
  * post newer than the last read stored, and the next read set by backoff —
  * soon after a page with posts, doubling up to six hours after empty ones,
  * reset by the next post. One pass is bounded twice: by how many watches
@@ -39,7 +40,7 @@ class FeedPoller {
 	public const MAX_BACKOFF = 6 * 3600;
 	/** watches visited per pass */
 	public const BATCH = 50;
-	/** posts asked for per watch and pass */
+	/** posts asked for per watch and pass, continuing a backlog on the next pass */
 	public const PAGE = 50;
 	/** consecutive refusals naming an account's status before it is acted on */
 	public const STATUS_AFTER = 3;
@@ -81,7 +82,7 @@ class FeedPoller {
 	}
 
 	/**
-	 * One watch: the newest page, the posts since the last read stored.
+	 * One watch: one page towards its last committed timestamp.
 	 *
 	 * @return int how many rows were stored
 	 */
@@ -101,7 +102,35 @@ class FeedPoller {
 			return 0;
 		}
 		try {
-			$feed = $this->appView->query('app.bsky.feed.getAuthorFeed', ['actor' => $watch->did, 'filter' => 'posts_with_replies', 'limit' => self::PAGE], $this->labelHeaders());
+			$checkpoint = new PollCursor($watch->cursor);
+			$feed = $this->appView->query('app.bsky.feed.getAuthorFeed', ['actor' => $watch->did, 'filter' => 'posts_with_replies', 'limit' => self::PAGE] + $checkpoint->parameters(), $this->labelHeaders());
+			if (!is_array($feed['feed'] ?? null)) {
+				throw new UnexpectedValueException('Bluesky author feed has no feed array');
+			}
+			if ($actor !== null && BlueskyActorService::status($actor) !== '') {
+				$this->status?->restore($watch->did);
+			}
+
+			$stored = 0;
+			$newest = $checkpoint->newest;
+			$handle = '';
+			$reached = false;
+			foreach ($feed['feed'] as $item) {
+				if (!is_array($item) || ($item['reason']['$type'] ?? '') === 'app.bsky.feed.defs#reasonPin') {
+					continue;
+				}
+				$seen = self::timeOf($item);
+				if ($checkpoint->since !== '' && $seen !== '' && $seen <= $checkpoint->since) {
+					$reached = true;
+					break;
+				}
+				$newest = max($newest, $seen);
+				if ($handle === '' && ($item['post']['author']['did'] ?? '') === $watch->did) {
+					$handle = strtolower((string)($item['post']['author']['handle'] ?? ''));
+				}
+				$stored += $this->store->storeFeedItem($item);
+			}
+			$next = $checkpoint->after($newest, $feed['cursor'] ?? '', $reached);
 		} catch (AppViewNotFoundException $e) {
 			$status = AccountStatus::ERRORS[$e->error] ?? '';
 			if ($status === '') {
@@ -125,33 +154,10 @@ class FeedPoller {
 
 			return 0;
 		}
-		if ($actor !== null && BlueskyActorService::status($actor) !== '') {
-			$this->status?->restore($watch->did);
-		}
-
-		$stored = 0;
-		$newest = $watch->cursor;
-		$handle = '';
-		foreach (is_array($feed['feed'] ?? null) ? $feed['feed'] : [] as $item) {
-			if (!is_array($item)) {
-				continue;
-			}
-			$seen = self::timeOf($item);
-			if ($watch->cursor !== '' && $seen !== '' && $seen <= $watch->cursor) {
-				break;
-			}
-			if ($seen > $newest) {
-				$newest = $seen;
-			}
-			if ($handle === '' && ($item['post']['author']['did'] ?? '') === $watch->did) {
-				$handle = strtolower((string)($item['post']['author']['handle'] ?? ''));
-			}
-			$stored += $this->store->storeFeedItem($item);
-		}
 		if ($handle !== '' && $handle !== $watch->handle) {
 			$this->watches->setHandle($watch->did, $handle);
 		}
-		$this->watches->synced($watch->did, $newest, $now, $now + $this->nextInterval($watch, $stored > 0));
+		$this->watches->synced($watch->did, $next, $now, $now + $this->nextInterval($watch, $stored > 0 || $next !== $newest));
 
 		return $stored;
 	}

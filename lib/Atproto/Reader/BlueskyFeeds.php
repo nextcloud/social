@@ -21,8 +21,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCP\ICache;
-use OCP\ICacheFactory;
+use OCA\Social\Service\DurableCache;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -42,9 +41,8 @@ class BlueskyFeeds {
 	public const LIST = 'list';
 	/** how long the cursor after a page is kept */
 	private const CURSOR_KEPT = 3600;
+	private const CURSORS = 'social-atproto-feed-cursors';
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
-
-	private ?ICache $cursors = null;
 
 	public function __construct(
 		private AppViewClient $appView,
@@ -52,7 +50,7 @@ class BlueskyFeeds {
 		private Preferences $preferences,
 		private PostStore $postStore,
 		private StreamRequest $streams,
-		private ICacheFactory $cacheFactory,
+		private DurableCache $durableCache,
 		private LoggerInterface $logger,
 		private ?BlueskyBlockedBy $blockedBy = null,
 	) {
@@ -145,7 +143,7 @@ class BlueskyFeeds {
 		$type = self::typeOf($uri) ?? throw new InvalidArgumentException('Not a Bluesky feed or list');
 		$cursor = '';
 		if ($after !== '') {
-			$cursor = $this->cursors()->get($this->cursorKey($actor, $uri, $after));
+			$cursor = $this->durableCache->get(self::CURSORS, $this->cursorKey($actor, $uri, $after));
 			if (!is_string($cursor) || $cursor === '') {
 				// the end, or a cursor kept too long ago to be had
 				return [];
@@ -179,7 +177,7 @@ class BlueskyFeeds {
 		$next = is_string($answer['cursor'] ?? null) ? $answer['cursor'] : '';
 		$last = end($page);
 		if ($last instanceof Stream && $next !== '') {
-			$this->cursors()->set($this->cursorKey($actor, $uri, (string)$last->getNid()), $next, self::CURSOR_KEPT);
+			$this->durableCache->set(self::CURSORS, $this->cursorKey($actor, $uri, (string)$last->getNid()), $next, self::CURSOR_KEPT);
 		}
 
 		return $page;
@@ -347,9 +345,5 @@ class BlueskyFeeds {
 
 	private function cursorKey(Person $actor, string $uri, string $after): string {
 		return md5($actor->getId() . '|' . $uri . '|' . $after);
-	}
-
-	private function cursors(): ICache {
-		return $this->cursors ??= $this->cacheFactory->createDistributed('social-atproto-feed-cursors');
 	}
 }

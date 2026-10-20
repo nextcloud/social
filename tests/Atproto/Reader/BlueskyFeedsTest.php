@@ -24,10 +24,14 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\DurableCache;
+use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICache;
 use OCP\ICacheFactory;
 use OCP\IConfig;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
@@ -51,8 +55,11 @@ class BlueskyFeedsTest extends TestCase {
 	/** @var string[] posts hidden from the viewer */
 	private array $hidden = [];
 	private ?BlueskyBlockedBy $blockedBy = null;
+	private InMemoryDurableCacheRequest $cursorTable;
+	private int $now = 1791453600;
 
 	protected function setUp(): void {
+		$this->cursorTable = new InMemoryDurableCacheRequest();
 		$this->alice = new Person();
 		$this->alice->setId('https://social.test/@alice');
 		$this->alice->setUserId('alice');
@@ -64,7 +71,7 @@ class BlueskyFeedsTest extends TestCase {
 		];
 	}
 
-	private function feeds(): BlueskyFeeds {
+	private function feeds(bool $memcache = true): BlueskyFeeds {
 		$appView = $this->createMock(AppViewClient::class);
 		$answer = function (string $method, array $params, bool $asPerson): array {
 			$this->asked[] = [$method, $params, $asPerson];
@@ -101,9 +108,17 @@ class BlueskyFeedsTest extends TestCase {
 			return true;
 		});
 		$cacheFactory = $this->createMock(ICacheFactory::class);
-		$cacheFactory->method('createDistributed')->willReturn($cache);
+		$cacheFactory->method('isAvailable')->willReturn($memcache);
+		if ($memcache) {
+			$cacheFactory->method('createDistributed')->willReturn($cache);
+		} else {
+			$cacheFactory->expects($this->never())->method('createDistributed');
+		}
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
+		$cursors = new DurableCache($cacheFactory, $this->cursorTable, $time);
 
-		return new BlueskyFeeds($appView, $identities, new Preferences($config, $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class), $this->createMock(\OCA\Social\Service\AccountService::class)), $this->createMock(PostStore::class), $streams, $cacheFactory, new NullLogger(), $this->blockedBy);
+		return new BlueskyFeeds($appView, $identities, new Preferences($config, $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class), $this->createMock(\OCA\Social\Service\AccountService::class)), $this->createMock(PostStore::class), $streams, $cursors, new NullLogger(), $this->blockedBy);
 	}
 
 	/** @return list<array> the saved-feeds items as stored */
@@ -173,22 +188,40 @@ class BlueskyFeedsTest extends TestCase {
 		$this->assertSame([['type' => 'timeline', 'value' => 'following', 'pinned' => true, 'id' => 'a']], $this->savedItems());
 	}
 
-	public function testAFeedIsReadAsThePersonPageByPageInItsOwnOrder(): void {
+	public static function backends(): iterable {
+		yield 'memcache' => [true];
+		yield 'database fallback' => [false];
+	}
+
+	#[DataProvider('backends')]
+	public function testAFeedIsReadAsThePersonPageByPageInItsOwnOrder(bool $memcache): void {
 		$uri = static fn (string $rkey): string => 'at://' . self::BOB . '/app.bsky.feed.post/' . $rkey;
 		$this->answers['app.bsky.feed.getFeed'] = ['feed' => [['post' => ['uri' => $uri('3kb')]], ['post' => ['uri' => $uri('3ka')]], ['post' => ['uri' => $uri('3kc')]]], 'cursor' => 'next-1'];
 		$this->hidden = [BlueskyIds::postIdOfUri($uri('3kc'))];
 
-		$first = $this->feeds()->page($this->alice, self::FEED, '', 2);
+		$first = $this->feeds($memcache)->page($this->alice, self::FEED, '', 2);
 
 		$this->assertSame([BlueskyIds::postIdOfUri($uri('3kb')), BlueskyIds::postIdOfUri($uri('3ka'))], array_map(static fn (Note $note): string => $note->getId(), $first), 'its order; a hidden post left out');
 		$this->assertSame(['app.bsky.feed.getFeed', ['feed' => self::FEED, 'limit' => 2], true], $this->asked[0]);
 
 		$this->answers['app.bsky.feed.getFeed'] = ['feed' => []];
-		$this->feeds()->page($this->alice, self::FEED, (string)end($first)->getNid(), 2);
+		$this->feeds($memcache)->page($this->alice, self::FEED, (string)end($first)->getNid(), 2);
 		$this->assertSame(['feed' => self::FEED, 'limit' => 2, 'cursor' => 'next-1'], $this->asked[1][1], 'the page after the last post');
 
-		$this->assertSame([], $this->feeds()->page($this->alice, self::FEED, '12345', 2), 'past the end');
+		$this->assertSame([], $this->feeds($memcache)->page($this->alice, self::FEED, '12345', 2), 'past the end');
 		$this->assertCount(2, $this->asked, 'without asking again');
+	}
+
+	public function testDatabaseCursorsArePrivateToTheViewerAndFeedAndExpire(): void {
+		$this->answers['app.bsky.feed.getFeed'] = ['feed' => [['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/3ka']]], 'cursor' => 'private-next'];
+		$first = $this->feeds(false)->page($this->alice, self::FEED, '', 20);
+		$after = (string)$first[0]->getNid();
+		$bob = (new Person())->setId('https://social.test/@bob');
+		$this->assertSame([], $this->feeds(false)->page($bob, self::FEED, $after, 20));
+		$this->assertSame([], $this->feeds(false)->page($this->alice, self::LIST, $after, 20));
+		$this->now += 3601;
+		$this->assertSame([], $this->feeds(false)->page($this->alice, self::FEED, $after, 20));
+		$this->assertCount(1, $this->asked);
 	}
 
 	public function testAListIsReadAsItsFeedAndWithoutAnIdentityAsAnyone(): void {

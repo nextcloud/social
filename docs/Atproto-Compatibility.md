@@ -13,7 +13,7 @@ dates given in §20, and the ones marked *verify* have to be checked again
 before the code that depends on them is written. What phase 1 built, and
 where it departs from the letter of this document, is in §18.
 
-**Verified against:** Aloha Social master `2eb7b99a9` (0.26.121),
+**Verified against:** the original specification baseline, Aloha Social master `2eb7b99a9` (0.26.121),
 AT Protocol specifications as of 2026-10-06, Bluesky PDS reference
 implementation (`@atproto/pds`) 0.4.x, PLC directory API as served by
 `plc.directory`.
@@ -909,6 +909,16 @@ when it is not here (bounded, one hop per pass). Only the public AppView is
 read, unauthenticated, which is why nothing a Bluesky user kept to
 themselves can arrive.
 
+`FeedPoller` and `NotificationPoller` keep an unfinished walk in the existing
+cursor column (`Reader\PollCursor`): `since`, the last committed timestamp;
+`newest`, the newest timestamp of the walk; and `page`, the next opaque AppView
+cursor. Each pass reads one page and resumes the rest on the next pass. Only
+reaching `since` or the end commits `newest`; a failed or malformed response
+does not move the checkpoint. Empty pages with a continuation are followed,
+and pending walks do not back off as empty feeds. A first read remains a
+snapshot of the newest page. Pinned posts are handled separately by
+`BlueskyPins`, so they neither stop the chronological walk nor advance it.
+
 A Bluesky post is a stream row of type `Note` with id `at://…/app.bsky.feed.post/…`
 (`id_prim` as for any id), `url` the `https://bsky.app/profile/<handle>/post/<rkey>`
 link, `attributed_to` the cached actor, `content` rebuilt from text and
@@ -1109,7 +1119,9 @@ Bluesky's custom feeds and lists are read here as timelines
   post is and answered in the feed's order, without a hidden one (a label,
   a block, a muted account). The AppView's cursor is opaque: it is kept a
   hour for the last post of each page, so the next page is asked with the
-  id of the post the client last saw.
+  id of the post the client last saw. `DurableCache` keeps it in the
+  database when the instance has no memcache; it is private to the viewer
+  and feed and expires after that hour.
 - **Routes**: `GET`/`POST`/`DELETE /api/v1/social/bluesky/feeds`,
   `GET /api/v1/social/bluesky/feeds/suggested`, and
   `GET /api/v1/timelines/bluesky?feed=<at:// URI>` (API.md). In the web
@@ -2261,6 +2273,11 @@ each for a reason:
   `RepoNotFound` and `getRepoStatus` says `deleted`.
 
 ### Phase 2 as built
+
+This section records phase 2 at the time it landed. Its references to work
+deferred to phase 3 are historical, not a list of current missing features:
+deletion checks, Jetstream, thread resolution and moderation are described
+in their current sections above and in phase 3 below.
 
 Everything in the phase 2 row, in `lib/Atproto/Reader/` (`BlueskyActorService`,
 `ActorMapper`, `PostMapper`, `FacetRenderer`, `PostStore`, `FeedPoller`,
