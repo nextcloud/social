@@ -215,7 +215,7 @@ class AtprotoStatusService {
 				? ''
 				: ($responds
 					? 'The endpoint answers HTTP 426 but did not accept a WebSocket upgrade; verify the reverse proxy and firehose daemon'
-					: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . (int)$status . '): the web server must proxy the WebSocket to the daemon'
+					: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . $status . '): the web server must proxy the WebSocket to the daemon'
 				),
 		];
 	}
