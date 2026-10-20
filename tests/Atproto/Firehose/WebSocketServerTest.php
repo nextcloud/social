@@ -106,6 +106,41 @@ class WebSocketServerTest extends TestCase {
 		}
 	}
 
+	public function testConfiguredEventStreamUsesRawEventsAndHeartbeat(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
+			eventStreams: true,
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, (string)$error);
+			fwrite($client, "GET /api/v1/streaming/user/notification?access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->assertTrue($ready[0]->eventStream);
+			$this->assertSame('/api/v1/streaming/user/notification', $ready[0]->requestPath);
+			$response = $this->readUntil($client, "\n\n");
+			$this->assertStringStartsWith('HTTP/1.1 200 OK', $response);
+			$this->assertStringContainsString('Content-Type: text/event-stream', $response);
+			$this->assertStringContainsString(': connected', $response);
+
+			$server->send($ready[0], "event: notification\ndata: {\"id\":\"42\"}\n\n");
+			$this->assertSame("event: notification\ndata: {\"id\":\"42\"}\n\n", $this->readBytes($client, strlen("event: notification\ndata: {\"id\":\"42\"}\n\n")));
+			$server->ping($ready[0]);
+			$this->assertSame(": thump\n\n", $this->readBytes($client, strlen(": thump\n\n")));
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
 	public function testUpgradeCanBeAuthorizedFromRequestHeadersAndQuery(): void {
 		$bind = '127.0.0.1:' . random_int(20000, 60000);
 		$server = new WebSocketServer(

@@ -24,7 +24,7 @@ use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-/** Serves the Mastodon user and user-notification WebSocket streams. */
+/** Serves the Mastodon user and user-notification WebSocket and SSE streams. */
 class MastodonStreamingDaemon {
 	public const DEFAULT_BIND = '127.0.0.1:8788';
 	private const PATH = '/api/v1/streaming';
@@ -57,6 +57,7 @@ class MastodonStreamingDaemon {
 			binaryFrames: false,
 			authorize: \Closure::fromCallable([$this, 'authorize']),
 			onMessage: \Closure::fromCallable([$this, 'onMessage']),
+			eventStreams: true,
 		);
 		$this->listenForStop();
 		$started = $this->time->getTime();
@@ -91,6 +92,13 @@ class MastodonStreamingDaemon {
 
 	private function authorize(Subscriber $subscriber): bool {
 		$stream = $subscriber->query['stream'] ?? '';
+		if ($subscriber->eventStream) {
+			$pathStream = str_ends_with($subscriber->requestPath, '/notification') ? 'user:notification' : 'user';
+			if ($stream !== '' && $stream !== $pathStream) {
+				return false;
+			}
+			$stream = $pathStream;
+		}
 		if (!is_string($stream) || ($stream !== '' && !$this->supportsStream($stream))) {
 			return false;
 		}
@@ -303,6 +311,10 @@ class MastodonStreamingDaemon {
 	private function send(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array $payload): void {
 		try {
 			$status = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+			if ($subscriber->eventStream) {
+				$server->send($subscriber, 'event: ' . $event . "\ndata: " . $status . "\n\n");
+				return;
+			}
 			$message = json_encode([
 				'stream' => $streams,
 				'event' => $event,

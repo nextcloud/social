@@ -80,6 +80,21 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertFalse($this->invoke('authorize', $this->subscriber(['stream' => 'unknown'], ['authorization' => 'Bearer scoped'])));
 	}
 
+	public function testEventStreamPathSelectsAndLocksItsStream(): void {
+		$this->clients->method('getFromToken')->willReturn($this->client(['read']));
+		$subscriber = $this->subscriber(['access_token' => 'token'], []);
+		$subscriber->eventStream = true;
+		$subscriber->requestPath = '/api/v1/streaming/user/notification';
+
+		self::assertTrue($this->invoke('authorize', $subscriber));
+		self::assertSame(['user:notification' => true], $subscriber->context['subscriptions']);
+
+		$mismatched = $this->subscriber(['stream' => 'user', 'access_token' => 'token']);
+		$mismatched->eventStream = true;
+		$mismatched->requestPath = '/api/v1/streaming/user/notification';
+		self::assertFalse($this->invoke('authorize', $mismatched));
+	}
+
 	public function testWebSocketSubscriptionChangesOnlySupportedStreams(): void {
 		$subscriber = $this->subscriber();
 		$subscriber->context = ['scopes' => ['read'], 'subscriptions' => []];

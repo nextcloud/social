@@ -251,12 +251,15 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The Mastodon WebSocket stream is available for `user` and
-`user:notification` when `occ social:mastodon:stream` is running and the root
-proxy rules are installed. It emits new home statuses and notifications after
-connecting; public, hashtag, list, direct, delete, and status-edit streams are
-not implemented yet. `GET /api/v1/streaming/health` is answered by the stream
-daemon. Web Push is implemented at `/api/v1/push/subscription`; the instance
+The Mastodon WebSocket and Server-Sent Events streams are available for
+`user` and `user:notification` when `occ social:mastodon:stream` is running
+and the root proxy rules are installed. WebSocket clients connect to
+`/api/v1/streaming`; SSE clients connect to
+`/api/v1/streaming/user` or `/api/v1/streaming/user/notification`. Both emit
+new home statuses and notifications after connecting; public, hashtag, list,
+direct, delete, and status-edit streams are not implemented yet.
+`GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
+implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`
 and the application entity's `vapid_key`. `configuration.translation.enabled` is no longer
 always `false`: it is `true` where this Nextcloud has a translation provider,
