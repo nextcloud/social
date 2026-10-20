@@ -59,13 +59,29 @@
 			</p>
 		</div>
 		<div v-else-if="device && !devicePending" class="guest-box oauth__box">
-			<header class="oauth__header"><h1>{{ t('social', 'Authorize a device') }}</h1></header>
-			<p class="oauth__lead">{{ t('social', 'Enter the code shown on a screen you control.') }}</p>
-			<NcNoteCard type="warning">{{ t('social', 'Only enter a code shown on a screen of your own.') }}</NcNoteCard>
+			<header class="oauth__header">
+				<h1>{{ t('social', 'Authorize a device') }}</h1>
+			</header>
+			<p class="oauth__lead">
+				{{ t('social', 'Enter the code shown on a screen you control.') }}
+			</p>
+			<NcNoteCard type="warning">
+				{{ t('social', 'Only enter a code shown on a screen of your own.') }}
+			</NcNoteCard>
 			<form method="get" :action="deviceUrl">
 				<label class="device-code-label" for="device-code">{{ t('social', 'Device code') }}</label>
-				<input id="device-code" class="device-code-input" name="user_code" maxlength="9" autocomplete="off" :value="deviceUserCode">
-				<div class="button-row"><NcButton variant="primary" type="submit">{{ t('social', 'Continue') }}</NcButton></div>
+				<input
+					id="device-code"
+					class="device-code-input"
+					name="user_code"
+					maxlength="9"
+					autocomplete="off"
+					:value="deviceUserCode">
+				<div class="button-row">
+					<NcButton variant="primary" type="submit">
+						{{ t('social', 'Continue') }}
+					</NcButton>
+				</div>
 			</form>
 		</div>
 
@@ -108,7 +124,11 @@
 			</div>
 		</div>
 
-		<form v-else class="guest-box oauth__box" method="post" :action="device ? deviceDecisionUrl : undefined">
+		<form
+			v-else
+			class="guest-box oauth__box"
+			method="post"
+			:action="device ? deviceDecisionUrl : undefined">
 			<header class="oauth__header">
 				<!--
 					An application registers no logo, so the mark is the letter
@@ -123,7 +143,7 @@
 				<span v-else class="oauth__seal oauth__seal--app" aria-hidden="true">
 					{{ appInitial }}
 				</span>
-			<h1>{{ device ? t('social', 'Authorize this device') : t('social', 'Authorization required') }}</h1>
+				<h1>{{ device ? t('social', 'Authorize this device') : t('social', 'Authorization required') }}</h1>
 				<!--
 					A Bluesky app is known by its client_id, an address; the
 					name it gives is not checked, so the address is shown whole
@@ -217,7 +237,9 @@
 				<ArrowRightThin :size="20" />
 				<span>{{ device ? t('social', 'The device will receive access after you approve this request.') : targetDescription }}</span>
 			</p>
-			<p v-if="device" class="device-code-confirmation">{{ t('social', 'Code: {code}', { code: deviceUserCode }) }}</p>
+			<p v-if="device" class="device-code-confirmation">
+				{{ t('social', 'Code: {code}', { code: deviceUserCode }) }}
+			</p>
 
 			<input
 				type="hidden"
@@ -226,23 +248,31 @@
 			<template v-if="device">
 				<input type="hidden" name="user_code" :value="deviceUserCode">
 				<div class="button-row">
-					<NcButton type="submit" name="decision" value="deny">{{ t('social', 'Deny') }}</NcButton>
-					<NcButton variant="primary" type="submit" name="decision" value="allow">{{ t('social', 'Authorize device') }}</NcButton>
+					<NcButton type="submit" name="decision" value="deny">
+						{{ t('social', 'Deny') }}
+					</NcButton>
+					<NcButton
+						variant="primary"
+						type="submit"
+						name="decision"
+						value="allow">
+						{{ t('social', 'Authorize device') }}
+					</NcButton>
 				</div>
 			</template>
 			<template v-else>
-			<div class="button-row">
-				<!--
+				<div class="button-row">
+					<!--
 					Refusing is the safe answer, so it is not painted as the
 					dangerous one; the grant is the button that carries weight.
 				-->
-				<NcButton :href="denyUrl">
-					{{ t('social', 'Deny') }}
-				</NcButton>
-				<NcButton variant="primary" type="submit">
-					{{ t('social', 'Authorize') }}
-				</NcButton>
-			</div>
+					<NcButton :href="denyUrl">
+						{{ t('social', 'Deny') }}
+					</NcButton>
+					<NcButton variant="primary" type="submit">
+						{{ t('social', 'Authorize') }}
+					</NcButton>
+				</div>
 			</template>
 		</form>
 	</div>
@@ -609,7 +639,9 @@ export default {
 }
 
 .device-code-label { display: block; margin-block: 16px 6px; }
+
 .device-code-input { box-sizing: border-box; inline-size: 100%; min-block-size: 44px; padding: 8px 12px; font: inherit; }
+
 .device-code-confirmation { font-family: var(--font-face-monospace, monospace); text-align: center; }
 
 .account {
