@@ -288,6 +288,7 @@ class WebSocketServer {
 		$isEventStream = $this->eventStreams && in_array($path, [
 			$this->path . '/user',
 			$this->path . '/user/notification',
+			$this->path . '/direct',
 			$this->path . '/public',
 			$this->path . '/public/local',
 			$this->path . '/public/remote',
