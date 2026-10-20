@@ -213,6 +213,10 @@ class MastodonStreamingDaemon {
 		}
 		if ($message['type'] === 'subscribe') {
 			if ($stream === 'list') {
+				$listId = $this->listId($message['list'] ?? '');
+				if ($listId !== null && $this->listSubscriptionLimitReached($subscriber, $listId)) {
+					return $this->errorMessage($stream, 'Too many list subscriptions');
+				}
 				if (!$this->addListSubscription($subscriber, $message['list'] ?? '')) {
 					return $this->errorMessage($stream, 'A valid list owned by this account is required');
 				}
@@ -458,7 +462,7 @@ class MastodonStreamingDaemon {
 		if (isset($subscriptions[$id])) {
 			return true;
 		}
-		if (count($subscriptions) >= self::MAX_LIST_SUBSCRIPTIONS) {
+		if ($this->listSubscriptionLimitReached($subscriber, $id)) {
 			return false;
 		}
 
@@ -478,6 +482,15 @@ class MastodonStreamingDaemon {
 		} catch (Throwable) {
 			return false;
 		}
+	}
+
+	private function listSubscriptionLimitReached(Subscriber $subscriber, int $id): bool {
+		$subscriptions = $subscriber->context['listSubscriptions'] ?? [];
+		if (!is_array($subscriptions)) {
+			return false;
+		}
+
+		return !isset($subscriptions[$id]) && count($subscriptions) >= self::MAX_LIST_SUBSCRIPTIONS;
 	}
 
 	private function listId(mixed $value): ?int {
