@@ -251,13 +251,17 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The Mastodon WebSocket and Server-Sent Events streams are available for
-`user` and `user:notification` when `occ social:mastodon:stream` is running
-and the root proxy rules are installed. WebSocket clients connect to
-`/api/v1/streaming`; SSE clients connect to
-`/api/v1/streaming/user` or `/api/v1/streaming/user/notification`. Both emit
-new home statuses and notifications after connecting; public, hashtag, list,
-direct, delete, and status-edit streams are not implemented yet.
+The Mastodon WebSocket streams `user`, `user:notification`, `public`,
+`public:media`, `public:local`, `public:local:media`, `public:remote` and
+`public:remote:media`, and the `user` and
+public SSE endpoints, are available when `occ social:mastodon:stream` is
+running and the root proxy rules are installed. WebSocket clients connect to
+`/api/v1/streaming`; SSE clients connect to `/api/v1/streaming/user`,
+`/api/v1/streaming/user/notification`, `/api/v1/streaming/public` or
+`/api/v1/streaming/public/local` or `/api/v1/streaming/public/remote`. The public SSE endpoints accept
+`only_media=true`. The instance filters events using the same visibility,
+mute and filter rules as its REST timelines. Hashtag, list, direct, delete and
+status-edit streams are not implemented yet.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`

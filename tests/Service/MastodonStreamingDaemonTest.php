@@ -10,11 +10,14 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
+use OCA\Social\Atproto\Firehose\WebSocketServer;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\ClientService;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\MastodonStreamingDaemon;
 use OCA\Social\Service\NotificationPolicyService;
@@ -30,6 +33,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private ClientService&MockObject $clients;
 	private AccountService&MockObject $accounts;
 	private StreamRequest&MockObject $requests;
+	private StreamService&MockObject $streams;
 	private ITimeFactory&MockObject $time;
 	private MastodonStreamingDaemon $daemon;
 
@@ -38,6 +42,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->clients = $this->createMock(ClientService::class);
 		$this->accounts = $this->createMock(AccountService::class);
 		$this->requests = $this->createMock(StreamRequest::class);
+		$this->streams = $this->createMock(StreamService::class);
 		$this->time = $this->createMock(ITimeFactory::class);
 		$this->time->method('getTime')->willReturn(1_800_000_000);
 		$this->requests->method('newestHomeNid')->willReturn('10');
@@ -49,8 +54,9 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->clients,
 			$this->accounts,
 			$this->requests,
-			$this->createMock(StreamService::class),
+			$this->streams,
 			$this->createMock(FilterService::class),
+			$this->createMock(FeedDisplayService::class),
 			$this->createMock(NotificationPolicyService::class),
 			$this->time,
 			new NullLogger(),
@@ -71,13 +77,69 @@ class MastodonStreamingDaemonTest extends TestCase {
 
 	public function testAuthorizationAllowsOnlyMastodonStreamingScopes(): void {
 		$this->clients->method('getFromToken')->willReturnCallback(fn (string $token): SocialClient => $this->client(
-			$token === 'scoped' ? ['read:statuses', 'read:notifications'] : ['read:notifications']
+			match ($token) {
+				'scoped' => ['read:statuses', 'read:notifications'],
+				'public' => ['read:statuses'],
+				default => ['read:notifications'],
+			}
 		));
 
 		self::assertTrue($this->invoke('authorize', $this->subscriber(['stream' => 'user'], ['authorization' => 'Bearer scoped'])));
 		self::assertTrue($this->invoke('authorize', $this->subscriber(['stream' => 'user:notification'], ['authorization' => 'Bearer scoped'])));
+		self::assertTrue($this->invoke('authorize', $this->subscriber(['stream' => 'public:local'], ['authorization' => 'Bearer public'])));
+		self::assertFalse($this->invoke('authorize', $this->subscriber(['stream' => 'user'], ['authorization' => 'Bearer public'])));
 		self::assertFalse($this->invoke('authorize', $this->subscriber(['stream' => 'user:notification'], ['authorization' => 'Bearer limited'])));
 		self::assertFalse($this->invoke('authorize', $this->subscriber(['stream' => 'unknown'], ['authorization' => 'Bearer scoped'])));
+	}
+
+	public function testEventStreamPathSelectsPublicStreamAndMediaFilter(): void {
+		$this->clients->method('getFromToken')->willReturn($this->client(['read:statuses']));
+		$subscriber = $this->subscriber(['access_token' => 'token', 'only_media' => 'true']);
+		$subscriber->eventStream = true;
+		$subscriber->requestPath = '/api/v1/streaming/public/local';
+
+		self::assertTrue($this->invoke('authorize', $subscriber));
+		self::assertSame(['public:local:media' => true], $subscriber->context['subscriptions']);
+		self::assertSame('20', $subscriber->context['publicSince:public:local:media']);
+
+		$remote = $this->subscriber(['access_token' => 'token']);
+		$remote->eventStream = true;
+		$remote->requestPath = '/api/v1/streaming/public/remote';
+		self::assertTrue($this->invoke('authorize', $remote));
+		self::assertSame(['public:remote' => true], $remote->context['subscriptions']);
+
+		$mismatched = $this->subscriber(['stream' => 'public', 'access_token' => 'token']);
+		$mismatched->eventStream = true;
+		$mismatched->requestPath = '/api/v1/streaming/public/local';
+		self::assertFalse($this->invoke('authorize', $mismatched));
+	}
+
+	public function testPublicRemoteMediaStreamUsesTheMatchingPublicTimeline(): void {
+		$options = null;
+		$this->streams->expects(self::once())->method('getTimeline')->willReturnCallback(
+			static function (ProbeOptions $received) use (&$options): array {
+				$options = $received;
+				return [];
+			}
+		);
+		$subscriber = $this->subscriber();
+		$subscriber->context = [
+			'subscriptions' => ['public:remote:media' => true],
+			'publicSince:public:remote:media' => '20',
+		];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendPublicStatuses', $server, $subscriber, new Person(), 'public:remote:media');
+		} finally {
+			$server->shutdown();
+		}
+
+		self::assertInstanceOf(ProbeOptions::class, $options);
+		self::assertSame(ProbeOptions::PUBLIC, $options->getProbe());
+		self::assertFalse($options->isLocal());
+		self::assertTrue($options->isRemote());
+		self::assertTrue($options->isOnlyMedia());
+		self::assertSame(20, $options->getSince());
 	}
 
 	public function testEventStreamPathSelectsAndLocksItsStream(): void {
@@ -105,8 +167,11 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertSame(['user' => true], $subscriptions);
 		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"unsubscribe","stream":"user"}'));
 		self::assertSame([], $subscriber->context['subscriptions']);
+		$subscriber->context['scopes'] = ['read:statuses'];
+		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"public:local"}'));
+		self::assertSame(['public:local' => true], $subscriber->context['subscriptions']);
 
-		$error = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"public"}'), true);
+		$error = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"hashtag"}'), true);
 		self::assertSame('error', $error['event']);
 		self::assertSame('Unknown stream', $error['payload']);
 	}

@@ -33,6 +33,7 @@ class MastodonStreamingDaemon {
 	private const PING_INTERVAL = 20;
 	private const BATCH = 50;
 	private const MAX_BATCHES_PER_POLL = 10;
+	private const PUBLIC_STREAMS = ['public', 'public:media', 'public:local', 'public:local:media', 'public:remote', 'public:remote:media'];
 	private bool $stopping = false;
 
 	public function __construct(
@@ -41,6 +42,7 @@ class MastodonStreamingDaemon {
 		private StreamRequest $streamRequest,
 		private StreamService $streamService,
 		private FilterService $filterService,
+		private FeedDisplayService $feedDisplayService,
 		private NotificationPolicyService $notificationPolicyService,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
@@ -93,7 +95,15 @@ class MastodonStreamingDaemon {
 	private function authorize(Subscriber $subscriber): bool {
 		$stream = $subscriber->query['stream'] ?? '';
 		if ($subscriber->eventStream) {
-			$pathStream = str_ends_with($subscriber->requestPath, '/notification') ? 'user:notification' : 'user';
+			$path = $subscriber->requestPath;
+			if (str_starts_with($path, self::PATH . '/public')) {
+				$local = str_ends_with($path, '/local');
+				$remote = str_ends_with($path, '/remote');
+				$onlyMedia = filter_var($subscriber->query['only_media'] ?? false, FILTER_VALIDATE_BOOL);
+				$pathStream = 'public' . ($local ? ':local' : ($remote ? ':remote' : '')) . ($onlyMedia ? ':media' : '');
+			} else {
+				$pathStream = str_ends_with($path, '/notification') ? 'user:notification' : 'user';
+			}
 			if ($stream !== '' && $stream !== $pathStream) {
 				return false;
 			}
@@ -127,7 +137,7 @@ class MastodonStreamingDaemon {
 
 		try {
 			$client = $this->clientService->getFromToken($token);
-			if ($client->getAuthId() <= 0 || $client->getAuthUserId() === '' || ($stream !== '' && !$this->hasRequiredScopes($client))) {
+			if ($client->getAuthId() <= 0 || $client->getAuthUserId() === '' || ($stream !== '' && !$this->hasRequiredScopes($client, $stream))) {
 				return false;
 			}
 			$viewer = $this->accountService->getActorFromUserId($client->getAuthUserId());
@@ -145,6 +155,10 @@ class MastodonStreamingDaemon {
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
+			$publicSince = $this->streamRequest->newestNidFor([md5(ACore::CONTEXT_PUBLIC)]);
+			foreach (self::PUBLIC_STREAMS as $publicStream) {
+				$subscriber->context['publicSince:' . $publicStream] = $publicSince;
+			}
 			return true;
 		} catch (ClientNotFoundException|ActorDoesNotExistException $e) {
 			return false;
@@ -155,7 +169,7 @@ class MastodonStreamingDaemon {
 	}
 
 	private function supportsStream(string $stream): bool {
-		return in_array($stream, ['user', 'user:notification'], true);
+		return in_array($stream, ['user', 'user:notification', ...self::PUBLIC_STREAMS], true);
 	}
 
 	private function onMessage(Subscriber $subscriber, int $opcode, string $payload): ?string {
@@ -170,7 +184,7 @@ class MastodonStreamingDaemon {
 		if (!is_string($stream) || !$this->supportsStream($stream)) {
 			return $this->errorMessage(is_string($stream) ? $stream : '', 'Unknown stream');
 		}
-		if (!$this->hasRequiredScopesForContext($subscriber->context)) {
+		if (!$this->hasRequiredScopesForContext($subscriber->context, $stream)) {
 			return $this->errorMessage($stream, 'Insufficient scope');
 		}
 		if ($message['type'] === 'subscribe') {
@@ -182,10 +196,19 @@ class MastodonStreamingDaemon {
 		return null;
 	}
 
-	private function hasRequiredScopesForContext(array $context): bool {
+	private function hasRequiredScopesForContext(array $context, string $stream): bool {
 		$scopes = $context['scopes'] ?? [];
-		return is_array($scopes) && (in_array('read', $scopes, true)
-			|| (in_array('read:statuses', $scopes, true) && in_array('read:notifications', $scopes, true)));
+		if (!is_array($scopes)) {
+			return false;
+		}
+		if (in_array('read', $scopes, true)) {
+			return true;
+		}
+		if (in_array($stream, self::PUBLIC_STREAMS, true)) {
+			return in_array('read:statuses', $scopes, true);
+		}
+
+		return in_array('read:statuses', $scopes, true) && in_array('read:notifications', $scopes, true);
 	}
 
 	private function errorMessage(string $stream, string $message): string {
@@ -196,10 +219,13 @@ class MastodonStreamingDaemon {
 		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 	}
 
-	private function hasRequiredScopes(SocialClient $client): bool {
+	private function hasRequiredScopes(SocialClient $client, string $stream): bool {
 		$scopes = $client->getAuthScopes();
 		if (in_array('read', $scopes, true)) {
 			return true;
+		}
+		if (in_array($stream, self::PUBLIC_STREAMS, true)) {
+			return in_array('read:statuses', $scopes, true);
 		}
 
 		return in_array('read:statuses', $scopes, true)
@@ -234,6 +260,37 @@ class MastodonStreamingDaemon {
 		if (isset($subscriptions['user']) || isset($subscriptions['user:notification'])) {
 			$this->sendNotifications($server, $subscriber, $viewer);
 		}
+		foreach (self::PUBLIC_STREAMS as $stream) {
+			if (isset($subscriptions[$stream])) {
+				$this->sendPublicStatuses($server, $subscriber, $viewer, $stream);
+			}
+		}
+	}
+
+	private function sendPublicStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer, string $stream): void {
+		$local = str_contains($stream, ':local');
+		$remote = str_contains($stream, ':remote');
+		$onlyMedia = str_ends_with($stream, ':media');
+		$this->sendPages($server, $subscriber, 'publicSince:' . $stream, function (string $since) use ($viewer, $local, $remote, $onlyMedia): array {
+			$options = (new ProbeOptions())
+				->setFormat(ACore::FORMAT_LOCAL)
+				->setProbe(ProbeOptions::PUBLIC)
+				->setLocal($local)
+				->setRemote($remote)
+				->setOnlyMedia($onlyMedia)
+				->setSince($since)
+				->setLimit(self::BATCH)
+				->setInverted(true);
+			$statuses = $this->streamService->getTimeline($options);
+			$cursor = $statuses === [] ? $since : (string)$statuses[0]->getNid();
+			$hasMore = count($statuses) === self::BATCH;
+			$statuses = array_reverse($statuses);
+			if ($this->feedDisplayService->hidesReplies($viewer->getUserId())) {
+				$statuses = array_values(array_filter($statuses, static fn (Stream $status): bool => $status->getInReplyTo() === ''));
+			}
+			$filtered = $this->filterService->apply($statuses, Filter::CONTEXT_PUBLIC, $viewer);
+			return ['cursor' => $cursor, 'items' => $filtered, 'hasMore' => $hasMore];
+		}, 'update', [$stream]);
 	}
 
 	private function sendStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {

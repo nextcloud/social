@@ -473,17 +473,18 @@ copy in app storage; the original stays where it was, untouched.
 
 ### Mastodon WebSocket and SSE streaming
 
-`MastodonStreamingDaemon` (`occ social:mastodon:stream`) serves the `user` and
-`user:notification` WebSocket and Server-Sent Events (SSE) streams
-on a separate long-running process. Its authorization callback requires a
-user-authorized Mastodon token and the `read` scope or both `read:statuses` and
-`read:notifications`. Once per second it reads the same home and notification
-timelines used by the REST API, applies the viewer's filters and notification
-policy, and emits Mastodon's WebSocket envelope or SSE event format.
+`MastodonStreamingDaemon` (`occ social:mastodon:stream`) serves the `user`,
+`user:notification`, `public`, `public:media`, `public:local`,
+`public:local:media`, `public:remote` and `public:remote:media` WebSocket streams, plus user and public SSE endpoints, on
+a separate long-running process. It requires a user-authorized token with
+`read` or `read:statuses` for public streams; user streams require `read` or
+both `read:statuses` and `read:notifications`. Once per second it reads the
+same timelines used by the REST API, applies the viewer's filters, reply
+visibility and notification policy, and emits Mastodon's event payloads.
 `WebSocketServer` keeps connection and output-buffer bounds for both
 transports. The root Apache and Nginx examples proxy the streaming endpoints
-and health path to this daemon; public, hashtag, list, direct, delete and
-status-edit streams are not implemented yet.
+and health path to this daemon; hashtag, list, direct, delete and status-edit
+streams are not implemented yet.
 
 ## ActivityPub Federation
 
