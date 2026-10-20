@@ -110,6 +110,7 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 			->where($qb->expr()->eq('r.collection', $qb->createNamedParameter('app.bsky.feed.post')))
 			->andWhere($qb->expr()->eq('i.state', $qb->createNamedParameter('active')))
 			->orderBy('r.creation', 'desc')
+			->addOrderBy('r.id', 'desc')
 			->setMaxResults(1);
 		$cursor = $qb->executeQuery();
 		$row = $cursor->fetch();

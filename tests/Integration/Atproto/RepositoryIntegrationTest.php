@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Crypto\Curve;
 use OCA\Social\Atproto\Crypto\PrivateKey;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Model\Event;
+use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Protocol\Car;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
@@ -98,9 +99,10 @@ class RepositoryIntegrationTest extends TestCase {
 	}
 
 	public function testHealthProbeSelectsTheNewestPostOnlyFromAnActiveIdentity(): void {
-		$this->identityRequest->create(self::ACTOR, self::DID, 'atproto-integration.nextcloud.test', 'sealed', 'did:key:zQ3sh', '');
+		$this->identityRequest->create(self::ACTOR, self::DID, 'atproto-integration.nextcloud.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_PENDING);
 		$this->repositories->write(self::DID, $this->key, [
-			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'health probe', 'createdAt' => '2026-10-08T10:00:00.000Z'], self::ACTOR . '/health', '3khealthprobe1'),
+			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'older health probe', 'createdAt' => '2026-10-08T10:00:00.000Z'], self::ACTOR . '/health-older', '3khealthprobe1'),
+			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'newer health probe', 'createdAt' => '2026-10-08T10:01:00.000Z'], self::ACTOR . '/health-newer', '3khealthprobe2'),
 		]);
 
 		$this->assertNull($this->repoRequest->latestActivePost(), 'a pending DID is not a public account');
@@ -108,7 +110,7 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->identityRequest->setState(self::DID, 'active');
 
 		$this->assertSame(self::DID, $this->identityRequest->firstActive()?->did);
-		$this->assertSame('at://' . self::DID . '/app.bsky.feed.post/3khealthprobe1', $this->repoRequest->latestActivePost()?->uri());
+		$this->assertSame('at://' . self::DID . '/app.bsky.feed.post/3khealthprobe2', $this->repoRequest->latestActivePost()?->uri());
 	}
 
 	/**
