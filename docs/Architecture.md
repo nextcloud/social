@@ -2056,10 +2056,11 @@ remaining groups from being read.
 
 `Atproto\Publisher\BlueskyThreadMutes` mirrors a Bluesky app's accepted
 `app.bsky.graph.muteThread` or `unmuteThread` into the signed-in account's
-conversation state. It resolves the AT URI to a locally stored Bluesky post
-and mutes the local thread root, which suppresses notifications while leaving
-the posts visible. An uncached root remains muted at Bluesky but has no local
-thread state to update.
+conversation state. It resolves the AT URI through the local repository
+mapping, so a post written here and mirrored to Bluesky maps back to its
+Social post id, then mutes the local thread root. This suppresses
+notifications while leaving the posts visible. An uncached root remains
+muted at Bluesky but has no local thread state to update.
 
 ### Direct messages with Bluesky
 

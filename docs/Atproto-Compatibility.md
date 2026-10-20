@@ -1475,7 +1475,9 @@ arrival either way.
 Thread notification mutes (`app.bsky.graph.muteThread` and
 `unmuteThread`) are also private AppView preferences. When a signed-in
 Bluesky app changes one, Social mirrors it to `social_convo_state` after the
-AppView accepts it, so locally stored replies stop or resume raising
+AppView accepts it, resolving the AT URI through the local record mapping so
+a post originally written here and mirrored to Bluesky resolves to its
+Social post id. Locally stored replies then stop or resume raising
 notifications. A root that is not stored here cannot be mirrored; Bluesky
 still owns the preference and its behavior in Bluesky clients.
 

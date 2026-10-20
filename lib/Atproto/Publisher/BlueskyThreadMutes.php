@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Atproto\Publisher;
 
 use OCA\Social\Atproto\Client\ClientSession;
+use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -32,13 +33,14 @@ class BlueskyThreadMutes {
 		private StreamRequest $streams,
 		private ConversationsRequest $conversations,
 		private LoggerInterface $logger,
+		private LocalRecordResolver $records,
 	) {
 	}
 
 	/** Apply a successful thread mute or unmute made through a Bluesky app. */
 	public function fromApp(ClientSession $session, string $method, array $body): void {
 		$uri = (string)($body['root'] ?? '');
-		$postId = \OCA\Social\Atproto\Reader\BlueskyIds::postIdOfUri($uri);
+		$postId = $this->records->postId($uri);
 		if ($postId === '') {
 			return;
 		}
