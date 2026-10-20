@@ -877,8 +877,8 @@ describe('Composer', () => {
 		 * with a word in it was to delete the word. Closing it now keeps the
 		 * word: what is asked for is the feed back, not the writing gone.
 		 */
-		it('keeps what was written when the box is closed', async () => {
-			const { wrapper } = mountComposer()
+		it.each([false, true])('keeps what was written when the box is closed (compact options: %s)', async (compactOptions) => {
+			const { wrapper } = mountComposer({ compactOptions })
 			await setContent(wrapper, 'half a thought')
 
 			await closeButton(wrapper).trigger('click')
