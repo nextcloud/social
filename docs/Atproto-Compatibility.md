@@ -2457,6 +2457,9 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   here; `getBookmarks` is answered from the bookmarks here that are on
   Bluesky, each as the AppView shows the post, so older bookmarks are in
   it; and a bookmark set here of a post on Bluesky is told to the AppView.
+  Post views are fetched in groups of at most 25, as `getPosts` requires,
+  including a bookmark page of 50 or 100. The bookmark order and cursor
+  stay local; if one group fails, the others still load.
   **Notification settings** (`app.bsky.notification.getPreferences`,
   `putPreferencesV2`) share the one setting both have
   (`Client\NotificationSettings`): whether anybody or only the people

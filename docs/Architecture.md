@@ -2009,6 +2009,16 @@ re-snapshots the stored source, as the quote policy does, and rewrites the
 threadgate in one commit (`Publisher::updateGates()`), which a quote-policy
 change now uses for the postgate too.
 
+### Bookmarks, here and on Bluesky
+
+`Atproto\Publisher\BlueskyBookmarks` keeps a person's bookmarks in step with
+Bluesky apps signed in here. `getBookmarks` reads the local bookmark timeline
+and includes the posts that have a Bluesky record. Their AppView previews are
+fetched in groups of at most 25, including authenticated reads, while the
+response keeps the local bookmark order and pagination cursor. A failed group
+leaves its entries as `notFoundPost` placeholders and does not prevent the
+remaining groups from being read.
+
 ### Direct messages with Bluesky
 
 A conversation with somebody on Bluesky is a conversation in Messages like

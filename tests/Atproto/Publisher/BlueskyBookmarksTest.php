@@ -26,8 +26,10 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
+use RuntimeException;
 
 #[AllowMockObjectsWithoutExpectations]
 class BlueskyBookmarksTest extends TestCase {
@@ -40,25 +42,32 @@ class BlueskyBookmarksTest extends TestCase {
 	private Identity $identity;
 	/** @var Note[] the person's bookmarks here */
 	private array $timeline = [];
+	private array $references = [];
+	private array $views = [];
+	private array $reads = [];
+	private bool $active = true;
+	private string $failedUri = '';
 
 	protected function setUp(): void {
 		$this->identity = new Identity(1, 'https://social.test/@alice', 'did:plc:alice', 'alice.social.test', 'sealed', '', '', Identity::STATE_ACTIVE, '', 0);
+		$this->references = [
+			self::BLUESKY_POST => ['uri' => self::URI, 'cid' => 'bafy'],
+			'https://social.test/@alice/gone' => ['uri' => 'at://did:plc:alice/app.bsky.feed.post/gone', 'cid' => 'bafg'],
+		];
+		$this->views = [self::URI => ['uri' => self::URI, 'cid' => 'bafy', 'record' => ['text' => 'hi']]];
 		$appView = $this->createMock(AppViewClient::class);
 		$appView->method('procedureAs')->willReturnCallback(function (string $did, PrivateKey $key, string $method, array $input): array {
 			$this->told[] = [$method, $input];
 
 			return [];
 		});
-		$appView->method('queryAs')->willReturn(['posts' => [['uri' => self::URI, 'cid' => 'bafy', 'record' => ['text' => 'hi']]]]);
+		$appView->method('queryAs')->willReturnCallback(fn (string $did, PrivateKey $key, string $method, array $params): array => $this->readPosts($params, true));
+		$appView->method('query')->willReturnCallback(fn (string $method, array $params): array => $this->readPosts($params, false));
 		$identities = $this->createMock(IdentityService::class);
-		$identities->method('activeForActor')->willReturn($this->identity);
+		$identities->method('activeForActor')->willReturnCallback(fn (): ?Identity => $this->active ? $this->identity : null);
 		$identities->method('signingKey')->willReturn(PrivateKey::generate(Curve::K256));
 		$refs = $this->createMock(PostRefs::class);
-		$refs->method('strongRef')->willReturnCallback(static fn (string $id): ?array => match ($id) {
-			self::BLUESKY_POST => ['uri' => self::URI, 'cid' => 'bafy'],
-			'https://social.test/@alice/gone' => ['uri' => 'at://did:plc:alice/app.bsky.feed.post/gone', 'cid' => 'bafg'],
-			default => null,
-		});
+		$refs->method('strongRef')->willReturnCallback(fn (string $id): ?array => $this->references[$id] ?? null);
 		$local = $this->createMock(LocalRecordResolver::class);
 		$local->method('postId')->willReturnCallback(static fn (string $uri): string => $uri === self::URI ? self::BLUESKY_POST : '');
 		$store = $this->createMock(PostStore::class);
@@ -109,5 +118,69 @@ class BlueskyBookmarksTest extends TestCase {
 		$this->assertSame('app.bsky.feed.defs#notFoundPost', $answer['bookmarks'][1]['item']['$type'], 'a post the AppView no longer has');
 		$this->assertCount(2, $answer['bookmarks'], 'a post that is not on Bluesky is not in it');
 		$this->assertSame('10', $answer['cursor']);
+	}
+
+	#[DataProvider('bookmarkPages')]
+	public function testBookmarkPreviewsRespectTheAppViewLimitAndKeepTheirOrder(int $count, bool $active): void {
+		$uris = $this->fillBookmarks($count);
+		$this->active = $active;
+
+		$answer = $this->bookmarks->list(new ClientSession('alice', $this->identity, 'jti'), $count ?: 50, '');
+
+		$this->assertSame($uris, array_column(array_column($answer['bookmarks'], 'item'), 'uri'));
+		foreach ($answer['bookmarks'] as $bookmark) {
+			$this->assertSame('app.bsky.feed.defs#postView', $bookmark['item']['$type']);
+		}
+		$this->assertSame(array_map(static fn (array $chunk): array => ['uris' => $chunk, 'authenticated' => $active], array_chunk($uris, 25)), $this->reads);
+		if ($count > 0) {
+			$this->assertSame((string)(1000 - $count), $answer['cursor']);
+		} else {
+			$this->assertArrayNotHasKey('cursor', $answer);
+		}
+	}
+
+	public static function bookmarkPages(): iterable {
+		foreach ([0, 25, 26, 50, 100] as $count) {
+			yield "{$count} authenticated" => [$count, true];
+			yield "{$count} public" => [$count, false];
+		}
+	}
+
+	public function testAFailedBatchKeepsSuccessfulPreviewsAndDoesNotStopLaterBatches(): void {
+		$uris = $this->fillBookmarks(60);
+		$this->failedUri = $uris[25];
+
+		$answer = $this->bookmarks->list(new ClientSession('alice', $this->identity, 'jti'), 60, '');
+
+		$this->assertCount(3, $this->reads);
+		$this->assertSame($uris, array_column(array_column($answer['bookmarks'], 'subject'), 'uri'));
+		foreach ($answer['bookmarks'] as $index => $bookmark) {
+			$this->assertSame($index >= 25 && $index < 50 ? 'app.bsky.feed.defs#notFoundPost' : 'app.bsky.feed.defs#postView', $bookmark['item']['$type']);
+		}
+		$this->assertSame('940', $answer['cursor']);
+	}
+
+	private function fillBookmarks(int $count): array {
+		$uris = [];
+		for ($index = 1; $index <= $count; $index++) {
+			$id = self::BLUESKY_POST . $index;
+			$uri = self::URI . $index;
+			$this->timeline[] = (new Note())->setId($id)->setNid(1000 - $index);
+			$this->references[$id] = ['uri' => $uri, 'cid' => 'bafy'];
+			$this->views[$uri] = ['uri' => $uri, 'cid' => 'bafy', 'record' => ['text' => 'post ' . $index]];
+			$uris[] = $uri;
+		}
+
+		return $uris;
+	}
+
+	private function readPosts(array $params, bool $authenticated): array {
+		$uris = $params['uris'];
+		$this->reads[] = ['uris' => $uris, 'authenticated' => $authenticated];
+		if (count($uris) > 25 || in_array($this->failedUri, $uris, true)) {
+			throw new RuntimeException('AppView refused the request');
+		}
+
+		return ['posts' => array_reverse(array_values(array_intersect_key($this->views, array_flip($uris))))];
 	}
 }

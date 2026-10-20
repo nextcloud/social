@@ -12,6 +12,7 @@ namespace OCA\Social\Atproto\Publisher;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Reader\BlueskyCountSource;
 use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -122,10 +123,10 @@ class BlueskyBookmarks {
 			}
 		}
 		$views = [];
-		if ($refs !== []) {
+		foreach (array_chunk($refs, BlueskyCountSource::BATCH) as $chunk) {
 			try {
 				$identity = $this->identities->activeForActor($viewer);
-				$params = ['uris' => array_column($refs, 'uri')];
+				$params = ['uris' => array_column($chunk, 'uri')];
 				$answer = $identity !== null
 					? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), 'app.bsky.feed.getPosts', $params)
 					: $this->appView->query('app.bsky.feed.getPosts', $params);
