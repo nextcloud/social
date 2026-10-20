@@ -4,6 +4,7 @@
  */
 
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it } from 'vitest'
 import VerifiedBadge from '../../../src/components/VerifiedBadge.vue'
 
@@ -49,5 +50,15 @@ describe('VerifiedBadge', () => {
 			.toBe('Verified by 2 trusted verifiers')
 		expect(badge({ bluesky: { verified: true, verified_by: [], verified_by_bluesky: false } }).attributes('title'))
 			.toBe('Verified by 1 trusted verifier')
+	})
+
+	it('hides Bluesky verification marks when the reader chose to, leaving instance checks visible', () => {
+		const pinia = createPinia()
+		setActivePinia(pinia)
+		pinia.state.value.settings = { serverData: { bluesky: { hideBadges: true } } }
+
+		expect(badge({ bluesky: { verified: true, verified_by: [BLUESKY], verified_by_bluesky: true } }).find('.verified-badge').exists()).toBe(false)
+		expect(badge({ verification: here, bluesky: { verified: true, verified_by: [BLUESKY], verified_by_bluesky: true } }).attributes('title'))
+			.toBe('Verified by Example Inc')
 	})
 })

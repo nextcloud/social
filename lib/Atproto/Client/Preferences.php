@@ -23,6 +23,7 @@ use OCP\IConfig;
  */
 class Preferences {
 	public const METHODS = ['app.bsky.actor.getPreferences', 'app.bsky.actor.putPreferences'];
+	public const VERIFICATION = 'app.bsky.actor.defs#verificationPrefs';
 	private const KEY = 'atproto_preferences';
 	private const MAX_BYTES = 262144;
 
@@ -34,14 +35,54 @@ class Preferences {
 	}
 
 	public function get(ClientSession $session): array {
-		$stored = json_decode($this->config->getUserValue($session->userId, Application::APP_ID, self::KEY, '[]'), true);
-		$preferences = array_values(array_filter(is_array($stored) ? $stored : [], static fn (mixed $preference): bool => !self::isMutedWords($preference)));
+		$preferences = $this->storedFor($session->userId);
 		$words = $this->mutedWords->pref($this->accounts->getActorFromUserId($session->userId));
 		if ($words !== null) {
 			$preferences[] = $words;
 		}
 
 		return ['preferences' => $preferences];
+	}
+
+	public function hidesVerificationBadges(string $userId): bool {
+		foreach ($this->storedFor($userId) as $preference) {
+			if (is_array($preference) && ($preference['$type'] ?? '') === self::VERIFICATION) {
+				return ($preference['hideBadges'] ?? false) === true;
+			}
+		}
+
+		return false;
+	}
+
+	public function setHideVerificationBadges(string $userId, bool $hide): void {
+		$preferences = $this->storedFor($userId);
+		$updated = false;
+		foreach ($preferences as &$preference) {
+			if (is_array($preference) && ($preference['$type'] ?? '') === self::VERIFICATION) {
+				$preference['hideBadges'] = $hide;
+				$updated = true;
+			}
+		}
+		unset($preference);
+
+		if (!$updated) {
+			$preferences[] = ['$type' => self::VERIFICATION, 'hideBadges' => $hide];
+		}
+		$this->storeFor($userId, $preferences);
+	}
+
+	/** @return list<array> */
+	private function storedFor(string $userId): array {
+		$stored = json_decode($this->config->getUserValue($userId, Application::APP_ID, self::KEY, '[]'), true);
+		$preferences = array_values(array_filter(is_array($stored) ? $stored : [], static fn (mixed $preference): bool => !self::isMutedWords($preference)));
+
+		return $preferences;
+	}
+
+	/** @param list<array> $preferences */
+	private function storeFor(string $userId, array $preferences): void {
+		$encoded = (string)json_encode($preferences, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		$this->config->setUserValue($userId, Application::APP_ID, self::KEY, $encoded);
 	}
 
 	/**
@@ -68,7 +109,7 @@ class Preferences {
 		if (strlen($encoded) > self::MAX_BYTES) {
 			throw new XrpcException(413, 'PayloadTooLarge', 'Preferences too large');
 		}
-		$this->config->setUserValue($session->userId, Application::APP_ID, self::KEY, $encoded);
+		$this->storeFor($session->userId, $preferences);
 		if ($words !== null) {
 			$this->mutedWords->apply($this->accounts->getActorFromUserId($session->userId), $words);
 		}

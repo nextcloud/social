@@ -2048,6 +2048,14 @@ error. Visible-page cursors remain keyed by viewer, feed and last visible
 post in `DurableCache`, with its database fallback when no memcache is
 configured.
 
+`Atproto\Client\Preferences` also keeps Bluesky's
+`app.bsky.actor.defs#verificationPrefs.hideBadges` value. Navigation places
+it in initial state so `VerifiedBadge.vue` can hide marks from Bluesky and
+trusted verifiers immediately, while instance-issued verification stays
+visible. Settings → Reading updates that same preference through
+`/api/v1/social/bluesky/verification-preferences`, preserving other saved
+Bluesky preferences.
+
 ### Bookmarks, here and on Bluesky
 
 `Atproto\Publisher\BlueskyBookmarks` keeps a person's bookmarks in step with
@@ -2754,7 +2762,8 @@ every section once (`{ id, group, icon, component, title, lede }`) and sorts the
 into six groups: **Profile and privacy** (`#account`, `#featured-tags`,
 `#portfolio`), **Reading** (`#interests`, `#lists`, `#bluesky-feeds` where
 Bluesky is on — `BlueskyFeedsSettings.vue`, the Bluesky custom feeds and lists
-kept, read as timelines at `/timeline/bluesky/<DID>/<feed|list>/<key>` —, `#sensitive`, `#counts`,
+kept, read as timelines at `/timeline/bluesky/<DID>/<feed|list>/<key>` —,
+`#bluesky-display` where Bluesky is on (trusted verification marks), `#sensitive`, `#counts`,
 `#recap`, `#senses`), **Notifications** (`#notifications` for when,
 `#notification-policy` for who), **Your posts** (`#scheduled`, `#review`,
 `#archive`, `#files-comments`), **Apps and account** (`#apps`, `#bluesky`

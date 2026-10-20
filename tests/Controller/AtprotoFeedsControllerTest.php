@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Tests\Controller;
 
 use InvalidArgumentException;
+use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Reader\BlueskyDiscovery;
 use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Atproto\Reader\StarterPacks;
@@ -37,6 +38,7 @@ class AtprotoFeedsControllerTest extends TestCase {
 	private PostDecorationService&MockObject $cards;
 	private StarterPacks&MockObject $packs;
 	private BlueskyDiscovery&MockObject $discovery;
+	private Preferences&MockObject $preferences;
 	private bool $enabled = true;
 	private bool $signedIn = true;
 
@@ -54,7 +56,7 @@ class AtprotoFeedsControllerTest extends TestCase {
 		$accounts = $this->accounts ?? $accounts;
 
 		return new AtprotoFeedsController(
-			$this->createStub(IRequest::class), $session, $config, $accounts, $this->feeds, $this->packs, $this->discovery, $this->cards, new NullLogger(),
+			$this->createStub(IRequest::class), $session, $config, $accounts, $this->feeds, $this->preferences, $this->packs, $this->discovery, $this->cards, new NullLogger(),
 		);
 	}
 
@@ -75,6 +77,15 @@ class AtprotoFeedsControllerTest extends TestCase {
 		$this->cards = $this->createMock(PostDecorationService::class);
 		$this->packs = $this->createMock(StarterPacks::class);
 		$this->discovery = $this->createMock(BlueskyDiscovery::class);
+		$this->preferences = $this->createMock(Preferences::class);
+	}
+
+	public function testTrustedVerificationBadgePreferenceIsReadAndWrittenForTheViewer(): void {
+		$this->preferences->expects($this->exactly(2))->method('hidesVerificationBadges')->with('alice')->willReturn(true);
+		$this->assertSame(['hideBadges' => true], $this->controller()->verificationPreferences()->getData());
+
+		$this->preferences->expects($this->once())->method('setHideVerificationBadges')->with('alice', true);
+		$this->assertSame(['hideBadges' => true], $this->controller()->updateVerificationPreferences(true)->getData());
 	}
 
 	public function testTrendsAndSuggestionsAreBlueskysAnswer(): void {

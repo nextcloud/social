@@ -25,6 +25,8 @@
 
 <script>
 import { translatePlural as n, translate as t } from '@nextcloud/l10n'
+import { getActivePinia } from 'pinia'
+import { useSettingsStore } from '../store/settings.js'
 
 /** Bluesky's own account, the verifier every Bluesky app trusts (`ActorMapper::BLUESKY_DID`) */
 const BLUESKY_DID = 'did:plc:z72i7hdynmk6r22z27h6tvur'
@@ -57,7 +59,10 @@ export default {
 
 		/** @return {boolean} whether Bluesky shows the account as verified */
 		elsewhere() {
-			return this.account?.bluesky?.verified === true
+			const pinia = getActivePinia()
+			const hideBadges = pinia !== undefined && useSettingsStore(pinia).getServerData?.bluesky?.hideBadges === true
+
+			return this.account?.bluesky?.verified === true && !hideBadges
 		},
 
 		/** @return {boolean} */

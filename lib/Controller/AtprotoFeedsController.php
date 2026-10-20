@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use InvalidArgumentException;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Atproto\Reader\BlueskyDiscovery;
 use OCA\Social\Atproto\Reader\BlueskyFeeds;
 use OCA\Social\Atproto\Reader\StarterPacks;
@@ -43,6 +44,7 @@ class AtprotoFeedsController extends Controller {
 		private AtprotoConfig $config,
 		private AccountService $accountService,
 		private BlueskyFeeds $feeds,
+		private Preferences $preferences,
 		private StarterPacks $starterPacks,
 		private BlueskyDiscovery $discovery,
 		private PostDecorationService $postDecorationService,
@@ -89,6 +91,25 @@ class AtprotoFeedsController extends Controller {
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/feeds/suggested')]
 	public function suggested(): DataResponse {
 		return $this->answer(fn (Person $viewer): array => ['feeds' => $this->feeds->suggested($viewer)]);
+	}
+
+	/** The Bluesky preference for displaying trusted verification badges. */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/bluesky/verification-preferences')]
+	public function verificationPreferences(): DataResponse {
+		return $this->answer(fn (Person $viewer): array => ['hideBadges' => $this->preferences->hidesVerificationBadges($viewer->getUserId())]);
+	}
+
+	/** Updates the Bluesky preference for displaying trusted verification badges. */
+	#[NoAdminRequired]
+	#[FrontpageRoute(verb: 'PUT', url: '/api/v1/social/bluesky/verification-preferences')]
+	public function updateVerificationPreferences(bool $hideBadges): DataResponse {
+		return $this->answer(function (Person $viewer) use ($hideBadges): array {
+			$userId = $viewer->getUserId();
+			$this->preferences->setHideVerificationBadges($userId, $hideBadges);
+
+			return ['hideBadges' => $this->preferences->hidesVerificationBadges($userId)];
+		});
 	}
 
 	/**

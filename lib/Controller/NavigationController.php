@@ -11,6 +11,7 @@ namespace OCA\Social\Controller;
 
 use Exception;
 use OCA\Social\AppInfo\Application;
+use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\SocialAppConfigException;
 use OCA\Social\Exceptions\UrlCloudException;
@@ -93,6 +94,7 @@ class NavigationController extends Controller {
 		private FilterService $filterService,
 		private ExternalMediaQuota $externalMediaQuota,
 		private LoggerInterface $logger,
+		private Preferences $atprotoPreferences,
 		private ?ModeratorService $moderatorService = null,
 	) {
 		parent::__construct(Application::APP_ID, $request);
@@ -212,6 +214,7 @@ class NavigationController extends Controller {
 			'bluesky' => [
 				'enabled' => $this->configService->getAppValueBool(ConfigService::ATPROTO_ENABLED),
 				'host' => strtolower($this->configService->getSocialAddress()),
+				'hideBadges' => $this->atprotoPreferences->hidesVerificationBadges($this->userId),
 			],
 			// the host addresses here end in (`alice@<host>`), which the
 			// administrator may have set apart from the Nextcloud's own

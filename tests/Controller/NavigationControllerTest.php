@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Controller;
 
+use OCA\Social\Atproto\Client\Preferences;
 use OCA\Social\Controller\NavigationController;
 use OCA\Social\Exceptions\AccountAlreadyExistsException;
 use OCA\Social\Exceptions\AccountDoesNotExistException;
@@ -66,6 +67,7 @@ class NavigationControllerTest extends TestCase {
 	private $sectionsService;
 	private $streamService;
 	private $filterService;
+	private Preferences $atprotoPreferences;
 	/** @var IGroupManager&MockObject */
 	private $groupManager;
 	private array $states = [];
@@ -100,6 +102,7 @@ class NavigationControllerTest extends TestCase {
 			'group_lists' => [],
 		]);
 		$this->groupManager = $this->createMock(IGroupManager::class);
+		$this->atprotoPreferences = $this->createStub(Preferences::class);
 
 		$this->initialState->method('provideInitialState')
 			->willReturnCallback(function (string $key, $data): void {
@@ -140,6 +143,7 @@ class NavigationControllerTest extends TestCase {
 			$this->filterService,
 			$this->createStub(\OCA\Social\Service\ExternalMediaQuota::class),
 			new NullLogger(),
+			$this->atprotoPreferences,
 			$moderators,
 		);
 	}
@@ -171,6 +175,7 @@ class NavigationControllerTest extends TestCase {
 		$this->accountService->method('getActorFromUserId')->with('alice')
 			->willReturn((new Person())->setPreferredUsername('alice'));
 		$this->configService->method('getSocialAddress')->willReturn('cloud.example');
+		$this->atprotoPreferences->method('hidesVerificationBadges')->with('alice')->willReturn(true);
 		$this->groupManager->method('isAdmin')->with('alice')->willReturn(false);
 		$this->checkService->expects($this->never())->method('checkDefault');
 		$this->checkService->expects($this->never())->method('checkInstallationStatus');
@@ -178,6 +183,7 @@ class NavigationControllerTest extends TestCase {
 		$response = $this->controller()->navigate();
 
 		$this->assertInstanceOf(TemplateResponse::class, $response);
+		$this->assertTrue($this->serverData()['bluesky']['hideBadges']);
 		$this->assertSame('main', $response->getTemplateName());
 		$this->assertSame([
 			'public' => false,
@@ -214,7 +220,7 @@ class NavigationControllerTest extends TestCase {
 			'externalMedia' => null,
 			// and whether people may invite others to register; not here
 			'externalInvites' => false,
-			'bluesky' => ['enabled' => false, 'host' => 'cloud.example'],
+			'bluesky' => ['enabled' => false, 'host' => 'cloud.example', 'hideBadges' => true],
 			// the host addresses end in, for the setup screen's preview
 			'socialAddress' => 'cloud.example',
 			'cloudAddress' => 'https://cloud.example/index.php',

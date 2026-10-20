@@ -174,6 +174,7 @@ import { currentSection, scrollToSection, watchSections } from '../services/sect
 const AccountSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/AccountSettings.vue'))
 const DirectMessagesSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/DirectMessagesSettings.vue'))
 const BlueskySettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/BlueskySettings.vue'))
+const BlueskyDisplaySettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/BlueskyDisplaySettings.vue'))
 const RecapSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/RecapSettings.vue'))
 const ListsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/ListsSettings.vue'))
 const BlueskyFeedsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/BlueskyFeedsSettings.vue'))
@@ -221,6 +222,7 @@ export default {
 		ArchivedPosts,
 		AuthorizedApps,
 		BlueskySettings,
+		BlueskyDisplaySettings,
 		DeleteAccount,
 		DirectMessagesSettings,
 		ExternalStorage,
@@ -346,6 +348,16 @@ export default {
 							component: 'InterestsSettings',
 							title: t('social', 'For you'),
 							lede: t('social', 'The hashtags your For you feed is made of, learned from what you read. Only you see this.'),
+						}]
+					: []),
+				...(this.serverData?.bluesky?.enabled === true
+					? [{
+							id: 'bluesky-display',
+							group: 'reading',
+							icon: 'IconBluesky',
+							component: 'BlueskyDisplaySettings',
+							title: t('social', 'Bluesky verification badges'),
+							lede: t('social', 'Choose whether trusted verification marks from Bluesky appear beside accounts.'),
 						}]
 					: []),
 				{
