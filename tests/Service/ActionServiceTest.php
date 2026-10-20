@@ -225,8 +225,8 @@ class ActionServiceTest extends TestCase {
 		$this->assertSame($this->post->getId(), $this->mutes[0]['rootId']);
 	}
 
-	public function testThreadMuteActionsArePassedToTheBlueskyBridge(): void {
-		$postId = 'https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k';
+	#[DataProvider('blueskyThreadRoots')]
+	public function testThreadMuteActionsArePassedToTheBlueskyBridge(string $postId): void {
 		$this->post->setId($postId);
 		$this->streamService->method('getStreamByNid')->willReturn($this->post);
 		$this->threadRoot = $postId;
@@ -244,6 +244,14 @@ class ActionServiceTest extends TestCase {
 		$service->action($this->actor, 42, 'mute');
 		$service->action($this->actor, 42, 'unmute');
 		$this->assertSame([true, false], $sentMutes);
+	}
+
+	/** @return array<string, array{string}> */
+	public static function blueskyThreadRoots(): array {
+		return [
+			'Bluesky post' => ['https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k'],
+			'local post mirrored to Bluesky' => ['https://social.example/@alice/status/42'],
+		];
 	}
 
 	public function testPinAndUnpinAreHandedToThePinService(): void {
