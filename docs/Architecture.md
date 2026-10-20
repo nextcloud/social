@@ -501,6 +501,13 @@ enforced by `ClientXrpc` (100,000,000 bytes, the video ceiling). Open registrati
 Bluesky identities are Nextcloud accounts; the app page is not advertised as
 a privacy policy.
 
+Signed-in PDS clients manage the same account-scoped records through
+`com.atproto.server.createAppPassword`, `listAppPasswords` and
+`revokeAppPassword`. The password secret is returned only at creation;
+listing exposes names and creation times without database ids. Creating a
+password that grants Bluesky chat access requires a session that already
+holds `transition:chat.bsky`.
+
 An app's `app.bsky.actor.profile` writes update the same local profile the
 Fediverse reads. `WriteService` validates a non-empty website before it
 changes any account fields or pictures, and normalizes pronouns with the

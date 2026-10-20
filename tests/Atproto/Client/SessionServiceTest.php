@@ -102,6 +102,40 @@ class SessionServiceTest extends TestCase {
 		$this->assertTrue($signedIn($plain)->permissions()->mayCall('app.bsky.feed.getTimeline', 'did:web:api.bsky.app#bsky_appview'), 'the rest as before');
 	}
 
+	public function testPdsAppPasswordMethodsExposeOnlyLexiconFieldsAndRevokeSessions(): void {
+		$session = new ClientSession('alice', $this->identity, 'owner');
+		try {
+			$this->sessions->createAppPassword($session, 'chat-app', true);
+			$this->fail('created a privileged password without chat permission');
+		} catch (XrpcException $e) {
+			$this->assertSame(403, $e->status);
+			$this->assertSame('InsufficientScope', $e->error);
+		}
+
+		$created = $this->sessions->createAppPassword(new ClientSession('alice', $this->identity, 'owner', ['atproto', ClientSession::GENERIC, ClientSession::CHAT]), 'chat-app', true);
+		$this->assertSame([
+			'name' => 'chat-app',
+			'password' => $created['password'],
+			'createdAt' => '1970-01-01T00:00:01Z',
+			'privileged' => true,
+		], $created);
+		$this->assertSame(['passwords' => [[
+			'name' => 'chat-app',
+			'createdAt' => '1970-01-01T00:00:01Z',
+			'privileged' => true,
+		]]], $this->sessions->listAppPasswords($session));
+
+		$tokens = $this->sessions->create('alice.social.test', $created['password'], '203.0.113.5');
+		$this->sessions->revokeAppPassword($session, 'chat-app');
+		$this->assertSame(['passwords' => []], $this->sessions->listAppPasswords($session));
+		try {
+			$this->sessions->authenticate('Bearer ' . $tokens['accessJwt']);
+			$this->fail('revoked app password session stayed active');
+		} catch (XrpcException $e) {
+			$this->assertSame('ExpiredToken', $e->error);
+		}
+	}
+
 	public function testAnAppPasswordIsShownOnceAndStoredAsAHash(): void {
 		$created = $this->appPasswords->create('alice', 'Bluesky on my phone');
 		$this->assertMatchesRegularExpression('/^[a-z2-7]{4}(-[a-z2-7]{4}){3}$/', $created['password']);

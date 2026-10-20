@@ -19,6 +19,7 @@ use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoClientRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCA\Social\Exceptions\MoveErrorException;
 use OCP\Accounts\IAccountManager;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IUserManager;
@@ -158,6 +159,62 @@ class SessionService {
 			'didDoc' => $this->identities->document($session->identity),
 			'active' => $session->identity->isActive(),
 		] + ($session->permissions()->mayReadEmail() ? $this->email($session->userId) : ['emailConfirmed' => false]);
+	}
+
+	/**
+	 * `com.atproto.server.createAppPassword`.
+	 *
+	 * @throws XrpcException
+	 */
+	public function createAppPassword(ClientSession $session, string $name, bool $privileged): array {
+		if ($privileged && !$session->may(ClientSession::CHAT)) {
+			throw new XrpcException(403, 'InsufficientScope', 'This session cannot create an app password with chat access');
+		}
+
+		try {
+			$created = $this->appPasswords->create($session->userId, $name, $privileged);
+		} catch (MoveErrorException $e) {
+			throw XrpcException::invalidRequest($e->getMessage());
+		}
+
+		$metadata = null;
+		foreach ($this->appPasswords->list($session->userId) as $password) {
+			if ($password['id'] === $created['id']) {
+				$metadata = $password;
+				break;
+			}
+		}
+		if ($metadata === null) {
+			throw new XrpcException(500, 'InternalServerError', 'The app password could not be read after creation');
+		}
+
+		return [
+			'name' => $created['name'],
+			'password' => $created['password'],
+			'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z', $metadata['creation']),
+		] + ($privileged ? ['privileged' => true] : []);
+	}
+
+	/**
+	 * `com.atproto.server.listAppPasswords`; password values and internal ids never leave the server.
+	 */
+	public function listAppPasswords(ClientSession $session): array {
+		$passwords = [];
+		foreach ($this->appPasswords->list($session->userId) as $password) {
+			$passwords[] = [
+				'name' => $password['name'],
+				'createdAt' => gmdate('Y-m-d\\TH:i:s\\Z', $password['creation']),
+			] + ($password['privileged'] ? ['privileged' => true] : []);
+		}
+
+		return ['passwords' => $passwords];
+	}
+
+	/**
+	 * `com.atproto.server.revokeAppPassword`.
+	 */
+	public function revokeAppPassword(ClientSession $session, string $name): void {
+		$this->appPasswords->revokeByName($session->userId, $name);
 	}
 
 	/**
