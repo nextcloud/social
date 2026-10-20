@@ -2483,7 +2483,8 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   it; and a bookmark set here of a post on Bluesky is told to the AppView.
   Post views are fetched in groups of at most 25, as `getPosts` requires,
   including a bookmark page of 50 or 100. The bookmark order and cursor
-  stay local; if one group fails, the others still load.
+  stay local; the cursor is the oldest decimal NID kept without converting
+  it to a native PHP integer. If one group fails, the others still load.
   **Notification settings** (`app.bsky.notification.getPreferences`,
   `putPreferencesV2`) share the one setting both have
   (`Client\NotificationSettings`): whether anybody or only the people
