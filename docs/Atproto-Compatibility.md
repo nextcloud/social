@@ -2644,7 +2644,7 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
 `AtprotoOAuthController`, tables `social_atproto_oauth_request`,
 `social_atproto_oauth_session`, `social_atproto_oauth_replay`:
 
-- **Bluesky sign-in is AT Protocol's OAuth profile**: pushed authorization
+- **OAuth-capable Bluesky clients can sign in through AT Protocol's OAuth profile**: pushed authorization
   requests only, PKCE S256, DPoP with this server's nonces on every token and
   every PDS request, client IDs that are the address of the app's metadata
   (and the profile's `http://localhost` development exception), public and
