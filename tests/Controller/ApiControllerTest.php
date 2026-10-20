@@ -60,6 +60,7 @@ use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\FileCommentsService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
@@ -183,12 +184,14 @@ class ApiControllerTest extends TestCase {
 	private \OCA\Social\Service\NotificationDeliveryService|Stub $notificationDeliveryService;
 	private \OCA\Social\Service\AiContentService|Stub $aiContentService;
 	private \OCA\Social\Service\CountsService|Stub $countsService;
+	private FeedDisplayService|Stub $feedDisplayService;
 	private \OCA\Social\Service\RemoteFetchQueue|MockObject $remoteFetchQueue;
 	private \OCA\Social\Service\FollowList\FollowListService|MockObject $followLists;
 	private \OCA\Social\Service\Counts\CountService|MockObject $counts;
 	/** what the AI switch stub answers for the viewer */
 	private bool $hidesAi = false;
 	private bool $hidesCounts = true;
+	private bool $hidesRepliesInFeeds = false;
 	/** @var array<string, mixed> what the delivery service answers for the viewer */
 	private array $delivery = [];
 	private ViewCountService|Stub $viewCountService;
@@ -337,6 +340,8 @@ class ApiControllerTest extends TestCase {
 		$this->counts = $this->createMock(\OCA\Social\Service\Counts\CountService::class);
 		$this->countsService = $this->createStub(\OCA\Social\Service\CountsService::class);
 		$this->countsService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesCounts);
+		$this->feedDisplayService = $this->createStub(FeedDisplayService::class);
+		$this->feedDisplayService->method('hidesReplies')->willReturnCallback(fn (string $userId): bool => $this->hidesRepliesInFeeds);
 		$this->sensitiveMediaService = $this->createStub(\OCA\Social\Service\SensitiveMediaService::class);
 		// the three states PeerTube's NSFW policies map onto; `default` is
 		// what an instance that has not chosen does
@@ -468,6 +473,7 @@ class ApiControllerTest extends TestCase {
 			'notificationDeliveryService' => $this->notificationDeliveryService,
 			'aiContentService' => $this->aiContentService,
 			'countsService' => $this->countsService,
+			'feedDisplayService' => $this->feedDisplayService,
 			'remoteFetchQueue' => $this->remoteFetchQueue,
 			'followLists' => $this->followLists,
 			'viewCountService' => $this->viewCountService,
@@ -1427,6 +1433,25 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(100, $probe->getMinId());
 		$this->assertSame(200, $probe->getSince());
 		$this->assertSame(ACore::FORMAT_LOCAL, $probe->getFormat());
+	}
+
+	public function testHomeTimelineCanHideReplyCardsAndStillPagesFromTheUnfilteredPage(): void {
+		$this->loggedInAs();
+		$this->hidesRepliesInFeeds = true;
+		$this->requestUri('/api/v1/timelines/home?limit=2');
+		$reply = $this->createStub(Stream::class);
+		$reply->method('getNid')->willReturn(42);
+		$reply->method('getInReplyTo')->willReturn('https://cloud.example/apps/social/@alice/41');
+		$standalone = $this->createStub(Stream::class);
+		$standalone->method('getNid')->willReturn(41);
+		$standalone->method('getInReplyTo')->willReturn('');
+		$this->timelineRows = 2;
+		$this->captureTimelineOptions([$reply, $standalone]);
+
+		$response = $this->controller()->timelines('home', false, 2);
+
+		$this->assertSame([$standalone], $response->getData());
+		$this->assertStringContainsString('max_id=41>; rel="next"', $response->getHeaders()['Link'] ?? '');
 	}
 
 	/** @return iterable<string, array{string}> */

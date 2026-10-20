@@ -39,18 +39,40 @@
 		</template>
 
 		<section v-else-if="!showForm" class="signup__landing" aria-labelledby="signup-introduction-title">
-			<h3 id="signup-introduction-title">
+			<div class="signup__brand" aria-hidden="true">
+				<span class="signup__brand-mark">A</span>
+				<span>Aloha Social</span>
+			</div>
+			<h3 id="signup-introduction-title" class="signup__subheading">
 				{{ t('social', 'An Aloha Social account') }}
 			</h3>
-			<p>{{ reach }}</p>
-			<p>{{ t('social', 'This account is for Aloha Social only. It does not give you access to Files, Talk, WebDAV or other Nextcloud apps on this server.') }}</p>
+			<p class="signup__intro">
+				{{ reach }}
+			</p>
+			<ol class="signup__steps" :aria-label="t('social', 'Create an account')">
+				<li class="signup__step">
+					<span class="signup__step-number">1</span>
+					<p>{{ lede }}</p>
+				</li>
+				<li class="signup__step">
+					<span class="signup__step-number">2</span>
+					<p>{{ registrationPath }}</p>
+				</li>
+				<li class="signup__step">
+					<span class="signup__step-number">3</span>
+					<p>{{ t('social', 'After joining, you can finish the introduction, find people and any starter packs this server offers, write posts, and manage your profile and account settings. If you have an export from a compatible service, you can import your follow list.') }}</p>
+				</li>
+			</ol>
+			<p class="signup__scope">
+				{{ t('social', 'This account is for Aloha Social only. It does not give you access to Files, Talk, WebDAV or other Nextcloud apps on this server.') }}
+			</p>
 			<p v-if="state.twoFactorRequired">
 				{{ t('social', 'This server requires two-factor authentication. You will need to set it up when you first sign in.') }}
 			</p>
-			<p>{{ t('social', 'After joining, you can finish the introduction, find people and any starter packs this server offers, write posts, and manage your profile and account settings. If you have an export from a compatible service, you can import your follow list.') }}</p>
-			<p>{{ registrationPath }}</p>
-			<p>{{ t('social', 'Public posts may be delivered to other servers. Other servers may keep copies, so deleting a post here cannot guarantee that every copy elsewhere is removed.') }}</p>
-			<p class="signup__instance-notice">
+			<p class="signup__federation-note">
+				{{ t('social', 'Public posts may be delivered to other servers. Other servers may keep copies, so deleting a post here cannot guarantee that every copy elsewhere is removed.') }}
+			</p>
+			<p v-if="state.signupNotice" class="signup__instance-notice">
 				{{ state.signupNotice }}
 			</p>
 			<p v-if="state.privacyUrl || state.legalUrl" class="signup__legal">
@@ -80,12 +102,20 @@
 			class="signup__form"
 			novalidate
 			@submit.prevent="submit">
+			<NcButton
+				class="signup__back"
+				type="button"
+				size="small"
+				variant="tertiary"
+				@click="showForm = false">
+				<template #icon>
+					<ArrowLeft :size="20" />
+				</template>
+				{{ t('social', 'Back to the overview') }}
+			</NcButton>
 			<p class="signup__lede">
 				{{ lede }}
 			</p>
-			<NcButton variant="tertiary" @click="showForm = false">
-				{{ t('social', 'Back to the overview') }}
-			</NcButton>
 
 			<NcTextField
 				v-model="handle"
@@ -204,6 +234,7 @@ import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcNoteCard from '@nextcloud/vue/components/NcNoteCard'
 import NcPasswordField from '@nextcloud/vue/components/NcPasswordField'
 import NcTextField from '@nextcloud/vue/components/NcTextField'
+import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue'
 import { signupUrl } from '../services/externalApi.js'
 import { blueskyHandle } from '../utils/blueskyHandle.js'
 
@@ -247,6 +278,7 @@ export default {
 		NcNoteCard,
 		NcPasswordField,
 		NcTextField,
+		ArrowLeft,
 	},
 
 	data() {
@@ -404,8 +436,12 @@ export default {
 
 <style scoped lang="scss">
 .signup {
-	width: min(440px, 100%);
+	width: min(520px, 100%);
 	text-align: start;
+	padding: clamp(20px, 5vw, 36px);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius-large);
+	background: var(--color-main-background);
 
 	&__heading {
 		margin-block-end: calc(var(--default-grid-baseline) * 3);
@@ -413,7 +449,7 @@ export default {
 	}
 
 	&__lede {
-		margin-block-end: calc(var(--default-grid-baseline) * 3);
+		margin: 0;
 		color: var(--color-text-maxcontrast);
 	}
 
@@ -425,10 +461,101 @@ export default {
 		}
 	}
 
+	&__brand {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		margin-block: 0 22px;
+		color: var(--color-primary-element);
+		font-size: 14px;
+		font-weight: 700;
+		letter-spacing: .03em;
+	}
+
+	&__brand-mark {
+		display: grid;
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		border-radius: 12px;
+		background: var(--color-primary-element);
+		color: var(--color-primary-element-text);
+		font-size: 20px;
+	}
+
+	&__subheading {
+		margin: 0;
+		font-size: 1.4rem;
+		line-height: 1.25;
+		text-align: center;
+	}
+
+	&__intro {
+		margin-block: 12px 22px !important;
+		color: var(--color-text-maxcontrast);
+		text-align: center;
+	}
+
+	&__steps {
+		display: grid;
+		gap: 10px;
+		margin-block: 20px 24px;
+		padding: 0;
+		list-style: none;
+	}
+
+	&__step {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 12px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large);
+		background: var(--color-background-hover);
+
+		p {
+			margin: 0;
+		}
+	}
+
+	&__step-number {
+		display: grid;
+		flex: 0 0 26px;
+		place-items: center;
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		background: var(--color-primary-element);
+		color: var(--color-primary-element-text);
+		font-size: 13px;
+		font-weight: 700;
+	}
+
+	&__scope {
+		padding: 12px 14px;
+		border-inline-start: 3px solid var(--color-primary-element);
+		border-radius: 0 var(--border-radius-large) var(--border-radius-large) 0;
+		background: var(--color-background-hover);
+		font-size: 13px;
+	}
+
+	&__federation-note {
+		padding: 12px 14px;
+		border-inline-start: 3px solid var(--color-border);
+		color: var(--color-text-maxcontrast);
+		font-size: 13px;
+	}
+
 	&__form {
 		display: flex;
 		flex-direction: column;
-		gap: calc(var(--default-grid-baseline) * 3);
+		gap: calc(var(--default-grid-baseline) * 2);
+	}
+
+	&__back {
+		align-self: flex-start;
+		margin-inline-start: calc(var(--default-grid-baseline) * -2);
 	}
 
 	// out of sight and out of the tab order, but still in the form
@@ -484,6 +611,9 @@ export default {
 	}
 
 	&__actions {
+		display: flex;
+		flex-direction: column;
+		gap: calc(var(--default-grid-baseline) * 2);
 		margin-block-start: calc(var(--default-grid-baseline) * 3);
 	}
 

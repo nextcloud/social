@@ -1040,7 +1040,7 @@ describe('TimelinePost', () => {
 	it('sets each count against its own glyph', () => {
 		const source = readFileSync(resolve(process.cwd(), 'src/components/TimelinePost.vue'), 'utf8')
 
-		expect(source).toMatch(/\.post-action-group \{[^}]*\.post-action-count \{\s*margin-inline-start: -8px;\s*text-align: start;/)
+		expect(source).toMatch(/\.post-action-group \{[^}]*\.post-action-count \{\s*margin-inline-start: -4px;\s*text-align: start;/)
 	})
 
 	describe('rolling counters', () => {
@@ -1101,7 +1101,7 @@ describe('TimelinePost', () => {
 
 			await wrapper.setProps({ item: makeItem({ favourites_count: 1000, favourited: true }) })
 
-			expect(counter(wrapper).find('.rolling-count__value--current').text()).toBe('1000')
+			expect(counter(wrapper).find('.rolling-count__value--current').text()).toBe('1K')
 			expect(counter(wrapper).find('.rolling-count__value--leaving').text()).toBe('999')
 		})
 

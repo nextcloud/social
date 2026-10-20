@@ -2247,8 +2247,9 @@ export default {
 
 	.post-actions__groups {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: 2px;
+		gap: 4px;
 		min-inline-size: 0;
 	}
 
@@ -2270,21 +2271,22 @@ export default {
 
 		.post-action-group {
 			display: inline-flex;
+			flex: 0 0 auto;
 			align-items: center;
-			gap: 4px;
+			gap: 3px;
 
 			/* against its own glyph, across the button's padding, so it
 			   reads as that glyph's number and not the next one's */
 			.post-action-count {
-				margin-inline-start: -8px;
+				margin-inline-start: -4px;
 				text-align: start;
 			}
 		}
 
 		.post-action-count {
-			font-size: 12px;
-			color: var(--color-text-lighter);
-			min-width: 16px;
+			font-size: 11px;
+			font-weight: 600;
+			color: var(--color-main-text);
 			text-align: center;
 		}
 

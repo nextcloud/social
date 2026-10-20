@@ -469,8 +469,9 @@ export default {
 	width: 100%;
 	align-content: center;
 	justify-items: center;
-	padding: 10%;
+	padding: clamp(12px, 3vh, 32px) clamp(12px, 3vw, 40px);
 	box-sizing: border-box;
+	background: #000;
 
 	img {
 		height: 100%;
@@ -480,14 +481,15 @@ export default {
 
 	&-description {
 		position: absolute;
-		inset-block-end: 0;
+		inset-block-end: max(0px, env(safe-area-inset-bottom));
 		inset-inline: 0;
-		max-height: 25%;
+		max-height: 22%;
 		overflow-y: auto;
-		padding: 12px 16px;
+		padding: 12px 20px max(12px, env(safe-area-inset-bottom));
 		text-align: center;
-		color: var(--color-main-text);
-		background: var(--color-main-background);
+		color: #fff;
+		background: rgba(20, 20, 20, .82);
+		backdrop-filter: blur(12px);
 	}
 }
 

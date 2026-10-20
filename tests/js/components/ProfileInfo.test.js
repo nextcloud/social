@@ -678,6 +678,21 @@ describe('ProfileInfo', () => {
 			])
 		})
 
+		it('shows verified ownership clearly on the account owner\'s own profile', () => {
+			accountStore.addAccount({
+				actorId: alice.url,
+				data: {
+					...alice,
+					fields: [{ name: 'Website', value: 'https://alice.example', verified_at: '2026-09-01T10:00:00+00:00' }],
+				},
+			})
+
+			const wrapper = mountProfile('alice')
+
+			expect(wrapper.find('.user-profile__verified-link').text()).toContain('Verified link')
+			expect(wrapper.find('.user-profile__verified-link .verified-check').exists()).toBe(true)
+		})
+
 		it('never turns a javascript: value from a remote server into a link', () => {
 			accountStore.addAccount({
 				actorId: bob.url,

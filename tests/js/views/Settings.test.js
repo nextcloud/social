@@ -119,6 +119,7 @@ describe('Settings', () => {
 			'Lists',
 			'Sensitive media',
 			'Likes and followers',
+			'Feed posts',
 			'Looking back',
 			'Sound and touch',
 			'When to tell you',

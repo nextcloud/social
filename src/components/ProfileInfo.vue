@@ -5,8 +5,7 @@
 <template>
 	<div
 		v-if="profileAccount && accountInfo"
-		class="user-profile"
-		:style="accent ? { '--profile-accent': accent, '--profile-accent-text': 'var(--color-primary-element-text)' } : {}">
+		class="user-profile">
 		<!-- decorative: the banner is changed from the Edit profile dialog, and
 		     a click here is a shortcut for people who have a pointer, not the
 		     only way in -->
@@ -346,7 +345,10 @@
 						<template v-else>
 							{{ field.text }}
 						</template>
-						<VerifiedCheck v-if="field.verified" :verifiedAt="field.verifiedAt" />
+						<span v-if="field.verified" class="user-profile__verified-link">
+							<VerifiedCheck :verifiedAt="field.verifiedAt" />
+							{{ t('social', 'Verified link') }}
+						</span>
 					</dd>
 				</div>
 			</dl>
@@ -569,7 +571,6 @@ import ProfileHighlights from './ProfileHighlights.vue'
 import VerifiedBadge from './VerifiedBadge.vue'
 import VerifiedCheck from './VerifiedCheck.vue'
 import { cssUrl } from '../utils/cssUrl.js'
-import { asAccent, dominantColour } from '../utils/dominantColour.js'
 import { formatCount } from '../utils/number.js'
 import { fieldLink, profileFields } from '../utils/profileFields.js'
 import { sanitizeHtml } from '../utils/sanitizeHtml.js'
@@ -668,8 +669,6 @@ export default {
 			loading: false,
 			bannerUrlInput: '',
 			loadingUrl: false,
-			/** the banner's own colour, tinting this profile only */
-			accent: '',
 			relationshipLoading: false,
 			/** a verification being made or taken back */
 			verifying: false,
@@ -1024,7 +1023,6 @@ export default {
 		bannerStyle: {
 			handler(url) {
 				this.applyBanner(url)
-				this.readAccent(url)
 			},
 
 			immediate: true,
@@ -1073,22 +1071,6 @@ export default {
 			} catch {
 				this.familiar = []
 			}
-		},
-
-		/**
-		 * Tints this profile with its own banner. A banner that cannot be read
-		 * — cross-origin, missing, transparent — leaves the theme's colour in
-		 * place, which is what every profile looked like before.
-		 *
-		 * @param {string} url the banner currently shown
-		 */
-		async readAccent(url) {
-			if (!url) {
-				this.accent = ''
-				return
-			}
-
-			this.accent = asAccent(await dominantColour(url))
 		},
 
 		/**
@@ -1773,10 +1755,9 @@ export default {
 				font-weight: 600;
 				border-radius: 8px;
 
-				/* the profile's own colour, where the banner yielded one */
 				&.router-link-exact-active {
-					background: var(--profile-accent, var(--color-background-hover));
-					color: var(--profile-accent-text, inherit);
+					background: var(--color-primary-element);
+					color: var(--color-primary-element-text);
 				}
 
 				/* focus does not borrow the banner's colour: an indicator whose
@@ -1821,6 +1802,11 @@ export default {
 
 		dd {
 			flex: 1;
+			min-width: 0;
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 6px 10px;
 			overflow-wrap: anywhere;
 
 			a {
@@ -1831,6 +1817,21 @@ export default {
 				}
 			}
 		}
+	}
+
+	&__verified-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		flex: 0 0 auto;
+		padding: 2px 8px 2px 5px;
+		border: 1px solid var(--color-success, #2d7b32);
+		border-radius: var(--border-radius-pill, 999px);
+		background: var(--color-background-hover);
+		color: var(--color-success, #2d7b32);
+		font-size: 12px;
+		font-weight: 600;
+		white-space: nowrap;
 	}
 
 	&__fields-known {
