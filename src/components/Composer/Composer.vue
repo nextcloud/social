@@ -373,9 +373,13 @@
 					v-if="compactOptions"
 					variant="tertiary"
 					class="more-options-toggle"
+					:title="moreOptionsOpen ? t('social', 'Fewer options') : t('social', 'More options')"
+					:aria-label="moreOptionsOpen ? t('social', 'Fewer options') : t('social', 'More options')"
 					:aria-expanded="moreOptionsOpen"
 					@click.prevent="moreOptionsOpen = !moreOptionsOpen">
-					{{ moreOptionsOpen ? t('social', 'Fewer options') : t('social', 'More options') }}
+					<template #icon>
+						<TuneVariant :size="20" decorative title="" />
+					</template>
 				</NcButton>
 				<div v-if="!compactOptions || moreOptionsOpen" class="composer-advanced-options">
 					<span v-if="compactOptions" class="composer-advanced-options__label">{{ t('social', 'Post options') }}</span>
@@ -587,6 +591,7 @@ import EyeOutline from 'vue-material-design-icons/EyeOutline.vue'
 import PollIcon from 'vue-material-design-icons/Poll.vue'
 import CardTextOutline from 'vue-material-design-icons/CardTextOutline.vue'
 import CreationOutline from 'vue-material-design-icons/CreationOutline.vue'
+import TuneVariant from 'vue-material-design-icons/TuneVariant.vue'
 import PlacePicker from './PlacePicker.vue'
 import SchedulePicker from './SchedulePicker.vue'
 import { computed, defineAsyncComponent, getCurrentInstance, ref } from 'vue'
