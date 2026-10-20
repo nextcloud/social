@@ -67,7 +67,7 @@ class AtprotoAppsTest extends TestCase {
 		$user->setEMailAddress($email);
 		$accounts = Server::get(IAccountManager::class);
 		$account = $accounts->getAccount($user);
-		$account->setProperty(IAccountManager::PROPERTY_EMAIL, $email, IAccountManager::SCOPE_PRIVATE, IAccountManager::NOT_VERIFIED);
+		$account->setProperty(IAccountManager::PROPERTY_EMAIL, $email, IAccountManager::SCOPE_LOCAL, IAccountManager::NOT_VERIFIED);
 		$accounts->updateAccount($account);
 		[$status, $answer] = $app->signIn($email, $password);
 		$this->assertSame(200, $status, 'the Nextcloud email address signs into this PDS: ' . json_encode($answer));
