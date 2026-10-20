@@ -5867,18 +5867,21 @@ class ApiControllerTest extends TestCase {
 
 		$data = $this->controller()->oembed($post->getId())->getData();
 
-		$this->assertSame('link', $data['type']);
+		$this->assertSame('rich', $data['type']);
 		$this->assertSame('alice', $data['author_name']);
 		$this->assertSame($post->getId(), $data['url']);
+		$this->assertStringContainsString($post->getId() . '/embed', $data['html']);
 	}
 
-	/** Not `rich`: there is no embed page here, and framing the whole app is not one. */
-	public function testOembedIsNeverRich(): void {
+	/** Rich embeds frame the dedicated public post page, never the full app shell. */
+	public function testOembedProvidesTheDedicatedRichEmbed(): void {
 		$this->streamService->method('getStreamById')->willReturn($this->publicPost());
 		$this->cacheActorService->method('getFromId')->willReturn(new Person());
 		$this->instanceService->method('getLocal')->willReturn(new Instance());
 
-		$this->assertArrayNotHasKey('html', $this->controller()->oembed('https://cloud.example/x')->getData());
+		$data = $this->controller()->oembed('https://cloud.example/x')->getData();
+		$this->assertSame('rich', $data['type']);
+		$this->assertStringContainsString('/embed', $data['html']);
 	}
 
 	public function testOembedRefusesAPostThatIsNotPublic(): void {

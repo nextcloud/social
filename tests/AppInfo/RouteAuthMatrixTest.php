@@ -105,6 +105,7 @@ class RouteAuthMatrixTest extends TestCase {
 		'SignupController::verify' => 'email verification link',
 		'SocialPubController::collections' => 'public collections page',
 		'SocialPubController::portfolio' => 'public portfolio page',
+		'SocialPubController::embedPost' => 'public post embed, limited to local public posts and an isolated CSP',
 	];
 
 	/** @var array<string, string> CSRF-exempt state-changing routes outside the API bases, and why */

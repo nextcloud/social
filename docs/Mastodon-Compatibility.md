@@ -217,8 +217,9 @@ the status half of v2 filters (`/api/v2/filters/{id}/statuses` and
 `/api/v2/filters/statuses/{id}`); `DELETE /api/v1/profile/avatar` and `/header`;
 `DELETE /api/v1/suggestions/{id}`; `/api/v1/instance/privacy_policy` and
 `/terms_of_service`, from Nextcloud's own Theming settings; and `/api/oembed`,
-answered as `type: link` because there is no embed page here and framing the
-whole app would publish something nobody meant to.
+which returns a rich response for local public posts and frames only the
+dedicated minimal embed page. That page repeats the visibility check and
+returns the same 404 for anything not public.
 
 Everything else that was on this list is answered now. Conversation mute is
 handled (`ActionService::muteConversation()`); `/api/v1/timelines/link`,
@@ -844,7 +845,7 @@ that is not Web Push, streaming or a sign-up this app does not own is done.
 | 43 | **The status half of v2 filters** — `/api/v2/filters/{id}/statuses`, `/statuses/{id}` | Days | A client's "filter this post". The filter entity's `statuses` was hard-coded `[]` | done |
 | 44 | **`DELETE /api/v1/profile/avatar` and `/header`** | Hours | Multipart has no way to send "none", so a client could offer "change picture" and not "remove picture" | done |
 | 45 | **`DELETE /api/v1/suggestions/{id}`** | Hours | Without it the "who to follow" panel offers the same accounts on every visit, the ones already decided about included | done |
-| 46 | **`instance/privacy_policy`, `/terms_of_service`, `/oembed`** | Hours | From Nextcloud's own Theming settings; oEmbed as `type: link`, since there is no embed page here to frame | done |
+| 46 | **`instance/privacy_policy`, `/terms_of_service`, `/oembed`** | Hours | From Nextcloud's own Theming settings; oEmbed serves a rich embed of public local posts through a minimal page with its own framing policy | done |
 | 47 | **`reblogs` on the follow, and `showing_reblogs`** | Days | The flag was hardcoded `true` and nothing wrote it. Now a row in `social_actor_relation`, applied as a predicate of the home and list queries | done |
 
 ### Tier 2d — the web client, where most people read this app
