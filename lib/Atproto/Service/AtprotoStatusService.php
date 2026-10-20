@@ -114,6 +114,7 @@ class AtprotoStatusService {
 		$checks[] = ['id' => 'https', 'state' => $secure ? 'ok' : 'error', 'detail' => $secure ? '' : 'The instance is served over plain http; a PDS has to be https'];
 		$checks[] = $this->trustedDomainCheck();
 		$checks[] = $this->rootCheck();
+		$checks[] = $this->oauthReachabilityCheck();
 		$checks[] = $this->wellKnownCheck();
 		$daemon = $this->daemon->status();
 		$checks[] = [
@@ -124,6 +125,7 @@ class AtprotoStatusService {
 		$checks[] = $this->firehoseCheck();
 		$checks[] = $this->relayCheck();
 		$identity = $this->identities->firstActive();
+		$checks[] = $this->relayRepoCheck($identity);
 		$checks[] = $this->didResolutionCheck($identity);
 		$checks[] = $this->appViewProfileCheck($identity);
 		$checks[] = $this->appViewPostCheck();
@@ -171,6 +173,70 @@ class AtprotoStatusService {
 			'state' => $ok ? 'ok' : 'error',
 			'detail' => $ok ? '' : $endpoint . '/xrpc/ does not reach the app: add the root rules from contrib/webserver',
 		];
+	}
+
+	/** Verify the public OAuth discovery chain that Bluesky clients use to sign in. */
+	private function oauthReachabilityCheck(): array {
+		$endpoint = rtrim($this->safe(fn (): string => $this->config->pdsEndpoint()), '/');
+		$resource = $this->fetchOAuthMetadata($endpoint . '/.well-known/oauth-protected-resource');
+		if ($resource === null || ($resource['resource'] ?? null) !== $endpoint || ($resource['authorization_servers'] ?? null) !== [$endpoint]) {
+			return ['id' => 'oauth_discovery', 'state' => 'error', 'detail' => $endpoint . '/.well-known/oauth-protected-resource does not identify this PDS and its authorization server; add the root rules from contrib/webserver'];
+		}
+
+		$metadata = $this->fetchOAuthMetadata($endpoint . '/.well-known/oauth-authorization-server');
+		$valid = $metadata !== null
+			&& ($metadata['issuer'] ?? null) === $endpoint
+			&& ($metadata['pushed_authorization_request_endpoint'] ?? '') === $endpoint . '/oauth/par'
+			&& ($metadata['authorization_endpoint'] ?? '') === $endpoint . '/oauth/authorize'
+			&& ($metadata['token_endpoint'] ?? '') === $endpoint . '/oauth/token'
+			&& ($metadata['require_pushed_authorization_requests'] ?? false) === true
+			&& ($metadata['authorization_response_iss_parameter_supported'] ?? false) === true
+			&& ($metadata['client_id_metadata_document_supported'] ?? false) === true
+			&& ($metadata['require_request_uri_registration'] ?? true) !== false
+			&& $this->containsAll($metadata['response_types_supported'] ?? null, ['code'])
+			&& $this->containsAll($metadata['grant_types_supported'] ?? null, ['authorization_code', 'refresh_token'])
+			&& $this->containsAll($metadata['code_challenge_methods_supported'] ?? null, ['S256'])
+			&& $this->containsAll($metadata['token_endpoint_auth_methods_supported'] ?? null, ['none', 'private_key_jwt'])
+			&& $this->containsAll($metadata['token_endpoint_auth_signing_alg_values_supported'] ?? null, ['ES256'])
+			&& $this->containsAll($metadata['scopes_supported'] ?? null, ['atproto'])
+			&& $this->containsAll($metadata['dpop_signing_alg_values_supported'] ?? null, ['ES256']);
+
+		return [
+			'id' => 'oauth_discovery',
+			'state' => $valid ? 'ok' : 'error',
+			'detail' => $valid ? '' : $endpoint . '/.well-known/oauth-authorization-server is missing required AT Protocol OAuth metadata or is not served as JSON without redirects',
+		];
+	}
+
+	/** @param mixed $values */
+	private function containsAll(mixed $values, array $required): bool {
+		return is_array($values)
+			&& array_is_list($values)
+			&& count(array_filter($values, 'is_string')) === count($values)
+			&& array_diff($required, $values) === [];
+	}
+
+	/** Discovery documents must be JSON responses, not redirects or HTML fallbacks. */
+	private function fetchOAuthMetadata(string $url): ?array {
+		$status = 0;
+		try {
+			$body = $this->curlService->doRequest('get', $url, [
+				'timeout' => 5,
+				'json_headers' => false,
+				'accept_errors' => true,
+				'max_redirects' => 0,
+				'headers' => ['Accept' => 'application/json'],
+				'allow_local_address' => !str_starts_with($url, 'https://'),
+			], $contentType, $status);
+		} catch (Throwable) {
+			return null;
+		}
+		if ($status !== 200 || !is_string($contentType) || preg_match('/^application\/json(?:\s*;|$)/i', trim($contentType)) !== 1) {
+			return null;
+		}
+		$decoded = json_decode($body, true);
+
+		return is_array($decoded) ? $decoded : null;
 	}
 
 	private function wellKnownCheck(): array {
@@ -272,6 +338,39 @@ class AtprotoStatusService {
 		$ok = ($document['id'] ?? '') === $identity->did && is_string($pds) && rtrim($pds, '/') === rtrim($this->config->pdsEndpoint(), '/');
 
 		return ['id' => 'did_resolution', 'state' => $ok ? 'ok' : 'warning', 'detail' => $ok ? '' : 'The public PLC directory did not resolve an active local DID to this PDS'];
+	}
+
+	/** Whether each configured relay has synchronized an actual local repository. */
+	private function relayRepoCheck(?Identity $identity): array {
+		if ($identity === null) {
+			return ['id' => 'relay_repo', 'state' => 'warning', 'detail' => 'No active identity is available to check repository visibility on relays'];
+		}
+		$relays = $this->config->relays();
+		if ($relays === []) {
+			return ['id' => 'relay_repo', 'state' => 'warning', 'detail' => 'No relay is configured to check repository visibility'];
+		}
+
+		$state = 'ok';
+		$details = [];
+		foreach ($relays as $relay) {
+			$name = (string)parse_url($relay, PHP_URL_HOST);
+			$answer = $this->fetchAnswer($relay . '/xrpc/com.atproto.sync.getRepoStatus?did=' . rawurlencode($identity->did));
+			if (($answer['did'] ?? '') === $identity->did && ($answer['active'] ?? false) === true) {
+				$details[] = $name . ': repository active' . (isset($answer['rev']) && is_string($answer['rev']) ? ', revision ' . $answer['rev'] : '');
+				continue;
+			}
+
+			$state = 'warning';
+			if (($answer['error'] ?? '') === 'RepoNotFound') {
+				$details[] = $name . ' has not synchronized ' . $identity->handle . ' yet';
+			} elseif (($answer['did'] ?? '') === $identity->did && ($answer['active'] ?? null) === false) {
+				$details[] = $name . ' reports ' . ($answer['status'] ?? 'an inactive repository') . ' for ' . $identity->handle;
+			} else {
+				$details[] = $name . ' could not confirm repository visibility for ' . $identity->handle;
+			}
+		}
+
+		return ['id' => 'relay_repo', 'state' => $state, 'detail' => implode('; ', $details)];
 	}
 
 	private function appViewProfileCheck(?Identity $identity): array {
