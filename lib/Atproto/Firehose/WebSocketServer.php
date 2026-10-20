@@ -289,6 +289,7 @@ class WebSocketServer {
 			$this->path . '/user',
 			$this->path . '/user/notification',
 			$this->path . '/direct',
+			$this->path . '/list',
 			$this->path . '/public',
 			$this->path . '/public/local',
 			$this->path . '/public/remote',

@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
 use OCA\Social\Db\HashtagsRequest;
+use OCA\Social\Db\ListsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
@@ -19,6 +20,7 @@ use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Filter;
+use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Tools\Nid;
@@ -45,6 +47,8 @@ class MastodonStreamingDaemon {
 		private StreamRequest $streamRequest,
 		private StreamService $streamService,
 		private ConversationService $conversationService,
+		private ListsRequest $listsRequest,
+		private PostDecorationService $postDecorationService,
 		private FilterService $filterService,
 		private FeedDisplayService $feedDisplayService,
 		private NotificationPolicyService $notificationPolicyService,
@@ -110,6 +114,8 @@ class MastodonStreamingDaemon {
 				$stream = $pathStream;
 			} elseif ($path === self::PATH . '/direct') {
 				$pathStream = 'direct';
+			} elseif ($path === self::PATH . '/list') {
+				$pathStream = 'list';
 			} else {
 				$pathStream = str_ends_with($path, '/notification') ? 'user:notification' : 'user';
 			}
@@ -173,6 +179,9 @@ class MastodonStreamingDaemon {
 				&& !$this->addHashtagSubscription($subscriber, $stream, $subscriber->query['tag'] ?? '')) {
 				return false;
 			}
+			if ($stream === 'list' && !$this->addListSubscription($subscriber, $subscriber->query['list'] ?? '')) {
+				return false;
+			}
 			return true;
 		} catch (ClientNotFoundException|ActorDoesNotExistException $e) {
 			return false;
@@ -183,7 +192,7 @@ class MastodonStreamingDaemon {
 	}
 
 	private function supportsStream(string $stream): bool {
-		return in_array($stream, ['user', 'user:notification', 'direct', 'hashtag', 'hashtag:local', ...self::PUBLIC_STREAMS], true);
+		return in_array($stream, ['user', 'user:notification', 'direct', 'list', 'hashtag', 'hashtag:local', ...self::PUBLIC_STREAMS], true);
 	}
 
 	private function onMessage(Subscriber $subscriber, int $opcode, string $payload): ?string {
@@ -202,6 +211,12 @@ class MastodonStreamingDaemon {
 			return $this->errorMessage($stream, 'Insufficient scope');
 		}
 		if ($message['type'] === 'subscribe') {
+			if ($stream === 'list') {
+				if (!$this->addListSubscription($subscriber, $message['list'] ?? '')) {
+					return $this->errorMessage($stream, 'A valid list owned by this account is required');
+				}
+				return null;
+			}
 			if (in_array($stream, ['hashtag', 'hashtag:local'], true)) {
 				$tag = $message['tag'] ?? '';
 				$key = $this->hashtagSubscriptionKey($stream, $tag);
@@ -218,6 +233,13 @@ class MastodonStreamingDaemon {
 			}
 			$subscriber->context['subscriptions'][$stream] = true;
 		} else {
+			if ($stream === 'list') {
+				$listId = $this->listId($message['list'] ?? '');
+				if ($listId !== null && ($subscriber->context['listSubscription']['id'] ?? null) === $listId) {
+					unset($subscriber->context['listSubscription'], $subscriber->context['subscriptions']['list']);
+				}
+				return null;
+			}
 			if (in_array($stream, ['hashtag', 'hashtag:local'], true)) {
 				$key = $this->hashtagSubscriptionKey($stream, $message['tag'] ?? '');
 				if ($key !== '') {
@@ -286,7 +308,7 @@ class MastodonStreamingDaemon {
 		if (in_array('read', $scopes, true)) {
 			return true;
 		}
-		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct'], true)) {
+		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct', 'list'], true)) {
 			return in_array('read:statuses', $scopes, true);
 		}
 
@@ -306,7 +328,7 @@ class MastodonStreamingDaemon {
 		if (in_array('read', $scopes, true)) {
 			return true;
 		}
-		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct'], true)) {
+		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct', 'list'], true)) {
 			return in_array('read:statuses', $scopes, true);
 		}
 
@@ -345,6 +367,9 @@ class MastodonStreamingDaemon {
 		if (isset($subscriptions['direct'])) {
 			$this->sendDirectConversations($server, $subscriber, $viewer);
 		}
+		if (isset($subscriptions['list'])) {
+			$this->sendListStatuses($server, $subscriber, $viewer);
+		}
 		foreach (self::PUBLIC_STREAMS as $stream) {
 			if (isset($subscriptions[$stream])) {
 				$this->sendPublicStatuses($server, $subscriber, $viewer, $stream);
@@ -381,6 +406,74 @@ class MastodonStreamingDaemon {
 				return;
 			}
 		}
+	}
+
+	private function sendListStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
+		$subscription = $subscriber->context['listSubscription'] ?? null;
+		if (!is_array($subscription) || !(($subscription['list'] ?? null) instanceof MastodonList)) {
+			$server->close($subscriber, 'invalid list stream state');
+			return;
+		}
+		$list = $subscription['list'];
+		$this->sendPages($server, $subscriber, 'listSince', function (string $since) use ($viewer, $list): array {
+			$this->listsRequest->setViewer($viewer);
+			$options = (new ProbeOptions())
+				->setFormat(ACore::FORMAT_LOCAL)
+				->setLimit(self::BATCH)
+				->setSince($since)
+				->setInverted(true);
+			$statuses = $this->listsRequest->getTimeline($list, $options);
+			$cursor = $statuses === [] ? $since : (string)$statuses[0]->getNid();
+			$hasMore = count($statuses) === self::BATCH;
+			$statuses = array_reverse($statuses);
+			$this->postDecorationService->decorate($statuses, $viewer->getId());
+			if ($this->feedDisplayService->hidesReplies($viewer->getUserId())) {
+				$statuses = array_values(array_filter($statuses, static fn (Stream $status): bool => $status->getInReplyTo() === ''));
+			}
+			return [
+				'cursor' => $cursor,
+				'items' => $this->filterService->apply($statuses, Filter::CONTEXT_HOME, $viewer),
+				'hasMore' => $hasMore,
+			];
+		}, 'update', ['list']);
+	}
+
+	private function addListSubscription(Subscriber $subscriber, mixed $rawId): bool {
+		$id = $this->listId($rawId);
+		$viewer = $subscriber->context['viewer'] ?? null;
+		if ($id === null || !$viewer instanceof Person) {
+			return false;
+		}
+		$existing = $subscriber->context['listSubscription'] ?? null;
+		if (is_array($existing) && ($existing['id'] ?? null) !== $id) {
+			return false;
+		}
+
+		try {
+			$list = $this->listsRequest->getOwnedById($viewer->getId(), $id);
+			$this->listsRequest->setViewer($viewer);
+			$options = (new ProbeOptions())->setFormat(ACore::FORMAT_LOCAL)->setLimit(1);
+			$latest = $this->listsRequest->getTimeline($list, $options);
+			$subscriber->context['listSubscription'] = [
+				'id' => $id,
+				'list' => $list,
+				'since' => isset($latest[0]) ? (string)$latest[0]->getNid() : '0',
+			];
+			$subscriber->context['listSince'] = $subscriber->context['listSubscription']['since'];
+			$subscriber->context['subscriptions']['list'] = true;
+			return true;
+		} catch (Throwable) {
+			return false;
+		}
+	}
+
+	private function listId(mixed $value): ?int {
+		if (!is_string($value) && !is_int($value)) {
+			return null;
+		}
+		$id = filter_var((string)$value, FILTER_VALIDATE_INT);
+
+		return is_int($id) && $id > 0 ? $id : null;
 	}
 
 	/** @param array{stream: string, tag: string, local: bool, since: string} $subscription */
