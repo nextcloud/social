@@ -5,7 +5,7 @@
 <template>
 	<NcModal
 		v-if="open && !editing"
-		:size="phase === 'edit' ? 'full' : 'large'"
+		size="large"
 		:name="t('social', 'New short')"
 		:closeOnClickOutside="false"
 		@close="requestClose">

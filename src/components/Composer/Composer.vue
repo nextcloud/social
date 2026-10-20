@@ -772,7 +772,7 @@ export default {
 			default: false,
 		},
 
-		/** Whether the post dialog keeps secondary controls in a disclosure. */
+		/** Whether secondary post controls stay grouped behind a disclosure. */
 		compactOptions: {
 			type: Boolean,
 			default: false,

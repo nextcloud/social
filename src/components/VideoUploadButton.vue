@@ -33,6 +33,7 @@
 				</h2>
 				<Composer
 					startExpanded
+					compactOptions
 					:initialFiles="files"
 					emojiPickerContainer=".modal-wrapper"
 					@posted="files = []" />

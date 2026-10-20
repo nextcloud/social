@@ -39,7 +39,7 @@
 			<div v-if="singlePost" class="main-post__under">
 				<PostDetails :status="singlePost" />
 				<PostReactedBy :status="singlePost" />
-				<Composer v-if="canReply" :inReplyTo="singlePost" />
+				<Composer v-if="canReply" compactOptions :inReplyTo="singlePost" />
 			</div>
 			<TimelineSkeleton v-else-if="postState === 'loading'" :count="1" />
 			<!-- a server that did not answer has not said the post is gone -->

@@ -2401,12 +2401,12 @@ in the main row; **More options** opens the less common post tools and
 publishing settings in labelled groups. The secondary controls have text
 labels as well as icons; scheduling and location share a group, followed by
 publishing settings, where language and reply policy sit beside each other.
-The **More options** toggle leads the toolbar. The dialog title carries the
-author's avatar and a **New story** action when stories are available; the
-story action opens the 24-hour short composer. Its button sits under the title
-to keep clear of the modal close control. The composer's inline author row is
-hidden there. A restored draft opens the options when it contains a
-non-default secondary setting.
+The **More options** toggle leads the toolbar in every composer, including
+inline composers on feeds, profiles, search, video pages and replies. The
+dialog title carries the author's avatar and a **New story** action beside
+the title when stories are available; the story action opens the 24-hour short
+composer. The composer's inline author row is hidden in the dialog. A restored
+draft opens the options when it contains a non-default secondary setting.
 
 **What a post says about itself.** Three controls in the same toolbar row as
 the visibility menu in the inline composer, each of them a field the client API

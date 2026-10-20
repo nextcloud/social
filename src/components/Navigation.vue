@@ -1881,9 +1881,9 @@ export default {
 
 	&__header {
 		display: flex;
-		align-items: flex-start;
-		flex-direction: column;
-		gap: 12px;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 16px;
 		margin-bottom: 12px;
 	}
 
