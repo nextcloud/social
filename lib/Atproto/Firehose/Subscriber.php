@@ -23,6 +23,10 @@ final class Subscriber {
 	public string $address = '';
 	/** the cursor the subscriber connected with; null for live only */
 	public ?int $cursor = null;
+	/** query parameters from the upgrade request */
+	public array $query = [];
+	/** lower-cased HTTP headers from the upgrade request */
+	public array $headers = [];
 	/** the last sequence number sent, so the next is the one after */
 	public int $sent = 0;
 	public int $connectedAt;

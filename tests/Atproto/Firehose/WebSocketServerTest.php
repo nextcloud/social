@@ -78,6 +78,70 @@ class WebSocketServerTest extends TestCase {
 		$this->assertStringStartsWith('HTTP/1.1 426', $this->readUntil($plain, "\r\n\r\n"));
 	}
 
+	public function testConfiguredPathCanSendTextFrames(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer($bind, WebSocketServer::MAX_SUBSCRIBERS, WebSocketServer::MAX_PER_ADDRESS, '/api/v1/streaming', false);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, (string)$error);
+			fwrite($client, "GET /api/v1/streaming HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->readUntil($client, "\r\n\r\n");
+			$server->send($ready[0], '{"event":"update"}');
+			for ($i = 0; $i < 5; $i++) {
+				$server->serve(0.05);
+			}
+			$frame = $this->readBytes($client, strlen('{"event":"update"}') + 2);
+			$this->assertSame(0x81, ord($frame[0]), 'a final text frame');
+			$this->assertSame('{"event":"update"}', substr($frame, 2));
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
+	public function testUpgradeCanBeAuthorizedFromRequestHeadersAndQuery(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			WebSocketServer::MAX_SUBSCRIBERS,
+			WebSocketServer::MAX_PER_ADDRESS,
+			'/api/v1/streaming',
+			false,
+			static fn ($subscriber): bool => ($subscriber->headers['authorization'] ?? '') === 'Bearer valid-token'
+				|| ($subscriber->query['access_token'] ?? '') === 'valid-token',
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, (string)$error);
+			fwrite($client, "GET /api/v1/streaming?access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->assertSame('valid-token', $ready[0]->query['access_token']);
+			$this->readUntil($client, "\r\n\r\n");
+			fclose($client);
+
+			$unauthorized = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($unauthorized, (string)$error);
+			fwrite($unauthorized, "GET /api/v1/streaming HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+			for ($i = 0; $i < 5; $i++) {
+				$server->serve(0.05);
+			}
+			$this->assertStringStartsWith('HTTP/1.1 401', $this->readUntil($unauthorized, "\r\n\r\n"));
+			$this->assertCount(0, $server->subscribers());
+			fclose($unauthorized);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
 	public function testFramesAreEncodedForEveryLength(): void {
 		$this->assertSame("\x82\x05hello", WebSocketServer::frame(0x2, 'hello'));
 		$long = str_repeat('x', 300);

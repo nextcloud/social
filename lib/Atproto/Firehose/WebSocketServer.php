@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Firehose;
 
+use Closure;
 use RuntimeException;
 
 /**
@@ -42,6 +43,7 @@ class WebSocketServer {
 	private const OPCODE_PONG = 0xA;
 	private const CLOSE_NORMAL = 1000;
 	private const CLOSE_PROTOCOL_ERROR = 1002;
+	private int $dataOpcode;
 
 	/** @var resource */
 	private $socket;
@@ -52,7 +54,11 @@ class WebSocketServer {
 		private readonly string $bind,
 		private readonly int $maxSubscribers = self::MAX_SUBSCRIBERS,
 		private readonly int $maxPerAddress = self::MAX_PER_ADDRESS,
+		private readonly string $path = self::PATH,
+		bool $binaryFrames = true,
+		private readonly ?Closure $authorize = null,
 	) {
+		$this->dataOpcode = $binaryFrames ? self::OPCODE_BINARY : 0x1;
 		$socket = @stream_socket_server('tcp://' . $bind, $errno, $error);
 		if ($socket === false) {
 			throw new RuntimeException('Cannot listen on ' . $bind . ': ' . $error);
@@ -119,7 +125,7 @@ class WebSocketServer {
 		if ($subscriber->closed) {
 			return;
 		}
-		$subscriber->output .= self::frame(self::OPCODE_BINARY, $payload);
+		$subscriber->output .= self::frame($this->dataOpcode, $payload);
 		if (strlen($subscriber->output) > self::OUTPUT_LIMIT) {
 			$this->close($subscriber, 'too slow');
 
@@ -256,7 +262,7 @@ class WebSocketServer {
 		$url = parse_url($m[1]);
 		$path = is_array($url) ? ($url['path'] ?? '') : '';
 		$path = (string)preg_replace('#^/index\.php/apps/social#', '', $path);
-		if ($path !== self::PATH) {
+		if ($path !== $this->path) {
 			$this->refuse($subscriber, 404, 'Not Found');
 
 			return false;
@@ -274,8 +280,14 @@ class WebSocketServer {
 
 			return false;
 		}
-		parse_str(is_array($url) ? ($url['query'] ?? '') : '', $query);
-		$cursor = $query['cursor'] ?? null;
+		parse_str(is_array($url) ? ($url['query'] ?? '') : '', $subscriber->query);
+		$subscriber->headers = $headers;
+		if ($this->authorize !== null && !($this->authorize)($subscriber)) {
+			$this->refuse($subscriber, 401, 'Unauthorized');
+
+			return false;
+		}
+		$cursor = $subscriber->query['cursor'] ?? null;
 		$subscriber->cursor = is_string($cursor) && ctype_digit($cursor) ? (int)$cursor : null;
 		$accept = base64_encode(sha1($key . self::GUID, true));
 		$subscriber->output .= "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " . $accept . "\r\n\r\n";
