@@ -9,11 +9,15 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Atproto\Service;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\KeySealService;
+use OCA\Social\Atproto\Model\Identity;
+use OCA\Social\Atproto\Model\StoredRecord;
+use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Service\AtprotoStatusService;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -41,6 +45,11 @@ class AtprotoStatusServiceTest extends TestCase {
 		$config->method('relays')->willReturn($relays);
 		$curl = $this->createMock(CurlService::class);
 		$curl->method('doRequest')->willReturnCallback(function (string $verb, string $url, array $options, &$contentType, &$status): string {
+			if (str_ends_with($url, '/xrpc/com.atproto.sync.subscribeRepos')) {
+				$status = 426;
+
+				return '';
+			}
 			foreach ($this->relayAnswers as $relay => $answer) {
 				if (str_starts_with($url, $relay . '/xrpc/com.atproto.sync.getHostStatus?hostname=social.example')) {
 					$status = str_contains($answer, 'HostNotFound') ? 400 : 200;
@@ -108,5 +117,54 @@ class AtprotoStatusServiceTest extends TestCase {
 
 	public function testNoRelayIsAWarning(): void {
 		$this->assertSame('warning', $this->relayCheck([])['state']);
+	}
+
+	public function testHttp426DoesNotClaimTheFirehoseWebsocketIsProxied(): void {
+		$firehose = array_values(array_filter($this->service([])->checks(true), static fn (array $check): bool => $check['id'] === 'firehose'))[0];
+
+		$this->assertSame('warning', $firehose['state']);
+		$this->assertStringContainsString('cannot prove the WebSocket upgrade reaches the daemon', $firehose['detail']);
+	}
+
+	public function testPublicDidProfileAndPostVisibilityAreChecked(): void {
+		$identity = new Identity(1, 'https://social.example/users/alice', 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'alice.social.example', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$identities = $this->createMock(IdentityService::class);
+		$identities->method('firstActive')->willReturn($identity);
+		$record = new StoredRecord($identity->did, 'app.bsky.feed.post', '3kabc', Cid::parse('bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'), '', '1', 1);
+		$records = $this->createMock(AtprotoRepoRequest::class);
+		$records->method('latestActivePost')->willReturn($record);
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$config->method('pdsEndpoint')->willReturn('https://social.example');
+		$config->method('handleHost')->willReturn('social.example');
+		$config->method('plcDirectory')->willReturn('https://plc.directory');
+		$config->method('relays')->willReturn([]);
+		$curl = $this->createMock(CurlService::class);
+		$curl->method('doRequest')->willReturnCallback(static function (string $verb, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+			if ($url === 'https://plc.directory/' . rawurlencode('did:plc:ewvi7nxzyoun6zhxrhs64oiz')) {
+				return json_encode(['id' => 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'https://social.example']]]);
+			}
+			$status = 404;
+
+			return '';
+		});
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(static function (string $method, array $params): array {
+			if ($method === 'app.bsky.actor.getProfile') {
+				return ['did' => $params['actor']];
+			}
+			return ['thread' => ['post' => ['uri' => $params['uri']]]];
+		});
+		$cacheFactory = $this->createMock(ICacheFactory::class);
+		$cacheFactory->method('createDistributed')->willReturn($this->createMock(ICache::class));
+		$daemon = $this->createMock(FirehoseDaemon::class);
+		$daemon->method('status')->willReturn(['running' => true]);
+		$status = new AtprotoStatusService($config, $this->createMock(ConfigService::class), $identities, $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $records, $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, null, $appView);
+		$checks = array_column($status->checks(true), null, 'id');
+
+		$this->assertSame('ok', $checks['did_resolution']['state']);
+		$this->assertSame('ok', $checks['appview_profile']['state']);
+		$this->assertSame('ok', $checks['appview_post']['state']);
 	}
 }

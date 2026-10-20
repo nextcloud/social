@@ -97,6 +97,20 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->assertCount(1, $this->repoRequest->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_COMMIT));
 	}
 
+	public function testHealthProbeSelectsTheNewestPostOnlyFromAnActiveIdentity(): void {
+		$this->identityRequest->create(self::ACTOR, self::DID, 'atproto-integration.nextcloud.test', 'sealed', 'did:key:zQ3sh', '');
+		$this->repositories->write(self::DID, $this->key, [
+			RepoWrite::create('app.bsky.feed.post', ['$type' => 'app.bsky.feed.post', 'text' => 'health probe', 'createdAt' => '2026-10-08T10:00:00.000Z'], self::ACTOR . '/health', '3khealthprobe1'),
+		]);
+
+		$this->assertNull($this->repoRequest->latestActivePost(), 'a pending DID is not a public account');
+		$this->assertNull($this->identityRequest->firstActive(), 'the health probe skips pending identities');
+		$this->identityRequest->setState(self::DID, 'active');
+
+		$this->assertSame(self::DID, $this->identityRequest->firstActive()?->did);
+		$this->assertSame('at://' . self::DID . '/app.bsky.feed.post/3khealthprobe1', $this->repoRequest->latestActivePost()?->uri());
+	}
+
 	/**
 	 * The head row is read with a row lock at the start of a commit, which
 	 * the database must accept in a transaction: the lock holds the second

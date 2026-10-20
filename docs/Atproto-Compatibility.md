@@ -2042,6 +2042,23 @@ window), the PDS/DID blocklist (§12.4), and the state of
 each daemon (last frame served, last event seen, pid, uptime). The same
 numbers on the Statistics page's agency view, labelled.
 
+Every 15 minutes, a background health check refreshes externally observable
+checks and caches them for the admin page: the PLC directory must resolve an
+active local DID to this PDS, and the configured public AppView must resolve an
+active profile and the newest locally stored post. Relay crawling and AppView
+indexing are asynchronous, so a missing profile or post is shown as a warning
+with diagnostic guidance; it does not block enabling the PDS. With no active
+identity or no local post, the corresponding check says it could not verify
+that capability instead of reporting success. These checks establish
+reachability and visibility for the sampled identity and post, not universal
+indexing by every Bluesky relay or AppView.
+
+The firehose HTTP route currently answers `426` to a normal HTTP request. Since
+the app and daemon can both answer that status, this is not evidence that the
+public WebSocket upgrade reaches the daemon. The admin check reports this as a
+warning and asks the operator to verify the upgrade externally rather than
+showing a misleading green result.
+
 ### 14.3 Commands
 
 `social:atproto:serve` (§7.1), `social:atproto:listen` (§9.4),

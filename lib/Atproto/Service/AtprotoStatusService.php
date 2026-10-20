@@ -9,11 +9,13 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Service;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\Identity\InstanceKeyService;
 use OCA\Social\Atproto\Identity\KeySealService;
+use OCA\Social\Atproto\Model\Identity;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Reader\Jetstream\JetstreamListener;
 use OCA\Social\Db\AtprotoRepoRequest;
@@ -55,6 +57,7 @@ class AtprotoStatusService {
 		private ?Blocklist $blocklist = null,
 		private ?JetstreamListener $listener = null,
 		private ?KeySealService $keySeals = null,
+		private ?AppViewClient $appView = null,
 	) {
 	}
 
@@ -120,6 +123,10 @@ class AtprotoStatusService {
 		];
 		$checks[] = $this->firehoseCheck();
 		$checks[] = $this->relayCheck();
+		$identity = $this->identities->firstActive();
+		$checks[] = $this->didResolutionCheck($identity);
+		$checks[] = $this->appViewProfileCheck($identity);
+		$checks[] = $this->appViewPostCheck();
 		if ($this->keySeals !== null) {
 			$checks[] = $this->keysCheck();
 		}
@@ -199,12 +206,14 @@ class AtprotoStatusService {
 		// without the upgrade the daemon answers 426; the app answers 426 too,
 		// so a 426 says only that something is there — the daemon check says
 		// whether it is the daemon
-		$ok = $status === 426;
+		$responds = $status === 426;
 
 		return [
 			'id' => 'firehose',
-			'state' => $ok ? 'ok' : 'error',
-			'detail' => $ok ? '' : $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . (int)$status . '): the web server must proxy the WebSocket to the daemon',
+			'state' => $responds ? 'warning' : 'error',
+			'detail' => $responds
+				? 'The endpoint answers HTTP 426, but this check cannot prove the WebSocket upgrade reaches the daemon; verify it from outside the server'
+				: $endpoint . '/xrpc/com.atproto.sync.subscribeRepos is not served (' . (int)$status . '): the web server must proxy the WebSocket to the daemon',
 		];
 	}
 
@@ -242,6 +251,54 @@ class AtprotoStatusService {
 		}
 
 		return ['id' => 'relay_host', 'state' => $state, 'detail' => implode('; ', $details)];
+	}
+
+	private function didResolutionCheck(?Identity $identity): array {
+		if ($identity === null) {
+			return ['id' => 'did_resolution', 'state' => 'warning', 'detail' => 'No active identity is available for a public DID resolution check'];
+		}
+		$document = $this->fetch($this->config->plcDirectory() . '/' . rawurlencode($identity->did));
+		$services = is_array($document['service'] ?? null) ? $document['service'] : [];
+		$pds = null;
+		foreach ($services as $service) {
+			if (is_array($service) && ($service['id'] ?? '') === '#atproto_pds') {
+				$pds = $service['serviceEndpoint'] ?? null;
+				break;
+			}
+		}
+		$ok = ($document['id'] ?? '') === $identity->did && is_string($pds) && rtrim($pds, '/') === rtrim($this->config->pdsEndpoint(), '/');
+
+		return ['id' => 'did_resolution', 'state' => $ok ? 'ok' : 'warning', 'detail' => $ok ? '' : 'The public PLC directory did not resolve an active local DID to this PDS'];
+	}
+
+	private function appViewProfileCheck(?Identity $identity): array {
+		if ($identity === null || $this->appView === null) {
+			return ['id' => 'appview_profile', 'state' => 'warning', 'detail' => 'No active identity or public AppView client is available for this check'];
+		}
+		try {
+			$profile = $this->appView->query('app.bsky.actor.getProfile', ['actor' => $identity->did]);
+			$ok = ($profile['did'] ?? '') === $identity->did;
+		} catch (Throwable) {
+			$ok = false;
+		}
+
+		return ['id' => 'appview_profile', 'state' => $ok ? 'ok' : 'warning', 'detail' => $ok ? '' : 'The public AppView cannot currently resolve an active local profile; check relay crawling and allow indexing time'];
+	}
+
+	private function appViewPostCheck(): array {
+		$record = $this->repoRequest->latestActivePost();
+		if ($record === null || $this->appView === null) {
+			return ['id' => 'appview_post', 'state' => 'warning', 'detail' => 'No active local post or public AppView client is available to verify post indexing'];
+		}
+		try {
+			$answer = $this->appView->query('app.bsky.feed.getPostThread', ['uri' => $record->uri(), 'depth' => 0]);
+			$post = $answer['thread']['post']['uri'] ?? '';
+			$ok = $post === $record->uri();
+		} catch (Throwable) {
+			$ok = false;
+		}
+
+		return ['id' => 'appview_post', 'state' => $ok ? 'ok' : 'warning', 'detail' => $ok ? '' : 'The public AppView does not yet show the newest local post; check relay/firehose reachability and allow indexing time'];
 	}
 
 	/**

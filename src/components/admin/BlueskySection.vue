@@ -498,9 +498,15 @@ export default {
 				case 'daemon':
 					return t('social', 'Firehose daemon')
 				case 'firehose':
-					return t('social', 'Firehose proxied')
+					return t('social', 'Firehose upgrade route responds')
 				case 'relay_host':
 					return t('social', 'Relays carry this server')
+				case 'did_resolution':
+					return t('social', 'Public DID resolution')
+				case 'appview_profile':
+					return t('social', 'Bluesky can find a local profile')
+				case 'appview_post':
+					return t('social', 'Bluesky can find a local post')
 				case 'keys':
 					return t('social', 'Keys open with the instance secret')
 				default:
