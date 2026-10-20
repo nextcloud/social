@@ -37,6 +37,7 @@ class AtprotoAppsTest extends TestCase {
 	private DevNetwork $network;
 	private LocalAccount $alice;
 
+	#[\Override]
 	protected function setUp(): void {
 		$network = DevNetwork::fromEnvironment();
 		if ($network === null) {
@@ -197,6 +198,6 @@ class AtprotoAppsTest extends TestCase {
 			'mayPublish' => Server::get(AccountService::class)->mayPublish($actor, IAccountManager::PROPERTY_AVATAR),
 			'custom' => $avatar->isCustomAvatar(),
 			'blob' => $blob,
-		]);
+		]) ?: '';
 	}
 }
