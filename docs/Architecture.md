@@ -480,7 +480,9 @@ copy in app storage; the original stays where it was, untouched.
 SSE endpoints, on a separate long-running process. It requires a user-authorized token with
 `read` or `read:statuses` for public streams; user streams require `read` or
 both `read:statuses` and `read:notifications`; direct streams require `read`
-or `read:statuses`; list streams require `read:statuses` and an owned list.
+or `read:statuses`; list streams require `read:statuses` and owned lists. A
+WebSocket subscriber may keep up to 20 lists active at once; each has its own
+cursor and can be unsubscribed independently.
 Once per second it reads the
 same timelines used by the REST API, applies the viewer's filters, reply
 visibility and notification policy, and emits Mastodon's event payloads.

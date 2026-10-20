@@ -37,6 +37,7 @@ class MastodonStreamingDaemon {
 	private const PING_INTERVAL = 20;
 	private const BATCH = 50;
 	private const MAX_HASHTAG_SUBSCRIPTIONS = 20;
+	private const MAX_LIST_SUBSCRIPTIONS = 20;
 	private const MAX_BATCHES_PER_POLL = 10;
 	private const PUBLIC_STREAMS = ['public', 'public:media', 'public:local', 'public:local:media', 'public:remote', 'public:remote:media'];
 	private bool $stopping = false;
@@ -235,8 +236,11 @@ class MastodonStreamingDaemon {
 		} else {
 			if ($stream === 'list') {
 				$listId = $this->listId($message['list'] ?? '');
-				if ($listId !== null && ($subscriber->context['listSubscription']['id'] ?? null) === $listId) {
-					unset($subscriber->context['listSubscription'], $subscriber->context['subscriptions']['list']);
+				if ($listId !== null && isset($subscriber->context['listSubscriptions'][$listId])) {
+					unset($subscriber->context['listSubscriptions'][$listId], $subscriber->context['listSince:' . $listId]);
+					if (($subscriber->context['listSubscriptions'] ?? []) === []) {
+						unset($subscriber->context['listSubscriptions'], $subscriber->context['subscriptions']['list']);
+					}
 				}
 				return null;
 			}
@@ -368,7 +372,11 @@ class MastodonStreamingDaemon {
 			$this->sendDirectConversations($server, $subscriber, $viewer);
 		}
 		if (isset($subscriptions['list'])) {
-			$this->sendListStatuses($server, $subscriber, $viewer);
+			foreach ($subscriber->context['listSubscriptions'] ?? [] as $id => $subscription) {
+				if (is_array($subscription)) {
+					$this->sendListStatuses($server, $subscriber, $viewer, (int)$id, $subscription);
+				}
+			}
 		}
 		foreach (self::PUBLIC_STREAMS as $stream) {
 			if (isset($subscriptions[$stream])) {
@@ -408,14 +416,13 @@ class MastodonStreamingDaemon {
 		}
 	}
 
-	private function sendListStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
-		$subscription = $subscriber->context['listSubscription'] ?? null;
-		if (!is_array($subscription) || !(($subscription['list'] ?? null) instanceof MastodonList)) {
+	private function sendListStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer, int $id, array $subscription): void {
+		if (!(($subscription['list'] ?? null) instanceof MastodonList)) {
 			$server->close($subscriber, 'invalid list stream state');
 			return;
 		}
 		$list = $subscription['list'];
-		$this->sendPages($server, $subscriber, 'listSince', function (string $since) use ($viewer, $list): array {
+		$this->sendPages($server, $subscriber, 'listSince:' . $id, function (string $since) use ($viewer, $list): array {
 			$this->listsRequest->setViewer($viewer);
 			$options = (new ProbeOptions())
 				->setFormat(ACore::FORMAT_LOCAL)
@@ -444,8 +451,14 @@ class MastodonStreamingDaemon {
 		if ($id === null || !$viewer instanceof Person) {
 			return false;
 		}
-		$existing = $subscriber->context['listSubscription'] ?? null;
-		if (is_array($existing) && ($existing['id'] ?? null) !== $id) {
+		$subscriptions = $subscriber->context['listSubscriptions'] ?? [];
+		if (!is_array($subscriptions)) {
+			$subscriptions = [];
+		}
+		if (isset($subscriptions[$id])) {
+			return true;
+		}
+		if (count($subscriptions) >= self::MAX_LIST_SUBSCRIPTIONS) {
 			return false;
 		}
 
@@ -454,12 +467,12 @@ class MastodonStreamingDaemon {
 			$this->listsRequest->setViewer($viewer);
 			$options = (new ProbeOptions())->setFormat(ACore::FORMAT_LOCAL)->setLimit(1);
 			$latest = $this->listsRequest->getTimeline($list, $options);
-			$subscriber->context['listSubscription'] = [
+			$subscriber->context['listSubscriptions'][$id] = [
 				'id' => $id,
 				'list' => $list,
 				'since' => isset($latest[0]) ? (string)$latest[0]->getNid() : '0',
 			];
-			$subscriber->context['listSince'] = $subscriber->context['listSubscription']['since'];
+			$subscriber->context['listSince:' . $id] = $subscriber->context['listSubscriptions'][$id]['since'];
 			$subscriber->context['subscriptions']['list'] = true;
 			return true;
 		} catch (Throwable) {
