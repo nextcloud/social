@@ -1473,11 +1473,12 @@ its record. A blocked Bluesky account's interactions are dropped on
 arrival either way.
 
 Thread notification mutes (`app.bsky.graph.muteThread` and
-`unmuteThread`) are also private AppView preferences. When a signed-in
-Bluesky app changes one, Social mirrors it to `social_convo_state` after the
-AppView accepts it, so locally stored replies stop or resume raising
-notifications. A root that is not stored here cannot be mirrored; Bluesky
-still owns the preference and its behavior in Bluesky clients.
+`unmuteThread`) are private AppView preferences. A signed-in Bluesky app's
+accepted change is mirrored to `social_convo_state`; a mute or unmute made in
+Social is sent to the AppView for a linked Bluesky identity. This keeps both
+clients from disagreeing about locally stored replies. A root that is not
+stored here cannot be mirrored locally; Bluesky still owns the preference
+and its behavior in Bluesky clients.
 
 A Bluesky user's block *of* a local account (`app.bsky.graph.block` in
 their repository, subject the local DID) is never delivered here, and the

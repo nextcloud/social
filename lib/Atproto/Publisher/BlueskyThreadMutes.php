@@ -9,11 +9,16 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Publisher;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Client\ClientSession;
+use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
+use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\AccountService;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -28,6 +33,8 @@ class BlueskyThreadMutes {
 	public const UNMUTE = 'app.bsky.graph.unmuteThread';
 
 	public function __construct(
+		private AppViewClient $appView,
+		private IdentityService $identities,
 		private AccountService $accounts,
 		private StreamRequest $streams,
 		private ConversationsRequest $conversations,
@@ -38,7 +45,7 @@ class BlueskyThreadMutes {
 	/** Apply a successful thread mute or unmute made through a Bluesky app. */
 	public function fromApp(ClientSession $session, string $method, array $body): void {
 		$uri = (string)($body['root'] ?? '');
-		$postId = \OCA\Social\Atproto\Reader\BlueskyIds::postIdOfUri($uri);
+		$postId = BlueskyIds::postIdOfUri($uri);
 		if ($postId === '') {
 			return;
 		}
@@ -55,6 +62,25 @@ class BlueskyThreadMutes {
 			return;
 		} catch (Throwable $e) {
 			$this->logger->info('A Bluesky thread mute was not mirrored here', ['method' => $method, 'uri' => $uri, 'exception' => $e]);
+		}
+	}
+
+	/** Tell Bluesky about a local mute or unmute of a Bluesky thread. */
+	public function fromSocial(Person $viewer, Stream $post, bool $muted): void {
+		try {
+			$root = BlueskyIds::parsePostId($this->conversations->rootOf($post->getId()));
+			$identity = $root === null ? null : $this->identities->activeForActor($viewer);
+			if ($root === null || $identity === null) {
+				return;
+			}
+			$this->appView->procedureAs(
+				$identity->did,
+				$this->identities->signingKey($identity),
+				$muted ? self::MUTE : self::UNMUTE,
+				['root' => BlueskyIds::atUri($root['did'], BlueskyIds::POST, $root['rkey'])]
+			);
+		} catch (Throwable $e) {
+			$this->logger->warning('Thread mute not told to Bluesky', ['post' => $post->getId(), 'muted' => $muted, 'exception' => $e]);
 		}
 	}
 }

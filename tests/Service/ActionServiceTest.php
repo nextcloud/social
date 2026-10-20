@@ -225,6 +225,27 @@ class ActionServiceTest extends TestCase {
 		$this->assertSame($this->post->getId(), $this->mutes[0]['rootId']);
 	}
 
+	public function testThreadMuteActionsArePassedToTheBlueskyBridge(): void {
+		$postId = 'https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k';
+		$this->post->setId($postId);
+		$this->streamService->method('getStreamByNid')->willReturn($this->post);
+		$this->threadRoot = $postId;
+		$sentMutes = [];
+		$threadMutes = $this->createMock(\OCA\Social\Atproto\Publisher\BlueskyThreadMutes::class);
+		$threadMutes->expects($this->exactly(2))->method('fromSocial')->willReturnCallback(function (Person $actor, Note $post, bool $muted) use ($postId, &$sentMutes): void {
+			$this->assertSame($this->actor, $actor);
+			$this->assertSame($postId, $post->getId());
+			$sentMutes[] = $muted;
+		});
+		$container = $this->createMock(\Psr\Container\ContainerInterface::class);
+		$container->method('get')->willReturn($threadMutes);
+		$service = new ActionService($this->streamService, $this->boostService, $this->likeService, $this->streamActionService, $this->pinService, $this->actionsRequest, $this->conversationsRequest, $this->dislikeService, $this->interestService, $container);
+
+		$service->action($this->actor, 42, 'mute');
+		$service->action($this->actor, 42, 'unmute');
+		$this->assertSame([true, false], $sentMutes);
+	}
+
 	public function testPinAndUnpinAreHandedToThePinService(): void {
 		$pinned = clone $this->post;
 		$this->pinService->expects($this->once())->method('pin')
