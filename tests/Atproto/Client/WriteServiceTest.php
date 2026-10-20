@@ -21,6 +21,7 @@ use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\DagCbor;
+use OCA\Social\Atproto\Protocol\Tid;
 use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Atproto\Publisher\PictureService;
@@ -285,6 +286,46 @@ class WriteServiceTest extends TestCase {
 
 		$this->writes->delete($this->session, ['repo' => self::DID, 'collection' => 'app.bsky.graph.list', 'rkey' => $rkey]);
 		$this->assertSame([], $this->records);
+	}
+
+	public function testApplyWritesStoresKeptRecordsInOneCommit(): void {
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 2))->willReturnCallback(function (string $did, $key, array $writes): CommitResult {
+			foreach ($writes as $write) {
+				$bytes = DagCbor::encode($write->record);
+				$this->records[] = new StoredRecord($did, $write->collection, $write->rkey, Cid::forDagCbor($bytes), $bytes, $write->localId, 0);
+			}
+
+			return new CommitResult($did, Cid::forRaw('batch commit'), '3kbatch', 1, []);
+		});
+		$list = static fn (string $name): array => ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => $name, 'createdAt' => '2026-10-09T10:00:00.000Z'];
+		$firstRkey = Tid::next();
+		$secondRkey = Tid::next();
+
+		$answer = $this->writes->apply($this->session, ['repo' => self::DID, 'writes' => [
+			['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => $firstRkey, 'value' => $list('Friends')],
+			['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => $secondRkey, 'value' => $list('Family')],
+		]]);
+
+		$this->assertCount(2, $answer['results']);
+		$this->assertSame('at://' . self::DID . '/app.bsky.graph.list/' . $firstRkey, $answer['results'][0]['uri']);
+		$this->assertSame('valid', $answer['results'][1]['validationStatus']);
+	}
+
+	public function testInvalidKeptRecordBatchDoesNotWriteEarlierItems(): void {
+		$this->repositories->expects($this->never())->method('write');
+		$list = ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => 'Friends', 'createdAt' => '2026-10-09T10:00:00.000Z'];
+		$firstRkey = Tid::next();
+		$secondRkey = Tid::next();
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => $firstRkey, 'value' => $list],
+				['$type' => 'com.atproto.repo.applyWrites#unknown', 'collection' => 'app.bsky.graph.list', 'rkey' => $secondRkey, 'value' => $list],
+			]]);
+			$this->fail('unknown write types must be rejected');
+		} catch (XrpcException $e) {
+			$this->assertSame(400, $e->status);
+		}
 	}
 
 	public function testAListAndItsMembersAnAppWritesAreTheListHereToo(): void {

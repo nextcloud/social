@@ -2569,14 +2569,19 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   with a link). `putRecord` of the profile sets the display name and bio;
   of `chat.bsky.actor.declaration` (as `createRecord` of it) sets who may
   send direct messages here, which writes the record (§10.1).
-  `deleteRecord` undoes the action. `applyWrites` does the same one by one,
-  not in one commit. Lists and their members, starter packs, feed
-  generators, thread gates and post gates have no Social counterpart and
-  are kept as the app wrote them, validated against their lexicon; a gate
-  only for one of the account's own posts, under that post's key. A block
-  is a block here, published, when the person publishes their blocks, and
-  refused while they do not; a list block an app writes is refused (D16):
-  lists are subscribed to from Settings → Blocking (§12.5). `uploadBlob` stores a picture as any upload is, named by its CID,
+  `deleteRecord` undoes the action. `applyWrites` keeps a batch of
+  repository-native records (lists and their members, starter packs, feed
+  generators, thread gates and post gates) in one repository commit, and
+  rejects an invalid batch before writing any of it. Batches containing
+  Social actions still run those actions one by one, so a later failure can
+  leave an earlier Social action applied. Those repository-native record
+  types have no Social counterpart and are kept as the app wrote them,
+  validated against their lexicon; a gate only for one of the account's own
+  posts, under that post's key. A block is a block here, published, when the
+  person publishes their blocks, and refused while they do not; a list block
+  an app writes is refused (D16): lists are subscribed to from Settings →
+  Blocking (§12.5). `uploadBlob` stores a picture as any upload is, named by
+  its CID,
   for the post that uses it. A report an app files is a report here, passed
   on in this server's name (3b).
 - The app's profile editor sets the avatar and the banner too: a picture

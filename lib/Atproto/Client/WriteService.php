@@ -342,6 +342,10 @@ class WriteService {
 		if (!is_array($writes) || !array_is_list($writes) || count($writes) > 10) {
 			throw XrpcException::invalidRequest('writes must be a list of at most 10');
 		}
+		if ($writes !== [] && count(array_filter($writes, static fn (mixed $write): bool => is_array($write)
+			&& in_array((string)($write['collection'] ?? ''), self::KEPT_AS_WRITTEN, true))) === count($writes)) {
+			return $this->applyKept($session, $writes);
+		}
 		$results = [];
 		foreach ($writes as $write) {
 			$type = (string)($write['$type'] ?? '');
@@ -355,6 +359,91 @@ class WriteService {
 				$results[] = ['$type' => 'com.atproto.repo.applyWrites#updateResult'] + array_intersect_key($this->put($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
 			} else {
 				throw XrpcException::invalidRequest('Unknown write ' . $type);
+			}
+		}
+
+		return ['commit' => $this->commit($session), 'results' => $results];
+	}
+
+	/**
+	 * Keep app-owned records in one repository commit. These records have no
+	 * ActivityPub action to perform, so their batch can use the repository's
+	 * transaction directly.
+	 *
+	 * @param array<array<string, mixed>> $writes
+	 * @throws XrpcException
+	 */
+	private function applyKept(ClientSession $session, array $writes): array {
+		$repoWrites = [];
+		$results = [];
+		$sync = [];
+		$paths = [];
+		foreach ($writes as $write) {
+			$type = (string)($write['$type'] ?? '');
+			$collection = (string)($write['collection'] ?? '');
+			$rkey = (string)($write['rkey'] ?? '');
+			$record = is_array($write['value'] ?? null) ? DagCbor::fromLexJson($write['value']) : [];
+			if (!in_array($type, ['com.atproto.repo.applyWrites#create', 'com.atproto.repo.applyWrites#update', 'com.atproto.repo.applyWrites#delete'], true)) {
+				throw XrpcException::invalidRequest('Unknown write ' . $type);
+			}
+			if ($type !== 'com.atproto.repo.applyWrites#delete' && ($record['$type'] ?? $collection) !== $collection) {
+				throw XrpcException::invalidRequest('The record is not of its collection');
+			}
+			$record['$type'] = $collection;
+			if (in_array($collection, self::GATES, true) && $type !== 'com.atproto.repo.applyWrites#delete') {
+				$gated = Syntax::parseAtUri((string)($record['post'] ?? ''));
+				if ($gated === null || $gated['authority'] !== $session->identity->did || $gated['collection'] !== RecordMapper::POST || ($rkey !== '' && $rkey !== $gated['rkey'])) {
+					throw XrpcException::invalidRequest('A gate is kept under the key of one of the account\'s own posts');
+				}
+				$rkey = $gated['rkey'];
+			}
+			$rkey = $rkey !== '' ? $rkey : Tid::next();
+			$path = $collection . '/' . $rkey;
+			if (isset($paths[$path])) {
+				throw XrpcException::invalidRequest('A batch may change a record only once');
+			}
+			$paths[$path] = true;
+			$previous = $this->repositories->getRecord($session->identity->did, $collection, $rkey);
+			if ($type === 'com.atproto.repo.applyWrites#delete') {
+				if ($previous !== null) {
+					$repoWrites[] = RepoWrite::delete($collection, $rkey);
+					$sync[] = [$previous, true, null];
+				}
+				$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
+				continue;
+			}
+			if ($type === 'com.atproto.repo.applyWrites#create') {
+				if ($previous !== null) {
+					throw XrpcException::invalidRequest('A record already exists at ' . $path);
+				}
+				$repoWrites[] = RepoWrite::create($collection, $record, '', $rkey);
+			} else {
+				if ($previous === null) {
+					throw XrpcException::invalidRequest('No record at ' . $path . ' to update');
+				}
+				$repoWrites[] = RepoWrite::update($collection, $rkey, $record, $previous->localId);
+			}
+			$resultIndex = count($results);
+			$results[] = ['uri' => 'at://' . $session->identity->did . '/' . $path, '$type' => $type . 'Result'];
+			$sync[] = [[$collection, $rkey], false, $resultIndex];
+		}
+		if ($repoWrites !== []) {
+			try {
+				$this->repositories->write($session->identity->did, $this->identities->signingKey($session->identity), $repoWrites);
+			} catch (AtprotoException $e) {
+				throw XrpcException::invalidRequest($e->getMessage());
+			}
+		}
+		foreach ($sync as [$target, $deleted, $resultIndex]) {
+			$stored = $deleted ? $target : $this->repositories->getRecord($session->identity->did, $target[0], $target[1]);
+			if ($stored instanceof StoredRecord) {
+				if ($deleted) {
+					$this->listChanged($session, $stored, true);
+				} else {
+					$results[$resultIndex]['cid'] = $stored->cid->toString();
+					$results[$resultIndex]['validationStatus'] = 'valid';
+					$this->listChanged($session, $stored, false);
+				}
 			}
 		}
 

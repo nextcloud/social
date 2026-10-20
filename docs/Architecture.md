@@ -2167,6 +2167,12 @@ member here; a public list not on Bluesky yet is published by the
 maintenance pass (`BlueskyLists::publishMissing()`, a page of lists at a
 time, the place kept with `DurableCache::setShared()`).
 
+When `WriteService::apply()` receives only repository-native records, it
+validates and commits the batch through `RepositoryService::write()` once;
+list synchronization runs after that repository commit. Batches that include
+Social actions still follow the action-specific paths, which can have their
+own side effects and commit boundaries.
+
 ### Switching off Bluesky
 
 A person may switch their own presence on Bluesky off (D23 of the Bluesky
