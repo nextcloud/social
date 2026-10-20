@@ -1791,8 +1791,8 @@ export default {
 
 	&__fields {
 		width: 100%;
-		margin: 12px 0 0;
-		padding: 12px calc(var(--default-grid-baseline) * 4) 0;
+		margin: 10px 0 0;
+		padding: 8px calc(var(--default-grid-baseline) * 4) 0;
 		border-top: 1px solid var(--color-border);
 		background: var(--color-main-background);
 		text-align: start;
@@ -1800,8 +1800,8 @@ export default {
 
 	&__field {
 		display: flex;
-		gap: 12px;
-		padding: 6px 0;
+		gap: 8px;
+		padding: 3px 0;
 		font-size: 14px;
 
 		dt {
@@ -1817,7 +1817,7 @@ export default {
 			display: flex;
 			align-items: center;
 			flex-wrap: wrap;
-			gap: 6px 10px;
+			gap: 4px 8px;
 			overflow-wrap: anywhere;
 
 			a {
