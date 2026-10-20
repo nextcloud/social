@@ -427,9 +427,13 @@ class WriteService {
 			$results[] = ['uri' => 'at://' . $session->identity->did . '/' . $path, '$type' => $type . 'Result'];
 			$sync[] = [[$collection, $rkey], false, $resultIndex];
 		}
+		$committed = null;
 		if ($repoWrites !== []) {
 			try {
-				$this->repositories->write($session->identity->did, $this->identities->signingKey($session->identity), $repoWrites);
+				$commit = $this->repositories->write($session->identity->did, $this->identities->signingKey($session->identity), $repoWrites);
+				if ($commit !== null) {
+					$committed = ['cid' => $commit->commitCid->toString(), 'rev' => $commit->rev];
+				}
 			} catch (AtprotoException $e) {
 				throw XrpcException::invalidRequest($e->getMessage());
 			}
@@ -447,7 +451,7 @@ class WriteService {
 			}
 		}
 
-		return ['commit' => $this->commit($session), 'results' => $results];
+		return ['commit' => $committed ?? $this->commit($session), 'results' => $results];
 	}
 
 	/**

@@ -309,6 +309,7 @@ class WriteServiceTest extends TestCase {
 		$this->assertCount(2, $answer['results']);
 		$this->assertSame('at://' . self::DID . '/app.bsky.graph.list/' . $firstRkey, $answer['results'][0]['uri']);
 		$this->assertSame('valid', $answer['results'][1]['validationStatus']);
+		$this->assertSame(['cid' => Cid::forRaw('batch commit')->toString(), 'rev' => '3kbatch'], $answer['commit']);
 	}
 
 	public function testInvalidKeptRecordBatchDoesNotWriteEarlierItems(): void {
