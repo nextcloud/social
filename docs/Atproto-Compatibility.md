@@ -2572,9 +2572,13 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   `deleteRecord` undoes the action. `applyWrites` keeps a batch of
   repository-native records (lists and their members, starter packs, feed
   generators, thread gates and post gates) in one repository commit, and
-  rejects an invalid batch before writing any of it. Batches containing
+  rejects an invalid batch before writing any of it. For these batches,
+  `swapCommit` is compared with the locked repository head inside the write
+  transaction; a stale CID returns `InvalidSwap` without changing the repo.
+  Batches containing
   Social actions still run those actions one by one, so a later failure can
-  leave an earlier Social action applied. Those repository-native record
+  leave an earlier Social action applied; `swapCommit` is not supported for
+  them yet. Those repository-native record
   types have no Social counterpart and are kept as the app wrote them,
   validated against their lexicon; a gate only for one of the account's own
   posts, under that post's key. A block is a block here, published, when the

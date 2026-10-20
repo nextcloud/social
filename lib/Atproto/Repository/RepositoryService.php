@@ -69,7 +69,7 @@ class RepositoryService {
 	 *                           once is there already and nothing was written
 	 * @throws AtprotoException when a record does not fit its lexicon or the write fails
 	 */
-	public function write(string $did, PrivateKey $signingKey, array $writes): ?CommitResult {
+	public function write(string $did, PrivateKey $signingKey, array $writes, ?string $swapCommit = null): ?CommitResult {
 		if ($writes === [] || count($writes) > self::MAX_WRITES) {
 			throw new AtprotoException('A commit changes between one and ' . self::MAX_WRITES . ' records');
 		}
@@ -85,7 +85,7 @@ class RepositoryService {
 
 		$this->connection->beginTransaction();
 		try {
-			$result = $this->commit($did, $signingKey, $writes);
+			$result = $this->commit($did, $signingKey, $writes, $swapCommit);
 			$this->connection->commit();
 		} catch (Throwable $e) {
 			$this->connection->rollBack();
@@ -98,8 +98,11 @@ class RepositoryService {
 	/**
 	 * @param RepoWrite[] $writes
 	 */
-	private function commit(string $did, PrivateKey $signingKey, array $writes): ?CommitResult {
+	private function commit(string $did, PrivateKey $signingKey, array $writes, ?string $swapCommit): ?CommitResult {
 		$head = $this->repoRequest->lockHead($did);
+		if ($swapCommit !== null && $head?->commitCid !== $swapCommit) {
+			throw new InvalidSwapException('The repository commit changed before the batch could be applied');
+		}
 		if ($this->madeAlready($writes)) {
 			return null;
 		}

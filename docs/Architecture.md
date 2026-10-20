@@ -2169,9 +2169,11 @@ time, the place kept with `DurableCache::setShared()`).
 
 When `WriteService::apply()` receives only repository-native records, it
 validates and commits the batch through `RepositoryService::write()` once;
-list synchronization runs after that repository commit. Batches that include
+list synchronization runs after that repository commit. Its optional
+`swapCommit` is checked against the locked head before the repository changes,
+and the response carries the commit produced by the batch. Batches that include
 Social actions still follow the action-specific paths, which can have their
-own side effects and commit boundaries.
+own side effects and commit boundaries and do not support `swapCommit` yet.
 
 ### Switching off Bluesky
 

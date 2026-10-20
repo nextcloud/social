@@ -27,6 +27,7 @@ use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Reader\BlueskyListImport;
 use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Atproto\Reader\PostStore;
+use OCA\Social\Atproto\Repository\InvalidSwapException;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -342,9 +343,16 @@ class WriteService {
 		if (!is_array($writes) || !array_is_list($writes) || count($writes) > 10) {
 			throw XrpcException::invalidRequest('writes must be a list of at most 10');
 		}
+		$swapCommit = $body['swapCommit'] ?? null;
+		if (array_key_exists('swapCommit', $body) && (!is_string($swapCommit) || !Cid::isValid($swapCommit))) {
+			throw XrpcException::invalidRequest('swapCommit must be a valid commit CID');
+		}
 		if ($writes !== [] && count(array_filter($writes, static fn (mixed $write): bool => is_array($write)
 			&& in_array((string)($write['collection'] ?? ''), self::KEPT_AS_WRITTEN, true))) === count($writes)) {
-			return $this->applyKept($session, $writes);
+			return $this->applyKept($session, $writes, $swapCommit);
+		}
+		if ($swapCommit !== null) {
+			throw new XrpcException(501, 'MethodNotImplemented', 'swapCommit requires an atomic repository-native batch');
 		}
 		$results = [];
 		foreach ($writes as $write) {
@@ -373,9 +381,10 @@ class WriteService {
 	 * @param array<array<string, mixed>> $writes
 	 * @throws XrpcException
 	 */
-	private function applyKept(ClientSession $session, array $writes): array {
+	private function applyKept(ClientSession $session, array $writes, ?string $swapCommit): array {
 		$repoWrites = [];
 		$results = [];
+		/** @var list<array{record: ?StoredRecord, collection: string, rkey: string, deleted: bool, resultIndex: ?int}> $sync */
 		$sync = [];
 		$paths = [];
 		foreach ($writes as $write) {
@@ -407,7 +416,7 @@ class WriteService {
 			if ($type === 'com.atproto.repo.applyWrites#delete') {
 				if ($previous !== null) {
 					$repoWrites[] = RepoWrite::delete($collection, $rkey);
-					$sync[] = [$previous, true, null];
+					$sync[] = ['record' => $previous, 'collection' => $collection, 'rkey' => $rkey, 'deleted' => true, 'resultIndex' => null];
 				}
 				$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
 				continue;
@@ -425,27 +434,31 @@ class WriteService {
 			}
 			$resultIndex = count($results);
 			$results[] = ['uri' => 'at://' . $session->identity->did . '/' . $path, '$type' => $type . 'Result'];
-			$sync[] = [[$collection, $rkey], false, $resultIndex];
+			$sync[] = ['record' => null, 'collection' => $collection, 'rkey' => $rkey, 'deleted' => false, 'resultIndex' => $resultIndex];
 		}
 		$committed = null;
 		if ($repoWrites !== []) {
 			try {
-				$commit = $this->repositories->write($session->identity->did, $this->identities->signingKey($session->identity), $repoWrites);
+				$commit = $this->repositories->write($session->identity->did, $this->identities->signingKey($session->identity), $repoWrites, $swapCommit);
 				if ($commit !== null) {
 					$committed = ['cid' => $commit->commitCid->toString(), 'rev' => $commit->rev];
 				}
+			} catch (InvalidSwapException $e) {
+				throw new XrpcException(400, 'InvalidSwap', $e->getMessage());
 			} catch (AtprotoException $e) {
 				throw XrpcException::invalidRequest($e->getMessage());
 			}
+		} elseif ($swapCommit !== null && $this->repositories->getHead($session->identity->did)?->commitCid !== $swapCommit) {
+			throw new XrpcException(400, 'InvalidSwap', 'The repository commit changed before the batch could be applied');
 		}
-		foreach ($sync as [$target, $deleted, $resultIndex]) {
-			$stored = $deleted ? $target : $this->repositories->getRecord($session->identity->did, $target[0], $target[1]);
+		foreach ($sync as $entry) {
+			$stored = $entry['deleted'] ? $entry['record'] : $this->repositories->getRecord($session->identity->did, $entry['collection'], $entry['rkey']);
 			if ($stored instanceof StoredRecord) {
-				if ($deleted) {
+				if ($entry['deleted']) {
 					$this->listChanged($session, $stored, true);
-				} else {
-					$results[$resultIndex]['cid'] = $stored->cid->toString();
-					$results[$resultIndex]['validationStatus'] = 'valid';
+				} elseif ($entry['resultIndex'] !== null) {
+					$results[$entry['resultIndex']]['cid'] = $stored->cid->toString();
+					$results[$entry['resultIndex']]['validationStatus'] = 'valid';
 					$this->listChanged($session, $stored, false);
 				}
 			}

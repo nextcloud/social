@@ -32,6 +32,7 @@ use OCA\Social\Atproto\Reader\BlueskyListImport;
 use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Repository\CommitResult;
+use OCA\Social\Atproto\Repository\InvalidSwapException;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -326,6 +327,36 @@ class WriteServiceTest extends TestCase {
 			$this->fail('unknown write types must be rejected');
 		} catch (XrpcException $e) {
 			$this->assertSame(400, $e->status);
+		}
+	}
+
+	public function testApplyWritesReturnsTheProtocolInvalidSwapError(): void {
+		$this->repositories->expects($this->once())->method('write')->willThrowException(new InvalidSwapException('stale repository head'));
+		$record = ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => 'Friends', 'createdAt' => '2026-10-09T10:00:00.000Z'];
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'swapCommit' => Cid::forRaw('current')->toString(), 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'value' => $record],
+			]]);
+			$this->fail('a repository conflict must be exposed to the app');
+		} catch (XrpcException $e) {
+			$this->assertSame(400, $e->status);
+			$this->assertSame('InvalidSwap', $e->error);
+		}
+	}
+
+	public function testApplyWritesChecksSwapCommitWhenEveryDeleteIsAlreadyGone(): void {
+		$this->repositories->expects($this->never())->method('write');
+		$stale = Cid::forRaw('stale commit')->toString();
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'swapCommit' => $stale, 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#delete', 'collection' => 'app.bsky.graph.list', 'rkey' => Tid::next()],
+			]]);
+			$this->fail('the head must be checked even when every delete is a no-op');
+		} catch (XrpcException $e) {
+			$this->assertSame(400, $e->status);
+			$this->assertSame('InvalidSwap', $e->error);
 		}
 	}
 
