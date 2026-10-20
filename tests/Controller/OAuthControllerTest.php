@@ -1365,6 +1365,23 @@ class OAuthControllerTest extends TestCase {
 
 	// what the consent page is told
 
+	public function testDevicePagesOmitAccountStateWhenNoSocialAccountIsAvailable(): void {
+		$states = $this->recordInitialState();
+
+		$this->controller->device('ABCD-EFGH');
+
+		self::assertArrayNotHasKey('account', $states);
+		self::assertArrayNotHasKey('deviceAccount', $states);
+		self::assertNotContains(null, iterator_to_array($states));
+
+		$states = $this->recordInitialState();
+		$this->controller->deviceDecision('ABCD-EFGH', 'allow');
+
+		self::assertArrayNotHasKey('account', $states);
+		self::assertArrayNotHasKey('deviceAccount', $states);
+		self::assertNotContains(null, iterator_to_array($states));
+	}
+
 	public function testAuthorizeShowsTheScopesAndWhereTheCodeIsGoing(): void {
 		$this->loggedIn();
 		$this->knownClient('client-1', 'Tusky', ['https://app.example/cb']);

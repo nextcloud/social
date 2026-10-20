@@ -310,13 +310,15 @@ class OAuthController extends Controller {
 		$this->initialState->provideInitialState('deviceAppName', $client?->getAppName() ?? '');
 		$this->initialState->provideInitialState('deviceAppWebsite', $client === null ? '' : $this->websiteLink($client->getAppWebsite()));
 		$this->initialState->provideInitialState('deviceScopes', $pending === null ? [] : $client->getScopesFromString($pending['scopes']));
-		$this->initialState->provideInitialState('deviceAccount', $this->deviceAccountState());
 		$this->initialState->provideInitialState('deviceDecisionResult', '');
 		$this->initialState->provideInitialState('deviceDecisionUrl', $this->urlGenerator->linkToRoute('social.OAuth.deviceDecision'));
 		$this->initialState->provideInitialState('appName', $client?->getAppName() ?? '');
 		$this->initialState->provideInitialState('appWebsite', $client === null ? '' : $this->websiteLink($client->getAppWebsite()));
 		$this->initialState->provideInitialState('scopes', $pending === null ? [] : $client->getScopesFromString($pending['scopes']));
-		$this->initialState->provideInitialState('account', $this->deviceAccountState());
+		$account = $this->deviceAccountState();
+		if ($account !== null) {
+			$this->initialState->provideInitialState('account', $account);
+		}
 		if ($pending !== null && $user !== null && $this->accountOrNull($user) === null) {
 			$this->provideSetup($user);
 		}
@@ -348,7 +350,6 @@ class OAuthController extends Controller {
 		$this->initialState->provideInitialState('deviceAppName', '');
 		$this->initialState->provideInitialState('deviceAppWebsite', '');
 		$this->initialState->provideInitialState('deviceScopes', []);
-		$this->initialState->provideInitialState('deviceAccount', null);
 		$this->initialState->provideInitialState('deviceDecisionUrl', $this->urlGenerator->linkToRoute('social.OAuth.deviceDecision'));
 		return new TemplateResponse(Application::APP_ID, 'oauth2', [], TemplateResponse::RENDER_AS_GUEST);
 	}
