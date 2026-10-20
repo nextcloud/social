@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 
+import axios from '@nextcloud/axios'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +14,10 @@ import pinia, {
 	useSettingsStore,
 	useTimelineStore,
 } from '../../../src/store/index.js'
+
+vi.mock('@nextcloud/axios', () => ({
+	default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}))
 
 describe('root store', () => {
 	beforeEach(() => {
@@ -48,6 +53,7 @@ describe('root store', () => {
 	it('lets one store call another', async () => {
 		const errors = useErrorsStore()
 		vi.spyOn(errors, 'addAppError')
+		axios.get.mockRejectedValueOnce(new Error('remote server unreachable'))
 
 		// the account store reports a lookup failure through the errors store
 		await useAccountStore().fetchAccountInfo('bob@remote.tld')
