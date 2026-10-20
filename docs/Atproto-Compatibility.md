@@ -635,22 +635,23 @@ response passed through unchanged.
 
 Bluesky apps can sign in with this PDS in either of two ways:
 
-- **OAuth is the preferred path, including for the official Bluesky app.**
-  The app asks for this PDS as its hosting provider, resolves the account's
-  handle to its DID, and follows the PDS's OAuth discovery metadata. Its
-  authorization request uses PAR, DPoP and PKCE S256. The person signs in
-  with their Nextcloud account on this server, reviews the requested access,
-  and approves it here. The app receives a DPoP-bound OAuth session; it
-  never receives the Nextcloud password. The session appears in Settings →
-  Apps and account → Bluesky and can be revoked there. Settings also shows
-  the exact PDS address and handle to enter in the Bluesky app.
-- **App passwords remain available for clients that do not support OAuth.**
-  A Nextcloud app password made in Social's Bluesky settings is checked
-  through `IProvider`/`IUserManager::checkPassword` and creates a PDS session:
-  access JWTs last two hours and refresh JWTs last 90 days, signed with the
-  instance service key and carried in `Authorization: Bearer`. A client must
-  use this server as its hosting provider; the Nextcloud account password is
-  never an app password.
+- **The official Bluesky app signs in with an app password.** The person
+  enters this PDS as the hosting provider, then signs in with their handle
+  and an app password made in Settings → Apps and account → Bluesky. The
+  current official app calls `PasswordSession.login` against the selected
+  service URL ([login implementation](https://github.com/bluesky-social/social-app/blob/main/src/state/session/session-core.ts)).
+  This PDS accepts only its own Social app passwords at
+  `com.atproto.server.createSession`; the Nextcloud account password is
+  never accepted or sent to the Bluesky app. Access JWTs last two hours and
+  refresh JWTs 90 days, signed with the instance service key and carried in
+  `Authorization: Bearer`. Revoking an app password ends its sessions.
+- **OAuth is available to clients that implement AT Protocol OAuth.** They
+  resolve this PDS's discovery metadata and use PAR, DPoP and PKCE S256.
+  The person signs in to Nextcloud here, reviews the requested access and
+  approves it. The client receives a DPoP-bound OAuth session and never
+  receives the Nextcloud password. These sessions appear in Settings → Apps
+  and account → Bluesky and can be revoked there. Settings also shows the
+  exact PDS address and handle needed by the official app.
 
 OAuth is AT Protocol's profile, not a reuse of the Mastodon client API's
 OAuth tokens. The two token worlds and their sessions stay apart. The full
@@ -2274,7 +2275,7 @@ Architecture/API/OCC-Commands/Admin/User-Guide as it lands
 |---|---|---|
 | **1 — Visible on Bluesky** (D20) | §4 identity and PLC, §5 repository with profile and post records (text, links, pictures, CW, polls-as-text, quotes-as-link), §6.1–6.2 sync + identity endpoints and root rules, §7 firehose daemon and `requestCrawl`, §8.1–8.5 publisher (edits/deletes), §14 requirements, admin section, setup checks, `occ` basics, §15 tables 1–8, §16, §17.1 + the interop job's first tests | A Bluesky user searches `alice.<host>`, sees profile and posts, follows |
 | **2 — Reading Bluesky** | §9 resolution, following, the poller, the storer, deletes; §10 notifications poll and the mapping; §8.6 likes/reposts/follows; §11 badges, profiles, addressing, mention picker; §12.1 labels honoured; §9.4 optional Jetstream | alice follows `bob.bsky.social`, reads him in her feed, likes his post, sees his like and reply in Activities |
-| **3 — Complete interaction and apps** | §8.3 replies and quotes to Bluesky posts both ways, link cards, §12.2 labelers, §12.3 reporting, §12.4 instance blocks, §6.3 app passwords then OAuth for Bluesky apps, threadgates, video (D11) through the video service | the official Bluesky app logs in to Aloha Social as its PDS; a thread spans both networks |
+| **3 — Complete interaction and apps** | §8.3 replies and quotes to Bluesky posts both ways, link cards, §12.2 labelers, §12.3 reporting, §12.4 instance blocks, §6.3 app passwords and OAuth for Bluesky clients, threadgates, video (D11) through the video service | the official Bluesky app logs in to Aloha Social as its PDS with a Social app password; an OAuth-capable client uses the consent flow; a thread spans both networks |
 | **4 — Moving** (D19) | §13 move in, move away, Bridgy twins; §4.2 custom handles | a Bluesky account moves here with its followers; a person sets `alice.example.org` as their handle |
 
 Each phase has its version bump, its tests per commit, its docs in the

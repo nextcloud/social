@@ -313,12 +313,12 @@
 					</NcButton>
 				</template>
 			</div>
-			<div v-if="bluesky.active !== false" class="bluesky-settings__oauth-sign-in">
+			<div v-if="bluesky.active !== false" class="bluesky-settings__pds-sign-in">
 				<h5 class="bluesky-settings__title">
 					{{ t('social', 'Sign in to the Bluesky app') }}
 				</h5>
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'Enter this server as the hosting provider in the Bluesky app: {server}. Use your Bluesky handle {handle}. When the app opens this server, sign in with your Nextcloud account and review the access it requests. The app receives an OAuth session; your Nextcloud password stays here.', { server: origin, handle: '@' + bluesky.handle }) }}
+					{{ t('social', 'Enter this server as the hosting provider in the Bluesky app: {server}. Sign in as {handle} with an app password you make below. Never enter your Nextcloud password in the Bluesky app.', { server: origin, handle: '@' + bluesky.handle }) }}
 				</p>
 				<dl class="bluesky-settings__identity">
 					<div class="bluesky-settings__identity-row">
@@ -344,10 +344,10 @@
 			     handed to it -->
 			<div v-if="bluesky.active !== false && !appPasswordsHidden" class="bluesky-settings__app-passwords">
 				<h5 class="bluesky-settings__title">
-					{{ t('social', 'App passwords for other Bluesky apps') }}
+					{{ t('social', 'App passwords for Bluesky apps') }}
 				</h5>
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'Use an app password only with a client that does not support Bluesky sign-in. Choose this server as its hosting provider: {server}. Never enter your Nextcloud password in a client.', { server: origin }) }}
+					{{ t('social', 'Make a separate app password for each client that signs in to this PDS with a handle and password. Each password works only with your Bluesky account here. Never enter your Nextcloud password in a client.') }}
 				</p>
 				<p v-if="appPasswordsError" class="bluesky-settings__hint">
 					{{ appPasswordsError }}
@@ -447,10 +447,10 @@
 			     page holds a token of its own, not an app password -->
 			<div v-if="bluesky.active !== false && !oauthSessionsHidden" class="bluesky-settings__oauth-sessions">
 				<h5 class="bluesky-settings__title">
-					{{ t('social', 'Apps signed in with Bluesky sign-in') }}
+					{{ t('social', 'Apps signed in with OAuth') }}
 				</h5>
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'Bluesky apps that sign in with your account here, without an app password. Signing one out stops it at once.') }}
+					{{ t('social', 'These clients used the AT Protocol OAuth flow here. Signing one out stops it at once.') }}
 				</p>
 				<p v-if="oauthSessionsError" class="bluesky-settings__hint">
 					{{ oauthSessionsError }}

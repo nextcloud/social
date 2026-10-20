@@ -2770,8 +2770,7 @@ kept, read as timelines at `/timeline/bluesky/<DID>/<feed|list>/<key>` —, `#se
 `#archive`, `#files-comments`), **Apps and account** (`#apps`, `#bluesky`
 where the server gives every account a Bluesky identity — `BlueskySettings.vue`,
 the handle, the DID, your own domain as the handle, the pause switch, the recovery phrase, the app
-passwords Bluesky apps sign in with and the apps signed in with Bluesky
-sign-in —, `#invites`, `#storage`,
+passwords Bluesky apps sign in with and the apps signed in through OAuth —, `#invites`, `#storage`,
 `#delete`, last because it cannot be undone) and **Help**
 (`#introduction`, `#shortcuts`). One group is drawn at a time. The rail lists the
 groups and, under the open one, its sections; on a narrow screen the groups are a

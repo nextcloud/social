@@ -202,7 +202,7 @@ They map three things onto the app:
 | `/oauth/…` | registering the app, the consent screen, the token |
 | `/.well-known/host-meta` | some clients ask for it before anything else |
 | `/.well-known/oauth-authorization-server` | RFC 8414 discovery; a Mastodon 4.3 client asks for it before it registers anything, and reads a 404 as "not a server I can sign in to" |
-| `/.well-known/oauth-protected-resource` | Bluesky apps signing in with Bluesky sign-in (OAuth) ask it which authorization server the accounts here use; with Bluesky on, `/.well-known/oauth-authorization-server` then describes both kinds of sign-in |
+| `/.well-known/oauth-protected-resource` | OAuth-capable Bluesky clients ask which authorization server accounts here use; the authorization-server document describes AT Protocol OAuth alongside the separate Mastodon OAuth API |
 
 **Use an internal rewrite, not a redirect.** Nextcloud routes on the address
 the request arrived at, so a plain internal rewrite to `/index.php/apps/social`
