@@ -253,14 +253,17 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 
 The Mastodon WebSocket streams `user`, `user:notification`, `public`,
 `public:media`, `public:local`, `public:local:media`, `public:remote` and
-`public:remote:media`, and the `user` and
-public SSE endpoints, are available when `occ social:mastodon:stream` is
+`public:remote:media`, `hashtag` and `hashtag:local`, and the `user`, public and
+hashtag SSE endpoints, are available when `occ social:mastodon:stream` is
 running and the root proxy rules are installed. WebSocket clients connect to
 `/api/v1/streaming`; SSE clients connect to `/api/v1/streaming/user`,
-`/api/v1/streaming/user/notification`, `/api/v1/streaming/public` or
-`/api/v1/streaming/public/local` or `/api/v1/streaming/public/remote`. The public SSE endpoints accept
-`only_media=true`. The instance filters events using the same visibility,
-mute and filter rules as its REST timelines. Hashtag, list, direct, delete and
+`/api/v1/streaming/user/notification`, `/api/v1/streaming/public`,
+`/api/v1/streaming/public/local`, `/api/v1/streaming/public/remote`,
+`/api/v1/streaming/hashtag` or `/api/v1/streaming/hashtag/local`. Public SSE
+routes accept `only_media=true`; hashtag SSE routes require a `tag` query
+parameter. WebSocket hashtag subscriptions require a `tag` value in the
+subscription message. The instance filters events using the same visibility,
+mute and filter rules as its REST timelines. List, direct, delete and
 status-edit streams are not implemented yet.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance

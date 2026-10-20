@@ -108,6 +108,15 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertTrue($this->invoke('authorize', $remote));
 		self::assertSame(['public:remote' => true], $remote->context['subscriptions']);
 
+		$hashtag = $this->subscriber(['access_token' => 'token', 'tag' => '#Nextcloud']);
+		$hashtag->eventStream = true;
+		$hashtag->requestPath = '/api/v1/streaming/hashtag/local';
+		self::assertTrue($this->invoke('authorize', $hashtag));
+		self::assertSame(['hashtag:local' => true], $hashtag->context['subscriptions']);
+		/** @var array<string, array{stream: string, tag: string, local: bool, since: string}> $hashtagSubscriptions */
+		$hashtagSubscriptions = $hashtag->context['hashtagSubscriptions'];
+		self::assertSame('nextcloud', array_values($hashtagSubscriptions)[0]['tag']);
+
 		$mismatched = $this->subscriber(['stream' => 'public', 'access_token' => 'token']);
 		$mismatched->eventStream = true;
 		$mismatched->requestPath = '/api/v1/streaming/public/local';
@@ -142,6 +151,74 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertSame(20, $options->getSince());
 	}
 
+	public function testHashtagSubscriptionRequiresTagAndSupportsUnsubscribe(): void {
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['scopes' => ['read:statuses'], 'subscriptions' => [], 'publicSince:public' => '40'];
+		$missingTag = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"hashtag"}'), true);
+		self::assertSame('A valid tag is required', $missingTag['payload']);
+
+		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"hashtag","tag":"#Nextcloud"}'));
+		/** @var array<string, bool> $subscriptions */
+		$subscriptions = $subscriber->context['subscriptions'];
+		/** @var array<string, mixed> $context */
+		$context = $subscriber->context;
+		/** @var array<string, array{stream: string, tag: string, local: bool, since: string}> $hashtagSubscriptions */
+		$hashtagSubscriptions = $context['hashtagSubscriptions'] ?? [];
+		self::assertSame(['hashtag' => true], $subscriptions);
+		$subscription = array_values($hashtagSubscriptions)[0];
+		self::assertSame('nextcloud', $subscription['tag']);
+		self::assertSame('40', $subscription['since']);
+
+		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"unsubscribe","stream":"hashtag","tag":"nextcloud"}'));
+		/** @var array<string, mixed> $context */
+		$context = $subscriber->context;
+		self::assertSame([], $context['subscriptions']);
+		self::assertSame([], $context['hashtagSubscriptions'] ?? []);
+	}
+
+	public function testHashtagSubscriptionsAreBoundedPerConnection(): void {
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['scopes' => ['read:statuses'], 'subscriptions' => [], 'publicSince:public' => '40'];
+		for ($i = 0; $i < 20; $i++) {
+			self::assertNull($this->invoke('onMessage', $subscriber, 0x1, json_encode([
+				'type' => 'subscribe', 'stream' => 'hashtag', 'tag' => 'tag' . $i,
+			], JSON_THROW_ON_ERROR)));
+		}
+		$error = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"hashtag","tag":"tag20"}'), true);
+		self::assertSame('Too many hashtag subscriptions', $error['payload']);
+		/** @var array<string, mixed> $context */
+		$context = $subscriber->context;
+		/** @var array<string, array{stream: string, tag: string, local: bool, since: string}> $hashtagSubscriptions */
+		$hashtagSubscriptions = $context['hashtagSubscriptions'] ?? [];
+		self::assertCount(20, $hashtagSubscriptions);
+	}
+
+	public function testHashtagStreamUsesTheMatchingTimelineAndLocalFilter(): void {
+		$options = null;
+		$this->streams->expects(self::once())->method('getTimeline')->willReturnCallback(
+			static function (ProbeOptions $received) use (&$options): array {
+				$options = $received;
+				return [];
+			}
+		);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['subscriptions' => ['hashtag:local' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendHashtagStatuses', $server, $subscriber, new Person(), 'key', [
+				'stream' => 'hashtag:local', 'tag' => 'nextcloud', 'local' => true, 'since' => '30',
+			]);
+		} finally {
+			$server->shutdown();
+		}
+
+		self::assertInstanceOf(ProbeOptions::class, $options);
+		self::assertSame(ProbeOptions::HASHTAG, $options->getProbe());
+		self::assertSame('nextcloud', $options->getArgument());
+		self::assertTrue($options->isLocal());
+		self::assertSame(30, $options->getSince());
+	}
+
 	public function testEventStreamPathSelectsAndLocksItsStream(): void {
 		$this->clients->method('getFromToken')->willReturn($this->client(['read']));
 		$subscriber = $this->subscriber(['access_token' => 'token'], []);
@@ -170,8 +247,10 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$subscriber->context['scopes'] = ['read:statuses'];
 		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"public:local"}'));
 		self::assertSame(['public:local' => true], $subscriber->context['subscriptions']);
+		self::assertNull($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"hashtag:local","tag":"social"}'));
+		self::assertSame(['public:local' => true, 'hashtag:local' => true], $subscriber->context['subscriptions']);
 
-		$error = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"hashtag"}'), true);
+		$error = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"unknown"}'), true);
 		self::assertSame('error', $error['event']);
 		self::assertSame('Unknown stream', $error['payload']);
 	}
