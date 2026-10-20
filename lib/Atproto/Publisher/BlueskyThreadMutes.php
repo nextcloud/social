@@ -12,7 +12,7 @@ namespace OCA\Social\Atproto\Publisher;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Identity\IdentityService;
-use OCA\Social\Atproto\Reader\BlueskyIds;
+use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -38,13 +38,15 @@ class BlueskyThreadMutes {
 		private StreamRequest $streams,
 		private ConversationsRequest $conversations,
 		private LoggerInterface $logger,
+		private LocalRecordResolver $records,
+		private PostRefs $postRefs,
 	) {
 	}
 
 	/** Apply a successful thread mute or unmute made through a Bluesky app. */
 	public function fromApp(ClientSession $session, string $method, array $body): void {
 		$uri = (string)($body['root'] ?? '');
-		$postId = BlueskyIds::postIdOfUri($uri);
+		$postId = $this->records->postId($uri);
 		if ($postId === '') {
 			return;
 		}
@@ -67,7 +69,7 @@ class BlueskyThreadMutes {
 	/** Tell Bluesky about a local mute or unmute of a Bluesky thread. */
 	public function fromSocial(Person $viewer, string $rootId, bool $muted): void {
 		try {
-			$root = BlueskyIds::parsePostId($rootId);
+			$root = $this->postRefs->strongRef($rootId);
 			$identity = $root === null ? null : $this->identities->activeForActor($viewer);
 			if ($root === null || $identity === null) {
 				return;
@@ -76,7 +78,7 @@ class BlueskyThreadMutes {
 				$identity->did,
 				$this->identities->signingKey($identity),
 				$muted ? self::MUTE : self::UNMUTE,
-				['root' => BlueskyIds::atUri($root['did'], BlueskyIds::POST, $root['rkey'])]
+				['root' => $root['uri']]
 			);
 		} catch (Throwable $e) {
 			$this->logger->warning('Thread mute not told to Bluesky', ['root' => $rootId, 'muted' => $muted, 'exception' => $e]);

@@ -1474,11 +1474,14 @@ arrival either way.
 
 Thread notification mutes (`app.bsky.graph.muteThread` and
 `unmuteThread`) are private AppView preferences. A signed-in Bluesky app's
-accepted change is mirrored to `social_convo_state`; a mute or unmute made in
-Social is sent to the AppView for a linked Bluesky identity. This keeps both
-clients from disagreeing about locally stored replies. A root that is not
-stored here cannot be mirrored locally; Bluesky still owns the preference
-and its behavior in Bluesky clients.
+accepted change is mirrored to `social_convo_state` after resolving its AT
+URI through the local repository mapping. A post written here and mirrored
+to Bluesky therefore resolves to its Social post id. A mute or unmute made in
+Social uses the thread root's strong reference from `PostRefs`, so a local
+thread root published to Bluesky is addressed by its repository AT URI.
+This keeps both clients from disagreeing about locally stored replies. A
+root that is not stored here cannot be mirrored locally; Bluesky still owns
+the preference and its behavior in Bluesky clients.
 
 A Bluesky user's block *of* a local account (`app.bsky.graph.block` in
 their repository, subject the local DID) is never delivered here, and the

@@ -2056,11 +2056,13 @@ remaining groups from being read.
 
 `Atproto\Publisher\BlueskyThreadMutes` keeps local conversation state and
 Bluesky's private thread-notification preference in step. An accepted mute or
-unmute from a signed-in Bluesky app updates the local conversation root;
+unmute from a signed-in Bluesky app resolves its AT URI with
+`LocalRecordResolver::postId()`, mapping this instance's mirrored record back
+to the Social post id before updating the local conversation root.
 `ActionService` sends the same operation to Bluesky when a person changes the
-mute in Social. Both directions resolve the thread root to a Bluesky post.
-Posts remain visible while notifications are suppressed. An uncached root
-has no local thread state to update.
+mute in Social; `PostRefs::strongRef()` finds the root's AT URI even when the
+stored post id is a local Social id. Posts remain visible while notifications
+are suppressed. An uncached root has no local thread state to update.
 
 ### Direct messages with Bluesky
 
