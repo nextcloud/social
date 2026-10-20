@@ -247,8 +247,13 @@
 					</NcButton>
 				</li>
 			</ul>
+		</section>
 
-			<h5>{{ t('social', 'Bring your follows with you') }}</h5>
+		<section class="migration__card">
+			<h4>
+				<IconAccountMultiplePlus :size="20" />
+				{{ t('social', 'Bring your follows with you') }}
+			</h4>
 			<p>
 				{{ t('social', 'Every one of those servers exports the people you follow — most as a following_accounts.csv, Pixelfed as pixelfed-following.json. Upload that file and each account is followed again from here. A follow is an agreement between two servers, so it has to be asked for again — it cannot be copied out of a file.') }}
 			</p>
@@ -267,8 +272,13 @@
 				</template>
 				{{ followsBusy ? t('social', 'Following …') : t('social', 'Import follows from a file') }}
 			</NcButton>
+		</section>
 
-			<h5>{{ t('social', 'Bring your blocks, mutes, lists, bookmarks and blocked domains') }}</h5>
+		<section class="migration__card">
+			<h4>
+				<IconCancel :size="20" />
+				{{ t('social', 'Bring your blocks, mutes, lists, bookmarks and blocked domains') }}
+			</h4>
 			<p>
 				{{ t('social', 'The rest of what the same export holds. Blocks and mutes are decisions this account makes on its own, so they apply the moment the file is read — and a block federates, exactly as blocking somebody from here does. Bookmarks are the addresses of posts: each is fetched from where it lives and marked here, for you alone. A blocked domain hides a whole server from you, as it did there.') }}
 			</p>
@@ -352,8 +362,13 @@
 					{{ t('social', 'Import blocked domains') }}
 				</NcButton>
 			</div>
+		</section>
 
-			<h5>{{ t('social', 'Bring your posts with you') }}</h5>
+		<section class="migration__card">
+			<h4>
+				<IconPostOutline :size="20" />
+				{{ t('social', 'Bring your posts with you') }}
+			</h4>
 			<p>
 				{{ t('social', 'The one thing moving has never carried. Upload the export from your old server and the posts in it are written here as yours, dated when you wrote them, with their pictures.') }}
 			</p>
@@ -415,8 +430,13 @@
 					{{ t('social', '— neither carries a follow list this can read: X exports the accounts it follows as numbers rather than names, and nothing on either side federates a follow. X posts can still be imported with the button above. A Bluesky account of your own moves here whole, followers and all, with Bring your Bluesky account here below.') }}
 				</li>
 			</ul>
+		</section>
 
-			<h5>{{ t('social', 'Accounts you also answer to') }}</h5>
+		<section class="migration__card">
+			<h4>
+				<IconAccountArrowLeft :size="20" />
+				{{ t('social', 'Accounts you also answer to') }}
+			</h4>
 			<p>
 				{{ t('social', 'Before your old server will send your followers here, it wants this account to say it is also you. Add the old account\'s address and it does. Nothing is sent to anybody by this — it is a note this server keeps about an account it owns — and you can take it off again at any time.') }}
 			</p>
@@ -1308,16 +1328,6 @@ export default {
 </script>
 
 <style scoped lang="scss">
-.migration {
-	max-width: var(--social-column);
-	margin: 15px auto;
-	padding: 0 10px;
-
-	h2 {
-		margin-bottom: 8px;
-	}
-}
-
 .migration__hint {
 	margin-bottom: 16px;
 	color: var(--color-text-maxcontrast);
@@ -1329,37 +1339,9 @@ export default {
 	gap: 8px;
 }
 
-/* the way in, told apart from the four cards of machinery below it */
+/* the way in, told apart from the cards below it */
 .migration__card--lead {
 	border-inline-start: 4px solid var(--color-primary-element);
-}
-
-.migration__card {
-	margin-bottom: 16px;
-	padding: 16px;
-	border-radius: var(--border-radius-large, 12px);
-	background: var(--color-main-background);
-	box-shadow: var(--social-elevation-resting);
-
-	/* the card's own heading, one level below the section's */
-	h4 {
-		display: flex;
-		gap: 8px;
-		align-items: center;
-		margin-bottom: 8px;
-		font-size: 17px;
-		font-weight: bold;
-	}
-
-	h5 {
-		margin: 20px 0 6px;
-		font-size: inherit;
-		font-weight: bold;
-	}
-
-	p {
-		margin-bottom: 12px;
-	}
 }
 
 .migration__note {

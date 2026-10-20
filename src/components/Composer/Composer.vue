@@ -292,14 +292,6 @@
 
 			<div class="options" :class="{ 'options--compact': compactOptions }">
 				<NcButton
-					v-if="compactOptions"
-					variant="tertiary"
-					class="more-options-toggle"
-					:aria-expanded="moreOptionsOpen"
-					@click.prevent="moreOptionsOpen = !moreOptionsOpen">
-					{{ moreOptionsOpen ? t('social', 'Fewer options') : t('social', 'More options') }}
-				</NcButton>
-				<NcButton
 					v-if="offerShort && (!compactOptions || moreOptionsOpen)"
 					:title="t('social', 'New short')"
 					variant="tertiary"
@@ -377,6 +369,14 @@
 						</template>
 					</NcButton>
 				</div>
+				<NcButton
+					v-if="compactOptions"
+					variant="tertiary"
+					class="more-options-toggle"
+					:aria-expanded="moreOptionsOpen"
+					@click.prevent="moreOptionsOpen = !moreOptionsOpen">
+					{{ moreOptionsOpen ? t('social', 'Fewer options') : t('social', 'More options') }}
+				</NcButton>
 				<div v-if="!compactOptions || moreOptionsOpen" class="composer-advanced-options">
 					<span v-if="compactOptions" class="composer-advanced-options__label">{{ t('social', 'Post options') }}</span>
 					<!-- the author's own word that this was made with AI. It is a
