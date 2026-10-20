@@ -1819,6 +1819,27 @@ export default {
 		}
 	}
 
+	&__field--verified {
+		dd > a {
+			display: inline-flex;
+			max-width: 100%;
+			padding: 2px 8px;
+			border: 1px solid #1f6f35;
+			border-radius: var(--border-radius, 4px);
+			background: #1f6f35;
+			color: #fff;
+			text-decoration: none;
+			overflow-wrap: anywhere;
+
+			&:hover {
+				background: #195c2b;
+				border-color: #195c2b;
+				color: #fff;
+				text-decoration: underline;
+			}
+		}
+	}
+
 	&__verified-link {
 		display: inline-flex;
 		align-items: center;
