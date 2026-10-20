@@ -23,6 +23,7 @@ use OCA\Social\Tests\Interop\Bluesky\AppClient;
 use OCA\Social\Tests\Interop\Bluesky\DevNetwork;
 use OCP\Accounts\IAccountManager;
 use OCP\IAvatarManager;
+use OCP\IUserManager;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -56,10 +57,26 @@ class AtprotoAppsTest extends TestCase {
 		[$status, $answer] = $app->signIn($identity->handle, $password);
 		$this->assertSame(200, $status, json_encode($answer));
 		$this->assertSame($identity->did, $answer['did']);
+		[$status] = $app->procedure('com.atproto.server.deleteSession', [], $app->refreshJwt);
+		$this->assertSame(200, $status, 'the handle sign-in can be ended');
+
+		$email = 'atproto-' . bin2hex(random_bytes(6)) . '@example.org';
+		$user = Server::get(IUserManager::class)->get($this->alice->userId);
+		$this->assertNotNull($user);
+		$user->setEMailAddress($email);
+		$accounts = Server::get(IAccountManager::class);
+		$account = $accounts->getAccount($user);
+		$account->setProperty(IAccountManager::PROPERTY_EMAIL, $email, IAccountManager::SCOPE_PRIVATE, IAccountManager::NOT_VERIFIED);
+		$accounts->updateAccount($account);
+		[$status, $answer] = $app->signIn($email, $password);
+		$this->assertSame(200, $status, 'the Nextcloud email address signs into this PDS: ' . json_encode($answer));
+		$this->assertSame($identity->did, $answer['did']);
 
 		[$status, $session] = $app->query('com.atproto.server.getSession');
 		$this->assertSame(200, $status);
 		$this->assertSame($identity->handle, $session['handle']);
+		$this->assertSame($email, $session['email']);
+		$this->assertFalse($session['emailConfirmed'], 'an address without Nextcloud verification is not reported as verified');
 
 		// the AppView answers through this server, as alice
 		[$status, $timeline] = $this->network->await(function () use ($app): ?array {
