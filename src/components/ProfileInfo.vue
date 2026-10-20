@@ -340,15 +340,15 @@
 						<a
 							v-if="field.href"
 							:href="field.href"
+							:title="field.verified ? verifiedLinkTooltip(field.verifiedAt) : undefined"
 							target="_blank"
-							rel="nofollow noopener noreferrer">{{ field.text }}</a>
+							rel="nofollow noopener noreferrer">
+							<VerifiedCheck v-if="field.verified" :verifiedAt="field.verifiedAt" />
+							{{ field.text }}
+						</a>
 						<template v-else>
 							{{ field.text }}
 						</template>
-						<span v-if="field.verified" class="user-profile__verified-link">
-							<VerifiedCheck :verifiedAt="field.verifiedAt" />
-							{{ t('social', 'Verified link') }}
-						</span>
 					</dd>
 				</div>
 			</dl>
@@ -1222,6 +1222,17 @@ export default {
 		},
 
 		/**
+		 * @param {string} verifiedAt when the link was last proved
+		 * @return {string} the link's verification tooltip
+		 */
+		verifiedLinkTooltip(verifiedAt) {
+			const date = verifiedAt ? fullDateTime(verifiedAt) : ''
+			return date === ''
+				? t('social', 'Ownership of this link was verified')
+				: t('social', 'Ownership of this link was verified on {date}', { date })
+		},
+
+		/**
 		 * Whether a value that is not a link reads like somebody meant one.
 		 * `example.org` in a Website field is the usual way to end up with a
 		 * row that can never be verified, and saying nothing about it leaves
@@ -1822,6 +1833,8 @@ export default {
 	&__field--verified {
 		dd > a {
 			display: inline-flex;
+			align-items: center;
+			gap: 4px;
 			max-width: 100%;
 			padding: 2px 8px;
 			border: 1px solid #1f6f35;
@@ -1831,6 +1844,11 @@ export default {
 			text-decoration: none;
 			overflow-wrap: anywhere;
 
+			:deep(.verified-check) {
+				margin-inline-start: 0;
+				color: #fff;
+			}
+
 			&:hover {
 				background: #195c2b;
 				border-color: #195c2b;
@@ -1838,21 +1856,6 @@ export default {
 				text-decoration: underline;
 			}
 		}
-	}
-
-	&__verified-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 3px;
-		flex: 0 0 auto;
-		padding: 2px 8px 2px 5px;
-		border: 1px solid var(--color-success, #2d7b32);
-		border-radius: var(--border-radius-pill, 999px);
-		background: var(--color-background-hover);
-		color: var(--color-success, #2d7b32);
-		font-size: 12px;
-		font-weight: 600;
-		white-space: nowrap;
 	}
 
 	&__fields-known {
