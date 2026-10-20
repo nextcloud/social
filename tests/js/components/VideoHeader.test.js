@@ -214,7 +214,7 @@ describe('the video page', () => {
 
 			const pressed = mountHeader(status({}, { disliked: true }))
 			expect(pressed.find('.watch__dislike').attributes('aria-pressed')).toBe('true')
-			expect(pressed.findComponent({ name: 'NcButton' }).props('ariaLabel')).toBe('Undo dislike')
+			expect(pressed.find('.watch__dislike').attributes('aria-label')).toBe('Undo dislike')
 		})
 
 		it('cannot be pressed twice while it is in flight', async () => {
@@ -228,7 +228,97 @@ describe('the video page', () => {
 			await flushPromises()
 
 			expect(store.postDislike).toHaveBeenCalledTimes(1)
-			expect(wrapper.findComponent({ name: 'NcButton' }).props('disabled')).toBe(true)
+			expect(wrapper.find('.watch__dislike').attributes('disabled')).toBeDefined()
+		})
+	})
+
+	describe('liking and boosting', () => {
+		it('sends a like, and takes it back', async () => {
+			const wrapper = mountHeader()
+			const store = useTimelineStore()
+			store.postLike = vi.fn().mockResolvedValue(undefined)
+			store.postUnlike = vi.fn().mockResolvedValue(undefined)
+
+			wrapper.find('.watch__like').trigger('click')
+			await flushPromises()
+			expect(store.postLike).toHaveBeenCalledWith({ status: wrapper.props('status') })
+
+			await wrapper.setProps({ status: status({}, { favourited: true }) })
+			wrapper.find('.watch__like').trigger('click')
+			await flushPromises()
+			expect(store.postUnlike).toHaveBeenCalled()
+		})
+
+		it('sends a boost, and takes it back', async () => {
+			const wrapper = mountHeader(status({}, { visibility: 'public' }))
+			const store = useTimelineStore()
+			store.postBoost = vi.fn().mockResolvedValue(undefined)
+			store.postUnBoost = vi.fn().mockResolvedValue(undefined)
+
+			wrapper.find('.watch__boost').trigger('click')
+			await flushPromises()
+			expect(store.postBoost).toHaveBeenCalledWith({ status: wrapper.props('status') })
+
+			await wrapper.setProps({ status: status({}, { visibility: 'public', reblogged: true }) })
+			wrapper.find('.watch__boost').trigger('click')
+			await flushPromises()
+			expect(store.postUnBoost).toHaveBeenCalled()
+		})
+
+		/** Taking a boost back is never refused, whatever the post's audience is now. */
+		it('lets an existing boost be taken back even when it is no longer shareable', async () => {
+			const wrapper = mountHeader(status({}, { visibility: 'private', reblogged: true }))
+			const store = useTimelineStore()
+			store.postUnBoost = vi.fn().mockResolvedValue(undefined)
+
+			expect(wrapper.find('.watch__boost').attributes('disabled')).toBeUndefined()
+			wrapper.find('.watch__boost').trigger('click')
+			await flushPromises()
+			expect(store.postUnBoost).toHaveBeenCalled()
+		})
+
+		it('offers no reactions to a visitor who has no account to send them with', () => {
+			const wrapper = mountHeader(status(), { public: true })
+
+			expect(wrapper.find('.watch__like').exists()).toBe(false)
+			expect(wrapper.find('.watch__boost').exists()).toBe(false)
+			expect(wrapper.find('.watch__dislike').exists()).toBe(false)
+		})
+
+		it('says which way the like and the boost are pressed', () => {
+			const wrapper = mountHeader(status({}, { favourited: true, reblogged: true, visibility: 'public' }))
+
+			expect(wrapper.find('.watch__like').attributes('aria-pressed')).toBe('true')
+			expect(wrapper.find('.watch__boost').attributes('aria-pressed')).toBe('true')
+		})
+
+		it('shows the like and boost counts', () => {
+			const wrapper = mountHeader(status({}, { favourites_count: 2, reblogs_count: 3 }))
+
+			expect(wrapper.findAll('.watch__action .post-action-count').map((count) => count.text()))
+				.toEqual(['2', '3'])
+		})
+
+		it('says nothing about the counts to a reader who hides the numbers', () => {
+			const wrapper = mountHeader(status({}, { favourites_count: 2, reblogs_count: 3 }), { hideCounts: true })
+
+			expect(wrapper.find('.watch__action .post-action-count').exists()).toBe(false)
+		})
+
+		it('does not offer a like or a boost the author refused', () => {
+			const wrapper = mountHeader(status({}, {
+				visibility: 'public',
+				interaction_policy: { like: false, boost: false },
+			}))
+
+			expect(wrapper.find('.watch__like').attributes('disabled')).toBeDefined()
+			expect(wrapper.find('.watch__boost').attributes('disabled')).toBeDefined()
+		})
+
+		it('does not offer a boost of a post that is not public', () => {
+			const wrapper = mountHeader(status({}, { visibility: 'private' }))
+
+			expect(wrapper.find('.watch__boost').attributes('disabled')).toBeDefined()
 		})
 	})
 

@@ -11,7 +11,6 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Db\WatchRequest;
-use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
 use Psr\Log\LoggerInterface;
@@ -39,15 +38,19 @@ class WatchService {
 	}
 
 	/**
-	 * Remembers where somebody got to.
+	 * Remembers where somebody got to, and says whether the store took it.
 	 *
 	 * Nothing here may fail a request: a player reporting its position is not
 	 * something worth an error over, and a bookmark that was not written is a
-	 * video that starts at the beginning.
+	 * video that starts at the beginning. But the answer tells a player that
+	 * what it reported is not what the server holds, so its own copy is not
+	 * mistaken for a stored one.
+	 *
+	 * @return bool whether the position is where the server holds it
 	 */
-	public function remember(Stream $post, ?Person $viewer, int $position, int $duration): void {
+	public function remember(Stream $post, ?Person $viewer, int $position, int $duration): bool {
 		if ($viewer === null || $post->getId() === '' || $position < 0) {
-			return;
+			return true;
 		}
 
 		try {
@@ -62,15 +65,19 @@ class WatchService {
 				if ($position >= (int)floor((float)$duration * WatchRequest::FINISHED_RATIO)) {
 					$this->watchRequest->forget($post->getId(), $viewer->getId());
 
-					return;
+					return true;
 				}
 			}
 
 			$this->watchRequest->remember($post->getId(), $viewer->getId(), $position, $duration);
+
+			return true;
 		} catch (Throwable $e) {
-			$this->logger->debug('could not remember a watch position', [
+			$this->logger->warning('could not remember a watch position', [
 				'post' => $post->getId(), 'exception' => $e->getMessage(),
 			]);
+
+			return false;
 		}
 	}
 
@@ -119,8 +126,7 @@ class WatchService {
 
 		foreach ($this->watchRequest->unfinishedProgress($viewer->getId(), $limit) as $watch) {
 			try {
-				$post = $this->streamRequest->getStream($watch['prim']);
-				$post->setExportFormat(ACore::FORMAT_LOCAL);
+				$post = $this->streamRequest->getStreamByIdPrim($watch['prim']);
 				$post->setWatchProgress($watch['position'], $watch['duration'], $watch['updated']);
 				$posts[] = $post;
 			} catch (Throwable $e) {

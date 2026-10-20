@@ -552,6 +552,23 @@ class StreamRequest extends StreamRequestBuilder {
 	}
 
 	/**
+	 * One post by its internal id, with the actor that wrote it, as a
+	 * client-API status carries it.
+	 *
+	 * @param string $idPrim
+	 *
+	 * @return Stream
+	 * @throws StreamNotFoundException
+	 */
+	public function getStreamByIdPrim(string $idPrim): Stream {
+		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
+		$qb->limitToIdPrim($idPrim);
+		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+
+		return $this->getStreamFromRequest($qb);
+	}
+
+	/**
 	 * The next ordered page for the incremental stream-index repair job.
 	 *
 	 * Only the keys: the repair hydrates the page with `getIndexStreams()` in

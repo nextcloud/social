@@ -67,7 +67,7 @@ class WatchServiceTest extends TestCase {
 			['prim' => md5('gone'), 'position' => 30, 'duration' => 60, 'updated' => 0],
 		]);
 		$streams = $this->createStub(StreamRequest::class);
-		$streams->method('getStream')->willReturnCallback(function (string $prim): Note {
+		$streams->method('getStreamByIdPrim')->willReturnCallback(function (string $prim): Note {
 			if ($prim !== md5(self::POST)) {
 				throw new \Exception('deleted since');
 			}
@@ -93,7 +93,7 @@ class WatchServiceTest extends TestCase {
 		$this->watchRequest->expects($this->once())->method('remember')
 			->with(self::POST, self::BOB, 300, 3600);
 
-		$this->service->remember($this->post(), $this->bob(), 300, 3600);
+		$this->assertTrue($this->service->remember($this->post(), $this->bob(), 300, 3600));
 	}
 
 	/**
@@ -129,13 +129,14 @@ class WatchServiceTest extends TestCase {
 		$this->service->remember($this->post(), null, 300, 3600);
 	}
 
-	/** A bookmark that was not written is a video that starts at the beginning. */
+	/**
+	 * A bookmark that was not written is a video that starts at the
+	 * beginning, and the player is told it was not written.
+	 */
 	public function testAFailingBookmarkNeverFailsTheRequest(): void {
 		$this->watchRequest->method('remember')->willThrowException(new \RuntimeException('nope'));
 
-		$this->service->remember($this->post(), $this->bob(), 300, 3600);
-
-		$this->addToAssertionCount(1);
+		$this->assertFalse($this->service->remember($this->post(), $this->bob(), 300, 3600));
 	}
 
 	public function testWhereSomebodyGotToComesBack(): void {

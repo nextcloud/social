@@ -52,10 +52,10 @@ describe('where the reader stopped in a video', () => {
 		expect(progressOf({ id: '7' }).fraction).toBe(0.1)
 	})
 
-	it('answers nothing when the server would not say', async () => {
+	it('tells the page when the server would not say, rather than calling it empty', async () => {
 		vi.mocked(axios.get).mockRejectedValue(new Error('down'))
 
-		expect(await loadUnfinished()).toEqual([])
+		await expect(loadUnfinished()).rejects.toThrow('down')
 	})
 
 	/** A player on the page moves the bar of every card for the same video. */

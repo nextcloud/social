@@ -71,6 +71,10 @@
 				:style="{ '--played': playedShare }"
 				@input="onSeekInput">
 
+			<p v-if="saveFailed && !mini" class="video-player__save-failed" role="status">
+				{{ t('social', 'Your place could not be saved. It will be tried again.') }}
+			</p>
+
 			<div class="video-player__bar">
 				<button
 					type="button"
@@ -475,6 +479,8 @@ export default {
 			/** the last place sent, in whole seconds, and when */
 			lastReported: -1,
 			lastReportAt: 0,
+			/** whether the last place sent did not reach the server */
+			saveFailed: false,
 			/** seconds actually played, which is what a view is */
 			played: 0,
 			lastTime: 0,
@@ -1083,17 +1089,35 @@ export default {
 			this.lastReported = at
 			this.lastReportAt = Date.now()
 			const duration = Math.round(this.duration)
-			rememberProgress(this.current.id, at, duration)
 
 			const url = generateUrl(`apps/social/api/v1/statuses/${this.current.id}/watched`)
 			if (beacon && typeof navigator.sendBeacon === 'function') {
 				// the route takes no CSRF token, which is what a beacon cannot carry
 				navigator.sendBeacon(url, new URLSearchParams({ position: String(at), duration: String(duration) }))
+				// a beacon cannot answer: the card keeps the best effort this page has
+				rememberProgress(this.current.id, at, duration)
 				return
 			}
 
 			axios.post(url, { position: at, duration })
-				.catch((error) => logger.debug('could not say where the reader stopped', { error }))
+				.then((response) => {
+					if (response?.data?.stored === false) {
+						// the request went through but the row did not
+						this.lastReported = -1
+						this.saveFailed = true
+
+						return
+					}
+
+					this.saveFailed = false
+					rememberProgress(this.current.id, at, duration)
+				})
+				.catch((error) => {
+					// the place was not stored, so let the next report try again
+					this.lastReported = -1
+					this.saveFailed = true
+					logger.debug('could not say where the reader stopped', { error })
+				})
 		},
 
 		/** A few seconds were watched: a view, as far as this player is concerned. */
@@ -1445,14 +1469,28 @@ export default {
 	display: block;
 	width: 100%;
 	margin: 0 0 4px;
-	accent-color: var(--color-error, #e9322d);
+	accent-color: var(--color-primary-element);
 	cursor: pointer;
+}
+
+@media (forced-colors: active) {
+	.video-player__seek,
+	.video-player__volume {
+		accent-color: Highlight;
+	}
 }
 
 .video-player__volume {
 	width: 80px;
 	accent-color: #fff;
 	cursor: pointer;
+}
+
+.video-player__save-failed {
+	margin: 0 0 4px;
+	padding-inline: 8px;
+	color: var(--color-error);
+	font-size: 12px;
 }
 
 .video-player__time,

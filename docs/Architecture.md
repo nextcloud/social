@@ -3328,15 +3328,20 @@ with null for what its origin did not say. The channel is the status's
   once it has arrived), **From channels you follow** (the home scope with
   `only_video`, not on My Feed, which is the grid itself, and not without a
   session), and **Continue watching** (`GET /api/v1/videos/continue`, read
-  once per page view and only with a session). Under a chip there are no
-  shelves.
+  once per page view and only with a session). Continue watching says that it
+  is loading, that nothing is waiting yet, or that the list could not be read
+  and offers to ask again; only a shelf with videos draws a row of cards and
+  cuts the grid short. Under a chip there are no shelves. It is read on mount:
+  the Videos page and a single post are different route components, so coming
+  back through the router mounts the page again and asks again; a scope change
+  within the page keeps the list, which is the same list in every scope.
 - **Watch progress** is the server's (`WatchService`, one `social_watch` row
   per video and reader). `/api/v1/videos/continue` hands each status back
   with `watch_progress` (`WatchRequest::unfinishedProgress()`, the same query
   as before with the row's position, duration and time); every other list
   carries it as null. `services/videoProgress.js` keeps what that answer said
   by post, and `progressOf(status)` — `{position, duration, fraction,
-  updatedAt}` or null — is the one place a card asks for its red bar, so a
+  updatedAt}` or null — is the one place a card asks for its accent bar, so a
   player that reports positions with `POST /api/v1/statuses/{id}/watched`
   needs nothing more on this page.
 - **Hover preview.** After 600 ms of the pointer on a card, a muted, looping
@@ -3356,7 +3361,41 @@ is decided in one place for every player in the app,
 `services/videoSource.js`, which `MediaAttachment` uses too: the file; a remote
 HLS playlist, proxied, through hls.js (fetched lazily) everywhere but Safari;
 or a local video's ladder beside its file, which falls back to the file on a
-fatal error. Around that:
+fatal error.
+
+- **The controls are the player's own, not the element's.** The `<video>` has
+  no `controls` attribute. That is a decision (#2703), not an omission. A
+  native `<video controls>` was checked in Chromium, Firefox and WebKit (a
+  Playwright page playing the same local clip); it has the same handful of
+  controls in all three, and nothing else:
+
+  | | Native controls | `VideoPlayer.vue` |
+  |---|---|---|
+  | Play, seek, volume, full screen | yes | yes |
+  | Picture in picture | yes in Chromium and Firefox; WebKit has `webkitEnterFullscreen` instead | where the API exists, with the iPhone fallback |
+  | HLS | Safari's own; Chromium and Firefox need hls.js and have no menu for its levels | hls.js, or Safari's native playback |
+  | Quality levels | no API and no UI | hls.js levels, Auto first |
+  | Chapters | not representable | a list of moments to press |
+  | Subtitles | an engine menu over the element's `<track>`s only | `<track>`s plus the tracks hls.js finds in a playlist |
+  | Playback speed | engine-specific, not extensible | 0.5–2×, kept across videos |
+  | Resume and the mini-player | the app can seek the element; there is no place for the notice or the hand-off | yes |
+  | The app's keyboard shortcuts | the engine's own keys only | one documented set, with the player tests covering them |
+  | Accessible names and states | UA shadow DOM: empty to Playwright's accessibility snapshot in all three engines | labelled buttons and sliders, `aria-pressed` on what latches, a live region |
+
+  A hybrid — native controls where they are richer, this bar otherwise —
+  would give the same video a different set of controls in every engine and
+  two accessibility models to keep working, for the one part of the page that
+  has to behave the same everywhere. The app's bar is one focusable `region`
+  with labelled buttons and sliders, `aria-pressed` on what latches, a live
+  region for what a key or menu changed, a focus ring, and
+  `prefers-reduced-motion` respected; the player tests cover the keys and the
+  focus rules. In the headless WebKit build available here the element took
+  focus but did not start on Space, so that engine's native keyboard
+  behaviour is the platform's and not something this suite can pin. If
+  browsers ever give native controls a standard quality menu and a track list
+  that includes hls.js's, this decision is worth revisiting.
+
+Around that:
 
 - **Resume and progress.** It starts at `progressOf(status)` — the single
   status's `watch_progress`, or what the page already knew — unless that is
@@ -3365,10 +3404,12 @@ fatal error. Around that:
   on pause, at the end (the whole duration, which the server forgets) and on
   `pagehide` by `navigator.sendBeacon` (the route takes no CSRF token, which a
   beacon cannot carry). Only for somebody signed in, never for a live video.
-  Each report also goes into `videoProgress.js` (`rememberProgress()`), and
-  `progressOf()` takes the newer of that and what the server said, so every
-  card of the video on the page moves with it and a finished one loses its
-  bar.
+  A report goes into `videoProgress.js` (`rememberProgress()`) only once the
+  server answered that it stored it (`{"stored": bool}`); a failed write is
+  logged, the player says the place was not saved, and the next report tries
+  again. `progressOf()` takes the newer of that and what the server said, so
+  every card of the video on the page moves with it and a finished one loses
+  its bar. A beacon cannot answer, so it keeps the page's best effort.
 - **Views.** After `VIEW_AFTER` (5) seconds actually played — the deltas of
   `timeupdate`, a seek not counting — it sends `POST /api/v1/statuses/{id}/view`
   once per video it plays.
@@ -3404,6 +3445,20 @@ fatal error. Around that:
   volume, where it went on from). The controls fade while it plays untouched,
   never while it has the focus or a menu is open, and without the fade under
   `prefers-reduced-motion`.
+
+**A video's page reacts like a post.** Like and boost beside the channel use
+the timeline's own store actions (`postLike`/`postUnlike`,
+`postBoost`/`postUnBoost`), so an active state and a count are the same object
+the grid reads, including after a reload. The author's `interaction_policy` is
+checked before either is offered, and an action already taken can always be
+undone. **Dislike** is PeerTube's other counter and is offered only here, only
+on a video; the same control takes it back. A visitor with no session is
+offered none of the three. The counts beside the buttons are
+`favourites_count` and `reblogs_count`, left out for a reader who hides the
+numbers; the facts line keeps PeerTube's own like and dislike numbers. The
+undo reads `status.disliked`, which is `social_stream_act.disliked` — every
+stream query has to select that column, because a missing alias reads as
+`false` and makes an undo impossible.
 
 **The small player.** Leaving a video's page while it plays hands the video
 (`handOff()` in `services/miniPlayer.js`, the post and the position) to

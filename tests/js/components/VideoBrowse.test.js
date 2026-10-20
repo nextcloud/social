@@ -217,17 +217,11 @@ describe('the Videos page', () => {
 			await flushPromises()
 
 			const titles = wrapper.findAll('.video-browse__shelf h2').map((title) => title.text())
-			expect(titles).toEqual(['From channels you follow'])
+			expect(titles).toEqual(['Continue watching', 'From channels you follow'])
 			expect(wrapper.findAll('.video-browse__shelf .video-card')).toHaveLength(1)
 		})
 
 		it('shows Continue watching only when the reader is in the middle of something', async () => {
-			wrapper = mountBrowse({ posts: videos(3) })
-			await flushPromises()
-			expect(loadUnfinished).toHaveBeenCalledTimes(1)
-			expect(wrapper.text()).not.toContain('Continue watching')
-			wrapper.unmount()
-
 			vi.mocked(loadUnfinished).mockResolvedValue([video('c1'), { id: 'text', video_card: null }])
 			wrapper = mountBrowse({ posts: videos(3) })
 			await flushPromises()
@@ -237,13 +231,49 @@ describe('the Videos page', () => {
 			// once per page view, whatever else changes
 			await wrapper.setProps({ posts: videos(5) })
 			await flushPromises()
+			expect(loadUnfinished).toHaveBeenCalledTimes(1)
+		})
+
+		it('says that nothing is waiting rather than hiding the shelf', async () => {
+			wrapper = mountBrowse({ posts: videos(3) })
+			await flushPromises()
+
+			const shelf = wrapper.findAll('.video-browse__shelf').find((one) => one.find('h2').text() === 'Continue watching')
+			expect(shelf.find('.video-browse__shelf-note').text())
+				.toContain('Videos you start watching show up here')
+			expect(shelf.find('.video-card').exists()).toBe(false)
+		})
+
+		it('says that it could not read the list, and asks again when told to', async () => {
+			vi.mocked(loadUnfinished).mockRejectedValueOnce(new Error('down'))
+			wrapper = mountBrowse({ posts: videos(3) })
+			await flushPromises()
+
+			const shelf = () => wrapper.findAll('.video-browse__shelf').find((one) => one.find('h2').text() === 'Continue watching')
+			expect(shelf().find('.video-browse__shelf-note').text())
+				.toContain('Could not read what you were watching')
+
+			vi.mocked(loadUnfinished).mockResolvedValue([video('c1')])
+			await shelf().findComponent({ name: 'NcButton' }).trigger('click')
+			await flushPromises()
+
 			expect(loadUnfinished).toHaveBeenCalledTimes(2)
+			expect(shelf().findAll('.video-card__title').map((title) => title.text())).toEqual(['Video c1'])
+		})
+
+		it('says that the list is still loading', async () => {
+			vi.mocked(loadUnfinished).mockReturnValue(new Promise(() => {}))
+			wrapper = mountBrowse({ posts: videos(3) })
+
+			const shelf = wrapper.findAll('.video-browse__shelf').find((one) => one.find('h2').text() === 'Continue watching')
+			expect(shelf.find('.video-browse__shelf-note').text()).toContain('Loading')
 		})
 
 		it('asks nobody without a session what they were watching', async () => {
 			wrapper = mountBrowse({}, { public: true })
 			await flushPromises()
 			expect(loadUnfinished).not.toHaveBeenCalled()
+			expect(wrapper.text()).not.toContain('Continue watching')
 		})
 
 		it('leaves the shelves out under a chip', async () => {

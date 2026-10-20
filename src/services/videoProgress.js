@@ -102,7 +102,8 @@ export function isUnfinished(progress) {
  * remembering where they stopped in each.
  *
  * @param {number} [limit] how many
- * @return {Promise<import('../types/Mastodon.js').Status[]>} [] when the server would not say
+ * @return {Promise<import('../types/Mastodon.js').Status[]>} what the server said, which may be none
+ * @throws {Error} when the server would not say, so that a page can offer to ask again
  */
 export async function loadUnfinished(limit = 12) {
 	try {
@@ -118,8 +119,7 @@ export async function loadUnfinished(limit = 12) {
 		return statuses
 	} catch (error) {
 		logger.debug('Could not read what the reader was watching', { error })
-
-		return []
+		throw error
 	}
 }
 

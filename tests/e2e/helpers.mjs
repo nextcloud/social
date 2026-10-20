@@ -35,6 +35,9 @@ export const BASE_URL = (process.env.E2E_BASE_URL ?? 'http://localhost:8080').re
  */
 export const IGNORE_HTTPS_ERRORS = process.env.E2E_IGNORE_HTTPS_ERRORS === '1'
 
+/** Pages whose Nextcloud first-run overlay has already been handled. */
+const wizardHandled = new WeakSet()
+
 /** Where the app lives, whether or not the instance has pretty URLs. */
 export const APP = 'index.php/apps/social'
 
@@ -69,6 +72,15 @@ export async function login(page, user = USER, password = PASSWORD) {
  * @param {string} path inside the app, e.g. '/discover'
  */
 export async function openApp(page, path = '/') {
+	// Nextcloud's own first-run wizard is an overlay that covers the page on
+	// an account nobody has opened yet, and it is drawn after the app's own
+	// shell. Hand it to Playwright so any action that meets it removes it.
+	if (!wizardHandled.has(page)) {
+		wizardHandled.add(page)
+		await page.addLocatorHandler(page.locator('#firstrunwizard[role="dialog"]'), async () => {
+			await page.evaluate(() => document.querySelectorAll('#firstrunwizard').forEach((element) => element.remove()))
+		})
+	}
 	await page.goto(APP + path)
 
 	const create = page.getByRole('button', { name: 'Create account', exact: true })
