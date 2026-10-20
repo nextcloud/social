@@ -21,11 +21,11 @@ class DeviceAuthorizationServiceTest extends TestCase {
 		$requests = new InMemoryDeviceAuthorizationRequest();
 		$time = $this->createStub(ITimeFactory::class);
 		$time->method('getTime')->willReturn(1_800_000_000);
-		$config = $this->createStub(ConfigService::class);
+		$config = $this->createMock(ConfigService::class);
 		$config->method('getSocialUrl')->willReturn('https://cloud.example/apps/social/');
+		$config->expects(self::once())->method('getCloudUrl')->with(true)->willReturn('https://cloud.example/');
 		$check = $this->createStub(CheckService::class);
 		$check->method('clientApiRootIsKnownGood')->willReturn(true);
-		$config->method('getCloudUrl')->with(true)->willReturn('https://cloud.example/');
 		$service = new DeviceAuthorizationService($requests, $time, $config, $check);
 
 		$result = $service->create('client-1', 'read write');

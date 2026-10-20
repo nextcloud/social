@@ -127,6 +127,15 @@ class SessionServiceTest extends TestCase {
 		$this->assertSame('alice.social.test', $session['handle']);
 	}
 
+	public function testEmailSignInTrimsWhitespaceAndIgnoresCase(): void {
+		$password = $this->appPasswords->create('alice', 'phone')['password'];
+
+		$session = $this->sessions->create('  ALICE@EXAMPLE.ORG  ', $password, '203.0.113.5');
+
+		$this->assertSame(self::DID, $session['did']);
+		$this->assertSame('alice.social.test', $session['handle']);
+	}
+
 	public function testPdsAppPasswordMethodsExposeOnlyLexiconFieldsAndRevokeSessions(): void {
 		$session = new ClientSession('alice', $this->identity, 'owner');
 		try {
@@ -230,8 +239,8 @@ class SessionServiceTest extends TestCase {
 
 	public function testAWrongPasswordCountsAgainstTheCallersAddress(): void {
 		$this->appPasswords->create('alice', 'phone');
-		$this->throttler->expects($this->exactly(3))->method('registerAttempt')->with('social_atproto_session', '203.0.113.5', $this->anything());
-		foreach ([['alice.social.test', 'aaaa-bbbb-cccc-dddd'], ['nobody.social.test', 'aaaa-bbbb-cccc-dddd'], ['alice.social.test', 'the Nextcloud password']] as [$who, $password]) {
+		$this->throttler->expects($this->exactly(4))->method('registerAttempt')->with('social_atproto_session', '203.0.113.5', []);
+		foreach ([['alice.social.test', 'aaaa-bbbb-cccc-dddd'], ['nobody.social.test', 'aaaa-bbbb-cccc-dddd'], ['alice.social.test', 'the Nextcloud password'], ['alice@example.org', 'aaaa-bbbb-cccc-dddd']] as [$who, $password]) {
 			try {
 				$this->sessions->create($who, $password, '203.0.113.5');
 				$this->fail('signed in with ' . $password);

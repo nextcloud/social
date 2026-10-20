@@ -71,7 +71,7 @@ class SessionService {
 		}
 		$credentials = $this->credentialsOf($identifier, $password);
 		if ($credentials === null) {
-			$this->throttler->registerAttempt(self::THROTTLE, $ip, ['identifier' => substr($identifier, 0, 100)]);
+			$this->throttler->registerAttempt(self::THROTTLE, $ip);
 
 			throw new XrpcException(401, 'AuthenticationRequired', 'Invalid identifier or password');
 		}
