@@ -479,7 +479,11 @@ from the AppView's opaque pagination cursor. While walking a backlog, the
 existing cursor column holds JSON with `since` (the previous committed
 timestamp), `newest` (the newest timestamp seen in this walk) and `page` (the
 next AppView cursor). Only reaching `since` or the end commits `newest` and
-returns the column to its legacy timestamp format. No schema change is needed.
+returns the column to its legacy timestamp format. AppView timestamps are not
+unique: an event exactly at the committed timestamp is still read, and only
+a strictly older event ends the walk. If equal-time events span pages, the
+opaque page cursor carries the walk across them. Re-reading an event at the
+boundary is safe because imports are idempotent. No schema change is needed.
 Empty intermediate pages still continue, while malformed responses, repeated
 cursors and failed reads retain the existing checkpoint and use failure
 backoff. A pending walk stays on the ordinary two-minute interval even when

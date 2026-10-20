@@ -73,19 +73,21 @@ class PollingBacklogTest extends TestCase {
 			return $pages[$cursor];
 		});
 
-		foreach ([50, 0, 50, 25] as $count) {
+		foreach ([50, 0, 50, 26] as $count) {
 			$result = $poller->poll(1);
 			$this->assertSame(1, $result['requests']);
 			$this->assertSame($count, $result[$notifications ? 'handled' : 'stored']);
 		}
 		$this->assertSame(['', 'second', 'third', 'last'], $asked);
-		$this->assertSame(array_map(self::uri(...), range(225, 101)), $this->stored);
+		$this->assertSame(array_map(self::uri(...), range(225, 100)), $this->stored);
 		$this->assertSame(self::stamp(225), $this->checkpoint);
 		$this->assertSame([120, 120, 120, 120], $this->scheduled);
 
 		$pages[''] = $this->page($notifications, [226, 225], 'older');
 		$poller->poll(1);
-		$this->assertSame(self::uri(226), $this->stored[125]);
+		$this->assertSame(self::uri(226), $this->stored[126]);
+		$pages['older'] = $this->page($notifications, [99], '');
+		$poller->poll(1);
 		$this->assertSame(self::stamp(226), $this->checkpoint);
 	}
 
@@ -104,7 +106,7 @@ class PollingBacklogTest extends TestCase {
 				throw new AtprotoException('Temporary AppView failure');
 			}
 
-			return $this->page($notifications, [101, 100], 'older');
+			return $this->page($notifications, [101, 100], '');
 		});
 		$poller->poll(1);
 		$pending = $this->checkpoint;
@@ -112,7 +114,7 @@ class PollingBacklogTest extends TestCase {
 		$this->assertSame($pending, $this->checkpoint);
 		$this->assertSame(1, $this->failures);
 		$poller->poll(1);
-		$this->assertSame([self::uri(102), self::uri(101)], $this->stored);
+		$this->assertSame([self::uri(102), self::uri(101), self::uri(100)], $this->stored);
 		$this->assertSame(self::stamp(102), $this->checkpoint);
 	}
 
@@ -146,6 +148,38 @@ class PollingBacklogTest extends TestCase {
 		$poller->poll(1);
 		$this->assertSame($pending, $this->checkpoint);
 		$this->assertSame(1, $this->failures);
+	}
+
+	#[DataProvider('readers')]
+	public function testDistinctEventsWithTheWatermarkTimestampAreNotSkipped(bool $notifications): void {
+		$poller = $this->poller($notifications);
+		$first = $this->page($notifications, [101, 100], 'same-time');
+		$second = $this->page($notifications, [102, 99], 'older');
+		$setTime = static function (array &$page, int $index, string $time) use ($notifications): void {
+			if ($notifications) {
+				$page['notifications'][$index]['indexedAt'] = $time;
+			} else {
+				$page['feed'][$index]['post']['indexedAt'] = $time;
+			}
+		};
+		$setTime($first, 1, self::stamp(100));
+		$setTime($second, 0, self::stamp(100));
+		$asked = [];
+		$this->appView->method($notifications ? 'queryAs' : 'query')->willReturnCallback(function (...$args) use ($notifications, $first, $second, &$asked): array {
+			$params = $args[$notifications ? 3 : 1];
+			$cursor = $params['cursor'] ?? '';
+			$asked[] = $cursor;
+
+			return $cursor === '' ? $first : $second;
+		});
+
+		$poller->poll(1);
+		$this->assertStringContainsString('same-time', $this->checkpoint, 'the first page must retain its continuation cursor');
+		$poller->poll(1);
+
+		$this->assertSame(['', 'same-time'], $asked);
+		$this->assertSame([self::uri(101), self::uri(100), self::uri(102)], $this->stored);
+		$this->assertSame(self::stamp(101), $this->checkpoint);
 	}
 
 	private function poller(bool $notifications): FeedPoller|NotificationPoller {

@@ -75,8 +75,8 @@ class FeedPollerTest extends TestCase {
 		});
 		$this->watches->expects($this->once())->method('synced')->with(self::DID, '2026-10-08T12:00:00.000Z', self::NOW, self::NOW + FeedPoller::INTERVAL);
 
-		$this->assertSame(2, $this->poller->pollWatch($watch));
-		$this->assertSame(['three', 'two'], $stored, 'newest first, nothing at or before the cursor');
+		$this->assertSame(3, $this->poller->pollWatch($watch));
+		$this->assertSame(['three', 'two', 'one'], $stored, 'newest first, including a post tied with the cursor');
 	}
 
 	public function testARepostIsOrderedByItsOwnTime(): void {
