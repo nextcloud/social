@@ -4,6 +4,33 @@
 -->
 <template>
 	<div class="shorts" role="region" :aria-label="t('social', 'Videos, one at a time')">
+		<header class="shorts__header">
+			<h1 class="shorts__heading">
+				{{ t('social', 'Shorts') }}
+			</h1>
+			<div class="shorts__header-actions">
+				<nav class="shorts__scopes" :aria-label="t('social', 'Whose videos')">
+					<router-link
+						v-for="option in scopes"
+						:key="option.value"
+						class="shorts__scope"
+						:class="{ 'shorts__scope--current': option.value === watching }"
+						:aria-current="option.value === watching ? 'page' : undefined"
+						:to="{ name: 'shorts', query: { scope: option.value } }">
+						{{ option.label }}
+					</router-link>
+				</nav>
+				<router-link class="shorts__videos-link" :to="{ name: 'timeline', params: { type: 'videos' } }">
+					{{ t('social', 'Back to Videos') }}
+				</router-link>
+				<NcButton class="shorts__create" variant="primary" @click="startShort">
+					<template #icon>
+						<IconPlus :size="20" />
+					</template>
+					{{ t('social', 'New short') }}
+				</NcButton>
+			</div>
+		</header>
 		<div
 			ref="track"
 			class="shorts__track"
@@ -179,39 +206,7 @@
 			</div>
 		</div>
 
-		<!-- a new short: its own dialog, made for a video -->
-		<button
-			type="button"
-			class="shorts__create"
-			:title="t('social', 'New short')"
-			:aria-label="t('social', 'New short')"
-			@click="startShort">
-			<IconPlus :size="24" />
-		</button>
 		<ShortComposerDialog v-model:open="composing" @posted="onPosted" />
-
-		<!-- whose videos: the three circles the Videos page is read at. Shorts
-		     is its own entry in the sidebar, so this page is where the choice
-		     is made rather than something carried over from the grid -->
-		<nav class="shorts__scopes" :aria-label="t('social', 'Whose videos')">
-			<router-link
-				v-for="option in scopes"
-				:key="option.value"
-				class="shorts__scope"
-				:class="{ 'shorts__scope--current': option.value === watching }"
-				:aria-current="option.value === watching ? 'page' : undefined"
-				:to="{ name: 'shorts', query: { scope: option.value } }">
-				{{ option.label }}
-			</router-link>
-		</nav>
-		<div class="shorts__context">
-			<h1 class="shorts__heading">
-				{{ t('social', 'Shorts') }}
-			</h1>
-			<router-link class="shorts__videos-link" :to="{ name: 'timeline', params: { type: 'videos' } }">
-				{{ t('social', 'Back to Videos') }}
-			</router-link>
-		</div>
 	</div>
 </template>
 
@@ -1179,25 +1174,53 @@ export default {
 <style scoped lang="scss">
 .shorts {
 	position: relative;
-	/* the app's own content area, not the window: the navigation stays where
-	   it is and the stack fills what is left of the page.
-	   Measured off the viewport rather than given `100%`, because nothing in
-	   the chain above this has a height for a percentage to be of — so the
-	   stack was as tall as one slide's contents and sat in the top half of a
-	   white page. Both of the server's own offsets are taken off, or the
-	   stack overhangs its column by the eight pixels of the one that was
-	   missed and the column scrolls behind the slides. */
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 	block-size: calc(
 		100vh - var(--header-height, 50px) - var(--body-container-margin, 8px)
 	);
 	inline-size: 100%;
-	background: var(--social-on-dark-ground);
+	min-block-size: 0;
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+
+	&__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 8px 16px;
+		padding: 8px 16px 0;
+	}
+
+	&__heading {
+		margin: 0;
+		color: var(--color-text-lighter);
+		font-size: 20px;
+		font-weight: 700;
+	}
+
+	&__header-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		flex-wrap: wrap;
+		gap: 8px 12px;
+		margin-inline-start: auto;
+	}
 
 	&__track {
-		/* the player is placed against the track, a slide's height per slide */
 		position: relative;
-		block-size: 100%;
+		flex: 1 1 auto;
+		inline-size: min(100%, 440px);
+		max-block-size: 780px;
+		min-block-size: 0;
+		margin: auto;
 		overflow-y: auto;
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius-large, 12px);
+		background: var(--social-on-dark-ground);
 		scroll-snap-type: y mandatory;
 		/* the one gesture this page has, and it must not also pull the page
 		   behind it down to refresh */
@@ -1226,99 +1249,47 @@ export default {
 		opacity: 0.8;
 	}
 
-	/* top right, over the video, where every short-video app keeps it */
-	/* above the column of per-video buttons, for the whole stack */
-	&__create {
-		position: absolute;
-		z-index: 3;
-		inset-block-end: 132px;
-		inset-inline-end: 16px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		inline-size: 40px;
-		block-size: 40px;
-		padding: 0;
-		border: 2px solid var(--social-on-dark-text);
-		border-radius: 12px;
-		background: linear-gradient(135deg, var(--social-on-dark-accent), var(--social-on-dark-accent-blue));
-		color: var(--social-on-dark-text);
-		cursor: pointer;
-		transition: transform .15s ease;
-
-		&:hover {
-			transform: scale(1.08);
-		}
-
-		&:focus-visible {
-			outline: 2px solid var(--social-on-dark-text);
-			outline-offset: 2px;
-		}
-	}
-
+	/* Choose which videos fill the player. */
 	&__scopes {
-		position: absolute;
-		inset-block-start: 12px;
-		inset-inline-end: 12px;
 		display: flex;
-		gap: 2px;
+		gap: 4px;
 		padding: 3px;
 		border-radius: var(--border-radius-pill, 999px);
-		background: var(--social-on-dark-scrim);
-	}
-
-	&__context {
-		position: absolute;
-		z-index: 3;
-		inset-block-start: 12px;
-		inset-inline-start: 64px;
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 5px 8px;
-		border-radius: var(--border-radius-pill, 999px);
-		background: var(--social-on-dark-scrim);
-		color: var(--social-on-dark-text);
-	}
-
-	&__heading {
-		margin: 0;
-		font-size: 14px;
-		font-weight: 700;
+		background: var(--color-background-dark);
 	}
 
 	&__videos-link {
-		color: var(--social-on-dark-text-soft);
+		color: var(--color-primary-element);
 		font-size: 13px;
 		font-weight: 600;
 		text-decoration: none;
 
 		&:hover {
-			color: var(--social-on-dark-text);
 			text-decoration: underline;
 		}
 
 		&:focus-visible {
-			outline: 2px solid var(--social-on-dark-text);
+			outline: 2px solid var(--color-primary-element);
 			outline-offset: 3px;
 		}
 	}
 
 	&__scope {
-		padding: 4px 12px;
+		padding: 5px 10px;
 		border-radius: var(--border-radius-pill, 999px);
-		color: var(--social-on-dark-text-soft);
+		color: var(--color-text-lighter);
 		font-size: 13px;
 		font-weight: 600;
 		text-decoration: none;
 
 		&--current {
-			background: var(--social-on-dark-text);
-			color: var(--social-on-dark-ground);
+			background: var(--color-main-background);
+			color: var(--color-main-text);
+			box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
 		}
 
 		&:focus-visible {
-			outline: 2px solid var(--social-on-dark-text);
+			outline: 2px solid var(--color-primary-element);
 			outline-offset: 2px;
 		}
 	}
@@ -1580,10 +1551,6 @@ export default {
 		animation: none;
 	}
 
-	.shorts__create {
-		transition: none;
-	}
-
 	.short__heart {
 		animation: none;
 		display: none;
@@ -1601,7 +1568,6 @@ export default {
 @media (forced-colors: active) {
 	.shorts__create,
 	.shorts__scopes,
-	.shorts__context,
 	.short__sound,
 	.short__sound-hint,
 	.short__like {
@@ -1629,21 +1595,19 @@ export default {
 }
 
 @media (max-width: 600px) {
-	.shorts__context {
-		inset-inline-start: 52px;
+	.shorts__header {
+		align-items: flex-start;
+		padding-inline: 12px;
+	}
+
+	.shorts__header-actions {
+		justify-content: flex-start;
 		gap: 8px;
-		padding: 5px 7px;
+		margin-inline-start: 0;
 	}
 
-	.shorts__scopes {
-		inset-block-start: 58px;
-		inset-inline: 8px;
-		justify-content: center;
-	}
-
-	.shorts__heading,
-	.shorts__videos-link {
-		font-size: 12px;
+	.shorts__track {
+		border-radius: var(--border-radius-large, 12px) var(--border-radius-large, 12px) 0 0;
 	}
 
 	.shorts__scope {

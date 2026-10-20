@@ -2589,9 +2589,10 @@ the system's button, canvas and highlight colours with a border, since a
 forced-colours mode takes the scrims away and would leave the words on bare
 video. `tests/js/onDarkPalette.test.js` pins both.
 
-The immersive viewer keeps the app's context visible over the video: **Shorts**
-names the page, **Back to Videos** returns to the grid, and the scope links stay
-beside it on desktop and move below it on phones.
+The Shorts page uses the app's regular page header for its title, scope picker,
+**Back to Videos** link and primary **New short** action. The vertical player
+sits centered in a bounded, rounded dark frame below that header; playback
+controls and post details remain over the video itself.
 
 **Videos with sound.** `src/composables/useSoundAutoplay.js` is shared by every
 player of Shorts, kept or 24-hour. It plays a video
