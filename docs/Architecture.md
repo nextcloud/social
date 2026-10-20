@@ -2054,6 +2054,13 @@ response keeps the local bookmark order and pagination cursor. A failed group
 leaves its entries as `notFoundPost` placeholders and does not prevent the
 remaining groups from being read.
 
+`Atproto\Publisher\BlueskyThreadMutes` mirrors a Bluesky app's accepted
+`app.bsky.graph.muteThread` or `unmuteThread` into the signed-in account's
+conversation state. It resolves the AT URI to a locally stored Bluesky post
+and mutes the local thread root, which suppresses notifications while leaving
+the posts visible. An uncached root remains muted at Bluesky but has no local
+thread state to update.
+
 ### Direct messages with Bluesky
 
 A conversation with somebody on Bluesky is a conversation in Messages like
