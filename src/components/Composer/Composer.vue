@@ -35,11 +35,12 @@
 			aria-hidden="true"
 			class="hidden-visually"
 			@change="handleFileChange($event)">
-		<div v-if="!compactOptions" class="new-post-author">
+		<div v-if="!compactOptions || closable" class="new-post-author">
 			<!-- the reader's own face, and `disableMenu` because a card about
 			     yourself, over the box you are typing in, is nobody's idea of
 			     a preview -->
 			<NcAvatar
+				v-if="!compactOptions"
 				:url="ownAvatarUrl"
 				:displayName="currentUser.displayName"
 				:hideStatus="true"
