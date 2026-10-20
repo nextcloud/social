@@ -33,6 +33,7 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\VapidService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
 use OCP\AppFramework\Http\DataResponse;
@@ -52,6 +53,10 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class OAuthControllerTest extends TestCase {
+	public function testWebPushScopeIsAdvertisedByOAuthDiscovery(): void {
+		self::assertContains('push', OAuthController::SCOPES);
+	}
+
 	/** @var AuthorizationServer&MockObject */
 	private AuthorizationServer $atprotoOAuth;
 	/** @var AtprotoConfig&MockObject */
@@ -109,7 +114,15 @@ class OAuthControllerTest extends TestCase {
 			$this->atprotoOAuth,
 			$this->atprotoConfig,
 			$this->createMock(DpopNonce::class),
+			$this->vapidService(),
 		);
+	}
+
+	private function vapidService(): VapidService {
+		$vapid = $this->createStub(VapidService::class);
+		$vapid->method('publicKey')->willReturn('instance-vapid-key');
+
+		return $vapid;
 	}
 
 	protected function tearDown(): void {
@@ -240,7 +253,7 @@ class OAuthControllerTest extends TestCase {
 			// Mastodon's Application entity always carries both, and a client
 			// that decodes this into a typed struct fails without them
 			'redirect_uri' => 'https://tusky.app/callback',
-			'vapid_key' => '',
+			'vapid_key' => 'instance-vapid-key',
 		], $response->getData());
 	}
 
@@ -1179,7 +1192,12 @@ class OAuthControllerTest extends TestCase {
 		$clientRequest = $this->createMock(ClientRequest::class);
 		$clientAuthRequest = $this->createStub(ClientAuthRequest::class);
 		$clientService = new ClientService(
-			$clientRequest, $hasher, $clientAuthRequest, $this->createStub(\OCA\Social\Service\ConfigService::class)
+			$clientRequest,
+			$hasher,
+			$clientAuthRequest,
+			$this->createStub(\OCA\Social\Service\ConfigService::class),
+			$this->createStub(\OCA\Social\Service\PushSubscriptionService::class),
+			new NullLogger(),
 		);
 
 		// exactly the columns saveApp() writes, read back the way

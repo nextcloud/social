@@ -19,6 +19,7 @@ use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Security\SecretHasher;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\PushSubscriptionService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -30,6 +31,7 @@ class ClientServiceTest extends TestCase {
 	private ClientAuthRequest|MockObject $clientAuthRequest;
 	private ClientService $service;
 	private ConfigService $configService;
+	private PushSubscriptionService|MockObject $pushSubscriptions;
 	/** What `token_max_days` reads as. */
 	private int $maxDays = 365;
 
@@ -37,13 +39,16 @@ class ClientServiceTest extends TestCase {
 		$this->clientRequest = $this->createMock(ClientRequest::class);
 		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
 		$this->configService = $this->createStub(ConfigService::class);
+		$this->pushSubscriptions = $this->createMock(PushSubscriptionService::class);
 		$this->configService->method('getAppValueInt')
 			->willReturnCallback(fn (string $key): int => $key === ConfigService::SOCIAL_TOKEN_MAX_DAYS ? $this->maxDays : 0);
 		$this->service = new ClientService(
 			$this->clientRequest,
 			new SecretHasher(),
 			$this->clientAuthRequest,
-			$this->configService
+			$this->configService,
+			$this->pushSubscriptions,
+			new \Psr\Log\NullLogger(),
 		);
 	}
 
@@ -569,9 +574,10 @@ class ClientServiceTest extends TestCase {
 	 */
 	public function testRevokeTokenTakesBackOneAuthorization(): void {
 		$client = $this->registeredClient();
-		$client->setId(7)->setAuthId(11);
+		$client->setId(7)->setAuthId(11)->setAuthUserId('alice')->setToken('sha256:' . hash('sha256', 'tok'));
 		$this->clientAuthRequest->method('getByToken')->with('tok')->willReturn($client);
 		$this->clientAuthRequest->expects($this->once())->method('revoke')->with(11);
+		$this->pushSubscriptions->expects($this->once())->method('delete')->with('alice', hash('sha256', 'tok'));
 
 		$this->service->revokeToken($client, 'tok');
 	}
@@ -591,9 +597,10 @@ class ClientServiceTest extends TestCase {
 
 	public function testRevokingOneOfTheAccountsOwnAuthorizationsTakesItBack(): void {
 		$mine = new SocialClient();
-		$mine->setAuthId(4)->setAppName('Tusky');
+		$mine->setAuthId(4)->setAppName('Tusky')->setToken('sha256:' . hash('sha256', 'tok'));
 		$this->clientAuthRequest->method('getByUser')->with('alice')->willReturn([$mine]);
 		$this->clientAuthRequest->expects($this->once())->method('revoke')->with(4);
+		$this->pushSubscriptions->expects($this->once())->method('delete')->with('alice', hash('sha256', 'tok'));
 
 		$this->assertTrue($this->service->revokeAuthorizationOf('alice', 4));
 	}

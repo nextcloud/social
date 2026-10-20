@@ -37,6 +37,7 @@ use OCA\Social\Model\Client\StoryInteraction;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\NotificationDelivery;
 use OCA\Social\Reference\PostReferenceProvider;
+use OCP\BackgroundJob\IJobList;
 use OCP\IURLGenerator;
 use OCP\Notification\IManager as INotificationManager;
 use Psr\Container\ContainerInterface;
@@ -139,10 +140,14 @@ class NotificationService {
 	 * Like that has to be accepted.
 	 */
 	public function onNotification(SocialAppNotification $notification, string $actorId = ''): void {
+		$pushEligible = false;
 		try {
-			$this->emit($notification, $actorId);
+			$pushEligible = $this->emit($notification, $actorId);
 		} catch (Exception $e) {
 			$this->logger->warning('could not raise a notification', ['exception' => $e]);
+		}
+		if ($pushEligible) {
+			$this->queueMastodonPush($notification);
 		}
 		// the open pages' badges are read again, whatever the bell does
 		$this->pushService()?->onNotification($notification->getTo());
@@ -160,6 +165,23 @@ class NotificationService {
 		}
 
 		return $push instanceof PushService ? $push : null;
+	}
+
+	private function queueMastodonPush(SocialAppNotification $notification): void {
+		try {
+			$userId = $this->actorsRequest->getFromId($notification->getTo())->getUserId();
+			if ($userId !== '' && $notification->getNid() !== '' && $notification->getNid() !== '0') {
+				$jobList = $this->container?->get(IJobList::class);
+				if ($jobList instanceof IJobList) {
+					$jobList->add(\OCA\Social\Cron\MastodonPushNotification::class, [
+						'user' => $userId,
+						'nid' => (string)$notification->getNid(),
+					]);
+				}
+			}
+		} catch (\Throwable $e) {
+			$this->logger->warning('could not queue a Mastodon Web Push notification', ['exception' => $e]);
+		}
 	}
 
 	/**
@@ -588,34 +610,34 @@ class NotificationService {
 	/**
 	 * @throws Exception
 	 */
-	private function emit(SocialAppNotification $notification, string $actorId): void {
+	private function emit(SocialAppNotification $notification, string $actorId): bool {
 		$subject = self::SUBJECTS[$notification->getSubType()] ?? '';
 		if ($subject === '') {
 			// nothing a client can name and nothing this app can word; a bell
 			// for it would say only that "something happened"
-			return;
+			return false;
 		}
 
 		$recipientId = $notification->getTo();
 		$actorId = ($actorId !== '') ? $actorId : $this->actorOf($notification);
 		if ($recipientId === '' || $actorId === '') {
-			return;
+			return false;
 		}
 		if ($recipientId === $actorId && $subject !== 'poll') {
 			// somebody boosting their own post, or replying to themselves with
 			// their own handle in it, is not news to them -- their own poll
 			// closing is, which is also who Mastodon tells
-			return;
+			return false;
 		}
 
 		try {
 			$recipient = $this->actorsRequest->getFromId($recipientId);
 		} catch (Exception $e) {
-			return; // not an account of this server: there is no user to tell
+			return false; // not an account of this server: there is no user to tell
 		}
 
 		if ($recipient->getUserId() === '' || $this->isSuppressed($recipientId, $actorId)) {
-			return;
+			return false;
 		}
 
 		$actor = $this->cachedActor($actorId);
@@ -623,7 +645,7 @@ class NotificationService {
 			$recipient, $actorId, $actor?->getCreation() ?? 0,
 			$subject === 'mention' && $this->isDirectMessage($notification)
 		) || $this->isInMutedThread($notification, $recipientId)) {
-			return;
+			return false;
 		}
 
 		$local = $this->localActor($actorId);
@@ -664,6 +686,8 @@ class NotificationService {
 			$recipient->getUserId(), $subject, $activityActor, $actorId, $parameters['link'],
 			$this->excerptOf($notification), $notification->getNid()
 		);
+
+		return true;
 	}
 
 	/**

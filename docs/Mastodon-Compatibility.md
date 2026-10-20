@@ -17,7 +17,7 @@ a walk of Mastodon's documented client routes found 23 genuinely unserved (the
 raw diff said 45; 22 of those were false positives — `statuses/{nid}/{act}`,
 `timelines/{timeline}` and the `accounts/{id}` route in `appinfo/routes.php`
 are catch-alls a path-by-path comparison cannot see). Of the 23, **everything
-that is not Web Push, streaming or a sign-up this app does not own is now
+that is not streaming or a sign-up this app does not own is now
 served**: translation, grouped notifications, the notification policy and its
 requests inbox, per-status filters, `profile/avatar|header`,
 `suggestions/{id}`, `instance/privacy_policy|terms_of_service|translation_languages`
@@ -195,11 +195,8 @@ three standalone `instance` sub-routes, `/api/v1/timelines/link` and
 
 ### 3.4 Genuinely missing endpoints
 
-Three, and only three:
+Two, and only two:
 
-- **Web Push (`/api/v1/push/*`)** — absent. `lib/Service/PushService.php` is
-  unrelated; it pokes the `notify_push` app so the *web* client refreshes.
-  Third-party mobile apps get no push from this server.
 - **Streaming** — absent, and deliberately so. `InstanceService` returns an empty
   `urls` object so clients fall back to polling immediately rather than after a
   timeout.
@@ -254,14 +251,14 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The 4.x features still missing are announced rather than left to fail.
+The 4.x feature still missing is announced rather than left to fail.
 `urls.streaming_api` (v2: `configuration.urls.streaming`) is `wss://<host>`
 although there is no streaming endpoint: masto.js (Elk, Phanpy) builds its
 websocket from it and, with the key left out, tried to connect to `undefined`
 on every page load; at this host the connection is a clean 404 and the client
-polls. `vapid_key` is an empty string, so a client decides against
-offering Web Push before it asks for it — which is what it does against any
-server with no VAPID key. `configuration.translation.enabled` is no longer
+polls. Web Push is implemented at `/api/v1/push/subscription`; the instance
+publishes the same stable public VAPID key in `configuration.vapid.public_key`
+and the application entity's `vapid_key`. `configuration.translation.enabled` is no longer
 always `false`: it is `true` where this Nextcloud has a translation provider,
 and the languages that provider offers are at
 `/api/v1/instance/translation_languages`.
@@ -292,7 +289,7 @@ Good overall. Two of the four issues this section used to list are fixed in
 
 `POST /api/v1/apps` was the third: it omitted `redirect_uri`, which Mastodon's
 Application entity always carries. It now answers with the first registered URI
-and an empty `vapid_key`, because there is no Web Push here to have a key for.
+and the instance's stable public `vapid_key`.
 
 The fourth was an Account carrying `"avatar": ""` when the actor had no cached
 icon and no stored avatar. It is fixed with the account pictures (§ 3.1a):
@@ -638,8 +635,8 @@ notices on the first signature check.
 
 Genuinely absent, in rough order of how much they would be missed:
 
-1. Web Push and streaming — every client polls, and both are announced as
-   absent rather than left to time out.
+1. Streaming — every client polls; no websocket server is advertised as
+   available.
 2. Registration management: sign-up, approval queue, invites, email
    confirmation. Accounts are Nextcloud users, so provisioning lives in the
    server, and an approval queue and invite links have no equivalent anywhere.
@@ -690,10 +687,9 @@ would act on.
 Worth stating so they are not mistaken for work. Authentication, 2FA and sessions
 come from Nextcloud. Accounts are Nextcloud users, so `accountEnable` is a
 deliberate no-op and there is no per-actor login to disable. Notifications go
-through the Nextcloud notification system — bell, mobile app, mail digest —
-rather than Web Push, and they are emitted for mention, favourite,
-reblog, follow, follow request and update from the single write path
-(`NotificationService`). There is no materialised home feed
+through the Nextcloud notification system — bell, mobile app and mail digest —
+and opted-in Mastodon clients can receive encrypted Web Push. Both are emitted
+from the single write path (`NotificationService`). There is no materialised home feed
 to rebuild, because timelines are queried live. Rules and retention are app
 values and occ commands. Moderation lives in Nextcloud admin settings.
 
@@ -806,7 +802,7 @@ whether it is done. Query and scalability work has its own list in
 
 | # | Work | Effort | What it fixes | Status |
 |---|---|---|---|---|
-| 3 | **Web Push** (`/api/v1/push/*`, a VAPID key, `configuration.vapid`) | Weeks | Third-party mobile apps get no notifications at all; every client polls. `vapid_key` is answered as `''`, which is how a client learns to stop asking | **open** |
+| 3 | **Web Push** (`/api/v1/push/subscription`, VAPID, `configuration.vapid`) | Weeks | Mobile apps need subscription management, encrypted per-token credentials, an encrypted delivery worker, and expired-endpoint cleanup | implemented in this branch; verification pending |
 | 4 | **`/api/v1/preferences`** | Hours | Clients read the posting defaults from it and fall back to guesses | done |
 | 5 | **`/api/v1/custom_emojis`** — the instance's own emoji, and `Emoji` tags outbound | Days | Returned `[]` unconditionally: remote emoji rendered, this instance could publish none | done |
 | 6 | **`/api/v1/accounts/familiar_followers`** | Hours | The "followed by people you know" line on a profile | done |
@@ -835,7 +831,7 @@ missing. All of them have since landed.
 ### Tier 2c — the 2026-09-15 walk, against Mastodon's 145 documented routes
 
 The 23 the walk found unserved, once the catch-alls were discounted. Everything
-that is not Web Push, streaming or a sign-up this app does not own is done.
+that is not streaming or a sign-up this app does not own is done.
 
 | # | Work | Effort | What it fixes | Status |
 |---|---|---|---|---|
@@ -937,8 +933,7 @@ client reaches *any* of the surface above.
 
 **Item 39 next, ahead of anything larger.** It is hours of work, it is the only
 thing on this list a *peer* currently gets wrong, and every post with a picture
-or a video is affected by it. Then Web Push (3) and streaming (10), the two
-weeks-long items left, in the order a user would notice them.
+or a video is affected by it. Streaming (10) is the other weeks-long item left.
 
 **Tier 5 should not be started** until somebody decides that "replace an
 existing Mastodon instance on its own domain" is a product goal. While

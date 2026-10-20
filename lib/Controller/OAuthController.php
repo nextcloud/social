@@ -29,6 +29,7 @@ use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\VapidService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
@@ -67,6 +68,7 @@ class OAuthController extends Controller {
 		private AuthorizationServer $atprotoOAuth,
 		private AtprotoConfig $atprotoConfig,
 		private DpopNonce $dpopNonce,
+		private VapidService $vapidService,
 		private ?PermissionDescriber $permissionDescriber = null,
 		private ?IFactory $l10nFactory = null,
 	) {
@@ -242,10 +244,9 @@ class OAuthController extends Controller {
 				// Mastodon's Application entity always carries these two, and a
 				// client that decodes the answer into a typed struct fails
 				// without them. `redirect_uri` is the first of what was
-				// registered, which is what Mastodon reports; `vapid_key` is
-				// empty because there is no Web Push here to have a key for.
+				// registered, which is what Mastodon reports.
 				'redirect_uri' => $client->getAppRedirectUris()[0] ?? '',
-				'vapid_key' => '',
+				'vapid_key' => $this->vapidService->publicKey(),
 			], Http::STATUS_OK
 		);
 	}
@@ -870,7 +871,7 @@ class OAuthController extends Controller {
 	 * the discovery document.
 	 */
 	public const SCOPES = [
-		'read', 'write', 'follow',
+		'read', 'write', 'follow', 'push',
 		'read:accounts', 'read:blocks', 'read:bookmarks', 'read:collections',
 		'read:favourites', 'read:filters', 'read:follows', 'read:lists',
 		'read:mutes', 'read:notifications', 'read:search', 'read:statuses',

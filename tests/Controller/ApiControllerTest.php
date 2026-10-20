@@ -88,6 +88,7 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\TranslationService;
+use OCA\Social\Service\VapidService;
 use OCA\Social\Service\ViewCountService;
 use OCA\Social\Tests\Helper\ApiControllerRouter;
 use OCA\Social\Tests\Mock\TCacheActorServiceMock;
@@ -215,6 +216,7 @@ class ApiControllerTest extends TestCase {
 	private TimelineRevisionService|Stub $timelineRevisionService;
 	private IAppManager|Stub $appManager;
 	private FediverseService|Stub $fediverseService;
+	private VapidService|Stub $vapidService;
 
 	/** How this instance reads its access list, and what is on it. */
 	private string $accessType = 'all_but';
@@ -336,6 +338,8 @@ class ApiControllerTest extends TestCase {
 		$this->aiContentService = $this->createStub(\OCA\Social\Service\AiContentService::class);
 		$this->aiContentService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesAi);
 		$this->remoteFetchQueue = $this->createMock(\OCA\Social\Service\RemoteFetchQueue::class);
+		$this->vapidService = $this->createStub(VapidService::class);
+		$this->vapidService->method('publicKey')->willReturn('instance-vapid-key');
 		$this->followLists = $this->createMock(\OCA\Social\Service\FollowList\FollowListService::class);
 		$this->counts = $this->createMock(\OCA\Social\Service\Counts\CountService::class);
 		$this->countsService = $this->createStub(\OCA\Social\Service\CountsService::class);
@@ -481,6 +485,7 @@ class ApiControllerTest extends TestCase {
 			'emojiService' => $this->emojiService,
 			'appManager' => $this->appManager,
 			'fediverseService' => $this->fediverseService,
+			'vapidService' => $this->vapidService,
 			'placeService' => $this->placeService,
 			'deliveryService' => $this->deliveryService,
 			'reactionService' => $this->reactionService,
@@ -676,7 +681,7 @@ class ApiControllerTest extends TestCase {
 			[
 				'name' => 'Aloha Social',
 				'website' => 'https://github.com/alohasocial/social/',
-				'vapid_key' => '',
+				'vapid_key' => 'instance-vapid-key',
 			],
 			$response->getData()
 		);
@@ -704,7 +709,7 @@ class ApiControllerTest extends TestCase {
 				'website' => 'https://tusky.app',
 				'scopes' => ['read', 'write'],
 				'redirect_uris' => ['tusky://oauth'],
-				'vapid_key' => '',
+				'vapid_key' => 'instance-vapid-key',
 			],
 			$response->getData()
 		);
