@@ -271,12 +271,21 @@
 		@close="showComposer = false">
 		<div class="modal-composer">
 			<h2 id="social-new-post-title" class="modal-composer__title">
+				<NcAvatar
+					:url="composerAvatarUrl"
+					:displayName="currentUser?.displayName || currentUser?.uid || ''"
+					:hideStatus="true"
+					:disableMenu="true"
+					:disableTooltip="true"
+					:size="32"
+					aria-hidden="true" />
 				{{ t('social', 'New post') }}
 			</h2>
 			<!-- the box emptied and the modal stayed open, which reads as if
 			     nothing had been sent -->
 			<Composer
 				startExpanded
+				compactOptions
 				:initialPaths="composerPaths"
 				emojiPickerContainer=".modal-wrapper"
 				@posted="showComposer = false" />
@@ -625,6 +634,10 @@ export default {
 		 */
 		avatarUrl() {
 			return ownAvatarUrl(64)
+		},
+
+		composerAvatarUrl() {
+			return ownAvatarUrl(32)
 		},
 
 		/** the reader's picture as the CSS value the menu's icon is drawn with */
@@ -1831,6 +1844,9 @@ export default {
 	padding: 12px 18px 18px;
 
 	&__title {
+		display: flex;
+		align-items: center;
+		gap: 10px;
 		margin: 0 0 12px;
 		font-size: 20px;
 		font-weight: 700;

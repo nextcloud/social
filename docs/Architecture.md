@@ -2395,9 +2395,19 @@ anything attached the box becomes a caption field. A picture with no alt text is
 description is saved on leaving the field rather than only when the post goes
 out, so it survives a post that is never sent.
 
+The **New post** dialog keeps the text and all publishing controls in one
+popup. Attachment, content-warning, emoji, visibility and send controls stay
+in the main row; **More options** opens the less common post tools and
+publishing settings in labelled groups. The secondary controls have text
+labels as well as icons; scheduling and location share a group, followed by
+publishing settings. The dialog title carries the author's avatar, so the
+composer's inline author row is hidden there. A restored draft opens the
+options when it contains a non-default secondary setting.
+
 **What a post says about itself.** Three controls in the same toolbar row as
-the visibility menu, each of them a field the client API has always taken and
-the composer never sent.
+the visibility menu in the inline composer, each of them a field the client API
+has always taken and the composer never sent. The New post dialog places these
+under **Publishing settings** in its expanded options.
 
 `LanguageSelect.vue` is an icon-sized `NcActions` wearing the current code,
 defaulting to the reader's Nextcloud language without its region
@@ -2579,6 +2589,10 @@ the system's button, canvas and highlight colours with a border, since a
 forced-colours mode takes the scrims away and would leave the words on bare
 video. `tests/js/onDarkPalette.test.js` pins both.
 
+The immersive viewer keeps the app's context visible over the video: **Shorts**
+names the page, **Back to Videos** returns to the grid, and the scope links stay
+beside it on desktop and move below it on phones.
+
 **Videos with sound.** `src/composables/useSoundAutoplay.js` is shared by every
 player of Shorts, kept or 24-hour. It plays a video
 with sound; when `play()` is rejected with `NotAllowedError` it plays it muted
@@ -2632,6 +2646,13 @@ post. The first upload is kept, so taking the filter off again after a post that
 failed posts it again. A copy that will not upload holds the post back rather
 than sending the picture unfiltered. The first upload of a filtered picture is
 left on the server unattached.
+
+**Image metadata.** `ImageMetadataService` strips camera EXIF, GPS coordinates,
+XMP, IPTC, comments and timestamps from stored JPEG, PNG and WebP copies. It
+reads the declared IPTC `DigitalSourceType` first and stores only whether the
+image was marked as AI-generated or AI-composite; the client receives that as
+`ai_generated`. The viewer shows the supplied description, original dimensions
+and this retained AI label. It does not expose discarded camera metadata.
 
 **The games.** `src/utils/composerCommands.js` resolves `/dice [n]`, `/roll`,
 `/flip` and `/pick a, b` in `Composer::createPost()` before anything is sent, so

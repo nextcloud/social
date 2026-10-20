@@ -204,6 +204,14 @@
 				{{ option.label }}
 			</router-link>
 		</nav>
+		<div class="shorts__context">
+			<h1 class="shorts__heading">
+				{{ t('social', 'Shorts') }}
+			</h1>
+			<router-link class="shorts__videos-link" :to="{ name: 'timeline', params: { type: 'videos' } }">
+				{{ t('social', 'Back to Videos') }}
+			</router-link>
+		</div>
 	</div>
 </template>
 
@@ -1259,6 +1267,43 @@ export default {
 		background: var(--social-on-dark-scrim);
 	}
 
+	&__context {
+		position: absolute;
+		z-index: 3;
+		inset-block-start: 12px;
+		inset-inline-start: 64px;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 5px 8px;
+		border-radius: var(--border-radius-pill, 999px);
+		background: var(--social-on-dark-scrim);
+		color: var(--social-on-dark-text);
+	}
+
+	&__heading {
+		margin: 0;
+		font-size: 14px;
+		font-weight: 700;
+	}
+
+	&__videos-link {
+		color: var(--social-on-dark-text-soft);
+		font-size: 13px;
+		font-weight: 600;
+		text-decoration: none;
+
+		&:hover {
+			color: var(--social-on-dark-text);
+			text-decoration: underline;
+		}
+
+		&:focus-visible {
+			outline: 2px solid var(--social-on-dark-text);
+			outline-offset: 3px;
+		}
+	}
+
 	&__scope {
 		padding: 4px 12px;
 		border-radius: var(--border-radius-pill, 999px);
@@ -1556,6 +1601,7 @@ export default {
 @media (forced-colors: active) {
 	.shorts__create,
 	.shorts__scopes,
+	.shorts__context,
 	.short__sound,
 	.short__sound-hint,
 	.short__like {
@@ -1579,6 +1625,30 @@ export default {
 		border-block-start: 1px solid CanvasText;
 		background: Canvas;
 		color: CanvasText;
+	}
+}
+
+@media (max-width: 600px) {
+	.shorts__context {
+		inset-inline-start: 52px;
+		gap: 8px;
+		padding: 5px 7px;
+	}
+
+	.shorts__scopes {
+		inset-block-start: 58px;
+		inset-inline: 8px;
+		justify-content: center;
+	}
+
+	.shorts__heading,
+	.shorts__videos-link {
+		font-size: 12px;
+	}
+
+	.shorts__scope {
+		padding-inline: 8px;
+		font-size: 12px;
 	}
 }
 </style>

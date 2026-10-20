@@ -124,6 +124,9 @@
 			<p v-if="attachments[current].description" class="attachment__viewer-description">
 				{{ attachments[current].description }}
 			</p>
+			<div v-if="viewerMetadata.length" class="attachment__viewer-metadata">
+				<span v-for="item in viewerMetadata" :key="item">{{ item }}</span>
+			</div>
 		</NcModal>
 	</div>
 </template>
@@ -215,6 +218,27 @@ export default {
 	},
 
 	computed: {
+		/** Only metadata retained by Social is shown; camera EXIF is stripped before storage. */
+		viewerMetadata() {
+			const attachment = this.media[this.current]
+			if (!attachment || attachment.type !== 'image') {
+				return []
+			}
+
+			const metadata = []
+			const original = attachment.meta?.original
+			const dimensions = original?.size
+				|| (original?.width && original?.height ? `${original.width} × ${original.height}` : '')
+			if (dimensions) {
+				metadata.push(dimensions)
+			}
+			if (attachment.ai_generated === true) {
+				metadata.push(t('social', 'Made with AI'))
+			}
+
+			return metadata
+		},
+
 		/**
 		 * @return {import('../types/Mastodon.js').MediaAttachment[]} what can be
 		 * drawn or played: pictures, video, audio. Everything the mosaic, the
@@ -490,6 +514,29 @@ export default {
 		color: #fff;
 		background: rgba(20, 20, 20, .82);
 		backdrop-filter: blur(12px);
+	}
+
+	&-metadata {
+		position: absolute;
+		inset-block-start: max(12px, env(safe-area-inset-top));
+		inset-inline-start: 50%;
+		z-index: 2;
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 6px;
+		transform: translateX(-50%);
+
+		span {
+			padding: 4px 10px;
+			border: 1px solid rgba(255, 255, 255, .25);
+			border-radius: 999px;
+			background: rgba(20, 20, 20, .82);
+			color: #fff;
+			font-size: 12px;
+			font-weight: 600;
+			white-space: nowrap;
+		}
 	}
 }
 
