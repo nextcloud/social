@@ -195,6 +195,24 @@ class SessionServiceTest extends TestCase {
 		$this->assertRefused(fn () => $this->sessions->authenticate('Bearer ' . $second['refreshJwt']), 'InvalidToken', 'nor the other way');
 	}
 
+	public function testOnlyOneConcurrentRefreshCanConsumeASession(): void {
+		$password = $this->appPasswords->create('alice', 'phone')['password'];
+		$session = $this->sessions->create('alice.social.test', $password, '203.0.113.5');
+		$this->request->consumeNextSessionConcurrently = true;
+
+		$this->assertRefused(fn () => $this->sessions->refresh('Bearer ' . $session['refreshJwt']), 'ExpiredToken', 'another request consumed the refresh token first');
+		$this->assertSame([], $this->request->sessions, 'no replacement is issued for a consumed token');
+	}
+
+	public function testRevokingAnAppPasswordInvalidatesAlreadyIssuedAccessTokens(): void {
+		$created = $this->appPasswords->create('alice', 'phone');
+		$session = $this->sessions->create('alice.social.test', $created['password'], '203.0.113.5');
+		$this->request->removeAppPassword('alice', $created['id']);
+
+		$this->assertRefused(fn () => $this->sessions->authenticate('Bearer ' . $session['accessJwt']), 'ExpiredToken');
+		$this->assertSame([], $this->request->sessions, 'the revoked session is cleaned up');
+	}
+
 	public function testRevokingThePasswordEndsItsSessionsAndTimeEndsAccess(): void {
 		$created = $this->appPasswords->create('alice', 'phone');
 		$session = $this->sessions->create('alice.social.test', $created['password'], '203.0.113.5');

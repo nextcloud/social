@@ -220,6 +220,22 @@ class RepositoryIntegrationTest extends TestCase {
 		$clients->removeSession('integration-bob');
 	}
 
+	public function testAppPasswordOwnershipAndRefreshTokenConsumptionAreAtomic(): void {
+		$clients = Server::get(AtprotoClientRequest::class);
+		$userId = 'atproto-integration-alice';
+		$passwordId = $clients->addAppPassword($userId, 'integration refresh', password_hash('secret', PASSWORD_DEFAULT));
+		try {
+			$this->assertTrue($clients->hasAppPassword($userId, $passwordId));
+			$this->assertFalse($clients->hasAppPassword('atproto-integration-bob', $passwordId));
+			$clients->addSession('integration-refresh', $userId, self::DID, $passwordId, time() + 3600);
+			$this->assertTrue($clients->removeSession('integration-refresh'), 'the first refresh consumes the session');
+			$this->assertFalse($clients->removeSession('integration-refresh'), 'a concurrent or replayed refresh cannot consume it twice');
+		} finally {
+			$clients->removeSession('integration-refresh');
+			$clients->removeAppPassword($userId, $passwordId);
+		}
+	}
+
 	public function testBlobsAreListedByCid(): void {
 		$blob = new \OCA\Social\Atproto\Model\BlobRef(self::DID, \OCA\Social\Atproto\Protocol\Cid::forRaw('picture'), self::ACTOR . '/doc/1', 'image/jpeg', 7);
 		$this->blobRequest->put($blob);

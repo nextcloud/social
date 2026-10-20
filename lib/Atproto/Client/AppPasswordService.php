@@ -70,6 +70,10 @@ class AppPasswordService {
 		return $this->request->removeAppPassword($userId, $id);
 	}
 
+	public function exists(string $userId, int $id): bool {
+		return $this->request->hasAppPassword($userId, $id);
+	}
+
 	/**
 	 * The password the given one is, or null.
 	 *

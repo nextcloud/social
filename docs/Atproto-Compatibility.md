@@ -2521,8 +2521,12 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
 - **Sessions** are JWTs this server signs with its service key: an access
   token of two hours naming its session, a refresh token of ninety days
   whose id is the session (`createSession`, `refreshSession`,
-  `getSession`, `deleteSession`). A suspended account's apps are turned
-  away; an account that moved away cannot sign in.
+  `getSession`, `deleteSession`). Refresh tokens are consumed with one
+  atomic delete, so concurrent refreshes or a replay can issue only one
+  replacement session. Every access token is also checked against the app
+  password that created it, so revoking that password invalidates tokens
+  even when revocation races a refresh. A suspended account's apps are
+  turned away; an account that moved away cannot sign in.
 - **The AppView proxy** (`app.bsky.*`) goes to the configured AppView only —
   `atproto-proxy` cannot point the account's signature elsewhere — with a
   token the account's own key signs for the one method; the answer passes

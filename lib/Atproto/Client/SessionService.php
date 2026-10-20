@@ -95,9 +95,14 @@ class SessionService {
 		if ($session === null || $session['expires'] < $this->time->getTime()) {
 			throw new XrpcException(400, 'ExpiredToken', 'Token has been revoked');
 		}
-		$this->request->removeSession($session['jti']);
+		if (!$this->request->removeSession($session['jti'])) {
+			throw new XrpcException(400, 'ExpiredToken', 'Token has already been used');
+		}
 		$identity = $this->identityByDid($session['did']);
 		self::assertActive($identity);
+		if (!$this->appPasswords->exists($session['user_id'], $session['app_password_id'])) {
+			throw new XrpcException(400, 'ExpiredToken', 'Token has been revoked');
+		}
 
 		return $this->open($identity, $session['user_id'], $session['app_password_id']);
 	}
@@ -125,6 +130,10 @@ class SessionService {
 		$claims = $this->claims($authorization, self::ACCESS_SCOPE);
 		$session = $this->request->getSession((string)($claims['sid'] ?? ''));
 		if ($session === null || $session['did'] !== ($claims['sub'] ?? '')) {
+			throw new XrpcException(401, 'ExpiredToken', 'Token has been revoked');
+		}
+		if (!$this->appPasswords->exists($session['user_id'], $session['app_password_id'])) {
+			$this->request->removeSession($session['jti']);
 			throw new XrpcException(401, 'ExpiredToken', 'Token has been revoked');
 		}
 		$identity = $this->identityByDid($session['did']);
