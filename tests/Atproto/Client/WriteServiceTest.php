@@ -206,6 +206,27 @@ class WriteServiceTest extends TestCase {
 		]]);
 	}
 
+	public function testPronounsAnAppSavesAreClippedToTheBlueskyLimitInTheSharedProfile(): void {
+		$this->publishedProfile(Cid::forRaw('a face'), Cid::forRaw('the sea'));
+		$pronouns = str_repeat("e\u{0301}", 21);
+		$this->accounts->expects($this->once())->method('setFields')->with('alice', [
+			['name' => 'Pronouns', 'value' => str_repeat("e\u{0301}", 20)],
+		]);
+
+		$this->writes->put($this->session, ['repo' => self::DID, 'collection' => RecordMapper::PROFILE, 'rkey' => RecordMapper::PROFILE_RKEY, 'record' => [
+			'$type' => RecordMapper::PROFILE, 'pronouns' => $pronouns,
+		]]);
+	}
+
+	public function testAnInvalidWebsiteIsRefusedBeforeAnyProfileChange(): void {
+		$this->accounts->expects($this->never())->method('changingProfile');
+		$this->expectException(XrpcException::class);
+
+		$this->writes->put($this->session, ['repo' => self::DID, 'collection' => RecordMapper::PROFILE, 'rkey' => RecordMapper::PROFILE_RKEY, 'record' => [
+			'$type' => RecordMapper::PROFILE, 'displayName' => 'Changed name', 'website' => 'javascript:alert(1)',
+		]]);
+	}
+
 	public function testAProfileSavedWithItsRowsAsTheyWereLeavesThemAlone(): void {
 		$this->publishedProfile(Cid::forRaw('a face'), Cid::forRaw('the sea'));
 		$this->accounts->expects($this->never())->method('setFields');

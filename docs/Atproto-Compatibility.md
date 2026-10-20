@@ -2586,7 +2586,11 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   picture it did not change is left alone. The pronouns and the website
   it sets are the account's profile rows named for them, rewritten, added
   while there is room among the four, or taken away
-  (`Person::withProfileRows()`); unchanged, they are left alone.
+  (`Person::withProfileRows()`); unchanged, they are left alone. Pronouns
+  are clipped to the profile lexicon's 20 graphemes and 200 bytes before
+  those shared rows change, so both protocol profiles keep the same value.
+  A non-empty website must be a valid HTTP or HTTPS URL; an invalid value is
+  refused before any profile field or picture changes.
   `getServiceAuth` came with 3d.
 - A mention of a Bluesky account in a post published from here — the
   composer's `@alice.bsky.social` — is now a mention facet with the DID,

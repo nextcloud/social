@@ -168,6 +168,7 @@ class WriteService {
 			throw $this->unsupported($collection);
 		}
 		$record = is_array($body['record'] ?? null) ? $body['record'] : [];
+		$this->assertProfileWebsite($record);
 		$actor = $this->actor($session);
 		$current = $this->repositories->getRecord($session->identity->did, RecordMapper::PROFILE, RecordMapper::PROFILE_RKEY);
 		$was = $current === null ? [] : DagCbor::decode($current->bytes);
@@ -212,15 +213,35 @@ class WriteService {
 			return $now === $before ? null : $now;
 		};
 		$pronouns = $changed('pronouns');
-		$website = $changed('website');
-		if ($website !== null && $website !== '' && filter_var($website, FILTER_VALIDATE_URL) === false) {
-			$website = null;
+		if ($pronouns !== null) {
+			$pronouns = RecordMapper::clipPronouns($pronouns);
 		}
+		$website = $changed('website');
 		if ($pronouns === null && $website === null) {
 			return;
 		}
 		$actor = $this->accounts->getActorFromUserId($session->userId);
 		$this->accounts->setFields($session->userId, Person::withProfileRows($actor->getFields(), $pronouns, $website));
+	}
+
+	/** Refuse a bad website before changing any part of the local profile. */
+	private function assertProfileWebsite(array $record): void {
+		if (!array_key_exists('website', $record)) {
+			return;
+		}
+		$website = $record['website'];
+		if (!is_string($website)) {
+			throw XrpcException::invalidRequest('The profile website must be a valid HTTP or HTTPS URL');
+		}
+		if (trim($website) === '') {
+			return;
+		}
+
+		$website = trim($website);
+		$scheme = strtolower((string)parse_url($website, PHP_URL_SCHEME));
+		if (!in_array($scheme, ['http', 'https'], true) || filter_var($website, FILTER_VALIDATE_URL) === false) {
+			throw XrpcException::invalidRequest('The profile website must be a valid HTTP or HTTPS URL');
+		}
 	}
 
 	/**

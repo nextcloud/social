@@ -481,6 +481,13 @@ enforced by `ClientXrpc` (100,000,000 bytes, the video ceiling). Open registrati
 Bluesky identities are Nextcloud accounts; the app page is not advertised as
 a privacy policy.
 
+An app's `app.bsky.actor.profile` writes update the same local profile the
+Fediverse reads. `WriteService` validates a non-empty website before it
+changes any account fields or pictures, and normalizes pronouns with the
+profile lexicon's grapheme and byte limits before writing the shared field
+row. `RecordMapper` uses that same pronoun limit when publishing the local
+profile back to Bluesky.
+
 ### Resuming Bluesky synchronization
 
 `FeedPoller` and `NotificationPoller` read at most one AppView page per due
