@@ -2400,9 +2400,13 @@ popup. Attachment, content-warning, emoji, visibility and send controls stay
 in the main row; **More options** opens the less common post tools and
 publishing settings in labelled groups. The secondary controls have text
 labels as well as icons; scheduling and location share a group, followed by
-publishing settings. The dialog title carries the author's avatar, so the
-composer's inline author row is hidden there. A restored draft opens the
-options when it contains a non-default secondary setting.
+publishing settings, where language and reply policy sit beside each other.
+The **More options** toggle leads the toolbar. The dialog title carries the
+author's avatar and a **New story** action when stories are available; the
+story action opens the 24-hour short composer. Its button sits under the title
+to keep clear of the modal close control. The composer's inline author row is
+hidden there. A restored draft opens the options when it contains a
+non-default secondary setting.
 
 **What a post says about itself.** Three controls in the same toolbar row as
 the visibility menu in the inline composer, each of them a field the client API
@@ -2589,10 +2593,13 @@ the system's button, canvas and highlight colours with a border, since a
 forced-colours mode takes the scrims away and would leave the words on bare
 video. `tests/js/onDarkPalette.test.js` pins both.
 
-The Shorts page uses the app's regular page header for its title, scope picker,
-**Back to Videos** link and primary **New short** action. The vertical player
-sits centered in a bounded, rounded dark frame below that header; playback
-controls and post details remain over the video itself.
+The Shorts page uses the app's regular page header for its title, scope picker
+and primary **New short** action. The player frame reads a video's decoded
+dimensions after `loadedmetadata` and fits the largest frame with that aspect
+ratio into the space below the header. A 24-hour story picture supplies its
+natural dimensions. Resizing the page or changing a video's aspect ratio keeps
+the current slide aligned in the feed. Playback controls and post details
+remain over the video itself.
 
 **Videos with sound.** `src/composables/useSoundAutoplay.js` is shared by every
 player of Shorts, kept or 24-hour. It plays a video

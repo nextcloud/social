@@ -689,8 +689,10 @@ describe('ProfileInfo', () => {
 
 			const wrapper = mountProfile('alice')
 
-			expect(wrapper.find('.user-profile__verified-link').text()).toContain('Verified link')
-			expect(wrapper.find('.user-profile__verified-link .verified-check').exists()).toBe(true)
+			const verifiedLink = wrapper.find('.user-profile__field--verified a')
+			expect(verifiedLink.text()).toContain('https://alice.example')
+			expect(verifiedLink.find('.verified-check').exists()).toBe(true)
+			expect(verifiedLink.attributes('title')).toContain('Ownership of this link was verified')
 		})
 
 		it('never turns a javascript: value from a remote server into a link', () => {

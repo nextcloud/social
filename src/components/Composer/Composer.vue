@@ -292,6 +292,14 @@
 
 			<div class="options" :class="{ 'options--compact': compactOptions }">
 				<NcButton
+					v-if="compactOptions"
+					variant="tertiary"
+					class="more-options-toggle"
+					:aria-expanded="moreOptionsOpen"
+					@click.prevent="moreOptionsOpen = !moreOptionsOpen">
+					{{ moreOptionsOpen ? t('social', 'Fewer options') : t('social', 'More options') }}
+				</NcButton>
+				<NcButton
 					v-if="offerShort && (!compactOptions || moreOptionsOpen)"
 					:title="t('social', 'New short')"
 					variant="tertiary"
@@ -369,14 +377,6 @@
 						</template>
 					</NcButton>
 				</div>
-				<NcButton
-					v-if="compactOptions"
-					variant="tertiary"
-					class="more-options-toggle"
-					:aria-expanded="moreOptionsOpen"
-					@click.prevent="moreOptionsOpen = !moreOptionsOpen">
-					{{ moreOptionsOpen ? t('social', 'Fewer options') : t('social', 'More options') }}
-				</NcButton>
 				<div v-if="!compactOptions || moreOptionsOpen" class="composer-advanced-options">
 					<span v-if="compactOptions" class="composer-advanced-options__label">{{ t('social', 'Post options') }}</span>
 					<!-- the author's own word that this was made with AI. It is a
@@ -492,11 +492,13 @@
 							{{ team.display_name || team.username }}
 						</option>
 					</select>
-					<LanguageSelect :language="language" @update:language="language = $event" />
-					<ReplyPolicySelect
-						v-if="visibility !== 'direct'"
-						:policy="replyPolicy"
-						@update:policy="replyPolicy = $event" />
+					<div class="composer-publishing-controls">
+						<LanguageSelect :language="language" @update:language="language = $event" />
+						<ReplyPolicySelect
+							v-if="visibility !== 'direct'"
+							:policy="replyPolicy"
+							@update:policy="replyPolicy = $event" />
+					</div>
 				</div>
 				<span v-if="undescribed > 0" class="composer-alt-warning" role="status">
 					{{ undescribedWarning }}
@@ -2718,6 +2720,21 @@ $composer-duration: 220ms;
 	color: var(--color-text-maxcontrast);
 	font-size: 12px;
 	font-weight: 600;
+}
+
+.composer-publishing-controls {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.composer-publishing-controls > * {
+	min-width: 0;
+}
+
+.composer-publishing-controls :deep(.button-vue) {
+	justify-content: center;
+	min-width: 0;
 }
 
 .options--compact .composer-advanced-options :deep(.button-vue) {

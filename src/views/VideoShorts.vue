@@ -3,8 +3,12 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div class="shorts" role="region" :aria-label="t('social', 'Videos, one at a time')">
-		<header class="shorts__header">
+	<div
+		ref="page"
+		class="shorts"
+		role="region"
+		:aria-label="t('social', 'Videos, one at a time')">
+		<header ref="header" class="shorts__header">
 			<h1 class="shorts__heading">
 				{{ t('social', 'Shorts') }}
 			</h1>
@@ -20,10 +24,11 @@
 						{{ option.label }}
 					</router-link>
 				</nav>
-				<router-link class="shorts__videos-link" :to="{ name: 'timeline', params: { type: 'videos' } }">
-					{{ t('social', 'Back to Videos') }}
-				</router-link>
-				<NcButton class="shorts__create" variant="primary" @click="startShort">
+				<NcButton
+					class="shorts__create"
+					variant="primary"
+					:aria-label="t('social', 'New short')"
+					@click="startShort">
 					<template #icon>
 						<IconPlus :size="20" />
 					</template>
@@ -34,6 +39,7 @@
 		<div
 			ref="track"
 			class="shorts__track"
+			:style="trackStyle"
 			tabindex="0"
 			@keydown="onKey"
 			@scroll.passive="onScroll">
@@ -56,7 +62,8 @@
 					<img
 						class="short__poster short__picture"
 						:src="entry.video.url"
-						:alt="entry.video.description || entry.text">
+						:alt="entry.video.description || entry.text"
+						@load="onPosterMetadata($event, index)">
 				</button>
 				<p v-else-if="entry.day && !entry.isVideo" class="short__gone">
 					{{ t('social', 'The picture of this short is gone.') }}
@@ -175,6 +182,7 @@
 				playsinline
 				:loop="!current.day"
 				preload="auto"
+				@loadedmetadata="onVideoMetadata"
 				@timeupdate="shortSignals.progress(current.status, $event.target)"
 				@ended="onEnded"
 				@click="onVideoTap(playing, $event)" />
@@ -200,9 +208,6 @@
 				<p class="shorts__rule">
 					{{ t('social', 'A short is a video of up to three minutes, upright or square.') }}
 				</p>
-				<NcButton :to="{ name: 'timeline', params: { type: 'videos' } }">
-					{{ t('social', 'Back to Videos') }}
-				</NcButton>
 			</div>
 		</div>
 
@@ -400,6 +405,15 @@ export default {
 				},
 			}),
 
+			/** available area below the page header, in CSS pixels */
+			availableWidth: 0,
+			availableHeight: 0,
+			/** the current video's aspect ratio, refined by loaded metadata */
+			videoAspectRatio: 9 / 16,
+			/** watches the page and header as their size changes */
+			layoutObserver: null,
+			resizeHandler: null,
+
 			HEART_PATH,
 		}
 	},
@@ -525,6 +539,25 @@ export default {
 		current() {
 			return this.shorts[this.playing]
 		},
+
+		/** @return {string} the current media key */
+		currentKey() {
+			return this.current?.key ?? ''
+		},
+
+		/** @return {Record<string, string>} the largest frame that fits the page */
+		trackStyle() {
+			const width = this.availableWidth || 440
+			const height = this.availableHeight || 780
+			const ratio = this.videoAspectRatio || 9 / 16
+			const frameWidth = Math.min(width, height * ratio)
+			const frameHeight = frameWidth / ratio
+
+			return {
+				'--short-track-width': `${frameWidth}px`,
+				'--short-track-height': `${frameHeight}px`,
+			}
+		},
 	},
 
 	watch: {
@@ -555,6 +588,12 @@ export default {
 				this.jumpToStart()
 			}
 		},
+
+		currentKey() {
+			const ratio = this.mediaAspectRatio(this.current?.video)
+			this.videoAspectRatio = ratio || 9 / 16
+			this.$nextTick(this.alignCurrentSlide)
+		},
 	},
 
 	mounted() {
@@ -565,6 +604,19 @@ export default {
 		// the viewport for most of a scroll, and whichever was observed last
 		// would win. A slide is the one being watched when most of it is there.
 		this.observer = new IntersectionObserver(this.onVisible, { threshold: 0.6 })
+		this.measureTrackBounds()
+		if (typeof ResizeObserver === 'function') {
+			this.layoutObserver = new ResizeObserver(this.measureTrackBounds)
+			if (this.$refs.page) {
+				this.layoutObserver.observe(this.$refs.page)
+			}
+			if (this.$refs.header) {
+				this.layoutObserver.observe(this.$refs.header)
+			}
+		} else {
+			this.resizeHandler = this.measureTrackBounds
+			window.addEventListener('resize', this.resizeHandler)
+		}
 		const track = /** @type {HTMLElement|undefined} */ (this.$refs.track)
 		track?.focus?.()
 	},
@@ -573,6 +625,10 @@ export default {
 		this.shortSignals.leave()
 		window.clearTimeout(this.tapTimer)
 		this.observer?.disconnect()
+		this.layoutObserver?.disconnect()
+		if (this.resizeHandler) {
+			window.removeEventListener('resize', this.resizeHandler)
+		}
 		this.player()?.pause?.()
 	},
 
@@ -591,6 +647,56 @@ export default {
 
 	methods: {
 		t,
+
+		/** Measures the space the video frame can use after its header. */
+		measureTrackBounds() {
+			const page = /** @type {HTMLElement|undefined} */ (this.$refs.page)
+			const header = /** @type {HTMLElement|undefined} */ (this.$refs.header)
+			if (!page) {
+				return
+			}
+			this.availableWidth = page.clientWidth
+			this.availableHeight = Math.max(0, page.clientHeight - (header?.offsetHeight ?? 0) - 8)
+		},
+
+		/** @param {object|undefined} media the media object from the timeline */
+		mediaAspectRatio(media) {
+			const dimensions = media?.original ?? media?.small ?? media
+			const width = Number(dimensions?.width)
+			const height = Number(dimensions?.height)
+			const ratio = width > 0 && height > 0 ? width / height : 0
+
+			return ratio >= 0.2 && ratio <= 5 ? ratio : 0
+		},
+
+		/** Keeps the visible slide aligned after its frame changes size. */
+		alignCurrentSlide() {
+			const track = /** @type {HTMLElement|undefined} */ (this.$refs.track)
+			if (track) {
+				track.scrollTop = this.playing * track.clientHeight
+			}
+		},
+
+		/** @param {Event} event metadata event from the current video */
+		onVideoMetadata(event) {
+			const video = /** @type {HTMLVideoElement} */ (event.target)
+			if (video.videoWidth > 0 && video.videoHeight > 0) {
+				this.videoAspectRatio = video.videoWidth / video.videoHeight
+				this.$nextTick(this.alignCurrentSlide)
+			}
+		},
+
+		/**
+		 * @param {Event} event a story image after it has loaded
+		 * @param {number} index the slide the image belongs to
+		 */
+		onPosterMetadata(event, index) {
+			const image = /** @type {HTMLImageElement} */ (event.target)
+			if (index === this.playing && image.naturalWidth > 0 && image.naturalHeight > 0) {
+				this.videoAspectRatio = image.naturalWidth / image.naturalHeight
+				this.$nextTick(this.alignCurrentSlide)
+			}
+		},
 
 		/** Points the store at the shorts of this scope and fetches the first page. */
 		open() {
@@ -1212,9 +1318,11 @@ export default {
 
 	&__track {
 		position: relative;
-		flex: 1 1 auto;
-		inline-size: min(100%, 440px);
-		max-block-size: 780px;
+		flex: 0 0 auto;
+		inline-size: min(100%, var(--short-track-width, 440px));
+		block-size: min(100%, var(--short-track-height, 780px));
+		max-inline-size: 100%;
+		max-block-size: 100%;
 		min-block-size: 0;
 		margin: auto;
 		overflow-y: auto;
@@ -1285,7 +1393,7 @@ export default {
 		&--current {
 			background: var(--color-main-background);
 			color: var(--color-main-text);
-			box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+			box-shadow: var(--social-elevation-resting);
 		}
 
 		&:focus-visible {
