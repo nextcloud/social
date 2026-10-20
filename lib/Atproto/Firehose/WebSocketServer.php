@@ -57,6 +57,7 @@ class WebSocketServer {
 		private readonly string $path = self::PATH,
 		bool $binaryFrames = true,
 		private readonly ?Closure $authorize = null,
+		private readonly ?Closure $onMessage = null,
 	) {
 		$this->dataOpcode = $binaryFrames ? self::OPCODE_BINARY : 0x1;
 		$socket = @stream_socket_server('tcp://' . $bind, $errno, $error);
@@ -134,6 +135,13 @@ class WebSocketServer {
 		$this->flush($subscriber);
 	}
 
+	public function ping(Subscriber $subscriber): void {
+		if (!$subscriber->closed) {
+			$subscriber->output .= self::frame(self::OPCODE_PING, '');
+			$this->flush($subscriber);
+		}
+	}
+
 	/**
 	 * @return Subscriber[] the live, upgraded connections
 	 */
@@ -170,7 +178,7 @@ class WebSocketServer {
 		stream_set_blocking($socket, false);
 		$subscriber = new Subscriber((int)$socket, $socket);
 		$subscriber->address = self::addressOf((string)stream_socket_get_name($socket, true));
-		if (count($this->subscribers) >= $this->maxSubscribers || $this->heldFrom($subscriber->address) >= $this->maxPerAddress) {
+		if (count($this->subscribers) >= $this->maxSubscribers) {
 			$this->refuse($subscriber, 503, 'Service Unavailable');
 
 			return;
@@ -179,10 +187,10 @@ class WebSocketServer {
 	}
 
 	/** How many connections are held from an address, upgraded or not. */
-	private function heldFrom(string $address): int {
+	private function heldFrom(string $address, int $except = 0): int {
 		$held = 0;
 		foreach ($this->subscribers as $subscriber) {
-			if ($subscriber->address === $address) {
+			if ($subscriber->id !== $except && $subscriber->address === $address) {
 				$held++;
 			}
 		}
@@ -227,6 +235,11 @@ class WebSocketServer {
 			if ($opcode === self::OPCODE_PING) {
 				$subscriber->output .= self::frame(self::OPCODE_PONG, $payload);
 				$this->flush($subscriber);
+			} elseif ($this->onMessage !== null && in_array($opcode, [0x1, self::OPCODE_BINARY], true)) {
+				$response = ($this->onMessage)($subscriber, $opcode, $payload);
+				if (is_string($response)) {
+					$this->send($subscriber, $response);
+				}
 			}
 			// a subscriber has nothing else to say; data frames are ignored
 		}
@@ -262,6 +275,12 @@ class WebSocketServer {
 		$url = parse_url($m[1]);
 		$path = is_array($url) ? ($url['path'] ?? '') : '';
 		$path = (string)preg_replace('#^/index\.php/apps/social#', '', $path);
+		$path = $path === $this->path . '/' ? $this->path : $path;
+		if ($path === $this->path . '/health') {
+			$this->healthy($subscriber);
+
+			return false;
+		}
 		if ($path !== $this->path) {
 			$this->refuse($subscriber, 404, 'Not Found');
 
@@ -273,6 +292,19 @@ class WebSocketServer {
 			if (count($parts) === 2) {
 				$headers[strtolower(trim($parts[0]))] = trim($parts[1]);
 			}
+		}
+		$forwardedFor = $headers['x-forwarded-for'] ?? '';
+		if ($forwardedFor !== '') {
+			$addresses = array_map('trim', explode(',', $forwardedFor));
+			$forwardedAddress = end($addresses);
+			if (is_string($forwardedAddress) && filter_var($forwardedAddress, FILTER_VALIDATE_IP) !== false) {
+				$subscriber->address = $forwardedAddress;
+			}
+		}
+		if ($this->heldFrom($subscriber->address, $subscriber->id) >= $this->maxPerAddress) {
+			$this->refuse($subscriber, 503, 'Service Unavailable');
+
+			return false;
 		}
 		$key = $headers['sec-websocket-key'] ?? '';
 		if (strtolower($headers['upgrade'] ?? '') !== 'websocket' || $key === '' || strlen(base64_decode($key, true) ?: '') !== 16) {
@@ -290,7 +322,8 @@ class WebSocketServer {
 		$cursor = $subscriber->query['cursor'] ?? null;
 		$subscriber->cursor = is_string($cursor) && ctype_digit($cursor) ? (int)$cursor : null;
 		$accept = base64_encode(sha1($key . self::GUID, true));
-		$subscriber->output .= "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " . $accept . "\r\n\r\n";
+		$protocol = $subscriber->responseSubprotocol === '' ? '' : 'Sec-WebSocket-Protocol: ' . $subscriber->responseSubprotocol . "\r\n";
+		$subscriber->output .= "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " . $accept . "\r\n" . $protocol . "\r\n";
 		$subscriber->upgraded = true;
 		$subscriber->handshakeDoneNow = true;
 		$this->flush($subscriber);
@@ -301,6 +334,15 @@ class WebSocketServer {
 	private function refuse(Subscriber $subscriber, int $status, string $reason): void {
 		$body = $reason . "\n";
 		@fwrite($subscriber->socket, 'HTTP/1.1 ' . $status . ' ' . $reason . "\r\nContent-Type: text/plain\r\nContent-Length: " . strlen($body) . "\r\nConnection: close\r\n\r\n" . $body);
+		$subscriber->closed = true;
+		$socket = $subscriber->socket;
+		@fclose($socket);
+		unset($this->subscribers[$subscriber->id]);
+	}
+
+	private function healthy(Subscriber $subscriber): void {
+		$body = "OK\n";
+		@fwrite($subscriber->socket, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " . strlen($body) . "\r\nConnection: close\r\n\r\n" . $body);
 		$subscriber->closed = true;
 		$socket = $subscriber->socket;
 		@fclose($socket);

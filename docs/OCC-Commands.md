@@ -504,6 +504,24 @@ seconds before. The poller keeps running beside it, so the listener being down
 costs latency and nothing else. Run it under systemd beside the firehose daemon
 (see [Admin.md](Admin.md#bluesky)).
 
+### `social:mastodon:stream`
+
+Serve Mastodon's authenticated home-timeline and notification WebSocket streams.
+
+```
+php occ social:mastodon:stream [--bind ADDRESS:PORT] [--max-seconds SECONDS]
+```
+
+| Option | Value | Description |
+|--------|-------|-------------|
+| `--bind` | string (127.0.0.1:8788) | Where to listen; the shipped root proxy rules send `/api/v1/streaming` and `/api/v1/streaming/health` here |
+| `--max-seconds` | int (0) | Stop after this long, so a supervisor can restart it; `0` runs until stopped |
+
+The daemon requires a user access token with `read` or both `read:statuses` and
+`read:notifications`. It polls the same filtered home and notification queries
+the REST API uses once per second. Run it under a process supervisor; the
+streaming health path returns `OK` while the process is accepting requests.
+
 ### `social:atproto:identities`
 
 Give every local account its Bluesky identity now, rather than on first need.

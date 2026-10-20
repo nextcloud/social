@@ -27,6 +27,10 @@ final class Subscriber {
 	public array $query = [];
 	/** lower-cased HTTP headers from the upgrade request */
 	public array $headers = [];
+	/** protocol token echoed when the client supplied it as an auth token */
+	public string $responseSubprotocol = '';
+	/** protocol-specific state associated with an authorized connection */
+	public array $context = [];
 	/** the last sequence number sent, so the next is the one after */
 	public int $sent = 0;
 	public int $connectedAt;

@@ -251,12 +251,12 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The 4.x feature still missing is announced rather than left to fail.
-`urls.streaming_api` (v2: `configuration.urls.streaming`) is `wss://<host>`
-although there is no streaming endpoint: masto.js (Elk, Phanpy) builds its
-websocket from it and, with the key left out, tried to connect to `undefined`
-on every page load; at this host the connection is a clean 404 and the client
-polls. Web Push is implemented at `/api/v1/push/subscription`; the instance
+The Mastodon WebSocket stream is available for `user` and
+`user:notification` when `occ social:mastodon:stream` is running and the root
+proxy rules are installed. It emits new home statuses and notifications after
+connecting; public, hashtag, list, direct, delete, and status-edit streams are
+not implemented yet. `GET /api/v1/streaming/health` is answered by the stream
+daemon. Web Push is implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`
 and the application entity's `vapid_key`. `configuration.translation.enabled` is no longer
 always `false`: it is `true` where this Nextcloud has a translation provider,
@@ -777,7 +777,7 @@ whether it is done. Query and scalability work has its own list in
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | Deliberately absent: `urls.streaming_api` names `wss://<host>`, where the websocket is a clean 404, so clients poll rather than connect to `undefined`. A real timeline needs a process that outlives a PHP request | **open** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon now streams user home updates and notifications; public/hashtag/list/direct streams and delete/edit events remain | **partial** |
 
 ### Tier 2b — what walking the route list turned up
 
@@ -899,10 +899,10 @@ root once an administrator installs the shipped web-server rules, and the setup
 check says whether they have; on an instance where they have not, no stock
 client reaches *any* of the surface above.
 
-**Streaming (10) is the next substantial client-compatibility gap.** It needs a
-long-lived websocket service and event fan-out; it cannot be fixed by adding a
-route to the PHP request path. Web Push is already implemented for notifications,
-but clients still poll timelines until streaming is available. The peer-level
+**Streaming (10) is the next substantial client-compatibility gap.** The
+long-lived WebSocket daemon now serves the home and notification streams;
+the remaining timeline types and edit/delete events still need event fan-out.
+Web Push remains available for notifications. The peer-level
 media serialization finding is fixed and covered by a test that hydrates a stored
 status before serializing it.
 
