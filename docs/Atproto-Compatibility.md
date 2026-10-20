@@ -657,6 +657,11 @@ OAuth tokens. The two token worlds and their sessions stay apart. The full
 OAuth flow is exercised with the official `@atproto/oauth-client-node`
 library against the development network, including account resolution,
 PAR, server-side approval, token exchange, PDS requests, refresh and sign-out.
+When `getSession` returns an email under `transition:email`,
+`emailConfirmed` reflects Nextcloud's verified status for the primary email
+property. Merely having an email address configured on the Nextcloud account
+does not mark it as confirmed; without that verification, clients receive
+`emailConfirmed: false`.
 
 Rate limits: Bluesky's PDS limits are the model — 3,000 points per hour per
 DID for writes (create 3, update 2, delete 1), 300/5 min per IP on
