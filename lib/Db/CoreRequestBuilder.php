@@ -91,6 +91,7 @@ class CoreRequestBuilder {
 	public const TABLE_RENDITIONS = 'social_video_rendition';
 	public const TABLE_VIDEO_VIEWS = 'social_video_views';
 	public const TABLE_VIDEO_SEEN = 'social_video_seen';
+	public const TABLE_DEVICE_AUTH = 'social_device_auth';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -504,6 +505,10 @@ class CoreRequestBuilder {
 			'stream_id_prim',
 			'viewer_hash',
 			'day'
+		],
+		self::TABLE_DEVICE_AUTH => [
+			'id', 'device_hash', 'user_code', 'client_id', 'scopes', 'status',
+			'user_id', 'poll_interval', 'last_poll', 'expires', 'created'
 		],
 		self::TABLE_RENDITIONS => [
 			'id',
