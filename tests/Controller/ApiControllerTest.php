@@ -3567,6 +3567,22 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(['post'], $response->getData());
 	}
 
+	public function testBlueskyProfileMediaTabsKeepTheirFilterWhileLoadingAuthorPages(): void {
+		$actor = $this->createStub(Person::class);
+		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
+		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->blueskyFeeds->expects($this->once())
+			->method('authorPage')
+			->with($actor, '', 20, null);
+		$options = $this->captureTimelineOptions(['video']);
+
+		$response = $this->controller()->accountStatuses('bob.bsky.social', 20, 0, 0, 0, false, true, 'video');
+
+		$this->assertSame(['video'], $response->getData());
+		$this->assertTrue($options()->isOnlyMedia());
+		$this->assertSame('video', $options()->getMediaType());
+	}
+
 	/** Scrolling down a profile is reading what is stored, not a reason to sync again. */
 	public function testAccountStatusesLaterPagesDoNotSync(): void {
 		$this->loggedInAs();
