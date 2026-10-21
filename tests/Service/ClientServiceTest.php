@@ -40,6 +40,7 @@ class ClientServiceTest extends TestCase {
 		$this->clientAuthRequest = $this->createMock(ClientAuthRequest::class);
 		$this->configService = $this->createStub(ConfigService::class);
 		$this->pushSubscriptions = $this->createMock(PushSubscriptionService::class);
+		$deviceAuthorizations = $this->createMock(\OCA\Social\Db\DeviceAuthorizationRequest::class);
 		$this->configService->method('getAppValueInt')
 			->willReturnCallback(fn (string $key): int => $key === ConfigService::SOCIAL_TOKEN_MAX_DAYS ? $this->maxDays : 0);
 		$this->service = new ClientService(
@@ -48,6 +49,7 @@ class ClientServiceTest extends TestCase {
 			$this->clientAuthRequest,
 			$this->configService,
 			$this->pushSubscriptions,
+			$deviceAuthorizations,
 			new \Psr\Log\NullLogger(),
 		);
 	}

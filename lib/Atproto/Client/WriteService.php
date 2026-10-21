@@ -27,6 +27,7 @@ use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Reader\BlueskyListImport;
 use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Atproto\Reader\PostStore;
+use OCA\Social\Atproto\Repository\InvalidSwapException;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -342,6 +343,17 @@ class WriteService {
 		if (!is_array($writes) || !array_is_list($writes) || count($writes) > 10) {
 			throw XrpcException::invalidRequest('writes must be a list of at most 10');
 		}
+		$swapCommit = $body['swapCommit'] ?? null;
+		if (array_key_exists('swapCommit', $body) && (!is_string($swapCommit) || !Cid::isValid($swapCommit))) {
+			throw XrpcException::invalidRequest('swapCommit must be a valid commit CID');
+		}
+		if ($writes !== [] && count(array_filter($writes, static fn (mixed $write): bool => is_array($write)
+			&& in_array((string)($write['collection'] ?? ''), self::KEPT_AS_WRITTEN, true))) === count($writes)) {
+			return $this->applyKept($session, $writes, $swapCommit);
+		}
+		if ($swapCommit !== null) {
+			throw new XrpcException(501, 'MethodNotImplemented', 'swapCommit requires an atomic repository-native batch');
+		}
 		$results = [];
 		foreach ($writes as $write) {
 			$type = (string)($write['$type'] ?? '');
@@ -359,6 +371,100 @@ class WriteService {
 		}
 
 		return ['commit' => $this->commit($session), 'results' => $results];
+	}
+
+	/**
+	 * Keep app-owned records in one repository commit. These records have no
+	 * ActivityPub action to perform, so their batch can use the repository's
+	 * transaction directly.
+	 *
+	 * @param array<array<string, mixed>> $writes
+	 * @throws XrpcException
+	 */
+	private function applyKept(ClientSession $session, array $writes, ?string $swapCommit): array {
+		$repoWrites = [];
+		$results = [];
+		/** @var list<array{record: ?StoredRecord, collection: string, rkey: string, deleted: bool, resultIndex: ?int}> $sync */
+		$sync = [];
+		$paths = [];
+		foreach ($writes as $write) {
+			$type = (string)($write['$type'] ?? '');
+			$collection = (string)($write['collection'] ?? '');
+			$rkey = (string)($write['rkey'] ?? '');
+			$record = is_array($write['value'] ?? null) ? DagCbor::fromLexJson($write['value']) : [];
+			if (!in_array($type, ['com.atproto.repo.applyWrites#create', 'com.atproto.repo.applyWrites#update', 'com.atproto.repo.applyWrites#delete'], true)) {
+				throw XrpcException::invalidRequest('Unknown write ' . $type);
+			}
+			if ($type !== 'com.atproto.repo.applyWrites#delete' && ($record['$type'] ?? $collection) !== $collection) {
+				throw XrpcException::invalidRequest('The record is not of its collection');
+			}
+			$record['$type'] = $collection;
+			if (in_array($collection, self::GATES, true) && $type !== 'com.atproto.repo.applyWrites#delete') {
+				$gated = Syntax::parseAtUri((string)($record['post'] ?? ''));
+				if ($gated === null || $gated['authority'] !== $session->identity->did || $gated['collection'] !== RecordMapper::POST || ($rkey !== '' && $rkey !== $gated['rkey'])) {
+					throw XrpcException::invalidRequest('A gate is kept under the key of one of the account\'s own posts');
+				}
+				$rkey = $gated['rkey'];
+			}
+			$rkey = $rkey !== '' ? $rkey : Tid::next();
+			$path = $collection . '/' . $rkey;
+			if (isset($paths[$path])) {
+				throw XrpcException::invalidRequest('A batch may change a record only once');
+			}
+			$paths[$path] = true;
+			$previous = $this->repositories->getRecord($session->identity->did, $collection, $rkey);
+			if ($type === 'com.atproto.repo.applyWrites#delete') {
+				if ($previous !== null) {
+					$repoWrites[] = RepoWrite::delete($collection, $rkey);
+					$sync[] = ['record' => $previous, 'collection' => $collection, 'rkey' => $rkey, 'deleted' => true, 'resultIndex' => null];
+				}
+				$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
+				continue;
+			}
+			if ($type === 'com.atproto.repo.applyWrites#create') {
+				if ($previous !== null) {
+					throw XrpcException::invalidRequest('A record already exists at ' . $path);
+				}
+				$repoWrites[] = RepoWrite::create($collection, $record, '', $rkey);
+			} else {
+				if ($previous === null) {
+					throw XrpcException::invalidRequest('No record at ' . $path . ' to update');
+				}
+				$repoWrites[] = RepoWrite::update($collection, $rkey, $record, $previous->localId);
+			}
+			$resultIndex = count($results);
+			$results[] = ['uri' => 'at://' . $session->identity->did . '/' . $path, '$type' => $type . 'Result'];
+			$sync[] = ['record' => null, 'collection' => $collection, 'rkey' => $rkey, 'deleted' => false, 'resultIndex' => $resultIndex];
+		}
+		$committed = null;
+		if ($repoWrites !== []) {
+			try {
+				$commit = $this->repositories->write($session->identity->did, $this->identities->signingKey($session->identity), $repoWrites, $swapCommit);
+				if ($commit !== null) {
+					$committed = ['cid' => $commit->commitCid->toString(), 'rev' => $commit->rev];
+				}
+			} catch (InvalidSwapException $e) {
+				throw new XrpcException(400, 'InvalidSwap', $e->getMessage());
+			} catch (AtprotoException $e) {
+				throw XrpcException::invalidRequest($e->getMessage());
+			}
+		} elseif ($swapCommit !== null && $this->repositories->getHead($session->identity->did)?->commitCid !== $swapCommit) {
+			throw new XrpcException(400, 'InvalidSwap', 'The repository commit changed before the batch could be applied');
+		}
+		foreach ($sync as $entry) {
+			$stored = $entry['deleted'] ? $entry['record'] : $this->repositories->getRecord($session->identity->did, $entry['collection'], $entry['rkey']);
+			if ($stored instanceof StoredRecord) {
+				if ($entry['deleted']) {
+					$this->listChanged($session, $stored, true);
+				} elseif ($entry['resultIndex'] !== null) {
+					$results[$entry['resultIndex']]['cid'] = $stored->cid->toString();
+					$results[$entry['resultIndex']]['validationStatus'] = 'valid';
+					$this->listChanged($session, $stored, false);
+				}
+			}
+		}
+
+		return ['commit' => $committed ?? $this->commit($session), 'results' => $results];
 	}
 
 	/**

@@ -12,6 +12,7 @@ namespace OCA\Social\Service;
 use Exception;
 use OCA\Social\Db\ClientAuthRequest;
 use OCA\Social\Db\ClientRequest;
+use OCA\Social\Db\DeviceAuthorizationRequest;
 use OCA\Social\Exceptions\ClientException;
 use OCA\Social\Exceptions\ClientNotFoundException;
 use OCA\Social\Exceptions\InvalidGrantException;
@@ -85,6 +86,7 @@ class ClientService {
 		private ClientAuthRequest $clientAuthRequest,
 		private ConfigService $configService,
 		private PushSubscriptionService $pushSubscriptions,
+		private DeviceAuthorizationRequest $deviceAuthorizations,
 		private LoggerInterface $logger,
 		private ?ITimeFactory $timeFactory = null,
 	) {
@@ -375,6 +377,7 @@ class ClientService {
 	public function sweep(): int {
 		$now = $this->now();
 		$this->clientAuthRequest->deprecate($now);
+		$this->deviceAuthorizations->prune($now);
 
 		return $this->clientRequest->deleteNeverAuthorized($now - self::TIME_UNUSED_APP_TTL);
 	}
