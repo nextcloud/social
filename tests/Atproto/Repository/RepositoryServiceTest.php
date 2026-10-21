@@ -19,6 +19,7 @@ use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
 use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Mst;
+use OCA\Social\Atproto\Repository\InvalidSwapException;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Db\AtprotoEventRequest;
@@ -87,6 +88,52 @@ class RepositoryServiceTest extends TestCase {
 		$this->assertTrue(array_key_first($car['blocks']) === $result->commitCid->toString(), 'the commit block comes first');
 	}
 
+	public function testBatchStagesRecordsForReadsAndCommitsThemTogether(): void {
+		$this->service->beginBatch(self::DID, $this->key);
+		$first = RepoWrite::create('app.bsky.feed.post', self::post('one'), 'https://s.test/1', '3kznmn7xqxl22');
+		$second = RepoWrite::create('app.bsky.feed.post', self::post('two'), 'https://s.test/2', '3kznmn7xqxl23');
+		$this->service->write(self::DID, $this->key, [$first]);
+		$this->service->write(self::DID, new PrivateKey(Curve::K256, $this->key->secret()), [$second]);
+
+		$this->assertNotNull($this->service->getRecord(self::DID, 'app.bsky.feed.post', $first->rkey));
+		$this->assertCount(2, $this->service->listRecords(self::DID, 'app.bsky.feed.post', 10));
+		$this->assertCount(1, $this->service->getRecordsByLocalId('https://s.test/1'));
+		$this->assertCount(1, $this->service->getRecordsByLocalId('https://s.test/2'));
+		$this->assertNull($this->store->getHead(self::DID), 'staged records are not committed early');
+		$this->assertCount(0, $this->frames, 'staged records do not reach the firehose');
+
+		$result = $this->service->commitBatch();
+
+		$this->assertNotNull($result);
+		$this->assertSame(2, $this->store->getHead(self::DID)?->recordCount);
+		$this->assertCount(1, $this->frames, 'all records use one firehose event');
+	}
+
+	public function testRollingBackAStagedBatchLeavesTheRepositoryUntouched(): void {
+		$this->service->beginBatch(self::DID, $this->key);
+		$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
+		$this->service->rollbackBatch();
+
+		$this->assertNull($this->store->getHead(self::DID));
+		$this->assertNull($this->service->getRecord(self::DID, 'app.bsky.feed.post', '3kznmn7xqxl22'));
+		$this->assertCount(0, $this->frames);
+	}
+
+	public function testAStaleSwapCommitRejectsTheWholeStagedBatch(): void {
+		$head = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
+
+		try {
+			$this->service->beginBatch(self::DID, $this->key, Cid::forRaw('stale')->toString());
+			$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('two'), '', '3kznmn7xqxl23')]);
+			$this->service->commitBatch();
+			$this->fail('a stale swapCommit must reject the staged writes');
+		} catch (InvalidSwapException) {
+			$this->assertSame($head?->commitCid->toString(), $this->store->getHead(self::DID)?->commitCid);
+			$this->assertNull($this->service->getRecord(self::DID, 'app.bsky.feed.post', '3kznmn7xqxl23'));
+			$this->assertCount(1, $this->frames);
+		}
+	}
+
 	public function testALaterCommitFollowsFromTheLast(): void {
 		$first = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
 		$second = $this->service->write(self::DID, $this->key, [
@@ -102,6 +149,25 @@ class RepositoryServiceTest extends TestCase {
 		$this->assertTrue($frame['ops'][1]['prev']->equals($first->cidOf('app.bsky.feed.post/3kznmn7xqxl22')), 'an update names the record it replaced');
 		$this->assertSame([], $this->service->verify(self::DID, $this->key->publicKey()));
 		$this->assertCount(1, $this->store->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_COMMIT), 'only the head commit is kept');
+	}
+
+	public function testSwapCommitRejectsAStaleHeadBeforeWritingAnything(): void {
+		$first = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
+		$head = $this->store->getHead(self::DID);
+		$frames = count($this->frames);
+
+		try {
+			$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('two'), '', '3kznmn7xqxl23')], Cid::forRaw('stale')->toString());
+			$this->fail('a stale swapCommit must refuse the full batch');
+		} catch (InvalidSwapException) {
+			$this->assertSame($head?->commitCid, $this->store->getHead(self::DID)?->commitCid);
+			$this->assertSame(1, $this->store->getHead(self::DID)?->recordCount);
+			$this->assertCount($frames, $this->frames);
+		}
+
+		$second = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('two'), '', '3kznmn7xqxl23')], $first?->commitCid->toString());
+		$this->assertNotNull($second);
+		$this->assertSame(2, $this->store->getHead(self::DID)?->recordCount);
 	}
 
 	public function testADeleteDropsTheRecordAndTheNodesItWasIn(): void {

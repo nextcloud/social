@@ -21,6 +21,7 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\AiContentService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\CountsService;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Http;
@@ -72,6 +73,7 @@ class FilterController extends ClientApiController {
 		private TimelineRevisionService $timelineRevisionService,
 		private AiContentService $aiContentService,
 		private CountsService $countsService,
+		private FeedDisplayService $feedDisplayService,
 	) {
 		parent::__construct($request, $userSession, $logger, $accountService, $clientService);
 	}
@@ -149,6 +151,37 @@ class FilterController extends ClientApiController {
 			$this->countsService->setHides($this->viewer->getUserId(), $this->requiredFlag($hide, 'hide'));
 
 			return new DataResponse($this->countsService->export($this->viewer->getUserId()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Whether replies are hidden as standalone cards in the reader's feeds. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'GET', url: '/api/v1/social/feed_preferences')]
+	public function feedPreferences(): DataResponse {
+		try {
+			$this->initViewer(['read:filters', 'read']);
+
+			return new DataResponse($this->feedDisplayService->export($this->viewer->getUserId()), Http::STATUS_OK);
+		} catch (Throwable $e) {
+			return $this->error($e);
+		}
+	}
+
+	/** Turns the reply-card switch, and answers with the stored state. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[FrontpageRoute(verb: 'PATCH', url: '/api/v1/social/feed_preferences')]
+	public function feedPreferencesUpdate(mixed $hide_replies = null): DataResponse {
+		try {
+			$this->initViewer(['write:filters', 'write']);
+			$this->feedDisplayService->setHidesReplies(
+				$this->viewer->getUserId(), $this->requiredFlag($hide_replies, 'hide_replies')
+			);
+
+			return new DataResponse($this->feedDisplayService->export($this->viewer->getUserId()), Http::STATUS_OK);
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

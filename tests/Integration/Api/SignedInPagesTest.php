@@ -27,6 +27,7 @@ use OCA\Social\Controller\MemoriesController;
 use OCA\Social\Controller\MigrationController;
 use OCA\Social\Controller\NavigationController;
 use OCA\Social\Controller\NotificationController;
+use OCA\Social\Controller\OAuthController;
 use OCA\Social\Controller\PixelfedController;
 use OCA\Social\Controller\RelationController;
 use OCA\Social\Controller\ReviewController;
@@ -145,6 +146,18 @@ class SignedInPagesTest extends ApiTestCase {
 		$this->assertNotInstanceOf(PublicTemplateResponse::class, $response, $path);
 		$this->assertSame(200, $response->getStatus());
 		$this->assertSame('main', $response->getTemplateName());
+	}
+
+	public function testBlueskyOAuthSendsAVisitorToLoginAndPreservesThePushedRequest(): void {
+		$parameters = [
+			'client_id' => 'https://app.example/client-metadata.json',
+			'request_uri' => 'urn:ietf:params:oauth:request_uri:req-123',
+		];
+		$path = '/oauth/authorize?' . http_build_query($parameters);
+		$response = $this->dispatch(OAuthController::class, 'authorize', $path, $parameters);
+
+		$this->assertInstanceOf(RedirectResponse::class, $response);
+		$this->assertSame($this->loginFor($path), $response->getRedirectURL());
 	}
 
 	/** @return iterable<string, array{string, string, array<string, string>}> */

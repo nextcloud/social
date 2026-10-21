@@ -522,6 +522,7 @@ class NotificationPolicyService {
 	public function accept(Person $viewer, Person $sender): void {
 		$this->accountRelationService->acceptNotifications($viewer, $sender);
 		$this->timelineRevisionService->bump($viewer->getUserId());
+		$this->timelineRevisionService->bump($viewer->getUserId(), TimelineRevisionService::NOTIFICATIONS_MERGED);
 		// their message request on Bluesky is accepted with them
 		$this->chatState()?->acceptedSender($viewer, $sender);
 	}

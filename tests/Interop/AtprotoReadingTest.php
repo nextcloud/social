@@ -60,32 +60,48 @@ class AtprotoReadingTest extends TestCase {
 		$this->assertTrue($account['bluesky']['native']);
 
 		// bob posts; the poller reads the AppView's feed into alice's home
-		$words = 'Read from Bluesky ' . bin2hex(random_bytes(4));
-		$post = $this->network->postText($words . ' #interop');
+		$words = [
+			'Read from Bluesky one ' . bin2hex(random_bytes(4)),
+			'Read from Bluesky two ' . bin2hex(random_bytes(4)),
+			'Read from Bluesky three ' . bin2hex(random_bytes(4)),
+		];
+		$posts = array_map(fn (string $word): array => $this->network->postText($word . ' #interop'), $words);
+		$this->assertNotNull($this->network->await(function () use ($bobDid, $words): ?bool {
+			$texts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $this->network->authorFeed($bobDid));
+
+			return count(array_intersect(array_map(static fn (string $word): string => $word . ' #interop', $words), $texts)) === count($words) ? true : null;
+		}), 'all posts are indexed before the author feed is polled');
 		$watch = Server::get(AtprotoWatchRequest::class)->getByDid($bobDid);
 		$this->assertNotNull($watch, 'the follow made a watch');
 		$home = $this->network->await(function () use ($words, $bobDid): ?array {
 			// the watch directly rather than the pass: an empty first read
 			// backs it off past this wait
 			Server::get(FeedPoller::class)->pollWatch(Server::get(AtprotoWatchRequest::class)->getByDid($bobDid));
+			$found = [];
 			foreach ($this->alice->get('/api/v1/timelines/home', ['limit' => '40']) as $status) {
-				if (is_array($status) && str_contains((string)($status['content'] ?? ''), $words)) {
-					return $status;
+				if (!is_array($status)) {
+					continue;
+				}
+				foreach ($words as $word) {
+					if (str_contains((string)($status['content'] ?? ''), $word)) {
+						$found[$word] = $status;
+					}
 				}
 			}
 
-			return null;
+			return count($found) === count($words) ? $found : null;
 		});
-		$this->assertNotNull($home, 'the post reached the home timeline');
-		$this->assertSame('https://bsky.app/profile/' . $bobDid . '/post/' . basename($post['uri']), $home['uri']);
-		$this->assertSame('https://bsky.app/profile/' . $bobHandle . '/post/' . basename($post['uri']), $home['url']);
-		$this->assertSame($bobHandle, $home['account']['acct']);
-		$this->assertStringContainsString('class="mention hashtag"', (string)$home['content'], 'the hashtag facet is a tag link');
+		$this->assertNotNull($home, 'all posts reached the home timeline, not only the newest one');
+		$latest = $home[$words[2]];
+		$this->assertSame('https://bsky.app/profile/' . $bobDid . '/post/' . basename($posts[2]['uri']), $latest['uri']);
+		$this->assertSame('https://bsky.app/profile/' . $bobHandle . '/post/' . basename($posts[2]['uri']), $latest['url']);
+		$this->assertSame($bobHandle, $latest['account']['acct']);
+		$this->assertStringContainsString('class="mention hashtag"', (string)$latest['content'], 'the hashtag facet is a tag link');
 
 		// alice likes it: a record in her repository, counted by the AppView
-		$this->alice->favourite((string)$home['id']);
+		$this->alice->favourite((string)$latest['id']);
 		$this->runQueuedJobs();
-		$likers = $this->network->await(fn () => in_array($identity->did, $this->network->likers($post['uri']), true) ? [$identity->did] : null);
+		$likers = $this->network->await(fn () => in_array($identity->did, $this->network->likers($posts[2]['uri']), true) ? [$identity->did] : null);
 		$this->assertNotNull($likers, 'the like reached the AppView');
 
 		// bob likes and answers alice's post; the notifications poll brings

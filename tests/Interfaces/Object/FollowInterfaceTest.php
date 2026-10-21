@@ -534,16 +534,36 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 	 */
 	public function testUndoNamingAFollowThatIsNotStoredChangesNothing(): void {
 		$follow = $this->incomingFollow();
-		$stored = $this->stored($follow, true);
-		$this->followsRequest->method('getByPersons')->willReturn($stored);
+		$this->stored($follow, true);
 		$other = clone $follow;
 		$other->setId(self::REMOTE_URL . '/follows/not-stored');
 		$undo = $this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/2', $this->bob->getId(), $other);
 
 		$this->followsRequest->expects($this->never())->method('delete');
+		$this->followsRequest->expects($this->never())->method('getByPersons');
 		$this->accountService->expects($this->never())->method('bumpActorCount');
 
 		$this->handler->activity($undo, $other);
+	}
+
+	/** Misskey identifies the Follow in Undo with a composite actor/object URI. */
+	public function testUndoResolvesMisskeysCompositeFollowIdByAccountPair(): void {
+		$follow = $this->incomingFollow();
+		$stored = $this->stored($follow, true);
+		$composite = clone $follow;
+		$composite->setId(self::REMOTE_URL . '/follows/asl1cyp9vb9q000a/asl1cyf9vb9q0007');
+		$this->followsRequest->expects($this->once())
+			->method('getByPersons')
+			->with($follow->getActorId(), $follow->getObjectId())
+			->willReturn($stored);
+		$this->followsRequest->expects($this->once())->method('delete')->with($stored);
+		$this->accountService->expects($this->once())->method('bumpActorCount')
+			->with($follow->getObjectId(), 'count_followers', -1);
+
+		$this->handler->activity(
+			$this->incoming(Undo::TYPE, self::REMOTE_URL . '/undo/4', $this->bob->getId(), $composite),
+			$composite
+		);
 	}
 
 	/** A stored follow is only undone by the account that follows. */

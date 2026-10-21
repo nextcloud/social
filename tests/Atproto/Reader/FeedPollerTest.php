@@ -75,8 +75,8 @@ class FeedPollerTest extends TestCase {
 		});
 		$this->watches->expects($this->once())->method('synced')->with(self::DID, '2026-10-08T12:00:00.000Z', self::NOW, self::NOW + FeedPoller::INTERVAL);
 
-		$this->assertSame(2, $this->poller->pollWatch($watch));
-		$this->assertSame(['three', 'two'], $stored, 'newest first, nothing at or before the cursor');
+		$this->assertSame(3, $this->poller->pollWatch($watch));
+		$this->assertSame(['three', 'two', 'one'], $stored, 'newest first, including a post tied with the cursor');
 	}
 
 	public function testARepostIsOrderedByItsOwnTime(): void {
@@ -249,6 +249,19 @@ class FeedPollerTest extends TestCase {
 
 		$poller->pollWatch($this->watch());
 		$poller->pollWatch($this->watch('did:plc:two'));
+	}
+
+	public function testAPinDoesNotStopReadingNewPostsOrAdvanceTheChronologicalCursor(): void {
+		$oldPin = $this->item('2026-10-01T10:00:00.000Z', 'old pin');
+		$oldPin['reason'] = ['$type' => 'app.bsky.feed.defs#reasonPin'];
+		$newPin = $this->item('2026-10-10T10:00:00.000Z', 'new pin');
+		$newPin['reason'] = ['$type' => 'app.bsky.feed.defs#reasonPin'];
+		$new = $this->item('2026-10-08T12:00:00.000Z', 'new post');
+		$this->appView->method('query')->willReturn(['feed' => [$oldPin, $newPin, $new]]);
+		$this->store->expects($this->once())->method('storeFeedItem')->with($new)->willReturn(1);
+		$this->watches->expects($this->once())->method('synced')->with(self::DID, '2026-10-08T12:00:00.000Z', self::NOW, self::NOW + FeedPoller::INTERVAL);
+
+		$this->assertSame(1, $this->poller->pollWatch($this->watch(cursor: '2026-10-08T10:00:00.000Z')));
 	}
 
 	private function watch(string $did = self::DID, string $cursor = '', int $lastSync = self::NOW - 1000, int $nextSync = self::NOW, int $failures = 0): Watch {

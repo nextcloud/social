@@ -259,6 +259,20 @@ class PostStoreTest extends TestCase {
 		$this->assertSame($gone, $this->imported[0]->getObjectId());
 	}
 
+	public function testNotFoundPostViewsAreDeletedButBlockedViewsAreKept(): void {
+		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';
+		$blocked = 'https://bsky.app/profile/' . self::DID . '/post/3kblocked';
+		$this->known = [$gone, $blocked];
+		$this->appView->expects($this->once())->method('query')->willReturn(['posts' => [
+			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kgone', 'notFound' => true],
+			['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kblocked', 'blocked' => true],
+		]]);
+
+		$this->assertSame(['posts' => [$blocked => ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/3kblocked', 'blocked' => true]], 'deleted' => 1], $this->store->postViews([$gone, $blocked]));
+		$this->assertCount(1, $this->imported);
+		$this->assertSame($gone, $this->imported[0]->getObjectId());
+	}
+
 	public function testTheViewsOfThePostsTheAppViewStillHasAreHandedBack(): void {
 		$kept = 'https://bsky.app/profile/' . self::DID . '/post/3kkept';
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';

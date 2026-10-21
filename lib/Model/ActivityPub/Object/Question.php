@@ -174,12 +174,14 @@ class Question extends Note implements JsonSerializable {
 
 		$this->options = [];
 		foreach ($options as $option) {
-			if (!is_array($option) || (string)($option['name'] ?? '') === '') {
+			if (!is_array($option) || !is_scalar($option['name'] ?? null) || (string)$option['name'] === '') {
 				continue;
 			}
+			$replies = $option['replies'] ?? null;
+			$totalItems = is_array($replies) ? ($replies['totalItems'] ?? 0) : 0;
 			$this->options[] = [
 				'title' => (string)$option['name'],
-				'votes_count' => (int)($option['replies']['totalItems'] ?? 0),
+				'votes_count' => is_scalar($totalItems) ? (int)$totalItems : 0,
 			];
 		}
 

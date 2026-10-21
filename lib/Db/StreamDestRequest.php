@@ -101,6 +101,20 @@ class StreamDestRequest extends StreamDestRequestBuilder {
 		}
 	}
 
+	/** @return list<string> */
+	public function recipientPrims(string $streamId): array {
+		$qb = $this->getQueryBuilder();
+		$qb->select('actor_id')
+			->from(self::TABLE_STREAM_DEST)
+			->where($qb->expr()->eq('stream_id', $qb->createNamedParameter($qb->prim($streamId))));
+
+		$cursor = $qb->executeQuery();
+		$recipients = array_map(static fn (array $row): string => (string)$row['actor_id'], $cursor->fetchAll());
+		$cursor->closeCursor();
+
+		return $recipients;
+	}
+
 	public function generateStreamDest(Stream $stream): void {
 		if ($this->generateStreamNotification($stream)) {
 			return;

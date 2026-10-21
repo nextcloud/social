@@ -270,18 +270,45 @@
 		labelId="social-new-post-title"
 		@close="showComposer = false">
 		<div class="modal-composer">
-			<h2 id="social-new-post-title" class="modal-composer__title">
-				{{ t('social', 'New post') }}
-			</h2>
+			<div class="modal-composer__header">
+				<h2 id="social-new-post-title" class="modal-composer__title">
+					<NcAvatar
+						:url="composerAvatarUrl"
+						:displayName="currentUser?.displayName || currentUser?.uid || ''"
+						:hideStatus="true"
+						:disableMenu="true"
+						:disableTooltip="true"
+						:size="32"
+						aria-hidden="true" />
+					{{ t('social', 'New post') }}
+				</h2>
+				<NcButton
+					v-if="storiesAvailable"
+					class="modal-composer__story"
+					variant="tertiary"
+					@click="openStoryComposer">
+					<template #icon>
+						<IconImageMultiple :size="20" />
+					</template>
+					{{ t('social', 'New story') }}
+				</NcButton>
+			</div>
 			<!-- the box emptied and the modal stayed open, which reads as if
 			     nothing had been sent -->
 			<Composer
 				startExpanded
+				compactOptions
 				:initialPaths="composerPaths"
 				emojiPickerContainer=".modal-wrapper"
 				@posted="showComposer = false" />
 		</div>
 	</NcModal>
+
+	<ShortComposerDialog
+		v-if="showStoryComposer"
+		v-model:open="showStoryComposer"
+		lifetime="day"
+		@posted="showStoryComposer = false" />
 
 	<NcModal
 		v-if="showErrors"
@@ -370,6 +397,7 @@ import { ownAvatarUrl } from '../services/avatar.js'
 // the composer pulls the emoji picker and the attachment stack with it:
 // its own chunk keeps all of that out of the entry bundle
 const Composer = defineAsyncComponent(() => import(/* webpackChunkName: "composer" */'./Composer/Composer.vue'))
+const ShortComposerDialog = defineAsyncComponent(() => import(/* webpackChunkName: "short-composer" */'./ShortComposerDialog.vue'))
 
 /** how often to re-read the badges when the server cannot push */
 const UNREAD_POLL_MS = 60 * 1000
@@ -408,6 +436,8 @@ export default {
 		NcButton,
 		NcCounterBubble,
 		Composer,
+		ShortComposerDialog,
+		IconImageMultiple,
 		IconHome,
 		IconAccountCircle,
 		IconBell,
@@ -465,6 +495,8 @@ export default {
 			ringing: false,
 			ringTimer: null,
 			showComposer: false,
+			/** the 24-hour story composer opened from the New post dialog */
+			showStoryComposer: false,
 			/** files "Share to Social" in the Files app sent along, attached when the dialog opens */
 			composerPaths: [],
 			showErrors: false,
@@ -625,6 +657,18 @@ export default {
 		 */
 		avatarUrl() {
 			return ownAvatarUrl(64)
+		},
+
+		composerAvatarUrl() {
+			return ownAvatarUrl(32)
+		},
+
+		/** @return {boolean} whether the signed-in account can post a story */
+		storiesAvailable() {
+			return Boolean(this.currentUser)
+				&& !this.settingsStore.getServerData?.public
+				&& this.settingsStore.getServerData?.sections?.stories !== false
+				&& !this.currentAccount?.moved
 		},
 
 		/** the reader's picture as the CSS value the menu's icon is drawn with */
@@ -941,6 +985,11 @@ export default {
 			const answered = await Promise.all(asked)
 
 			return answered.some(Boolean)
+		},
+
+		openStoryComposer() {
+			this.showComposer = false
+			this.showStoryComposer = true
 		},
 
 		/**
@@ -1830,10 +1879,27 @@ export default {
 .modal-composer {
 	padding: 12px 18px 18px;
 
+	&__header {
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		gap: 16px;
+		margin-bottom: 12px;
+	}
+
 	&__title {
-		margin: 0 0 12px;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-width: 0;
+		margin: 0;
 		font-size: 20px;
 		font-weight: 700;
+	}
+
+	&__story {
+		flex: 0 0 auto;
+		margin-inline-start: 0;
 	}
 }
 

@@ -56,6 +56,7 @@ class CoreRequestBuilder {
 	public const TABLE_MUTE_EXPIRY = 'social_mute_expiry';
 	public const TABLE_FEATURED_TAGS = 'social_featured_tag';
 	public const TABLE_STATUS_REVISIONS = 'social_stream_rev';
+	public const TABLE_STATUS_DELETIONS = 'social_stream_del';
 	public const TABLE_LISTS = 'social_list';
 	public const TABLE_LIST_MEMBERS = 'social_list_member';
 	public const TABLE_COLLECTIONS = 'social_collection';
@@ -91,6 +92,7 @@ class CoreRequestBuilder {
 	public const TABLE_RENDITIONS = 'social_video_rendition';
 	public const TABLE_VIDEO_VIEWS = 'social_video_views';
 	public const TABLE_VIDEO_SEEN = 'social_video_seen';
+	public const TABLE_DEVICE_AUTH = 'social_device_auth';
 	public const TABLE_STREAM = 'social_stream';
 	public const TABLE_STREAM_ACTIONS = 'social_stream_act';
 	public const TABLE_STREAM_VIEWS = 'social_stream_view';
@@ -505,6 +507,10 @@ class CoreRequestBuilder {
 			'viewer_hash',
 			'day'
 		],
+		self::TABLE_DEVICE_AUTH => [
+			'id', 'device_hash', 'user_code', 'client_id', 'scopes', 'status',
+			'user_id', 'poll_interval', 'last_poll', 'expires', 'created'
+		],
 		self::TABLE_RENDITIONS => [
 			'id',
 			'doc_nid',
@@ -608,6 +614,16 @@ class CoreRequestBuilder {
 			'published',
 			'media',
 			'creation'
+		],
+		self::TABLE_STATUS_DELETIONS => [
+			'id',
+			'status_nid',
+			'hashtags',
+			'local',
+			'media',
+			'visibility',
+			'recipients',
+			'audience_prim'
 		],
 		self::TABLE_FEATURED_TAGS => [
 			'id',

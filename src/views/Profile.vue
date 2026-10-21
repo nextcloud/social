@@ -8,7 +8,7 @@
 
 		<!-- your own profile is a page you post from, the way the home
 		     timeline is. Somebody else's is a page you read -->
-		<Composer v-if="isOwnProfile" />
+		<Composer v-if="isOwnProfile" compactOptions />
 
 		<router-view v-if="accountLoaded && accountInfo" name="details" />
 		<!-- a follow link from another server, for an account this one does

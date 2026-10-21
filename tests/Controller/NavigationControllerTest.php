@@ -133,6 +133,7 @@ class NavigationControllerTest extends TestCase {
 			$this->checkService,
 			$this->sensitiveMediaService,
 			$this->countsService,
+			$this->createStub(\OCA\Social\Service\FeedDisplayService::class),
 			$this->sectionsService,
 			$this->createStub(\OCA\Social\Service\InterestService::class),
 			$this->streamService,
@@ -194,6 +195,8 @@ class NavigationControllerTest extends TestCase {
 			// whether the like, boost and follower numbers are hidden, which
 			// the page needs before it draws a post
 			'hideCounts' => true,
+			// whether standalone replies are omitted from the feeds
+			'hideRepliesInFeeds' => false,
 			// whether the one-key shortcuts are on, before the first key
 			'keyboardShortcuts' => true,
 			// which sections this instance offers, so the sidebar is drawn

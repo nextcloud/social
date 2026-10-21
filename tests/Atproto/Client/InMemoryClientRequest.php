@@ -19,6 +19,7 @@ class InMemoryClientRequest extends AtprotoClientRequest {
 	public array $passwords = [];
 	/** @var array<string, array{jti: string, user_id: string, did: string, app_password_id: int, expires: int}> */
 	public array $sessions = [];
+	public bool $consumeNextSessionConcurrently = false;
 
 	public function addAppPassword(string $userId, string $name, string $hash, bool $privileged = false): int {
 		foreach ($this->passwords as $row) {
@@ -66,8 +67,21 @@ class InMemoryClientRequest extends AtprotoClientRequest {
 		return $this->sessions[$jti] ?? null;
 	}
 
-	public function removeSession(string $jti): void {
+	public function removeSession(string $jti): bool {
+		if ($this->consumeNextSessionConcurrently) {
+			$this->consumeNextSessionConcurrently = false;
+			unset($this->sessions[$jti]);
+
+			return false;
+		}
+		$existed = isset($this->sessions[$jti]);
 		unset($this->sessions[$jti]);
+
+		return $existed;
+	}
+
+	public function hasAppPassword(string $userId, int $id): bool {
+		return ($this->passwords[$id]['user_id'] ?? '') === $userId;
 	}
 
 	public function removeSessionsOfUser(string $userId): void {

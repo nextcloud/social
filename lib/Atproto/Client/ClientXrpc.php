@@ -14,6 +14,7 @@ use OCA\Social\Atproto\OAuth\AuthorizationServer;
 use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\Publisher\BlueskyBookmarks;
 use OCA\Social\Atproto\Publisher\BlueskyMutes;
+use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
 use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcBytes;
@@ -57,6 +58,7 @@ class ClientXrpc {
 		private ModerationService $moderation,
 		private InboundMoveService $inbound,
 		private BlueskyMutes $mutes,
+		private BlueskyThreadMutes $threadMutes,
 		private BlueskyBookmarks $bookmarks,
 		private NotificationSettings $notificationSettings,
 		private PlcSignatureService $plcSignatures,
@@ -85,15 +87,17 @@ class ClientXrpc {
 		}
 		$session = $this->signedIn($headers, $method, 'GET');
 		$permissions = $session->permissions();
+		$audience = str_starts_with($method, 'com.atproto.server.') ? $this->config->serviceDid() : $this->audience($headers);
 		$allowed = match ($method) {
 			'com.atproto.server.getSession' => true,
 			'com.atproto.server.getServiceAuth' => $permissions->mayCall(self::param($params, 'lxm'), self::param($params, 'aud')),
-			default => $permissions->mayCall($method, $this->audience($headers)),
+			default => $permissions->mayCall($method, $audience),
 		};
 		self::assertAllowed($allowed, 'call ' . $method);
 
 		return match (true) {
 			$method === 'com.atproto.server.getSession' => $this->sessions->describe($session),
+			$method === 'com.atproto.server.listAppPasswords' => $this->sessions->listAppPasswords($session),
 			$method === 'com.atproto.server.getServiceAuth' => $this->grants->grant(
 				$session, self::param($params, 'aud'), self::param($params, 'lxm'), (int)self::param($params, 'exp')
 			),
@@ -143,6 +147,8 @@ class ClientXrpc {
 			return null;
 		}
 		$session = $this->signedIn($headers, $method, 'POST');
+		$body = in_array($method, ['com.atproto.server.createAppPassword', 'com.atproto.server.revokeAppPassword'], true)
+			? self::json($rawBody) : [];
 		$writes = in_array($method, self::WRITES, true) ? self::writesOf($method, self::json($rawBody)) : null;
 		if ($writes !== null) {
 			foreach ($writes as [$collection, $actions]) {
@@ -150,10 +156,17 @@ class ClientXrpc {
 				self::assertAllowed($allowed, implode(' or ', $actions) . ' records of ' . $collection);
 			}
 		} else {
-			self::assertAllowed($session->permissions()->mayCall($method, $this->audience($headers)), 'call ' . $method);
+			$audience = str_starts_with($method, 'com.atproto.server.') ? $this->config->serviceDid() : $this->audience($headers);
+			self::assertAllowed($session->permissions()->mayCall($method, $audience), 'call ' . $method);
 		}
 
 		return match ($method) {
+			'com.atproto.server.createAppPassword' => $this->sessions->createAppPassword(
+				$session,
+				self::requiredString($body, 'name'),
+				self::optionalBoolean($body, 'privileged'),
+			),
+			'com.atproto.server.revokeAppPassword' => $this->revokeAppPassword($session, self::requiredString($body, 'name')),
 			'app.bsky.actor.putPreferences' => $this->preferences->put($session, self::json($rawBody)),
 			'com.atproto.repo.createRecord' => $this->writes->create($session, self::writeBody($rawBody)),
 			'com.atproto.repo.putRecord' => $this->writes->put($session, self::writeBody($rawBody)),
@@ -161,10 +174,27 @@ class ClientXrpc {
 			'com.atproto.repo.applyWrites' => $this->writes->apply($session, self::writeBody($rawBody)),
 			'com.atproto.moderation.createReport' => $this->writes->report($session, self::json($rawBody)),
 			BlueskyMutes::MUTE, BlueskyMutes::UNMUTE => $this->mute($session, $method, $rawBody, $headers),
+			BlueskyThreadMutes::MUTE, BlueskyThreadMutes::UNMUTE => $this->muteThread($session, $method, $rawBody, $headers),
 			BlueskyBookmarks::CREATE, BlueskyBookmarks::DELETE => $this->bookmark($session, $method, $rawBody, $headers),
 			NotificationSettings::PUT => $this->notificationSettings->put($session, self::json($rawBody)),
 			default => $this->proxy->forward($session, $method, 'post', '', $rawBody, $headers),
 		};
+	}
+
+	/**
+	 * A thread mute an app makes: the AppView owns it, and the corresponding
+	 * locally stored thread stops or resumes raising notifications here too.
+	 *
+	 * @param array<string, string> $headers
+	 * @throws XrpcException
+	 */
+	private function muteThread(ClientSession $session, string $method, string $rawBody, array $headers): XrpcBytes {
+		$answer = $this->proxy->forward($session, $method, 'post', '', $rawBody, $headers);
+		if ($answer->status === 200) {
+			$this->threadMutes->fromApp($session, $method, self::json($rawBody));
+		}
+
+		return $answer;
 	}
 
 	/**
@@ -208,9 +238,35 @@ class ClientXrpc {
 			|| str_starts_with($method, 'chat.bsky.')
 			|| in_array($method, [
 				'com.atproto.server.getSession', 'com.atproto.server.getServiceAuth',
+				'com.atproto.server.createAppPassword', 'com.atproto.server.listAppPasswords', 'com.atproto.server.revokeAppPassword',
 				'com.atproto.repo.createRecord', 'com.atproto.repo.putRecord', 'com.atproto.repo.deleteRecord',
 				'com.atproto.repo.applyWrites', 'com.atproto.moderation.createReport',
 			], true);
+	}
+
+	/** @throws XrpcException */
+	private function revokeAppPassword(ClientSession $session, string $name): array {
+		$this->sessions->revokeAppPassword($session, $name);
+
+		return [];
+	}
+
+	/** @throws XrpcException */
+	private static function requiredString(array $body, string $name): string {
+		if (!is_string($body[$name] ?? null) || trim($body[$name]) === '') {
+			throw XrpcException::invalidRequest('A non-empty ' . $name . ' is required');
+		}
+
+		return $body[$name];
+	}
+
+	/** @throws XrpcException */
+	private static function optionalBoolean(array $body, string $name): bool {
+		if (array_key_exists($name, $body) && !is_bool($body[$name])) {
+			throw XrpcException::invalidRequest($name . ' must be a boolean');
+		}
+
+		return $body[$name] ?? false;
 	}
 
 	/**

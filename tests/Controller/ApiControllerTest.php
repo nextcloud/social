@@ -60,6 +60,7 @@ use OCA\Social\Service\DeliveryService;
 use OCA\Social\Service\DocumentService;
 use OCA\Social\Service\EmojiService;
 use OCA\Social\Service\FediverseService;
+use OCA\Social\Service\FeedDisplayService;
 use OCA\Social\Service\FileCommentsService;
 use OCA\Social\Service\FilterService;
 use OCA\Social\Service\FollowService;
@@ -87,6 +88,7 @@ use OCA\Social\Service\StreamService;
 use OCA\Social\Service\TeamService;
 use OCA\Social\Service\TimelineRevisionService;
 use OCA\Social\Service\TranslationService;
+use OCA\Social\Service\VapidService;
 use OCA\Social\Service\ViewCountService;
 use OCA\Social\Tests\Helper\ApiControllerRouter;
 use OCA\Social\Tests\Mock\TCacheActorServiceMock;
@@ -183,12 +185,14 @@ class ApiControllerTest extends TestCase {
 	private \OCA\Social\Service\NotificationDeliveryService|Stub $notificationDeliveryService;
 	private \OCA\Social\Service\AiContentService|Stub $aiContentService;
 	private \OCA\Social\Service\CountsService|Stub $countsService;
+	private FeedDisplayService|Stub $feedDisplayService;
 	private \OCA\Social\Service\RemoteFetchQueue|MockObject $remoteFetchQueue;
 	private \OCA\Social\Service\FollowList\FollowListService|MockObject $followLists;
 	private \OCA\Social\Service\Counts\CountService|MockObject $counts;
 	/** what the AI switch stub answers for the viewer */
 	private bool $hidesAi = false;
 	private bool $hidesCounts = true;
+	private bool $hidesRepliesInFeeds = false;
 	/** @var array<string, mixed> what the delivery service answers for the viewer */
 	private array $delivery = [];
 	private ViewCountService|Stub $viewCountService;
@@ -212,6 +216,7 @@ class ApiControllerTest extends TestCase {
 	private TimelineRevisionService|Stub $timelineRevisionService;
 	private IAppManager|Stub $appManager;
 	private FediverseService|Stub $fediverseService;
+	private VapidService|Stub $vapidService;
 
 	/** How this instance reads its access list, and what is on it. */
 	private string $accessType = 'all_but';
@@ -333,10 +338,14 @@ class ApiControllerTest extends TestCase {
 		$this->aiContentService = $this->createStub(\OCA\Social\Service\AiContentService::class);
 		$this->aiContentService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesAi);
 		$this->remoteFetchQueue = $this->createMock(\OCA\Social\Service\RemoteFetchQueue::class);
+		$this->vapidService = $this->createStub(VapidService::class);
+		$this->vapidService->method('publicKey')->willReturn('instance-vapid-key');
 		$this->followLists = $this->createMock(\OCA\Social\Service\FollowList\FollowListService::class);
 		$this->counts = $this->createMock(\OCA\Social\Service\Counts\CountService::class);
 		$this->countsService = $this->createStub(\OCA\Social\Service\CountsService::class);
 		$this->countsService->method('hides')->willReturnCallback(fn (string $userId): bool => $this->hidesCounts);
+		$this->feedDisplayService = $this->createStub(FeedDisplayService::class);
+		$this->feedDisplayService->method('hidesReplies')->willReturnCallback(fn (string $userId): bool => $this->hidesRepliesInFeeds);
 		$this->sensitiveMediaService = $this->createStub(\OCA\Social\Service\SensitiveMediaService::class);
 		// the three states PeerTube's NSFW policies map onto; `default` is
 		// what an instance that has not chosen does
@@ -468,6 +477,7 @@ class ApiControllerTest extends TestCase {
 			'notificationDeliveryService' => $this->notificationDeliveryService,
 			'aiContentService' => $this->aiContentService,
 			'countsService' => $this->countsService,
+			'feedDisplayService' => $this->feedDisplayService,
 			'remoteFetchQueue' => $this->remoteFetchQueue,
 			'followLists' => $this->followLists,
 			'viewCountService' => $this->viewCountService,
@@ -475,6 +485,7 @@ class ApiControllerTest extends TestCase {
 			'emojiService' => $this->emojiService,
 			'appManager' => $this->appManager,
 			'fediverseService' => $this->fediverseService,
+			'vapidService' => $this->vapidService,
 			'placeService' => $this->placeService,
 			'deliveryService' => $this->deliveryService,
 			'reactionService' => $this->reactionService,
@@ -670,7 +681,7 @@ class ApiControllerTest extends TestCase {
 			[
 				'name' => 'Aloha Social',
 				'website' => 'https://github.com/alohasocial/social/',
-				'vapid_key' => '',
+				'vapid_key' => 'instance-vapid-key',
 			],
 			$response->getData()
 		);
@@ -698,7 +709,7 @@ class ApiControllerTest extends TestCase {
 				'website' => 'https://tusky.app',
 				'scopes' => ['read', 'write'],
 				'redirect_uris' => ['tusky://oauth'],
-				'vapid_key' => '',
+				'vapid_key' => 'instance-vapid-key',
 			],
 			$response->getData()
 		);
@@ -1427,6 +1438,25 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(100, $probe->getMinId());
 		$this->assertSame(200, $probe->getSince());
 		$this->assertSame(ACore::FORMAT_LOCAL, $probe->getFormat());
+	}
+
+	public function testHomeTimelineCanHideReplyCardsAndStillPagesFromTheUnfilteredPage(): void {
+		$this->loggedInAs();
+		$this->hidesRepliesInFeeds = true;
+		$this->requestUri('/api/v1/timelines/home?limit=2');
+		$reply = $this->createStub(Stream::class);
+		$reply->method('getNid')->willReturn(42);
+		$reply->method('getInReplyTo')->willReturn('https://cloud.example/apps/social/@alice/41');
+		$standalone = $this->createStub(Stream::class);
+		$standalone->method('getNid')->willReturn(41);
+		$standalone->method('getInReplyTo')->willReturn('');
+		$this->timelineRows = 2;
+		$this->captureTimelineOptions([$reply, $standalone]);
+
+		$response = $this->controller()->timelines('home', false, 2);
+
+		$this->assertSame([$standalone], $response->getData());
+		$this->assertStringContainsString('max_id=41>; rel="next"', $response->getHeaders()['Link'] ?? '');
 	}
 
 	/** @return iterable<string, array{string}> */
@@ -5842,18 +5872,21 @@ class ApiControllerTest extends TestCase {
 
 		$data = $this->controller()->oembed($post->getId())->getData();
 
-		$this->assertSame('link', $data['type']);
+		$this->assertSame('rich', $data['type']);
 		$this->assertSame('alice', $data['author_name']);
 		$this->assertSame($post->getId(), $data['url']);
+		$this->assertStringContainsString($post->getId() . '/embed', $data['html']);
 	}
 
-	/** Not `rich`: there is no embed page here, and framing the whole app is not one. */
-	public function testOembedIsNeverRich(): void {
+	/** Rich embeds frame the dedicated public post page, never the full app shell. */
+	public function testOembedProvidesTheDedicatedRichEmbed(): void {
 		$this->streamService->method('getStreamById')->willReturn($this->publicPost());
 		$this->cacheActorService->method('getFromId')->willReturn(new Person());
 		$this->instanceService->method('getLocal')->willReturn(new Instance());
 
-		$this->assertArrayNotHasKey('html', $this->controller()->oembed('https://cloud.example/x')->getData());
+		$data = $this->controller()->oembed('https://cloud.example/x')->getData();
+		$this->assertSame('rich', $data['type']);
+		$this->assertStringContainsString('/embed', $data['html']);
 	}
 
 	public function testOembedRefusesAPostThatIsNotPublic(): void {

@@ -1236,7 +1236,8 @@ service* passes the report on — sent by this server, not in your name.
 with this account. In *Settings → Apps and account → Bluesky* make an
 **app password** and copy it — it is shown once. In the app, choose to sign in with
 a different hosting provider, give this server's address, then your Bluesky
-handle and the app password. What you post, like or follow there happens
+handle and the app password. This is not your Nextcloud password; never enter
+that in a Bluesky client. What you post, like or follow there happens
 here too, as if you had done it in Aloha Social; blocks stay here and cannot
 be made from the app. Revoking the app password signs the app out.
 

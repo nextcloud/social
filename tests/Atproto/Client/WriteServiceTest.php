@@ -21,6 +21,7 @@ use OCA\Social\Atproto\Model\RepoHead;
 use OCA\Social\Atproto\Model\StoredRecord;
 use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\DagCbor;
+use OCA\Social\Atproto\Protocol\Tid;
 use OCA\Social\Atproto\Publisher\BlueskyBlocks;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Atproto\Publisher\PictureService;
@@ -31,6 +32,7 @@ use OCA\Social\Atproto\Reader\BlueskyListImport;
 use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Repository\CommitResult;
+use OCA\Social\Atproto\Repository\InvalidSwapException;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -42,6 +44,7 @@ use OCA\Social\Model\ActivityPub\Object\Like;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\Post;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
 use OCA\Social\Service\BoostService;
@@ -99,6 +102,8 @@ class WriteServiceTest extends TestCase {
 	/** @var BannerService&MockObject */
 	private BannerService $banners;
 	private WriteService $writes;
+	/** @var ActivityService&MockObject */
+	private ActivityService $activities;
 	/** @var RelationshipService&MockObject */
 	private RelationshipService $relationships;
 	/** @var BlueskyBlocks&MockObject */
@@ -151,12 +156,14 @@ class WriteServiceTest extends TestCase {
 		$identities->method('signingKey')->willReturn(PrivateKey::generate(Curve::K256));
 		$this->declaration = $this->createMock(ChatDeclaration::class);
 		$this->listImport = $this->createMock(BlueskyListImport::class);
+		$this->activities = $this->createMock(ActivityService::class);
 		$this->writes = new WriteService(
 			$accounts, $this->posts, $this->review, $this->createMock(ModerationService::class), $this->streams, $this->likes, $this->createMock(BoostService::class), $this->createMock(FollowService::class),
 			$this->cacheActors, $this->createMock(ReportService::class), $this->documents,
 			$this->publisher, $this->pictures, $this->videos, $this->createMock(InteractionPublisher::class), $this->repositories, $this->local, $this->postStore,
 			$this->blobs, $this->createMock(IURLGenerator::class), new NullLogger(), $this->avatars, $this->banners, $identities,
 			$this->relationships, $this->blocks, $this->declaration, $this->listImport,
+			$this->activities,
 		);
 		$this->session = new ClientSession('alice', new Identity(1, $this->alice->getId(), self::DID, 'alice.social.test', 'sealed', '', '', Identity::STATE_ACTIVE, '', 0), 'jti');
 	}
@@ -203,6 +210,27 @@ class WriteServiceTest extends TestCase {
 
 		$this->writes->put($this->session, ['repo' => self::DID, 'collection' => RecordMapper::PROFILE, 'rkey' => RecordMapper::PROFILE_RKEY, 'record' => [
 			'$type' => RecordMapper::PROFILE, 'displayName' => 'Alice', 'avatar' => $face, 'banner' => $sea, 'pronouns' => 'she/her', 'website' => 'https://alice.example',
+		]]);
+	}
+
+	public function testPronounsAnAppSavesAreClippedToTheBlueskyLimitInTheSharedProfile(): void {
+		$this->publishedProfile(Cid::forRaw('a face'), Cid::forRaw('the sea'));
+		$pronouns = str_repeat("e\u{0301}", 21);
+		$this->accounts->expects($this->once())->method('setFields')->with('alice', [
+			['name' => 'Pronouns', 'value' => str_repeat("e\u{0301}", 20)],
+		]);
+
+		$this->writes->put($this->session, ['repo' => self::DID, 'collection' => RecordMapper::PROFILE, 'rkey' => RecordMapper::PROFILE_RKEY, 'record' => [
+			'$type' => RecordMapper::PROFILE, 'pronouns' => $pronouns,
+		]]);
+	}
+
+	public function testAnInvalidWebsiteIsRefusedBeforeAnyProfileChange(): void {
+		$this->accounts->expects($this->never())->method('changingProfile');
+		$this->expectException(XrpcException::class);
+
+		$this->writes->put($this->session, ['repo' => self::DID, 'collection' => RecordMapper::PROFILE, 'rkey' => RecordMapper::PROFILE_RKEY, 'record' => [
+			'$type' => RecordMapper::PROFILE, 'displayName' => 'Changed name', 'website' => 'javascript:alert(1)',
 		]]);
 	}
 
@@ -264,6 +292,105 @@ class WriteServiceTest extends TestCase {
 
 		$this->writes->delete($this->session, ['repo' => self::DID, 'collection' => 'app.bsky.graph.list', 'rkey' => $rkey]);
 		$this->assertSame([], $this->records);
+	}
+
+	public function testApplyWritesStoresKeptRecordsInOneCommit(): void {
+		$this->repositories->expects($this->once())->method('write')->with(self::DID, $this->anything(), $this->callback(static fn (array $writes): bool => count($writes) === 2))->willReturnCallback(function (string $did, $key, array $writes): CommitResult {
+			foreach ($writes as $write) {
+				$bytes = DagCbor::encode($write->record);
+				$this->records[] = new StoredRecord($did, $write->collection, $write->rkey, Cid::forDagCbor($bytes), $bytes, $write->localId, 0);
+			}
+
+			return new CommitResult($did, Cid::forRaw('batch commit'), '3kbatch', 1, []);
+		});
+		$list = static fn (string $name): array => ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => $name, 'createdAt' => '2026-10-09T10:00:00.000Z'];
+		$firstRkey = Tid::next();
+		$secondRkey = Tid::next();
+
+		$answer = $this->writes->apply($this->session, ['repo' => self::DID, 'writes' => [
+			['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => $firstRkey, 'value' => $list('Friends')],
+			['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => $secondRkey, 'value' => $list('Family')],
+		]]);
+
+		$this->assertCount(2, $answer['results']);
+		$this->assertSame('at://' . self::DID . '/app.bsky.graph.list/' . $firstRkey, $answer['results'][0]['uri']);
+		$this->assertSame('valid', $answer['results'][1]['validationStatus']);
+		$this->assertSame(['cid' => Cid::forRaw('batch commit')->toString(), 'rev' => '3kbatch'], $answer['commit']);
+	}
+
+	public function testInvalidKeptRecordBatchDoesNotWriteEarlierItems(): void {
+		$this->repositories->expects($this->never())->method('write');
+		$list = ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => 'Friends', 'createdAt' => '2026-10-09T10:00:00.000Z'];
+		$firstRkey = Tid::next();
+		$secondRkey = Tid::next();
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => $firstRkey, 'value' => $list],
+				['$type' => 'com.atproto.repo.applyWrites#unknown', 'collection' => 'app.bsky.graph.list', 'rkey' => $secondRkey, 'value' => $list],
+			]]);
+			$this->fail('unknown write types must be rejected');
+		} catch (XrpcException $e) {
+			$this->assertSame(400, $e->status);
+		}
+	}
+
+	public function testMixedBatchRollsBackWhenALaterSocialWriteFails(): void {
+		$this->repositories->expects($this->once())->method('beginBatch');
+		$this->repositories->expects($this->never())->method('commitBatch');
+		$this->repositories->expects($this->once())->method('rollbackBatch');
+		$this->activities->expects($this->once())->method('beginDeferredDeliveries');
+		$this->activities->expects($this->once())->method('discardDeferredDeliveries');
+		$this->activities->expects($this->never())->method('releaseDeferredDeliveries');
+		$this->repositories->expects($this->once())->method('write')->willReturnCallback(function (string $did, $key, array $writes): ?CommitResult {
+			foreach ($writes as $write) {
+				$bytes = DagCbor::encode($write->record);
+				$this->records[] = new StoredRecord($did, $write->collection, $write->rkey, Cid::forDagCbor($bytes), $bytes, $write->localId, 0);
+			}
+
+			return null;
+		});
+		$list = ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => 'Friends', 'createdAt' => '2026-10-09T10:00:00.000Z'];
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'rkey' => Tid::next(), 'value' => $list],
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'chat.bsky.actor.declaration', 'rkey' => 'self', 'value' => ['allowIncoming' => 'all']],
+			]]);
+			$this->fail('a failed Social write must reject the batch');
+		} catch (XrpcException $e) {
+			$this->assertSame(500, $e->status);
+		}
+	}
+
+	public function testApplyWritesReturnsTheProtocolInvalidSwapError(): void {
+		$this->repositories->expects($this->once())->method('write')->willThrowException(new InvalidSwapException('stale repository head'));
+		$record = ['$type' => 'app.bsky.graph.list', 'purpose' => 'app.bsky.graph.defs#curatelist', 'name' => 'Friends', 'createdAt' => '2026-10-09T10:00:00.000Z'];
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'swapCommit' => Cid::forRaw('current')->toString(), 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#create', 'collection' => 'app.bsky.graph.list', 'value' => $record],
+			]]);
+			$this->fail('a repository conflict must be exposed to the app');
+		} catch (XrpcException $e) {
+			$this->assertSame(400, $e->status);
+			$this->assertSame('InvalidSwap', $e->error);
+		}
+	}
+
+	public function testApplyWritesChecksSwapCommitWhenEveryDeleteIsAlreadyGone(): void {
+		$this->repositories->expects($this->never())->method('write');
+		$stale = Cid::forRaw('stale commit')->toString();
+
+		try {
+			$this->writes->apply($this->session, ['repo' => self::DID, 'swapCommit' => $stale, 'writes' => [
+				['$type' => 'com.atproto.repo.applyWrites#delete', 'collection' => 'app.bsky.graph.list', 'rkey' => Tid::next()],
+			]]);
+			$this->fail('the head must be checked even when every delete is a no-op');
+		} catch (XrpcException $e) {
+			$this->assertSame(400, $e->status);
+			$this->assertSame('InvalidSwap', $e->error);
+		}
 	}
 
 	public function testAListAndItsMembersAnAppWritesAreTheListHereToo(): void {

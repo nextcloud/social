@@ -72,6 +72,7 @@ class RouteAuthMatrixTest extends TestCase {
 		'AtprotoOAuthController::parPreflight' => 'CORS preflight, answers headers only',
 		'AtprotoOAuthController::tokenPreflight' => 'CORS preflight, answers headers only',
 		'AtprotoOAuthController::revokePreflight' => 'CORS preflight, answers headers only',
+		'OAuthController::authorize' => 'Mastodon and AT Protocol authorization, returns guests to Nextcloud login before showing consent',
 		'AtprotoRecoveryController::recoveryTool' => 'the offline recovery tool, a static page holding nothing of anybody',
 		'AtprotoRecoveryController::downloadRecoveryTool' => 'the offline recovery tool as a file, a static page holding nothing of anybody',
 		'AtprotoWellKnownController::atprotoDid' => 'atproto handle resolution, public by protocol',
@@ -93,6 +94,7 @@ class RouteAuthMatrixTest extends TestCase {
 		'OAuthController::nodeinfo2' => 'NodeInfo, public by protocol',
 		'OAuthController::nodeinfo21' => 'NodeInfo, public by protocol',
 		'OAuthController::apps' => 'Mastodon app registration, open by protocol',
+		'OAuthController::deviceAuthorization' => 'OAuth device authorization, client ID checked and endpoint rate limited',
 		'OAuthController::token' => 'OAuth token endpoint, client authenticates in the body',
 		'OAuthController::revoke' => 'OAuth revocation, client authenticates in the body',
 		'OAuthController::oauthMetadata' => 'OAuth discovery document',
@@ -105,6 +107,7 @@ class RouteAuthMatrixTest extends TestCase {
 		'SignupController::verify' => 'email verification link',
 		'SocialPubController::collections' => 'public collections page',
 		'SocialPubController::portfolio' => 'public portfolio page',
+		'SocialPubController::embedPost' => 'public post embed, limited to local public posts and an isolated CSP',
 	];
 
 	/** @var array<string, string> CSRF-exempt state-changing routes outside the API bases, and why */
@@ -119,6 +122,7 @@ class RouteAuthMatrixTest extends TestCase {
 		'AtprotoXrpcController::procedure' => 'bearer access token, no cookie involved',
 		'AtprotoXrpcController::preflight' => 'CORS preflight, changes nothing',
 		'OAuthController::apps' => 'OAuth client registration, no cookie involved',
+		'OAuthController::deviceAuthorization' => 'OAuth device authorization, client ID checked and endpoint rate limited',
 		'OAuthController::token' => 'OAuth, no cookie involved',
 		'OAuthController::revoke' => 'OAuth, no cookie involved',
 		'QueueController::asyncForRequest' => 'signed by AsyncRequestSigner, no cookie involved',

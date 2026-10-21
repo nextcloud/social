@@ -22,6 +22,40 @@ use OCP\DB\QueryBuilder\IQueryBuilder;
  * is the one that removes the status itself.
  */
 class StatusRevisionsRequest extends StatusRevisionsRequestBuilder {
+	/** Highest revision id, used to start a streaming subscriber after existing edits. */
+	public function newestId(): int {
+		$qb = $this->getStatusRevisionsMaxIdSql();
+		$cursor = $qb->executeQuery();
+		$data = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return (int)($data['max_id'] ?? 0);
+	}
+
+	/**
+	 * The edited statuses after a subscriber's cursor, oldest first.
+	 *
+	 * @return list<array{id: int, stream_id_prim: string}>
+	 */
+	public function getAfterId(int $afterId, int $limit): array {
+		$qb = $this->getStatusRevisionsSelectCursorSql();
+		$qb->andWhere($qb->expr()->gt('sr.id', $qb->createNamedParameter($afterId)));
+		$qb->orderBy('sr.id', 'asc');
+		$qb->setMaxResults($limit);
+
+		$rows = [];
+		$cursor = $qb->executeQuery();
+		while ($data = $cursor->fetch()) {
+			$rows[] = [
+				'id' => (int)$data['id'],
+				'stream_id_prim' => (string)$data['stream_id_prim'],
+			];
+		}
+		$cursor->closeCursor();
+
+		return $rows;
+	}
+
 	public function save(StatusRevision $revision): void {
 		$qb = $this->getStatusRevisionsInsertSql();
 		$qb->setValue('stream_id_prim', $qb->createNamedParameter($qb->prim($revision->getStreamId())))

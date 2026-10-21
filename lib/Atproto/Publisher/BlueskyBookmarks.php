@@ -12,6 +12,7 @@ namespace OCA\Social\Atproto\Publisher;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Client\ClientSession;
 use OCA\Social\Atproto\Identity\IdentityService;
+use OCA\Social\Atproto\Reader\BlueskyCountSource;
 use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Model\ActivityPub\ACore;
@@ -21,6 +22,7 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Nid;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -122,10 +124,10 @@ class BlueskyBookmarks {
 			}
 		}
 		$views = [];
-		if ($refs !== []) {
+		foreach (array_chunk($refs, BlueskyCountSource::BATCH) as $chunk) {
 			try {
 				$identity = $this->identities->activeForActor($viewer);
-				$params = ['uris' => array_column($refs, 'uri')];
+				$params = ['uris' => array_column($chunk, 'uri')];
 				$answer = $identity !== null
 					? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), 'app.bsky.feed.getPosts', $params)
 					: $this->appView->query('app.bsky.feed.getPosts', $params);
@@ -148,7 +150,14 @@ class BlueskyBookmarks {
 		}
 		$answer = ['bookmarks' => $bookmarks];
 		if (count($posts) >= $limit) {
-			$answer['cursor'] = (string)min(array_map(static fn ($post): int => (int)$post->getNid(), $posts));
+			$cursor = null;
+			foreach ($posts as $post) {
+				$nid = Nid::normalize($post->getNid());
+				if ($cursor === null || Nid::compare($nid, $cursor) < 0) {
+					$cursor = $nid;
+				}
+			}
+			$answer['cursor'] = $cursor ?? '0';
 		}
 
 		return $answer;

@@ -46,6 +46,7 @@ class LocalAccount {
 	public function __construct(
 		public readonly string $userId,
 		public readonly Person $actor,
+		public readonly string $password,
 		private string $token,
 		private string $apiBase,
 	) {
@@ -54,7 +55,8 @@ class LocalAccount {
 	/** A new user, its actor and a bearer token for it. */
 	public static function create(string $prefix): self {
 		$userId = $prefix . bin2hex(random_bytes(4));
-		$user = Server::get(IUserManager::class)->createUser($userId, 'Interop-' . bin2hex(random_bytes(12)) . '!');
+		$password = 'Interop-' . bin2hex(random_bytes(12)) . '!';
+		$user = Server::get(IUserManager::class)->createUser($userId, $password);
 		if ($user === false) {
 			throw new RuntimeException('could not create the user ' . $userId);
 		}
@@ -80,7 +82,7 @@ class LocalAccount {
 
 		$socialUrl = rtrim(Server::get(ConfigService::class)->getSocialUrl(), '/');
 
-		return new self($userId, $actor, $token, $socialUrl);
+		return new self($userId, $actor, $password, $token, $socialUrl);
 	}
 
 	/** `@name@host`, as another server addresses this account. */

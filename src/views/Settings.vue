@@ -182,6 +182,7 @@ const InterestsSettings = defineAsyncComponent(() => import(/* webpackChunkName:
 const SensesSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/SensesSettings.vue'))
 const SensitiveMediaSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/SensitiveMediaSettings.vue'))
 const CountsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/CountsSettings.vue'))
+const FeedDisplaySettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FeedDisplaySettings.vue'))
 const FilesCommentsSettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/FilesCommentsSettings.vue'))
 const NotificationDeliverySettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/NotificationDeliverySettings.vue'))
 const NotificationPolicySettings = defineAsyncComponent(() => import(/* webpackChunkName: "settings" */'../components/NotificationPolicySettings.vue'))
@@ -265,6 +266,7 @@ export default {
 		PortfolioSettings,
 		RecapSettings,
 		CountsSettings,
+		FeedDisplaySettings,
 		FilesCommentsSettings,
 		SensesSettings,
 		SensitiveMediaSettings,
@@ -379,6 +381,14 @@ export default {
 					component: 'CountsSettings',
 					title: t('social', 'Likes and followers'),
 					lede: t('social', 'Whether you see how many likes, boosts, replies and followers posts and people have. Off unless you turn it on.'),
+				},
+				{
+					id: 'feed-display',
+					group: 'reading',
+					icon: 'IconFilesComments',
+					component: 'FeedDisplaySettings',
+					title: t('social', 'Feed posts'),
+					lede: t('social', 'Choose whether replies appear as separate cards in your feeds.'),
 				},
 				{
 					id: 'recap',

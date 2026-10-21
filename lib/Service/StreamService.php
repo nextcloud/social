@@ -630,6 +630,10 @@ class StreamService {
 		return $this->streamRequest->getStreamById($id, $asViewer, $format);
 	}
 
+	public function getStreamByIdPrim(string $idPrim, bool $asViewer = false): Stream {
+		return $this->streamRequest->getStreamByIdPrim($idPrim, $asViewer);
+	}
+
 	/**
 	 * @param int|string $nid
 	 *

@@ -27,6 +27,7 @@ use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Atproto\Reader\BlueskyListImport;
 use OCA\Social\Atproto\Reader\LocalRecordResolver;
 use OCA\Social\Atproto\Reader\PostStore;
+use OCA\Social\Atproto\Repository\InvalidSwapException;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -39,6 +40,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
 use OCA\Social\Service\BoostService;
@@ -117,6 +119,7 @@ class WriteService {
 		private BlueskyBlocks $blocks,
 		private ChatDeclaration $declaration,
 		private BlueskyListImport $listImport,
+		private ActivityService $activities,
 	) {
 	}
 
@@ -168,6 +171,7 @@ class WriteService {
 			throw $this->unsupported($collection);
 		}
 		$record = is_array($body['record'] ?? null) ? $body['record'] : [];
+		$this->assertProfileWebsite($record);
 		$actor = $this->actor($session);
 		$current = $this->repositories->getRecord($session->identity->did, RecordMapper::PROFILE, RecordMapper::PROFILE_RKEY);
 		$was = $current === null ? [] : DagCbor::decode($current->bytes);
@@ -212,15 +216,35 @@ class WriteService {
 			return $now === $before ? null : $now;
 		};
 		$pronouns = $changed('pronouns');
-		$website = $changed('website');
-		if ($website !== null && $website !== '' && filter_var($website, FILTER_VALIDATE_URL) === false) {
-			$website = null;
+		if ($pronouns !== null) {
+			$pronouns = RecordMapper::clipPronouns($pronouns);
 		}
+		$website = $changed('website');
 		if ($pronouns === null && $website === null) {
 			return;
 		}
 		$actor = $this->accounts->getActorFromUserId($session->userId);
 		$this->accounts->setFields($session->userId, Person::withProfileRows($actor->getFields(), $pronouns, $website));
+	}
+
+	/** Refuse a bad website before changing any part of the local profile. */
+	private function assertProfileWebsite(array $record): void {
+		if (!array_key_exists('website', $record)) {
+			return;
+		}
+		$website = $record['website'];
+		if (!is_string($website)) {
+			throw XrpcException::invalidRequest('The profile website must be a valid HTTP or HTTPS URL');
+		}
+		if (trim($website) === '') {
+			return;
+		}
+
+		$website = trim($website);
+		$scheme = strtolower((string)parse_url($website, PHP_URL_SCHEME));
+		if (!in_array($scheme, ['http', 'https'], true) || filter_var($website, FILTER_VALIDATE_URL) === false) {
+			throw XrpcException::invalidRequest('The profile website must be a valid HTTP or HTTPS URL');
+		}
 	}
 
 	/**
@@ -309,9 +333,8 @@ class WriteService {
 	}
 
 	/**
-	 * `com.atproto.repo.applyWrites`: the same, one after the other. Not one
-	 * commit: each Social action is its own, so a failure part-way leaves
-	 * the earlier ones done.
+	 * `com.atproto.repo.applyWrites`: Social actions and their repository
+	 * records share one transaction and one repository commit.
 	 *
 	 * @throws XrpcException
 	 */
@@ -321,23 +344,151 @@ class WriteService {
 		if (!is_array($writes) || !array_is_list($writes) || count($writes) > 10) {
 			throw XrpcException::invalidRequest('writes must be a list of at most 10');
 		}
+		$swapCommit = $body['swapCommit'] ?? null;
+		if (array_key_exists('swapCommit', $body) && (!is_string($swapCommit) || !Cid::isValid($swapCommit))) {
+			throw XrpcException::invalidRequest('swapCommit must be a valid commit CID');
+		}
+		if ($writes !== [] && count(array_filter($writes, static fn (mixed $write): bool => is_array($write)
+			&& in_array((string)($write['collection'] ?? ''), self::KEPT_AS_WRITTEN, true))) === count($writes)) {
+			return $this->applyKept($session, $writes, $swapCommit);
+		}
+		foreach ($writes as $write) {
+			if (!is_array($write) || !in_array(($write['$type'] ?? null), [
+				'com.atproto.repo.applyWrites#create',
+				'com.atproto.repo.applyWrites#delete',
+				'com.atproto.repo.applyWrites#update',
+			], true) || !is_string($write['collection'] ?? null) || $write['collection'] === '') {
+				throw XrpcException::invalidRequest('Every write needs a supported type and collection');
+			}
+		}
 		$results = [];
+		try {
+			$this->repositories->beginBatch($session->identity->did, $this->identities->signingKey($session->identity), $swapCommit);
+			$this->activities->beginDeferredDeliveries();
+			foreach ($writes as $write) {
+				$type = $write['$type'];
+				$one = ['repo' => $session->identity->did, 'collection' => $write['collection'], 'rkey' => $write['rkey'] ?? '', 'record' => $write['value'] ?? []];
+				if ($type === 'com.atproto.repo.applyWrites#create') {
+					$results[] = ['$type' => 'com.atproto.repo.applyWrites#createResult'] + array_intersect_key($this->create($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
+				} elseif ($type === 'com.atproto.repo.applyWrites#delete') {
+					$this->delete($session, $one);
+					$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
+				} else {
+					$results[] = ['$type' => 'com.atproto.repo.applyWrites#updateResult'] + array_intersect_key($this->put($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
+				}
+			}
+			$commit = $this->repositories->commitBatch();
+		} catch (Throwable $e) {
+			$this->activities->discardDeferredDeliveries();
+			$this->repositories->rollbackBatch();
+			if ($e instanceof XrpcException) {
+				throw $e;
+			}
+			if ($e instanceof InvalidSwapException) {
+				throw new XrpcException(400, 'InvalidSwap', $e->getMessage());
+			}
+			if ($e instanceof AtprotoException) {
+				throw XrpcException::invalidRequest($e->getMessage());
+			}
+			throw $e;
+		}
+		$this->activities->releaseDeferredDeliveries();
+
+		return ['commit' => $commit === null ? $this->commit($session) : ['cid' => $commit->commitCid->toString(), 'rev' => $commit->rev], 'results' => $results];
+	}
+
+	/**
+	 * Keep app-owned records in one repository commit. These records have no
+	 * ActivityPub action to perform, so their batch can use the repository's
+	 * transaction directly.
+	 *
+	 * @param array<array<string, mixed>> $writes
+	 * @throws XrpcException
+	 */
+	private function applyKept(ClientSession $session, array $writes, ?string $swapCommit): array {
+		$repoWrites = [];
+		$results = [];
+		/** @var list<array{record: ?StoredRecord, collection: string, rkey: string, deleted: bool, resultIndex: ?int}> $sync */
+		$sync = [];
+		$paths = [];
 		foreach ($writes as $write) {
 			$type = (string)($write['$type'] ?? '');
-			$one = ['repo' => $session->identity->did, 'collection' => $write['collection'] ?? '', 'rkey' => $write['rkey'] ?? '', 'record' => $write['value'] ?? []];
-			if ($type === 'com.atproto.repo.applyWrites#create') {
-				$results[] = ['$type' => 'com.atproto.repo.applyWrites#createResult'] + array_intersect_key($this->create($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
-			} elseif ($type === 'com.atproto.repo.applyWrites#delete') {
-				$this->delete($session, $one);
-				$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
-			} elseif ($type === 'com.atproto.repo.applyWrites#update') {
-				$results[] = ['$type' => 'com.atproto.repo.applyWrites#updateResult'] + array_intersect_key($this->put($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
-			} else {
+			$collection = (string)($write['collection'] ?? '');
+			$rkey = (string)($write['rkey'] ?? '');
+			$record = is_array($write['value'] ?? null) ? DagCbor::fromLexJson($write['value']) : [];
+			if (!in_array($type, ['com.atproto.repo.applyWrites#create', 'com.atproto.repo.applyWrites#update', 'com.atproto.repo.applyWrites#delete'], true)) {
 				throw XrpcException::invalidRequest('Unknown write ' . $type);
+			}
+			if ($type !== 'com.atproto.repo.applyWrites#delete' && ($record['$type'] ?? $collection) !== $collection) {
+				throw XrpcException::invalidRequest('The record is not of its collection');
+			}
+			$record['$type'] = $collection;
+			if (in_array($collection, self::GATES, true) && $type !== 'com.atproto.repo.applyWrites#delete') {
+				$gated = Syntax::parseAtUri((string)($record['post'] ?? ''));
+				if ($gated === null || $gated['authority'] !== $session->identity->did || $gated['collection'] !== RecordMapper::POST || ($rkey !== '' && $rkey !== $gated['rkey'])) {
+					throw XrpcException::invalidRequest('A gate is kept under the key of one of the account\'s own posts');
+				}
+				$rkey = $gated['rkey'];
+			}
+			$rkey = $rkey !== '' ? $rkey : Tid::next();
+			$path = $collection . '/' . $rkey;
+			if (isset($paths[$path])) {
+				throw XrpcException::invalidRequest('A batch may change a record only once');
+			}
+			$paths[$path] = true;
+			$previous = $this->repositories->getRecord($session->identity->did, $collection, $rkey);
+			if ($type === 'com.atproto.repo.applyWrites#delete') {
+				if ($previous !== null) {
+					$repoWrites[] = RepoWrite::delete($collection, $rkey);
+					$sync[] = ['record' => $previous, 'collection' => $collection, 'rkey' => $rkey, 'deleted' => true, 'resultIndex' => null];
+				}
+				$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
+				continue;
+			}
+			if ($type === 'com.atproto.repo.applyWrites#create') {
+				if ($previous !== null) {
+					throw XrpcException::invalidRequest('A record already exists at ' . $path);
+				}
+				$repoWrites[] = RepoWrite::create($collection, $record, '', $rkey);
+			} else {
+				if ($previous === null) {
+					throw XrpcException::invalidRequest('No record at ' . $path . ' to update');
+				}
+				$repoWrites[] = RepoWrite::update($collection, $rkey, $record, $previous->localId);
+			}
+			$resultIndex = count($results);
+			$results[] = ['uri' => 'at://' . $session->identity->did . '/' . $path, '$type' => $type . 'Result'];
+			$sync[] = ['record' => null, 'collection' => $collection, 'rkey' => $rkey, 'deleted' => false, 'resultIndex' => $resultIndex];
+		}
+		$committed = null;
+		if ($repoWrites !== []) {
+			try {
+				$commit = $this->repositories->write($session->identity->did, $this->identities->signingKey($session->identity), $repoWrites, $swapCommit);
+				if ($commit !== null) {
+					$committed = ['cid' => $commit->commitCid->toString(), 'rev' => $commit->rev];
+				}
+			} catch (InvalidSwapException $e) {
+				throw new XrpcException(400, 'InvalidSwap', $e->getMessage());
+			} catch (AtprotoException $e) {
+				throw XrpcException::invalidRequest($e->getMessage());
+			}
+		} elseif ($swapCommit !== null && $this->repositories->getHead($session->identity->did)?->commitCid !== $swapCommit) {
+			throw new XrpcException(400, 'InvalidSwap', 'The repository commit changed before the batch could be applied');
+		}
+		foreach ($sync as $entry) {
+			$stored = $entry['deleted'] ? $entry['record'] : $this->repositories->getRecord($session->identity->did, $entry['collection'], $entry['rkey']);
+			if ($stored instanceof StoredRecord) {
+				if ($entry['deleted']) {
+					$this->listChanged($session, $stored, true);
+				} elseif ($entry['resultIndex'] !== null) {
+					$results[$entry['resultIndex']]['cid'] = $stored->cid->toString();
+					$results[$entry['resultIndex']]['validationStatus'] = 'valid';
+					$this->listChanged($session, $stored, false);
+				}
 			}
 		}
 
-		return ['commit' => $this->commit($session), 'results' => $results];
+		return ['commit' => $committed ?? $this->commit($session), 'results' => $results];
 	}
 
 	/**

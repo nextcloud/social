@@ -107,6 +107,19 @@ describe('VideoShorts', () => {
 		HTMLMediaElement.prototype.pause = vi.fn()
 	})
 
+	it('fits the player frame to the decoded video dimensions', async () => {
+		const { wrapper } = await mountShorts([video('1')])
+		wrapper.vm.availableWidth = 1000
+		wrapper.vm.availableHeight = 800
+		await wrapper.vm.$nextTick()
+
+		wrapper.vm.onVideoMetadata({ target: { videoWidth: 1920, videoHeight: 1080 } })
+		await wrapper.vm.$nextTick()
+
+		expect(wrapper.find('.shorts__track').attributes('style')).toContain('--short-track-width: 1000px')
+		expect(wrapper.find('.shorts__track').attributes('style')).toContain('--short-track-height: 562.5px')
+	})
+
 	afterEach(() => {
 		vi.unstubAllGlobals()
 	})

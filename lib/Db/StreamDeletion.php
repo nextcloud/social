@@ -11,8 +11,13 @@ namespace OCA\Social\Db;
 
 use DateTime;
 use OCA\Social\Exceptions\InvalidResourceException;
+use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
+use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Model\ActivityPub\Object\Question;
+use OCA\Social\Model\ActivityPub\Stream;
 use OCP\DB\QueryBuilder\IQueryBuilder;
+use Throwable;
 
 /**
  * Removing posts and everything that hangs off them, and the reads that
@@ -36,6 +41,17 @@ trait StreamDeletion {
 	 *                     that type — and then nothing else is touched either
 	 */
 	public function deleteById(string $id, string $type = '') {
+		$status = null;
+		try {
+			$candidate = $this->getStreamById($id, false, ACore::FORMAT_LOCAL);
+			if (in_array($candidate->getType(), [Note::TYPE, Question::TYPE], true)
+				&& in_array($candidate->getVisibility(), [Stream::TYPE_PUBLIC, Stream::TYPE_UNLISTED, Stream::TYPE_FOLLOWERS, Stream::TYPE_DIRECT], true)) {
+				$status = $candidate;
+			}
+		} catch (Throwable) {
+			// A deletion still has to proceed when a status cannot be decorated.
+		}
+
 		$qb = $this->getStreamDeleteSql();
 		$prim = $this->streamPrim($qb, $id);
 		if ($prim === '') {
@@ -52,6 +68,12 @@ trait StreamDeletion {
 			// a guarded delete that matched nothing: the post is of another
 			// type and still exists, so its related rows are still in use
 			return;
+		}
+		if ($deleted > 0 && $status !== null) {
+			$recipients = $status->getVisibility() === Stream::TYPE_PUBLIC
+				? []
+				: $this->streamDestRequest->recipientPrims($status->getId());
+			$this->statusDeletionEventsRequest->record($status, $recipients);
 		}
 
 		$this->deleteRelatedTo([$prim]);
