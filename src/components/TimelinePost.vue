@@ -2250,10 +2250,17 @@ export default {
 
 	.post-actions__groups {
 		display: flex;
+		flex: 1 1 auto;
 		flex-wrap: wrap;
 		align-items: center;
+		justify-content: flex-end;
 		gap: 4px;
 		min-inline-size: 0;
+
+		// A wrapped reply row stays aligned to the post's outside edge.
+		.post-action-group--reply {
+			margin-inline-start: auto;
+		}
 	}
 
 	/* it had a top margin from when it was a row of its own */
