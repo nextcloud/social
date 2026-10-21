@@ -667,14 +667,20 @@ class StreamService {
 		// background: from its first post, and from this one when that is
 		// deeper than one read goes
 		$root = ($ancestors === []) ? $post : end($ancestors);
-		$blueskyRead = $this->threadService?->fillBluesky($root) ?? false;
+		$blueskyResult = $this->threadService?->fillBluesky($root);
+		$blueskyRead = $blueskyResult === true;
+		$blueskyPending = $this->threadService !== null && $blueskyResult === null;
 		// Bluesky is read inline for the opened conversation. Keep the queued
 		// read for a local post (which may also have Fediverse replies) and for
 		// conversations the inline Bluesky source could not handle.
-		$filling = (!$blueskyRead || $root->isLocal())
-			? ($this->remoteFetchQueue?->fillThread($root) ?? false)
-			: false;
-		if ($root !== $post && (!$blueskyRead || $post->isLocal())) {
+		$filling = $blueskyPending;
+		if (!$blueskyPending && (!$blueskyRead || $root->isLocal())) {
+			$filling = $this->remoteFetchQueue?->fillThread($root) ?? false;
+		}
+		// An inline read already in progress will save the replies, but this
+		// request queried the database before those writes finish. Tell the
+		// client to ask for the context again rather than treating it as complete.
+		if (!$blueskyPending && $root !== $post && (!$blueskyRead || $post->isLocal())) {
 			$filling = ($this->remoteFetchQueue?->fillThread($post) ?? false) || $filling;
 		}
 

@@ -46,6 +46,20 @@ class ThreadServiceTest extends TestCase {
 		$this->assertFalse((new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container))->fillBluesky($post));
 	}
 
+	public function testConcurrentBlueskyConversationReadIsReportedAsPending(): void {
+		$post = (new Note())->setId('at://did:plc:alice/app.bsky.feed.post/1');
+		$locks = $this->createMock(ILockingProvider::class);
+		$locks->expects($this->once())->method('isLocked')->willReturn(true);
+		$locks->expects($this->never())->method('acquireLock');
+		$bluesky = $this->createMock(BlueskyThreadSource::class);
+		$bluesky->expects($this->once())->method('supports')->with($post)->willReturn(true);
+		$bluesky->expects($this->never())->method('fillVisible');
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
+
+		$this->assertNull((new ThreadService($this->createStub(StreamRequest::class), new NullLogger(), $locks, $container))->fillBluesky($post));
+	}
+
 	/** A post written here and published to Bluesky is asked of both. */
 	public function testEveryNetworkThePostIsOnIsAskedWithWhatIsLeftOfTheBudget(): void {
 		$post = (new Note())->setId('https://social.test/@alice/1');

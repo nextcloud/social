@@ -69,9 +69,10 @@ class ThreadService {
 	 * feed has already made the user wait for this post; leaving its replies
 	 * for the next cron run can add another minute or more of stale context.
 	 *
-	 * @return bool whether a Bluesky thread was requested
+	 * @return ?bool true when read, false when unavailable or unsupported, null
+	 *               when another request is already reading it
 	 */
-	public function fillBluesky(Stream $post): bool {
+	public function fillBluesky(Stream $post): ?bool {
 		$source = $this->container?->get(BlueskyThreadSource::class);
 		if (!$source instanceof BlueskyThreadSource || !$source->supports($post)) {
 			return false;
@@ -79,12 +80,12 @@ class ThreadService {
 
 		$lock = self::VISIBLE_LOCK . md5($post->getId());
 		if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
-			return true;
+			return null;
 		}
 		try {
 			$this->locks->acquireLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
 		} catch (LockedException) {
-			return true;
+			return null;
 		}
 		try {
 			$source->fillVisible($post, self::BUDGET);

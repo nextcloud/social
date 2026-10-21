@@ -1243,6 +1243,20 @@ class StreamServiceTest extends TestCase {
 		$this->assertFalse($context['filling']);
 	}
 
+	public function testConcurrentBlueskyConversationReadKeepsContextRefreshActive(): void {
+		$post = $this->note('at://did:plc:alice/app.bsky.feed.post/2', self::ACTOR_ID);
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([]);
+		$threads = $this->createMock(ThreadService::class);
+		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(null);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->never())->method('fillThread');
+
+		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
+
+		$this->assertTrue($context['filling']);
+	}
+
 	/** The replies the thread's author hid are left out, or marked when asked for. */
 	public function testHiddenRepliesAreLeftOutUnlessAskedForAndTheAuthorMayHideAny(): void {
 		$post = $this->note('https://social.example/@alice/1', self::ACTOR_ID);
