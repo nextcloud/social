@@ -106,7 +106,11 @@ class RemoteFetchQueue {
 			// pending sync per account
 		}
 
-		$this->queue(SyncRemoteTimeline::class, ['actor' => $actor->getId()]);
+		if (!$this->queue(SyncRemoteTimeline::class, ['actor' => $actor->getId()])) {
+			$this->clearThrottle(self::TIMELINE_SYNCED, $key, $actor->getId(), 'timeline sync');
+
+			return false;
+		}
 
 		return true;
 	}
@@ -193,11 +197,7 @@ class RemoteFetchQueue {
 			// Do not suppress another attempt for the full interval when the
 			// background job could not be persisted. The visible request can
 			// report that the list is still filling and try again shortly.
-			try {
-				$this->durableCache->remove(self::INTERACTIONS_FILLED, $key);
-			} catch (Throwable $e) {
-				$this->logger->info('[RemoteFetchQueue] could not reset interaction fill throttle', ['post' => $post->getId(), 'exception' => $e]);
-			}
+			$this->clearThrottle(self::INTERACTIONS_FILLED, $key, $post->getId(), 'interaction fill');
 
 			return false;
 		}
@@ -227,7 +227,11 @@ class RemoteFetchQueue {
 			// the job list's own dedupe still holds
 		}
 
-		$this->queue(FillFollowLists::class, ['actor' => $account->getId(), 'direction' => $direction]);
+		if (!$this->queue(FillFollowLists::class, ['actor' => $account->getId(), 'direction' => $direction])) {
+			$this->clearThrottle(self::FOLLOW_LISTS_FILLED, $key, $account->getId(), 'follow-list fill');
+
+			return false;
+		}
 
 		return true;
 	}
@@ -248,7 +252,12 @@ class RemoteFetchQueue {
 
 		$term = trim(mb_strtolower($term));
 		$viewerId = ($viewer === null || $kind !== 'search') ? '' : $viewer->getId();
-		$this->queue(FillPosts::class, ['kind' => $kind, 'term' => $term, 'viewer' => $viewerId]);
+		if (!$this->queue(FillPosts::class, ['kind' => $kind, 'term' => $term, 'viewer' => $viewerId])) {
+			$key = md5($kind . "\0" . $term . "\0" . $viewerId);
+			$this->clearThrottle(self::POSTS_FILLED, $key, $term, 'post fill');
+
+			return false;
+		}
 
 		return true;
 	}
@@ -325,11 +334,7 @@ class RemoteFetchQueue {
 			// for a later request; otherwise the interval marker would make its
 			// counts look as though a refresh were already in progress.
 			foreach ($batch as $id) {
-				try {
-					$this->durableCache->remove(self::COUNTS_ASKED, md5($id));
-				} catch (Throwable $e) {
-					$this->logger->info('[RemoteFetchQueue] could not reset count refresh throttle', ['post' => $id, 'exception' => $e]);
-				}
+				$this->clearThrottle(self::COUNTS_ASKED, md5($id), $id, 'count refresh');
 			}
 		};
 		$batch = [];
@@ -409,5 +414,17 @@ class RemoteFetchQueue {
 		}
 
 		return true;
+	}
+
+	/** Let a later request retry work whose queue write failed. */
+	private function clearThrottle(string $namespace, string $key, string $resource, string $operation): void {
+		try {
+			$this->durableCache->remove($namespace, $key);
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not reset ' . $operation . ' throttle', [
+				'resource' => $resource,
+				'exception' => $e,
+			]);
+		}
 	}
 }

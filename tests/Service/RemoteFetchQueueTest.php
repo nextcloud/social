@@ -99,6 +99,24 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->queue->syncTimeline($this->remote());
 	}
 
+	public function testATimelineSyncQueueFailureCanBeRetried(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(SyncRemoteTimeline::class, ['actor' => 'https://remote.example/users/bob']);
+		$actor = $this->remote();
+
+		$this->assertFalse($this->queue->syncTimeline($actor));
+		$fail = false;
+		$this->assertTrue($this->queue->syncTimeline($actor));
+		$this->assertFalse($this->queue->syncTimeline($actor));
+	}
+
 	public function testEachActorIsQueuedOnceWithoutItsKeyFragment(): void {
 		$this->jobList->method('has')->willReturn(false);
 		$added = [];
@@ -238,6 +256,27 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertFalse($this->queue->fillFollowList($local, 'followers'), 'this server knows its own accounts');
 	}
 
+	public function testAFollowListQueueFailureCanBeRetried(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(FillFollowLists::class, [
+			'actor' => 'https://remote.example/users/bob',
+			'direction' => 'followers',
+		]);
+		$account = $this->remote();
+
+		$this->assertFalse($this->queue->fillFollowList($account, 'followers'));
+		$fail = false;
+		$this->assertTrue($this->queue->fillFollowList($account, 'followers'));
+		$this->assertFalse($this->queue->fillFollowList($account, 'followers'));
+	}
+
 	public function testAHashtagIsReadOncePerIntervalAndASearchPerPerson(): void {
 		$this->jobList->method('has')->willReturn(false);
 		$this->jobList->expects($this->exactly(3))->method('add')->with(FillPosts::class, $this->anything());
@@ -257,6 +296,27 @@ class RemoteFetchQueueTest extends TestCase {
 		$this->assertFalse($this->queue->fillPosts('tag', 'nextcloud'), 'a page looking at it right after queues nothing');
 		$this->assertFalse($this->queue->claimPostsFill('tag', 'nextcloud'));
 		$this->assertFalse($this->queue->claimPostsFill('tag', '  '));
+	}
+
+	public function testAPostFillQueueFailureCanBeRetried(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(FillPosts::class, [
+			'kind' => 'tag',
+			'term' => 'nextcloud',
+			'viewer' => '',
+		]);
+
+		$this->assertFalse($this->queue->fillPosts('tag', 'Nextcloud'));
+		$fail = false;
+		$this->assertTrue($this->queue->fillPosts('tag', 'Nextcloud'));
+		$this->assertFalse($this->queue->fillPosts('tag', 'Nextcloud'));
 	}
 
 	public function testAPostsCountsAreAskedForAtMostOncePerItsInterval(): void {
