@@ -225,8 +225,8 @@ class ActionServiceTest extends TestCase {
 		$this->assertSame($this->post->getId(), $this->mutes[0]['rootId']);
 	}
 
-	public function testThreadMuteActionsArePassedToTheBlueskyBridge(): void {
-		$postId = 'https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k';
+	#[DataProvider('blueskyThreadRoots')]
+	public function testThreadMuteActionsArePassedToTheBlueskyBridge(string $postId): void {
 		$this->post->setId($postId);
 		$this->streamService->method('getStreamByNid')->willReturn($this->post);
 		$this->threadRoot = $postId;
@@ -246,18 +246,12 @@ class ActionServiceTest extends TestCase {
 		$this->assertSame([true, false], $sentMutes);
 	}
 
-	public function testThreadMuteForALocalMirroredPostIsPassedToTheBlueskyBridge(): void {
-		$rootId = 'https://cloud.example.com/apps/social/@alice/status/42';
-		$this->post->setId($rootId);
-		$this->streamService->method('getStreamByNid')->willReturn($this->post);
-		$this->threadRoot = $rootId;
-		$threadMutes = $this->createMock(\OCA\Social\Atproto\Publisher\BlueskyThreadMutes::class);
-		$threadMutes->expects($this->once())->method('fromSocial')->with($this->actor, $rootId, true);
-		$container = $this->createMock(\Psr\Container\ContainerInterface::class);
-		$container->method('get')->willReturn($threadMutes);
-		$service = new ActionService($this->streamService, $this->boostService, $this->likeService, $this->streamActionService, $this->pinService, $this->actionsRequest, $this->conversationsRequest, $this->dislikeService, $this->interestService, $container);
-
-		$service->action($this->actor, 42, 'mute');
+	/** @return array<string, array{string}> */
+	public static function blueskyThreadRoots(): array {
+		return [
+			'Bluesky post' => ['https://bsky.app/profile/did:plc:ewvi7nxzyoun6zhxrhs64oiz/post/3k'],
+			'local post mirrored to Bluesky' => ['https://social.example/@alice/status/42'],
+		];
 	}
 
 	public function testPinAndUnpinAreHandedToThePinService(): void {
