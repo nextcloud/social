@@ -62,6 +62,8 @@ class PostStoreTest extends TestCase {
 	private InteractionPublisher $interactions;
 	/** @var string[] ids the stream already has */
 	private array $known = [];
+	/** @var string[] known posts owned by this instance */
+	private array $local = [];
 	/** @var ACore[] what reached the import path */
 	private array $imported = [];
 	/** @var list<string> trusted blob URLs passed into ActivityPub parsing */
@@ -124,6 +126,9 @@ class PostStoreTest extends TestCase {
 				throw new StreamNotFoundException();
 			}
 			$note = (new Note())->setId($id)->setAttributedTo('https://bsky.app/profile/' . self::DID);
+			if (in_array($id, $this->local, true)) {
+				$note->setLocal(true);
+			}
 
 			return $note;
 		});
@@ -217,6 +222,31 @@ class PostStoreTest extends TestCase {
 		$this->known[] = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
 		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
 		$this->assertSame([], $this->imported);
+	}
+
+	public function testKnownBlueskyFeedPostsRefreshTheirCountsFromTheCurrentAppViewPage(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$this->countWriter->expects($this->once())->method('write')->with(
+			$id,
+			3,
+			1,
+			0,
+			[PostMapper::DETAIL => ['likes' => 3, 'reposts' => 1, 'replies' => 0, 'quotes' => 0]],
+			0,
+		)->willReturn(true);
+
+		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
+		$this->assertSame([], $this->imported, 'refreshing live counts does not re-import the post');
+	}
+
+	public function testOwnBlueskyPostsKeepTheirPublishedCountAccounting(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$this->local[] = $id;
+		$this->countWriter->expects($this->never())->method('write');
+
+		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
 	}
 
 	public function testMapperProducedBlobAllowlistIsPassedBeforeActivityPubImport(): void {

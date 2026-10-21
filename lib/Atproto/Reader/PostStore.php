@@ -94,7 +94,12 @@ class PostStore {
 			return false;
 		}
 		$id = (string)$create['object']['id'];
-		if ($this->isKnown($id)) {
+		$known = $this->knownPost($id);
+		if ($known !== null) {
+			// Feed views already carry the latest AppView counters. Keep those
+			// current as the timeline is read, instead of waiting for a separate
+			// count refresh request or for somebody to open the thread.
+			$this->refreshKnownPostCountsFromView($post, $known);
 			// AppView can index the post before its PDS has exposed the full
 			// embed view. The first import then has the text and counters but no
 			// usable attachment URL. A later profile/thread/feed response carries
@@ -210,9 +215,15 @@ class PostStore {
 	 * @param array $post an `app.bsky.feed.defs#postView`
 	 * @return bool whether the current view contained counts that were stored
 	 */
-	public function refreshKnownPostCountsFromView(array $post): bool {
+	public function refreshKnownPostCountsFromView(array $post, ?Stream $known = null): bool {
 		$id = BlueskyIds::postIdOfUri((string)($post['uri'] ?? ''));
-		if ($id === '' || !$this->isKnown($id)) {
+		if ($id === '') {
+			return false;
+		}
+		$known ??= $this->knownPost($id);
+		if ($known === null || $known->getId() !== $id || $known->isLocal()) {
+			// Own posts use BlueskyPublishedCountSource: it subtracts only the
+			// local interactions which were actually published to Bluesky.
 			return false;
 		}
 
@@ -238,6 +249,14 @@ class PostStore {
 			[PostMapper::DETAIL => $counts],
 			$quotes,
 		);
+	}
+
+	private function knownPost(string $id): ?Stream {
+		try {
+			return $this->streams->getStreamById($id);
+		} catch (StreamNotFoundException) {
+			return null;
+		}
 	}
 
 	/**
