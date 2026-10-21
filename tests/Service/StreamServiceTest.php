@@ -1234,12 +1234,28 @@ class StreamServiceTest extends TestCase {
 		$this->streamRequest->expects($this->once())->method('getDescendants')->with($post->getId())->willReturn([$reply]);
 		$threads = $this->createMock(ThreadService::class);
 		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(true);
+		$threads->expects($this->once())->method('hasPendingBlueskyReplies')->willReturn(true);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('fillThread')->with($post)->willReturn(true);
+
+		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
+
+		$this->assertSame([$reply], $context['descendants']);
+		$this->assertTrue($context['filling'], 'the background fill follows reply branches beyond Bluesky\'s depth limit');
+	}
+
+	public function testACompleteVisibleBlueskyThreadDoesNotQueueAnUnneededSecondRead(): void {
+		$post = $this->note('at://did:plc:alice/app.bsky.feed.post/2', self::ACTOR_ID);
+		$this->streamRequest->method('getStreamByNid')->willReturn($post);
+		$this->streamRequest->method('getDescendants')->willReturn([]);
+		$threads = $this->createMock(ThreadService::class);
+		$threads->expects($this->once())->method('fillBluesky')->with($post)->willReturn(true);
+		$threads->expects($this->once())->method('hasPendingBlueskyReplies')->willReturn(false);
 		$queue = $this->createMock(RemoteFetchQueue::class);
 		$queue->expects($this->never())->method('fillThread');
 
 		$context = $this->serviceWithTags($this->createStub(MediaTagsRequest::class), $queue, $threads)->getContextByNid(2);
 
-		$this->assertSame([$reply], $context['descendants']);
 		$this->assertFalse($context['filling']);
 	}
 

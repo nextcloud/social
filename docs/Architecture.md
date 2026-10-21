@@ -1861,9 +1861,14 @@ post is on (`ThreadSource`), with one budget of 150 replies between them:
 Opening a conversation also asks this source inline with a three-second
 timeout, guarded by a per-post lock. A missing or unrecognized `thread` view
 is a failed read, so the queued fill remains available; an explicit
-`notFoundPost` or `blockedPost` is a valid empty result. Local posts still
-queue the background fill as well, since their Fediverse replies may not yet
-be known here.
+`notFoundPost` or `blockedPost` is a valid empty result. Bluesky caps the
+standard `getPostThread` reply depth at ten. A successful inline read queues a
+background fill only when it reached that limit and a deeper branch remains.
+That fill follows such branches, each with its own bounded request, up to
+twenty continuation reads and the shared 150-new-reply budget. A continuation
+timeout or missing branch does not discard replies already stored. Local posts
+still queue the background fill as well, since their Fediverse replies may not
+yet be known here.
 
 The page is never held up by another server: the answer says so with
 `X-Social-Thread-Filling`, and the web app asks once more a few seconds

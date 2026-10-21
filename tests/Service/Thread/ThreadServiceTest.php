@@ -32,7 +32,10 @@ class ThreadServiceTest extends TestCase {
 		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
 
 		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willReturn(2);
-		$this->assertTrue((new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container))->fillBluesky($post));
+		$bluesky->expects($this->once())->method('hasDeepRepliesPending')->willReturn(true);
+		$service = new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container);
+		$this->assertTrue($service->fillBluesky($post));
+		$this->assertTrue($service->hasPendingBlueskyReplies());
 	}
 
 	public function testContextPollsReuseARecentlyReadBlueskyThread(): void {

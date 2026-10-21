@@ -29,9 +29,12 @@ class BlueskyThreadSource implements ThreadSource {
 	/** how deep the replies, and how high the parents, are asked for */
 	private const DEPTH = 10;
 	private const PARENT_HEIGHT = 20;
+	/** Keep a badly branched conversation from turning one job into an unbounded crawl. */
+	private const MAX_CONTINUATION_READS = 20;
 	private const THREAD_VIEW = 'app.bsky.feed.defs#threadViewPost';
 	private const NOT_FOUND_VIEW = 'app.bsky.feed.defs#notFoundPost';
 	private const BLOCKED_VIEW = 'app.bsky.feed.defs#blockedPost';
+	private bool $deepRepliesPending = false;
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -58,7 +61,13 @@ class BlueskyThreadSource implements ThreadSource {
 		return $this->fillWithTimeout($post, $budget, AppViewClient::INTERACTIVE_TIMEOUT);
 	}
 
+	/** Whether the last interactive read reached Bluesky's reply-depth limit. */
+	public function hasDeepRepliesPending(): bool {
+		return $this->deepRepliesPending;
+	}
+
 	private function fillWithTimeout(Stream $post, int $budget, ?int $timeout): int {
+		$this->deepRepliesPending = false;
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
 		if ($uri === '' || $budget <= 0) {
 			return 0;
@@ -79,6 +88,52 @@ class BlueskyThreadSource implements ThreadSource {
 			throw $e;
 		}
 
+		$stored = $this->storeThread($thread, $budget);
+		// the replies its author hid on Bluesky are hidden here too
+		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
+
+		// The public AppView caps getPostThread's reply depth at ten even when
+		// a larger value is requested. A normal interactive read stays one short
+		// request; the queued fill follows only branches that reached that cap,
+		// so deeply nested replies arrive without making the opened page wait.
+		if ($timeout === null && $stored < $budget) {
+			$pending = self::continuationsOf($thread, self::DEPTH);
+			$seen = [$uri => true];
+			$reads = 0;
+			while ($pending !== [] && $stored < $budget && $reads < self::MAX_CONTINUATION_READS) {
+				$nextUri = array_shift($pending);
+				if ($nextUri === '' || isset($seen[$nextUri])) {
+					continue;
+				}
+				$seen[$nextUri] = true;
+				$reads++;
+				try {
+					$answer = $this->appView->query('app.bsky.feed.getPostThread', [
+						'uri' => $nextUri,
+						'depth' => self::DEPTH,
+						'parentHeight' => self::PARENT_HEIGHT,
+					], $headers, AppViewClient::INTERACTIVE_TIMEOUT);
+					$continued = $answer['thread'] ?? null;
+					if (!is_array($continued) || ($continued['$type'] ?? null) !== self::THREAD_VIEW) {
+						continue;
+					}
+					$stored += $this->storeThread($continued, $budget - $stored);
+					$pending = array_merge($pending, self::continuationsOf($continued, self::DEPTH));
+				} catch (Throwable $e) {
+					// A deep branch can disappear or be unavailable independently of
+					// the rest of the conversation.
+					$this->logger->debug('A deep Bluesky reply branch was not read', ['uri' => $nextUri, 'exception' => $e]);
+				}
+			}
+		} elseif ($timeout !== null) {
+			$this->deepRepliesPending = self::continuationsOf($thread, self::DEPTH) !== [];
+		}
+
+		return $stored;
+	}
+
+	/** Store a thread parent-first and count only new records. */
+	private function storeThread(array $thread, int $budget): int {
 		$stored = 0;
 		foreach (self::postsOf($thread, $budget) as $view) {
 			if ($stored >= $budget) {
@@ -88,10 +143,42 @@ class BlueskyThreadSource implements ThreadSource {
 				$stored++;
 			}
 		}
-		// the replies its author hid on Bluesky are hidden here too
-		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
 
 		return $stored;
+	}
+
+	/**
+	 * Thread views at the AppView depth limit are read as the root of another
+	 * bounded request. Replies the AppView omitted for other reasons are not
+	 * retried because their node does not sit at that depth limit.
+	 *
+	 * @return list<string> AT URIs
+	 */
+	public static function continuationsOf(array $thread, int $depth): array {
+		$uris = [];
+		$level = [[$thread, 0]];
+		while ($level !== []) {
+			$next = [];
+			foreach ($level as [$node, $at]) {
+				if (!is_array($node) || ($node['$type'] ?? '') !== self::THREAD_VIEW) {
+					continue;
+				}
+				if ($at >= $depth) {
+					$post = is_array($node['post'] ?? null) ? $node['post'] : [];
+					$uri = (string)($post['uri'] ?? '');
+					if ($uri !== '' && (int)($post['replyCount'] ?? 0) > 0) {
+						$uris[] = $uri;
+					}
+					continue;
+				}
+				foreach (is_array($node['replies'] ?? null) ? $node['replies'] : [] as $reply) {
+					$next[] = [$reply, $at + 1];
+				}
+			}
+			$level = $next;
+		}
+
+		return array_values(array_unique($uris));
 	}
 
 	/**

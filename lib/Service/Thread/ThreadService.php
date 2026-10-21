@@ -38,6 +38,7 @@ class ThreadService {
 	private const VISIBLE_TTL = 10;
 	private const VISIBLE_RETRY_TTL = 15;
 	private const VISIBLE_LOCK = 'social-visible-thread-';
+	private bool $blueskyDeepRepliesPending = false;
 
 	public function __construct(
 		private StreamRequest $streams,
@@ -81,6 +82,7 @@ class ThreadService {
 	 *               when another request is already reading it
 	 */
 	public function fillBluesky(Stream $post): ?bool {
+		$this->blueskyDeepRepliesPending = false;
 		$source = $this->container?->get(BlueskyThreadSource::class);
 		if (!$source instanceof BlueskyThreadSource || !$source->supports($post)) {
 			return false;
@@ -108,6 +110,7 @@ class ThreadService {
 				return $state === self::VISIBLE_DONE;
 			}
 			$source->fillVisible($post, self::BUDGET);
+			$this->blueskyDeepRepliesPending = $source->hasDeepRepliesPending();
 			$this->rememberVisibleRead($key, self::VISIBLE_DONE, self::VISIBLE_TTL);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky conversation not read during display', ['post' => $post->getId(), 'exception' => $e]);
@@ -119,6 +122,11 @@ class ThreadService {
 		}
 
 		return true;
+	}
+
+	/** Whether the last successful visible read needs its depth-limited tail filled. */
+	public function hasPendingBlueskyReplies(): bool {
+		return $this->blueskyDeepRepliesPending;
 	}
 
 	private function visibleState(string $key): ?string {

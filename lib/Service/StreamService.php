@@ -670,11 +670,11 @@ class StreamService {
 		$blueskyResult = $this->threadService?->fillBluesky($root);
 		$blueskyRead = $blueskyResult === true;
 		$blueskyPending = $this->threadService !== null && $blueskyResult === null;
-		// Bluesky is read inline for the opened conversation. Keep the queued
-		// read for a local post (which may also have Fediverse replies) and for
-		// conversations the inline Bluesky source could not handle.
+		// Bluesky is read inline so the usual replies are visible immediately.
+		// Queue a background fill on successful reads only when getPostThread
+		// reached its ten-level limit and left a deeper branch to continue.
 		$filling = $blueskyPending;
-		if (!$blueskyPending && (!$blueskyRead || $root->isLocal())) {
+		if (!$blueskyPending && (!$blueskyRead || $root->isLocal() || ($this->threadService?->hasPendingBlueskyReplies() ?? false))) {
 			$filling = ($this->remoteFetchQueue?->fillThread($root) ?? false)
 				|| ($this->remoteFetchQueue?->isThreadFillPending($root->getId()) ?? false);
 		}

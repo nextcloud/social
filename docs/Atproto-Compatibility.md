@@ -1054,12 +1054,14 @@ on their first read and deleted.
 ### 9.4a Whole threads
 
 Opening a post that is on Bluesky reads its thread from the AppView
-(`BlueskyThreadSource`, `getPostThread`, depth 6, 20 parents up) in the
-background, as one of the sources of `ThreadService` beside the fediverse's
-`replies` collections, so the replies of accounts nobody here follows are in
-the conversation too. A post written here and published is read the same
-way, for the replies it got on Bluesky. See **Whole conversations** in
-Architecture.md.
+(`BlueskyThreadSource`, `getPostThread`, ten reply levels and 20 parents up)
+inline with a three-second timeout, so replies appear without waiting for
+cron. If that read reaches the endpoint's ten-level limit with a deeper branch
+remaining, it queues a background fill to continue that branch, up to twenty
+bounded reads and the shared 150-new-reply budget. A timeout or unavailable
+deep branch leaves already stored replies intact. This also reads replies of
+accounts nobody here follows and works for posts written here and published
+to Bluesky. See **Whole conversations** in Architecture.md.
 
 ### 9.4b Who liked, reposted and quoted
 
