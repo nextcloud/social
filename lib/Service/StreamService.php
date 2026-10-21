@@ -676,12 +676,20 @@ class StreamService {
 		$blueskyResult = $this->threadService?->fillBluesky($root);
 		$blueskyRead = $blueskyResult === true;
 		$blueskyPending = $this->threadService !== null && $blueskyResult === null;
+		// A cached successful visible read may still have a deeper reply fill
+		// running. Keep telling the client to poll until that job writes its
+		// replies; ThreadService's short freshness cache no longer carries its
+		// per-request deep-reply flag.
+		$blueskyFillPending = $blueskyRead && !$root->isLocal()
+			? ($this->remoteFetchQueue?->isThreadFillPending($root->getId()) ?? false)
+			: false;
 		// Bluesky is read inline so the usual replies are visible immediately.
 		// Queue a background fill on successful reads only when getPostThread
 		// reached its ten-level limit and left a deeper branch to continue.
 		$filling = $blueskyPending;
-		if (!$blueskyPending && (!$blueskyRead || $root->isLocal() || ($this->threadService?->hasPendingBlueskyReplies() ?? false))) {
-			$filling = ($this->remoteFetchQueue?->fillThread($root) ?? false)
+		if (!$blueskyPending && (!$blueskyRead || $root->isLocal() || $blueskyFillPending || ($this->threadService?->hasPendingBlueskyReplies() ?? false))) {
+			$filling = $blueskyFillPending
+				|| ($this->remoteFetchQueue?->fillThread($root) ?? false)
 				|| ($this->remoteFetchQueue?->isThreadFillPending($root->getId()) ?? false);
 		}
 		// An inline read already in progress will save the replies, but this

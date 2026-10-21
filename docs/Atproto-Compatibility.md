@@ -1086,10 +1086,12 @@ are also queued for the background fill, so nested conversations are not lost
 with an omitted direct reply. If the stable read reaches the endpoint's
 ten-level limit with a deeper branch remaining, it queues a background fill to
 continue that branch, up to twenty bounded reads and the shared 150-new-reply
-budget. A timeout or unavailable deep branch leaves already stored replies
-intact. This also reads replies of accounts nobody here follows and works for
-posts written here and published to Bluesky. See **Whole conversations** in
-Architecture.md.
+budget. Context responses keep their filling signal while that queued read is
+pending, including when the inline thread is served from its short freshness
+cache, so the client continues polling until the new replies are returned. A
+timeout or unavailable deep branch leaves already stored replies intact. This
+also reads replies of accounts nobody here follows and works for posts written
+here and published to Bluesky. See **Whole conversations** in Architecture.md.
 
 ### 9.4b Who liked, reposted and quoted
 
