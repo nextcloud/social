@@ -177,7 +177,10 @@ class AtprotoReadingTest extends TestCase {
 		$texts = array_map(static fn (array $status): string => strip_tags((string)($status['content'] ?? '')), $statuses);
 		$uniqueIds = array_unique(array_column($statuses, 'id'));
 
-		$this->assertCount(3, $uniqueIds, 'scrolling loads a third post instead of repeating the first page');
+		$this->assertCount(3, $uniqueIds, 'scrolling loads a third post instead of repeating the first page; first ids: '
+			. implode(',', array_column($firstPage, 'id')) . '; after: '
+			. implode(',', array_column($secondPage, 'id')) . '; texts: '
+			. json_encode($texts, JSON_UNESCAPED_SLASHES));
 		foreach ($words as $word) {
 			$this->assertNotEmpty(array_filter($texts, static fn (string $text): bool => str_contains($text, $word)), 'profile history includes: ' . $word);
 		}
