@@ -68,6 +68,22 @@ class QuestionTest extends TestCase {
 		$this->assertTrue($question->isMultiple());
 	}
 
+	public function testMalformedOptionValuesAreIgnoredWithoutWarnings(): void {
+		$question = new Question();
+		$question->import($this->mastodonPoll('oneOf', [
+			'oneOf' => [
+				['name' => ['toot' => null], 'replies' => ['totalItems' => 2]],
+				['name' => 'Cats', 'replies' => ['totalItems' => ['unexpected']]],
+				['name' => 'Dogs', 'replies' => ['totalItems' => 3]],
+			],
+		]));
+
+		$this->assertSame([
+			['title' => 'Cats', 'votes_count' => 0],
+			['title' => 'Dogs', 'votes_count' => 3],
+		], $question->getOptions());
+	}
+
 	public function testAClosedOrPastPollIsExpired(): void {
 		$closed = new Question();
 		$closed->import($this->mastodonPoll('oneOf', ['closed' => gmdate('Y-m-d\TH:i:s\Z')]));
