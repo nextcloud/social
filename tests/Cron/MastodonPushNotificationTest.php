@@ -50,7 +50,7 @@ class MastodonPushNotificationTest extends TestCase {
 		$actor = new Person();
 		$actor->setDescription('<p>Followed you &amp; said hello</p>');
 
-		self::assertSame('Followed you & said hello', MastodonPushContent::body(null, $actor));
+		self::assertSame('Followed you & said hello', MastodonPushContent::profileBody($actor));
 	}
 
 	public function testPushBodyFallsBackToProfileDescriptionWhenTheStatusHasNoText(): void {

@@ -17,9 +17,13 @@ use OCA\Social\Reference\PostReferenceProvider;
 final class MastodonPushContent {
 	public const BODY_LENGTH = 140;
 
-	public static function body(?Stream $post, Person $actor): string {
-		$content = $post?->getSpoilerText() ?: $post?->getContent() ?: $actor->getDescription();
+	public static function body(Stream $post, Person $actor): string {
+		$content = $post->getSpoilerText() ?: $post->getContent() ?: $actor->getDescription();
 
 		return PostReferenceProvider::excerpt($content, self::BODY_LENGTH);
+	}
+
+	public static function profileBody(Person $actor): string {
+		return PostReferenceProvider::excerpt($actor->getDescription(), self::BODY_LENGTH);
 	}
 }
