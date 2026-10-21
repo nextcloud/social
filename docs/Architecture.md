@@ -2032,6 +2032,18 @@ re-snapshots the stored source, as the quote policy does, and rewrites the
 threadgate in one commit (`Publisher::updateGates()`), which a quote-policy
 change now uses for the postgate too.
 
+### Bluesky custom feeds and lists
+
+`Atproto\Reader\BlueskyFeeds` reads `getFeed` and `getListFeed` as the
+viewer and filters posts they cannot see. An AppView page may contain only
+hidden posts and still include a continuation cursor, so an empty visible
+page does not itself end the timeline. The reader follows up to ten empty
+pages, keeping a separate short-lived retry cursor if that bound is reached;
+the next request resumes from that cursor and a repeated remote cursor is an
+error. Visible-page cursors remain keyed by viewer, feed and last visible
+post in `DurableCache`, with its database fallback when no memcache is
+configured.
+
 ### Bookmarks, here and on Bluesky
 
 `Atproto\Publisher\BlueskyBookmarks` keeps a person's bookmarks in step with

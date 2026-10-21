@@ -1121,7 +1121,14 @@ Bluesky's custom feeds and lists are read here as timelines
   hour for the last post of each page, so the next page is asked with the
   id of the post the client last saw. `DurableCache` keeps it in the
   database when the instance has no memcache; it is private to the viewer
-  and feed and expires after that hour.
+  and feed and expires after that hour. A remote page with no visible posts
+  but a continuation cursor is not the end of the feed: the reader follows
+  up to ten such pages in the same request. It checkpoints a longer run and
+  reports the incomplete read, so a retry resumes instead of making the
+  timeline look complete. The XRPC specification describes a missing cursor
+  as the end of pagination and flags the empty-page-with-cursor case as an
+  area needing clarification; Social follows a returned cursor with a bound
+  and retry checkpoint.
 - **Routes**: `GET`/`POST`/`DELETE /api/v1/social/bluesky/feeds`,
   `GET /api/v1/social/bluesky/feeds/suggested`, and
   `GET /api/v1/timelines/bluesky?feed=<at:// URI>` (API.md). In the web
@@ -2476,7 +2483,8 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   it; and a bookmark set here of a post on Bluesky is told to the AppView.
   Post views are fetched in groups of at most 25, as `getPosts` requires,
   including a bookmark page of 50 or 100. The bookmark order and cursor
-  stay local; if one group fails, the others still load.
+  stay local; the cursor is the oldest decimal NID kept without converting
+  it to a native PHP integer. If one group fails, the others still load.
   **Notification settings** (`app.bsky.notification.getPreferences`,
   `putPreferencesV2`) share the one setting both have
   (`Client\NotificationSettings`): whether anybody or only the people

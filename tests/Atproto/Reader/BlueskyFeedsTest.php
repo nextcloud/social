@@ -52,6 +52,8 @@ class BlueskyFeedsTest extends TestCase {
 	private array $asked = [];
 	/** @var array<string, array> the AppView's answers, by method */
 	private array $answers = [];
+	/** @var array<string, list<array>> queued AppView pages, by method */
+	private array $answerPages = [];
 	/** @var string[] posts hidden from the viewer */
 	private array $hidden = [];
 	private ?BlueskyBlockedBy $blockedBy = null;
@@ -75,6 +77,9 @@ class BlueskyFeedsTest extends TestCase {
 		$appView = $this->createMock(AppViewClient::class);
 		$answer = function (string $method, array $params, bool $asPerson): array {
 			$this->asked[] = [$method, $params, $asPerson];
+			if (($this->answerPages[$method] ?? []) !== []) {
+				return array_shift($this->answerPages[$method]);
+			}
 
 			return $this->answers[$method] ?? throw new \RuntimeException('not answered: ' . $method);
 		};
@@ -210,6 +215,78 @@ class BlueskyFeedsTest extends TestCase {
 
 		$this->assertSame([], $this->feeds($memcache)->page($this->alice, self::FEED, '12345', 2), 'past the end');
 		$this->assertCount(2, $this->asked, 'without asking again');
+	}
+
+	public function testEmptyPagesWithCursorsAreSkippedUntilAVisiblePostAppears(): void {
+		$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kh';
+		$visibleUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kv';
+		$this->hidden = [BlueskyIds::postIdOfUri($hiddenUri)];
+		$this->answerPages['app.bsky.feed.getFeed'] = [
+			['feed' => [['post' => ['uri' => $hiddenUri]]], 'cursor' => 'next-hidden'],
+			['feed' => [['post' => ['uri' => $visibleUri]]], 'cursor' => 'next-visible'],
+		];
+
+		$page = $this->feeds(false)->page($this->alice, self::FEED, '', 20);
+
+		self::assertSame([BlueskyIds::postIdOfUri($visibleUri)], array_map(static fn (Note $note): string => $note->getId(), $page));
+		self::assertSame(['feed' => self::FEED, 'limit' => 20, 'cursor' => 'next-hidden'], $this->asked[1][1]);
+		self::assertCount(2, $this->asked);
+	}
+
+	public function testLongRunsOfEmptyPagesKeepASeparateRetryCursor(): void {
+		$pages = [];
+		for ($i = 1; $i <= 10; $i++) {
+			$pages[] = ['feed' => [], 'cursor' => 'empty-' . $i];
+		}
+		$visibleUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kv';
+		$pages[] = ['feed' => [['post' => ['uri' => $visibleUri]]]];
+		$this->answerPages['app.bsky.feed.getFeed'] = $pages;
+		$feeds = $this->feeds(false);
+
+		try {
+			$feeds->page($this->alice, self::FEED, '', 20);
+			self::fail('A bounded empty-page walk must report that it needs another request');
+		} catch (\UnexpectedValueException $e) {
+			self::assertStringContainsString('too many consecutive pages', $e->getMessage());
+		}
+
+		$page = $feeds->page($this->alice, self::FEED, '', 20);
+
+		self::assertSame([BlueskyIds::postIdOfUri($visibleUri)], array_map(static fn (Note $note): string => $note->getId(), $page));
+		self::assertSame(['feed' => self::FEED, 'limit' => 20, 'cursor' => 'empty-10'], $this->asked[10][1]);
+		self::assertCount(11, $this->asked);
+	}
+
+	public function testARepeatedCursorFailsInsteadOfLoopingOrReportingTheEnd(): void {
+		$hiddenUri = 'at://' . self::BOB . '/app.bsky.feed.post/3kh';
+		$this->hidden = [BlueskyIds::postIdOfUri($hiddenUri)];
+		$this->answerPages['app.bsky.feed.getFeed'] = [
+			['feed' => [['post' => ['uri' => $hiddenUri]]], 'cursor' => 'same-cursor'],
+			['feed' => [['post' => ['uri' => $hiddenUri]]], 'cursor' => 'same-cursor'],
+		];
+
+		try {
+			$this->feeds()->page($this->alice, self::FEED, '', 20);
+			self::fail('A repeated AppView cursor must not be treated as the end of the feed');
+		} catch (\UnexpectedValueException $e) {
+			self::assertStringContainsString('cursor did not advance', $e->getMessage());
+		}
+
+		self::assertCount(2, $this->asked);
+	}
+
+	public function testMalformedFeedResponseDoesNotLookLikeAnEmptyFeed(): void {
+		$this->answerPages['app.bsky.feed.getFeed'] = [['cursor' => 'unread']];
+
+		$this->expectException(\UnexpectedValueException::class);
+		$this->feeds()->page($this->alice, self::FEED, '', 20);
+	}
+
+	public function testNonStringCursorIsRejected(): void {
+		$this->answerPages['app.bsky.feed.getFeed'] = [['feed' => [], 'cursor' => null]];
+
+		$this->expectException(\UnexpectedValueException::class);
+		$this->feeds()->page($this->alice, self::FEED, '', 20);
 	}
 
 	public function testDatabaseCursorsArePrivateToTheViewerAndFeedAndExpire(): void {

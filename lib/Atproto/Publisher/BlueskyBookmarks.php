@@ -22,6 +22,7 @@ use OCA\Social\Model\StreamAction;
 use OCA\Social\Service\AccountService;
 use OCA\Social\Service\StreamActionService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Tools\Nid;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -149,7 +150,14 @@ class BlueskyBookmarks {
 		}
 		$answer = ['bookmarks' => $bookmarks];
 		if (count($posts) >= $limit) {
-			$answer['cursor'] = (string)min(array_map(static fn ($post): int => (int)$post->getNid(), $posts));
+			$cursor = null;
+			foreach ($posts as $post) {
+				$nid = Nid::normalize($post->getNid());
+				if ($cursor === null || Nid::compare($nid, $cursor) < 0) {
+					$cursor = $nid;
+				}
+			}
+			$answer['cursor'] = $cursor ?? '0';
 		}
 
 		return $answer;
