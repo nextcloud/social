@@ -16,6 +16,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\Lock\ILockingProvider;
@@ -52,6 +53,10 @@ class CountService {
 	public const OLD_INTERVAL = 21600;
 	/** Live reader refresh cadence, separate from the slower background scan. */
 	public const VISIBLE_INTERVAL = 5;
+	private const VISIBLE_RETRY_INTERVAL = 15;
+	private const VISIBLE_CACHE = 'social.counts.visible';
+	private const VISIBLE_PENDING = 'pending';
+	private const VISIBLE_DONE = 'done';
 	private const VISIBLE_LOCK = 'social-visible-count-';
 
 	public function __construct(
@@ -61,6 +66,7 @@ class CountService {
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 		private ILockingProvider $locks,
+		private DurableCache $durableCache,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -106,6 +112,10 @@ class CountService {
 		if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
 			return false;
 		}
+		$visible = $this->visibleState($post->getId());
+		if ($visible !== null) {
+			return $visible === self::VISIBLE_PENDING;
+		}
 
 		$lock = self::VISIBLE_LOCK . md5($post->getId());
 		if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
@@ -127,6 +137,10 @@ class CountService {
 			if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
 				return false;
 			}
+			$visible = $this->visibleState($post->getId());
+			if ($visible !== null) {
+				return $visible === self::VISIBLE_PENDING;
+			}
 
 			foreach ($this->sources() as $source) {
 				if (!$source->supports($post)) {
@@ -136,10 +150,14 @@ class CountService {
 					$answered = $source->refresh([$post], AppViewClient::INTERACTIVE_TIMEOUT);
 					if ($answered === 0) {
 						$this->seen([$post]);
+						$this->setVisibleState($post->getId(), self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
+					} else {
+						$this->setVisibleState($post->getId(), self::VISIBLE_DONE, self::VISIBLE_INTERVAL);
 					}
 				} catch (Throwable $e) {
 					$this->logger->info('Post counts not read during display', ['post' => $post->getId(), 'exception' => $e]);
 					$this->seen([$post]);
+					$this->setVisibleState($post->getId(), self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
 				}
 				return true;
 			}
@@ -211,6 +229,7 @@ class CountService {
 		foreach ($posts as $post) {
 			$left[$post->getId()] = $post;
 		}
+		$askedPosts = $left;
 		$asked = count($left);
 		$answered = 0;
 		foreach ($this->sources() as $source) {
@@ -227,8 +246,24 @@ class CountService {
 			}
 		}
 		$this->stampAll($left);
+		foreach (array_keys($askedPosts) as $id) {
+			// A background read may have failed or found no counts. Keep a short
+			// cooldown so stale model instances in follow-up status polls cannot
+			// immediately start the same network request again.
+			$this->setVisibleState((string)$id, self::VISIBLE_DONE, self::VISIBLE_RETRY_INTERVAL);
+		}
 
 		return ['asked' => $asked, 'answered' => $answered];
+	}
+
+	private function visibleState(string $postId): ?string {
+		$value = $this->durableCache?->getShared(self::VISIBLE_CACHE, md5($postId));
+
+		return is_string($value) ? $value : null;
+	}
+
+	private function setVisibleState(string $postId, string $state, int $ttl): void {
+		$this->durableCache?->setShared(self::VISIBLE_CACHE, md5($postId), $state, $ttl);
 	}
 
 	/**

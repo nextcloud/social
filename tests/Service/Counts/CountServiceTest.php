@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Service\Counts;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Reader\BlueskyCountSource;
 use OCA\Social\Atproto\Reader\BlueskyPublishedCountSource;
 use OCA\Social\Db\StreamRequest;
@@ -20,8 +21,11 @@ use OCA\Social\Service\Counts\ActivityPubCountSource;
 use OCA\Social\Service\Counts\CountService;
 use OCA\Social\Service\Counts\CountSource;
 use OCA\Social\Service\Counts\CountWriter;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\RemoteFetchQueue;
+use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\ICacheFactory;
 use OCP\Lock\ILockingProvider;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -41,6 +45,7 @@ class CountServiceTest extends TestCase {
 	private StreamRequest&MockObject $streams;
 	private CountWriter&MockObject $writer;
 	private RemoteFetchQueue&MockObject $queue;
+	private InMemoryDurableCacheRequest $cacheRows;
 	/** @var array<string, Stream> */
 	private array $posts = [];
 	/** @var array<class-string, CountSource> */
@@ -50,17 +55,21 @@ class CountServiceTest extends TestCase {
 		$this->streams = $this->createMock(StreamRequest::class);
 		$this->writer = $this->createMock(CountWriter::class);
 		$this->queue = $this->createMock(RemoteFetchQueue::class);
+		$this->cacheRows = new InMemoryDurableCacheRequest();
 		$this->streams->method('getStreamById')->willReturnCallback(fn (string $id): Stream => $this->posts[$id] ?? throw new StreamNotFoundException());
 	}
 
 	private function service(): CountService {
 		$time = $this->createStub(ITimeFactory::class);
 		$time->method('getTime')->willReturn(self::NOW);
+		$cacheFactory = $this->createStub(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$durableCache = new DurableCache($cacheFactory, $this->cacheRows, $time);
 		$container = $this->createStub(ContainerInterface::class);
 		$container->method('get')->willReturnCallback(fn (string $class): ?CountSource => $this->sources[$class] ?? null);
 
 		$locks = $this->createStub(ILockingProvider::class);
-		return new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $container);
+		return new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $durableCache, $container);
 	}
 
 	/**
@@ -159,7 +168,10 @@ class CountServiceTest extends TestCase {
 		$container->method('get')->willReturnCallback(fn (string $class): ?CountSource => $this->sources[$class] ?? null);
 		$locks = $this->createMock(ILockingProvider::class);
 		$locks->expects($this->once())->method('isLocked')->with('social-visible-count-' . md5($post->getId()), ILockingProvider::LOCK_EXCLUSIVE)->willReturn(true);
-		$service = new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $container);
+		$cacheFactory = $this->createStub(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$durableCache = new DurableCache($cacheFactory, $this->cacheRows, $time);
+		$service = new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $durableCache, $container);
 
 		$this->assertTrue($service->refreshVisibleIfDue($post), 'the other request is already refreshing this post');
 	}
@@ -172,6 +184,31 @@ class CountServiceTest extends TestCase {
 		$this->sources[ActivityPubCountSource::class] = $source;
 
 		$this->assertTrue($this->service()->refreshVisibleIfDue($post));
+	}
+
+	public function testFailedVisibleReadStaysPendingAndThenGetsACooldownAfterBackgroundFailure(): void {
+		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, null);
+		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->exactly(2))->method('refresh')->willReturnCallback(
+			static function (array $posts, ?int $timeout = null) use ($post): int {
+				if ($timeout === AppViewClient::INTERACTIVE_TIMEOUT) {
+					throw new RuntimeException('AppView is temporarily unavailable');
+				}
+				throw new RuntimeException('AppView is still temporarily unavailable');
+			}
+		);
+		$this->sources[BlueskyCountSource::class] = $source;
+		$this->queue->expects($this->once())->method('refreshCounts')->with([
+			$post->getId() => CountService::YOUNG_INTERVAL,
+		])->willReturn(true);
+		$service = $this->service();
+
+		$this->assertTrue($service->refreshVisibleIfDue($post), 'the failed live read schedules a background retry');
+		$this->assertTrue($service->refreshVisibleIfDue($post), 'later status polls see that the background retry is pending');
+		$this->writer->expects($this->once())->method('stamp')->with($post->getId());
+		$this->assertSame(['asked' => 1, 'answered' => 0], $service->refresh([$post->getId()]));
+		$this->assertFalse($service->refreshVisibleIfDue($post), 'a completed background failure has a cooldown even on a stale model instance');
 	}
 
 	public function testOpeningABoostRefreshesTheUnderlyingPostsCounts(): void {
