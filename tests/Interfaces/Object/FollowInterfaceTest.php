@@ -542,6 +542,8 @@ class FollowInterfaceTest extends ActivityPubTestCase {
 
 		$this->followsRequest->expects($this->never())->method('delete');
 		$this->accountService->expects($this->never())->method('bumpActorCount');
+		$this->miscService->expects($this->once())->method('log')
+			->with($this->stringContains('matchingFollowId=' . $follow->getId()), 1);
 
 		$this->handler->activity($undo, $other);
 	}

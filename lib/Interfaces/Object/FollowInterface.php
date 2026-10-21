@@ -299,6 +299,22 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 						$stored->getObjectId(), 'count_followers', -1
 					);
 				}
+			} else {
+				$matchingFollowId = 'none';
+				try {
+					$matchingFollowId = $this->followsRequest
+						->getByPersons($item->getActorId(), $item->getObjectId())
+						->getId();
+				} catch (Exception $e) {
+				}
+
+				$this->miscService->log(
+					'Ignoring Undo for unstored Follow id=' . $item->getId()
+					. ' actor=' . $item->getActorId()
+					. ' object=' . $item->getObjectId()
+					. ' matchingFollowId=' . $matchingFollowId,
+					1
+				);
 			}
 		}
 
