@@ -741,11 +741,36 @@ describe('timeline store actions', () => {
 				expect(tl().statuses['42'].favourites_count).toBe(1)
 				await vi.advanceTimersByTimeAsync(3000)
 				expect(tl().statuses['42'].favourites_count).toBe(3)
-				await vi.advanceTimersByTimeAsync(3000)
+				await vi.advanceTimersByTimeAsync(6000)
 
 				expect(axios.get).toHaveBeenCalledTimes(3)
 				expect(axios.get).toHaveBeenLastCalledWith(`${API}/statuses/42`)
 				expect(tl().statuses['42'].favourites_count).toBe(7)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('keeps refreshing an opened status long enough for a queued count refresh', async () => {
+			vi.useFakeTimers()
+			try {
+				let calls = 0
+				axios.get.mockImplementation(async () => {
+					calls++
+					const completed = calls >= 7
+
+					return {
+						data: { ...makeStatus('42'), favourites_count: completed ? 9 : 1 },
+						headers: completed ? {} : { 'x-social-filling': '1' },
+					}
+				})
+
+				await store.fetchStatus('42')
+				await vi.advanceTimersByTimeAsync(60000)
+
+				expect(axios.get).toHaveBeenCalledTimes(7)
+				expect(tl().statuses['42'].favourites_count).toBe(9)
+				expect(tl().statusRefetching['42']).toBeUndefined()
 			} finally {
 				vi.useRealTimers()
 			}
@@ -757,9 +782,10 @@ describe('timeline store actions', () => {
 				axios.get.mockResolvedValue({ data: makeStatus('42'), headers: { 'x-social-filling': '1' } })
 
 				await store.fetchStatus('42')
-				await vi.advanceTimersByTimeAsync(3000 * 5)
+				await vi.advanceTimersByTimeAsync(120000)
 
-				expect(axios.get).toHaveBeenCalledTimes(4)
+				expect(axios.get).toHaveBeenCalledTimes(13)
+				expect(tl().statusRefetching['42']).toBeUndefined()
 			} finally {
 				vi.useRealTimers()
 			}

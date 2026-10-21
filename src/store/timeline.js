@@ -416,11 +416,16 @@ const THREAD_REFETCH_MS = 3000
 const THREAD_REFETCH_MAX_MS = 30000
 const MAX_THREAD_REFETCHES = 30
 const STATUS_REFETCH_MS = 3000
-const MAX_STATUS_REFETCHES = 3
+const STATUS_REFETCH_MAX_MS = 9000
+// Visible count reads back off for fifteen seconds after a failed request.
+// Keep the opened post fresh long enough to cross that cooldown and to show
+// the result of the queued refresh, while bounding both requests and lifetime.
+const MAX_STATUS_REFETCHES = 12
 
 export const useTimelineStore = defineStore('timeline', {
 	state: () => ({
 		statuses: {},
+		statusRefetching: {},
 		timeline: [],
 		parentsTimeline: [],
 		/** which list a removed status came from, so a rollback restores it there */
@@ -1449,18 +1454,26 @@ export const useTimelineStore = defineStore('timeline', {
 				this.addToStatuses(response.data)
 				// its counts are being asked for where it lives: read once more
 				// a little later, so the page shows them without a reload
-				if (response.headers?.['x-social-filling'] === '1') {
+				if (response.headers?.['x-social-filling'] === '1' && !this.statusRefetching[id]) {
+					this.statusRefetching = { ...this.statusRefetching, [id]: true }
 					const refetch = (attempt) => setTimeout(async () => {
 						try {
 							const refreshed = await axios.get(url)
 							this.addToStatuses(refreshed.data)
 							if (attempt < MAX_STATUS_REFETCHES && refreshed.headers?.['x-social-filling'] === '1') {
 								refetch(attempt + 1)
+							} else {
+								const refetching = { ...this.statusRefetching }
+								delete refetching[id]
+								this.statusRefetching = refetching
 							}
 						} catch (error) {
+							const refetching = { ...this.statusRefetching }
+							delete refetching[id]
+							this.statusRefetching = refetching
 							logger.debug('The counts of a status were not read again', { error, id })
 						}
-					}, STATUS_REFETCH_MS)
+					}, Math.min(STATUS_REFETCH_MS * (2 ** (attempt - 1)), STATUS_REFETCH_MAX_MS))
 					refetch(1)
 				}
 
