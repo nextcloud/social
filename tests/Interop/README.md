@@ -462,10 +462,11 @@ watch dropped.
 
 `AtprotoAppsTest` is phase 3c: a Bluesky app — `Bluesky/AppClient.php`,
 speaking XRPC — signs in to this instance with an app password (a wrong one
-is refused), reads its timeline from the development AppView through this
-server's proxy, posts (the post is a Social post here and reaches the
-AppView), likes a dev-PDS post this instance had not read, is refused a
-block, deletes its post (gone here) and signs out.
+is refused), reads a known external profile and post through this server's
+proxy, and sees a followed author's post in its populated timeline using the
+official password-session client. It also posts (the post is a Social post
+here and reaches the AppView), likes a dev-PDS post this instance had not
+read, is refused a block, deletes its post (gone here) and signs out.
 
 What it cannot prove: indexing by `bsky.app` itself, which needs a public
 https host with wildcard DNS and is done by hand; and anything of reading

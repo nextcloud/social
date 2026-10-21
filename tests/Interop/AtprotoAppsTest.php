@@ -193,11 +193,31 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertGreaterThanOrEqual(400, $status, 'the access token went with the session');
 	}
 
-	/** The official Bluesky app's password-session library can log into this PDS. */
-	public function testOfficialBlueskyPasswordClientSignsIntoTheSocialPds(): void {
+	/** The official Bluesky password client signs in and reads populated feeds through this PDS. */
+	public function testOfficialBlueskyPasswordClientReadsProfileAndTimelineContent(): void {
 		$identity = Server::get(IdentityService::class)->forActor($this->alice->actor);
 		$this->assertNotNull($identity);
 		$password = Server::get(AppPasswordService::class)->create($this->alice->userId, 'official-client')['password'];
+		$profileDid = $this->network->createUser('officialfeed' . bin2hex(random_bytes(3)));
+		$profileText = 'Official client profile content ' . bin2hex(random_bytes(3));
+		$this->network->postText($profileText);
+		$this->assertNotNull($this->network->await(function () use ($profileDid, $profileText): ?bool {
+			$profile = $this->network->profile($profileDid);
+			$feedTexts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $this->network->authorFeed($profileDid));
+
+			return isset($profile['did']) && in_array($profileText, $feedTexts, true) ? true : null;
+		}), 'the public profile and its post are indexed before the official client reads them');
+
+		$app = AppClient::at((string)getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test');
+		[$status, $session] = $app->signIn($identity->handle, $password);
+		$this->assertSame(200, $status, json_encode($session));
+		[$status, $follow] = $app->procedure('com.atproto.repo.createRecord', [
+			'repo' => $identity->did,
+			'collection' => 'app.bsky.graph.follow',
+			'record' => ['$type' => 'app.bsky.graph.follow', 'subject' => $profileDid, 'createdAt' => gmdate('Y-m-d\TH:i:s.000\Z')],
+		]);
+		$this->assertSame(200, $status, json_encode($follow));
+		$this->assertNotNull($this->network->await(fn () => in_array($identity->did, $this->network->followers($profileDid), true) ? true : null), 'the AppView indexes the signed-in account\'s follow');
 
 		$process = proc_open(
 			['node', 'password-client.mjs'],
@@ -207,10 +227,11 @@ class AtprotoAppsTest extends TestCase {
 			[
 				'PATH' => (string)getenv('PATH'),
 				'HOME' => (string)getenv('HOME'),
-				'PDS_URL' => (string)(getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test'),
+				'PDS_URL' => getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test',
 				'PDS_IDENTIFIER' => $identity->handle,
 				'PDS_PASSWORD' => $password,
-				'NODE_EXTRA_CA_CERTS' => (string)(getenv('NODE_EXTRA_CA_CERTS') ?: '/tmp/tls/ca.crt'),
+				'PROFILE_DID' => $profileDid,
+				'NODE_EXTRA_CA_CERTS' => getenv('NODE_EXTRA_CA_CERTS') ?: '/tmp/tls/ca.crt',
 			]
 		);
 		if (!is_resource($process)) {
@@ -229,8 +250,14 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertSame($identity->handle, $result['who']['body']['handle']);
 		$this->assertSame($identity->did, $result['refreshed']['did']);
 		$this->assertSame($identity->handle, $result['refreshed']['handle']);
+		$this->assertSame(200, $result['profile']['status'], json_encode($result['profile']));
+		$this->assertSame($profileDid, $result['profile']['body']['did'] ?? null);
+		$this->assertSame(200, $result['authorFeed']['status'], json_encode($result['authorFeed']));
+		$profileTexts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $result['authorFeed']['body']['feed'] ?? []);
+		$this->assertContains($profileText, $profileTexts, 'the official Bluesky client reads the known post through the Social PDS');
 		$this->assertSame(200, $result['timeline']['status'], json_encode($result['timeline']));
-		$this->assertArrayHasKey('feed', $result['timeline']['body']);
+		$timelineTexts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $result['timeline']['body']['feed'] ?? []);
+		$this->assertContains($profileText, $timelineTexts, 'the official Bluesky client sees a followed author\'s post in its timeline');
 		$this->assertGreaterThanOrEqual(400, $result['logout']['accessStatus'], 'logout revokes the official client access token');
 		$this->assertGreaterThanOrEqual(400, $result['logout']['refreshStatus'], 'logout revokes the official client refresh token');
 	}
