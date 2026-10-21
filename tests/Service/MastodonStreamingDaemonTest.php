@@ -369,6 +369,35 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertSame(1, substr_count($payload, 'event: status.update'));
 	}
 
+	public function testDirectStreamReceivesTheUpdatedConversation(): void {
+		$statusId = 'https://social.example/users/alice/statuses/75';
+		$status = (new Stream())->setId($statusId)->setNid('75')->setVisibility(Stream::TYPE_DIRECT);
+		$conversation = (new Conversation())->setId(75);
+		$this->statusRevisions->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 51, 'stream_id_prim' => md5($statusId)],
+		]);
+		$this->streams->expects(self::once())->method('getStreamByIdPrim')->with(md5($statusId), true)->willReturn($status);
+		$this->conversations->expects(self::once())->method('updatedByStatus')->with(
+			self::isInstanceOf(Person::class), 75
+		)->willReturn($conversation);
+
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['direct' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: conversation', $payload);
+		self::assertStringNotContainsString('event: status.update', $payload);
+	}
+
 	public function testHashtagSubscriptionRequiresTagAndSupportsUnsubscribe(): void {
 		$subscriber = $this->subscriber();
 		$subscriber->context = ['scopes' => ['read:statuses'], 'subscriptions' => [], 'publicSince:public' => '40'];

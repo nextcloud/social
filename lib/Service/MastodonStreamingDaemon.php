@@ -401,6 +401,7 @@ class MastodonStreamingDaemon {
 		));
 		if ($activeStreams === []
 			&& !isset($subscriptions['user'])
+			&& !isset($subscriptions['direct'])
 			&& ($subscriber->context['listSubscriptions'] ?? []) === []) {
 			return;
 		}
@@ -445,6 +446,13 @@ class MastodonStreamingDaemon {
 			}
 			if (isset($subscriptions['user']) && $this->editedStatusIsInTimeline($status, ProbeOptions::HOME, viewer: $viewer)) {
 				$matching[] = 'user';
+			}
+			if (isset($subscriptions['direct'])
+				&& ($status->getVisibility() ?: $this->streamService->visibilityOf($status)) === Stream::TYPE_DIRECT) {
+				$conversation = $this->conversationService->updatedByStatus($viewer, $status->getNid());
+				if ($conversation !== null) {
+					$this->send($server, $subscriber, ['direct'], 'conversation', $conversation->jsonSerialize());
+				}
 			}
 			foreach ($subscriber->context['listSubscriptions'] ?? [] as $subscription) {
 				if (is_array($subscription)

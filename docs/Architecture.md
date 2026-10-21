@@ -497,10 +497,12 @@ emits one `status.update` event per changed post on matching public and
 hashtag subscriptions. Home and owned-list streams recheck membership in the
 viewer-scoped timeline before receiving an edit, so a private post only reaches
 readers whose timeline already includes it.
+The direct stream resolves an edited message to a conversation visible to
+that viewer and emits the current `conversation` entity; a dismissed or
+inaccessible conversation is not emitted.
 `WebSocketServer` keeps connection and output-buffer bounds for both
 transports. The root Apache and Nginx examples proxy the streaming endpoints
-and health path to this daemon. Delete events and edit fan-out to direct
-streams remain unimplemented.
+and health path to this daemon. Delete events remain unimplemented.
 
 ## ActivityPub Federation
 
