@@ -305,21 +305,51 @@ export default {
 
 		/** @return {string} a useful file kind, from its extension or media type */
 		fileKind() {
+			// Streamed Bluesky files use opaque routes without an extension. Their
+			// validated name is carried in `description`, so check it first.
+			const description = String(this.attachment?.description || '').trim()
 			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
-			const match = /\.([a-z0-9]{1,8})$/i.exec(path)
+			const match = /\.([a-z0-9]{1,8})$/i.exec(description) || /\.([a-z0-9]{1,8})$/i.exec(path)
 			if (match) {
 				return match[1].toUpperCase()
 			}
 			const mediaType = String(this.attachment?.media_type || '').toLowerCase()
 			const knownKinds = {
+				'application/epub+zip': 'EPUB',
+				'application/gzip': 'GZIP',
+				'application/msword': 'DOC',
 				'application/pdf': 'PDF',
+				'application/vnd.ms-excel': 'XLS',
+				'application/vnd.ms-powerpoint': 'PPT',
+				'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+				'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+				'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+				'application/vnd.oasis.opendocument.presentation': 'ODP',
+				'application/vnd.oasis.opendocument.spreadsheet': 'ODS',
+				'application/vnd.oasis.opendocument.text': 'ODT',
+				'application/x-zip-compressed': 'ZIP',
 				'application/zip': 'ZIP',
+				'audio/aac': 'AAC',
+				'audio/flac': 'FLAC',
+				'audio/mp4': 'M4A',
 				'audio/mpeg': 'MP3',
+				'audio/ogg': 'OGG',
+				'audio/opus': 'OPUS',
+				'audio/wav': 'WAV',
+				'image/avif': 'AVIF',
+				'image/gif': 'GIF',
+				'image/heic': 'HEIC',
+				'image/heif': 'HEIF',
 				'image/jpeg': 'JPEG',
+				'image/jpg': 'JPEG',
 				'image/png': 'PNG',
 				'image/webp': 'WEBP',
 				'video/mp4': 'MP4',
+				'video/quicktime': 'MOV',
 				'video/webm': 'WEBM',
+				'text/csv': 'CSV',
+				'text/markdown': 'MD',
+				'text/plain': 'TXT',
 			}
 
 			return knownKinds[mediaType] || ''

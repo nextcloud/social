@@ -142,6 +142,45 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
 	})
 
+	it('shows a Bluesky file type from its name when the stream URL has no extension', () => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					id: '9',
+					type: 'unknown',
+					url: 'https://cloud.example.org/media/stream/9',
+					media_type: 'image/avif',
+					preview_url: null,
+					description: 'AVIF image.avif',
+				},
+			},
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('AVIF image.avif')
+		expect(wrapper.find('.attachment__file-kind').text()).toBe('AVIF')
+	})
+
+	it.each([
+		['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'DOCX'],
+		['audio/opus', 'OPUS'],
+		['video/quicktime', 'MOV'],
+	])('shows a useful type label for the streamed MIME type %s', (mediaType, label) => {
+		const wrapper = mount(MediaAttachment, {
+			props: {
+				attachment: {
+					id: '9',
+					type: 'unknown',
+					url: 'https://cloud.example.org/media/stream/9',
+					media_type: mediaType,
+					preview_url: null,
+					description: 'File',
+				},
+			},
+		})
+
+		expect(wrapper.find('.attachment__file-kind').text()).toBe(label)
+	})
+
 	it.each([
 		'123',
 		'123456789',

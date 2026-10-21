@@ -989,8 +989,10 @@ also mapped when they carry a valid CID and media type: supported image blobs
 use the Bluesky CDN, while other public attachments use the author's validated
 HTTPS PDS `com.atproto.sync.getBlob` endpoint and this instance's streamed-file
 route. Their declared filename is kept where available, otherwise a useful
-type-based name is shown. Logged-in-only posts never expose these public file
-routes. Unknown MIME types, malformed CIDs and unsafe PDS endpoints are omitted.
+type-based name is shown; the file card identifies its type from that name or
+the validated MIME type even though the streamed URL has no filename suffix.
+Logged-in-only posts never expose these public file routes. Unknown MIME types,
+malformed CIDs and unsafe PDS endpoints are omitted.
 External link embeds retain their URL, title, description and thumbnail as a link
 preview. A quote becomes `quoted_id`; an embedded custom feed, list or
 starter pack becomes a link to its bsky.app page with a card made from what
