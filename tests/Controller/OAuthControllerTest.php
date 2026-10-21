@@ -1106,6 +1106,38 @@ class OAuthControllerTest extends TestCase {
 		self::assertSame(['error' => 'authorization_pending'], $response->getData());
 	}
 
+	public function testDeviceGrantRequiresARegisteredClientSecretWhenOneExists(): void {
+		$client = $this->knownClient();
+		$client->setAppClientSecret('stored-secret-hash');
+		$this->clientService->expects(self::once())->method('confirmData')
+			->with($this->identicalTo($client), ['client_secret' => ''])
+			->willThrowException(new ClientException('wrong client_secret'));
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::never())->method('poll');
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->token('', 'urn:ietf:params:oauth:grant-type:device_code', 'client-1', '', '', '', 'device-code');
+
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		self::assertTrue($response->isThrottled());
+	}
+
+	public function testDeviceAuthorizationRequiresARegisteredClientSecretWhenOneExists(): void {
+		$client = $this->knownClient();
+		$client->setAppClientSecret('stored-secret-hash');
+		$this->clientService->expects(self::once())->method('confirmData')
+			->with($this->identicalTo($client), ['app_scopes' => 'read', 'client_secret' => ''])
+			->willThrowException(new ClientException('wrong client_secret'));
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::never())->method('create');
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->deviceAuthorization('client-1');
+
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		self::assertTrue($response->isThrottled());
+	}
+
 	public function testTokenThrottlesAWrongClientSecret(): void {
 		$this->knownClient();
 		$this->clientService->method('confirmData')
