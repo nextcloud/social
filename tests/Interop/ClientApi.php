@@ -123,7 +123,7 @@ abstract class ClientApi extends RestClient {
 	 *
 	 * @return bool whether it got there
 	 */
-	public function awaitRelationship(string $accountId, string $field, bool $wanted, int $seconds = self::WAIT_SECONDS): bool {
+	public function awaitRelationship(string $accountId, string $field, bool $wanted, int $seconds = 0): bool {
 		return $this->await(
 			fn (): ?bool => ((bool)($this->relationship($accountId)[$field] ?? false) === $wanted) ? true : null,
 			$seconds

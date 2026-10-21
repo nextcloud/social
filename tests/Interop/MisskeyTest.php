@@ -9,6 +9,9 @@ declare(strict_types=1);
 
 namespace OCA\Social\Tests\Interop;
 
+use OCA\Social\Db\FollowsRequest;
+use OCA\Social\Exceptions\FollowNotFoundException;
+use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -66,10 +69,22 @@ class MisskeyTest extends TestCase {
 
 	public function testMisskeysFollowIsAcceptedHere(): void {
 		$this->misskey->call('following/delete', ['userId' => $this->adminThere]);
-		$this->assertTrue(
-			$this->here->awaitRelationship($this->interopHere, 'followed_by', false),
-			'the unfollow from Misskey did not end the follow here'
-		);
+		$ended = $this->here->awaitRelationship($this->interopHere, 'followed_by', false);
+		if (!$ended) {
+			$storedFollow = null;
+			try {
+				$follow = Server::get(FollowsRequest::class)->getByPersons(
+					$this->interopHere, $this->localActorId(self::USER)
+				);
+				$storedFollow = ['id' => $follow->getId(), 'accepted' => $follow->isAccepted()];
+			} catch (FollowNotFoundException $e) {
+			}
+
+			$this->fail(
+				'the unfollow from Misskey did not end the follow here; stored follow: '
+				. json_encode($storedFollow, JSON_THROW_ON_ERROR)
+			);
+		}
 
 		$this->misskeyFollowsUs();
 
