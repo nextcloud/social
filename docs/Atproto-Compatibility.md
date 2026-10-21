@@ -2423,8 +2423,11 @@ Everything in the phase 2 row, in `lib/Atproto/Reader/` (`BlueskyActorService`,
 - The authenticated AppView (`atproto_appview_auth`, default
   `https://api.bsky.app`) and its DID (`atproto_appview_did`, default
   `did:web:api.bsky.app`) are configuration of their own beside the public
-  one, because the public AppView refuses authenticated requests; the
-  interop job points both at the dev AppView.
+  one, because the public AppView refuses authenticated requests. Service
+  authentication addresses the AppView as
+  `did:web:api.bsky.app#bsky_appview` (and chat as
+  `did:web:api.bsky.chat#bsky_chat`); the interop job points both at the dev
+  AppView.
 
 ### Phase 3 as it lands
 

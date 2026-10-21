@@ -27,7 +27,7 @@ final class PollCursor {
 		}
 
 		$data = json_decode($stored, true, 512, JSON_THROW_ON_ERROR);
-		if (!is_array($data) || !is_string($data['since'] ?? null) || $data['since'] === ''
+		if (!is_array($data) || !is_string($data['since'] ?? null)
 			|| !is_string($data['newest'] ?? null) || !is_string($data['page'] ?? null) || $data['page'] === '') {
 			throw new UnexpectedValueException('Invalid Bluesky polling checkpoint');
 		}
@@ -43,14 +43,14 @@ final class PollCursor {
 
 	/**
 	 * Commit the newest timestamp only after reaching the previous one or the
-	 * end. An account's first read remains a snapshot of its newest page.
+	 * end. A first feed read may walk to the end; other readers take a snapshot.
 	 */
-	public function after(string $newest, mixed $next, bool $reached): string {
+	public function after(string $newest, mixed $next, bool $reached, bool $walkInitial = false): string {
 		if (!is_string($next)) {
 			throw new UnexpectedValueException('Invalid Bluesky pagination cursor');
 		}
 		$newest = max($this->newest, $newest);
-		if ($this->since === '' || $reached || $next === '') {
+		if (($this->since === '' && (!$walkInitial || $next === '')) || $reached || $next === '') {
 			return $newest;
 		}
 		if ($next === $this->page) {

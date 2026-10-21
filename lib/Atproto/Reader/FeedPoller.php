@@ -130,7 +130,7 @@ class FeedPoller {
 				}
 				$stored += $this->store->storeFeedItem($item);
 			}
-			$next = $checkpoint->after($newest, $feed['cursor'] ?? '', $reached);
+			$next = $checkpoint->after($newest, $feed['cursor'] ?? '', $reached, true);
 		} catch (AppViewNotFoundException $e) {
 			$status = AccountStatus::ERRORS[$e->error] ?? '';
 			if ($status === '') {

@@ -99,22 +99,23 @@ class AppViewProxy {
 	private function target(string $method, string $proxy): array {
 		if (str_starts_with($method, 'chat.bsky.')) {
 			$chat = $this->config->chatDid();
+			$service = $chat . '#bsky_chat';
 			if ($chat === '') {
 				throw new XrpcException(501, 'MethodNotImplemented', 'Direct messages are not offered by this server');
 			}
-			if ($proxy !== '' && explode('#', $proxy, 2)[0] !== $chat) {
+			if ($proxy !== '' && $proxy !== $service && $proxy !== $chat) {
 				throw new XrpcException(400, 'InvalidRequest', 'This server proxies direct messages to its configured chat service only');
 			}
 
-			return [$chat, $this->config->chat()];
+			return [$service, $this->config->chat()];
 		}
 		$appView = $this->config->appViewDid();
+		$service = $appView . '#bsky_appview';
 		if ($proxy === '') {
-			return [$appView, $this->config->appViewAuth()];
+			return [$service, $this->config->appViewAuth()];
 		}
-		$did = explode('#', $proxy, 2)[0];
-		if ($did === $appView) {
-			return [$appView, $this->config->appViewAuth()];
+		if ($proxy === $service || $proxy === $appView) {
+			return [$service, $this->config->appViewAuth()];
 		}
 
 		throw new XrpcException(400, 'InvalidRequest', 'This server proxies to its configured AppView only');

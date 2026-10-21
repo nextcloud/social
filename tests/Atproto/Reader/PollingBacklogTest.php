@@ -130,13 +130,30 @@ class PollingBacklogTest extends TestCase {
 	}
 
 	#[DataProvider('readers')]
-	public function testAnInitialReadKeepsTheNewestPageSnapshot(bool $notifications): void {
+	public function testAnInitialReadWalksTheBlueskyFeedButSnapshotsNotifications(bool $notifications): void {
 		$this->checkpoint = '';
 		$poller = $this->poller($notifications);
-		$this->appView->method($notifications ? 'queryAs' : 'query')->willReturn($this->page($notifications, [102, 101], 'older'));
+		$this->appView->method($notifications ? 'queryAs' : 'query')->willReturnCallback(function (...$args) use ($notifications): array {
+			$params = $args[$notifications ? 3 : 1];
+			if (!isset($params['cursor'])) {
+				return $this->page($notifications, [102, 101], 'older');
+			}
+			$this->assertSame('older', $params['cursor']);
+
+			return $this->page($notifications, [100, 99], '');
+		});
+		$poller->poll(1);
+		if ($notifications) {
+			$this->assertSame(self::stamp(102), $this->checkpoint);
+			$this->assertSame([self::uri(102), self::uri(101)], $this->stored);
+			return;
+		}
+
+		$this->assertStringContainsString('"since":""', $this->checkpoint, 'the first feed page retains an initial backfill checkpoint');
+		$this->assertStringContainsString('"page":"older"', $this->checkpoint);
 		$poller->poll(1);
 		$this->assertSame(self::stamp(102), $this->checkpoint);
-		$this->assertSame([self::uri(102), self::uri(101)], $this->stored);
+		$this->assertSame([self::uri(102), self::uri(101), self::uri(100), self::uri(99)], $this->stored);
 	}
 
 	#[DataProvider('readers')]
