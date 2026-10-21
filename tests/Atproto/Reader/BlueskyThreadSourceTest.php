@@ -15,6 +15,7 @@ use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Reader\BlueskyThreadSource;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Exceptions\AtprotoException;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -55,6 +56,78 @@ class BlueskyThreadSourceTest extends TestCase {
 		$this->assertFalse($source->supports((new Note())->setId('https://social.test/@alice/9')), 'not on Bluesky');
 		$this->assertSame(4, $source->fill($post, 4));
 		$this->assertSame(['at://p/0', 'at://p/1', 'at://p/2', 'at://r/1', 'at://r/2'], $stored, 'the budget counts what was new');
+	}
+
+	public function testVisibleReadFillsDirectRepliesOmittedByTheStableThreadView(): void {
+		$root = self::node('at://p/2', [self::node('at://r/1')]);
+		$root['post']['replyCount'] = 3;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$queries = [];
+		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+			static function (string $method, array $params, array $headers = [], ?int $timeout = null) use (&$queries, $root): array {
+				$queries[] = [$method, $params, $timeout];
+				if ($method === 'app.bsky.feed.getPostThread') {
+					return ['thread' => $root];
+				}
+
+				return ['thread' => [
+					['uri' => 'at://p/2', 'depth' => 0, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://p/2']]],
+					['uri' => 'at://r/1', 'depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://r/1']]],
+					['uri' => 'at://r/2', 'depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://r/2']]],
+					['uri' => 'at://r/3', 'depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://r/3']]],
+				], 'hasOtherReplies' => false];
+			}
+		);
+		$seen = [];
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturnCallback(static function (array $view) use (&$seen): bool {
+			$uri = (string)$view['uri'];
+			$isNew = !isset($seen[$uri]);
+			$seen[$uri] = true;
+
+			return $isNew;
+		});
+		$store->expects($this->exactly(2))->method('refreshKnownPostCountsFromView');
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->assertSame(4, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
+		$this->assertSame([
+			['app.bsky.feed.getPostThread', ['uri' => 'at://p/2', 'depth' => 10, 'parentHeight' => 20], 3],
+			['app.bsky.unspecced.getPostThreadV2', [
+				'anchor' => 'at://p/2',
+				'above' => 'false',
+				'below' => 1,
+				'branchingFactor' => 0,
+				'sort' => 'oldest',
+			], 3],
+		], $queries);
+	}
+
+	public function testMissingV2EndpointLeavesTheStableThreadUsable(): void {
+		$thread = self::node('at://p/2', [self::node('at://r/1')]);
+		$thread['post']['replyCount'] = 2;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+			static function (string $method) use ($thread): array {
+				if ($method === 'app.bsky.feed.getPostThread') {
+					return ['thread' => $thread];
+				}
+				throw new AtprotoException('UnknownMethod');
+			}
+		);
+		$store = $this->createMock(PostStore::class);
+		$store->expects($this->exactly(2))->method('storePost')->willReturn(true);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->assertSame(2, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
 	}
 
 	public function testAResponseWithoutARecognizedThreadViewIsAReadFailure(): void {

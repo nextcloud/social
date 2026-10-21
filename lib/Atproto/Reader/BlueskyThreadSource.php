@@ -91,6 +91,9 @@ class BlueskyThreadSource implements ThreadSource {
 		$stored = $this->storeThread($thread, $budget);
 		// the replies its author hid on Bluesky are hidden here too
 		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
+		if (self::hasMissingDirectReplies($thread) && $stored < $budget) {
+			$stored += $this->fillMissingDirectReplies($uri, $headers, $timeout, $budget - $stored);
+		}
 
 		// The public AppView caps getPostThread's reply depth at ten even when
 		// a larger value is requested. A normal interactive read stays one short
@@ -130,6 +133,70 @@ class BlueskyThreadSource implements ThreadSource {
 		}
 
 		return $stored;
+	}
+
+	/** The stable thread endpoint can omit direct replies; the first-party AppView's V2 view can name the rest. */
+	private function fillMissingDirectReplies(string $uri, array $headers, ?int $timeout, int $budget): int {
+		try {
+			$params = [
+				'anchor' => $uri,
+				'above' => 'false',
+				'below' => 1,
+				'branchingFactor' => 0,
+				'sort' => 'oldest',
+			];
+			$answer = $timeout === null
+				? $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers)
+				: $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers, $timeout);
+			$items = $answer['thread'] ?? null;
+			if (!is_array($items)) {
+				return 0;
+			}
+		} catch (Throwable $e) {
+			// The V2 thread view is still unspecced and is absent on some AppViews.
+			$this->logger->debug('Bluesky V2 thread view not available; keeping the standard thread response', ['uri' => $uri, 'exception' => $e]);
+
+			return 0;
+		}
+
+		$views = [];
+		foreach ($items as $item) {
+			if (!is_array($item) || (int)($item['depth'] ?? -1) < 0) {
+				continue;
+			}
+			$value = is_array($item['value'] ?? null) ? $item['value'] : [];
+			if (($value['$type'] ?? '') !== 'app.bsky.unspecced.defs#threadItemPost' || !is_array($value['post'] ?? null)) {
+				continue;
+			}
+			$views[] = [(int)$item['depth'], $value['post']];
+		}
+		usort($views, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
+		$stored = 0;
+		foreach ($views as [, $view]) {
+			if ($stored >= $budget) {
+				break;
+			}
+			if ($this->store->storePost($view, false)) {
+				$stored++;
+			} else {
+				$this->store->refreshKnownPostCountsFromView($view);
+			}
+		}
+		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
+
+		return $stored;
+	}
+
+	/** Whether the stable response's root has fewer visible reply nodes than its current reply count. */
+	private static function hasMissingDirectReplies(array $thread): bool {
+		if (($thread['$type'] ?? '') !== self::THREAD_VIEW) {
+			return false;
+		}
+		$post = is_array($thread['post'] ?? null) ? $thread['post'] : [];
+		$replyCount = $post['replyCount'] ?? null;
+		$replies = is_array($thread['replies'] ?? null) ? $thread['replies'] : [];
+
+		return is_int($replyCount) && $replyCount > count($replies);
 	}
 
 	/** Store a thread parent-first and count only new records. */
