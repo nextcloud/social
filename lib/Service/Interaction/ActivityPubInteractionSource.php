@@ -45,11 +45,24 @@ class ActivityPubInteractionSource implements InteractionSource {
 		$source = json_decode($post->getSource(), true);
 		$collection = is_array($source) ? ($source[$type === Like::TYPE ? 'likes' : 'shares'] ?? null) : null;
 		$ids = [];
-		for ($page = 0; (is_string($collection) || is_array($collection)) && $page < self::PAGES && count($ids) < $limit; $page++) {
+		$seen = [];
+		$requests = 0;
+		for ($page = 0; (is_string($collection) || is_array($collection)) && $page < self::PAGES && count($ids) < $limit;) {
+			// ActivityPub servers may encode `first` and `next` as link
+			// objects (`{"id":"https://…"}`), not only as strings. A
+			// page-shaped object is already the page; a link-shaped one has to
+			// be dereferenced before its actors can be read.
+			if (is_array($collection) && !array_key_exists('orderedItems', $collection) && !array_key_exists('items', $collection)) {
+				$reference = $collection['first'] ?? $collection['next'] ?? $collection['id'] ?? $collection['@id'] ?? null;
+				$collection = self::collectionReference($reference);
+				continue;
+			}
 			if (is_string($collection)) {
-				if (preg_match('#^https?://#i', $collection) !== 1) {
+				if (preg_match('#^https?://#i', $collection) !== 1 || isset($seen[$collection]) || $requests >= self::PAGES) {
 					break;
 				}
+				$seen[$collection] = true;
+				$requests++;
 				try {
 					$collection = $timeout === null
 						? $this->curl->retrieveObject($collection)
@@ -59,6 +72,9 @@ class ActivityPubInteractionSource implements InteractionSource {
 					throw $e;
 				}
 			}
+			if (!is_array($collection)) {
+				break;
+			}
 			$items = $collection['orderedItems'] ?? $collection['items'] ?? [];
 			foreach (is_array($items) ? $items : [] as $item) {
 				$id = self::actorOf($item, $type);
@@ -66,7 +82,11 @@ class ActivityPubInteractionSource implements InteractionSource {
 					$ids[] = $id;
 				}
 			}
-			$collection = $collection['first'] ?? $collection['next'] ?? null;
+			$page++;
+			$reference = array_key_exists('orderedItems', $collection) || array_key_exists('items', $collection)
+				? ($collection['next'] ?? null)
+				: ($collection['first'] ?? $collection['next'] ?? null);
+			$collection = self::collectionReference($reference);
 		}
 		$ids = array_slice(array_values(array_unique($ids)), 0, $limit);
 		$this->queue->resolveActors($ids);
@@ -95,5 +115,17 @@ class ActivityPubInteractionSource implements InteractionSource {
 		}
 
 		return preg_match('#^https?://#i', $id) === 1 ? $id : '';
+	}
+
+	/** A collection link, or an embedded page; malformed links are ignored. */
+	private static function collectionReference(mixed $reference): string|array|null {
+		if (is_array($reference)) {
+			if (array_key_exists('orderedItems', $reference) || array_key_exists('items', $reference)) {
+				return $reference;
+			}
+			$reference = $reference['id'] ?? $reference['@id'] ?? null;
+		}
+
+		return is_string($reference) && preg_match('#^https?://#i', $reference) === 1 ? $reference : null;
 	}
 }
