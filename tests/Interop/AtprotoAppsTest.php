@@ -54,8 +54,10 @@ class AtprotoAppsTest extends TestCase {
 		$password = Server::get(AppPasswordService::class)->create($this->alice->userId, 'interop')['password'];
 		$app = AppClient::at((string)getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test');
 
-		[$status, $answer] = $app->signIn($identity->handle, 'wrong-pass-word-here');
+		[$status] = $app->signIn($identity->handle, 'wrong-pass-word-here');
 		$this->assertSame(401, $status, 'a wrong password is refused');
+		[$status] = $app->signIn($identity->handle, $this->alice->password);
+		$this->assertSame(401, $status, 'a Nextcloud account password is never accepted by the PDS');
 		[$status, $answer] = $app->signIn($identity->handle, $password);
 		$this->assertSame(200, $status, json_encode($answer));
 		$this->assertSame($identity->did, $answer['did']);
