@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service\Thread;
 use OCA\Social\Atproto\Reader\BlueskyThreadSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Object\Note;
+use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\Thread\ActivityPubThreadSource;
 use OCA\Social\Service\Thread\ThreadService;
 use OCP\Lock\ILockingProvider;
@@ -32,6 +33,49 @@ class ThreadServiceTest extends TestCase {
 
 		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willReturn(2);
 		$this->assertTrue((new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container))->fillBluesky($post));
+	}
+
+	public function testContextPollsReuseARecentlyReadBlueskyThread(): void {
+		$post = (new Note())->setId('at://did:plc:alice/app.bsky.feed.post/1');
+		$bluesky = $this->createMock(BlueskyThreadSource::class);
+		$bluesky->expects($this->exactly(2))->method('supports')->with($post)->willReturn(true);
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willReturn(0);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
+		$cache = $this->createMock(DurableCache::class);
+		$cache->expects($this->exactly(3))->method('getShared')
+			->with('social.thread.visible', md5($post->getId()))
+			->willReturnOnConsecutiveCalls(null, null, 'done');
+		$cache->expects($this->once())->method('setShared')
+			->with('social.thread.visible', md5($post->getId()), 'done', 10);
+		$service = new ThreadService($this->createStub(StreamRequest::class), new NullLogger(), $this->createStub(ILockingProvider::class), $container, $cache);
+
+		$this->assertTrue($service->fillBluesky($post));
+		// The frontend asks for the context again after the request that filled
+		// it; the second request should use the just-read thread instead of
+		// making another synchronous AppView call.
+		$this->assertTrue($service->fillBluesky($post));
+	}
+
+	public function testFailedVisibleReadFallsBackWithoutRepeatingTheSynchronousRequest(): void {
+		$post = (new Note())->setId('at://did:plc:alice/app.bsky.feed.post/1');
+		$bluesky = $this->createMock(BlueskyThreadSource::class);
+		$bluesky->expects($this->exactly(2))->method('supports')->with($post)->willReturn(true);
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willThrowException(new \RuntimeException('AppView unavailable'));
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
+		$cache = $this->createMock(DurableCache::class);
+		$cache->expects($this->exactly(3))->method('getShared')
+			->with('social.thread.visible', md5($post->getId()))
+			->willReturnOnConsecutiveCalls(null, null, 'failed');
+		$cache->expects($this->once())->method('setShared')
+			->with('social.thread.visible', md5($post->getId()), 'failed', 15);
+		$service = new ThreadService($this->createStub(StreamRequest::class), new NullLogger(), $this->createStub(ILockingProvider::class), $container, $cache);
+
+		$this->assertFalse($service->fillBluesky($post));
+		// The caller queues its normal background retry after this failure. A
+		// follow-up context poll should not keep blocking on the failed AppView.
+		$this->assertFalse($service->fillBluesky($post));
 	}
 
 	public function testFailedBlueskyConversationReadIsLeftForTheBackgroundQueue(): void {

@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Reader\BlueskyThreadSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\DurableCache;
 use OCP\Lock\ILockingProvider;
 use OCP\Lock\LockedException;
 use Psr\Container\ContainerInterface;
@@ -30,6 +31,12 @@ use Throwable;
 class ThreadService {
 	/** the most replies one fill stores */
 	public const BUDGET = 150;
+	/** do not re-read the same thread on each context poll */
+	private const VISIBLE_CACHE = 'social.thread.visible';
+	private const VISIBLE_DONE = 'done';
+	private const VISIBLE_FAILED = 'failed';
+	private const VISIBLE_TTL = 10;
+	private const VISIBLE_RETRY_TTL = 15;
 	private const VISIBLE_LOCK = 'social-visible-thread-';
 
 	public function __construct(
@@ -37,6 +44,7 @@ class ThreadService {
 		private LoggerInterface $logger,
 		private ILockingProvider $locks,
 		private ?ContainerInterface $container = null,
+		private ?DurableCache $durableCache = null,
 	) {
 	}
 
@@ -77,6 +85,11 @@ class ThreadService {
 		if (!$source instanceof BlueskyThreadSource || !$source->supports($post)) {
 			return false;
 		}
+		$key = md5($post->getId());
+		$state = $this->visibleState($key);
+		if ($state !== null) {
+			return $state === self::VISIBLE_DONE;
+		}
 
 		$lock = self::VISIBLE_LOCK . md5($post->getId());
 		if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
@@ -88,9 +101,17 @@ class ThreadService {
 			return null;
 		}
 		try {
+			// A request may have completed between the first cache check and
+			// taking the per-thread lock.
+			$state = $this->visibleState($key);
+			if ($state !== null) {
+				return $state === self::VISIBLE_DONE;
+			}
 			$source->fillVisible($post, self::BUDGET);
+			$this->rememberVisibleRead($key, self::VISIBLE_DONE, self::VISIBLE_TTL);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky conversation not read during display', ['post' => $post->getId(), 'exception' => $e]);
+			$this->rememberVisibleRead($key, self::VISIBLE_FAILED, self::VISIBLE_RETRY_TTL);
 
 			return false;
 		} finally {
@@ -98,6 +119,28 @@ class ThreadService {
 		}
 
 		return true;
+	}
+
+	private function visibleState(string $key): ?string {
+		try {
+			$state = $this->durableCache?->getShared(self::VISIBLE_CACHE, $key);
+
+			return is_string($state) ? $state : null;
+		} catch (Throwable $e) {
+			$this->logger->debug('Bluesky thread freshness not read', ['exception' => $e]);
+
+			return null;
+		}
+	}
+
+	private function rememberVisibleRead(string $key, string $state, int $ttl): void {
+		try {
+			$this->durableCache?->setShared(self::VISIBLE_CACHE, $key, $state, $ttl);
+		} catch (Throwable $e) {
+			// A cache write is only an optimization; a successful thread read
+			// remains successful if the cache is temporarily unavailable.
+			$this->logger->debug('Bluesky thread freshness not saved', ['exception' => $e]);
+		}
 	}
 
 	/**
