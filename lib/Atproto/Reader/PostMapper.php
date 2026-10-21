@@ -355,7 +355,7 @@ class PostMapper {
 				'title' => trim((string)($external['title'] ?? '')) ?: $url,
 				'description' => (string)($external['description'] ?? ''),
 				'image' => preg_match('#^https://#i', $thumbnail) ? $thumbnail : '',
-				'provider' => (string)(parse_url($url, PHP_URL_HOST) ?: ''),
+				'provider' => parse_url($url, PHP_URL_HOST) ?: '',
 			];
 		}
 		if (($embed['$type'] ?? '') === self::RECORD_WITH_MEDIA) {
