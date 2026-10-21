@@ -33,6 +33,7 @@ use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\MediaAttachment;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamCard;
 use OCA\Social\Service\Counts\CountWriter;
@@ -94,6 +95,14 @@ class PostStoreTest extends TestCase {
 					$objectData['attachment'] = [];
 				}
 				$note->import($objectData);
+				if ($data['type'] === 'Create' && $atprotoStreamedBlobs !== []) {
+					$note->setAttachments([(new MediaAttachment())
+						->setId('123')
+						->setType('unknown')
+						->setMediaType('application/pdf')
+						->setUrl('https://social.test/media/stream/123')
+						->setDescription('meeting-notes.pdf')]);
+				}
 				$item->setObject($note);
 			}
 
@@ -109,7 +118,14 @@ class PostStoreTest extends TestCase {
 			}
 		});
 		$this->streams = $this->createMock(StreamRequest::class);
-		$this->streams->method('getStreamById')->willReturnCallback(fn (string $id): Stream => in_array($id, $this->known, true) ? new Note() : throw new StreamNotFoundException());
+		$this->streams->method('getStreamById')->willReturnCallback(function (string $id): Stream {
+			if (!in_array($id, $this->known, true)) {
+				throw new StreamNotFoundException();
+			}
+			$note = (new Note())->setId($id)->setAttributedTo('https://bsky.app/profile/' . self::DID);
+
+			return $note;
+		});
 		$this->streams->method('getAnnounceBy')->willThrowException(new StreamNotFoundException());
 		$this->actors = $this->createMock(BlueskyActorService::class);
 		$time = $this->createMock(ITimeFactory::class);
@@ -221,6 +237,35 @@ class PostStoreTest extends TestCase {
 		$this->assertSame([
 			'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
 		], $this->atprotoStreamedBlobs);
+	}
+
+	public function testLaterAppViewViewFillsAttachmentsMissingOnTheFirstImport(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$actor = $this->person(self::DID);
+		$this->actors->method('cached')->willReturn($actor);
+		$this->actors->expects($this->once())->method('pdsEndpoint')->with(self::DID)->willReturn('https://pds.example');
+		$this->actors->expects($this->once())->method('store')->with($actor);
+		$this->streams->expects($this->once())->method('setRecoveredRemoteAttachments')->with(
+			$id,
+			$this->callback(static function (string $attachments): bool {
+				$decoded = json_decode($attachments, true);
+
+				return ($decoded[0]['description'] ?? '') === 'meeting-notes.pdf'
+					&& ($decoded[0]['media_type'] ?? '') === 'application/pdf';
+			}),
+			'',
+		);
+		$view = $this->postView();
+		$cid = \OCA\Social\Atproto\Protocol\Cid::forRaw('a file in a late AppView embed')->toString();
+		$view['embed'] = ['$type' => 'org.example.embed.files#view'];
+		$view['record']['embed'] = [
+			'$type' => 'org.example.embed.files',
+			'files' => [['name' => 'meeting-notes.pdf', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'application/pdf']]],
+		];
+
+		$this->assertFalse($this->store->storePost($view), 'enrichment does not count as a second imported post');
+		$this->assertSame([], $this->imported, 'the post is not re-created or its text overwritten');
 	}
 
 	public function testAThreadViewRefreshesCountsOnAnAlreadyKnownPost(): void {

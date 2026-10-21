@@ -13,6 +13,7 @@ use OCA\Social\AP;
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\Blocklist;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\InteractionPublisher;
 use OCA\Social\Db\StreamCardsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -89,7 +90,19 @@ class PostStore {
 	 */
 	public function storePost(array $post, bool $fetchParent = true): bool {
 		$create = $this->mapper->create($post);
-		if ($create === null || $this->isKnown($create['object']['id'])) {
+		if ($create === null) {
+			return false;
+		}
+		$id = (string)$create['object']['id'];
+		if ($this->isKnown($id)) {
+			// AppView can index the post before its PDS has exposed the full
+			// embed view. The first import then has the text and counters but no
+			// usable attachment URL. A later profile/thread/feed response carries
+			// the same record again; let that fill the missing media once the PDS
+			// endpoint is known, without rewriting the post or fetching on every
+			// subsequent read.
+			$this->refreshMissingAttachments($post, $id);
+
 			return false;
 		}
 		if (!$this->ensureActor(is_array($post['author'] ?? null) ? $post['author'] : [])) {
@@ -98,20 +111,7 @@ class PostStore {
 		$recordEmbed = $post['record']['embed'] ?? null;
 		if (PostMapper::hasGenericBlobs($recordEmbed) && !PostMapper::isLoggedInOnly($post)) {
 			$did = (string)($post['author']['did'] ?? '');
-			$actor = $this->actors->cached($did);
-			$details = $actor?->getDetails(Details::ATPROTO);
-			$pds = is_array($details) ? (string)($details['pds'] ?? '') : '';
-			if ($pds === '') {
-				$pds = $this->actors->pdsEndpoint($did);
-				if ($pds !== '' && $actor !== null) {
-					$actor->setDetailArray(Details::ATPROTO, array_merge(is_array($details) ? $details : [], ['pds' => $pds]));
-					try {
-						$this->actors->store($actor);
-					} catch (Throwable $e) {
-						$this->logger->debug('Bluesky PDS endpoint not cached on actor', ['did' => $did, 'exception' => $e]);
-					}
-				}
-			}
+			$pds = $this->pdsOf($did);
 			if ($pds !== '') {
 				$create = $this->mapper->create($post, $pds);
 				if ($create === null) {
@@ -127,6 +127,79 @@ class PostStore {
 		}
 
 		return $this->process($create);
+	}
+
+	/**
+	 * Completes a previously imported Bluesky post whose embed was missing
+	 * when the AppView first indexed it. Only an empty attachment list is
+	 * eligible: a later partial view must never replace media already stored.
+	 */
+	private function refreshMissingAttachments(array $post, string $id): void {
+		$recordEmbed = $post['record']['embed'] ?? null;
+		if (!PostMapper::hasGenericBlobs($recordEmbed) || PostMapper::isLoggedInOnly($post)) {
+			return;
+		}
+
+		$did = (string)($post['author']['did'] ?? '');
+		if (!Syntax::isDid($did)) {
+			return;
+		}
+		try {
+			$stored = $this->streams->getStreamById($id);
+		} catch (StreamNotFoundException) {
+			return;
+		}
+		if ($stored->isLocal()
+			|| $stored->getAttributedTo() !== BlueskyIds::actorId($did)
+			|| $stored->getAttachments() !== []) {
+			return;
+		}
+
+		$pds = $this->pdsOf($did);
+		if ($pds === '') {
+			return;
+		}
+		$create = $this->mapper->create($post, $pds);
+		if ($create === null || !is_array($create['object']['attachment'] ?? null) || $create['object']['attachment'] === []) {
+			return;
+		}
+		$streamedBlobs = is_array($create['object']['_atproto']['streamed_blobs'] ?? null)
+			? $create['object']['_atproto']['streamed_blobs'] : [];
+		try {
+			$activity = AP::instance()->getItemFromData($create, atprotoStreamedBlobs: $streamedBlobs);
+			$object = $activity->getObject();
+			if (!$object instanceof Stream || $object->getAttachments() === []) {
+				return;
+			}
+			$attachments = (string)json_encode($object->getAttachments(), JSON_UNESCAPED_SLASHES);
+			$this->streams->setRecoveredRemoteAttachments($id, $attachments, $stored->getSubType());
+		} catch (Throwable $e) {
+			// Media enrichment must not turn a readable post into a failed feed or
+			// thread refresh; a later AppView response can try it again.
+			$this->logger->debug('Bluesky post media not enriched', ['id' => $id, 'exception' => $e]);
+		}
+	}
+
+	/** The PDS endpoint saved on this actor, resolving and caching it once if needed. */
+	private function pdsOf(string $did): string {
+		$actor = $this->actors->cached($did);
+		$details = $actor?->getDetails(Details::ATPROTO);
+		$pds = is_array($details) ? (string)($details['pds'] ?? '') : '';
+		if ($pds !== '' || $actor === null) {
+			return $pds;
+		}
+
+		$pds = $this->actors->pdsEndpoint($did);
+		if ($pds !== '') {
+			$actor->setDetailArray(Details::ATPROTO, array_merge(is_array($details) ? $details : [], ['pds' => $pds]));
+			try {
+				$this->actors->store($actor);
+			} catch (Throwable $e) {
+				$this->logger->debug('Bluesky PDS endpoint not cached on actor', ['exception' => $e, 'did' => $did]);
+			}
+		}
+
+		return $pds;
 	}
 
 	/**
