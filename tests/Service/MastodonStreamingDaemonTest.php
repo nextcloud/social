@@ -171,7 +171,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$subscriber = $this->subscriber();
 		$subscriber->context = ['directSince' => '20', 'subscriptions' => ['direct' => true]];
 		$subscriber->eventStream = true;
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendDirectConversations', $server, $subscriber, new Person());
 		} finally {
@@ -271,7 +271,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			'subscriptions' => ['list' => true],
 			'listSubscriptions' => [5 => ['id' => 5, 'list' => $list, 'since' => '40']],
 		];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendListStatuses', $server, $subscriber, new Person(), 5, $subscriber->context['listSubscriptions'][5]);
 		} finally {
@@ -297,7 +297,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			'subscriptions' => ['public:remote:media' => true],
 			'publicSince:public:remote:media' => '20',
 		];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendPublicStatuses', $server, $subscriber, new Person(), 'public:remote:media');
 		} finally {
@@ -328,7 +328,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
 		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['public:local' => true]];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
 		} finally {
@@ -361,7 +361,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
 		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['user' => true]];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
 		} finally {
@@ -389,7 +389,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$subscriber = $this->subscriber();
 		$subscriber->eventStream = true;
 		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['direct' => true]];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
 		} finally {
@@ -497,7 +497,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		);
 		$subscriber = $this->subscriber();
 		$subscriber->context = ['subscriptions' => ['hashtag:local' => true]];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendHashtagStatuses', $server, $subscriber, new Person(), 'key', [
 				'stream' => 'hashtag:local', 'tag' => 'nextcloud', 'local' => true, 'since' => '30',
