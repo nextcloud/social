@@ -120,6 +120,7 @@ describe('MediaAttachment', () => {
 	})
 
 	it.each([
+		'123',
 		'123456789',
 		'550e8400-e29b-41d4-a716-446655440000',
 		'bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -132,9 +133,9 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
 	})
 
-	it('keeps readable filename suffixes for opaque object keys', () => {
+	it.each(['123.pdf', '123456789.pdf'])('keeps the file kind without exposing a numeric storage key: %s', (key) => {
 		const wrapper = mount(MediaAttachment, {
-			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/123456789.pdf', preview_url: null, description: null } },
+			props: { attachment: { id: '9', type: 'unknown', url: `https://cloud.example.org/media/${key}`, preview_url: null, description: null } },
 		})
 
 		expect(wrapper.find('.attachment__file-name').text()).toBe('File')
@@ -142,6 +143,7 @@ describe('MediaAttachment', () => {
 	})
 
 	it.each([
+		'123',
 		'123456789',
 		'bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 	])('does not use opaque descriptions as a filename: %s', (description) => {

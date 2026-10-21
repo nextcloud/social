@@ -152,7 +152,7 @@ function blurhashSize(small) {
 function isOpaqueFileName(name) {
 	const stem = name.replace(/\.[^.]+$/, '')
 
-	return /^\d{6,}$/.test(stem)
+	return /^\d+$/.test(stem)
 		|| /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(stem)
 		|| /^baf[a-z2-7]{20,}$/i.test(stem)
 		|| /^[a-z0-9_-]{40,}$/i.test(stem)
