@@ -59,9 +59,11 @@ class RelayCrawlScheduler {
 		// Record the attempt before the network call, so overlapping maintenance
 		// runs do not issue duplicate requests while a relay is slow.
 		$this->configService->setAppValue(ConfigService::ATPROTO_CRAWL_ATTEMPTED, (string)$now);
+		$this->configService->setAppValue(ConfigService::ATPROTO_CRAWL_RESULTS, '[]');
 		try {
 			$results = $this->relays->requestCrawl();
 			$acceptedByRelay = in_array('ok', $results, true);
+			$this->configService->setAppValue(ConfigService::ATPROTO_CRAWL_RESULTS, (string)json_encode($results, JSON_UNESCAPED_SLASHES));
 			if ($acceptedByRelay) {
 				$this->configService->setAppValue(ConfigService::ATPROTO_CRAWL_ACCEPTED, (string)$now);
 			}
@@ -70,6 +72,7 @@ class RelayCrawlScheduler {
 				'reason' => $firstRequest ? 'initial' : ($missedReplayWindow ? 'firehose-outage' : 'retry'),
 			]);
 		} catch (Throwable $e) {
+			$this->configService->setAppValue(ConfigService::ATPROTO_CRAWL_RESULTS, (string)json_encode(['error' => substr($e->getMessage(), 0, 200)], JSON_UNESCAPED_SLASHES));
 			$this->logger->warning('Automatic Bluesky relay crawl request failed', ['exception' => $e]);
 		}
 	}

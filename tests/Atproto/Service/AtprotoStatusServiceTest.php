@@ -39,7 +39,7 @@ class AtprotoStatusServiceTest extends TestCase {
 	/** how many keys do not open with the instance secret */
 	private int $sealedKeys = 0;
 
-	private function service(array $relays, bool $firehoseUpgraded = false, bool $oauthReachable = false, bool $oauthMissingRefreshGrant = false, ?Identity $identity = null, string $pdsEndpoint = 'https://social.example'): AtprotoStatusService {
+	private function service(array $relays, bool $firehoseUpgraded = false, bool $oauthReachable = false, bool $oauthMissingRefreshGrant = false, ?Identity $identity = null, string $pdsEndpoint = 'https://social.example', array $configValues = []): AtprotoStatusService {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
 		$config->method('pdsEndpoint')->willReturn($pdsEndpoint);
@@ -123,7 +123,20 @@ class AtprotoStatusServiceTest extends TestCase {
 		$identities = $this->createMock(IdentityService::class);
 		$identities->method('firstActive')->willReturn($identity);
 
-		return new AtprotoStatusService($config, $this->createMock(ConfigService::class), $identities, $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, $keySeals);
+		$configService = $this->createMock(ConfigService::class);
+		$configService->method('getAppValue')->willReturnCallback(static fn (string $key): string => $configValues[$key] ?? '0');
+
+		return new AtprotoStatusService($config, $configService, $identities, $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, $keySeals);
+	}
+
+	public function testAdminStatusShowsAutomaticRelayCrawlTimesAndResults(): void {
+		$status = $this->service([], configValues: [
+			ConfigService::ATPROTO_CRAWL_ATTEMPTED => '100',
+			ConfigService::ATPROTO_CRAWL_ACCEPTED => '90',
+			ConfigService::ATPROTO_CRAWL_RESULTS => '{"https://bsky.network":"ok"}',
+		])->current()['status']['relay_crawl'];
+
+		self::assertSame(['attempted_at' => 100, 'accepted_at' => 90, 'results' => ['https://bsky.network' => 'ok']], $status);
 	}
 
 	private function keysCheck(): array {

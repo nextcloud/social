@@ -526,6 +526,8 @@ class ConfigService {
 	public const ATPROTO_CRAWL_ACCEPTED = 'atproto_crawl_accepted';
 	/** last time a crawl request was attempted, including failed attempts */
 	public const ATPROTO_CRAWL_ATTEMPTED = 'atproto_crawl_attempted';
+	/** per-relay result of the last automatic crawl request, as JSON */
+	public const ATPROTO_CRAWL_RESULTS = 'atproto_crawl_results';
 	/** where older versions kept the Jetstream listener's report and cursor; JetstreamState moves them out */
 	public const ATPROTO_JETSTREAM_STATUS = 'atproto_jetstream_status';
 	public const ATPROTO_JETSTREAM_CURSOR = 'atproto_jetstream_cursor';
@@ -556,6 +558,7 @@ class ConfigService {
 		self::ATPROTO_FIREHOSE_STATUS => '',
 		self::ATPROTO_CRAWL_ACCEPTED => '0',
 		self::ATPROTO_CRAWL_ATTEMPTED => '0',
+		self::ATPROTO_CRAWL_RESULTS => '[]',
 		self::ATPROTO_DELETE_CURSOR => '0',
 		self::ATPROTO_DETACH_CURSOR => '0',
 		self::ATPROTO_MODERATION_DID => 'did:plc:ar7c4by46qjdydhdevvrndac',

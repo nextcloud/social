@@ -77,6 +77,7 @@ class AtprotoStatusService {
 				'repositories' => $this->repoRequest->countHeads(),
 				'events_in_window' => $this->events->countInWindow(),
 				'head_seq' => $this->events->latestSeq(),
+				'relay_crawl' => $this->relayCrawlStatus(),
 				// reading Bluesky: the followed authors and the local accounts
 				// whose notifications are asked for, and how far behind the
 				// slowest of each is
@@ -88,6 +89,17 @@ class AtprotoStatusService {
 				'listener' => $this->config->jetstream() === '' ? null : $this->listener?->status(),
 			],
 			'checks' => $this->checks(),
+		];
+	}
+
+	/** The last automatic request and whether any relay accepted it. */
+	private function relayCrawlStatus(): array {
+		$results = json_decode((string)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_RESULTS), true);
+
+		return [
+			'attempted_at' => (int)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_ATTEMPTED),
+			'accepted_at' => (int)$this->configService->getAppValue(ConfigService::ATPROTO_CRAWL_ACCEPTED),
+			'results' => is_array($results) ? $results : [],
 		];
 	}
 
