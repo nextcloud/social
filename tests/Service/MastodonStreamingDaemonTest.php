@@ -705,6 +705,16 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$server = $this->createMock(WebSocketServer::class);
 		$server->expects(self::once())->method('send')->with($subscriber, "event: filters_changed\ndata: undefined\n\n");
 
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testFilterChangesAreNotSentOnNotificationOnlyStream(): void {
+		$this->filterRows->expects(self::never())->method('getByActor');
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::never())->method('send');
+
 		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user:notification' => true], 1_800_000_000);
 	}
 

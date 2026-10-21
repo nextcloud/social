@@ -409,7 +409,7 @@ class MastodonStreamingDaemon {
 	/** Emits Mastodon's `filters_changed` event when this account's filters change. */
 	private function sendFilterChanges(WebSocketServer $server, Subscriber $subscriber, Person $viewer, array $subscriptions, int $now): void {
 		$streams = array_values(array_filter(
-			['user', 'user:notification'],
+			['user'],
 			static fn (string $stream): bool => isset($subscriptions[$stream])
 		));
 		if ($streams === [] || $now - (int)($subscriber->context['filterCheckedAt'] ?? 0) < self::FILTER_POLL_INTERVAL) {
