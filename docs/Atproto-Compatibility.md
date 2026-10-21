@@ -725,11 +725,12 @@ reachable" connects to the public URL and reads an `#info` frame.
 ### 7.2 Telling the relay
 
 `com.atproto.sync.requestCrawl` is sent to the relay (`bsky.network` by
-default, configurable, several allowed) when Bluesky is enabled and after
-the daemon has been unreachable for more than the replay window. The relay
-then subscribes, backfills with `getRepo` per DID, and stays connected. The
-admin page shows the relay's last connection and the lag between the head
-`seq` and what was served.
+default, configurable, several allowed) by the five-minute maintenance job
+after Bluesky is enabled and after the daemon has been unreachable for more
+than the replay window. Failed initial requests retry after 15 minutes; outage
+recovery requests are spaced six hours apart. The relay then subscribes,
+backfills with `getRepo` per DID, and stays connected. The admin page shows the
+relay's last connection and the lag between the head `seq` and what was served.
 
 ### 7.3 Backfill and consistency
 
