@@ -206,6 +206,8 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertSame($identity->did, $result['did']);
 		$this->assertSame(200, $result['who']['status'], json_encode($result['who']));
 		$this->assertSame($identity->handle, $result['who']['body']['handle']);
+		$this->assertSame($identity->did, $result['refreshed']['did']);
+		$this->assertSame($identity->handle, $result['refreshed']['handle']);
 		$this->assertSame(200, $result['timeline']['status'], json_encode($result['timeline']));
 		$this->assertArrayHasKey('feed', $result['timeline']['body']);
 	}

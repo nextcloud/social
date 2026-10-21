@@ -16,8 +16,9 @@ const call = async (path) => {
 }
 
 const who = await call('/xrpc/com.atproto.server.getSession')
+const refreshed = await session.refresh()
 const timeline = await call('/xrpc/app.bsky.feed.getTimeline?limit=1')
 const did = session.did
 await session.logout()
 
-console.log(JSON.stringify({ did, who, timeline }))
+console.log(JSON.stringify({ did, who, refreshed: { did: refreshed.did, handle: refreshed.handle }, timeline }))
