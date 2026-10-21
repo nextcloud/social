@@ -509,9 +509,9 @@ class StatusApiController extends MastodonApiController {
 			if ($item->getType() === Announce::TYPE && !($item->getObject() instanceof Stream)) {
 				throw new StreamNotFoundException();
 			}
-			// A visible Bluesky post should not wait for the background queue's
-			// next run to show current likes, reposts and reply totals.
-			if ($this->counts->refreshBlueskyIfDue($item)) {
+			// Refresh the post from its origin when opened; the background count
+			// queue is deliberately much slower than an interactive read.
+			if ($this->counts->refreshVisibleIfDue($item)) {
 				$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			}
 			$item = $this->served($item);

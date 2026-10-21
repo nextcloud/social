@@ -48,7 +48,7 @@ class CountService {
 	public const YOUNG_INTERVAL = 900;
 	public const OLD_INTERVAL = 21600;
 	/** Live reader refresh cadence, separate from the slower background scan. */
-	public const VISIBLE_INTERVAL = 30;
+	public const VISIBLE_INTERVAL = 5;
 
 	public function __construct(
 		private StreamRequest $streams,
@@ -84,16 +84,21 @@ class CountService {
 	}
 
 	/**
-	 * Refresh a Bluesky post while it is being opened or displayed. A queued
-	 * cron job can take a full scheduler interval to run, which is too late for
-	 * counts shown beside a post the reader is looking at now.
+	 * Refresh counts from the post's network while it is being opened. A queued
+	 * job can take a full scheduler interval to run, which is too late for a
+	 * post the reader is looking at now.
 	 */
-	public function refreshBlueskyIfDue(Stream $post): bool {
+	public function refreshVisibleIfDue(Stream $post): bool {
 		$now = $this->time->getTime();
+		if ($post->getType() === Announce::TYPE) {
+			$object = $post->getObject();
+			if ($object instanceof Stream) {
+				$post = $object;
+			}
+		}
 
 		foreach ($this->sources() as $source) {
-			if (($source instanceof BlueskyCountSource || $source instanceof BlueskyPublishedCountSource)
-				&& $source->supports($post)) {
+			if ($source->supports($post)) {
 				$countsAt = $post->getCountsAt();
 				if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
 					return false;
@@ -101,7 +106,12 @@ class CountService {
 				try {
 					$source->refresh([$post]);
 				} catch (Throwable $e) {
-					$this->logger->info('Bluesky counts not read during display', ['post' => $post->getId(), 'exception' => $e]);
+					$this->logger->info('Post counts not read during display', ['post' => $post->getId(), 'exception' => $e]);
+					try {
+						$this->writer->stamp($post->getId());
+					} catch (Throwable $stampError) {
+						$this->logger->info('Post counts not stamped after a failed display read', ['post' => $post->getId(), 'exception' => $stampError]);
+					}
 				}
 				return true;
 			}

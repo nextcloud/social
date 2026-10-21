@@ -27,7 +27,7 @@ use Throwable;
  */
 class BlueskyThreadSource implements ThreadSource {
 	/** how deep the replies, and how high the parents, are asked for */
-	private const DEPTH = 6;
+	private const DEPTH = 10;
 	private const PARENT_HEIGHT = 20;
 	private const THREAD_VIEW = 'app.bsky.feed.defs#threadViewPost';
 
@@ -61,7 +61,7 @@ class BlueskyThreadSource implements ThreadSource {
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky thread not read', ['uri' => $uri, 'exception' => $e]);
 
-			return 0;
+			throw $e;
 		}
 
 		$stored = 0;

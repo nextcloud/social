@@ -33,6 +33,18 @@ class ThreadServiceTest extends TestCase {
 		$this->assertTrue((new ThreadService($streams, new NullLogger(), $container))->fillBluesky($post));
 	}
 
+	public function testFailedBlueskyConversationReadIsLeftForTheBackgroundQueue(): void {
+		$post = (new Note())->setId('at://did:plc:alice/app.bsky.feed.post/1');
+		$streams = $this->createStub(StreamRequest::class);
+		$bluesky = $this->createMock(BlueskyThreadSource::class);
+		$bluesky->method('supports')->with($post)->willReturn(true);
+		$bluesky->expects($this->once())->method('fill')->with($post, ThreadService::BUDGET)->willThrowException(new \RuntimeException('AppView unavailable'));
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
+
+		$this->assertFalse((new ThreadService($streams, new NullLogger(), $container))->fillBluesky($post));
+	}
+
 	/** A post written here and published to Bluesky is asked of both. */
 	public function testEveryNetworkThePostIsOnIsAskedWithWhatIsLeftOfTheBudget(): void {
 		$post = (new Note())->setId('https://social.test/@alice/1');

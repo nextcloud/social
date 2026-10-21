@@ -155,7 +155,7 @@ describe('TimelineList', () => {
 		vi.unstubAllGlobals()
 	})
 
-	it('refreshes visible Bluesky counts on entry and throttles repeated checks', async () => {
+	it('refreshes visible remote counts on entry and throttles repeated checks', async () => {
 		const post = { ...status('bsky'), uri: 'at://did:plc:alice/app.bsky.feed.post/1' }
 		const { wrapper, store } = mountList({ timeline: [post] })
 		await flushPromises()
@@ -164,11 +164,26 @@ describe('TimelineList', () => {
 		wrapper.vm.countRefreshLastAsked.clear()
 		const refresh = vi.spyOn(store, 'fetchStatus').mockResolvedValue(post)
 
-		wrapper.vm.refreshVisibleBlueskyCounts()
-		wrapper.vm.refreshVisibleBlueskyCounts()
+		wrapper.vm.refreshVisiblePostCounts()
+		wrapper.vm.refreshVisiblePostCounts()
 
 		expect(refresh).toHaveBeenCalledTimes(1)
 		expect(refresh).toHaveBeenCalledWith('bsky')
+		wrapper.unmount()
+	})
+
+	it('refreshes visible Fediverse counts too', async () => {
+		const post = { ...status('fediverse'), uri: 'https://remote.example/notes/1' }
+		const { wrapper, store } = mountList({ timeline: [post] })
+		await flushPromises()
+		const entry = wrapper.find('.timeline-entry-stub').element
+		vi.spyOn(entry, 'getBoundingClientRect').mockReturnValue({ top: 10, bottom: 200 })
+		wrapper.vm.countRefreshLastAsked.clear()
+		const refresh = vi.spyOn(store, 'fetchStatus').mockResolvedValue(post)
+
+		wrapper.vm.refreshVisiblePostCounts()
+
+		expect(refresh).toHaveBeenCalledWith('fediverse')
 		wrapper.unmount()
 	})
 

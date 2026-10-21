@@ -412,6 +412,11 @@ export default {
 				}
 			} else {
 				this.postState = ''
+				// A timeline copy can already be minutes old. Keep it on screen,
+				// while replacing it with the origin's current counts and details.
+				this.timelineStore.fetchStatus(id).catch((error) => {
+					logger.debug('Could not refresh an opened status', { error, id })
+				})
 			}
 
 			this.reportOpened()

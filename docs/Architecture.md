@@ -1971,15 +1971,20 @@ a Bluesky record (`StreamRequest::getPublishedStreamsDueForCounts()`, a join
 on `social_atproto_record`); an older one is asked about when somebody looks
 at it.
 
-Bluesky posts that are actually visible in a timeline have a faster path:
-`TimelineList` refreshes up to four visible posts on entry, scroll and every
-30 seconds. `StatusApiController::statusGet()` asks the matching Bluesky
-count source directly when `counts_at` is at least 30 seconds old, then reads
-the updated row for the response. This keeps reader-facing counts independent
-of Nextcloud's cron cadence; posts outside the viewport still use the queued
-background path above. When a conversation response says it is still being
-filled, the open conversation checks again every six seconds until the server
-has finished or the reader leaves it.
+Posts opened in their detail view have a faster path:
+`TimelineList` refreshes up to four visible remote posts on entry, scroll and
+every fifteen seconds, rotating through the visible posts when there are more
+than four. `TimelineSinglePost` also asks for the status again when opened,
+even if a copy is already in the timeline. `StatusApiController::statusGet()`
+asks the matching ActivityPub or Bluesky count source directly when
+`counts_at` is at least five seconds old, then reads the updated row for the
+response. This keeps reader-facing counts independent of Nextcloud's cron
+cadence; posts outside the viewport still use the queued background path
+above. When a conversation response says it is still being filled, the open
+conversation checks again every six seconds until the server has finished or
+the reader leaves it. A failed inline Bluesky thread read falls back to the
+background thread queue, so a transient AppView failure does not mark a partial
+conversation complete.
 
 `CountWriter` stores an answer: the origin's total less what is counted here
 into `remote_likes`, `remote_boosts` and `remote_replies` — only those keys,

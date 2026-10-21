@@ -219,11 +219,16 @@ class BlueskyFeedsTest extends TestCase {
 
 	public function testUnwatchedProfileFeedUsesItsAppViewCursorOnTheNextPage(): void {
 		$actor = (new Person())->setId(BlueskyIds::actorId(self::BOB));
-		$uri = 'at://' . self::BOB . '/app.bsky.feed.post/profile-post';
-		$olderUri = 'at://' . self::BOB . '/app.bsky.feed.post/profile-older';
+		$firstPage = [];
+		$secondPage = [];
+		for ($index = 0; $index < 21; $index++) {
+			$firstPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/profile-post-' . $index]];
+			$secondPage[] = ['post' => ['uri' => 'at://' . self::BOB . '/app.bsky.feed.post/profile-older-' . $index]];
+		}
+		$uri = 'at://' . self::BOB . '/app.bsky.feed.post/profile-post-20';
 		$this->answerPages['app.bsky.feed.getAuthorFeed'] = [
-			['feed' => [['post' => ['uri' => $uri]]], 'cursor' => 'profile-next'],
-			['feed' => [['post' => ['uri' => $olderUri]]], 'cursor' => 'profile-end'],
+			['feed' => $firstPage, 'cursor' => 'profile-next'],
+			['feed' => $secondPage, 'cursor' => 'profile-end'],
 		];
 		$feeds = $this->feeds(false);
 

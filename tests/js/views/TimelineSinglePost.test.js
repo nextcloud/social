@@ -265,14 +265,14 @@ describe('TimelineSinglePost', () => {
 			expect(wrapper.findComponent(TimelineEntryStub).exists()).toBe(true)
 		})
 
-		it('asks for nothing when the post is already known', async () => {
+		it('refreshes the post when opening a copy already known to the timeline', async () => {
 			store.addToStatuses(status)
-			const fetchStatus = vi.spyOn(store, 'fetchStatus')
+			const fetchStatus = vi.spyOn(store, 'fetchStatus').mockResolvedValue(status)
 
 			mountView()
 			await flushPromises()
 
-			expect(fetchStatus).not.toHaveBeenCalled()
+			expect(fetchStatus).toHaveBeenCalledWith('123')
 		})
 
 		it('still says a post is gone when the server does not have it either', async () => {

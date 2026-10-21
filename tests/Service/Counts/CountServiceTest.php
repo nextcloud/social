@@ -128,17 +128,39 @@ class CountServiceTest extends TestCase {
 		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
 		$this->sources[BlueskyCountSource::class] = $source;
 
-		$this->assertTrue($this->service()->refreshBlueskyIfDue($post));
+		$this->assertTrue($this->service()->refreshVisibleIfDue($post));
 	}
 
-	public function testVisibleBlueskyPostIsNotAskedAgainWithinThirtySeconds(): void {
+	public function testVisibleBlueskyPostIsNotAskedAgainWithinFiveSeconds(): void {
 		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3 * 86400, CountService::VISIBLE_INTERVAL - 1);
 		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
 		$source->method('supports')->with($post)->willReturn(true);
 		$source->expects($this->never())->method('refresh');
 		$this->sources[BlueskyCountSource::class] = $source;
 
-		$this->assertFalse($this->service()->refreshBlueskyIfDue($post));
+		$this->assertFalse($this->service()->refreshVisibleIfDue($post));
+	}
+
+	public function testVisibleFediversePostIsRefreshedImmediatelyInsteadOfWaitingForCron(): void {
+		$post = $this->post('https://remote.example/notes/1', 3600, null);
+		$source = $this->getMockBuilder(ActivityPubCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
+		$this->sources[ActivityPubCountSource::class] = $source;
+
+		$this->assertTrue($this->service()->refreshVisibleIfDue($post));
+	}
+
+	public function testOpeningABoostRefreshesTheUnderlyingPostsCounts(): void {
+		$post = $this->post('https://remote.example/notes/1', 3600, null);
+		$boost = new Announce();
+		$boost->setObject($post);
+		$source = $this->getMockBuilder(ActivityPubCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
+		$this->sources[ActivityPubCountSource::class] = $source;
+
+		$this->assertTrue($this->service()->refreshVisibleIfDue($boost));
 	}
 
 	public function testAPageQueuesItsDuePostsWithTheirIntervals(): void {

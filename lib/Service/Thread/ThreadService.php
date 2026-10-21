@@ -77,6 +77,8 @@ class ThreadService {
 			$source->fill($post, self::BUDGET);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky conversation not read during display', ['post' => $post->getId(), 'exception' => $e]);
+
+			return false;
 		}
 
 		return true;

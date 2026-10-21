@@ -44,6 +44,8 @@ class BlueskyFeeds {
 	private const CURSOR_KEPT = 3600;
 	/** Bound empty pages while preserving the cursor for the next request. */
 	private const MAX_EMPTY_PAGES = 10;
+	/** Keep a profile request bounded while filling a short AppView page. */
+	private const MAX_PROFILE_PAGES = 5;
 	private const CURSORS = 'social-atproto-feed-cursors';
 	private const CURSOR_RETRIES = 'social-atproto-feed-retries';
 	private const PROFILE_CURSORS = 'social-atproto-profile-cursors';
@@ -161,6 +163,9 @@ class BlueskyFeeds {
 		$method = $type === self::FEED ? 'app.bsky.feed.getFeed' : 'app.bsky.feed.getListFeed';
 		$seen = $cursor === '' ? [] : [$cursor => true];
 		$emptyPages = 0;
+		$profilePages = 0;
+		$visibleCount = 0;
+		$visibleSeen = [];
 		$this->streams->setViewer($actor);
 
 		while (true) {
@@ -248,6 +253,9 @@ class BlueskyFeeds {
 
 		$seen = $cursor === '' ? [] : [$cursor => true];
 		$emptyPages = 0;
+		$profilePages = 0;
+		$visibleCount = 0;
+		$visibleSeen = [];
 		if ($viewer === null) {
 			$this->streams->resetViewer();
 		} else {
@@ -298,12 +306,21 @@ class BlueskyFeeds {
 					$this->durableCache->set(self::PROFILE_CURSOR_PAGES, $this->profileCursorKey($actor, $cursor), true, self::CURSOR_KEPT);
 				}
 				if ($visibleIds !== []) {
+					$emptyPages = 0;
 					if ($next !== '') {
 						foreach (array_unique($visibleIds) as $visibleId) {
 							$this->durableCache->set(self::PROFILE_CURSORS, $this->profileCursorKey($actor, $visibleId), $next, self::CURSOR_KEPT);
 						}
 					}
-					return;
+					foreach (array_unique($visibleIds) as $visibleId) {
+						if (!isset($visibleSeen[$visibleId])) {
+							$visibleSeen[$visibleId] = true;
+							$visibleCount++;
+						}
+					}
+					if ($visibleCount >= max(1, $limit + 1) || $next === '') {
+						return;
+					}
 				}
 				if ($next === '') {
 					return;
@@ -312,8 +329,13 @@ class BlueskyFeeds {
 					throw new UnexpectedValueException('Bluesky author-feed cursor did not advance');
 				}
 				$seen[$next] = true;
-				if (++$emptyPages >= self::MAX_EMPTY_PAGES) {
-					throw new UnexpectedValueException('Bluesky author feed has too many consecutive pages with no visible posts');
+				if ($visibleIds === []) {
+					if (++$emptyPages >= self::MAX_EMPTY_PAGES) {
+						throw new UnexpectedValueException('Bluesky author feed has too many consecutive pages with no visible posts');
+					}
+				}
+				if (++$profilePages >= self::MAX_PROFILE_PAGES) {
+					return;
 				}
 				$cursor = $next;
 			}
