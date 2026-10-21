@@ -117,6 +117,26 @@ class ActivityPubThreadSourceTest extends TestCase {
 		$this->assertSame([], $this->fetched);
 	}
 
+	public function testFollowsActivityStreamsHrefLinks(): void {
+		$post = $this->note('https://remote.example/notes/1', ['replies' => [
+			'type' => 'OrderedCollection',
+			'first' => ['type' => 'Link', 'href' => 'https://remote.example/notes/1/replies?page=1'],
+		]]);
+		$this->remote = [
+			'https://remote.example/notes/1/replies?page=1' => [
+				'type' => 'OrderedCollectionPage',
+				'orderedItems' => ['https://a.example/notes/1'],
+				'next' => ['type' => 'Link', 'href' => 'https://remote.example/notes/1/replies?page=2'],
+			],
+			'https://remote.example/notes/1/replies?page=2' => ['type' => 'OrderedCollectionPage', 'orderedItems' => ['https://b.example/notes/2']],
+			'https://a.example/notes/1' => [],
+			'https://b.example/notes/2' => [],
+		];
+
+		$this->assertSame(2, $this->source->fill($post, 10));
+		$this->assertSame(['https://a.example/notes/1', 'https://b.example/notes/2'], $this->fetched);
+	}
+
 	public function testAPostWithoutARepliesCollectionOrOfThisServerIsNotAskedAbout(): void {
 		$this->assertFalse($this->source->supports($this->note('https://remote.example/notes/1')));
 		$this->assertFalse($this->source->supports($this->note('https://social.test/@alice/1', ['replies' => 'https://social.test/@alice/1/replies'], true)));

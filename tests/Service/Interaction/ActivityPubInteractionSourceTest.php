@@ -99,4 +99,29 @@ class ActivityPubInteractionSourceTest extends TestCase {
 			['https://remote.example/notes/1/likes?page=2', true, null],
 		], $requested);
 	}
+
+	public function testFollowsActivityStreamsHrefLinks(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$post->setSource((string)json_encode(['likes' => [
+			'type' => 'OrderedCollection',
+			'first' => ['type' => 'Link', 'href' => 'https://remote.example/notes/1/likes?page=1'],
+		]]));
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(2))->method('retrieveObject')->willReturnCallback(
+			static fn (string $id): array => match ($id) {
+				'https://remote.example/notes/1/likes?page=1' => [
+					'type' => 'OrderedCollectionPage',
+					'orderedItems' => ['https://a.example/users/ann'],
+					'next' => ['type' => 'Link', 'href' => 'https://remote.example/notes/1/likes?page=2'],
+				],
+				'https://remote.example/notes/1/likes?page=2' => ['type' => 'OrderedCollectionPage', 'orderedItems' => ['https://b.example/users/ben']],
+				default => throw new \UnexpectedValueException('Unexpected collection URL: ' . $id),
+			}
+		);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('resolveActors')->with(['https://a.example/users/ann', 'https://b.example/users/ben']);
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+
+		$this->assertSame(['https://a.example/users/ann', 'https://b.example/users/ben'], $source->actors($post, 'Like', 10));
+	}
 }

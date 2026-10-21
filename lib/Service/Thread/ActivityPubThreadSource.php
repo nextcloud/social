@@ -81,7 +81,7 @@ class ActivityPubThreadSource implements ThreadSource {
 		$seen = [];
 		for ($page = 0; $collection !== null && $page < self::PAGES;) {
 			if (is_array($collection) && !array_key_exists('orderedItems', $collection) && !array_key_exists('items', $collection)) {
-				$collection = self::collectionReference($collection['first'] ?? $collection['next'] ?? $collection['id'] ?? $collection['@id'] ?? null);
+				$collection = self::collectionReference($collection['first'] ?? $collection['next'] ?? $collection['id'] ?? $collection['@id'] ?? $collection['href'] ?? null);
 				continue;
 			}
 			if (is_string($collection)) {
@@ -133,7 +133,7 @@ class ActivityPubThreadSource implements ThreadSource {
 			if (array_key_exists('orderedItems', $reference) || array_key_exists('items', $reference)) {
 				return $reference;
 			}
-			$reference = $reference['id'] ?? $reference['@id'] ?? null;
+			$reference = $reference['id'] ?? $reference['@id'] ?? $reference['href'] ?? null;
 		}
 
 		return is_string($reference) && preg_match('#^https?://#i', $reference) === 1 ? $reference : null;

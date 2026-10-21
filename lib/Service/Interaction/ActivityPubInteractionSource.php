@@ -53,7 +53,7 @@ class ActivityPubInteractionSource implements InteractionSource {
 			// page-shaped object is already the page; a link-shaped one has to
 			// be dereferenced before its actors can be read.
 			if (is_array($collection) && !array_key_exists('orderedItems', $collection) && !array_key_exists('items', $collection)) {
-				$reference = $collection['first'] ?? $collection['next'] ?? $collection['id'] ?? $collection['@id'] ?? null;
+				$reference = $collection['first'] ?? $collection['next'] ?? $collection['id'] ?? $collection['@id'] ?? $collection['href'] ?? null;
 				$collection = self::collectionReference($reference);
 				continue;
 			}
@@ -120,7 +120,7 @@ class ActivityPubInteractionSource implements InteractionSource {
 			if (array_key_exists('orderedItems', $reference) || array_key_exists('items', $reference)) {
 				return $reference;
 			}
-			$reference = $reference['id'] ?? $reference['@id'] ?? null;
+			$reference = $reference['id'] ?? $reference['@id'] ?? $reference['href'] ?? null;
 		}
 
 		return is_string($reference) && preg_match('#^https?://#i', $reference) === 1 ? $reference : null;
