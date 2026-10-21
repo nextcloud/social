@@ -234,14 +234,17 @@ class BlueskyFeedsTest extends TestCase {
 		self::assertSame(['app.bsky.feed.getAuthorFeed', [
 			'actor' => self::BOB,
 			'filter' => 'posts_with_replies',
-			'limit' => 20,
+			'limit' => 21,
 		], false], $this->asked[0]);
 		self::assertSame(['app.bsky.feed.getAuthorFeed', [
 			'actor' => self::BOB,
 			'filter' => 'posts_with_replies',
-			'limit' => 20,
+			'limit' => 21,
 			'cursor' => 'profile-next',
 		], false], $this->asked[1]);
+
+		$feeds->authorPage($actor, $after, 20, $this->alice);
+		self::assertCount(2, $this->asked, 'a consumed AppView page is not fetched again while local max_id pages through its posts');
 	}
 
 	public function testEmptyPagesWithCursorsAreSkippedUntilAVisiblePostAppears(): void {

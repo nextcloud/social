@@ -47,6 +47,7 @@ class BlueskyFeeds {
 	private const CURSORS = 'social-atproto-feed-cursors';
 	private const CURSOR_RETRIES = 'social-atproto-feed-retries';
 	private const PROFILE_CURSORS = 'social-atproto-profile-cursors';
+	private const PROFILE_CURSOR_PAGES = 'social-atproto-profile-cursor-pages';
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
 
 	public function __construct(
@@ -240,6 +241,9 @@ class BlueskyFeeds {
 				return;
 			}
 			$cursor = $stored;
+			if ($this->durableCache->get(self::PROFILE_CURSOR_PAGES, $this->profileCursorKey($actor, $cursor)) === true) {
+				return;
+			}
 		}
 
 		$seen = $cursor === '' ? [] : [$cursor => true];
@@ -255,7 +259,9 @@ class BlueskyFeeds {
 				$answer = $this->appView->query('app.bsky.feed.getAuthorFeed', [
 					'actor' => BlueskyIds::didOf($actor->getId()),
 					'filter' => 'posts_with_replies',
-					'limit' => max(1, min(100, $limit)),
+					// Include one post beyond the API page so max_id can continue
+					// when firehose rows and AppView rows differ at the page edge.
+					'limit' => min(100, max(1, $limit + 1)),
 				] + ($cursor !== '' ? ['cursor' => $cursor] : []));
 				if (!is_array($answer['feed'] ?? null)) {
 					throw new UnexpectedValueException('Bluesky author feed response has no feed array');
@@ -288,6 +294,9 @@ class BlueskyFeeds {
 					throw new UnexpectedValueException('Bluesky author feed response has an invalid cursor');
 				}
 				$next = $answer['cursor'] ?? '';
+				if ($cursor !== '') {
+					$this->durableCache->set(self::PROFILE_CURSOR_PAGES, $this->profileCursorKey($actor, $cursor), true, self::CURSOR_KEPT);
+				}
 				if ($visibleIds !== []) {
 					if ($next !== '') {
 						foreach (array_unique($visibleIds) as $visibleId) {
