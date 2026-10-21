@@ -19,6 +19,7 @@ use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoClientRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
+use OCP\Accounts\IAccountManager;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IUserManager;
 use OCP\Security\Bruteforce\IThrottler;
@@ -48,6 +49,7 @@ class SessionService {
 		private AppPasswordService $appPasswords,
 		private AtprotoClientRequest $request,
 		private ActorsRequest $actors,
+		private IAccountManager $accountManager,
 		private IUserManager $userManager,
 		private IThrottler $throttler,
 		private ITimeFactory $time,
@@ -150,17 +152,22 @@ class SessionService {
 	}
 
 	/**
-	 * The account's e-mail address, as the Nextcloud account has it. It
-	 * counts as confirmed: the account is one an administrator or the
-	 * person manages, and Bluesky's apps offer video only to an account
-	 * whose address is confirmed.
+	 * The account's e-mail address and its actual Nextcloud verification
+	 * state. A configured address alone is not proof of ownership.
 	 *
 	 * @return array{email?: string, emailConfirmed: bool}
 	 */
 	private function email(string $userId): array {
-		$email = (string)$this->userManager->get($userId)?->getEMailAddress();
+		$user = $this->userManager->get($userId);
+		if ($user === null) {
+			return ['emailConfirmed' => false];
+		}
+		$property = $this->accountManager->getAccount($user)->getProperty(IAccountManager::PROPERTY_EMAIL);
+		$email = trim($property->getValue());
 
-		return $email === '' ? ['emailConfirmed' => false] : ['email' => $email, 'emailConfirmed' => true];
+		return $email === ''
+			? ['emailConfirmed' => false]
+			: ['email' => $email, 'emailConfirmed' => $property->getVerified() === IAccountManager::VERIFIED];
 	}
 
 	/**

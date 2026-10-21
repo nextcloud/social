@@ -600,6 +600,20 @@ authors are followed, how many accounts' notifications are asked for, and how
 far behind the slowest of each is. `atproto_sync_ceiling` (default 200) caps
 the AppView requests one sync pass makes.
 
+The readiness checks also fetch the public OAuth protected-resource and
+authorization-server documents from the configured PDS origin. They require
+HTTP 200 JSON responses without redirects, one matching authorization server,
+and the AT Protocol OAuth requirements: PAR, DPoP with ES256, authorization
+code and refresh grants, S256, the `atproto` scope, public and confidential
+client authentication, and the shared authorization and token endpoints. A
+failed check means the public root rewrite is incomplete or the OAuth metadata
+is not suitable for Bluesky sign-in.
+
+The relay checks distinguish host discovery from repository visibility: each
+configured relay is asked both whether it has crawled the PDS host and whether
+it has synchronized one active local DID. The latter catches a relay that
+knows the host but has not yet indexed the sampled account.
+
 **Bluesky figures.** Beside the card, under Federation, a read-only section
 shows how Bluesky is doing here: the accounts with a Bluesky identity and how
 many of their owners switched it off; the posts written to Bluesky from here

@@ -1449,6 +1449,33 @@ class OAuthControllerTest extends TestCase {
 		$this->assertSame('https://nc.example/api/v1/apps', $data['app_registration_endpoint']);
 	}
 
+	public function testTheRootDocumentIncludesAtprotoDiscoveryWhenBlueskyIsReady(): void {
+		$this->atprotoConfig->method('isEnabled')->willReturn(true);
+		$this->atprotoOAuth->method('metadata')->willReturn([
+			'issuer' => 'https://nc.example',
+			'pushed_authorization_request_endpoint' => 'https://nc.example/oauth/par',
+			'require_pushed_authorization_requests' => true,
+			'authorization_response_iss_parameter_supported' => true,
+			'dpop_signing_alg_values_supported' => ['ES256'],
+			'client_id_metadata_document_supported' => true,
+			'token_endpoint_auth_signing_alg_values_supported' => ['ES256'],
+			'response_modes_supported' => ['query', 'fragment'],
+			'protected_resources' => ['https://nc.example'],
+		]);
+		$this->checkService->method('clientApiRootIsKnownGood')->willReturn(true);
+		$this->configService->method('getSocialUrl')->willReturn('https://nc.example/apps/social/');
+		$this->configService->method('getCloudUrl')->willReturn('https://nc.example');
+
+		$data = $this->controller->oauthMetadata()->getData();
+
+		$this->assertSame('https://nc.example', $data['issuer']);
+		$this->assertSame('https://nc.example/oauth/par', $data['pushed_authorization_request_endpoint']);
+		$this->assertTrue($data['require_pushed_authorization_requests']);
+		$this->assertSame(['ES256'], $data['dpop_signing_alg_values_supported']);
+		$this->assertContains('atproto', $data['scopes_supported']);
+		$this->assertSame('https://nc.example/oauth/token', $data['token_endpoint']);
+	}
+
 	/**
 	 * Without the rewrite the root answers nothing at all, so the app's own
 	 * addresses are both the honest answer and the only reachable one.

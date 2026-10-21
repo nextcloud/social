@@ -501,6 +501,8 @@ export default {
 					return t('social', 'Firehose upgrade route responds')
 				case 'relay_host':
 					return t('social', 'Relays carry this server')
+				case 'relay_repo':
+					return t('social', 'Relays carry a local repository')
 				case 'did_resolution':
 					return t('social', 'Public DID resolution')
 				case 'appview_profile':

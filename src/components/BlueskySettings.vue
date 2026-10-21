@@ -313,15 +313,41 @@
 					</NcButton>
 				</template>
 			</div>
+			<div v-if="bluesky.active !== false" class="bluesky-settings__oauth-sign-in">
+				<h5 class="bluesky-settings__title">
+					{{ t('social', 'Sign in to the Bluesky app') }}
+				</h5>
+				<p class="bluesky-settings__hint">
+					{{ t('social', 'Enter this server as the hosting provider in the Bluesky app: {server}. Use your Bluesky handle {handle}. When the app opens this server, sign in with your Nextcloud account and review the access it requests. The app receives an OAuth session; your Nextcloud password stays here.', { server: origin, handle: '@' + bluesky.handle }) }}
+				</p>
+				<dl class="bluesky-settings__identity">
+					<div class="bluesky-settings__identity-row">
+						<dt>{{ t('social', 'Hosting provider') }}</dt>
+						<dd>
+							<code class="bluesky-settings__code">{{ origin }}</code>
+							<NcButton
+								variant="tertiary"
+								:title="blueskyCopied === 'pds' ? t('social', 'Copied') : t('social', 'Copy')"
+								:aria-label="blueskyCopied === 'pds' ? t('social', 'Copied') : t('social', 'Copy the hosting provider address')"
+								@click="copyBluesky('pds', origin)">
+								<template #icon>
+									<Check v-if="blueskyCopied === 'pds'" :size="16" />
+									<ContentCopy v-else :size="16" />
+								</template>
+							</NcButton>
+						</dd>
+					</div>
+				</dl>
+			</div>
 			<!-- what a Bluesky app signs in with: this server is its
 			     hosting provider, and the Nextcloud password is never
 			     handed to it -->
 			<div v-if="bluesky.active !== false && !appPasswordsHidden" class="bluesky-settings__app-passwords">
 				<h5 class="bluesky-settings__title">
-					{{ t('social', 'App passwords for Bluesky apps') }}
+					{{ t('social', 'App passwords for other Bluesky apps') }}
 				</h5>
 				<p class="bluesky-settings__hint">
-					{{ t('social', 'To use a Bluesky app with this account, sign in there with your Bluesky handle and an app password made here, and choose this server as your hosting provider: {server}.', { server: origin }) }}
+					{{ t('social', 'Use an app password only with a client that does not support Bluesky sign-in. Choose this server as its hosting provider: {server}. Never enter your Nextcloud password in a client.', { server: origin }) }}
 				</p>
 				<p v-if="appPasswordsError" class="bluesky-settings__hint">
 					{{ appPasswordsError }}
@@ -586,6 +612,7 @@ export default {
 			publishBlocks: false,
 			switchingBlocks: false,
 			/** what was just copied: one of the copyBluesky names, or '' */
+			/** @type {'handle'|'did'|'phrase'|'key-multibase'|'key-hex'|'key-public'|'dns-name'|'dns-value'|'file-address'|'file-content'|'password'|'pds'|''} */
 			blueskyCopied: '',
 			blueskyCopyTimer: null,
 			recovering: false,
@@ -814,7 +841,7 @@ export default {
 		fullDateTime,
 
 		/**
-		 * @param {'handle'|'did'|'phrase'|'key-multibase'|'key-hex'|'key-public'|'password'|'dns-name'|'dns-value'|'file-address'|'file-content'} which what was asked for
+		 * @param {'handle'|'did'|'phrase'|'key-multibase'|'key-hex'|'key-public'|'password'|'dns-name'|'dns-value'|'file-address'|'file-content'|'pds'} which what was asked for
 		 * @param {string} text what goes onto the clipboard
 		 */
 		async copyBluesky(which, text) {

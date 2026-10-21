@@ -612,6 +612,12 @@ served (switching off is in Settings, §4.6); `com.atproto.repo.createRecord`, `
 (proxied, §12.3); `com.atproto.label.queryLabels` (answers the self-labels
 of local records only); `_health`.
 
+`describeServer` advertises the instance's actual handle suffix (for example,
+`.social.example.com`) and the maximum upload limit enforced by the XRPC
+endpoint, including its 100,000,000-byte video limit. It
+does not publish a privacy-policy link unless the instance has a real policy
+URL; the Social app landing page is not a privacy policy.
+
 **Proxied to the AppView** with a service-auth token for the calling user
 (`Authorization: Bearer <JWT signed by the user's signing key, aud
 did:web:api.bsky.app>`): everything under `app.bsky.*`; `chat.bsky.*`
@@ -627,18 +633,35 @@ response passed through unchanged.
 
 ### 6.3 Authentication for Bluesky apps (D17)
 
-Phase 1 serves `createSession` with **app passwords**: a Nextcloud app
-password (Settings → Security) is what a Bluesky app is given as the
-password, checked through `IProvider`/`IUserManager::checkPassword`, which
-is how Nextcloud's own clients log in. The session is a pair of JWTs
-(access 2 h, refresh 90 d) signed with the instance service key, carried in
-`Authorization: Bearer`, with `did` and `handle` in the response as Bluesky
-apps expect. **OAuth for Bluesky apps** (PAR, DPoP, PKCE S256, client
-metadata URL — what the official app uses since 2025) is phase 3; until
-then the official app's "custom PDS" sign-in works with the app password,
-which is what every self-hosted PDS offered before OAuth. The existing
-Mastodon OAuth server (`OAuthController`) is not reused for this: its
-tokens are Social's client API's, and the two token worlds stay apart.
+Bluesky apps can sign in with this PDS in either of two ways:
+
+- **OAuth is the preferred path, including for the official Bluesky app.**
+  The app asks for this PDS as its hosting provider, resolves the account's
+  handle to its DID, and follows the PDS's OAuth discovery metadata. Its
+  authorization request uses PAR, DPoP and PKCE S256. The person signs in
+  with their Nextcloud account on this server, reviews the requested access,
+  and approves it here. The app receives a DPoP-bound OAuth session; it
+  never receives the Nextcloud password. The session appears in Settings →
+  Apps and account → Bluesky and can be revoked there. Settings also shows
+  the exact PDS address and handle to enter in the Bluesky app.
+- **App passwords remain available for clients that do not support OAuth.**
+  A Nextcloud app password made in Social's Bluesky settings is checked
+  through `IProvider`/`IUserManager::checkPassword` and creates a PDS session:
+  access JWTs last two hours and refresh JWTs last 90 days, signed with the
+  instance service key and carried in `Authorization: Bearer`. A client must
+  use this server as its hosting provider; the Nextcloud account password is
+  never an app password.
+
+OAuth is AT Protocol's profile, not a reuse of the Mastodon client API's
+OAuth tokens. The two token worlds and their sessions stay apart. The full
+OAuth flow is exercised with the official `@atproto/oauth-client-node`
+library against the development network, including account resolution,
+PAR, server-side approval, token exchange, PDS requests, refresh and sign-out.
+When `getSession` returns an email under `transition:email`,
+`emailConfirmed` reflects Nextcloud's verified status for the primary email
+property. Merely having an email address configured on the Nextcloud account
+does not mark it as confirmed; without that verification, clients receive
+`emailConfirmed: false`.
 
 Rate limits: Bluesky's PDS limits are the model — 3,000 points per hour per
 DID for writes (create 3, update 2, delete 1), 300/5 min per IP on
@@ -2044,7 +2067,8 @@ numbers on the Statistics page's agency view, labelled.
 
 Every 15 minutes, a background health check refreshes externally observable
 checks and caches them for the admin page: the PLC directory must resolve an
-active local DID to this PDS, and the configured public AppView must resolve an
+active local DID to this PDS, each configured relay must report the sampled
+active DID repository, and the configured public AppView must resolve an
 active profile and the newest locally stored post. Relay crawling and AppView
 indexing are asynchronous, so a missing profile or post is shown as a warning
 with diagnostic guidance; it does not block enabling the PDS. With no active
@@ -2344,9 +2368,11 @@ Everything in the phase 2 row, in `lib/Atproto/Reader/` (`BlueskyActorService`,
   Bluesky post that is not here is stored with its bsky.app parent id and
   the ordinary unknown-parent fetch is not run for it (one hop through
   `getPostThread` is phase 3).
-- **Deletes from Bluesky are not yet noticed** (§9.5): a post gone from the
-  author feed stays until phase 3 adds the daily `getPosts` check or the
-  Jetstream listener. Nor is the optional Jetstream listener (§9.4) built.
+- **Deletes from Bluesky** (§9.5) are noticed in two ways: the maintenance
+  job checks a page of 25 stored Bluesky posts from the last seven days
+  against the AppView each run, and the optional Jetstream daemon deletes a
+  watched post as soon as it receives its delete event. The periodic sweep
+  remains useful when Jetstream is not configured or misses an event.
 - **No quote notification**: Social has none (the spec was wrong there); a
   quote of a local post is stored as the post it is in and shows in the
   feed of anybody who follows the quoting account.

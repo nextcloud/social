@@ -203,7 +203,7 @@ class RateLimitServiceTest extends TestCase {
 	}
 
 	public function testAWindowOfZeroDoesNotDivideByZero(): void {
-		$this->assertGreaterThan(time(), $this->service->windowEnd(0));
+		$this->assertGreaterThan($this->clock->getTime(), $this->service->windowEnd(0));
 	}
 
 	/**
