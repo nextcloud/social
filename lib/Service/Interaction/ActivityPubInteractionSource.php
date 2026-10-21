@@ -47,6 +47,7 @@ class ActivityPubInteractionSource implements InteractionSource {
 		$ids = [];
 		$seen = [];
 		$requests = 0;
+		$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
 		for ($page = 0; (is_string($collection) || is_array($collection)) && $page < self::PAGES && count($ids) < $limit;) {
 			// ActivityPub servers may encode `first` and `next` as link
 			// objects (`{"id":"https://…"}`), not only as strings. A
@@ -64,9 +65,17 @@ class ActivityPubInteractionSource implements InteractionSource {
 				$seen[$collection] = true;
 				$requests++;
 				try {
-					$collection = $timeout === null
+					$requestTimeout = $timeout;
+					if ($deadline !== null && $requests > 1) {
+						$remaining = (int)floor(max(0, $deadline - hrtime(true)) / 1_000_000_000);
+						if ($remaining < 1) {
+							throw new \RuntimeException('visible reaction read exceeded its time budget');
+						}
+						$requestTimeout = min($timeout ?? $remaining, $remaining);
+					}
+					$collection = $requestTimeout === null
 						? $this->curl->retrieveObject($collection)
-						: $this->curl->retrieveObject($collection, true, $timeout);
+						: $this->curl->retrieveObject($collection, true, $requestTimeout);
 				} catch (Throwable $e) {
 					$this->logger->info('A collection of reactions was not read', ['post' => $post->getId(), 'exception' => $e]);
 					throw $e;

@@ -57,6 +57,32 @@ class ActivityPubInteractionSourceTest extends TestCase {
 		$this->assertSame(['https://a.example/users/ann'], $source->actors($post, 'Like', 10, 3));
 	}
 
+	public function testVisibleReadUsesOneTimeoutBudgetAcrossCollectionPages(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$post->setSource((string)json_encode(['likes' => [
+			'type' => 'OrderedCollection',
+			'first' => ['id' => 'https://remote.example/notes/1/likes?page=1'],
+		]]));
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('retrieveObject')
+			->with('https://remote.example/notes/1/likes?page=1', true, 2)
+			->willReturnCallback(static function (): array {
+				usleep(1_100_000);
+
+				return [
+					'type' => 'OrderedCollectionPage',
+					'orderedItems' => ['https://a.example/users/ann'],
+					'next' => 'https://remote.example/notes/1/likes?page=2',
+				];
+			});
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('visible reaction read exceeded its time budget');
+		$source->actors($post, 'Like', 10, 2);
+	}
+
 	public function testFollowsActivityPubPageLinksEncodedAsObjects(): void {
 		$post = (new Note())->setId('https://remote.example/notes/1');
 		$post->setSource((string)json_encode(['likes' => [
