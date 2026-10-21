@@ -120,6 +120,18 @@ class BlueskyBookmarksTest extends TestCase {
 		$this->assertSame('10', $answer['cursor']);
 	}
 
+	public function testBookmarkCursorKeepsNidsLargerThanNativeIntegersExact(): void {
+		$this->timeline = [
+			(new Note())->setId(self::BLUESKY_POST)->setNid('9223372036854775809'),
+			(new Note())->setId(self::BLUESKY_POST . '/2')->setNid('9223372036854775808'),
+			(new Note())->setId(self::BLUESKY_POST . '/3')->setNid('9223372036854775810'),
+		];
+
+		$answer = $this->bookmarks->list(new ClientSession('alice', $this->identity, 'jti'), 3, '');
+
+		$this->assertSame('9223372036854775808', $answer['cursor']);
+	}
+
 	#[DataProvider('bookmarkPages')]
 	public function testBookmarkPreviewsRespectTheAppViewLimitAndKeepTheirOrder(int $count, bool $active): void {
 		$uris = $this->fillBookmarks($count);
