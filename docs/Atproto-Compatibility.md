@@ -2106,6 +2106,13 @@ that capability instead of reporting success. These checks establish
 reachability and visibility for the sampled identity and post, not universal
 indexing by every Bluesky relay or AppView.
 
+When a relay reports `HostNotFound`, the admin check distinguishes a
+non-public PDS address (private/reserved IP or local/reserved hostname) from a
+public host the relay has not crawled yet. The former explains that public DNS,
+HTTPS and an externally reachable web server are required before a crawl can
+work; it does not recommend retrying `requestCrawl` against an unreachable
+LAN address.
+
 The admin health check sends an RFC 6455 upgrade request to the public
 `subscribeRepos` route. It validates the `101` response, `Upgrade`, `Connection`
 and `Sec-WebSocket-Accept` headers, using the same public-address guard and DNS

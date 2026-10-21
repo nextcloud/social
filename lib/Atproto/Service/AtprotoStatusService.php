@@ -300,6 +300,7 @@ class AtprotoStatusService {
 		if ($host === '' || $relays === []) {
 			return ['id' => 'relay_host', 'state' => 'warning', 'detail' => 'No relay is configured, so nothing on Bluesky reads this server'];
 		}
+		$nonPublicReason = $this->nonPublicHostReason($host);
 		$state = 'ok';
 		$details = [];
 		foreach ($relays as $relay) {
@@ -308,7 +309,8 @@ class AtprotoStatusService {
 			$status = (string)($answer['status'] ?? '');
 			$accounts = (int)($answer['accountCount'] ?? 0);
 			[$ok, $detail] = match (true) {
-				($answer['error'] ?? '') === 'HostNotFound' => [false, $name . ' has not crawled this server yet: run occ social:atproto:crawl'],
+				($answer['error'] ?? '') === 'HostNotFound' && $nonPublicReason !== null => [false, $name . ' cannot crawl this PDS because ' . $host . ' is ' . $nonPublicReason . '; configure public DNS, HTTPS and an externally reachable web server before requesting a crawl'],
+				($answer['error'] ?? '') === 'HostNotFound' => [false, $name . ' has not crawled this server: verify public DNS, HTTPS and firehose reachability, then run occ social:atproto:crawl'],
 				$status === 'active', $status === 'idle' => [true, $name . ': ' . $status . ', ' . $accounts . ' accounts'],
 				$status === 'throttled' => [false, $name . ' throttles this server at ' . $accounts . ' accounts: ask its operator to raise the limit for this host'],
 				$status === 'banned' => [false, $name . ' has banned this server: nothing it publishes reaches Bluesky through this relay'],
@@ -320,6 +322,22 @@ class AtprotoStatusService {
 		}
 
 		return ['id' => 'relay_host', 'state' => $state, 'detail' => implode('; ', $details)];
+	}
+
+	private function nonPublicHostReason(string $host): ?string {
+		if (filter_var($host, FILTER_VALIDATE_IP) !== false
+			&& filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+			return 'a private or reserved IP address';
+		}
+
+		$host = strtolower(rtrim($host, '.'));
+		if (in_array($host, ['localhost', 'ip6-localhost'], true)
+			|| preg_match('/\.(?:localhost|local|test|invalid|example|internal)$/D', $host) === 1
+			|| str_ends_with($host, '.home.arpa')) {
+			return 'a local or reserved hostname';
+		}
+
+		return null;
 	}
 
 	private function didResolutionCheck(?Identity $identity): array {
