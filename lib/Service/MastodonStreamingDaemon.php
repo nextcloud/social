@@ -21,11 +21,12 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-/** Serves the Mastodon user and user-notification WebSocket and SSE streams. */
+/** Serves the Mastodon user, direct-message, and public WebSocket and SSE streams. */
 class MastodonStreamingDaemon {
 	public const DEFAULT_BIND = '127.0.0.1:8788';
 	private const PATH = '/api/v1/streaming';
@@ -43,6 +44,7 @@ class MastodonStreamingDaemon {
 		private AccountService $accountService,
 		private StreamRequest $streamRequest,
 		private StreamService $streamService,
+		private ConversationService $conversationService,
 		private FilterService $filterService,
 		private FeedDisplayService $feedDisplayService,
 		private NotificationPolicyService $notificationPolicyService,
@@ -106,6 +108,8 @@ class MastodonStreamingDaemon {
 			} elseif ($path === self::PATH . '/hashtag' || $path === self::PATH . '/hashtag/local') {
 				$pathStream = $path === self::PATH . '/hashtag/local' ? 'hashtag:local' : 'hashtag';
 				$stream = $pathStream;
+			} elseif ($path === self::PATH . '/direct') {
+				$pathStream = 'direct';
 			} else {
 				$pathStream = str_ends_with($path, '/notification') ? 'user:notification' : 'user';
 			}
@@ -157,6 +161,7 @@ class MastodonStreamingDaemon {
 				'viewer' => $viewer,
 				'homeSince' => $this->streamRequest->newestHomeNid($viewer),
 				'notificationSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif'),
+				'directSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm'),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
@@ -178,7 +183,7 @@ class MastodonStreamingDaemon {
 	}
 
 	private function supportsStream(string $stream): bool {
-		return in_array($stream, ['user', 'user:notification', 'hashtag', 'hashtag:local', ...self::PUBLIC_STREAMS], true);
+		return in_array($stream, ['user', 'user:notification', 'direct', 'hashtag', 'hashtag:local', ...self::PUBLIC_STREAMS], true);
 	}
 
 	private function onMessage(Subscriber $subscriber, int $opcode, string $payload): ?string {
@@ -281,7 +286,7 @@ class MastodonStreamingDaemon {
 		if (in_array('read', $scopes, true)) {
 			return true;
 		}
-		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'], true)) {
+		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct'], true)) {
 			return in_array('read:statuses', $scopes, true);
 		}
 
@@ -301,7 +306,7 @@ class MastodonStreamingDaemon {
 		if (in_array('read', $scopes, true)) {
 			return true;
 		}
-		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'], true)) {
+		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct'], true)) {
 			return in_array('read:statuses', $scopes, true);
 		}
 
@@ -337,6 +342,9 @@ class MastodonStreamingDaemon {
 		if (isset($subscriptions['user']) || isset($subscriptions['user:notification'])) {
 			$this->sendNotifications($server, $subscriber, $viewer);
 		}
+		if (isset($subscriptions['direct'])) {
+			$this->sendDirectConversations($server, $subscriber, $viewer);
+		}
 		foreach (self::PUBLIC_STREAMS as $stream) {
 			if (isset($subscriptions[$stream])) {
 				$this->sendPublicStatuses($server, $subscriber, $viewer, $stream);
@@ -344,6 +352,34 @@ class MastodonStreamingDaemon {
 		}
 		foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $key => $subscription) {
 			$this->sendHashtagStatuses($server, $subscriber, $viewer, $key, $subscription);
+		}
+	}
+
+	private function sendDirectConversations(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
+		for ($pageNumber = 0; $pageNumber < self::MAX_BATCHES_PER_POLL && !$subscriber->closed; $pageNumber++) {
+			$since = (string)($subscriber->context['directSince'] ?? '0');
+			$page = $this->conversationService->getPage($viewer, ConversationService::MAX_LIMIT, 0, 0, $since, false);
+			$conversations = $page['conversations'];
+			$cursor = (string)$page['prev'];
+			if (Nid::compare($cursor, $since) < 1) {
+				$cursor = $since;
+			}
+			foreach ($conversations as $conversation) {
+				$nid = $conversation->getLastStatusNid();
+				if (Nid::compare((string)$nid, $cursor) > 0) {
+					$cursor = (string)$nid;
+				}
+			}
+			if ($cursor === $since && $conversations === []) {
+				return;
+			}
+			foreach (array_reverse($conversations) as $conversation) {
+				$this->send($server, $subscriber, ['direct'], 'conversation', $conversation->jsonSerialize());
+			}
+			$subscriber->context['directSince'] = $cursor;
+			if (count($conversations) < ConversationService::MAX_LIMIT) {
+				return;
+			}
 		}
 	}
 
