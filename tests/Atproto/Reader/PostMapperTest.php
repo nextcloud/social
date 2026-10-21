@@ -205,6 +205,52 @@ class PostMapperTest extends TestCase {
 		$this->assertSame('https://cdn.bsky.app/thumb.png', $image['attachment'][0]['url'], 'legacy image views also fall back to their thumbnail');
 	}
 
+	public function testRawImageBlobsAreUsedWhenAppViewOmitsTheEmbedView(): void {
+		$cid = Cid::forRaw('original bluesky image bytes')->toString();
+		$view = $this->postView();
+		$view['embed'] = null;
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [[
+				'image' => [
+					'$type' => 'blob',
+					'ref' => ['$link' => $cid],
+					'mimeType' => 'image/png',
+					'size' => 1234,
+				],
+				'alt' => 'the original record image',
+				'aspectRatio' => ['width' => 1200, 'height' => 800],
+			]],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([[
+			'type' => 'Image',
+			'mediaType' => 'image/png',
+			'url' => 'https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@png',
+			'name' => 'the original record image',
+			'width' => 1200,
+			'height' => 800,
+		]], $note['attachment'], 'the post remains viewable when its CDN-enriched embed is missing');
+	}
+
+	public function testRawImageBlobReferencesMustHaveAValidCidAndImageMimeType(): void {
+		$view = $this->postView();
+		$view['embed'] = null;
+		$view['record']['embed'] = [
+			'$type' => 'app.bsky.embed.images',
+			'images' => [
+				['image' => ['ref' => ['$link' => 'not-a-cid'], 'mimeType' => 'image/png']],
+				['image' => ['ref' => ['$link' => Cid::forRaw('opaque file bytes')->toString()], 'mimeType' => 'application/pdf']],
+			],
+		];
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([], $note['attachment'], 'an opaque or non-image blob is never presented as a broken image');
+	}
+
 	public function testAVideoPostIsAFederatedVideoStreamedFromItsPlaylist(): void {
 		$mapper = new PostMapper($this->createMock(LocalRecordResolver::class));
 		$playlist = 'https://video.bsky.app/watch/did%3Aplc%3Ax/bafkrei/playlist.m3u8';

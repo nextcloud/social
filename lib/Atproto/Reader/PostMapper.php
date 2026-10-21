@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Atproto\Reader;
 
+use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\Details;
@@ -38,6 +39,7 @@ class PostMapper {
 	}
 
 	private const IMAGES = 'app.bsky.embed.images#view';
+	private const RECORD_IMAGES = 'app.bsky.embed.images';
 	private const GALLERY = 'app.bsky.embed.gallery#view';
 	private const VIDEO = 'app.bsky.embed.video#view';
 	private const EXTERNAL = 'app.bsky.embed.external#view';
@@ -159,8 +161,13 @@ class PostMapper {
 		$rkey = BlueskyIds::parsePostId($id)['rkey'] ?? '';
 		$text = (string)($record['text'] ?? '');
 		$content = FacetRenderer::html($text, $record['facets'] ?? []);
-		$embed = is_array($post['embed'] ?? null) ? $post['embed'] : [];
-		[$attachments, $quote, $appended] = $this->embed($embed, $text, $id);
+		$viewEmbed = is_array($post['embed'] ?? null) ? $post['embed'] : [];
+		$viewType = (string)($viewEmbed['$type'] ?? '');
+		$embedViews = [self::IMAGES, self::GALLERY, self::VIDEO, self::EXTERNAL, self::RECORD, self::RECORD_WITH_MEDIA];
+		$embed = in_array($viewType, $embedViews, true)
+			? $viewEmbed
+			: (is_array($record['embed'] ?? null) ? $record['embed'] : $viewEmbed);
+		[$attachments, $quote, $appended] = $this->embed($embed, $text, $id, $did);
 		$content .= $appended;
 		$card = self::cardOf($embed);
 		if ($card !== null && !str_contains($content, $card['url'])) {
@@ -249,19 +256,21 @@ class PostMapper {
 	 *
 	 * @return array{0: list<array>, 1: string, 2: string}
 	 */
-	private function embed(array $embed, string $text, string $postId): array {
+	private function embed(array $embed, string $text, string $postId, string $authorDid): array {
 		$type = (string)($embed['$type'] ?? '');
 		if ($type === self::RECORD_WITH_MEDIA) {
-			[$attachments, , $appended] = $this->embed(is_array($embed['media'] ?? null) ? $embed['media'] : [], $text, $postId);
+			[$attachments, , $appended] = $this->embed(is_array($embed['media'] ?? null) ? $embed['media'] : [], $text, $postId, $authorDid);
 			// the nested record view is of one known type, so the JSON names none
 			$record = is_array($embed['record'] ?? null) ? $embed['record'] : [];
-			[, $quote] = $this->embed($record + ['$type' => self::RECORD], $text, $postId);
+			[, $quote] = $this->embed($record + ['$type' => self::RECORD], $text, $postId, $authorDid);
 
 			return [$attachments, $quote, $appended];
 		}
 		switch ($type) {
 			case self::IMAGES:
 				return [self::imagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], 'thumb'), '', ''];
+			case self::RECORD_IMAGES:
+				return [self::recordImagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], $authorDid), '', ''];
 			case self::GALLERY:
 				return [self::imagesOf(is_array($embed['items'] ?? null) ? $embed['items'] : [], 'thumbnail'), '', ''];
 			case self::RECORD:
@@ -309,6 +318,55 @@ class PostMapper {
 				continue;
 			}
 			$attachment = ['type' => 'Image', 'mediaType' => ActorMapper::mediaTypeOf($url), 'url' => $url, 'name' => (string)($image['alt'] ?? '')];
+			$ratio = $image['aspectRatio'] ?? null;
+			if (is_array($ratio) && (int)($ratio['width'] ?? 0) > 0 && (int)($ratio['height'] ?? 0) > 0) {
+				$attachment['width'] = (int)$ratio['width'];
+				$attachment['height'] = (int)$ratio['height'];
+			}
+			$attachments[] = $attachment;
+		}
+
+		return $attachments;
+	}
+
+	/**
+	 * Images in the original post record carry a blob reference instead of the
+	 * CDN URLs the AppView adds to its embed view. Build the public image URL
+	 * only for validated image blobs; never turn an arbitrary CID or MIME type
+	 * from a record into a fetch target.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private static function recordImagesOf(array $images, string $authorDid): array {
+		if (!Syntax::isDid($authorDid)) {
+			return [];
+		}
+		$attachments = [];
+		foreach ($images as $image) {
+			if (!is_array($image)) {
+				continue;
+			}
+			$blob = is_array($image['image'] ?? null) ? $image['image'] : [];
+			$ref = is_array($blob['ref'] ?? null) ? $blob['ref'] : [];
+			$cid = (string)($ref['$link'] ?? $blob['cid'] ?? '');
+			$mimeType = strtolower((string)($blob['mimeType'] ?? ''));
+			$format = match ($mimeType) {
+				'image/jpeg', 'image/jpg' => 'jpeg',
+				'image/png' => 'png',
+				'image/webp' => 'webp',
+				'image/gif' => 'gif',
+				default => '',
+			};
+			if ($format === '' || !Cid::isValid($cid)) {
+				continue;
+			}
+			$url = 'https://cdn.bsky.app/img/feed_fullsize/plain/' . $authorDid . '/' . $cid . '@' . $format;
+			$attachment = [
+				'type' => 'Image',
+				'mediaType' => $mimeType === 'image/jpg' ? 'image/jpeg' : $mimeType,
+				'url' => $url,
+				'name' => (string)($image['alt'] ?? ''),
+			];
 			$ratio = $image['aspectRatio'] ?? null;
 			if (is_array($ratio) && (int)($ratio['width'] ?? 0) > 0 && (int)($ratio['height'] ?? 0) > 0) {
 				$attachment['width'] = (int)$ratio['width'];
