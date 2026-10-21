@@ -186,6 +186,35 @@ class ConversationService {
 	}
 
 	/**
+	 * The current conversation after one of its messages was edited.
+	 *
+	 * @return Conversation|null null when the viewer cannot read the message
+	 *                           or has dismissed its conversation
+	 */
+	public function updatedByStatus(Person $viewer, int|string $statusNid): ?Conversation {
+		try {
+			[$root, $thread] = $this->threadOf($viewer, $statusNid);
+		} catch (ItemNotFoundException) {
+			return null;
+		}
+
+		$lastNid = $this->newestOf($thread);
+		$markers = $this->conversationsRequest->getMarkers($viewer->getId(), [$root['id']]);
+		$marker = $markers[$root['id']] ?? ['readNid' => 0, 'hiddenNid' => 0];
+		if ($this->isDismissed($lastNid, $marker['hiddenNid'])) {
+			return null;
+		}
+
+		$last = $this->streamService->getStreamByNid($lastNid);
+		return $this->single(
+			$viewer,
+			$root,
+			$lastNid,
+			$this->isUnread($viewer, $last->getAttributedTo(), $lastNid, $marker['readNid'])
+		);
+	}
+
+	/**
 	 * How many conversations have something in them the account has not read.
 	 *
 	 * What the sidebar badge shows, asked on every poll and every push. It

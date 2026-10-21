@@ -18,6 +18,7 @@ use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\MastodonPushContent;
 use OCA\Social\Service\PushSubscriptionService;
 use OCA\Social\Service\SafeWebPushClient;
 use OCA\Social\Service\VapidService;
@@ -74,6 +75,13 @@ class MastodonPushNotification extends QueuedJob {
 			}
 			$actor = $notification->getActor();
 			$account = $actor->getDisplayName() ?: ($actor->getName() ?: $notification->getAttributedTo());
+			$post = null;
+			if ($notification->getObjectId() !== '') {
+				try {
+					$post = $this->streamRequest->getStreamById($notification->getObjectId());
+				} catch (Throwable) {
+				}
+			}
 			$subject = Stream::notificationTypeOfSubType($notification->getSubType());
 			$user = $this->userManager->get($userId);
 			$locale = ($user instanceof IUser) ? $this->l10nFactory->getUserLanguage($user) : 'en';
@@ -107,7 +115,9 @@ class MastodonPushNotification extends QueuedJob {
 					'notification_type' => $subject,
 					'icon' => $actor->getAvatar(),
 					'title' => $title,
-					'body' => '',
+					'body' => $post === null
+						? MastodonPushContent::profileBody($actor)
+						: MastodonPushContent::body($post, $actor),
 				], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 				$encoding = $subscription['standard'] ? ContentEncoding::aes128gcm : ContentEncoding::aesgcm;
 				$endpoint = new Subscription($subscription['endpoint'], $subscription['p256dh'], $subscription['auth'], $encoding);

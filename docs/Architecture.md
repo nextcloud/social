@@ -271,6 +271,7 @@ The tables are created by `lib/Migration/Version1000Date20221118000002.php` — 
 | `social_account_note` | The private note one account keeps about another: one row per pair, never federated |
 | `social_mute_expiry` | When a mute runs out: one row per (muter, muted), and only for a mute that was given a duration |
 | `social_stream_rev` | The versions a status has been through: one row per version including the original, oldest first. `media` (TEXT, nullable) is the attachments of that version as a JSON list of client `MediaAttachment` entities, the shape `social_stream.attachments` stores — kept on the revision because `media_attributes` rewrites a description or focal point on the attachment itself; null on rows from before the column, which read as no attachments |
+| `social_stream_del` | A bounded cursor of public and direct-message deletions: status id, visibility, and for direct messages the original recipient actor hashes; public stream filters are kept only for public statuses, and clients receive ids only |
 | `social_featured_tag` | The hashtags an account pins to its profile: one row per (actor, lowercased tag), unique on the pair |
 | `social_announcement` | The instance's announcements: one row per notice, with the text as typed and the window it is served in (both bounds nullable) |
 | `social_announce_read` | Who has dismissed which announcement: one row per (account, announcement), unique on the pair |
@@ -306,6 +307,8 @@ an account without an identity does not prevent a later match from signing in.
 `Version1000Date20261016103300` adds `social_video_views` and `social_video_seen` — the public view count of a video posted here, and the day's dedupe behind it (see the schema table and **Where somebody stopped watching**). Two tables because they keep different things for different lengths of time: the number for as long as the post exists, the viewers for the day they were counted on.
 
 `Version1000Date20261006000010` adds `social_stream_rev.media`, the attachments of each recorded version of a status (see the schema table).
+
+`Version1000Date20261021000001` adds `social_stream_del`, a cursor of the latest 10,000 status deletions. `Version1000Date20261021000002` adds visibility and the hashes of original recipients; `Version1000Date20261021000003` adds the hashed followers collection for unlisted and followers-only posts. The daemon can remove deleted direct messages only from direct streams belonging to original participants, and unlisted/followers-only deletion events only from home and list streams of original recipients or accepted followers of that exact collection, without retaining post content. Private deletion events carry no hashtags and never reach public or hashtag streams.
 
 Two of those deserve a warning.
 
@@ -373,7 +376,7 @@ The business logic lives in `lib/Service/`.
 
 ### Federation
 
-- **ActivityService** — Wraps items in Create/Update/Delete activities, LD-signs them, resolves target inboxes, and drives the delivery queue. `request()` sends the single highest-priority entry synchronously and kicks off an async request for the rest
+- **ActivityService** — Wraps items in Create/Update/Delete activities, LD-signs them, resolves target inboxes, and drives the delivery queue. A reply whose parent exists only on Bluesky keeps its native `inReplyTo` on the stored stream for ATProto, while the ActivityPub copy is standalone, links the Bluesky post, and drops the synthetic Bluesky actor and its delivery path. Create, Update and rebuilt held deliveries use the same adaptation. `request()` sends the single highest-priority entry synchronously and kicks off an async request for the rest
 - **ImportService** — Parses incoming ActivityPub JSON into typed model objects (`AP::getItemFromData()`) and dispatches to the matching handler in `lib/Interfaces/`
 - **SignatureService** — RSA-2048 key generation, HTTP Signature verification (checking `date` freshness, then the body against `Content-Length` if the sender sent one and against `Digest`/`Content-Digest`, before the signature itself) and RsaSignature2017 Linked Data signatures. The signing itself is delegated to `HttpSignatureService`. Fetching a signing key this instance does not already hold is bounded — `UNKNOWN_KEY_CONNECT_TIMEOUT` (5 s) for DNS, TCP and TLS within `UNKNOWN_KEY_TIMEOUT` (10 s) overall, what Mastodon allows a peer of its own — and a fetch that failed is remembered so a burst naming the same unknown key costs one fetch and not one each: 300 s (`KEY_FAILURE_TTL`) when the peer answered and the answer was not a usable actor, 30 s (`KEY_UNREACHABLE_TTL`) when it never answered, because that says the peer was having a bad minute rather than anything about the key
 - **HttpSignatureService** — The one place an outbound HTTP signature is produced. Both entry points take the URL the request will actually be sent to and the body it will actually carry, and answer with the headers to send: `(request-target)` is the path and query of that very URL and `host` its authority, so the signature and the request cannot drift apart. A delivery is signed by its own author over `(request-target) content-length date host digest`; an ActivityPub GET is signed over `(request-target) host date` by `signFetch()`, as the instance's own `Application` actor. Never as a person: the owner of a signing key is dereferenced by every peer that checks it, so a borrowed account would appear in every peer's logs as this instance's reader and a block or suspension of it anywhere would stop every signed fetch from here — and an instance whose users have no Aloha Social accounts yet would have nobody to borrow. A key that cannot sign raises rather than sending an empty signature, and an instance that cannot produce one at all fetches unsigned, which is what the request was until now
@@ -475,7 +478,7 @@ copy in app storage; the original stays where it was, untouched.
 
 ### Mastodon Web Push
 
-`VapidService` creates one stable instance key pair and seals the private key with `PrivateKeyCipher`; `PushSubscriptionService` keeps each access token, endpoint and browser key pair in an encrypted per-user config value, indexed by the token digest. `NotificationService::emit()` queues `Cron\MastodonPushNotification` only for a locally deliverable notification that passes the notification policy and muted-thread checks. The job rechecks the recipient, applies each subscription's alert switches and followed/follower policy, encrypts with the negotiated `aes128gcm` or legacy `aesgcm` format, and sends through `SafeWebPushClient`, which delegates to `CurlService`'s pinned public-address request path without redirects. Expired 404/410 endpoints are removed; transient failures retry per subscription, so a retry does not resend to endpoints that already accepted the notification. The payload contains the bearer token only inside Web Push encryption; queued arguments and logs contain no bearer, endpoint or push keys.
+`VapidService` creates one stable instance key pair and seals the private key with `PrivateKeyCipher`; `PushSubscriptionService` keeps each access token, endpoint and browser key pair in an encrypted per-user config value, indexed by the token digest. `NotificationService::emit()` queues `Cron\MastodonPushNotification` only for a locally deliverable notification that passes the notification policy and muted-thread checks. The job rechecks the recipient, applies each subscription's alert switches and followed/follower policy, and sends a 140-character plain-text content warning or post excerpt (or the followed account's profile description when no status is attached). It encrypts with the negotiated `aes128gcm` or legacy `aesgcm` format and sends through `SafeWebPushClient`, which delegates to `CurlService`'s pinned public-address request path without redirects. Expired 404/410 endpoints are removed; transient failures retry per subscription, so a retry does not resend to endpoints that already accepted the notification. The payload contains the bearer token only inside Web Push encryption; queued arguments and logs contain no bearer, endpoint or push keys.
 
 ### Mastodon WebSocket and SSE streaming
 
@@ -492,10 +495,36 @@ cursor and can be unsubscribed independently.
 Once per second it reads the
 same timelines used by the REST API, applies the viewer's filters, reply
 visibility and notification policy, and emits Mastodon's event payloads.
+Every five seconds it fingerprints each subscribed account's filters and
+emits `filters_changed` on that account's user streams when the set changes;
+the event carries no payload, as Mastodon specifies.
+It also compares the account's active instance announcements every five
+seconds and emits `announcement`, `announcement.reaction` and
+`announcement.delete` when a notice appears, its reaction counts change, or
+it expires or is removed. String event payloads such as deleted ids are sent
+as raw text rather than JSON-quoted strings.
+Accepting a notification request bumps a dedicated per-account revision, which
+causes subscribed user and notification-only streams to emit
+`notifications_merged` without confusing other timeline changes with accepted
+requests.
+For edits to public posts it reads the append-only status-revision cursor and
+emits one `status.update` event per changed post on matching public and
+hashtag subscriptions. Home and owned-list streams recheck membership in the
+viewer-scoped timeline before receiving an edit, so a private post only reaches
+readers whose timeline already includes it.
+The direct stream resolves an edited message to a conversation visible to
+that viewer and emits the current `conversation` entity; a dismissed or
+inaccessible conversation is not emitted.
 `WebSocketServer` keeps connection and output-buffer bounds for both
-transports. The root Apache and Nginx examples proxy the streaming endpoints
-and health path to this daemon; delete and status-edit streams are not
-implemented yet.
+transports. Status deletions are retained as ids, visibility, and public-stream
+matching metadata, bounded to the newest 10,000 events. Direct-message events
+also keep the hashed recipients from the deleted post's destination rows. The
+daemon emits Mastodon's `delete` event to matching public subscriptions and to
+the direct stream only for an original participant. Direct-message events
+carry no hashtag metadata and are never sent to user, list, public, or hashtag
+streams. Unlisted and followers-only deletions are limited to authorized home/list viewers; the daemon resolves current follow state against the exact cached followers collection saved with the event.
+The root Apache and Nginx examples proxy the streaming endpoints and health
+path to this daemon.
 
 ## ActivityPub Federation
 
@@ -698,7 +727,7 @@ An activity that is understood but has no handler is still answered 200 (see bel
 | `Accept` / `Reject` (QuoteRequest) | The answer to a request of ours: the approval is written onto the quoting post, or the quote is marked rejected |
 | `Move` | The moving actor's relationships are repointed to the target actor — its followers, the accounts it follows, and the recipient rows of posts addressed to it or its collections — but only after the target actor (refreshed from its server) lists the moving actor in its `alsoKnownAs`; a Move whose target does not acknowledge the actor is refused. What the old account did stays its own, as on Mastodon: its posts, likes, boosts, reactions and documents keep their author, so its server can still edit and delete them, and an actor `Delete` of it removes them. The usual migration has the new account follow and be followed before the Move arrives, so a repointed row can meet one already there: a follow between the two accounts is dropped; for a follower of both, the follow of the new account stays (it is the id that account's server knows) and is accepted if either was; a follow the new account already made stays as it is, pending included, because its server waits for the Accept only the followed account here sends; a post addressed to both keeps one recipient row. All of it, with the moving actor's cached document marked `movedTo` the target (`CacheActorsRequest::markMoved()`), is one transaction, so a Move that fails leaves nothing half done and a retried one finds nothing left to move. `movedTo` is what the old profile here shows the redirect from — written from the Move, as Mastodon does, not fetched: the old server keeps serving the pre-move document for minutes (Mastodon caches the rendering for three). Local followers of the old account are then followed over to the new one, unless they already follow it or asked to |
 
-**OAuth: one authorization per account.** `social_client` is the app registration — the name, the redirect URIs, the client id and secret — and nothing else. Everything about *who authorized it* is a row of `social_client_auth`: the code, the token, the scopes granted and the account they were granted to, unique on (client, account). Before that, the app row held one `auth_user_id` and one `token`, so an app registration belonged to exactly one person at a time and the second person to sign in with Elk or Phanpy — which register one app per instance — signed the first one out, silently. Re-authorizing replaces that account's row and nobody else's; revoking takes one authorization, where it used to take the app row's only token and sign out everybody; and the expiry sweep deletes authorizations rather than the whole `social_client` row, which used to take the app's registration with an idle token and make the client register again. A token stops working a year after it was idle (`TIME_TOKEN_TTL`, refreshed by use) and, however much it is used, `token_max_days` after it was granted (`ClientService::expiresAt()`; 365 by default) — use alone kept a token alive for ever. A code is spent in the same statement that writes the token, so two requests arriving together cannot both exchange it, and it is exchangeable only under the `redirect_uri` it was sent to (RFC 6749 §4.1.3), which `Version1000Date20261003000001` records on the row. Every read joins the app row, so the rest of the app still sees one `SocialClient` carrying both halves.
+**OAuth: one authorization per account.** `social_client` is the app registration — the name, the redirect URIs, the client id and secret — and nothing else. Everything about *who authorized it* is a row of `social_client_auth`: the code, the token, the scopes granted and the account they were granted to, unique on (client, account). Before that, the app row held one `auth_user_id` and one `token`, so an app registration belonged to exactly one person at a time and the second person to sign in with Elk or Phanpy — which register one app per instance — signed the first one out, silently. Re-authorizing replaces that account's row and nobody else's; revoking takes one authorization, where it used to take the app row's only token and sign out everybody; and the expiry sweep deletes authorizations rather than the whole `social_client` row, which used to take the app's registration with an idle token and make the client register again. A token stops working a year after it was idle (`TIME_TOKEN_TTL`, refreshed by use) and, however much it is used, `token_max_days` after it was granted (`ClientService::expiresAt()`; 365 by default) — use alone kept a token alive for ever. A code is spent in the same statement that writes the token, so two requests arriving together cannot both exchange it, and it is exchangeable only under the `redirect_uri` it was sent to (RFC 6749 §4.1.3), which `Version1000Date20261003000001` records on the row. Every read joins the app row, so the rest of the app still sees one `SocialClient` carrying both halves. A browser arriving from an OAuth app without a Nextcloud session is sent through Nextcloud's login page and returned to the same authorization URL, preserving the client's validated request before consent is shown.
 
 **Notifications that are not activities.** Six of the nine notification types are an activity somebody sent — a Like, an Announce, a Mention, an Update, a Follow, a follow request — and `Stream::NOTIFICATION_TYPES` maps each to its Mastodon name. The other four are events this instance raises itself, with no ActivityPub verb behind them, so the subtype is this app's own name for the event: `poll` (swept by `PollService::announceClosedPolls()` from the cron, because a poll closes by its end time passing and nothing happens at the moment it does), `status` (the bell on a profile — a `notify` row in `social_actor_relation`, written by `POST /accounts/{id}/follow` with `notify`, and raised for local subscribers only since a remote one is told by their own server), `moderation_warning` (raised beside the Nextcloud notification a strike already sends, because a Mastodon client cannot see that one) and `severed_relationships` (raised by `DomainPurgeService` for the local accounts a block cuts off, counted *before* the purge because afterwards there is nothing left to count).
 
@@ -1174,6 +1203,9 @@ by the unfollow, whichever side it came from: a local `Undo` sent from here, or
 one that arrived in the inbox, in each case only when the follow it undoes had
 been accepted. The cron's walk is the safety net for what races through, not
 the thing that makes the number right.
+When an inbox `Undo` carries a composite Follow URI, the stored relationship is
+resolved by the exact actor and followed account pair; an unrelated Follow ID
+does not authorize deleting another relationship.
 
 **The cron walks rather than reads.** `Cron\Cache` refreshed *every* local
 account on every pass — the whole table in one PHP array, twelve minutes apart,
@@ -2205,8 +2237,14 @@ validates and commits the batch through `RepositoryService::write()` once;
 list synchronization runs after that repository commit. Its optional
 `swapCommit` is checked against the locked head before the repository changes,
 and the response carries the commit produced by the batch. Batches that include
-Social actions still follow the action-specific paths, which can have their
-own side effects and commit boundaries and do not support `swapCommit` yet.
+Social actions still follow the action-specific paths, while `RepositoryService`
+stages their Bluesky records and exposes them to later actions in the same
+batch. One database transaction commits the database-backed Social changes,
+repository records, and firehose event; ActivityPub deliveries begin after
+commit. On failure, the database transaction and deferred delivery starts are
+rolled back. Profile and media files use Nextcloud storage and are outside that
+database rollback. A mixed batch checks `swapCommit` against the locked
+repository head before committing.
 
 ### Switching off Bluesky
 

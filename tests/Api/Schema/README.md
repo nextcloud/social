@@ -46,9 +46,9 @@ A place where the app departs from Mastodon on purpose is written into the
 schema with the reason, so a change to it is a decision rather than a
 surprise:
 
-- `Instance.configuration.urls` and `V1Instance.urls` are empty objects:
-  there is no streaming server, and an empty `urls` makes a client poll at
-  once instead of after a timeout (`docs/Mastodon-Compatibility.md`).
+- `Instance.configuration.urls.streaming` and `V1Instance.urls.streaming_api`
+  advertise this instance's streaming host. The daemon is optional, so clients
+  can fall back to polling when it is not running (`docs/Mastodon-Compatibility.md`).
 - `Notification.type` accepts this app's own namespaced types
   (`bluesky:verified`, `story:react`, …) and Pixelfed's `tagged`, beside
   Mastodon's.

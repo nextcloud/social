@@ -181,4 +181,44 @@ class AppViewProxyTest extends TestCase {
 		$this->assertSame([$feeds], json_decode($stored, true), 'the words are not kept beside the filters');
 		$this->assertSame(['preferences' => [$feeds, $fromFilters]], $preferences->get($this->session));
 	}
+
+	public function testReplacingPreferencesWithoutMutedWordsClearsTheLocalProjection(): void {
+		$config = $this->createMock(IConfig::class);
+		$words = $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class);
+		$words->expects($this->once())->method('apply')->with(
+			$this->anything(),
+			['$type' => \OCA\Social\Atproto\Client\MutedWords::PREF, 'items' => []]
+		);
+		$preferences = new Preferences($config, $words, $this->createMock(\OCA\Social\Service\AccountService::class));
+
+		$preferences->put($this->session, ['preferences' => [
+			['$type' => 'app.bsky.actor.defs#savedFeedsPrefV2', 'items' => []],
+		]]);
+	}
+
+	public function testMalformedMutedWordsAreRejectedBeforePreferencesOrFiltersChange(): void {
+		$config = $this->createMock(IConfig::class);
+		$config->expects($this->never())->method('setUserValue');
+		$words = $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class);
+		$words->expects($this->never())->method('apply');
+		$preferences = new Preferences($config, $words, $this->createMock(\OCA\Social\Service\AccountService::class));
+		$malformed = [
+			['value' => ['unexpected'], 'targets' => ['content']],
+			['value' => 'spoilers', 'targets' => [['unexpected']]],
+			['value' => 'spoilers', 'targets' => ['unknown']],
+			['value' => 'spoilers', 'targets' => ['content'], 'expiresAt' => ['unexpected']],
+			['value' => 'spoilers', 'targets' => ['content'], 'actorTarget' => 'friends'],
+		];
+
+		foreach ($malformed as $item) {
+			try {
+				$preferences->put($this->session, ['preferences' => [
+					['$type' => \OCA\Social\Atproto\Client\MutedWords::PREF, 'items' => [$item]],
+				]]);
+				$this->fail('accepted malformed muted word ' . json_encode($item));
+			} catch (XrpcException $e) {
+				$this->assertSame('InvalidRequest', $e->error);
+			}
+		}
+	}
 }

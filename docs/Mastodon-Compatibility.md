@@ -44,11 +44,13 @@ Aloha Social 0.19.95 is a capable, standards-correct ActivityPub server with a b
 and largely genuine Mastodon client API. A walk of Mastodon's 145 documented
 client routes against the route table found 23 genuinely unserved — the raw
 path diff said 45, and 22 of those were catch-alls a textual comparison cannot
-see. Web Push subscription and encrypted delivery are implemented. Of the 23,
-**two endpoints remain absent**: streaming, which is announced as unavailable
-so clients poll rather than hanging, and `emails/confirmations`, which belongs
-to a sign-up this app does not own. Everything else exists, and §3.3 says
-which of them is a stub.
+see. Web Push subscription and encrypted delivery are implemented. Streaming
+is implemented as an optional daemon and needs the documented proxy rules;
+public deletions reach matching timelines, direct-message deletions reach only
+their original participants, and unlisted/followers-only deletions reach only
+authorized home and list streams.
+`emails/confirmations` remains absent because sign-up belongs
+to Nextcloud. Everything else exists, and §3.3 says which of them is a stub.
 
 It is **not** a drop-in replacement for Mastodon, and two things stood between
 it and that goal. One was small and mechanical: the API is not served at the
@@ -277,9 +279,23 @@ parameter. The direct stream emits `conversation` events and requires
 SSE clients pass it as the `list` query parameter, and WebSocket subscriptions
 pass it as `list`; WebSocket clients can unsubscribe from each list
 independently. WebSocket hashtag subscriptions require a `tag` value in the
-subscription message. The instance filters events using the same
-visibility, mute and filter rules as its REST timelines. Delete and
-status-edit streams are not implemented yet.
+subscription message. The instance filters timeline updates using the same
+visibility, mute and filter rules as its REST timelines. Public status
+deletions emit `delete` events to matching public streams. Direct-message
+deletions reach only the original participants' direct streams;
+their audience is recorded as actor hashes and the event contains only the
+status id. Public events retain hashtag and media filters, while direct-message
+events carry no hashtag metadata. The cursor keeps the newest 10,000 deletions.
+Unlisted and followers-only deletion events reach only authorized home and list streams, based on the saved audience collection and original recipients. Edits emit `status.update` for matching public, hashtag, home and
+list streams and `conversation` for accessible direct-message edits.
+User streams emit `filters_changed` without a payload when the account's
+filters change; active connections check for changes every five seconds.
+They also emit `announcement`, `announcement.reaction` and
+`announcement.delete` as instance notices appear, receive reactions, expire
+or are removed. Scalar event data, including deleted ids, is sent without JSON
+string quotes as Mastodon expects.
+After notification requests are accepted, user and notification-only streams
+emit `notifications_merged` so clients can refresh the notifications list.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`
@@ -795,14 +811,14 @@ whether it is done. Query and scalability work has its own list in
 
 | # | Work | Effort | What it fixes | Status |
 |---|---|---|---|---|
-| 3 | **Web Push** (`/api/v1/push/subscription`, VAPID, `configuration.vapid`) | Weeks | Mobile apps need subscription management, encrypted per-token credentials, an encrypted delivery worker, and expired-endpoint cleanup | implemented in this branch; verification pending |
+| 3 | **Web Push** (`/api/v1/push/subscription`, VAPID, `configuration.vapid`) | Weeks | Mobile apps need subscription management, encrypted per-token credentials, an encrypted delivery worker, and expired-endpoint cleanup | implemented; this branch completes Mastodon's 140-character notification body behavior; live push-provider interoperability remains unverified |
 | 4 | **`/api/v1/preferences`** | Hours | Clients read the posting defaults from it and fall back to guesses | done |
 | 5 | **`/api/v1/custom_emojis`** — the instance's own emoji, and `Emoji` tags outbound | Days | Returned `[]` unconditionally: remote emoji rendered, this instance could publish none | done |
 | 6 | **`/api/v1/accounts/familiar_followers`** | Hours | The "followed by people you know" line on a profile | done |
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon now streams user home updates and notifications; public/hashtag/list/direct streams and delete/edit events remain | **partial** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon streams user home, notification, public, hashtag, list and direct updates; edits and visibility-scoped deletions reach the streams that may see them | implemented; WebSocket and SSE event families, announcement/filter changes, notification merges, and authorized deletion events are covered. The daemon and root proxy rules must be enabled by the administrator |
 
 ### Tier 2b — what walking the route list turned up
 
@@ -924,10 +940,12 @@ root once an administrator installs the shipped web-server rules, and the setup
 check says whether they have; on an instance where they have not, no stock
 client reaches *any* of the surface above.
 
-**Streaming (10) is the next substantial client-compatibility gap.** The
-long-lived WebSocket daemon now serves the home and notification streams;
-the remaining timeline types and edit/delete events still need event fan-out.
-Web Push remains available for notifications. The peer-level
+**Streaming (10) remains a substantial client-compatibility gap.** The
+long-lived daemon serves the timeline types, emits `status.update` for matching
+public, hashtag, home and list streams, `conversation` for accessible direct
+message edits, and `delete` for public and recipient-scoped direct-message
+removals. Unlisted and followers-only deletions are limited to authorized home and list streams. Web Push remains available for
+notifications. The peer-level
 media serialization finding is fixed and covered by a test that hydrates a stored
 status before serializing it.
 

@@ -23,8 +23,10 @@ use OCA\Social\Tests\Interop\Bluesky\AppClient;
 use OCA\Social\Tests\Interop\Bluesky\DevNetwork;
 use OCP\Accounts\IAccountManager;
 use OCP\IAvatarManager;
+use OCP\IUserManager;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 /**
  * Phase 3c: a Bluesky app signs in to this instance as its PDS with an app
@@ -36,6 +38,7 @@ class AtprotoAppsTest extends TestCase {
 	private DevNetwork $network;
 	private LocalAccount $alice;
 
+	#[\Override]
 	protected function setUp(): void {
 		$network = DevNetwork::fromEnvironment();
 		if ($network === null) {
@@ -51,15 +54,33 @@ class AtprotoAppsTest extends TestCase {
 		$password = Server::get(AppPasswordService::class)->create($this->alice->userId, 'interop')['password'];
 		$app = AppClient::at((string)getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test');
 
-		[$status, $answer] = $app->signIn($identity->handle, 'wrong-pass-word-here');
+		[$status] = $app->signIn($identity->handle, 'wrong-pass-word-here');
 		$this->assertSame(401, $status, 'a wrong password is refused');
+		[$status] = $app->signIn($identity->handle, $this->alice->password);
+		$this->assertSame(401, $status, 'a Nextcloud account password is never accepted by the PDS');
 		[$status, $answer] = $app->signIn($identity->handle, $password);
 		$this->assertSame(200, $status, json_encode($answer));
+		$this->assertSame($identity->did, $answer['did']);
+		[$status] = $app->procedure('com.atproto.server.deleteSession', [], $app->refreshJwt);
+		$this->assertSame(200, $status, 'the handle sign-in can be ended');
+
+		$email = 'atproto-' . bin2hex(random_bytes(6)) . '@example.org';
+		$user = Server::get(IUserManager::class)->get($this->alice->userId);
+		$this->assertNotNull($user);
+		$user->setEMailAddress($email);
+		$accounts = Server::get(IAccountManager::class);
+		$account = $accounts->getAccount($user);
+		$account->setProperty(IAccountManager::PROPERTY_EMAIL, $email, IAccountManager::SCOPE_LOCAL, IAccountManager::NOT_VERIFIED);
+		$accounts->updateAccount($account);
+		[$status, $answer] = $app->signIn($email, $password);
+		$this->assertSame(200, $status, 'the Nextcloud email address signs into this PDS: ' . json_encode($answer));
 		$this->assertSame($identity->did, $answer['did']);
 
 		[$status, $session] = $app->query('com.atproto.server.getSession');
 		$this->assertSame(200, $status);
 		$this->assertSame($identity->handle, $session['handle']);
+		$this->assertSame($email, $session['email']);
+		$this->assertFalse($session['emailConfirmed'], 'an address without Nextcloud verification is not reported as verified');
 
 		// the AppView answers through this server, as alice
 		[$status, $timeline] = $this->network->await(function () use ($app): ?array {
@@ -153,6 +174,62 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertGreaterThanOrEqual(400, $status, 'the access token went with the session');
 	}
 
+	/** The official Bluesky app's password-session library can log into this PDS. */
+	public function testOfficialBlueskyPasswordClientSignsIntoTheSocialPds(): void {
+		$identity = Server::get(IdentityService::class)->forActor($this->alice->actor);
+		$this->assertNotNull($identity);
+		$password = Server::get(AppPasswordService::class)->create($this->alice->userId, 'official-client')['password'];
+
+		$process = proc_open(
+			['node', 'password-client.mjs'],
+			[1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+			$pipes,
+			__DIR__ . '/atproto',
+			[
+				'PATH' => (string)getenv('PATH'),
+				'HOME' => (string)getenv('HOME'),
+				'PDS_URL' => (string)(getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test'),
+				'PDS_IDENTIFIER' => $identity->handle,
+				'PDS_PASSWORD' => $password,
+				'NODE_EXTRA_CA_CERTS' => (string)(getenv('NODE_EXTRA_CA_CERTS') ?: '/tmp/tls/ca.crt'),
+			]
+		);
+		if (!is_resource($process)) {
+			throw new RuntimeException('the official Bluesky password client did not start');
+		}
+
+		$output = (string)stream_get_contents($pipes[1]);
+		$error = (string)stream_get_contents($pipes[2]);
+		$status = proc_close($process);
+		$this->assertSame(0, $status, $error . $output);
+
+		$result = json_decode($output, true);
+		$this->assertIsArray($result);
+		$this->assertSame($identity->did, $result['did']);
+		$this->assertSame(200, $result['who']['status'], json_encode($result['who']));
+		$this->assertSame($identity->handle, $result['who']['body']['handle']);
+		$this->assertSame($identity->did, $result['refreshed']['did']);
+		$this->assertSame($identity->handle, $result['refreshed']['handle']);
+		$this->assertSame(200, $result['timeline']['status'], json_encode($result['timeline']));
+		$this->assertArrayHasKey('feed', $result['timeline']['body']);
+		$this->assertGreaterThanOrEqual(400, $result['logout']['accessStatus'], 'logout revokes the official client access token');
+		$this->assertGreaterThanOrEqual(400, $result['logout']['refreshStatus'], 'logout revokes the official client refresh token');
+	}
+
+	public function testPdsDoesNotRevealWhetherAnIdentifierHasAnAccount(): void {
+		$identity = Server::get(IdentityService::class)->forActor($this->alice->actor);
+		$this->assertNotNull($identity);
+		$app = AppClient::at((string)getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test');
+
+		[$knownStatus, $knownError] = $app->signIn($identity->handle, 'not-an-app-password');
+		[$unknownStatus, $unknownError] = $app->signIn('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa', 'not-an-app-password');
+
+		$this->assertSame(401, $knownStatus);
+		$this->assertSame($knownStatus, $unknownStatus);
+		$this->assertSame($knownError['error'] ?? null, $unknownError['error'] ?? null);
+		$this->assertSame($knownError['message'] ?? null, $unknownError['message'] ?? null);
+	}
+
 	/** A small PNG, made here so the test carries no binary file. */
 	private static function picture(): string {
 		$image = imagecreatetruecolor(64, 48);
@@ -180,6 +257,6 @@ class AtprotoAppsTest extends TestCase {
 			'mayPublish' => Server::get(AccountService::class)->mayPublish($actor, IAccountManager::PROPERTY_AVATAR),
 			'custom' => $avatar->isCustomAvatar(),
 			'blob' => $blob,
-		]);
+		]) ?: '';
 	}
 }

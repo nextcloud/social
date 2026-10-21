@@ -37,6 +37,7 @@ use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\VapidService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\FrontpageRoute;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -924,6 +925,22 @@ class OAuthControllerTest extends TestCase {
 		return $requested;
 	}
 
+	public function testABlueskyLoginSendsAVisitorToNextcloudLoginAndPreservesTheRequest(): void {
+		$authorizeUrl = '/oauth/authorize?client_id=' . rawurlencode(self::ATPROTO_CLIENT)
+			. '&request_uri=' . rawurlencode(self::REQUEST_URI);
+		$this->request->method('getRequestUri')->willReturn($authorizeUrl);
+		$this->urlGenerator->expects($this->once())
+			->method('linkToRoute')
+			->with('core.login.showLoginForm', ['redirect_url' => $authorizeUrl])
+			->willReturn('/index.php/login?redirect_url=' . rawurlencode($authorizeUrl));
+
+		$response = $this->controller->authorize(self::ATPROTO_CLIENT, '', '', '', '', '', '', self::REQUEST_URI);
+
+		$this->assertInstanceOf(RedirectResponse::class, $response);
+		$this->assertSame('/index.php/login?redirect_url=' . rawurlencode($authorizeUrl), $response->getRedirectURL());
+		$this->assertNotEmpty((new \ReflectionMethod(OAuthController::class, 'authorize'))->getAttributes(PublicPage::class));
+	}
+
 	public function testABlueskyAppsSignInOffersSetupToAReaderWithoutAnAccount(): void {
 		$this->signedInWithoutAnAccount();
 		$this->atprotoRequest();
@@ -1104,6 +1121,38 @@ class OAuthControllerTest extends TestCase {
 
 		self::assertSame(Http::STATUS_BAD_REQUEST, $response->getStatus());
 		self::assertSame(['error' => 'authorization_pending'], $response->getData());
+	}
+
+	public function testDeviceGrantRequiresARegisteredClientSecretWhenOneExists(): void {
+		$client = $this->knownClient();
+		$client->setAppClientSecret('stored-secret-hash');
+		$this->clientService->expects(self::once())->method('confirmData')
+			->with($this->identicalTo($client), ['client_secret' => ''])
+			->willThrowException(new ClientException('wrong client_secret'));
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::never())->method('poll');
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->token('', 'urn:ietf:params:oauth:grant-type:device_code', 'client-1', '', '', '', 'device-code');
+
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		self::assertTrue($response->isThrottled());
+	}
+
+	public function testDeviceAuthorizationRequiresARegisteredClientSecretWhenOneExists(): void {
+		$client = $this->knownClient();
+		$client->setAppClientSecret('stored-secret-hash');
+		$this->clientService->expects(self::once())->method('confirmData')
+			->with($this->identicalTo($client), ['app_scopes' => 'read', 'client_secret' => ''])
+			->willThrowException(new ClientException('wrong client_secret'));
+		$deviceAuthorization = $this->createMock(DeviceAuthorizationService::class);
+		$deviceAuthorization->expects(self::never())->method('create');
+		$controller = $this->controllerWith($this->clientService, $deviceAuthorization);
+
+		$response = $controller->deviceAuthorization('client-1');
+
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
+		self::assertTrue($response->isThrottled());
 	}
 
 	public function testTokenThrottlesAWrongClientSecret(): void {

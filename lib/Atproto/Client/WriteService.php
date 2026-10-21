@@ -40,6 +40,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Post;
 use OCA\Social\Model\Report;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\ActivityService;
 use OCA\Social\Service\AvatarService;
 use OCA\Social\Service\BannerService;
 use OCA\Social\Service\BoostService;
@@ -118,6 +119,7 @@ class WriteService {
 		private BlueskyBlocks $blocks,
 		private ChatDeclaration $declaration,
 		private BlueskyListImport $listImport,
+		private ActivityService $activities,
 	) {
 	}
 
@@ -331,9 +333,8 @@ class WriteService {
 	}
 
 	/**
-	 * `com.atproto.repo.applyWrites`: the same, one after the other. Not one
-	 * commit: each Social action is its own, so a failure part-way leaves
-	 * the earlier ones done.
+	 * `com.atproto.repo.applyWrites`: Social actions and their repository
+	 * records share one transaction and one repository commit.
 	 *
 	 * @throws XrpcException
 	 */
@@ -351,26 +352,49 @@ class WriteService {
 			&& in_array((string)($write['collection'] ?? ''), self::KEPT_AS_WRITTEN, true))) === count($writes)) {
 			return $this->applyKept($session, $writes, $swapCommit);
 		}
-		if ($swapCommit !== null) {
-			throw new XrpcException(501, 'MethodNotImplemented', 'swapCommit requires an atomic repository-native batch');
-		}
-		$results = [];
 		foreach ($writes as $write) {
-			$type = (string)($write['$type'] ?? '');
-			$one = ['repo' => $session->identity->did, 'collection' => $write['collection'] ?? '', 'rkey' => $write['rkey'] ?? '', 'record' => $write['value'] ?? []];
-			if ($type === 'com.atproto.repo.applyWrites#create') {
-				$results[] = ['$type' => 'com.atproto.repo.applyWrites#createResult'] + array_intersect_key($this->create($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
-			} elseif ($type === 'com.atproto.repo.applyWrites#delete') {
-				$this->delete($session, $one);
-				$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
-			} elseif ($type === 'com.atproto.repo.applyWrites#update') {
-				$results[] = ['$type' => 'com.atproto.repo.applyWrites#updateResult'] + array_intersect_key($this->put($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
-			} else {
-				throw XrpcException::invalidRequest('Unknown write ' . $type);
+			if (!is_array($write) || !in_array(($write['$type'] ?? null), [
+				'com.atproto.repo.applyWrites#create',
+				'com.atproto.repo.applyWrites#delete',
+				'com.atproto.repo.applyWrites#update',
+			], true) || !is_string($write['collection'] ?? null) || $write['collection'] === '') {
+				throw XrpcException::invalidRequest('Every write needs a supported type and collection');
 			}
 		}
+		$results = [];
+		try {
+			$this->repositories->beginBatch($session->identity->did, $this->identities->signingKey($session->identity), $swapCommit);
+			$this->activities->beginDeferredDeliveries();
+			foreach ($writes as $write) {
+				$type = $write['$type'];
+				$one = ['repo' => $session->identity->did, 'collection' => $write['collection'], 'rkey' => $write['rkey'] ?? '', 'record' => $write['value'] ?? []];
+				if ($type === 'com.atproto.repo.applyWrites#create') {
+					$results[] = ['$type' => 'com.atproto.repo.applyWrites#createResult'] + array_intersect_key($this->create($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
+				} elseif ($type === 'com.atproto.repo.applyWrites#delete') {
+					$this->delete($session, $one);
+					$results[] = ['$type' => 'com.atproto.repo.applyWrites#deleteResult'];
+				} else {
+					$results[] = ['$type' => 'com.atproto.repo.applyWrites#updateResult'] + array_intersect_key($this->put($session, $one), ['uri' => 1, 'cid' => 1, 'validationStatus' => 1]);
+				}
+			}
+			$commit = $this->repositories->commitBatch();
+		} catch (Throwable $e) {
+			$this->activities->discardDeferredDeliveries();
+			$this->repositories->rollbackBatch();
+			if ($e instanceof XrpcException) {
+				throw $e;
+			}
+			if ($e instanceof InvalidSwapException) {
+				throw new XrpcException(400, 'InvalidSwap', $e->getMessage());
+			}
+			if ($e instanceof AtprotoException) {
+				throw XrpcException::invalidRequest($e->getMessage());
+			}
+			throw $e;
+		}
+		$this->activities->releaseDeferredDeliveries();
 
-		return ['commit' => $this->commit($session), 'results' => $results];
+		return ['commit' => $commit === null ? $this->commit($session) : ['cid' => $commit->commitCid->toString(), 'rev' => $commit->rev], 'results' => $results];
 	}
 
 	/**

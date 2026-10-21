@@ -808,6 +808,12 @@ go there).
   to a post that is not on Bluesky is published as a top-level post with
   the parent's URL as a `#link` — the thread cannot be joined, and saying
   nothing would hide the post.
+- **A Bluesky-only parent on ActivityPub** is exported as a standalone post
+  with a link to the Bluesky parent. Its ATProto record still carries the
+  native `reply` reference, but ActivityPub peers are not given an
+  `inReplyTo` they cannot resolve, nor a delivery to the synthetic Bluesky
+  actor. This also applies when the local post is edited or a held delivery
+  is rebuilt (`ActivityService`).
 - **Who may reply** (`app.bsky.feed.threadgate` on the thread's root): a
   thread its author closed to everybody is marked when it is read, so the
   reply is not offered here (`interaction_policy.reply` false); a narrower
@@ -2578,6 +2584,11 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   rewrites it, and one it adds goes into a filter of its own, "Muted
   words from Bluesky", which hides what it matches everywhere (one per
   expiry, when the word has one).
+  `putPreferences` replaces the preference set: if `mutedWordsPref` is absent,
+  the app's mirrored muted words are cleared from the local filter projection.
+  Before replacing anything, the app validates muted-word items and their
+  targets, actor scope, ids and expiry types; malformed values receive
+  `InvalidRequest` without changing the saved preferences or local filters.
 - **Writes are Social actions** (§16.5): `createRecord` of a post is a
   Social post (public; reply, quote, pictures, language; a link the app
   shortened is its whole address again), a like a like, a repost a boost,
@@ -2592,10 +2603,13 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   rejects an invalid batch before writing any of it. For these batches,
   `swapCommit` is compared with the locked repository head inside the write
   transaction; a stale CID returns `InvalidSwap` without changing the repo.
-  Batches containing
-  Social actions still run those actions one by one, so a later failure can
-  leave an earlier Social action applied; `swapCommit` is not supported for
-  them yet. Those repository-native record
+  Batches that mix Social actions and repository-native records run inside one
+  database transaction and produce one repository commit. ActivityPub
+  deliveries start only after the transaction commits; a failed action rolls
+  back the database work and discards deferred delivery starts. `swapCommit`
+  is checked against the locked head for mixed batches too. Avatar and media
+  files use Nextcloud storage and are outside the database rollback. Those
+  repository-native record
   types have no Social counterpart and are kept as the app wrote them,
   validated against their lexicon; a gate only for one of the account's own
   posts, under that post's key. A block is a block here, published, when the
@@ -2696,7 +2710,9 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   it names the app by the host of its client ID and shows the whole
   address, because an app's own name and logo are what it says of itself
   and are not shown. A `login_hint` naming another account than the one
-  signed in is refused.
+  signed in is refused. A browser without a Nextcloud session is sent to
+  Nextcloud login and returned to the same authorization URL, including the
+  pushed request, before consent is displayed.
 - **Tokens**: access tokens of fifteen minutes, bound to the DPoP key and
   checked against their session on every request, so signing an app out
   stops it at once; refresh tokens used once and rotated, and a replaced
@@ -2904,16 +2920,10 @@ direction `inbound` in `social_atproto_move`:
 
 For the owner, not blocking phase 1:
 
-1. **Bluesky-only replies.** A Bluesky user replies to alice's post; alice
-   answers from here; her answer goes to Bluesky (§8.3) — and to the
-   Fediverse, where the parent does not exist. Publish it as an ordinary
-   public post there (the parent linked), or keep a reply-to-Bluesky off
-   the Fediverse? Recommended: publish, parent linked — one post, two
-   addresses, as D8 says.
-2. **Who pays for pictures.** A re-encoded picture is a second stored file
+1. **Who pays for pictures.** A re-encoded picture is a second stored file
    per picture per post. Count it against the user's quota (it is their
    post) or the app's? Recommended: the user's, like the original.
-3. **Relay choice.** `bsky.network` only, or also announce to independent
+2. **Relay choice.** `bsky.network` only, or also announce to independent
    relays by default? Recommended: `bsky.network` default, list editable.
 
 ## 20. Facts, and when they were checked

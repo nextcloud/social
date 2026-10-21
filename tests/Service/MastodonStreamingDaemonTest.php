@@ -11,15 +11,22 @@ namespace OCA\Social\Tests\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
+use OCA\Social\Db\FiltersRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\StatusDeletionEventsRequest;
+use OCA\Social\Db\StatusRevisionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\Announcement;
 use OCA\Social\Model\Client\Conversation;
+use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AnnouncementService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConversationService;
 use OCA\Social\Service\FeedDisplayService;
@@ -28,6 +35,7 @@ use OCA\Social\Service\MastodonStreamingDaemon;
 use OCA\Social\Service\NotificationPolicyService;
 use OCA\Social\Service\PostDecorationService;
 use OCA\Social\Service\StreamService;
+use OCA\Social\Service\TimelineRevisionService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -39,11 +47,18 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private ClientService&MockObject $clients;
 	private AccountService&MockObject $accounts;
 	private StreamRequest&MockObject $requests;
+	private StatusRevisionsRequest&MockObject $statusRevisions;
+	private StatusDeletionEventsRequest&MockObject $statusDeletionEvents;
+	private FollowsRequest&MockObject $follows;
+	private FiltersRequest&MockObject $filterRows;
+	private AnnouncementService&MockObject $announcements;
 	private StreamService&MockObject $streams;
 	private ConversationService&MockObject $conversations;
 	private ListsRequest&MockObject $lists;
 	private PostDecorationService&MockObject $postDecoration;
+	private FilterService&MockObject $filters;
 	private ITimeFactory&MockObject $time;
+	private TimelineRevisionService&MockObject $timelineRevisions;
 	private MastodonStreamingDaemon $daemon;
 
 	#[\Override]
@@ -51,12 +66,21 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->clients = $this->createMock(ClientService::class);
 		$this->accounts = $this->createMock(AccountService::class);
 		$this->requests = $this->createMock(StreamRequest::class);
+		$this->statusRevisions = $this->createMock(StatusRevisionsRequest::class);
+		$this->statusRevisions->method('newestId')->willReturn(50);
+		$this->statusDeletionEvents = $this->createMock(StatusDeletionEventsRequest::class);
+		$this->statusDeletionEvents->method('newestId')->willReturn(12);
+		$this->follows = $this->createMock(FollowsRequest::class);
+		$this->filterRows = $this->createMock(FiltersRequest::class);
+		$this->announcements = $this->createMock(AnnouncementService::class);
 		$this->streams = $this->createMock(StreamService::class);
 		$this->conversations = $this->createMock(ConversationService::class);
 		$this->lists = $this->createMock(ListsRequest::class);
 		$this->postDecoration = $this->createMock(PostDecorationService::class);
+		$this->filters = $this->createMock(FilterService::class);
 		$this->time = $this->createMock(ITimeFactory::class);
 		$this->time->method('getTime')->willReturn(1_800_000_000);
+		$this->timelineRevisions = $this->createMock(TimelineRevisionService::class);
 		$this->requests->method('newestHomeNid')->willReturn('10');
 		$this->requests->method('newestNidFor')->willReturn('20');
 		$this->accounts->method('getActorFromUserId')->willReturn(
@@ -66,13 +90,19 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->clients,
 			$this->accounts,
 			$this->requests,
+			$this->statusRevisions,
+			$this->statusDeletionEvents,
+			$this->follows,
+			$this->filterRows,
+			$this->announcements,
 			$this->streams,
 			$this->conversations,
 			$this->lists,
 			$this->postDecoration,
-			$this->createMock(FilterService::class),
+			$this->filters,
 			$this->createMock(FeedDisplayService::class),
 			$this->createMock(NotificationPolicyService::class),
+			$this->timelineRevisions,
 			$this->time,
 			new NullLogger(),
 		);
@@ -158,7 +188,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$subscriber = $this->subscriber();
 		$subscriber->context = ['directSince' => '20', 'subscriptions' => ['direct' => true]];
 		$subscriber->eventStream = true;
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendDirectConversations', $server, $subscriber, new Person());
 		} finally {
@@ -277,7 +307,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			'subscriptions' => ['list' => true],
 			'listSubscriptions' => [5 => ['id' => 5, 'list' => $list, 'since' => '40']],
 		];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendListStatuses', $server, $subscriber, new Person(), 5, $subscriber->context['listSubscriptions'][5]);
 		} finally {
@@ -338,7 +368,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			'subscriptions' => ['public:remote:media' => true],
 			'publicSince:public:remote:media' => '20',
 		];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendPublicStatuses', $server, $subscriber, new Person(), 'public:remote:media');
 		} finally {
@@ -351,6 +381,255 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertTrue($options->isRemote());
 		self::assertTrue($options->isOnlyMedia());
 		self::assertSame(20, $options->getSince());
+	}
+
+	public function testPublicStreamsReceiveOneStatusUpdatePerEditedStatus(): void {
+		$statusId = 'https://social.example/users/alice/statuses/75';
+		$status = (new Stream())
+			->setId($statusId)
+			->setVisibility(Stream::TYPE_PUBLIC)
+			->setLocal(true);
+		$this->statusRevisions->expects(self::once())->method('getAfterId')->with(50, 50)->willReturn([
+			['id' => 51, 'stream_id_prim' => md5($statusId)],
+			['id' => 52, 'stream_id_prim' => md5($statusId)],
+		]);
+		$this->streams->expects(self::once())->method('getStreamByIdPrim')->with(md5($statusId), true)->willReturn($status);
+		$this->filters->expects(self::once())->method('apply')->willReturn([['id' => '75']]);
+
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['public:local' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
+		} finally {
+			$server->shutdown();
+		}
+
+		self::assertSame(52, $subscriber->context['revisionSince']);
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertSame(1, substr_count($payload, 'event: status.update'));
+		self::assertStringContainsString('"id":"75"', $payload);
+	}
+
+	public function testHomeStreamReceivesEditsOnlyWhenTheStatusRemainsInItsTimeline(): void {
+		$statusId = 'https://social.example/users/alice/statuses/75';
+		$status = (new Stream())->setId($statusId)->setNid('75')->setVisibility(Stream::TYPE_FOLLOWERS);
+		$this->statusRevisions->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 51, 'stream_id_prim' => md5($statusId)],
+		]);
+		$this->streams->expects(self::once())->method('getStreamByIdPrim')->with(md5($statusId), true)->willReturn($status);
+		$this->streams->expects(self::once())->method('getTimeline')->with(self::callback(
+			static fn (ProbeOptions $options): bool => $options->getProbe() === ProbeOptions::HOME
+				&& $options->getMinId() === 74
+				&& $options->getMaxId() === 76
+		))->willReturn([$status]);
+		$this->filters->expects(self::once())->method('apply')->with([$status], Filter::CONTEXT_HOME, self::isInstanceOf(Person::class))
+			->willReturn([['id' => '75']]);
+
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['user' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertSame(1, substr_count($payload, 'event: status.update'));
+	}
+
+	public function testDirectStreamReceivesTheUpdatedConversation(): void {
+		$statusId = 'https://social.example/users/alice/statuses/75';
+		$status = (new Stream())->setId($statusId)->setNid('75')->setVisibility(Stream::TYPE_DIRECT);
+		$conversation = (new Conversation())->setId(75);
+		$this->statusRevisions->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 51, 'stream_id_prim' => md5($statusId)],
+		]);
+		$this->streams->expects(self::once())->method('getStreamByIdPrim')->with(md5($statusId), true)->willReturn($status);
+		$this->conversations->expects(self::once())->method('updatedByStatus')->with(
+			self::isInstanceOf(Person::class), 75
+		)->willReturn($conversation);
+
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['direct' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: conversation', $payload);
+		self::assertStringNotContainsString('event: status.update', $payload);
+	}
+
+	public function testPublicStreamReceivesDeletedStatusId(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->with(12, 50)->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => [], 'audience_prim' => null],
+		]);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'subscriptions' => ['public:local' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		self::assertSame(13, $subscriber->context['deleteSince']);
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: delete', $payload);
+		self::assertStringContainsString('data: 75', $payload);
+	}
+
+	public function testPublicMediaStreamDoesNotReceiveDeletedTextStatus(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_PUBLIC, 'recipients' => [], 'audience_prim' => null],
+		]);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'subscriptions' => ['public:local:media' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringNotContainsString('event: delete', $payload);
+	}
+
+	public function testDirectDeletionIsSentOnlyToOriginalRecipients(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')], 'audience_prim' => null],
+		]);
+		$viewer = (new Person())->setId('https://example.test/users/alice');
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'viewer' => $viewer, 'subscriptions' => ['direct' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: delete', $payload);
+		self::assertStringContainsString('data: 75', $payload);
+	}
+
+	public function testDirectDeletionIsNotSentToNonRecipient(): void {
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			['id' => 13, 'status_nid' => '75', 'hashtags' => [], 'local' => true, 'media' => false, 'visibility' => Stream::TYPE_DIRECT, 'recipients' => [md5('https://example.test/users/alice')], 'audience_prim' => null],
+		]);
+		$viewer = (new Person())->setId('https://example.test/users/bob');
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['deleteSince' => 12, 'viewer' => $viewer, 'subscriptions' => ['direct' => true]];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringNotContainsString('event: delete', $payload);
+	}
+
+	public function testFollowersOnlyDeletionReachesAnOriginalFollower(): void {
+		$collectionPrim = md5('https://example.test/users/alice/followers');
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			[
+				'id' => 13,
+				'status_nid' => '75',
+				'hashtags' => [],
+				'local' => true,
+				'media' => false,
+				'visibility' => Stream::TYPE_FOLLOWERS,
+				'recipients' => [md5('https://example.test/users/alice'), $collectionPrim],
+				'audience_prim' => $collectionPrim,
+			],
+		]);
+		$this->follows->expects(self::once())->method('followsCollection')
+			->with('https://example.test/users/bob', $collectionPrim)->willReturn(true);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = [
+			'deleteSince' => 12,
+			'viewer' => (new Person())->setId('https://example.test/users/bob'),
+			'subscriptions' => ['user' => true],
+		];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringContainsString('event: delete', $payload);
+		self::assertStringContainsString('data: 75', $payload);
+	}
+
+	public function testFollowersOnlyDeletionDoesNotReachAnUnrelatedUser(): void {
+		$collectionPrim = md5('https://example.test/users/alice/followers');
+		$this->statusDeletionEvents->expects(self::once())->method('getAfterId')->willReturn([
+			[
+				'id' => 13,
+				'status_nid' => '75',
+				'hashtags' => [],
+				'local' => true,
+				'media' => false,
+				'visibility' => Stream::TYPE_FOLLOWERS,
+				'recipients' => [md5('https://example.test/users/alice'), $collectionPrim],
+				'audience_prim' => $collectionPrim,
+			],
+		]);
+		$this->follows->expects(self::once())->method('followsCollection')
+			->with('https://example.test/users/bob', $collectionPrim)->willReturn(false);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = [
+			'deleteSince' => 12,
+			'viewer' => (new Person())->setId('https://example.test/users/bob'),
+			'subscriptions' => ['user' => true],
+		];
+		$server = new WebSocketServer('127.0.0.1:0');
+		try {
+			$this->invoke('sendDeletedStatuses', $server, $subscriber);
+		} finally {
+			$server->shutdown();
+		}
+
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertStringNotContainsString('event: delete', $payload);
 	}
 
 	public function testHashtagSubscriptionRequiresTagAndSupportsUnsubscribe(): void {
@@ -405,7 +684,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		);
 		$subscriber = $this->subscriber();
 		$subscriber->context = ['subscriptions' => ['hashtag:local' => true]];
-		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		$server = new WebSocketServer('127.0.0.1:0');
 		try {
 			$this->invoke('sendHashtagStatuses', $server, $subscriber, new Person(), 'key', [
 				'stream' => 'hashtag:local', 'tag' => 'nextcloud', 'local' => true, 'since' => '30',
@@ -464,6 +743,155 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$error = json_decode($this->invoke('onMessage', $subscriber, 0x1, '{"type":"subscribe","stream":"user"}'), true);
 		self::assertSame('Insufficient scope', $error['payload']);
 		self::assertSame([], $subscriber->context['subscriptions']);
+	}
+
+	public function testChangedFiltersEmitMastodonWebSocketEventWithoutPayload(): void {
+		$filter = (new Filter())->setId(7)->setTitle('spoilers');
+		$this->filterRows->expects(self::once())->method('getByActor')->willReturn([$filter]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user'],
+			'event' => 'filters_changed',
+		]));
+
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testChangedFiltersUseMastodonSseUndefinedPayload(): void {
+		$filter = (new Filter())->setId(7)->setTitle('spoilers');
+		$this->filterRows->expects(self::once())->method('getByActor')->willReturn([$filter]);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, "event: filters_changed\ndata: undefined\n\n");
+
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testFilterChangesAreNotSentOnNotificationOnlyStream(): void {
+		$this->filterRows->expects(self::never())->method('getByActor');
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::never())->method('send');
+
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user:notification' => true], 1_800_000_000);
+	}
+
+	public function testAcceptedNotificationRequestsEmitWebSocketMergeEvent(): void {
+		$this->timelineRevisions->expects(self::once())
+			->method('of')
+			->with('alice', TimelineRevisionService::NOTIFICATIONS_MERGED)
+			->willReturn(4);
+		$subscriber = $this->subscriber();
+		$subscriber->context = [
+			'userId' => 'alice',
+			'notificationsMergedRevision' => 3,
+			'notificationsMergedCheckedAt' => 1_799_999_990,
+		];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user:notification'],
+			'event' => 'notifications_merged',
+			'payload' => '',
+		]));
+
+		$this->invoke('sendNotificationsMerged', $server, $subscriber, (new Person())->setUserId('alice'), ['user:notification' => true], 1_800_000_000);
+		self::assertSame(4, $subscriber->context['notificationsMergedRevision']);
+	}
+
+	public function testNotificationMergeEventUsesEmptySsePayloadAndIgnoresUnchangedRevision(): void {
+		$this->timelineRevisions->expects(self::exactly(2))
+			->method('of')
+			->willReturn(4);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = [
+			'notificationsMergedRevision' => 3,
+			'notificationsMergedCheckedAt' => 1_799_999_990,
+		];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, "event: notifications_merged\ndata: \n\n");
+
+		$this->invoke('sendNotificationsMerged', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+		$this->invoke('sendNotificationsMerged', $server, $subscriber, new Person(), ['user' => true], 1_800_000_006);
+	}
+
+	public function testUnchangedFiltersDoNotEmitAnEvent(): void {
+		$this->filterRows->method('getByActor')->willReturn([]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['filterCheckedAt' => 1_799_999_990, 'filterFingerprint' => hash('sha256', serialize([]))];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::never())->method('send');
+
+		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testNewAnnouncementsAreStreamedToTheUser(): void {
+		$announcement = (new Announcement())->setId(9)->setText('Maintenance tonight')->setPublishedAt(1_800_000_000)->setUpdatedAt(1_800_000_000);
+		$this->announcements->expects(self::once())->method('active')->willReturn([$announcement]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => []];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user'],
+			'event' => 'announcement',
+			'payload' => json_encode($announcement, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testReactionCountChangesAreStreamed(): void {
+		$after = (new Announcement())->setId(9)->setText('Maintenance tonight')
+			->setReactions(['😀' => ['count' => 1, 'me' => false]]);
+		$this->announcements->expects(self::once())->method('active')->willReturn([$after]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => []]];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user'],
+			'event' => 'announcement.reaction',
+			'payload' => json_encode(['name' => '😀', 'count' => 1, 'announcement_id' => '9'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testRemovedAnnouncementsUseRawIdForSseDeleteEvent(): void {
+		$this->announcements->expects(self::once())->method('active')->willReturn([]);
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => []]];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, "event: announcement.delete\ndata: 9\n\n");
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testAnnouncementEventsAreNotSentOnNotificationOnlyStream(): void {
+		$this->announcements->expects(self::never())->method('active');
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => []];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::never())->method('send');
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user:notification' => true], 1_800_000_000);
+	}
+
+	public function testWebSocketDeletePayloadIsAStringNotAJsonString(): void {
+		$subscriber = $this->subscriber();
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['public'],
+			'event' => 'delete',
+			'payload' => '75',
+		]));
+
+		$this->invoke('send', $server, $subscriber, ['public'], 'delete', '75');
 	}
 
 	private function client(array $scopes): SocialClient {

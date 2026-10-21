@@ -88,16 +88,16 @@ class ConversationServiceTest extends TestCase {
 				], $this->timeline);
 			});
 		$this->streamService->method('getStreamByNid')
-			->willReturnCallback(function (int $nid): Stream {
+			->willReturnCallback(function (int|string $nid): Stream {
 				foreach ($this->timeline as $message) {
-					if ($message->getNid() === $nid) {
+					if ((string)$message->getNid() === (string)$nid) {
 						return $message;
 					}
 				}
 
 				foreach ($this->stored as $id => $link) {
-					if ($link['nid'] === $nid) {
-						return $this->note($id, $nid, $link['inReplyTo'], self::BOB);
+					if ((string)$link['nid'] === (string)$nid) {
+						return $this->note($id, $link['nid'], $link['inReplyTo'], self::BOB);
 					}
 				}
 
@@ -480,6 +480,26 @@ class ConversationServiceTest extends TestCase {
 		);
 
 		$this->assertCount(1, $this->page(), 'a message the dismissal did not cover brings it back');
+	}
+
+	public function testAnEditedMessageReturnsItsVisibleConversation(): void {
+		$this->given($this->note('https://a/1', 10));
+		$this->threads['https://a/1'] = ['https://a/1' => 10];
+
+		$conversation = $this->service()->updatedByStatus($this->viewer(), 10);
+
+		$this->assertInstanceOf(Conversation::class, $conversation);
+		$this->assertSame('https://a/1', $conversation->getRootId());
+		$this->assertSame(10, $conversation->getLastStatusNid());
+		$this->assertTrue($conversation->isUnread());
+	}
+
+	public function testAnEditDoesNotResurfaceADismissedConversation(): void {
+		$this->given($this->note('https://a/1', 10));
+		$this->threads['https://a/1'] = ['https://a/1' => 10];
+		$this->markers['https://a/1'] = ['rootId' => 'https://a/1', 'readNid' => 10, 'hiddenNid' => 10];
+
+		$this->assertNull($this->service()->updatedByStatus($this->viewer(), 10));
 	}
 
 	public function testThePageIsBuiltFromTheWidestWindowTheTimelineAllows(): void {

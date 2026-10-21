@@ -52,6 +52,13 @@ class RepositoryService {
 	public const MAX_WRITES = 200;
 	/** how much of a CAR is handed out at once when a repository is streamed */
 	private const PIECE = 65536;
+	private ?string $batchDid = null;
+	private ?PrivateKey $batchSigningKey = null;
+	private ?string $batchSwapCommit = null;
+	/** @var list<RepoWrite> */
+	private array $batchWrites = [];
+	/** @var array<string, StoredRecord|null> */
+	private array $batchRecords = [];
 
 	public function __construct(
 		private AtprotoRepoRequest $repoRequest,
@@ -70,6 +77,95 @@ class RepositoryService {
 	 * @throws AtprotoException when a record does not fit its lexicon or the write fails
 	 */
 	public function write(string $did, PrivateKey $signingKey, array $writes, ?string $swapCommit = null): ?CommitResult {
+		if ($this->batchDid !== null) {
+			return $this->stage($did, $signingKey, $writes);
+		}
+		$this->validateWrites($writes);
+
+		$this->connection->beginTransaction();
+		try {
+			$result = $this->commit($did, $signingKey, $writes, $swapCommit);
+			$this->connection->commit();
+		} catch (Throwable $e) {
+			$this->connection->rollBack();
+			throw $e instanceof AtprotoException ? $e : new AtprotoException('Repository write failed: ' . $e->getMessage(), 0, $e);
+		}
+
+		return $result;
+	}
+
+	/** Begin a repository write scope for several Social actions to share one commit. */
+	public function beginBatch(string $did, PrivateKey $signingKey, ?string $swapCommit = null): void {
+		if ($this->batchDid !== null) {
+			throw new AtprotoException('A repository write batch is already active');
+		}
+		$this->connection->beginTransaction();
+		try {
+			$head = $this->repoRequest->lockHead($did);
+			if ($swapCommit !== null && $head?->commitCid !== $swapCommit) {
+				throw new InvalidSwapException('The repository commit changed before the batch could be applied');
+			}
+		} catch (Throwable $e) {
+			$this->connection->rollBack();
+			throw $e;
+		}
+		$this->batchDid = $did;
+		$this->batchSigningKey = $signingKey;
+		$this->batchSwapCommit = $swapCommit;
+		$this->batchWrites = [];
+		$this->batchRecords = [];
+	}
+
+	/** Commit every write staged in the active scope as one repository commit. */
+	public function commitBatch(): ?CommitResult {
+		if ($this->batchDid === null || $this->batchSigningKey === null) {
+			throw new AtprotoException('No repository write batch is active');
+		}
+		$did = $this->batchDid;
+		$key = $this->batchSigningKey;
+		$swapCommit = $this->batchSwapCommit;
+		$writes = $this->batchWrites;
+		try {
+			$result = null;
+			if ($writes !== []) {
+				$this->validateWrites($writes);
+				$result = $this->commit($did, $key, $writes, $swapCommit);
+			} elseif ($swapCommit !== null && $this->repoRequest->lockHead($did)?->commitCid !== $swapCommit) {
+				throw new InvalidSwapException('The repository commit changed before the batch could be applied');
+			}
+			$this->connection->commit();
+		} catch (Throwable $e) {
+			$this->connection->rollBack();
+			$this->clearBatch();
+			throw $e instanceof AtprotoException ? $e : new AtprotoException('Repository write batch failed: ' . $e->getMessage(), 0, $e);
+		}
+		$this->clearBatch();
+
+		return $result;
+	}
+
+	/** Discard staged records and roll back their Social-side database changes. */
+	public function rollbackBatch(): void {
+		if ($this->batchDid === null) {
+			return;
+		}
+		try {
+			$this->connection->rollBack();
+		} finally {
+			$this->clearBatch();
+		}
+	}
+
+	private function clearBatch(): void {
+		$this->batchDid = null;
+		$this->batchSigningKey = null;
+		$this->batchSwapCommit = null;
+		$this->batchWrites = [];
+		$this->batchRecords = [];
+	}
+
+	/** @param RepoWrite[] $writes */
+	private function validateWrites(array $writes): void {
 		if ($writes === [] || count($writes) > self::MAX_WRITES) {
 			throw new AtprotoException('A commit changes between one and ' . self::MAX_WRITES . ' records');
 		}
@@ -83,16 +179,51 @@ class RepositoryService {
 			}
 		}
 
-		$this->connection->beginTransaction();
-		try {
-			$result = $this->commit($did, $signingKey, $writes, $swapCommit);
-			$this->connection->commit();
-		} catch (Throwable $e) {
-			$this->connection->rollBack();
-			throw $e instanceof AtprotoException ? $e : new AtprotoException('Repository write failed: ' . $e->getMessage(), 0, $e);
+	}
+
+	/** @param RepoWrite[] $writes */
+	private function stage(string $did, PrivateKey $signingKey, array $writes): ?CommitResult {
+		if ($did !== $this->batchDid || $this->batchSigningKey === null || $this->batchSigningKey->curve !== $signingKey->curve || !hash_equals($this->batchSigningKey->secret(), $signingKey->secret())) {
+			throw new AtprotoException('A repository write batch cannot change identity');
+		}
+		$this->validateWrites($writes);
+		if (count($this->batchWrites) + count($writes) > self::MAX_WRITES) {
+			throw new AtprotoException('A commit changes between one and ' . self::MAX_WRITES . ' records');
+		}
+		if ($this->batchMadeAlready($writes)) {
+			return null;
+		}
+		$paths = [];
+		foreach ($writes as $write) {
+			if (isset($paths[$write->path()]) || array_key_exists(self::recordKey($did, $write->collection, $write->rkey), $this->batchRecords)) {
+				throw new AtprotoException('A batch may change a record only once');
+			}
+			$paths[$write->path()] = true;
+			$previous = $this->getRecord($did, $write->collection, $write->rkey);
+			if ($write->action === RepoWrite::CREATE && $previous !== null) {
+				throw new AtprotoException('A record already exists at ' . $write->path());
+			}
+			if ($write->action !== RepoWrite::CREATE && $previous === null) {
+				throw new AtprotoException('No record at ' . $write->path());
+			}
+			$this->batchWrites[] = $write;
+			$key = self::recordKey($did, $write->collection, $write->rkey);
+			$this->batchRecords[$key] = $write->action === RepoWrite::DELETE
+				? null
+				: $this->stored($did, $write);
 		}
 
-		return $result;
+		return null;
+	}
+
+	private function stored(string $did, RepoWrite $write): StoredRecord {
+		$bytes = DagCbor::encode($write->record ?? []);
+
+		return new StoredRecord($did, $write->collection, $write->rkey, Cid::forDagCbor($bytes), $bytes, $write->localId, time());
+	}
+
+	private static function recordKey(string $did, string $collection, string $rkey): string {
+		return $did . "\0" . $collection . "\0" . $rkey;
 	}
 
 	/**
@@ -161,6 +292,22 @@ class RepositoryService {
 				continue;
 			}
 			foreach ($this->repoRequest->getRecordsByLocalId($write->localId) as $record) {
+				if ($record->collection === $write->collection) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/** @param RepoWrite[] $writes */
+	private function batchMadeAlready(array $writes): bool {
+		foreach ($writes as $write) {
+			if (!$write->once) {
+				continue;
+			}
+			foreach ($this->getRecordsByLocalId($write->localId) as $record) {
 				if ($record->collection === $write->collection) {
 					return true;
 				}
@@ -272,6 +419,11 @@ class RepositoryService {
 	}
 
 	public function getRecord(string $did, string $collection, string $rkey): ?StoredRecord {
+		$key = self::recordKey($did, $collection, $rkey);
+		if (array_key_exists($key, $this->batchRecords)) {
+			return $this->batchRecords[$key];
+		}
+
 		return $this->repoRequest->getRecord($did, $collection, $rkey);
 	}
 
@@ -279,7 +431,20 @@ class RepositoryService {
 	 * @return StoredRecord[]
 	 */
 	public function getRecordsByLocalId(string $localId): array {
-		return $this->repoRequest->getRecordsByLocalId($localId);
+		$records = [];
+		foreach ($this->repoRequest->getRecordsByLocalId($localId) as $record) {
+			$records[self::recordKey($record->did, $record->collection, $record->rkey)] = $record;
+		}
+		foreach ($this->batchWrites as $write) {
+			$key = self::recordKey($this->batchDid ?? '', $write->collection, $write->rkey);
+			unset($records[$key]);
+			$record = $this->batchRecords[$key] ?? null;
+			if ($record instanceof StoredRecord && $record->localId === $localId) {
+				$records[$key] = $record;
+			}
+		}
+
+		return array_values($records);
 	}
 
 	/**
@@ -293,7 +458,26 @@ class RepositoryService {
 	 * @return StoredRecord[]
 	 */
 	public function listRecords(string $did, string $collection, int $limit, string $cursor = '', bool $reverse = false): array {
-		return $this->repoRequest->listRecords($did, $collection, $limit, $cursor, $reverse);
+		$records = [];
+		$overlayCount = count(array_filter(array_keys($this->batchRecords), static fn (string $key): bool => str_starts_with($key, $did . "\0" . $collection . "\0")));
+		foreach ($this->repoRequest->listRecords($did, $collection, $limit + $overlayCount, $cursor, $reverse) as $record) {
+			$records[$record->rkey] = $record;
+		}
+		foreach ($this->batchRecords as $key => $record) {
+			if (!str_starts_with($key, $did . "\0" . $collection . "\0")) {
+				continue;
+			}
+			$rkey = substr($key, strlen($did . "\0" . $collection . "\0"));
+			if ($record === null) {
+				unset($records[$rkey]);
+			} else {
+				$records[$rkey] = $record;
+			}
+		}
+		$records = array_filter($records, fn (StoredRecord $record): bool => $cursor === '' || ($reverse ? $record->rkey > $cursor : $record->rkey < $cursor));
+		usort($records, static fn (StoredRecord $left, StoredRecord $right): int => $reverse ? strcmp($left->rkey, $right->rkey) : strcmp($right->rkey, $left->rkey));
+
+		return array_slice($records, 0, $limit);
 	}
 
 	/**

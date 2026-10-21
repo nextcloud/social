@@ -88,6 +88,52 @@ class RepositoryServiceTest extends TestCase {
 		$this->assertTrue(array_key_first($car['blocks']) === $result->commitCid->toString(), 'the commit block comes first');
 	}
 
+	public function testBatchStagesRecordsForReadsAndCommitsThemTogether(): void {
+		$this->service->beginBatch(self::DID, $this->key);
+		$first = RepoWrite::create('app.bsky.feed.post', self::post('one'), 'https://s.test/1', '3kznmn7xqxl22');
+		$second = RepoWrite::create('app.bsky.feed.post', self::post('two'), 'https://s.test/2', '3kznmn7xqxl23');
+		$this->service->write(self::DID, $this->key, [$first]);
+		$this->service->write(self::DID, new PrivateKey(Curve::K256, $this->key->secret()), [$second]);
+
+		$this->assertNotNull($this->service->getRecord(self::DID, 'app.bsky.feed.post', $first->rkey));
+		$this->assertCount(2, $this->service->listRecords(self::DID, 'app.bsky.feed.post', 10));
+		$this->assertCount(1, $this->service->getRecordsByLocalId('https://s.test/1'));
+		$this->assertCount(1, $this->service->getRecordsByLocalId('https://s.test/2'));
+		$this->assertNull($this->store->getHead(self::DID), 'staged records are not committed early');
+		$this->assertCount(0, $this->frames, 'staged records do not reach the firehose');
+
+		$result = $this->service->commitBatch();
+
+		$this->assertNotNull($result);
+		$this->assertSame(2, $this->store->getHead(self::DID)?->recordCount);
+		$this->assertCount(1, $this->frames, 'all records use one firehose event');
+	}
+
+	public function testRollingBackAStagedBatchLeavesTheRepositoryUntouched(): void {
+		$this->service->beginBatch(self::DID, $this->key);
+		$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
+		$this->service->rollbackBatch();
+
+		$this->assertNull($this->store->getHead(self::DID));
+		$this->assertNull($this->service->getRecord(self::DID, 'app.bsky.feed.post', '3kznmn7xqxl22'));
+		$this->assertCount(0, $this->frames);
+	}
+
+	public function testAStaleSwapCommitRejectsTheWholeStagedBatch(): void {
+		$head = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
+
+		try {
+			$this->service->beginBatch(self::DID, $this->key, Cid::forRaw('stale')->toString());
+			$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('two'), '', '3kznmn7xqxl23')]);
+			$this->service->commitBatch();
+			$this->fail('a stale swapCommit must reject the staged writes');
+		} catch (InvalidSwapException) {
+			$this->assertSame($head?->commitCid->toString(), $this->store->getHead(self::DID)?->commitCid);
+			$this->assertNull($this->service->getRecord(self::DID, 'app.bsky.feed.post', '3kznmn7xqxl23'));
+			$this->assertCount(1, $this->frames);
+		}
+	}
+
 	public function testALaterCommitFollowsFromTheLast(): void {
 		$first = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
 		$second = $this->service->write(self::DID, $this->key, [

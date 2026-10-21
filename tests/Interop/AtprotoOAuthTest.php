@@ -11,7 +11,12 @@ namespace OCA\Social\Tests\Interop;
 
 use OCA\Social\Atproto\Identity\IdentityService;
 use OCA\Social\Atproto\OAuth\AuthorizationServer;
+use OCA\Social\Controller\OAuthController;
 use OCA\Social\Tests\Interop\Bluesky\DevNetwork;
+use OCP\AppFramework\Http\RedirectResponse;
+use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IUserManager;
+use OCP\IUserSession;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -21,8 +26,7 @@ use RuntimeException;
  * client library (`@atproto/oauth-client-node`): it resolves the account,
  * finds this server through the PDS's protected resource metadata, pushes
  * its request with DPoP, and — after the person agrees — exchanges the code,
- * uses the PDS, refreshes and signs out. The person's agreement is what
- * the consent page's button does, made here directly.
+ * uses the PDS, refreshes and signs out through the consent controller.
  */
 class AtprotoOAuthTest extends TestCase {
 	private DevNetwork $network;
@@ -50,10 +54,28 @@ class AtprotoOAuthTest extends TestCase {
 		parse_str((string)parse_url($authorizeUrl, PHP_URL_QUERY), $query);
 		$this->assertStringStartsWith(AuthorizationServer::REQUEST_URI_PREFIX, (string)$query['request_uri'], 'a pushed request');
 
-		// the person presses Allow on the consent page
+		// The browser opens the consent handler and submits its Allow action.
+		// This exercises the controller path used by the page instead of
+		// approving the pushed request directly on the OAuth service.
 		$oauth = Server::get(AuthorizationServer::class);
-		$this->assertSame(['atproto', 'transition:generic'], $oauth->pending((string)$query['client_id'], (string)$query['request_uri'], $userId)['scopes']);
-		$callback = $oauth->approve((string)$query['client_id'], (string)$query['request_uri'], $userId);
+		$clientId = (string)$query['client_id'];
+		$requestUri = (string)$query['request_uri'];
+		$this->assertSame(['atproto', 'transition:generic'], $oauth->pending($clientId, $requestUri, $userId)['scopes']);
+		$user = Server::get(IUserManager::class)->get($userId);
+		$this->assertNotNull($user);
+		$userSession = Server::get(IUserSession::class);
+		$userSession->setUser($user);
+		try {
+			$controller = Server::get(OAuthController::class);
+			$consent = $controller->authorize(client_id: $clientId, request_uri: $requestUri);
+			$this->assertInstanceOf(TemplateResponse::class, $consent, 'the pushed request renders the consent page');
+			$this->assertSame('oauth2', $consent->getTemplateName());
+			$approved = $controller->authorizing(client_id: $clientId, request_uri: $requestUri);
+			$this->assertInstanceOf(RedirectResponse::class, $approved, 'the Allow action returns the client callback');
+			$callback = $approved->getRedirectURL();
+		} finally {
+			$userSession->setUser(null);
+		}
 		$this->assertStringStartsWith('http://127.0.0.1/callback?', $callback);
 
 		$result = json_decode($this->client('finish', (string)parse_url($callback, PHP_URL_QUERY), $words), true);

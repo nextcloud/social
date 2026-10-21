@@ -268,7 +268,7 @@ class OAuthController extends Controller {
 			[$client_id, $client_secret] = $this->clientCredentials($client_id, $client_secret);
 			$client = $this->clientService->getFromClientId($client_id);
 			$credentials = ['app_scopes' => $scope];
-			if ($client_secret !== '') {
+			if ($client_secret !== '' || $client->getAppClientSecret() !== '') {
 				$credentials['client_secret'] = $client_secret;
 			}
 			$this->clientService->confirmData($client, $credentials);
@@ -388,6 +388,7 @@ class OAuthController extends Controller {
 	 */
 	#[NoCSRFRequired]
 	#[NoAdminRequired]
+	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/oauth/authorize')]
 	public function authorize(
 		string $client_id,
@@ -399,6 +400,12 @@ class OAuthController extends Controller {
 		string $code_challenge_method = '',
 		string $request_uri = '',
 	): Response {
+		if ($this->userSession->getUser() === null) {
+			return new RedirectResponse($this->urlGenerator->linkToRoute('core.login.showLoginForm', [
+				'redirect_url' => $this->request->getRequestUri(),
+			]));
+		}
+
 		if ($request_uri !== '') {
 			return $this->atprotoAuthorize($client_id, $request_uri);
 		}
@@ -853,7 +860,7 @@ class OAuthController extends Controller {
 				if ($device_code === '') {
 					return new DataResponse(['error' => 'invalid_request', 'error_description' => 'missing device_code'], Http::STATUS_BAD_REQUEST);
 				}
-				if ($client_secret !== '') {
+				if ($client_secret !== '' || $client->getAppClientSecret() !== '') {
 					$this->clientService->confirmData($client, ['client_secret' => $client_secret]);
 				}
 				$authorization = $this->deviceAuthorization->poll($device_code, $client_id);

@@ -14,6 +14,7 @@ use DateTimeZone;
 use Exception;
 use JsonSerializable;
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\StreamRequest;
@@ -433,6 +434,7 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	private string $updated = '';
 	private string $attributedTo = '';
 	private string $inReplyTo = '';
+	private string $activityPubReplyLink = '';
 	/** FEP-044f: the id of the object this post quotes, empty when it quotes none */
 	private string $quote = '';
 	/** FEP-044f: the quoted author's stamp of approval, once one has been granted */
@@ -777,6 +779,13 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 	 */
 	public function setInReplyTo(string $inReplyTo): Stream {
 		$this->inReplyTo = $inReplyTo;
+
+		return $this;
+	}
+
+	/** Keep an AT Protocol parent as a link when this post is sent over ActivityPub. */
+	public function setActivityPubReplyLink(string $replyId): self {
+		$this->activityPubReplyLink = BlueskyIds::isPostId($replyId) ? $replyId : '';
 
 		return $this;
 	}
@@ -2399,6 +2408,14 @@ class Stream extends ACore implements IQueryRow, JsonSerializable {
 			$this->exportLanguageMaps(),
 			$this->exportPageAsActivityPub()
 		);
+
+		if ($this->activityPubReplyLink !== '') {
+			unset($result['inReplyTo']);
+			$authorId = BlueskyIds::actorId(BlueskyIds::didOf($this->activityPubReplyLink));
+			$result['cc'] = array_values(array_diff($result['cc'] ?? [], [$authorId]));
+			$url = htmlspecialchars($this->activityPubReplyLink, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$result['content'] = rtrim($result['content'] ?? '') . '<p><a href="' . $url . '">' . $url . '</a></p>';
+		}
 
 		// Bookkeeping this app keeps about a post — the counts it has seen, the
 		// last action taken on it, what it still has to fetch — carried in the

@@ -11,8 +11,12 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
+use OCA\Social\Db\FiltersRequest;
+use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\StatusDeletionEventsRequest;
+use OCA\Social\Db\StatusRevisionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
@@ -35,6 +39,9 @@ class MastodonStreamingDaemon {
 	private const POLL_IDLE = 0.25;
 	private const POLL_INTERVAL = 1;
 	private const PING_INTERVAL = 20;
+	private const FILTER_POLL_INTERVAL = 5;
+	private const ANNOUNCEMENT_POLL_INTERVAL = 5;
+	private const NOTIFICATION_MERGE_POLL_INTERVAL = 5;
 	private const BATCH = 50;
 	private const MAX_HASHTAG_SUBSCRIPTIONS = 20;
 	private const MAX_LIST_SUBSCRIPTIONS = 20;
@@ -46,6 +53,11 @@ class MastodonStreamingDaemon {
 		private ClientService $clientService,
 		private AccountService $accountService,
 		private StreamRequest $streamRequest,
+		private StatusRevisionsRequest $statusRevisionsRequest,
+		private StatusDeletionEventsRequest $statusDeletionEventsRequest,
+		private FollowsRequest $followsRequest,
+		private FiltersRequest $filtersRequest,
+		private AnnouncementService $announcements,
 		private StreamService $streamService,
 		private ConversationService $conversationService,
 		private ListsRequest $listsRequest,
@@ -53,6 +65,7 @@ class MastodonStreamingDaemon {
 		private FilterService $filterService,
 		private FeedDisplayService $feedDisplayService,
 		private NotificationPolicyService $notificationPolicyService,
+		private TimelineRevisionService $timelineRevisionService,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 	) {
@@ -169,6 +182,20 @@ class MastodonStreamingDaemon {
 				'homeSince' => $this->streamRequest->newestHomeNid($viewer),
 				'notificationSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif'),
 				'directSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm'),
+				'revisionSince' => $this->statusRevisionsRequest->newestId(),
+				'deleteSince' => $this->statusDeletionEventsRequest->newestId(),
+				'filterFingerprint' => $stream === 'user'
+					? self::filterFingerprint($this->filtersRequest->getByActor($viewer->getId()))
+					: '',
+				'filterCheckedAt' => $this->time->getTime(),
+				'announcementState' => $stream === 'user'
+					? self::reactionState($this->announcementSnapshots($viewer))
+					: null,
+				'announcementCheckedAt' => $this->time->getTime(),
+				'notificationsMergedRevision' => in_array($stream, ['user', 'user:notification'], true)
+					? $this->timelineRevisionService->of($client->getAuthUserId(), TimelineRevisionService::NOTIFICATIONS_MERGED)
+					: 0,
+				'notificationsMergedCheckedAt' => $this->time->getTime(),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
@@ -237,6 +264,12 @@ class MastodonStreamingDaemon {
 				return null;
 			}
 			$subscriber->context['subscriptions'][$stream] = true;
+			if (in_array($stream, ['user', 'user:notification'], true)) {
+				$subscriber->context['notificationsMergedRevision'] = $this->timelineRevisionService->of(
+					(string)($subscriber->context['userId'] ?? ''), TimelineRevisionService::NOTIFICATIONS_MERGED
+				);
+				$subscriber->context['notificationsMergedCheckedAt'] = 0;
+			}
 		} else {
 			if ($stream === 'list') {
 				$listId = $this->listId($message['list'] ?? '');
@@ -366,6 +399,9 @@ class MastodonStreamingDaemon {
 		}
 		$this->streamService->setViewer($viewer);
 		$subscriptions = $subscriber->context['subscriptions'] ?? [];
+		$this->sendFilterChanges($server, $subscriber, $viewer, $subscriptions, $now);
+		$this->sendAnnouncementChanges($server, $subscriber, $viewer, $subscriptions, $now);
+		$this->sendNotificationsMerged($server, $subscriber, $viewer, $subscriptions, $now);
 		if (isset($subscriptions['user'])) {
 			$this->sendStatuses($server, $subscriber, $viewer);
 		}
@@ -390,6 +426,371 @@ class MastodonStreamingDaemon {
 		foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $key => $subscription) {
 			$this->sendHashtagStatuses($server, $subscriber, $viewer, $key, $subscription);
 		}
+		$this->sendDeletedStatuses($server, $subscriber);
+		$this->sendEditedPublicStatuses($server, $subscriber, $viewer);
+	}
+
+	/** Emits Mastodon's `filters_changed` event when this account's filters change. */
+	private function sendFilterChanges(WebSocketServer $server, Subscriber $subscriber, Person $viewer, array $subscriptions, int $now): void {
+		$streams = array_values(array_filter(
+			['user'],
+			static fn (string $stream): bool => isset($subscriptions[$stream])
+		));
+		if ($streams === [] || $now - (int)($subscriber->context['filterCheckedAt'] ?? 0) < self::FILTER_POLL_INTERVAL) {
+			return;
+		}
+
+		$subscriber->context['filterCheckedAt'] = $now;
+		$fingerprint = self::filterFingerprint($this->filtersRequest->getByActor($viewer->getId()));
+		$previous = (string)($subscriber->context['filterFingerprint'] ?? '');
+		if ($previous === '' || hash_equals($previous, $fingerprint)) {
+			$subscriber->context['filterFingerprint'] = $fingerprint;
+
+			return;
+		}
+		$subscriber->context['filterFingerprint'] = $fingerprint;
+		if ($subscriber->eventStream) {
+			$server->send($subscriber, "event: filters_changed\ndata: undefined\n\n");
+			return;
+		}
+		$server->send($subscriber, (string)json_encode([
+			'stream' => $streams,
+			'event' => 'filters_changed',
+		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+	}
+
+	/** @param Filter[] $filters */
+	private static function filterFingerprint(array $filters): string {
+		return hash('sha256', serialize(array_map(
+			static fn (Filter $filter): array => $filter->jsonSerialize(),
+			$filters
+		)));
+	}
+
+	/** Emits Mastodon's instance-announcement events on user streams. */
+	private function sendAnnouncementChanges(WebSocketServer $server, Subscriber $subscriber, Person $viewer, array $subscriptions, int $now): void {
+		$streams = array_values(array_filter(
+			['user'],
+			static fn (string $stream): bool => isset($subscriptions[$stream])
+		));
+		if ($streams === [] || $now - (int)($subscriber->context['announcementCheckedAt'] ?? 0) < self::ANNOUNCEMENT_POLL_INTERVAL) {
+			return;
+		}
+
+		$subscriber->context['announcementCheckedAt'] = $now;
+		$snapshots = $this->announcementSnapshots($viewer);
+		$current = self::reactionState($snapshots);
+		$previous = $subscriber->context['announcementState'] ?? null;
+		$subscriber->context['announcementState'] = $current;
+		if (!is_array($previous)) {
+			return;
+		}
+
+		foreach ($snapshots as $id => $snapshot) {
+			if (!isset($previous[$id])) {
+				$this->sendToStreams($server, $subscriber, $streams, 'announcement', $snapshot['payload']);
+				continue;
+			}
+			$before = is_array($previous[$id]) ? $previous[$id] : [];
+			$after = $snapshot['reactions'];
+			foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $name) {
+				if (($before[$name] ?? 0) === ($after[$name] ?? 0)) {
+					continue;
+				}
+				$this->sendToStreams($server, $subscriber, $streams, 'announcement.reaction', [
+					'name' => $name,
+					'count' => $after[$name] ?? 0,
+					'announcement_id' => (string)$id,
+				]);
+			}
+		}
+		foreach ($previous as $id => $_announcement) {
+			if (!isset($current[$id])) {
+				$this->sendToStreams($server, $subscriber, $streams, 'announcement.delete', (string)$id);
+			}
+		}
+	}
+
+	/** Emits Mastodon's notification-merge event after a reader accepts requests. */
+	private function sendNotificationsMerged(WebSocketServer $server, Subscriber $subscriber, Person $viewer, array $subscriptions, int $now): void {
+		$streams = array_values(array_filter(
+			['user', 'user:notification'],
+			static fn (string $stream): bool => isset($subscriptions[$stream])
+		));
+		if ($streams === [] || $now - (int)($subscriber->context['notificationsMergedCheckedAt'] ?? 0) < self::NOTIFICATION_MERGE_POLL_INTERVAL) {
+			return;
+		}
+
+		$subscriber->context['notificationsMergedCheckedAt'] = $now;
+		$revision = $this->timelineRevisionService->of(
+			$viewer->getUserId(), TimelineRevisionService::NOTIFICATIONS_MERGED
+		);
+		$previous = (int)($subscriber->context['notificationsMergedRevision'] ?? $revision);
+		$subscriber->context['notificationsMergedRevision'] = $revision;
+		if ($revision <= $previous) {
+			return;
+		}
+
+		foreach ($streams as $stream) {
+			$this->send($server, $subscriber, [$stream], 'notifications_merged', '');
+		}
+	}
+
+	/** @return array<string, array<string, mixed>> keyed by announcement id */
+	private function announcementSnapshots(Person $viewer): array {
+		$snapshots = [];
+		foreach ($this->announcements->active($viewer->getId(), $this->time->getTime()) as $announcement) {
+			$payload = $announcement->jsonSerialize();
+			$snapshots[(string)$announcement->getId()] = [
+				'payload' => $payload,
+				'reactions' => self::reactionCounts($payload),
+			];
+		}
+
+		return $snapshots;
+	}
+
+	/**
+	 * @param array<string, array{payload: array<string, mixed>, reactions: array<string, int>}> $snapshots
+	 * @return array<string, array<string, int>> keyed by announcement id and reaction name
+	 */
+	private static function reactionState(array $snapshots): array {
+		$state = [];
+		foreach ($snapshots as $id => $snapshot) {
+			$state[$id] = $snapshot['reactions'];
+		}
+
+		return $state;
+	}
+
+	/** @param array<string, mixed> $announcement @return array<string, int> reaction counts keyed by emoji */
+	private static function reactionCounts(array $announcement): array {
+		$counts = [];
+		foreach (is_array($announcement['reactions'] ?? null) ? $announcement['reactions'] : [] as $reaction) {
+			if (is_array($reaction) && is_string($reaction['name'] ?? null) && is_int($reaction['count'] ?? null)) {
+				$counts[$reaction['name']] = $reaction['count'];
+			}
+		}
+
+		return $counts;
+	}
+
+	/**
+	 * Sends one event to each active stream.
+	 *
+	 * @param string[] $streams
+	 */
+	private function sendToStreams(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array|string $payload): void {
+		foreach ($streams as $stream) {
+			$this->send($server, $subscriber, [$stream], $event, $payload);
+		}
+	}
+
+	/** Sends deleted status ids only to streams that could have received the status. */
+	private function sendDeletedStatuses(WebSocketServer $server, Subscriber $subscriber): void {
+		$subscriptions = $subscriber->context['subscriptions'] ?? [];
+		$listSubscriptions = $subscriber->context['listSubscriptions'] ?? [];
+		$hashtagSubscriptions = $subscriber->context['hashtagSubscriptions'] ?? [];
+		if (!isset($subscriptions['user'])
+			&& !isset($subscriptions['direct'])
+			&& ($listSubscriptions === [])
+			&& !array_intersect(array_keys($subscriptions), [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'])) {
+			return;
+		}
+
+		$events = $this->statusDeletionEventsRequest->getAfterId(
+			(int)($subscriber->context['deleteSince'] ?? 0),
+			self::BATCH
+		);
+		if ($events === []) {
+			return;
+		}
+		$subscriber->context['deleteSince'] = $events[array_key_last($events)]['id'];
+
+		foreach ($events as $event) {
+			$matching = [];
+			$isPrivate = $event['visibility'] !== Stream::TYPE_PUBLIC;
+			$isDirect = $event['visibility'] === Stream::TYPE_DIRECT;
+			if ($isPrivate) {
+				$viewer = $subscriber->context['viewer'] ?? null;
+				if (!$viewer instanceof Person) {
+					continue;
+				}
+				$isRecipient = in_array(md5($viewer->getId()), $event['recipients'], true);
+				if (!$isDirect && $event['audience_prim'] !== null) {
+					$isRecipient = $isRecipient || $this->followsRequest->followsCollection($viewer->getId(), $event['audience_prim']);
+				}
+				if (!$isRecipient) {
+					continue;
+				}
+			}
+			if (!$isDirect && isset($subscriptions['user'])) {
+				$matching[] = 'user';
+			}
+			if ($isDirect && isset($subscriptions['direct'])) {
+				$matching[] = 'direct';
+			}
+			if (!$isDirect && $listSubscriptions !== []) {
+				$matching[] = 'list';
+			}
+			foreach ($isPrivate ? [] : self::PUBLIC_STREAMS as $stream) {
+				if (!isset($subscriptions[$stream]) || !$this->deletedStatusMatchesStream($event, $stream)) {
+					continue;
+				}
+				$matching[] = $stream;
+			}
+			$eventTags = array_map(static fn (string $tag): string => strtolower(ltrim($tag, '#')), $event['hashtags']);
+			foreach ($isPrivate ? [] : $hashtagSubscriptions as $subscription) {
+				if (!is_array($subscription)) {
+					continue;
+				}
+				$tag = strtolower(ltrim((string)($subscription['tag'] ?? ''), '#'));
+				if ($tag !== '' && in_array($tag, $eventTags, true)
+					&& (!($subscription['local'] ?? false) || $event['local'])) {
+					$matching[] = (string)($subscription['stream'] ?? 'hashtag');
+				}
+			}
+			foreach (array_unique($matching) as $stream) {
+				$this->send($server, $subscriber, [$stream], 'delete', $event['status_nid']);
+			}
+		}
+	}
+
+	/** @param array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool, visibility: string, recipients: list<string>, audience_prim: ?string} $event */
+	private function deletedStatusMatchesStream(array $event, string $stream): bool {
+		return (!str_contains($stream, ':local') || $event['local'])
+			&& (!str_contains($stream, ':remote') || !$event['local'])
+			&& (!str_contains($stream, ':media') || $event['media']);
+	}
+
+	/** Sends edits to public and hashtag subscribers without replaying existing revisions. */
+	private function sendEditedPublicStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
+		$subscriptions = $subscriber->context['subscriptions'] ?? [];
+		$activeStreams = array_values(array_filter(
+			[...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'],
+			static fn (string $name): bool => isset($subscriptions[$name])
+		));
+		if ($activeStreams === []
+			&& !isset($subscriptions['user'])
+			&& !isset($subscriptions['direct'])
+			&& ($subscriber->context['listSubscriptions'] ?? []) === []) {
+			return;
+		}
+
+		$since = (int)($subscriber->context['revisionSince'] ?? 0);
+		$revisions = $this->statusRevisionsRequest->getAfterId($since, self::BATCH);
+		if ($revisions === []) {
+			return;
+		}
+		$subscriber->context['revisionSince'] = $revisions[array_key_last($revisions)]['id'];
+
+		$latestByStatus = [];
+		foreach ($revisions as $revision) {
+			$latestByStatus[$revision['stream_id_prim']] = true;
+		}
+		foreach (array_keys($latestByStatus) as $streamIdPrim) {
+			try {
+				$status = $this->streamService->getStreamByIdPrim($streamIdPrim, true);
+			} catch (Throwable) {
+				continue;
+			}
+			$isPublic = ($status->getVisibility() ?: $this->streamService->visibilityOf($status)) === Stream::TYPE_PUBLIC;
+
+			$matching = [];
+			if ($isPublic) {
+				foreach ($activeStreams as $stream) {
+					if ($this->editedStatusMatchesStream($status, $stream)) {
+						$matching[] = $stream;
+					}
+				}
+				foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $subscription) {
+					if (is_array($subscription)
+						&& in_array(
+							(string)($subscription['tag'] ?? ''),
+							array_map(static fn (string $tag): string => strtolower(ltrim($tag, '#')), $status->getHashtags()),
+							true
+						)
+						&& (!($subscription['local'] ?? false) || $status->isLocal())) {
+						$matching[] = (string)($subscription['stream'] ?? 'hashtag');
+					}
+				}
+			}
+			if (isset($subscriptions['user']) && $this->editedStatusIsInTimeline($status, ProbeOptions::HOME, viewer: $viewer)) {
+				$matching[] = 'user';
+			}
+			if (isset($subscriptions['direct'])
+				&& ($status->getVisibility() ?: $this->streamService->visibilityOf($status)) === Stream::TYPE_DIRECT) {
+				$conversation = $this->conversationService->updatedByStatus($viewer, $status->getNid());
+				if ($conversation !== null) {
+					$this->send($server, $subscriber, ['direct'], 'conversation', $conversation->jsonSerialize());
+				}
+			}
+			foreach ($subscriber->context['listSubscriptions'] ?? [] as $subscription) {
+				if (is_array($subscription)
+					&& ($subscription['list'] ?? null) instanceof MastodonList
+					&& $this->editedStatusIsInTimeline($status, '', $subscription['list'], $viewer)) {
+					$matching[] = 'list';
+				}
+			}
+			if ($matching === []) {
+				continue;
+			}
+
+			foreach (array_unique($matching) as $stream) {
+				$context = in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'], true)
+					? Filter::CONTEXT_PUBLIC
+					: Filter::CONTEXT_HOME;
+				$filtered = $this->filterService->apply([$status], $context, $viewer);
+				if ($filtered !== []) {
+					$this->send($server, $subscriber, [$stream], 'status.update', $filtered[0]);
+				}
+			}
+		}
+	}
+
+	private function editedStatusIsInTimeline(Stream $status, string $probe, ?MastodonList $list = null, ?Person $viewer = null): bool {
+		if ($this->feedDisplayService->hidesReplies($viewer?->getUserId() ?? '') && $status->getInReplyTo() !== '') {
+			return false;
+		}
+		$nid = (string)$status->getNid();
+		$options = (new ProbeOptions())
+			->setFormat(ACore::FORMAT_LOCAL)
+			->setProbe($probe)
+			->setMinId(Nid::decrement($nid))
+			->setMaxId(Nid::increment($nid))
+			->setLimit(self::BATCH)
+			->setInverted(true);
+
+		if ($list !== null) {
+			if ($viewer === null) {
+				return false;
+			}
+			$this->listsRequest->setViewer($viewer);
+			$statuses = $this->listsRequest->getTimeline($list, $options);
+		} else {
+			$statuses = $this->streamService->getTimeline($options);
+		}
+
+		foreach ($statuses as $candidate) {
+			if (Nid::compare((string)$candidate->getNid(), $nid) === 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function editedStatusMatchesStream(Stream $status, string $stream): bool {
+		if (str_starts_with($stream, 'hashtag')) {
+			return false;
+		}
+		$local = str_contains($stream, ':local');
+		$remote = str_contains($stream, ':remote');
+		$onlyMedia = str_ends_with($stream, ':media');
+
+		return (!$local || $status->isLocal())
+			&& (!$remote || !$status->isLocal())
+			&& (!$onlyMedia || $status->getAttachments() !== []);
 	}
 
 	private function sendDirectConversations(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
@@ -630,9 +1031,11 @@ class MastodonStreamingDaemon {
 		}
 	}
 
-	private function send(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array $payload): void {
+	private function send(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array|string $payload): void {
 		try {
-			$status = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+			$status = is_string($payload)
+				? $payload
+				: json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 			if ($subscriber->eventStream) {
 				$server->send($subscriber, 'event: ' . $event . "\ndata: " . $status . "\n\n");
 				return;
