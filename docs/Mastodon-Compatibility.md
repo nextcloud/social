@@ -818,7 +818,7 @@ whether it is done. Query and scalability work has its own list in
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon streams user home, notification, public, hashtag, list and direct updates; edits are covered for public, hashtag, home, list and direct streams, and public deletions emit ids | **partial** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon streams user home, notification, public, hashtag, list and direct updates; edits and visibility-scoped deletions reach the streams that may see them | implemented; WebSocket and SSE event families, announcement/filter changes, notification merges, and authorized deletion events are covered. The daemon and root proxy rules must be enabled by the administrator |
 
 ### Tier 2b — what walking the route list turned up
 
