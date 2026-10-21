@@ -141,6 +141,11 @@ class BlueskyThreadSource implements ThreadSource {
 			}
 			if ($this->store->storePost($view, false)) {
 				$stored++;
+			} else {
+				// Feed/profile imports may already have stored the post. Its
+				// AppView thread view still carries newer counts, so do not leave
+				// the opened conversation showing the old likes and replies.
+				$this->store->refreshKnownPostCountsFromView($view);
 			}
 		}
 

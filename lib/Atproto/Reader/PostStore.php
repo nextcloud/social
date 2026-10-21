@@ -20,6 +20,7 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamCard;
+use OCA\Social\Service\Counts\CountWriter;
 use OCA\Social\Service\ImportService;
 use OCA\Social\Service\SignatureService;
 use OCP\AppFramework\Utility\ITimeFactory;
@@ -47,6 +48,7 @@ class PostStore {
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
 		private StreamCardsRequest $cards,
+		private CountWriter $countWriter,
 	) {
 	}
 
@@ -125,6 +127,44 @@ class PostStore {
 		}
 
 		return $this->process($create);
+	}
+
+	/**
+	 * A thread response is a fresh AppView view even when its post was already
+	 * imported from a feed. Refresh the remote counters in place instead of
+	 * treating the known row as if the view had nothing new to say.
+	 *
+	 * @param array $post an `app.bsky.feed.defs#postView`
+	 * @return bool whether the current view contained counts that were stored
+	 */
+	public function refreshKnownPostCountsFromView(array $post): bool {
+		$id = BlueskyIds::postIdOfUri((string)($post['uri'] ?? ''));
+		if ($id === '' || !$this->isKnown($id)) {
+			return false;
+		}
+
+		$likes = BlueskyCountSource::count($post, 'likeCount');
+		$reposts = BlueskyCountSource::count($post, 'repostCount');
+		$replies = BlueskyCountSource::count($post, 'replyCount');
+		$quotes = BlueskyCountSource::count($post, 'quoteCount');
+		$counts = array_filter([
+			'likes' => $likes,
+			'reposts' => $reposts,
+			'replies' => $replies,
+			'quotes' => $quotes,
+		], static fn (?int $count): bool => $count !== null);
+		if ($counts === []) {
+			return false;
+		}
+
+		return $this->countWriter->write(
+			$id,
+			$likes,
+			$reposts,
+			$replies,
+			[PostMapper::DETAIL => $counts],
+			$quotes,
+		);
 	}
 
 	/**

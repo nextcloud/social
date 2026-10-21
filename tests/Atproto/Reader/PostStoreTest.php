@@ -35,6 +35,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Details;
 use OCA\Social\Model\StreamCard;
+use OCA\Social\Service\Counts\CountWriter;
 use OCA\Social\Service\ImportService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -64,6 +65,8 @@ class PostStoreTest extends TestCase {
 	private array $imported = [];
 	/** @var StreamCardsRequest&\PHPUnit\Framework\MockObject\MockObject */
 	private StreamCardsRequest $cards;
+	/** @var CountWriter&MockObject */
+	private CountWriter $countWriter;
 
 	protected function setUp(): void {
 		$ap = $this->createMock(AP::class);
@@ -103,7 +106,8 @@ class PostStoreTest extends TestCase {
 		$this->appView = $this->createMock(AppViewClient::class);
 		$this->interactions = $this->createMock(InteractionPublisher::class);
 		$this->cards = $this->createMock(StreamCardsRequest::class);
-		$this->store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $this->streams, $time, new NullLogger(), $this->cards);
+		$this->countWriter = $this->createMock(CountWriter::class);
+		$this->store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $this->streams, $time, new NullLogger(), $this->cards, $this->countWriter);
 	}
 
 	protected function tearDown(): void {
@@ -156,7 +160,7 @@ class PostStoreTest extends TestCase {
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->method('getStreamById')->willReturn($root);
 		$streams->expects($this->once())->method('updateDetails')->with($root, Details::HIDDEN_REPLIES);
-		$store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $streams, $this->createMock(ITimeFactory::class), new NullLogger(), $this->cards);
+		$store = new PostStore(new PostMapper($this->resolver()), $this->appView, $this->interactions, new ActorMapper(), $this->actors, $this->createMock(Blocklist::class), $this->createMock(LabelerService::class), $this->import, $streams, $this->createMock(ITimeFactory::class), new NullLogger(), $this->cards, $this->createMock(CountWriter::class));
 		$gate = ['uri' => 'at://x', 'record' => ['post' => 'at://' . self::DID . '/app.bsky.feed.post/3kroot', 'hiddenReplies' => ['at://' . self::OTHER . '/app.bsky.feed.post/3kr', 'not a uri']]];
 
 		$store->rememberHiddenReplies($gate);
@@ -185,6 +189,27 @@ class PostStoreTest extends TestCase {
 		$this->known[] = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
 		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
 		$this->assertSame([], $this->imported);
+	}
+
+	public function testAThreadViewRefreshesCountsOnAnAlreadyKnownPost(): void {
+		$id = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
+		$this->known[] = $id;
+		$view = $this->postView();
+		$view['likeCount'] = 18;
+		$view['repostCount'] = 7;
+		$view['replyCount'] = 5;
+		$view['quoteCount'] = 2;
+		$this->countWriter->expects($this->once())->method('write')->with(
+			$id,
+			18,
+			7,
+			5,
+			[PostMapper::DETAIL => ['likes' => 18, 'reposts' => 7, 'replies' => 5, 'quotes' => 2]],
+			2,
+		)->willReturn(true);
+
+		$this->assertTrue($this->store->refreshKnownPostCountsFromView($view));
+		$this->assertSame([], $this->imported, 'a fresh view updates the row without importing a duplicate post');
 	}
 
 	public function testADirectMessageGoesThroughTheSameDoorOnce(): void {

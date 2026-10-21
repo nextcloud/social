@@ -47,6 +47,7 @@ class BlueskyThreadSourceTest extends TestCase {
 
 			return $post['uri'] !== 'at://p/2';
 		});
+		$store->expects($this->once())->method('refreshKnownPostCountsFromView')->with($this->callback(static fn (array $post): bool => ($post['uri'] ?? '') === 'at://p/2'))->willReturn(true);
 		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
 		$post = (new Note())->setId('https://social.test/@alice/2');
 

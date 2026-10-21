@@ -1122,20 +1122,21 @@ itself. Bluesky has no way to hide the lists, so nothing is hidden. See
 
 ### 9.4e Counts
 
-A post read from Bluesky is stored once with the `likeCount`,
-`repostCount`, `replyCount` and `quoteCount` the AppView had at that moment,
-and no later feed read touches a stored post. Its counts are kept current
-like a fediverse post's: when somebody here sees it (its page, its
-conversation, a timeline page), and its counts are older than a quarter of
-an hour (a post less than a day old) or six hours (older), it is queued for
-a background `getPosts`, 25 posts a call (`BlueskyCountSource`); the cron's
-pass over the posts nobody looked at asks the same way every two hours. The
-answer replaces what the post's own network said (`remote_*`) and the quote
-count in the post's `atproto` block, and `quoteCount` is the origin's half
-of the post's quote counter, which the status entity carries as
-`quotes_count`; a post the AppView no longer has is deleted as §9.5 deletes
-it. Nothing is notified. See **Counts where a post lives** in
-Architecture.md.
+A post read from Bluesky is initially stored with the `likeCount`,
+`repostCount`, `replyCount` and `quoteCount` the AppView had at that moment.
+When a thread is opened, its fresh `getPostThread` views also refresh those
+counters on posts already stored from a feed or profile, without importing a
+duplicate post. This makes the replies' counts current along with the thread
+contents. Elsewhere, when somebody here sees a post (its page, a conversation
+or a timeline page) and its counts are older than a quarter of an hour (a post
+less than a day old) or six hours (older), it is queued for a background
+`getPosts`, 25 posts a call (`BlueskyCountSource`); the cron's pass over posts
+nobody looked at asks the same way every two hours. The answer replaces what
+the post's own network said (`remote_*`) and the quote count in the post's
+`atproto` block, and `quoteCount` is the origin's half of the post's quote
+counter, which the status entity carries as `quotes_count`; a post the AppView
+no longer has is deleted as §9.5 deletes it. Nothing is notified. See
+**Counts where a post lives** in Architecture.md.
 
 A local post that went to Bluesky is counted here, from the likes, boosts,
 replies and quotes this server holds; the ones on Bluesky arrive as the
