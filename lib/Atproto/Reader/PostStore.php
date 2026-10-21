@@ -166,7 +166,7 @@ class PostStore {
 		}
 		$present = [];
 		foreach ($answer['posts'] as $post) {
-			if (is_array($post) && is_string($post['uri'] ?? null)) {
+			if (is_array($post) && is_string($post['uri'] ?? null) && ($post['notFound'] ?? false) !== true) {
 				$present[$post['uri']] = $post;
 			}
 		}
