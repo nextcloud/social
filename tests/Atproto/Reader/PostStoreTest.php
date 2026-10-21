@@ -63,6 +63,8 @@ class PostStoreTest extends TestCase {
 	private array $known = [];
 	/** @var ACore[] what reached the import path */
 	private array $imported = [];
+	/** @var list<string> trusted blob URLs passed into ActivityPub parsing */
+	private array $atprotoStreamedBlobs = [];
 	/** @var StreamCardsRequest&\PHPUnit\Framework\MockObject\MockObject */
 	private StreamCardsRequest $cards;
 	/** @var CountWriter&MockObject */
@@ -70,7 +72,7 @@ class PostStoreTest extends TestCase {
 
 	protected function setUp(): void {
 		$ap = $this->createMock(AP::class);
-		$ap->method('getItemFromData')->willReturnCallback(static function (array $data): ACore {
+		$ap->method('getItemFromData')->willReturnCallback(function (array $data, ?ACore $parent = null, int $level = 0, array $atprotoStreamedBlobs = []): ACore {
 			$item = match ($data['type']) {
 				'Create' => new Create(),
 				'Announce' => new Announce(),
@@ -82,7 +84,16 @@ class PostStoreTest extends TestCase {
 			if (is_array($data['object'] ?? null)) {
 				$note = new Note();
 				$note->setUrlCloud('https://social.test');
-				$note->import($data['object']);
+				if ($data['type'] === 'Create') {
+					$this->atprotoStreamedBlobs = $atprotoStreamedBlobs;
+				}
+				$objectData = $data['object'];
+				// The real parser's streamed-blob handling is covered by StreamTest;
+				// this mock records the allowlist passed by PostStore.
+				if ($atprotoStreamedBlobs !== []) {
+					$objectData['attachment'] = [];
+				}
+				$note->import($objectData);
 				$item->setObject($note);
 			}
 
@@ -189,6 +200,27 @@ class PostStoreTest extends TestCase {
 		$this->known[] = 'https://bsky.app/profile/' . self::DID . '/post/3kznmn7xqxl22';
 		$this->assertSame(0, $this->store->storeFeedItem(['post' => $this->postView()]));
 		$this->assertSame([], $this->imported);
+	}
+
+	public function testMapperProducedBlobAllowlistIsPassedBeforeActivityPubImport(): void {
+		$actor = $this->person(self::DID);
+		$actor->setDetailArray(Details::ATPROTO, ['pds' => 'https://pds.example']);
+		$this->actors->method('cached')->willReturn($actor);
+		$cid = \OCA\Social\Atproto\Protocol\Cid::forRaw('a file in a third-party embed')->toString();
+		$view = $this->postView();
+		$view['embed'] = ['$type' => 'org.example.embed.files#view'];
+		$view['record']['embed'] = [
+			'$type' => 'org.example.embed.files',
+			'files' => [[
+				'name' => 'meeting-notes.pdf',
+				'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'application/pdf'],
+			]],
+		];
+
+		$this->assertTrue($this->store->storePost($view));
+		$this->assertSame([
+			'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+		], $this->atprotoStreamedBlobs);
 	}
 
 	public function testAThreadViewRefreshesCountsOnAnAlreadyKnownPost(): void {

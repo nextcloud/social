@@ -355,12 +355,11 @@ class PostStore {
 			unset($details['streamed_blobs']);
 		}
 		try {
-			$activity = AP::instance()->getItemFromData($data);
+			$activity = AP::instance()->getItemFromData($data, atprotoStreamedBlobs: $streamedBlobs);
 			$activity->setOrigin(BlueskyIds::HOST, SignatureService::ORIGIN_REQUEST, $this->time->getTime());
 			if (is_array($details) && $activity->hasObject()) {
 				$object = $activity->getObject();
 				if ($object instanceof Stream) {
-					$object->setAtprotoStreamedBlobs($streamedBlobs);
 					$object->setDetailArray(PostMapper::DETAIL, $details);
 					$object->setDetailInt(Details::LIKES, $details['likes']);
 					$object->setDetailInt(Details::REMOTE_LIKES, $details['likes']);
