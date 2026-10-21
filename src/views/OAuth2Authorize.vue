@@ -46,6 +46,44 @@
 				</NcButton>
 			</div>
 		</div>
+		<div v-else-if="deviceDecisionResult" class="guest-box oauth__box">
+			<header class="oauth__header">
+				<h1>{{ deviceDecisionResult === 'allow' ? t('social', 'Device authorized') : deviceDecisionResult === 'deny' ? t('social', 'Device denied') : t('social', 'Code unavailable') }}</h1>
+			</header>
+			<p class="oauth__lead" role="status">
+				{{ deviceDecisionResult === 'allow'
+					? t('social', 'The device will sign in shortly. You can close this page.')
+					: deviceDecisionResult === 'deny'
+						? t('social', 'The device will not be signed in. You can close this page.')
+						: t('social', 'This code is unknown, expired, or has already been used.') }}
+			</p>
+		</div>
+		<div v-else-if="device && !devicePending" class="guest-box oauth__box">
+			<header class="oauth__header">
+				<h1>{{ t('social', 'Authorize a device') }}</h1>
+			</header>
+			<p class="oauth__lead">
+				{{ t('social', 'Enter the code shown on a screen you control.') }}
+			</p>
+			<NcNoteCard type="warning">
+				{{ t('social', 'Only enter a code shown on a screen of your own.') }}
+			</NcNoteCard>
+			<form method="get" :action="deviceUrl">
+				<label class="device-code-label" for="device-code">{{ t('social', 'Device code') }}</label>
+				<input
+					id="device-code"
+					class="device-code-input"
+					name="user_code"
+					maxlength="9"
+					autocomplete="off"
+					:value="deviceUserCode">
+				<div class="button-row">
+					<NcButton variant="primary" type="submit">
+						{{ t('social', 'Continue') }}
+					</NcButton>
+				</div>
+			</form>
+		</div>
 
 		<!--
 			Somebody whose first visit is from an app has no account here
@@ -86,7 +124,11 @@
 			</div>
 		</div>
 
-		<form v-else class="guest-box oauth__box" method="post">
+		<form
+			v-else
+			class="guest-box oauth__box"
+			method="post"
+			:action="device ? deviceDecisionUrl : undefined">
 			<header class="oauth__header">
 				<!--
 					An application registers no logo, so the mark is the letter
@@ -101,7 +143,7 @@
 				<span v-else class="oauth__seal oauth__seal--app" aria-hidden="true">
 					{{ appInitial }}
 				</span>
-				<h1>{{ t('social', 'Authorization required') }}</h1>
+				<h1>{{ device ? t('social', 'Authorize this device') : t('social', 'Authorization required') }}</h1>
 				<!--
 					A Bluesky app is known by its client_id, an address; the
 					name it gives is not checked, so the address is shown whole
@@ -128,7 +170,9 @@
 			</header>
 
 			<p class="oauth__lead">
-				{{ t('social', '{appDisplayName} would like permission to access your account. It is a third party application.', { appDisplayName: appName }) }}
+				{{ device
+					? t('social', '{appDisplayName} would like permission to access your account. It is a third party application.', { appDisplayName: appName })
+					: t('social', '{appDisplayName} would like permission to access your account. It is a third party application.', { appDisplayName: appName }) }}
 			</p>
 
 			<!-- which account is being handed over, not only which application asks -->
@@ -191,25 +235,45 @@
 
 			<p class="target">
 				<ArrowRightThin :size="20" />
-				<span>{{ targetDescription }}</span>
+				<span>{{ device ? t('social', 'The device will receive access after you approve this request.') : targetDescription }}</span>
+			</p>
+			<p v-if="device" class="device-code-confirmation">
+				{{ t('social', 'Code: {code}', { code: deviceUserCode }) }}
 			</p>
 
 			<input
 				type="hidden"
 				name="requesttoken"
 				:value="OC.requestToken">
-			<div class="button-row">
-				<!--
+			<template v-if="device">
+				<input type="hidden" name="user_code" :value="deviceUserCode">
+				<div class="button-row">
+					<NcButton type="submit" name="decision" value="deny">
+						{{ t('social', 'Deny') }}
+					</NcButton>
+					<NcButton
+						variant="primary"
+						type="submit"
+						name="decision"
+						value="allow">
+						{{ t('social', 'Authorize device') }}
+					</NcButton>
+				</div>
+			</template>
+			<template v-else>
+				<div class="button-row">
+					<!--
 					Refusing is the safe answer, so it is not painted as the
 					dangerous one; the grant is the button that carries weight.
 				-->
-				<NcButton :href="denyUrl">
-					{{ t('social', 'Deny') }}
-				</NcButton>
-				<NcButton variant="primary" type="submit">
-					{{ t('social', 'Authorize') }}
-				</NcButton>
-			</div>
+					<NcButton :href="denyUrl">
+						{{ t('social', 'Deny') }}
+					</NcButton>
+					<NcButton variant="primary" type="submit">
+						{{ t('social', 'Authorize') }}
+					</NcButton>
+				</div>
+			</template>
 		</form>
 	</div>
 </template>
@@ -275,6 +339,13 @@ export default {
 			// where refusing sends the browser: back to the client with
 			// error=access_denied, which is the answer it is owed
 			denyUrl: loadState('social', 'denyUrl', generateUrl('/apps/social/')),
+			deviceUserCode: loadState('social', 'deviceUserCode', ''),
+			devicePending: loadState('social', 'devicePending', false),
+			deviceAppName: loadState('social', 'deviceAppName', ''),
+			deviceAppWebsite: loadState('social', 'deviceAppWebsite', ''),
+			deviceScopes: loadState('social', 'deviceScopes', []),
+			deviceDecisionResult: loadState('social', 'deviceDecisionResult', ''),
+			deviceDecisionUrl: loadState('social', 'deviceDecisionUrl', ''),
 		}
 	},
 
@@ -328,6 +399,14 @@ export default {
 		/** @return {boolean} whether a Bluesky app is asking */
 		atproto() {
 			return this.protocol === 'atproto'
+		},
+
+		device() {
+			return this.deviceDecisionUrl !== ''
+		},
+
+		deviceUrl() {
+			return generateUrl('/apps/social/oauth/device')
 		},
 
 		/**
@@ -558,6 +637,12 @@ export default {
 	text-align: center;
 	line-height: 150%;
 }
+
+.device-code-label { display: block; margin-block: 16px 6px; }
+
+.device-code-input { box-sizing: border-box; inline-size: 100%; min-block-size: 44px; padding: 8px 12px; font: inherit; }
+
+.device-code-confirmation { font-family: var(--font-face-monospace, monospace); text-align: center; }
 
 .account {
 	display: flex;

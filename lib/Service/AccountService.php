@@ -378,12 +378,10 @@ class AccountService {
 		// set as deleted locally
 		$this->actorsRequest->setAsDeleted($actor->getPreferredUsername());
 
-		// Every app this account had signed in to. A token that outlived the
-		// account is a token that would bring it back: `verify_credentials`
-		// creates an actor for a user who has none, so a phone left running
-		// would quietly re-make the account under a derived handle a minute
-		// after it was deleted. The app registrations are the instance's and
-		// stay; only the authorizations go.
+		// Revoke app authorizations and approved device grants before deleting
+		// the account. A token that outlived it could make a later
+		// `verify_credentials` quietly recreate the actor under a derived
+		// handle. The app registrations are the instance's and stay.
 		if ($actor->getUserId() !== '') {
 			$this->clientAuthRequest->deleteRelatedId($actor->getUserId());
 		}

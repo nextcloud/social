@@ -172,6 +172,14 @@ a token 401, as Mastodon does. The `/oauth/token` error bodies carry RFC 6749's
 names (`invalid_request`, `unsupported_grant_type`, `invalid_grant`,
 `invalid_client`) with a readable `error_description`.
 
+The same OAuth server also implements RFC 8628's device authorization grant.
+`/oauth/device_authorization` starts a short-lived request; a person enters its
+user code at `/oauth/device`, reviews the app and scopes, then allows or denies
+it from their signed-in account. The device polls `/oauth/token` using its
+device code and receives the account-bound token once approved. This is for
+clients without a usable browser or keyboard; the existing authorization-code
+and out-of-band flows are unchanged.
+
 ### 3.3 The endpoint surface is now broad and mostly real
 
 I opened the controller method behind each route rather than trusting the route
@@ -251,21 +259,27 @@ string, so they were hiding edit and history, calling the v1 filter routes that
 404 instead of v2, and never asking for `/api/v2/instance` or
 `/notifications/unread_count` — all of which are implemented.
 
-The Mastodon WebSocket streams `user`, `user:notification`, `direct`, `public`,
-`public:media`, `public:local`, `public:local:media`, `public:remote` and
-`public:remote:media`, `hashtag` and `hashtag:local`, and the `user`, public and
-hashtag and direct SSE endpoints, are available when `occ social:mastodon:stream` is
-running and the root proxy rules are installed. WebSocket clients connect to
-`/api/v1/streaming`; SSE clients connect to `/api/v1/streaming/user`,
-`/api/v1/streaming/user/notification`, `/api/v1/streaming/direct`, `/api/v1/streaming/public`,
+The Mastodon WebSocket streams `user`, `user:notification`, `direct`, `list`,
+`public`, `public:media`, `public:local`, `public:local:media`,
+`public:remote`, `public:remote:media`, `hashtag` and `hashtag:local`, plus
+the `user`, public, hashtag, direct and list SSE endpoints, are available when
+`occ social:mastodon:stream` is running and the root proxy rules are installed.
+WebSocket clients connect to
+`/api/v1/streaming`; a connection can subscribe to up to 20 owned lists at once,
+with an independent cursor for each. SSE clients connect to `/api/v1/streaming/user`,
+`/api/v1/streaming/user/notification`, `/api/v1/streaming/direct`,
+`/api/v1/streaming/list`, `/api/v1/streaming/public`,
 `/api/v1/streaming/public/local`, `/api/v1/streaming/public/remote`,
 `/api/v1/streaming/hashtag` or `/api/v1/streaming/hashtag/local`. Public SSE
 routes accept `only_media=true`; hashtag SSE routes require a `tag` query
 parameter. The direct stream emits `conversation` events and requires
-`read:statuses`. WebSocket hashtag subscriptions require a `tag` value in the
-subscription message. The instance filters events using the same visibility,
-mute and filter rules as its REST timelines. List, direct, delete and
-list, delete and status-edit streams are not implemented yet.
+`read:statuses`. List streams require an owned list ID and `read:statuses`;
+SSE clients pass it as the `list` query parameter, and WebSocket subscriptions
+pass it as `list`; WebSocket clients can unsubscribe from each list
+independently. WebSocket hashtag subscriptions require a `tag` value in the
+subscription message. The instance filters events using the same
+visibility, mute and filter rules as its REST timelines. Delete and
+status-edit streams are not implemented yet.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`

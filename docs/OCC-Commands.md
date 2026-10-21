@@ -514,12 +514,13 @@ php occ social:mastodon:stream [--bind ADDRESS:PORT] [--max-seconds SECONDS]
 
 | Option | Value | Description |
 |--------|-------|-------------|
-| `--bind` | string (127.0.0.1:8788) | Where to listen; the shipped root proxy rules send `/api/v1/streaming`, `/api/v1/streaming/user`, `/api/v1/streaming/user/notification`, `/api/v1/streaming/direct`, `/api/v1/streaming/public`, `/api/v1/streaming/public/local`, `/api/v1/streaming/public/remote`, `/api/v1/streaming/hashtag`, `/api/v1/streaming/hashtag/local` and `/api/v1/streaming/health` here |
+| `--bind` | string (127.0.0.1:8788) | Where to listen; the shipped root proxy rules send `/api/v1/streaming`, `/api/v1/streaming/user`, `/api/v1/streaming/user/notification`, `/api/v1/streaming/direct`, `/api/v1/streaming/list`, `/api/v1/streaming/public`, `/api/v1/streaming/public/local`, `/api/v1/streaming/public/remote`, `/api/v1/streaming/hashtag`, `/api/v1/streaming/hashtag/local` and `/api/v1/streaming/health` here |
 | `--max-seconds` | int (0) | Stop after this long, so a supervisor can restart it; `0` runs until stopped |
 
 The daemon requires a user access token with `read` or both `read:statuses` and
-`read:notifications`. It polls the same filtered home and notification queries
-the REST API uses once per second. Run it under a process supervisor; the
+`read:notifications` for user streams. Direct and list streams require
+`read:statuses`; a list stream also requires a list owned by that account. It
+polls the same filtered timelines used by the REST API once per second. Run it under a process supervisor; the
 streaming health path returns `OK` while the process is accepting requests.
 
 ### `social:atproto:identities`

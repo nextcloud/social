@@ -49,6 +49,12 @@ class SessionServiceTest extends TestCase {
 	private Identity $identity;
 	private PrivateKey $serviceKey;
 	private string $emailVerification = IAccountManager::VERIFIED;
+	/** @var list<IUser> */
+	private array $emailUsers = [];
+	private IUser $aliceUser;
+	private IUserManager $users;
+	private ActorsRequest $actors;
+	private IdentityService $identities;
 
 	protected function setUp(): void {
 		$this->request = (new \ReflectionClass(InMemoryClientRequest::class))->newInstanceWithoutConstructor();
@@ -58,37 +64,44 @@ class SessionServiceTest extends TestCase {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('serviceDid')->willReturn('did:web:social.test');
 		$this->identity = new Identity(1, 'https://social.test/@alice', self::DID, 'alice.social.test', 'sealed', '', '', Identity::STATE_ACTIVE, '', 0);
-		$identities = $this->createMock(IdentityService::class);
-		$identities->method('getByDid')->willReturnCallback(fn (string $did): Identity => $did === self::DID ? $this->identity : throw new AtprotoIdentityNotFoundException());
-		$identities->method('getByHandle')->willReturnCallback(fn (string $h): Identity => $h === 'alice.social.test' ? $this->identity : throw new AtprotoIdentityNotFoundException());
-		$identities->method('getByActorId')->willReturn($this->identity);
-		$identities->method('document')->willReturn(['id' => self::DID]);
+		$this->identities = $this->createMock(IdentityService::class);
+		$this->identities->method('getByDid')->willReturnCallback(fn (string $did): Identity => $did === self::DID ? $this->identity : throw new AtprotoIdentityNotFoundException());
+		$this->identities->method('getByHandle')->willReturnCallback(fn (string $h): Identity => $h === 'alice.social.test' ? $this->identity : throw new AtprotoIdentityNotFoundException());
+		$this->identities->method('getByActorId')->willReturnCallback(fn (string $id): Identity => $id === $this->identity->actorId ? $this->identity : throw new AtprotoIdentityNotFoundException());
+		$this->identities->method('document')->willReturn(['id' => self::DID]);
 		$this->serviceKey = PrivateKey::generate(Curve::K256);
 		$keys = $this->createMock(InstanceKeyService::class);
 		$keys->method('serviceKey')->willReturnCallback(fn (): PrivateKey => $this->serviceKey);
-		$actors = $this->createMock(ActorsRequest::class);
+		$this->actors = $this->createMock(ActorsRequest::class);
 		$alice = new Person();
 		$alice->setId('https://social.test/@alice');
 		$alice->setUserId('alice');
-		$actors->method('getFromId')->willReturn($alice);
-		$actors->method('getFromUserId')->willReturn($alice);
-		$users = $this->createMock(IUserManager::class);
-		$user = $this->createMock(IUser::class);
-		$user->method('getUID')->willReturn('alice');
-		$user->method('getEMailAddress')->willReturn('alice@example.org');
-		$users->method('getByEmail')->willReturnCallback(static fn (string $email): array => $email === 'alice@example.org' ? [$user] : []);
-		$users->method('get')->willReturnCallback(static fn (string $uid): ?IUser => $uid === 'alice' ? $user : null);
+		$this->actors->method('getFromId')->willReturn($alice);
+		$this->actors->method('getFromUserId')->willReturnCallback(static function (string $userId): Person {
+			$actor = new Person();
+			$actor->setId('https://social.test/@' . $userId);
+			$actor->setUserId($userId);
+
+			return $actor;
+		});
+		$this->users = $this->createMock(IUserManager::class);
+		$this->aliceUser = $this->createMock(IUser::class);
+		$this->aliceUser->method('getUID')->willReturn('alice');
+		$this->aliceUser->method('getEMailAddress')->willReturn('alice@example.org');
+		$this->emailUsers = [$this->aliceUser];
+		$this->users->method('getByEmail')->willReturnCallback(fn (string $email): array => $email === 'alice@example.org' ? $this->emailUsers : []);
+		$this->users->method('get')->willReturnCallback(fn (string $uid): ?IUser => $uid === 'alice' ? $this->aliceUser : null);
 		$emailProperty = $this->createMock(IAccountProperty::class);
 		$emailProperty->method('getValue')->willReturn('alice@example.org');
 		$emailProperty->method('getVerified')->willReturnCallback(fn (): string => $this->emailVerification);
 		$account = $this->createMock(IAccount::class);
 		$account->method('getProperty')->with(IAccountManager::PROPERTY_EMAIL)->willReturn($emailProperty);
 		$accounts = $this->createMock(IAccountManager::class);
-		$accounts->method('getAccount')->with($user)->willReturn($account);
+		$accounts->method('getAccount')->with($this->aliceUser)->willReturn($account);
 		$this->throttler = $this->createMock(IThrottler::class);
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
-		$this->sessions = new SessionService($config, $identities, $keys, $this->appPasswords, $this->request, $actors, $accounts, $users, $this->throttler, $time);
+		$this->sessions = new SessionService($config, $this->identities, $keys, $this->appPasswords, $this->request, $this->actors, $accounts, $this->users, $this->throttler, $time);
 	}
 
 	public function testOnlyAPrivilegedAppPasswordReachesTheDirectMessages(): void {
@@ -100,6 +113,61 @@ class SessionServiceTest extends TestCase {
 		$this->assertFalse($signedIn($plain)->permissions()->mayCall('chat.bsky.convo.listConvos', 'did:web:api.bsky.chat#bsky_chat'));
 		$this->assertTrue($signedIn($privileged['password'])->permissions()->mayCall('chat.bsky.convo.listConvos', 'did:web:api.bsky.chat#bsky_chat'));
 		$this->assertTrue($signedIn($plain)->permissions()->mayCall('app.bsky.feed.getTimeline', 'did:web:api.bsky.app#bsky_appview'), 'the rest as before');
+	}
+
+	public function testEmailSignInFindsTheAccountWhenAnEarlierMatchHasNoBlueskyIdentity(): void {
+		$other = $this->createMock(IUser::class);
+		$other->method('getUID')->willReturn('bob');
+		$this->emailUsers = [$other, $this->aliceUser];
+		$password = $this->appPasswords->create('alice', 'phone')['password'];
+
+		$session = $this->sessions->create('alice@example.org', $password, '203.0.113.5');
+
+		$this->assertSame(self::DID, $session['did']);
+		$this->assertSame('alice.social.test', $session['handle']);
+	}
+
+	public function testEmailSignInTrimsWhitespaceAndIgnoresCase(): void {
+		$password = $this->appPasswords->create('alice', 'phone')['password'];
+
+		$session = $this->sessions->create('  ALICE@EXAMPLE.ORG  ', $password, '203.0.113.5');
+
+		$this->assertSame(self::DID, $session['did']);
+		$this->assertSame('alice.social.test', $session['handle']);
+	}
+
+	public function testPdsAppPasswordMethodsExposeOnlyLexiconFieldsAndRevokeSessions(): void {
+		$session = new ClientSession('alice', $this->identity, 'owner');
+		try {
+			$this->sessions->createAppPassword($session, 'chat-app', true);
+			$this->fail('created a privileged password without chat permission');
+		} catch (XrpcException $e) {
+			$this->assertSame(403, $e->status);
+			$this->assertSame('InsufficientScope', $e->error);
+		}
+
+		$created = $this->sessions->createAppPassword(new ClientSession('alice', $this->identity, 'owner', ['atproto', ClientSession::GENERIC, ClientSession::CHAT]), 'chat-app', true);
+		$this->assertSame([
+			'name' => 'chat-app',
+			'password' => $created['password'],
+			'createdAt' => '1970-01-01T00:00:01Z',
+			'privileged' => true,
+		], $created);
+		$this->assertSame(['passwords' => [[
+			'name' => 'chat-app',
+			'createdAt' => '1970-01-01T00:00:01Z',
+			'privileged' => true,
+		]]], $this->sessions->listAppPasswords($session));
+
+		$tokens = $this->sessions->create('alice.social.test', $created['password'], '203.0.113.5');
+		$this->sessions->revokeAppPassword($session, 'chat-app');
+		$this->assertSame(['passwords' => []], $this->sessions->listAppPasswords($session));
+		try {
+			$this->sessions->authenticate('Bearer ' . $tokens['accessJwt']);
+			$this->fail('revoked app password session stayed active');
+		} catch (XrpcException $e) {
+			$this->assertSame('ExpiredToken', $e->error);
+		}
 	}
 
 	public function testAnAppPasswordIsShownOnceAndStoredAsAHash(): void {
@@ -171,8 +239,8 @@ class SessionServiceTest extends TestCase {
 
 	public function testAWrongPasswordCountsAgainstTheCallersAddress(): void {
 		$this->appPasswords->create('alice', 'phone');
-		$this->throttler->expects($this->exactly(3))->method('registerAttempt')->with('social_atproto_session', '203.0.113.5', $this->anything());
-		foreach ([['alice.social.test', 'aaaa-bbbb-cccc-dddd'], ['nobody.social.test', 'aaaa-bbbb-cccc-dddd'], ['alice.social.test', 'the Nextcloud password']] as [$who, $password]) {
+		$this->throttler->expects($this->exactly(4))->method('registerAttempt')->with('social_atproto_session', '203.0.113.5', []);
+		foreach ([['alice.social.test', 'aaaa-bbbb-cccc-dddd'], ['nobody.social.test', 'aaaa-bbbb-cccc-dddd'], ['alice.social.test', 'the Nextcloud password'], ['alice@example.org', 'aaaa-bbbb-cccc-dddd']] as [$who, $password]) {
 			try {
 				$this->sessions->create($who, $password, '203.0.113.5');
 				$this->fail('signed in with ' . $password);
