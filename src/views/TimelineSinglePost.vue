@@ -160,6 +160,9 @@ export default {
 			postState: '',
 			/** the composer-reply handler, kept so only this one is removed */
 			onComposerReply: null,
+			/** refresh the one post shown outside either timeline list */
+			countRefreshIntervalId: null,
+			countRefreshInProgress: false,
 		}
 	},
 
@@ -321,8 +324,18 @@ export default {
 		await this.load()
 	},
 
+	mounted() {
+		// The main post sits between the ancestor and reply lists, so neither
+		// list's visible-card refresher sees it. Keep its counts fresh while its
+		// detail page is open, with the same cadence as visible timeline cards.
+		this.countRefreshIntervalId = window.setInterval(this.refreshOpenedPostCounts, 5000)
+		document.addEventListener('visibilitychange', this.refreshOpenedPostCounts)
+	},
+
 	unmounted() {
 		eventBus.off('composer-reply', this.onComposerReply)
+		clearInterval(this.countRefreshIntervalId)
+		document.removeEventListener('visibilitychange', this.refreshOpenedPostCounts)
 	},
 
 	methods: {
@@ -336,6 +349,23 @@ export default {
 			} catch (error) {
 				logger.error('Could not show the hidden replies', { error })
 			}
+		},
+
+		/** Refresh the detail post as soon as its page is shown again. */
+		refreshOpenedPostCounts() {
+			if (document.visibilityState === 'hidden' || !this.singlePost?.id || this.countRefreshInProgress) {
+				return
+			}
+
+			const id = String(this.singlePost.id)
+			this.countRefreshInProgress = true
+			this.timelineStore.fetchStatus(id, true)
+				.catch((error) => {
+					logger.debug('The opened post counts were not refreshed', { error, id })
+				})
+				.finally(() => {
+					this.countRefreshInProgress = false
+				})
 		},
 
 		/**

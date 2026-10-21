@@ -1445,12 +1445,16 @@ export const useTimelineStore = defineStore('timeline', {
 		 * offer to try again rather than call the post deleted.
 		 *
 		 * @param {string} id the status id
+		 * @param {boolean} [refresh] bypass an HTTP cache when refreshing visible counts
 		 * @return {Promise<object|null>} the status, or null if it is not there
 		 */
-		async fetchStatus(id) {
+		async fetchStatus(id, refresh = false) {
 			try {
 				const url = generateUrl(`apps/social/api/v1/statuses/${id}`)
-				const response = await axios.get(url)
+				const get = () => refresh
+					? axios.get(url, { params: { _social_refresh: Date.now() } })
+					: axios.get(url)
+				const response = await get()
 				this.addToStatuses(response.data)
 				// its counts are being asked for where it lives: read once more
 				// a little later, so the page shows them without a reload
@@ -1458,7 +1462,7 @@ export const useTimelineStore = defineStore('timeline', {
 					this.statusRefetching = { ...this.statusRefetching, [id]: true }
 					const refetch = (attempt) => setTimeout(async () => {
 						try {
-							const refreshed = await axios.get(url)
+							const refreshed = await get()
 							this.addToStatuses(refreshed.data)
 							if (attempt < MAX_STATUS_REFETCHES && refreshed.headers?.['x-social-filling'] === '1') {
 								refetch(attempt + 1)

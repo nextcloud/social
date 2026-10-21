@@ -730,6 +730,16 @@ describe('timeline store actions', () => {
 			expect(tl().statuses['42']).toBeDefined()
 		})
 
+		it('bypasses HTTP caches when a visible post needs fresh counts', async () => {
+			axios.get.mockResolvedValue({ data: makeStatus('42') })
+
+			await store.fetchStatus('42', true)
+
+			expect(axios.get).toHaveBeenCalledWith(`${API}/statuses/42`, {
+				params: { _social_refresh: expect.any(Number) },
+			})
+		})
+
 		it('retries live counts while a status is still being filled', async () => {
 			vi.useFakeTimers()
 			try {

@@ -148,6 +148,7 @@ describe('TimelineSinglePost', () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks()
+		vi.useRealTimers()
 		mounted.splice(0).forEach((wrapper) => wrapper.unmount())
 	})
 
@@ -180,6 +181,19 @@ describe('TimelineSinglePost', () => {
 		const wrapper = mountView()
 		expect(store.getSinglePost).toEqual(fromServer)
 		expect(wrapper.findComponent(TimelineEntryStub).props('item')).toEqual(fromServer)
+	})
+
+	it('refreshes the opened post counts while its detail page stays open', async () => {
+		vi.useFakeTimers()
+		store.addToStatuses(status)
+		const fetchStatus = vi.spyOn(store, 'fetchStatus').mockResolvedValue(status)
+		mountView()
+		await flushPromises()
+		fetchStatus.mockClear()
+
+		await vi.advanceTimersByTimeAsync(5000)
+
+		expect(fetchStatus).toHaveBeenCalledWith(status.id, true)
 	})
 
 	it('opens a post addressed by its ActivityPub id under the id the app uses', () => {
