@@ -26,6 +26,7 @@ use OCP\IAvatarManager;
 use OCP\IUserManager;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 /**
  * Phase 3c: a Bluesky app signs in to this instance as its PDS with an app
@@ -169,6 +170,44 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertSame(200, $status);
 		[$status] = $app->query('com.atproto.server.getSession');
 		$this->assertGreaterThanOrEqual(400, $status, 'the access token went with the session');
+	}
+
+	/** The official Bluesky app's password-session library can log into this PDS. */
+	public function testOfficialBlueskyPasswordClientSignsIntoTheSocialPds(): void {
+		$identity = Server::get(IdentityService::class)->forActor($this->alice->actor);
+		$this->assertNotNull($identity);
+		$password = Server::get(AppPasswordService::class)->create($this->alice->userId, 'official-client')['password'];
+
+		$process = proc_open(
+			['node', 'password-client.mjs'],
+			[1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+			$pipes,
+			__DIR__ . '/atproto',
+			[
+				'PATH' => (string)getenv('PATH'),
+				'HOME' => (string)getenv('HOME'),
+				'PDS_URL' => (string)(getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test'),
+				'PDS_IDENTIFIER' => $identity->handle,
+				'PDS_PASSWORD' => $password,
+				'NODE_EXTRA_CA_CERTS' => (string)(getenv('NODE_EXTRA_CA_CERTS') ?: '/tmp/tls/ca.crt'),
+			]
+		);
+		if (!is_resource($process)) {
+			throw new RuntimeException('the official Bluesky password client did not start');
+		}
+
+		$output = (string)stream_get_contents($pipes[1]);
+		$error = (string)stream_get_contents($pipes[2]);
+		$status = proc_close($process);
+		$this->assertSame(0, $status, $error . $output);
+
+		$result = json_decode($output, true);
+		$this->assertIsArray($result);
+		$this->assertSame($identity->did, $result['did']);
+		$this->assertSame(200, $result['who']['status'], json_encode($result['who']));
+		$this->assertSame($identity->handle, $result['who']['body']['handle']);
+		$this->assertSame(200, $result['timeline']['status'], json_encode($result['timeline']));
+		$this->assertArrayHasKey('feed', $result['timeline']['body']);
 	}
 
 	/** A small PNG, made here so the test carries no binary file. */
