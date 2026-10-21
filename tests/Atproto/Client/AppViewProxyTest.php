@@ -181,4 +181,18 @@ class AppViewProxyTest extends TestCase {
 		$this->assertSame([$feeds], json_decode($stored, true), 'the words are not kept beside the filters');
 		$this->assertSame(['preferences' => [$feeds, $fromFilters]], $preferences->get($this->session));
 	}
+
+	public function testReplacingPreferencesWithoutMutedWordsClearsTheLocalProjection(): void {
+		$config = $this->createMock(IConfig::class);
+		$words = $this->createMock(\OCA\Social\Atproto\Client\MutedWords::class);
+		$words->expects($this->once())->method('apply')->with(
+			$this->anything(),
+			['$type' => \OCA\Social\Atproto\Client\MutedWords::PREF, 'items' => []]
+		);
+		$preferences = new Preferences($config, $words, $this->createMock(\OCA\Social\Service\AccountService::class));
+
+		$preferences->put($this->session, ['preferences' => [
+			['$type' => 'app.bsky.actor.defs#savedFeedsPrefV2', 'items' => []],
+		]]);
+	}
 }

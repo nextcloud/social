@@ -57,7 +57,7 @@ class Preferences {
 				throw XrpcException::invalidRequest('Some preferences are not in the app.bsky namespace');
 			}
 		}
-		$words = null;
+		$words = ['$type' => MutedWords::PREF, 'items' => []];
 		foreach ($preferences as $preference) {
 			if (self::isMutedWords($preference)) {
 				$words = $preference;
@@ -69,9 +69,7 @@ class Preferences {
 			throw new XrpcException(413, 'PayloadTooLarge', 'Preferences too large');
 		}
 		$this->config->setUserValue($session->userId, Application::APP_ID, self::KEY, $encoded);
-		if ($words !== null) {
-			$this->mutedWords->apply($this->accounts->getActorFromUserId($session->userId), $words);
-		}
+		$this->mutedWords->apply($this->accounts->getActorFromUserId($session->userId), $words);
 
 		return [];
 	}

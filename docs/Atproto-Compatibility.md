@@ -2584,6 +2584,8 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   rewrites it, and one it adds goes into a filter of its own, "Muted
   words from Bluesky", which hides what it matches everywhere (one per
   expiry, when the word has one).
+  `putPreferences` replaces the preference set: if `mutedWordsPref` is absent,
+  the app's mirrored muted words are cleared from the local filter projection.
 - **Writes are Social actions** (§16.5): `createRecord` of a post is a
   Social post (public; reply, quote, pictures, language; a link the app
   shortened is its whole address again), a like a like, a repost a boost,
