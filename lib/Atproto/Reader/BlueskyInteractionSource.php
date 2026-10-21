@@ -45,15 +45,18 @@ class BlueskyInteractionSource implements InteractionSource {
 	}
 
 	#[\Override]
-	public function actors(Stream $post, string $type, int $limit): array {
+	public function actors(Stream $post, string $type, int $limit, ?int $timeout = null): array {
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
 		[$method, $key] = $type === Like::TYPE ? ['app.bsky.feed.getLikes', 'likes'] : ['app.bsky.feed.getRepostedBy', 'repostedBy'];
 		try {
-			$answer = $this->appView->query($method, ['uri' => $uri, 'limit' => max(1, min(100, $limit))]);
+			$params = ['uri' => $uri, 'limit' => max(1, min(100, $limit))];
+			$answer = $timeout === null
+				? $this->appView->query($method, $params)
+				: $this->appView->query($method, $params, timeout: $timeout);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky reactions not read', ['uri' => $uri, 'exception' => $e]);
 
-			return [];
+			throw $e;
 		}
 		$ids = [];
 		foreach (is_array($answer[$key] ?? null) ? $answer[$key] : [] as $entry) {
@@ -76,14 +79,18 @@ class BlueskyInteractionSource implements InteractionSource {
 	}
 
 	#[\Override]
-	public function quotes(Stream $post, int $limit): int {
+	public function quotes(Stream $post, int $limit, ?int $timeout = null): int {
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
 		try {
-			$answer = $this->appView->query('app.bsky.feed.getQuotes', ['uri' => $uri, 'limit' => max(1, min(100, $limit))], ['atproto-accept-labelers' => $this->labelers->acceptHeader()]);
+			$params = ['uri' => $uri, 'limit' => max(1, min(100, $limit))];
+			$headers = ['atproto-accept-labelers' => $this->labelers->acceptHeader()];
+			$answer = $timeout === null
+				? $this->appView->query('app.bsky.feed.getQuotes', $params, $headers)
+				: $this->appView->query('app.bsky.feed.getQuotes', $params, $headers, $timeout);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky quotes not read', ['uri' => $uri, 'exception' => $e]);
 
-			return 0;
+			throw $e;
 		}
 		$stored = 0;
 		foreach (is_array($answer['posts'] ?? null) ? $answer['posts'] : [] as $view) {

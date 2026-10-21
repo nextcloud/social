@@ -42,4 +42,18 @@ class ActivityPubInteractionSourceTest extends TestCase {
 		$this->assertSame(0, $source->quotes($post, 10));
 		$this->assertFalse($source->supports((new Note())->setId('https://social.test/@alice/1')->setLocal(true)));
 	}
+
+	public function testAVisibleReadBoundsTheRemoteCollectionRequest(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$post->setSource((string)json_encode(['likes' => 'https://remote.example/notes/1/likes']));
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('retrieveObject')
+			->with('https://remote.example/notes/1/likes', true, 3)
+			->willReturn(['type' => 'OrderedCollection', 'orderedItems' => ['https://a.example/users/ann']]);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('resolveActors')->with(['https://a.example/users/ann']);
+		$source = new ActivityPubInteractionSource($curl, $queue, new NullLogger());
+
+		$this->assertSame(['https://a.example/users/ann'], $source->actors($post, 'Like', 10, 3));
+	}
 }

@@ -41,7 +41,7 @@ class ActivityPubInteractionSource implements InteractionSource {
 	}
 
 	#[\Override]
-	public function actors(Stream $post, string $type, int $limit): array {
+	public function actors(Stream $post, string $type, int $limit, ?int $timeout = null): array {
 		$source = json_decode($post->getSource(), true);
 		$collection = is_array($source) ? ($source[$type === Like::TYPE ? 'likes' : 'shares'] ?? null) : null;
 		$ids = [];
@@ -51,10 +51,12 @@ class ActivityPubInteractionSource implements InteractionSource {
 					break;
 				}
 				try {
-					$collection = $this->curl->retrieveObject($collection);
+					$collection = $timeout === null
+						? $this->curl->retrieveObject($collection)
+						: $this->curl->retrieveObject($collection, true, $timeout);
 				} catch (Throwable $e) {
 					$this->logger->info('A collection of reactions was not read', ['post' => $post->getId(), 'exception' => $e]);
-					break;
+					throw $e;
 				}
 			}
 			$items = $collection['orderedItems'] ?? $collection['items'] ?? [];
@@ -73,7 +75,7 @@ class ActivityPubInteractionSource implements InteractionSource {
 	}
 
 	#[\Override]
-	public function quotes(Stream $post, int $limit): int {
+	public function quotes(Stream $post, int $limit, ?int $timeout = null): int {
 		return 0;
 	}
 

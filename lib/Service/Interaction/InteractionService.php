@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service\Interaction;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Reader\BlueskyInteractionSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
@@ -19,6 +20,8 @@ use OCA\Social\Service\ActionService;
 use OCA\Social\Service\CacheActorService;
 use OCA\Social\Service\DurableCache;
 use OCA\Social\Service\RemoteFetchQueue;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -27,15 +30,20 @@ use Throwable;
  * Who liked, boosted or quoted a post, wherever they did: the reactions
  * this server received, and the ones the networks the post is on list
  * (`InteractionSource`), merged into one list with nothing to tell them
- * apart. What the networks list is read in the background (`Cron\FillInteractions`)
- * and kept for an hour in the table, where the web request reads it; the
- * counts on the post are not touched by it.
+ * apart. A visible reaction list asks its network inline with a short timeout;
+ * background fills keep lists current when nobody is reading them. Both are
+ * kept for an hour in the table, where web requests can share them. Counts on
+ * the post are refreshed separately by `CountService`.
  */
 class InteractionService {
 	public const QUOTES = 'Quote';
 	/** how long what a network listed is kept */
 	private const KEPT = 3600;
 	private const CACHE = 'social.reactors';
+	/** A reaction list is freshly read for five seconds after a visible request. */
+	private const VISIBLE = 'social.reactors.visible';
+	private const VISIBLE_INTERVAL = 5;
+	private const VISIBLE_LOCK = 'social-visible-reactions-';
 	/** the most a network is asked for */
 	public const LIMIT = 80;
 
@@ -47,6 +55,7 @@ class InteractionService {
 		private RemoteFetchQueue $queue,
 		private LoggerInterface $logger,
 		private ?ContainerInterface $container = null,
+		private ?ILockingProvider $locks = null,
 	) {
 	}
 
@@ -56,11 +65,14 @@ class InteractionService {
 	 * @return array{accounts: Person[], filling: bool}
 	 */
 	public function reactedBy(Stream $post, string $type, int $limit): array {
+		$filling = $this->refreshVisible($post, $type);
+		if ($filling === null) {
+			$filling = $this->queue->fillInteractions($post, $type);
+		}
 		$accounts = $this->actions->reactedBy($post, $type, $limit);
 		$seen = array_map(static fn (Person $p): string => $p->getId(), $accounts);
 		$listed = $this->durableCache->getShared(self::CACHE, self::key($post, $type));
 		$wanted = array_values(array_diff(is_array($listed) ? array_filter($listed, 'is_string') : [], $seen));
-		$filling = $this->queue->fillInteractions($post, $type);
 		if ($wanted !== [] && count($accounts) < $limit) {
 			$cached = $this->cacheActors->getCachedFromIds($wanted);
 			foreach ($wanted as $id) {
@@ -83,12 +95,84 @@ class InteractionService {
 	}
 
 	/**
+	 * Read the reaction list inline when a reader opens it. The regular
+	 * background refresh can wait for a scheduled job; the visible read is
+	 * bounded to the AppView's short timeout and shares one lock per post and
+	 * reaction kind, so simultaneous viewers do not duplicate the request.
+	 *
+	 * @return ?bool null when no inline source applies, otherwise whether the
+	 *               list is still being filled (a lock holder or fallback job)
+	 */
+	private function refreshVisible(Stream $post, string $type): ?bool {
+		if ($post->getId() === '' || ($post->isLocal() && $post->getVisibility() !== Stream::TYPE_PUBLIC)) {
+			return null;
+		}
+		$key = self::key($post, $type);
+		if ($this->durableCache->getShared(self::VISIBLE, $key) !== null) {
+			return false;
+		}
+
+		$lock = self::VISIBLE_LOCK . $key;
+		if ($this->locks !== null) {
+			if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
+				return true;
+			}
+			try {
+				$this->locks->acquireLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+			} catch (LockedException) {
+				return true;
+			}
+		}
+
+		try {
+			// Another request may have finished between the first cache check and
+			// acquiring the lock.
+			if ($this->durableCache->getShared(self::VISIBLE, $key) !== null) {
+				return false;
+			}
+			$supported = false;
+			$ids = [];
+			foreach ($this->sources() as $source) {
+				if (!$source->supports($post)) {
+					continue;
+				}
+				$supported = true;
+				if ($type === self::QUOTES) {
+					$source->quotes($post, self::LIMIT, AppViewClient::INTERACTIVE_TIMEOUT);
+				} else {
+					$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT, AppViewClient::INTERACTIVE_TIMEOUT));
+				}
+			}
+			if (!$supported) {
+				return null;
+			}
+			if ($type !== self::QUOTES) {
+				$this->durableCache->setShared(self::CACHE, $key, array_values(array_unique($ids)), self::KEPT);
+			}
+			$this->durableCache->setShared(self::VISIBLE, $key, true, self::VISIBLE_INTERVAL);
+
+			return false;
+		} catch (Throwable $e) {
+			$this->logger->info('Visible reactions not read; queued for retry', ['post' => $post->getId(), 'type' => $type, 'exception' => $e]);
+			$this->queue->fillInteractions($post, $type);
+
+			return true;
+		} finally {
+			if ($this->locks !== null) {
+				$this->locks->releaseLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+			}
+		}
+	}
+
+	/**
 	 * Has the posts quoting this one read from the networks it is on.
 	 *
 	 * @return bool whether a read was asked for
 	 */
 	public function askForQuotes(Stream $post): bool {
-		return $this->queue->fillInteractions($post, self::QUOTES);
+		$filling = $this->refreshVisible($post, self::QUOTES);
+
+		return $filling ?? $this->queue->fillInteractions($post, self::QUOTES);
 	}
 
 	/**

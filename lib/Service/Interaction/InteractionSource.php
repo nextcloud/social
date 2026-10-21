@@ -25,12 +25,12 @@ interface InteractionSource {
 	 *
 	 * @return list<string>
 	 */
-	public function actors(Stream $post, string $type, int $limit): array;
+	public function actors(Stream $post, string $type, int $limit, ?int $timeout = null): array;
 
 	/**
 	 * Stores the posts that quote it, which this server does not hold yet.
 	 *
 	 * @return int how many were stored
 	 */
-	public function quotes(Stream $post, int $limit): int;
+	public function quotes(Stream $post, int $limit, ?int $timeout = null): int;
 }

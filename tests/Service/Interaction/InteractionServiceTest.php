@@ -23,6 +23,7 @@ use OCA\Social\Tests\Helper\InMemoryDurableCacheRequest;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\ICache;
 use OCP\ICacheFactory;
+use OCP\Lock\ILockingProvider;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -34,7 +35,7 @@ class InteractionServiceTest extends TestCase {
 		return (new Person())->setId($id);
 	}
 
-	public function testThoseFromHereFirstThenWhoTheNetworksListedWithNothingTwice(): void {
+	public function testOpeningReactionListReadsTheNetworkBeforeReturningAndKeepsLocalActorsFirst(): void {
 		$post = (new Note())->setId('https://social.test/@alice/1');
 		$streams = $this->createMock(StreamRequest::class);
 		$streams->method('getStreamById')->willReturn($post);
@@ -56,15 +57,28 @@ class InteractionServiceTest extends TestCase {
 		$fediverse->method('supports')->willReturn(false);
 		$bluesky = $this->createMock(BlueskyInteractionSource::class);
 		$bluesky->method('supports')->willReturn(true);
-		$bluesky->method('actors')->willReturn(['https://bsky.app/profile/did:plc:carol', 'https://social.test/@bob']);
-		$bluesky->expects($this->once())->method('quotes')->with($post, InteractionService::LIMIT)->willReturn(2);
+		$bluesky->expects($this->exactly(2))->method('actors')
+			->willReturnCallback(function (Note $seenPost, string $type, int $limit, ?int $timeout) use ($post): array {
+				$this->assertSame($post, $seenPost);
+				$this->assertContains($type, ['Like', 'Announce']);
+				$this->assertSame(InteractionService::LIMIT, $limit);
+				$this->assertSame(3, $timeout);
+
+				return $type === 'Like'
+					? ['https://bsky.app/profile/did:plc:carol', 'https://social.test/@bob']
+					: [];
+			});
+		$bluesky->expects($this->once())->method('quotes')->with($post, InteractionService::LIMIT, 3)->willReturn(2);
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->willReturnMap([[ActivityPubInteractionSource::class, $fediverse], [BlueskyInteractionSource::class, $bluesky]]);
 		$service = new InteractionService($actions, $cacheActors, $streams, $durableCache, $queue, new NullLogger(), $container);
 
-		$this->assertSame(['https://social.test/@bob'], array_map(static fn (Person $p): string => $p->getId(), $service->reactedBy($post, 'Like', 10)['accounts']), 'nothing read yet');
-		$service->fill($post->getId(), 'Like');
-		$service->fill($post->getId(), InteractionService::QUOTES);
+		$this->assertSame(
+			['https://social.test/@bob', 'https://bsky.app/profile/did:plc:carol'],
+			array_map(static fn (Person $p): string => $p->getId(), $service->reactedBy($post, 'Like', 10)['accounts']),
+			'the visible request reads reactions before returning',
+		);
+		$this->assertFalse($service->askForQuotes($post), 'the quote list is read before its first response');
 
 		$this->assertSame(
 			['https://social.test/@bob', 'https://bsky.app/profile/did:plc:carol'],
@@ -111,5 +125,35 @@ class InteractionServiceTest extends TestCase {
 		$ready = $service->reactedBy($post, 'Like', 12);
 		$this->assertSame([$actorId], array_map(static fn (Person $person): string => $person->getId(), $ready['accounts']));
 		$this->assertFalse($ready['filling']);
+	}
+
+	public function testAConcurrentVisibleReadUsesTheInFlightListInsteadOfAskingAgain(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$actions = $this->createMock(ActionService::class);
+		$actions->method('reactedBy')->willReturn([]);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->never())->method('fillInteractions');
+		$locks = $this->createMock(ILockingProvider::class);
+		$locks->expects($this->once())->method('isLocked')->with(
+			'social-visible-reactions-' . md5('Like' . "\0" . $post->getId()),
+			ILockingProvider::LOCK_EXCLUSIVE,
+		)->willReturn(true);
+		$service = new InteractionService(
+			$actions,
+			$this->createMock(CacheActorService::class),
+			$this->createMock(StreamRequest::class),
+			$durableCache,
+			$queue,
+			new NullLogger(),
+			$this->createMock(ContainerInterface::class),
+			$locks,
+		);
+
+		$this->assertSame(['accounts' => [], 'filling' => true], $service->reactedBy($post, 'Like', 12));
 	}
 }

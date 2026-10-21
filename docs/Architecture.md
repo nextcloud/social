@@ -1877,7 +1877,12 @@ ones from here and the ones from wherever the post lives, merged, with
 nothing to tell them apart. `InteractionService` asks each network the post
 is on (`InteractionSource`) in the background (`Cron\FillInteractions`,
 queued by `RemoteFetchQueue::fillInteractions()` at most every ten minutes
-per post and kind):
+per post and kind). Opening a reaction or quote list first asks supported
+sources inline with a three-second timeout and a per-post-and-kind lock, then
+returns fresh actor ids or stored quote posts and queues profile resolution
+for avatars not cached yet.
+The five-second shared freshness marker bounds duplicate work from concurrent
+or rapidly repeated requests; failures fall back to the background queue:
 
 - `ActivityPubInteractionSource` reads the post's `likes` and `shares`
   collections as its server describes them — Mastodon lists only the
