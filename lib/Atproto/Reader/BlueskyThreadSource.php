@@ -30,6 +30,8 @@ class BlueskyThreadSource implements ThreadSource {
 	private const DEPTH = 10;
 	private const PARENT_HEIGHT = 20;
 	private const THREAD_VIEW = 'app.bsky.feed.defs#threadViewPost';
+	private const NOT_FOUND_VIEW = 'app.bsky.feed.defs#notFoundPost';
+	private const BLOCKED_VIEW = 'app.bsky.feed.defs#blockedPost';
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -67,6 +69,10 @@ class BlueskyThreadSource implements ThreadSource {
 			$answer = $timeout === null
 				? $this->appView->query('app.bsky.feed.getPostThread', $params, $headers)
 				: $this->appView->query('app.bsky.feed.getPostThread', $params, $headers, $timeout);
+			$thread = $answer['thread'] ?? null;
+			if (!is_array($thread) || !in_array($thread['$type'] ?? null, [self::THREAD_VIEW, self::NOT_FOUND_VIEW, self::BLOCKED_VIEW], true)) {
+				throw new \UnexpectedValueException('Bluesky thread response has no recognized thread view');
+			}
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky thread not read', ['uri' => $uri, 'exception' => $e]);
 
@@ -74,7 +80,7 @@ class BlueskyThreadSource implements ThreadSource {
 		}
 
 		$stored = 0;
-		foreach (self::postsOf(is_array($answer['thread'] ?? null) ? $answer['thread'] : [], $budget) as $view) {
+		foreach (self::postsOf($thread, $budget) as $view) {
 			if ($stored >= $budget) {
 				break;
 			}

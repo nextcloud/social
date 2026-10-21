@@ -1858,6 +1858,13 @@ post is on (`ThreadSource`), with one budget of 150 replies between them:
   written here and published — and stores each post as any Bluesky post is
   stored, parents first.
 
+Opening a conversation also asks this source inline with a three-second
+timeout, guarded by a per-post lock. A missing or unrecognized `thread` view
+is a failed read, so the queued fill remains available; an explicit
+`notFoundPost` or `blockedPost` is a valid empty result. Local posts still
+queue the background fill as well, since their Fediverse replies may not yet
+be known here.
+
 The page is never held up by another server: the answer says so with
 `X-Social-Thread-Filling`, and the web app asks once more a few seconds
 later. Nothing in what a reader sees says which network a reply came from.

@@ -55,4 +55,29 @@ class BlueskyThreadSourceTest extends TestCase {
 		$this->assertSame(4, $source->fill($post, 4));
 		$this->assertSame(['at://p/0', 'at://p/1', 'at://p/2', 'at://r/1', 'at://r/2'], $stored, 'the budget counts what was new');
 	}
+
+	public function testAResponseWithoutARecognizedThreadViewIsAReadFailure(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->once())->method('query')->willReturn([]);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->expectException(\UnexpectedValueException::class);
+		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
+	}
+
+	public function testAnExplicitlyUnavailableThreadIsAValidEmptyResult(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->once())->method('query')->willReturn(['thread' => ['$type' => 'app.bsky.feed.defs#notFoundPost', 'uri' => 'at://p/2']]);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $this->createMock(PostStore::class), $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->assertSame(0, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
+	}
 }
