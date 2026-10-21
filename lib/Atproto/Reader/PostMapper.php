@@ -216,7 +216,7 @@ class PostMapper {
 				'card' => $card,
 			]),
 		];
-		$video = self::videoOf($embed);
+		$video = self::videoOf($embed, $did);
 		if ($video !== null) {
 			// the shape a federated video arrives in, so it is streamed through
 			// this server's HLS proxy and never copied here, with its still
@@ -308,7 +308,7 @@ class PostMapper {
 				return [[], '', '<p><a href="' . self::escape($uri) . '" rel="nofollow noopener noreferrer" target="_blank">' . self::escape($title !== '' ? $title : $uri) . '</a></p>'];
 			case self::VIDEO:
 			case self::RECORD_VIDEO:
-				if (self::videoOf($embed) !== null) {
+				if (self::videoOf($embed, $authorDid) !== null) {
 					return [[], '', ''];
 				}
 				$parsed = BlueskyIds::parsePostId($postId);
@@ -325,7 +325,7 @@ class PostMapper {
 		return match ((string)($embed['$type'] ?? '')) {
 			self::IMAGES => self::imagesOf(is_array($embed['images'] ?? null) ? $embed['images'] : [], 'thumb') !== [],
 			self::GALLERY => self::imagesOf(is_array($embed['items'] ?? null) ? $embed['items'] : [], 'thumbnail') !== [],
-			self::VIDEO => self::videoOf($embed) !== null,
+			self::VIDEO => self::videoOf($embed, $authorDid) !== null,
 			self::EXTERNAL => self::cardOf($embed, $authorDid) !== null,
 			self::RECORD => is_array($embed['record'] ?? null) && $embed['record'] !== [],
 			self::RECORD_WITH_MEDIA => is_array($embed['record'] ?? null)
@@ -513,11 +513,31 @@ class PostMapper {
 	 *
 	 * @return array{playlist: string, thumbnail: string, width: int, height: int}|null
 	 */
-	public static function videoOf(array $embed): ?array {
+	public static function videoOf(array $embed, string $authorDid = ''): ?array {
 		if (($embed['$type'] ?? '') === self::RECORD_WITH_MEDIA) {
 			$embed = is_array($embed['media'] ?? null) ? $embed['media'] : [];
 		}
-		if (($embed['$type'] ?? '') !== self::VIDEO) {
+		$type = (string)($embed['$type'] ?? '');
+		if ($type === self::RECORD_VIDEO) {
+			$blob = is_array($embed['video'] ?? null) ? $embed['video'] : [];
+			$mimeType = strtolower((string)($blob['mimeType'] ?? ''));
+			$ref = is_array($blob['ref'] ?? null) ? $blob['ref'] : [];
+			$cid = (string)($ref['$link'] ?? $blob['cid'] ?? '');
+			if (!Syntax::isDid($authorDid) || !Cid::isValid($cid)
+				|| !in_array($mimeType, ['video/mp4', 'video/mpeg', 'video/webm', 'video/quicktime', 'image/gif'], true)) {
+				return null;
+			}
+			$base = 'https://video.bsky.app/watch/' . rawurlencode($authorDid) . '/' . $cid;
+			$ratio = is_array($embed['aspectRatio'] ?? null) ? $embed['aspectRatio'] : [];
+
+			return [
+				'playlist' => $base . '/playlist.m3u8',
+				'thumbnail' => $base . '/thumbnail.jpg',
+				'width' => max(0, (int)($ratio['width'] ?? 0)),
+				'height' => max(0, (int)($ratio['height'] ?? 0)),
+			];
+		}
+		if ($type !== self::VIDEO) {
 			return null;
 		}
 		$playlist = (string)($embed['playlist'] ?? '');

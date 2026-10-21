@@ -981,15 +981,18 @@ as `social_cache_doc` rows pointing at the AppView's CDN URL with the
 blob's CID and alt text. Both the legacy four-image embed and
 `app.bsky.embed.gallery#view` are mapped; gallery items use their full image
 URL, fall back to the AppView thumbnail when it is missing, and flow into
-the existing paged gallery UI. Video embeds use the video playlist; external
-link embeds retain their URL, title, description and thumbnail as a link
+the existing paged gallery UI. Video embeds use the video playlist; when an
+AppView view is missing but the original record has a validated video blob,
+the public Bluesky video service playlist and thumbnail are derived from the
+author DID and blob CID. Unknown or malformed blobs remain a link to the post.
+External link embeds retain their URL, title, description and thumbnail as a link
 preview. A quote becomes `quoted_id`; an embedded custom feed, list or
 starter pack becomes a link to its bsky.app page with a card made from what
 the AppView says of it — its name, description, creator and picture, no page
 read (`PostMapper::cardOf()`); the card's provider line and the
-link that stands in for a video not yet playable say what the thing is
-("Feed by @…", "List", "Starter pack", "Video"), not which network it is
-on — a reply as `in_reply_to`,
+link that stands in for a video with no usable playlist or blob says what the
+thing is ("Feed by @…", "List", "Starter pack", "Video"), not which network
+it is on — a reply as `in_reply_to`,
 labels as `summary` (content warning) or `sensitive` per §12.1, `published`
 from `indexedAt`, `local` false, and `details.atproto` with the CID and
 the like/repost/reply counts the AppView reported. It goes through

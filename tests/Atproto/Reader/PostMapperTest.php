@@ -288,11 +288,22 @@ class PostMapperTest extends TestCase {
 		$video['record']['embed'] = [
 			'$type' => 'app.bsky.embed.video',
 			'video' => ['ref' => ['$link' => Cid::forRaw('original video bytes')->toString()], 'mimeType' => 'video/mp4', 'size' => 1234],
+			'aspectRatio' => ['width' => 640, 'height' => 360],
 			'alt' => 'A video before the AppView built its playlist',
 		];
 		$videoNote = (new PostMapper($this->resolver()))->note($video);
-		$this->assertStringContainsString('target="_blank">Video</a>', $videoNote['content']);
-		$this->assertSame('Note', $videoNote['type'], 'a raw video blob is not claimed playable before its playlist exists');
+		$playlist = 'https://video.bsky.app/watch/' . rawurlencode(self::DID) . '/' . Cid::forRaw('original video bytes') . '/playlist.m3u8';
+		$this->assertSame('Video', $videoNote['type'], 'a raw video blob uses the Bluesky video service while its AppView view is missing');
+		$this->assertSame($playlist, $videoNote['url'][1]['href']);
+		$this->assertSame(640, $videoNote['url'][1]['width']);
+		$this->assertSame(360, $videoNote['url'][1]['height']);
+		$this->assertSame('https://video.bsky.app/watch/' . rawurlencode(self::DID) . '/' . Cid::forRaw('original video bytes') . '/thumbnail.jpg', $videoNote['icon']['url']);
+
+		$invalidVideo = $video;
+		$invalidVideo['record']['embed']['video']['mimeType'] = 'application/octet-stream';
+		$invalidNote = (new PostMapper($this->resolver()))->note($invalidVideo);
+		$this->assertSame('Note', $invalidNote['type'], 'unknown raw blob types are not sent to the video service');
+		$this->assertStringContainsString('target="_blank">Video</a>', $invalidNote['content']);
 
 		$cid = Cid::forRaw('quoted post image bytes')->toString();
 		$quoted = $this->postView();
