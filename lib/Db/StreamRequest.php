@@ -560,10 +560,14 @@ class StreamRequest extends StreamRequestBuilder {
 	 * @return Stream
 	 * @throws StreamNotFoundException
 	 */
-	public function getStreamByIdPrim(string $idPrim): Stream {
+	public function getStreamByIdPrim(string $idPrim, bool $asViewer = false): Stream {
 		$qb = $this->getStreamSelectSql(ACore::FORMAT_LOCAL);
 		$qb->limitToIdPrim($idPrim);
 		$qb->linkToCacheActors('ca', 's.attributed_to_prim');
+		if ($asViewer) {
+			$qb->limitToViewer('sd', 'f', true, true, SocialCoreQueryBuilder::HIDDEN_DIRECT);
+			$qb->leftJoinStreamAction('sa');
+		}
 
 		return $this->getStreamFromRequest($qb);
 	}

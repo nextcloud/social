@@ -13,6 +13,7 @@ use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
 use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\StatusRevisionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
@@ -46,6 +47,7 @@ class MastodonStreamingDaemon {
 		private ClientService $clientService,
 		private AccountService $accountService,
 		private StreamRequest $streamRequest,
+		private StatusRevisionsRequest $statusRevisionsRequest,
 		private StreamService $streamService,
 		private ConversationService $conversationService,
 		private ListsRequest $listsRequest,
@@ -169,6 +171,7 @@ class MastodonStreamingDaemon {
 				'homeSince' => $this->streamRequest->newestHomeNid($viewer),
 				'notificationSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif'),
 				'directSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm'),
+				'revisionSince' => $this->statusRevisionsRequest->newestId(),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
@@ -386,6 +389,83 @@ class MastodonStreamingDaemon {
 		foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $key => $subscription) {
 			$this->sendHashtagStatuses($server, $subscriber, $viewer, $key, $subscription);
 		}
+		$this->sendEditedPublicStatuses($server, $subscriber, $viewer);
+	}
+
+	/** Sends edits to public and hashtag subscribers without replaying existing revisions. */
+	private function sendEditedPublicStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
+		$subscriptions = $subscriber->context['subscriptions'] ?? [];
+		$activeStreams = array_values(array_filter(
+			[...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local'],
+			static fn (string $name): bool => isset($subscriptions[$name])
+		));
+		if ($activeStreams === []) {
+			return;
+		}
+
+		$since = (int)($subscriber->context['revisionSince'] ?? 0);
+		$revisions = $this->statusRevisionsRequest->getAfterId($since, self::BATCH);
+		if ($revisions === []) {
+			return;
+		}
+		$subscriber->context['revisionSince'] = $revisions[array_key_last($revisions)]['id'];
+
+		$latestByStatus = [];
+		foreach ($revisions as $revision) {
+			$latestByStatus[$revision['stream_id_prim']] = true;
+		}
+		foreach (array_keys($latestByStatus) as $streamIdPrim) {
+			try {
+				$status = $this->streamService->getStreamByIdPrim($streamIdPrim, true);
+			} catch (Throwable) {
+				continue;
+			}
+			if (($status->getVisibility() ?: $this->streamService->visibilityOf($status)) !== Stream::TYPE_PUBLIC) {
+				continue;
+			}
+
+			$matching = [];
+			foreach ($activeStreams as $stream) {
+				if ($this->editedStatusMatchesStream($status, $stream)) {
+					$matching[] = $stream;
+				}
+			}
+			foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $subscription) {
+				if (is_array($subscription)
+					&& in_array(
+						(string)($subscription['tag'] ?? ''),
+						array_map(static fn (string $tag): string => strtolower(ltrim($tag, '#')), $status->getHashtags()),
+						true
+					)
+					&& (!($subscription['local'] ?? false) || $status->isLocal())) {
+					$matching[] = (string)($subscription['stream'] ?? 'hashtag');
+				}
+			}
+			if ($matching === []) {
+				continue;
+			}
+
+			$filtered = $this->filterService->apply([$status], Filter::CONTEXT_PUBLIC, $viewer);
+			if ($filtered === []) {
+				continue;
+			}
+			foreach (array_unique($matching) as $stream) {
+				$this->send($server, $subscriber, [$stream], 'status.update', $filtered[0]);
+			}
+		}
+	}
+
+	private function editedStatusMatchesStream(Stream $status, string $stream): bool {
+		if (str_starts_with($stream, 'hashtag')) {
+			return false;
+		}
+		$local = str_contains($stream, ':local');
+		$remote = str_contains($stream, ':remote');
+		$onlyMedia = str_ends_with($stream, ':media');
+
+		return (!$local || $status->isLocal())
+			&& (!$remote || !$status->isLocal())
+			&& (!$onlyMedia || $status->getAttachments() !== []);
 	}
 
 	private function sendDirectConversations(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {

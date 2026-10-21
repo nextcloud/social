@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Service;
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
 use OCA\Social\Db\ListsRequest;
+use OCA\Social\Db\StatusRevisionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -39,10 +40,12 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private ClientService&MockObject $clients;
 	private AccountService&MockObject $accounts;
 	private StreamRequest&MockObject $requests;
+	private StatusRevisionsRequest&MockObject $statusRevisions;
 	private StreamService&MockObject $streams;
 	private ConversationService&MockObject $conversations;
 	private ListsRequest&MockObject $lists;
 	private PostDecorationService&MockObject $postDecoration;
+	private FilterService&MockObject $filters;
 	private ITimeFactory&MockObject $time;
 	private MastodonStreamingDaemon $daemon;
 
@@ -51,10 +54,13 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->clients = $this->createMock(ClientService::class);
 		$this->accounts = $this->createMock(AccountService::class);
 		$this->requests = $this->createMock(StreamRequest::class);
+		$this->statusRevisions = $this->createMock(StatusRevisionsRequest::class);
+		$this->statusRevisions->method('newestId')->willReturn(50);
 		$this->streams = $this->createMock(StreamService::class);
 		$this->conversations = $this->createMock(ConversationService::class);
 		$this->lists = $this->createMock(ListsRequest::class);
 		$this->postDecoration = $this->createMock(PostDecorationService::class);
+		$this->filters = $this->createMock(FilterService::class);
 		$this->time = $this->createMock(ITimeFactory::class);
 		$this->time->method('getTime')->willReturn(1_800_000_000);
 		$this->requests->method('newestHomeNid')->willReturn('10');
@@ -66,11 +72,12 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->clients,
 			$this->accounts,
 			$this->requests,
+			$this->statusRevisions,
 			$this->streams,
 			$this->conversations,
 			$this->lists,
 			$this->postDecoration,
-			$this->createMock(FilterService::class),
+			$this->filters,
 			$this->createMock(FeedDisplayService::class),
 			$this->createMock(NotificationPolicyService::class),
 			$this->time,
@@ -297,6 +304,37 @@ class MastodonStreamingDaemonTest extends TestCase {
 		self::assertTrue($options->isRemote());
 		self::assertTrue($options->isOnlyMedia());
 		self::assertSame(20, $options->getSince());
+	}
+
+	public function testPublicStreamsReceiveOneStatusUpdatePerEditedStatus(): void {
+		$statusId = 'https://social.example/users/alice/statuses/75';
+		$status = (new Stream())
+			->setId($statusId)
+			->setVisibility(Stream::TYPE_PUBLIC)
+			->setLocal(true);
+		$this->statusRevisions->expects(self::once())->method('getAfterId')->with(50, 50)->willReturn([
+			['id' => 51, 'stream_id_prim' => md5($statusId)],
+			['id' => 52, 'stream_id_prim' => md5($statusId)],
+		]);
+		$this->streams->expects(self::once())->method('getStreamByIdPrim')->with(md5($statusId), true)->willReturn($status);
+		$this->filters->expects(self::once())->method('apply')->willReturn([['id' => '75']]);
+
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['revisionSince' => 50, 'subscriptions' => ['public:local' => true]];
+		$server = new WebSocketServer('127.0.0.1:' . random_int(20000, 60000));
+		try {
+			$this->invoke('sendEditedPublicStatuses', $server, $subscriber, new Person());
+		} finally {
+			$server->shutdown();
+		}
+
+		self::assertSame(52, $subscriber->context['revisionSince']);
+		rewind($subscriber->socket);
+		$payload = stream_get_contents($subscriber->socket);
+		self::assertIsString($payload);
+		self::assertSame(1, substr_count($payload, 'event: status.update'));
+		self::assertStringContainsString('"id":"75"', $payload);
 	}
 
 	public function testHashtagSubscriptionRequiresTagAndSupportsUnsubscribe(): void {

@@ -802,7 +802,7 @@ whether it is done. Query and scalability work has its own list in
 | 7 | **`/api/v1/instance/peers` and `/activity`** | Hours | Instance browsers and the about page showed nothing | done |
 | 8 | **The v1 filter routes** | Hours | A client that has not moved to v2 filters got a 404 rather than an empty list | done |
 | 9 | **`/api/saved_searches/list.json`** — implement or stop routing it | Hours | Initialises a viewer and returns `[]`. See "Two answers rather than a tick" below | **open, and a decision rather than a task** |
-| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon now streams user home updates and notifications; public/hashtag/list/direct streams and delete/edit events remain | **partial** |
+| 10 | **Streaming** (`wss://`, `/api/v1/streaming/*`) | Weeks | A daemon streams user home, notification, public, hashtag, list and direct updates; `status.update` now covers edited public and hashtag posts, while deletes and edit fan-out to home/list/direct remain | **partial** |
 
 ### Tier 2b — what walking the route list turned up
 
@@ -924,10 +924,11 @@ root once an administrator installs the shipped web-server rules, and the setup
 check says whether they have; on an instance where they have not, no stock
 client reaches *any* of the surface above.
 
-**Streaming (10) is the next substantial client-compatibility gap.** The
-long-lived WebSocket daemon now serves the home and notification streams;
-the remaining timeline types and edit/delete events still need event fan-out.
-Web Push remains available for notifications. The peer-level
+**Streaming (10) remains a substantial client-compatibility gap.** The
+long-lived daemon serves the timeline types and now emits `status.update` for
+edits to matching public and hashtag streams. Delete events and edit fan-out
+to home, list and direct streams still need work. Web Push remains available
+for notifications. The peer-level
 media serialization finding is fixed and covered by a test that hydrates a stored
 status before serializing it.
 
