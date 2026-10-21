@@ -795,7 +795,7 @@ whether it is done. Query and scalability work has its own list in
 
 | # | Work | Effort | What it fixes | Status |
 |---|---|---|---|---|
-| 3 | **Web Push** (`/api/v1/push/subscription`, VAPID, `configuration.vapid`) | Weeks | Mobile apps need subscription management, encrypted per-token credentials, an encrypted delivery worker, and expired-endpoint cleanup | implemented in this branch; verification pending |
+| 3 | **Web Push** (`/api/v1/push/subscription`, VAPID, `configuration.vapid`) | Weeks | Mobile apps need subscription management, encrypted per-token credentials, an encrypted delivery worker, and expired-endpoint cleanup | implemented; this branch completes Mastodon's 140-character notification body behavior; live push-provider interoperability remains unverified |
 | 4 | **`/api/v1/preferences`** | Hours | Clients read the posting defaults from it and fall back to guesses | done |
 | 5 | **`/api/v1/custom_emojis`** — the instance's own emoji, and `Emoji` tags outbound | Days | Returned `[]` unconditionally: remote emoji rendered, this instance could publish none | done |
 | 6 | **`/api/v1/accounts/familiar_followers`** | Hours | The "followed by people you know" line on a profile | done |

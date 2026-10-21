@@ -18,6 +18,8 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Internal\SocialAppNotification;
 use OCA\Social\Model\ActivityPub\Object\Like;
+use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Service\MastodonPushContent;
 use OCA\Social\Service\PushSubscriptionService;
 use OCA\Social\Service\SafeWebPushClient;
 use OCA\Social\Service\VapidService;
@@ -33,6 +35,39 @@ use Psr\Log\NullLogger;
 class MastodonPushNotificationTest extends TestCase {
 	private const ACTOR = 'https://remote.example/users/bob';
 	private const RECIPIENT = 'https://social.example/users/alice';
+
+	public function testPushBodyUsesTheContentWarningBeforeThePostText(): void {
+		$post = new Stream();
+		$post->setContent('<p>Full post &amp; more text</p>');
+		$post->setSpoilerText('<p>Content warning &amp; details</p>');
+		$actor = new Person();
+		$actor->setDescription('Profile description');
+
+		self::assertSame('Content warning & details', MastodonPushContent::body($post, $actor));
+	}
+
+	public function testPushBodyUsesProfileDescriptionWhenThereIsNoStatus(): void {
+		$actor = new Person();
+		$actor->setDescription('<p>Followed you &amp; said hello</p>');
+
+		self::assertSame('Followed you & said hello', MastodonPushContent::body(null, $actor));
+	}
+
+	public function testPushBodyFallsBackToProfileDescriptionWhenTheStatusHasNoText(): void {
+		$post = new Stream();
+		$actor = new Person();
+		$actor->setDescription('<p>Account description</p>');
+
+		self::assertSame('Account description', MastodonPushContent::body($post, $actor));
+	}
+
+	public function testPushBodyIsLimitedToMastodons140CharacterExcerpt(): void {
+		$post = new Stream();
+		$post->setContent('<p>' . str_repeat('x', 160) . '</p>');
+		$actor = new Person();
+
+		self::assertSame(str_repeat('x', 139) . '…', MastodonPushContent::body($post, $actor));
+	}
 
 	public function testSendsAnEncryptedStandardWebPushAndRemovesExpiredSubscriptions(): void {
 		$endpoint = $this->subscription(true);
