@@ -143,6 +143,21 @@ function blurhashSize(small) {
 	}
 }
 
+/**
+ * A storage key can locate a file without naming it for a reader.
+ *
+ * @param {string} name a possible filename
+ * @return {boolean}
+ */
+function isOpaqueFileName(name) {
+	const stem = name.replace(/\.[^.]+$/, '')
+
+	return /^\d{6,}$/.test(stem)
+		|| /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(stem)
+		|| /^baf[a-z2-7]{20,}$/i.test(stem)
+		|| /^[a-z0-9_-]{40,}$/i.test(stem)
+}
+
 export default {
 	name: 'MediaAttachment',
 	components: {
@@ -274,7 +289,7 @@ export default {
 		 */
 		fileName() {
 			const description = (this.attachment?.description || '').trim()
-			if (description !== '') {
+			if (description !== '' && !isOpaqueFileName(description)) {
 				return description
 			}
 			const path = (this.attachment?.url || this.attachment?.remote_url || '').split('?')[0]
@@ -285,13 +300,7 @@ export default {
 			} catch {
 				// A malformed escape is not a reason to break the attachment card.
 			}
-			const stem = name.replace(/\.[^.]+$/, '')
-			const opaque = /^\d{6,}$/.test(stem)
-				|| /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(stem)
-				|| /^baf[a-z2-7]{20,}$/i.test(stem)
-				|| /^[a-z0-9_-]{40,}$/i.test(stem)
-
-			return name !== '' && !opaque ? name : t('social', 'File')
+			return name !== '' && !isOpaqueFileName(name) ? name : t('social', 'File')
 		},
 
 		/** @return {string} a useful file kind, from its extension or media type */

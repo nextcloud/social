@@ -104,6 +104,22 @@ class ActivityPubCountSourceTest extends TestCase {
 		$this->assertSame(1, (new ActivityPubCountSource($curl, $writer))->refresh([$this->note($postId)]));
 	}
 
+	public function testAnInteractiveReadWithNoUsableCountsLeavesThePostDueForBackgroundRetry(): void {
+		$postId = 'https://remote.example/notes/1';
+		$likes = $postId . '/likes';
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->exactly(2))->method('retrieveObjectsMany')
+			->willReturnOnConsecutiveCalls(
+				[$postId => ['id' => $postId, 'likes' => $likes]],
+				[],
+			);
+		$writer = $this->createMock(CountWriter::class);
+		$writer->expects($this->never())->method('write');
+		$writer->expects($this->never())->method('stamp');
+
+		$this->assertSame(0, (new ActivityPubCountSource($curl, $writer))->refresh([$this->note($postId)], 3));
+	}
+
 	/**
 	 * A post its server says is not there (404) or gone (410) will say so
 	 * again: it is stamped far ahead rather than asked about on every pass.

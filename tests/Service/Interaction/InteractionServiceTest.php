@@ -73,4 +73,43 @@ class InteractionServiceTest extends TestCase {
 		$this->assertSame(['https://social.test/@bob'], array_map(static fn (Person $p): string => $p->getId(), $service->reactedBy($post, 'Like', 1)['accounts']), 'within the limit');
 		$this->assertSame([], array_map(static fn (Person $p): string => $p->getId(), array_slice($service->reactedBy($post, 'Announce', 10)['accounts'], 1)), 'each kind its own list');
 	}
+
+	public function testMissingListedActorsKeepTheAvatarListFillingUntilTheirProfilesAreCached(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$streams = $this->createMock(StreamRequest::class);
+		$streams->method('getStreamById')->willReturn($post);
+		$actions = $this->createMock(ActionService::class);
+		$cacheActors = $this->createMock(CacheActorService::class);
+		$resolved = false;
+		$actorId = 'https://remote.example/users/alice';
+		$cacheActors->method('getCachedFromIds')->willReturnCallback(static function (array $ids) use (&$resolved, $actorId): array {
+			return $resolved ? [$actorId => self::person($actorId)] : [];
+		});
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->method('fillInteractions')->willReturn(false);
+		$queue->expects($this->once())->method('resolveActors')->with([$actorId]);
+		$fediverse = $this->createMock(ActivityPubInteractionSource::class);
+		$fediverse->method('supports')->willReturn(true);
+		$fediverse->method('actors')->with($post, 'Like', InteractionService::LIMIT)->willReturn([$actorId]);
+		$bluesky = $this->createMock(BlueskyInteractionSource::class);
+		$bluesky->method('supports')->willReturn(false);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturnMap([[ActivityPubInteractionSource::class, $fediverse], [BlueskyInteractionSource::class, $bluesky]]);
+		$service = new InteractionService($actions, $cacheActors, $streams, $durableCache, $queue, new NullLogger(), $container);
+
+		$service->fill($post->getId(), 'Like');
+		$waiting = $service->reactedBy($post, 'Like', 12);
+		$this->assertSame([], $waiting['accounts']);
+		$this->assertTrue($waiting['filling']);
+
+		$resolved = true;
+		$ready = $service->reactedBy($post, 'Like', 12);
+		$this->assertSame([$actorId], array_map(static fn (Person $person): string => $person->getId(), $ready['accounts']));
+		$this->assertFalse($ready['filling']);
+	}
 }

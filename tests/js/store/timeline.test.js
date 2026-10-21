@@ -730,18 +730,36 @@ describe('timeline store actions', () => {
 			expect(tl().statuses['42']).toBeDefined()
 		})
 
-		it('reads the post once more when its counts are on their way', async () => {
+		it('retries live counts while a status is still being filled', async () => {
 			vi.useFakeTimers()
 			try {
 				axios.get.mockResolvedValueOnce({ data: { ...makeStatus('42'), favourites_count: 1 }, headers: { 'x-social-filling': '1' } })
+				axios.get.mockResolvedValueOnce({ data: { ...makeStatus('42'), favourites_count: 3 }, headers: { 'x-social-filling': '1' } })
 				axios.get.mockResolvedValueOnce({ data: { ...makeStatus('42'), favourites_count: 7 }, headers: {} })
 
 				await store.fetchStatus('42')
 				expect(tl().statuses['42'].favourites_count).toBe(1)
-				await vi.advanceTimersByTimeAsync(6000)
+				await vi.advanceTimersByTimeAsync(3000)
+				expect(tl().statuses['42'].favourites_count).toBe(3)
+				await vi.advanceTimersByTimeAsync(3000)
 
-				expect(axios.get).toHaveBeenCalledTimes(2)
+				expect(axios.get).toHaveBeenCalledTimes(3)
+				expect(axios.get).toHaveBeenLastCalledWith(`${API}/statuses/42`)
 				expect(tl().statuses['42'].favourites_count).toBe(7)
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('caps count refetches when a remote source keeps failing', async () => {
+			vi.useFakeTimers()
+			try {
+				axios.get.mockResolvedValue({ data: makeStatus('42'), headers: { 'x-social-filling': '1' } })
+
+				await store.fetchStatus('42')
+				await vi.advanceTimersByTimeAsync(3000 * 5)
+
+				expect(axios.get).toHaveBeenCalledTimes(4)
 			} finally {
 				vi.useRealTimers()
 			}

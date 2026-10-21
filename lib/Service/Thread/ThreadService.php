@@ -13,6 +13,8 @@ use OCA\Social\Atproto\Reader\BlueskyThreadSource;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -28,10 +30,12 @@ use Throwable;
 class ThreadService {
 	/** the most replies one fill stores */
 	public const BUDGET = 150;
+	private const VISIBLE_LOCK = 'social-visible-thread-';
 
 	public function __construct(
 		private StreamRequest $streams,
 		private LoggerInterface $logger,
+		private ILockingProvider $locks,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -73,12 +77,23 @@ class ThreadService {
 			return false;
 		}
 
+		$lock = self::VISIBLE_LOCK . md5($post->getId());
+		if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
+			return true;
+		}
 		try {
-			$source->fill($post, self::BUDGET);
+			$this->locks->acquireLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+		} catch (LockedException) {
+			return true;
+		}
+		try {
+			$source->fillVisible($post, self::BUDGET);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky conversation not read during display', ['post' => $post->getId(), 'exception' => $e]);
 
 			return false;
+		} finally {
+			$this->locks->releaseLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
 		}
 
 		return true;

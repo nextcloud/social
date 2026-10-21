@@ -142,7 +142,7 @@ class PostStore {
 	 * @param string[] $postIds stored ids, at most 25 (one `getPosts`); others are ignored
 	 * @return array{posts: array<string, array>, deleted: int}|null null when the AppView did not answer
 	 */
-	public function postViews(array $postIds): ?array {
+	public function postViews(array $postIds, ?int $timeout = null): ?array {
 		$uris = [];
 		foreach (array_slice($postIds, 0, 25) as $id) {
 			$parsed = BlueskyIds::parsePostId($id);
@@ -154,7 +154,11 @@ class PostStore {
 			return ['posts' => [], 'deleted' => 0];
 		}
 		try {
-			$answer = $this->appView->query('app.bsky.feed.getPosts', ['uris' => array_values($uris)], ['atproto-accept-labelers' => $this->labelers->acceptHeader()]);
+			$params = ['uris' => array_values($uris)];
+			$headers = ['atproto-accept-labelers' => $this->labelers->acceptHeader()];
+			$answer = $timeout === null
+				? $this->appView->query('app.bsky.feed.getPosts', $params, $headers)
+				: $this->appView->query('app.bsky.feed.getPosts', $params, $headers, $timeout);
 		} catch (Throwable $e) {
 			// nothing is concluded from an AppView that did not answer
 			$this->logger->notice('Bluesky posts not checked', ['exception' => $e]);

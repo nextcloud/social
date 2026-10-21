@@ -412,7 +412,9 @@ function timelineRequest(list, params) {
  * the reader does to a post in it.
  */
 /** How long after a conversation is opened its replies from elsewhere are asked for again. */
-const THREAD_REFETCH_MS = 6000
+const THREAD_REFETCH_MS = 3000
+const STATUS_REFETCH_MS = 3000
+const MAX_STATUS_REFETCHES = 3
 
 export const useTimelineStore = defineStore('timeline', {
 	state: () => ({
@@ -1446,13 +1448,18 @@ export const useTimelineStore = defineStore('timeline', {
 				// its counts are being asked for where it lives: read once more
 				// a little later, so the page shows them without a reload
 				if (response.headers?.['x-social-filling'] === '1') {
-					setTimeout(async () => {
+					const refetch = (attempt) => setTimeout(async () => {
 						try {
-							this.addToStatuses((await axios.get(url)).data)
+							const refreshed = await axios.get(url)
+							this.addToStatuses(refreshed.data)
+							if (attempt < MAX_STATUS_REFETCHES && refreshed.headers?.['x-social-filling'] === '1') {
+								refetch(attempt + 1)
+							}
 						} catch (error) {
 							logger.debug('The counts of a status were not read again', { error, id })
 						}
-					}, THREAD_REFETCH_MS)
+					}, STATUS_REFETCH_MS)
+					refetch(1)
 				}
 
 				return response.data

@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Service\Counts;
 
+use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Reader\BlueskyCountSource;
 use OCA\Social\Atproto\Reader\BlueskyPublishedCountSource;
 use OCA\Social\Db\StreamRequest;
@@ -17,6 +18,8 @@ use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -49,6 +52,7 @@ class CountService {
 	public const OLD_INTERVAL = 21600;
 	/** Live reader refresh cadence, separate from the slower background scan. */
 	public const VISIBLE_INTERVAL = 5;
+	private const VISIBLE_LOCK = 'social-visible-count-';
 
 	public function __construct(
 		private StreamRequest $streams,
@@ -56,6 +60,7 @@ class CountService {
 		private RemoteFetchQueue $queue,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
+		private ILockingProvider $locks,
 		private ?ContainerInterface $container = null,
 	) {
 	}
@@ -97,27 +102,52 @@ class CountService {
 			}
 		}
 
-		foreach ($this->sources() as $source) {
-			if ($source->supports($post)) {
-				$countsAt = $post->getCountsAt();
-				if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
-					return false;
+		$countsAt = $post->getCountsAt();
+		if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
+			return false;
+		}
+
+		$lock = self::VISIBLE_LOCK . md5($post->getId());
+		if ($this->locks->isLocked($lock, ILockingProvider::LOCK_EXCLUSIVE)) {
+			return true;
+		}
+		try {
+			$this->locks->acquireLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+		} catch (LockedException) {
+			return true;
+		}
+
+		try {
+			try {
+				$post = $this->streams->getStreamById($post->getId());
+			} catch (StreamNotFoundException) {
+				return false;
+			}
+			$countsAt = $post->getCountsAt();
+			if ($countsAt !== null && $now - $countsAt < self::VISIBLE_INTERVAL) {
+				return false;
+			}
+
+			foreach ($this->sources() as $source) {
+				if (!$source->supports($post)) {
+					continue;
 				}
 				try {
-					$source->refresh([$post]);
+					$answered = $source->refresh([$post], AppViewClient::INTERACTIVE_TIMEOUT);
+					if ($answered === 0) {
+						$this->seen([$post]);
+					}
 				} catch (Throwable $e) {
 					$this->logger->info('Post counts not read during display', ['post' => $post->getId(), 'exception' => $e]);
-					try {
-						$this->writer->stamp($post->getId());
-					} catch (Throwable $stampError) {
-						$this->logger->info('Post counts not stamped after a failed display read', ['post' => $post->getId(), 'exception' => $stampError]);
-					}
+					$this->seen([$post]);
 				}
 				return true;
 			}
-		}
 
-		return false;
+			return false;
+		} finally {
+			$this->locks->releaseLock($lock, ILockingProvider::LOCK_EXCLUSIVE);
+		}
 	}
 
 	/** How long a post's counts stand before it is asked about again, in seconds. */

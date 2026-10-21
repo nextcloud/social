@@ -23,6 +23,26 @@ use Psr\Log\NullLogger;
 
 #[AllowMockObjectsWithoutExpectations]
 class AppViewClientTest extends TestCase {
+	public function testInteractiveQueriesCanUseAShortNetworkTimeout(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('appView')->willReturn('https://api.bsky.app');
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('doRequest')->with(
+			'get',
+			'https://api.bsky.app/xrpc/app.bsky.feed.getPosts?uris=at%3A%2F%2Fdid%3Aplc%3Aalice%2Fapp.bsky.feed.post%2F1',
+			$this->callback(static fn (array $options): bool => $options['timeout'] === AppViewClient::INTERACTIVE_TIMEOUT),
+			$this->anything(),
+			$this->anything(),
+		)->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status): string {
+			$status = 200;
+
+			return '{"posts":[]}';
+		});
+		$client = new AppViewClient($config, $this->createMock(ServiceAuth::class), $curl, new NullLogger());
+
+		$this->assertSame(['posts' => []], $client->query('app.bsky.feed.getPosts', ['uris' => ['at://did:plc:alice/app.bsky.feed.post/1']], [], AppViewClient::INTERACTIVE_TIMEOUT));
+	}
+
 	public function testAProcedureIsAPostOfItsInputAsThePerson(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('appViewAuth')->willReturn('https://api.bsky.app');

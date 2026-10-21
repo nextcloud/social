@@ -52,12 +52,12 @@ class ActivityPubCountSource implements CountSource {
 	}
 
 	#[\Override]
-	public function refresh(array $posts): int {
+	public function refresh(array $posts, ?int $timeout = null): int {
 		$answered = 0;
 		foreach (array_chunk($posts, self::PARALLEL) as $chunk) {
 			$statuses = [];
 			$answers = $this->curl->retrieveObjectsMany(
-				array_map(static fn (Stream $post): string => $post->getId(), $chunk), ['timeout' => self::ORIGIN_TIMEOUT], $statuses
+				array_map(static fn (Stream $post): string => $post->getId(), $chunk), ['timeout' => $timeout ?? self::ORIGIN_TIMEOUT], $statuses
 			);
 			$counts = [];
 			$collections = [];
@@ -81,7 +81,7 @@ class ActivityPubCountSource implements CountSource {
 			// collection URL. Resolve those URLs together so the visible-post
 			// refresh does not make one sequential request per counter.
 			if ($collections !== []) {
-				$collectionAnswers = $this->curl->retrieveObjectsMany(array_keys($collections), ['timeout' => self::ORIGIN_TIMEOUT]);
+				$collectionAnswers = $this->curl->retrieveObjectsMany(array_keys($collections), ['timeout' => $timeout ?? self::ORIGIN_TIMEOUT]);
 				foreach ($collections as $url => $refs) {
 					$collection = $collectionAnswers[$url] ?? null;
 					if (!is_array($collection) || ($collection['id'] ?? $collection['@id'] ?? '') !== $url) {
@@ -105,7 +105,15 @@ class ActivityPubCountSource implements CountSource {
 				}
 				$data = $answers[$post->getId()] ?? null;
 				if (!is_array($data) || ($data['id'] ?? '') !== $post->getId()) {
-					$this->writer->stamp($post->getId());
+					if ($timeout === null) {
+						$this->writer->stamp($post->getId());
+					}
+					continue;
+				}
+				if (!array_filter($counts[$post->getId()] ?? [], static fn (?int $count): bool => $count !== null)) {
+					if ($timeout === null) {
+						$this->writer->stamp($post->getId());
+					}
 					continue;
 				}
 				if ($this->writer->write(

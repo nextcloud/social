@@ -60,6 +60,7 @@ class InteractionService {
 		$seen = array_map(static fn (Person $p): string => $p->getId(), $accounts);
 		$listed = $this->durableCache->getShared(self::CACHE, self::key($post, $type));
 		$wanted = array_values(array_diff(is_array($listed) ? array_filter($listed, 'is_string') : [], $seen));
+		$filling = $this->queue->fillInteractions($post, $type);
 		if ($wanted !== [] && count($accounts) < $limit) {
 			$cached = $this->cacheActors->getCachedFromIds($wanted);
 			foreach ($wanted as $id) {
@@ -71,9 +72,14 @@ class InteractionService {
 					$accounts[] = $cached[$id];
 				}
 			}
+			$missing = array_values(array_diff($wanted, array_keys($cached)));
+			if ($missing !== [] && count($accounts) < $limit) {
+				$this->queue->resolveActors(array_slice($missing, 0, $limit - count($accounts)));
+				$filling = true;
+			}
 		}
 
-		return ['accounts' => $accounts, 'filling' => $this->queue->fillInteractions($post, $type)];
+		return ['accounts' => $accounts, 'filling' => $filling];
 	}
 
 	/**

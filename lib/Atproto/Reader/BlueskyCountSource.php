@@ -39,17 +39,17 @@ class BlueskyCountSource implements CountSource {
 	}
 
 	#[\Override]
-	public function refresh(array $posts): int {
+	public function refresh(array $posts, ?int $timeout = null): int {
 		$answered = 0;
 		foreach (array_chunk($posts, self::BATCH) as $chunk) {
 			$ids = array_map(static fn (Stream $post): string => $post->getId(), $chunk);
-			$views = $this->store->postViews($ids);
+			$views = $this->store->postViews($ids, $timeout);
 			foreach ($ids as $id) {
 				$view = $views['posts'][$id] ?? null;
 				if ($view === null) {
 					// a post the AppView no longer has is deleted by now; the
 					// posts of a call it did not answer are asked again later
-					if ($views === null) {
+					if ($views === null && $timeout === null) {
 						$this->writer->stamp($id);
 					}
 					continue;
@@ -64,6 +64,12 @@ class BlueskyCountSource implements CountSource {
 					'replies' => $replies,
 					'quotes' => $quotes,
 				], static fn (?int $count): bool => $count !== null);
+				if ($block === []) {
+					if ($timeout === null) {
+						$this->writer->stamp($id);
+					}
+					continue;
+				}
 				if ($this->writer->write($id, $likes, $reposts, $replies, [PostMapper::DETAIL => $block], $quotes)) {
 					$answered++;
 				}

@@ -1014,7 +1014,7 @@ export default {
 		// only what is on screen, for either protocol, and let the server's
 		// per-post freshness window cap requests to the origin.
 		this.refreshVisiblePostCounts()
-		this.countRefreshIntervalId = window.setInterval(() => this.refreshVisiblePostCounts(), 15000)
+		this.countRefreshIntervalId = window.setInterval(() => this.refreshVisiblePostCounts(), 5000)
 		document.addEventListener('scroll', this.refreshVisiblePostCounts, { capture: true, passive: true })
 		// with notify_push the server tells us about new entries; polling
 		// remains as a slow safety net. Without it, poll every 30 seconds.
@@ -1283,8 +1283,8 @@ export default {
 				}
 				const indexed = this.timelineStore.getStatus(element.dataset.statusId)
 				const status = indexed?.reblog ?? indexed
-				if (status?.id && /^(?:at:\/\/|https?:\/\/)/i.test(status.uri ?? '')
-					&& now - (this.countRefreshLastAsked.get(status.id) ?? 0) >= 15000) {
+				if (status?.id && status.visibility !== 'direct'
+					&& now - (this.countRefreshLastAsked.get(status.id) ?? 0) >= 5000) {
 					visible.push(String(status.id))
 				}
 			}

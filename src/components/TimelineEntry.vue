@@ -590,8 +590,6 @@ export default {
 	 */
 	&--reply {
 		margin-inline-start: calc(var(--thread-depth, 1) * 24px);
-		// Keep actions aligned to the thread's outer edge as replies nest.
-		margin-inline-end: calc(var(--thread-depth, 1) * -24px);
 		padding-inline-start: 18px;
 		position: relative;
 

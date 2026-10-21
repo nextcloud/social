@@ -141,6 +141,18 @@ describe('MediaAttachment', () => {
 		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
 	})
 
+	it.each([
+		'123456789',
+		'bafkreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+	])('does not use opaque descriptions as a filename: %s', (description) => {
+		const wrapper = mount(MediaAttachment, {
+			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/', media_type: 'application/pdf', preview_url: null, description } },
+		})
+
+		expect(wrapper.find('.attachment__file-name').text()).toBe('File')
+		expect(wrapper.find('.attachment__file-kind').text()).toBe('PDF')
+	})
+
 	it('does not fail on an invalid escaped filename', () => {
 		const wrapper = mount(MediaAttachment, {
 			props: { attachment: { id: '9', type: 'unknown', url: 'https://cloud.example.org/media/bad%name', preview_url: null, description: null } },

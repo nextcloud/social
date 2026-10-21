@@ -3,7 +3,7 @@
   - SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <template>
-	<div v-if="groups.length > 0 || quotedLabel !== ''" class="reacted-by">
+	<div v-if="groups.length > 0" class="reacted-by">
 		<div v-for="group in groups" :key="group.key" class="reacted-by__group">
 			<component :is="group.icon" :size="16" class="reacted-by__icon" />
 			<span class="reacted-by__label">{{ group.label }}</span>
@@ -12,10 +12,6 @@
 					<ActorAvatar :actor="account" :size="24" />
 				</li>
 			</ul>
-		</div>
-		<div v-if="quotedLabel !== ''" class="reacted-by__group">
-			<FormatQuoteClose :size="16" class="reacted-by__icon" />
-			<span class="reacted-by__label">{{ quotedLabel }}</span>
 		</div>
 	</div>
 </template>
@@ -36,6 +32,8 @@ const FACES = 12
 
 /** How long after the first look the faces from elsewhere are asked for again. */
 export const REFILL_MS = 6000
+/** Bound retries when a remote profile stays unavailable. */
+const MAX_REFILLS = 8
 
 export default {
 	name: 'PostReactedBy',
@@ -57,6 +55,8 @@ export default {
 		return {
 			boosted: [],
 			favourited: [],
+			quoted: [],
+			refills: {},
 		}
 	},
 
@@ -90,24 +90,20 @@ export default {
 					label: this.hidesCounts
 						? t('social', 'Favourited by')
 						: n('social', 'Favourited by %n person', 'Favourited by %n people', this.status.favourites_count ?? 0),
+					visible: this.favourited.length > 0,
 				},
-			].filter((group) => group.accounts.length > 0)
-		},
-
-		/**
-		 * How often the post was quoted, wherever: a number alone, as the
-		 * quoting posts are read in their own place. Nothing for a reader who
-		 * hides the numbers, or a post nobody quoted.
-		 *
-		 * @return {string}
-		 */
-		quotedLabel() {
-			const quotes = this.status.quotes_count ?? 0
-			if (this.hidesCounts || quotes <= 0) {
-				return ''
-			}
-
-			return n('social', 'Quoted %n time', 'Quoted %n times', quotes)
+				{
+					key: 'quotes',
+					icon: 'FormatQuoteClose',
+					accounts: this.quoted,
+					label: this.hidesCounts
+						? t('social', 'Quoted by')
+						: n('social', 'Quoted %n time', 'Quoted %n times', this.status.quotes_count ?? 0),
+					visible: this.hidesCounts
+						? this.quoted.length > 0
+						: (this.status.quotes_count ?? 0) > 0,
+				},
+			].filter((group) => group.visible ?? group.accounts.length > 0)
 		},
 	},
 
@@ -116,11 +112,18 @@ export default {
 		// the reader's own boost belongs in the row it just changed the count of
 		'status.id': 'load',
 		'status.reblogs_count': function() {
+			this.refills = { ...this.refills, reblogged_by: 0 }
 			this.loadBoosts()
 		},
 
 		'status.favourites_count': function() {
+			this.refills = { ...this.refills, favourited_by: 0 }
 			this.loadFavourites()
+		},
+
+		'status.quotes_count': function() {
+			this.refills = { ...this.refills, quotes: 0 }
+			this.loadQuotes()
 		},
 	},
 
@@ -130,8 +133,10 @@ export default {
 
 	methods: {
 		load() {
+			this.refills = {}
 			this.loadBoosts()
 			this.loadFavourites()
+			this.loadQuotes()
 		},
 
 		async loadBoosts() {
@@ -140,6 +145,20 @@ export default {
 
 		async loadFavourites() {
 			this.favourited = await this.fetch('favourited_by', this.status.favourites_count, () => this.loadFavourites())
+		},
+
+		async loadQuotes() {
+			this.quoted = await this.fetch('quotes', this.status.quotes_count, () => this.loadQuotes(), (posts) => {
+				const seen = new Set()
+				return posts.flatMap((post) => {
+					const account = post?.account
+					if (!account?.id || seen.has(account.id)) {
+						return []
+					}
+					seen.add(account.id)
+					return [account]
+				})
+			})
 		},
 
 		/**
@@ -157,9 +176,10 @@ export default {
 		 * @param {string} path the endpoint under the status, Mastodon's name for it
 		 * @param {number} count how many the post says there are; ignored while the numbers are hidden
 		 * @param {() => void} again what reads the row again
+		 * @param {(data: object[]) => object[]} [accountsOf] turns a quotes page into its authors
 		 * @return {Promise<object[]>} the accounts, newest first
 		 */
-		async fetch(path, count, again) {
+		async fetch(path, count, again, accountsOf = (data) => data) {
 			// with the numbers hidden the server sends 0 for every post, so
 			// the count says nothing about whether anybody is there to show
 			if (!this.hidesCounts && !(count > 0)) {
@@ -171,12 +191,15 @@ export default {
 					generateUrl(`apps/social/api/v1/statuses/${this.status.id}/${path}`),
 					{ params: { limit: FACES } },
 				)
-				if (headers?.['x-social-filling'] === '1') {
+				if (headers?.['x-social-filling'] === '1' && (this.refills[path] ?? 0) < MAX_REFILLS) {
 					const id = this.status.id
+					this.refills = { ...this.refills, [path]: (this.refills[path] ?? 0) + 1 }
 					setTimeout(() => this.status.id === id && again(), REFILL_MS)
+				} else if (headers?.['x-social-filling'] !== '1') {
+					this.refills = { ...this.refills, [path]: 0 }
 				}
 
-				return Array.isArray(data) ? data.slice(0, FACES) : []
+				return Array.isArray(data) ? accountsOf(data).slice(0, FACES) : []
 			} catch (error) {
 				logger.debug('Could not load who reacted to a post', { error, path })
 

@@ -28,6 +28,7 @@ use Throwable;
  */
 class AppViewClient {
 	private const TIMEOUT = 20;
+	public const INTERACTIVE_TIMEOUT = 3;
 
 	public function __construct(
 		private AtprotoConfig $config,
@@ -46,8 +47,8 @@ class AppViewClient {
 	 * @throws AppViewNotFoundException when the AppView says the thing is not there
 	 * @throws AtprotoException for every other refusal, and when the AppView cannot be reached
 	 */
-	public function query(string $method, array $params = [], array $headers = []): array {
-		return $this->get($this->config->appView(), $method, $params, $headers);
+	public function query(string $method, array $params = [], array $headers = [], ?int $timeout = null): array {
+		return $this->get($this->config->appView(), $method, $params, $headers, timeout: $timeout);
 	}
 
 	/**
@@ -110,7 +111,7 @@ class AppViewClient {
 	 * @throws AppViewNotFoundException
 	 * @throws AtprotoException
 	 */
-	private function get(string $base, string $method, array $params, array $headers, ?array $input = null, ?callable $legacyToken = null): array {
+	private function get(string $base, string $method, array $params, array $headers, ?array $input = null, ?callable $legacyToken = null, ?int $timeout = null): array {
 		$url = $base . '/xrpc/' . $method;
 		$query = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
 		if ($query !== '') {
@@ -121,7 +122,7 @@ class AppViewClient {
 		try {
 			$answer = $this->curlService->doRequest($input === null ? 'get' : 'post', $url, [
 				'headers' => $headers + ['Accept' => 'application/json'] + ($input === null ? [] : ['Content-Type' => 'application/json']),
-				'timeout' => self::TIMEOUT,
+				'timeout' => $timeout ?? self::TIMEOUT,
 				'json_headers' => false,
 				'accept_errors' => true,
 				// the interop job runs its own AppView on this machine
@@ -136,7 +137,7 @@ class AppViewClient {
 		if ($status === 401 && $legacyToken !== null && ($decoded['error'] ?? '') === 'BadJwtAudience') {
 			$headers['Authorization'] = 'Bearer ' . $legacyToken();
 
-			return $this->get($base, $method, $params, $headers, $input);
+			return $this->get($base, $method, $params, $headers, $input, timeout: $timeout);
 		}
 		if ($status >= 200 && $status < 300) {
 			// a procedure without output (`muteActor`, `muteActorList`,

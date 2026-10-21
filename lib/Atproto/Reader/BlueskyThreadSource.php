@@ -48,16 +48,25 @@ class BlueskyThreadSource implements ThreadSource {
 
 	#[\Override]
 	public function fill(Stream $post, int $budget): int {
+		return $this->fillWithTimeout($post, $budget, null);
+	}
+
+	/** Short bounded read for a thread currently being opened; background fills retain the normal timeout. */
+	public function fillVisible(Stream $post, int $budget): int {
+		return $this->fillWithTimeout($post, $budget, AppViewClient::INTERACTIVE_TIMEOUT);
+	}
+
+	private function fillWithTimeout(Stream $post, int $budget, ?int $timeout): int {
 		$uri = $this->refs->strongRef($post->getId())['uri'] ?? '';
 		if ($uri === '' || $budget <= 0) {
 			return 0;
 		}
 		try {
-			$answer = $this->appView->query(
-				'app.bsky.feed.getPostThread',
-				['uri' => $uri, 'depth' => self::DEPTH, 'parentHeight' => self::PARENT_HEIGHT],
-				['atproto-accept-labelers' => $this->labelers->acceptHeader()],
-			);
+			$params = ['uri' => $uri, 'depth' => self::DEPTH, 'parentHeight' => self::PARENT_HEIGHT];
+			$headers = ['atproto-accept-labelers' => $this->labelers->acceptHeader()];
+			$answer = $timeout === null
+				? $this->appView->query('app.bsky.feed.getPostThread', $params, $headers)
+				: $this->appView->query('app.bsky.feed.getPostThread', $params, $headers, $timeout);
 		} catch (Throwable $e) {
 			$this->logger->info('Bluesky thread not read', ['uri' => $uri, 'exception' => $e]);
 

@@ -14,6 +14,7 @@ use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Service\Thread\ActivityPubThreadSource;
 use OCA\Social\Service\Thread\ThreadService;
+use OCP\Lock\ILockingProvider;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -26,11 +27,11 @@ class ThreadServiceTest extends TestCase {
 		$streams = $this->createStub(StreamRequest::class);
 		$bluesky = $this->createMock(BlueskyThreadSource::class);
 		$bluesky->expects($this->once())->method('supports')->with($post)->willReturn(true);
-		$bluesky->expects($this->once())->method('fill')->with($post, ThreadService::BUDGET)->willReturn(2);
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
 
-		$this->assertTrue((new ThreadService($streams, new NullLogger(), $container))->fillBluesky($post));
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willReturn(2);
+		$this->assertTrue((new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container))->fillBluesky($post));
 	}
 
 	public function testFailedBlueskyConversationReadIsLeftForTheBackgroundQueue(): void {
@@ -38,11 +39,11 @@ class ThreadServiceTest extends TestCase {
 		$streams = $this->createStub(StreamRequest::class);
 		$bluesky = $this->createMock(BlueskyThreadSource::class);
 		$bluesky->method('supports')->with($post)->willReturn(true);
-		$bluesky->expects($this->once())->method('fill')->with($post, ThreadService::BUDGET)->willThrowException(new \RuntimeException('AppView unavailable'));
+		$bluesky->expects($this->once())->method('fillVisible')->with($post, ThreadService::BUDGET)->willThrowException(new \RuntimeException('AppView unavailable'));
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->with(BlueskyThreadSource::class)->willReturn($bluesky);
 
-		$this->assertFalse((new ThreadService($streams, new NullLogger(), $container))->fillBluesky($post));
+		$this->assertFalse((new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container))->fillBluesky($post));
 	}
 
 	/** A post written here and published to Bluesky is asked of both. */
@@ -59,6 +60,6 @@ class ThreadServiceTest extends TestCase {
 		$container = $this->createMock(ContainerInterface::class);
 		$container->method('get')->willReturnMap([[ActivityPubThreadSource::class, $fediverse], [BlueskyThreadSource::class, $bluesky]]);
 
-		$this->assertSame(107, (new ThreadService($streams, new NullLogger(), $container))->fill($post->getId()));
+		$this->assertSame(107, (new ThreadService($streams, new NullLogger(), $this->createStub(ILockingProvider::class), $container))->fill($post->getId()));
 	}
 }

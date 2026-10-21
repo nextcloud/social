@@ -83,6 +83,14 @@ class BlueskyCountSourceTest extends TestCase {
 		$this->source()->refresh([$this->note(self::id('a'))]);
 	}
 
+	public function testAnInteractiveReadWithNoCountFieldsLeavesThePostDueForBackgroundRetry(): void {
+		$this->store->method('postViews')->willReturn(['posts' => [self::id('a') => ['uri' => 'at://' . self::DID . '/app.bsky.feed.post/a']], 'deleted' => 0]);
+		$this->writer->expects($this->never())->method('write');
+		$this->writer->expects($this->never())->method('stamp');
+
+		$this->assertSame(0, $this->source()->refresh([$this->note(self::id('a'))], 3));
+	}
+
 	public function testPostsTheAppViewDidNotAnswerForAreStampedAndAskedLater(): void {
 		$this->store->method('postViews')->willReturn(null);
 		$this->writer->expects($this->never())->method('write');

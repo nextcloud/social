@@ -22,6 +22,7 @@ use OCA\Social\Service\Counts\CountSource;
 use OCA\Social\Service\Counts\CountWriter;
 use OCA\Social\Service\RemoteFetchQueue;
 use OCP\AppFramework\Utility\ITimeFactory;
+use OCP\Lock\ILockingProvider;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -40,6 +41,8 @@ class CountServiceTest extends TestCase {
 	private StreamRequest&MockObject $streams;
 	private CountWriter&MockObject $writer;
 	private RemoteFetchQueue&MockObject $queue;
+	/** @var array<string, Stream> */
+	private array $posts = [];
 	/** @var array<class-string, CountSource> */
 	private array $sources = [];
 
@@ -47,6 +50,7 @@ class CountServiceTest extends TestCase {
 		$this->streams = $this->createMock(StreamRequest::class);
 		$this->writer = $this->createMock(CountWriter::class);
 		$this->queue = $this->createMock(RemoteFetchQueue::class);
+		$this->streams->method('getStreamById')->willReturnCallback(fn (string $id): Stream => $this->posts[$id] ?? throw new StreamNotFoundException());
 	}
 
 	private function service(): CountService {
@@ -55,7 +59,8 @@ class CountServiceTest extends TestCase {
 		$container = $this->createStub(ContainerInterface::class);
 		$container->method('get')->willReturnCallback(fn (string $class): ?CountSource => $this->sources[$class] ?? null);
 
-		return new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $container);
+		$locks = $this->createStub(ILockingProvider::class);
+		return new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $container);
 	}
 
 	/**
@@ -69,6 +74,7 @@ class CountServiceTest extends TestCase {
 		$post->setVisibility($visibility);
 		$post->setPublishedTime(self::NOW - $age);
 		$post->setCountsAt($countedAgo === null ? null : self::NOW - $countedAgo);
+		$this->posts[$id] = $post;
 
 		return $post;
 	}
@@ -125,7 +131,7 @@ class CountServiceTest extends TestCase {
 		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, null);
 		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
 		$source->method('supports')->with($post)->willReturn(true);
-		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
+		$source->expects($this->once())->method('refresh')->with([$post], \OCA\Social\Atproto\AppView\AppViewClient::INTERACTIVE_TIMEOUT)->willReturn(1);
 		$this->sources[BlueskyCountSource::class] = $source;
 
 		$this->assertTrue($this->service()->refreshVisibleIfDue($post));
@@ -141,11 +147,28 @@ class CountServiceTest extends TestCase {
 		$this->assertFalse($this->service()->refreshVisibleIfDue($post));
 	}
 
+	public function testConcurrentVisibleRefreshDoesNotAskBlueskyTwice(): void {
+		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, null);
+		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
+		$source->method('supports')->with($post)->willReturn(true);
+		$source->expects($this->never())->method('refresh');
+		$this->sources[BlueskyCountSource::class] = $source;
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(self::NOW);
+		$container = $this->createStub(ContainerInterface::class);
+		$container->method('get')->willReturnCallback(fn (string $class): ?CountSource => $this->sources[$class] ?? null);
+		$locks = $this->createMock(ILockingProvider::class);
+		$locks->expects($this->once())->method('isLocked')->with('social-visible-count-' . md5($post->getId()), ILockingProvider::LOCK_EXCLUSIVE)->willReturn(true);
+		$service = new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $container);
+
+		$this->assertTrue($service->refreshVisibleIfDue($post), 'the other request is already refreshing this post');
+	}
+
 	public function testVisibleFediversePostIsRefreshedImmediatelyInsteadOfWaitingForCron(): void {
 		$post = $this->post('https://remote.example/notes/1', 3600, null);
 		$source = $this->getMockBuilder(ActivityPubCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
 		$source->method('supports')->with($post)->willReturn(true);
-		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
+		$source->expects($this->once())->method('refresh')->with([$post], \OCA\Social\Atproto\AppView\AppViewClient::INTERACTIVE_TIMEOUT)->willReturn(1);
 		$this->sources[ActivityPubCountSource::class] = $source;
 
 		$this->assertTrue($this->service()->refreshVisibleIfDue($post));
@@ -157,7 +180,7 @@ class CountServiceTest extends TestCase {
 		$boost->setObject($post);
 		$source = $this->getMockBuilder(ActivityPubCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
 		$source->method('supports')->with($post)->willReturn(true);
-		$source->expects($this->once())->method('refresh')->with([$post])->willReturn(1);
+		$source->expects($this->once())->method('refresh')->with([$post], \OCA\Social\Atproto\AppView\AppViewClient::INTERACTIVE_TIMEOUT)->willReturn(1);
 		$this->sources[ActivityPubCountSource::class] = $source;
 
 		$this->assertTrue($this->service()->refreshVisibleIfDue($boost));

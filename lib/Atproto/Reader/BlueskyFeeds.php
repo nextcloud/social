@@ -45,7 +45,7 @@ class BlueskyFeeds {
 	/** Bound empty pages while preserving the cursor for the next request. */
 	private const MAX_EMPTY_PAGES = 10;
 	/** Keep a profile request bounded while filling a short AppView page. */
-	private const MAX_PROFILE_PAGES = 5;
+	private const MAX_PROFILE_PAGES = 2;
 	private const CURSORS = 'social-atproto-feed-cursors';
 	private const CURSOR_RETRIES = 'social-atproto-feed-retries';
 	private const PROFILE_CURSORS = 'social-atproto-profile-cursors';
@@ -270,7 +270,7 @@ class BlueskyFeeds {
 					// Include one post beyond the API page so max_id can continue
 					// when firehose rows and AppView rows differ at the page edge.
 					'limit' => min(100, max(1, $limit + 1)),
-				] + ($cursor !== '' ? ['cursor' => $cursor] : []));
+				] + ($cursor !== '' ? ['cursor' => $cursor] : []), [], AppViewClient::INTERACTIVE_TIMEOUT);
 				if (!is_array($answer['feed'] ?? null)) {
 					throw new UnexpectedValueException('Bluesky author feed response has no feed array');
 				}

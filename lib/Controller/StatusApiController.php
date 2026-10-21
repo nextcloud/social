@@ -499,7 +499,7 @@ class StatusApiController extends MastodonApiController {
 	#[NoCSRFRequired]
 	#[PublicPage]
 	#[FrontpageRoute(verb: 'GET', url: '/api/v1/statuses/{nid}')]
-	public function statusGet(int|string $nid): DataResponse {
+	public function statusGet(int|string $nid, bool $refresh_counts = true): DataResponse {
 		try {
 			$this->initViewer(false);
 
@@ -511,7 +511,8 @@ class StatusApiController extends MastodonApiController {
 			}
 			// Refresh the post from its origin when opened; the background count
 			// queue is deliberately much slower than an interactive read.
-			if ($this->counts->refreshVisibleIfDue($item)) {
+			$refreshed = $refresh_counts && $this->counts->refreshVisibleIfDue($item);
+			if ($refreshed) {
 				$item = $this->streamService->getStreamByNid(\OCA\Social\Tools\Nid::fromStorage($nid));
 			}
 			$item = $this->served($item);
@@ -525,7 +526,8 @@ class StatusApiController extends MastodonApiController {
 			// asked in the background; a client that knows the header asks
 			// for the post again a little later
 			$response = new DataResponse($item, Http::STATUS_OK);
-			if ($this->counts->seen([$item])) {
+			$queued = $refresh_counts && !$refreshed && $this->counts->seen([$item]);
+			if ($refreshed || $queued) {
 				$response->addHeader('X-Social-Filling', '1');
 			}
 
