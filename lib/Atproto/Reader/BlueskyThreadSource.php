@@ -99,7 +99,7 @@ class BlueskyThreadSource implements ThreadSource {
 		// the replies its author hid on Bluesky are hidden here too
 		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
 		if (self::hasMissingDirectReplies($thread) && $stored < $budget) {
-			$threadRootUri = self::threadRootUri($post, $uri);
+			$threadRootUri = self::threadRootUri($post, $thread, $uri);
 			$knownReplies = [];
 			foreach (is_array($thread['replies'] ?? null) ? $thread['replies'] : [] as $reply) {
 				$replyUri = (string)($reply['post']['uri'] ?? '');
@@ -352,8 +352,20 @@ class BlueskyThreadSource implements ThreadSource {
 	}
 
 	/** The URI search indexes replies under their conversation root, not the opened reply. */
-	private static function threadRootUri(Stream $post, string $uri): string {
+	private static function threadRootUri(Stream $post, array $thread, string $uri): string {
 		$root = (string)($post->getDetails(PostMapper::DETAIL)['reply_root']['uri'] ?? '');
+		if (Syntax::isAtUri($root)) {
+			return $root;
+		}
+
+		// Posts imported before reply_root was kept in local details still
+		// arrive with their parent chain from getPostThread. Walk to its oldest
+		// available ancestor before falling back to the opened post itself.
+		$ancestor = $thread;
+		while (is_array($ancestor['parent'] ?? null) && ($ancestor['parent']['$type'] ?? '') === self::THREAD_VIEW) {
+			$ancestor = $ancestor['parent'];
+		}
+		$root = (string)($ancestor['post']['uri'] ?? '');
 
 		return Syntax::isAtUri($root) ? $root : $uri;
 	}
