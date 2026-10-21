@@ -68,6 +68,7 @@ class ClientXrpcTest extends TestCase {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
 		$config->method('appViewDid')->willReturn('did:web:api.bsky.app');
+		$config->method('serviceDid')->willReturn('did:web:social.test');
 		$this->sessions = $this->createMock(SessionService::class);
 		$this->session = new ClientSession('alice', new Identity(1, 'https://social.test/@alice', 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'alice.social.test', '', '', '', Identity::STATE_ACTIVE, '', 0), 'jti');
 		$this->sessions->method('authenticate')->willReturnCallback(fn (string $h): ?ClientSession => $h === '' ? null : $this->session);
@@ -129,6 +130,53 @@ class ClientXrpcTest extends TestCase {
 				$this->fail($method);
 			} catch (XrpcException $e) {
 				$this->assertSame(401, $e->status);
+			}
+		}
+	}
+
+	public function testAppPasswordManagementMethodsAreAuthenticatedAndDispatchedLocally(): void {
+		$headers = ['authorization' => 'Bearer t'];
+		$this->sessions->expects($this->once())->method('listAppPasswords')->with($this->session)->willReturn(['passwords' => []]);
+		$this->sessions->expects($this->once())->method('createAppPassword')->with($this->session, 'phone', true)->willReturn([
+			'name' => 'phone', 'password' => 'abcd-efgh-ijkl-mnop', 'createdAt' => '2026-10-20T00:00:00Z', 'privileged' => true,
+		]);
+		$this->sessions->expects($this->once())->method('revokeAppPassword')->with($this->session, 'phone');
+		$this->proxy->expects($this->never())->method('forward');
+
+		$this->assertSame(['passwords' => []], $this->client->query('com.atproto.server.listAppPasswords', '', $headers));
+		$this->assertSame([
+			'name' => 'phone', 'password' => 'abcd-efgh-ijkl-mnop', 'createdAt' => '2026-10-20T00:00:00Z', 'privileged' => true,
+		], $this->client->procedure('com.atproto.server.createAppPassword', '{"name":"phone","privileged":true}', $headers, '1.2.3.4'));
+		$this->assertSame([], $this->client->procedure('com.atproto.server.revokeAppPassword', '{"name":"phone"}', $headers, '1.2.3.4'));
+	}
+
+	public function testAppPasswordMethodsHonorOAuthRpcGrantsForThePdsAudience(): void {
+		$this->oauth->method('authenticate')->willReturn(new ClientSession('alice', $this->session->identity, 'sid', [
+			'atproto', 'rpc:com.atproto.server.listAppPasswords?aud=did:web:social.test', 'rpc:com.atproto.server.createAppPassword?aud=did:web:social.test',
+		]));
+		$this->sessions->expects($this->once())->method('listAppPasswords')->with($this->isInstanceOf(ClientSession::class))->willReturn(['passwords' => []]);
+		$this->sessions->expects($this->once())->method('createAppPassword')->with($this->isInstanceOf(ClientSession::class), 'desktop', false)->willReturn([
+			'name' => 'desktop', 'password' => 'abcd-efgh-ijkl-mnop', 'createdAt' => '2026-10-20T00:00:00Z',
+		]);
+		$headers = ['authorization' => 'DPoP token', 'dpop' => 'proof'];
+
+		$this->assertSame(['passwords' => []], $this->client->query('com.atproto.server.listAppPasswords', '', $headers));
+		$created = $this->client->procedure('com.atproto.server.createAppPassword', '{"name":"desktop"}', $headers, '1.2.3.4');
+		$this->assertIsArray($created);
+		$this->assertSame('desktop', $created['name']);
+	}
+
+	public function testAppPasswordCreateRejectsMalformedLexiconFields(): void {
+		foreach ([
+			'{"privileged":false}',
+			'{"name":"phone","privileged":"true"}',
+		] as $body) {
+			try {
+				$this->client->procedure('com.atproto.server.createAppPassword', $body, ['authorization' => 'Bearer t'], '1.2.3.4');
+				$this->fail('accepted ' . $body);
+			} catch (XrpcException $e) {
+				$this->assertSame(400, $e->status);
+				$this->assertSame('InvalidRequest', $e->error);
 			}
 		}
 	}

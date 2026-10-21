@@ -62,6 +62,7 @@ class ActorCascadeTest extends TestCase {
 		'social_cache_doc' => [['parent_id' => 'uri', 'parent_id_prim' => 'prim']],
 		'social_channel' => [['owner_id' => 'uri', 'owner_id_prim' => 'prim']],
 		'social_client_auth' => [['user_id' => 'uid']],
+		'social_device_auth' => [['user_id' => 'uid']],
 		'social_collection' => [['actor_id' => 'uri', 'actor_id_prim' => 'prim']],
 		'social_convo_state' => [['actor_id' => 'uri', 'actor_id_prim' => 'prim']],
 		'social_domain_block' => [['actor_id_prim' => 'prim']],

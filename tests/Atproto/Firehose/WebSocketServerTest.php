@@ -21,12 +21,14 @@ class WebSocketServerTest extends TestCase {
 	private ?WebSocketServer $server = null;
 	private string $bind = '';
 
+	#[\Override]
 	protected function setUp(): void {
 		$port = random_int(20000, 60000);
 		$this->bind = '127.0.0.1:' . $port;
 		$this->server = new WebSocketServer($this->bind);
 	}
 
+	#[\Override]
 	protected function tearDown(): void {
 		$this->server?->shutdown();
 	}
@@ -56,6 +58,8 @@ class WebSocketServerTest extends TestCase {
 		$this->pump();
 		$this->readUntil($client, "\r\n\r\n");
 		$this->assertCount(1, $this->server->subscribers());
+		$this->server->ping($this->server->subscribers()[0]);
+		$this->assertSame("\x89\x00", $this->readBytes($client, 2));
 
 		fwrite($client, self::masked(0x9, 'hi'));
 		$this->pump();
@@ -83,8 +87,8 @@ class WebSocketServerTest extends TestCase {
 		$server = new WebSocketServer($bind, WebSocketServer::MAX_SUBSCRIBERS, WebSocketServer::MAX_PER_ADDRESS, '/api/v1/streaming', false);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($client, (string)$error);
-			fwrite($client, "GET /api/v1/streaming HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/?stream=user HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 			$ready = [];
 			for ($i = 0; $i < 5; $i++) {
 				$ready = array_merge($ready, $server->serve(0.05));
@@ -104,6 +108,95 @@ class WebSocketServerTest extends TestCase {
 		}
 	}
 
+	public function testConfiguredEventStreamUsesRawEventsAndHeartbeat(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
+			eventStreams: true,
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/public/local?access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->assertTrue($ready[0]->eventStream);
+			$this->assertSame('/api/v1/streaming/public/local', $ready[0]->requestPath);
+			$response = $this->readUntil($client, "\n\n");
+			$this->assertStringStartsWith('HTTP/1.1 200 OK', $response);
+			$this->assertStringContainsString('Content-Type: text/event-stream', $response);
+			$this->assertStringContainsString(': connected', $response);
+
+			$server->send($ready[0], "event: notification\ndata: {\"id\":\"42\"}\n\n");
+			$this->assertSame("event: notification\ndata: {\"id\":\"42\"}\n\n", $this->readBytes($client, strlen("event: notification\ndata: {\"id\":\"42\"}\n\n")));
+			$server->ping($ready[0]);
+			$this->assertSame(": thump\n\n", $this->readBytes($client, strlen(": thump\n\n")));
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
+	public function testConfiguredEventStreamAcceptsHashtagPathAndQuery(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
+			eventStreams: true,
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/hashtag/local?tag=social&access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->assertSame('/api/v1/streaming/hashtag/local', $ready[0]->requestPath);
+			$this->assertSame('social', $ready[0]->query['tag']);
+			$this->assertStringStartsWith('HTTP/1.1 200 OK', $this->readUntil($client, "\n\n"));
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
+	public function testConfiguredEventStreamAcceptsListPathAndQuery(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static fn ($subscriber): bool => ($subscriber->query['access_token'] ?? '') === 'valid-token',
+			eventStreams: true,
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/list?list=42&access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nAccept: text/event-stream\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$this->assertSame('/api/v1/streaming/list', $ready[0]->requestPath);
+			$this->assertSame('42', $ready[0]->query['list']);
+			$this->assertStringStartsWith('HTTP/1.1 200 OK', $this->readUntil($client, "\n\n"));
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
 	public function testUpgradeCanBeAuthorizedFromRequestHeadersAndQuery(): void {
 		$bind = '127.0.0.1:' . random_int(20000, 60000);
 		$server = new WebSocketServer(
@@ -117,7 +210,7 @@ class WebSocketServerTest extends TestCase {
 		);
 		try {
 			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($client, (string)$error);
+			$this->assertNotFalse($client, $error);
 			fwrite($client, "GET /api/v1/streaming?access_token=valid-token HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 			$ready = [];
 			for ($i = 0; $i < 5; $i++) {
@@ -129,7 +222,7 @@ class WebSocketServerTest extends TestCase {
 			fclose($client);
 
 			$unauthorized = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
-			$this->assertNotFalse($unauthorized, (string)$error);
+			$this->assertNotFalse($unauthorized, $error);
 			fwrite($unauthorized, "GET /api/v1/streaming HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 			for ($i = 0; $i < 5; $i++) {
 				$server->serve(0.05);
@@ -137,6 +230,65 @@ class WebSocketServerTest extends TestCase {
 			$this->assertStringStartsWith('HTTP/1.1 401', $this->readUntil($unauthorized, "\r\n\r\n"));
 			$this->assertCount(0, $server->subscribers());
 			fclose($unauthorized);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
+	public function testConfiguredHealthPathAnswersPlainHttp(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer($bind, path: '/api/v1/streaming', binaryFrames: false);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming/health HTTP/1.1\r\nHost: social.test\r\n\r\n");
+			for ($i = 0; $i < 5; $i++) {
+				$server->serve(0.05);
+			}
+			$response = stream_get_contents($client);
+			$this->assertStringStartsWith("HTTP/1.1 200 OK\r\n", $response);
+			$this->assertStringEndsWith("\r\n\r\nOK\n", $response);
+			$this->assertCount(0, $server->subscribers());
+			fclose($client);
+		} finally {
+			$server->shutdown();
+		}
+	}
+
+	public function testConfiguredPathCanAuthorizeSubprotocolAndHandleTextMessages(): void {
+		$bind = '127.0.0.1:' . random_int(20000, 60000);
+		$server = new WebSocketServer(
+			$bind,
+			path: '/api/v1/streaming',
+			binaryFrames: false,
+			authorize: static function ($subscriber): bool {
+				if (($subscriber->headers['sec-websocket-protocol'] ?? '') !== 'social-token') {
+					return false;
+				}
+				$subscriber->responseSubprotocol = 'social-token';
+				return true;
+			},
+			onMessage: static fn ($subscriber, int $opcode, string $payload): string => $payload,
+		);
+		try {
+			$client = stream_socket_client('tcp://' . $bind, $errno, $error, 2);
+			$this->assertNotFalse($client, $error);
+			fwrite($client, "GET /api/v1/streaming HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: social-token\r\n\r\n");
+			$ready = [];
+			for ($i = 0; $i < 5; $i++) {
+				$ready = array_merge($ready, $server->serve(0.05));
+			}
+			$this->assertCount(1, $ready);
+			$response = $this->readUntil($client, "\r\n\r\n");
+			$this->assertStringContainsString("Sec-WebSocket-Protocol: social-token\r\n", $response);
+			fwrite($client, self::masked(0x1, '{"type":"subscribe","stream":"user"}'));
+			for ($i = 0; $i < 5; $i++) {
+				$server->serve(0.05);
+			}
+			$frame = $this->readBytes($client, 2 + strlen('{"type":"subscribe","stream":"user"}'));
+			$this->assertSame(0x81, ord($frame[0]));
+			$this->assertSame('{"type":"subscribe","stream":"user"}', substr($frame, 2));
+			fclose($client);
 		} finally {
 			$server->shutdown();
 		}
@@ -164,7 +316,7 @@ class WebSocketServerTest extends TestCase {
 	 */
 	private function connect(string $path) {
 		$client = stream_socket_client('tcp://' . $this->bind, $errno, $error, 2);
-		$this->assertNotFalse($client, (string)$error);
+		$this->assertNotFalse($client, $error);
 		fwrite($client, 'GET ' . $path . " HTTP/1.1\r\nHost: social.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
 
 		return $client;
