@@ -337,6 +337,23 @@ class PostMapperTest extends TestCase {
 		$this->assertTrue(PostMapper::hasGenericBlobs($embed), 'a later view may add the PDS endpoint and recover this file');
 	}
 
+	public function testUnnamedBlobsUseReadableMimetypeNames(): void {
+		$pdfCid = Cid::forRaw('unnamed PDF')->toString();
+		$imageCid = Cid::forRaw('unnamed AVIF image')->toString();
+		$embed = ['$type' => 'org.example.embed.files', 'files' => [
+			['blob' => ['$type' => 'blob', 'ref' => ['$link' => $pdfCid], 'mimeType' => 'application/pdf']],
+			['blob' => ['$type' => 'blob', 'ref' => ['$link' => $imageCid], 'mimeType' => 'image/avif']],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.files#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame(['PDF document.pdf', 'AVIF image.avif'], array_column($note['attachment'], 'name'));
+	}
+
 	public function testRawExternalEmbedKeepsItsLinkAndBlobThumbnail(): void {
 		$cid = Cid::forRaw('external card image bytes')->toString();
 		$view = $this->postView();

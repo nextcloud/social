@@ -384,7 +384,7 @@ class PostMapper {
 			if (str_starts_with($mime, 'image/')) {
 				$imageUrl = self::blobImageUrl(['ref' => ['$link' => $cid], 'mimeType' => $mime], $did);
 				if ($imageUrl !== '') {
-					$attachments[] = ['type' => 'Image', 'mediaType' => $mime === 'image/jpg' ? 'image/jpeg' : $mime, 'url' => $imageUrl, 'name' => self::blobName($blobName, $mime, count($attachments) + 1)];
+					$attachments[] = ['type' => 'Image', 'mediaType' => $mime === 'image/jpg' ? 'image/jpeg' : $mime, 'url' => $imageUrl, 'name' => self::blobName($blobName, $mime)];
 					continue;
 				}
 				// The public CDN only has transformations for a short list of
@@ -396,7 +396,7 @@ class PostMapper {
 				continue;
 			}
 			$url = rtrim($pds, '/') . '/xrpc/com.atproto.sync.getBlob?' . http_build_query(['did' => $did, 'cid' => $cid], '', '&', PHP_QUERY_RFC3986);
-			$filename = self::blobName($blobName, $mime, count($attachments) + 1);
+			$filename = self::blobName($blobName, $mime);
 			$attachment = ['type' => 'Document', 'mediaType' => $mime, 'url' => $url, 'name' => $filename];
 			if ($size > 0) {
 				$attachment['size'] = $size;
@@ -448,16 +448,56 @@ class PostMapper {
 			&& preg_match('/(?:^|\.)(?:localhost|local)$/i', $parts['host']) !== 1;
 	}
 
-	private static function blobName(string $candidate, string $mime, int $number): string {
+	private static function blobName(string $candidate, string $mime): string {
 		$name = basename(str_replace('\\', '/', $candidate));
 		$name = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? '');
 		if ($name !== '' && $name !== '.' && $name !== '..') {
 			return mb_substr($name, 0, 180);
 		}
-		$extension = strtolower(substr(strrchr($mime, '/') ?: '', 1));
-		$extension = preg_replace('/[^a-z0-9.+-]/', '', $extension) ?? '';
+		[$type, $subtype] = array_pad(explode('/', strtolower($mime), 2), 2, '');
+		$subtype = preg_replace('/[^a-z0-9.+-]/', '', $subtype) ?? '';
+		$known = [
+			'application/pdf' => ['PDF document', 'pdf'],
+			'application/zip' => ['ZIP archive', 'zip'],
+			'application/x-zip-compressed' => ['ZIP archive', 'zip'],
+			'application/gzip' => ['Gzip archive', 'gz'],
+			'application/msword' => ['Word document', 'doc'],
+			'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => ['Word document', 'docx'],
+			'application/vnd.ms-excel' => ['Excel spreadsheet', 'xls'],
+			'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => ['Excel spreadsheet', 'xlsx'],
+			'application/vnd.ms-powerpoint' => ['PowerPoint presentation', 'ppt'],
+			'application/vnd.openxmlformats-officedocument.presentationml.presentation' => ['PowerPoint presentation', 'pptx'],
+			'text/plain' => ['Text document', 'txt'],
+			'audio/mpeg' => ['MP3 audio', 'mp3'],
+			'audio/mp4' => ['M4A audio', 'm4a'],
+			'video/mp4' => ['MP4 video', 'mp4'],
+			'video/webm' => ['WebM video', 'webm'],
+			'image/jpeg' => ['JPEG image', 'jpg'],
+			'image/jpg' => ['JPEG image', 'jpg'],
+			'image/png' => ['PNG image', 'png'],
+			'image/webp' => ['WebP image', 'webp'],
+			'image/gif' => ['GIF image', 'gif'],
+			'image/avif' => ['AVIF image', 'avif'],
+			'image/heic' => ['HEIC image', 'heic'],
+			'image/heif' => ['HEIF image', 'heif'],
+		];
+		[$label, $extension] = $known[$mime] ?? self::genericBlobLabel($type, $subtype);
 
-		return 'Attachment ' . $number . ($extension !== '' ? '.' . $extension : '');
+		return $label . ($extension !== '' ? '.' . $extension : '');
+	}
+
+	/** @return array{0: string, 1: string} */
+	private static function genericBlobLabel(string $type, string $subtype): array {
+		$extension = preg_match('/^[a-z0-9]{1,8}$/', $subtype) === 1 ? $subtype : '';
+		$label = match ($type) {
+			'image' => ($extension !== '' ? strtoupper($extension) : 'Image') . ' image',
+			'audio' => ($extension !== '' ? strtoupper($extension) : 'Audio') . ' audio',
+			'video' => ($extension !== '' ? strtoupper($extension) : 'Video') . ' video',
+			'text' => 'Text file',
+			default => ($extension !== '' ? strtoupper($extension) : 'File') . ' file',
+		};
+
+		return [$label, $extension];
 	}
 
 	/** Whether an AppView embed view has enough data to be useful on this client. */
