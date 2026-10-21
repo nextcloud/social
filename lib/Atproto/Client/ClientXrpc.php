@@ -14,6 +14,7 @@ use OCA\Social\Atproto\OAuth\AuthorizationServer;
 use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\Publisher\BlueskyBookmarks;
 use OCA\Social\Atproto\Publisher\BlueskyMutes;
+use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
 use OCA\Social\Atproto\Publisher\VideoBlobService;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcBytes;
@@ -57,6 +58,7 @@ class ClientXrpc {
 		private ModerationService $moderation,
 		private InboundMoveService $inbound,
 		private BlueskyMutes $mutes,
+		private BlueskyThreadMutes $threadMutes,
 		private BlueskyBookmarks $bookmarks,
 		private NotificationSettings $notificationSettings,
 		private PlcSignatureService $plcSignatures,
@@ -161,10 +163,27 @@ class ClientXrpc {
 			'com.atproto.repo.applyWrites' => $this->writes->apply($session, self::writeBody($rawBody)),
 			'com.atproto.moderation.createReport' => $this->writes->report($session, self::json($rawBody)),
 			BlueskyMutes::MUTE, BlueskyMutes::UNMUTE => $this->mute($session, $method, $rawBody, $headers),
+			BlueskyThreadMutes::MUTE, BlueskyThreadMutes::UNMUTE => $this->muteThread($session, $method, $rawBody, $headers),
 			BlueskyBookmarks::CREATE, BlueskyBookmarks::DELETE => $this->bookmark($session, $method, $rawBody, $headers),
 			NotificationSettings::PUT => $this->notificationSettings->put($session, self::json($rawBody)),
 			default => $this->proxy->forward($session, $method, 'post', '', $rawBody, $headers),
 		};
+	}
+
+	/**
+	 * A thread mute an app makes: the AppView owns it, and the corresponding
+	 * locally stored thread stops or resumes raising notifications here too.
+	 *
+	 * @param array<string, string> $headers
+	 * @throws XrpcException
+	 */
+	private function muteThread(ClientSession $session, string $method, string $rawBody, array $headers): XrpcBytes {
+		$answer = $this->proxy->forward($session, $method, 'post', '', $rawBody, $headers);
+		if ($answer->status === 200) {
+			$this->threadMutes->fromApp($session, $method, self::json($rawBody));
+		}
+
+		return $answer;
 	}
 
 	/**

@@ -21,10 +21,10 @@ use OCA\Social\Exceptions\StreamNotFoundException;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
-use OCP\ICache;
-use OCP\ICacheFactory;
+use OCA\Social\Service\DurableCache;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use UnexpectedValueException;
 
 /**
  * Bluesky's custom feeds and lists, read here (§9.6). Which ones a person
@@ -42,9 +42,11 @@ class BlueskyFeeds {
 	public const LIST = 'list';
 	/** how long the cursor after a page is kept */
 	private const CURSOR_KEPT = 3600;
+	/** Bound empty pages while preserving the cursor for the next request. */
+	private const MAX_EMPTY_PAGES = 10;
+	private const CURSORS = 'social-atproto-feed-cursors';
+	private const CURSOR_RETRIES = 'social-atproto-feed-retries';
 	private const COLLECTIONS = [self::FEED => 'app.bsky.feed.generator', self::LIST => 'app.bsky.graph.list'];
-
-	private ?ICache $cursors = null;
 
 	public function __construct(
 		private AppViewClient $appView,
@@ -52,7 +54,7 @@ class BlueskyFeeds {
 		private Preferences $preferences,
 		private PostStore $postStore,
 		private StreamRequest $streams,
-		private ICacheFactory $cacheFactory,
+		private DurableCache $durableCache,
 		private LoggerInterface $logger,
 		private ?BlueskyBlockedBy $blockedBy = null,
 	) {
@@ -143,46 +145,77 @@ class BlueskyFeeds {
 	 */
 	public function page(Person $actor, string $uri, string $after, int $limit): array {
 		$type = self::typeOf($uri) ?? throw new InvalidArgumentException('Not a Bluesky feed or list');
-		$cursor = '';
-		if ($after !== '') {
-			$cursor = $this->cursors()->get($this->cursorKey($actor, $uri, $after));
+		$key = $this->cursorKey($actor, $uri, $after);
+		$retryCursor = $this->durableCache->get(self::CURSOR_RETRIES, $key);
+		$cursor = is_string($retryCursor) ? $retryCursor : '';
+		if ($cursor === '' && $after !== '') {
+			$cursor = $this->durableCache->get(self::CURSORS, $key);
 			if (!is_string($cursor) || $cursor === '') {
 				// the end, or a cursor kept too long ago to be had
 				return [];
 			}
 		}
-		$method = $type === self::FEED ? 'app.bsky.feed.getFeed' : 'app.bsky.feed.getListFeed';
-		$params = [$type === self::FEED ? 'feed' : 'list' => $uri, 'limit' => max(1, min(100, $limit))] + ($cursor !== '' ? ['cursor' => $cursor] : []);
 		$identity = $this->identities->activeForActor($actor);
-		$answer = $identity !== null
-			? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), $method, $params)
-			: $this->appView->query($method, $params);
-		if ($identity !== null) {
-			// before the page is read back, so a blocker's posts leave it
-			$this->blockedBy?->learn($actor, $answer);
-		}
-
+		$method = $type === self::FEED ? 'app.bsky.feed.getFeed' : 'app.bsky.feed.getListFeed';
+		$seen = $cursor === '' ? [] : [$cursor => true];
+		$emptyPages = 0;
 		$this->streams->setViewer($actor);
-		$page = [];
-		foreach (is_array($answer['feed'] ?? null) ? $answer['feed'] : [] as $item) {
-			if (!is_array($item) || !is_array($item['post'] ?? null)) {
-				continue;
-			}
-			$this->postStore->storeFeedItem($item);
-			$postId = BlueskyIds::postIdOfUri((string)($item['post']['uri'] ?? ''));
-			try {
-				$page[] = $this->streams->getStreamById($postId, true, ACore::FORMAT_LOCAL);
-			} catch (StreamNotFoundException) {
-				// hidden here: a label, a block, a muted account
-			}
-		}
-		$next = is_string($answer['cursor'] ?? null) ? $answer['cursor'] : '';
-		$last = end($page);
-		if ($last instanceof Stream && $next !== '') {
-			$this->cursors()->set($this->cursorKey($actor, $uri, (string)$last->getNid()), $next, self::CURSOR_KEPT);
-		}
 
-		return $page;
+		while (true) {
+			$params = [$type === self::FEED ? 'feed' : 'list' => $uri, 'limit' => max(1, min(100, $limit))] + ($cursor !== '' ? ['cursor' => $cursor] : []);
+			$answer = $identity !== null
+				? $this->appView->queryAs($identity->did, $this->identities->signingKey($identity), $method, $params)
+				: $this->appView->query($method, $params);
+			if (!is_array($answer['feed'] ?? null)) {
+				throw new UnexpectedValueException('Bluesky feed response has no feed array');
+			}
+			if ($identity !== null) {
+				// before the page is read back, so a blocker's posts leave it
+				$this->blockedBy?->learn($actor, $answer);
+			}
+
+			$page = [];
+			foreach ($answer['feed'] as $item) {
+				if (!is_array($item) || !is_array($item['post'] ?? null)) {
+					continue;
+				}
+				$this->postStore->storeFeedItem($item);
+				$postId = BlueskyIds::postIdOfUri((string)($item['post']['uri'] ?? ''));
+				try {
+					$page[] = $this->streams->getStreamById($postId, true, ACore::FORMAT_LOCAL);
+				} catch (StreamNotFoundException) {
+					// hidden here: a label, a block, a muted account
+				}
+			}
+
+			if (array_key_exists('cursor', $answer) && !is_string($answer['cursor'])) {
+				throw new UnexpectedValueException('Bluesky feed response has an invalid cursor');
+			}
+			$next = $answer['cursor'] ?? '';
+			$last = end($page);
+			if ($last instanceof Stream) {
+				if ($next !== '') {
+					$this->durableCache->set(self::CURSORS, $this->cursorKey($actor, $uri, (string)$last->getNid()), $next, self::CURSOR_KEPT);
+				}
+				$this->durableCache->remove(self::CURSOR_RETRIES, $key);
+
+				return $page;
+			}
+			if ($next === '') {
+				$this->durableCache->remove(self::CURSOR_RETRIES, $key);
+
+				return [];
+			}
+			if (isset($seen[$next])) {
+				throw new UnexpectedValueException('Bluesky feed pagination cursor did not advance');
+			}
+			$seen[$next] = true;
+			if (++$emptyPages >= self::MAX_EMPTY_PAGES) {
+				$this->durableCache->set(self::CURSOR_RETRIES, $key, $next, self::CURSOR_KEPT);
+				throw new UnexpectedValueException('Bluesky feed has too many consecutive pages with no visible posts');
+			}
+			$cursor = $next;
+		}
 	}
 
 	/**
@@ -347,9 +380,5 @@ class BlueskyFeeds {
 
 	private function cursorKey(Person $actor, string $uri, string $after): string {
 		return md5($actor->getId() . '|' . $uri . '|' . $after);
-	}
-
-	private function cursors(): ICache {
-		return $this->cursors ??= $this->cacheFactory->createDistributed('social-atproto-feed-cursors');
 	}
 }

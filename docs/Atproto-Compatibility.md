@@ -13,7 +13,7 @@ dates given in §20, and the ones marked *verify* have to be checked again
 before the code that depends on them is written. What phase 1 built, and
 where it departs from the letter of this document, is in §18.
 
-**Verified against:** Aloha Social master `2eb7b99a9` (0.26.121),
+**Verified against:** the original specification baseline, Aloha Social master `2eb7b99a9` (0.26.121),
 AT Protocol specifications as of 2026-10-06, Bluesky PDS reference
 implementation (`@atproto/pds`) 0.4.x, PLC directory API as served by
 `plc.directory`.
@@ -909,6 +909,20 @@ when it is not here (bounded, one hop per pass). Only the public AppView is
 read, unauthenticated, which is why nothing a Bluesky user kept to
 themselves can arrive.
 
+`FeedPoller` and `NotificationPoller` keep an unfinished walk in the existing
+cursor column (`Reader\PollCursor`): `since`, the last committed timestamp;
+`newest`, the newest timestamp of the walk; and `page`, the next opaque AppView
+cursor. Each pass reads one page and resumes the rest on the next pass. Only
+reaching `since` or the end commits `newest`; a failed or malformed response
+does not move the checkpoint. `indexedAt` values are not event identifiers:
+posts or notifications tied at the committed timestamp are read, and only a
+strictly older timestamp ends the walk. The opaque cursor carries ties across
+pages; imports are idempotent when the boundary is seen again. Empty pages
+with a continuation are followed,
+and pending walks do not back off as empty feeds. A first read remains a
+snapshot of the newest page. Pinned posts are handled separately by
+`BlueskyPins`, so they neither stop the chronological walk nor advance it.
+
 A Bluesky post is a stream row of type `Note` with id `at://…/app.bsky.feed.post/…`
 (`id_prim` as for any id), `url` the `https://bsky.app/profile/<handle>/post/<rkey>`
 link, `attributed_to` the cached actor, `content` rebuilt from text and
@@ -1109,7 +1123,16 @@ Bluesky's custom feeds and lists are read here as timelines
   post is and answered in the feed's order, without a hidden one (a label,
   a block, a muted account). The AppView's cursor is opaque: it is kept a
   hour for the last post of each page, so the next page is asked with the
-  id of the post the client last saw.
+  id of the post the client last saw. `DurableCache` keeps it in the
+  database when the instance has no memcache; it is private to the viewer
+  and feed and expires after that hour. A remote page with no visible posts
+  but a continuation cursor is not the end of the feed: the reader follows
+  up to ten such pages in the same request. It checkpoints a longer run and
+  reports the incomplete read, so a retry resumes instead of making the
+  timeline look complete. The XRPC specification describes a missing cursor
+  as the end of pagination and flags the empty-page-with-cursor case as an
+  area needing clarification; Social follows a returned cursor with a bound
+  and retry checkpoint.
 - **Routes**: `GET`/`POST`/`DELETE /api/v1/social/bluesky/feeds`,
   `GET /api/v1/social/bluesky/feeds/suggested`, and
   `GET /api/v1/timelines/bluesky?feed=<at:// URI>` (API.md). In the web
@@ -1452,6 +1475,17 @@ Bluesky (D16). Turning it on publishes the blocks of Bluesky accounts they
 hold; turning it off withdraws every published one; an unblock withdraws
 its record. A blocked Bluesky account's interactions are dropped on
 arrival either way.
+
+Thread notification mutes (`app.bsky.graph.muteThread` and
+`unmuteThread`) are private AppView preferences. A signed-in Bluesky app's
+accepted change is mirrored to `social_convo_state` after resolving its AT
+URI through the local repository mapping. A post written here and mirrored
+to Bluesky therefore resolves to its Social post id. A mute or unmute made in
+Social uses the thread root's strong reference from `PostRefs`, so a local
+thread root published to Bluesky is addressed by its repository AT URI.
+This keeps both clients from disagreeing about locally stored replies. A
+root that is not stored here cannot be mirrored locally; Bluesky still owns
+the preference and its behavior in Bluesky clients.
 
 A Bluesky user's block *of* a local account (`app.bsky.graph.block` in
 their repository, subject the local DID) is never delivered here, and the
@@ -2262,6 +2296,11 @@ each for a reason:
 
 ### Phase 2 as built
 
+This section records phase 2 at the time it landed. Its references to work
+deferred to phase 3 are historical, not a list of current missing features:
+deletion checks, Jetstream, thread resolution and moderation are described
+in their current sections above and in phase 3 below.
+
 Everything in the phase 2 row, in `lib/Atproto/Reader/` (`BlueskyActorService`,
 `ActorMapper`, `PostMapper`, `FacetRenderer`, `PostStore`, `FeedPoller`,
 `NotificationPoller`, `BlueskyGraphService`, `BlueskySearch`,
@@ -2457,6 +2496,10 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   here; `getBookmarks` is answered from the bookmarks here that are on
   Bluesky, each as the AppView shows the post, so older bookmarks are in
   it; and a bookmark set here of a post on Bluesky is told to the AppView.
+  Post views are fetched in groups of at most 25, as `getPosts` requires,
+  including a bookmark page of 50 or 100. The bookmark order and cursor
+  stay local; the cursor is the oldest decimal NID kept without converting
+  it to a native PHP integer. If one group fails, the others still load.
   **Notification settings** (`app.bsky.notification.getPreferences`,
   `putPreferencesV2`) share the one setting both have
   (`Client\NotificationSettings`): whether anybody or only the people
