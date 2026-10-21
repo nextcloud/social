@@ -299,6 +299,10 @@ class VisibilityMatrixTest extends ApiTestCase {
 			'oembed' => fn (string $post, string $viewer): bool => $this->call(
 				InstanceApiController::class, 'oembed', [], ['url' => $this->posts[$post]['uri']], null
 			)->status === 200,
+			'embed' => fn (string $post, string $viewer): bool => $this->call(
+				SocialPubController::class, 'embedPost',
+				['username' => self::PREFIX . 'alice', 'token' => $this->postToken($this->posts[$post]['uri'])], [], null
+			)->status === 200,
 			'post_page' => $this->postPageProbe(),
 			'unified_search' => $this->unifiedSearchProbe(),
 			'reference' => $this->referenceProbe(),

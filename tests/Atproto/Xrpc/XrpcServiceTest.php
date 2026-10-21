@@ -67,6 +67,7 @@ class XrpcServiceTest extends TestCase {
 		$this->config = $this->createMock(AtprotoConfig::class);
 		$this->config->method('isEnabled')->willReturn(true);
 		$this->config->method('serviceDid')->willReturn('did:web:social.test');
+		$this->config->method('handleHost')->willReturn('social.test');
 		$this->identities = $this->createMock(IdentityService::class);
 		$this->repositories = $this->createMock(RepositoryService::class);
 		$this->repoRequest = $this->createMock(AtprotoRepoRequest::class);
@@ -104,7 +105,12 @@ class XrpcServiceTest extends TestCase {
 
 	public function testDescribeServer(): void {
 		$answer = $this->xrpc->query('com.atproto.server.describeServer', []);
-		$this->assertSame('did:web:social.test', $answer['did']);
+		$this->assertSame([
+			'did' => 'did:web:social.test',
+			'availableUserDomains' => ['.social.test'],
+			'inviteCodeRequired' => true,
+			'blobUploadLimit' => 100000000,
+		], $answer);
 		$this->assertTrue($answer['inviteCodeRequired'], 'nobody registers here');
 	}
 

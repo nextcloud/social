@@ -34,10 +34,12 @@ use PHPUnit\Framework\TestCase;
 class AtprotoStatusServiceTest extends TestCase {
 	/** @var array<string, string> what each relay answers about this server */
 	private array $relayAnswers = [];
+	/** @var array<string, string> what each relay answers about the selected repository */
+	private array $repoAnswers = [];
 	/** how many keys do not open with the instance secret */
 	private int $sealedKeys = 0;
 
-	private function service(array $relays, bool $firehoseUpgraded = false): AtprotoStatusService {
+	private function service(array $relays, bool $firehoseUpgraded = false, bool $oauthReachable = false, bool $oauthMissingRefreshGrant = false, ?Identity $identity = null): AtprotoStatusService {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);
 		$config->method('pdsEndpoint')->willReturn('https://social.example');
@@ -49,7 +51,44 @@ class AtprotoStatusServiceTest extends TestCase {
 
 			return $firehoseUpgraded;
 		});
-		$curl->method('doRequest')->willReturnCallback(function (string $verb, string $url, array $options, &$contentType, &$status): string {
+		$curl->method('doRequest')->willReturnCallback(function (string $verb, string $url, array $options, &$contentType, &$status) use ($oauthReachable, $oauthMissingRefreshGrant): string {
+			if (str_ends_with($url, '/.well-known/oauth-protected-resource')) {
+				if (!$oauthReachable) {
+					$status = 404;
+					return '';
+				}
+				$status = 200;
+				$contentType = 'application/json; charset=utf-8';
+
+				return json_encode(['resource' => 'https://social.example', 'authorization_servers' => ['https://social.example']]);
+			}
+			if (str_ends_with($url, '/.well-known/oauth-authorization-server')) {
+				if (!$oauthReachable) {
+					$status = 404;
+					return '';
+				}
+				$status = 200;
+				$contentType = 'application/json';
+
+				$metadata = [
+					'issuer' => 'https://social.example',
+					'pushed_authorization_request_endpoint' => 'https://social.example/oauth/par',
+					'authorization_endpoint' => 'https://social.example/oauth/authorize',
+					'token_endpoint' => 'https://social.example/oauth/token',
+					'require_pushed_authorization_requests' => true,
+					'authorization_response_iss_parameter_supported' => true,
+					'client_id_metadata_document_supported' => true,
+					'dpop_signing_alg_values_supported' => ['ES256'],
+					'response_types_supported' => ['code'],
+					'grant_types_supported' => $oauthMissingRefreshGrant ? ['authorization_code'] : ['authorization_code', 'refresh_token'],
+					'code_challenge_methods_supported' => ['S256'],
+					'token_endpoint_auth_methods_supported' => ['none', 'private_key_jwt'],
+					'token_endpoint_auth_signing_alg_values_supported' => ['ES256'],
+					'scopes_supported' => ['atproto'],
+				];
+
+				return json_encode($metadata);
+			}
 			if (str_ends_with($url, '/xrpc/com.atproto.sync.subscribeRepos')) {
 				$status = 426;
 
@@ -58,6 +97,13 @@ class AtprotoStatusServiceTest extends TestCase {
 			foreach ($this->relayAnswers as $relay => $answer) {
 				if (str_starts_with($url, $relay . '/xrpc/com.atproto.sync.getHostStatus?hostname=social.example')) {
 					$status = str_contains($answer, 'HostNotFound') ? 400 : 200;
+
+					return $answer;
+				}
+			}
+			foreach ($this->repoAnswers as $relay => $answer) {
+				if (str_starts_with($url, $relay . '/xrpc/com.atproto.sync.getRepoStatus?did=')) {
+					$status = str_contains($answer, 'RepoNotFound') ? 400 : 200;
 
 					return $answer;
 				}
@@ -73,8 +119,10 @@ class AtprotoStatusServiceTest extends TestCase {
 
 		$keySeals = $this->createMock(KeySealService::class);
 		$keySeals->method('countSealed')->willReturnCallback(fn (): int => $this->sealedKeys);
+		$identities = $this->createMock(IdentityService::class);
+		$identities->method('firstActive')->willReturn($identity);
 
-		return new AtprotoStatusService($config, $this->createMock(ConfigService::class), $this->createMock(IdentityService::class), $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, $keySeals);
+		return new AtprotoStatusService($config, $this->createMock(ConfigService::class), $identities, $this->createMock(InstanceKeyService::class), $this->createMock(EventService::class), $daemon, $this->createMock(AtprotoRepoRequest::class), $curl, $this->createMock(IConfig::class), $cacheFactory, $this->createMock(ITimeFactory::class), null, null, null, $keySeals);
 	}
 
 	private function keysCheck(): array {
@@ -124,6 +172,25 @@ class AtprotoStatusServiceTest extends TestCase {
 		$this->assertSame('warning', $this->relayCheck([])['state']);
 	}
 
+	public function testRelayRepoCheckConfirmsThatAnAccountRepositoryIsIndexed(): void {
+		$identity = new Identity(1, 'https://social.example/users/alice', 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'alice.social.example', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$this->repoAnswers['https://bsky.network'] = json_encode(['did' => $identity->did, 'active' => true, 'rev' => '3kznmn7xqxl22']);
+
+		$check = array_column($this->service(['https://bsky.network'], identity: $identity)->checks(true), null, 'id')['relay_repo'];
+
+		$this->assertSame(['id' => 'relay_repo', 'state' => 'ok', 'detail' => 'bsky.network: repository active, revision 3kznmn7xqxl22'], $check);
+	}
+
+	public function testRelayRepoCheckWarnsUntilTheRepositoryIsSynchronized(): void {
+		$identity = new Identity(1, 'https://social.example/users/alice', 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'alice.social.example', '', '', '', Identity::STATE_ACTIVE, '', 0);
+		$this->repoAnswers['https://bsky.network'] = '{"error":"RepoNotFound","message":"repo not found"}';
+
+		$check = array_column($this->service(['https://bsky.network'], identity: $identity)->checks(true), null, 'id')['relay_repo'];
+
+		$this->assertSame('warning', $check['state']);
+		$this->assertSame('bsky.network has not synchronized alice.social.example yet', $check['detail']);
+	}
+
 	public function testHttp426WarnsThatTheFirehoseWebsocketIsNotProxied(): void {
 		$firehose = array_values(array_filter($this->service([])->checks(true), static fn (array $check): bool => $check['id'] === 'firehose'))[0];
 
@@ -135,6 +202,26 @@ class AtprotoStatusServiceTest extends TestCase {
 		$firehose = array_values(array_filter($this->service([], true)->checks(true), static fn (array $check): bool => $check['id'] === 'firehose'))[0];
 
 		$this->assertSame(['id' => 'firehose', 'state' => 'ok', 'detail' => ''], $firehose);
+	}
+
+	public function testPublicOAuthDiscoveryAdvertisesTheBlueskyLoginFlow(): void {
+		$checks = array_column($this->service([], false, true)->checks(true), null, 'id');
+
+		$this->assertSame(['id' => 'oauth_discovery', 'state' => 'ok', 'detail' => ''], $checks['oauth_discovery']);
+	}
+
+	public function testMissingPublicOAuthDiscoveryBlocksPdsReadiness(): void {
+		$checks = array_column($this->service([])->checks(true), null, 'id');
+
+		$this->assertSame('error', $checks['oauth_discovery']['state']);
+		$this->assertStringContainsString('oauth-protected-resource', $checks['oauth_discovery']['detail']);
+	}
+
+	public function testAuthorizationMetadataWithoutRefreshTokensIsNotReady(): void {
+		$checks = array_column($this->service([], false, true, true)->checks(true), null, 'id');
+
+		$this->assertSame('error', $checks['oauth_discovery']['state']);
+		$this->assertStringContainsString('required AT Protocol OAuth metadata', $checks['oauth_discovery']['detail']);
 	}
 
 	public function testPublicDidProfileAndPostVisibilityAreChecked(): void {

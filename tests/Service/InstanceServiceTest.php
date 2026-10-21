@@ -23,6 +23,7 @@ use OCA\Social\Service\ConfigService;
 use OCA\Social\Service\InstanceService;
 use OCA\Social\Service\PostService;
 use OCA\Social\Service\TranslationService;
+use OCA\Social\Service\VapidService;
 use OCA\Social\Tests\Helper\PhpIni;
 use OCP\IAppConfig;
 use OCP\IConfig;
@@ -45,6 +46,7 @@ class InstanceServiceTest extends TestCase {
 	private IUserManager|Stub $userManager;
 	private CacheDocumentService|Stub $cacheDocumentService;
 	private InstanceService $service;
+	private VapidService|Stub $vapidService;
 
 	protected function setUp(): void {
 		$this->instancesRequest = $this->createMock(InstancesRequest::class);
@@ -57,6 +59,8 @@ class InstanceServiceTest extends TestCase {
 		$this->statsRequest = $this->createMock(InstanceStatsRequest::class);
 		$this->translationService = $this->createStub(TranslationService::class);
 		$this->accountService = $this->createMock(AccountService::class);
+		$this->vapidService = $this->createStub(VapidService::class);
+		$this->vapidService->method('publicKey')->willReturn('instance-vapid-key');
 
 		$urlGenerator = $this->createStub(IURLGenerator::class);
 		$urlGenerator->method('imagePath')->willReturn('/apps/social/img/social.svg');
@@ -74,6 +78,7 @@ class InstanceServiceTest extends TestCase {
 			$this->statsRequest,
 			$this->translationService,
 			$this->accountService,
+			$this->vapidService,
 		);
 	}
 
@@ -333,6 +338,7 @@ class InstanceServiceTest extends TestCase {
 		$this->assertSame(
 			2048 * 1048576, $configuration['media_attachments']['video_size_limit']
 		);
+		$this->assertSame('instance-vapid-key', $configuration['vapid']['public_key']);
 	}
 
 	/**

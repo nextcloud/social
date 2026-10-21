@@ -474,7 +474,7 @@ sixty when twenty survive the check.
 *As of 0.17.0, with the l10n round trip since done.*
 
 1. Collapse the two cache-actor joins, with a database to check against.
-2. Web Push and a streaming API, so mobile clients stop polling.
+2. A streaming API, so timeline clients stop polling.
 
 ---
 

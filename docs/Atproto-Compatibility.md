@@ -603,7 +603,8 @@ repository does not have refuses the request with `BlockNotFound`),
 `getRecommendedDidCredentials`, `submitPlcOperation`, `checkAccountStatus`
 and `activateAccount` to an account moving here (§13);
 `com.atproto.server.describeServer`, `createSession`, `refreshSession`,
-`deleteSession`, `getSession`, `getServiceAuth`, `createAccount`
+`deleteSession`, `getSession`, `getServiceAuth`, `createAppPassword`,
+`listAppPasswords`, `revokeAppPassword`, `createAccount`
 (migration in only, §13; open registration is **never** offered — a
 Bluesky account here is a Nextcloud account); `deactivateAccount` is not
 served (switching off is in Settings, §4.6); `com.atproto.repo.createRecord`, `putRecord`, `deleteRecord`,
@@ -611,6 +612,12 @@ served (switching off is in Settings, §4.6); `com.atproto.repo.createRecord`, `
 `importRepo`, `listMissingBlobs`; `com.atproto.moderation.createReport`
 (proxied, §12.3); `com.atproto.label.queryLabels` (answers the self-labels
 of local records only); `_health`.
+
+`describeServer` advertises the instance's actual handle suffix (for example,
+`.social.example.com`) and the maximum upload limit enforced by the XRPC
+endpoint, including its 100,000,000-byte video limit. It
+does not publish a privacy-policy link unless the instance has a real policy
+URL; the Social app landing page is not a privacy policy.
 
 **Proxied to the AppView** with a service-auth token for the calling user
 (`Authorization: Bearer <JWT signed by the user's signing key, aud
@@ -627,18 +634,46 @@ response passed through unchanged.
 
 ### 6.3 Authentication for Bluesky apps (D17)
 
-Phase 1 serves `createSession` with **app passwords**: a Nextcloud app
-password (Settings → Security) is what a Bluesky app is given as the
-password, checked through `IProvider`/`IUserManager::checkPassword`, which
-is how Nextcloud's own clients log in. The session is a pair of JWTs
-(access 2 h, refresh 90 d) signed with the instance service key, carried in
-`Authorization: Bearer`, with `did` and `handle` in the response as Bluesky
-apps expect. **OAuth for Bluesky apps** (PAR, DPoP, PKCE S256, client
-metadata URL — what the official app uses since 2025) is phase 3; until
-then the official app's "custom PDS" sign-in works with the app password,
-which is what every self-hosted PDS offered before OAuth. The existing
-Mastodon OAuth server (`OAuthController`) is not reused for this: its
-tokens are Social's client API's, and the two token worlds stay apart.
+Bluesky apps can sign in with this PDS in either of two ways:
+
+- **The official Bluesky app signs in with an app password.** The person
+  enters this PDS as the hosting provider, then signs in with their handle
+  and an app password made in Settings → Apps and account → Bluesky. The
+  current official app calls `PasswordSession.login` against the selected
+  service URL ([login implementation](https://github.com/bluesky-social/social-app/blob/main/src/state/session/session-core.ts)).
+  This PDS accepts only its own Social app passwords at
+  `com.atproto.server.createSession`; the Nextcloud account password is
+  never accepted or sent to the Bluesky app. Access JWTs last two hours and
+  refresh JWTs 90 days, signed with the instance service key and carried in
+  `Authorization: Bearer`. Revoking an app password ends its sessions.
+  The PDS also serves `createAppPassword`, `listAppPasswords` and
+  `revokeAppPassword` for authenticated sessions. A newly created password
+  is returned once; listing returns only its name, creation time and optional
+  privileged flag, never its secret or internal database id. Creating a
+  password with chat access requires a session that already has
+  `transition:chat.bsky`.
+  The login identifier may be a handle, DID, or Nextcloud email address. If
+  an email address belongs to multiple local accounts, each account's own
+  Bluesky identity and app-password hashes are checked, so an earlier
+  account without a Bluesky identity cannot block the valid match.
+- **OAuth is available to clients that implement AT Protocol OAuth.** They
+  resolve this PDS's discovery metadata and use PAR, DPoP and PKCE S256.
+  The person signs in to Nextcloud here, reviews the requested access and
+  approves it. The client receives a DPoP-bound OAuth session and never
+  receives the Nextcloud password. These sessions appear in Settings → Apps
+  and account → Bluesky and can be revoked there. Settings also shows the
+  exact PDS address and handle needed by the official app.
+
+OAuth is AT Protocol's profile, not a reuse of the Mastodon client API's
+OAuth tokens. The two token worlds and their sessions stay apart. The full
+OAuth flow is exercised with the official `@atproto/oauth-client-node`
+library against the development network, including account resolution,
+PAR, server-side approval, token exchange, PDS requests, refresh and sign-out.
+When `getSession` returns an email under `transition:email`,
+`emailConfirmed` reflects Nextcloud's verified status for the primary email
+property. Merely having an email address configured on the Nextcloud account
+does not mark it as confirmed; without that verification, clients receive
+`emailConfirmed: false`.
 
 Rate limits: Bluesky's PDS limits are the model — 3,000 points per hour per
 DID for writes (create 3, update 2, delete 1), 300/5 min per IP on
@@ -2044,7 +2079,8 @@ numbers on the Statistics page's agency view, labelled.
 
 Every 15 minutes, a background health check refreshes externally observable
 checks and caches them for the admin page: the PLC directory must resolve an
-active local DID to this PDS, and the configured public AppView must resolve an
+active local DID to this PDS, each configured relay must report the sampled
+active DID repository, and the configured public AppView must resolve an
 active profile and the newest locally stored post. Relay crawling and AppView
 indexing are asynchronous, so a missing profile or post is shown as a warning
 with diagnostic guidance; it does not block enabling the PDS. With no active
@@ -2250,7 +2286,7 @@ Architecture/API/OCC-Commands/Admin/User-Guide as it lands
 |---|---|---|
 | **1 — Visible on Bluesky** (D20) | §4 identity and PLC, §5 repository with profile and post records (text, links, pictures, CW, polls-as-text, quotes-as-link), §6.1–6.2 sync + identity endpoints and root rules, §7 firehose daemon and `requestCrawl`, §8.1–8.5 publisher (edits/deletes), §14 requirements, admin section, setup checks, `occ` basics, §15 tables 1–8, §16, §17.1 + the interop job's first tests | A Bluesky user searches `alice.<host>`, sees profile and posts, follows |
 | **2 — Reading Bluesky** | §9 resolution, following, the poller, the storer, deletes; §10 notifications poll and the mapping; §8.6 likes/reposts/follows; §11 badges, profiles, addressing, mention picker; §12.1 labels honoured; §9.4 optional Jetstream | alice follows `bob.bsky.social`, reads him in her feed, likes his post, sees his like and reply in Activities |
-| **3 — Complete interaction and apps** | §8.3 replies and quotes to Bluesky posts both ways, link cards, §12.2 labelers, §12.3 reporting, §12.4 instance blocks, §6.3 app passwords then OAuth for Bluesky apps, threadgates, video (D11) through the video service | the official Bluesky app logs in to Aloha Social as its PDS; a thread spans both networks |
+| **3 — Complete interaction and apps** | §8.3 replies and quotes to Bluesky posts both ways, link cards, §12.2 labelers, §12.3 reporting, §12.4 instance blocks, §6.3 app passwords and OAuth for Bluesky clients, threadgates, video (D11) through the video service | the official Bluesky app logs in to Aloha Social as its PDS with a Social app password; an OAuth-capable client uses the consent flow; a thread spans both networks |
 | **4 — Moving** (D19) | §13 move in, move away, Bridgy twins; §4.2 custom handles | a Bluesky account moves here with its followers; a person sets `alice.example.org` as their handle |
 
 Each phase has its version bump, its tests per commit, its docs in the
@@ -2344,9 +2380,11 @@ Everything in the phase 2 row, in `lib/Atproto/Reader/` (`BlueskyActorService`,
   Bluesky post that is not here is stored with its bsky.app parent id and
   the ordinary unknown-parent fetch is not run for it (one hop through
   `getPostThread` is phase 3).
-- **Deletes from Bluesky are not yet noticed** (§9.5): a post gone from the
-  author feed stays until phase 3 adds the daily `getPosts` check or the
-  Jetstream listener. Nor is the optional Jetstream listener (§9.4) built.
+- **Deletes from Bluesky** (§9.5) are noticed in two ways: the maintenance
+  job checks a page of 25 stored Bluesky posts from the last seven days
+  against the AppView each run, and the optional Jetstream daemon deletes a
+  watched post as soon as it receives its delete event. The periodic sweep
+  remains useful when Jetstream is not configured or misses an event.
 - **No quote notification**: Social has none (the spec was wrong there); a
   quote of a local post is stored as the post it is in and shows in the
   feed of anybody who follows the quoting account.
@@ -2488,14 +2526,20 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   Settings → Apps and account → Bluesky makes Bluesky-style app passwords instead (four
   groups of four, shown once, stored as a password hash, at most 25),
   good for this app's Bluesky surface only. Revoking one ends every session
-  it opened. A wrong password counts against the caller's address in
+  it opened. The same records are managed through the PDS XRPC methods
+  `createAppPassword`, `listAppPasswords` and `revokeAppPassword`; passwords
+  are scoped to the authenticated Nextcloud account. A wrong password counts against the caller's address in
   Nextcloud's brute-force protection, and the answer for an unknown account
   and a wrong password is the same.
 - **Sessions** are JWTs this server signs with its service key: an access
   token of two hours naming its session, a refresh token of ninety days
   whose id is the session (`createSession`, `refreshSession`,
-  `getSession`, `deleteSession`). A suspended account's apps are turned
-  away; an account that moved away cannot sign in.
+  `getSession`, `deleteSession`). Refresh tokens are consumed with one
+  atomic delete, so concurrent refreshes or a replay can issue only one
+  replacement session. Every access token is also checked against the app
+  password that created it, so revoking that password invalidates tokens
+  even when revocation races a refresh. A suspended account's apps are
+  turned away; an account that moved away cannot sign in.
 - **The AppView proxy** (`app.bsky.*`) goes to the configured AppView only —
   `atproto-proxy` cannot point the account's signature elsewhere — with a
   token the account's own key signs for the one method; the answer passes
@@ -2542,14 +2586,23 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   with a link). `putRecord` of the profile sets the display name and bio;
   of `chat.bsky.actor.declaration` (as `createRecord` of it) sets who may
   send direct messages here, which writes the record (§10.1).
-  `deleteRecord` undoes the action. `applyWrites` does the same one by one,
-  not in one commit. Lists and their members, starter packs, feed
-  generators, thread gates and post gates have no Social counterpart and
-  are kept as the app wrote them, validated against their lexicon; a gate
-  only for one of the account's own posts, under that post's key. A block
-  is a block here, published, when the person publishes their blocks, and
-  refused while they do not; a list block an app writes is refused (D16):
-  lists are subscribed to from Settings → Blocking (§12.5). `uploadBlob` stores a picture as any upload is, named by its CID,
+  `deleteRecord` undoes the action. `applyWrites` keeps a batch of
+  repository-native records (lists and their members, starter packs, feed
+  generators, thread gates and post gates) in one repository commit, and
+  rejects an invalid batch before writing any of it. For these batches,
+  `swapCommit` is compared with the locked repository head inside the write
+  transaction; a stale CID returns `InvalidSwap` without changing the repo.
+  Batches containing
+  Social actions still run those actions one by one, so a later failure can
+  leave an earlier Social action applied; `swapCommit` is not supported for
+  them yet. Those repository-native record
+  types have no Social counterpart and are kept as the app wrote them,
+  validated against their lexicon; a gate only for one of the account's own
+  posts, under that post's key. A block is a block here, published, when the
+  person publishes their blocks, and refused while they do not; a list block
+  an app writes is refused (D16): lists are subscribed to from Settings →
+  Blocking (§12.5). `uploadBlob` stores a picture as any upload is, named by
+  its CID,
   for the post that uses it. A report an app files is a report here, passed
   on in this server's name (3b).
 - The app's profile editor sets the avatar and the banner too: a picture
@@ -2559,7 +2612,11 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
   picture it did not change is left alone. The pronouns and the website
   it sets are the account's profile rows named for them, rewritten, added
   while there is room among the four, or taken away
-  (`Person::withProfileRows()`); unchanged, they are left alone.
+  (`Person::withProfileRows()`); unchanged, they are left alone. Pronouns
+  are clipped to the profile lexicon's 20 graphemes and 200 bytes before
+  those shared rows change, so both protocol profiles keep the same value.
+  A non-empty website must be a valid HTTP or HTTPS URL; an invalid value is
+  refused before any profile field or picture changes.
   `getServiceAuth` came with 3d.
 - A mention of a Bluesky account in a post published from here — the
   composer's `@alice.bsky.social` — is now a mention facet with the DID,
@@ -2617,7 +2674,7 @@ thread root), `RecordMapper` (reply, quote and card embeds, the postgate),
 `AtprotoOAuthController`, tables `social_atproto_oauth_request`,
 `social_atproto_oauth_session`, `social_atproto_oauth_replay`:
 
-- **Bluesky sign-in is AT Protocol's OAuth profile**: pushed authorization
+- **OAuth-capable Bluesky clients can sign in through AT Protocol's OAuth profile**: pushed authorization
   requests only, PKCE S256, DPoP with this server's nonces on every token and
   every PDS request, client IDs that are the address of the app's metadata
   (and the profile's `http://localhost` development exception), public and
