@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use OCA\Social\Atproto\Firehose\Subscriber;
 use OCA\Social\Atproto\Firehose\WebSocketServer;
+use OCA\Social\Db\HashtagsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\ClientNotFoundException;
@@ -20,11 +21,12 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
+use OCA\Social\Tools\Nid;
 use OCP\AppFramework\Utility\ITimeFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-/** Serves the Mastodon user and user-notification WebSocket streams. */
+/** Serves the Mastodon user, direct-message, and public WebSocket and SSE streams. */
 class MastodonStreamingDaemon {
 	public const DEFAULT_BIND = '127.0.0.1:8788';
 	private const PATH = '/api/v1/streaming';
@@ -32,7 +34,9 @@ class MastodonStreamingDaemon {
 	private const POLL_INTERVAL = 1;
 	private const PING_INTERVAL = 20;
 	private const BATCH = 50;
+	private const MAX_HASHTAG_SUBSCRIPTIONS = 20;
 	private const MAX_BATCHES_PER_POLL = 10;
+	private const PUBLIC_STREAMS = ['public', 'public:media', 'public:local', 'public:local:media', 'public:remote', 'public:remote:media'];
 	private bool $stopping = false;
 
 	public function __construct(
@@ -40,7 +44,9 @@ class MastodonStreamingDaemon {
 		private AccountService $accountService,
 		private StreamRequest $streamRequest,
 		private StreamService $streamService,
+		private ConversationService $conversationService,
 		private FilterService $filterService,
+		private FeedDisplayService $feedDisplayService,
 		private NotificationPolicyService $notificationPolicyService,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
@@ -57,6 +63,7 @@ class MastodonStreamingDaemon {
 			binaryFrames: false,
 			authorize: \Closure::fromCallable([$this, 'authorize']),
 			onMessage: \Closure::fromCallable([$this, 'onMessage']),
+			eventStreams: true,
 		);
 		$this->listenForStop();
 		$started = $this->time->getTime();
@@ -91,6 +98,26 @@ class MastodonStreamingDaemon {
 
 	private function authorize(Subscriber $subscriber): bool {
 		$stream = $subscriber->query['stream'] ?? '';
+		if ($subscriber->eventStream) {
+			$path = $subscriber->requestPath;
+			if (str_starts_with($path, self::PATH . '/public')) {
+				$local = str_ends_with($path, '/local');
+				$remote = str_ends_with($path, '/remote');
+				$onlyMedia = filter_var($subscriber->query['only_media'] ?? false, FILTER_VALIDATE_BOOL);
+				$pathStream = 'public' . ($local ? ':local' : ($remote ? ':remote' : '')) . ($onlyMedia ? ':media' : '');
+			} elseif ($path === self::PATH . '/hashtag' || $path === self::PATH . '/hashtag/local') {
+				$pathStream = $path === self::PATH . '/hashtag/local' ? 'hashtag:local' : 'hashtag';
+				$stream = $pathStream;
+			} elseif ($path === self::PATH . '/direct') {
+				$pathStream = 'direct';
+			} else {
+				$pathStream = str_ends_with($path, '/notification') ? 'user:notification' : 'user';
+			}
+			if ($stream !== '' && $stream !== $pathStream) {
+				return false;
+			}
+			$stream = $pathStream;
+		}
 		if (!is_string($stream) || ($stream !== '' && !$this->supportsStream($stream))) {
 			return false;
 		}
@@ -119,7 +146,7 @@ class MastodonStreamingDaemon {
 
 		try {
 			$client = $this->clientService->getFromToken($token);
-			if ($client->getAuthId() <= 0 || $client->getAuthUserId() === '' || ($stream !== '' && !$this->hasRequiredScopes($client))) {
+			if ($client->getAuthId() <= 0 || $client->getAuthUserId() === '' || ($stream !== '' && !$this->hasRequiredScopes($client, $stream))) {
 				return false;
 			}
 			$viewer = $this->accountService->getActorFromUserId($client->getAuthUserId());
@@ -134,9 +161,18 @@ class MastodonStreamingDaemon {
 				'viewer' => $viewer,
 				'homeSince' => $this->streamRequest->newestHomeNid($viewer),
 				'notificationSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'notif'),
+				'directSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm'),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
+			$publicSince = $this->streamRequest->newestNidFor([md5(ACore::CONTEXT_PUBLIC)]);
+			foreach (self::PUBLIC_STREAMS as $publicStream) {
+				$subscriber->context['publicSince:' . $publicStream] = $publicSince;
+			}
+			if (in_array($stream, ['hashtag', 'hashtag:local'], true)
+				&& !$this->addHashtagSubscription($subscriber, $stream, $subscriber->query['tag'] ?? '')) {
+				return false;
+			}
 			return true;
 		} catch (ClientNotFoundException|ActorDoesNotExistException $e) {
 			return false;
@@ -147,7 +183,7 @@ class MastodonStreamingDaemon {
 	}
 
 	private function supportsStream(string $stream): bool {
-		return in_array($stream, ['user', 'user:notification'], true);
+		return in_array($stream, ['user', 'user:notification', 'direct', 'hashtag', 'hashtag:local', ...self::PUBLIC_STREAMS], true);
 	}
 
 	private function onMessage(Subscriber $subscriber, int $opcode, string $payload): ?string {
@@ -162,22 +198,99 @@ class MastodonStreamingDaemon {
 		if (!is_string($stream) || !$this->supportsStream($stream)) {
 			return $this->errorMessage(is_string($stream) ? $stream : '', 'Unknown stream');
 		}
-		if (!$this->hasRequiredScopesForContext($subscriber->context)) {
+		if (!$this->hasRequiredScopesForContext($subscriber->context, $stream)) {
 			return $this->errorMessage($stream, 'Insufficient scope');
 		}
 		if ($message['type'] === 'subscribe') {
+			if (in_array($stream, ['hashtag', 'hashtag:local'], true)) {
+				$tag = $message['tag'] ?? '';
+				$key = $this->hashtagSubscriptionKey($stream, $tag);
+				if ($key === '') {
+					return $this->errorMessage($stream, 'A valid tag is required');
+				}
+				$hashtagSubscriptions = $subscriber->context['hashtagSubscriptions'] ?? [];
+				if (is_array($hashtagSubscriptions) && !isset($hashtagSubscriptions[$key])
+					&& count($hashtagSubscriptions) >= self::MAX_HASHTAG_SUBSCRIPTIONS) {
+					return $this->errorMessage($stream, 'Too many hashtag subscriptions');
+				}
+				$this->addHashtagSubscription($subscriber, $stream, $tag);
+				return null;
+			}
 			$subscriber->context['subscriptions'][$stream] = true;
 		} else {
+			if (in_array($stream, ['hashtag', 'hashtag:local'], true)) {
+				$key = $this->hashtagSubscriptionKey($stream, $message['tag'] ?? '');
+				if ($key !== '') {
+					unset($subscriber->context['hashtagSubscriptions'][$key]);
+				}
+				$hasStream = false;
+				foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $subscription) {
+					$hasStream = $hasStream || $subscription['stream'] === $stream;
+				}
+				if (!$hasStream) {
+					unset($subscriber->context['subscriptions'][$stream]);
+				}
+				return null;
+			}
 			unset($subscriber->context['subscriptions'][$stream]);
 		}
 
 		return null;
 	}
 
-	private function hasRequiredScopesForContext(array $context): bool {
+	private function addHashtagSubscription(Subscriber $subscriber, string $stream, mixed $tag): bool {
+		$key = $this->hashtagSubscriptionKey($stream, $tag);
+		if ($key === '') {
+			return false;
+		}
+		$subscriptions = $subscriber->context['hashtagSubscriptions'] ?? [];
+		if (!is_array($subscriptions)) {
+			$subscriptions = [];
+		}
+		if (!isset($subscriptions[$key]) && count($subscriptions) >= self::MAX_HASHTAG_SUBSCRIPTIONS) {
+			return false;
+		}
+		if (!is_string($tag)) {
+			return false;
+		}
+		$tag = mb_strtolower(ltrim(trim($tag), '#'), 'UTF-8');
+		$subscriber->context['subscriptions'][$stream] = true;
+		$subscriber->context['hashtagSubscriptions'][$key] = [
+			'stream' => $stream,
+			'tag' => $tag,
+			'local' => $stream === 'hashtag:local',
+			'since' => (string)($subscriber->context['publicSince:public'] ?? '0'),
+		];
+
+		return true;
+	}
+
+	private function hashtagSubscriptionKey(string $stream, mixed $tag): string {
+		if (!in_array($stream, ['hashtag', 'hashtag:local'], true) || !is_string($tag)) {
+			return '';
+		}
+		$tag = ltrim(trim($tag), '#');
+		if ($tag === '' || mb_strlen($tag, 'UTF-8') > HashtagsRequest::HASHTAG_MAX_LENGTH
+			|| preg_match('/[\p{C}\s]/u', $tag) !== 0) {
+			return '';
+		}
+
+		return hash('sha256', $stream . ':' . mb_strtolower($tag, 'UTF-8'));
+	}
+
+	private function hasRequiredScopesForContext(array $context, string $stream): bool {
 		$scopes = $context['scopes'] ?? [];
-		return is_array($scopes) && (in_array('read', $scopes, true)
-			|| (in_array('read:statuses', $scopes, true) && in_array('read:notifications', $scopes, true)));
+		if (!is_array($scopes)) {
+			return false;
+		}
+		if (in_array('read', $scopes, true)) {
+			return true;
+		}
+		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct'], true)) {
+			return in_array('read:statuses', $scopes, true);
+		}
+
+		return in_array('read:statuses', $scopes, true) && in_array('read:notifications', $scopes, true);
 	}
 
 	private function errorMessage(string $stream, string $message): string {
@@ -188,10 +301,13 @@ class MastodonStreamingDaemon {
 		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 	}
 
-	private function hasRequiredScopes(SocialClient $client): bool {
+	private function hasRequiredScopes(SocialClient $client, string $stream): bool {
 		$scopes = $client->getAuthScopes();
 		if (in_array('read', $scopes, true)) {
 			return true;
+		}
+		if (in_array($stream, [...self::PUBLIC_STREAMS, 'hashtag', 'hashtag:local', 'direct'], true)) {
+			return in_array('read:statuses', $scopes, true);
 		}
 
 		return in_array('read:statuses', $scopes, true)
@@ -226,6 +342,101 @@ class MastodonStreamingDaemon {
 		if (isset($subscriptions['user']) || isset($subscriptions['user:notification'])) {
 			$this->sendNotifications($server, $subscriber, $viewer);
 		}
+		if (isset($subscriptions['direct'])) {
+			$this->sendDirectConversations($server, $subscriber, $viewer);
+		}
+		foreach (self::PUBLIC_STREAMS as $stream) {
+			if (isset($subscriptions[$stream])) {
+				$this->sendPublicStatuses($server, $subscriber, $viewer, $stream);
+			}
+		}
+		foreach ($subscriber->context['hashtagSubscriptions'] ?? [] as $key => $subscription) {
+			$this->sendHashtagStatuses($server, $subscriber, $viewer, $key, $subscription);
+		}
+	}
+
+	private function sendDirectConversations(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
+		for ($pageNumber = 0; $pageNumber < self::MAX_BATCHES_PER_POLL && !$subscriber->closed; $pageNumber++) {
+			$since = (string)($subscriber->context['directSince'] ?? '0');
+			$page = $this->conversationService->getPage($viewer, ConversationService::MAX_LIMIT, 0, 0, $since, false);
+			$conversations = $page['conversations'];
+			$cursor = (string)$page['prev'];
+			if (Nid::compare($cursor, $since) < 1) {
+				$cursor = $since;
+			}
+			foreach ($conversations as $conversation) {
+				$nid = $conversation->getLastStatusNid();
+				if (Nid::compare((string)$nid, $cursor) > 0) {
+					$cursor = (string)$nid;
+				}
+			}
+			if ($cursor === $since && $conversations === []) {
+				return;
+			}
+			foreach (array_reverse($conversations) as $conversation) {
+				$this->send($server, $subscriber, ['direct'], 'conversation', $conversation->jsonSerialize());
+			}
+			$subscriber->context['directSince'] = $cursor;
+			if (count($conversations) < ConversationService::MAX_LIMIT) {
+				return;
+			}
+		}
+	}
+
+	/** @param array{stream: string, tag: string, local: bool, since: string} $subscription */
+	private function sendHashtagStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer, string $key, array $subscription): void {
+		$cursorKey = 'hashtagSince:' . $key;
+		if (!isset($subscriber->context[$cursorKey])) {
+			$subscriber->context[$cursorKey] = $subscription['since'];
+		}
+		$this->sendPages($server, $subscriber, $cursorKey, function (string $since) use ($viewer, $subscription): array {
+			$options = (new ProbeOptions())
+				->setFormat(ACore::FORMAT_LOCAL)
+				->setProbe(ProbeOptions::HASHTAG)
+				->setArgument($subscription['tag'])
+				->setLocal($subscription['local'])
+				->setSince($since)
+				->setLimit(self::BATCH)
+				->setInverted(true);
+			$statuses = $this->streamService->getTimeline($options);
+			$cursor = $statuses === [] ? $since : (string)$statuses[0]->getNid();
+			$hasMore = count($statuses) === self::BATCH;
+			$statuses = array_reverse($statuses);
+			if ($this->feedDisplayService->hidesReplies($viewer->getUserId())) {
+				$statuses = array_values(array_filter($statuses, static fn (Stream $status): bool => $status->getInReplyTo() === ''));
+			}
+			return [
+				'cursor' => $cursor,
+				'items' => $this->filterService->apply($statuses, Filter::CONTEXT_PUBLIC, $viewer),
+				'hasMore' => $hasMore,
+			];
+		}, 'update', [$subscription['stream']]);
+	}
+
+	private function sendPublicStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer, string $stream): void {
+		$local = str_contains($stream, ':local');
+		$remote = str_contains($stream, ':remote');
+		$onlyMedia = str_ends_with($stream, ':media');
+		$this->sendPages($server, $subscriber, 'publicSince:' . $stream, function (string $since) use ($viewer, $local, $remote, $onlyMedia): array {
+			$options = (new ProbeOptions())
+				->setFormat(ACore::FORMAT_LOCAL)
+				->setProbe(ProbeOptions::PUBLIC)
+				->setLocal($local)
+				->setRemote($remote)
+				->setOnlyMedia($onlyMedia)
+				->setSince($since)
+				->setLimit(self::BATCH)
+				->setInverted(true);
+			$statuses = $this->streamService->getTimeline($options);
+			$cursor = $statuses === [] ? $since : (string)$statuses[0]->getNid();
+			$hasMore = count($statuses) === self::BATCH;
+			$statuses = array_reverse($statuses);
+			if ($this->feedDisplayService->hidesReplies($viewer->getUserId())) {
+				$statuses = array_values(array_filter($statuses, static fn (Stream $status): bool => $status->getInReplyTo() === ''));
+			}
+			$filtered = $this->filterService->apply($statuses, Filter::CONTEXT_PUBLIC, $viewer);
+			return ['cursor' => $cursor, 'items' => $filtered, 'hasMore' => $hasMore];
+		}, 'update', [$stream]);
 	}
 
 	private function sendStatuses(WebSocketServer $server, Subscriber $subscriber, Person $viewer): void {
@@ -303,6 +514,10 @@ class MastodonStreamingDaemon {
 	private function send(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array $payload): void {
 		try {
 			$status = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+			if ($subscriber->eventStream) {
+				$server->send($subscriber, 'event: ' . $event . "\ndata: " . $status . "\n\n");
+				return;
+			}
 			$message = json_encode([
 				'stream' => $streams,
 				'event' => $event,

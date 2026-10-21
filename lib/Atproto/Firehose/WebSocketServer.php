@@ -58,6 +58,7 @@ class WebSocketServer {
 		bool $binaryFrames = true,
 		private readonly ?Closure $authorize = null,
 		private readonly ?Closure $onMessage = null,
+		private readonly bool $eventStreams = false,
 	) {
 		$this->dataOpcode = $binaryFrames ? self::OPCODE_BINARY : 0x1;
 		$socket = @stream_socket_server('tcp://' . $bind, $errno, $error);
@@ -126,7 +127,7 @@ class WebSocketServer {
 		if ($subscriber->closed) {
 			return;
 		}
-		$subscriber->output .= self::frame($this->dataOpcode, $payload);
+		$subscriber->output .= $subscriber->eventStream ? $payload : self::frame($this->dataOpcode, $payload);
 		if (strlen($subscriber->output) > self::OUTPUT_LIMIT) {
 			$this->close($subscriber, 'too slow');
 
@@ -137,7 +138,7 @@ class WebSocketServer {
 
 	public function ping(Subscriber $subscriber): void {
 		if (!$subscriber->closed) {
-			$subscriber->output .= self::frame(self::OPCODE_PING, '');
+			$subscriber->output .= $subscriber->eventStream ? ": thump\n\n" : self::frame(self::OPCODE_PING, '');
 			$this->flush($subscriber);
 		}
 	}
@@ -154,7 +155,7 @@ class WebSocketServer {
 			return;
 		}
 		$subscriber->closed = true;
-		if ($subscriber->upgraded) {
+		if ($subscriber->upgraded && !$subscriber->eventStream) {
 			@fwrite($subscriber->socket, self::frame(self::OPCODE_CLOSE, pack('n', $code) . $reason));
 		}
 		$socket = $subscriber->socket;
@@ -219,6 +220,9 @@ class WebSocketServer {
 		if (!$subscriber->upgraded) {
 			return $this->handshake($subscriber);
 		}
+		if ($subscriber->eventStream) {
+			return true;
+		}
 		while (($frame = self::readFrame($subscriber->input)) !== null) {
 			[$opcode, $payload, $masked] = $frame;
 			if (!$masked) {
@@ -281,7 +285,17 @@ class WebSocketServer {
 
 			return false;
 		}
-		if ($path !== $this->path) {
+		$isEventStream = $this->eventStreams && in_array($path, [
+			$this->path . '/user',
+			$this->path . '/user/notification',
+			$this->path . '/direct',
+			$this->path . '/public',
+			$this->path . '/public/local',
+			$this->path . '/public/remote',
+			$this->path . '/hashtag',
+			$this->path . '/hashtag/local',
+		], true);
+		if ($path !== $this->path && !$isEventStream) {
 			$this->refuse($subscriber, 404, 'Not Found');
 
 			return false;
@@ -307,13 +321,20 @@ class WebSocketServer {
 			return false;
 		}
 		$key = $headers['sec-websocket-key'] ?? '';
-		if (strtolower($headers['upgrade'] ?? '') !== 'websocket' || $key === '' || strlen(base64_decode($key, true) ?: '') !== 16) {
+		if (!$isEventStream && (strtolower($headers['upgrade'] ?? '') !== 'websocket' || $key === '' || strlen(base64_decode($key, true) ?: '') !== 16)) {
 			$this->refuse($subscriber, 426, 'Upgrade Required');
 
 			return false;
 		}
 		parse_str(is_array($url) ? ($url['query'] ?? '') : '', $subscriber->query);
 		$subscriber->headers = $headers;
+		$subscriber->requestPath = $path;
+		$subscriber->eventStream = $isEventStream;
+		if ($isEventStream && ($headers['accept'] ?? '') !== '' && !str_contains($headers['accept'], 'text/event-stream')) {
+			$this->refuse($subscriber, 406, 'Not Acceptable');
+
+			return false;
+		}
 		if ($this->authorize !== null && !($this->authorize)($subscriber)) {
 			$this->refuse($subscriber, 401, 'Unauthorized');
 
@@ -321,9 +342,13 @@ class WebSocketServer {
 		}
 		$cursor = $subscriber->query['cursor'] ?? null;
 		$subscriber->cursor = is_string($cursor) && ctype_digit($cursor) ? (int)$cursor : null;
-		$accept = base64_encode(sha1($key . self::GUID, true));
-		$protocol = $subscriber->responseSubprotocol === '' ? '' : 'Sec-WebSocket-Protocol: ' . $subscriber->responseSubprotocol . "\r\n";
-		$subscriber->output .= "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " . $accept . "\r\n" . $protocol . "\r\n";
+		if ($isEventStream) {
+			$subscriber->output .= "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nX-Accel-Buffering: no\r\n\r\n: connected\n\n";
+		} else {
+			$accept = base64_encode(sha1($key . self::GUID, true));
+			$protocol = $subscriber->responseSubprotocol === '' ? '' : 'Sec-WebSocket-Protocol: ' . $subscriber->responseSubprotocol . "\r\n";
+			$subscriber->output .= "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " . $accept . "\r\n" . $protocol . "\r\n";
+		}
 		$subscriber->upgraded = true;
 		$subscriber->handshakeDoneNow = true;
 		$this->flush($subscriber);

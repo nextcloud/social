@@ -471,18 +471,22 @@ copy in app storage; the original stays where it was, untouched.
 
 `VapidService` creates one stable instance key pair and seals the private key with `PrivateKeyCipher`; `PushSubscriptionService` keeps each access token, endpoint and browser key pair in an encrypted per-user config value, indexed by the token digest. `NotificationService::emit()` queues `Cron\MastodonPushNotification` only for a locally deliverable notification that passes the notification policy and muted-thread checks. The job rechecks the recipient, applies each subscription's alert switches and followed/follower policy, encrypts with the negotiated `aes128gcm` or legacy `aesgcm` format, and sends through `SafeWebPushClient`, which delegates to `CurlService`'s pinned public-address request path without redirects. Expired 404/410 endpoints are removed; transient failures retry per subscription, so a retry does not resend to endpoints that already accepted the notification. The payload contains the bearer token only inside Web Push encryption; queued arguments and logs contain no bearer, endpoint or push keys.
 
-### Mastodon WebSocket streaming
+### Mastodon WebSocket and SSE streaming
 
-`MastodonStreamingDaemon` (`occ social:mastodon:stream`) serves the `user` and
-`user:notification` WebSocket streams on a separate long-running process. Its
-upgrade callback requires a user-authorized Mastodon token and the `read`
-scope or both `read:statuses` and `read:notifications`. Once per second it
-reads the same home and notification timelines used by the REST API, applies
-the viewer's filters and notification policy, and emits Mastodon's text-frame
-envelope. `WebSocketServer` keeps the connection and output-buffer bounds used
-by the Bluesky firehose. The root Apache and Nginx examples proxy
-`/api/v1/streaming` and its health path to this daemon; public, hashtag, list,
-direct, delete and status-edit streams are not implemented yet.
+`MastodonStreamingDaemon` (`occ social:mastodon:stream`) serves the `user`,
+`user:notification`, `direct`, `public`, `public:media`, `public:local`,
+`public:local:media`, `public:remote`, `public:remote:media`, `hashtag` and
+`hashtag:local` WebSocket streams, plus user, public, hashtag and direct SSE endpoints, on
+a separate long-running process. It requires a user-authorized token with
+`read` or `read:statuses` for public streams; user streams require `read` or
+both `read:statuses` and `read:notifications`; direct streams require `read`
+or `read:statuses`. Once per second it reads the
+same timelines used by the REST API, applies the viewer's filters, reply
+visibility and notification policy, and emits Mastodon's event payloads.
+`WebSocketServer` keeps connection and output-buffer bounds for both
+transports. The root Apache and Nginx examples proxy the streaming endpoints
+and health path to this daemon; list, delete and status-edit
+streams are not implemented yet.
 
 ## ActivityPub Federation
 
