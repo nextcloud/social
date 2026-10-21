@@ -13,6 +13,7 @@ use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\LabelerService;
 use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Reader\BlueskyThreadSource;
+use OCA\Social\Atproto\Reader\PostMapper;
 use OCA\Social\Atproto\Reader\PostStore;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Exceptions\AtprotoException;
@@ -289,6 +290,49 @@ class BlueskyThreadSourceTest extends TestCase {
 			'limit' => 8,
 		], $asked[2][1]);
 		$this->assertTrue($source->hasDeepRepliesPending(), 'a cursor beyond the visible page schedules a background continuation');
+	}
+
+	public function testNestedReplySearchUsesTheConversationRootUri(): void {
+		$childUri = 'at://did:plc:alice/app.bsky.feed.post/child';
+		$rootUri = 'at://did:plc:alice/app.bsky.feed.post/root';
+		$thread = self::node($childUri);
+		$thread['post']['replyCount'] = 2;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => $childUri, 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$asked = [];
+		$appView->expects($this->exactly(3))->method('query')->willReturnCallback(
+			static function (string $method, array $params) use (&$asked, $thread, $rootUri, $childUri): array {
+				$asked[] = [$method, $params];
+				if ($method === 'app.bsky.feed.getPostThread') {
+					return ['thread' => $thread];
+				}
+				if ($method === 'app.bsky.unspecced.getPostThreadV2') {
+					throw new AtprotoException('UnknownMethod');
+				}
+
+				return ['posts' => [
+					['uri' => 'at://did:plc:alice/app.bsky.feed.post/reply1', 'record' => ['reply' => ['root' => ['uri' => $rootUri], 'parent' => ['uri' => $childUri]]]],
+					['uri' => 'at://did:plc:alice/app.bsky.feed.post/reply2', 'record' => ['reply' => ['root' => ['uri' => $rootUri], 'parent' => ['uri' => $childUri]]]],
+				]];
+			}
+		);
+		$stored = [];
+		$store = $this->createMock(PostStore::class);
+		$store->method('storePost')->willReturnCallback(static function (array $post) use (&$stored): bool {
+			$stored[] = $post['uri'];
+
+			return true;
+		});
+		$post = (new Note())->setId('https://social.test/@alice/reply');
+		$post->setDetailArray(PostMapper::DETAIL, ['reply_root' => ['uri' => $rootUri, 'cid' => 'bafyroot']]);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$this->assertSame(3, $source->fillVisible($post, 10));
+		$this->assertSame($rootUri, $asked[2][1]['threadRootUri']);
+		$this->assertSame([$childUri, 'at://did:plc:alice/app.bsky.feed.post/reply1', 'at://did:plc:alice/app.bsky.feed.post/reply2'], $stored);
 	}
 
 	public function testBackgroundSearchFallbackFollowsTheCursorToTheNextReplyPage(): void {

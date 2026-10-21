@@ -11,6 +11,7 @@ namespace OCA\Social\Atproto\Reader;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -98,6 +99,7 @@ class BlueskyThreadSource implements ThreadSource {
 		// the replies its author hid on Bluesky are hidden here too
 		$this->store->rememberHiddenReplies(is_array($answer['threadgate'] ?? null) ? $answer['threadgate'] : null);
 		if (self::hasMissingDirectReplies($thread) && $stored < $budget) {
+			$threadRootUri = self::threadRootUri($post, $uri);
 			$knownReplies = [];
 			foreach (is_array($thread['replies'] ?? null) ? $thread['replies'] : [] as $reply) {
 				$replyUri = (string)($reply['post']['uri'] ?? '');
@@ -108,7 +110,7 @@ class BlueskyThreadSource implements ThreadSource {
 			if ($this->remainingTimeout($deadline) === 0) {
 				$this->deepRepliesPending = true;
 			} else {
-				$stored += $this->fillMissingDirectReplies($uri, $headers, $deadline, $budget - $stored, $knownReplies, (int)($thread['post']['replyCount'] ?? 0));
+				$stored += $this->fillMissingDirectReplies($uri, $threadRootUri, $headers, $deadline, $budget - $stored, $knownReplies, (int)($thread['post']['replyCount'] ?? 0));
 			}
 		}
 
@@ -153,7 +155,7 @@ class BlueskyThreadSource implements ThreadSource {
 	}
 
 	/** The stable thread endpoint can omit direct replies; V2 and search can recover them. */
-	private function fillMissingDirectReplies(string $uri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): int {
+	private function fillMissingDirectReplies(string $uri, string $threadRootUri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): int {
 		$timeout = $this->remainingTimeout($deadline);
 		if ($timeout === 0) {
 			$this->deepRepliesPending = true;
@@ -173,7 +175,7 @@ class BlueskyThreadSource implements ThreadSource {
 				: $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers, $timeout);
 			$items = $answer['thread'] ?? null;
 			if (!is_array($items)) {
-				$searched = $this->fillRepliesFromSearch($uri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
+				$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
 				if ($searched !== null) {
 					return $searched;
 				}
@@ -187,7 +189,7 @@ class BlueskyThreadSource implements ThreadSource {
 			$this->logger->debug('Bluesky V2 thread view not available; keeping the standard thread response', ['uri' => $uri, 'exception' => $e]);
 			// SearchPostsV2 is a specced, cursor-paged route. Use it to recover
 			// replies when this older AppView has no thread V2 endpoint.
-			$searched = $this->fillRepliesFromSearch($uri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
+			$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget, $knownReplies, $expectedReplies);
 			if ($searched !== null) {
 				return $searched;
 			}
@@ -239,7 +241,7 @@ class BlueskyThreadSource implements ThreadSource {
 			// Some AppViews return a valid but truncated V2 page without setting
 			// hasOtherReplies. The specced, cursor-paged search route can still
 			// recover the rest of the thread.
-			$searched = $this->fillRepliesFromSearch($uri, $headers, $deadline, $budget - $stored, $directReplies, $expectedReplies);
+			$searched = $this->fillRepliesFromSearch($uri, $threadRootUri, $headers, $deadline, $budget - $stored, $directReplies, $expectedReplies);
 			if ($searched !== null) {
 				$stored += $searched;
 			}
@@ -255,7 +257,7 @@ class BlueskyThreadSource implements ThreadSource {
 	 *
 	 * @return int|null stored new posts, or null when this AppView cannot answer
 	 */
-	private function fillRepliesFromSearch(string $uri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): ?int {
+	private function fillRepliesFromSearch(string $uri, string $threadRootUri, array $headers, ?int $deadline, int $budget, array $knownReplies, int $expectedReplies): ?int {
 		if ($budget <= 0) {
 			$this->deepRepliesPending = $deadline !== null;
 
@@ -276,7 +278,7 @@ class BlueskyThreadSource implements ThreadSource {
 					return $stored;
 				}
 				$params = [
-					'threadRootUri' => $uri,
+					'threadRootUri' => $threadRootUri,
 					'repliesOnly' => 'true',
 					'allTime' => 'true',
 					'sort' => 'recent',
@@ -297,7 +299,7 @@ class BlueskyThreadSource implements ThreadSource {
 					$record = is_array($view['record'] ?? null) ? $view['record'] : [];
 					$reply = is_array($record['reply'] ?? null) ? $record['reply'] : [];
 					$root = is_array($reply['root'] ?? null) ? (string)($reply['root']['uri'] ?? '') : '';
-					if ($root !== $uri) {
+					if ($root !== $threadRootUri) {
 						continue;
 					}
 					$parent = is_array($reply['parent'] ?? null) ? (string)($reply['parent']['uri'] ?? '') : '';
@@ -347,6 +349,13 @@ class BlueskyThreadSource implements ThreadSource {
 		$remaining = $deadline - hrtime(true);
 
 		return $remaining <= 0 ? 0 : (int)floor($remaining / 1_000_000_000);
+	}
+
+	/** The URI search indexes replies under their conversation root, not the opened reply. */
+	private static function threadRootUri(Stream $post, string $uri): string {
+		$root = (string)($post->getDetails(PostMapper::DETAIL)['reply_root']['uri'] ?? '');
+
+		return Syntax::isAtUri($root) ? $root : $uri;
 	}
 
 	/** Whether the stable response's root has fewer visible reply nodes than its current reply count. */
