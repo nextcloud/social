@@ -28,6 +28,7 @@ use OCA\Social\Exceptions\TranslationUnavailableException;
 use OCA\Social\Interfaces\IActivityPubInterface;
 use OCA\Social\Model\ActivityPub\ACore;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCA\Social\Model\ActivityPub\Object\Announce;
 use OCA\Social\Model\ActivityPub\Object\Document;
 use OCA\Social\Model\ActivityPub\Object\Note;
 use OCA\Social\Model\ActivityPub\Stream;
@@ -1557,6 +1558,22 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->statusGet(42, true, true);
 
 		$this->assertArrayNotHasKey('X-Social-Filling', $response->getHeaders());
+	}
+
+	public function testABoostedPostPollsWhileTheOriginalPostRefreshIsPending(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$original = $this->createMock(Stream::class);
+		$original->method('getId')->willReturn('original-post-id');
+		$item = $this->createMock(Stream::class);
+		$item->method('getType')->willReturn(Announce::TYPE);
+		$item->method('getObject')->willReturn($original);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+		$this->counts->expects($this->once())->method('visibleRefreshPending')->with('original-post-id')->willReturn(true);
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
 	}
 
 	public function testAStatusWhoseCountsAreCurrentSaysNothingIsOnItsWay(): void {
