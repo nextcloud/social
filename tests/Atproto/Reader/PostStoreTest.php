@@ -246,6 +246,20 @@ class PostStoreTest extends TestCase {
 		$this->assertSame('https://bsky.app/profile/' . self::DID . '/post/3kreply', $this->imported[1]->getObject()->getId());
 	}
 
+	public function testAProfileFeedStoresRepliesWithoutFetchingParentsInline(): void {
+		$this->actors->method('cached')->willReturnCallback(fn (string $did): ?Person => $this->person($did));
+		$reply = $this->postView();
+		$reply['uri'] = 'at://' . self::DID . '/app.bsky.feed.post/3kreply';
+		$reply['record']['reply'] = [
+			'root' => ['uri' => 'at://' . self::OTHER . '/app.bsky.feed.post/3kroot', 'cid' => 'bafyroot'],
+			'parent' => ['uri' => 'at://' . self::OTHER . '/app.bsky.feed.post/3kparent', 'cid' => 'bafyparent'],
+		];
+		$this->appView->expects($this->never())->method('query');
+
+		$this->assertSame(1, $this->store->storeFeedItem(['post' => $reply], false));
+		$this->assertCount(1, $this->imported, 'only the feed post is needed before opening the conversation');
+	}
+
 	public function testPostsTheAppViewNoLongerHasAreDeletedAndTheirRecordsWithThem(): void {
 		$kept = 'https://bsky.app/profile/' . self::DID . '/post/3kkept';
 		$gone = 'https://bsky.app/profile/' . self::DID . '/post/3kgone';

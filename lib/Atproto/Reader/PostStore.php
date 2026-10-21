@@ -56,9 +56,9 @@ class PostStore {
 	 * @param array $item an `app.bsky.feed.defs#feedViewPost`
 	 * @return int how many new rows that made
 	 */
-	public function storeFeedItem(array $item): int {
+	public function storeFeedItem(array $item, bool $fetchParent = true): int {
 		$post = is_array($item['post'] ?? null) ? $item['post'] : [];
-		$stored = $this->storePost($post) ? 1 : 0;
+		$stored = $this->storePost($post, $fetchParent) ? 1 : 0;
 		$announce = $this->mapper->announce($item);
 		if ($announce === null) {
 			return $stored;

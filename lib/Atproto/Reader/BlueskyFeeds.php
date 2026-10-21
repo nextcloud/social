@@ -280,7 +280,10 @@ class BlueskyFeeds {
 					if (!is_array($item) || !is_array($item['post'] ?? null)) {
 						continue;
 					}
-					$this->postStore->storeFeedItem($item);
+					// A profile page does not need every reply's parent beforehand;
+					// the thread endpoint reads that context when somebody opens it.
+					// Avoid making one AppView request per missing parent in this page.
+					$this->postStore->storeFeedItem($item, false);
 					$id = BlueskyIds::postIdOfUri((string)($item['post']['uri'] ?? ''));
 					try {
 						$stream = $this->streams->getStreamById($id, true, ACore::FORMAT_LOCAL);
