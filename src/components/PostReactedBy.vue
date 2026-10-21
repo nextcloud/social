@@ -57,6 +57,8 @@ export default {
 			favourited: [],
 			quoted: [],
 			refills: {},
+			requestVersions: {},
+			componentActive: true,
 		}
 	},
 
@@ -131,24 +133,37 @@ export default {
 		this.load()
 	},
 
+	unmounted() {
+		this.componentActive = false
+	},
+
 	methods: {
 		load() {
 			this.refills = {}
+			this.boosted = []
+			this.favourited = []
+			this.quoted = []
 			this.loadBoosts()
 			this.loadFavourites()
 			this.loadQuotes()
 		},
 
 		async loadBoosts() {
-			this.boosted = await this.fetch('reblogged_by', this.status.reblogs_count, () => this.loadBoosts())
+			const accounts = await this.fetch('reblogged_by', this.status.reblogs_count, () => this.loadBoosts())
+			if (accounts !== null) {
+				this.boosted = accounts
+			}
 		},
 
 		async loadFavourites() {
-			this.favourited = await this.fetch('favourited_by', this.status.favourites_count, () => this.loadFavourites())
+			const accounts = await this.fetch('favourited_by', this.status.favourites_count, () => this.loadFavourites())
+			if (accounts !== null) {
+				this.favourited = accounts
+			}
 		},
 
 		async loadQuotes() {
-			this.quoted = await this.fetch('quotes', this.status.quotes_count, () => this.loadQuotes(), (posts) => {
+			const accounts = await this.fetch('quotes', this.status.quotes_count, () => this.loadQuotes(), (posts) => {
 				const seen = new Set()
 				return posts.flatMap((post) => {
 					const account = post?.account
@@ -159,6 +174,9 @@ export default {
 					return [account]
 				})
 			})
+			if (accounts !== null) {
+				this.quoted = accounts
+			}
 		},
 
 		/**
@@ -180,6 +198,13 @@ export default {
 		 * @return {Promise<object[]>} the accounts, newest first
 		 */
 		async fetch(path, count, again, accountsOf = (data) => data) {
+			const id = String(this.status.id)
+			const requestVersion = (this.requestVersions[path] ?? 0) + 1
+			this.requestVersions = { ...this.requestVersions, [path]: requestVersion }
+			const isCurrent = () => this.componentActive
+				&& String(this.status.id) === id
+				&& this.requestVersions[path] === requestVersion
+
 			// with the numbers hidden the server sends 0 for every post, so
 			// the count says nothing about whether anybody is there to show
 			if (!this.hidesCounts && !(count > 0)) {
@@ -188,22 +213,26 @@ export default {
 
 			try {
 				const { data, headers } = await axios.get(
-					generateUrl(`apps/social/api/v1/statuses/${this.status.id}/${path}`),
-					{ params: { limit: FACES } },
+					generateUrl(`apps/social/api/v1/statuses/${id}/${path}`),
+					{ params: { limit: FACES, _social_refresh: Date.now() } },
 				)
+				if (!isCurrent()) {
+					return null
+				}
 				if (headers?.['x-social-filling'] === '1' && (this.refills[path] ?? 0) < MAX_REFILLS) {
-					const id = this.status.id
 					this.refills = { ...this.refills, [path]: (this.refills[path] ?? 0) + 1 }
-					setTimeout(() => this.status.id === id && again(), REFILL_MS)
+					setTimeout(() => isCurrent() && again(), REFILL_MS)
 				} else if (headers?.['x-social-filling'] !== '1') {
 					this.refills = { ...this.refills, [path]: 0 }
 				}
 
 				return Array.isArray(data) ? accountsOf(data).slice(0, FACES) : []
 			} catch (error) {
-				logger.debug('Could not load who reacted to a post', { error, path })
+				if (isCurrent()) {
+					logger.debug('Could not load who reacted to a post', { error, path })
+				}
 
-				return []
+				return isCurrent() ? [] : null
 			}
 		},
 	},
