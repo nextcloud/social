@@ -1079,12 +1079,14 @@ inline with a three-second timeout, so replies appear without waiting for
 cron. If the stable response reports fewer direct replies than its own
 `replyCount`, the reader also tries the first-party AppView's unspecced V2
 thread view to fill the missing replies; AppViews without that endpoint keep
-the stable response. If the stable read reaches the endpoint's ten-level limit
-with a deeper branch remaining, it queues a background fill to continue that
-branch, up to twenty bounded reads and the shared 150-new-reply budget. A
-timeout or unavailable deep branch leaves already stored replies intact. This
-also reads replies of accounts nobody here follows and works for posts written
-here and published to Bluesky. See **Whole conversations** in
+the stable response. Replies recovered by V2 which have replies of their own
+are also queued for the background fill, so nested conversations are not lost
+with an omitted direct reply. If the stable read reaches the endpoint's
+ten-level limit with a deeper branch remaining, it queues a background fill to
+continue that branch, up to twenty bounded reads and the shared 150-new-reply
+budget. A timeout or unavailable deep branch leaves already stored replies
+intact. This also reads replies of accounts nobody here follows and works for
+posts written here and published to Bluesky. See **Whole conversations** in
 Architecture.md.
 
 ### 9.4b Who liked, reposted and quoted
