@@ -54,11 +54,20 @@ class ActivityPubCountSource implements CountSource {
 	#[\Override]
 	public function refresh(array $posts, ?int $timeout = null): int {
 		$answered = 0;
+		// A visible read can need three dependent rounds. Use the caller's
+		// timeout as one budget across those rounds, not once per round.
+		$deadline = $timeout === null ? null : hrtime(true) + ($timeout * 1_000_000_000);
+		$firstRound = true;
 		foreach (array_chunk($posts, self::PARALLEL) as $chunk) {
+			$requestTimeout = $firstRound ? ($timeout ?? self::ORIGIN_TIMEOUT) : self::remainingTimeout($deadline, $timeout);
+			if ($requestTimeout === 0) {
+				break;
+			}
 			$statuses = [];
 			$answers = $this->curl->retrieveObjectsMany(
-				array_map(static fn (Stream $post): string => $post->getId(), $chunk), ['timeout' => $timeout ?? self::ORIGIN_TIMEOUT], $statuses
+				array_map(static fn (Stream $post): string => $post->getId(), $chunk), ['timeout' => $requestTimeout], $statuses
 			);
+			$firstRound = false;
 			$counts = [];
 			$collections = [];
 			foreach ($chunk as $post) {
@@ -81,7 +90,8 @@ class ActivityPubCountSource implements CountSource {
 			// collection URL. Resolve those URLs together so the visible-post
 			// refresh does not make one sequential request per counter.
 			if ($collections !== []) {
-				$collectionAnswers = $this->curl->retrieveObjectsMany(array_keys($collections), ['timeout' => $timeout ?? self::ORIGIN_TIMEOUT]);
+				$requestTimeout = self::remainingTimeout($deadline, $timeout);
+				$collectionAnswers = $requestTimeout === 0 ? [] : $this->curl->retrieveObjectsMany(array_keys($collections), ['timeout' => $requestTimeout]);
 				$firstPages = [];
 				foreach ($collections as $url => $refs) {
 					$collection = $collectionAnswers[$url] ?? null;
@@ -116,7 +126,8 @@ class ActivityPubCountSource implements CountSource {
 				// pages together; counting their `items` would only be a partial
 				// total and would understate the post's reactions.
 				if ($firstPages !== []) {
-					$pageAnswers = $this->curl->retrieveObjectsMany(array_keys($firstPages), ['timeout' => $timeout ?? self::ORIGIN_TIMEOUT]);
+					$requestTimeout = self::remainingTimeout($deadline, $timeout);
+					$pageAnswers = $requestTimeout === 0 ? [] : $this->curl->retrieveObjectsMany(array_keys($firstPages), ['timeout' => $requestTimeout]);
 					foreach ($firstPages as $pageUrl => $refs) {
 						$page = $pageAnswers[$pageUrl] ?? null;
 						if (!is_array($page) || ($page['id'] ?? $page['@id'] ?? '') !== $pageUrl) {
@@ -162,6 +173,15 @@ class ActivityPubCountSource implements CountSource {
 		}
 
 		return $answered;
+	}
+
+	/** Seconds still available for one parallel round; zero means do not start another. */
+	private static function remainingTimeout(?int $deadline, ?int $timeout): int {
+		if ($deadline === null) {
+			return self::ORIGIN_TIMEOUT;
+		}
+
+		return min($timeout ?? self::ORIGIN_TIMEOUT, (int)floor(max(0, $deadline - hrtime(true)) / 1_000_000_000));
 	}
 
 	/** A count from an embedded collection or Mastodon's quote extension. */
