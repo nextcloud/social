@@ -172,6 +172,14 @@ a token 401, as Mastodon does. The `/oauth/token` error bodies carry RFC 6749's
 names (`invalid_request`, `unsupported_grant_type`, `invalid_grant`,
 `invalid_client`) with a readable `error_description`.
 
+The same OAuth server also implements RFC 8628's device authorization grant.
+`/oauth/device_authorization` starts a short-lived request; a person enters its
+user code at `/oauth/device`, reviews the app and scopes, then allows or denies
+it from their signed-in account. The device polls `/oauth/token` using its
+device code and receives the account-bound token once approved. This is for
+clients without a usable browser or keyboard; the existing authorization-code
+and out-of-band flows are unchanged.
+
 ### 3.3 The endpoint surface is now broad and mostly real
 
 I opened the controller method behind each route rather than trusting the route

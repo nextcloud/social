@@ -652,6 +652,10 @@ Bluesky apps can sign in with this PDS in either of two ways:
   privileged flag, never its secret or internal database id. Creating a
   password with chat access requires a session that already has
   `transition:chat.bsky`.
+  The login identifier may be a handle, DID, or Nextcloud email address. If
+  an email address belongs to multiple local accounts, each account's own
+  Bluesky identity and app-password hashes are checked, so an earlier
+  account without a Bluesky identity cannot block the valid match.
 - **OAuth is available to clients that implement AT Protocol OAuth.** They
   resolve this PDS's discovery metadata and use PAR, DPoP and PKCE S256.
   The person signs in to Nextcloud here, reviews the requested access and
