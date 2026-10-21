@@ -242,13 +242,6 @@ class CountService {
 			} catch (Throwable $e) {
 				$this->logger->info('Counts not read', ['source' => $source::class, 'exception' => $e]);
 				$this->stampAll($mine);
-				// The visible read may have enqueued these and the browser can
-				// still be polling with a stale model. Cool down only failed
-				// batches; writing one durable-cache row for every successful
-				// background refresh exceeds the cron's bounded SQL work budget.
-				foreach (array_keys($mine) as $id) {
-					$this->setVisibleState((string)$id, self::VISIBLE_DONE, self::VISIBLE_RETRY_INTERVAL);
-				}
 			}
 		}
 		$this->stampAll($left);

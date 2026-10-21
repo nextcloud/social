@@ -186,7 +186,7 @@ class CountServiceTest extends TestCase {
 		$this->assertTrue($this->service()->refreshVisibleIfDue($post));
 	}
 
-	public function testFailedVisibleReadStaysPendingAndThenGetsACooldownAfterBackgroundFailure(): void {
+	public function testFailedVisibleReadStaysPendingUntilBackgroundStampUpdatesThePost(): void {
 		$post = $this->post('at://did:plc:author/app.bsky.feed.post/1', 3600, null);
 		$source = $this->getMockBuilder(BlueskyCountSource::class)->disableOriginalConstructor()->onlyMethods(['supports', 'refresh'])->getMock();
 		$source->method('supports')->with($post)->willReturn(true);
@@ -206,9 +206,16 @@ class CountServiceTest extends TestCase {
 
 		$this->assertTrue($service->refreshVisibleIfDue($post), 'the failed live read schedules a background retry');
 		$this->assertTrue($service->refreshVisibleIfDue($post), 'later status polls see that the background retry is pending');
-		$this->writer->expects($this->once())->method('stamp')->with($post->getId());
+		$this->writer->expects($this->once())->method('stamp')->with($post->getId())->willReturnCallback(
+			static function () use ($post): void {
+				$post->setCountsAt(self::NOW);
+			}
+		);
+		$cacheKey = hash('sha256', "social.counts.visible\n" . md5($post->getId()));
+		$pendingState = $this->cacheRows->rows[$cacheKey];
 		$this->assertSame(['asked' => 1, 'answered' => 0], $service->refresh([$post->getId()]));
-		$this->assertFalse($service->refreshVisibleIfDue($post), 'a completed background failure has a cooldown even on a stale model instance');
+		$this->assertSame($pendingState, $this->cacheRows->rows[$cacheKey], 'background refresh does not write one cache row per post');
+		$this->assertFalse($service->refreshVisibleIfDue($post), 'the background timestamp prevents a repeat request');
 	}
 
 	public function testOpeningABoostRefreshesTheUnderlyingPostsCounts(): void {
