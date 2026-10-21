@@ -688,10 +688,14 @@ class Document extends ACore implements JsonSerializable {
 				// no local copy to name: the bytes are fetched from the origin
 				// as they are played, and the route that does it is addressed
 				// by the row rather than by a uuid there is none of. The
-				// preview is left empty -- a streamed video's still is a
-				// document of its own, and the caller that knows which one
-				// sets it (see PeerTubeService).
-				$media->setUrl($this->streamUrl($urlGenerator));
+				// preview of an image can be the image itself; a video's still is
+				// a document of its own, and the caller that knows which one sets
+				// it (see PeerTubeService).
+				$streamUrl = $this->streamUrl($urlGenerator);
+				$media->setUrl($streamUrl);
+				if (str_starts_with($this->getMediaType(), 'image/')) {
+					$media->setPreviewUrl($streamUrl);
+				}
 			} else {
 				$media->setUrl($this->getMediaUrl($urlGenerator, $mime));
 				if ($this->hasLadder()) {

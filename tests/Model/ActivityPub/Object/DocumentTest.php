@@ -26,7 +26,7 @@ class DocumentTest extends TestCase {
 	protected function setUp(): void {
 		$this->urlGenerator = $this->createStub(IURLGenerator::class);
 		$this->urlGenerator->method('linkToRouteAbsolute')->willReturnCallback(
-			fn (string $route, array $args): string => 'https://cloud.example.org/' . $route . '/' . $args['uuid']
+			fn (string $route, array $args): string => 'https://cloud.example.org/' . $route . '/' . ($args['uuid'] ?? $args['nid'] ?? '')
 		);
 	}
 
@@ -203,6 +203,21 @@ class DocumentTest extends TestCase {
 		$this->assertSame('video', $media->getType());
 		$this->assertSame('https://cloud.example.org/social.MediaApi.mediaOpen/vid.mp4', $media->getUrl());
 		$this->assertSame($media->getUrl(), $media->getPreviewUrl(), 'no resized copy: the media is the preview');
+	}
+
+	/** A streamed image, such as an AVIF blob, uses its same-origin stream as its preview. */
+	public function testStreamedImageUsesItsStreamAsThePreview(): void {
+		$document = new Document();
+		$document->setNid(17)
+			->setMediaType('image/avif')
+			->setUrl('https://pds.example/xrpc/com.atproto.sync.getBlob?did=did%3Aplc%3Aalice&cid=bafkrei')
+			->setLocalCopy(Document::COPY_STREAMED);
+
+		$media = $document->convertToMediaAttachment($this->urlGenerator);
+
+		$this->assertSame('image', $media->getType());
+		$this->assertSame('https://cloud.example.org/social.MediaApi.mediaStream/17', $media->getUrl());
+		$this->assertSame($media->getUrl(), $media->getPreviewUrl());
 	}
 
 	/**
