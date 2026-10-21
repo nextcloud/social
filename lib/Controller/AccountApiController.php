@@ -869,12 +869,17 @@ class AccountApiController extends MastodonApiController {
 				static fn (mixed $post): bool => !($post instanceof Announce) || $post->getObject() instanceof Stream
 			));
 
-			return $this->paged(
+			$response = $this->paged(
 				$this->filterService->apply($shown, Filter::CONTEXT_ACCOUNT, $this->viewer),
 				$options->getLimit(),
 				$posts,
 				$this->streamService->lastTimelineRowCount()
 			);
+			if ($this->streamService->lastTimelineCountsFilling()) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
+
+			return $response;
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

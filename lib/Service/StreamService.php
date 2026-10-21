@@ -56,6 +56,12 @@ class StreamService {
 	/** How many rows the last `getTimeline()` read; see `lastTimelineRowCount()`. */
 	private int $lastTimelineRows = 0;
 
+	/** Whether posts on the last page still have a remote count refresh due. */
+	private bool $lastTimelineCountsFilling = false;
+
+	/** Whether posts read through `visiblePosts()` still have counts due. */
+	private bool $visiblePostsCountsFilling = false;
+
 	/** How far up a thread one context request walks; Mastodon's cap. */
 	private const ANCESTOR_LIMIT = 40;
 
@@ -760,13 +766,14 @@ class StreamService {
 	public function getTimeline(ProbeOptions $options): array {
 		$rows = $this->streamRequest->getTimeline($options);
 		$this->lastTimelineRows = count($rows);
+		$this->lastTimelineCountsFilling = false;
 		$posts = $this->withoutRepeatsOfPostsAlreadyInThePage($rows, $options);
 		if ($options->getFormat() === ACore::FORMAT_LOCAL) {
 			// one query each for the whole page, and only for pages a client
 			// reads -- none of them is part of the wire object
 			$this->postDecorationService->decorate($posts, $this->viewerId());
 			// what the remote posts on the page count now, asked in the background
-			$this->countService?->seen($posts);
+			$this->lastTimelineCountsFilling = $this->countService?->seen($posts) ?? false;
 		}
 
 		return $posts;
@@ -806,9 +813,14 @@ class StreamService {
 		$posts = $this->streamRequest->getVisibleByNids($nids);
 		$list = array_values($posts);
 		$this->postDecorationService->decorate($list, $this->viewerId());
-		$this->countService?->seen($list);
+		$this->visiblePostsCountsFilling = $this->countService?->seen($list) ?? false;
 
 		return $posts;
+	}
+
+	/** Whether posts from the last `visiblePosts()` read have counts still due. */
+	public function visiblePostsCountsFilling(): bool {
+		return $this->visiblePostsCountsFilling;
 	}
 
 	/** The reader's actor id, or '' for an anonymous read. */
@@ -881,6 +893,11 @@ class StreamService {
 	 */
 	public function lastTimelineRowCount(): int {
 		return $this->lastTimelineRows;
+	}
+
+	/** Whether the last timeline page has count refreshes still due. */
+	public function lastTimelineCountsFilling(): bool {
+		return $this->lastTimelineCountsFilling;
 	}
 
 	/**

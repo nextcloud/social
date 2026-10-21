@@ -430,9 +430,13 @@ class ListController extends ClientApiController {
 			$posts = $this->listsRequest->getTimeline($list, $options);
 			// one query for the whole page, as the home timeline does it
 			$this->postDecorationService->decorate($posts, $this->viewer()->getId());
-			$this->counts?->seen($posts);
+			$filling = $this->counts?->seen($posts) ?? false;
+			$response = $this->paged($posts, $options->getLimit());
+			if ($filling) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
 
-			return $this->paged($posts, $options->getLimit());
+			return $response;
 		} catch (Throwable $e) {
 			return $this->error($e);
 		}

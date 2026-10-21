@@ -188,12 +188,17 @@ class TimelineApiController extends MastodonApiController {
 
 			// the unfiltered page is what says whether a further page exists: a
 			// page shortened by a `hide` filter says nothing about what is older
-			return $this->tagged($this->paged(
+			$response = $this->paged(
 				$this->filterService->apply($pagePosts, $this->filterContext($timeline), $this->viewer),
 				$options->getLimit(),
 				$posts,
 				$this->streamService->lastTimelineRowCount()
-			));
+			);
+			if ($this->streamService->lastTimelineCountsFilling()) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
+
+			return $this->tagged($response);
 		} catch (Throwable $e) {
 			$this->logger->error('[' . static::class . '] Timeline request failed', [
 				'timeline' => $timeline,
@@ -254,6 +259,9 @@ class TimelineApiController extends MastodonApiController {
 			// the hashtag's posts beyond this server, read in the background:
 			// the next look at the timeline has them
 			if (!$local && (string)$max_id === '0' && $this->remoteFetchQueue->fillPosts(PostDiscoveryService::TAG, $hashtag)) {
+				$response->addHeader('X-Social-Filling', '1');
+			}
+			if ($this->streamService->lastTimelineCountsFilling()) {
 				$response->addHeader('X-Social-Filling', '1');
 			}
 

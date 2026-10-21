@@ -1820,6 +1820,7 @@ describe('a conversation read from where it lives', () => {
 		expect(axios.get).toHaveBeenCalledTimes(1)
 		await vi.advanceTimersByTimeAsync(1)
 		expect(axios.get).toHaveBeenCalledTimes(2)
+		expect(axios.get.mock.calls[1][1].params._social_refresh).toEqual(expect.any(Number))
 
 		await vi.runAllTimersAsync()
 		expect(axios.get).toHaveBeenCalledTimes(3)

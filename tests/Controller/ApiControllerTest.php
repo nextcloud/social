@@ -1464,6 +1464,16 @@ class ApiControllerTest extends TestCase {
 		$this->assertStringContainsString('max_id=41>; rel="next"', $response->getHeaders()['Link'] ?? '');
 	}
 
+	public function testTimelineKeepsItsFillingHeaderWhileCountsArePending(): void {
+		$this->loggedInAs();
+		$this->captureTimelineOptions(['post']);
+		$this->streamService->method('lastTimelineCountsFilling')->willReturn(true);
+
+		$response = $this->controller()->timelines('home');
+
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
+	}
+
 	/** @return iterable<string, array{string}> */
 	public static function unsupportedTimelines(): iterable {
 		yield 'trending' => ['trending'];
@@ -3556,6 +3566,7 @@ class ApiControllerTest extends TestCase {
 		$actor = $this->createStub(Person::class);
 		$actor->method('getId')->willReturn(BlueskyIds::actorId('did:plc:z72i7hdynmk6r22z27h6tvur'));
 		$this->cacheActorService->method('getFromAccount')->willReturn($actor);
+		$this->streamService->method('lastTimelineCountsFilling')->willReturn(true);
 		$this->remoteFetchQueue->expects($this->never())->method('syncTimeline');
 		$this->blueskyFeeds->expects($this->once())
 			->method('authorPage')
@@ -3565,6 +3576,7 @@ class ApiControllerTest extends TestCase {
 		$response = $this->controller()->accountStatuses('bob.bsky.social', 15, '123456');
 
 		$this->assertSame(['post'], $response->getData());
+		$this->assertSame('1', $response->getHeaders()['X-Social-Filling'] ?? null);
 	}
 
 	public function testBlueskyProfileMediaTabsKeepTheirFilterWhileLoadingAuthorPages(): void {

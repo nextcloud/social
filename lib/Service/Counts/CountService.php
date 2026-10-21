@@ -77,7 +77,7 @@ class CountService {
 	 * caps a call). A boost stands for the post it boosts.
 	 *
 	 * @param iterable<mixed> $posts
-	 * @return bool whether a read was asked for
+	 * @return bool whether any post still needs its remote counts refreshed
 	 */
 	public function seen(iterable $posts): bool {
 		$now = $this->time->getTime();
@@ -91,7 +91,16 @@ class CountService {
 			}
 		}
 
-		return $due !== [] && $this->queue->refreshCounts($due);
+		if ($due === []) {
+			return false;
+		}
+
+		// The queue deduplicates work already requested by another page or
+		// request. A post is still filling until the worker stamps its new counts,
+		// so callers must keep the refresh signal while the row remains due.
+		$this->queue->refreshCounts($due);
+
+		return true;
 	}
 
 	/**

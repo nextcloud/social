@@ -70,6 +70,7 @@ class InterestFeedService {
 	private const TREND_KIND = ['photos' => 'image', 'videos' => 'video', 'shorts' => 'short', 'media' => ''];
 
 	private ?ICache $cache = null;
+	private bool $lastPageCountsFilling = false;
 
 	public function __construct(
 		private InterestService $interestService,
@@ -91,6 +92,7 @@ class InterestFeedService {
 	 * @return Stream[] in rank order, each carrying why it is there
 	 */
 	public function page(Person $viewer, int $limit, string $maxId = '0', int $offset = 0, string $media = ''): array {
+		$this->lastPageCountsFilling = false;
 		$media = self::media($media);
 		$this->streamService->setViewer($viewer);
 		$key = self::snapshotKey($viewer->getId(), $media);
@@ -118,6 +120,7 @@ class InterestFeedService {
 
 		$entries = array_slice($snapshot, $start, max(1, $limit));
 		$posts = $this->streamService->visiblePosts(array_column($entries, 'nid'));
+		$this->lastPageCountsFilling = $this->streamService->visiblePostsCountsFilling();
 
 		$page = [];
 		foreach ($entries as $entry) {
@@ -128,6 +131,11 @@ class InterestFeedService {
 		}
 
 		return $page;
+	}
+
+	/** Whether the last page has remote count refreshes still due. */
+	public function lastPageCountsFilling(): bool {
+		return $this->lastPageCountsFilling;
 	}
 
 	/**

@@ -1805,7 +1805,9 @@ export const useTimelineStore = defineStore('timeline', {
 					return
 				}
 				try {
-					const response = await axios.get(url, { params })
+					// Each poll must reach the server afresh. Reusing a timeline URL
+					// can let its ETag short-circuit the count refresh as a 304.
+					const response = await axios.get(url, { params: { ...params, _social_refresh: Date.now() } })
 					if (this.getTimelineIdentity === identity) {
 						this.addToTimeline(response.data)
 						if ((response.headers?.['x-social-thread-filling'] === '1' || response.headers?.['x-social-filling'] === '1')

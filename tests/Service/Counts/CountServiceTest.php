@@ -259,6 +259,17 @@ class CountServiceTest extends TestCase {
 		$this->assertFalse($this->service()->seen([$this->post('https://r.example/1', 60, 60), 'not a post']));
 	}
 
+	public function testAPageStaysMarkedAsFillingWhileQueuedCountsAreStillDue(): void {
+		$this->queue->expects($this->exactly(2))->method('refreshCounts')->with([
+			'https://r.example/1' => CountService::YOUNG_INTERVAL,
+		])->willReturn(false);
+		$service = $this->service();
+		$post = $this->post('https://r.example/1', 60, null);
+
+		$this->assertTrue($service->seen([$post]), 'the first request queues the stale counts');
+		$this->assertTrue($service->seen([$post]), 'a deduplicated request is still pending until counts_at changes');
+	}
+
 	public function testTheBackgroundReadAsksOnlyAboutPostsStillDue(): void {
 		$due = $this->post('https://r.example/due', 60, null);
 		$done = $this->post('https://r.example/done', 60, 30);

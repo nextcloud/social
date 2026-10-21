@@ -1058,6 +1058,20 @@ class StreamServiceTest extends TestCase {
 		$service->getTimeline(new ProbeOptions());
 	}
 
+	public function testAClientPageRemainsMarkedAsFillingUntilRemoteCountsAreStored(): void {
+		$note = $this->note('https://remote.example/notes/1');
+		$this->streamRequest->method('getTimeline')->willReturn([$note]);
+		$counts = $this->createMock(CountService::class);
+		$counts->expects($this->once())->method('seen')->with([$note])->willReturn(true);
+		$service = $this->serviceCounting($counts);
+		$options = new ProbeOptions();
+		$options->setFormat(ACore::FORMAT_LOCAL);
+
+		$service->getTimeline($options);
+
+		$this->assertTrue($service->lastTimelineCountsFilling());
+	}
+
 	public function testAConversationHasEveryPostInItsCountsAskedFor(): void {
 		$post = $this->note('https://remote.example/notes/2', self::ACTOR_ID, 'https://remote.example/notes/1');
 		$parent = $this->note('https://remote.example/notes/1');

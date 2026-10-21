@@ -1969,13 +1969,15 @@ people look at are asked for again, one concept with a source per network
 (`StatusApiController::statusGet()`), a conversation
 (`StreamService::getContextByNid()`) and every timeline page a client reads
 (`StreamService::getTimeline()` in the local format, `visiblePosts()`, the
-list timeline) — and queues background reads. Opening a post also attempts a
+list timeline) — and queues background reads. `seen()` keeps reporting a page as filling while any count remains due, even when the durable queue has already deduplicated that request. Timeline, profile and list responses carry `X-Social-Filling` during that period; the web app re-requests the page with a fresh URL so an ETag cannot turn the count refresh into a `304`, and stops polling when the worker stamps the new counts. Opening a post also attempts a
 per-post locked refresh with a three-second network budget; concurrent viewers
 reuse that attempt, and an unavailable or incomplete answer falls back to the
 background queue without marking unknown numbers fresh. A status response that
-reports `X-Social-Filling` is read again after three seconds, up to three times,
-so a background result that lands after the initial request is merged into the
-open post. A boost stands for the post it boosts, direct messages are skipped,
+reports `X-Social-Filling` is read again with bounded exponential backoff, at
+most ten times, so a background result that lands after the initial request is
+merged into the open post. Timeline pages use the same filling signal with bounded backoff and
+a cache-busting query value, so unchanged ETags cannot hide newly stored counts.
+A boost stands for the post it boosts, direct messages are skipped,
 and so is a local post unless a source
 supports it (one that goes to Bluesky, `Publisher::goesToBluesky()`), and a
 post is due when its `counts_at` is older than a quarter of an hour while the post
