@@ -72,6 +72,7 @@ class RouteAuthMatrixTest extends TestCase {
 		'AtprotoOAuthController::parPreflight' => 'CORS preflight, answers headers only',
 		'AtprotoOAuthController::tokenPreflight' => 'CORS preflight, answers headers only',
 		'AtprotoOAuthController::revokePreflight' => 'CORS preflight, answers headers only',
+		'OAuthController::authorize' => 'Mastodon and AT Protocol authorization, returns guests to Nextcloud login before showing consent',
 		'AtprotoRecoveryController::recoveryTool' => 'the offline recovery tool, a static page holding nothing of anybody',
 		'AtprotoRecoveryController::downloadRecoveryTool' => 'the offline recovery tool as a file, a static page holding nothing of anybody',
 		'AtprotoWellKnownController::atprotoDid' => 'atproto handle resolution, public by protocol',
