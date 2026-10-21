@@ -109,8 +109,13 @@ class BlueskyInteractionSource implements InteractionSource {
 		}
 		$stored = 0;
 		foreach (is_array($answer['posts'] ?? null) ? $answer['posts'] : [] as $view) {
-			if (is_array($view) && $this->store->storePost($view, false)) {
+			if (!is_array($view)) {
+				continue;
+			}
+			if ($this->store->storePost($view, false)) {
 				$stored++;
+			} else {
+				$this->store->refreshKnownPostCountsFromView($view);
 			}
 		}
 

@@ -85,6 +85,7 @@ class BlueskyInteractionSourceTest extends TestCase {
 		$actors->expects($this->exactly(2))->method('store');
 		$store = $this->createMock(PostStore::class);
 		$store->method('storePost')->willReturnCallback(static fn (array $post): bool => $post['uri'] === 'at://q/1');
+		$store->expects($this->once())->method('refreshKnownPostCountsFromView')->with(['uri' => 'at://q/2'])->willReturn(true);
 		$mapper = $this->createMock(ActorMapper::class);
 		$mapper->method('person')->willReturn(new Person());
 		$source = new BlueskyInteractionSource($config, $appView, $refs, $store, $mapper, $actors, $this->createMock(LabelerService::class), new NullLogger());
