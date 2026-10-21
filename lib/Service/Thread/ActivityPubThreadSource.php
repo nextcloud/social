@@ -78,14 +78,26 @@ class ActivityPubThreadSource implements ThreadSource {
 	private function replyIds(Stream $post): array {
 		$collection = self::repliesOf($post);
 		$ids = [];
-		for ($page = 0; $collection !== null && $page < self::PAGES; $page++) {
+		$seen = [];
+		for ($page = 0; $collection !== null && $page < self::PAGES;) {
+			if (is_array($collection) && !array_key_exists('orderedItems', $collection) && !array_key_exists('items', $collection)) {
+				$collection = self::collectionReference($collection['first'] ?? $collection['next'] ?? $collection['id'] ?? $collection['@id'] ?? null);
+				continue;
+			}
 			if (is_string($collection)) {
+				if (isset($seen[$collection])) {
+					break;
+				}
+				$seen[$collection] = true;
 				try {
 					$collection = $this->curl->retrieveObject($collection);
 				} catch (Throwable $e) {
 					$this->logger->info('A replies collection was not read', ['post' => $post->getId(), 'exception' => $e]);
 					break;
 				}
+			}
+			if (!is_array($collection)) {
+				break;
 			}
 			$items = $collection['orderedItems'] ?? $collection['items'] ?? [];
 			foreach (is_array($items) ? $items : [] as $item) {
@@ -94,8 +106,11 @@ class ActivityPubThreadSource implements ThreadSource {
 					$ids[] = $id;
 				}
 			}
-			$next = $collection['first'] ?? $collection['next'] ?? null;
-			$collection = (is_string($next) || is_array($next)) ? $next : null;
+			$page++;
+			$next = array_key_exists('orderedItems', $collection) || array_key_exists('items', $collection)
+				? ($collection['next'] ?? null)
+				: ($collection['first'] ?? $collection['next'] ?? null);
+			$collection = self::collectionReference($next);
 		}
 
 		return array_values(array_unique($ids));
@@ -110,6 +125,18 @@ class ActivityPubThreadSource implements ThreadSource {
 		}
 
 		return is_string($item) ? $item : '';
+	}
+
+	/** A page link or an embedded collection page; malformed references are ignored. */
+	private static function collectionReference(mixed $reference): string|array|null {
+		if (is_array($reference)) {
+			if (array_key_exists('orderedItems', $reference) || array_key_exists('items', $reference)) {
+				return $reference;
+			}
+			$reference = $reference['id'] ?? $reference['@id'] ?? null;
+		}
+
+		return is_string($reference) && preg_match('#^https?://#i', $reference) === 1 ? $reference : null;
 	}
 
 	/**
