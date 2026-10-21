@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\Social\Cron;
 
+use OCA\Social\Service\RemoteFetchQueue;
 use OCA\Social\Service\Thread\ThreadService;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\BackgroundJob\QueuedJob;
@@ -22,6 +23,7 @@ class FillThread extends QueuedJob {
 	public function __construct(
 		ITimeFactory $time,
 		private ThreadService $threads,
+		private RemoteFetchQueue $queue,
 	) {
 		parent::__construct($time);
 	}
@@ -30,7 +32,11 @@ class FillThread extends QueuedJob {
 	protected function run($argument): void {
 		$id = is_array($argument) ? (string)($argument['post'] ?? '') : '';
 		if ($id !== '') {
-			$this->threads->fill($id);
+			try {
+				$this->threads->fill($id);
+			} finally {
+				$this->queue->completeThreadFill($id);
+			}
 		}
 	}
 }

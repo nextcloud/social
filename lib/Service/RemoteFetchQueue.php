@@ -48,6 +48,7 @@ class RemoteFetchQueue {
 	public const THREAD_FILL_INTERVAL = 600;
 
 	private const THREAD_FILLED = 'social.threadfill';
+	private const THREAD_PENDING = 'social.threadfill.pending';
 
 	/** Seconds between two reads of who reacted to one post. */
 	public const INTERACTIONS_INTERVAL = 600;
@@ -125,16 +126,46 @@ class RemoteFetchQueue {
 		$key = md5($post->getId());
 		try {
 			if ($this->durableCache->get(self::THREAD_FILLED, $key) !== null) {
-				return false;
+				return $this->isThreadFillPending($post->getId());
 			}
 			$this->durableCache->set(self::THREAD_FILLED, $key, 1, self::THREAD_FILL_INTERVAL);
+			$this->durableCache->setShared(self::THREAD_PENDING, $key, 1, self::THREAD_FILL_INTERVAL + 60);
 		} catch (Throwable $e) {
 			// the job list's own dedupe still holds
 		}
 
-		$this->queue(FillThread::class, ['post' => $post->getId()]);
+		if (!$this->queue(FillThread::class, ['post' => $post->getId()])) {
+			$this->completeThreadFill($post->getId());
+			try {
+				$this->durableCache->remove(self::THREAD_FILLED, $key);
+			} catch (Throwable $e) {
+				$this->logger->info('[RemoteFetchQueue] could not reset thread fill throttle', ['post' => $post->getId(), 'exception' => $e]);
+			}
+
+			return false;
+		}
 
 		return true;
+	}
+
+	/** Whether a queued conversation read has finished, as the HTTP reader can see it. */
+	public function isThreadFillPending(string $postId): bool {
+		try {
+			return $this->durableCache->getShared(self::THREAD_PENDING, md5($postId)) !== null;
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not read thread fill state', ['post' => $postId, 'exception' => $e]);
+
+			return false;
+		}
+	}
+
+	/** Clears the shared pending state when the queued conversation read ends. */
+	public function completeThreadFill(string $postId): void {
+		try {
+			$this->durableCache->removeShared(self::THREAD_PENDING, md5($postId));
+		} catch (Throwable $e) {
+			$this->logger->info('[RemoteFetchQueue] could not clear thread fill state', ['post' => $postId, 'exception' => $e]);
+		}
 	}
 
 	/**
@@ -331,7 +362,7 @@ class RemoteFetchQueue {
 	 * @param class-string $job
 	 * @param array<string, string|list<string>> $argument
 	 */
-	private function queue(string $job, array $argument): void {
+	private function queue(string $job, array $argument): bool {
 		try {
 			if (!$this->jobList->has($job, $argument)) {
 				$this->jobList->add($job, $argument);
@@ -342,6 +373,10 @@ class RemoteFetchQueue {
 			$this->logger->info('[RemoteFetchQueue] could not queue ' . $job, [
 				'argument' => $argument, 'exception' => $e,
 			]);
+
+			return false;
 		}
+
+		return true;
 	}
 }

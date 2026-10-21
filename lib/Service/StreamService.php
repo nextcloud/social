@@ -675,13 +675,16 @@ class StreamService {
 		// conversations the inline Bluesky source could not handle.
 		$filling = $blueskyPending;
 		if (!$blueskyPending && (!$blueskyRead || $root->isLocal())) {
-			$filling = $this->remoteFetchQueue?->fillThread($root) ?? false;
+			$filling = ($this->remoteFetchQueue?->fillThread($root) ?? false)
+				|| ($this->remoteFetchQueue?->isThreadFillPending($root->getId()) ?? false);
 		}
 		// An inline read already in progress will save the replies, but this
 		// request queried the database before those writes finish. Tell the
 		// client to ask for the context again rather than treating it as complete.
 		if (!$blueskyPending && $root !== $post && (!$blueskyRead || $post->isLocal())) {
-			$filling = ($this->remoteFetchQueue?->fillThread($post) ?? false) || $filling;
+			$filling = ($this->remoteFetchQueue?->fillThread($post) ?? false)
+				|| ($this->remoteFetchQueue?->isThreadFillPending($post->getId()) ?? false)
+				|| $filling;
 		}
 
 		// the replies the thread's author hid: left out, or marked when the

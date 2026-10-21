@@ -413,6 +413,8 @@ function timelineRequest(list, params) {
  */
 /** How long after a conversation is opened its replies from elsewhere are asked for again. */
 const THREAD_REFETCH_MS = 3000
+const THREAD_REFETCH_MAX_MS = 30000
+const MAX_THREAD_REFETCHES = 30
 const STATUS_REFETCH_MS = 3000
 const MAX_STATUS_REFETCHES = 3
 
@@ -1782,8 +1784,9 @@ export const useTimelineStore = defineStore('timeline', {
 		 * @param {string} url the context the page was read from
 		 * @param {object} params its query
 		 * @param {string} identity the timeline it belongs to
+		 * @param {number} attempt the retry number, starting at zero
 		 */
-		refetchThreadLater(url, params, identity) {
+		refetchThreadLater(url, params, identity, attempt = 0) {
 			setTimeout(async () => {
 				if (this.getTimelineIdentity !== identity) {
 					return
@@ -1792,14 +1795,15 @@ export const useTimelineStore = defineStore('timeline', {
 					const response = await axios.get(url, { params })
 					if (this.getTimelineIdentity === identity) {
 						this.addToTimeline(response.data)
-						if (response.headers?.['x-social-thread-filling'] === '1' || response.headers?.['x-social-filling'] === '1') {
-							this.refetchThreadLater(url, params, identity)
+						if ((response.headers?.['x-social-thread-filling'] === '1' || response.headers?.['x-social-filling'] === '1')
+							&& attempt + 1 < MAX_THREAD_REFETCHES) {
+							this.refetchThreadLater(url, params, identity, attempt + 1)
 						}
 					}
 				} catch (error) {
 					logger.debug('The rest of the conversation was not read again', { error })
 				}
-			}, THREAD_REFETCH_MS)
+			}, Math.min(THREAD_REFETCH_MS * (2 ** attempt), THREAD_REFETCH_MAX_MS))
 		},
 	},
 })

@@ -1811,6 +1811,18 @@ describe('a conversation read from where it lives', () => {
 		expect(axios.get).toHaveBeenCalledTimes(2)
 		vi.useRealTimers()
 	})
+
+	it('backs off and caps thread status polls while a remote fetch is queued', async () => {
+		await store.changeTimelineType({ type: 'single-post', params: { id: '7' } })
+		axios.get.mockResolvedValue({ data: { ancestors: [], descendants: [] }, headers: { 'x-social-thread-filling': '1' } })
+
+		await store.fetchTimeline()
+		await vi.runAllTimersAsync()
+
+		expect(axios.get).toHaveBeenCalledTimes(31)
+		expect(vi.getTimerCount()).toBe(0)
+		vi.useRealTimers()
+	})
 })
 
 describe('replies hidden by the author of a conversation', () => {

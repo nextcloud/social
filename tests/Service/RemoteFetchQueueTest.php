@@ -168,10 +168,32 @@ class RemoteFetchQueueTest extends TestCase {
 		$private->setVisibility(Stream::TYPE_FOLLOWERS);
 
 		$this->assertTrue($this->queue->fillThread($remote));
-		$this->assertFalse($this->queue->fillThread($remote), 'once per interval');
+		$this->assertTrue($this->queue->fillThread($remote), 'the context endpoint keeps reporting a job that is still queued');
+		$this->assertTrue($this->queue->isThreadFillPending($remote->getId()));
+		$this->queue->completeThreadFill($remote->getId());
+		$this->assertFalse($this->queue->isThreadFillPending($remote->getId()));
+		$this->assertFalse($this->queue->fillThread($remote), 'a completed thread is not queued again within its interval');
 		$this->assertTrue($this->queue->fillThread($public), 'a public post of ours is read on other networks too');
 		$this->assertFalse($this->queue->fillThread($private), 'nobody elsewhere can reply to it');
 		$this->now += RemoteFetchQueue::THREAD_FILL_INTERVAL + 1;
+	}
+
+	public function testAQueueFailureCanBeRetriedOnTheNextContextRequest(): void {
+		$fail = true;
+		$this->jobList->method('has')->willReturnCallback(static function () use (&$fail): bool {
+			if ($fail) {
+				throw new \RuntimeException('queue storage unavailable');
+			}
+
+			return false;
+		});
+		$this->jobList->expects($this->once())->method('add')->with(FillThread::class, ['post' => 'https://remote.example/notes/1']);
+		$post = (new Note())->setId('https://remote.example/notes/1');
+
+		$this->assertFalse($this->queue->fillThread($post));
+		$this->assertFalse($this->queue->isThreadFillPending($post->getId()));
+		$fail = false;
+		$this->assertTrue($this->queue->fillThread($post));
 	}
 
 	public function testWhoReactedIsReadOncePerIntervalAndKind(): void {
