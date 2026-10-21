@@ -515,9 +515,15 @@ class MediaApiController extends MastodonApiController {
 				$nid, $this->request->getHeader('Range')
 			);
 			$document = $opened['document'];
+			$mediaType = strtolower($document->getMediaType());
+			$inlineTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/x-mpegurl', 'application/vnd.apple.mpegurl'];
+			$downloadOnly = $document->isStreamed()
+				&& !in_array($mediaType, $inlineTypes, true)
+				&& !str_starts_with($mediaType, 'audio/')
+				&& !str_starts_with($mediaType, 'video/');
 
 			$headers = [
-				'Content-Type' => $document->getMediaType(),
+				'Content-Type' => $downloadOnly ? 'application/octet-stream' : $document->getMediaType(),
 				// what makes a player offer a seek bar at all
 				'Accept-Ranges' => 'bytes',
 				// the bytes behind a row never change, and the row is only
@@ -528,6 +534,10 @@ class MediaApiController extends MastodonApiController {
 				// licence to sniff
 				'X-Content-Type-Options' => 'nosniff',
 			];
+			if ($downloadOnly) {
+				$headers['Content-Disposition'] = "attachment; filename*=UTF-8''" . rawurlencode($document->getDescription() !== '' ? $document->getDescription() : 'download');
+				$headers['Content-Security-Policy'] = "default-src 'none'; sandbox";
+			}
 
 			// the two the origin answered that a player needs to make sense of
 			// a partial answer, and nothing else it happened to send

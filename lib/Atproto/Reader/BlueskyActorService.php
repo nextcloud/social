@@ -32,6 +32,8 @@ use Throwable;
  * read from the cache like any other the rest of the time.
  */
 class BlueskyActorService {
+	/** @var array<string, string> DID to validated PDS endpoint for this request */
+	private array $pdsEndpoints = [];
 	public function __construct(
 		private AtprotoConfig $config,
 		private AppViewClient $appView,
@@ -140,8 +142,11 @@ class BlueskyActorService {
 	}
 
 	private function pdsOf(string $did): string {
-		if (!str_starts_with($did, 'did:plc:')) {
+		if (!Syntax::isDidPlc($did)) {
 			return '';
+		}
+		if (isset($this->pdsEndpoints[$did])) {
+			return $this->pdsEndpoints[$did];
 		}
 		try {
 			$document = $this->plc->document($did);
@@ -152,11 +157,38 @@ class BlueskyActorService {
 		}
 		foreach (($document['service'] ?? []) as $service) {
 			if (is_array($service) && ($service['id'] ?? '') === '#atproto_pds') {
-				return (string)($service['serviceEndpoint'] ?? '');
+				$endpoint = self::validatedPdsEndpoint((string)($service['serviceEndpoint'] ?? ''));
+				$this->pdsEndpoints[$did] = $endpoint;
+
+				return $endpoint;
 			}
 		}
+		$this->pdsEndpoints[$did] = '';
 
 		return '';
+	}
+
+	/** The public PDS endpoint for a DID, or '' when it cannot be resolved safely. */
+	public function pdsEndpoint(string $did): string {
+		return $this->pdsOf($did);
+	}
+
+	private static function validatedPdsEndpoint(string $endpoint): string {
+		$parts = parse_url($endpoint);
+		if (!is_array($parts) || strtolower($parts['scheme'] ?? '') !== 'https'
+			|| !is_string($parts['host'] ?? null) || $parts['host'] === ''
+			|| isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])
+			|| !in_array($parts['path'] ?? '', ['', '/'], true)) {
+			return '';
+		}
+		$host = strtolower($parts['host']);
+		if ($host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP) !== false
+			|| preg_match('/(?:^|\.)localhost$/', $host) === 1 || preg_match('/(?:^|\.)local$/', $host) === 1) {
+			return '';
+		}
+		$port = isset($parts['port']) ? ':' . $parts['port'] : '';
+
+		return 'https://' . $host . $port;
 	}
 
 	/**

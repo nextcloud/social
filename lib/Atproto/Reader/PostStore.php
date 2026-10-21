@@ -93,6 +93,30 @@ class PostStore {
 		if (!$this->ensureActor(is_array($post['author'] ?? null) ? $post['author'] : [])) {
 			return false;
 		}
+		$recordEmbed = $post['record']['embed'] ?? null;
+		if (PostMapper::hasGenericBlobs($recordEmbed) && !PostMapper::isLoggedInOnly($post)) {
+			$did = (string)($post['author']['did'] ?? '');
+			$actor = $this->actors->cached($did);
+			$details = $actor?->getDetails(Details::ATPROTO);
+			$pds = is_array($details) ? (string)($details['pds'] ?? '') : '';
+			if ($pds === '') {
+				$pds = $this->actors->pdsEndpoint($did);
+				if ($pds !== '' && $actor !== null) {
+					$actor->setDetailArray(Details::ATPROTO, array_merge(is_array($details) ? $details : [], ['pds' => $pds]));
+					try {
+						$this->actors->store($actor);
+					} catch (Throwable $e) {
+						$this->logger->debug('Bluesky PDS endpoint not cached on actor', ['did' => $did, 'exception' => $e]);
+					}
+				}
+			}
+			if ($pds !== '') {
+				$create = $this->mapper->create($post, $pds);
+				if ($create === null) {
+					return false;
+				}
+			}
+		}
 		$parent = (string)($create['object']['inReplyTo'] ?? '');
 		if ($fetchParent && BlueskyIds::isPostId($parent) && !$this->isKnown($parent)) {
 			// one hop up, so a reply is not stored without what it answers;
@@ -282,10 +306,13 @@ class PostStore {
 	private function process(array $data): bool {
 		$details = $data['object']['_atproto'] ?? null;
 		$card = null;
+		$streamedBlobs = [];
 		if (is_array($details)) {
 			unset($data['object']['_atproto']);
 			$card = is_array($details['card'] ?? null) ? $details['card'] : null;
+			$streamedBlobs = is_array($details['streamed_blobs'] ?? null) ? $details['streamed_blobs'] : [];
 			unset($details['card']);
+			unset($details['streamed_blobs']);
 		}
 		try {
 			$activity = AP::instance()->getItemFromData($data);
@@ -293,6 +320,7 @@ class PostStore {
 			if (is_array($details) && $activity->hasObject()) {
 				$object = $activity->getObject();
 				if ($object instanceof Stream) {
+					$object->setAtprotoStreamedBlobs($streamedBlobs);
 					$object->setDetailArray(PostMapper::DETAIL, $details);
 					$object->setDetailInt(Details::LIKES, $details['likes']);
 					$object->setDetailInt(Details::REMOTE_LIKES, $details['likes']);

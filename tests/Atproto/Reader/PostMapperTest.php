@@ -251,6 +251,69 @@ class PostMapperTest extends TestCase {
 		$this->assertSame([], $note['attachment'], 'an opaque or non-image blob is never presented as a broken image');
 	}
 
+	public function testThirdPartyEmbedFilesBecomeNamedStreamedAttachments(): void {
+		$cid = Cid::forRaw('a PDF from a custom embed')->toString();
+		$embed = [
+			'$type' => 'org.example.embed.files',
+			'files' => [[
+				'name' => 'meeting-notes.pdf',
+				'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'application/pdf', 'size' => 512],
+			]],
+		];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.files#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view, 'https://pds.example');
+
+		$this->assertSame([[
+			'type' => 'Document',
+			'mediaType' => 'application/pdf',
+			'url' => 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=' . rawurlencode(self::DID) . '&cid=' . $cid,
+			'name' => 'meeting-notes.pdf',
+			'size' => 512,
+		]], $note['attachment']);
+		$this->assertSame([$note['attachment'][0]['url']], $note['_atproto']['streamed_blobs']);
+		$this->assertTrue(PostMapper::hasGenericBlobs($embed));
+	}
+
+	public function testGenericBlobsNeedAValidCidPdsAndPublicPost(): void {
+		$embed = ['$type' => 'org.example.embed.file', 'file' => [
+			'name' => 'report.pdf', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => Cid::forRaw('report')->toString()], 'mimeType' => 'application/pdf'],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.file#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+		$mapper = new PostMapper($this->resolver());
+		$this->assertSame([], $mapper->note($view)['attachment'], 'without a verified PDS there is no external file URL');
+		$this->assertSame([], $mapper->note($view, 'http://pds.example')['attachment'], 'insecure PDS endpoints are refused');
+
+		$view['labels'] = [['val' => PostMapper::NO_UNAUTHENTICATED]];
+		$this->assertSame([], $mapper->note($view, 'https://pds.example')['attachment'], 'logged-in-only Bluesky posts do not leak through the public media route');
+	}
+
+	public function testImagesInThirdPartyEmbedsUseTheValidatedBlueskyCdn(): void {
+		$cid = Cid::forRaw('custom image')->toString();
+		$embed = ['$type' => 'org.example.embed.file', 'file' => [
+			'name' => 'cover.png', 'blob' => ['$type' => 'blob', 'ref' => ['$link' => $cid], 'mimeType' => 'image/png'],
+		]];
+		$view = $this->postView([
+			'embed' => ['$type' => 'org.example.embed.file#view'],
+			'record' => array_merge($this->postView()['record'], ['embed' => $embed]),
+		]);
+
+		$note = (new PostMapper($this->resolver()))->note($view);
+
+		$this->assertSame([[
+			'type' => 'Image',
+			'mediaType' => 'image/png',
+			'url' => 'https://cdn.bsky.app/img/feed_fullsize/plain/' . self::DID . '/' . $cid . '@png',
+			'name' => 'cover.png',
+		]], $note['attachment']);
+	}
+
 	public function testRawExternalEmbedKeepsItsLinkAndBlobThumbnail(): void {
 		$cid = Cid::forRaw('external card image bytes')->toString();
 		$view = $this->postView();

@@ -125,6 +125,17 @@ class BlueskyActorServiceTest extends TestCase {
 		$this->assertSame('', $this->service->resolve('example.com')->getDetails(ActorMapper::DETAIL)['pds']);
 	}
 
+	public function testPdsEndpointIsValidatedAndCachedForTheRequest(): void {
+		$this->plc->expects($this->exactly(2))->method('document')->willReturnOnConsecutiveCalls(
+			['service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'https://PDS.example/']]],
+			['service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'https://127.0.0.1']]],
+		);
+
+		$this->assertSame('https://pds.example', $this->service->pdsEndpoint(self::DID));
+		$this->assertSame('https://pds.example', $this->service->pdsEndpoint(self::DID), 'one DID document read per service instance');
+		$this->assertSame('', $this->service->pdsEndpoint('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa'), 'a private IP is never used as a blob origin');
+	}
+
 	public function testABlockedAccountIsNotResolvedByDidOrByItsHost(): void {
 		$blocklist = $this->createMock(Blocklist::class);
 		$blocklist->method('isBlockedDid')->willReturnCallback(static fn (string $did): bool => $did === 'did:plc:blockedblockedblockedbl');

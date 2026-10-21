@@ -984,7 +984,13 @@ URL, fall back to the AppView thumbnail when it is missing, and flow into
 the existing paged gallery UI. Video embeds use the video playlist; when an
 AppView view is missing but the original record has a validated video blob,
 the public Bluesky video service playlist and thumbnail are derived from the
-author DID and blob CID. Unknown or malformed blobs remain a link to the post.
+author DID and blob CID. Blob references in third-party embed lexicons are
+also mapped when they carry a valid CID and media type: supported image blobs
+use the Bluesky CDN, while other public attachments use the author's validated
+HTTPS PDS `com.atproto.sync.getBlob` endpoint and this instance's streamed-file
+route. Their declared filename is kept where available, otherwise a useful
+type-based name is shown. Logged-in-only posts never expose these public file
+routes. Unknown MIME types, malformed CIDs and unsafe PDS endpoints are omitted.
 External link embeds retain their URL, title, description and thumbnail as a link
 preview. A quote becomes `quoted_id`; an embedded custom feed, list or
 starter pack becomes a link to its bsky.app page with a card made from what
@@ -1006,9 +1012,11 @@ visible: image blobs resolve from their validated CID, image MIME type and
 author DID to the Bluesky image CDN; external embeds retain their link and
 blob thumbnail; quote-with-media records retain both the quote and its images.
 A raw video record remains a link to its post until the AppView supplies the
-playable video playlist. Unknown MIME types and malformed CIDs are omitted
-rather than rendered as broken or misleading media; arbitrary blobs are not
-assumed to be images.
+playable video playlist. Blobs in unknown/custom embed records are mapped as
+files only when their CID, MIME type and public PDS endpoint validate; they
+are streamed on demand rather than downloaded during feed ingestion. Unknown
+MIME types and malformed CIDs are omitted rather than rendered as broken or
+misleading media; arbitrary blobs are not assumed to be images.
 
 A post is addressed to the public with the author's followers collection in
 `cc`, which is what the home timeline joins on. An author who asked apps not

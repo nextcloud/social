@@ -441,6 +441,28 @@ class StreamTest extends TestCase {
 		$this->assertCount(4, $stream->getAttachments());
 	}
 
+	public function testMapperAllowlistedAtprotoBlobsAreSavedAsStreamedDocuments(): void {
+		$this->installActivityPub(mocked: [DocumentInterface::class]);
+		$url = 'https://pds.example/xrpc/com.atproto.sync.getBlob?did=did%3Aplc%3Aalice&cid=bafkrei';
+		$this->apInterface(DocumentInterface::class)
+			->expects($this->once())
+			->method('save')
+			->with($this->callback(static function (Document $document): bool {
+				return $document->isStreamed() && $document->getDescription() === 'report.pdf';
+			}));
+
+		$stream = (new Stream())->setAtprotoStreamedBlobs([$url]);
+		$stream->import([
+			'id' => 'https://bsky.app/profile/did:plc:alice/post/one',
+			'type' => 'Note',
+			'attachment' => [[
+				'type' => 'Document', 'mediaType' => 'application/pdf', 'url' => $url, 'name' => 'report.pdf',
+			]],
+		]);
+
+		$this->assertCount(1, $stream->getAttachments());
+	}
+
 	public function testConvertPublishedIgnoresUnparsableDates(): void {
 		$stream = new Stream();
 		$stream->setPublished('not a date');

@@ -76,8 +76,8 @@ class PostMapper {
 	 *
 	 * @param array $post an `app.bsky.feed.defs#postView`
 	 */
-	public function create(array $post): ?array {
-		$note = $this->note($post);
+	public function create(array $post, string $pds = ''): ?array {
+		$note = $this->note($post, $pds);
 		if ($note === null) {
 			return null;
 		}
@@ -149,7 +149,7 @@ class PostMapper {
 	/**
 	 * The `Note` for a post view, or null when a label hides it.
 	 */
-	public function note(array $post): ?array {
+	public function note(array $post, string $pds = ''): ?array {
 		$uri = (string)($post['uri'] ?? '');
 		$id = BlueskyIds::postIdOfUri($uri);
 		$did = (string)($post['author']['did'] ?? '');
@@ -169,7 +169,10 @@ class PostMapper {
 		$embed = self::hasUsableEmbedView($viewEmbed, $did)
 			? $viewEmbed
 			: (is_array($record['embed'] ?? null) ? $record['embed'] : $viewEmbed);
-		[$attachments, $quote, $appended] = $this->embed($embed, $text, $id, $did);
+		[$attachments, $quote, $appended] = $this->embed($embed, $text, $id, $did, $pds);
+		if (self::isLoggedInOnly($post)) {
+			$attachments = [];
+		}
 		$content .= $appended;
 		$card = self::cardOf($embed, $did);
 		if ($card !== null && !str_contains($content, $card['url'])) {
@@ -179,6 +182,12 @@ class PostMapper {
 		$warning = $this->warning($labels);
 		$adult = array_intersect($labels, self::ADULT) !== [];
 		$published = self::datetime((string)($record['createdAt'] ?? ''), (string)($post['indexedAt'] ?? ''));
+		$streamedBlobs = [];
+		foreach ($attachments as $attachment) {
+			if (str_starts_with((string)($attachment['url'] ?? ''), rtrim($pds, '/') . '/xrpc/com.atproto.sync.getBlob?')) {
+				$streamedBlobs[] = $attachment['url'];
+			}
+		}
 
 		$note = [
 			'id' => $id,
@@ -207,7 +216,7 @@ class PostMapper {
 				'indexed_at' => (string)($post['indexedAt'] ?? ''),
 				// what a reply from here names as its thread's root
 				'reply_root' => self::strongRef($record['reply']['root'] ?? null),
-			] + (self::quoteDetached($embed) ? [
+			] + ($streamedBlobs === [] ? [] : ['streamed_blobs' => $streamedBlobs]) + (self::quoteDetached($embed) ? [
 				// the quoted author detached this quote, so it is withdrawn
 				// here too (PostStore)
 				'quote_detached' => true,
@@ -252,24 +261,56 @@ class PostMapper {
 		return $note;
 	}
 
+	/** Whether an unknown embed contains non-image raw blobs needing a PDS lookup. */
+	public static function hasGenericBlobs(mixed $embed): bool {
+		if (!is_array($embed) || in_array((string)($embed['$type'] ?? ''), [
+			self::IMAGES, self::RECORD_IMAGES, self::GALLERY, self::VIDEO, self::RECORD_VIDEO,
+			self::EXTERNAL, self::RECORD_EXTERNAL, self::RECORD, self::RECORD_RECORD,
+			self::RECORD_WITH_MEDIA, self::RECORD_RECORD_WITH_MEDIA,
+		], true)) {
+			return false;
+		}
+		$walk = static function (mixed $value, int $depth = 0) use (&$walk): bool {
+			if ($depth > 8 || !is_array($value)) {
+				return false;
+			}
+			if (($value['$type'] ?? '') === 'blob' || isset($value['ref']) || isset($value['cid'])) {
+				$mime = strtolower((string)($value['mimeType'] ?? ''));
+				$ref = is_array($value['ref'] ?? null) ? $value['ref'] : [];
+				$cid = (string)($ref['$link'] ?? $value['cid'] ?? '');
+				return Cid::isValid($cid)
+					&& preg_match('~^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$~', $mime) === 1
+					&& !str_starts_with($mime, 'image/');
+			}
+			foreach ($value as $child) {
+				if ($walk($child, $depth + 1)) {
+					return true;
+				}
+			}
+			return false;
+		};
+
+		return $walk($embed);
+	}
+
 	/**
 	 * The pictures, the quoted post and what is appended to the text for an
 	 * embed the post has no other way to show.
 	 *
 	 * @return array{0: list<array>, 1: string, 2: string}
 	 */
-	private function embed(array $embed, string $text, string $postId, string $authorDid): array {
+	private function embed(array $embed, string $text, string $postId, string $authorDid, string $pds = ''): array {
 		$type = (string)($embed['$type'] ?? '');
 		if ($type === self::RECORD_WITH_MEDIA) {
-			[$attachments, , $appended] = $this->embed(is_array($embed['media'] ?? null) ? $embed['media'] : [], $text, $postId, $authorDid);
+			[$attachments, , $appended] = $this->embed(is_array($embed['media'] ?? null) ? $embed['media'] : [], $text, $postId, $authorDid, $pds);
 			// the nested record view is of one known type, so the JSON names none
 			$record = is_array($embed['record'] ?? null) ? $embed['record'] : [];
-			[, $quote] = $this->embed($record + ['$type' => self::RECORD], $text, $postId, $authorDid);
+			[, $quote] = $this->embed($record + ['$type' => self::RECORD], $text, $postId, $authorDid, $pds);
 
 			return [$attachments, $quote, $appended];
 		}
 		if ($type === self::RECORD_RECORD_WITH_MEDIA) {
-			[$attachments, , $appended] = $this->embed(is_array($embed['media'] ?? null) ? $embed['media'] : [], $text, $postId, $authorDid);
+			[$attachments, , $appended] = $this->embed(is_array($embed['media'] ?? null) ? $embed['media'] : [], $text, $postId, $authorDid, $pds);
 			$record = is_array($embed['record'] ?? null) ? $embed['record'] : [];
 			$uri = (string)($record['uri'] ?? '');
 
@@ -317,7 +358,102 @@ class PostMapper {
 				return [[], '', '<p><a href="' . self::escape($url) . '" rel="nofollow noopener noreferrer" target="_blank">' . self::escape('Video') . '</a></p>'];
 		}
 
-		return [[], '', ''];
+		return [self::genericBlobAttachments($embed, $authorDid, $pds), '', ''];
+	}
+
+	/**
+	 * Blobs in third-party ATProto embed lexicons. The standard embed unions
+	 * above keep their dedicated CDN/player handling; unknown records are
+	 * exposed only as validated PDS getBlob links, later streamed by this server.
+	 *
+	 * @return list<array<string, mixed>>
+	 */
+	private static function genericBlobAttachments(array $embed, string $did, string $pds): array {
+		if (!Syntax::isDid($did)) {
+			return [];
+		}
+		$blobs = [];
+		self::collectGenericBlobs($embed, $blobs);
+		$attachments = [];
+		$seen = [];
+		foreach ($blobs as [$cid, $mime, $size, $blobName]) {
+			if (isset($seen[$cid])) {
+				continue;
+			}
+			$seen[$cid] = true;
+			if (str_starts_with($mime, 'image/')) {
+				$imageUrl = self::blobImageUrl(['ref' => ['$link' => $cid], 'mimeType' => $mime], $did);
+				if ($imageUrl !== '') {
+					$attachments[] = ['type' => 'Image', 'mediaType' => $mime === 'image/jpg' ? 'image/jpeg' : $mime, 'url' => $imageUrl, 'name' => self::blobName($blobName, $mime, count($attachments) + 1)];
+				}
+				continue;
+			}
+			if (!self::isSafePds($pds)) {
+				continue;
+			}
+			$url = rtrim($pds, '/') . '/xrpc/com.atproto.sync.getBlob?' . http_build_query(['did' => $did, 'cid' => $cid], '', '&', PHP_QUERY_RFC3986);
+			$filename = self::blobName($blobName, $mime, count($attachments) + 1);
+			$attachment = ['type' => 'Document', 'mediaType' => $mime, 'url' => $url, 'name' => $filename];
+			if ($size > 0) {
+				$attachment['size'] = $size;
+			}
+			$attachments[] = $attachment;
+		}
+
+		return $attachments;
+	}
+
+	/**
+	 * @param list<array{0: string, 1: string, 2: int, 3: string}> $blobs
+	 */
+	private static function collectGenericBlobs(mixed $value, array &$blobs, int $depth = 0, string $name = ''): void {
+		if ($depth > 8 || count($blobs) >= 10 || !is_array($value)) {
+			return;
+		}
+		foreach (['name', 'filename'] as $key) {
+			if (is_string($value[$key] ?? null) && trim($value[$key]) !== '') {
+				$name = trim($value[$key]);
+				break;
+			}
+		}
+		if (($value['$type'] ?? '') === 'blob' || isset($value['ref']) || isset($value['cid'])) {
+			$ref = is_array($value['ref'] ?? null) ? $value['ref'] : [];
+			$cid = (string)($ref['$link'] ?? $value['cid'] ?? '');
+			$mime = strtolower(trim((string)($value['mimeType'] ?? '')));
+			if (Cid::isValid($cid) && preg_match('~^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$~', $mime) === 1) {
+				$blobs[] = [$cid, $mime, (int)($value['size'] ?? 0), $name];
+			}
+			return;
+		}
+		foreach ($value as $child) {
+			self::collectGenericBlobs($child, $blobs, $depth + 1, $name);
+			if (count($blobs) >= 10) {
+				return;
+			}
+		}
+	}
+
+	private static function isSafePds(string $pds): bool {
+		$parts = parse_url($pds);
+
+		return is_array($parts) && strtolower($parts['scheme'] ?? '') === 'https'
+			&& is_string($parts['host'] ?? null) && $parts['host'] !== ''
+			&& !isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])
+			&& in_array($parts['path'] ?? '', ['', '/'], true)
+			&& filter_var($parts['host'], FILTER_VALIDATE_IP) === false
+			&& preg_match('/(?:^|\.)(?:localhost|local)$/i', $parts['host']) !== 1;
+	}
+
+	private static function blobName(string $candidate, string $mime, int $number): string {
+		$name = basename(str_replace('\\', '/', $candidate));
+		$name = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? '');
+		if ($name !== '' && $name !== '.' && $name !== '..') {
+			return mb_substr($name, 0, 180);
+		}
+		$extension = strtolower(substr(strrchr($mime, '/') ?: '', 1));
+		$extension = preg_replace('/[^a-z0-9.+-]/', '', $extension) ?? '';
+
+		return 'Attachment ' . $number . ($extension !== '' ? '.' . $extension : '');
 	}
 
 	/** Whether an AppView embed view has enough data to be useful on this client. */
