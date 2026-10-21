@@ -189,7 +189,18 @@ class RemoteFetchQueue {
 			// the job list's own dedupe still holds
 		}
 
-		$this->queue(FillInteractions::class, ['post' => $post->getId(), 'type' => $type]);
+		if (!$this->queue(FillInteractions::class, ['post' => $post->getId(), 'type' => $type])) {
+			// Do not suppress another attempt for the full interval when the
+			// background job could not be persisted. The visible request can
+			// report that the list is still filling and try again shortly.
+			try {
+				$this->durableCache->remove(self::INTERACTIONS_FILLED, $key);
+			} catch (Throwable $e) {
+				$this->logger->info('[RemoteFetchQueue] could not reset interaction fill throttle', ['post' => $post->getId(), 'exception' => $e]);
+			}
+
+			return false;
+		}
 
 		return true;
 	}
