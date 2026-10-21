@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\Social\Service;
 
 use OCA\Social\Atproto\Publisher\BlueskyBookmarks;
+use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
 use OCA\Social\Db\ActionsRequest;
 use OCA\Social\Db\ConversationsRequest;
 use OCA\Social\Exceptions\InvalidActionException;
@@ -120,11 +121,16 @@ class ActionService {
 	 * conversation rather than a post.
 	 */
 	private function muteConversation(Person $actor, Stream $post, bool $muted): void {
+		$rootId = $this->conversationsRequest->rootOf($post->getId());
 		$this->conversationsRequest->setMuted(
 			$actor->getId(),
-			$this->conversationsRequest->rootOf($post->getId()),
+			$rootId,
 			$muted
 		);
+		$threadMutes = $this->container?->get(BlueskyThreadMutes::class);
+		if ($threadMutes instanceof BlueskyThreadMutes) {
+			$threadMutes->fromSocial($actor, $rootId, $muted);
+		}
 	}
 
 	/**

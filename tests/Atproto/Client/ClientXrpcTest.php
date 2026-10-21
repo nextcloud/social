@@ -24,6 +24,7 @@ use OCA\Social\Atproto\OAuth\AuthorizationServer;
 use OCA\Social\Atproto\OAuth\OAuthException;
 use OCA\Social\Atproto\Publisher\BlueskyBookmarks;
 use OCA\Social\Atproto\Publisher\BlueskyMutes;
+use OCA\Social\Atproto\Publisher\BlueskyThreadMutes;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcBytes;
 use OCA\Social\Atproto\Xrpc\XrpcException;
@@ -52,6 +53,8 @@ class ClientXrpcTest extends TestCase {
 	private InboundMoveService $inbound;
 	/** @var BlueskyMutes&MockObject */
 	private BlueskyMutes $mutes;
+	/** @var BlueskyThreadMutes&MockObject */
+	private BlueskyThreadMutes $threadMutes;
 	/** @var BlueskyBookmarks&MockObject */
 	private BlueskyBookmarks $bookmarks;
 	/** @var NotificationSettings&MockObject */
@@ -76,7 +79,7 @@ class ClientXrpcTest extends TestCase {
 		$this->oauth->method('issuer')->willReturn('https://social.test');
 		$this->inbound = $this->createMock(InboundMoveService::class);
 		$this->inbound->method('owns')->willReturnCallback(static fn (string $authorization): bool => $authorization === 'Bearer move');
-		$this->client = new ClientXrpc($config, $this->sessions, $this->proxy, $this->createMock(Preferences::class), $this->writes, $this->grants, $this->oauth, $this->moderation, $this->inbound, $this->mutes = $this->createMock(BlueskyMutes::class), $this->bookmarks = $this->createMock(BlueskyBookmarks::class), $this->notificationSettings = $this->createMock(NotificationSettings::class), $this->plcSignatures = $this->createMock(PlcSignatureService::class));
+		$this->client = new ClientXrpc($config, $this->sessions, $this->proxy, $this->createMock(Preferences::class), $this->writes, $this->grants, $this->oauth, $this->moderation, $this->inbound, $this->mutes = $this->createMock(BlueskyMutes::class), $this->threadMutes = $this->createMock(BlueskyThreadMutes::class), $this->bookmarks = $this->createMock(BlueskyBookmarks::class), $this->notificationSettings = $this->createMock(NotificationSettings::class), $this->plcSignatures = $this->createMock(PlcSignatureService::class));
 	}
 
 	protected function tearDown(): void {
@@ -149,6 +152,20 @@ class ClientXrpcTest extends TestCase {
 
 		$this->assertSame(200, $this->client->procedure('app.bsky.graph.muteActor', '{"actor":"did:plc:bob"}', $headers, '1.2.3.4')->status);
 		$this->assertSame(400, $this->client->procedure('app.bsky.graph.muteActor', '{"actor":"did:plc:carol"}', $headers, '1.2.3.4')->status, 'refused there, not made here');
+	}
+
+	public function testAThreadMuteAnAppMakesIsMirroredOnlyAfterTheAppViewTookIt(): void {
+		$headers = ['authorization' => 'Bearer t'];
+		$this->proxy->method('forward')->willReturnOnConsecutiveCalls(new XrpcBytes('{}', 'application/json'), new XrpcBytes('{}', 'application/json'), new XrpcBytes('{"error":"x"}', 'application/json', 400));
+		$this->threadMutes->expects($this->exactly(2))->method('fromApp')->willReturnCallback(function (ClientSession $session, string $method, array $body): void {
+			$this->assertSame($this->session, $session);
+			$this->assertContains($method, ['app.bsky.graph.muteThread', 'app.bsky.graph.unmuteThread']);
+			$this->assertSame(['root' => 'at://did:plc:bob/app.bsky.feed.post/3k'], $body);
+		});
+
+		$this->assertSame(200, $this->client->procedure('app.bsky.graph.muteThread', '{"root":"at://did:plc:bob/app.bsky.feed.post/3k"}', $headers, '1.2.3.4')->status);
+		$this->assertSame(200, $this->client->procedure('app.bsky.graph.unmuteThread', '{"root":"at://did:plc:bob/app.bsky.feed.post/3k"}', $headers, '1.2.3.4')->status);
+		$this->assertSame(400, $this->client->procedure('app.bsky.graph.unmuteThread', '{"root":"at://did:plc:bob/app.bsky.feed.post/3k"}', $headers, '1.2.3.4')->status);
 	}
 
 	public function testTheAppsBookmarksAreTheOnesHereAndItsBookmarkIsMadeHereOnceTheAppViewTookIt(): void {

@@ -914,7 +914,11 @@ cursor column (`Reader\PollCursor`): `since`, the last committed timestamp;
 `newest`, the newest timestamp of the walk; and `page`, the next opaque AppView
 cursor. Each pass reads one page and resumes the rest on the next pass. Only
 reaching `since` or the end commits `newest`; a failed or malformed response
-does not move the checkpoint. Empty pages with a continuation are followed,
+does not move the checkpoint. `indexedAt` values are not event identifiers:
+posts or notifications tied at the committed timestamp are read, and only a
+strictly older timestamp ends the walk. The opaque cursor carries ties across
+pages; imports are idempotent when the boundary is seen again. Empty pages
+with a continuation are followed,
 and pending walks do not back off as empty feeds. A first read remains a
 snapshot of the newest page. Pinned posts are handled separately by
 `BlueskyPins`, so they neither stop the chronological walk nor advance it.
@@ -1471,6 +1475,17 @@ Bluesky (D16). Turning it on publishes the blocks of Bluesky accounts they
 hold; turning it off withdraws every published one; an unblock withdraws
 its record. A blocked Bluesky account's interactions are dropped on
 arrival either way.
+
+Thread notification mutes (`app.bsky.graph.muteThread` and
+`unmuteThread`) are private AppView preferences. A signed-in Bluesky app's
+accepted change is mirrored to `social_convo_state` after resolving its AT
+URI through the local repository mapping. A post written here and mirrored
+to Bluesky therefore resolves to its Social post id. A mute or unmute made in
+Social uses the thread root's strong reference from `PostRefs`, so a local
+thread root published to Bluesky is addressed by its repository AT URI.
+This keeps both clients from disagreeing about locally stored replies. A
+root that is not stored here cannot be mirrored locally; Bluesky still owns
+the preference and its behavior in Bluesky clients.
 
 A Bluesky user's block *of* a local account (`app.bsky.graph.block` in
 their repository, subject the local DID) is never delivered here, and the
