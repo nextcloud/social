@@ -739,9 +739,9 @@ describe('timeline store actions', () => {
 
 				await store.fetchStatus('42')
 				expect(tl().statuses['42'].favourites_count).toBe(1)
-				await vi.advanceTimersByTimeAsync(3000)
+				await vi.advanceTimersByTimeAsync(1000)
 				expect(tl().statuses['42'].favourites_count).toBe(3)
-				await vi.advanceTimersByTimeAsync(6000)
+				await vi.advanceTimersByTimeAsync(3000)
 
 				expect(axios.get).toHaveBeenCalledTimes(3)
 				expect(axios.get).toHaveBeenLastCalledWith(`${API}/statuses/42`)
@@ -784,7 +784,7 @@ describe('timeline store actions', () => {
 				await store.fetchStatus('42')
 				await vi.advanceTimersByTimeAsync(120000)
 
-				expect(axios.get).toHaveBeenCalledTimes(13)
+				expect(axios.get).toHaveBeenCalledTimes(11)
 				expect(tl().statusRefetching['42']).toBeUndefined()
 			} finally {
 				vi.useRealTimers()
@@ -1816,6 +1816,10 @@ describe('a conversation read from where it lives', () => {
 
 		await store.fetchTimeline()
 		expect(store.timeline).toEqual(['8'])
+		await vi.advanceTimersByTimeAsync(999)
+		expect(axios.get).toHaveBeenCalledTimes(1)
+		await vi.advanceTimersByTimeAsync(1)
+		expect(axios.get).toHaveBeenCalledTimes(2)
 
 		await vi.runAllTimersAsync()
 		expect(axios.get).toHaveBeenCalledTimes(3)

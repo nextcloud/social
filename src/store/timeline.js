@@ -412,15 +412,15 @@ function timelineRequest(list, params) {
  * the reader does to a post in it.
  */
 /** How long after a conversation is opened its replies from elsewhere are asked for again. */
-const THREAD_REFETCH_MS = 3000
-const THREAD_REFETCH_MAX_MS = 30000
+const THREAD_REFETCH_MS = 1000
+const THREAD_REFETCH_MAX_MS = 5000
 const MAX_THREAD_REFETCHES = 30
-const STATUS_REFETCH_MS = 3000
-const STATUS_REFETCH_MAX_MS = 9000
+const STATUS_REFETCH_MS = 1000
+const STATUS_REFETCH_MAX_MS = 3000
 // Visible count reads back off for fifteen seconds after a failed request.
 // Keep the opened post fresh long enough to cross that cooldown and to show
 // the result of the queued refresh, while bounding both requests and lifetime.
-const MAX_STATUS_REFETCHES = 12
+const MAX_STATUS_REFETCHES = 10
 
 export const useTimelineStore = defineStore('timeline', {
 	state: () => ({

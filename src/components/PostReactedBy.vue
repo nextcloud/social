@@ -31,9 +31,9 @@ import { useSettingsStore } from '../store/settings.js'
 const FACES = 12
 
 /** How long after the first look the faces from elsewhere are asked for again. */
-export const REFILL_MS = 6000
+export const REFILL_MS = 2000
 /** Bound retries when a remote profile stays unavailable. */
-const MAX_REFILLS = 8
+const MAX_REFILLS = 12
 
 export default {
 	name: 'PostReactedBy',

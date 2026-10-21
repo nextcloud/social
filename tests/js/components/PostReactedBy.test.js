@@ -202,7 +202,7 @@ describe('PostReactedBy', () => {
 		mountReactions(post({ favourites_count: 2 }))
 		await flushPromises()
 
-		for (let attempt = 0; attempt < 8; attempt++) {
+		for (let attempt = 0; attempt < 12; attempt++) {
 			await vi.advanceTimersByTimeAsync(REFILL_MS)
 			await flushPromises()
 		}
@@ -210,7 +210,7 @@ describe('PostReactedBy', () => {
 		await vi.advanceTimersByTimeAsync(REFILL_MS * 4)
 		await flushPromises()
 
-		expect(completedCalls).toBe(9)
+		expect(completedCalls).toBe(13)
 		expect(axios.get).toHaveBeenCalledTimes(completedCalls)
 		vi.useRealTimers()
 	})
