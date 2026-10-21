@@ -18,6 +18,7 @@ use OCA\Social\Model\ActivityPub\Stream;
 use OCA\Social\Service\Interaction\InteractionSource;
 use Psr\Log\LoggerInterface;
 use Throwable;
+use UnexpectedValueException;
 
 /**
  * Who liked, reposted or quoted a post on Bluesky, for a post that is there
@@ -58,8 +59,11 @@ class BlueskyInteractionSource implements InteractionSource {
 
 			throw $e;
 		}
+		if (!is_array($answer[$key] ?? null)) {
+			throw new UnexpectedValueException('Bluesky reaction response has no ' . $key . ' list');
+		}
 		$ids = [];
-		foreach (is_array($answer[$key] ?? null) ? $answer[$key] : [] as $entry) {
+		foreach ($answer[$key] as $entry) {
 			$profile = is_array($entry['actor'] ?? null) ? $entry['actor'] : $entry;
 			$did = is_array($profile) ? (string)($profile['did'] ?? '') : '';
 			if ($did === '' || ($profile['handle'] ?? '') === '') {
@@ -107,8 +111,11 @@ class BlueskyInteractionSource implements InteractionSource {
 
 			throw $e;
 		}
+		if (!is_array($answer['posts'] ?? null)) {
+			throw new UnexpectedValueException('Bluesky quote response has no posts list');
+		}
 		$stored = 0;
-		foreach (is_array($answer['posts'] ?? null) ? $answer['posts'] : [] as $view) {
+		foreach ($answer['posts'] as $view) {
 			if (!is_array($view)) {
 				continue;
 			}

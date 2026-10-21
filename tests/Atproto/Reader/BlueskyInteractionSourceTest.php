@@ -23,6 +23,7 @@ use OCA\Social\Model\ActivityPub\Object\Note;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
+use UnexpectedValueException;
 
 #[AllowMockObjectsWithoutExpectations]
 class BlueskyInteractionSourceTest extends TestCase {
@@ -124,5 +125,53 @@ class BlueskyInteractionSourceTest extends TestCase {
 
 		$this->assertSame([], $source->actors($post, 'Like', 12, 3));
 		$this->assertSame(0, $source->quotes($post, 12, 3));
+	}
+
+	public function testMissingReactionListsAreTreatedAsFailedReads(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturn([]);
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$this->createMock(PostStore::class),
+			$this->createMock(ActorMapper::class),
+			$this->createMock(BlueskyActorService::class),
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+		);
+		$post = (new Note())->setId('https://social.test/@alice/1');
+
+		$this->expectException(UnexpectedValueException::class);
+		$this->expectExceptionMessage('no likes list');
+		$source->actors($post, 'Like', 10);
+	}
+
+	public function testMissingQuoteListsAreTreatedAsFailedReads(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturn([]);
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$this->createMock(PostStore::class),
+			$this->createMock(ActorMapper::class),
+			$this->createMock(BlueskyActorService::class),
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+		);
+		$post = (new Note())->setId('https://social.test/@alice/1');
+
+		$this->expectException(UnexpectedValueException::class);
+		$this->expectExceptionMessage('no posts list');
+		$source->quotes($post, 10);
 	}
 }
