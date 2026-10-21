@@ -19,6 +19,7 @@ use OCA\Social\Atproto\Protocol\Cid;
 use OCA\Social\Atproto\Protocol\Commit;
 use OCA\Social\Atproto\Protocol\DagCbor;
 use OCA\Social\Atproto\Protocol\Mst;
+use OCA\Social\Atproto\Repository\InvalidSwapException;
 use OCA\Social\Atproto\Repository\RepositoryService;
 use OCA\Social\Atproto\Repository\RepoWrite;
 use OCA\Social\Db\AtprotoEventRequest;
@@ -102,6 +103,25 @@ class RepositoryServiceTest extends TestCase {
 		$this->assertTrue($frame['ops'][1]['prev']->equals($first->cidOf('app.bsky.feed.post/3kznmn7xqxl22')), 'an update names the record it replaced');
 		$this->assertSame([], $this->service->verify(self::DID, $this->key->publicKey()));
 		$this->assertCount(1, $this->store->getBlockCids(self::DID, AtprotoRepoRequest::BLOCK_COMMIT), 'only the head commit is kept');
+	}
+
+	public function testSwapCommitRejectsAStaleHeadBeforeWritingAnything(): void {
+		$first = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('one'), '', '3kznmn7xqxl22')]);
+		$head = $this->store->getHead(self::DID);
+		$frames = count($this->frames);
+
+		try {
+			$this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('two'), '', '3kznmn7xqxl23')], Cid::forRaw('stale')->toString());
+			$this->fail('a stale swapCommit must refuse the full batch');
+		} catch (InvalidSwapException) {
+			$this->assertSame($head?->commitCid, $this->store->getHead(self::DID)?->commitCid);
+			$this->assertSame(1, $this->store->getHead(self::DID)?->recordCount);
+			$this->assertCount($frames, $this->frames);
+		}
+
+		$second = $this->service->write(self::DID, $this->key, [RepoWrite::create('app.bsky.feed.post', self::post('two'), '', '3kznmn7xqxl23')], $first?->commitCid->toString());
+		$this->assertNotNull($second);
+		$this->assertSame(2, $this->store->getHead(self::DID)?->recordCount);
 	}
 
 	public function testADeleteDropsTheRecordAndTheNodesItWasIn(): void {

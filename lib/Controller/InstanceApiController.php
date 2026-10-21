@@ -212,11 +212,8 @@ class InstanceApiController extends MastodonApiController {
 	 * find out who wrote it and where, instead of scraping the page. Mastodon
 	 * serves the same route.
 	 *
-	 * `type` is `link`, not Mastodon's `rich`. A rich response is an `<iframe>`
-	 * and this app has no embed page to put in one — every post URL here opens
-	 * the whole app. A consumer handed `link` shows an attributed link, which
-	 * is true; one handed `rich` with a frame that renders an application
-	 * would embed something nobody meant to publish.
+	 * The rich response points only to the dedicated, public-only embed page;
+	 * it never frames the full application shell.
 	 *
 	 * Public posts only, and only this server's: an unlisted or followers-only
 	 * post is not something to hand to whoever asks, and a post of somebody
@@ -244,15 +241,22 @@ class InstanceApiController extends MastodonApiController {
 			$author = $this->cacheActorService->getFromId($post->getAttributedTo());
 			$instance = $this->instanceService->getLocal(Stream::FORMAT_LOCAL);
 
+			$embedUrl = $post->getId() . '/embed';
+			$escapedEmbedUrl = htmlspecialchars($embedUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			$html = '<iframe src="' . $escapedEmbedUrl . '" width="550" height="480" loading="lazy" frameborder="0" style="max-width:100%;border:0;border-radius:12px" title="Aloha Social post"></iframe>';
+
 			return new DataResponse([
-				'type' => 'link',
+				'type' => 'rich',
 				'version' => '1.0',
+				'html' => $html,
+				'width' => 550,
+				'height' => 480,
 				'author_name' => ($author->getDisplayName() !== '')
 					? $author->getDisplayName() : $author->getPreferredUsername(),
 				'author_url' => $author->getId(),
 				'provider_name' => $instance->getTitle(),
 				'provider_url' => $this->configService->getCloudUrl(),
-				'cache_age' => 86400,
+				'cache_age' => 300,
 				'url' => $post->getId(),
 			], Http::STATUS_OK);
 		} catch (Throwable $e) {

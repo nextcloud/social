@@ -42,6 +42,7 @@ class BackgroundJobsRegisteredTest extends TestCase {
 		'OCA\\Social\\Cron\\FillInteractions',
 		'OCA\\Social\\Cron\\FillPosts',
 		'OCA\\Social\\Cron\\FillThread',
+		'OCA\\Social\\Cron\\MastodonPushNotification',
 		'OCA\\Social\\Cron\\RefreshCounts',
 		'OCA\\Social\\Cron\\RepublishAvatars',
 		'OCA\\Social\\Cron\\ResolveActor',

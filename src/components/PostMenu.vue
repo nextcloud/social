@@ -118,6 +118,12 @@
 			</template>
 			{{ onBluesky ? t('social', 'Open on Bluesky') : t('social', 'Open on original instance') }}
 		</NcActionLink>
+		<NcActionButton v-if="canEmbed" closeAfterClick @click="copyEmbedCode">
+			<template #icon>
+				<ContentCopy :size="20" />
+			</template>
+			{{ t('social', 'Copy code') }}
+		</NcActionButton>
 		<NcActionButton closeAfterClick @click="$emit('bookmark')">
 			<template #icon>
 				<Bookmark v-if="item.bookmarked" :size="20" />
@@ -191,6 +197,7 @@
 
 <script>
 import { translate as t } from '@nextcloud/l10n'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import NcActionLink from '@nextcloud/vue/components/NcActionLink'
 import NcActions from '@nextcloud/vue/components/NcActions'
@@ -200,6 +207,7 @@ import Bookmark from 'vue-material-design-icons/Bookmark.vue'
 import BookmarkOutline from 'vue-material-design-icons/BookmarkOutline.vue'
 import EmoticonPlusOutline from 'vue-material-design-icons/EmoticonPlusOutline.vue'
 import Cancel from 'vue-material-design-icons/Cancel.vue'
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 import Flag from 'vue-material-design-icons/Flag.vue'
 import FolderMultiplePlusOutline from 'vue-material-design-icons/FolderMultiplePlusOutline.vue'
 import FormatQuoteClose from 'vue-material-design-icons/FormatQuoteClose.vue'
@@ -242,6 +250,7 @@ export default {
 		BookmarkOutline,
 		EmoticonPlusOutline,
 		Cancel,
+		ContentCopy,
 		Flag,
 		FolderMultiplePlusOutline,
 		FormatQuoteClose,
@@ -352,6 +361,11 @@ export default {
 			return this.item.local !== false
 		},
 
+		/** @return {boolean} only public posts served by this instance have an embed endpoint */
+		canEmbed() {
+			return this.isLocal && this.item.visibility === 'public' && !!this.item.url
+		},
+
 		/**
 		 * @return {boolean} whether this post may be quoted at all. A quote
 		 * carries the audience of the quoter, so the server grants one only for
@@ -438,6 +452,18 @@ export default {
 
 	methods: {
 		t,
+		async copyEmbedCode() {
+			try {
+				const embedUrl = new URL(this.item.url)
+				embedUrl.pathname = `${embedUrl.pathname.replace(/\/$/, '')}/embed`
+				embedUrl.search = ''
+				embedUrl.hash = ''
+				await navigator.clipboard.writeText(`<iframe src="${embedUrl.href}" width="550" height="480" loading="lazy" frameborder="0" style="max-width:100%;border:0;border-radius:12px" title="Aloha Social post"></iframe>`)
+				await showSuccess(t('social', 'Copied'))
+			} catch {
+				await showError(t('social', 'Could not copy — select the address and copy it yourself'))
+			}
+		},
 	},
 }
 </script>

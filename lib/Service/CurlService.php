@@ -973,6 +973,49 @@ class CurlService {
 	}
 
 	/**
+	 * Verifies a WebSocket upgrade without reading from the open event stream.
+	 * The normal address guard and pinned DNS result still apply to the endpoint.
+	 */
+	public function doWebSocketHandshake(string $url, int &$statusCode): bool {
+		$nonce = base64_encode(random_bytes(16));
+		$clientOptions = $this->clientOptions('get', [
+			'timeout' => 5,
+			'json_headers' => false,
+			'headers' => [
+				'Connection' => 'Upgrade',
+				'Upgrade' => 'websocket',
+				'Sec-WebSocket-Version' => '13',
+				'Sec-WebSocket-Key' => $nonce,
+			],
+			'max_redirects' => 0,
+			'federation' => false,
+		]);
+		$clientOptions['allow_redirects'] = false;
+		$clientOptions['curl'][CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
+		$client = $this->clientService->newClient();
+		$clientOptions = $this->pinReachable($url, $clientOptions, '', false);
+		$clientOptions['curl'][CURLOPT_HTTP_VERSION] = CURL_HTTP_VERSION_1_1;
+
+		try {
+			$response = $client->request('get', $url, $clientOptions);
+		} catch (Exception $e) {
+			throw new RequestNetworkException($e->getMessage() . ' - ' . $url, $e->getCode());
+		}
+
+		$statusCode = $response->getStatusCode();
+		$accept = base64_encode(sha1($nonce . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', true));
+		$body = $response->getBody();
+		if (is_resource($body)) {
+			fclose($body);
+		}
+
+		return $statusCode === 101
+			&& strtolower($response->getHeader('Upgrade')) === 'websocket'
+			&& preg_match('/(?:^|,)\s*upgrade\s*(?:,|$)/i', $response->getHeader('Connection')) === 1
+			&& hash_equals($accept, $response->getHeader('Sec-WebSocket-Accept'));
+	}
+
+	/**
 	 * @param array<string, mixed> $clientOptions
 	 *
 	 * @throws RequestContentException

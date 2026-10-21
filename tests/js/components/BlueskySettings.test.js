@@ -132,6 +132,25 @@ describe('BlueskySettings', () => {
 		expect(writeText).toHaveBeenCalledWith('did:plc:abc123')
 	})
 
+	it('shows and copies the hosting provider for Bluesky sign-in', async () => {
+		serverHas()
+		const writeText = vi.fn().mockResolvedValue(undefined)
+		Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+		const wrapper = mountSettings()
+		await flushPromises()
+
+		const signIn = wrapper.find('.bluesky-settings__pds-sign-in')
+		expect(signIn.text()).toContain('Sign in to the Bluesky app')
+		expect(signIn.text()).toContain('@alice.cloud.example.org')
+		expect(signIn.text()).toContain(window.location.origin)
+		expect(signIn.text()).toContain('with an app password you make below')
+		expect(signIn.text()).toContain('Never enter your Nextcloud password')
+
+		await buttonByLabel(wrapper, 'Copy the hosting provider address').trigger('click')
+		await flushPromises()
+		expect(writeText).toHaveBeenCalledWith(window.location.origin)
+	})
+
 	it('says so when the identity could not be read', async () => {
 		axios.get.mockRejectedValue(new Error('offline'))
 		const wrapper = mountSettings()
@@ -549,7 +568,8 @@ describe('BlueskySettings', () => {
 
 			expect(axios.get).toHaveBeenCalledWith(APP_PASSWORDS)
 			expect(section(wrapper).text()).toContain('App passwords for Bluesky apps')
-			expect(section(wrapper).text()).toContain(`choose this server as your hosting provider: ${window.location.origin}.`)
+			expect(section(wrapper).text()).toContain('Make a separate app password for each client')
+			expect(section(wrapper).text()).toContain('Each password works only with your Bluesky account here.')
 			expect(rows(wrapper)).toHaveLength(2)
 			expect(rows(wrapper)[0].text()).toContain('Graysky on my phone')
 			expect(rows(wrapper)[0].text()).toContain('Made ')
@@ -762,13 +782,13 @@ describe('BlueskySettings', () => {
 		})
 	})
 
-	describe('apps signed in with Bluesky sign-in', () => {
+	describe('apps signed in with OAuth', () => {
 		const SESSIONS = '/index.php/apps/social/api/v1/social/bluesky/oauth-sessions'
 		const NOW = Math.floor(Date.now() / 1000)
 		const BSKY = {
 			id: 7,
-			client_id: 'https://bsky.app/oauth-client-metadata.json',
-			client: 'bsky.app',
+			client_id: 'https://oauth.example.org/client-metadata.json',
+			client: 'OAuth client',
 			scopes: ['atproto', 'transition:generic', 'transition:email'],
 			created: NOW - 3 * 24 * 3600,
 			last_used: NOW - 2 * 3600,
@@ -811,14 +831,14 @@ describe('BlueskySettings', () => {
 			await flushPromises()
 
 			expect(axios.get).toHaveBeenCalledWith(SESSIONS)
-			expect(section(wrapper).text()).toContain('Apps signed in with Bluesky sign-in')
-			expect(section(wrapper).text()).toContain('without an app password. Signing one out stops it at once.')
+			expect(section(wrapper).text()).toContain('Apps signed in with OAuth')
+			expect(section(wrapper).text()).toContain('AT Protocol OAuth flow here. Signing one out stops it at once.')
 			expect(rows(wrapper)).toHaveLength(2)
 
 			const [bsky, local] = rows(wrapper)
-			expect(bsky.find('.bluesky-settings__app-password-name').text()).toBe('bsky.app')
+			expect(bsky.find('.bluesky-settings__app-password-name').text()).toBe('OAuth client')
 			// the one thing about the app that is checked stays readable
-			expect(bsky.find('.bluesky-settings__oauth-client-id').text()).toBe('https://bsky.app/oauth-client-metadata.json')
+			expect(bsky.find('.bluesky-settings__oauth-client-id').text()).toBe('https://oauth.example.org/client-metadata.json')
 			expect(bsky.text()).toContain('Signed in ')
 			expect(bsky.text()).toContain('Last used 2 hours ago')
 			expect(bsky.findAll('.bluesky-settings__oauth-grants li').map((li) => li.text()))

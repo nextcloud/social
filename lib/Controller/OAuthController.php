@@ -28,7 +28,9 @@ use OCA\Social\Service\AccountService;
 use OCA\Social\Service\CheckService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConfigService;
+use OCA\Social\Service\DeviceAuthorizationService;
 use OCA\Social\Service\InstanceService;
+use OCA\Social\Service\VapidService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
@@ -67,6 +69,8 @@ class OAuthController extends Controller {
 		private AuthorizationServer $atprotoOAuth,
 		private AtprotoConfig $atprotoConfig,
 		private DpopNonce $dpopNonce,
+		private VapidService $vapidService,
+		private DeviceAuthorizationService $deviceAuthorization,
 		private ?PermissionDescriber $permissionDescriber = null,
 		private ?IFactory $l10nFactory = null,
 	) {
@@ -242,12 +246,128 @@ class OAuthController extends Controller {
 				// Mastodon's Application entity always carries these two, and a
 				// client that decodes the answer into a typed struct fails
 				// without them. `redirect_uri` is the first of what was
-				// registered, which is what Mastodon reports; `vapid_key` is
-				// empty because there is no Web Push here to have a key for.
+				// registered, which is what Mastodon reports.
 				'redirect_uri' => $client->getAppRedirectUris()[0] ?? '',
-				'vapid_key' => '',
+				'vapid_key' => $this->vapidService->publicKey(),
 			], Http::STATUS_OK
 		);
+	}
+
+	/** Starts the RFC 8628 flow for a registered OAuth application. */
+	#[NoCSRFRequired]
+	#[PublicPage]
+	#[AnonRateLimit(limit: 20, period: 300)]
+	#[UserRateLimit(limit: 20, period: 300)]
+	#[FrontpageRoute(verb: 'POST', url: '/oauth/device_authorization')]
+	public function deviceAuthorization(
+		string $client_id = '',
+		string $scope = 'read',
+		string $client_secret = '',
+	): DataResponse {
+		try {
+			[$client_id, $client_secret] = $this->clientCredentials($client_id, $client_secret);
+			$client = $this->clientService->getFromClientId($client_id);
+			$credentials = ['app_scopes' => $scope];
+			if ($client_secret !== '') {
+				$credentials['client_secret'] = $client_secret;
+			}
+			$this->clientService->confirmData($client, $credentials);
+			return new DataResponse($this->deviceAuthorization->create(
+				$client_id,
+				implode(' ', $client->getScopesFromString($scope))
+			));
+		} catch (ClientNotFoundException|ClientException $e) {
+			$response = new DataResponse(
+				['error' => 'invalid_client', 'error_description' => 'unknown or invalid client credentials'],
+				Http::STATUS_UNAUTHORIZED
+			);
+			$response->throttle(['action' => 'socialOauthToken']);
+			return $response;
+		} catch (Throwable $e) {
+			$this->logger->error('OAuth device authorization failed', ['exception' => $e]);
+			return new DataResponse(['error' => 'server_error'], Http::STATUS_INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/** Shows the registered client and scopes before a device code is approved. */
+	#[NoAdminRequired]
+	#[AnonRateLimit(limit: 30, period: 300)]
+	#[UserRateLimit(limit: 30, period: 300)]
+	#[FrontpageRoute(verb: 'GET', url: '/oauth/device')]
+	public function device(string $user_code = ''): Response {
+		$user = $this->userSession->getUser();
+		$pending = $this->deviceAuthorization->inspect($user_code);
+		$client = null;
+		if ($pending !== null) {
+			try {
+				$client = $this->clientService->getFromClientId($pending['client_id']);
+			} catch (Throwable) {
+				$pending = null;
+			}
+		}
+		$this->initialState->provideInitialState('deviceUserCode', $user_code);
+		$this->initialState->provideInitialState('devicePending', $pending !== null);
+		$this->initialState->provideInitialState('deviceAppName', $client?->getAppName() ?? '');
+		$this->initialState->provideInitialState('deviceAppWebsite', $client === null ? '' : $this->websiteLink($client->getAppWebsite()));
+		$this->initialState->provideInitialState('deviceScopes', $pending === null ? [] : $client->getScopesFromString($pending['scopes']));
+		$this->initialState->provideInitialState('deviceDecisionResult', '');
+		$this->initialState->provideInitialState('deviceDecisionUrl', $this->urlGenerator->linkToRoute('social.OAuth.deviceDecision'));
+		$this->initialState->provideInitialState('appName', $client?->getAppName() ?? '');
+		$this->initialState->provideInitialState('appWebsite', $client === null ? '' : $this->websiteLink($client->getAppWebsite()));
+		$this->initialState->provideInitialState('scopes', $pending === null ? [] : $client->getScopesFromString($pending['scopes']));
+		$account = $this->deviceAccountState();
+		if ($account !== null) {
+			$this->initialState->provideInitialState('account', $account);
+		}
+		if ($pending !== null && $user !== null && $this->accountOrNull($user) === null) {
+			$this->provideSetup($user);
+		}
+		$response = new TemplateResponse(Application::APP_ID, 'oauth2', [], TemplateResponse::RENDER_AS_GUEST);
+		$response->setContentSecurityPolicy($this->consentPolicy($this->configService->getSocialUrl()));
+		return $response;
+	}
+
+	/** Records the signed-in person's one-time decision for this device. */
+	#[NoAdminRequired]
+	#[BruteForceProtection(action: 'socialOauthDeviceCode')]
+	#[FrontpageRoute(verb: 'POST', url: '/oauth/device')]
+	public function deviceDecision(string $user_code = '', string $decision = ''): Response {
+		$user = $this->userSession->getUser();
+		$canAuthorize = false;
+		if ($user !== null) {
+			try {
+				$this->accountService->getActorFromUserId($user->getUID());
+				$canAuthorize = true;
+			} catch (Throwable) {
+			}
+		}
+		$validDecision = in_array($decision, ['allow', 'deny'], true);
+		$saved = $canAuthorize && $validDecision
+			&& $this->deviceAuthorization->decide($user_code, $user->getUID(), $decision === 'allow');
+		$this->initialState->provideInitialState('deviceUserCode', $user_code);
+		$this->initialState->provideInitialState('deviceDecisionResult', $saved ? $decision : 'invalid');
+		$this->initialState->provideInitialState('devicePending', false);
+		$this->initialState->provideInitialState('deviceAppName', '');
+		$this->initialState->provideInitialState('deviceAppWebsite', '');
+		$this->initialState->provideInitialState('deviceScopes', []);
+		$this->initialState->provideInitialState('deviceDecisionUrl', $this->urlGenerator->linkToRoute('social.OAuth.deviceDecision'));
+		return new TemplateResponse(Application::APP_ID, 'oauth2', [], TemplateResponse::RENDER_AS_GUEST);
+	}
+
+	private function deviceAccountState(): ?array {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			return null;
+		}
+		$actor = $this->accountOrNull($user);
+		if ($actor === null) {
+			return null;
+		}
+		return [
+			'uid' => $user->getUID(),
+			'displayName' => $this->accountDisplayName($actor, $user),
+			'handle' => '@' . $actor->getPreferredUsername() . '@' . $this->configService->getSocialAddress(),
+		];
 	}
 
 	/**
@@ -721,6 +841,7 @@ class OAuthController extends Controller {
 		string $client_secret = '',
 		string $code = '',
 		string $code_verifier = '',
+		string $device_code = '',
 	): DataResponse {
 		if ($this->isAtprotoClient($client_id)) {
 			return $this->atprotoToken();
@@ -728,40 +849,60 @@ class OAuthController extends Controller {
 		try {
 			[$client_id, $client_secret] = $this->clientCredentials($client_id, $client_secret);
 			$client = $this->clientService->getFromClientId($client_id);
-			// no redirect_uri on the client_credentials grant (RFC 6749 §4.4.2)
-			$this->clientService->confirmData(
-				$client,
-				($grant_type === 'client_credentials')
-					? ['client_secret' => $client_secret]
-					: ['client_secret' => $client_secret, 'redirect_uri' => $redirect_uri]
-			);
+			if ($grant_type === 'urn:ietf:params:oauth:grant-type:device_code') {
+				if ($device_code === '') {
+					return new DataResponse(['error' => 'invalid_request', 'error_description' => 'missing device_code'], Http::STATUS_BAD_REQUEST);
+				}
+				if ($client_secret !== '') {
+					$this->clientService->confirmData($client, ['client_secret' => $client_secret]);
+				}
+				$authorization = $this->deviceAuthorization->poll($device_code, $client_id);
+				if (isset($authorization['error'])) {
+					return new DataResponse(['error' => $authorization['error']], Http::STATUS_BAD_REQUEST);
+				}
+				$account = $this->accountService->getActorFromUserId($authorization['user_id']);
+				$client->setAuthScopes($client->getScopesFromString($authorization['scopes']))
+					->setAuthAccount($account->getPreferredUsername())
+					->setAuthUserId($authorization['user_id'])
+					->setAuthRedirectUri(ClientService::REDIRECT_URI_OOB);
+				$this->clientService->authClient($client);
+				$client = $this->clientService->exchangeCode($client, $client->getAuthCode(), '', ClientService::REDIRECT_URI_OOB);
+			} else {
+				// no redirect_uri on the client_credentials grant (RFC 6749 §4.4.2)
+				$this->clientService->confirmData(
+					$client,
+					($grant_type === 'client_credentials')
+						? ['client_secret' => $client_secret]
+						: ['client_secret' => $client_secret, 'redirect_uri' => $redirect_uri]
+				);
 
-			// the error bodies carry RFC 6749 §5.2's names, which is what a
-			// client matches on, and say in words what was wrong
-			if ($grant_type === 'authorization_code') {
-				if ($code === '') {
+				// the error bodies carry RFC 6749 §5.2's names, which is what a
+				// client matches on, and say in words what was wrong
+				if ($grant_type === 'authorization_code') {
+					if ($code === '') {
+						return new DataResponse(
+							['error' => 'invalid_request', 'error_description' => 'missing code'],
+							Http::STATUS_BAD_REQUEST
+						);
+					}
+
+					// the code names the authorization, so what comes back is the
+					// account that granted it rather than whatever the app row
+					// last held -- and only against the redirect_uri it was sent to
+					$client = $this->clientService->exchangeCode($client, $code, $code_verifier, $redirect_uri);
+				} elseif ($grant_type === 'client_credentials') {
+					// a token for the app itself, bound to no account: what
+					// Mastodon's own apps take before anybody has signed in
+					$client = $this->clientService->issueAppToken($client);
+				} else {
 					return new DataResponse(
-						['error' => 'invalid_request', 'error_description' => 'missing code'],
+						[
+							'error' => 'unsupported_grant_type',
+							'error_description' => 'grant_type must be authorization_code, client_credentials or urn:ietf:params:oauth:grant-type:device_code',
+						],
 						Http::STATUS_BAD_REQUEST
 					);
 				}
-
-				// the code names the authorization, so what comes back is the
-				// account that granted it rather than whatever the app row
-				// last held -- and only against the redirect_uri it was sent to
-				$client = $this->clientService->exchangeCode($client, $code, $code_verifier, $redirect_uri);
-			} elseif ($grant_type === 'client_credentials') {
-				// a token for the app itself, bound to no account: what
-				// Mastodon's own apps take before anybody has signed in
-				$client = $this->clientService->issueAppToken($client);
-			} else {
-				return new DataResponse(
-					[
-						'error' => 'unsupported_grant_type',
-						'error_description' => 'grant_type must be authorization_code or client_credentials',
-					],
-					Http::STATUS_BAD_REQUEST
-				);
 			}
 
 			if ($client->getToken() === '') {
@@ -870,7 +1011,7 @@ class OAuthController extends Controller {
 	 * the discovery document.
 	 */
 	public const SCOPES = [
-		'read', 'write', 'follow',
+		'read', 'write', 'follow', 'push',
 		'read:accounts', 'read:blocks', 'read:bookmarks', 'read:collections',
 		'read:favourites', 'read:filters', 'read:follows', 'read:lists',
 		'read:mutes', 'read:notifications', 'read:search', 'read:statuses',
@@ -921,13 +1062,14 @@ class OAuthController extends Controller {
 		$metadata = [
 			'issuer' => $base . '/',
 			'authorization_endpoint' => $base . '/oauth/authorize',
+			'device_authorization_endpoint' => $base . '/oauth/device_authorization',
 			'token_endpoint' => $base . '/oauth/token',
 			'revocation_endpoint' => $base . '/oauth/revoke',
 			'userinfo_endpoint' => $base . '/oauth/userinfo',
 			'app_registration_endpoint' => $base . '/api/v1/apps',
 			'scopes_supported' => self::SCOPES,
 			'response_types_supported' => ['code'],
-			'grant_types_supported' => ['authorization_code', 'client_credentials'],
+			'grant_types_supported' => ['authorization_code', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code'],
 			'token_endpoint_auth_methods_supported' => ['client_secret_post', 'client_secret_basic'],
 			'code_challenge_methods_supported' => ClientService::CODE_CHALLENGE_METHODS,
 			'service_documentation' => self::REPOSITORY,
@@ -945,7 +1087,7 @@ class OAuthController extends Controller {
 			$atproto = $this->atprotoOAuth->metadata();
 			$metadata = array_merge($metadata, $atproto, [
 				'scopes_supported' => array_values(array_unique(array_merge(self::SCOPES, AuthorizationServer::SCOPES_LISTED))),
-				'grant_types_supported' => ['authorization_code', 'client_credentials', 'refresh_token'],
+				'grant_types_supported' => ['authorization_code', 'client_credentials', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
 				'token_endpoint_auth_methods_supported' => ['client_secret_post', 'client_secret_basic', 'none', 'private_key_jwt'],
 			]);
 		}

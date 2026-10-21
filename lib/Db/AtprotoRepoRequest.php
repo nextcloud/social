@@ -101,6 +101,24 @@ class AtprotoRepoRequest extends CoreRequestBuilder {
 		return (int)($row['n'] ?? 0);
 	}
 
+	/** The newest public post on an identity that still belongs to this PDS. */
+	public function latestActivePost(): ?StoredRecord {
+		$qb = $this->getQueryBuilder();
+		$qb->select('r.did', 'r.collection', 'r.rkey', 'r.cid', 'r.bytes', 'r.local_id', 'r.creation')
+			->from(self::TABLE_ATPROTO_RECORD, 'r')
+			->innerJoin('r', self::TABLE_ATPROTO_IDENTITY, 'i', $qb->expr()->eq('i.did', 'r.did'))
+			->where($qb->expr()->eq('r.collection', $qb->createNamedParameter('app.bsky.feed.post')))
+			->andWhere($qb->expr()->eq('i.state', $qb->createNamedParameter('active')))
+			->orderBy('r.creation', 'desc')
+			->addOrderBy('r.id', 'desc')
+			->setMaxResults(1);
+		$cursor = $qb->executeQuery();
+		$row = $cursor->fetch();
+		$cursor->closeCursor();
+
+		return $row === false ? null : $this->record($row);
+	}
+
 	/**
 	 * Moves the head, creating the row the first time. Last thing a commit
 	 * does: until it runs the previous commit is the repository.

@@ -115,7 +115,7 @@ class InboundMoveServiceTest extends TestCase {
 		$keys->method('serviceKey')->willReturn(PrivateKey::generate(Curve::P256));
 		$sessions = new SessionService(
 			$config, $this->createMock(IdentityService::class), $keys, $this->createMock(AppPasswordService::class),
-			$this->createMock(AtprotoClientRequest::class), $this->createMock(ActorsRequest::class), $this->createMock(IUserManager::class),
+			$this->createMock(AtprotoClientRequest::class), $this->createMock(ActorsRequest::class), $this->createMock(\OCP\Accounts\IAccountManager::class), $this->createMock(IUserManager::class),
 			$this->createMock(IThrottler::class), $time,
 		);
 		$this->serviceAuth = new ServiceAuth($time, $this->replay());
