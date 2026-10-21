@@ -468,7 +468,7 @@ class MastodonStreamingDaemon {
 		}
 	}
 
-	/** @param array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool, visibility: string, recipients: list<string>} $event */
+	/** @param array{id: int, status_nid: string, hashtags: list<string>, local: bool, media: bool, visibility: string, recipients: list<string>, audience_prim: ?string} $event */
 	private function deletedStatusMatchesStream(array $event, string $stream): bool {
 		return (!str_contains($stream, ':local') || $event['local'])
 			&& (!str_contains($stream, ':remote') || !$event['local'])
