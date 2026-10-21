@@ -73,14 +73,25 @@ class AppViewProxy {
 		$status = 0;
 		$contentType = '';
 		try {
-			$answer = $this->curlService->doRequest($verb === 'post' ? 'post' : 'get', $url, [
-				'headers' => $outgoing,
-				'body' => $verb === 'post' ? $body : '',
-				'timeout' => self::TIMEOUT,
-				'json_headers' => false,
-				'accept_errors' => true,
-				'allow_local_address' => !str_starts_with($endpoint, 'https://'),
-			], $contentType, $status);
+			$send = function (string $authorization) use ($verb, $url, $outgoing, $body, $endpoint, &$contentType, &$status): string {
+				$outgoing['Authorization'] = $authorization;
+
+				return $this->curlService->doRequest($verb === 'post' ? 'post' : 'get', $url, [
+					'headers' => $outgoing,
+					'body' => $verb === 'post' ? $body : '',
+					'timeout' => self::TIMEOUT,
+					'json_headers' => false,
+					'accept_errors' => true,
+					'allow_local_address' => !str_starts_with($endpoint, 'https://'),
+				], $contentType, $status);
+			};
+			$answer = $send('Bearer ' . $token);
+			$decoded = json_decode($answer, true);
+			if ($status === 401 && str_ends_with($audience, '#bsky_appview') && ($decoded['error'] ?? '') === 'BadJwtAudience') {
+				$legacyAudience = substr($audience, 0, -strlen('#bsky_appview'));
+				$legacyToken = $this->serviceAuth->token($this->identities->signingKey($session->identity), $session->identity->did, $legacyAudience, $method);
+				$answer = $send('Bearer ' . $legacyToken);
+			}
 		} catch (Throwable $e) {
 			$this->logger->notice('AppView not reached through the proxy', ['method' => $method, 'exception' => $e]);
 

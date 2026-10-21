@@ -82,6 +82,25 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertSame($email, $session['email']);
 		$this->assertFalse($session['emailConfirmed'], 'an address without Nextcloud verification is not reported as verified');
 
+		$profileDid = $this->network->createUser('appprofile' . bin2hex(random_bytes(3)));
+		$profileWords = ['App profile post one ' . bin2hex(random_bytes(3)), 'App profile post two ' . bin2hex(random_bytes(3))];
+		foreach ($profileWords as $profileWord) {
+			$this->network->postText($profileWord);
+		}
+		$this->assertNotNull($this->network->await(function () use ($profileDid, $profileWords): ?bool {
+			$profile = $this->network->profile($profileDid);
+			$texts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $this->network->authorFeed($profileDid));
+
+			return isset($profile['did']) && count(array_intersect($profileWords, $texts)) === count($profileWords) ? true : null;
+		}), 'the profile and multiple posts are indexed before the signed-in app reads them');
+		[$status, $profile] = $app->query('app.bsky.actor.getProfile', ['actor' => $profileDid]);
+		$this->assertSame(200, $status, json_encode($profile));
+		$this->assertSame($profileDid, $profile['did']);
+		[$status, $authorFeed] = $app->query('app.bsky.feed.getAuthorFeed', ['actor' => $profileDid, 'limit' => 10, 'filter' => 'posts_with_replies']);
+		$this->assertSame(200, $status, json_encode($authorFeed));
+		$feedTexts = array_map(static fn (array $item): string => (string)($item['post']['record']['text'] ?? ''), $authorFeed['feed'] ?? []);
+		$this->assertEqualsCanonicalizing($profileWords, array_values(array_intersect($profileWords, $feedTexts)), 'the signed-in app reads multiple posts through its PDS');
+
 		// the AppView answers through this server, as alice
 		[$status, $timeline] = $this->network->await(function () use ($app): ?array {
 			$answer = $app->query('app.bsky.feed.getTimeline', ['limit' => 5]);

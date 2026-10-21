@@ -112,6 +112,32 @@ class AppViewProxyTest extends TestCase {
 		$this->assertStringContainsString('did:plc:alice', $answer->bytes);
 	}
 
+	public function testAppViewRejectingTheServiceFragmentIsRetriedWithItsBareDid(): void {
+		$audiences = [];
+		$this->curl->expects($this->exactly(2))->method('doRequest')->willReturnCallback(static function (string $method, string $url, array $options, &$contentType, &$status) use (&$audiences): string {
+			$payload = explode('.', substr($options['headers']['Authorization'], 7))[1];
+			$claims = json_decode(Encoding::base64UrlDecode($payload), true);
+			$audiences[] = $claims['aud'];
+			$contentType = 'application/json';
+
+			if (count($audiences) === 1) {
+				$status = 401;
+
+				return '{"error":"BadJwtAudience","message":"jwt audience does not match service did"}';
+			}
+
+			$status = 200;
+
+			return '{"feed":[]}';
+		});
+
+		$answer = $this->proxy->forward($this->session, 'app.bsky.feed.getTimeline', 'get', 'limit=5', '', []);
+
+		$this->assertSame(['did:web:api.bsky.app#bsky_appview', 'did:web:api.bsky.app'], $audiences);
+		$this->assertSame(200, $answer->status);
+		$this->assertSame('{"feed":[]}', $answer->bytes);
+	}
+
 	public function testDirectMessagesGoToTheChatServiceSignedForIt(): void {
 		$this->curl->expects($this->once())->method('doRequest')->with('post', 'https://api.bsky.chat/xrpc/chat.bsky.convo.sendMessage', $this->callback(function (array $options): bool {
 			$claims = json_decode(Encoding::base64UrlDecode(explode('.', substr($options['headers']['Authorization'], 7))[1]), true);

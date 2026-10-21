@@ -621,11 +621,13 @@ URL; the Social app landing page is not a privacy policy.
 
 **Proxied to the AppView** with a service-auth token for the calling user
 (`Authorization: Bearer <JWT signed by the user's signing key, aud
-did:web:api.bsky.app>`): everything under `app.bsky.*`; `chat.bsky.*`
-goes to Bluesky's chat service (`did:web:api.bsky.chat`) the same way
-(D15). The proxy is `AppViewClient`, the same
-guarded HTTP client as every outbound request (`CurlService`), with the
-response passed through unchanged.
+did:web:api.bsky.app#bsky_appview>`): everything under `app.bsky.*`;
+`chat.bsky.*` goes to Bluesky's chat service
+(`did:web:api.bsky.chat#bsky_chat`) the same way (D15). If an AppView
+rejects the service-fragment audience with `401 BadJwtAudience`, both the
+local reader and PDS proxy retry once with the bare service DID, for deployed
+AppViews that still validate only the legacy audience. Other refusals pass
+through unchanged.
 
 **Not served**: `com.atproto.admin.*`, `com.atproto.temp.*`,
 `tools.ozone.*`, `com.atproto.server.createInviteCode*`, `requestAccountDelete`
