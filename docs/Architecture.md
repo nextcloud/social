@@ -479,7 +479,11 @@ from the AppView's opaque pagination cursor. While walking a backlog, the
 existing cursor column holds JSON with `since` (the previous committed
 timestamp), `newest` (the newest timestamp seen in this walk) and `page` (the
 next AppView cursor). Only reaching `since` or the end commits `newest` and
-returns the column to its legacy timestamp format. No schema change is needed.
+returns the column to its legacy timestamp format. AppView timestamps are not
+unique: an event exactly at the committed timestamp is still read, and only
+a strictly older event ends the walk. If equal-time events span pages, the
+opaque page cursor carries the walk across them. Re-reading an event at the
+boundary is safe because imports are idempotent. No schema change is needed.
 Empty intermediate pages still continue, while malformed responses, repeated
 cursors and failed reads retain the existing checkpoint and use failure
 backoff. A pending walk stays on the ordinary two-minute interval even when
@@ -2054,13 +2058,15 @@ response keeps the local bookmark order and pagination cursor. A failed group
 leaves its entries as `notFoundPost` placeholders and does not prevent the
 remaining groups from being read.
 
-`Atproto\Publisher\BlueskyThreadMutes` mirrors a Bluesky app's accepted
-`app.bsky.graph.muteThread` or `unmuteThread` into the signed-in account's
-conversation state. It resolves the AT URI through the local repository
-mapping, so a post written here and mirrored to Bluesky maps back to its
-Social post id, then mutes the local thread root. This suppresses
-notifications while leaving the posts visible. An uncached root remains
-muted at Bluesky but has no local thread state to update.
+`Atproto\Publisher\BlueskyThreadMutes` keeps local conversation state and
+Bluesky's private thread-notification preference in step. An accepted mute or
+unmute from a signed-in Bluesky app resolves its AT URI with
+`LocalRecordResolver::postId()`, mapping this instance's mirrored record back
+to the Social post id before updating the local conversation root.
+`ActionService` sends the same operation to Bluesky when a person changes the
+mute in Social; `PostRefs::strongRef()` finds the root's AT URI even when the
+stored post id is a local Social id. Posts remain visible while notifications
+are suppressed. An uncached root has no local thread state to update.
 
 ### Direct messages with Bluesky
 

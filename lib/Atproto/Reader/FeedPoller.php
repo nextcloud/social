@@ -120,7 +120,7 @@ class FeedPoller {
 					continue;
 				}
 				$seen = self::timeOf($item);
-				if ($checkpoint->since !== '' && $seen !== '' && $seen <= $checkpoint->since) {
+				if ($checkpoint->since !== '' && $seen !== '' && $seen < $checkpoint->since) {
 					$reached = true;
 					break;
 				}
