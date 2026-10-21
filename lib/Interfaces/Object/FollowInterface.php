@@ -293,7 +293,15 @@ class FollowInterface extends AbstractActivityPubInterface implements IActivityP
 			// what the sender wrote, which is not where this is recorded.
 			$stored = $this->storedFollow($item);
 			if ($stored !== null) {
-				$this->followsRequest->delete($stored);
+				$deleted = $this->followsRequest->delete($stored);
+				$this->miscService->log(
+					'Processed Undo for Follow id=' . $item->getId()
+					. ' actor=' . $item->getActorId()
+					. ' object=' . $item->getObjectId()
+					. ' storedFollowId=' . $stored->getId()
+					. ' deletedRows=' . $deleted,
+					1
+				);
 				if ($stored->isAccepted()) {
 					$this->accountService->bumpActorCount(
 						$stored->getObjectId(), 'count_followers', -1

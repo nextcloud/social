@@ -854,11 +854,11 @@ class FollowsRequest extends FollowsRequestBuilder {
 	/**
 	 * @param Follow $follow
 	 */
-	public function delete(Follow $follow) {
+	public function delete(Follow $follow): int {
 		$qb = $this->getFollowsDeleteSql();
 		$this->limitToIdPrimString($qb, $follow->getId());
 
-		$qb->executeStatement();
+		return $qb->executeStatement();
 	}
 
 	/**
