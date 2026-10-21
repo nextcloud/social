@@ -11,6 +11,7 @@ namespace OCA\Social\Tests\Interop;
 
 use OCA\Social\Db\FollowsRequest;
 use OCA\Social\Exceptions\FollowNotFoundException;
+use OCA\Social\Service\CacheActorService;
 use OCP\Server;
 use PHPUnit\Framework\TestCase;
 
@@ -72,12 +73,16 @@ class MisskeyTest extends TestCase {
 		$ended = $this->here->awaitRelationship($this->interopHere, 'followed_by', false);
 		if (!$ended) {
 			$storedFollow = null;
-			try {
-				$follow = Server::get(FollowsRequest::class)->getByPersons(
-					$this->interopHere, $this->localActorId(self::USER)
-				);
-				$storedFollow = ['id' => $follow->getId(), 'accepted' => $follow->isAccepted()];
-			} catch (FollowNotFoundException $e) {
+			$remoteActors = Server::get(CacheActorService::class)->getFromNids([(int)$this->interopHere]);
+			$remoteActor = reset($remoteActors);
+			if ($remoteActor !== false) {
+				try {
+					$follow = Server::get(FollowsRequest::class)->getByPersons(
+						$remoteActor->getId(), $this->localActorId(self::USER)
+					);
+					$storedFollow = ['id' => $follow->getId(), 'accepted' => $follow->isAccepted()];
+				} catch (FollowNotFoundException $e) {
+				}
 			}
 
 			$this->fail(
