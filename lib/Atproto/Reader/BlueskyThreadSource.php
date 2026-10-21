@@ -63,7 +63,7 @@ class BlueskyThreadSource implements ThreadSource {
 		return $this->fillWithTimeout($post, $budget, AppViewClient::INTERACTIVE_TIMEOUT);
 	}
 
-	/** Whether the last interactive read reached Bluesky's reply-depth limit. */
+	/** Whether the last interactive read needs a background fill for omitted or depth-limited replies. */
 	public function hasDeepRepliesPending(): bool {
 		return $this->deepRepliesPending;
 	}
@@ -102,7 +102,7 @@ class BlueskyThreadSource implements ThreadSource {
 					$knownReplies[] = $replyUri;
 				}
 			}
-			$stored += $this->fillMissingDirectReplies($uri, $headers, $timeout, $budget - $stored, $knownReplies);
+			$stored += $this->fillMissingDirectReplies($uri, $headers, $timeout, $budget - $stored, $knownReplies, (int)($thread['post']['replyCount'] ?? 0));
 		}
 
 		// The public AppView caps getPostThread's reply depth at ten even when
@@ -139,14 +139,14 @@ class BlueskyThreadSource implements ThreadSource {
 				}
 			}
 		} elseif ($timeout !== null) {
-			$this->deepRepliesPending = self::continuationsOf($thread, self::DEPTH) !== [] || $this->missingReplyContinuations !== [];
+			$this->deepRepliesPending = $this->deepRepliesPending || self::continuationsOf($thread, self::DEPTH) !== [] || $this->missingReplyContinuations !== [];
 		}
 
 		return $stored;
 	}
 
 	/** The stable thread endpoint can omit direct replies; the first-party AppView's V2 view can name the rest. */
-	private function fillMissingDirectReplies(string $uri, array $headers, ?int $timeout, int $budget, array $knownReplies): int {
+	private function fillMissingDirectReplies(string $uri, array $headers, ?int $timeout, int $budget, array $knownReplies, int $expectedReplies): int {
 		try {
 			$params = [
 				'anchor' => $uri,
@@ -160,16 +160,23 @@ class BlueskyThreadSource implements ThreadSource {
 				: $this->appView->query('app.bsky.unspecced.getPostThreadV2', $params, $headers, $timeout);
 			$items = $answer['thread'] ?? null;
 			if (!is_array($items)) {
+				$this->deepRepliesPending = $timeout !== null;
+
 				return 0;
 			}
 		} catch (Throwable $e) {
 			// The V2 thread view is still unspecced and is absent on some AppViews.
 			$this->logger->debug('Bluesky V2 thread view not available; keeping the standard thread response', ['uri' => $uri, 'exception' => $e]);
+			// The visible response has already told us that the stable endpoint
+			// omitted replies. Ask the queued worker to try again there instead
+			// of silently treating the partial conversation as complete.
+			$this->deepRepliesPending = $timeout !== null;
 
 			return 0;
 		}
 
 		$views = [];
+		$directReplies = $knownReplies;
 		foreach ($items as $item) {
 			if (!is_array($item) || (int)($item['depth'] ?? -1) < 0) {
 				continue;
@@ -180,12 +187,19 @@ class BlueskyThreadSource implements ThreadSource {
 			}
 			$post = $value['post'];
 			$views[] = [(int)$item['depth'], $post];
+			if ((int)$item['depth'] === 1 && is_string($post['uri'] ?? null)) {
+				$directReplies[] = $post['uri'];
+			}
 			if ((int)($item['depth'] ?? -1) === 1 && (int)($post['replyCount'] ?? 0) > 0 && is_string($post['uri'] ?? null)
 				&& !in_array($post['uri'], $knownReplies, true)) {
 				$this->missingReplyContinuations[] = $post['uri'];
 			}
 		}
 		$this->missingReplyContinuations = array_values(array_unique($this->missingReplyContinuations));
+		$this->deepRepliesPending = $timeout !== null && (
+			($answer['hasOtherReplies'] ?? false) === true
+			|| ($expectedReplies > 0 && count(array_unique($directReplies)) < $expectedReplies)
+		);
 		usort($views, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
 		$stored = 0;
 		foreach ($views as [, $view]) {

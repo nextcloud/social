@@ -196,6 +196,36 @@ class BlueskyThreadSourceTest extends TestCase {
 		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
 
 		$this->assertSame(2, $source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10));
+		$this->assertTrue($source->hasDeepRepliesPending(), 'an unavailable V2 read must be retried in the background');
+	}
+
+	public function testIncompleteV2ReplyPageRequestsABackgroundFill(): void {
+		$thread = self::node('at://p/2', [self::node('at://r/1')]);
+		$thread['post']['replyCount'] = 3;
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://p/2', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->expects($this->exactly(2))->method('query')->willReturnCallback(
+			static function (string $method) use ($thread): array {
+				if ($method === 'app.bsky.feed.getPostThread') {
+					return ['thread' => $thread];
+				}
+
+				return ['thread' => [
+					['depth' => 0, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://p/2']]],
+					['depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://r/1']]],
+					['depth' => 1, 'value' => ['$type' => 'app.bsky.unspecced.defs#threadItemPost', 'post' => ['uri' => 'at://r/2']]],
+				], 'hasOtherReplies' => false];
+			}
+		);
+		$store = $this->createMock(PostStore::class);
+		$source = new BlueskyThreadSource($config, $appView, $refs, $store, $this->createMock(LabelerService::class), new NullLogger());
+
+		$source->fillVisible((new Note())->setId('https://social.test/@alice/2'), 10);
+
+		$this->assertTrue($source->hasDeepRepliesPending(), 'the V2 response did not contain all replies named by the stable view');
 	}
 
 	public function testAResponseWithoutARecognizedThreadViewIsAReadFailure(): void {
