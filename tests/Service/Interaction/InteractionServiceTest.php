@@ -88,6 +88,53 @@ class InteractionServiceTest extends TestCase {
 		$this->assertSame([], array_map(static fn (Person $p): string => $p->getId(), array_slice($service->reactedBy($post, 'Announce', 10)['accounts'], 1)), 'each kind its own list');
 	}
 
+	public function testVisibleReactionsShareOneTimeoutBudgetAcrossFediverseAndBluesky(): void {
+		$post = (new Note())->setId('https://social.test/@alice/dual-published');
+		$streams = $this->createMock(StreamRequest::class);
+		$streams->method('getStreamById')->willReturn($post);
+		$actions = $this->createMock(ActionService::class);
+		$actions->method('reactedBy')->willReturn([]);
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->never())->method('fillInteractions');
+		$fediverse = $this->createMock(ActivityPubInteractionSource::class);
+		$fediverse->method('supports')->willReturn(true);
+		$fediverse->expects($this->once())->method('actors')->willReturnCallback(
+			static function (Note $post, string $type, int $limit, ?int $timeout): array {
+				usleep(1_200_000);
+
+				return [];
+			},
+		);
+		$bluesky = $this->createMock(BlueskyInteractionSource::class);
+		$bluesky->method('supports')->willReturn(true);
+		$bluesky->expects($this->once())->method('actors')->willReturnCallback(
+			function (Note $post, string $type, int $limit, ?int $timeout): array {
+				$this->assertLessThan(3, $timeout, 'the second protocol receives only the remaining request budget');
+				$this->assertGreaterThan(0, $timeout);
+
+				return [];
+			},
+		);
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturnMap([[ActivityPubInteractionSource::class, $fediverse], [BlueskyInteractionSource::class, $bluesky]]);
+		$service = new InteractionService(
+			$actions,
+			$this->createMock(CacheActorService::class),
+			$streams,
+			$durableCache,
+			$queue,
+			new NullLogger(),
+			$container,
+		);
+
+		$this->assertFalse($service->reactedBy($post, 'Like', 10)['filling']);
+	}
+
 	public function testMissingListedActorsKeepTheAvatarListFillingUntilTheirProfilesAreCached(): void {
 		$post = (new Note())->setId('https://remote.example/notes/1');
 		$streams = $this->createMock(StreamRequest::class);

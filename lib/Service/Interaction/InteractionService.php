@@ -136,17 +136,29 @@ class InteractionService {
 			if ($visible !== null) {
 				return $visible === self::VISIBLE_PENDING;
 			}
+			// A post published to both networks can have more than one source.
+			// Bound all of their visible reads together so each protocol cannot
+			// independently consume the full interactive timeout.
+			$deadline = hrtime(true) + (AppViewClient::INTERACTIVE_TIMEOUT * 1_000_000_000);
 			$supported = false;
 			$ids = [];
+			$firstSource = true;
 			foreach ($this->sources() as $source) {
 				if (!$source->supports($post)) {
 					continue;
 				}
 				$supported = true;
+				$timeout = $firstSource
+					? AppViewClient::INTERACTIVE_TIMEOUT
+					: (int)floor(($deadline - hrtime(true)) / 1_000_000_000);
+				if ($timeout < 1) {
+					throw new \RuntimeException('visible interaction read exceeded its shared time budget');
+				}
+				$firstSource = false;
 				if ($type === self::QUOTES) {
-					$source->quotes($post, self::LIMIT, AppViewClient::INTERACTIVE_TIMEOUT);
+					$source->quotes($post, self::LIMIT, $timeout);
 				} else {
-					$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT, AppViewClient::INTERACTIVE_TIMEOUT));
+					$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT, $timeout));
 				}
 			}
 			if (!$supported) {
