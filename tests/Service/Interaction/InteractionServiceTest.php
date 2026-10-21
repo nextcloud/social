@@ -156,4 +156,48 @@ class InteractionServiceTest extends TestCase {
 
 		$this->assertSame(['accounts' => [], 'filling' => true], $service->reactedBy($post, 'Like', 12));
 	}
+
+	public function testFailedVisibleReadWaitsForTheQueuedRefreshAndThenUsesItsResult(): void {
+		$post = (new Note())->setId('https://remote.example/notes/1');
+		$actorId = 'https://remote.example/users/alice';
+		$factory = $this->createStub(ICacheFactory::class);
+		$factory->method('isAvailable')->willReturn(false);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(1790000000);
+		$durableCache = new DurableCache($factory, new InMemoryDurableCacheRequest(), $time);
+		$streams = $this->createMock(StreamRequest::class);
+		$streams->method('getStreamById')->with($post->getId())->willReturn($post);
+		$actions = $this->createMock(ActionService::class);
+		$actions->method('reactedBy')->willReturn([]);
+		$cacheActors = $this->createMock(CacheActorService::class);
+		$cacheActors->method('getCachedFromIds')->willReturnCallback(static fn (array $ids): array => array_combine($ids, array_map(static fn (string $id): Person => self::person($id), $ids)));
+		$queue = $this->createMock(RemoteFetchQueue::class);
+		$queue->expects($this->once())->method('fillInteractions')->with($post, 'Like')->willReturn(true);
+		$bluesky = $this->createMock(BlueskyInteractionSource::class);
+		$bluesky->method('supports')->willReturn(true);
+		$bluesky->expects($this->exactly(2))->method('actors')->willReturnCallback(static function () use ($actorId): array {
+			static $calls = 0;
+			if (++$calls === 1) {
+				throw new \RuntimeException('AppView unavailable');
+			}
+
+			return [$actorId];
+		});
+		$container = $this->createMock(ContainerInterface::class);
+		$container->method('get')->willReturnMap([
+			[ActivityPubInteractionSource::class, $this->createStub(ActivityPubInteractionSource::class)],
+			[BlueskyInteractionSource::class, $bluesky],
+		]);
+		$service = new InteractionService($actions, $cacheActors, $streams, $durableCache, $queue, new NullLogger(), $container);
+
+		$waiting = $service->reactedBy($post, 'Like', 12);
+		$this->assertSame([], $waiting['accounts']);
+		$this->assertTrue($waiting['filling']);
+		$this->assertTrue($service->reactedBy($post, 'Like', 12)['filling'], 'polling does not repeat the failed AppView request');
+
+		$service->fill($post->getId(), 'Like');
+		$ready = $service->reactedBy($post, 'Like', 12);
+		$this->assertSame([$actorId], array_map(static fn (Person $person): string => $person->getId(), $ready['accounts']));
+		$this->assertFalse($ready['filling'], 'the background result clears the pending state');
+	}
 }

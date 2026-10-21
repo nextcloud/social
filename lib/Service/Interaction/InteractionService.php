@@ -43,6 +43,10 @@ class InteractionService {
 	/** A reaction list is freshly read for five seconds after a visible request. */
 	private const VISIBLE = 'social.reactors.visible';
 	private const VISIBLE_INTERVAL = 5;
+	/** Don't repeat a failed interactive request while its queued fallback runs. */
+	private const VISIBLE_RETRY_INTERVAL = 15;
+	private const VISIBLE_DONE = 'done';
+	private const VISIBLE_PENDING = 'pending';
 	private const VISIBLE_LOCK = 'social-visible-reactions-';
 	/** the most a network is asked for */
 	public const LIMIT = 80;
@@ -108,8 +112,9 @@ class InteractionService {
 			return null;
 		}
 		$key = self::key($post, $type);
-		if ($this->durableCache->getShared(self::VISIBLE, $key) !== null) {
-			return false;
+		$visible = $this->durableCache->getShared(self::VISIBLE, $key);
+		if ($visible !== null) {
+			return $visible === self::VISIBLE_PENDING;
 		}
 
 		$lock = self::VISIBLE_LOCK . $key;
@@ -127,8 +132,9 @@ class InteractionService {
 		try {
 			// Another request may have finished between the first cache check and
 			// acquiring the lock.
-			if ($this->durableCache->getShared(self::VISIBLE, $key) !== null) {
-				return false;
+			$visible = $this->durableCache->getShared(self::VISIBLE, $key);
+			if ($visible !== null) {
+				return $visible === self::VISIBLE_PENDING;
 			}
 			$supported = false;
 			$ids = [];
@@ -149,12 +155,13 @@ class InteractionService {
 			if ($type !== self::QUOTES) {
 				$this->durableCache->setShared(self::CACHE, $key, array_values(array_unique($ids)), self::KEPT);
 			}
-			$this->durableCache->setShared(self::VISIBLE, $key, true, self::VISIBLE_INTERVAL);
+			$this->durableCache->setShared(self::VISIBLE, $key, self::VISIBLE_DONE, self::VISIBLE_INTERVAL);
 
 			return false;
 		} catch (Throwable $e) {
 			$this->logger->info('Visible reactions not read; queued for retry', ['post' => $post->getId(), 'type' => $type, 'exception' => $e]);
 			$this->queue->fillInteractions($post, $type);
+			$this->durableCache->setShared(self::VISIBLE, $key, self::VISIBLE_PENDING, self::VISIBLE_RETRY_INTERVAL);
 
 			return true;
 		} finally {
@@ -186,10 +193,13 @@ class InteractionService {
 			return;
 		}
 		$ids = [];
+		$supported = false;
+		$failed = false;
 		foreach ($this->sources() as $source) {
 			if (!$source->supports($post)) {
 				continue;
 			}
+			$supported = true;
 			try {
 				if ($type === self::QUOTES) {
 					$source->quotes($post, self::LIMIT);
@@ -197,11 +207,20 @@ class InteractionService {
 					$ids = array_merge($ids, $source->actors($post, $type, self::LIMIT));
 				}
 			} catch (Throwable $e) {
+				$failed = true;
 				$this->logger->info('Reactions not read', ['post' => $postId, 'source' => $source::class, 'exception' => $e]);
 			}
 		}
 		if ($type !== self::QUOTES) {
 			$this->durableCache->setShared(self::CACHE, self::key($post, $type), array_values(array_unique($ids)), self::KEPT);
+		}
+		if ($supported) {
+			$this->durableCache->setShared(
+				self::VISIBLE,
+				self::key($post, $type),
+				$failed ? self::VISIBLE_PENDING : self::VISIBLE_DONE,
+				$failed ? self::VISIBLE_RETRY_INTERVAL : self::VISIBLE_INTERVAL,
+			);
 		}
 	}
 
