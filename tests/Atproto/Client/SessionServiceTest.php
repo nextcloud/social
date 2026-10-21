@@ -24,6 +24,9 @@ use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
+use OCP\Accounts\IAccount;
+use OCP\Accounts\IAccountManager;
+use OCP\Accounts\IAccountProperty;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IUser;
 use OCP\IUserManager;
@@ -45,6 +48,7 @@ class SessionServiceTest extends TestCase {
 	private int $now = 1760000000;
 	private Identity $identity;
 	private PrivateKey $serviceKey;
+	private string $emailVerification = IAccountManager::VERIFIED;
 
 	protected function setUp(): void {
 		$this->request = (new \ReflectionClass(InMemoryClientRequest::class))->newInstanceWithoutConstructor();
@@ -74,10 +78,17 @@ class SessionServiceTest extends TestCase {
 		$user->method('getEMailAddress')->willReturn('alice@example.org');
 		$users->method('getByEmail')->willReturnCallback(static fn (string $email): array => $email === 'alice@example.org' ? [$user] : []);
 		$users->method('get')->willReturnCallback(static fn (string $uid): ?IUser => $uid === 'alice' ? $user : null);
+		$emailProperty = $this->createMock(IAccountProperty::class);
+		$emailProperty->method('getValue')->willReturn('alice@example.org');
+		$emailProperty->method('getVerified')->willReturnCallback(fn (): string => $this->emailVerification);
+		$account = $this->createMock(IAccount::class);
+		$account->method('getProperty')->with(IAccountManager::PROPERTY_EMAIL)->willReturn($emailProperty);
+		$accounts = $this->createMock(IAccountManager::class);
+		$accounts->method('getAccount')->with($user)->willReturn($account);
 		$this->throttler = $this->createMock(IThrottler::class);
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturnCallback(fn (): int => $this->now);
-		$this->sessions = new SessionService($config, $identities, $keys, $this->appPasswords, $this->request, $actors, $users, $this->throttler, $time);
+		$this->sessions = new SessionService($config, $identities, $keys, $this->appPasswords, $this->request, $actors, $accounts, $users, $this->throttler, $time);
 	}
 
 	public function testOnlyAPrivilegedAppPasswordReachesTheDirectMessages(): void {
@@ -147,6 +158,15 @@ class SessionServiceTest extends TestCase {
 		$this->assertSame(self::DID, $described['did']);
 		$this->assertSame(['email' => 'alice@example.org', 'emailConfirmed' => true], array_intersect_key($described, ['email' => 1, 'emailConfirmed' => 1]), 'Bluesky apps offer video to a confirmed address');
 		$this->assertNull($this->sessions->authenticate(''), 'no header, nobody');
+	}
+
+	public function testAnUnverifiedNextcloudEmailIsNotReportedAsConfirmed(): void {
+		$this->emailVerification = IAccountManager::NOT_VERIFIED;
+		$password = $this->appPasswords->create('alice', 'phone')['password'];
+		$session = $this->sessions->create('alice.social.test', $password, '203.0.113.5');
+
+		$this->assertSame('alice@example.org', $session['email']);
+		$this->assertFalse($session['emailConfirmed']);
 	}
 
 	public function testAWrongPasswordCountsAgainstTheCallersAddress(): void {
