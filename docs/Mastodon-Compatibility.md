@@ -290,6 +290,10 @@ Unlisted and followers-only deletion events reach only authorized home and list 
 list streams and `conversation` for accessible direct-message edits.
 User streams emit `filters_changed` without a payload when the account's
 filters change; active connections check for changes every five seconds.
+They also emit `announcement`, `announcement.reaction` and
+`announcement.delete` as instance notices appear, receive reactions, expire
+or are removed. Scalar event data, including deleted ids, is sent without JSON
+string quotes as Mastodon expects.
 `GET /api/v1/streaming/health` is answered by the stream daemon. Web Push is
 implemented at `/api/v1/push/subscription`; the instance
 publishes the same stable public VAPID key in `configuration.vapid.public_key`

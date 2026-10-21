@@ -498,6 +498,11 @@ visibility and notification policy, and emits Mastodon's event payloads.
 Every five seconds it fingerprints each subscribed account's filters and
 emits `filters_changed` on that account's user streams when the set changes;
 the event carries no payload, as Mastodon specifies.
+It also compares the account's active instance announcements every five
+seconds and emits `announcement`, `announcement.reaction` and
+`announcement.delete` when a notice appears, its reaction counts change, or
+it expires or is removed. String event payloads such as deleted ids are sent
+as raw text rather than JSON-quoted strings.
 For edits to public posts it reads the append-only status-revision cursor and
 emits one `status.update` event per changed post on matching public and
 hashtag subscriptions. Home and owned-list streams recheck membership in the

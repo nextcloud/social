@@ -40,6 +40,7 @@ class MastodonStreamingDaemon {
 	private const POLL_INTERVAL = 1;
 	private const PING_INTERVAL = 20;
 	private const FILTER_POLL_INTERVAL = 5;
+	private const ANNOUNCEMENT_POLL_INTERVAL = 5;
 	private const BATCH = 50;
 	private const MAX_HASHTAG_SUBSCRIPTIONS = 20;
 	private const MAX_LIST_SUBSCRIPTIONS = 20;
@@ -55,6 +56,7 @@ class MastodonStreamingDaemon {
 		private StatusDeletionEventsRequest $statusDeletionEventsRequest,
 		private FollowsRequest $followsRequest,
 		private FiltersRequest $filtersRequest,
+		private AnnouncementService $announcements,
 		private StreamService $streamService,
 		private ConversationService $conversationService,
 		private ListsRequest $listsRequest,
@@ -180,10 +182,14 @@ class MastodonStreamingDaemon {
 				'directSince' => $this->streamRequest->newestNidFor([md5($viewer->getId())], 'dm'),
 				'revisionSince' => $this->statusRevisionsRequest->newestId(),
 				'deleteSince' => $this->statusDeletionEventsRequest->newestId(),
-				'filterFingerprint' => in_array($stream, ['user', 'user:notification'], true)
+				'filterFingerprint' => $stream === 'user'
 					? self::filterFingerprint($this->filtersRequest->getByActor($viewer->getId()))
 					: '',
 				'filterCheckedAt' => $this->time->getTime(),
+				'announcementState' => $stream === 'user'
+					? $this->announcementState($viewer)
+					: null,
+				'announcementCheckedAt' => $this->time->getTime(),
 				'lastPoll' => 0,
 				'lastPing' => $this->time->getTime(),
 			];
@@ -378,6 +384,7 @@ class MastodonStreamingDaemon {
 		$this->streamService->setViewer($viewer);
 		$subscriptions = $subscriber->context['subscriptions'] ?? [];
 		$this->sendFilterChanges($server, $subscriber, $viewer, $subscriptions, $now);
+		$this->sendAnnouncementChanges($server, $subscriber, $viewer, $subscriptions, $now);
 		if (isset($subscriptions['user'])) {
 			$this->sendStatuses($server, $subscriber, $viewer);
 		}
@@ -441,6 +448,82 @@ class MastodonStreamingDaemon {
 			static fn (Filter $filter): array => $filter->jsonSerialize(),
 			$filters
 		)));
+	}
+
+	/** Emits Mastodon's instance-announcement events on user streams. */
+	private function sendAnnouncementChanges(WebSocketServer $server, Subscriber $subscriber, Person $viewer, array $subscriptions, int $now): void {
+		$streams = array_values(array_filter(
+			['user'],
+			static fn (string $stream): bool => isset($subscriptions[$stream])
+		));
+		if ($streams === [] || $now - (int)($subscriber->context['announcementCheckedAt'] ?? 0) < self::ANNOUNCEMENT_POLL_INTERVAL) {
+			return;
+		}
+
+		$subscriber->context['announcementCheckedAt'] = $now;
+		$current = $this->announcementState($viewer);
+		$previous = $subscriber->context['announcementState'] ?? null;
+		$subscriber->context['announcementState'] = $current;
+		if (!is_array($previous)) {
+			return;
+		}
+
+		foreach ($current as $id => $announcement) {
+			if (!isset($previous[$id])) {
+				$this->sendToStreams($server, $subscriber, $streams, 'announcement', $announcement);
+				continue;
+			}
+			$before = self::reactionCounts($previous[$id]);
+			$after = self::reactionCounts($announcement);
+			foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $name) {
+				if (($before[$name] ?? 0) === ($after[$name] ?? 0)) {
+					continue;
+				}
+				$this->sendToStreams($server, $subscriber, $streams, 'announcement.reaction', [
+					'name' => $name,
+					'count' => $after[$name] ?? 0,
+					'announcement_id' => (string)$id,
+				]);
+			}
+		}
+		foreach ($previous as $id => $_announcement) {
+			if (!isset($current[$id])) {
+				$this->sendToStreams($server, $subscriber, $streams, 'announcement.delete', (string)$id);
+			}
+		}
+	}
+
+	/** @return array<string, array<string, mixed>> keyed by announcement id */
+	private function announcementState(Person $viewer): array {
+		$state = [];
+		foreach ($this->announcements->active($viewer->getId(), $this->time->getTime()) as $announcement) {
+			$state[(string)$announcement->getId()] = $announcement->jsonSerialize();
+		}
+
+		return $state;
+	}
+
+	/** @param array<string, mixed> $announcement @return array<string, int> reaction counts keyed by emoji */
+	private static function reactionCounts(array $announcement): array {
+		$counts = [];
+		foreach (is_array($announcement['reactions'] ?? null) ? $announcement['reactions'] : [] as $reaction) {
+			if (is_array($reaction) && is_string($reaction['name'] ?? null) && is_int($reaction['count'] ?? null)) {
+				$counts[$reaction['name']] = $reaction['count'];
+			}
+		}
+
+		return $counts;
+	}
+
+	/**
+	 * Sends one event to each active stream.
+	 *
+	 * @param string[] $streams
+	 */
+	private function sendToStreams(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array|string $payload): void {
+		foreach ($streams as $stream) {
+			$this->send($server, $subscriber, [$stream], $event, $payload);
+		}
 	}
 
 	/** Sends deleted status ids only to streams that could have received the status. */
@@ -881,7 +964,9 @@ class MastodonStreamingDaemon {
 
 	private function send(WebSocketServer $server, Subscriber $subscriber, array $streams, string $event, array|string $payload): void {
 		try {
-			$status = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+			$status = is_string($payload)
+				? $payload
+				: json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 			if ($subscriber->eventStream) {
 				$server->send($subscriber, 'event: ' . $event . "\ndata: " . $status . "\n\n");
 				return;

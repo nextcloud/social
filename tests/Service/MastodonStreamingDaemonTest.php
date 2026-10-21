@@ -19,12 +19,14 @@ use OCA\Social\Db\StatusRevisionsRequest;
 use OCA\Social\Db\StreamRequest;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\ActivityPub\Stream;
+use OCA\Social\Model\Client\Announcement;
 use OCA\Social\Model\Client\Conversation;
 use OCA\Social\Model\Client\Filter;
 use OCA\Social\Model\Client\MastodonList;
 use OCA\Social\Model\Client\Options\ProbeOptions;
 use OCA\Social\Model\Client\SocialClient;
 use OCA\Social\Service\AccountService;
+use OCA\Social\Service\AnnouncementService;
 use OCA\Social\Service\ClientService;
 use OCA\Social\Service\ConversationService;
 use OCA\Social\Service\FeedDisplayService;
@@ -48,6 +50,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 	private StatusDeletionEventsRequest&MockObject $statusDeletionEvents;
 	private FollowsRequest&MockObject $follows;
 	private FiltersRequest&MockObject $filterRows;
+	private AnnouncementService&MockObject $announcements;
 	private StreamService&MockObject $streams;
 	private ConversationService&MockObject $conversations;
 	private ListsRequest&MockObject $lists;
@@ -67,6 +70,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$this->statusDeletionEvents->method('newestId')->willReturn(12);
 		$this->follows = $this->createMock(FollowsRequest::class);
 		$this->filterRows = $this->createMock(FiltersRequest::class);
+		$this->announcements = $this->createMock(AnnouncementService::class);
 		$this->streams = $this->createMock(StreamService::class);
 		$this->conversations = $this->createMock(ConversationService::class);
 		$this->lists = $this->createMock(ListsRequest::class);
@@ -87,6 +91,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 			$this->statusDeletionEvents,
 			$this->follows,
 			$this->filterRows,
+			$this->announcements,
 			$this->streams,
 			$this->conversations,
 			$this->lists,
@@ -430,7 +435,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$payload = stream_get_contents($subscriber->socket);
 		self::assertIsString($payload);
 		self::assertStringContainsString('event: delete', $payload);
-		self::assertStringContainsString('data: "75"', $payload);
+		self::assertStringContainsString('data: 75', $payload);
 	}
 
 	public function testPublicMediaStreamDoesNotReceiveDeletedTextStatus(): void {
@@ -472,7 +477,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$payload = stream_get_contents($subscriber->socket);
 		self::assertIsString($payload);
 		self::assertStringContainsString('event: delete', $payload);
-		self::assertStringContainsString('data: "75"', $payload);
+		self::assertStringContainsString('data: 75', $payload);
 	}
 
 	public function testDirectDeletionIsNotSentToNonRecipient(): void {
@@ -530,7 +535,7 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$payload = stream_get_contents($subscriber->socket);
 		self::assertIsString($payload);
 		self::assertStringContainsString('event: delete', $payload);
-		self::assertStringContainsString('data: "75"', $payload);
+		self::assertStringContainsString('data: 75', $payload);
 	}
 
 	public function testFollowersOnlyDeletionDoesNotReachAnUnrelatedUser(): void {
@@ -726,6 +731,72 @@ class MastodonStreamingDaemonTest extends TestCase {
 		$server->expects(self::never())->method('send');
 
 		$this->invoke('sendFilterChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testNewAnnouncementsAreStreamedToTheUser(): void {
+		$announcement = (new Announcement())->setId(9)->setText('Maintenance tonight')->setPublishedAt(1_800_000_000)->setUpdatedAt(1_800_000_000);
+		$this->announcements->expects(self::once())->method('active')->willReturn([$announcement]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => []];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user'],
+			'event' => 'announcement',
+			'payload' => json_encode($announcement, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testReactionCountChangesAreStreamed(): void {
+		$before = (new Announcement())->setId(9)->setText('Maintenance tonight');
+		$after = (new Announcement())->setId(9)->setText('Maintenance tonight')
+			->setReactions(['😀' => ['count' => 1, 'me' => false]]);
+		$this->announcements->expects(self::once())->method('active')->willReturn([$after]);
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => $before->jsonSerialize()]];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['user'],
+			'event' => 'announcement.reaction',
+			'payload' => json_encode(['name' => '😀', 'count' => 1, 'announcement_id' => '9'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+		], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testRemovedAnnouncementsUseRawIdForSseDeleteEvent(): void {
+		$this->announcements->expects(self::once())->method('active')->willReturn([]);
+		$announcement = (new Announcement())->setId(9)->setText('Maintenance tonight');
+		$subscriber = $this->subscriber();
+		$subscriber->eventStream = true;
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => ['9' => $announcement->jsonSerialize()]];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, "event: announcement.delete\ndata: 9\n\n");
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user' => true], 1_800_000_000);
+	}
+
+	public function testAnnouncementEventsAreNotSentOnNotificationOnlyStream(): void {
+		$this->announcements->expects(self::never())->method('active');
+		$subscriber = $this->subscriber();
+		$subscriber->context = ['announcementCheckedAt' => 1_799_999_990, 'announcementState' => []];
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::never())->method('send');
+
+		$this->invoke('sendAnnouncementChanges', $server, $subscriber, new Person(), ['user:notification' => true], 1_800_000_000);
+	}
+
+	public function testWebSocketDeletePayloadIsAStringNotAJsonString(): void {
+		$subscriber = $this->subscriber();
+		$server = $this->createMock(WebSocketServer::class);
+		$server->expects(self::once())->method('send')->with($subscriber, (string)json_encode([
+			'stream' => ['public'],
+			'event' => 'delete',
+			'payload' => '75',
+		]));
+
+		$this->invoke('send', $server, $subscriber, ['public'], 'delete', '75');
 	}
 
 	private function client(array $scopes): SocialClient {
