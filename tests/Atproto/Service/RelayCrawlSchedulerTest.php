@@ -12,6 +12,7 @@ namespace OCA\Social\Tests\Atproto\Service;
 use OCA\Social\Atproto\Firehose\EventService;
 use OCA\Social\Atproto\Firehose\FirehoseDaemon;
 use OCA\Social\Atproto\Service\AtprotoConfig;
+use OCA\Social\Atproto\Service\AtprotoStatusService;
 use OCA\Social\Atproto\Service\RelayClient;
 use OCA\Social\Atproto\Service\RelayCrawlScheduler;
 use OCA\Social\Service\ConfigService;
@@ -25,13 +26,15 @@ class RelayCrawlSchedulerTest extends TestCase {
 	/** @var array<string, string> */
 	private array $values = [];
 
-	private function scheduler(int $now, ?array $status, bool $enabled, array $results, ?int &$calls = null): RelayCrawlScheduler {
+	private function scheduler(int $now, ?array $status, bool $enabled, array $results, ?int &$calls = null, bool $indexingGap = false): RelayCrawlScheduler {
 		$time = $this->createMock(ITimeFactory::class);
 		$time->method('getTime')->willReturn($now);
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn($enabled);
 		$firehose = $this->createMock(FirehoseDaemon::class);
 		$firehose->method('status')->willReturn($status);
+		$health = $this->createMock(AtprotoStatusService::class);
+		$health->method('hasRelayIndexingGap')->willReturn($indexingGap);
 		$relays = $this->createMock(RelayClient::class);
 		$relays->method('requestCrawl')->willReturnCallback(static function () use ($results, &$calls): array {
 			$calls = ($calls ?? 0) + 1;
@@ -44,7 +47,7 @@ class RelayCrawlSchedulerTest extends TestCase {
 			$this->values[$key] = $value;
 		});
 
-		return new RelayCrawlScheduler($config, $relays, $firehose, $configService, $time, new NullLogger());
+		return new RelayCrawlScheduler($config, $relays, $firehose, $health, $configService, $time, new NullLogger());
 	}
 
 	public function testFirstEnabledMaintenanceRunRequestsCrawlOnce(): void {
@@ -91,5 +94,19 @@ class RelayCrawlSchedulerTest extends TestCase {
 
 		self::assertSame(0, $calls);
 		self::assertSame([], $this->values);
+	}
+
+	public function testAcceptedButUnindexedRepositoryIsRecrawledAfterGraceAndCooldown(): void {
+		$now = 1000 + 6 * 3600;
+		$this->values[ConfigService::ATPROTO_CRAWL_ATTEMPTED] = '1000';
+		$this->values[ConfigService::ATPROTO_CRAWL_ACCEPTED] = '1000';
+		$calls = 0;
+		$scheduler = $this->scheduler($now, null, true, ['https://relay.example' => 'ok'], $calls, true);
+
+		$scheduler->run();
+		$scheduler->run();
+
+		self::assertSame(1, $calls);
+		self::assertSame((string)$now, $this->values[ConfigService::ATPROTO_CRAWL_ATTEMPTED]);
 	}
 }

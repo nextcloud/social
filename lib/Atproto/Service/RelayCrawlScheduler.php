@@ -24,11 +24,13 @@ use Throwable;
 class RelayCrawlScheduler {
 	private const FAILED_RETRY = 15 * 60;
 	private const OUTAGE_RETRY = 6 * 3600;
+	private const INDEXING_GRACE = 3600;
 
 	public function __construct(
 		private AtprotoConfig $config,
 		private RelayClient $relays,
 		private FirehoseDaemon $firehose,
+		private AtprotoStatusService $status,
 		private ConfigService $configService,
 		private ITimeFactory $time,
 		private LoggerInterface $logger,
@@ -51,8 +53,15 @@ class RelayCrawlScheduler {
 		$firstRequest = $attempted === 0;
 		$retryFailedInitialRequest = $accepted === 0 && $attempted > 0 && $now - $attempted >= self::FAILED_RETRY;
 		$retryAfterOutage = $missedReplayWindow && $attempted > 0 && $now - $attempted >= self::OUTAGE_RETRY;
+		$indexingRetryDue = $accepted > 0
+			&& $now - $accepted >= self::INDEXING_GRACE
+			&& $attempted > 0
+			&& $now - $attempted >= self::OUTAGE_RETRY;
+		$indexingGap = $indexingRetryDue
+			&& $this->status->hasRelayIndexingGap();
+		$retryAfterIndexingGap = $indexingGap;
 
-		if (!$firstRequest && !$retryFailedInitialRequest && !$retryAfterOutage) {
+		if (!$firstRequest && !$retryFailedInitialRequest && !$retryAfterOutage && !$retryAfterIndexingGap) {
 			return;
 		}
 
@@ -69,7 +78,7 @@ class RelayCrawlScheduler {
 			}
 			$this->logger->info('Automatic Bluesky relay crawl request completed', [
 				'results' => $results,
-				'reason' => $firstRequest ? 'initial' : ($missedReplayWindow ? 'firehose-outage' : 'retry'),
+				'reason' => $firstRequest ? 'initial' : ($missedReplayWindow ? 'firehose-outage' : ($indexingGap ? 'indexing-gap' : 'retry')),
 			]);
 		} catch (Throwable $e) {
 			$this->configService->setAppValue(ConfigService::ATPROTO_CRAWL_RESULTS, (string)json_encode(['error' => substr($e->getMessage(), 0, 200)], JSON_UNESCAPED_SLASHES));

@@ -162,6 +162,21 @@ class AtprotoStatusService {
 		return true;
 	}
 
+	/** Whether an active repository is still missing from configured relays or the public AppView. */
+	public function hasRelayIndexingGap(): bool {
+		if ($this->identities->firstActive() === null) {
+			return false;
+		}
+		$watched = ['relay_repo', 'appview_profile', 'appview_post'];
+		foreach ($this->checks() as $check) {
+			if (in_array($check['id'] ?? '', $watched, true) && ($check['state'] ?? '') !== 'ok') {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private function trustedDomainCheck(): array {
 		$host = $this->safe(fn (): string => $this->config->handleHost());
 		$domains = $this->systemConfig->getSystemValue('trusted_domains', []);
