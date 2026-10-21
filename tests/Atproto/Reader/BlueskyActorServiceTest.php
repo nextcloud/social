@@ -22,6 +22,7 @@ use OCA\Social\Exceptions\CacheActorDoesNotExistException;
 use OCA\Social\Model\ActivityPub\Actor\Person;
 use OCA\Social\Model\Details;
 use OCA\Social\Service\ActorService;
+use OCA\Social\Service\CurlService;
 use OCA\Social\Service\VerificationService;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -134,6 +135,27 @@ class BlueskyActorServiceTest extends TestCase {
 		$this->assertSame('https://pds.example', $this->service->pdsEndpoint(self::DID));
 		$this->assertSame('https://pds.example', $this->service->pdsEndpoint(self::DID), 'one DID document read per service instance');
 		$this->assertSame('', $this->service->pdsEndpoint('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa'), 'a private IP is never used as a blob origin');
+	}
+
+	public function testDidWebPdsIsResolvedThroughTheGuardedHttpsClient(): void {
+		$did = 'did:web:example.com:users:alice';
+		$curl = $this->createMock(CurlService::class);
+		$curl->expects($this->once())->method('doRequest')->with(
+			'get', 'https://example.com/users/alice/did.json', $this->callback(static fn (array $options): bool => $options['timeout'] === 5 && $options['json_headers'] === false),
+			$this->anything(), $this->anything(),
+		)->willReturnCallback(static function (string $method, string $url, array $options, ?string &$contentType, ?int &$statusCode) use ($did): string {
+			$contentType = 'application/did+json';
+			$statusCode = 200;
+
+			return (string)json_encode([
+				'id' => $did,
+				'service' => [['id' => '#atproto_pds', 'serviceEndpoint' => 'https://pds.example/']],
+			]);
+		});
+		$service = new BlueskyActorService($this->config, $this->appView, $this->plc, $this->createMock(ActorMapper::class), $this->cache, $this->actors, $this->createMock(Blocklist::class), new NullLogger(), null, $curl);
+
+		$this->assertSame('https://pds.example', $service->pdsEndpoint($did));
+		$this->assertSame('', $service->pdsEndpoint('did:web:localhost'), 'local DID web hosts are not fetched');
 	}
 
 	public function testABlockedAccountIsNotResolvedByDidOrByItsHost(): void {
