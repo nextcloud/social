@@ -28,6 +28,40 @@ use UnexpectedValueException;
 
 #[AllowMockObjectsWithoutExpectations]
 class BlueskyInteractionSourceTest extends TestCase {
+	public function testReactionIsKeptWhenCachingTheActorFails(): void {
+		$config = $this->createMock(AtprotoConfig::class);
+		$config->method('isEnabled')->willReturn(true);
+		$refs = $this->createMock(PostRefs::class);
+		$refs->method('strongRef')->willReturn(['uri' => 'at://did:plc:alice/app.bsky.feed.post/3k', 'cid' => 'bafy']);
+		$appView = $this->createMock(AppViewClient::class);
+		$appView->method('query')->willReturn(['likes' => [[
+			'actor' => ['did' => 'did:plc:ann', 'handle' => 'ann.test'],
+		]]]);
+		$actors = $this->createMock(BlueskyActorService::class);
+		$actors->method('cached')->willReturn(null);
+		$actors->expects($this->once())
+			->method('store')
+			->willThrowException(new \RuntimeException('temporary actor store failure'));
+		$mapper = $this->createMock(ActorMapper::class);
+		$mapper->method('person')->willReturn(new Person());
+		$source = new BlueskyInteractionSource(
+			$config,
+			$appView,
+			$refs,
+			$this->createMock(PostStore::class),
+			$mapper,
+			$actors,
+			$this->createMock(LabelerService::class),
+			new NullLogger(),
+			$this->createMock(DurableCache::class),
+		);
+
+		$this->assertSame(
+			['https://bsky.app/profile/did:plc:ann'],
+			$source->actors((new Note())->setId('https://social.test/@alice/1'), 'Like', 10),
+		);
+	}
+
 	public function testReactionViewRefreshesCachedAvatarWithoutDroppingTheProfile(): void {
 		$config = $this->createMock(AtprotoConfig::class);
 		$config->method('isEnabled')->willReturn(true);

@@ -11,6 +11,7 @@ namespace OCA\Social\Atproto\Reader;
 
 use OCA\Social\Atproto\AppView\AppViewClient;
 use OCA\Social\Atproto\Moderation\LabelerService;
+use OCA\Social\Atproto\Protocol\Syntax;
 use OCA\Social\Atproto\Publisher\PostRefs;
 use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Model\ActivityPub\Object\Like;
@@ -75,9 +76,13 @@ class BlueskyInteractionSource implements InteractionSource {
 			}
 			$profile = is_array($entry['actor'] ?? null) ? $entry['actor'] : $entry;
 			$did = is_array($profile) ? (string)($profile['did'] ?? '') : '';
-			if ($did === '' || !is_string($profile['handle'] ?? null) || $profile['handle'] === '') {
+			if (!Syntax::isDid($did) || !is_string($profile['handle'] ?? null) || trim($profile['handle']) === '') {
 				throw new UnexpectedValueException('Bluesky reaction response contains an incomplete actor');
 			}
+			// Keep the valid identity even if caching its profile fails. The
+			// interaction service can then queue a separate actor resolution
+			// instead of silently dropping this reaction from the list.
+			$ids[] = BlueskyIds::actorId($did);
 			try {
 				$cached = $this->actors->cached($did);
 				$avatarUrl = trim((string)($profile['avatar'] ?? ''));
@@ -97,7 +102,6 @@ class BlueskyInteractionSource implements InteractionSource {
 						}
 					}
 				}
-				$ids[] = BlueskyIds::actorId($did);
 			} catch (Throwable $e) {
 				$this->logger->debug('A Bluesky account was not cached', ['did' => $did, 'exception' => $e]);
 			}
