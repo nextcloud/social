@@ -18,6 +18,7 @@ use OCA\Social\Atproto\Service\AtprotoConfig;
 use OCA\Social\Atproto\Xrpc\XrpcException;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\AtprotoClientRequest;
+use OCA\Social\Exceptions\ActorDoesNotExistException;
 use OCA\Social\Exceptions\AtprotoIdentityNotFoundException;
 use OCA\Social\Exceptions\MoveErrorException;
 use OCP\Accounts\IAccountManager;
@@ -68,14 +69,13 @@ class SessionService {
 		} catch (MaxDelayReached) {
 			throw new XrpcException(429, 'RateLimitExceeded', 'Too many attempts; try again later');
 		}
-		$identity = $this->identityOf($identifier);
-		$userId = $identity === null ? '' : $this->userIdOf($identity);
-		$appPasswordId = $userId === '' ? null : $this->appPasswords->verify($userId, $password);
-		if ($identity === null || $appPasswordId === null) {
-			$this->throttler->registerAttempt(self::THROTTLE, $ip, ['identifier' => substr($identifier, 0, 100)]);
+		$credentials = $this->credentialsOf($identifier, $password);
+		if ($credentials === null) {
+			$this->throttler->registerAttempt(self::THROTTLE, $ip);
 
 			throw new XrpcException(401, 'AuthenticationRequired', 'Invalid identifier or password');
 		}
+		[$identity, $userId, $appPasswordId] = $credentials;
 		if ($identity->state === Identity::STATE_TOMBSTONED || $identity->state === Identity::STATE_MOVED_AWAY) {
 			throw new XrpcException(400, 'AccountTakedown', 'This account is no longer hosted here');
 		}
@@ -310,25 +310,43 @@ class SessionService {
 	}
 
 	/**
-	 * The identity a sign-in names: a handle, a DID, or the e-mail address of
-	 * the Nextcloud account.
+	 * The account a sign-in names, with the app password that authenticates
+	 * it. An e-mail address may belong to more than one Nextcloud account, so
+	 * each matching account is checked until its own app password matches.
+	 *
+	 * @return array{Identity, string, int}|null
 	 */
-	private function identityOf(string $identifier): ?Identity {
+	private function credentialsOf(string $identifier, string $password): ?array {
 		$identifier = strtolower(trim(ltrim(trim($identifier), '@')));
+		$identities = [];
 		try {
 			if (Syntax::isDid($identifier)) {
-				return $this->identities->getByDid($identifier);
-			}
-			if (Syntax::isHandle($identifier)) {
-				return $this->identities->getByHandle($identifier);
-			}
-			if (str_contains($identifier, '@')) {
+				$identities[] = $this->identities->getByDid($identifier);
+			} elseif (Syntax::isHandle($identifier)) {
+				$identities[] = $this->identities->getByHandle($identifier);
+			} elseif (str_contains($identifier, '@')) {
 				foreach ($this->userManager->getByEmail($identifier) as $user) {
-					return $this->identities->getByActorId($this->actors->getFromUserId($user->getUID())->getId());
+					try {
+						$identity = $this->identities->getByActorId($this->actors->getFromUserId($user->getUID())->getId());
+						$identities[$identity->actorId] = $identity;
+					} catch (ActorDoesNotExistException|AtprotoIdentityNotFoundException) {
+						continue;
+					}
 				}
 			}
-		} catch (AtprotoIdentityNotFoundException) {
 		} catch (Throwable) {
+			return null;
+		}
+
+		foreach ($identities as $identity) {
+			$userId = $this->userIdOf($identity);
+			if ($userId === '') {
+				continue;
+			}
+			$appPasswordId = $this->appPasswords->verify($userId, $password);
+			if ($appPasswordId !== null) {
+				return [$identity, $userId, $appPasswordId];
+			}
 		}
 
 		return null;
