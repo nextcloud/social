@@ -121,7 +121,7 @@ class AtprotoStatusServiceTest extends TestCase {
 		$keySeals = $this->createMock(KeySealService::class);
 		$keySeals->method('countSealed')->willReturnCallback(fn (): int => $this->sealedKeys);
 		$identities = $this->createMock(IdentityService::class);
-		$identities->method('firstActive')->willReturn($identity);
+		$identities->method('latestActive')->willReturn($identity);
 
 		$configService = $this->createMock(ConfigService::class);
 		$configService->method('getAppValue')->willReturnCallback(static fn (string $key): string => $configValues[$key] ?? '0');
@@ -250,7 +250,7 @@ class AtprotoStatusServiceTest extends TestCase {
 	public function testPublicDidProfileAndPostVisibilityAreChecked(): void {
 		$identity = new Identity(1, 'https://social.example/users/alice', 'did:plc:ewvi7nxzyoun6zhxrhs64oiz', 'alice.social.example', '', '', '', Identity::STATE_ACTIVE, '', 0);
 		$identities = $this->createMock(IdentityService::class);
-		$identities->method('firstActive')->willReturn($identity);
+		$identities->method('latestActive')->willReturn($identity);
 		$record = new StoredRecord($identity->did, 'app.bsky.feed.post', '3kabc', Cid::parse('bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'), '', '1', 1);
 		$records = $this->createMock(AtprotoRepoRequest::class);
 		$records->method('latestActivePost')->willReturn($record);

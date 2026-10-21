@@ -110,7 +110,18 @@ class RepositoryIntegrationTest extends TestCase {
 		$this->identityRequest->setState(self::DID, 'active');
 
 		$this->assertSame(self::DID, $this->identityRequest->firstActive()?->did);
+		$this->assertSame(self::DID, $this->identityRequest->latestActive()?->did);
 		$this->assertSame('at://' . self::DID . '/app.bsky.feed.post/3khealthprobe2', $this->repoRequest->latestActivePost()?->uri());
+	}
+
+	public function testHealthProbeSelectsTheNewestActiveIdentity(): void {
+		$olderDid = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
+		$newerDid = 'did:plc:zv2c4g5p6q7r8s9t0u1v2w3x';
+		$this->identityRequest->create('https://social.test/users/older', $olderDid, 'older.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
+		$this->identityRequest->create('https://social.test/users/newer', $newerDid, 'newer.social.test', 'sealed', 'did:key:zQ3sh', '', Identity::STATE_ACTIVE);
+
+		$this->assertSame($olderDid, $this->identityRequest->firstActive()?->did);
+		$this->assertSame($newerDid, $this->identityRequest->latestActive()?->did);
 	}
 
 	/**

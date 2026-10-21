@@ -136,7 +136,7 @@ class AtprotoStatusService {
 		];
 		$checks[] = $this->firehoseCheck();
 		$checks[] = $this->relayCheck();
-		$identity = $this->identities->firstActive();
+		$identity = $this->identities->latestActive();
 		$checks[] = $this->relayRepoCheck($identity);
 		$checks[] = $this->didResolutionCheck($identity);
 		$checks[] = $this->appViewProfileCheck($identity);
@@ -164,7 +164,7 @@ class AtprotoStatusService {
 
 	/** Whether an active repository is still missing from configured relays or the public AppView. */
 	public function hasRelayIndexingGap(): bool {
-		if ($this->identities->firstActive() === null) {
+		if ($this->identities->latestActive() === null) {
 			return false;
 		}
 		$watched = ['relay_repo', 'appview_profile', 'appview_post'];
