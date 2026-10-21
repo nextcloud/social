@@ -177,6 +177,12 @@ class CountService {
 		}
 	}
 
+	/** Whether a visible refresh of this post is still running or queued. */
+	public function visibleRefreshPending(string $postId): bool {
+		return $this->visibleState($postId) === self::VISIBLE_PENDING
+			|| $this->locks->isLocked(self::VISIBLE_LOCK . md5($postId), ILockingProvider::LOCK_EXCLUSIVE);
+	}
+
 	/** How long a post's counts stand before it is asked about again, in seconds. */
 	public static function interval(Stream $post, int $now): int {
 		return ($now - $post->getPublishedTime() < self::YOUNG) ? self::YOUNG_INTERVAL : self::OLD_INTERVAL;

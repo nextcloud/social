@@ -527,7 +527,8 @@ class StatusApiController extends MastodonApiController {
 			// for the post again a little later
 			$response = new DataResponse($item, Http::STATUS_OK);
 			$queued = $refresh_counts && !$refreshed && $this->counts->seen([$item]);
-			if ($refreshed || $queued) {
+			$refreshPending = $refreshed && $this->counts->visibleRefreshPending($item->getId());
+			if ($refreshPending || $queued) {
 				$response->addHeader('X-Social-Filling', '1');
 			}
 

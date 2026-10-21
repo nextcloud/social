@@ -1546,6 +1546,19 @@ class ApiControllerTest extends TestCase {
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
 	}
 
+	public function testACompletedLiveCountReadDoesNotAskTheClientToPollAgain(): void {
+		$this->userSession->method('getUser')->willReturn(null);
+		$item = $this->createMock(Stream::class);
+		$this->streamService->method('getStreamByNid')->willReturn($item);
+		$this->counts->expects($this->once())->method('refreshVisibleIfDue')->with($item, true)->willReturn(true);
+		$this->counts->expects($this->once())->method('visibleRefreshPending')->with($this->anything())->willReturn(false);
+		$this->counts->expects($this->never())->method('seen');
+
+		$response = $this->controller()->statusGet(42, true, true);
+
+		$this->assertArrayNotHasKey('X-Social-Filling', $response->getHeaders());
+	}
+
 	public function testAStatusWhoseCountsAreCurrentSaysNothingIsOnItsWay(): void {
 		$this->userSession->method('getUser')->willReturn(null);
 		$item = $this->createMock(Stream::class);

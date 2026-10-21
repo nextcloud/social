@@ -165,7 +165,24 @@ class CountServiceTest extends TestCase {
 
 		$service = $this->service();
 		$this->assertTrue($service->refreshVisibleIfDue($post, true));
+		$this->assertFalse($service->visibleRefreshPending($post->getId()), 'an answered live read is complete');
 		$this->assertTrue($service->refreshVisibleIfDue($post, true), 'a new detail-page open bypasses the prior short freshness window');
+		$this->assertFalse($service->visibleRefreshPending($post->getId()));
+	}
+
+	public function testVisibleRefreshReportsPendingWhenAnotherRequestHoldsTheLock(): void {
+		$post = $this->post('https://remote.example/1', 3600, null);
+		$locks = $this->createMock(ILockingProvider::class);
+		$locks->expects($this->once())->method('isLocked')->with('social-visible-count-' . md5($post->getId()), ILockingProvider::LOCK_EXCLUSIVE)->willReturn(true);
+		$time = $this->createStub(ITimeFactory::class);
+		$time->method('getTime')->willReturn(self::NOW);
+		$cacheFactory = $this->createStub(ICacheFactory::class);
+		$cacheFactory->method('isAvailable')->willReturn(false);
+		$durableCache = new DurableCache($cacheFactory, $this->cacheRows, $time);
+		$container = $this->createStub(ContainerInterface::class);
+		$service = new CountService($this->streams, $this->writer, $this->queue, $time, new NullLogger(), $locks, $durableCache, $container);
+
+		$this->assertTrue($service->visibleRefreshPending($post->getId()));
 	}
 
 	public function testConcurrentVisibleRefreshDoesNotAskBlueskyTwice(): void {
