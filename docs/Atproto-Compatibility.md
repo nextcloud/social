@@ -808,6 +808,12 @@ go there).
   to a post that is not on Bluesky is published as a top-level post with
   the parent's URL as a `#link` — the thread cannot be joined, and saying
   nothing would hide the post.
+- **A Bluesky-only parent on ActivityPub** is exported as a standalone post
+  with a link to the Bluesky parent. Its ATProto record still carries the
+  native `reply` reference, but ActivityPub peers are not given an
+  `inReplyTo` they cannot resolve, nor a delivery to the synthetic Bluesky
+  actor. This also applies when the local post is edited or a held delivery
+  is rebuilt (`ActivityService`).
 - **Who may reply** (`app.bsky.feed.threadgate` on the thread's root): a
   thread its author closed to everybody is marked when it is read, so the
   reply is not offered here (`interaction_policy.reply` false); a narrower
@@ -2904,16 +2910,10 @@ direction `inbound` in `social_atproto_move`:
 
 For the owner, not blocking phase 1:
 
-1. **Bluesky-only replies.** A Bluesky user replies to alice's post; alice
-   answers from here; her answer goes to Bluesky (§8.3) — and to the
-   Fediverse, where the parent does not exist. Publish it as an ordinary
-   public post there (the parent linked), or keep a reply-to-Bluesky off
-   the Fediverse? Recommended: publish, parent linked — one post, two
-   addresses, as D8 says.
-2. **Who pays for pictures.** A re-encoded picture is a second stored file
+1. **Who pays for pictures.** A re-encoded picture is a second stored file
    per picture per post. Count it against the user's quota (it is their
    post) or the app's? Recommended: the user's, like the original.
-3. **Relay choice.** `bsky.network` only, or also announce to independent
+2. **Relay choice.** `bsky.network` only, or also announce to independent
    relays by default? Recommended: `bsky.network` default, list editable.
 
 ## 20. Facts, and when they were checked

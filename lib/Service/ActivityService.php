@@ -11,6 +11,7 @@ namespace OCA\Social\Service;
 
 use Exception;
 use OCA\Social\AP;
+use OCA\Social\Atproto\Reader\BlueskyIds;
 use OCA\Social\Db\ActorsRequest;
 use OCA\Social\Db\CacheActorsRequest;
 use OCA\Social\Db\FollowsRequest;
@@ -114,6 +115,7 @@ class ActivityService {
 		$activity->setId($item->getId() . '/activity');
 		$activity->setInstancePaths($item->getInstancePaths());
 		$this->copyAudience($item, $activity);
+		$this->prepareActivityPubReply($item, $activity);
 
 		$activity->setActor($actor);
 		$this->signatureService->signObject($actor, $activity);
@@ -152,6 +154,7 @@ class ActivityService {
 		$update->setId($item->getId() . '#updates/' . $this->updateSerial($item));
 		$update->setInstancePaths($item->getInstancePaths());
 		$this->copyAudience($item, $update);
+		$this->prepareActivityPubReply($item, $update);
 		if ($item instanceof Person) {
 			$this->addressActorUpdate($item, $update);
 		}
@@ -346,6 +349,25 @@ class ActivityService {
 		$activity->setTo($item->getTo());
 		$activity->setToArray($item->getToArray());
 		$activity->setCcArray($item->getCcArray());
+	}
+
+	/**
+	 * ActivityPub peers cannot join a reply whose parent exists only in ATProto.
+	 * Preserve the native parent on the stored stream for the Bluesky publisher;
+	 * make the ActivityPub copy standalone and link back to the parent instead.
+	 */
+	private function prepareActivityPubReply(ACore $item, ACore $activity): void {
+		if (!$item instanceof Stream || !BlueskyIds::isPostId($item->getInReplyTo())) {
+			return;
+		}
+
+		$item->setActivityPubReplyLink($item->getInReplyTo());
+		$authorId = BlueskyIds::actorId(BlueskyIds::didOf($item->getInReplyTo()));
+		$activity->setCcArray(array_values(array_diff($activity->getCcArray(), [$authorId])));
+		$activity->setInstancePaths(array_values(array_filter(
+			$activity->getInstancePaths(),
+			static fn (InstancePath $path): bool => $path->getAddress() !== BlueskyIds::HOST
+		)));
 	}
 
 	/**
