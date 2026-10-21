@@ -216,6 +216,20 @@ class AtprotoAppsTest extends TestCase {
 		$this->assertGreaterThanOrEqual(400, $result['logout']['refreshStatus'], 'logout revokes the official client refresh token');
 	}
 
+	public function testPdsDoesNotRevealWhetherAnIdentifierHasAnAccount(): void {
+		$identity = Server::get(IdentityService::class)->forActor($this->alice->actor);
+		$this->assertNotNull($identity);
+		$app = AppClient::at((string)getenv('NEXTCLOUD_URL') ?: 'https://nextcloud.test');
+
+		[$knownStatus, $knownError] = $app->signIn($identity->handle, 'not-an-app-password');
+		[$unknownStatus, $unknownError] = $app->signIn('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa', 'not-an-app-password');
+
+		$this->assertSame(401, $knownStatus);
+		$this->assertSame($knownStatus, $unknownStatus);
+		$this->assertSame($knownError['error'] ?? null, $unknownError['error'] ?? null);
+		$this->assertSame($knownError['message'] ?? null, $unknownError['message'] ?? null);
+	}
+
 	/** A small PNG, made here so the test carries no binary file. */
 	private static function picture(): string {
 		$image = imagecreatetruecolor(64, 48);
